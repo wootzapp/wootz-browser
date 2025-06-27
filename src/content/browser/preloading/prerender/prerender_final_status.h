@@ -103,7 +103,7 @@ enum class PrerenderFinalStatus {
   // from the initial prerendering navigation so Prerender fails to activate it.
   kActivationNavigationParameterMismatch = 50,
   kActivatedInBackground = 51,
-  kEmbedderHostDisallowed = 52,
+  // kEmbedderHostDisallowed = 52, // No longer used.
   // Called when encounter failures during synchronous activation.
   // TODO(crbug.com/40238737): Remove this reason if no sample is
   // recorded in stable, or look into the reason if there are.
@@ -160,7 +160,25 @@ enum class PrerenderFinalStatus {
 
   kAllPrerenderingCanceled = 81,
 
-  kMaxValue = kAllPrerenderingCanceled,
+  // Cancelled by window.close() from renderer side.
+  kWindowClosed = 82,
+
+  kSlowNetwork = 83,
+  kOtherPrerenderedPageActivated = 84,
+
+  // When the V8 optimizer is disabled by the site settings, prerendering a page
+  // that has the COOP crashes (see https://crbug.com/40076091 for details). To
+  // avoid it, prerendering is disabled in that case.
+  // kV8OptimizerDisabled = 85,
+
+  // Prefetch ahead of prerender failed. Precise reason is recorded as UMA
+  // `Prerender.Experimental.PrefetchAheadOfPrerenderFailed.PrefetchStatus{PreloadingTriggerType}`
+  kPrerenderFailedDuringPrefetch = 86,
+
+  // Prerendering canceled by clearing cache from browsing data removal.
+  kBrowsingDataRemoved = 87,
+
+  kMaxValue = kBrowsingDataRemoved,
 };
 // LINT.ThenChange()
 

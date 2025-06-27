@@ -14,7 +14,6 @@
 #include "base/files/file_path.h"
 #include "base/scoped_native_library.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "services/screen_ai/proto/chrome_screen_ai.pb.h"
 #include "services/screen_ai/screen_ai_library_wrapper.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -40,13 +39,9 @@ class ScreenAILibraryWrapperFake : public ScreenAILibraryWrapper {
       void (*get_file_content)(const char* relative_file_path,
                                uint32_t buffer_size,
                                char* buffer)) override;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   void SetLogger() override;
 #endif
-
-  bool InitLayoutExtraction() override;
-  std::optional<chrome_screen_ai::VisualAnnotation> ExtractLayout(
-      const SkBitmap& image) override;
 
   bool InitMainContentExtraction() override;
   std::optional<std::vector<int32_t>> ExtractMainContent(

@@ -6,15 +6,15 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
-#include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/task_type.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_script_execution_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/sanitize_script_errors.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_evaluation_result.h"
@@ -51,7 +51,7 @@ class PromiseAggregator : public GarbageCollected<PromiseAggregator> {
 
  private:
   // A helper class that handles a result from a single promise value.
-  class OnSettled : public ScriptFunction::Callable {
+  class OnSettled : public ThenCallable<IDLAny, OnSettled> {
    public:
     OnSettled(PromiseAggregator* aggregator,
               wtf_size_t index,
@@ -63,16 +63,7 @@ class PromiseAggregator : public GarbageCollected<PromiseAggregator> {
     OnSettled& operator=(const OnSettled&) = delete;
     ~OnSettled() override = default;
 
-    static ScriptFunction* New(ScriptState* script_state,
-                               PromiseAggregator* aggregator,
-                               wtf_size_t index,
-                               bool was_fulfilled) {
-      return MakeGarbageCollected<ScriptFunction>(
-          script_state,
-          MakeGarbageCollected<OnSettled>(aggregator, index, was_fulfilled));
-    }
-
-    ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
+    void React(ScriptState* script_state, ScriptValue value) {
       DCHECK_GT(aggregator_->outstanding_, 0u);
 
       if (was_fulfilled_) {
@@ -83,13 +74,11 @@ class PromiseAggregator : public GarbageCollected<PromiseAggregator> {
       if (--aggregator_->outstanding_ == 0) {
         aggregator_->OnAllSettled(script_state->GetIsolate());
       }
-
-      return ScriptValue();
     }
 
     void Trace(Visitor* visitor) const override {
       visitor->Trace(aggregator_);
-      ScriptFunction::Callable::Trace(visitor);
+      ThenCallable<IDLAny, OnSettled>::Trace(visitor);
     }
 
    private:
@@ -120,12 +109,14 @@ PromiseAggregator::PromiseAggregator(ScriptState* script_state,
 
     ++outstanding_;
     // ToResolvedPromise<> will turn any non-promise into a promise that
-    // resolves to the value. Calling ToResolvedPromise<>.Then() will either
+    // resolves to the value. Calling ToResolvedPromise<>.React() will either
     // wait for the promise (or then-able) to settle, or will immediately finish
     // with the value. Thus, it's safe to just do this for every value.
     ToResolvedPromise<IDLAny>(script_state, values[i])
-        .Then(OnSettled::New(script_state, this, i, /*was_fulfilled=*/true),
-              OnSettled::New(script_state, this, i, /*was_fulfilled=*/false));
+        .Then(
+            script_state,
+            MakeGarbageCollected<OnSettled>(this, i, /*was_fulfilled=*/true),
+            MakeGarbageCollected<OnSettled>(this, i, /*was_fulfilled=*/false));
   }
 
   if (outstanding_ == 0)
@@ -194,8 +185,10 @@ V8FunctionExecutor::V8FunctionExecutor(v8::Isolate* isolate,
                                        v8::Local<v8::Value> argv[])
     : function_(isolate, function), receiver_(isolate, receiver) {
   args_.reserve(base::checked_cast<wtf_size_t>(argc));
-  for (int i = 0; i < argc; ++i)
-    args_.push_back(TraceWrapperV8Reference<v8::Value>(isolate, argv[i]));
+  for (int i = 0; i < argc; ++i) {
+    args_.push_back(
+        TraceWrapperV8Reference<v8::Value>(isolate, UNSAFE_TODO(argv[i])));
+  }
 }
 
 v8::LocalVector<v8::Value> V8FunctionExecutor::Execute(
@@ -433,7 +426,7 @@ void PausableScriptExecutor::HandleResults(
 void PausableScriptExecutor::Dispose() {
   // Remove object as a ExecutionContextLifecycleObserver.
   // TODO(keishi): Remove IsIteratingOverObservers() check when
-  // HeapObserverSet() supports removal while iterating.
+  // HeapObserverList() supports removal while iterating.
   if (!GetExecutionContext()
            ->ContextLifecycleObserverSet()
            .IsIteratingOverObservers()) {

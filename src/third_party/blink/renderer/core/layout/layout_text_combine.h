@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/paint/line_relative_rect.h"
 
 namespace blink {
@@ -22,7 +22,7 @@ class LayoutText;
 // vertical writing mode, e.g. <i style="text-upright:all"><b>12</b>34<i>.
 // Note: When the element is in horizontal writing mode, we don't use this.
 // Note: Children of this class must be |LayoutText| associated to |Text| node.
-class CORE_EXPORT LayoutTextCombine final : public LayoutNGBlockFlow {
+class CORE_EXPORT LayoutTextCombine final : public LayoutBlockFlow {
  public:
   // Note: Mark constructor public for |MakeGarbageCollected|. We should not
   // call this directly.
@@ -31,18 +31,17 @@ class CORE_EXPORT LayoutTextCombine final : public LayoutNGBlockFlow {
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(compressed_font_);
-    LayoutNGBlockFlow::Trace(visitor);
+    LayoutBlockFlow::Trace(visitor);
   }
 
   float DesiredWidth() const;
   String GetTextContent() const;
 
-  // Compressed font
   const Font* CompressedFont() const {
     NOT_DESTROYED();
-    return has_compressed_font_ ? &compressed_font_ : nullptr;
+    return compressed_font_;
   }
-  void SetCompressedFont(const Font& font);
+  void SetCompressedFont(const Font* font);
 
   // Scaling
 
@@ -129,22 +128,21 @@ class CORE_EXPORT LayoutTextCombine final : public LayoutNGBlockFlow {
   std::optional<float> scale_x_;
 
   // |compressed_font_| hold width variant of |StyleRef().GetFont()|.
-  //
-  // NOTE: This doesn't use a std::optional to avoid a potentially racy branch
-  // within the Trace method.
-  Font compressed_font_;
-  bool has_compressed_font_ = false;
+  Member<const Font> compressed_font_;
 };
 
 // static
 inline bool LayoutTextCombine::ShouldBeParentOf(
     const LayoutObject& layout_object) {
-  if (LIKELY(layout_object.IsHorizontalWritingMode()) ||
-      !layout_object.IsText() || layout_object.IsSVGInlineText()) {
+  if (layout_object.IsHorizontalWritingMode() || !layout_object.IsText() ||
+      layout_object.IsSVGInlineText()) [[likely]] {
     return false;
   }
-  return UNLIKELY(layout_object.StyleRef().HasTextCombine()) &&
-         layout_object.IsLayoutNGObject();
+  if (layout_object.StyleRef().HasTextCombine() &&
+      layout_object.IsLayoutNGObject()) [[unlikely]] {
+    return true;
+  }
+  return false;
 }
 
 template <>

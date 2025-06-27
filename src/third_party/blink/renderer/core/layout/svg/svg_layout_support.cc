@@ -36,7 +36,7 @@
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/svg/svg_element.h"
 #include "third_party/blink/renderer/core/svg/svg_length_functions.h"
-#include "third_party/blink/renderer/platform/graphics/stroke_data.h"
+#include "third_party/blink/renderer/platform/geometry/stroke_data.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/clear_collection_scope.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -87,8 +87,9 @@ gfx::RectF SVGLayoutSupport::LocalVisualRect(const LayoutObject& object) {
 
   // Return early for any cases where we don't actually paint
   if (object.StyleRef().Visibility() != EVisibility::kVisible &&
-      !object.EnclosingLayer()->HasVisibleContent())
+      !object.EnclosingLayer()->HasVisibleContent()) {
     return gfx::RectF();
+  }
 
   gfx::RectF visual_rect = object.VisualRectInLocalSVGCoordinates();
   if (int outset = OutlinePainter::OutlineOutsetExtent(
@@ -331,7 +332,7 @@ bool SVGLayoutSupport::IsLayoutableTextNode(const LayoutObject* object) {
 
 bool SVGLayoutSupport::WillIsolateBlendingDescendantsForStyle(
     const ComputedStyle& style) {
-  return style.HasGroupingProperty(style.BoxReflect()) || style.HasMask();
+  return style.HasGroupingProperty(style.BoxReflect());
 }
 
 bool SVGLayoutSupport::WillIsolateBlendingDescendantsForObject(
@@ -344,9 +345,6 @@ bool SVGLayoutSupport::WillIsolateBlendingDescendantsForObject(
 }
 
 bool SVGLayoutSupport::IsIsolationRequired(const LayoutObject* object) {
-  if (object->StyleRef().HasMask()) {
-    return true;
-  }
   return WillIsolateBlendingDescendantsForObject(object) &&
          object->HasNonIsolatedBlendingDescendants();
 }

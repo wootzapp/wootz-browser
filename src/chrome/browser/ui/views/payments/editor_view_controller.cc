@@ -9,6 +9,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/not_fatal_until.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
@@ -26,6 +27,7 @@
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/button/md_text_button.h"
@@ -53,7 +55,7 @@ std::unique_ptr<views::Label> CreateErrorLabel(const std::u16string& error,
       .SetHorizontalAlignment(gfx::ALIGN_LEFT)
       .SetBorder(views::CreateEmptyBorder(
           gfx::Insets::TLBR(kErrorLabelTopPadding, 0, 0, 0)))
-      .SetEnabledColorId(ui::kColorAlertHighSeverity)
+      .SetEnabledColor(ui::kColorAlertHighSeverity)
       .Build();
 }
 
@@ -105,12 +107,14 @@ std::unique_ptr<views::View> EditorViewController::CreateExtraViewForField(
 
 bool EditorViewController::ValidateInputFields() {
   for (const auto& field : text_fields()) {
-    if (!field.first->IsValid())
+    if (!field.first->IsValid()) {
       return false;
+    }
   }
   for (const auto& field : comboboxes()) {
-    if (!field.first->IsValid())
+    if (!field.first->IsValid()) {
       return false;
+    }
   }
   return true;
 }
@@ -177,8 +181,9 @@ void EditorViewController::UpdateEditorView() {
 }
 
 views::View* EditorViewController::GetFirstFocusedView() {
-  if (initial_focus_field_view_)
+  if (initial_focus_field_view_) {
     return initial_focus_field_view_;
+  }
   return PaymentRequestSheetController::GetFirstFocusedView();
 }
 
@@ -191,11 +196,12 @@ EditorViewController::CreateComboboxForField(const EditorField& field,
   std::unique_ptr<ValidatingCombobox> combobox =
       std::make_unique<ValidatingCombobox>(GetComboboxModelForType(field.type),
                                            std::move(delegate));
-  combobox->SetAccessibleName(field.label);
+  combobox->GetViewAccessibility().SetName(field.label);
 
   std::u16string initial_value = GetInitialValueForType(field.type);
-  if (!initial_value.empty())
+  if (!initial_value.empty()) {
     combobox->SelectValue(initial_value);
+  }
   if (IsEditingExistingItem()) {
     combobox->SetInvalid(
         !delegate_ptr->IsValidCombobox(combobox.get(), error_message));
@@ -246,14 +252,17 @@ std::unique_ptr<views::View> EditorViewController::CreateEditorView() {
     bool valid = false;
     views::View* focusable_field =
         CreateInputField(editor_view.get(), field, &valid);
-    if (!first_field)
+    if (!first_field) {
       first_field = focusable_field;
-    if (!initial_focus_field_view_ && !valid)
+    }
+    if (!initial_focus_field_view_ && !valid) {
       initial_focus_field_view_ = focusable_field;
+    }
   }
 
-  if (!initial_focus_field_view_)
+  if (!initial_focus_field_view_) {
     initial_focus_field_view_ = first_field;
+  }
 
   // Validate all fields and disable the primary (Done) button if necessary.
   primary_button()->SetEnabled(ValidateInputFields());
@@ -354,14 +363,16 @@ views::View* EditorViewController::CreateInputField(views::View* editor_view,
           std::make_unique<ValidatingTextfield>(std::move(validation_delegate));
       // Set the initial value and validity state.
       text_field->SetText(initial_value);
-      text_field->SetAccessibleName(field.label);
+      text_field->GetViewAccessibility().SetName(field.label);
       *valid = IsEditingExistingItem() &&
                delegate_ptr->IsValidTextfield(text_field.get(), &error_message);
-      if (IsEditingExistingItem())
+      if (IsEditingExistingItem()) {
         text_field->SetInvalid(!(*valid));
+      }
 
-      if (field.control_type == EditorField::ControlType::TEXTFIELD_NUMBER)
+      if (field.control_type == EditorField::ControlType::TEXTFIELD_NUMBER) {
         text_field->SetTextInputType(ui::TextInputType::TEXT_INPUT_TYPE_NUMBER);
+      }
       text_field->set_controller(this);
       // Using autofill field type as a view ID (for testing).
       text_field->SetID(GetInputFieldViewId(field.type));
@@ -416,8 +427,9 @@ views::View* EditorViewController::CreateInputField(views::View* editor_view,
   auto error_label_view = std::make_unique<views::View>();
   error_label_view->SetLayoutManager(std::make_unique<views::FillLayout>());
   error_labels_[field.type] = error_label_view.get();
-  if (IsEditingExistingItem() && !error_message.empty())
+  if (IsEditingExistingItem() && !error_message.empty()) {
     AddOrUpdateErrorMessageForField(field.type, error_message);
+  }
 
   field_view->AddChildView(std::move(error_label_view));
 
@@ -429,13 +441,15 @@ int EditorViewController::ComputeWidestExtraViewWidth(
   int widest_column_width = 0;
 
   for (const auto& field : GetFieldDefinitions()) {
-    if (field.length_hint != size)
+    if (field.length_hint != size) {
       continue;
+    }
 
     std::unique_ptr<views::View> extra_view =
         CreateExtraViewForField(field.type);
-    if (!extra_view)
+    if (!extra_view) {
       continue;
+    }
     widest_column_width =
         std::max(extra_view->GetPreferredSize().width(), widest_column_width);
   }
@@ -446,7 +460,7 @@ void EditorViewController::AddOrUpdateErrorMessageForField(
     autofill::FieldType type,
     const std::u16string& error_message) {
   const auto& label_view_it = error_labels_.find(type);
-  DCHECK(label_view_it != error_labels_.end());
+  CHECK(label_view_it != error_labels_.end(), base::NotFatalUntil::M130);
 
   if (error_message.empty()) {
     label_view_it->second->RemoveAllChildViews();
@@ -464,8 +478,9 @@ void EditorViewController::AddOrUpdateErrorMessageForField(
 }
 
 void EditorViewController::SaveButtonPressed(const ui::Event& event) {
-  if (!ValidateModelAndSave())
+  if (!ValidateModelAndSave()) {
     return;
+  }
   if (back_navigation_type_ == BackNavigationType::kOneStep) {
     dialog()->GoBack();
   } else {

@@ -16,6 +16,7 @@
 #include "base/syslog_logging.h"
 #include "base/system/sys_info.h"
 #include "base/time/time.h"
+#include "base/trace_event/trace_event.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/display/display.h"
 #include "ui/display/display_features.h"
@@ -273,10 +274,8 @@ bool DisplayConfigurator::DisplayLayoutManagerImpl::GetDisplayLayout(
 
   switch (new_display_state) {
     case MULTIPLE_DISPLAY_STATE_INVALID:
-      NOTREACHED_IN_MIGRATION()
-          << "Ignoring request to enter invalid state with " << displays.size()
-          << " connected display(s)";
-      return false;
+      NOTREACHED() << "Ignoring request to enter invalid state with "
+                   << displays.size() << " connected display(s)";
     case MULTIPLE_DISPLAY_STATE_HEADLESS:
       if (displays.size() != 0) {
         LOG(WARNING) << "Ignoring request to enter headless mode with "
@@ -295,8 +294,9 @@ bool DisplayConfigurator::DisplayLayoutManagerImpl::GetDisplayLayout(
 
       for (size_t i = 0; i < states.size(); ++i) {
         const DisplayState* state = &states[i];
-        (*requests)[i].mode =
-            display_power[i] ? state->selected_mode.get() : NULL;
+        (*requests)[i].mode = display_power[i] && state->selected_mode
+                                  ? state->selected_mode->Clone()
+                                  : nullptr;
 
         if (display_power[i] || states.size() == 1) {
           const DisplayMode* mode_info = state->selected_mode;
@@ -345,8 +345,9 @@ bool DisplayConfigurator::DisplayLayoutManagerImpl::GetDisplayLayout(
 
       for (size_t i = 0; i < states.size(); ++i) {
         const DisplayState* state = &states[i];
-        (*requests)[i].mode =
-            display_power[i] ? state->mirror_mode.get() : NULL;
+        (*requests)[i].mode = display_power[i] && state->mirror_mode
+                                  ? state->mirror_mode->Clone()
+                                  : nullptr;
       }
       break;
     }
@@ -362,8 +363,9 @@ bool DisplayConfigurator::DisplayLayoutManagerImpl::GetDisplayLayout(
         const DisplayState* state = &states[i];
         (*requests)[i].origin.set_y(size.height() ? size.height() + kVerticalGap
                                                   : 0);
-        (*requests)[i].mode =
-            display_power[i] ? state->selected_mode.get() : NULL;
+        (*requests)[i].mode = display_power[i] && state->selected_mode
+                                  ? state->selected_mode->Clone()
+                                  : nullptr;
 
         // Retain the full screen size even if all displays are off so the
         // same desktop configuration can be restored when the displays are
@@ -654,12 +656,18 @@ void DisplayConfigurator::SetConfigureDisplays(bool configure_displays) {
 }
 
 void DisplayConfigurator::TakeControl(DisplayControlCallback callback) {
+  TRACE_EVENT0("ui", "DisplayConfigurator::TakeControl");
   if (display_control_changing_) {
+    LOG(ERROR) << __func__
+               << " failed. There is another RelinquishControl() or "
+                  "TakeControl() call in progress.";
     std::move(callback).Run(false);
     return;
   }
 
   if (!display_externally_controlled_) {
+    LOG(ERROR) << __func__
+               << " failed. Displays are not controlled externally.";
     std::move(callback).Run(true);
     return;
   }
@@ -672,6 +680,8 @@ void DisplayConfigurator::TakeControl(DisplayControlCallback callback) {
 
 void DisplayConfigurator::OnDisplayControlTaken(DisplayControlCallback callback,
                                                 bool success) {
+  TRACE_EVENT1("ui", "DisplayConfigurator::OnDisplayControlTaken", "success",
+               success);
   display_control_changing_ = false;
   display_externally_controlled_ = !success;
   if (success) {
@@ -688,30 +698,45 @@ void DisplayConfigurator::OnDisplayControlTaken(DisplayControlCallback callback,
 }
 
 void DisplayConfigurator::RelinquishControl(DisplayControlCallback callback) {
+  TRACE_EVENT0("ui", "DisplayConfigurator::RelinquishControl");
   if (display_control_changing_) {
+    LOG(ERROR) << __func__
+               << " failed. There is another RelinquishControl() or "
+                  "TakeControl() call in progress.";
     std::move(callback).Run(false);
     return;
   }
 
   if (display_externally_controlled_) {
+    LOG(ERROR) << __func__
+               << " failed. Displays are already controlled externally.";
     std::move(callback).Run(true);
     return;
   }
 
   // For simplicity, just fail if in the middle of a display configuration.
   if (configuration_task_) {
+    LOG(ERROR) << __func__
+               << " failed. There is a display configuration in progress.";
     std::move(callback).Run(false);
     return;
   }
 
   display_control_changing_ = true;
 
-  // Turn off the displays before releasing control since we're no longer using
-  // them for output.
-  SetDisplayPowerInternal(
-      chromeos::DISPLAY_POWER_ALL_OFF, kSetDisplayPowerNoFlags,
-      base::BindOnce(&DisplayConfigurator::SendRelinquishDisplayControl,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+  if (display::features::IsFastDrmMasterDropEnabled()) {
+    // Fast DRM drop forgoes turning off displays in favor of detaching all the
+    // planes and turning the screen black as part of the relinquish display
+    // process.
+    SendRelinquishDisplayControl(std::move(callback), /*success=*/true);
+  } else {
+    // Turn off the displays before releasing control since we're no longer
+    // using them for output.
+    SetDisplayPowerInternal(
+        chromeos::DISPLAY_POWER_ALL_OFF, kSetDisplayPowerNoFlags,
+        base::BindOnce(&DisplayConfigurator::SendRelinquishDisplayControl,
+                       weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+  }
 }
 
 void DisplayConfigurator::GetSeamlessRefreshRates(
@@ -724,6 +749,8 @@ void DisplayConfigurator::GetSeamlessRefreshRates(
 void DisplayConfigurator::SendRelinquishDisplayControl(
     DisplayControlCallback callback,
     bool success) {
+  TRACE_EVENT1("ui", "DisplayConfigurator::SendRelinquishDisplayControl",
+               "success", success);
   if (success) {
     // Set the flag early such that an incoming configuration event won't start
     // while we're releasing control of the displays.
@@ -732,6 +759,9 @@ void DisplayConfigurator::SendRelinquishDisplayControl(
         base::BindOnce(&DisplayConfigurator::OnDisplayControlRelinquished,
                        weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
   } else {
+    LOG(ERROR) << __func__
+               << "failed. Failed to turn off all displays before "
+                  "relinquishing control.";
     display_control_changing_ = false;
     std::move(callback).Run(false);
   }
@@ -740,9 +770,22 @@ void DisplayConfigurator::SendRelinquishDisplayControl(
 void DisplayConfigurator::OnDisplayControlRelinquished(
     DisplayControlCallback callback,
     bool success) {
+  TRACE_EVENT1("ui", "DisplayConfigurator::OnDisplayControlRelinquished",
+               "success", success);
+
   display_control_changing_ = false;
   display_externally_controlled_ = success;
-  if (!success) {
+  if (success) {
+    if (display::features::IsFastDrmMasterDropEnabled()) {
+      // Emit a fake power-off signal call to Ash so it treats all displays as
+      // disconnected.
+      OnConfigured(/*success=*/true,
+                   /*displays=*/cached_displays_,
+                   /*unassociated_displays=*/{},
+                   /*new_display_state=*/current_display_state_,
+                   /*new_power_state=*/chromeos::DISPLAY_POWER_ALL_OFF);
+    }
+  } else {
     force_configure_ = true;
     RunPendingConfiguration();
   }
@@ -788,23 +831,6 @@ void DisplayConfigurator::SetColorCalibration(
     return;
   }
   native_display_delegate_->SetColorCalibration(display_id, calibration);
-}
-
-bool DisplayConfigurator::SetColorMatrix(
-    int64_t display_id,
-    const std::vector<float>& color_matrix) {
-  if (!IsDisplayIdInDisplayStateList(display_id, cached_displays_))
-    return false;
-  return native_display_delegate_->SetColorMatrix(display_id, color_matrix);
-}
-
-bool DisplayConfigurator::SetGammaCorrection(int64_t display_id,
-                                             const GammaCurve& degamma,
-                                             const GammaCurve& gamma) {
-  if (!IsDisplayIdInDisplayStateList(display_id, cached_displays_))
-    return false;
-  return native_display_delegate_->SetGammaCorrection(display_id, degamma,
-                                                      gamma);
 }
 
 void DisplayConfigurator::SetPrivacyScreen(int64_t display_id,
@@ -928,9 +954,7 @@ void DisplayConfigurator::OnConfigurationChanged() {
 void DisplayConfigurator::OnDisplaySnapshotsInvalidated() {
   VLOG(1) << "Display snapshots invalidated.";
   cached_displays_.clear();
-  for (Observer& observer : observers_) {
-    observer.OnDisplaySnapshotsInvalidated();
-  }
+  observers_.Notify(&Observer::OnDisplaySnapshotsInvalidated);
 }
 
 void DisplayConfigurator::AddObserver(Observer* observer) {
@@ -1150,18 +1174,16 @@ void DisplayConfigurator::NotifyDisplayStateObservers(
     bool success,
     MultipleDisplayState attempted_state) {
   if (success) {
-    for (Observer& observer : observers_)
-      observer.OnDisplayConfigurationChanged(cached_displays_);
+    observers_.Notify(&Observer::OnDisplayConfigurationChanged,
+                      cached_displays_);
   } else {
-    for (Observer& observer : observers_)
-      observer.OnDisplayConfigurationChangeFailed(cached_displays_,
-                                                  attempted_state);
+    observers_.Notify(&Observer::OnDisplayConfigurationChangeFailed,
+                      cached_displays_, attempted_state);
   }
 }
 
 void DisplayConfigurator::NotifyPowerStateObservers() {
-  for (Observer& observer : observers_)
-    observer.OnPowerStateChanged(current_power_state_);
+  observers_.Notify(&Observer::OnPowerStateChanged, current_power_state_);
 }
 
 bool DisplayConfigurator::IsDisplayOn() const {

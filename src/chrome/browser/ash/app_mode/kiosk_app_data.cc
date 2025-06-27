@@ -36,7 +36,6 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "extensions/browser/api/declarative_net_request/ruleset_install_pref.h"
 #include "extensions/browser/crx_file_info.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_util.h"
@@ -44,9 +43,9 @@
 #include "extensions/browser/install/crx_install_error.h"
 #include "extensions/browser/sandboxed_unpacker.h"
 #include "extensions/common/constants.h"
-#include "extensions/common/extension_icon_set.h"
 #include "extensions/common/extension_resource.h"
 #include "extensions/common/extension_urls.h"
+#include "extensions/common/icons/extension_icon_set.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
@@ -119,8 +118,7 @@ class KioskAppData::CrxLoader : public extensions::SandboxedUnpackerClient {
                        std::unique_ptr<base::Value::Dict> original_manifest,
                        const extensions::Extension* extension,
                        const SkBitmap& install_icon,
-                       extensions::declarative_net_request::RulesetInstallPrefs
-                           ruleset_install_prefs) override {
+                       base::Value::Dict ruleset_install_prefs) override {
     DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
     const extensions::KioskModeInfo* info =
@@ -269,7 +267,7 @@ class KioskAppData::WebstoreDataParser
 ////////////////////////////////////////////////////////////////////////////////
 // KioskAppData
 
-KioskAppData::KioskAppData(KioskAppDataDelegate* delegate,
+KioskAppData::KioskAppData(KioskAppDataDelegate& delegate,
                            const std::string& app_id,
                            const AccountId& account_id,
                            const GURL& update_url,
@@ -342,7 +340,7 @@ void KioskAppData::SetStatusForTest(Status status) {
 
 // static
 std::unique_ptr<KioskAppData> KioskAppData::CreateForTest(
-    KioskAppDataDelegate* delegate,
+    KioskAppDataDelegate& delegate,
     const std::string& app_id,
     const AccountId& account_id,
     const GURL& update_url,
@@ -360,10 +358,6 @@ void KioskAppData::SetStatus(Status status) {
   }
 
   status_ = status;
-
-  if (!delegate_) {
-    return;
-  }
 
   switch (status_) {
     case Status::kInit:
@@ -415,12 +409,7 @@ void KioskAppData::SetCache(const std::string& name,
   icon_ = gfx::ImageSkia::CreateFrom1xBitmap(icon);
   icon_.MakeThreadSafe();
 
-  base::FilePath cache_dir;
-  if (delegate_) {
-    delegate_->GetKioskAppIconCacheDir(&cache_dir);
-  }
-
-  SaveIcon(icon, cache_dir);
+  SaveIcon(icon, delegate_->GetKioskAppIconCacheDir());
 
   PrefService* local_state = g_browser_process->local_state();
   ScopedDictPrefUpdate dict_update(local_state, dictionary_name());
@@ -488,55 +477,6 @@ void KioskAppData::StartFetch() {
 void KioskAppData::OnWebstoreRequestFailure(const std::string& extension_id) {
   LOG(WARNING) << "Webstore request failure for app_id=" << extension_id;
   SetStatus(Status::kError);
-}
-
-void KioskAppData::OnWebstoreItemJSONAPIResponseParseSuccess(
-    const std::string& extension_id,
-    const base::Value::Dict& webstore_data) {
-  const std::string* id = webstore_data.FindString(kIdKey);
-  if (!id) {
-    LOG(ERROR) << "Webstore response error (" << kIdKey
-               << "): " << ValueToString(webstore_data);
-    OnWebstoreResponseParseFailure(extension_id, kInvalidWebstoreResponseError);
-    return;
-  }
-  if (extension_id != *id) {
-    LOG(ERROR) << "Webstore response error (" << kIdKey
-               << "): " << ValueToString(webstore_data);
-    LOG(ERROR) << "Received extension id " << *id
-               << " does not equal expected extension id " << extension_id;
-    OnWebstoreResponseParseFailure(extension_id, kInvalidWebstoreResponseError);
-    return;
-  }
-  webstore_fetcher_.reset();
-
-  std::string manifest;
-  if (!CheckResponseKeyValue(*id, webstore_data, kManifestKey, &manifest)) {
-    return;
-  }
-
-  if (!CheckResponseKeyValue(*id, webstore_data, kLocalizedNameKey, &name_)) {
-    return;
-  }
-
-  std::string icon_url_string;
-  if (!CheckResponseKeyValue(*id, webstore_data, kIconUrlKey,
-                             &icon_url_string)) {
-    return;
-  }
-
-  GURL icon_url =
-      extension_urls::GetWebstoreLaunchURL().Resolve(icon_url_string);
-  if (!icon_url.is_valid()) {
-    LOG(ERROR) << "Webstore response error (icon url): "
-               << ValueToString(webstore_data);
-    OnWebstoreResponseParseFailure(extension_id, kInvalidWebstoreResponseError);
-    return;
-  }
-
-  // WebstoreDataParser deletes itself when done.
-  (new WebstoreDataParser(weak_factory_.GetWeakPtr()))
-      ->Start(app_id(), manifest, icon_url, GetURLLoaderFactory());
 }
 
 void KioskAppData::OnFetchItemSnippetParseSuccess(
@@ -615,9 +555,7 @@ void KioskAppData::OnCrxLoadFinished(const CrxLoader* crx_loader) {
                << app_id();
     // If after unpacking the cached extension we received an error, schedule
     // a redownload upon next session start(kiosk or login).
-    if (delegate_) {
-      delegate_->OnExternalCacheDamaged(app_id());
-    }
+    delegate_->OnExternalCacheDamaged(app_id());
 
     SetStatus(Status::kInit);
     return;

@@ -6,9 +6,9 @@
 
 #include <memory>
 
-#include "ash/components/arc/compat_mode/test/compat_mode_test_base.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "chromeos/ash/experiences/arc/compat_mode/test/compat_mode_test_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace arc {
@@ -19,7 +19,8 @@ class ProgressBarDialogViewTest : public CompatModeTestBase {
   // CompatModeTestBase:
   void SetUp() override {
     CompatModeTestBase::SetUp();
-    widget_ = CreateTestWidget();
+    widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     dialog_view_ = widget_->SetContentsView(
         std::make_unique<ProgressBarDialogView>(/*is_multiple_files=*/false));
     widget_->Show();

@@ -17,7 +17,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/user_metrics.h"
-#include "base/ranges/algorithm.h"
 #include "components/affiliations/core/browser/affiliation_utils.h"
 #include "components/password_manager/core/browser/credential_manager_utils.h"
 #include "components/password_manager/core/browser/form_fetcher_impl.h"
@@ -78,7 +77,7 @@ void FilterDuplicatesInFederatedCredentials(
       });
 
   for (auto& form : forms) {
-    CHECK(!form->federation_origin.opaque());
+    CHECK(form->federation_origin.IsValid());
     // |forms| contains credentials from both the profile and account stores.
     // Therefore, it could potentially contains duplicate federated
     // credentials. In case of duplicates, favor the account store version.
@@ -102,7 +101,7 @@ void FilterIrrelevantForms(std::vector<std::unique_ptr<PasswordForm>>& forms,
       return true;
     }
 
-    if (form->federation_origin.opaque()) {
+    if (!form->IsFederatedCredential()) {
       // Remove passwords if they shouldn't be included.
       return !include_passwords;
     }
@@ -149,9 +148,10 @@ CredentialManagerPendingRequestTask::CredentialManagerPendingRequestTask(
   form_fetcher_->Fetch();
   form_fetcher_->AddConsumer(this);
 
-  for (const GURL& federation : request_federations)
+  for (const GURL& federation : request_federations) {
     federations_.insert(
         url::Origin::Create(federation.DeprecatedGetOriginAsURL()).Serialize());
+  }
 }
 
 CredentialManagerPendingRequestTask::~CredentialManagerPendingRequestTask() {
@@ -160,18 +160,18 @@ CredentialManagerPendingRequestTask::~CredentialManagerPendingRequestTask() {
 
 void CredentialManagerPendingRequestTask::OnFetchCompleted() {
   std::vector<std::unique_ptr<PasswordForm>> all_matches;
-  base::ranges::transform(form_fetcher_->GetFederatedMatches(),
-                          std::back_inserter(all_matches),
-                          [](const PasswordForm* form) {
-                            return std::make_unique<PasswordForm>(*form);
-                          });
+  std::ranges::transform(form_fetcher_->GetFederatedMatches(),
+                         std::back_inserter(all_matches),
+                         [](const PasswordForm& form) {
+                           return std::make_unique<PasswordForm>(form);
+                         });
   // GetFederatedMatches() comes with duplicates, filter them immediately.
   FilterDuplicatesInFederatedCredentials(all_matches);
-  base::ranges::transform(form_fetcher_->GetBestMatches(),
-                          std::back_inserter(all_matches),
-                          [](const PasswordForm& form) {
-                            return std::make_unique<PasswordForm>(form);
-                          });
+  std::ranges::transform(form_fetcher_->GetBestMatches(),
+                         std::back_inserter(all_matches),
+                         [](const PasswordForm& form) {
+                           return std::make_unique<PasswordForm>(form);
+                         });
   FilterIrrelevantForms(all_matches, include_passwords_, federations_);
   ProcessForms(std::move(all_matches));
 }
@@ -225,17 +225,16 @@ void CredentialManagerPendingRequestTask::ProcessForms(
 
     if (!results.empty()) {
       std::vector<PasswordForm> non_federated_matches;
-      std::vector<raw_ptr<const PasswordForm, VectorExperimental>>
-          federated_matches;
+      std::vector<PasswordForm> federated_matches;
       for (const auto& result : results) {
         if (result->IsFederatedCredential()) {
-          federated_matches.emplace_back(result.get());
+          federated_matches.emplace_back(*result.get());
         } else {
           non_federated_matches.emplace_back(*result.get());
         }
       }
       delegate_->client()->PasswordWasAutofilled(
-          non_federated_matches, origin_, &federated_matches,
+          non_federated_matches, origin_, federated_matches,
           /*was_autofilled_on_pageload=*/false);
     }
     if (can_use_autosignin) {

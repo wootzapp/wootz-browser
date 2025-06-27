@@ -8,8 +8,10 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/check.h"
 #include "partition_alloc/partition_alloc_base/strings/safe_sprintf.h"
 #include "partition_alloc/partition_alloc_config.h"
@@ -18,7 +20,7 @@
 // Death tests on Android are currently very flaky. No need to add more flaky
 // tests, as they just make it hard to spot real problems.
 // TODO(markus): See if the restrictions on Android can eventually be lifted.
-#if defined(GTEST_HAS_DEATH_TEST) && !BUILDFLAG(IS_ANDROID)
+#if defined(GTEST_HAS_DEATH_TEST) && !PA_BUILDFLAG(IS_ANDROID)
 #define ALLOW_DEATH_TEST
 #endif
 
@@ -108,7 +110,7 @@ TEST(SafeSPrintfTestPA, NoArguments) {
   EXPECT_EQ(2, SafeSPrintf(buf, "%%%%"));
   EXPECT_EQ(2, SafeSPrintf(buf, "%%X"));
   EXPECT_EQ(3, SafeSPrintf(buf, "%%%%X"));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(1, SafeSPrintf(buf, "%"));
   EXPECT_EQ(2, SafeSPrintf(buf, "%%%"));
   EXPECT_EQ(2, SafeSPrintf(buf, "%X"));
@@ -176,7 +178,7 @@ TEST(SafeSPrintfTestPA, OneArgument) {
   EXPECT_EQ(2, SafeSPrintf(buf, "%%Y", 0));
   EXPECT_EQ(3, SafeSPrintf(buf, "%%%Y", 0));
   EXPECT_EQ(3, SafeSPrintf(buf, "%%%%Y", 0));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(1, SafeSPrintf(buf, "%", 0));
   EXPECT_EQ(2, SafeSPrintf(buf, "%%%", 0));
 #elif defined(ALLOW_DEATH_TEST)
@@ -186,7 +188,7 @@ TEST(SafeSPrintfTestPA, OneArgument) {
 }
 
 TEST(SafeSPrintfTestPA, MissingArg) {
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   char buf[20];
   EXPECT_EQ(3, SafeSPrintf(buf, "%c%c", 'A'));
   EXPECT_EQ("A%c", std::string(buf));
@@ -202,13 +204,13 @@ TEST(SafeSPrintfTestPA, ASANFriendlyBufferTest) {
   // There is a more complicated test in PrintLongString() that covers a lot
   // more edge case, but it is also harder to debug in case of a failure.
   const char kTestString[] = "This is a test";
-  std::unique_ptr<char[]> buf(new char[sizeof(kTestString)]);
+  std::vector<char> buf(sizeof(kTestString), 'X');
   EXPECT_EQ(static_cast<ssize_t>(sizeof(kTestString) - 1),
-            SafeSNPrintf(buf.get(), sizeof(kTestString), kTestString));
-  EXPECT_EQ(std::string(kTestString), std::string(buf.get()));
+            SafeSNPrintf(buf.data(), sizeof(kTestString), kTestString));
+  EXPECT_EQ(std::string(kTestString), std::string(buf.data()));
   EXPECT_EQ(static_cast<ssize_t>(sizeof(kTestString) - 1),
-            SafeSNPrintf(buf.get(), sizeof(kTestString), "%s", kTestString));
-  EXPECT_EQ(std::string(kTestString), std::string(buf.get()));
+            SafeSNPrintf(buf.data(), sizeof(kTestString), "%s", kTestString));
+  EXPECT_EQ(std::string(kTestString), std::string(buf.data()));
 }
 
 TEST(SafeSPrintfTestPA, NArgs) {
@@ -368,8 +370,7 @@ void PrintLongString(char* buf, size_t sz) {
 
   // Allocate slightly more space, so that we can verify that SafeSPrintf()
   // never writes past the end of the buffer.
-  std::unique_ptr<char[]> tmp(new char[sz + 2]);
-  memset(tmp.get(), 'X', sz + 2);
+  std::vector<char> tmp(sz + 2, 'X');
 
   // Use SafeSPrintf() to output a complex list of arguments:
   // - test padding and truncating %c single characters.
@@ -379,13 +380,13 @@ void PrintLongString(char* buf, size_t sz) {
   // - test outputting and truncating %d MININT.
   // - test outputting and truncating %p arbitrary pointer values.
   // - test outputting, padding and truncating NULL-pointer %s strings.
-  char* out = tmp.get();
+  char* out = tmp.data();
   size_t out_sz = sz;
   size_t len;
-  for (std::unique_ptr<char[]> perfect_buf;;) {
+  for (std::vector<char> perfect_buf;;) {
     size_t needed =
         SafeSNPrintf(out, out_sz,
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
                      "A%2cong %s: %d %010X %d %p%7s", 'l', "string", "",
 #else
                      "A%2cong %s: %%d %010X %d %p%7s", 'l', "string",
@@ -397,7 +398,7 @@ void PrintLongString(char* buf, size_t sz) {
     // Various sanity checks:
     // The numbered of characters needed to print the full string should always
     // be bigger or equal to the bytes that have actually been output.
-    len = strlen(tmp.get());
+    len = strlen(tmp.data());
     PA_BASE_CHECK(needed >= len + 1);
 
     // The number of characters output should always fit into the buffer that
@@ -413,10 +414,10 @@ void PrintLongString(char* buf, size_t sz) {
     // running SafeSNPrintf() the first time, it is possible to compute the
     // correct buffer size for this test. So, allocate a second buffer and run
     // the exact same SafeSNPrintf() command again.
-    if (!perfect_buf.get()) {
+    if (perfect_buf.empty()) {
       out_sz = std::min(needed, sz);
-      out = new char[out_sz];
-      perfect_buf.reset(out);
+      perfect_buf.resize(out_sz, 'X');
+      out = perfect_buf.data();
     } else {
       break;
     }
@@ -443,25 +444,25 @@ void PrintLongString(char* buf, size_t sz) {
                reinterpret_cast<uintptr_t>(PrintLongString)));
   ref[sz - 1] = '\000';
 
-#if defined(NDEBUG)
-  const size_t kSSizeMax = std::numeric_limits<ssize_t>::max();
-#else
+#if PA_BUILDFLAG(IS_DEBUG)
   const size_t kSSizeMax = internal::GetSafeSPrintfSSizeMaxForTest();
+#else
+  const size_t kSSizeMax = std::numeric_limits<ssize_t>::max();
 #endif
 
   // Compare the output from SafeSPrintf() to the one from snprintf().
-  EXPECT_EQ(std::string(ref).substr(0, kSSizeMax - 1), std::string(tmp.get()));
+  EXPECT_EQ(std::string(ref).substr(0, kSSizeMax - 1), std::string(tmp.data()));
 
   // We allocated a slightly larger buffer, so that we could perform some
   // extra sanity checks. Now that the tests have all passed, we copy the
   // data to the output buffer that the caller provided.
-  memcpy(buf, tmp.get(), len + 1);
+  memcpy(buf, tmp.data(), len + 1);
 }
 
-#if !defined(NDEBUG)
+#if PA_BUILDFLAG(IS_DEBUG)
 class ScopedSafeSPrintfSSizeMaxSetter {
  public:
-  ScopedSafeSPrintfSSizeMaxSetter(size_t sz) {
+  explicit ScopedSafeSPrintfSSizeMaxSetter(size_t sz) {
     old_ssize_max_ = internal::GetSafeSPrintfSSizeMaxForTest();
     internal::SetSafeSPrintfSSizeMaxForTest(sz);
   }
@@ -478,7 +479,7 @@ class ScopedSafeSPrintfSSizeMaxSetter {
  private:
   size_t old_ssize_max_;
 };
-#endif
+#endif  // PA_BUILDFLAG(IS_DEBUG)
 
 }  // anonymous namespace
 
@@ -501,7 +502,7 @@ TEST(SafeSPrintfTestPA, Truncation) {
   // write to the buffer, even if the caller claimed a bigger buffer size.
   // Repeat the truncation test and verify that this other code path in
   // SafeSPrintf() works correctly, too.
-#if !defined(NDEBUG)
+#if PA_BUILDFLAG(IS_DEBUG)
   for (size_t i = strlen(ref) + 1; i > 1; --i) {
     ScopedSafeSPrintfSSizeMaxSetter ssize_max_setter(i);
     char buf[sizeof(ref)];
@@ -520,7 +521,7 @@ TEST(SafeSPrintfTestPA, Truncation) {
   EXPECT_DEATH(SafeSPrintf(buf, "%100c", ' '), "padding <= max_padding");
 #endif
   EXPECT_EQ(0, *buf);
-#endif
+#endif  // PA_BUILDFLAG(IS_DEBUG)
 }
 
 TEST(SafeSPrintfTestPA, Padding) {
@@ -540,7 +541,7 @@ TEST(SafeSPrintfTestPA, Padding) {
             SafeSPrintf(buf, fmt, 'A'));
   SafeSPrintf(fmt, "%%%dc",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, 'A'));
   EXPECT_EQ("%c", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -576,7 +577,7 @@ TEST(SafeSPrintfTestPA, Padding) {
   EXPECT_EQ("000", std::string(buf));
   SafeSPrintf(fmt, "%%%do",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, 1));
   EXPECT_EQ("%o", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -610,7 +611,7 @@ TEST(SafeSPrintfTestPA, Padding) {
   EXPECT_EQ("000", std::string(buf));
   SafeSPrintf(fmt, "%%%dd",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, 1));
   EXPECT_EQ("%d", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -646,7 +647,7 @@ TEST(SafeSPrintfTestPA, Padding) {
   EXPECT_EQ("000", std::string(buf));
   SafeSPrintf(fmt, "%%%dX",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, 1));
   EXPECT_EQ("%X", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -674,7 +675,7 @@ TEST(SafeSPrintfTestPA, Padding) {
   EXPECT_EQ("0x0", std::string(buf));
   SafeSPrintf(fmt, "%%%dp",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, 1));
   EXPECT_EQ("%p", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -702,7 +703,7 @@ TEST(SafeSPrintfTestPA, Padding) {
   EXPECT_EQ("   ", std::string(buf));
   SafeSPrintf(fmt, "%%%ds",
               static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, fmt, "A"));
   EXPECT_EQ("%s", std::string(buf));
 #elif defined(ALLOW_DEATH_TEST)
@@ -722,7 +723,7 @@ TEST(SafeSPrintfTestPA, EmbeddedNul) {
   // code paths depending on whether we are actually passing arguments. If
   // we don't have any arguments, we are running in the fast-path code, that
   // looks (almost) like a strncpy().
-#if defined(NDEBUG)
+#if !PA_BUILDFLAG(IS_DEBUG)
   EXPECT_EQ(2, SafeSPrintf(buf, "%%%"));
   EXPECT_EQ("%%", std::string(buf));
   EXPECT_EQ(2, SafeSPrintf(buf, "%%%", 0));

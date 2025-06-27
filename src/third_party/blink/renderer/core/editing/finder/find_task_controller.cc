@@ -9,13 +9,14 @@
 #include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/range.h"
-#include "third_party/blink/renderer/core/dom/scripted_idle_task_controller.h"
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
 #include "third_party/blink/renderer/core/editing/finder/find_buffer.h"
 #include "third_party/blink/renderer/core/editing/finder/find_options.h"
+#include "third_party/blink/renderer/core/editing/finder/find_results.h"
 #include "third_party/blink/renderer/core/editing/finder/text_finder.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
+#include "third_party/blink/renderer/core/scheduler/scripted_idle_task_controller.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 
@@ -37,7 +38,7 @@ class FindTaskController::FindTask final : public GarbageCollected<FindTask> {
   FindTask(FindTaskController* controller,
            Document* document,
            int identifier,
-           const WebString& search_text,
+           const String& search_text,
            const mojom::blink::FindOptions& options)
       : document_(document),
         controller_(controller),
@@ -108,10 +109,10 @@ class FindTaskController::FindTask final : public GarbageCollected<FindTask> {
     bool full_range_searched = true;
     PositionInFlatTree next_task_start_position;
 
-    blink::FindOptions find_options =
-        (options_->forward ? 0 : kBackwards) |
-        (options_->match_case ? 0 : kCaseInsensitive) |
-        (options_->new_session ? kStartInSelection : 0);
+    auto find_options = FindOptions()
+                            .SetBackwards(!options_->forward)
+                            .SetCaseInsensitive(!options_->match_case)
+                            .SetStartingInSelection(options_->new_session);
     const auto start_time = base::TimeTicks::Now();
 
     auto time_allotment_expired = [start_time]() {
@@ -123,11 +124,12 @@ class FindTaskController::FindTask final : public GarbageCollected<FindTask> {
 
     while (search_start < search_end) {
       // Find in the whole block.
-      FindBuffer buffer(EphemeralRangeInFlatTree(search_start, search_end));
-      FindBuffer::Results match_results =
+      FindBuffer buffer(EphemeralRangeInFlatTree(search_start, search_end),
+                        RubySupport::kEnabledIfNecessary);
+      FindResults match_results =
           buffer.FindMatches(search_text_, find_options);
       bool yielded_while_iterating_results = false;
-      for (FindBuffer::BufferMatchResult match : match_results) {
+      for (MatchResultICU match : match_results) {
         const EphemeralRangeInFlatTree ephemeral_match_range =
             buffer.RangeFromBufferIndex(match.start,
                                         match.start + match.length);
@@ -196,7 +198,7 @@ class FindTaskController::FindTask final : public GarbageCollected<FindTask> {
   Member<Document> document_;
   Member<FindTaskController> controller_;
   const int identifier_;
-  const WebString search_text_;
+  const String search_text_;
   mojom::blink::FindOptionsPtr options_;
 };
 
@@ -213,7 +215,7 @@ int FindTaskController::GetMatchYieldCheckInterval() const {
 
 void FindTaskController::StartRequest(
     int identifier,
-    const WebString& search_text,
+    const String& search_text,
     const mojom::blink::FindOptions& options) {
   TRACE_EVENT_NESTABLE_ASYNC_BEGIN0(
       "blink", "FindInPageRequest",
@@ -241,7 +243,7 @@ void FindTaskController::CancelPendingRequest() {
 
 void FindTaskController::RequestFindTask(
     int identifier,
-    const WebString& search_text,
+    const String& search_text,
     const mojom::blink::FindOptions& options) {
   DCHECK_EQ(find_task_, nullptr);
   DCHECK_EQ(identifier, current_find_identifier_);
@@ -251,7 +253,7 @@ void FindTaskController::RequestFindTask(
 
 void FindTaskController::DidFinishTask(
     int identifier,
-    const WebString& search_text,
+    const String& search_text,
     const mojom::blink::FindOptions& options,
     bool finished_whole_request,
     PositionInFlatTree next_starting_position,

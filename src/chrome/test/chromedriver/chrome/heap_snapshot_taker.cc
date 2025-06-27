@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/test/chromedriver/chrome/heap_snapshot_taker.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <utility>
 
 #include "base/json/json_reader.h"
@@ -17,7 +23,7 @@ HeapSnapshotTaker::HeapSnapshotTaker(DevToolsClient* client)
   client_->AddListener(this);
 }
 
-HeapSnapshotTaker::~HeapSnapshotTaker() {}
+HeapSnapshotTaker::~HeapSnapshotTaker() = default;
 
 Status HeapSnapshotTaker::TakeSnapshot(std::unique_ptr<base::Value>* snapshot) {
   Status status1 = TakeSnapshotInternal();
@@ -40,11 +46,11 @@ Status HeapSnapshotTaker::TakeSnapshot(std::unique_ptr<base::Value>* snapshot) {
 
 Status HeapSnapshotTaker::TakeSnapshotInternal() {
   base::Value::Dict params;
-  const char* const kMethods[] = {
+  const auto kMethods = std::to_array<const char*>({
       "Debugger.enable",
       "HeapProfiler.collectGarbage",
-      "HeapProfiler.takeHeapSnapshot"
-  };
+      "HeapProfiler.takeHeapSnapshot",
+  });
   for (size_t i = 0; i < std::size(kMethods); ++i) {
     Status status = client_->SendCommand(kMethods[i], params);
     if (status.IsError())

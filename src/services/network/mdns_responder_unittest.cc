@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/network/mdns_responder.h"
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -13,6 +19,7 @@
 #include <vector>
 
 #include "base/check_op.h"
+#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
@@ -116,7 +123,7 @@ std::string CreateResponseToMdnsNameGeneratorServiceQueryWithCacheFlush(
   txt_record.klass |= net::dns_protocol::kFlagCacheFlush;
   // Parsed record does not own the RDATA. Copy the owned RDATA before
   // constructing a new response.
-  const std::string owned_rdata(txt_record.rdata);
+  const std::vector<uint8_t> owned_rdata = base::ToVector(txt_record.rdata);
   txt_record.SetOwnedRdata(owned_rdata);
   std::vector<net::DnsResourceRecord> answers(1, txt_record);
   net::DnsResponse response_cache_flush(
@@ -489,7 +496,7 @@ class MdnsResponderTest : public testing::Test {
   // of time and avoid any actual sleeps.
   NiceMock<net::MockMDnsSocketFactory> socket_factory_;
   NiceMock<MockFailingMdnsSocketFactory> failing_socket_factory_;
-  mojo::Remote<mojom::MdnsResponder> client_[2];
+  std::array<mojo::Remote<mojom::MdnsResponder>, 2> client_;
   std::unique_ptr<MdnsResponderManager> host_manager_;
   std::string last_name_created_;
 };

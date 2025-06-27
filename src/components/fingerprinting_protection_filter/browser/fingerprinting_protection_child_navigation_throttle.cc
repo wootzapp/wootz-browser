@@ -7,14 +7,19 @@
 #include <string>
 #include <utility>
 
+#include "base/command_line.h"
 #include "base/functional/callback.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
 #include "components/fingerprinting_protection_filter/browser/fingerprinting_protection_web_contents_helper.h"
+#include "components/fingerprinting_protection_filter/common/fingerprinting_protection_filter_features.h"
 #include "components/subresource_filter/content/shared/browser/child_frame_navigation_filtering_throttle.h"
 #include "components/subresource_filter/core/browser/async_document_subresource_filter.h"
 #include "components/subresource_filter/core/common/time_measurements.h"
+#include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
+#include "components/variations/variations_switches.h"
 #include "content/public/browser/navigation_handle.h"
+#include "net/base/url_util.h"
 
 class GURL;
 
@@ -24,13 +29,17 @@ FingerprintingProtectionChildNavigationThrottle::
     FingerprintingProtectionChildNavigationThrottle(
         content::NavigationHandle* handle,
         subresource_filter::AsyncDocumentSubresourceFilter* parent_frame_filter,
+        bool is_incognito,
         base::RepeatingCallback<std::string(const GURL& url)>
             disallow_message_callback)
     : subresource_filter::ChildFrameNavigationFilteringThrottle(
           handle,
           parent_frame_filter,
-          /*bypass_alias_check=*/true,
-          std::move(disallow_message_callback)) {}
+          /*alias_check_enabled=*/
+          base::FeatureList::IsEnabled(
+              features::kUseCnameAliasesForFingerprintingProtectionFilter),
+          std::move(disallow_message_callback)),
+      is_incognito_(is_incognito) {}
 
 FingerprintingProtectionChildNavigationThrottle::
     ~FingerprintingProtectionChildNavigationThrottle() {
@@ -39,20 +48,65 @@ FingerprintingProtectionChildNavigationThrottle::
 #define SUBFRAME_FILTERING_HISTOGRAM(name) \
   UMA_HISTOGRAM_CUSTOM_MICRO_TIMES(        \
       name, total_defer_time_, base::Microseconds(1), base::Seconds(10), 50)
+  if (did_alias_check_) {
+    if (is_incognito_) {
+      SUBFRAME_FILTERING_HISTOGRAM(
+          "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+          "NameAlias.Checked.Incognito");
+    }
+    SUBFRAME_FILTERING_HISTOGRAM(
+        "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+        "NameAlias.Checked");
+  }
   switch (load_policy_) {
     case subresource_filter::LoadPolicy::EXPLICITLY_ALLOW:
       [[fallthrough]];
     case subresource_filter::LoadPolicy::ALLOW:
+      if (is_incognito_) {
+        SUBFRAME_FILTERING_HISTOGRAM(
+            "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+            "Allowed.Incognito");
+      }
       SUBFRAME_FILTERING_HISTOGRAM(
           "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
           "Allowed");
       break;
     case subresource_filter::LoadPolicy::WOULD_DISALLOW:
+      if (did_alias_check_determine_load_policy_) {
+        if (is_incognito_) {
+          SUBFRAME_FILTERING_HISTOGRAM(
+              "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+              "NameAlias.WouldDisallow.Incognito");
+        }
+        SUBFRAME_FILTERING_HISTOGRAM(
+            "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+            "NameAlias.WouldDisallow");
+      }
+      if (is_incognito_) {
+        SUBFRAME_FILTERING_HISTOGRAM(
+            base::StrCat({"FingerprintingProtection.DocumentLoad."
+                          "SubframeFilteringDelay.WouldDisallow.Incognito"}));
+      }
       SUBFRAME_FILTERING_HISTOGRAM(
           "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
           "WouldDisallow");
       break;
     case subresource_filter::LoadPolicy::DISALLOW:
+      if (did_alias_check_determine_load_policy_) {
+        if (is_incognito_) {
+          SUBFRAME_FILTERING_HISTOGRAM(
+              "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+              "NameAlias.Disallowed.Incognito");
+        }
+        SUBFRAME_FILTERING_HISTOGRAM(
+            "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+            "NameAlias.Disallowed");
+      }
+      if (is_incognito_) {
+        SUBFRAME_FILTERING_HISTOGRAM(
+            "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
+            "Disallowed.Incognito");
+      }
       SUBFRAME_FILTERING_HISTOGRAM(
           "FingerprintingProtection.DocumentLoad.SubframeFilteringDelay."
           "Disallowed");
@@ -68,11 +122,16 @@ FingerprintingProtectionChildNavigationThrottle::GetNameForLogging() {
 
 bool FingerprintingProtectionChildNavigationThrottle::ShouldDeferNavigation()
     const {
+  if (net::IsLocalhost(navigation_handle()->GetURL()) &&
+      !base::CommandLine::ForCurrentProcess()->HasSwitch(
+          variations::switches::kEnableBenchmarking)) {
+    return false;
+  }
   // If the embedder document has activation enabled, we calculate frame load
   // policy before proceeding with navigation as filtered navigations are not
-  // allowed to get a response. As a result, we must defer while
-  // we wait for the ruleset check to complete and pass handling the navigation
-  // decision to the callback.
+  // allowed to get a response. As a result, we must defer while we wait for
+  // the ruleset check to complete and pass handling the navigation decision to
+  // the callback.
   return parent_frame_filter_->activation_state().activation_level ==
          subresource_filter::mojom::ActivationLevel::kEnabled;
 }

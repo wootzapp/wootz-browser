@@ -5,13 +5,12 @@
 #include "ash/login/ui/auth_icon_view.h"
 
 #include "ash/login/ui/horizontal_image_sequence_animation_decoder.h"
-#include "ash/style/ash_color_id.h"
-#include "ash/style/ash_color_provider.h"
 #include "ash/style/color_util.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_id.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
@@ -63,23 +62,10 @@ constexpr SkScalar kTransformScaleDownSize = 0.01;
 constexpr ShakeAnimationStep kShakeAnimationSteps[] = {
     {-5, 83}, {8, 83}, {-7, 66}, {7, 66}, {-7, 66}, {7, 66}, {-3, 83}};
 
-ui::ColorId GetLegacyColorId(AuthIconView::Status status) {
-  switch (status) {
-    case AuthIconView::Status::kPrimary:
-      return kColorAshIconColorPrimary;
-    case AuthIconView::Status::kDisabled:
-      return kColorAshIconPrimaryDisabledColor;
-    case AuthIconView::Status::kError:
-      // TODO(crbug.com/1233614): Either find a system color to match the color
-      // in the Fingerprint animation png sequence, or upload new png files with
-      // the right color.
-      return kColorAshIconColorAlert;
-    case AuthIconView::Status::kPositive:
-      return kColorAshIconColorPositive;
-  }
-}
+}  // namespace
 
-ui::ColorId GetJellyColorId(AuthIconView::Status status) {
+// static
+ui::ColorId AuthIconView::GetColorId(AuthIconView::Status status) {
   switch (status) {
     case AuthIconView::Status::kPrimary:
       return cros_tokens::kCrosSysOnSurface;
@@ -90,14 +76,6 @@ ui::ColorId GetJellyColorId(AuthIconView::Status status) {
     case AuthIconView::Status::kPositive:
       return cros_tokens::kCrosSysPositive;
   }
-}
-
-}  // namespace
-
-// static
-ui::ColorId AuthIconView::GetColorId(AuthIconView::Status status) {
-  return chromeos::features::IsJellyEnabled() ? GetJellyColorId(status)
-                                              : GetLegacyColorId(status);
 }
 
 AuthIconView::AuthIconView() {
@@ -291,10 +269,7 @@ void AuthIconView::OnPaint(gfx::Canvas* canvas) {
 
   // Draw the progress spinner on top if it's currently running.
   if (progress_animation_timer_.IsRunning()) {
-    SkColor color = GetColorProvider()->GetColor(
-        chromeos::features::IsJellyEnabled()
-            ? static_cast<ui::ColorId>(cros_tokens::kCrosSysPrimary)
-            : kColorAshProgressBarColorForeground);
+    SkColor color = GetColorProvider()->GetColor(cros_tokens::kCrosSysPrimary);
     base::TimeDelta elapsed_time =
         base::TimeTicks::Now() - progress_animation_start_time_;
     gfx::PaintThrobberSpinning(canvas, GetContentsBounds(), color, elapsed_time,
@@ -308,8 +283,8 @@ gfx::Size AuthIconView::CalculatePreferredSize(
 }
 
 void AuthIconView::OnGestureEvent(ui::GestureEvent* event) {
-  if (event->type() != ui::ET_GESTURE_TAP &&
-      event->type() != ui::ET_GESTURE_TAP_DOWN) {
+  if (event->type() != ui::EventType::kGestureTap &&
+      event->type() != ui::EventType::kGestureTapDown) {
     return;
   }
 

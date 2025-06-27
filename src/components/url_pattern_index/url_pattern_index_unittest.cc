@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/url_pattern_index/url_pattern_index.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <numeric>
@@ -16,7 +22,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/url_pattern_index/url_pattern.h"
 #include "components/url_pattern_index/url_rule_test_support.h"
@@ -273,6 +278,16 @@ TEST_F(UrlPatternIndexTest, OneRuleWithoutMetaInfo) {
       {{"ex.com", kSubdomain, kAnchorNone}, "https://test.ex.com.com", true},
       {{"ex.com", kSubdomain, kAnchorNone}, "https://test.rest.ex.com", true},
       {{"ex.com", kSubdomain, kAnchorNone}, "https://test_ex.com", false},
+      {{"abcd.ex.com/", kSubdomain, kAnchorNone},
+       "http://abcd.ex.com?xyz=1",
+       true},
+      {{"abcd.ex.com/", kSubdomain, kAnchorNone},
+       "http://abcd.ex.com#xyz",
+       true},
+      {{"ex.co/", kSubdomain, kAnchorNone}, "https://test.ex.co", true},
+      {{"abcd.ex.com/", kSubdomain, kAnchorNone},
+       "https://abcd.ex.com.",
+       false},
 
       {{"http://ex.com", kBoundary, kAnchorNone}, "http://ex.com/", true},
       {{"http://ex.com", kBoundary, kAnchorNone}, "http://ex.com/42", true},
@@ -1067,16 +1082,19 @@ TEST_F(UrlPatternIndexTest, RequestMethod) {
   const flat::ActivationType no_activation = flat::ActivationType_NONE;
   const std::string origin = "http://foo.com";
 
-  const struct {
+  struct RequestMethods {
     std::string name;
     flat::RequestMethod request_method;
-  } request_methods[] = {{"delete", flat::RequestMethod_DELETE},
-                         {"get", flat::RequestMethod_GET},
-                         {"head", flat::RequestMethod_HEAD},
-                         {"options", flat::RequestMethod_OPTIONS},
-                         {"patch", flat::RequestMethod_PATCH},
-                         {"post", flat::RequestMethod_POST},
-                         {"put", flat::RequestMethod_PUT}};
+  };
+  const auto request_methods = std::to_array<RequestMethods>({
+      {"delete", flat::RequestMethod_DELETE},
+      {"get", flat::RequestMethod_GET},
+      {"head", flat::RequestMethod_HEAD},
+      {"options", flat::RequestMethod_OPTIONS},
+      {"patch", flat::RequestMethod_PATCH},
+      {"post", flat::RequestMethod_POST},
+      {"put", flat::RequestMethod_PUT},
+  });
 
   int next_rule_id = 0;
   for (auto request_method : request_methods) {
@@ -1127,24 +1145,27 @@ TEST_F(UrlPatternIndexTest, EmbedderConditions) {
       });
   EmbedderConditionsMatcher match_has_evens =
       base::BindRepeating([](const flatbuffers::Vector<uint8_t>& conditions) {
-        return base::ranges::any_of(conditions,
-                                    [](int i) { return i % 2 == 0; });
+        return std::ranges::any_of(conditions,
+                                   [](int i) { return i % 2 == 0; });
       });
 
-  struct {
+  struct Cases {
     const std::string url;
     const EmbedderConditionsMatcher matcher;
     const bool expect_match;
     // Fields below are valid iff `expect_match` is true.
     const uint32_t expected_id = 0;
     const std::optional<std::vector<uint8_t>> expected_embedder_data;
-  } cases[] = {{url_1, match_first_element_one, true, 1, embedder_data_1},
-               {url_1, match_has_evens, true, 1, embedder_data_1},
-               {url_1, match_first_element_three, false},
-               {url_2, match_first_element_one, false},
-               {url_2, match_has_evens, true, 2, embedder_data_2},
-               {url_2, match_first_element_three, false},
-               {"http://abc.com", match_first_element_one, false}};
+  };
+  auto cases = std::to_array<Cases>({
+      {url_1, match_first_element_one, true, 1, embedder_data_1},
+      {url_1, match_has_evens, true, 1, embedder_data_1},
+      {url_1, match_first_element_three, false},
+      {url_2, match_first_element_one, false},
+      {url_2, match_has_evens, true, 2, embedder_data_2},
+      {url_2, match_first_element_three, false},
+      {"http://abc.com", match_first_element_one, false},
+  });
 
   for (size_t i = 0; i < std::size(cases); ++i) {
     SCOPED_TRACE(::testing::Message() << "Testing case " << i);

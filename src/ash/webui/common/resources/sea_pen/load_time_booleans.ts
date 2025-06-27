@@ -18,14 +18,18 @@ export function isSeaPenTextInputEnabled() {
   return loadTimeData.getBoolean('isSeaPenTextInputEnabled');
 }
 
-export function isSeaPenUINextEnabled() {
-  return loadTimeData.getBoolean('isSeaPenUINextEnabled');
+export function isSeaPenUseExptTemplateEnabled() {
+  return loadTimeData.getBoolean('isSeaPenUseExptTemplateEnabled');
 }
 
-export function isSeaPenEnterpriseEnabled() {
-  return loadTimeData.getBoolean('isSeaPenEnterpriseEnabled');
+export function isVcResizeThumbnailEnabled() {
+  return loadTimeData.getBoolean('isVcResizeThumbnailEnabled');
 }
 
-export function isLacrosEnabled() {
-  return loadTimeData.getBoolean('isLacrosEnabled');
+export function isManagedSeaPenEnabled() {
+  return loadTimeData.getBoolean('isManagedSeaPenEnabled');
+}
+
+export function isManagedSeaPenFeedbackEnabled() {
+  return loadTimeData.getBoolean('isManagedSeaPenFeedbackEnabled');
 }

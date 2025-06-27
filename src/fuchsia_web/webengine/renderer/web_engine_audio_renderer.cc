@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "fuchsia_web/webengine/renderer/web_engine_audio_renderer.h"
 
 #include <lib/sys/cpp/component_context.h>
@@ -83,18 +88,19 @@ scoped_refptr<media::DecoderBuffer> PreparePcm24Buffer(
   static_assert(ARCH_CPU_LITTLE_ENDIAN,
                 "Only little-endian CPUs are supported.");
 
-  size_t samples = buffer->size() / 3;
+  auto buffer_span = base::span(*buffer);
+  size_t samples = buffer_span.size() / 3;
   scoped_refptr<media::DecoderBuffer> result =
       base::MakeRefCounted<media::DecoderBuffer>(samples * 4);
   for (size_t i = 0; i < samples - 1; ++i) {
     reinterpret_cast<uint32_t*>(result->writable_data())[i] =
-        *reinterpret_cast<const uint32_t*>(buffer->data() + i * 3) & 0x00ffffff;
+        *reinterpret_cast<const uint32_t*>(buffer_span.subspan(i * 3).data()) &
+        0x00ffffff;
   }
   size_t last_sample = samples - 1;
   reinterpret_cast<uint32_t*>(result->writable_data())[last_sample] =
-      buffer->data()[last_sample * 3] |
-      (buffer->data()[last_sample * 3 + 1] << 8) |
-      (buffer->data()[last_sample * 3 + 2] << 16);
+      buffer_span[last_sample * 3] | (buffer_span[last_sample * 3 + 1] << 8) |
+      (buffer_span[last_sample * 3 + 2] << 16);
 
   result->set_timestamp(buffer->timestamp());
   result->set_duration(buffer->duration());
@@ -210,7 +216,7 @@ void WebEngineAudioRenderer::UpdateVolume() {
 
 void WebEngineAudioRenderer::OnBuffersAcquired(
     std::vector<media::VmoBuffer> buffers,
-    const fuchsia::sysmem::SingleBufferSettings&) {
+    const fuchsia::sysmem2::SingleBufferSettings&) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   input_buffers_ = std::move(buffers);
@@ -341,8 +347,9 @@ void WebEngineAudioRenderer::SetPreservesPitch(bool preserves_pitch) {
   NOTIMPLEMENTED();
 }
 
-void WebEngineAudioRenderer::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
+void WebEngineAudioRenderer::
+    SetWasPlayedWithUserActivationAndHighMediaEngagement(
+        bool was_played_with_user_activation_and_high_media_engagement) {
   // WebEngine does not use this signal. This is currently only used by the Live
   // Caption feature.
   NOTIMPLEMENTED_LOG_ONCE();
@@ -361,7 +368,7 @@ void WebEngineAudioRenderer::StartTicking() {
     case PlaybackState::kStartPending:
     case PlaybackState::kStarting:
     case PlaybackState::kPlaying:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
 
     case PlaybackState::kPaused: {
       // If the stream was paused then we can unpause it without restarting
@@ -412,8 +419,7 @@ void WebEngineAudioRenderer::StopTicking() {
   switch (GetPlaybackState()) {
     case PlaybackState::kStopped:
     case PlaybackState::kPaused:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
 
     case PlaybackState::kStartPending: {
       base::AutoLock lock(timeline_lock_);
@@ -835,7 +841,7 @@ base::TimeDelta WebEngineAudioRenderer::CurrentMediaTimeLocked() {
 }
 
 void WebEngineAudioRenderer::OnSysmemBufferStreamBufferCollectionToken(
-    fuchsia::sysmem::BufferCollectionTokenPtr token) {
+    fuchsia::sysmem2::BufferCollectionTokenPtr token) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   // Drop old buffers.
@@ -845,7 +851,7 @@ void WebEngineAudioRenderer::OnSysmemBufferStreamBufferCollectionToken(
   // Acquire buffers for the new buffer collection.
   input_buffer_collection_ =
       sysmem_allocator_.BindSharedCollection(std::move(token));
-  fuchsia::sysmem::BufferCollectionConstraints buffer_constraints =
+  fuchsia::sysmem2::BufferCollectionConstraints buffer_constraints =
       media::VmoBuffer::GetRecommendedConstraints(kNumBuffers, kBufferSize,
                                                   /*writable=*/false);
   input_buffer_collection_->Initialize(std::move(buffer_constraints),

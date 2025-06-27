@@ -4,11 +4,7 @@
 
 module ntp.calendar.mojom;
 
-// An event from the user's Google Calendar.
-struct CalendarEvent {
-  // Title of event.
-  string title;
-};
+import "chrome/browser/new_tab_page/modules/v2/calendar/calendar_data.mojom";
 
 // Browser-side handler for requests from NTP Module UI.
 interface GoogleCalendarPageHandler {

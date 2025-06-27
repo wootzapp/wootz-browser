@@ -18,10 +18,13 @@
 #include "services/network/public/cpp/http_request_headers_mojom_traits.h"
 #include "services/network/public/cpp/isolation_info_mojom_traits.h"
 #include "services/network/public/cpp/network_ipc_param_traits.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_mojom_traits.h"
 #include "services/network/public/cpp/resource_request_body.h"
+#include "services/network/public/cpp/storage_access_api_mojom_traits.h"
 #include "services/network/public/cpp/url_request_param_mojom_traits.h"
 #include "services/network/public/mojom/cookie_access_observer.mojom.h"
 #include "services/network/public/mojom/data_pipe_getter.mojom.h"
+#include "services/network/public/mojom/device_bound_sessions.mojom.h"
 #include "services/network/public/mojom/devtools_observer.mojom.h"
 #include "services/network/public/mojom/ip_address_space.mojom.h"
 #include "services/network/public/mojom/trust_token_access_observer.mojom.h"
@@ -33,55 +36,6 @@
 #include "url/mojom/url_gurl_mojom_traits.h"
 
 namespace mojo {
-
-network::mojom::SourceType
-EnumTraits<network::mojom::SourceType, net::SourceStream::SourceType>::ToMojom(
-    net::SourceStream::SourceType type) {
-  switch (type) {
-    case net::SourceStream::SourceType::TYPE_BROTLI:
-      return network::mojom::SourceType::kBrotli;
-    case net::SourceStream::SourceType::TYPE_DEFLATE:
-      return network::mojom::SourceType::kDeflate;
-    case net::SourceStream::SourceType::TYPE_GZIP:
-      return network::mojom::SourceType::kGzip;
-    case net::SourceStream::SourceType::TYPE_ZSTD:
-      return network::mojom::SourceType::kZstd;
-    case net::SourceStream::SourceType::TYPE_NONE:
-      return network::mojom::SourceType::kNone;
-    case net::SourceStream::SourceType::TYPE_UNKNOWN:
-      return network::mojom::SourceType::kUnknown;
-  }
-  NOTREACHED_IN_MIGRATION();
-  return static_cast<network::mojom::SourceType>(type);
-}
-
-bool EnumTraits<network::mojom::SourceType, net::SourceStream::SourceType>::
-    FromMojom(network::mojom::SourceType in,
-              net::SourceStream::SourceType* out) {
-  switch (in) {
-    case network::mojom::SourceType::kBrotli:
-      *out = net::SourceStream::SourceType::TYPE_BROTLI;
-      return true;
-    case network::mojom::SourceType::kDeflate:
-      *out = net::SourceStream::SourceType::TYPE_DEFLATE;
-      return true;
-    case network::mojom::SourceType::kGzip:
-      *out = net::SourceStream::SourceType::TYPE_GZIP;
-      return true;
-    case network::mojom::SourceType::kZstd:
-      *out = net::SourceStream::SourceType::TYPE_ZSTD;
-      return true;
-    case network::mojom::SourceType::kNone:
-      *out = net::SourceStream::SourceType::TYPE_NONE;
-      return true;
-    case network::mojom::SourceType::kUnknown:
-      *out = net::SourceStream::SourceType::TYPE_UNKNOWN;
-      return true;
-  }
-
-  NOTREACHED_IN_MIGRATION();
-  return false;
-}
 
 bool StructTraits<network::mojom::TrustedUrlRequestParamsDataView,
                   network::ResourceRequest::TrustedParams>::
@@ -103,6 +57,8 @@ bool StructTraits<network::mojom::TrustedUrlRequestParamsDataView,
       mojo::PendingRemote<network::mojom::URLLoaderNetworkServiceObserver>>();
   out->devtools_observer = data.TakeDevtoolsObserver<
       mojo::PendingRemote<network::mojom::DevToolsObserver>>();
+  out->device_bound_session_observer = data.TakeDeviceBoundSessionObserver<
+      mojo::PendingRemote<network::mojom::DeviceBoundSessionAccessObserver>>();
   if (!data.ReadClientSecurityState(&out->client_security_state)) {
     return false;
   }
@@ -165,6 +121,7 @@ bool StructTraits<
       !data.ReadCredentialsMode(&out->credentials_mode) ||
       !data.ReadRedirectMode(&out->redirect_mode) ||
       !data.ReadFetchIntegrity(&out->fetch_integrity) ||
+      !data.ReadExpectedPublicKeys(&out->expected_public_keys) ||
       !data.ReadRequestBody(&out->request_body) ||
       !data.ReadThrottlingProfileId(&out->throttling_profile_id) ||
       !data.ReadFetchWindowId(&out->fetch_window_id) ||
@@ -177,10 +134,12 @@ bool StructTraits<
       !data.ReadNetLogCreateInfo(&out->net_log_create_info) ||
       !data.ReadNetLogReferenceInfo(&out->net_log_reference_info) ||
       !data.ReadNavigationRedirectChain(&out->navigation_redirect_chain) ||
-      !data.ReadAttributionReportingRuntimeFeatures(
-          &out->attribution_reporting_runtime_features) ||
       !data.ReadAttributionReportingSrcToken(
-          &out->attribution_reporting_src_token)) {
+          &out->attribution_reporting_src_token) ||
+      !data.ReadKeepaliveToken(&out->keepalive_token) ||
+      !data.ReadStorageAccessApiStatus(&out->storage_access_api_status) ||
+      !data.ReadSocketTag(&out->socket_tag) ||
+      !data.ReadPermissionsPolicy(&out->permissions_policy)) {
     // Note that data.ReadTrustTokenParams is temporarily handled below.
     return false;
   }
@@ -220,19 +179,17 @@ bool StructTraits<
   out->is_favicon = data.is_favicon();
   out->original_destination = data.original_destination();
   out->target_ip_address_space = data.target_ip_address_space();
-  out->has_storage_access = data.has_storage_access();
   out->attribution_reporting_support = data.attribution_reporting_support();
   out->attribution_reporting_eligibility =
       data.attribution_reporting_eligibility();
   out->is_ad_tagged = data.is_ad_tagged();
   out->shared_dictionary_writer_enabled =
       data.shared_dictionary_writer_enabled();
+  out->client_side_content_decoding_enabled =
+      data.client_side_content_decoding_enabled();
   out->required_ip_address_space = data.required_ip_address_space();
-#if BUILDFLAG(IS_ANDROID)
-  if (!data.ReadCreatedLocation(&out->created_location)) {
-    return false;
-  }
-#endif
+  out->allows_device_bound_session_registration =
+      data.allows_device_bound_session_registration();
   return true;
 }
 
@@ -343,6 +300,18 @@ bool UnionTraits<network::mojom::DataElementDataView, network::DataElement>::
     }
   }
   return false;
+}
+
+// static
+bool StructTraits<network::mojom::SocketTagDataView, net::SocketTag>::Read(
+    network::mojom::SocketTagDataView data,
+    net::SocketTag* out) {
+#if BUILDFLAG(IS_ANDROID)
+  *out = net::SocketTag(data.uid(), data.tag());
+#else
+  *out = net::SocketTag();
+#endif  // BUILDFLAG(IS_ANDROID)
+  return true;
 }
 
 }  // namespace mojo

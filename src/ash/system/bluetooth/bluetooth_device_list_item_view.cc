@@ -29,6 +29,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/label.h"
 
 namespace ash {
@@ -61,7 +62,7 @@ int GetDeviceConnectionStateA11yTextId(
     case DeviceConnectionState::kNotConnected:
       return IDS_BLUETOOTH_A11Y_DEVICE_CONNECTION_STATE_NOT_CONNECTED;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 // Returns the text ID corresponding to the provided |device_type|.
@@ -88,7 +89,7 @@ int GetDeviceTypeA11yTextId(const DeviceType device_type) {
     case DeviceType::kUnknown:
       return IDS_BLUETOOTH_A11Y_DEVICE_TYPE_UNKNOWN;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 // Returns the formatted a11y text describing the battery information of the
@@ -165,7 +166,7 @@ const gfx::VectorIcon& GetDeviceIcon(const DeviceType device_type) {
     case DeviceType::kUnknown:
       return ash::kSystemMenuBluetoothIcon;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -197,7 +198,7 @@ void BluetoothDeviceListItemView::UpdateDeviceProperties(
                       GetDeviceIcon(device_type),
                       static_cast<ui::ColorId>(cros_tokens::kCrosSysOnSurface)),
                   GetPairedDeviceName(device_properties_));
-  text_label()->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+  text_label()->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
   TypographyProvider::Get()->StyleLabel(ash::TypographyToken::kCrosButton2,
                                         *text_label());
 
@@ -259,7 +260,7 @@ void BluetoothDeviceListItemView::UpdateAccessibleName(
     a11y_text = base::StrCat({a11y_text, u" ", battery_text});
   }
 
-  SetAccessibleName(a11y_text);
+  GetViewAccessibility().SetName(a11y_text);
 }
 
 void BluetoothDeviceListItemView::UpdateBatteryInfo(
@@ -283,9 +284,8 @@ void BluetoothDeviceListItemView::UpdateMultipleBatteryView(
   // Remove battery view if it is not a multiple battery view.
   if (!sub_row()->children().empty()) {
     DCHECK(sub_row()->children().size() == 1);
-    if (std::string_view(sub_row()->children().at(0)->GetClassName()) !=
-        std::string_view(
-            BluetoothDeviceListItemMultipleBatteryView::kViewClassName)) {
+    if (sub_row()->children().at(0)->GetClassName() !=
+        BluetoothDeviceListItemMultipleBatteryView::kViewClassName) {
       sub_row()->RemoveAllChildViews();
     }
   }
@@ -311,8 +311,8 @@ void BluetoothDeviceListItemView::UpdateSingleBatteryView(
   // Remove battery view if it is not a single battery view.
   if (!sub_row()->children().empty()) {
     DCHECK(sub_row()->children().size() == 1);
-    if (std::string_view(sub_row()->children().at(0)->GetClassName()) !=
-        std::string_view(BluetoothDeviceListItemBatteryView::kViewClassName)) {
+    if (sub_row()->children().at(0)->GetClassName() !=
+        BluetoothDeviceListItemBatteryView::kViewClassName) {
       sub_row()->RemoveAllChildViews();
     }
   }

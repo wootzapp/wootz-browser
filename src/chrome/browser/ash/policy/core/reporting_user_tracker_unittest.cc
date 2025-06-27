@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "components/account_id/account_id.h"
@@ -42,6 +43,7 @@ class ReportingUserTrackerTest : public ::testing::Test {
  private:
   ScopedTestingLocalState scoped_local_state_{
       TestingBrowserProcess::GetGlobal()};
+  ash::ScopedTestingCrosSettings cros_settings_;
   std::unique_ptr<ash::FakeChromeUserManager> user_manager_;
   std::unique_ptr<ReportingUserTracker> reporting_user_tracker_;
 };
@@ -53,9 +55,11 @@ TEST_F(ReportingUserTrackerTest, RegularUserAffiliation) {
 
   // Only users marked as affiliated are the target for reporting.
   EXPECT_FALSE(tracker().ShouldReportUser(kUserEmail));
-  user_manager().SetUserAffiliationForTesting(account_id, true);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/true);
   EXPECT_TRUE(tracker().ShouldReportUser(kUserEmail));
-  user_manager().SetUserAffiliationForTesting(account_id, false);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/false);
   EXPECT_FALSE(tracker().ShouldReportUser(kUserEmail));
 }
 
@@ -64,10 +68,12 @@ TEST_F(ReportingUserTrackerTest, NonRegularUserAffiliation) {
   const auto account_id = AccountId::FromUserEmail(kUserEmail);
   user_manager().AddChildUser(account_id);
   EXPECT_FALSE(tracker().ShouldReportUser(kUserEmail));
-  user_manager().SetUserAffiliationForTesting(account_id, true);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/true);
   // No impact on setting affiliation.
   EXPECT_FALSE(tracker().ShouldReportUser(kUserEmail));
-  user_manager().SetUserAffiliationForTesting(account_id, false);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/false);
   EXPECT_FALSE(tracker().ShouldReportUser(kUserEmail));
 }
 
@@ -75,7 +81,8 @@ TEST_F(ReportingUserTrackerTest, Persistency) {
   constexpr char kUserEmail[] = "test@test";
   const auto account_id = AccountId::FromUserEmail(kUserEmail);
   user_manager().AddUser(account_id);
-  user_manager().SetUserAffiliationForTesting(account_id, true);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/true);
   EXPECT_TRUE(tracker().ShouldReportUser(kUserEmail));
 
   // Whether or not to report is persistent.
@@ -85,11 +92,15 @@ TEST_F(ReportingUserTrackerTest, Persistency) {
 }
 
 TEST_F(ReportingUserTrackerTest, UserRemoval) {
+  // Add owner user to allow removing the following user.
+  user_manager().AddUser(AccountId::FromUserEmail("owner@test"));
+
   constexpr char kUserEmail[] = "test@test";
   // When user is removed, ShouldReportUser should be updated, too.
   const auto account_id = AccountId::FromUserEmail(kUserEmail);
   user_manager().AddUser(account_id);
-  user_manager().SetUserAffiliationForTesting(account_id, true);
+  user_manager().SetUserPolicyStatus(account_id, /*is_managed=*/true,
+                                     /*is_affiliated=*/true);
   EXPECT_TRUE(tracker().ShouldReportUser(kUserEmail));
 
   user_manager().RemoveUser(account_id,

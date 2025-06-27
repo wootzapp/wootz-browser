@@ -15,8 +15,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "base/feature_list.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
@@ -32,8 +34,8 @@
 #include "components/policy/policy_export.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 
-namespace content {
-class BrowserContext;
+namespace chrome::cros::reporting::proto {
+class UploadEventsRequest;
 }
 
 namespace network {
@@ -47,9 +49,12 @@ class DMServerJobConfiguration;
 class RegistrationJobConfiguration;
 class SigningService;
 struct DMServerJobResult;
+enum class RemoteCommandsFetchReason;
 
 inline constexpr char kPolicyFetchingTimeHistogramName[] =
     "Enterprise.CloudManagement.PolicyFetchingTime";
+
+POLICY_EXPORT BASE_DECLARE_FEATURE(kPolicyFetchWithSha256);
 
 // Implements the core logic required to talk to the device management service.
 // Also keeps track of the current state of the association with the service,
@@ -92,6 +97,9 @@ class POLICY_EXPORT CloudPolicyClient {
       const enterprise_management::ClientCertificateProvisioningResponse&
           response)>;
 
+  using PromotionEligibilityCallback = base::OnceCallback<void(
+      enterprise_management::GetUserEligiblePromotionsResponse)>;
+
   using MacAddress = std::array<uint8_t, 6>;
 
   // Observer interface for state and policy changes.
@@ -101,14 +109,14 @@ class POLICY_EXPORT CloudPolicyClient {
 
     // Called when a policy fetch completes successfully. If a policy fetch
     // triggers an error, OnClientError() will fire.
-    virtual void OnPolicyFetched(CloudPolicyClient* client) = 0;
+    virtual void OnPolicyFetched(CloudPolicyClient* client) {}
 
     // Called upon registration state changes. This callback is invoked for
     // successful completion of registration and unregistration requests.
-    virtual void OnRegistrationStateChanged(CloudPolicyClient* client) = 0;
+    virtual void OnRegistrationStateChanged(CloudPolicyClient* client) {}
 
     // Indicates there's been an error in a previously-issued request.
-    virtual void OnClientError(CloudPolicyClient* client) = 0;
+    virtual void OnClientError(CloudPolicyClient* client) {}
 
     // Called when the Service Account Identity is set on a policy data object
     // after a policy fetch. |service_account_email()| will return the new
@@ -117,11 +125,12 @@ class POLICY_EXPORT CloudPolicyClient {
                                      const std::string& account_email) {}
   };
 
-  using NotRegistered = absl::monostate;
+  using NotRegistered = std::monostate;
 
   class POLICY_EXPORT Result {
    public:
     explicit Result(DeviceManagementStatus);
+    explicit Result(DeviceManagementStatus, int);
     explicit Result(NotRegistered);
 
     bool IsSuccess() const;
@@ -129,13 +138,15 @@ class POLICY_EXPORT CloudPolicyClient {
     bool IsDMServerError() const;
 
     DeviceManagementStatus GetDMServerError() const;
+    int GetNetError() const;
 
     bool operator==(const Result& other) const {
-      return this->result_ == other.result_;
+      return this->result_ == other.result_ && net_error_ == other.net_error_;
     }
 
    private:
-    absl::variant<NotRegistered, DeviceManagementStatus> result_;
+    std::variant<NotRegistered, DeviceManagementStatus> result_;
+    int net_error_ = 0;
   };
 
   // A callback which receives the operations result.
@@ -186,6 +197,11 @@ class POLICY_EXPORT CloudPolicyClient {
     // kDemoRequisition ("cros-demo-mode").
     std::optional<enterprise_management::DemoModeDimensions>
         demo_mode_dimensions;
+
+    // The following field is relevant only to Browsers undergoing profile
+    // registration via the generic OIDC, and contains OIDC specific state
+    // details.
+    std::string oidc_state;
   };
 
   // If non-empty, |machine_id|, |machine_model|, |brand_code|,
@@ -282,6 +298,16 @@ class POLICY_EXPORT CloudPolicyClient {
       const std::string& client_id,
       DMAuth enrollment_token_auth);
 
+  // Attempts to enroll a policy agent, (i.e. Omaha, Keystone, or the Chrome
+  // Enterprise Companion App) with the device management service using an
+  // enrollment token. Results in a registration change or error notification.
+  // To emphasize, this method is used to register browser (e.g. for
+  // machine-level policies).
+  virtual void RegisterPolicyAgentWithEnrollmentToken(
+      const std::string& token,
+      const std::string& client_id,
+      const ClientDataDelegate& client_data_delegate);
+
   // Attempts to register the profile with the device management service using a
   // OIDC response from a third party IdP's authentication. Results in a
   // registration change or error notification.
@@ -289,7 +315,10 @@ class POLICY_EXPORT CloudPolicyClient {
       const RegistrationParameters& parameters,
       const std::string& oauth_token,
       const std::string& oidc_id_token,
-      const std::string& client_id);
+      const std::string& client_id,
+      const base::TimeDelta& timeout_duration,
+      bool is_token_encrypted,
+      ResultCallback callback);
 
   // Sets information about a policy invalidation. Subsequent fetch operations
   // will use the given info, and callers can use fetched_invalidation_version
@@ -323,6 +352,15 @@ class POLICY_EXPORT CloudPolicyClient {
   virtual void UploadPolicyValidationReport(
       CloudPolicyValidatorBase::Status status,
       const std::vector<ValueValidationIssue>& value_validation_issues,
+      ValidationAction action,
+      const std::string& policy_type,
+      const std::string& policy_token,
+      ResultCallback callback);
+
+  virtual void UploadPolicyValidationReport(
+      CloudPolicyValidatorBase::Status status,
+      const std::vector<ValueValidationIssue>& value_validation_issues,
+      ValidationAction action,
       const std::string& policy_type,
       const std::string& policy_token);
 
@@ -388,20 +426,28 @@ class POLICY_EXPORT CloudPolicyClient {
       ResultCallback callback);
 
   // Uploads Chrome profile report to the server. The user's DM token must be
-  // set. |chrome_profile_report| will be included in the upload request. The
-  // |callback| will be called when the operation completes.
+  // set. If |use_cookies| is true, the applicable user's cookies will be
+  // forwarded along with the request. |chrome_profile_report| will be included
+  // in the upload request. The |callback| will be called when the operation
+  // completes.
   virtual void UploadChromeProfileReport(
+      bool use_cookies,
       std::unique_ptr<enterprise_management::ChromeProfileReportRequest>
           chrome_profile_report,
       ResultCallback callback);
 
   // Uploads a report containing enterprise connectors real-time security
-  // events for |context|. As above, the client must be in a registered state.
+  // events to the server. As above, the client must be in a registered state.
   // If |include_device_info| is true, information specific to the device such
   // as the device name, user, id and OS will be included in the report. The
   // |callback| will be called when the operation completes.
-  virtual void UploadSecurityEventReport(content::BrowserContext* context,
-                                         bool include_device_info,
+  virtual void UploadSecurityEvent(
+      bool include_device_info,
+      ::chrome::cros::reporting::proto::UploadEventsRequest request,
+      ResultCallback callback);
+
+  // DEPRECATED: Use |UploadSecurityEvent| instead.
+  virtual void UploadSecurityEventReport(bool include_device_info,
                                          base::Value::Dict report,
                                          ResultCallback callback);
 
@@ -432,6 +478,7 @@ class POLICY_EXPORT CloudPolicyClient {
           command_results,
       enterprise_management::PolicyFetchRequest::SignatureType signature_type,
       const std::string& request_type,
+      RemoteCommandsFetchReason reason,
       RemoteCommandCallback callback);
 
   // Sends a device attribute update permission request to the server, uses
@@ -463,9 +510,17 @@ class POLICY_EXPORT CloudPolicyClient {
       enterprise_management::ClientCertificateProvisioningRequest request,
       ClientCertProvisioningRequestCallback callback);
 
+  // Sends a request to store FM registration token used for invalidations.
+  virtual void UploadFmRegistrationToken(
+      enterprise_management::FmRegistrationTokenUploadRequest request,
+      ResultCallback callback);
+
   // Used the update the current service account email associated with this
   // policy client and notify observers.
   void UpdateServiceAccount(const std::string& account_email);
+
+  virtual void DeterminePromotionEligibility(
+      PromotionEligibilityCallback callback);
 
   // Adds an observer to be called back upon policy and state changes.
   void AddObserver(Observer* observer);
@@ -708,6 +763,13 @@ class POLICY_EXPORT CloudPolicyClient {
       ClientCertProvisioningRequestCallback callback,
       DMServerJobResult result);
 
+  void OnPromotionEligibilityDetermined(PromotionEligibilityCallback callback,
+                                        DMServerJobResult result);
+
+  // Callback for `UploadFmRegistrationToken` request.
+  void OnUploadFmRegistrationTokenResponse(ResultCallback callback,
+                                           DMServerJobResult result);
+
   // Helper to remove a job from request_jobs_.
   void RemoveJob(const DeviceManagementService::Job* job);
 
@@ -806,6 +868,13 @@ class POLICY_EXPORT CloudPolicyClient {
   // enterprise connectors are added to the request uploading the report.
   // |callback| is invoked once the report is uploaded.
   DeviceManagementService::Job* CreateNewRealtimeReportingJob(
+      ::chrome::cros::reporting::proto::UploadEventsRequest request,
+      const std::string& server_url,
+      bool include_device_info,
+      ResultCallback callback);
+
+  // DEPRECATED: Use CreateNewRealtimeReportingJob instead.
+  DeviceManagementService::Job* CreateNewRealtimeReportingJobDeprecated(
       base::Value::Dict report,
       const std::string& server_url,
       bool include_device_info,
@@ -852,6 +921,18 @@ class POLICY_EXPORT CloudPolicyClient {
   // Records the fetch status for each supported type to fetch used by the
   // client.
   void RecordFetchStatus(DeviceManagementStatus status);
+
+  enterprise_management::PolicyFetchRequest::SignatureType
+  GetPolicyFetchRequestSignatureType();
+
+  // Fills a request and creates a job for browser or policy agent enrollment,
+  // which differ only by request type.
+  virtual void RegisterBrowserOrPolicyAgentWithEnrollmentToken(
+      const std::string& token,
+      const std::string& client_id,
+      const ClientDataDelegate& client_data_delegate,
+      bool is_mandatory,
+      DeviceManagementService::JobConfiguration::JobType type);
 
 #if BUILDFLAG(IS_WIN)
   // Callback to get browser device identifier.

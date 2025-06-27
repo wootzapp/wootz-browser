@@ -28,6 +28,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_ACCESSIBILITY_AX_OBJECT_CACHE_H_
 
 #include "base/gtest_prod_util.h"
+#include "base/memory/stack_allocated.h"
 #include "third_party/blink/renderer/core/accessibility/axid.h"
 #include "third_party/blink/renderer/core/accessibility/blink_ax_event_intent.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -51,8 +52,6 @@ class AbstractInlineTextBox;
 class AriaNotifications;
 class AriaNotificationOptions;
 class AXObject;
-class AccessibleNode;
-class ComputedAccessibleNode;
 class HTMLCanvasElement;
 class HTMLOptionElement;
 class HTMLFrameOwnerElement;
@@ -91,7 +90,6 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   virtual void SelectionChanged(Node*) = 0;
   virtual void ChildrenChanged(Node*) = 0;
   virtual void ChildrenChanged(const LayoutObject*) = 0;
-  virtual void ChildrenChanged(AccessibleNode*) = 0;
   virtual void SlotAssignmentWillChange(Node*) = 0;
   virtual void CheckedStateChanged(Node*) = 0;
   virtual void ListboxOptionStateChanged(HTMLOptionElement*) = 0;
@@ -104,7 +102,6 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   // Removes AXObject backed by passed-in object, if there is one.
   // Will also notify the parent that its children have changed, so that the
   // parent will recompute its children and be reserialized.
-  virtual void Remove(AccessibleNode*) = 0;
   virtual void Remove(Node*) = 0;
   virtual void RemoveSubtree(const Node*) = 0;
   virtual void RemoveSubtree(const Node*, bool remove_root) = 0;
@@ -117,7 +114,8 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   // Called when aspects of the style (e.g. color, alignment) change.
   virtual void StyleChanged(const LayoutObject*,
                             bool visibility_or_inertness_changed = false) = 0;
-
+  // Called when the anchor(s) of |positioned_obj| changes.
+  virtual void CSSAnchorChanged(const LayoutObject* positioned_obj) = 0;
   // Called by a node when text or a text equivalent (e.g. alt) attribute is
   // changed.
   virtual void TextChanged(const LayoutObject*) = 0;
@@ -144,8 +142,8 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   virtual void HandleTextFormControlChanged(Node*) = 0;
   virtual void HandleValueChanged(Node*) = 0;
   virtual void HandleUpdateActiveMenuOption(Node*) = 0;
-  virtual void DidShowMenuListPopup(LayoutObject*) = 0;
-  virtual void DidHideMenuListPopup(LayoutObject*) = 0;
+  virtual void DidShowMenuListPopup(Node*) = 0;
+  virtual void DidHideMenuListPopup(Node*) = 0;
   virtual void HandleLoadStart(Document*) = 0;
   virtual void HandleLoadComplete(Document*) = 0;
   virtual void HandleClicked(Node*) = 0;
@@ -154,15 +152,11 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
                                         const AtomicString& event_type) = 0;
   virtual void HandleEventListenerRemoved(Node& node,
                                           const AtomicString& event_type) = 0;
+  virtual void HandleReferenceTargetChanged(Element&) = 0;
 
   // Handle any notifications which arrived while layout was dirty.
   // If |force|, then process regardless of any active batching or pauses.
-  virtual void ProcessDeferredAccessibilityEvents(Document&,
-                                                  bool force = false) = 0;
-
-  // Changes to virtual Accessibility Object Model nodes.
-  virtual void HandleAttributeChanged(const QualifiedName& attr_name,
-                                      AccessibleNode*) = 0;
+  virtual void CommitAXUpdates(Document&, bool force) = 0;
 
   // Handles a notification from the `ariaNotify` API.
   virtual void HandleAriaNotification(const Node*,
@@ -204,8 +198,6 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
 
   virtual AXID GenerateAXID() const = 0;
 
-  virtual ComputedAccessibleNode* GetOrCreateComputedAccessibleNode(AXID) = 0;
-
   typedef AXObjectCache* (*AXObjectCacheCreateFunction)(Document&,
                                                         const ui::AXMode&);
   static void Init(AXObjectCacheCreateFunction);
@@ -246,7 +238,7 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
 
   // Note that any pending event also causes its corresponding object to
   // become dirty.
-  virtual bool HasDirtyObjects() const = 0;
+  virtual bool HasObjectsPendingSerialization() const = 0;
 
   // Ensure that a call to ProcessDeferredAccessibilityEvents() will occur soon.
   virtual void ScheduleAXUpdate() const = 0;
@@ -274,6 +266,12 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   // Determine if a serialization is in the process or not.
   virtual bool IsSerializationInFlight() const = 0;
 
+  // Clears the cached fragment data associated with `block_flow` if it exists.
+  virtual void ClearBlockFlowCachedData(const LayoutObject* object) = 0;
+
+  // Gets the node on which this cache considers to have accessibility focus.
+  virtual Node* GetAccessibilityFocus() const = 0;
+
  protected:
   friend class ScopedBlinkAXEventIntent;
   FRIEND_TEST_ALL_PREFIXES(ScopedBlinkAXEventIntentTest, SingleIntent);
@@ -294,7 +292,9 @@ class CORE_EXPORT AXObjectCache : public GarbageCollected<AXObjectCache> {
   static AXObjectCacheCreateFunction create_function_;
 };
 
-class ScopedFreezeAXCache : public GarbageCollected<ScopedFreezeAXCache> {
+class ScopedFreezeAXCache {
+  STACK_ALLOCATED();
+
  public:
   explicit ScopedFreezeAXCache(AXObjectCache& cache) : cache_(&cache) {
     cache.Freeze();
@@ -308,10 +308,8 @@ class ScopedFreezeAXCache : public GarbageCollected<ScopedFreezeAXCache> {
     cache_->Thaw();
   }
 
-  void Trace(Visitor* visitor) const { visitor->Trace(cache_); }
-
  private:
-  WeakMember<AXObjectCache> cache_;
+  AXObjectCache* cache_;
 };
 
 }  // namespace blink

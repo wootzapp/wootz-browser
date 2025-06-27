@@ -8,21 +8,16 @@ from codegen import header_common
 import common
 
 
-def constants_enums(java_class, constant_fields):
-  if not constant_fields:
-    return ''
-  sb = common.StringBuilder()
-  sb(f'// Constants\n')
+def constants_enums(sb, java_class, constant_fields):
   sb(f'enum Java_{java_class.name}_constant_fields {{\n')
   with sb.indent(2):
     for c in constant_fields:
       sb(f'{c.name} = {c.value},\n')
   sb('};\n\n')
-  return sb.to_string()
 
 
 def _return_type_cpp(return_type):
-  if ret := return_type.converted_type():
+  if ret := return_type.converted_type:
     return ret
   ret = return_type.to_cpp()
   if not return_type.is_primitive():
@@ -31,7 +26,7 @@ def _return_type_cpp(return_type):
 
 
 def _param_type_cpp(java_type):
-  if type_str := java_type.converted_type():
+  if type_str := java_type.converted_type:
     if java_type.is_primitive():
       return type_str
     return f'{type_str} const&'
@@ -48,7 +43,7 @@ def _prep_param(sb, param):
   orig_name = param.cpp_name()
   java_type = param.java_type
 
-  if converted_type := java_type.converted_type():
+  if converted_type := java_type.converted_type:
     converted_name = f'converted_{param.name}'
     convert_type.to_jni_assignment(sb, converted_name, orig_name, java_type)
     orig_name = converted_name
@@ -73,9 +68,8 @@ def _jni_function_name(called_by_native):
   return f'Call{call}Method'
 
 
-def _single_method(sb, cbn):
+def method_definition(sb, cbn):
   java_class = cbn.java_class
-  escaped_name = common.escape_class_name(java_class.full_name_with_slashes)
   reciever_arg_is_class = cbn.static or cbn.is_constructor
   if cbn.is_constructor:
     return_type = cbn.java_class.as_type()
@@ -94,7 +88,7 @@ def _single_method(sb, cbn):
     plist.extend(f'{_param_type_cpp(p.java_type)} {p.cpp_name()}'
                  for p in cbn.params)
 
-  with sb.block():
+  with sb.block(after='\n'):
     sb('static std::atomic<jmethodID> cached_method_id(nullptr);\n')
     class_accessor = header_common.class_accessor_expression(java_class)
     receiver_arg = 'clazz' if reciever_arg_is_class else 'obj.obj()'
@@ -127,11 +121,14 @@ def _single_method(sb, cbn):
       sb.param_list([receiver_arg, 'call_context.method_id()'] + param_rvalues)
 
     if not is_void:
-      if return_type.is_primitive() or return_type.converted_type():
+      if return_type.is_primitive() or return_type.converted_type:
         with sb.statement():
           sb('return ')
-          if return_type.converted_type():
-            convert_type.from_jni_expression(sb, return_rvalue, return_type, release_ref=True)
+          if return_type.converted_type:
+            convert_type.from_jni_expression(sb,
+                                             return_rvalue,
+                                             return_type,
+                                             release_ref=True)
           else:
             sb(return_rvalue)
         return
@@ -144,14 +141,3 @@ def _single_method(sb, cbn):
       with sb.statement():
         sb(f'return jni_zero::ScopedJavaLocalRef<{jobject_type}>(env, '
            f'{return_rvalue})')
-
-
-def methods(called_by_natives):
-  if not called_by_natives:
-    return ''
-  sb = common.StringBuilder()
-  sb('// Native to Java functions\n')
-  for called_by_native in called_by_natives:
-    _single_method(sb, called_by_native)
-    sb('\n')
-  return sb.to_string()

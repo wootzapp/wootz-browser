@@ -19,6 +19,7 @@
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/types/optional_util.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/extensions/file_manager/system_notification_manager.h"
 #include "chrome/browser/ash/file_manager/io_task.h"
 #include "chrome/browser/ash/file_manager/io_task_controller.h"
@@ -37,7 +38,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/common/chrome_features.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/browser_context.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -384,10 +385,10 @@ void FilesPolicyNotificationManager::ShowDialog(
   DCHECK(profile);
 
   // Get the last active Files app window.
-  Browser* browser =
-      FindSystemWebAppBrowser(profile, ash::SystemWebAppType::FILE_MANAGER);
+  ash::BrowserDelegate* browser = FindSystemWebAppBrowser(
+      profile, ash::SystemWebAppType::FILE_MANAGER, ash::BrowserType::kApp);
   gfx::NativeWindow modal_parent =
-      browser ? browser->window()->GetNativeWindow() : nullptr;
+      browser ? browser->GetNativeWindow() : nullptr;
   if (modal_parent) {
     ShowDialogForIOTask(task_id, type, modal_parent);
     return;
@@ -448,8 +449,10 @@ void FilesPolicyNotificationManager::OnIOTaskResumed(
     return;
   }
 
-  std::move(io_tasks_.at(task_id).GetWarningInfo()->warning_callback)
-      .Run(/*user_justification=*/std::nullopt, /*should_proceed=*/true);
+  auto* warning_info = io_tasks_.at(task_id).GetWarningInfo();
+  std::move(warning_info->warning_callback)
+      .Run(/*user_justification=*/warning_info->user_justification,
+           /*should_proceed=*/true);
   io_tasks_.at(task_id).ResetWarningInfo();
 }
 
@@ -528,7 +531,7 @@ void FilesPolicyNotificationManager::HandleDlpWarningNotificationClick(
       }
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -577,7 +580,7 @@ void FilesPolicyNotificationManager::HandleDlpErrorNotificationClick(
       }
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -843,7 +846,7 @@ void FilesPolicyNotificationManager::HandleFilesPolicyErrorNotificationClick(
       }
       return;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -1019,18 +1022,18 @@ bool FilesPolicyNotificationManager::HasWarning(
 }
 
 bool FilesPolicyNotificationManager::HasNonIOTask(
-    const std::string notification_id) const {
+    const std::string& notification_id) const {
   return base::Contains(non_io_tasks_, notification_id);
 }
 
 bool FilesPolicyNotificationManager::HasBlockedFiles(
-    const std::string notification_id) const {
+    const std::string& notification_id) const {
   return HasNonIOTask(notification_id) &&
          !non_io_tasks_.at(notification_id).block_info_map().empty();
 }
 
 bool FilesPolicyNotificationManager::HasWarning(
-    const std::string notification_id) const {
+    const std::string& notification_id) const {
   return HasNonIOTask(notification_id) &&
          non_io_tasks_.at(notification_id).HasWarningInfo();
 }
@@ -1045,6 +1048,8 @@ void FilesPolicyNotificationManager::OnIOTaskWarningDialogClicked(
     return;
   }
   if (should_proceed) {
+    io_tasks_.at(task_id).GetWarningInfo()->user_justification =
+        user_justification;
     Resume(task_id);
   } else {
     Cancel(task_id);

@@ -18,12 +18,13 @@
 #include "content/public/common/content_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/views/layout/box_layout.h"
 
 namespace {
 
 const char kAllSitesContentSettingsUrl[] =
-    "wootzapp://settings/content/all?sort=data-stored";
+    "chrome://settings/content/all?sort=data-stored";
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
@@ -40,19 +41,16 @@ void RecordBubbleHistogramValue(StoragePressureBubbleHistogramValue value) {
 
 }  // namespace
 
-namespace chrome {
-
 // static
 void ShowStoragePressureBubble(const url::Origin& origin) {
   StoragePressureBubbleView::ShowBubble(origin);
 }
 
-}  // namespace chrome
-
 void StoragePressureBubbleView::ShowBubble(const url::Origin& origin) {
   Browser* browser = BrowserList::GetInstance()->GetLastActive();
-  if (!browser)
+  if (!browser) {
     return;
+  }
 
   StoragePressureBubbleView* bubble = new StoragePressureBubbleView(
       BrowserView::GetBrowserViewForBrowser(browser)
@@ -71,9 +69,9 @@ StoragePressureBubbleView::StoragePressureBubbleView(views::View* anchor_view,
       browser_(browser),
       origin_(origin),
       ignored_(true) {
-  SetButtons(ui::DIALOG_BUTTON_OK);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kOk));
   SetTitle(IDS_SETTINGS_STORAGE_PRESSURE_BUBBLE_VIEW_TITLE);
-  SetButtonLabel(ui::DIALOG_BUTTON_OK,
+  SetButtonLabel(ui::mojom::DialogButton::kOk,
                  l10n_util::GetStringUTF16(
                      IDS_SETTINGS_STORAGE_PRESSURE_BUBBLE_VIEW_BUTTON_LABEL));
   SetAcceptCallback(base::BindOnce(&StoragePressureBubbleView::OnDialogAccepted,

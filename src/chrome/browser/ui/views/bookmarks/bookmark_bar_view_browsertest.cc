@@ -8,7 +8,10 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
+#include "chrome/browser/bookmarks/bookmark_merged_surface_service_factory.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/bookmarks/bookmark_test_helpers.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/preloading/chrome_preloading.h"
@@ -35,7 +38,6 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/navigation_handle_observer.h"
-#include "content/public/test/preloading_test_util.h"
 #include "content/public/test/prerender_test_util.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "net/dns/mock_host_resolver.h"
@@ -105,9 +107,11 @@ class BookmarkBarNavigationTest : public InProcessBrowserTest,
   void CreateBookmarkForHeader(const std::string& header) {
     // Populate bookmark bar with a single bookmark to
     // `/echoheader?` + |header|.
+    WaitForBookmarkMergedSurfaceServiceToLoad(
+        BookmarkMergedSurfaceServiceFactory::GetForProfile(
+            browser()->profile()));
     bookmarks::BookmarkModel* model =
         BookmarkModelFactory::GetForBrowserContext(browser()->profile());
-    bookmarks::test::WaitForBookmarkModelToLoad(model);
     model->DisableWritesToDiskForTest();
     std::string url = "/echoheader?";
     model->AddURL(model->bookmark_bar_node(), 0, u"Example",
@@ -368,6 +372,11 @@ static const auto kMockElapsedTime =
 class PrerenderBookmarkBarNavigationTestBase
     : public BookmarkBarNavigationTest {
  public:
+  PrerenderBookmarkBarNavigationTestBase()
+      : prerender_helper_(base::BindRepeating(
+            &PrerenderBookmarkBarNavigationTestBase::GetActiveWebContents,
+            base::Unretained(this))) {}
+
   content::WebContents* GetActiveWebContents() {
     return browser()->tab_strip_model()->GetActiveWebContents();
   }
@@ -375,8 +384,6 @@ class PrerenderBookmarkBarNavigationTestBase
   void SetUpOnMainThread() override {
     BookmarkBarNavigationTest::SetUpOnMainThread();
     test_ukm_recorder_ = std::make_unique<ukm::TestAutoSetUkmRecorder>();
-    scoped_test_timer_ =
-        std::make_unique<base::ScopedMockElapsedTimersForTest>();
   }
 
   ukm::TestAutoSetUkmRecorder* test_ukm_recorder() {
@@ -406,18 +413,18 @@ class PrerenderBookmarkBarNavigationTestBase
 
     gfx::Point center(10, 10);
     button->OnMouseEntered(ui::MouseEvent(
-        ui::ET_MOUSE_ENTERED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMouseEntered, center, center, ui::EventTimeForNow(),
         /*flags=*/ui::EF_NONE,
         /*changed_button_flags=*/ui::EF_NONE));
     button->OnMousePressed(ui::MouseEvent(
-        ui::ET_MOUSE_PRESSED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMousePressed, center, center, ui::EventTimeForNow(),
         ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
     if (expect_activation) {
       content::test::PrerenderTestHelper::WaitForPrerenderLoadCompletion(
           *GetActiveWebContents(), prerender_url);
     }
     button->OnMouseReleased(ui::MouseEvent(
-        ui::ET_MOUSE_RELEASED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMouseReleased, center, center, ui::EventTimeForNow(),
         ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
 
     if (expect_activation) {
@@ -428,8 +435,9 @@ class PrerenderBookmarkBarNavigationTestBase
   }
 
  private:
+  base::ScopedMockElapsedTimersForTest scoped_test_timer_;
+  content::test::PrerenderTestHelper prerender_helper_;
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> test_ukm_recorder_;
-  std::unique_ptr<base::ScopedMockElapsedTimersForTest> scoped_test_timer_;
 };
 
 // Following definitions are equal to content::PrerenderFinalStatus.
@@ -563,6 +571,8 @@ IN_PROC_BROWSER_TEST_F(
   }
   histogram_tester.ExpectTotalCount(
       "Bookmarks.BookmarkBar.PrerenderNavigationToActivation", 1);
+  histogram_tester.ExpectUniqueSample(
+      "Prerender.IsPrerenderingSRPUrl.Embedder_BookmarkBar", false, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(PrerenderBookmarkBarOnPressedNavigationTest,
@@ -635,7 +645,7 @@ class PrerenderBookmarkBarOnHoverNavigationTest
 
     gfx::Point center(10, 10);
     button->OnMouseEntered(ui::MouseEvent(
-        ui::ET_MOUSE_ENTERED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMouseEntered, center, center, ui::EventTimeForNow(),
         /*flags=*/ui::EF_NONE,
         /*changed_button_flags=*/ui::EF_NONE));
 
@@ -652,8 +662,8 @@ class PrerenderBookmarkBarOnHoverNavigationTest
     views::LabelButton* button = GetBookmarkButton(0);
 
     gfx::Point center(10, 10);
-    button->OnMouseExited(ui::MouseEvent(ui::ET_MOUSE_EXITED, center, center,
-                                         ui::EventTimeForNow(),
+    button->OnMouseExited(ui::MouseEvent(ui::EventType::kMouseExited, center,
+                                         center, ui::EventTimeForNow(),
                                          /*flags=*/ui::EF_NONE,
                                          /*changed_button_flags=*/ui::EF_NONE));
   }
@@ -822,12 +832,12 @@ IN_PROC_BROWSER_TEST_F(PrerenderBookmarkBarOnHoverNavigationTest,
 
   // Mouse enters and exits the button immediately.
   gfx::Point center(10, 10);
-  button->OnMouseEntered(ui::MouseEvent(ui::ET_MOUSE_ENTERED, center, center,
-                                        ui::EventTimeForNow(),
+  button->OnMouseEntered(ui::MouseEvent(ui::EventType::kMouseEntered, center,
+                                        center, ui::EventTimeForNow(),
                                         /*flags=*/ui::EF_NONE,
                                         /*changed_button_flags=*/ui::EF_NONE));
-  button->OnMouseExited(ui::MouseEvent(ui::ET_MOUSE_EXITED, center, center,
-                                       ui::EventTimeForNow(),
+  button->OnMouseExited(ui::MouseEvent(ui::EventType::kMouseExited, center,
+                                       center, ui::EventTimeForNow(),
                                        /*flags=*/ui::EF_NONE,
                                        /*changed_button_flags=*/ui::EF_NONE));
 
@@ -852,10 +862,8 @@ IN_PROC_BROWSER_TEST_F(PrerenderBookmarkBarOnHoverNavigationTest,
       /*content::PredictorConfusionMatrix::kFalseNegative*/ 3, 1);
 }
 
-// TODO(crbug.com/40286740): Gardener 2023-20-26: Fails consistently on bots,
-// and ~10% locally.
 IN_PROC_BROWSER_TEST_F(PrerenderBookmarkBarOnHoverNavigationTest,
-                       DISABLED_PrerenderNonHttps) {
+                       PrerenderNonHttps) {
   base::HistogramTester histogram_tester;
   // Navigate to an non-empty tab
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
@@ -922,10 +930,10 @@ class PrerenderBookmarkBarDisabledNavigationTest
 
     gfx::Point center(10, 10);
     button->OnMousePressed(ui::MouseEvent(
-        ui::ET_MOUSE_PRESSED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMousePressed, center, center, ui::EventTimeForNow(),
         ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
     button->OnMouseReleased(ui::MouseEvent(
-        ui::ET_MOUSE_RELEASED, center, center, ui::EventTimeForNow(),
+        ui::EventType::kMouseReleased, center, center, ui::EventTimeForNow(),
         ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
   }
 

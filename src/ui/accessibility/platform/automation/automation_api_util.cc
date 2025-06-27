@@ -87,8 +87,7 @@ bool ShouldIgnoreAXEventForAutomation(ax::mojom::Event event_type) {
       return false;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool ShouldIgnoreGeneratedEventForAutomation(
@@ -150,7 +149,6 @@ bool ShouldIgnoreGeneratedEventForAutomation(
     case AXEventGenerator::Event::ORIENTATION_CHANGED:
     case AXEventGenerator::Event::PARENT_CHANGED:
     case AXEventGenerator::Event::PLACEHOLDER_CHANGED:
-    case AXEventGenerator::Event::PORTAL_ACTIVATED:
     case AXEventGenerator::Event::POSITION_IN_SET_CHANGED:
     case AXEventGenerator::Event::RELATED_NODE_CHANGED:
     case AXEventGenerator::Event::READONLY_CHANGED:
@@ -182,8 +180,7 @@ bool ShouldIgnoreGeneratedEventForAutomation(
       return true;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 std::tuple<ax::mojom::Event, AXEventGenerator::Event>

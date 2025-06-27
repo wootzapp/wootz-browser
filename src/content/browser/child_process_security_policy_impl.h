@@ -27,6 +27,7 @@
 #include "content/browser/origin_agent_cluster_isolation_state.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/child_process_security_policy.h"
+#include "content/public/common/bindings_policy.h"
 #include "storage/common/file_system/file_system_types.h"
 #include "url/origin.h"
 
@@ -412,15 +413,15 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
 
   // Whenever the browser process drops a file icon on a tab, it should call
   // this method to grant the child process the capability to request this one
-  // file:// URL, but not all urls of the file:// scheme.
-  void GrantRequestSpecificFileURL(int child_id, const GURL& url);
+  // file:// URL (or content:// URL in android), but not all urls of the file://
+  // scheme.
+  void GrantRequestOfSpecificFile(int child_id, const base::FilePath& file);
 
   // Revokes all permissions granted to the given file.
   void RevokeAllPermissionsForFile(int child_id, const base::FilePath& file);
 
-  // Grant the child process the ability to use Web UI Bindings where |bindings|
-  // is either BINDINGS_POLICY_WEB_UI or BINDINGS_POLICY_MOJO_WEB_UI or both.
-  void GrantWebUIBindings(int child_id, int bindings);
+  // Grant the child process the ability to use Web UI Bindings.
+  void GrantWebUIBindings(int child_id, BindingsPolicySet bindings);
 
   // Grant the child process the ability to read raw cookies.
   void GrantReadRawCookies(int child_id);
@@ -594,6 +595,14 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
       const url::Origin& origin,
       bool is_global_walk_or_frame_removal);
 
+  // Add `origin` to the list of committed origins for the process identified by
+  // `child_id`. An attempt to add the same origin more than once is safely
+  // ignored. Note that there is currently no way to revoke an origin once it
+  // has been committed, even if all associated documents and workers go away.
+  // This might need to be revisited in the future if the list of committed
+  // origins grows too large.
+  void AddCommittedOrigin(int child_id, const url::Origin& origin);
+
   // Allows tests to modify the delay in cleaning up BrowsingInstanceIds. If the
   // delay is set to zero, cleanup happens immediately.
   void SetBrowsingInstanceCleanupDelayForTesting(int64_t delay_in_seconds) {
@@ -605,6 +614,13 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
   size_t BrowsingInstanceIdCountForTesting(int child_id);
 
   void ClearRegisteredSchemeForTesting(const std::string& scheme);
+
+  // Checks if the provided `url` matches any committed origin in the process
+  // `child_id`. Currently only exposed for testing, since normally this check
+  // happens within CanAccessMaybeOpaqueOrigin().
+  bool MatchesCommittedOriginForTesting(int child_id,
+                                        const GURL& url,
+                                        bool url_is_for_precursor_origin);
 
   // Exposes LookupOriginIsolationState() for tests.
   OriginAgentClusterIsolationState* LookupOriginIsolationStateForTesting(
@@ -632,13 +648,17 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
                            IsolatedOriginsRemovedWhenBrowserContextDestroyed);
   FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest,
                            IsolateAllSuborigins);
-  FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest,
-                           WildcardAndNonWildcardOrigins);
-  FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest,
-                           WildcardAndNonWildcardEmbedded);
+  FRIEND_TEST_ALL_PREFIXES(
+      ChildProcessSecurityPolicyTest_NoOriginKeyedProcessesByDefault,
+      WildcardAndNonWildcardOrigins);
+  FRIEND_TEST_ALL_PREFIXES(
+      ChildProcessSecurityPolicyTest_NoOriginKeyedProcessesByDefault,
+      WildcardAndNonWildcardEmbedded);
   FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest,
                            ParseIsolatedOrigins);
   FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest, WildcardDefaultPort);
+  FRIEND_TEST_ALL_PREFIXES(ChildProcessSecurityPolicyTest,
+                           MatchesCommittedOrigin);
 
   class SecurityState;
 
@@ -858,6 +878,36 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
   static std::string GetKilledProcessOriginLock(
       const SecurityState* security_state);
 
+  // Helper for CanAccessMaybeOpaqueOrigin, to perform two security checks:
+  //  - Jail check: a process locked to a particular site shouldn't access data
+  //    belonging to other sites.
+  //  - Citadel check: a process not locked to any site shouldn't access data
+  //    belonging to sites that require a dedicated process.
+  //
+  // These checks are performed by comparing the actual ProcessLock of the
+  // process represented by `child_id` and `security_state` to an expected
+  // ProcessLock computed from `url`, which takes into account factors such as
+  // whether `url` should be site-isolated or origin-isolated (or not isolated,
+  // e.g. on Android). Determining site-vs-origin isolation is non-trivial: the
+  // answer may differ depending on BrowsingInstance (e.g., OriginAgentCluster
+  // might require origin isolation only for certain BrowsingInstances), so all
+  // BrowsingInstances hosting in the process must be consulted.
+  //
+  // This function returns true only if both Jail and Citadel checks pass. On
+  // failure, it also populates `out_failure_reason` with debugging information
+  // about the cause of the failure, as well as `out_expected_process_lock` with
+  // what the process lock was expected to be (e.g., to be used in crash keys).
+  //
+  // This function must be called while already holding `lock_`.
+  bool PerformJailAndCitadelChecks(int child_id,
+                                   SecurityState* security_state,
+                                   const GURL& url,
+                                   bool url_is_precursor_of_opaque_origin,
+                                   AccessType access_type,
+                                   ProcessLock& out_expected_process_lock,
+                                   std::string& out_failure_reason)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
   // Helper for public CanAccessOrigin overloads.
   bool CanAccessMaybeOpaqueOrigin(int child_id,
                                   const GURL& url,
@@ -871,6 +921,10 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
                                           bool url_is_for_opaque_origin,
                                           AccessType access_type);
 
+  // Helper used by CanAccessOrigin to impose additional restrictions on a
+  // process that only hosts PDF documents.
+  bool IsAccessAllowedForPdfProcess(AccessType access_type);
+
   // Utility function to simplify lookups for OriginAgentClusterOptInEntry
   // values by origin.
   OriginAgentClusterIsolationState* LookupOriginIsolationState(
@@ -879,20 +933,22 @@ class CONTENT_EXPORT ChildProcessSecurityPolicyImpl
       EXCLUSIVE_LOCKS_REQUIRED(origins_isolation_opt_in_lock_);
 
   // You must acquire this lock before reading or writing any members of this
-  // class, except for isolated_origins_ which uses its own lock.  You must not
-  // block while holding this lock.
+  // class, except for isolated_origins_, schemes_okay_to_*, and
+  // pseudo_schemes_, which use their own locks.  You must not block while
+  // holding this lock.
   base::Lock lock_;
 
-  // These schemes are white-listed for all child processes in various contexts.
-  // These sets are protected by |lock_|.
-  SchemeSet schemes_okay_to_commit_in_any_process_ GUARDED_BY(lock_);
-  SchemeSet schemes_okay_to_request_in_any_process_ GUARDED_BY(lock_);
-  SchemeSet schemes_okay_to_appear_as_origin_headers_ GUARDED_BY(lock_);
+  // These schemes are allow-listed for all child processes in various contexts.
+  // These sets are protected by |schemes_lock_| rather than |lock_|.
+  base::Lock schemes_lock_;
+  SchemeSet schemes_okay_to_commit_in_any_process_ GUARDED_BY(schemes_lock_);
+  SchemeSet schemes_okay_to_request_in_any_process_ GUARDED_BY(schemes_lock_);
+  SchemeSet schemes_okay_to_appear_as_origin_headers_ GUARDED_BY(schemes_lock_);
 
   // These schemes do not actually represent retrievable URLs.  For example,
   // the the URLs in the "about" scheme are aliases to other URLs.  This set is
-  // protected by |lock_|.
-  SchemeSet pseudo_schemes_ GUARDED_BY(lock_);
+  // protected by |schemes_lock_|.
+  SchemeSet pseudo_schemes_ GUARDED_BY(schemes_lock_);
 
   // This map holds a SecurityState for each child process.  The key for the
   // map is the ID of the ChildProcessHost.  The SecurityState objects are

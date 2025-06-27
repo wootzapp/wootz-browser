@@ -16,9 +16,11 @@
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/escape.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "cc/test/test_task_graph_runner.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "content/app/mojo/mojo_init.h"
 #include "content/common/agent_scheduling_group.mojom.h"
 #include "content/common/frame.mojom.h"
@@ -26,7 +28,6 @@
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/public/test/content_test_suite_base.h"
 #include "content/public/test/fake_render_widget_host.h"
@@ -63,11 +64,13 @@
 #include "third_party/blink/public/platform/web_url_request_extra_data.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_document.h"
+#include "third_party/blink/public/web/web_form_control_element.h"
 #include "third_party/blink/public/web/web_frame_widget.h"
 #include "third_party/blink/public/web/web_history_item.h"
 #include "third_party/blink/public/web/web_input_element.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_script_source.h"
+#include "third_party/blink/public/web/web_v8_features.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/color/color_provider.h"
@@ -75,7 +78,7 @@
 #include "ui/color/color_provider_source.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/keycodes/keyboard_codes.h"
-#include "ui/native_theme/native_theme_features.h"
+#include "ui/native_theme/native_theme_utils.h"
 #include "v8/include/v8.h"
 
 #if BUILDFLAG(IS_MAC)
@@ -391,6 +394,7 @@ void RenderViewTest::SetUp() {
   blink::WebRuntimeFeatures::EnableTestOnlyFeatures(true);
   blink::WebRuntimeFeatures::EnableOverlayScrollbars(
       ui::IsOverlayScrollbarEnabled());
+  blink::WebV8Features::InitializeMojoJSAllowedProtectedMemory();
 
   test_io_thread_ =
       std::make_unique<base::TestIOThread>(base::TestIOThread::kAutoStart);
@@ -602,7 +606,7 @@ void RenderViewTest::TearDown() {
 }
 
 void RenderViewTest::SendNativeKeyEvent(
-    const NativeWebKeyboardEvent& key_event) {
+    const input::NativeWebKeyboardEvent& key_event) {
   SendWebKeyboardEvent(key_event);
 }
 
@@ -661,7 +665,7 @@ gfx::Rect RenderViewTest::GetElementBounds(const std::string& element_id) {
 
   v8::Local<v8::Array> array = value.As<v8::Array>();
   v8::Local<v8::Context> v8_context =
-      array->GetCreationContext().ToLocalChecked();
+      array->GetCreationContext(isolate).ToLocalChecked();
   v8::Context::Scope v8_context_scope(v8_context);
   if (array->Length() != 4)
     return gfx::Rect();
@@ -747,8 +751,10 @@ void RenderViewTest::Reload(const GURL& url) {
       url, /* initiator_origin= */ std::nullopt,
       /* initiator_base_url= */ std::nullopt, blink::mojom::Referrer::New(),
       ui::PAGE_TRANSITION_LINK, blink::mojom::NavigationType::RELOAD,
-      blink::NavigationDownloadPolicy(), false, GURL(), base::TimeTicks::Now(),
-      "GET", nullptr, network::mojom::SourceLocation::New(),
+      blink::NavigationDownloadPolicy(), false, GURL(),
+      base::TimeTicks::Now() /* actual_navigation_start_time */,
+      base::TimeTicks::Now() /* navigation_start_time */, "GET", nullptr,
+      network::mojom::SourceLocation::New(),
       false /* started_from_context_menu */, false /* has_user_gesture */,
       false /* has_text_fragment_token */,
       network::mojom::CSPDisposition::CHECK, std::vector<int>(), std::string(),
@@ -767,7 +773,7 @@ void RenderViewTest::Reload(const GURL& url) {
 void RenderViewTest::Resize(gfx::Size new_size, bool is_fullscreen_granted) {
   blink::VisualProperties visual_properties;
   visual_properties.screen_infos = display::ScreenInfos(display::ScreenInfo());
-  visual_properties.new_size = new_size;
+  visual_properties.new_size_device_px = new_size;
   visual_properties.compositor_viewport_pixel_rect = gfx::Rect(new_size);
   visual_properties.is_fullscreen_granted = is_fullscreen_granted;
   visual_properties.display_mode = blink::mojom::DisplayMode::kBrowser;
@@ -804,26 +810,39 @@ void RenderViewTest::SimulateUserTypingASCIICharacter(char ascii_character,
 }
 
 void RenderViewTest::SimulateUserInputChangeForElement(
-    blink::WebInputElement* input,
-    const std::string& new_value) {
+    blink::WebInputElement input,
+    std::string_view new_value) {
   ASSERT_TRUE(base::IsStringASCII(new_value));
-  while (!input->Focused())
-    input->GetDocument().GetFrame()->View()->AdvanceFocus(false);
+  while (!input.Focused()) {
+    input.GetDocument().GetFrame()->View()->AdvanceFocus(false);
+  }
   SimulateUserTypingASCIICharacter(ui::VKEY_END, false);
 
-  size_t previous_length = input->Value().length();
-  for (size_t i = 0; i < previous_length; ++i)
+  size_t previous_length = input.Value().length();
+  for (size_t i = 0; i < previous_length; ++i) {
     SimulateUserTypingASCIICharacter(ui::VKEY_BACK, false);
-
-  EXPECT_TRUE(input->Value().Utf8().empty());
-  for (size_t i = 0; i < new_value.size(); ++i)
-    SimulateUserTypingASCIICharacter(new_value[i], false);
-
+  }
+  EXPECT_TRUE(input.Value().Utf8().empty());
+  for (char c : new_value) {
+    SimulateUserTypingASCIICharacter(c, false);
+  }
   // Compare only beginning, because autocomplete may have filled out the
   // form.
-  EXPECT_EQ(new_value, input->Value().Utf8().substr(0, new_value.length()));
+  EXPECT_EQ(new_value, input.Value().Utf8().substr(0, new_value.length()));
 
   base::RunLoop().RunUntilIdle();
+}
+
+void RenderViewTest::SimulateUserInputChangeForElementById(
+    std::string_view id,
+    std::string_view new_value) {
+  blink::WebInputElement element =
+      GetMainFrame()
+          ->GetDocument()
+          .GetElementById(WebString(base::UTF8ToUTF16(id)))
+          .DynamicTo<blink::WebInputElement>();
+  ASSERT_TRUE(element);
+  SimulateUserInputChangeForElement(element, new_value);
 }
 
 void RenderViewTest::OnSameDocumentNavigation(blink::WebLocalFrame* frame,
@@ -863,8 +882,9 @@ blink::VisualProperties RenderViewTest::InitialVisualProperties() {
   initial_visual_properties.screen_infos =
       display::ScreenInfos(display::ScreenInfo());
   // Ensure the view has some size so tests involving scrolling bounds work.
-  initial_visual_properties.new_size = gfx::Size(400, 300);
-  initial_visual_properties.visible_viewport_size = gfx::Size(400, 300);
+  initial_visual_properties.new_size_device_px = gfx::Size(400, 300);
+  initial_visual_properties.visible_viewport_size_device_px =
+      gfx::Size(400, 300);
   return initial_visual_properties;
 }
 
@@ -874,15 +894,17 @@ void RenderViewTest::GoToOffset(int offset,
   blink::WebView* webview = web_view_;
   int history_list_length =
       webview->HistoryBackListCount() + webview->HistoryForwardListCount() + 1;
-  int pending_offset = offset + webview->HistoryBackListCount();
+  int pending_index = offset + webview->HistoryBackListCount();
 
   auto common_params = blink::mojom::CommonNavigationParams::New(
       url, /* initiator_origin= */ std::nullopt,
       /* initiator_base_url= */ std::nullopt, blink::mojom::Referrer::New(),
       ui::PAGE_TRANSITION_FORWARD_BACK,
       blink::mojom::NavigationType::HISTORY_DIFFERENT_DOCUMENT,
-      blink::NavigationDownloadPolicy(), false, GURL(), base::TimeTicks::Now(),
-      "GET", nullptr, network::mojom::SourceLocation::New(),
+      blink::NavigationDownloadPolicy(), false, GURL(),
+      base::TimeTicks::Now() /* actual_navigation_start_time */,
+      base::TimeTicks::Now() /* navigation_start_time */, "GET", nullptr,
+      network::mojom::SourceLocation::New(),
       false /* started_from_context_menu */, false /* has_user_gesture */,
       false /* has_text_fragment_token */,
       network::mojom::CSPDisposition::CHECK, std::vector<int>(), std::string(),
@@ -891,9 +913,9 @@ void RenderViewTest::GoToOffset(int offset,
       network::mojom::RequestDestination::kDocument);
   auto commit_params = blink::CreateCommitNavigationParams();
   commit_params->page_state = state.ToEncodedData();
-  commit_params->nav_entry_id = pending_offset + 1;
-  commit_params->pending_history_list_offset = pending_offset;
-  commit_params->current_history_list_offset = webview->HistoryBackListCount();
+  commit_params->nav_entry_id = pending_index + 1;
+  commit_params->pending_history_list_index = pending_index;
+  commit_params->current_history_list_index = webview->HistoryBackListCount();
   commit_params->current_history_list_length = history_list_length;
 
   auto* frame = static_cast<TestRenderFrame*>(GetMainRenderFrame());

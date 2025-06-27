@@ -6,8 +6,8 @@
 
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/trace_event/typed_macros.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/public/platform/web_effective_connection_type.h"
 #include "third_party/blink/renderer/core/css/css_custom_font_data.h"
@@ -19,7 +19,6 @@
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/lcp_critical_path_predictor/lcp_critical_path_predictor.h"
-#include "third_party/blink/renderer/core/loader/subresource_integrity_helper.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
@@ -40,10 +39,6 @@ namespace blink {
 
 bool RemoteFontFaceSource::NeedsInterventionToAlignWithLCPGoal() const {
   DCHECK_EQ(display_, FontDisplay::kAuto);
-  if (!base::FeatureList::IsEnabled(
-          features::kAlignFontDisplayAutoTimeoutWithLCPGoal)) {
-    return false;
-  }
   if (!GetDocument() ||
       !FontFaceSetDocument::From(*GetDocument())->HasReachedLCPLimit()) {
     return false;
@@ -61,16 +56,6 @@ RemoteFontFaceSource::DisplayPeriod
 RemoteFontFaceSource::ComputeFontDisplayAutoPeriod() const {
   DCHECK_EQ(display_, FontDisplay::kAuto);
   if (NeedsInterventionToAlignWithLCPGoal()) {
-    using Mode = features::AlignFontDisplayAutoTimeoutWithLCPGoalMode;
-    Mode mode =
-        features::kAlignFontDisplayAutoTimeoutWithLCPGoalModeParam.Get();
-    if (mode == Mode::kToSwapPeriod) {
-      return kSwapPeriod;
-    }
-    DCHECK_EQ(Mode::kToFailurePeriod, mode);
-    if (custom_font_data_ && !custom_font_data_->MayBeIconFont()) {
-      return kFailurePeriod;
-    }
     return kSwapPeriod;
   }
 
@@ -140,8 +125,7 @@ RemoteFontFaceSource::DisplayPeriod RemoteFontFaceSource::ComputePeriod()
       return kSwapPeriod;
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return kSwapPeriod;
+  NOTREACHED();
 }
 
 RemoteFontFaceSource::RemoteFontFaceSource(
@@ -151,11 +135,7 @@ RemoteFontFaceSource::RemoteFontFaceSource(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner)
     : face_(css_font_face),
       font_selector_(font_selector),
-      // No need to report the violation here since the font is not loaded yet
-      display_(
-          GetFontDisplayWithDocumentPolicyCheck(display,
-                                                font_selector,
-                                                ReportOptions::kDoNotReport)),
+      display_(display),
       phase_(kNoLimitExceeded),
       is_intervention_triggered_(ShouldTriggerWebFontsIntervention()),
       finished_before_document_rendering_begin_(false),
@@ -201,25 +181,23 @@ void RemoteFontFaceSource::NotifyFinished(Resource* resource) {
   auto* font = To<FontResource>(resource);
   histograms_.RecordRemoteFont(font);
 
-  // Refer to the comments in classic_pending_script.cc for the reason why
+  // Refer to the comments in `Resource::ForceIntegrityChecks()`:
   // SRI checks should be done here in ResourceClient instead of
   // ResourceFetcher. SRI failure should behave as network error
   // (ErrorOccurred()). PreloadCache even caches network errors.
   // Font fetch itself doesn't support SRI but font preload does.
   // So, if the resource was preloaded we need to check
   // SRI failure and simulate network error if it happens.
-
-  if (resource->IsLinkPreload()) {
-    SubresourceIntegrityHelper::DoReport(*execution_context,
-                                         resource->IntegrityReportInfo());
+  bool force_integrity_checks = resource->ForceIntegrityChecks();
+  if (force_integrity_checks) {
+    resource->IntegrityReport().SendReports(execution_context);
   }
 
-  DCHECK(!custom_font_data_);
   // font->GetCustomFontData() returns nullptr if network error happened
   // (ErrorOccurred() is true). To simulate network error we don't update
   // custom_font_data_ to keep the nullptr value in case of SRI failures.
-  if (!resource->IsLinkPreload() || resource->IntegrityDisposition() !=
-                                        ResourceIntegrityDisposition::kFailed) {
+  DCHECK(!custom_font_data_);
+  if (resource->PassedIntegrityChecks() || !force_integrity_checks) {
     custom_font_data_ = font->GetCustomFontData();
   }
   url_ = resource->Url().GetString();
@@ -292,8 +270,7 @@ void RemoteFontFaceSource::SetDisplay(FontDisplay display) {
   if (IsLoaded()) {
     return;
   }
-  display_ = GetFontDisplayWithDocumentPolicyCheck(
-      display, font_selector_, ReportOptions::kReportOnFailure);
+  display_ = display;
   UpdatePeriod();
 }
 
@@ -314,20 +291,6 @@ bool RemoteFontFaceSource::UpdatePeriod() {
   }
   period_ = new_period;
   return changed;
-}
-
-FontDisplay RemoteFontFaceSource::GetFontDisplayWithDocumentPolicyCheck(
-    FontDisplay display,
-    const FontSelector* font_selector,
-    ReportOptions report_option) const {
-  ExecutionContext* context = font_selector->GetExecutionContext();
-  if (display != FontDisplay::kFallback && display != FontDisplay::kOptional &&
-      context && context->IsWindow() &&
-      !context->IsFeatureEnabled(
-          mojom::blink::DocumentPolicyFeature::kFontDisplay, report_option)) {
-    return FontDisplay::kOptional;
-  }
-  return display;
 }
 
 bool RemoteFontFaceSource::ShouldTriggerWebFontsIntervention() {
@@ -373,10 +336,7 @@ const SimpleFontData* RemoteFontFaceSource::CreateFontData(
           font_description.GetFontSelectionRequest(),
           font_selection_capabilities, font_description.FontOpticalSizing(),
           font_description.TextRendering(),
-          font_description.GetFontVariantAlternates()
-              ? font_description.GetFontVariantAlternates()
-                    ->GetResolvedFontFeatures()
-              : ResolvedFontFeatures(),
+          font_description.ResolveFontFeatures(),
           font_description.Orientation(), font_description.VariationSettings(),
           font_description.GetFontPalette()),
       MakeGarbageCollected<CustomFontData>());
@@ -389,7 +349,7 @@ const SimpleFontData* RemoteFontFaceSource::CreateLoadingFallbackFontData(
   const SimpleFontData* temporary_font =
       FontCache::Get().GetLastResortFallbackFont(font_description);
   if (!temporary_font) {
-    DUMP_WILL_BE_NOTREACHED_NORETURN();
+    DUMP_WILL_BE_NOTREACHED();
     return nullptr;
   }
   CSSCustomFontData* css_font_data = MakeGarbageCollected<CSSCustomFontData>(
@@ -401,6 +361,10 @@ const SimpleFontData* RemoteFontFaceSource::CreateLoadingFallbackFontData(
 
 void RemoteFontFaceSource::BeginLoadIfNeeded() {
   if (IsLoaded()) {
+    return;
+  }
+  // Skip loading if the document is for markup sanitization.
+  if (GetDocument() && GetDocument()->IsForMarkupSanitization()) {
     return;
   }
   ExecutionContext* const execution_context =
@@ -416,6 +380,9 @@ void RemoteFontFaceSource::BeginLoadIfNeeded() {
   auto* font = To<FontResource>(GetResource());
   CHECK(font);
   if (font->StillNeedsLoad()) {
+    TRACE_EVENT("devtools.timeline", "BeginRemoteFontLoad", "id",
+                font->InspectorId(), "url", font->Url(), "display",
+                face_->GetFontFace()->display());
     if (font->IsLowPriorityLoadingAllowedForRemoteFont()) {
       execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
           mojom::blink::ConsoleMessageSource::kIntervention,
@@ -557,8 +524,7 @@ RemoteFontFaceSource::FontLoadHistograms::DataSourceMetricsValue() {
     case kFromUnknown:
       return CacheHitMetrics::kMiss;
   }
-  NOTREACHED_IN_MIGRATION();
-  return CacheHitMetrics::kMiss;
+  NOTREACHED();
 }
 
 }  // namespace blink

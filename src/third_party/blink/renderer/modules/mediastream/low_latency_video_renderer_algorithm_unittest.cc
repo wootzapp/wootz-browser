@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/modules/mediastream/low_latency_video_renderer_algorithm.h"
 
+#include <array>
 #include <queue>
 
 #include "base/time/time.h"
@@ -556,8 +557,10 @@ TEST_F(LowLatencyVideoRendererAlgorithmTest,
 TEST_F(LowLatencyVideoRendererAlgorithmTest, NormalModeWithGlitch60Hz) {
   constexpr int kNumberOfFrames = 5;
   constexpr int kMaxCompositionDelayInFrames = 6;
-  constexpr double kDeadlineBeginErrorRate[] = {0.01, 0.03, -0.01, -0.02, 0.02};
-  constexpr double kDeadlineEndErrorRate[] = {0.02, -0.03, -0.02, 0.03, 0.01};
+  constexpr const auto kDeadlineBeginErrorRate =
+      std::to_array<double>({0.01, 0.03, -0.01, -0.02, 0.02});
+  constexpr const auto kDeadlineEndErrorRate =
+      std::to_array<double>({0.02, -0.03, -0.02, 0.03, 0.01});
   for (int i = 0; i < kNumberOfFrames; ++i) {
     media::VideoFrame::ID frame_id =
         CreateAndEnqueueFrame(kMaxCompositionDelayInFrames);
@@ -577,8 +580,10 @@ TEST_F(LowLatencyVideoRendererAlgorithmTest, NormalModeWithGlitch120Hz) {
   constexpr base::TimeDelta kRenderInterval =
       base::Milliseconds(1000.0 / 120.0);  // 120Hz.
   constexpr int kMaxCompositionDelayInFrames = 6;
-  constexpr double kDeadlineBeginErrorRate[] = {0.01, 0.03, -0.01, -0.02, 0.02};
-  constexpr double kDeadlineEndErrorRate[] = {0.02, -0.03, -0.02, 0.03, 0.01};
+  constexpr const auto kDeadlineBeginErrorRate =
+      std::to_array<double>({0.01, 0.03, -0.01, -0.02, 0.02});
+  constexpr const auto kDeadlineEndErrorRate =
+      std::to_array<double>({0.02, -0.03, -0.02, 0.03, 0.01});
 
   // Add one initial frame.
   media::VideoFrame::ID last_id =

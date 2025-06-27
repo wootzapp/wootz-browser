@@ -909,7 +909,6 @@ error::Error DoWaitSyncTokenCHROMIUM(CommandBufferNamespace namespace_id,
                                      CommandBufferId command_buffer_id,
                                      GLuint64 release_count);
 error::Error DoDrawBuffersEXT(GLsizei count, const volatile GLenum* bufs);
-error::Error DoDiscardBackbufferCHROMIUM();
 
 error::Error DoFlushDriverCachesCHROMIUM();
 error::Error DoMatrixLoadfCHROMIUM(GLenum matrixMode,
@@ -1051,20 +1050,6 @@ error::Error DoCreateAndTexStorage2DSharedImageINTERNAL(
 error::Error DoBeginSharedImageAccessDirectCHROMIUM(GLuint client_id,
                                                     GLenum mode);
 error::Error DoEndSharedImageAccessDirectCHROMIUM(GLuint client_id);
-error::Error DoConvertRGBAToYUVAMailboxesINTERNAL(
-    GLenum yuv_color_space,
-    GLenum plane_config,
-    GLenum subsampling,
-    const volatile GLbyte* mailboxes_in);
-error::Error DoConvertYUVAMailboxesToRGBINTERNAL(
-    GLint src_x,
-    GLint src_y,
-    GLsizei width,
-    GLsizei height,
-    GLenum yuv_color_space,
-    GLenum plane_config,
-    GLenum subsampling,
-    const volatile GLbyte* mailboxes_in);
 error::Error DoConvertYUVAMailboxesToTextureINTERNAL(
     GLuint texture,
     GLenum target,
@@ -1086,7 +1071,6 @@ error::Error DoCopySharedImageINTERNAL(GLint xoffset,
                                        GLint y,
                                        GLsizei width,
                                        GLsizei height,
-                                       GLboolean unpack_flip_y,
                                        const volatile GLbyte* mailboxes);
 error::Error DoCopySharedImageToTextureINTERNAL(
     GLuint texture,
@@ -1097,7 +1081,7 @@ error::Error DoCopySharedImageToTextureINTERNAL(
     GLint src_y,
     GLsizei width,
     GLsizei height,
-    GLboolean flip_y,
+    GLboolean is_dst_origin_top_left,
     const volatile GLbyte* src_mailbox);
 error::Error DoEnableiOES(GLenum target, GLuint index);
 error::Error DoDisableiOES(GLenum target, GLuint index);

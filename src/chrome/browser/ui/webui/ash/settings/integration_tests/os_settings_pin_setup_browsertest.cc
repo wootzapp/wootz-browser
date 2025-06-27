@@ -2,8 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
+#include "ash/public/cpp/in_session_auth_dialog_controller.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/test_future.h"
 #include "base/values.h"
 #include "chrome/browser/ash/login/quick_unlock/pin_storage_prefs.h"
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_factory.h"
@@ -13,8 +16,14 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/ash/settings/test_support/os_settings_lock_screen_browser_test_base.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/test/data/webui/chromeos/settings/os_people_page/password_settings_api.test-mojom-test-utils.h"
 #include "chrome/test/data/webui/chromeos/settings/os_people_page/pin_settings_api.test-mojom-test-utils.h"
 #include "chrome/test/data/webui/chromeos/settings/test_api.test-mojom-test-utils.h"
+#include "chromeos/ash/components/osauth/impl/auth_hub_common.h"
+#include "chromeos/ash/components/osauth/impl/auth_surface_registry.h"
+#include "chromeos/ash/components/osauth/public/auth_engine_api.h"
+#include "chromeos/ash/components/osauth/public/auth_parts.h"
+#include "chromeos/ash/components/osauth/public/common_types.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_map.h"
@@ -47,9 +56,9 @@ const char kTooLongPinForAutosubmit[] = "3213213213213";
 // Name and value of the metric that records authentication on the lock screen
 // page.
 const char kPinUnlockUmaHistogramName[] = "Settings.PinUnlockSetup";
-const base::HistogramBase::Sample kChoosePinOrPassword = 2;
-const base::HistogramBase::Sample kEnterPin = 3;
-const base::HistogramBase::Sample kConfirmPin = 4;
+const base::HistogramBase::Sample32 kChoosePinOrPassword = 2;
+const base::HistogramBase::Sample32 kEnterPin = 3;
+const base::HistogramBase::Sample32 kConfirmPin = 4;
 
 }  // namespace
 
@@ -62,7 +71,9 @@ enum class PinType {
 class OSSettingsPinSetupTest : public OSSettingsLockScreenBrowserTestBase,
                                public testing::WithParamInterface<PinType> {
  public:
-  OSSettingsPinSetupTest() : pin_type_(GetParam()) {
+  OSSettingsPinSetupTest()
+      : OSSettingsLockScreenBrowserTestBase(ash::AshAuthFactor::kGaiaPassword),
+        pin_type_(GetParam()) {
     switch (pin_type_) {
       case PinType::kPrefs:
         cryptohome_->set_supports_low_entropy_credentials(false);
@@ -137,6 +148,14 @@ class OSSettingsPinSetupTest : public OSSettingsLockScreenBrowserTestBase,
     return mojom::PinSettingsApiAsyncWaiter(pin_settings_remote_.get());
   }
 
+  mojom::PasswordSettingsApiAsyncWaiter GoToPasswordSettings(
+      mojom::LockScreenSettingsAsyncWaiter& lock_screen_settings) {
+    password_settings_remote_ =
+        mojo::Remote(lock_screen_settings.GoToPasswordSettings());
+    return mojom::PasswordSettingsApiAsyncWaiter(
+        password_settings_remote_.get());
+  }
+
   void SetPinDisabledPolicy(bool disabled) {
     policy::PolicyMap policies;
     base::Value policy_value{disabled ? base::Value::List()
@@ -155,9 +174,12 @@ class OSSettingsPinSetupTest : public OSSettingsLockScreenBrowserTestBase,
     provider_.UpdateChromePolicy(policies);
   }
 
+  bool HasPinOnlySupport() const { return pin_type_ == PinType::kCryptohome; }
+
  private:
   PinType pin_type_;
   mojo::Remote<mojom::PinSettingsApi> pin_settings_remote_;
+  mojo::Remote<mojom::PasswordSettingsApi> password_settings_remote_;
   testing::NiceMock<policy::MockConfigurationPolicyProvider> provider_;
 };
 
@@ -180,13 +202,16 @@ INSTANTIATE_TEST_SUITE_P(All,
 IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, AddPin) {
   auto lock_screen_settings = OpenLockScreenSettingsAndAuthenticate();
   auto pin_settings = GoToPinSettings(lock_screen_settings);
+  auto password_settings = GoToPasswordSettings(lock_screen_settings);
 
   pin_settings.AssertHasPin(false);
+  password_settings.AssertCanRemovePassword(false);
   EXPECT_EQ(false, IsPinConfigured());
 
   pin_settings.SetPin(kFirstPin);
 
   pin_settings.AssertHasPin(true);
+  password_settings.AssertCanRemovePassword(HasPinOnlySupport());
   EXPECT_EQ(true, IsPinConfigured());
 }
 
@@ -194,6 +219,8 @@ IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, AddPin) {
 IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, ChangePin) {
   auto lock_screen_settings = OpenLockScreenSettingsAndAuthenticate();
   auto pin_settings = GoToPinSettings(lock_screen_settings);
+  auto password_settings = GoToPasswordSettings(lock_screen_settings);
+
   pin_settings.SetPin(kFirstPin);
   pin_settings.AssertHasPin(true);
   EXPECT_EQ(true, IsPinConfigured());
@@ -201,6 +228,7 @@ IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, ChangePin) {
   pin_settings.SetPin(kSecondPin);
 
   pin_settings.AssertHasPin(true);
+  password_settings.AssertCanRemovePassword(HasPinOnlySupport());
   EXPECT_EQ(true, IsPinConfigured());
 }
 
@@ -208,14 +236,19 @@ IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, ChangePin) {
 IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, RemovePin) {
   auto lock_screen_settings = OpenLockScreenSettingsAndAuthenticate();
   auto pin_settings = GoToPinSettings(lock_screen_settings);
+  auto password_settings = GoToPasswordSettings(lock_screen_settings);
+  password_settings.AssertCanRemovePassword(false);
+
   pin_settings.SetPin(kFirstPin);
   pin_settings.AssertHasPin(true);
+  password_settings.AssertCanRemovePassword(HasPinOnlySupport());
   EXPECT_EQ(true, IsPinConfigured());
 
   pin_settings.RemovePin();
 
   EXPECT_EQ(false, IsPinConfigured());
   pin_settings.AssertHasPin(false);
+  password_settings.AssertCanRemovePassword(false);
 }
 
 // Tests that PIN changes are persistent over relaunching os-settings.
@@ -497,7 +530,19 @@ IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, MaximumLengthAutosubmit) {
 // Tests that the user is asked to reauthenticate when trying to enable PIN
 // autosubmit but with a locked-out PIN.
 IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, AutosubmitWithLockedPin) {
-  auto lock_screen_settings = OpenLockScreenSettingsAndAuthenticate();
+  auto go_to_lock_screen_settings_and_authenticate = [&]() {
+    if (ash::features::IsUseAuthPanelInSessionEnabled()) {
+      OpenLockScreenSettings();
+      Authenticate();
+      return mojom::LockScreenSettingsAsyncWaiter{
+          lock_screen_settings_remote_.get()};
+    } else {
+      return OpenLockScreenSettingsAndAuthenticate();
+    }
+  };
+
+  auto lock_screen_settings = go_to_lock_screen_settings_and_authenticate();
+
   auto pin_settings = GoToPinSettings(lock_screen_settings);
   pin_settings.SetPin(kFirstPin);
   // We disable autosubmit so that we can try to reenable.
@@ -506,12 +551,59 @@ IN_PROC_BROWSER_TEST_P(OSSettingsPinSetupTest, AutosubmitWithLockedPin) {
 
   pin_settings.TryEnablePinAutosubmit(kFirstPin);
 
-  lock_screen_settings.AssertAuthenticated(false);
+  if (ash::features::IsUseAuthPanelInSessionEnabled()) {
+    base::test::TestFuture<AuthSurfaceRegistry::AuthSurface> future;
+    auto subscription =
+        ash::AuthParts::Get()->GetAuthSurfaceRegistry()->RegisterShownCallback(
+            future.GetCallback());
 
-  lock_screen_settings.Authenticate(
-      OSSettingsLockScreenBrowserTestBase::kPassword);
-  EXPECT_EQ(false, GetPinAutoSubmitState());
-  pin_settings.AssertPinAutosubmitEnabled(false);
+    auto surface = future.Get();
+    ASSERT_EQ(surface, AuthSurfaceRegistry::AuthSurface::kInSession);
+
+    base::RunLoop().RunUntilIdle();
+
+    Authenticate();
+
+    base::RunLoop().RunUntilIdle();
+
+    EXPECT_EQ(false, GetPinAutoSubmitState());
+    pin_settings.AssertPinAutosubmitEnabled(false);
+  } else {
+    lock_screen_settings.AssertAuthenticated(false);
+
+    lock_screen_settings.Authenticate(
+        OSSettingsLockScreenBrowserTestBase::kPassword);
+    EXPECT_EQ(false, GetPinAutoSubmitState());
+    pin_settings.AssertPinAutosubmitEnabled(false);
+  }
+}
+
+// Tests PIN-only related settings in the ChromeOS settings page.
+class OSSettingsPinOnlySetupTest : public OSSettingsLockScreenBrowserTestBase {
+ public:
+  OSSettingsPinOnlySetupTest()
+      : OSSettingsLockScreenBrowserTestBase(
+            ash::AshAuthFactor::kCryptohomePin) {
+    cryptohome_->set_supports_low_entropy_credentials(true);
+  }
+
+  mojom::PinSettingsApiAsyncWaiter GoToPinSettings(
+      mojom::LockScreenSettingsAsyncWaiter& lock_screen_settings) {
+    pin_settings_remote_ = mojo::Remote(lock_screen_settings.GoToPinSettings());
+    return mojom::PinSettingsApiAsyncWaiter(pin_settings_remote_.get());
+  }
+
+ private:
+  mojo::Remote<mojom::PinSettingsApi> pin_settings_remote_;
+  testing::NiceMock<policy::MockConfigurationPolicyProvider> provider_;
+};
+
+// Tests that the PIN control is disabled when PIN is the only factor.
+IN_PROC_BROWSER_TEST_F(OSSettingsPinOnlySetupTest, PinOnlyRemobalDisabled) {
+  auto lock_screen_settings = OpenLockScreenSettingsAndAuthenticate();
+  auto pin_settings = GoToPinSettings(lock_screen_settings);
+
+  pin_settings.AssertMoreButtonDisabled(true);
 }
 
 }  // namespace ash::settings

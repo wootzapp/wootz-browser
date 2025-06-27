@@ -5,10 +5,10 @@
 import 'chrome://os-settings/lazy_load.js';
 import 'chrome://os-settings/os_settings.js';
 
-import {SettingsAndroidAppsSubpageElement} from 'chrome://os-settings/lazy_load.js';
-import {AndroidAppsBrowserProxyImpl, appNotificationHandlerMojom, CrDialogElement, createRouterForTesting, CrLinkRowElement, OsSettingsAppsPageElement, OsSettingsRoutes, Router, routes, routesMojom, setAppNotificationProviderForTesting, settingMojom, SettingsDropdownMenuElement} from 'chrome://os-settings/os_settings.js';
-import {Permission} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
-import {createBoolPermission} from 'chrome://resources/cr_components/app_management/permission_util.js';
+import type {SettingsAndroidAppsSubpageElement} from 'chrome://os-settings/lazy_load.js';
+import {ParentalControlsDialogAction} from 'chrome://os-settings/lazy_load.js';
+import type {CrDialogElement, CrLinkRowElement, OsSettingsAppsPageElement, OsSettingsRoutes} from 'chrome://os-settings/os_settings.js';
+import {AndroidAppsBrowserProxyImpl, createRouterForTesting, Router, routes, routesMojom, setAppNotificationProviderForTesting, setAppParentalControlsProviderForTesting, settingMojom} from 'chrome://os-settings/os_settings.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {getDeepActiveElement} from 'chrome://resources/js/util.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -16,17 +16,13 @@ import {assertEquals, assertFalse, assertNull, assertTrue} from 'chrome://webui-
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise, isVisible} from 'chrome://webui-test/test_util.js';
 
-import {clearBody} from '../utils.js';
+import {FakeMetricsPrivate} from '../fake_metrics_private.js';
+import {clearBody, hasStringProperty} from '../utils.js';
 
 import {FakeAppNotificationHandler} from './app_notifications_page/fake_app_notification_handler.js';
+import {FakeAppParentalControlsHandler} from './app_parental_controls_page/fake_app_parental_controls_handler.js';
 import {TestAndroidAppsBrowserProxy} from './test_android_apps_browser_proxy.js';
 
-const {Readiness} = appNotificationHandlerMojom;
-type App = appNotificationHandlerMojom.App;
-type ReadinessType = appNotificationHandlerMojom.Readiness;
-
-const isRevampWayfindingEnabled =
-    loadTimeData.getBoolean('isRevampWayfindingEnabled');
 const isAppParentalControlsAvailable =
     loadTimeData.getBoolean('isAppParentalControlsFeatureAvailable');
 let appsPage: OsSettingsAppsPageElement;
@@ -54,29 +50,15 @@ function getFakePrefs() {
       },
     },
     on_device_app_controls: {
+      pin: {
+        key: 'on_device_app_controls.pin',
+        type: chrome.settingsPrivate.PrefType.STRING,
+        value: '',
+      },
       setup_completed: {
         key: 'on_device_app_controls.setup_completed',
         type: chrome.settingsPrivate.PrefType.BOOLEAN,
         value: false,
-      },
-    },
-  };
-}
-
-function setPrefs(restoreOption: number) {
-  return {
-    arc: {
-      enabled: {
-        key: 'arc.enabled',
-        type: chrome.settingsPrivate.PrefType.BOOLEAN,
-        value: false,
-      },
-    },
-    settings: {
-      restore_apps_and_pages: {
-        key: 'settings.restore_apps_and_pages',
-        type: chrome.settingsPrivate.PrefType.NUMBER,
-        value: restoreOption,
       },
     },
   };
@@ -90,17 +72,6 @@ function preliminarySetupForAndroidAppsSubpage(
 
   androidAppsBrowserProxy = new TestAndroidAppsBrowserProxy();
   AndroidAppsBrowserProxyImpl.setInstanceForTesting(androidAppsBrowserProxy);
-}
-
-function createApp(
-    id: string, title: string, permission: Permission,
-    readiness: ReadinessType = Readiness.kReady): App {
-  return {
-    id,
-    title,
-    notificationPermission: permission,
-    readiness,
-  };
 }
 
 suite('<os-apps-page> available settings rows', () => {
@@ -118,7 +89,6 @@ suite('<os-apps-page> available settings rows', () => {
 
   setup(() => {
     loadTimeData.overrideValues({
-      showOsSettingsAppNotificationsRow: true,
       isPlayStoreAvailable: true,
     });
     Router.getInstance().navigateTo(routes.APPS);
@@ -161,30 +131,15 @@ suite('<os-apps-page> available settings rows', () => {
     assertNull(queryAppsOnStartupRow());
   });
 
-  if (isRevampWayfindingEnabled) {
-    test('On startup row does not exist in this page', async () => {
-      loadTimeData.overrideValues({
-        shouldShowStartup: true,
-        androidAppsVisible: true,
-      });
-      await initPage();
-
-      assertFalse(isVisible(queryAppsOnStartupRow()));
+  test('On startup row does not exist in this page', async () => {
+    loadTimeData.overrideValues({
+      shouldShowStartup: true,
+      androidAppsVisible: true,
     });
-  } else {
-    test('Android Apps, On Startup, and App Management are shown', async () => {
-      loadTimeData.overrideValues({
-        shouldShowStartup: true,
-        androidAppsVisible: true,
-      });
-      await initPage();
+    await initPage();
 
-      assertTrue(isVisible(queryAppManagementRow()));
-      assertTrue(isVisible(queryAndroidAppsRow()));
-      assertTrue(isVisible(queryAppsOnStartupRow()));
-      assertEquals(3, appsPage.get('onStartupOptions_').length);
-    });
-  }
+    assertFalse(isVisible(queryAppsOnStartupRow()));
+  });
 });
 
 suite('<os-apps-page> Subpage trigger focusing', () => {
@@ -202,7 +157,6 @@ suite('<os-apps-page> Subpage trigger focusing', () => {
   suiteSetup(() => {
     loadTimeData.overrideValues({
       androidAppsVisible: true,
-      showOsSettingsAppNotificationsRow: true,
     });
 
     // Reinitialize Router and routes based on load time data
@@ -264,18 +218,53 @@ suite('<os-apps-page> Subpage trigger focusing', () => {
               `${triggerSelector} should be focused.`);
         });
   });
+
+  test(
+      'Returning from androidApps with playStore disabled focuses on button',
+      async () => {
+        await initPage();
+
+        const subpageTrigger =
+            appsPage.shadowRoot!.querySelector<HTMLButtonElement>(
+                '#androidApps .subpage-arrow');
+        assertTrue(!!subpageTrigger);
+        assertTrue(isVisible(subpageTrigger));
+
+        // Sub-page trigger navigates to Detailed build info subpage
+        subpageTrigger.click();
+        assertEquals(
+            routes.ANDROID_APPS_DETAILS, Router.getInstance().currentRoute);
+
+        // Disable PlayStore
+        appsPage.androidAppsInfo = {
+          playStoreEnabled: false,
+          settingsAppAvailable: false,
+        };
+        flush();
+
+        // Navigate back
+        const popStateEventPromise = eventToPromise('popstate', window);
+        Router.getInstance().navigateToPreviousRoute();
+        await popStateEventPromise;
+        await waitAfterNextRender(appsPage);
+
+        const arcEnableButton = appsPage.shadowRoot!.querySelector<HTMLElement>(
+            '#androidApps #arcEnable');
+        assertTrue(!!arcEnableButton);
+        assertTrue(isVisible(arcEnableButton));
+
+        assertEquals(
+            arcEnableButton, appsPage.shadowRoot!.activeElement,
+            '#arcEnable button should be focused.');
+      });
 });
 
 suite('AppsPageTests', () => {
   let mojoApi: FakeAppNotificationHandler;
-
-  function simulateNotificationAppChanged(app: App): void {
-    mojoApi.getObserverRemote().onNotificationAppChanged(app);
-  }
+  let parentalControlsHandler: FakeAppParentalControlsHandler;
 
   suiteSetup(() => {
     loadTimeData.overrideValues({
-      showOsSettingsAppNotificationsRow: true,
       isPlayStoreAvailable: true,
       androidAppsVisible: true,
       showManageIsolatedWebAppsRow: true,
@@ -288,6 +277,9 @@ suite('AppsPageTests', () => {
   });
 
   setup(async () => {
+    parentalControlsHandler = new FakeAppParentalControlsHandler();
+    setAppParentalControlsProviderForTesting(parentalControlsHandler);
+
     Router.getInstance().navigateTo(routes.APPS);
     appsPage = document.createElement('os-settings-apps-page');
     document.body.appendChild(appsPage);
@@ -302,7 +294,12 @@ suite('AppsPageTests', () => {
   });
 
   suite('Main Page', () => {
+    let fakeMetricsPrivate: FakeMetricsPrivate;
+
     setup(() => {
+      fakeMetricsPrivate = new FakeMetricsPrivate();
+      chrome.metricsPrivate = fakeMetricsPrivate;
+
       appsPage.prefs = getFakePrefs();
       appsPage.androidAppsInfo = {
         playStoreEnabled: false,
@@ -316,70 +313,39 @@ suite('AppsPageTests', () => {
           '#appNotificationsRow');
     }
 
-    if (isRevampWayfindingEnabled) {
-      test('App notification row displays helpful description', async () => {
-        const rowLink = queryAppNotificationsRow();
-        assertTrue(!!rowLink);
-        assertTrue(isVisible(rowLink));
-        assertEquals(
-            'Manage app notifications, Do Not Disturb, and app badging',
-            rowLink.subLabel);
-      });
-
-      test(
-          'App notification row has same sublabel when Do Not Disturb is on',
-          async () => {
-            appsPage.set('isDndEnabled_', true);
-            await flushTasks();
-
-            const rowLink = queryAppNotificationsRow();
-            assertTrue(!!rowLink);
-            assertTrue(isVisible(rowLink));
-            assertEquals(
-                'Manage app notifications, Do Not Disturb, and app badging',
-                rowLink.subLabel);
-          });
-    } else {
-      test('App notification row displays number of apps', async () => {
-        const rowLink = queryAppNotificationsRow();
-        assertTrue(!!rowLink);
-        assertTrue(isVisible(rowLink));
-        // Test default is to have 0 apps.
-        assertEquals('0 apps', rowLink.subLabel);
-
-        const permission1 = createBoolPermission(
-            /**id=*/ 1,
-            /**value=*/ false, /**is_managed=*/ false);
-        const permission2 = createBoolPermission(
-            /**id=*/ 2,
-            /**value=*/ true, /**is_managed=*/ false);
-        const app1 = createApp('1', 'App1', permission1);
-        const app2 = createApp('2', 'App2', permission2);
-
-        simulateNotificationAppChanged(app1);
-        simulateNotificationAppChanged(app2);
-        await flushTasks();
-
-        assertEquals('2 apps', rowLink.subLabel);
-
-        // Simulate an uninstalled app.
-        const app3 =
-            createApp('2', 'App2', permission2, Readiness.kUninstalledByUser);
-        simulateNotificationAppChanged(app3);
-        await flushTasks();
-        assertEquals('1 apps', rowLink.subLabel);
-      });
-
-      test('App notification row shows when Do Not Disturb is on', async () => {
-        appsPage.set('isDndEnabled_', true);
-        await flushTasks();
-
-        const rowLink = queryAppNotificationsRow();
-        assertTrue(!!rowLink);
-        assertTrue(isVisible(rowLink));
-        assertEquals('Do Not Disturb enabled', rowLink.subLabel);
-      });
+    function queryParentalControlsRow(): HTMLElement|null {
+      return appsPage.shadowRoot!.querySelector<HTMLElement>(
+          '#appParentalControls');
     }
+
+    async function initializeParentalControlsPin(pin: string) {
+      await parentalControlsHandler.setUpPin(pin);
+      appsPage.set('isParentalControlsSetupCompleted_', true);
+      await flushTasks();
+    }
+
+    test('App notification row displays helpful description', () => {
+      const rowLink = queryAppNotificationsRow();
+      assertTrue(!!rowLink);
+      assertTrue(isVisible(rowLink));
+      assertEquals(
+          'Manage app notifications, Do Not Disturb, and app badging',
+          rowLink.subLabel);
+    });
+
+    test(
+        'App notification row has same sublabel when Do Not Disturb is on',
+        async () => {
+          appsPage.set('isDndEnabled_', true);
+          await flushTasks();
+
+          const rowLink = queryAppNotificationsRow();
+          assertTrue(!!rowLink);
+          assertTrue(isVisible(rowLink));
+          assertEquals(
+              'Manage app notifications, Do Not Disturb, and app badging',
+              rowLink.subLabel);
+        });
 
     test('Manage isolated web apps row', () => {
       const rowLink =
@@ -389,13 +355,10 @@ suite('AppsPageTests', () => {
 
     if (isAppParentalControlsAvailable) {
       test(
-          `Clicking set up and dismissing the PIN setup dialog sets up parental
-           controls and navigates to subpage`,
+          `Clicking set up and creating a PIN sets up parental controls and
+           navigates to the parental controls subpage`,
           async () => {
-            const parentalControlsRow =
-                appsPage.shadowRoot!.querySelector<HTMLElement>(
-                    '#appParentalControls');
-            // Wait for the row to become visible.
+            const parentalControlsRow = queryParentalControlsRow();
             assertTrue(!!parentalControlsRow);
             assertTrue(isVisible(parentalControlsRow));
 
@@ -406,62 +369,65 @@ suite('AppsPageTests', () => {
             await flushTasks();
 
             const setupPinDialog =
-                parentalControlsRow.querySelector<HTMLElement>('#setupPin');
+                appsPage.shadowRoot!.querySelector<HTMLElement>('#setupPin');
             assertTrue(!!setupPinDialog);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.SetUpControls',
+                    ParentalControlsDialogAction.OPEN_DIALOG));
 
-            // TODO(b/332936223): When setup flow is implemented, simulate a
-            // successful PIN submission here instead.
-            const cancelPinSetupButton =
+            // Simulate PIN entry.
+            const pin = '123456';
+            const setupPinKeyboard =
+                setupPinDialog.shadowRoot!.getElementById('setupPinKeyboard');
+            assertTrue(!!setupPinKeyboard);
+            const pinKeyboard =
+                setupPinKeyboard.shadowRoot!.getElementById('pinKeyboard');
+            assertTrue(!!pinKeyboard);
+            assertTrue(hasStringProperty(pinKeyboard, 'value'));
+            pinKeyboard.value = pin;
+            await flushTasks();
+
+            const continuePinSetupButton =
                 setupPinDialog.shadowRoot!
                     .querySelector<HTMLElement>('#dialog')!
-                    .querySelector<HTMLElement>('.cancel-button');
-            assertTrue(!!cancelPinSetupButton);
-            cancelPinSetupButton.click();
+                    .querySelector<HTMLElement>('.action-button');
+            assertTrue(!!continuePinSetupButton);
+            continuePinSetupButton.click();
+
+            // Verify that the PIN keyboard has been reset.
+            assertEquals('', pinKeyboard.value);
+
+            // Re-enter the PIN to confirm it.
+            pinKeyboard.value = pin;
+            await flushTasks();
+
+            assertTrue(!!continuePinSetupButton);
+            continuePinSetupButton.click();
             await waitAfterNextRender(appsPage);
 
-            assertTrue(!!appsPage.shadowRoot!.querySelector(
-                'settings-app-parental-controls-subpage'));
+            // The subpage should be visible.
+            assertEquals(
+                routes.APP_PARENTAL_CONTROLS,
+                Router.getInstance().currentRoute);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.SetUpControls',
+                    ParentalControlsDialogAction.FLOW_COMPLETED));
           });
 
       test(
-          `Clicking the subpage arrow and dismissing the verification dialog
-           when parental controls are enabled navigates to the subpage`,
+          `Entering the correct PIN navigates to the parental controls subpage`,
           async () => {
-            const parentalControlsRow =
-                appsPage.shadowRoot!.querySelector<HTMLElement>(
-                    '#appParentalControls');
-            // Wait for the row to become visible.
+            // Setup the initial PIN.
+            const pin = '123456';
+            await initializeParentalControlsPin(pin);
+
+            const parentalControlsRow = queryParentalControlsRow();
             assertTrue(!!parentalControlsRow);
             assertTrue(isVisible(parentalControlsRow));
-
-            const setUpButton =
-                parentalControlsRow.querySelector<HTMLElement>('cr-button');
-            assertTrue(!!setUpButton);
-            setUpButton.click();
-            await flushTasks();
-
-            const setupPinDialog =
-                parentalControlsRow.querySelector<HTMLElement>('#setupPin');
-            assertTrue(!!setupPinDialog);
-
-            // TODO(b/332936223): When setup flow is implemented, simulate a
-            // successful PIN submission here instead.
-            const cancelPinSetupButton =
-                setupPinDialog.shadowRoot!
-                    .querySelector<HTMLElement>('#dialog')!
-                    .querySelector<HTMLElement>('.cancel-button');
-            assertTrue(!!cancelPinSetupButton);
-            cancelPinSetupButton.click();
-            await waitAfterNextRender(appsPage);
-
-            assertTrue(!!appsPage.shadowRoot!.querySelector(
-                'settings-app-parental-controls-subpage'));
-
-            // Navigate back to apps page from the subpage.
-            const popStateEventPromise = eventToPromise('popstate', window);
-            Router.getInstance().navigateToPreviousRoute();
-            await popStateEventPromise;
-            await waitAfterNextRender(appsPage);
 
             // Click subpage arrow to navigate to the subpage.
             const subpageArrow = parentalControlsRow.querySelector<HTMLElement>(
@@ -471,62 +437,113 @@ suite('AppsPageTests', () => {
             await flushTasks();
 
             const verifyPinDialog =
-                parentalControlsRow.querySelector<HTMLElement>('#verifyPin');
+                appsPage.shadowRoot!.querySelector<HTMLElement>('#verifyPin');
             assertTrue(!!verifyPinDialog);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.' +
+                        'VerifyToEnterControlsPage',
+                    ParentalControlsDialogAction.OPEN_DIALOG));
 
-            // TODO(b/332936481): When verification flow is implemented,
-            // simulate a successful PIN verification here instead.
-            const cancelVerifyPinButton =
-                verifyPinDialog.shadowRoot!
-                    .querySelector<HTMLElement>('#dialog')!
-                    .querySelector<HTMLElement>('.cancel-button');
-            assertTrue(!!cancelVerifyPinButton);
-            cancelVerifyPinButton.click();
+            // Simulate PIN entry.
+            const verifyPinKeyboard =
+                verifyPinDialog.shadowRoot!.getElementById('pinKeyboard');
+            assertTrue(!!verifyPinKeyboard);
+            assertTrue(hasStringProperty(verifyPinKeyboard, 'value'));
+            verifyPinKeyboard.value = pin;
+            await flushTasks();
+
+            // Simulate pressing the enter key.
+            const pinInput =
+                verifyPinKeyboard.shadowRoot!.getElementById('pinInput');
+            assertTrue(pinInput instanceof HTMLElement);
+            pinInput.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13}));
             await waitAfterNextRender(appsPage);
 
-            assertTrue(!!appsPage.shadowRoot!.querySelector(
-              'settings-app-parental-controls-subpage'));
+            // The subpage should be visible.
+            assertEquals(
+                routes.APP_PARENTAL_CONTROLS,
+                Router.getInstance().currentRoute);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.' +
+                        'VerifyToEnterControlsPage',
+                    ParentalControlsDialogAction.FLOW_COMPLETED));
           });
 
       test(
-          `Toggling parental controls and dismissing the PIN verification
-          dialog resets parental controls`,
+          `Entering an incorrect PIN surfaces an error and does not navigate
+             to the parental controls subpage`,
           async () => {
-            const parentalControlsRow =
-                appsPage.shadowRoot!.querySelector<HTMLElement>(
-                    '#appParentalControls');
-            // Wait for the row to become visible.
+            // Setup the initial PIN.
+            const pin = '123456';
+            await initializeParentalControlsPin(pin);
+
+            const parentalControlsRow = queryParentalControlsRow();
             assertTrue(!!parentalControlsRow);
             assertTrue(isVisible(parentalControlsRow));
 
-            const setUpButton =
-                parentalControlsRow.querySelector<HTMLElement>('cr-button');
-            assertTrue(!!setUpButton);
-            setUpButton.click();
+            // Click subpage arrow to navigate to the subpage.
+            const subpageArrow = parentalControlsRow.querySelector<HTMLElement>(
+                '.subpage-arrow');
+            assertTrue(!!subpageArrow);
+            subpageArrow.click();
             await flushTasks();
 
-            const setupPinDialog =
-                parentalControlsRow.querySelector<HTMLElement>('#setupPin');
-            assertTrue(!!setupPinDialog);
+            const verifyPinDialog =
+                appsPage.shadowRoot!.querySelector<HTMLElement>('#verifyPin');
+            assertTrue(!!verifyPinDialog);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.' +
+                        'VerifyToEnterControlsPage',
+                    ParentalControlsDialogAction.OPEN_DIALOG));
 
-            // TODO(b/332936223): When setup flow is implemented, simulate a
-            // successful PIN submission here instead.
-            const cancelPinSetupButton =
-                setupPinDialog.shadowRoot!
-                    .querySelector<HTMLElement>('#dialog')!
-                    .querySelector<HTMLElement>('.cancel-button');
-            assertTrue(!!cancelPinSetupButton);
-            cancelPinSetupButton.click();
+            // An error should not be visible in the dialog.
+            const errorDiv =
+                verifyPinDialog.shadowRoot!.getElementById('errorDiv');
+            assertTrue(!!errorDiv);
+            assertTrue(errorDiv.hasAttribute('invisible'));
+
+            // Simulate incorrect PIN entry.
+            const verifyPinKeyboard =
+                verifyPinDialog.shadowRoot!.getElementById('pinKeyboard');
+            assertTrue(!!verifyPinKeyboard);
+            assertTrue(hasStringProperty(verifyPinKeyboard, 'value'));
+            verifyPinKeyboard.value = '123457';
+            await flushTasks();
+
+            // Simulate pressing the enter key.
+            const pinInput =
+                verifyPinKeyboard.shadowRoot!.getElementById('pinInput');
+            assertTrue(pinInput instanceof HTMLElement);
+            pinInput.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13}));
             await waitAfterNextRender(appsPage);
 
-            assertTrue(!!appsPage.shadowRoot!.querySelector(
-                'settings-app-parental-controls-subpage'));
+            // An error should be visible in the dialog.
+            assertTrue(!!errorDiv);
+            assertFalse(errorDiv.hasAttribute('invisible'));
 
-            // Navigate back to apps page from the subpage.
-            const popStateEventPromise = eventToPromise('popstate', window);
-            Router.getInstance().navigateToPreviousRoute();
-            await popStateEventPromise;
-            await waitAfterNextRender(appsPage);
+            // The subpage should not be visible.
+            assertEquals(routes.APPS, Router.getInstance().currentRoute);
+          });
+
+      test(
+          `Toggling parental controls off and entering the correct PIN resets
+             parental controls`,
+          async () => {
+            // Setup the initial PIN.
+            const pin = '123456';
+            await initializeParentalControlsPin(pin);
+
+            const parentalControlsRow = queryParentalControlsRow();
+            assertTrue(!!parentalControlsRow);
+            assertTrue(isVisible(parentalControlsRow));
 
             // Click the toggle to disable parental controls.
             const toggle =
@@ -536,29 +553,80 @@ suite('AppsPageTests', () => {
             await flushTasks();
 
             const disableDialog =
-                parentalControlsRow.querySelector<HTMLElement>(
+                appsPage.shadowRoot!.querySelector<HTMLElement>(
                     '#disableDialog');
             assertTrue(!!disableDialog);
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.' +
+                        'VerifyToDisableControls',
+                    ParentalControlsDialogAction.OPEN_DIALOG));
 
-            // TODO(b/334102223): When disable flow is implemented, simulate a
-            // successful PIN verification here instead.
-            const cancelDisableButton =
-                disableDialog.shadowRoot!.querySelector<HTMLElement>('#dialog')!
-                    .querySelector<HTMLElement>('.cancel-button');
-            assertTrue(!!cancelDisableButton);
-            cancelDisableButton.click();
+            // Simulate PIN entry.
+            const disablePinKeyboard =
+                disableDialog.shadowRoot!.getElementById('pinKeyboard');
+            assertTrue(!!disablePinKeyboard);
+            assertTrue(hasStringProperty(disablePinKeyboard, 'value'));
+            disablePinKeyboard.value = pin;
+
+            // Simulate pressing the enter key.
+            const pinInput =
+                disablePinKeyboard.shadowRoot!.getElementById('pinInput');
+            assertTrue(pinInput instanceof HTMLElement);
+            pinInput.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13}));
+            await waitAfterNextRender(appsPage);
+
+            const setUpButton =
+                parentalControlsRow.querySelector<HTMLElement>('cr-button');
+            assertTrue(!!setUpButton);
+            assertTrue(isVisible(setUpButton));
+            assertEquals(
+                1,
+                fakeMetricsPrivate.countMetricValue(
+                    'ChromeOS.OnDeviceControls.DialogAction.' +
+                        'VerifyToDisableControls',
+                    ParentalControlsDialogAction.FLOW_COMPLETED));
+          });
+
+      test(
+          'Searching parental controls deep links to parental controls row',
+          async () => {
+            const parentalControlsSettingId =
+                settingMojom.Setting.kAppParentalControls.toString();
+            const params = new URLSearchParams();
+            params.append('settingId', parentalControlsSettingId);
+            Router.getInstance().navigateTo(routes.APPS, params);
+
+            const parentalControlsRow = queryParentalControlsRow();
+            assertTrue(!!parentalControlsRow);
+            assertTrue(isVisible(parentalControlsRow));
+
+            const setUpButton =
+                parentalControlsRow.querySelector<HTMLElement>('cr-button');
+            assertTrue(!!setUpButton);
+            assertTrue(isVisible(setUpButton));
+            await waitAfterNextRender(setUpButton);
+            assertEquals(setUpButton, getDeepActiveElement());
             await flushTasks();
 
-            assertTrue(
-                !!parentalControlsRow.querySelector<HTMLElement>('cr-button'));
+            // Setup initial PIN.
+            await initializeParentalControlsPin('123456');
+
+            Router.getInstance().navigateTo(routes.APPS, params);
+            const subpageArrow =
+                parentalControlsRow.querySelector('cr-icon-button');
+            assertTrue(!!subpageArrow);
+            assertTrue(isVisible(subpageArrow));
+            await waitAfterNextRender(subpageArrow);
+            assertEquals(subpageArrow, getDeepActiveElement());
           });
     }
 
     if (!isAppParentalControlsAvailable) {
       test('Parental controls row not visible when feature off', () => {
-        const parentalControlsRow =
-          appsPage.shadowRoot!.querySelector<HTMLElement>(
-            '#appParentalControls');
+        const parentalControlsRow = queryParentalControlsRow();
         assertNull(parentalControlsRow);
       });
     }
@@ -582,50 +650,6 @@ suite('AppsPageTests', () => {
       flush();
       assertTrue(isVisible(androidApps.querySelector('.subpage-arrow')));
     });
-
-    // On startup row does not exist in the apps page under the revamp.
-    if (!isRevampWayfindingEnabled) {
-      test('On startup dropdown menu', () => {
-        const getPrefValue = () => {
-          const element =
-              appsPage.shadowRoot!.querySelector<SettingsDropdownMenuElement>(
-                  '#onStartupDropdown');
-          assertTrue(!!element);
-          return element.pref!.value;
-        };
-
-        appsPage.prefs = setPrefs(1);
-        flush();
-        assertEquals(1, getPrefValue());
-
-        appsPage.prefs = setPrefs(2);
-        flush();
-        assertEquals(2, getPrefValue());
-
-        appsPage.prefs = setPrefs(3);
-        flush();
-        assertEquals(3, getPrefValue());
-      });
-
-      test('Deep link to On startup dropdown menu', async () => {
-        const SETTING_ID_703 =
-            settingMojom.Setting.kRestoreAppsAndPages.toString();
-        const params = new URLSearchParams();
-        params.append('settingId', SETTING_ID_703);
-        Router.getInstance().navigateTo(routes.APPS, params);
-
-        const deepLinkElement =
-            appsPage.shadowRoot!.querySelector('#onStartupDropdown')!
-                .shadowRoot!.querySelector<HTMLElement>('#dropdownMenu');
-        assertTrue(!!deepLinkElement);
-        assertTrue(isVisible(deepLinkElement));
-        await waitAfterNextRender(deepLinkElement);
-        assertEquals(
-            deepLinkElement, getDeepActiveElement(),
-            `On startup dropdown menu should be focused for settingId=${
-                SETTING_ID_703}.`);
-      });
-    }
 
     test('Deep link to manage android prefs', async () => {
       // Simulate showing manage apps link
@@ -680,15 +704,20 @@ suite('AppsPageTests', () => {
     setup(() => {
       preliminarySetupForAndroidAppsSubpage(/*loadTimeDataOverrides=*/ null);
 
-      subpage = document.createElement('settings-android-apps-subpage');
-      document.body.appendChild(subpage);
-
       // Because we can't simulate the loadTimeData value androidAppsVisible,
-      // this route doesn't exist for tests. Add it in for testing.
+      // these route doesn't exist for tests. Add them in for testing.
       if (!routes.ANDROID_APPS_DETAILS) {
         routes.ANDROID_APPS_DETAILS = routes.APPS.createChild(
             '/' + routesMojom.GOOGLE_PLAY_STORE_SUBPAGE_PATH);
       }
+      if (!routes.ANDROID_APPS_DETAILS_ARC_VM_SHARED_USB_DEVICES) {
+        routes.ANDROID_APPS_DETAILS_ARC_VM_SHARED_USB_DEVICES =
+            routes.ANDROID_APPS_DETAILS.createChild(
+                '/' + routesMojom.ARC_VM_USB_PREFERENCES_SUBPAGE_PATH);
+      }
+
+      subpage = document.createElement('settings-android-apps-subpage');
+      document.body.appendChild(subpage);
 
       subpage.prefs = {arc: {enabled: {value: true}}};
       subpage.androidAppsInfo = {
@@ -851,25 +880,43 @@ suite('AppsPageTests', () => {
           subpage.shadowRoot!.querySelector('#manageArcvmShareUsbDevices')));
     });
 
-    if (isRevampWayfindingEnabled) {
-      test(
-          'Open Google Play link row appears and once clicked, ' +
-              'opens the play store app',
-          async () => {
-            const row = subpage.shadowRoot!.querySelector<HTMLButtonElement>(
-                '#openGooglePlayRow');
-            assertTrue(!!row);
-            assertTrue(isVisible(row));
+    test('ManageUsbDevice returning navigation sets focus', async () => {
+      subpage.isArcVmManageUsbAvailable = true;
+      Router.getInstance().navigateTo(routes.ANDROID_APPS_DETAILS);
 
-            row.click();
-            flush();
-            await androidAppsBrowserProxy.whenCalled('showPlayStoreApps');
-          });
-    } else {
-      test('Open Google Play link row does not appear.', () => {
-        const row = subpage.shadowRoot!.querySelector('#openGooglePlayRow');
-        assertFalse(isVisible(row));
-      });
-    }
+      const subpageLink = subpage.shadowRoot!.querySelector<HTMLButtonElement>(
+          '#manageArcvmShareUsbDevices');
+      assertTrue(!!subpageLink);
+      assertTrue(isVisible(subpageLink));
+
+      subpageLink.click();
+      assertEquals(
+          routes.ANDROID_APPS_DETAILS_ARC_VM_SHARED_USB_DEVICES,
+          Router.getInstance().currentRoute);
+
+      // Navigate back
+      const popStateEventPromise = eventToPromise('popstate', window);
+      Router.getInstance().navigateToPreviousRoute();
+      await popStateEventPromise;
+      await waitAfterNextRender(subpage);
+
+      assertEquals(
+          subpageLink, subpage.shadowRoot!.activeElement,
+          `#manageArcvmShareUsbDevices should be focused.`);
+    });
+
+    test(
+        'Open Google Play link row appears and once clicked opens the play ' +
+            'store app',
+        async () => {
+          const row = subpage.shadowRoot!.querySelector<HTMLButtonElement>(
+              '#openGooglePlayRow');
+          assertTrue(!!row);
+          assertTrue(isVisible(row));
+
+          row.click();
+          flush();
+          await androidAppsBrowserProxy.whenCalled('showPlayStoreApps');
+        });
   });
 });

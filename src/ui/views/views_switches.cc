@@ -16,8 +16,15 @@ namespace views::switches {
 const char kDisableInputEventActivationProtectionForTesting[] =
     "disable-input-event-activation-protection";
 
-// Draws a semitransparent rect to indicate the bounds of each view.
+// Draws a semitransparent red rect to indicate the bounds of each view. Also,
+// draws a blue semitransparent rect when GetContentBounds() differs from
+// GetLocalBounds().
 const char kDrawViewBoundsRects[] = "draw-view-bounds-rects";
+
+// Force the use of a WUC tree as the window backdrop when the redirection
+// bitmap is removed on Windows. This will cause the backdrop to take the
+// frame color.
+const char kUseWUCForWindowBackdrop[] = "use-wuc-for-window-backdrop";
 
 // Captures stack traces on View construction to provide better debug info.
 const char kViewStackTraces[] = "view-stack-traces";

@@ -14,17 +14,17 @@ import org.json.JSONObject;
 import org.junit.Assert;
 
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.compositor.bottombar.OverlayContentDelegate;
-import org.chromium.chrome.browser.compositor.bottombar.OverlayContentProgressObserver;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelContent;
+import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelContentDelegate;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelContentFactory;
+import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelContentProgressObserver;
 import org.chromium.chrome.browser.compositor.bottombar.contextualsearch.ContextualSearchPanel;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.url.GURL;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -42,11 +42,9 @@ class ContextualSearchFakeServer
     private final ContextualSearchTestHost mTestHost;
     private final ContextualSearchNetworkCommunicator mBaseManager;
 
-    private final OverlayContentDelegate mContentDelegate;
-    private final OverlayContentProgressObserver mProgressObserver;
+    private final OverlayPanelContentDelegate mContentDelegate;
+    private final OverlayPanelContentProgressObserver mProgressObserver;
     private final ChromeActivity mActivity;
-
-    private final ArrayList<String> mRemovedUrls = new ArrayList<String>();
 
     private final Map<String, FakeResolveSearch> mFakeResolveSearches = new HashMap<>();
     private final Map<String, FakeNonResolveSearch> mFakeNonResolveSearches = new HashMap<>();
@@ -61,7 +59,7 @@ class ContextualSearchFakeServer
     private boolean mIsExactResolve;
     private ContextualSearchContext mSearchContext;
 
-    private boolean mDidEverCallWebContentsOnShow;
+    private boolean mDidEverShowWebContents;
 
     /** An expected search, to be returned by this fake server when non-null. */
     private FakeResolveSearch mExpectedFakeResolveSearch;
@@ -117,6 +115,7 @@ class ContextualSearchFakeServer
 
         private ContentsObserver(WebContents webContents) {
             super(webContents);
+            onVisibilityChanged(webContents.getVisibility());
         }
 
         private boolean isVisible() {
@@ -124,14 +123,9 @@ class ContextualSearchFakeServer
         }
 
         @Override
-        public void wasShown() {
-            mIsVisible = true;
-            mDidEverCallWebContentsOnShow = true;
-        }
-
-        @Override
-        public void wasHidden() {
-            mIsVisible = false;
+        public void onVisibilityChanged(@Visibility int visibility) {
+            mIsVisible = visibility == Visibility.VISIBLE;
+            mDidEverShowWebContents |= mIsVisible;
         }
     }
 
@@ -150,7 +144,7 @@ class ContextualSearchFakeServer
     // ============================================================================================
 
     /** Abstract class that represents a fake contextual search. */
-    public abstract class FakeSearch {
+    public abstract static class FakeSearch {
         private final String mNodeId;
 
         /**
@@ -160,12 +154,7 @@ class ContextualSearchFakeServer
             mNodeId = nodeId;
         }
 
-        /**
-         * Simulates a fake search.
-         *
-         * @throws InterruptedException
-         * @throws TimeoutException
-         */
+        /** Simulates a fake search. */
         public abstract void simulate() throws InterruptedException, TimeoutException;
 
         /**
@@ -394,12 +383,7 @@ class ContextualSearchFakeServer
             }
         }
 
-        /**
-         * Finishes the resolving of a slow-resolving search.
-         *
-         * @throws InterruptedException
-         * @throws TimeoutException
-         */
+        /** Finishes the resolving of a slow-resolving search. */
         void finishResolve() throws InterruptedException, TimeoutException {
             // Simulate a Search Term Resolution.
             simulateSearchTermResolution();
@@ -416,8 +400,8 @@ class ContextualSearchFakeServer
     /** A wrapper around OverlayPanelContent to be used during tests. */
     public class OverlayPanelContentWrapper extends OverlayPanelContent {
         OverlayPanelContentWrapper(
-                OverlayContentDelegate contentDelegate,
-                OverlayContentProgressObserver progressObserver,
+                OverlayPanelContentDelegate contentDelegate,
+                OverlayPanelContentProgressObserver progressObserver,
                 ChromeActivity activity,
                 float barHeight) {
             super(
@@ -440,12 +424,6 @@ class ContextualSearchFakeServer
             super.loadUrl(url, shouldLoadImmediately);
             mContentsObserver = new ContentsObserver(getWebContents());
         }
-
-        @Override
-        public void removeLastHistoryEntry(String url, long timeInMs) {
-            // Override to prevent call to native code.
-            mRemovedUrls.add(url);
-        }
     }
 
     // ============================================================================================
@@ -462,8 +440,8 @@ class ContextualSearchFakeServer
             ContextualSearchPolicy policy,
             ContextualSearchTestHost testHost,
             ContextualSearchNetworkCommunicator baseManager,
-            OverlayContentDelegate contentDelegate,
-            OverlayContentProgressObserver progressObserver,
+            OverlayPanelContentDelegate contentDelegate,
+            OverlayPanelContentProgressObserver progressObserver,
             ChromeActivity activity) {
         mPolicy = policy;
 
@@ -513,7 +491,7 @@ class ContextualSearchFakeServer
      */
     @VisibleForTesting
     boolean didEverCallWebContentsOnShow() {
-        return mDidEverCallWebContentsOnShow;
+        return mDidEverShowWebContents;
     }
 
     /** Resets the fake server's member data. */
@@ -546,18 +524,6 @@ class ContextualSearchFakeServer
      */
     void setExpectations(String nodeId, ResolvedSearchTerm resolvedSearchTermResponse) {
         mExpectedFakeResolveSearch = new FakeResolveSearch(nodeId, resolvedSearchTermResponse);
-    }
-
-    // ============================================================================================
-    // History Removal Helpers
-    // ============================================================================================
-
-    /**
-     * @param url The URL to be checked.
-     * @return Whether the given URL was removed from history.
-     */
-    public boolean hasRemovedUrl(String url) {
-        return mRemovedUrls.contains(url);
     }
 
     // ============================================================================================
@@ -690,7 +656,6 @@ class ContextualSearchFakeServer
      *
      * @param searchTerm The string to use for the Search Term and Display Text.
      * @return a {@link ResolvedSearchTerm} that includes some sample Related Searches of all types.
-     * @throws JSONException
      */
     public ResolvedSearchTerm buildResolvedSearchTermWithRelatedSearches(String searchTerm)
             throws JSONException {

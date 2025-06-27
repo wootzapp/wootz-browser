@@ -16,6 +16,7 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/public/cpp/tablet_mode.h"
 #include "ash/shell_observer.h"
+#include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -23,11 +24,12 @@
 #include "base/timer/timer.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "ui/aura/window_occlusion_tracker.h"
+#include "ui/compositor/compositor_metrics_tracker.h"
 #include "ui/compositor/layer_animation_element.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/compositor/layer_observer.h"
 #include "ui/compositor/layer_tree_owner.h"
-#include "ui/compositor/throughput_tracker.h"
+#include "ui/display/manager/display_manager_observer.h"
 #include "ui/display/screen.h"
 #include "ui/events/devices/input_device_event_observer.h"
 #include "ui/gfx/geometry/vector3d_f.h"
@@ -58,6 +60,9 @@ class InternalInputDevicesEventBlocker;
 class TabletModeObserver;
 class TabletModeWindowManager;
 
+// TODO(b/357489575): cleanup this kill-switch.
+BASE_DECLARE_FEATURE(kBlockUiTabletModeInKiosk);
+
 // When EC (Embedded Controller) cannot handle lid angle calculation,
 // TabletModeController listens to accelerometer events and automatically
 // enters and exits tablet mode when the lid is opened beyond the triggering
@@ -67,7 +72,7 @@ class ASH_EXPORT TabletModeController
       public chromeos::PowerManagerClient::Observer,
       public TabletMode,
       public ShellObserver,
-      public WindowTreeHostManager::Observer,
+      public display::DisplayManagerObserver,
       public SessionObserver,
       public ui::InputDeviceEventObserver,
       public ui::LayerAnimationObserver,
@@ -144,10 +149,11 @@ class ASH_EXPORT TabletModeController
   // ShellObserver:
   void OnShellInitialized() override;
 
-  // WindowTreeHostManager::Observer:
-  void OnDisplayConfigurationChanged() override;
+  // display::DisplayManagerObserver:
+  void OnDidApplyDisplayChanges() override;
 
   // SessionObserver:
+  void OnLoginStatusChanged(LoginStatus login_status) override;
   void OnChromeTerminating() override;
 
   // AccelerometerReader::Observer:
@@ -410,8 +416,11 @@ class ASH_EXPORT TabletModeController
   // Source for the current time in base::TimeTicks.
   raw_ptr<const base::TickClock> tick_clock_;
 
-  // The state in which the UI mode is forced in via command-line flags, such as
-  // `--force-tablet-mode=touch_view` or `--force-tablet-mode=clamshell`.
+  // Forces the UI mode to be in tablet or clamsell state. Can be forced via:
+  //   1) command-line flags, such as `--force-tablet-mode=touch_view` or
+  //   `--force-tablet-mode=clamshell`.
+  //   2) observing `OnLoginStatusChanged`, since Ui tablet mode is blocked in
+  //   Kiosk.
   UiMode forced_ui_mode_ = UiMode::kNone;
 
   // True if the device is physically in a tablet state regardless of the UI
@@ -505,8 +514,6 @@ class ASH_EXPORT TabletModeController
   // everything in the screen rotation container except the top window. It helps
   // with animation performance because it fully occludes all windows except the
   // animating window for the duration of the animation.
-  // TODO(sammiequon): See if we can move screenshot and tablet mode transition
-  // animation related code into a separate class/file.
   std::unique_ptr<ui::Layer> screenshot_layer_;
 
   base::ObserverList<TabletModeObserver>::Unchecked tablet_mode_observers_;

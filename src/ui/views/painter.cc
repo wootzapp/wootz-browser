@@ -90,18 +90,20 @@ void SolidRoundRectPainter::Paint(gfx::Canvas* canvas, const gfx::Size& size) {
 
   cc::PaintFlags flags;
   flags.setBlendMode(blend_mode_);
-  if (antialias_)
+  if (antialias_) {
     flags.setAntiAlias(true);
+  }
   flags.setStyle(cc::PaintFlags::kFill_Style);
   flags.setColor(bg_color_);
   SkPath fill_path;
-  const SkScalar scaled_radii[8] = {
-      radii_.upper_left() * scale,  radii_.upper_left() * scale,
-      radii_.upper_right() * scale, radii_.upper_right() * scale,
-      radii_.lower_right() * scale, radii_.lower_right() * scale,
-      radii_.lower_left() * scale,  radii_.lower_left() * scale};
+  const std::array<SkScalar, 8> scaled_radii = {
+      {radii_.upper_left() * scale, radii_.upper_left() * scale,
+       radii_.upper_right() * scale, radii_.upper_right() * scale,
+       radii_.lower_right() * scale, radii_.lower_right() * scale,
+       radii_.lower_left() * scale, radii_.lower_left() * scale}};
 
-  fill_path.addRoundRect(gfx::RectFToSkRect(fill_rect), scaled_radii);
+  UNSAFE_TODO(fill_path.addRoundRect(gfx::RectFToSkRect(fill_rect),
+                                     scaled_radii.data()));
   canvas->DrawPath(fill_path, flags);
 
   if (stroke_color_ != SK_ColorTRANSPARENT) {
@@ -113,12 +115,13 @@ void SolidRoundRectPainter::Paint(gfx::Canvas* canvas, const gfx::Size& size) {
     flags.setColor(stroke_color_);
 
     SkPath stroke_path;
-    SkScalar stroke_radii[8] = {};
-    for (int i = 0; i < 8; i++) {
+    std::array<SkScalar, 8> stroke_radii;
+    for (size_t i = 0; i < 8; i++) {
       stroke_radii[i] = scaled_radii[i] - stroke_width / 2;
     }
 
-    stroke_path.addRoundRect(gfx::RectFToSkRect(stroke_rect), stroke_radii);
+    UNSAFE_TODO(stroke_path.addRoundRect(gfx::RectFToSkRect(stroke_rect),
+                                         stroke_radii.data()));
     canvas->DrawPath(stroke_path, flags);
   }
 }
@@ -261,8 +264,9 @@ void Painter::PaintPainterAt(gfx::Canvas* canvas,
 void Painter::PaintFocusPainter(View* view,
                                 gfx::Canvas* canvas,
                                 Painter* focus_painter) {
-  if (focus_painter && view->HasFocus())
+  if (focus_painter && view->HasFocus()) {
     PaintPainterAt(canvas, focus_painter, view->GetLocalBounds());
+  }
 }
 
 // static
@@ -299,6 +303,19 @@ std::unique_ptr<Painter> Painter::CreateRoundRectWith1PxBorderPainter(
   return std::make_unique<SolidRoundRectPainter>(
       bg_color, stroke_color, gfx::RoundedCornersF(radius), gfx::Insets(),
       blend_mode, antialias, should_border_scale);
+}
+
+// static
+std::unique_ptr<Painter> Painter::CreateRoundRectWith1PxBorderPainter(
+    SkColor bg_color,
+    SkColor stroke_color,
+    gfx::RoundedCornersF radii,
+    SkBlendMode blend_mode,
+    bool antialias,
+    bool should_border_scale) {
+  return std::make_unique<SolidRoundRectPainter>(
+      bg_color, stroke_color, radii, gfx::Insets(), blend_mode, antialias,
+      should_border_scale);
 }
 
 // static

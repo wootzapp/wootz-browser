@@ -14,6 +14,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterizedRunner;
@@ -27,8 +28,7 @@ import org.chromium.chrome.browser.payments.PaymentRequestTestRule.FactorySpeed;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.R;
 import org.chromium.components.autofill.AutofillProfile;
-import org.chromium.components.payments.Event;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.components.payments.Event2;
 import org.chromium.ui.test.util.NightModeTestUtils;
 import org.chromium.ui.test.util.RenderTestRule;
 
@@ -100,7 +100,7 @@ public class PaymentRequestFreeShippingTest {
     @Feature({"Payments", "RenderTest"})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testPayWithRender(boolean nightModeEnabled) throws Throwable {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mRenderTestRule.render(mPaymentRequestTestRule.getPaymentRequestView(), "free_shipping");
@@ -125,7 +125,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testAddInvalidAddressAndCancel() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -147,7 +147,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testAddAddressAndPay() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -186,7 +186,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testChangeCountryAddAddressAndPay() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -215,7 +215,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickAddAddressAndCloseShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -223,15 +223,15 @@ public class PaymentRequestFreeShippingTest {
 
         // Quickly press on "add address" and then [X].
         int callCount = mPaymentRequestTestRule.getReadyToEdit().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getShippingAddressSectionForTest()
                             .findViewById(R.id.payments_add_option_button)
                             .performClick();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.close_button)
                             .performClick();
@@ -251,7 +251,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickCloseAndAddAddressShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -259,15 +259,15 @@ public class PaymentRequestFreeShippingTest {
 
         // Quickly press on [X] and then "add address."
         int callCount = mPaymentRequestTestRule.getDismissed().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.close_button)
                             .performClick();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getShippingAddressSectionForTest()
                             .findViewById(R.id.payments_add_option_button)
                             .performClick();
@@ -283,7 +283,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickAddAddressAndCancelShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -291,15 +291,15 @@ public class PaymentRequestFreeShippingTest {
 
         // Quickly press on "add address" and then "cancel."
         int callCount = mPaymentRequestTestRule.getReadyToEdit().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getShippingAddressSectionForTest()
                             .findViewById(R.id.payments_add_option_button)
                             .performClick();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.button_secondary)
                             .performClick();
@@ -319,7 +319,7 @@ public class PaymentRequestFreeShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickCancelAndAddAddressShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickInShippingAddressAndWait(
@@ -327,15 +327,15 @@ public class PaymentRequestFreeShippingTest {
 
         // Quickly press on "cancel" and then "add address."
         int callCount = mPaymentRequestTestRule.getDismissed().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.button_secondary)
                             .performClick();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getShippingAddressSectionForTest()
                             .findViewById(R.id.payments_add_option_button)
                             .performClick();
@@ -355,7 +355,7 @@ public class PaymentRequestFreeShippingTest {
     @Feature({"Payments"})
     public void testPaymentRequestEventsMetric() throws TimeoutException {
         // Start and abort the Payment Request.
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "buyWithMethods([{supportedMethods: 'https://bobpay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
         mPaymentRequestTestRule.clickAndWait(
@@ -364,16 +364,14 @@ public class PaymentRequestFreeShippingTest {
                 new String[] {"User closed the Payment Request UI."});
 
         int expectedSample =
-                Event.SHOWN
-                        | Event.USER_ABORTED
-                        | Event.HAD_INITIAL_FORM_OF_PAYMENT
-                        | Event.HAD_NECESSARY_COMPLETE_SUGGESTIONS
-                        | Event.REQUEST_SHIPPING
-                        | Event.REQUEST_METHOD_OTHER
-                        | Event.AVAILABLE_METHOD_OTHER;
+                Event2.SHOWN
+                        | Event2.USER_ABORTED
+                        | Event2.HAD_INITIAL_FORM_OF_PAYMENT
+                        | Event2.REQUEST_SHIPPING
+                        | Event2.REQUEST_METHOD_OTHER;
         Assert.assertEquals(
                 1,
                 RecordHistogram.getHistogramValueCountForTesting(
-                        "PaymentRequest.Events", expectedSample));
+                        "PaymentRequest.Events2", expectedSample));
     }
 }

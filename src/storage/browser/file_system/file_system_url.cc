@@ -4,13 +4,13 @@
 
 #include "storage/browser/file_system/file_system_url.h"
 
+#include <compare>
 #include <sstream>
 
 #include "base/check.h"
 #include "base/files/safe_base_name.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_util.h"
-#include "storage/browser/file_system/file_system_util.h"
 #include "storage/common/file_system/file_system_types.h"
 #include "storage/common/file_system/file_system_util.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
@@ -58,7 +58,13 @@ FileSystemURL::~FileSystemURL() = default;
 FileSystemURL FileSystemURL::CreateSibling(
     const base::SafeBaseName& sibling_name) const {
   const base::FilePath& new_base_name = sibling_name.path();
-  if (!is_valid_ || new_base_name.empty()) {
+  if (!is_valid_ ||
+      new_base_name.empty()
+#if BUILDFLAG(IS_ANDROID)
+      // Android content-URIs do not support siblings.
+      || path().IsContentUri()
+#endif
+  ) {
     return FileSystemURL();
   }
 
@@ -118,8 +124,7 @@ bool FileSystemURL::TypeImpliesPathIsReal(FileSystemType type) {
 
     case kFileSystemInternalTypeEnumStart:
     case kFileSystemInternalTypeEnumEnd:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
 
     case kFileSystemTypeLocal:
     case kFileSystemTypeLocalMedia:
@@ -198,12 +203,14 @@ FileSystemURL::FileSystemURL(const blink::StorageKey& storage_key,
       mount_option_(mount_option) {}
 
 GURL FileSystemURL::ToGURL() const {
-  if (!is_valid_)
+  if (!is_valid_) {
     return GURL();
+  }
 
   GURL url = GetFileSystemRootURI(storage_key_.origin().GetURL(), mount_type_);
-  if (!url.is_valid())
+  if (!url.is_valid()) {
     return GURL();
+  }
 
   std::string url_string = url.spec();
 
@@ -221,8 +228,9 @@ GURL FileSystemURL::ToGURL() const {
 }
 
 std::string FileSystemURL::DebugString() const {
-  if (!is_valid_)
+  if (!is_valid_) {
     return "invalid filesystem: URL";
+  }
   std::ostringstream ss;
   switch (mount_type_) {
     // Include GURL if GURL serialization is possible.
@@ -258,11 +266,11 @@ std::string FileSystemURL::DebugString() const {
 }
 
 BucketLocator FileSystemURL::GetBucket() const {
-  if (bucket())
+  if (bucket()) {
     return *bucket_;
+  }
 
   auto bucket = storage::BucketLocator::ForDefaultBucket(storage_key());
-  bucket.type = storage::FileSystemTypeToQuotaStorageType(type());
   return bucket;
 }
 
@@ -277,7 +285,12 @@ bool FileSystemURL::IsInSameFileSystem(const FileSystemURL& other) const {
   // Invalid FileSystemURLs should never be considered of the same file system.
   return AreSameStorageKey(*this, other) && is_valid() && other.is_valid() &&
          type() == other.type() && filesystem_id() == other.filesystem_id() &&
-         bucket() == other.bucket();
+         bucket() == other.bucket()
+#if BUILDFLAG(IS_ANDROID)
+         // Android content-URIs do not support same-FS ops such as rename().
+         && !path().IsContentUri() && !other.path().IsContentUri()
+#endif
+      ;
 }
 
 bool FileSystemURL::operator==(const FileSystemURL& that) const {
@@ -288,6 +301,21 @@ bool FileSystemURL::operator==(const FileSystemURL& that) const {
   return AreSameStorageKey(*this, that) && type_ == that.type_ &&
          path_ == that.path_ && filesystem_id_ == that.filesystem_id_ &&
          is_valid_ == that.is_valid_ && bucket_ == that.bucket_;
+}
+
+std::weak_ordering FileSystemURL::operator<=>(const FileSystemURL& that) const {
+  if (is_null_ && that.is_null_) {
+    return std::weak_ordering::equivalent;
+  }
+
+  if (!AreSameStorageKey(*this, that)) {
+    return storage_key_ < that.storage_key_ ? std::weak_ordering::less
+                                            : std::weak_ordering::greater;
+  }
+
+  return std::tie(type_, path_, filesystem_id_, is_valid_, bucket_) <=>
+         std::tie(that.type_, that.path_, that.filesystem_id_, that.is_valid_,
+                  that.bucket_);
 }
 
 bool FileSystemURL::Comparator::operator()(const FileSystemURL& lhs,

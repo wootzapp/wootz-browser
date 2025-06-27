@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_input/cr_input.js';
-import 'chrome://resources/polymer/v3_0/iron-pages/iron-pages.js';
 
 import type {PrefsMixinInterface} from '/shared/settings/prefs/prefs_mixin.js';
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
@@ -58,7 +57,7 @@ export class ExceptionEditInputElement extends
   private metricsProxy_: PerformanceMetricsProxy =
       PerformanceMetricsProxyImpl.getInstance();
 
-  private ruleToEdit: string;
+  declare private ruleToEdit: string;
 
   override ready() {
     super.ready();

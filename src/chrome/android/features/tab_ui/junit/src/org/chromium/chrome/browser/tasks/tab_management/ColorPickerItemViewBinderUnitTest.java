@@ -28,9 +28,9 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -96,7 +96,7 @@ public class ColorPickerItemViewBinderUnitTest {
         Assert.assertEquals(GradientDrawable.OVAL, drawable0.getShape());
         Assert.assertEquals(
                 ColorStateList.valueOf(
-                        ColorPickerUtils.getTabGroupColorPickerItemColor(
+                        TabGroupColorPickerUtils.getTabGroupColorPickerItemColor(
                                 mActivity, TabGroupColorId.BLUE, false)),
                 drawable0.getColor());
 
@@ -114,7 +114,7 @@ public class ColorPickerItemViewBinderUnitTest {
         Assert.assertEquals(GradientDrawable.OVAL, drawable2.getShape());
         Assert.assertEquals(
                 ColorStateList.valueOf(
-                        ColorPickerUtils.getTabGroupColorPickerItemColor(
+                        TabGroupColorPickerUtils.getTabGroupColorPickerItemColor(
                                 mActivity, TabGroupColorId.BLUE, false)),
                 drawable2.getColor());
 

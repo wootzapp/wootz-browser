@@ -34,9 +34,7 @@ class MEDIA_EXPORT BoxByteStream {
   void StartBox(mp4::FourCC fourcc);
   void StartFullBox(mp4::FourCC fourcc,
                     uint32_t flags = 0,
-                    // Chromium MP4 Muxer supports 64 bits as a default, but the
-                    // individual box can override it as needed.
-                    uint8_t version = 1);
+                    uint8_t version = 0);
 
   // Writes primitives types in big endian format. If `value` can be larger than
   // the the type being written, methods will `CHECK()` that `value` fits in the
@@ -66,7 +64,7 @@ class MEDIA_EXPORT BoxByteStream {
   // when the `BoxByteStream` is created with `moof` box.
   void FlushCurrentOffset();
 
-  // Validates whether there is a open box or not.
+  // Validates whether there is an open box or not.
   bool has_open_boxes() const { return !size_offsets_.empty(); }
 
   // Returns size of the top level box size until this point.

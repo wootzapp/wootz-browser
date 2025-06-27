@@ -39,7 +39,12 @@ DesktopProfileSessionDurationsServiceFactory::
           // and syncing in their regular profile and that is browsing in
           // incognito profile, Chromium will record the session time as being
           // signed in and syncing.
-          ProfileSelections::BuildRedirectedInIncognito()) {
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kRedirectedToOriginal)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
+              .Build()) {
   DependsOn(SyncServiceFactory::GetInstance());
   DependsOn(IdentityManagerFactory::GetInstance());
 }
@@ -52,13 +57,13 @@ std::unique_ptr<KeyedService> DesktopProfileSessionDurationsServiceFactory::
         content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
 
-// On Ash and Lacros IsGuestSession and IsRegularProfile() are not mutually
-// exclusive, which breaks `ProfileKeyedServiceFactory` logic. THerefore the
+// On ChromeOS, IsGuestSession and IsRegularProfile() are not mutually
+// exclusive, which breaks `ProfileKeyedServiceFactory` logic. Therefore the
 // below check is still needed despite the proper filter already set.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   if (profile->IsGuestSession())
     return nullptr;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   DCHECK(!profile->IsSystemProfile());
   DCHECK(!profile->IsGuestSession());

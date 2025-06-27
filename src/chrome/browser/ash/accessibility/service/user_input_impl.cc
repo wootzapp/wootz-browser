@@ -60,7 +60,7 @@ void UserInputImpl::SendSyntheticMouseEvent(
   ui::EventType type = mojo::ConvertTo<ui::EventType>(mouse_event->type);
 
   int flags = 0;
-  if (type != ui::ET_MOUSE_MOVED) {
+  if (type != ui::EventType::kMouseMoved) {
     if (mouse_event->mouse_button) {
       switch (*mouse_event->mouse_button) {
         case ax::mojom::SyntheticMouseEventButton::kLeft:
@@ -79,7 +79,7 @@ void UserInputImpl::SendSyntheticMouseEvent(
           flags |= ui::EF_FORWARD_MOUSE_BUTTON;
           break;
         default:
-          NOTREACHED_IN_MIGRATION();
+          NOTREACHED();
       }
     } else {
       // If no mouse button is provided, use kLeft.
@@ -95,7 +95,8 @@ void UserInputImpl::SendSyntheticMouseEvent(
   }
 
   AccessibilityManager::Get()->SendSyntheticMouseEvent(
-      type, flags, changed_button_flags, mouse_event->point);
+      type, flags, changed_button_flags, mouse_event->point,
+      /*use_rewriters=*/false);
 }
 
 }  // namespace ash

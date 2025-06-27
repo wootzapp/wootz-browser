@@ -25,6 +25,10 @@ namespace test {
 extern const std::vector<std::string> kPreloadingAttemptUkmMetrics;
 extern const std::vector<std::string> kPreloadingPredictionUkmMetrics;
 
+// Used for generating histogram names recorded per trigger.
+inline constexpr char kPreloadingEmbedderHistgramSuffixForTesting[] =
+    "EmbedderHistogramSuffixForTesting";
+
 // Utility class to make building expected
 // TestUkmRecorder::HumanReadableUkmEntry for EXPECT_EQ for PreloadingAttempt.
 class PreloadingAttemptUkmEntryBuilder {
@@ -76,14 +80,14 @@ class PreloadingPredictionUkmEntryBuilder {
 // Checks if `ukm_recorder` recorded `expected_attempt_entries`. Doesn't care
 // about the recording order.
 void ExpectPreloadingAttemptUkm(
-    ukm::TestAutoSetUkmRecorder& ukm_recorder,
+    const ukm::TestAutoSetUkmRecorder& ukm_recorder,
     const std::vector<ukm::TestUkmRecorder::HumanReadableUkmEntry>&
         expected_attempt_entries);
 
 // Checks if `ukm_recorder` recorded `expected_prediction_entries`. Doesn't care
 // about the recording order.
 void ExpectPreloadingPredictionUkm(
-    ukm::TestAutoSetUkmRecorder& ukm_recorder,
+    const ukm::TestAutoSetUkmRecorder& ukm_recorder,
     const std::vector<ukm::TestUkmRecorder::HumanReadableUkmEntry>&
         expected_prediction_entries);
 
@@ -137,6 +141,8 @@ class PreloadingConfigOverride {
   std::unique_ptr<PreloadingConfig> preloading_config_;
   raw_ptr<PreloadingConfig> overridden_config_;
 };
+
+void SetHasSpeculationRulesPrerender(PreloadingData* preloading_data);
 
 }  // namespace test
 }  // namespace content

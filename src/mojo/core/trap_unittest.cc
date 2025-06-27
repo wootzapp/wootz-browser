@@ -2,8 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "mojo/public/c/system/trap.h"
+
 #include <stdint.h>
 
+#include <array>
 #include <map>
 #include <memory>
 #include <set>
@@ -20,7 +28,6 @@
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/core/test/mojo_test_base.h"
 #include "mojo/public/c/system/data_pipe.h"
-#include "mojo/public/c/system/trap.h"
 #include "mojo/public/c/system/types.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -113,7 +120,7 @@ class ThreadedRunner : public base::SimpleThread {
 };
 
 void ExpectNoNotification(const MojoTrapEvent* event) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ExpectOnlyCancel(const MojoTrapEvent* event) {
@@ -871,8 +878,8 @@ TEST_F(TrapTest, MultipleTriggers) {
 
   // Add a trigger whose condition is always satisfied so we can't arm. Arming
   // should fail with only this new watch's information.
-  uintptr_t writable_c_context = helper.CreateContext(
-      [](const MojoTrapEvent&) { NOTREACHED_IN_MIGRATION(); });
+  uintptr_t writable_c_context =
+      helper.CreateContext([](const MojoTrapEvent&) { NOTREACHED(); });
   MojoHandle c, d;
   CreateMessagePipe(&c, &d);
 
@@ -1017,8 +1024,7 @@ TEST_F(TrapTest, ImplicitRemoveOtherTriggerWithinEventHandler) {
   EXPECT_EQ(MOJO_RESULT_OK, helper.CreateTrap(&t));
 
   uintptr_t readable_a_context = helper.CreateContextWithCancel(
-      [](const MojoTrapEvent&) { NOTREACHED_IN_MIGRATION(); },
-      [&] { wait.Signal(); });
+      [](const MojoTrapEvent&) { NOTREACHED(); }, [&] { wait.Signal(); });
 
   uintptr_t readable_c_context =
       helper.CreateContext([&](const MojoTrapEvent& event) {
@@ -1081,8 +1087,8 @@ TEST_F(TrapTest, ExplicitRemoveOtherTriggerWithinEventHandler) {
   MojoHandle t;
   EXPECT_EQ(MOJO_RESULT_OK, helper.CreateTrap(&t));
 
-  uintptr_t readable_a_context = helper.CreateContext(
-      [](const MojoTrapEvent&) { NOTREACHED_IN_MIGRATION(); });
+  uintptr_t readable_a_context =
+      helper.CreateContext([](const MojoTrapEvent&) { NOTREACHED(); });
 
   uintptr_t readable_c_context =
       helper.CreateContext([&](const MojoTrapEvent& event) {
@@ -1611,7 +1617,7 @@ TEST_F(TrapTest, ArmFailureCirculation) {
 
   constexpr size_t kNumTestPipes = 100;
   constexpr size_t kNumTestHandles = kNumTestPipes * 2;
-  MojoHandle handles[kNumTestHandles];
+  std::array<MojoHandle, kNumTestHandles> handles;
 
   // Create a bunch of pipes and make sure they're all readable.
   for (size_t i = 0; i < kNumTestPipes; ++i) {
@@ -1923,8 +1929,7 @@ void DoRandomThing(MojoHandle* traps,
       break;
     }
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -1954,7 +1959,7 @@ TEST_F(TrapTest, ConcurrencyStressTest) {
   for (size_t i = 0; i < kNumWatchedHandles; i += 2)
     CreateMessagePipe(&watched_handles[i], &watched_handles[i + 1]);
 
-  std::unique_ptr<ThreadedRunner> threads[kNumThreads];
+  std::array<std::unique_ptr<ThreadedRunner>, kNumThreads> threads;
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads[i] = std::make_unique<ThreadedRunner>(base::BindOnce([] {
       for (size_t i = 0; i < kNumOperationsPerThread; ++i)

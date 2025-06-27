@@ -29,9 +29,9 @@ autotest.py -C out/foo --line 11 base/strings/strcat_unittest.cc
 """
 
 import argparse
+import json
 import locale
 import os
-import json
 import re
 import shlex
 import subprocess
@@ -39,6 +39,10 @@ import sys
 
 from enum import Enum
 from pathlib import Path
+
+# Don't write pyc files to the src tree, which show up in version control
+# in some environments.
+sys.dont_write_bytecode = True
 
 USE_PYTHON_3 = f'This script will only run under python3.'
 
@@ -69,8 +73,10 @@ _PREF_MAPPING_FILE_PATTERN = re.escape(
     str(Path('components') / 'policy' / 'test' / 'data' / 'pref_mapping') +
     r'/') + r'.*\.json'
 
-TEST_FILE_NAME_REGEX = re.compile(r'(.*Test\.java)|(.*_[a-z]*test\.cc)' +
-                                  r'|(' + _PREF_MAPPING_FILE_PATTERN + r')')
+TEST_FILE_NAME_REGEX = re.compile(
+    r'(.*Test\.java)' +
+    r'|(.*_[a-z]*test(?:_win|_mac|_linux|_chromeos|_android)?\.cc)' + r'|(' +
+    _PREF_MAPPING_FILE_PATTERN + r')')
 
 # Some tests don't directly include gtest.h and instead include it via gmock.h
 # or a test_utils.h file, so make sure these cases are captured. Also include
@@ -160,29 +166,33 @@ def RecursiveMatchFilename(folder, filename):
     return [[], []]
   exact = []
   close = []
-  with os.scandir(folder) as it:
-    for entry in it:
-      if (entry.is_symlink()):
-        continue
-      if (entry.is_file() and filename in entry.path and
-          not os.path.basename(entry.path).startswith('.')):
-        file_validity = IsTestFile(entry.path)
-        if file_validity is TestValidity.VALID_TEST:
-          exact.append(entry.path)
-        elif file_validity is TestValidity.MAYBE_A_TEST:
-          close.append(entry.path)
-      if entry.is_dir():
-        # On Windows, junctions are like a symlink that python interprets as a
-        # directory, leading to exceptions being thrown. We can just catch and
-        # ignore these exceptions like we would ignore symlinks.
-        try:
-          matches = RecursiveMatchFilename(entry.path, filename)
-          exact += matches[0]
-          close += matches[1]
-        except FileNotFoundError as e:
-          if DEBUG:
-            print(f'Failed to scan directory "{entry}" - junction?')
-          pass
+  try:
+    with os.scandir(folder) as it:
+      for entry in it:
+        if (entry.is_symlink()):
+          continue
+        if (entry.is_file() and filename in entry.path and
+            not os.path.basename(entry.path).startswith('.')):
+          file_validity = IsTestFile(entry.path)
+          if file_validity is TestValidity.VALID_TEST:
+            exact.append(entry.path)
+          elif file_validity is TestValidity.MAYBE_A_TEST:
+            close.append(entry.path)
+        if entry.is_dir():
+          # On Windows, junctions are like a symlink that python interprets as a
+          # directory, leading to exceptions being thrown. We can just catch and
+          # ignore these exceptions like we would ignore symlinks.
+          try:
+            matches = RecursiveMatchFilename(entry.path, filename)
+            exact += matches[0]
+            close += matches[1]
+          except FileNotFoundError as e:
+            if DEBUG:
+              print(f'Failed to scan directory "{entry}" - junction?')
+            pass
+  except PermissionError:
+    print(f'Permission error while scanning {folder}')
+
   return [exact, close]
 
 
@@ -295,12 +305,13 @@ def HaveUserPickTarget(paths, targets):
   target_list = '\n'.join(f'{i}. {t}' for i, t in enumerate(targets))
 
   user_input = input(f'Target "{paths}" is used by multiple test targets.\n' +
-                     target_list + '\nPlease pick a target: ')
+                     target_list + '\nPlease pick a target by its numeric index'
+                     'listed below: ')
   try:
     value = int(user_input)
     return targets[value]
   except (ValueError, IndexError):
-    print('Try again')
+    print('Value entered was not a numeric index listed above. Trying again.')
     return HaveUserPickTarget(paths, targets)
 
 
@@ -359,11 +370,6 @@ def _TestTargetsFromGnRefs(targets):
   return ret
 
 
-# TODO(b/305968611) remove when goma is deprecated.
-def _IsGomaNotice(target):
-  return target.startswith('The gn arg use_goma=true will be deprecated')
-
-
 def FindTestTargets(target_cache, out_dir, paths, run_all):
   # Normalize paths, so they can be cached.
   paths = [os.path.realpath(p) for p in paths]
@@ -394,7 +400,6 @@ def FindTestTargets(target_cache, out_dir, paths, run_all):
         f' one of the following targets to _TEST_TARGET_ALLOWLIST within '
         f'{__file__}: \n' + '\n'.join(targets))
 
-  test_targets = [t for t in test_targets if not _IsGomaNotice(t)]
   test_targets.sort()
   target_cache.Store(paths, test_targets)
   target_cache.Save()

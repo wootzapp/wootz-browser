@@ -205,7 +205,8 @@ bool Editor::HandleTextEvent(TextEvent* event) {
   // TODO(kojii): rich editing has the same issue, but has more options and
   // needs coordination with JS. Enable for plaintext only for now and collect
   // feedback.
-  if (data == " " && !CanEditRichly() &&
+  if (!RuntimeEnabledFeatures::CaretWithTextAffinityUpstreamEnabled() &&
+      data == " " && !CanEditRichly() &&
       IsCaretAtStartOfWrappedLine(GetFrameSelection())) {
     InsertLineBreak();
   }
@@ -479,7 +480,6 @@ Editor::Editor(LocalFrame& frame)
       // matches IE but not FF).
       should_style_with_css_(false),
       kill_ring_(std::make_unique<KillRing>()),
-      are_marked_text_matches_highlighted_(false),
       default_paragraph_separator_(EditorParagraphSeparator::kIsDiv) {}
 
 Editor::~Editor() = default;
@@ -815,7 +815,7 @@ bool Editor::FindString(LocalFrame& frame,
   Range* const result_range = FindRangeOfString(
       *frame.GetDocument(), target,
       EphemeralRangeInFlatTree(selection.Start(), selection.End()),
-      static_cast<FindOptions>(options | kFindAPICall));
+      options.SetFindApiCall(true));
 
   if (!result_range)
     return false;
@@ -837,7 +837,7 @@ static Range* FindStringBetweenPositions(
     FindOptions options) {
   EphemeralRangeInFlatTree search_range(reference_range);
 
-  bool forward = !(options & kBackwards);
+  bool forward = !options.IsBackwards();
 
   while (true) {
     EphemeralRangeInFlatTree result_range =
@@ -869,8 +869,7 @@ static Range* FindStringBetweenPositions(
     }
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 Range* Editor::FindRangeOfString(
@@ -889,10 +888,10 @@ Range* Editor::FindRangeOfString(
       EphemeralRangeInFlatTree::RangeOfContents(document);
   EphemeralRangeInFlatTree search_range(document_range);
 
-  const bool forward = !(options & kBackwards);
+  const bool forward = !options.IsBackwards();
   bool start_in_reference_range = false;
   if (reference_range.IsNotNull()) {
-    start_in_reference_range = options & kStartInSelection;
+    start_in_reference_range = options.IsStartingInSelection();
     if (forward && start_in_reference_range) {
       search_range = EphemeralRangeInFlatTree(reference_range.StartPosition(),
                                               document_range.EndPosition());
@@ -929,22 +928,13 @@ Range* Editor::FindRangeOfString(
     result_range = FindStringBetweenPositions(target, search_range, options);
   }
 
-  if (!result_range && options & kWrapAround) {
+  if (!result_range && options.IsWrappingAround()) {
     if (wrapped_around)
       *wrapped_around = true;
     return FindStringBetweenPositions(target, document_range, options);
   }
 
   return result_range;
-}
-
-void Editor::SetMarkedTextMatchesAreHighlighted(bool flag) {
-  if (flag == are_marked_text_matches_highlighted_)
-    return;
-
-  are_marked_text_matches_highlighted_ = flag;
-  GetFrame().GetDocument()->Markers().RepaintMarkers(
-      DocumentMarker::MarkerTypes::TextMatch());
 }
 
 void Editor::RespondToChangedSelection() {

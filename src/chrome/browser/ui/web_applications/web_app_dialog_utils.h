@@ -20,7 +20,7 @@ class WebContents;
 namespace webapps {
 enum class WebappInstallSource;
 enum class InstallResultCode;
-}
+}  // namespace webapps
 
 namespace web_app {
 
@@ -50,6 +50,11 @@ bool CreateWebAppFromManifest(
     webapps::WebappInstallSource install_source,
     WebAppInstalledCallback installed_callback,
     PwaInProductHelpState iph_state = PwaInProductHelpState::kNotShown);
+
+// Shows the PWA Install dialog for the active tab in the provided browser.
+// Records PWAInstallIcon user metric and closes the PWA install IPH
+// if it is showing.
+void ShowPwaInstallDialog(Browser* browser);
 
 void SetInstalledCallbackForTesting(WebAppInstalledCallback callback);
 

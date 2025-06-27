@@ -25,6 +25,9 @@
 #include "extensions/browser/extension_error.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/buildflags/buildflags.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace content {
 class BrowserContext;
@@ -121,8 +124,9 @@ class ErrorConsole : public KeyedService,
 
   // Set the default reporting for all extensions.
   void set_default_reporting_for_test(ExtensionError::Type type, bool enabled) {
-    default_mask_ =
-        enabled ? default_mask_ | (1 << type) : default_mask_ & ~(1 << type);
+    int intType = static_cast<int>(type);
+    default_mask_ = enabled ? default_mask_ | (1 << intType)
+                            : default_mask_ & ~(1 << intType);
   }
 
  private:

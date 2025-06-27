@@ -7,13 +7,17 @@
 
 #include "base/notreached.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
+#include "third_party/blink/renderer/core/canvas_interventions/canvas_interventions_enums.h"
+#include "third_party/blink/renderer/core/html/canvas/canvas_2d_color_params.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_context_creation_attributes_core.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_factory.h"
 #include "third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/identifiability_study_helper.h"
+#include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
+#include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/blink/renderer/platform/privacy_budget/identifiability_digest_helpers.h"
 
 namespace blink {
@@ -22,7 +26,7 @@ class CanvasResourceProvider;
 class ExceptionState;
 
 class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
-    : public CanvasRenderingContext,
+    : public ScriptWrappable,
       public BaseRenderingContext2D {
   DEFINE_WRAPPERTYPEINFO();
 
@@ -51,26 +55,14 @@ class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
     return static_cast<OffscreenCanvas*>(Host());
   }
 
-  void commit();
-
   // CanvasRenderingContext implementation
   ~OffscreenCanvasRenderingContext2D() override;
   bool IsComposited() const override { return false; }
   V8RenderingContext* AsV8RenderingContext() final;
   V8OffscreenRenderingContext* AsV8OffscreenRenderingContext() final;
-  void PageVisibilityChanged() override {}
-  void Stop() final { NOTREACHED_IN_MIGRATION(); }
-  void ClearRect(double x, double y, double width, double height) override {
-    BaseRenderingContext2D::clearRect(x, y, width, height);
-  }
-  SkColorInfo CanvasRenderingContextSkColorInfo() const override {
-    return color_params_.GetSkColorInfo();
-  }
+  void Stop() final { NOTREACHED(); }
   scoped_refptr<StaticBitmapImage> GetImage(FlushReason) final;
   void Reset() override;
-  void RestoreCanvasMatrixClipStack(cc::PaintCanvas* c) const override {
-    RestoreMatrixClipStack(c);
-  }
   // CanvasRenderingContext - ActiveScriptWrappable
   // This method will avoid this class to be garbage collected, as soon as
   // HasPendingActivity returns true.
@@ -114,9 +106,6 @@ class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
   bool IsDesynchronized() const final {
     return CreationAttributes().desynchronized;
   }
-  bool isContextLost() const final {
-    return context_lost_mode_ != kNotLostContext;
-  }
   void LoseContext(LostContextMode) override;
 
   ImageBitmap* TransferToImageBitmap(ScriptState* script_state,
@@ -145,41 +134,41 @@ class MODULES_EXPORT OffscreenCanvasRenderingContext2D final
     return identifiability_study_helper_.encountered_partially_digested_image();
   }
 
-  std::optional<cc::PaintRecord> FlushCanvas(FlushReason) override;
+  bool ShouldTriggerIntervention() const override {
+    return HasTriggerForIntervention();
+  }
 
-  int LayerCount() const override;
+  CanvasOperationType GetCanvasTriggerOperations() const override {
+    return GetTriggersForIntervention();
+  }
+
+  std::optional<cc::PaintRecord> FlushCanvas(FlushReason) override;
 
  protected:
   OffscreenCanvas* HostAsOffscreenCanvas() const final;
-  FontSelector* GetFontSelector() const final;
+  UniqueFontSelector* GetFontSelector() const final;
 
-  PredefinedColorSpace GetDefaultImageDataColorSpace() const final {
-    return color_params_.ColorSpace();
-  }
   bool WritePixels(const SkImageInfo& orig_info,
                    const void* pixels,
                    size_t row_bytes,
                    int x,
                    int y) override;
-  void DispatchContextLostEvent(TimerBase*) override;
-  void TryRestoreContextEvent(TimerBase*) override;
 
   bool ResolveFont(const String& new_font) override;
 
  private:
   void FinalizeFrame(FlushReason) final;
-  void FlushRecording(FlushReason);
 
   bool IsPaintable() const final;
   bool IsCanvas2DBufferValid() const override;
 
   scoped_refptr<CanvasResource> ProduceCanvasResource(FlushReason);
 
+  CanvasResourceProvider* GetOrCreateCanvas2DResourceProvider() override;
+
   SkIRect dirty_rect_for_commit_;
 
   bool is_valid_size_ = false;
-
-  CanvasColorParams color_params_;
 };
 
 }  // namespace blink

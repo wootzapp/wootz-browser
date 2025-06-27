@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "services/network/chunked_data_pipe_upload_data_stream.h"
 
 #include <stdint.h>
@@ -9,6 +14,7 @@
 #include <limits>
 #include <memory>
 
+#include "base/containers/span.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -33,8 +39,7 @@ namespace {
 
 net::CompletionOnceCallback NoCallback() {
   return base::BindOnce([](int result) {
-    NOTREACHED_IN_MIGRATION()
-        << "This callback should not be called. result=" << result;
+    NOTREACHED() << "This callback should not be called. result=" << result;
   });
 }
 
@@ -819,14 +824,15 @@ TEST_F(ChunkedDataPipeUploadDataStreamTest,
     EXPECT_TRUE(chunked_upload_stream->IsEOF());                              \
   }
 
-#define WRITE_DATA_SYNC(write_pipe, str)                            \
-  {                                                                 \
-    std::string data(str);                                          \
-    size_t num_size = data.size();                                  \
-    EXPECT_EQ(write_pipe->WriteData((void*)data.c_str(), &num_size, \
-                                    MOJO_WRITE_DATA_FLAG_NONE),     \
-              MOJO_RESULT_OK);                                      \
-    EXPECT_EQ(num_size, data.size());                               \
+#define WRITE_DATA_SYNC(write_pipe, str)                       \
+  {                                                            \
+    std::string data(str);                                     \
+    size_t actually_written_bytes = 0;                         \
+    EXPECT_EQ(write_pipe->WriteData(base::as_byte_span(data),  \
+                                    MOJO_WRITE_DATA_FLAG_NONE, \
+                                    actually_written_bytes),   \
+              MOJO_RESULT_OK);                                 \
+    EXPECT_EQ(actually_written_bytes, data.size());            \
   }
 
 TEST_F(ChunkedDataPipeUploadDataStreamTest, CacheNotUsed) {

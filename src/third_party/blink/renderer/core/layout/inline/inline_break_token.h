@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/layout/break_token.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_item_text_index.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_node.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
 namespace blink {
@@ -52,6 +53,7 @@ class CORE_EXPORT InlineBreakToken final : public BreakToken {
     kUseFirstLineStyle = 1 << 2,
     kHasClonedBoxDecorations = 1 << 3,
     kIsInParallelBlockFlow = 1 << 4,
+    kIsPastFirstFormattedLine = 1 << 5,
     // When adding values, ensure |flags_| has enough storage.
   };
 
@@ -84,6 +86,7 @@ class CORE_EXPORT InlineBreakToken final : public BreakToken {
   const InlineItemTextIndex& Start() const { return start_; }
   wtf_size_t StartItemIndex() const { return start_.item_index; }
   wtf_size_t StartTextOffset() const { return start_.text_offset; }
+  static bool IsStartEqual(const InlineBreakToken*, const InlineBreakToken*);
 
   bool UseFirstLineStyle() const {
     return flags_ & kUseFirstLineStyle;
@@ -108,6 +111,13 @@ class CORE_EXPORT InlineBreakToken final : public BreakToken {
   // True if this is to be resumed in a parallel fragmentation flow.
   // https://www.w3.org/TR/css-break-3/#parallel-flows
   bool IsInParallelBlockFlow() const { return flags_ & kIsInParallelBlockFlow; }
+
+  // Return true if we're past the first formatted line, meaning that we have at
+  // least one line with actual inline content (as opposed to e.g. "lines"
+  // consisting only of floats).
+  bool IsPastFirstFormattedLine() const {
+    return flags_ & kIsPastFirstFormattedLine;
+  }
 
   using PassKey = base::PassKey<InlineBreakToken>;
   InlineBreakToken(PassKey,
@@ -142,6 +152,14 @@ class CORE_EXPORT InlineBreakToken final : public BreakToken {
   // This is an array of one item if |kHasRareData|, or zero.
   RareData rare_data_[];
 };
+
+inline bool InlineBreakToken::IsStartEqual(const InlineBreakToken* lhs,
+                                           const InlineBreakToken* rhs) {
+  if (!lhs) {
+    return !rhs;
+  }
+  return rhs && lhs->Start() == rhs->Start();
+}
 
 template <>
 struct DowncastTraits<InlineBreakToken> {

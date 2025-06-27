@@ -20,6 +20,7 @@
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ptr_exclusion.h"
+#include "base/memory/raw_span.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -101,7 +102,8 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   AssociatedGroup* associated_group();
 
   scoped_refptr<ThreadSafeProxy> CreateThreadSafeProxy(
-      scoped_refptr<ThreadSafeProxy::Target> target);
+      scoped_refptr<ThreadSafeProxy::Target> target,
+      const base::Location& location);
 
   // Sets a MessageFilter which can filter a message after validation but
   // before dispatch.
@@ -226,6 +228,10 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
     return sync_method_ordinals_;
   }
 
+  // If adding a new call to this function, be sure to update the list of
+  // suffixes in histograms.xml
+  static void SetThreadNameSuffixForMetrics(std::string thread_name);
+
  private:
   struct PendingAsyncResponse {
    public:
@@ -289,7 +295,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
 
   bool HandleValidatedMessage(Message* message);
 
-  const base::span<const uint32_t> sync_method_ordinals_;
+  const base::raw_span<const uint32_t> sync_method_ordinals_;
 
   // The callback to invoke when our peer endpoint sends us NotifyIdle and we
   // have no outstanding unacked messages. If null, no callback has been set and

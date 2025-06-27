@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_notice_confirmation.h"
+
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/privacy_sandbox/privacy_sandbox_notice_confirmation.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/variations/service/variations_service.h"
@@ -25,6 +26,8 @@ struct PrivacySandboxConfirmationTestData {
   bool expect_mismatch_histogram_false;
 };
 
+// TODO(b/342221188): Add histogram tests for PrivacySandbox.NoticeRequirement.*
+// histograms.
 class PrivacySandboxConfirmationTestBase
     : public InProcessBrowserTest,
       public testing::WithParamInterface<PrivacySandboxConfirmationTestData> {
@@ -109,7 +112,7 @@ INSTANTIATE_TEST_SUITE_P(
             .expect_required = true,
             .expect_mismatch_histogram_true = true,
         },
-        // 2.2 GB - Feature Overridden. consent param not set.
+        // 2.2 US - Feature Overridden. consent param not set.
         PrivacySandboxConfirmationTestData{
             .enabled_features = {{kPrivacySandboxSettings4, {{}}}},
             .variation_country = "us",
@@ -117,7 +120,7 @@ INSTANTIATE_TEST_SUITE_P(
             .expect_required = false,
             .expect_mismatch_histogram_false = true,
         },
-        // 2.3 GB - Feature Explicitly Disabled.
+        // 2.3 US - Feature Explicitly Disabled.
         PrivacySandboxConfirmationTestData{
             .disabled_features = {kPrivacySandboxSettings4},
             .variation_country = "us",
@@ -125,7 +128,7 @@ INSTANTIATE_TEST_SUITE_P(
             .expect_required = false,
             .expect_mismatch_histogram_false = true,
         },
-        // 2.4 GB - Feature Not Set.
+        // 2.4 US - Feature Not Set.
         PrivacySandboxConfirmationTestData{
             .variation_country = "us",
             // Expectations
@@ -145,7 +148,6 @@ IN_PROC_BROWSER_TEST_P(PrivacySandboxNoticeConfirmationTest, NoticeTest) {
   base::HistogramTester histogram_tester;
   g_browser_process->variations_service()->OverrideStoredPermanentCountry(
       GetParam().variation_country);
-
   EXPECT_EQ(IsNoticeRequired(), GetParam().expect_required);
   histogram_tester.ExpectBucketCount(
       "Settings.PrivacySandbox.NoticeCheckIsMismatched", true,

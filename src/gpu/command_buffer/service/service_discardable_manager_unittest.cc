@@ -76,7 +76,7 @@ class ServiceDiscardableManagerTest : public GpuServiceTest {
         &client_, &command_buffer_service_, &outputter_);
     feature_info_ = new FeatureInfo();
     context_group_ = scoped_refptr<ContextGroup>(new ContextGroup(
-        gpu_preferences_, /*supports_passthrough_command_decoders=*/false,
+        gpu_preferences_,
         /*memory_tracker=*/nullptr,
         /*shader_translator_cache=*/nullptr,
         /*framebuffer_completeness_cache=*/nullptr, feature_info_,
@@ -84,7 +84,8 @@ class ServiceDiscardableManagerTest : public GpuServiceTest {
         GpuFeatureInfo(), &discardable_manager_,
         /*passthrough_discardable_manager=*/nullptr, &shared_image_manager_));
     TestHelper::SetupContextGroupInitExpectations(
-        gl_.get(), DisallowedFeatures(), "", "", CONTEXT_TYPE_OPENGLES2, false);
+        gl_.get(), DisallowedFeatures(), "GL_EXT_framebuffer_object",
+        "OpenGL ES 2.0", CONTEXT_TYPE_OPENGLES2, false);
     context_group_->Initialize(decoder_.get(), CONTEXT_TYPE_OPENGLES2,
                                DisallowedFeatures());
     texture_manager_ = context_group_->texture_manager();

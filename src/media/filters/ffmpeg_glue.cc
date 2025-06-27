@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "media/filters/ffmpeg_glue.h"
 
 #include "base/check_op.h"
@@ -12,6 +17,7 @@
 #include "base/types/cxx23_to_underlying.h"
 #include "media/base/container_names.h"
 #include "media/base/media_switches.h"
+#include "media/base/supported_types.h"
 #include "media/ffmpeg/ffmpeg_common.h"
 
 namespace media {
@@ -56,7 +62,7 @@ static int64_t AVIOSeekOperation(void* opaque, int64_t offset, int whence) {
       break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   return new_offset;
 }
@@ -78,11 +84,6 @@ static const char* GetAllowedDemuxers() {
                                                  "flac", "mp3",      "mov"};
 #if BUILDFLAG(USE_PROPRIETARY_CODECS)
     allowed_demuxers.push_back("aac");
-#if BUILDFLAG(IS_CHROMEOS)
-    if (base::FeatureList::IsEnabled(kCrOSLegacyMediaFormats)) {
-      allowed_demuxers.push_back("avi");
-    }
-#endif
 #endif
     return base::JoinString(allowed_demuxers, ",");
   }());
@@ -113,65 +114,30 @@ FFmpegGlue::FFmpegGlue(FFmpegURLProtocol* protocol) {
   // Enable fast, but inaccurate seeks for MP3.
   format_context_->flags |= AVFMT_FLAG_FAST_SEEK;
 
+  // We don't allow H.264 parsing during demuxing since we have our own parser
+  // and the ffmpeg one increases memory usage unnecessarily.
+  format_context_->flags |= AVFMT_FLAG_NOH264PARSE;
+
   // Ensures format parsing errors will bail out. From an audit on 11/2017, all
   // instances were real failures. Solves bugs like http://crbug.com/710791.
   format_context_->error_recognition |= AV_EF_EXPLODE;
 
   format_context_->pb = avio_context_.get();
 
-  if (base::FeatureList::IsEnabled(kFFmpegAllowLists)) {
-    // Enhance security by forbidding ffmpeg from decoding / demuxing codecs and
-    // containers which should be unsupported.
-    //
-    // Normally these aren't even compiled in, but during codec/container
-    // deprecations and when an external ffmpeg is used this adds extra
-    // security.
-    static const base::NoDestructor<std::string> kCombinedCodecList([]() {
-      return base::JoinString(
-          {GetAllowedAudioDecoders(), GetAllowedVideoDecoders()}, ",");
-    }());
-
-    // Note: FFmpeg will try to free these strings, so we must duplicate them.
-    format_context_->codec_whitelist = av_strdup(kCombinedCodecList->c_str());
-    format_context_->format_whitelist = av_strdup(GetAllowedDemuxers());
-  }
-}
-
-// static
-const char* FFmpegGlue::GetAllowedAudioDecoders() {
-  static const base::NoDestructor<std::string> kAllowedAudioCodecs([]() {
-    // This should match the configured lists in //third_party/ffmpeg.
-    std::string allowed_decoders(
-        "vorbis,libopus,flac,pcm_u8,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,"
-        "mp3,pcm_s16be,pcm_s24be,pcm_mulaw,pcm_alaw");
-#if BUILDFLAG(USE_PROPRIETARY_CODECS)
-    allowed_decoders += ",aac";
-#endif
-    return allowed_decoders;
-  }());
-  return kAllowedAudioCodecs->c_str();
-}
-
-// static
-const char* FFmpegGlue::GetAllowedVideoDecoders() {
-  static const base::NoDestructor<std::string> kAllowedVideoCodecs([]() {
-  // This should match the configured lists in //third_party/ffmpeg.
-#if BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
-    std::vector<std::string> allowed_decoders;
-#if BUILDFLAG(USE_PROPRIETARY_CODECS)
-    allowed_decoders.push_back("h264");
-#if BUILDFLAG(IS_CHROMEOS)
-    if (base::FeatureList::IsEnabled(kCrOSLegacyMediaFormats)) {
-      allowed_decoders.push_back("mpeg4");
-    }
-#endif  // BUILDFLAG(IS_CHROMEOS)
-#endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
-    return base::JoinString(allowed_decoders, ",");
-#else
-    return std::string();
-#endif  // BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
-  }());
-  return kAllowedVideoCodecs->c_str();
+  // Enhance security by forbidding ffmpeg from decoding / demuxing codecs and
+  // containers which should be unsupported.
+  //
+  // Normally these aren't even compiled in, but during codec/container
+  // deprecations and when an external ffmpeg is used this adds extra
+  // security.
+  //
+  // We also don't allow ffmpeg to use any video decoders during demuxing
+  // since it's unnecessary for the codecs we use and just increases
+  // memory usage.
+  //
+  // Note: FFmpeg will try to free these strings, so we must duplicate them.
+  format_context_->codec_whitelist = av_strdup(GetAllowedAudioDecoders());
+  format_context_->format_whitelist = av_strdup(GetAllowedDemuxers());
 }
 
 bool FFmpegGlue::OpenContext(bool is_local_file) {
@@ -190,8 +156,8 @@ bool FFmpegGlue::OpenContext(bool is_local_file) {
 
   // By passing nullptr for the filename (second parameter) we are telling
   // FFmpeg to use the AVIO context we setup from the AVFormatContext structure.
-  const int ret =
-      avformat_open_input(&format_context_, nullptr, nullptr, &options);
+  const int ret = avformat_open_input(&format_context_.AsEphemeralRawAddr(),
+                                      nullptr, nullptr, &options);
 
   if (options) {
     av_dict_free(&options);
@@ -266,7 +232,7 @@ FFmpegGlue::~FFmpegGlue() {
     return;
   }
 
-  avformat_close_input(&format_context_);
+  avformat_close_input(&format_context_.AsEphemeralRawAddr());
   av_free(avio_context_->buffer);
 }
 

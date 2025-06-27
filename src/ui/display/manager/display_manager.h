@@ -24,7 +24,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "build/chromeos_buildflags.h"
+#include "base/scoped_multi_source_observation.h"
 #include "ui/display/display.h"
 #include "ui/display/display_layout.h"
 #include "ui/display/display_observer.h"
@@ -62,7 +62,7 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
  public:
   class DISPLAY_MANAGER_EXPORT Delegate {
    public:
-    virtual ~Delegate() {}
+    virtual ~Delegate() = default;
 
     virtual void CreateDisplay(const Display& display) = 0;
     virtual void RemoveDisplay(const Display& display) = 0;
@@ -368,8 +368,8 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
   // mixed mirror mode in the next display configuration. (Use SetMirrorMode()
   // to immediately switch to mixed mirror mode.)
   void set_mixed_mirror_mode_params(
-      const std::optional<MixedMirrorModeParams> mixed_params) {
-    mixed_mirror_mode_params_ = mixed_params;
+      std::optional<MixedMirrorModeParams> mixed_params) {
+    mixed_mirror_mode_params_ = std::move(mixed_params);
   }
 
   void dec_screen_capture_active_counter() {
@@ -452,11 +452,17 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
   void SetSoftwareMirroring(bool enabled) override;
   bool SoftwareMirroringEnabled() const override;
   bool IsSoftwareMirroringEnforced() const override;
+
+  // Sets the touch calibration data via `TouchDeviceManager`, mapping
+  // `touchdevice` to the given `display_id`. If `apply_spatial_calibration` is
+  // true, the bounds and valid screen space of the target touch device are also
+  // calibrated, otherwise this information is thrown out.
   void SetTouchCalibrationData(
       int64_t display_id,
       const TouchCalibrationData::CalibrationPointPairQuad& point_pair_quad,
       const gfx::Size& display_bounds,
-      const ui::TouchscreenDevice& touchdevice);
+      const ui::TouchscreenDevice& touchdevice,
+      bool apply_spatial_calibration);
   void ClearTouchCalibrationData(
       int64_t display_id,
       std::optional<ui::TouchscreenDevice> touchdevice);
@@ -471,6 +477,7 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
 
   // Sets multi display mode.
   void SetMultiDisplayMode(MultiDisplayMode mode);
+  MultiDisplayMode multi_display_mode() const { return multi_display_mode_; }
 
   // Reconfigure display configuration using the same physical display.
   // TODO(oshima): Refactor and move this impl to |SetDefaultMultiDisplayMode|.
@@ -499,22 +506,27 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
   // Sets `tablet_state_` and notifies observers of display.
   void SetTabletState(const TabletState& tablet_state);
 
-  // Notifies observers of display configuration changes.
+  // DisplayObserver notification utilities.
   void NotifyMetricsChanged(const Display& display, uint32_t metrics);
   void NotifyDisplayAdded(const Display& display);
   void NotifyWillRemoveDisplays(const Displays& display);
   void NotifyDisplaysRemoved(const Displays& displays);
+
+  // DisplayManagerObserver notification utilities.
+  void NotifyDisplaysInitialized();
   void NotifyWillProcessDisplayChanges();
   void NotifyDidProcessDisplayChanges(
       const DisplayManagerObserver::DisplayConfigurationChange& config_change);
+  void NotifyWillApplyDisplayChanges(bool clear_focus);
+  void NotifyDidApplyDisplayChanges();
 
   // Delegated from the Screen implementation.
-  void AddObserver(DisplayObserver* observer);
-  void RemoveObserver(DisplayObserver* observer);
+  void AddDisplayObserver(DisplayObserver* observer);
+  void RemoveDisplayObserver(DisplayObserver* observer);
 
   // Add/Remove interface for DisplayManager::Obserevrs.
-  void AddObserver(DisplayManagerObserver* observer);
-  void RemoveObserver(DisplayManagerObserver* observer);
+  void AddDisplayManagerObserver(DisplayManagerObserver* observer);
+  void RemoveDisplayManagerObserver(DisplayManagerObserver* observer);
 
   display::TabletState GetTabletState() const;
 
@@ -680,6 +692,11 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
   // See https://crbug.com/632755
   bool is_updating_display_list_ = false;
 
+  // True if the display manager is currently performing an update in
+  // `UpdateDisplaysWith()`. Remove once root cause behind primary display
+  // issue has been resolved (see crbug.com/330166338).
+  bool is_updating_displays_ = false;
+
   DisplayIdList connected_display_id_list_;
 
   bool force_bounds_changed_ = false;
@@ -793,5 +810,39 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
 };
 
 }  // namespace display
+
+namespace base {
+
+// Since DisplayManagerObserver and DisplayObserver has custom methods to add
+// and remove observers, we need define new trait customizations to use
+// `base::ScopedObservation` and `base::ScopedMultiSourceObservation`. See
+// `base/scoped_observation_traits.h` for more details.
+template <>
+struct ScopedObservationTraits<display::DisplayManager,
+                               display::DisplayManagerObserver> {
+  static void AddObserver(display::DisplayManager* source,
+                          display::DisplayManagerObserver* observer) {
+    source->AddDisplayManagerObserver(observer);
+  }
+  static void RemoveObserver(display::DisplayManager* source,
+                             display::DisplayManagerObserver* observer) {
+    source->RemoveDisplayManagerObserver(observer);
+  }
+};
+
+template <>
+struct ScopedObservationTraits<display::DisplayManager,
+                               display::DisplayObserver> {
+  static void AddObserver(display::DisplayManager* source,
+                          display::DisplayObserver* observer) {
+    source->AddDisplayObserver(observer);
+  }
+  static void RemoveObserver(display::DisplayManager* source,
+                             display::DisplayObserver* observer) {
+    source->RemoveDisplayObserver(observer);
+  }
+};
+
+}  // namespace base
 
 #endif  // UI_DISPLAY_MANAGER_DISPLAY_MANAGER_H_

@@ -10,7 +10,6 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "media/base/limits.h"
 #include "media/base/media_switches.h"
 #include "media/base/platform_features.h"
@@ -23,7 +22,7 @@ bool GetSpatialLayerFrameSize(const DecoderBuffer& decoder_buffer,
                               std::vector<uint32_t>& frame_sizes) {
   frame_sizes.clear();
 
-  if (!decoder_buffer.has_side_data() ||
+  if (!decoder_buffer.side_data() ||
       decoder_buffer.side_data()->spatial_layers.empty()) {
     return true;
   }
@@ -77,7 +76,7 @@ bool IsValidBitDepth(uint8_t bit_depth, VideoCodecProfile profile) {
     case VP9PROFILE_PROFILE3:
       return bit_depth == 10u || bit_depth == 12u;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -120,8 +119,9 @@ VP9Decoder::VP9Decoder(std::unique_ptr<VP9Accelerator> accelerator,
 VP9Decoder::~VP9Decoder() = default;
 
 void VP9Decoder::SetStream(int32_t id, const DecoderBuffer& decoder_buffer) {
-  const uint8_t* ptr = decoder_buffer.data();
-  const size_t size = decoder_buffer.size();
+  auto decoder_buffer_span = base::span(decoder_buffer);
+  const uint8_t* ptr = decoder_buffer_span.data();
+  const size_t size = decoder_buffer_span.size();
   const DecryptConfig* decrypt_config = decoder_buffer.decrypt_config();
 
   DCHECK(ptr);
@@ -134,8 +134,7 @@ void VP9Decoder::SetStream(int32_t id, const DecoderBuffer& decoder_buffer) {
     SetError();
     return;
   }
-  if (decoder_buffer.has_side_data() &&
-      decoder_buffer.side_data()->secure_handle) {
+  if (decoder_buffer.side_data() && decoder_buffer.side_data()->secure_handle) {
     secure_handle_ = decoder_buffer.side_data()->secure_handle;
   } else {
     secure_handle_ = 0;

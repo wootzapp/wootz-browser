@@ -131,17 +131,13 @@ suite('cr-input', function() {
     const label = crInput.$.label;
     const originalLabelColor = getComputedStyle(label).color;
 
-    function waitForTransitions(): Promise<TransitionEvent[]> {
+    async function waitForTransitions(): Promise<TransitionEvent[]> {
       const events: TransitionEvent[] = [];
-      return eventToPromise('transitionend', underline)
-          .then(e => {
-            events.push(e);
-            return eventToPromise('transitionend', underline);
-          })
-          .then(e => {
-            events.push(e);
-            return events;
-          });
+      let e = await eventToPromise('transitionend', underline);
+      events.push(e);
+      e = await eventToPromise('transitionend', underline);
+      events.push(e);
+      return events;
     }
 
     assertEquals('0', getComputedStyle(underline).opacity);
@@ -384,13 +380,19 @@ suite('cr-input', function() {
 
       static get properties() {
         return {
-          parentValue: String,
-          parentInvalid: Boolean,
+          parentValue: {
+            type: String,
+            value: 'hello',
+          },
+          parentInvalid: {
+            type: Boolean,
+            value: false,
+          },
         };
       }
 
-      parentValue: string = 'hello';
-      parentInvalid: boolean = false;
+      declare parentValue: string;
+      declare parentInvalid: boolean;
       private events_: string[] = [];
       private expectedValue_: string = 'hello';
 
@@ -431,7 +433,7 @@ suite('cr-input', function() {
     assertTrue(!!input);
     await input.updateComplete;
     // Initialization events
-    element.validateEvents(['invalid-changed', 'value-changed']);
+    element.validateEvents(['value-changed', 'invalid-changed']);
 
     function simulateUserInput(inputValue: string): Promise<void> {
       element.setExpectedValue(inputValue);

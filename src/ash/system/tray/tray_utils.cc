@@ -8,6 +8,7 @@
 
 #include "ash/bubble/bubble_constants.h"
 #include "ash/constants/ash_constants.h"
+#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
@@ -60,13 +61,9 @@ void SetupConnectedScrollListItem(HoverHighlightView* view,
 
   view->sub_text_label()->SetAutoColorReadabilityEnabled(false);
 
-  if (chromeos::features::IsJellyEnabled()) {
-    view->sub_text_label()->SetEnabledColorId(cros_tokens::kCrosSysPositive);
-    ash::TypographyProvider::Get()->StyleLabel(
-        ash::TypographyToken::kCrosAnnotation1, *view->sub_text_label());
-  } else {
-    view->sub_text_label()->SetEnabledColorId(kColorAshTextColorPositive);
-  }
+  view->sub_text_label()->SetEnabledColor(cros_tokens::kCrosSysPositive);
+  ash::TypographyProvider::Get()->StyleLabel(
+      ash::TypographyToken::kCrosAnnotation1, *view->sub_text_label());
 }
 
 void SetupConnectingScrollListItem(HoverHighlightView* view) {
@@ -81,13 +78,9 @@ void SetWarningSubText(HoverHighlightView* view, std::u16string subtext) {
 
   view->SetSubText(subtext);
   view->sub_text_label()->SetAutoColorReadabilityEnabled(false);
-  if (chromeos::features::IsJellyEnabled()) {
-    view->sub_text_label()->SetEnabledColorId(cros_tokens::kCrosSysWarning);
-    ash::TypographyProvider::Get()->StyleLabel(
-        ash::TypographyToken::kCrosAnnotation1, *view->sub_text_label());
-  } else {
-    view->sub_text_label()->SetEnabledColorId(kColorAshTextColorWarning);
-  }
+  view->sub_text_label()->SetEnabledColor(cros_tokens::kCrosSysWarning);
+  ash::TypographyProvider::Get()->StyleLabel(
+      ash::TypographyToken::kCrosAnnotation1, *view->sub_text_label());
 }
 
 gfx::Insets GetTrayBubbleInsets(aura::Window* window) {

@@ -11,31 +11,29 @@ import '../../components/oobe_icons.html.js';
 import '../../components/common_styles/oobe_common_styles.css.js';
 import '../../components/common_styles/oobe_dialog_host_styles.css.js';
 
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {LoginScreenBehavior, LoginScreenBehaviorInterface} from '../../components/behaviors/login_screen_behavior.js';
-import {OobeDialogHostBehavior, OobeDialogHostBehaviorInterface} from '../../components/behaviors/oobe_dialog_host_behavior.js';
-import {OobeI18nMixin, OobeI18nMixinInterface} from '../../components/mixins/oobe_i18n_mixin.js';
 import {OobeUiState} from '../../components/display_manager_types.js';
+import {LoginScreenMixin} from '../../components/mixins/login_screen_mixin.js';
+import {OobeDialogHostMixin} from '../../components/mixins/oobe_dialog_host_mixin.js';
+import {OobeI18nMixin} from '../../components/mixins/oobe_i18n_mixin.js';
 
 import {getTemplate} from './device_disabled.html.js';
 
 
 const DeviceDisabledElementBase =
-    mixinBehaviors(
-        [LoginScreenBehavior, OobeDialogHostBehavior],
-        OobeI18nMixin(PolymerElement)) as {
-      new (): PolymerElement & OobeI18nMixinInterface &
-          LoginScreenBehaviorInterface & OobeDialogHostBehaviorInterface,
-    };
+    OobeDialogHostMixin(LoginScreenMixin(OobeI18nMixin(PolymerElement)));
 
 
 interface DeviceDisabledScreenData {
   serial: string;
   domain: string;
   message: string;
-  isDisabledAdDevice: boolean;
+  deviceRestrictionScheduleEnabled: boolean;
+  deviceName: string;
+  restrictionScheduleEndDay: string;
+  restrictionScheduleEndTime: string;
 }
 
 export class DeviceDisabled extends DeviceDisabledElementBase {
@@ -74,12 +72,36 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
       },
 
       /**
-       * Flag indicating if the device was disabled because it's in AD mode,
-       * which is no longer supported.
+       * Flag indicating if the device was disabled because it is in restricted
+       * schedule.
        */
-      isDisabledAdDevice: {
+      deviceRestrictionScheduleEnabled: {
         type: Boolean,
         value: false,
+      },
+
+      /**
+       * The name of the ChromeOS device.
+       */
+      deviceName: {
+        type: String,
+        value: '',
+      },
+
+      /**
+       * The day at which the restriction schedule ends.
+       */
+      restrictionScheduleEndDay: {
+        type: String,
+        value: '',
+      },
+
+      /**
+       * The time at which the restriction schedule ends.
+       */
+      restrictionScheduleEndTime: {
+        type: String,
+        value: '',
       },
     };
   }
@@ -87,7 +109,10 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
   private serial: string;
   private enrollmentDomain: string;
   private message: string;
-  private isDisabledAdDevice: boolean;
+  private deviceRestrictionScheduleEnabled: boolean;
+  private deviceName: string;
+  private restrictionScheduleEndDay: string;
+  private restrictionScheduleEndTime: string;
 
   override ready(): void {
     super.ready();
@@ -96,7 +121,7 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
 
   /** @override */
   override get EXTERNAL_API(): string[] {
-    return ['setMessage'];
+    return ['updateData'];
   }
 
   /** Initial UI State for screen */
@@ -114,6 +139,14 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
    * data Screen init payload.
    */
   override onBeforeShow(data: DeviceDisabledScreenData): void {
+    super.onBeforeShow(data);
+    this.updateData(data);
+  }
+
+  /**
+   * Updates the data used in the screen.
+   */
+  updateData(data: DeviceDisabledScreenData): void {
     if ('serial' in data) {
       this.serial = data.serial;
     }
@@ -123,36 +156,63 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
     if ('message' in data) {
       this.message = data.message;
     }
-    if ('isDisabledAdDevice' in data) {
-      this.isDisabledAdDevice = data.isDisabledAdDevice;
+    if ('deviceRestrictionScheduleEnabled' in data) {
+      this.deviceRestrictionScheduleEnabled =
+          data.deviceRestrictionScheduleEnabled;
+    }
+    if ('deviceName' in data) {
+      this.deviceName = data.deviceName;
+    }
+    if ('restrictionScheduleEndDay' in data) {
+      this.restrictionScheduleEndDay = data.restrictionScheduleEndDay;
+    }
+    if ('restrictionScheduleEndTime' in data) {
+      this.restrictionScheduleEndTime = data.restrictionScheduleEndTime;
     }
   }
 
   /**
-   * Sets the message to be shown to the user.
+   * Updates the heading for the explanation shown to the user.
+   * locale The i18n locale.
+   * deviceRestrictionScheduleEnabled Flag indicating if the device was disabled
+   *     because the device is in restriction schedule.
+   * return The internationalized heading for the explanation.
    */
-  setMessage(message: string): void {
-    this.message = message;
+  private disabledHeading(
+      locale: string, deviceRestrictionScheduleEnabled: boolean): TrustedHTML {
+    if (deviceRestrictionScheduleEnabled) {
+      return this.i18nAdvancedDynamic(
+          locale, 'deviceDisabledHeadingRestrictionSchedule');
+    }
+    return this.i18nAdvancedDynamic(locale, 'deviceDisabledHeading');
   }
 
   /**
    * Updates the explanation shown to the user. The explanation contains the
    * device serial number and may contain the domain the device is enrolled to,
-   * if that information is available. However, if `isDisabledAdDevice` is true,
-   * a custom explanation about Chromad disabling will be used.
+   * if that information is available.
+   * If `deviceRestrictionScheduleEnabled` is true, a custom explanation about
+   * device restriction schedule will be used.
    * locale The i18n locale.
    * serial The device serial number.
    * domain The enrollment domain.
-   * isDisabledAdDevice Flag indicating if the device was
-   * disabled because it's in AD mode.
+   * deviceRestrictionScheduleEnabled flag indicating if the device was disabled
+   *     because the device is in restriction schedule.
+   * deviceName The name of the ChromeOS device.
    * return The internationalized explanation.
    */
   private disabledText(
       locale: string, serial: string, domain: string,
-      isDisabledAdDevice: boolean): TrustedHTML {
-    if (isDisabledAdDevice) {
+      deviceRestrictionScheduleEnabled: boolean,
+      deviceName: string): TrustedHTML {
+    if (deviceRestrictionScheduleEnabled) {
       return this.i18nAdvancedDynamic(
-          locale, 'deviceDisabledAdModeExplanation', {substitutions: [serial]});
+          locale, 'deviceDisabledExplanationRestrictionSchedule', {
+            substitutions: [
+              domain,
+              deviceName,
+            ],
+          });
     }
     if (domain) {
       return this.i18nAdvancedDynamic(
@@ -162,6 +222,25 @@ export class DeviceDisabled extends DeviceDisabledElementBase {
     return this.i18nAdvancedDynamic(
         locale, 'deviceDisabledExplanationWithoutDomain',
         {substitutions: [serial]});
+  }
+
+  /**
+   * Updates the detailed message shown to the user.
+   * locale The i18n locale.
+   * restrictionScheduleEndDay The day at which the restriction schedule ends.
+   * restrictionScheduleEndTime The time at which the restriction schedule ends.
+   * return The internationalized explanation.
+   */
+  private disabledMessage(
+      locale: string, restrictionScheduleEndDay: string,
+      restrictionScheduleEndTime: string): TrustedHTML {
+    return this.i18nAdvancedDynamic(
+        locale, 'deviceDisabledExplanationRestrictionScheduleTime', {
+          substitutions: [
+            restrictionScheduleEndDay,
+            restrictionScheduleEndTime,
+          ],
+        });
   }
 }
 

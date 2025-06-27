@@ -4,7 +4,6 @@
 
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 
-#include <codecvt>
 #include <map>
 #include <memory>
 #include <optional>
@@ -57,7 +56,7 @@
 #include "base/apple/scoped_cftyperef.h"
 #include "base/files/scoped_temp_dir.h"
 #include "chrome/browser/shell_integration.h"
-#include "chrome/browser/web_applications/app_shim_registry_mac.h"
+#include "chrome/browser/web_applications/os_integration/mac/app_shim_registry.h"
 #include "net/base/filename_util.h"
 #import "skia/ext/skia_utils_mac.h"
 #endif
@@ -133,26 +132,76 @@ std::vector<std::wstring> GetFileExtensionsForProgId(
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // Performs a blocking read of app icons from the disk.
-SkColor IconManagerReadIconTopLeftColorForSize(WebAppIconManager& icon_manager,
-                                               const webapps::AppId& app_id,
-                                               SquareSizePx size_px) {
-  SkColor result = SK_ColorTRANSPARENT;
+std::optional<SkBitmap> IconManagerReadIconForSize(
+    WebAppIconManager& icon_manager,
+    const webapps::AppId& app_id,
+    SquareSizePx size_px) {
   if (!icon_manager.HasIcons(app_id, IconPurpose::ANY, {size_px})) {
-    return result;
+    return std::nullopt;
   }
+  std::optional<SkBitmap> result = std::nullopt;
   base::RunLoop run_loop;
   icon_manager.ReadIcons(
       app_id, IconPurpose::ANY, {size_px},
-      base::BindOnce(
-          [](base::RunLoop* run_loop, SkColor* result, SquareSizePx size_px,
-             std::map<SquareSizePx, SkBitmap> icon_bitmaps) {
+      base::BindLambdaForTesting(
+          [&](std::map<SquareSizePx, SkBitmap> icon_bitmaps) {
             CHECK(base::Contains(icon_bitmaps, size_px));
-            *result = icon_bitmaps.at(size_px).getColor(0, 0);
-            run_loop->Quit();
-          },
-          &run_loop, &result, size_px));
+            result = icon_bitmaps.at(size_px);
+            run_loop.Quit();
+          }));
   run_loop.Run();
   return result;
+}
+#endif
+
+#if BUILDFLAG(IS_MAC)
+// Note: This signature matches the one below for Windows.
+// TODO(https://crbug.com/385198233): Split the files entirely by platform.
+std::optional<SkBitmap> GetIconFromShortcutFile(
+    const base::FilePath& shortcut_path) {
+  CHECK(base::PathExists(shortcut_path));
+  base::FilePath icon_path =
+      shortcut_path.AppendASCII("Contents/Resources/app.icns");
+  base::apple::ScopedCFTypeRef<CFDictionaryRef> empty_dict(
+      CFDictionaryCreate(nullptr, nullptr, nullptr, 0, nullptr, nullptr));
+  base::apple::ScopedCFTypeRef<CFURLRef> url =
+      base::apple::FilePathToCFURL(icon_path);
+  base::apple::ScopedCFTypeRef<CGImageSourceRef> source(
+      CGImageSourceCreateWithURL(url.get(), nullptr));
+  if (!source) {
+    return std::nullopt;
+  }
+  // Get the first icon in the .icns file (index 0)
+  base::apple::ScopedCFTypeRef<CGImageRef> cg_image(
+      CGImageSourceCreateImageAtIndex(source.get(), 0, empty_dict.get()));
+  if (!cg_image) {
+    return std::nullopt;
+  }
+  SkBitmap bitmap = skia::CGImageToSkBitmap(cg_image.get());
+  if (bitmap.empty()) {
+    return std::nullopt;
+  }
+  return bitmap;
+}
+#endif  // BUILDFLAG(IS_MAC)
+
+#if BUILDFLAG(IS_WIN)
+// Note: This signature matches the one above for Mac.
+// TODO(https://crbug.com/385198233): Split the files entirely by platform.
+std::optional<SkBitmap> GetIconFromShortcutFile(
+    const base::FilePath& shortcut_path) {
+  CHECK(base::PathExists(shortcut_path));
+  SHFILEINFO file_info = {0};
+  if (!SHGetFileInfo(shortcut_path.value().c_str(), FILE_ATTRIBUTE_NORMAL,
+                     &file_info, sizeof(file_info),
+                     SHGFI_ICON | 0 | SHGFI_USEFILEATTRIBUTES)) {
+    return std::nullopt;
+  }
+  const SkBitmap bitmap = IconUtil::CreateSkBitmapFromHICON(file_info.hIcon);
+  if (bitmap.empty()) {
+    return std::nullopt;
+  }
+  return bitmap;
 }
 #endif
 
@@ -273,15 +322,22 @@ bool OsIntegrationTestOverrideImpl::SimulateDeleteShortcutsByUser(
   CHECK(base::PathExists(desktop_shortcut_path));
   return base::DeleteFile(desktop_shortcut_path);
 #else
-  NOTREACHED_IN_MIGRATION() << "Not implemented on ChromeOS/Fuchsia ";
-  return true;
+  NOTREACHED() << "Not implemented on ChromeOS/Fuchsia ";
 #endif
 }
 
 #if BUILDFLAG(IS_MAC)
 bool OsIntegrationTestOverrideImpl::DeleteChromeAppsDir() {
   if (chrome_apps_folder_.IsValid()) {
-    return chrome_apps_folder_.Delete();
+    bool success = chrome_apps_folder_.Delete();
+    if (!success) {
+      // Creating shortcuts kicks of an asynchronous task to eventually update
+      // the icon of `chrome_apps_folder_`. If that task happens to run during
+      // the above Delete() call deletion might fail. If that is the case, a
+      // single retry should be enough to be able to delete the folder anyway.
+      success = chrome_apps_folder_.Delete();
+    }
+    return success;
   } else {
     return false;
   }
@@ -334,8 +390,7 @@ bool OsIntegrationTestOverrideImpl::IsRunOnOsLoginEnabled(
       chrome_apps_folder().Append(shortcut_filename);
   return startup_enabled_[app_shortcut_path];
 #else
-  NOTREACHED_IN_MIGRATION() << "Not implemented on ChromeOS/Fuchsia ";
-  return true;
+  NOTREACHED() << "Not implemented on ChromeOS/Fuchsia ";
 #endif
 }
 
@@ -405,6 +460,39 @@ bool OsIntegrationTestOverrideImpl::IsFileExtensionHandled(
   return is_file_handled;
 }
 
+std::optional<SkBitmap> OsIntegrationTestOverrideImpl::GetShortcutIcon(
+    Profile* profile,
+    std::optional<base::FilePath> shortcut_dir,
+    const webapps::AppId& app_id,
+    const std::string& app_name,
+    SquareSizePx suggested_size_px) {
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+  if (!shortcut_dir.has_value()) {
+#if BUILDFLAG(IS_MAC)
+    shortcut_dir = chrome_apps_folder();
+#elif BUILDFLAG(IS_WIN)
+    shortcut_dir = application_menu();
+#endif
+  }
+  CHECK(!shortcut_dir->empty());
+  base::FilePath shortcut_path =
+      GetShortcutPath(profile, *shortcut_dir, app_id, app_name);
+  if (!base::PathExists(shortcut_path)) {
+    return std::nullopt;
+  }
+  return GetIconFromShortcutFile(shortcut_path);
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  WebAppProvider* provider = WebAppProvider::GetForLocalAppsUnchecked(profile);
+  if (!provider) {
+    return std::nullopt;
+  }
+  return IconManagerReadIconForSize(provider->icon_manager(), app_id,
+                                    suggested_size_px);
+#else
+  NOTREACHED() << "Not implemented on Fuchsia";
+#endif
+}
+
 std::optional<SkColor>
 OsIntegrationTestOverrideImpl::GetShortcutIconTopLeftColor(
     Profile* profile,
@@ -412,24 +500,14 @@ OsIntegrationTestOverrideImpl::GetShortcutIconTopLeftColor(
     const webapps::AppId& app_id,
     const std::string& app_name,
     SquareSizePx size_px) {
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-  base::FilePath shortcut_path =
-      GetShortcutPath(profile, shortcut_dir, app_id, app_name);
-  if (!base::PathExists(shortcut_path)) {
+  std::optional<SkBitmap> bitmap = GetShortcutIcon(
+      profile,
+      shortcut_dir.empty() ? std::nullopt : std::optional(shortcut_dir), app_id,
+      app_name, size_px);
+  if (!bitmap) {
     return std::nullopt;
   }
-  return GetIconTopLeftColorFromShortcutFile(shortcut_path);
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  WebAppProvider* provider = WebAppProvider::GetForLocalAppsUnchecked(profile);
-  if (!provider) {
-    return std::nullopt;
-  }
-  return IconManagerReadIconTopLeftColorForSize(provider->icon_manager(),
-                                                app_id, size_px);
-#else
-  NOTREACHED_IN_MIGRATION() << "Not implemented on Fuchsia";
-  return std::nullopt;
-#endif
+  return bitmap->getColor(0, 0);
 }
 
 base::FilePath OsIntegrationTestOverrideImpl::GetShortcutPath(
@@ -485,12 +563,11 @@ bool OsIntegrationTestOverrideImpl::IsShortcutCreated(
     const webapps::AppId& app_id,
     const std::string& app_name) {
 #if BUILDFLAG(IS_WIN)
-  base::FilePath desktop_shortcut_path =
-      GetShortcutPath(profile, desktop(), app_id, app_name);
+  // A shortcut, at minimum, is in the start menu / 'application menu'
+  // directory on Windows.
   base::FilePath application_menu_shortcut_path =
       GetShortcutPath(profile, application_menu(), app_id, app_name);
-  return (base::PathExists(desktop_shortcut_path) &&
-          base::PathExists(application_menu_shortcut_path));
+  return base::PathExists(application_menu_shortcut_path);
 #elif BUILDFLAG(IS_MAC)
   base::FilePath app_shortcut_path =
       GetShortcutPath(profile, chrome_apps_folder(), app_id, app_name);
@@ -500,8 +577,7 @@ bool OsIntegrationTestOverrideImpl::IsShortcutCreated(
       GetShortcutPath(profile, desktop(), app_id, app_name);
   return base::PathExists(desktop_shortcut_path);
 #else
-  NOTREACHED_IN_MIGRATION() << "Not implemented on ChromeOS/Fuchsia ";
-  return true;
+  NOTREACHED() << "Not implemented on ChromeOS/Fuchsia ";
 #endif
 }
 
@@ -534,11 +610,14 @@ bool OsIntegrationTestOverrideImpl::IsShortcutsMenuRegisteredForApp(
   return base::Contains(jump_list_entry_map_, app_user_model_id);
 }
 
+#endif  // BUILDFLAG(IS_WIN)
+
 base::expected<bool, std::string>
 OsIntegrationTestOverrideImpl::IsUninstallRegisteredWithOs(
     const webapps::AppId& app_id,
     const std::string& app_name,
     Profile* profile) {
+#if BUILDFLAG(IS_WIN)
   base::win::RegKey uninstall_reg_key;
   LONG result = uninstall_reg_key.Open(HKEY_CURRENT_USER, kUninstallRegistryKey,
                                        KEY_READ);
@@ -627,8 +706,10 @@ OsIntegrationTestOverrideImpl::IsUninstallRegisteredWithOs(
   }
 
   return true;
-}
+#else
+  return base::unexpected("Uninstall registration not supported.");
 #endif  // BUILDFLAG(IS_WIN)
+}
 
 const OsIntegrationTestOverrideImpl::AppProtocolList&
 OsIntegrationTestOverrideImpl::protocol_scheme_registrations() {
@@ -818,7 +899,7 @@ OsIntegrationTestOverrideImpl::~OsIntegrationTestOverrideImpl() {
   EXPECT_TRUE(!quick_launch_.IsValid() || quick_launch_.Delete());
   EXPECT_TRUE(!startup_.IsValid() || startup_.Delete());
 #elif BUILDFLAG(IS_MAC)
-  EXPECT_TRUE(!chrome_apps_folder_.IsValid() || chrome_apps_folder_.Delete());
+  EXPECT_TRUE(!chrome_apps_folder_.IsValid() || DeleteChromeAppsDir());
 #elif BUILDFLAG(IS_LINUX)
   EXPECT_TRUE(!desktop_.IsValid() || desktop_.Delete());
   EXPECT_TRUE(!startup_.IsValid() || startup_.Delete());
@@ -829,49 +910,6 @@ OsIntegrationTestOverrideImpl::~OsIntegrationTestOverrideImpl() {
 #endif
 }
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-SkColor OsIntegrationTestOverrideImpl::GetIconTopLeftColorFromShortcutFile(
-    const base::FilePath& shortcut_path) {
-  CHECK(base::PathExists(shortcut_path));
-#if BUILDFLAG(IS_MAC)
-  base::FilePath icon_path =
-      shortcut_path.AppendASCII("Contents/Resources/app.icns");
-  base::apple::ScopedCFTypeRef<CFDictionaryRef> empty_dict(
-      CFDictionaryCreate(nullptr, nullptr, nullptr, 0, nullptr, nullptr));
-  base::apple::ScopedCFTypeRef<CFURLRef> url =
-      base::apple::FilePathToCFURL(icon_path);
-  base::apple::ScopedCFTypeRef<CGImageSourceRef> source(
-      CGImageSourceCreateWithURL(url.get(), nullptr));
-  if (!source) {
-    return 0;
-  }
-  // Get the first icon in the .icns file (index 0)
-  base::apple::ScopedCFTypeRef<CGImageRef> cg_image(
-      CGImageSourceCreateImageAtIndex(source.get(), 0, empty_dict.get()));
-  if (!cg_image) {
-    return 0;
-  }
-  SkBitmap bitmap = skia::CGImageToSkBitmap(cg_image.get());
-  if (bitmap.empty()) {
-    return 0;
-  }
-  return bitmap.getColor(0, 0);
-#elif BUILDFLAG(IS_WIN)
-  SHFILEINFO file_info = {0};
-  if (SHGetFileInfo(shortcut_path.value().c_str(), FILE_ATTRIBUTE_NORMAL,
-                    &file_info, sizeof(file_info),
-                    SHGFI_ICON | 0 | SHGFI_USEFILEATTRIBUTES)) {
-    const SkBitmap bitmap = IconUtil::CreateSkBitmapFromHICON(file_info.hIcon);
-    if (bitmap.empty()) {
-      return 0;
-    }
-    return bitmap.getColor(0, 0);
-  } else {
-    return 0;
-  }
-#endif
-}
-#endif
 
 #if BUILDFLAG(IS_WIN)
 SkColor OsIntegrationTestOverrideImpl::ReadColorFromShortcutMenuIcoFile(
@@ -879,7 +917,7 @@ SkColor OsIntegrationTestOverrideImpl::ReadColorFromShortcutMenuIcoFile(
   HICON icon = static_cast<HICON>(
       LoadImage(NULL, file_path.value().c_str(), IMAGE_ICON, 32, 32,
                 LR_LOADTRANSPARENT | LR_LOADFROMFILE));
-  base::win::ScopedHICON scoped_icon(icon);
+  base::win::ScopedGDIObject<HICON> scoped_icon(icon);
   SkBitmap output_image =
       IconUtil::CreateSkBitmapFromHICON(scoped_icon.get(), gfx::Size(32, 32));
   SkColor color = output_image.getColor(output_image.dimensions().width() / 2,

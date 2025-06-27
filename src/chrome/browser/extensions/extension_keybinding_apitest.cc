@@ -9,20 +9,22 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/extensions/api/commands/command_service.h"
+#include "chrome/browser/extensions/commands/command_service.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_apitest.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/permissions/active_tab_permission_granter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/extensions/extension_action_test_helper.h"
 #include "chrome/browser/ui/extensions/extensions_container.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_view_controller.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_container.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -115,8 +117,7 @@ DomMessageListener::DomMessageListener(content::WebContents* web_contents)
     : observer_(web_contents, this) {
 }
 
-DomMessageListener::~DomMessageListener() {
-}
+DomMessageListener::~DomMessageListener() = default;
 
 void DomMessageListener::Wait() {
   observer_.Run();
@@ -231,8 +232,8 @@ const char* GetCommandKeyForActionType(ActionInfo::Type action_type) {
 
 class CommandsApiTest : public ExtensionApiTest {
  public:
-  CommandsApiTest() {}
-  ~CommandsApiTest() override {}
+  CommandsApiTest() = default;
+  ~CommandsApiTest() override = default;
 
   void SetUpOnMainThread() override {
     ExtensionApiTest::SetUpOnMainThread();
@@ -317,9 +318,10 @@ IN_PROC_BROWSER_TEST_F(CommandsApiTest, Basic) {
   // immaterial to this test).
   ASSERT_TRUE(RunExtensionTest("keybinding/conflicting")) << message_;
 
-  auto browser_actions_bar = ExtensionActionTestHelper::Create(browser());
   // Test that there are two browser actions in the toolbar.
-  ASSERT_EQ(2, browser_actions_bar->NumberOfBrowserActions());
+  ExtensionsToolbarContainer* extensions_container =
+      browser()->GetBrowserView().toolbar()->extensions_container();
+  ASSERT_EQ(2, extensions_container->GetNumberOfActionsForTesting());
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), embedded_test_server()->GetURL("/extensions/test_file.txt")));
@@ -377,11 +379,10 @@ IN_PROC_BROWSER_TEST_F(CommandsApiTest, UnpinnedPageActionTriggers) {
   const Extension* extension = GetSingleLoadedExtension();
   ASSERT_TRUE(extension) << message_;
 
-  std::unique_ptr<ExtensionActionTestHelper> test_helper =
-      ExtensionActionTestHelper::Create(browser());
+  ExtensionsToolbarContainer* extensions_container =
+      browser()->GetBrowserView().toolbar()->extensions_container();
   RunScheduledLayouts();
-  EXPECT_FALSE(test_helper->GetExtensionsContainer()->IsActionVisibleOnToolbar(
-      extension->id()));
+  EXPECT_FALSE(extensions_container->IsActionVisibleOnToolbar(extension->id()));
 
   const int tab_id = NavigateToTestURLAndReturnTabId();
   SetActionVisibleOnTab(profile(), *extension, tab_id);
@@ -926,7 +927,7 @@ IN_PROC_BROWSER_TEST_F(CommandsApiTest,
 }
 
 //
-#if BUILDFLAG(IS_CHROMEOS_ASH) && !defined(NDEBUG)
+#if BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG)
 // TODO(dtseng): Test times out on Chrome OS debug. See http://crbug.com/412456.
 #define MAYBE_ContinuePropagation DISABLED_ContinuePropagation
 #else
@@ -996,9 +997,7 @@ IN_PROC_BROWSER_TEST_F(CommandsApiTest, AddRemoveAddComponentExtension) {
       RunExtensionTest("keybinding/component", {}, {.load_as_component = true}))
       << message_;
 
-  extensions::ExtensionSystem::Get(browser()->profile())
-      ->extension_service()
-      ->component_loader()
+  extensions::ComponentLoader::Get(browser()->profile())
       ->Remove("pkplfbidichfdicaijlchgnapepdginl");
 
   ASSERT_TRUE(
@@ -1240,12 +1239,19 @@ IN_PROC_BROWSER_TEST_P(ActionCommandsApiTest, TriggeringCommandTriggersPopup) {
     ASSERT_TRUE(WaitForPageActionVisibilityChangeTo(1));
   }
 
-  ResultCatcher catcher;
   // Invoke the action, and wait for the popup to show.
+  ResultCatcher catcher;
   ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_U, false,
                                               true, true, false));
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
-  EXPECT_TRUE(ExtensionActionTestHelper::Create(browser())->HasPopup());
+
+  // Verify popup is shown.
+  ExtensionsToolbarContainer* extensions_container =
+      browser()->GetBrowserView().toolbar()->extensions_container();
+  ToolbarActionViewController* popup_owner =
+      extensions_container->popup_owner_for_testing();
+  EXPECT_TRUE(popup_owner);
+  EXPECT_TRUE(popup_owner->GetPopupNativeView());
 }
 
 INSTANTIATE_TEST_SUITE_P(All,

@@ -33,6 +33,7 @@
 #include <hb.h>
 #include <stdarg.h>
 
+#include "base/compiler_specific.h"
 #include "base/numerics/safe_conversions.h"
 #include "build/build_config.h"
 #include "third_party/blink/public/platform/platform.h"
@@ -74,7 +75,7 @@ void BlinkOTSContext::Message(int level, const char* format, ...) {
   int result = _vscprintf(format, args);
 #else
   char ch;
-  int result = vsnprintf(&ch, 1, format, args);
+  int result = UNSAFE_TODO(vsnprintf(&ch, 1, format, args));
 #endif
   va_end(args);
 
@@ -86,10 +87,9 @@ void BlinkOTSContext::Message(int level, const char* format, ...) {
     buffer.Grow(len + 1);
 
     va_start(args, format);
-    vsnprintf(buffer.data(), buffer.size(), format, args);
+    UNSAFE_TODO(vsnprintf(buffer.data(), buffer.size(), format, args));
     va_end(args);
-    error_string_ =
-        StringImpl::Create(reinterpret_cast<const LChar*>(buffer.data()), len);
+    error_string_ = StringImpl::Create(base::span(buffer).first(len));
   }
 }
 
@@ -155,7 +155,7 @@ ots::TableAction BlinkOTSContext::GetTableAction(uint32_t tag) {
 
 }  // namespace
 
-sk_sp<SkTypeface> WebFontDecoder::Decode(SharedBuffer* buffer) {
+sk_sp<SkTypeface> WebFontDecoder::Decode(SegmentedBuffer* buffer) {
   if (!buffer) {
     SetErrorString("Empty Buffer");
     return nullptr;
@@ -175,11 +175,11 @@ sk_sp<SkTypeface> WebFontDecoder::Decode(SharedBuffer* buffer) {
   // the original.
   ots::ExpandingMemoryStream output(buffer->size(), kMaxDecompressedSize);
   BlinkOTSContext ots_context;
-  SharedBuffer::DeprecatedFlatData flattened_buffer(buffer);
+  SegmentedBuffer::DeprecatedFlatData flattened_buffer(buffer);
 
   TRACE_EVENT_BEGIN0("blink", "DecodeFont");
   bool ok = ots_context.Process(
-      &output, reinterpret_cast<const uint8_t*>(flattened_buffer.Data()),
+      &output, reinterpret_cast<const uint8_t*>(flattened_buffer.data()),
       buffer->size());
   TRACE_EVENT_END0("blink", "DecodeFont");
 

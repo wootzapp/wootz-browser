@@ -2,8 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
-
 if (is_android) {
   import("//build/config/android/rules.gni")
 }
@@ -43,13 +41,13 @@ source_set("identity_manager") {
     "primary_account_mutator.h",
     "scope_set.h",
     "set_accounts_in_cookie_result.h",
-    "tribool.cc",
-    "tribool.h",
+    "signin_constants.h",
   ]
 
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
   public_deps = [
+    ":tribool",
     "//base",
     "//components/keyed_service/core",
     "//components/signin/public/base",
@@ -59,7 +57,6 @@ source_set("identity_manager") {
   ]
 
   deps = [
-    "//build:chromeos_buildflags",
     "//components/image_fetcher/core",
     "//components/plus_addresses:features",
     "//components/prefs",
@@ -68,7 +65,7 @@ source_set("identity_manager") {
     "//services/network/public/cpp",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//components/user_manager" ]
   }
 
@@ -93,6 +90,15 @@ if (is_android) {
   }
 }
 
+source_set("tribool") {
+  sources = [
+    "tribool.cc",
+    "tribool.h",
+  ]
+  configs += [ "//build/config/compiler:wexit_time_destructors" ]
+  deps = [ "//base" ]
+}
+
 source_set("unit_tests") {
   testonly = true
 
@@ -103,6 +109,7 @@ source_set("unit_tests") {
     "account_info_unittest.cc",
     "account_managed_status_finder_unittest.cc",
     "accounts_cookie_mutator_unittest.cc",
+    "accounts_in_cookie_jar_info_unittest.cc",
     "accounts_mutator_unittest.cc",
     "diagnostics_provider_unittest.cc",
     "identity_manager_builder_unittest.cc",
@@ -112,6 +119,7 @@ source_set("unit_tests") {
     "primary_account_access_token_fetcher_unittest.cc",
     "primary_account_change_event_unittest.cc",
     "primary_account_mutator_unittest.cc",
+    "test_accounts_unittest.cc",
   ]
 
   deps = [
@@ -119,7 +127,6 @@ source_set("unit_tests") {
     ":test_support",
     "//base",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/image_fetcher/core:test_support",
     "//components/prefs",
     "//components/prefs:test_support",
@@ -141,13 +148,10 @@ source_set("unit_tests") {
 
   if (is_chromeos) {
     deps += [
+      "//chromeos/ash/components/account_manager",
       "//components/account_manager_core",
       "//components/account_manager_core:test_support",
     ]
-  }
-
-  if (is_chromeos_ash) {
-    deps += [ "//chromeos/ash/components/account_manager" ]
   }
 }
 
@@ -161,6 +165,8 @@ source_set("test_support") {
     "identity_test_environment.h",
     "identity_test_utils.cc",
     "identity_test_utils.h",
+    "test_accounts.cc",
+    "test_accounts.h",
     "test_identity_manager_observer.cc",
     "test_identity_manager_observer.h",
   ]
@@ -173,7 +179,6 @@ source_set("test_support") {
   ]
 
   deps = [
-    "//build:chromeos_buildflags",
     "//components/image_fetcher/core:test_support",
     "//components/signin/internal/identity_manager",
     "//components/signin/internal/identity_manager:test_support",
@@ -182,12 +187,8 @@ source_set("test_support") {
     "//testing/gtest",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//chromeos/ash/components/account_manager" ]
-  }
-
-  if (is_chromeos_lacros) {
-    deps += [ "//components/account_manager_core" ]
   }
 
   if (is_android) {

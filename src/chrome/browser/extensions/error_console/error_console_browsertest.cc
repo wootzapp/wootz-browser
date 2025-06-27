@@ -13,16 +13,13 @@
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "extensions/browser/extension_error.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/error_utils.h"
@@ -33,6 +30,11 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/extensions/extension_action_runner.h"
+#include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
+#endif
+
 using base::UTF8ToUTF16;
 using std::u16string;
 
@@ -41,12 +43,13 @@ namespace extensions {
 namespace {
 
 const char kTestingPage[] = "/extensions/test_file.html";
+
 const char kAnonymousFunction[] = "(anonymous function)";
 const char* const kBackgroundPageName =
     extensions::kGeneratedBackgroundPageFilename;
 
 const StackTrace& GetStackTraceFromError(const ExtensionError* error) {
-  CHECK(error->type() == ExtensionError::RUNTIME_ERROR);
+  CHECK(error->type() == ExtensionError::Type::kRuntimeError);
   return (static_cast<const RuntimeError*>(error))->stack_trace();
 }
 
@@ -95,12 +98,8 @@ void CheckRuntimeError(const ExtensionError* error,
                        logging::LogSeverity level,
                        const GURL& context,
                        size_t expected_stack_size) {
-  CheckError(error,
-             ExtensionError::RUNTIME_ERROR,
-             id,
-             source,
-             from_incognito,
-             message);
+  CheckError(error, ExtensionError::Type::kRuntimeError, id, source,
+             from_incognito, message);
 
   const RuntimeError* runtime_error = static_cast<const RuntimeError*>(error);
   EXPECT_EQ(level, runtime_error->level());
@@ -113,9 +112,7 @@ void CheckManifestError(const ExtensionError* error,
                         const std::string& message,
                         const std::string& manifest_key,
                         const std::string& manifest_specific) {
-  CheckError(error,
-             ExtensionError::MANIFEST_ERROR,
-             id,
+  CheckError(error, ExtensionError::Type::kManifestError, id,
              // source is always the manifest for ManifestErrors.
              base::FilePath(kManifestFilename).AsUTF8Unsafe(),
              false,  // manifest errors are never from incognito.
@@ -142,7 +139,7 @@ void CheckDeprecatedManifestVersionError(const ExtensionError* error,
 class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
  public:
   ErrorConsoleBrowserTest() : error_console_(nullptr) {}
-  ~ErrorConsoleBrowserTest() override {}
+  ~ErrorConsoleBrowserTest() override = default;
 
  protected:
   // A helper class in order to wait for the proper number of errors to be
@@ -168,8 +165,9 @@ class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
     ErrorObserver& operator=(const ErrorObserver&) = delete;
 
     virtual ~ErrorObserver() {
-      if (error_console_)
+      if (error_console_) {
         error_console_->RemoveObserver(this);
+      }
     }
 
     // ErrorConsole::Observer implementation.
@@ -207,8 +205,11 @@ class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
   enum Action {
     // Navigate to a (non-chrome) page to allow a content script to run.
     ACTION_NAVIGATE,
+#if !BUILDFLAG(IS_ANDROID)
     // Simulate a browser action click.
+    // TODO(crbug.com/395160734): Port ExtensionActionRunner to desktop Android.
     ACTION_BROWSER_ACTION,
+#endif
     // Navigate to the new tab page.
     ACTION_NEW_TAB,
     // Do nothing (errors will be caused by a background script,
@@ -248,26 +249,32 @@ class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
     *extension = LoadExtension(test_data_dir_.AppendASCII(path), options);
     ASSERT_TRUE(*extension);
 
+    content::WebContents* web_contents = GetActiveWebContents();
+    ASSERT_TRUE(web_contents);
+
     switch (action) {
       case ACTION_NAVIGATE: {
-        ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetTestURL()));
+        ASSERT_TRUE(content::NavigateToURL(web_contents, GetTestURL()));
+        content::WaitForLoadStop(web_contents);
         break;
       }
+#if !BUILDFLAG(IS_ANDROID)
       case ACTION_BROWSER_ACTION: {
-        ExtensionActionRunner::GetForWebContents(
-            browser()->tab_strip_model()->GetActiveWebContents())
+        ExtensionActionRunner::GetForWebContents(web_contents)
             ->RunAction(*extension, true);
         break;
       }
+#endif
       case ACTION_NEW_TAB: {
-        ASSERT_TRUE(ui_test_utils::NavigateToURL(
-            browser(), GURL(chrome::kChromeUINewTabURL)));
+        ASSERT_TRUE(content::NavigateToURL(web_contents,
+                                           GURL(chrome::kChromeUINewTabURL)));
+        content::WaitForLoadStop(web_contents);
         break;
       }
       case ACTION_NONE:
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     observer.WaitForErrors();
@@ -289,6 +296,11 @@ class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
 
   // Weak reference to the ErrorConsole.
   raw_ptr<ErrorConsole, DanglingUntriaged> error_console_;
+
+#if !BUILDFLAG(IS_ANDROID)
+  // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.
+  extensions::ScopedTestMV2Enabler mv2_enabler_;
+#endif
 };
 
 // Test to ensure that we are successfully reporting manifest errors as an
@@ -312,7 +324,7 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, ReportManifestErrors) {
   const ExtensionError* unknown_key_error = nullptr;
   const char kFakeKey[] = "not_a_real_key";
   for (const auto& error : errors) {
-    ASSERT_EQ(ExtensionError::MANIFEST_ERROR, error->type());
+    ASSERT_EQ(ExtensionError::Type::kManifestError, error->type());
     const std::string& key =
         (static_cast<const ManifestError*>(error.get()))->manifest_key();
     if (key == manifest_keys::kPermissions) {
@@ -325,13 +337,10 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, ReportManifestErrors) {
   ASSERT_TRUE(unknown_key_error);
 
   const char kFakePermission[] = "not_a_real_permission";
-  CheckManifestError(permissions_error,
-                     extension->id(),
+  CheckManifestError(permissions_error, extension->id(),
                      ErrorUtils::FormatErrorMessage(
-                         manifest_errors::kPermissionUnknownOrMalformed,
-                         kFakePermission),
-                     manifest_keys::kPermissions,
-                     kFakePermission);
+                         manifest_errors::kPermissionUnknown, kFakePermission),
+                     manifest_keys::kPermissions, kFakePermission);
 
   CheckManifestError(unknown_key_error,
                      extension->id(),
@@ -420,8 +429,10 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest,
   CheckStackFrame(stack_trace2[0], script_url, kAnonymousFunction, 17u, 1u);
 }
 
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 // Catch an error from a BrowserAction; this is more complex than a content
 // script error, since browser actions are routed through our own code.
+// TODO(crbug.com/395160734): Port ExtensionActionRunner to desktop Android.
 IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, BrowserActionRuntimeError) {
   const Extension* extension = nullptr;
   LoadExtensionAndCheckErrors(
@@ -456,6 +467,7 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, BrowserActionRuntimeError) {
 
   CheckStackFrame(stack_trace[0], script_url, kAnonymousFunction);
 }
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // Test that we can catch an error for calling an API with improper arguments.
 IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, BadAPIArgumentsRuntimeError) {
@@ -473,8 +485,8 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, BadAPIArgumentsRuntimeError) {
 
   std::string source = extension->GetResourceURL("background.js").spec();
   std::string message =
-      "Uncaught TypeError: Error in invocation of tabs.get"
-      "(integer tabId, function callback): No matching signature.";
+      "Uncaught TypeError: Error in invocation of alarms.getAll"
+      "(function callback): No matching signature.";
 
   CheckRuntimeError(errors[1].get(), extension->id(), source,
                     false,  // not incognito

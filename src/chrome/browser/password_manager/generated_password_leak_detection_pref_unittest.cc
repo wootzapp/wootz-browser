@@ -3,8 +3,10 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/password_manager/generated_password_leak_detection_pref.h"
+
 #include "base/memory/raw_ptr.h"
-#include "build/chromeos_buildflags.h"
+#include "base/test/scoped_feature_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/extensions/api/settings_private/generated_pref_test_base.h"
 #include "chrome/browser/extensions/api/settings_private/generated_prefs_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
@@ -13,6 +15,7 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/sync/test/test_sync_service.h"
@@ -78,6 +81,9 @@ class GeneratedPasswordLeakDetectionPrefTest : public testing::Test {
               base::BindRepeating(&BuildTestSyncService)));
   IdentityTestEnvironmentProfileAdaptor identity_test_env_adaptor_{
       profile_.get()};
+
+ protected:
+  base::test::ScopedFeatureList feature_list;
 };
 
 TEST_F(GeneratedPasswordLeakDetectionPrefTest, NotifyPrefUpdates) {
@@ -89,10 +95,10 @@ TEST_F(GeneratedPasswordLeakDetectionPrefTest, NotifyPrefUpdates) {
   // Check that the observer fires for identity updates.
   identity_test_env()->EnableRemovalOfExtendedAccountInfo();
 
-  // Create a sync consented account so revoking the refresh token also triggers
+  // Create a signed-in account so revoking the refresh token also triggers
   // the preference updated observer.
-  identity_test_env()->MakePrimaryAccountAvailable(kTestProfileName,
-                                                   signin::ConsentLevel::kSync);
+  identity_test_env()->MakePrimaryAccountAvailable(
+      kTestProfileName, signin::ConsentLevel::kSignin);
   EXPECT_EQ(test_observer.GetUpdatedPrefName(),
             kGeneratedPasswordLeakDetectionPref);
 
@@ -101,7 +107,7 @@ TEST_F(GeneratedPasswordLeakDetectionPrefTest, NotifyPrefUpdates) {
   EXPECT_EQ(test_observer.GetUpdatedPrefName(),
             kGeneratedPasswordLeakDetectionPref);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Clearing the primary account does not make sense on ChromeOS.
   test_observer.Reset();
   identity_test_env()->ClearPrimaryAccount();
@@ -175,7 +181,9 @@ TEST_F(GeneratedPasswordLeakDetectionPrefTest, UpdatePreference) {
             extensions::settings_private::SetPrefResult::PREF_TYPE_MISMATCH);
 }
 
-TEST_F(GeneratedPasswordLeakDetectionPrefTest, ProfileState) {
+TEST_F(GeneratedPasswordLeakDetectionPrefTest,
+       ProfileStateAfterPasswordLeakToggleMove) {
+  feature_list.InitAndEnableFeature(safe_browsing::kPasswordLeakToggleMove);
   GeneratedPasswordLeakDetectionPref pref(profile());
   prefs()->SetUserPref(password_manager::prefs::kPasswordLeakDetectionEnabled,
                        std::make_unique<base::Value>(true));
@@ -189,14 +197,14 @@ TEST_F(GeneratedPasswordLeakDetectionPrefTest, ProfileState) {
   EXPECT_TRUE(pref.GetPrefObject().value->GetBool());
   EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
 
-  // Set Safe Browsing to disabled, check that user control is disabled and pref
-  // cannot be modified, but the pref value remains enabled.
+  // Set Safe Browsing to disabled, check that user control is enabled and pref
+  // can be modified, but the pref value remains enabled.
   prefs()->SetUserPref(prefs::kSafeBrowsingEnabled,
                        std::make_unique<base::Value>(false));
   EXPECT_TRUE(pref.GetPrefObject().value->GetBool());
-  EXPECT_TRUE(*pref.GetPrefObject().user_control_disabled);
+  EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
   EXPECT_EQ(pref.SetPref(std::make_unique<base::Value>(true).get()),
-            settings_private::SetPrefResult::PREF_NOT_MODIFIABLE);
+            settings_private::SetPrefResult::SUCCESS);
 }
 
 TEST_F(GeneratedPasswordLeakDetectionPrefTest, ManagementState) {
@@ -230,4 +238,59 @@ TEST_F(GeneratedPasswordLeakDetectionPrefTest, ManagementState) {
                        std::make_unique<base::Value>(false));
   EXPECT_EQ(pref.SetPref(std::make_unique<base::Value>(true).get()),
             settings_private::SetPrefResult::PREF_NOT_MODIFIABLE);
+}
+
+TEST_F(GeneratedPasswordLeakDetectionPrefTest,
+       PasswordLeakDetectionWithNoSafeBrowsing) {
+  feature_list.InitAndEnableFeature(safe_browsing::kPasswordLeakToggleMove);
+  GeneratedPasswordLeakDetectionPref pref(profile());
+  prefs()->SetUserPref(password_manager::prefs::kPasswordLeakDetectionEnabled,
+                       std::make_unique<base::Value>(true));
+
+  // Check that when Safe Browsing is set to standard, both user control and the
+  // pref are enabled.
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnabled,
+                       std::make_unique<base::Value>(true));
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnhanced,
+                       std::make_unique<base::Value>(false));
+  EXPECT_TRUE(pref.GetPrefObject().value->GetBool());
+  EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
+
+  // Set Safe Browsing to disabled, check that user control is enabled and pref
+  // can be modified and that the user can have leak protection while in no safe
+  // browsing
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnabled,
+                       std::make_unique<base::Value>(false));
+  EXPECT_TRUE(pref.GetPrefObject().value->GetBool());
+  EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
+  EXPECT_EQ(pref.SetPref(std::make_unique<base::Value>(true).get()),
+            settings_private::SetPrefResult::SUCCESS);
+}
+
+TEST_F(GeneratedPasswordLeakDetectionPrefTest, NoPasswordLeakDetectionWithESB) {
+  feature_list.InitAndEnableFeature(safe_browsing::kPasswordLeakToggleMove);
+  GeneratedPasswordLeakDetectionPref pref(profile());
+  prefs()->SetUserPref(password_manager::prefs::kPasswordLeakDetectionEnabled,
+                       std::make_unique<base::Value>(true));
+
+  // Check that when Safe Browsing is set to standard, both user control and the
+  // pref are enabled.
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnabled,
+                       std::make_unique<base::Value>(true));
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnhanced,
+                       std::make_unique<base::Value>(false));
+  EXPECT_TRUE(pref.GetPrefObject().value->GetBool());
+  EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
+
+  // Set Safe Browsing to enhanced, check that user control is enabled and pref
+  // can be modified and that the user can have leak protection off while in
+  // enhanced safe browsing.
+  prefs()->SetUserPref(password_manager::prefs::kPasswordLeakDetectionEnabled,
+                       std::make_unique<base::Value>(false));
+  prefs()->SetUserPref(prefs::kSafeBrowsingEnhanced,
+                       std::make_unique<base::Value>(true));
+  EXPECT_FALSE(pref.GetPrefObject().value->GetBool());
+  EXPECT_FALSE(*pref.GetPrefObject().user_control_disabled);
+  EXPECT_EQ(pref.SetPref(std::make_unique<base::Value>(true).get()),
+            settings_private::SetPrefResult::SUCCESS);
 }

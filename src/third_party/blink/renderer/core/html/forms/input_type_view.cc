@@ -30,13 +30,12 @@
 
 #include "third_party/blink/renderer/core/dom/events/simulated_click_options.h"
 #include "third_party/blink/renderer/core/dom/focus_params.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/html/forms/form_controller.h"
 #include "third_party/blink/renderer/core/html/forms/html_form_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 
 namespace blink {
 
@@ -98,13 +97,13 @@ LayoutObject* InputTypeView::CreateLayoutObject(
     const ComputedStyle& style) const {
   // Avoid LayoutInline, which can be split to multiple lines.
   if (style.IsDisplayInlineType() && !style.IsDisplayReplacedType()) {
-    return MakeGarbageCollected<LayoutNGBlockFlow>(&GetElement());
+    return MakeGarbageCollected<LayoutBlockFlow>(&GetElement());
   }
   return LayoutObject::CreateObject(&GetElement(), style);
 }
 
-ControlPart InputTypeView::AutoAppearance() const {
-  return kNoControlPart;
+AppearanceValue InputTypeView::AutoAppearance() const {
+  return AppearanceValue::kNone;
 }
 
 TextDirection InputTypeView::ComputedTextDirection() {
@@ -131,6 +130,10 @@ bool InputTypeView::HasOpenedPopup() const {
   return false;
 }
 
+bool InputTypeView::IsPickerVisible() const {
+  return false;
+}
+
 bool InputTypeView::NeedsShadowSubtree() const {
   return true;
 }
@@ -148,13 +151,11 @@ void InputTypeView::CreateShadowSubtreeIfNeeded(bool is_type_changing) {
   // not fully be up to date, so that it's problematic to do the following.
   // Additionally the following is not necessary when the type is changing,
   // because HTMLInputElement effectively has similar logic.
-  if (RuntimeEnabledFeatures::CreateInputShadowTreeDuringLayoutEnabled() &&
-      !is_type_changing) {
+  if (!is_type_changing) {
     if (needs_update_view_in_create_shadow_subtree_) {
       UpdateView();
     }
-    // When CreateInputShadowTreeDuringLayoutEnabled is true, placeholder
-    // updates are ignored. Update now if needed.
+    // Placeholder updates are ignored. Update now if needed.
     if (!GetElement().SuggestedValue().empty() ||
         GetElement().FastHasAttribute(html_names::kPlaceholderAttr)) {
       GetElement().UpdatePlaceholderVisibility();
@@ -208,7 +209,7 @@ void InputTypeView::ValueAttributeChanged() {}
 void InputTypeView::DidSetValue(const String&, bool) {}
 
 void InputTypeView::SubtreeHasChanged() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void InputTypeView::ListAttributeTargetChanged() {}

@@ -219,7 +219,7 @@ bool HTMLMarqueeElement::IsPresentationAttribute(
 void HTMLMarqueeElement::CollectStyleForPresentationAttribute(
     const QualifiedName& attr,
     const AtomicString& value,
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (attr == html_names::kBgcolorAttr) {
     AddHTMLColorToStyle(style, CSSPropertyID::kBackgroundColor, value);
   } else if (attr == html_names::kHeightAttr) {
@@ -270,7 +270,8 @@ void HTMLMarqueeElement::ContinueAnimation() {
   if (!ShouldContinue())
     return;
 
-  if (player_ && player_->PlayStateString() == "paused") {
+  if (player_ && player_->CalculateAnimationPlayState() ==
+                     V8AnimationPlayState::Enum::kPaused) {
     player_->play();
     return;
   }

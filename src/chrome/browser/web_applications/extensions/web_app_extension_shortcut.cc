@@ -75,11 +75,10 @@ void UpdateAllShortcutsForShortcutInfo(
     std::unique_ptr<ShortcutInfo> shortcut_info) {
   base::FilePath shortcut_data_dir =
       internals::GetShortcutDataDir(*shortcut_info);
-  internals::PostShortcutIOTaskAndReplyWithResult(
-      base::BindOnce(&internals::UpdatePlatformShortcuts,
-                     std::move(shortcut_data_dir), old_app_title,
-                     /*user_specified_locations=*/std::nullopt),
-      std::move(shortcut_info), std::move(callback));
+  internals::ScheduleUpdatePlatformShortcuts(
+      std::move(shortcut_data_dir), old_app_title,
+      /*user_specified_locations=*/std::nullopt, std::move(callback),
+      std::move(shortcut_info));
 }
 
 using AppCallbackMap =
@@ -140,7 +139,11 @@ void CreateShortcutsWithInfo(ShortcutCreationReason reason,
     bool is_app_installed = false;
     auto* app_provider = WebAppProvider::GetForWebApps(profile);
     if (app_provider &&
-        app_provider->registrar_unsafe().IsInstalled(shortcut_info->app_id)) {
+        app_provider->registrar_unsafe().IsInstallState(
+            shortcut_info->app_id,
+            {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
+             proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
+             proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
       is_app_installed = true;
     }
 
@@ -258,20 +261,6 @@ void CreateShortcuts(ShortcutCreationReason reason,
   GetShortcutInfoForApp(app, profile,
                         base::BindOnce(&CreateShortcutsWithInfo, reason,
                                        locations, std::move(callback)));
-}
-
-void CreateShortcutsForWebApp(ShortcutCreationReason reason,
-                              const ShortcutLocations& locations,
-                              Profile* profile,
-                              const std::string& app_id,
-                              CreateShortcutsCallback callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  WebAppProvider::GetForWebApps(profile)
-      ->os_integration_manager()
-      .GetShortcutInfoForApp(
-          app_id, base::BindOnce(&CreateShortcutsWithInfo, reason, locations,
-                                 std::move(callback)));
 }
 
 void DeleteAllShortcuts(Profile* profile, const extensions::Extension* app) {

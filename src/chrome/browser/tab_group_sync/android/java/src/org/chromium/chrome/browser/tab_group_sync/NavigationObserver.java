@@ -6,18 +6,20 @@ package org.chromium.chrome.browser.tab_group_sync;
 
 import android.util.Pair;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
+import org.chromium.components.tab_group_sync.LocalTabGroupId;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.content_public.browser.NavigationHandle;
-import org.chromium.ui.base.PageTransition;
 import org.chromium.url.GURL;
 
 /**
  * Observes navigations on every tab in the given tab model. Filters to navigations for tabs in tab
  * groups and notifies sync of them.
  */
+@NullMarked
 public class NavigationObserver extends TabModelSelectorTabObserver {
     private static final String TAG = "TG.NavObserver";
     private final TabGroupSyncService mTabGroupSyncService;
@@ -54,15 +56,20 @@ public class NavigationObserver extends TabModelSelectorTabObserver {
     @Override
     public void onDidFinishNavigationInPrimaryMainFrame(
             Tab tab, NavigationHandle navigationHandle) {
-        if (!mEnableObservers) return;
-
-        // Ignore redirects, incognito, and non-tabgroup tabs.
-        boolean isRedirect =
-                (navigationHandle.pageTransition() & PageTransition.IS_REDIRECT_MASK) != 0;
-
-        if (tab.isIncognito() || isRedirect || tab.getTabGroupId() == null) {
+        LocalTabGroupId localTabGroupId = TabGroupSyncUtils.getLocalTabGroupId(tab);
+        if (tab.isIncognito() || localTabGroupId == null) {
             return;
         }
+
+        TabGroupSyncUtils.onDidFinishNavigation(tab, navigationHandle);
+
+        if (!mEnableObservers) return;
+
+        if (!navigationHandle.isSaveableNavigation()) {
+            return;
+        }
+
+        TabGroupSyncUtils.updateTabRedirectChain(tab, navigationHandle);
 
         // Avoid loops if the navigation was initiated from sync.
         if (mNavigationTracker.wasNavigationFromSync(navigationHandle.getUserDataHost())) {
@@ -78,7 +85,7 @@ public class NavigationObserver extends TabModelSelectorTabObserver {
         Pair<GURL, String> urlAndTitle =
                 TabGroupSyncUtils.getFilteredUrlAndTitle(tab.getUrl(), tab.getTitle());
         mTabGroupSyncService.updateTab(
-                TabGroupSyncUtils.getLocalTabGroupId(tab),
+                localTabGroupId,
                 tab.getId(),
                 urlAndTitle.second,
                 urlAndTitle.first,

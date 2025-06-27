@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
+#include "device/vr/android/local_texture.h"
 #include "device/vr/android/xr_renderer.h"
 #include "device/vr/openxr/openxr_graphics_binding.h"
 #include "device/vr/openxr/openxr_platform.h"
@@ -28,7 +29,8 @@ namespace device {
 class DEVICE_VR_EXPORT OpenXrGraphicsBindingOpenGLES
     : public OpenXrGraphicsBinding {
  public:
-  OpenXrGraphicsBindingOpenGLES();
+  explicit OpenXrGraphicsBindingOpenGLES(
+      const OpenXrExtensionEnumeration* extension_enum);
   ~OpenXrGraphicsBindingOpenGLES() override;
 
   // OpenXrGraphicsBinding
@@ -39,6 +41,7 @@ class DEVICE_VR_EXPORT OpenXrGraphicsBindingOpenGLES
       const XrSwapchain& color_swapchain) override;
   void ClearSwapchainImages() override;
   base::span<SwapChainInfo> GetSwapChainImages() override;
+  base::span<const SwapChainInfo> GetSwapChainImages() const override;
   bool CanUseSharedImages() const override;
   void CreateSharedImages(gpu::SharedImageInterface* sii) override;
   const SwapChainInfo& GetActiveSwapchainImage() override;
@@ -46,7 +49,7 @@ class DEVICE_VR_EXPORT OpenXrGraphicsBindingOpenGLES
       const scoped_refptr<viz::ContextProvider>& context_provider) override;
   void CleanupWithoutSubmit() override;
   bool WaitOnFence(gfx::GpuFence& gpu_fence) override;
-  bool ShouldFlipSubmittedImage() override;
+  bool ShouldFlipSubmittedImage() const override;
   void SetOverlayAndWebXrVisibility(bool overlay_visible,
                                     bool webxr_visible) override;
   bool SetOverlayTexture(gfx::GpuMemoryBufferHandle texture,
@@ -75,7 +78,7 @@ class DEVICE_VR_EXPORT OpenXrGraphicsBindingOpenGLES
 
   std::unique_ptr<XrRenderer> renderer_;
   GLuint back_buffer_fbo_ = 0;
-  GLuint overlay_texture_ = 0;
+  LocalTexture overlay_texture_;
 };
 
 }  // namespace device

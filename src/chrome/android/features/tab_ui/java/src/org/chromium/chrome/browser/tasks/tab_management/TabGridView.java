@@ -9,6 +9,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
@@ -22,6 +23,7 @@ import android.widget.ImageView;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.core.content.res.ResourcesCompat;
+import androidx.core.widget.ImageViewCompat;
 import androidx.vectordrawable.graphics.drawable.AnimatedVectorDrawableCompat;
 
 import org.chromium.chrome.browser.quick_delete.QuickDeleteAnimationGradientDrawable;
@@ -37,9 +39,10 @@ import java.lang.ref.WeakReference;
 /** Holds the view for a selectable tab grid. */
 public class TabGridView extends SelectableItemViewBase<Integer> {
     private static final long RESTORE_ANIMATION_DURATION_MS = 50;
+    private static final long BASE_ANIMATION_DURATION_MS = 218;
     private static final float ZOOM_IN_SCALE = 0.8f;
 
-    private @TabActionState int mTabActionState = TabActionState.UNSET;
+    private static WeakReference<Bitmap> sCloseButtonBitmapWeakRef;
 
     @IntDef({
         AnimationStatus.SELECTED_CARD_ZOOM_IN,
@@ -71,14 +74,23 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
         int NUM_ENTRIES = 3;
     }
 
-    private static WeakReference<Bitmap> sCloseButtonBitmapWeakRef;
     private boolean mIsAnimating;
+    private boolean mShowOverflowButton;
+    private @TabActionState int mTabActionState = TabActionState.UNSET;
     private @Nullable ObjectAnimator mQuickDeleteAnimation;
     private @Nullable QuickDeleteAnimationGradientDrawable mQuickDeleteAnimationDrawable;
+    private ImageView mActionButton;
+    private ColorStateList mActionButtonTint;
 
     public TabGridView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setSelectionOnLongClick(false);
+    }
+
+    @Override
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        mActionButton = findViewById(R.id.action_button);
     }
 
     /**
@@ -99,10 +111,7 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
                 status == AnimationStatus.HOVERED_CARD_ZOOM_IN
                         || status == AnimationStatus.HOVERED_CARD_ZOOM_OUT;
         boolean isRestore = status == AnimationStatus.CARD_RESTORE;
-        long duration =
-                isRestore
-                        ? RESTORE_ANIMATION_DURATION_MS
-                        : TabListRecyclerView.BASE_ANIMATION_DURATION_MS;
+        long duration = isRestore ? RESTORE_ANIMATION_DURATION_MS : BASE_ANIMATION_DURATION_MS;
         float scale = isZoomIn ? ZOOM_IN_SCALE : 1f;
         View animateView = isHovered ? contentView : this;
 
@@ -131,7 +140,8 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
         scaleAnimator.start();
     }
 
-    void hideTabGridCardViewForQuickDelete(@QuickDeleteAnimationStatus int status) {
+    void hideTabGridCardViewForQuickDelete(
+            @QuickDeleteAnimationStatus int status, boolean isIncognito) {
         assert mTabActionState != TabActionState.UNSET;
         assert status < QuickDeleteAnimationStatus.NUM_ENTRIES;
 
@@ -148,7 +158,7 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
             int tabHeight = contentView.getHeight();
             mQuickDeleteAnimationDrawable =
                     QuickDeleteAnimationGradientDrawable.createQuickDeleteFadeAnimationDrawable(
-                            getContext(), tabHeight);
+                            getContext(), tabHeight, isIncognito);
             mQuickDeleteAnimation = mQuickDeleteAnimationDrawable.createFadeAnimator(tabHeight);
 
             mQuickDeleteAnimation.addListener(
@@ -167,32 +177,43 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
         }
     }
 
-    void setTabActionButtonDrawable(boolean isTabGroup) {
+    void setTabActionButtonDrawable(boolean showOverflowButton) {
         assert mTabActionState != TabActionState.UNSET;
-        if (isTabGroup) {
-            ImageView actionButton = (ImageView) fastFindViewById(R.id.action_button);
-            actionButton.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                            getResources(), R.drawable.ic_more_vert_24dp, getContext().getTheme()));
+
+        if (mTabActionState != TabActionState.CLOSABLE) return;
+
+        mShowOverflowButton = showOverflowButton;
+        if (mShowOverflowButton) {
+            setTabActionButtonOverflowDrawable();
         } else {
             setTabActionButtonCloseDrawable();
         }
+
+        applyActionButtonTint();
+    }
+
+    void setTabActionButtonTint(ColorStateList actionButtonTint) {
+        mActionButtonTint = actionButtonTint;
+        setTabActionButtonDrawable(mShowOverflowButton);
     }
 
     void setTabActionState(@TabActionState int tabActionState) {
         if (mTabActionState == tabActionState) return;
 
         mTabActionState = tabActionState;
+        int accessibilityMode = IMPORTANT_FOR_ACCESSIBILITY_YES;
         if (mTabActionState == TabActionState.CLOSABLE) {
-            setTabActionButtonCloseDrawable();
+            setTabActionButtonDrawable(mShowOverflowButton);
         } else if (mTabActionState == TabActionState.SELECTABLE) {
+            accessibilityMode = IMPORTANT_FOR_ACCESSIBILITY_NO;
             setTabActionButtonSelectionDrawable();
         }
+
+        mActionButton.setImportantForAccessibility(accessibilityMode);
     }
 
     private void setTabActionButtonCloseDrawable() {
         assert mTabActionState != TabActionState.UNSET;
-        ImageView actionButton = (ImageView) fastFindViewById(R.id.action_button);
 
         if (sCloseButtonBitmapWeakRef == null || sCloseButtonBitmapWeakRef.get() == null) {
             int closeButtonSize =
@@ -204,7 +225,18 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
                                     bitmap, closeButtonSize, closeButtonSize, true));
             bitmap.recycle();
         }
-        actionButton.setImageBitmap(sCloseButtonBitmapWeakRef.get());
+        mActionButton.setBackground(null);
+        mActionButton.setImageBitmap(sCloseButtonBitmapWeakRef.get());
+    }
+
+    private void setTabActionButtonOverflowDrawable() {
+        mActionButton.setImageDrawable(
+                ResourcesCompat.getDrawable(
+                        getResources(), R.drawable.ic_more_vert_24dp, getContext().getTheme()));
+    }
+
+    private void applyActionButtonTint() {
+        ImageViewCompat.setImageTintList(mActionButton, mActionButtonTint);
     }
 
     private void setTabActionButtonSelectionDrawable() {
@@ -215,7 +247,6 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
                         resources,
                         R.drawable.tab_grid_selection_list_icon,
                         getContext().getTheme());
-        ImageView actionButton = (ImageView) fastFindViewById(R.id.action_button);
 
         InsetDrawable drawable =
                 new InsetDrawable(
@@ -223,11 +254,11 @@ public class TabGridView extends SelectableItemViewBase<Integer> {
                         (int)
                                 resources.getDimension(
                                         R.dimen.selection_tab_grid_toggle_button_inset));
-        actionButton.setBackground(drawable);
-        actionButton
+        mActionButton.setBackground(drawable);
+        mActionButton
                 .getBackground()
                 .setLevel(resources.getInteger(R.integer.list_item_level_default));
-        actionButton.setImageDrawable(
+        mActionButton.setImageDrawable(
                 AnimatedVectorDrawableCompat.create(
                         getContext(), R.drawable.ic_check_googblue_20dp_animated));
     }

@@ -8,10 +8,11 @@
 #include <memory>
 
 #include "base/memory/scoped_refptr.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "media/base/media_export.h"
 #include "media/base/video_types.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
-#include "third_party/skia/include/gpu/GrTypes.h"
+#include "third_party/skia/include/gpu/ganesh/GrTypes.h"
 #include "ui/gfx/buffer_types.h"
 
 namespace gfx {
@@ -23,6 +24,7 @@ class Size;
 namespace gpu {
 class ClientSharedImage;
 class GpuMemoryBufferManager;
+struct SharedImageCapabilities;
 class SharedImageInterface;
 struct SyncToken;
 }  // namespace gpu
@@ -44,40 +46,23 @@ class MEDIA_EXPORT RenderableGpuMemoryBufferVideoFramePool {
   // chosen for testing.
   class Context {
    public:
-    // Allocate a GpuMemoryBuffer.
-    virtual std::unique_ptr<gfx::GpuMemoryBuffer> CreateGpuMemoryBuffer(
+    // Create a Mappable SharedImage with format `si_format` and `buffer_usage`
+    // provided to this interface.
+    // Return a ClientSharedImage pointer. Populate `sync_token`.
+    virtual scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
         const gfx::Size& size,
-        gfx::BufferFormat format,
-        gfx::BufferUsage usage) = 0;
-
-    // Create a SharedImage representation of a plane of a GpuMemoryBuffer
-    // allocated by this interface.
-    // Return a ClientSharedImage pointer. Populate `sync_token`.
-    virtual scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-        gfx::GpuMemoryBuffer* gpu_memory_buffer,
-        gfx::BufferPlane plane,
-        const gfx::ColorSpace& color_space,
-        GrSurfaceOrigin surface_origin,
-        SkAlphaType alpha_type,
-        uint32_t usage,
-        gpu::SyncToken& sync_token) = 0;
-
-    // Create a SharedImage representation with format `si_format` of a
-    // GpuMemoryBuffer allocated by this interface.
-    // Return a ClientSharedImage pointer. Populate `sync_token`.
-    virtual scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-        gfx::GpuMemoryBuffer* gpu_memory_buffer,
+        gfx::BufferUsage buffer_usage,
         const viz::SharedImageFormat& si_format,
         const gfx::ColorSpace& color_space,
-        GrSurfaceOrigin surface_origin,
-        SkAlphaType alpha_type,
-        uint32_t usage,
+        gpu::SharedImageUsageSet usage,
         gpu::SyncToken& sync_token) = 0;
 
     // Destroy a SharedImage created by this interface.
     virtual void DestroySharedImage(
         const gpu::SyncToken& sync_token,
         scoped_refptr<gpu::ClientSharedImage> shared_image) = 0;
+
+    virtual const gpu::SharedImageCapabilities& GetCapabilities() = 0;
 
     virtual ~Context() = default;
   };

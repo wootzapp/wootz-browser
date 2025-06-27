@@ -19,7 +19,6 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/language/core/browser/language_prefs.h"
 #include "components/language/core/browser/language_prefs_test_util.h"
 #include "components/language/core/browser/pref_names.h"
@@ -71,7 +70,7 @@ class TranslatePrefsTest : public testing::Test {
 
   void SetUp() override {
     prefs_.SetString(language::prefs::kAcceptLanguages, std::string());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     prefs_.SetString(language::prefs::kPreferredLanguages, std::string());
 #endif
     prefs_.registry()->RegisterBooleanPref(
@@ -424,7 +423,7 @@ TEST_F(TranslatePrefsTest, RemoveFromLanguageListRemovesRemainingUnsupported) {
   accept_languages_tester_->SetLanguagePrefs(languages);
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en,en-US,en-FOO");
   translate_prefs_->RemoveFromLanguageList("en-US");
-  accept_languages_tester_->ExpectAcceptLanguagePrefs("en,en-FOO");
+  accept_languages_tester_->ExpectAcceptLanguagePrefs("en");
   translate_prefs_->RemoveFromLanguageList("en");
   accept_languages_tester_->ExpectAcceptLanguagePrefs("");
 }
@@ -591,7 +590,7 @@ TEST_F(TranslatePrefsTest, MoveLanguageUp) {
                                       {"it", "es"});
   accept_languages_tester_->ExpectAcceptLanguagePrefs("it,en,fr,es");
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   //---------------------------------------------------------------------------
   // Move with policy-forced languages present.
   // Forced languages should always remain at the top of the languages list and
@@ -720,7 +719,7 @@ TEST_F(TranslatePrefsTest, MoveLanguageUp) {
                                       {"en", "fr", "it", "es", "zh"});
   accept_languages_tester_->ExpectAcceptLanguagePrefs("es,en,fr,it,zh");
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   //---------------------------------------------------------------------------
   // Move with policy-forced languages present.
   // Only test on non-Chrome OS platforms.
@@ -810,7 +809,7 @@ TEST_F(TranslatePrefsTest, MoveLanguageDown) {
                                       {"fr", "it"});
   accept_languages_tester_->ExpectAcceptLanguagePrefs("en,fr,es,it");
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   //---------------------------------------------------------------------------
   // Move with policy-forced languages present.
   // Only test on non-Chrome OS platforms.
@@ -1145,39 +1144,25 @@ TEST_F(TranslatePrefsTest, AlwaysTranslateLanguages) {
       translate_prefs_->IsLanguagePairOnAlwaysTranslateList("am", "es"));
 
   // GetAlwaysTranslateLanguages
-  translate_prefs_->AddLanguagePairToAlwaysTranslateList("aa", "es");
+  translate_prefs_->AddLanguagePairToAlwaysTranslateList("ak", "es");
   // Use 'tl' as the translate language which is 'fil' as a Chrome language.
   translate_prefs_->AddLanguagePairToAlwaysTranslateList("tl", "es");
   std::vector<std::string> always_translate_languages =
       translate_prefs_->GetAlwaysTranslateLanguages();
-  EXPECT_EQ(std::vector<std::string>({"aa", "af", "am", "fil"}),
+  EXPECT_EQ(std::vector<std::string>({"af", "ak", "am", "fil"}),
             always_translate_languages);
   always_translate_languages.clear();
 
   // RemoveLanguagePairs
-  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("af",
-                                                              "<anything>");
+  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("af");
   always_translate_languages = translate_prefs_->GetAlwaysTranslateLanguages();
-  EXPECT_EQ(std::vector<std::string>({"aa", "am", "fil"}),
+  EXPECT_EQ(std::vector<std::string>({"ak", "am", "fil"}),
             always_translate_languages);
-  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("aa",
-                                                              "<anything>");
-  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("am",
-                                                              "<anything>");
-  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("tl",
-                                                              "<anything>");
+  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("ak");
+  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("am");
+  translate_prefs_->RemoveLanguagePairFromAlwaysTranslateList("tl");
 
   // AlwaysTranslateList should be empty now
-  EXPECT_FALSE(translate_prefs_->HasLanguagePairsToAlwaysTranslate());
-
-  // SetLanguageAlwaysTranslateState
-  translate_prefs_->SetRecentTargetLanguage("es");
-  translate_prefs_->SetLanguageAlwaysTranslateState("am", true);
-  translate_prefs_->SetRecentTargetLanguage("en");
-  translate_prefs_->SetLanguageAlwaysTranslateState("am", true);
-  always_translate_languages = translate_prefs_->GetAlwaysTranslateLanguages();
-  EXPECT_EQ(std::vector<std::string>({"am"}), always_translate_languages);
-  translate_prefs_->SetLanguageAlwaysTranslateState("am", false);
   EXPECT_FALSE(translate_prefs_->HasLanguagePairsToAlwaysTranslate());
 }
 

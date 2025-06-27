@@ -16,11 +16,10 @@
 #include "chrome/browser/ui/url_identity.h"
 #include "chrome/browser/ui/views/controls/site_icon_text_and_origin_view.h"
 #include "chrome/browser/ui/views/web_apps/web_app_icon_name_and_origin_view.h"
-#include "chrome/browser/ui/views/web_apps/web_app_info_image_source.h"
-#include "chrome/browser/ui/views/web_apps/web_app_install_dialog_coordinator.h"
 #include "chrome/browser/ui/views/web_apps/web_app_install_dialog_delegate.h"
 #include "chrome/browser/ui/views/web_apps/web_app_views_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
+#include "chrome/browser/ui/web_applications/web_app_info_image_source.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/common/chrome_features.h"
@@ -28,10 +27,13 @@
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "components/webapps/browser/installable/ml_install_operation_tracker.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/text_constants.h"
@@ -41,6 +43,7 @@
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -75,10 +78,11 @@ void ShowDiyAppInstallDialog(
     return;
   }
 
-  WebAppInstallDialogCoordinator* dialog_coordinator =
-      WebAppInstallDialogCoordinator::GetOrCreateForBrowser(browser);
-  if (dialog_coordinator->IsShowing()) {
-    std::move(callback).Run(false, nullptr);
+  // Do not show the dialog if it is already being shown.
+  const web_modal::WebContentsModalDialogManager* manager =
+      web_modal::WebContentsModalDialogManager::FromWebContents(web_contents);
+  if (!manager || manager->IsDialogActive()) {
+    std::move(callback).Run(/*is_accepted=*/false, nullptr);
     return;
   }
 
@@ -88,7 +92,7 @@ void ShowDiyAppInstallDialog(
 
 #if BUILDFLAG(IS_CHROMEOS)
   webapps::AppId app_id =
-      web_app::GenerateAppIdFromManifestId(web_app_info->manifest_id);
+      web_app::GenerateAppIdFromManifestId(web_app_info->manifest_id());
   metrics::structured::StructuredMetricsClient::Record(
       cros_events::AppDiscovery_Browser_AppInstallDialogShown().SetAppId(
           app_id));
@@ -100,7 +104,7 @@ void ShowDiyAppInstallDialog(
   gfx::ImageSkia icon_image(std::make_unique<WebAppInfoImageSource>(
                                 kIconSize, web_app_info->icon_bitmaps.any),
                             gfx::Size(kIconSize, kIconSize));
-  GURL start_url = web_app_info->start_url;
+  GURL start_url = web_app_info->start_url();
 
   // Fallback to using the document title if the web_app_info->title is not
   // populated, as the document title is always guaranteed to exist.
@@ -134,8 +138,8 @@ void ShowDiyAppInstallDialog(
           .SetCloseActionCallback(base::BindOnce(
               &WebAppInstallDialogDelegate::OnClose, delegate_weak_ptr))
           .SetDialogDestroyingCallback(base::BindOnce(
-              &WebAppInstallDialogDelegate::OnClose, delegate_weak_ptr))
-          .OverrideDefaultButton(ui::DialogButton::DIALOG_BUTTON_NONE)
+              &WebAppInstallDialogDelegate::OnDestroyed, delegate_weak_ptr))
+          .OverrideDefaultButton(ui::mojom::DialogButton::kCancel)
           .Build();
 
   dialog_model->AddCustomField(std::make_unique<
@@ -150,15 +154,20 @@ void ShowDiyAppInstallDialog(
       views::BubbleDialogModelHost::FieldType::kControl));
 
   auto dialog = views::BubbleDialogModelHost::CreateModal(
-      std::move(dialog_model), ui::MODAL_TYPE_CHILD);
+      std::move(dialog_model), ui::mojom::ModalType::kChild);
 
   views::BubbleDialogDelegate* dialog_delegate =
       dialog->AsBubbleDialogDelegate();
-  constrained_window::ShowWebModalDialogViews(dialog.release(), web_contents);
-  dialog_coordinator->StartTracking(dialog_delegate);
+  views::Widget* diy_dialog_widget =
+      constrained_window::ShowWebModalDialogViews(dialog.release(),
+                                                  web_contents);
+  if (IsWidgetCurrentSizeSmallerThanPreferredSize(diy_dialog_widget)) {
+    delegate_weak_ptr->CloseDialogAsIgnored();
+    return;
+  }
+  delegate_weak_ptr->OnWidgetShownStartTracking(diy_dialog_widget);
 
   base::RecordAction(base::UserMetricsAction("WebAppDiyInstallShown"));
-
   if (g_auto_accept_diy_dialog_for_testing) {
     dialog_delegate->AcceptDialog();
   }

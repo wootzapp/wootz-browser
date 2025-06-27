@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "ash/ash_export.h"
-#include "ash/public/cpp/presentation_time_recorder.h"
 #include "ash/wm/drag_details.h"
 #include "ash/wm/multi_display/persistent_window_info.h"
 #include "ash/wm/wm_metrics.h"
@@ -22,6 +21,7 @@
 #include "base/timer/timer.h"
 #include "chromeos/ui/base/window_state_type.h"
 #include "ui/aura/window_observer.h"
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/display.h"
 #include "ui/gfx/animation/tween.h"
@@ -138,6 +138,8 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
   void set_is_moving_to_another_display(bool moving) {
     is_moving_to_another_display_ = moving;
   }
+
+  void set_can_update_snap_ratio(bool val) { can_update_snap_ratio_ = val; }
 
   std::optional<float> snap_ratio() const { return snap_ratio_; }
 
@@ -427,9 +429,8 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
   // Sets the currently stored restore bounds and clears the restore bounds.
   void SetAndClearRestoreBounds();
 
-  // Notifies that the drag operation has been started. Optionally returns a
-  // presentation time recorder for the drag.
-  std::unique_ptr<PresentationTimeRecorder> OnDragStarted(int window_component);
+  // Notifies that the drag operation has been started.
+  void OnDragStarted(int window_component);
 
   // Notifies that the drag operation has been either completed or reverted.
   // |location| is the last position of the pointer device used to drag.
@@ -452,6 +453,31 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
 
   // Allows for caller to prevent property changes within scope.
   base::AutoReset<bool> GetScopedIgnorePropertyChange();
+
+  // Returns true if `current_state_` is `ClientControlledState`.
+  // A client-controlled window behaves in a manner distinct from other windows
+  // (e.g., windows backed by `DefaultState`). So when making modifications to a
+  // window management component, be careful about the following considerations.
+  // 1. Client dominance
+  //  All window state/bounds changes (excluding “direct methods”) made to a
+  //  client-controlled window are considered as just a “request” to the client.
+  //  The client has permission to accept or ignore the request so don’t expect
+  //  the request is always fulfilled. Also, window state and bounds may be
+  //  altered by the client-side without any prior request from the ash-side.
+  // 2. Asynchronous changes
+  //  All window state/bounds changes (excluding “direct methods”) are not
+  //  immediately applied but applied asynchronously when the client accepts the
+  //  change request. If you want to perform something sequentially after
+  //  changes, use `aura::WindowObserver::OnWindowBoundsChanged` or
+  //  `WindowStateObserver::OnPostWindowStateTypeChange`.
+  // 3. Direct methods
+  //  `SetBoundsDirect*` directly changes the window bounds without informing
+  //  the client, bypassing the client-controlled model. These methods can be
+  //  useful for implementing ash-decorated window animations that the client is
+  //  not interested in. However because the client is unaware of the current
+  //  bounds, it may overwrite the current bounds with its preferred bounds at
+  //  any time.
+  bool is_client_controlled() const { return is_client_controlled_; }
 
   class TestApi {
    public:
@@ -504,7 +530,7 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
   ui::ZOrderLevel GetZOrdering() const;
 
   // Returns the window's current show state.
-  ui::WindowShowState GetShowState() const;
+  ui::mojom::WindowShowState GetShowState() const;
 
   // Sets the window's bounds in screen coordinates.
   void SetBoundsInScreen(const gfx::Rect& bounds_in_screen);
@@ -627,6 +653,16 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
 
   bool is_handling_float_event_ = false;
 
+  // True while a snap event is being handled. Needed because a snap event can
+  // trigger other events, during which we don't want the nested events to
+  // update the snap ratio.
+  bool is_handling_snap_event_ = false;
+
+  // Set to false while a window may about to be unsnapped. Needed because when
+  // a drag to unsnap starts, the state type is still considered snapped, but we
+  // don't want to update the snap ratio with the target unsnapped bounds.
+  bool can_update_snap_ratio_ = true;
+
   // Contains the window's target snap ratio if it's going to be snapped by a
   // WMEvent, and the updated window snap ratio if the snapped window's bounds
   // are changed while it remains snapped. It will be used to calculate the
@@ -685,6 +721,9 @@ class ASH_EXPORT WindowState : public aura::WindowObserver {
   // See `kWindowStateRestoreHistoryLayerMap` in the cc file for what window
   // state types can be put in the restore history stack.
   std::vector<chromeos::WindowStateType> window_state_restore_history_;
+
+  // True if `current_state_` is `ClientControlledState`.
+  bool is_client_controlled_{false};
 };
 
 }  // namespace ash

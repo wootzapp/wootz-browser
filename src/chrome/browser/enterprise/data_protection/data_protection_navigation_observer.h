@@ -65,9 +65,10 @@ class DataProtectionNavigationObserver
   };
 
   // Creates a DataProtectionNavigationObserver if needed.  For example, the
-  // user data may not be needed for internal chrome URLs, if this is a same doc
-  // navigation, a non-primary-main frame navigation, or if the required
-  // enterprise policies are not set.
+  // user data may not be needed for internal chrome URLs or if the required
+  // enterprise policies are not set. If this is a same doc navigation, a
+  // non-primary-main frame navigation, the data protection state should remain
+  // unchanged.
   //
   // This function should be called in some DidStartNavigation() function
   // so that DataProtectionNavigationObserver can be created early enough to
@@ -81,12 +82,15 @@ class DataProtectionNavigationObserver
       Callback callback);
 
   // Checks the `web_contents` url for enabled data protection settings. Note
-  // that `callback` is always invoked but it be called synchronously or
+  // that `callback` is always invoked but may be called synchronously or
   // asynchronously depending on whether the state is cached in
   // RealTimeUrlLookupService or not.
-  static void GetDataProtectionSettings(Profile* profile,
-                                        content::WebContents* web_contents,
-                                        Callback callback);
+  // This function is public to be called by tests and should no be called by
+  // non-test code other that `DataProtectionNavigationObserver` and
+  // `DataProtectionNavigationController`.
+  static void ApplyDataProtectionSettings(Profile* profile,
+                                          content::WebContents* web_contents,
+                                          Callback callback);
 
   // public for testing
   DataProtectionNavigationObserver(

@@ -5,7 +5,6 @@
 #ifndef ASH_LOGIN_UI_BOTTOM_STATUS_INDICATOR_H_
 #define ASH_LOGIN_UI_BOTTOM_STATUS_INDICATOR_H_
 
-#include "ash/style/ash_color_id.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -33,17 +32,11 @@ class BottomStatusIndicator final : public views::LabelButton {
                ui::ColorId color_id,
                int icon_size = 0);
 
-  void set_role_for_accessibility(ax::mojom::Role role) { role_ = role; }
-
-  // views::View:
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-
   base::WeakPtr<BottomStatusIndicator> AsWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
   }
 
  private:
-  ax::mojom::Role role_ = ax::mojom::Role::kStaticText;
   base::WeakPtrFactory<BottomStatusIndicator> weak_ptr_factory_{this};
 };
 

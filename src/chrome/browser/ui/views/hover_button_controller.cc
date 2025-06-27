@@ -31,8 +31,9 @@ bool HoverButtonController::OnKeyPressed(const ui::KeyEvent& event) {
 
 bool HoverButtonController::OnMousePressed(const ui::MouseEvent& event) {
   DCHECK(notify_action() == views::ButtonController::NotifyAction::kOnRelease);
-  if (button()->GetRequestFocusOnPress())
+  if (button()->GetRequestFocusOnPress()) {
     button()->RequestFocus();
+  }
   if (callback()) {
     views::InkDrop::Get(button())->AnimateToState(
         views::InkDropState::ACTION_PENDING,
@@ -60,7 +61,7 @@ void HoverButtonController::OnMouseReleased(const ui::MouseEvent& event) {
 }
 
 void HoverButtonController::OnGestureEvent(ui::GestureEvent* event) {
-  if (event->type() == ui::ET_GESTURE_TAP) {
+  if (event->type() == ui::EventType::kGestureTap) {
     button()->SetState(views::Button::STATE_NORMAL);
     if (callback()) {
       delegate()->NotifyClick(*event);

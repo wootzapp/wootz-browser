@@ -2,15 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "device/fido/virtual_fido_device.h"
+#include "base/notreached.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
 
+#include <algorithm>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "base/logging.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
@@ -21,6 +25,7 @@
 #include "device/fido/large_blob.h"
 #include "device/fido/p256_public_key.h"
 #include "device/fido/public_key.h"
+#include "device/fido/virtual_fido_device.h"
 #include "net/cert/x509_util.h"
 #include "third_party/boringssl/src/include/openssl/bn.h"
 #include "third_party/boringssl/src/include/openssl/bytestring.h"
@@ -232,7 +237,7 @@ class Ed25519PrivateKey : public EVPBackedPrivateKey {
                             EVP_marshal_public_key>(pkey_.get()));
 
     return std::make_unique<PublicKey>(
-        static_cast<int32_t>(CoseAlgorithmIdentifier::kRs256), *cbor_bytes,
+        static_cast<int32_t>(CoseAlgorithmIdentifier::kEdDSA), *cbor_bytes,
         std::move(der_bytes));
   }
 
@@ -248,10 +253,7 @@ class InvalidForTestingPrivateKey : public VirtualFidoDevice::PrivateKey {
     return {'s', 'i', 'g'};
   }
 
-  std::vector<uint8_t> GetPKCS8PrivateKey() const override {
-    CHECK(false);
-    return {};
-  }
+  std::vector<uint8_t> GetPKCS8PrivateKey() const override { NOTREACHED(); }
 
   std::unique_ptr<PublicKey> GetPublicKey() const override {
     cbor::Value::MapValue map;
@@ -279,8 +281,7 @@ VirtualFidoDevice::PrivateKey::~PrivateKey() = default;
 std::vector<uint8_t> VirtualFidoDevice::PrivateKey::GetX962PublicKey() const {
   // Not generally possible to encode in X9.62 format. Elliptic-specific
   // subclasses can override.
-  CHECK(false);
-  return std::vector<uint8_t>();
+  NOTREACHED();
 }
 
 // static
@@ -386,6 +387,20 @@ void VirtualFidoDevice::State::NotifyCredentialCreated(
   }
 }
 
+void VirtualFidoDevice::State::NotifyCredentialDeleted(
+    base::span<const uint8_t> credential_id) {
+  for (Observer& observer : observers_) {
+    observer.OnCredentialDeleted(credential_id);
+  }
+}
+
+void VirtualFidoDevice::State::NotifyCredentialUpdated(
+    const std::pair<base::span<const uint8_t>, RegistrationData*>& credential) {
+  for (Observer& observer : observers_) {
+    observer.OnCredentialUpdated(credential);
+  }
+}
+
 void VirtualFidoDevice::State::NotifyAssertion(const Credential& credential) {
   for (Observer& observer : observers_) {
     observer.OnAssertion(credential);
@@ -446,9 +461,8 @@ bool VirtualFidoDevice::State::InjectResidentKey(
     base::span<const uint8_t> credential_id,
     device::PublicKeyCredentialRpEntity rp,
     device::PublicKeyCredentialUserEntity user) {
-  return InjectResidentKey(std::move(credential_id), std::move(rp),
-                           std::move(user), /*signature_counter=*/0,
-                           PrivateKey::FreshP256Key());
+  return InjectResidentKey(credential_id, std::move(rp), std::move(user),
+                           /*signature_counter=*/0, PrivateKey::FreshP256Key());
 }
 
 bool VirtualFidoDevice::State::InjectResidentKey(
@@ -583,9 +597,8 @@ VirtualFidoDevice::GenerateAttestationCertificate(
     case FidoTransportProtocol::kInternal:
       transport_bit = 4;
       break;
-    case FidoTransportProtocol::kAndroidAccessory:
-      transport_bit = 1;
-      break;
+    case FidoTransportProtocol::kDeprecatedAoa:
+      NOTREACHED();
   }
   const uint8_t kTransportTypesContents[] = {
       3,                                            // BIT STRING
@@ -662,8 +675,8 @@ VirtualFidoDevice::RegistrationData* VirtualFidoDevice::FindRegistrationData(
   if (it == mutable_state()->registrations.end())
     return nullptr;
 
-  if (!base::ranges::equal(application_parameter,
-                           it->second.application_parameter)) {
+  if (!std::ranges::equal(application_parameter,
+                          it->second.application_parameter)) {
     return nullptr;
   }
 

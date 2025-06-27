@@ -8,6 +8,7 @@
 
 #include "ash/public/cpp/test/in_process_data_decoder.h"
 #include "ash/public/cpp/wallpaper/wallpaper_types.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_util.h"
@@ -16,9 +17,11 @@
 #include "ash/webui/common/mojom/sea_pen.mojom.h"
 #include "base/hash/hash.h"
 #include "base/run_loop.h"
+#include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/test_future.h"
 #include "components/account_id/account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -29,7 +32,8 @@
 namespace {
 
 constexpr char kUser[] = "user1@test.com";
-const AccountId kAccountId = AccountId::FromUserEmailGaiaId(kUser, kUser);
+const AccountId kAccountId =
+    AccountId::FromUserEmailGaiaId(kUser, GaiaId("1111"));
 
 ash::personalization_app::mojom::SeaPenQueryPtr MakeTemplateQuery() {
   return ash::personalization_app::mojom::SeaPenQuery::NewTemplateQuery(
@@ -158,7 +162,14 @@ TEST_F(WallpaperMetricsProviderTest, RecordsSeaPenTemplateSettled) {
 
   wallpaper_metrics_provider().ProvideCurrentSessionData(nullptr);
 
-  base::RunLoop().RunUntilIdle();
+  base::RunLoop run_loop;
+  wallpaper_metrics_provider().SetGetTemplateIdCallbackForTesting(
+      base::BindLambdaForTesting([&run_loop](bool success) {
+        EXPECT_TRUE(success);
+        run_loop.Quit();
+      }));
+  run_loop.Run();
+
   histogram_tester.ExpectUniqueSample(
       "Ash.Wallpaper.SeaPen.Template.Settled",
       static_cast<int>(

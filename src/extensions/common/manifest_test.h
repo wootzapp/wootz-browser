@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/containers/span.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/values.h"
 #include "extensions/common/extension.h"
@@ -100,6 +101,12 @@ class ManifestTest : public testing::Test {
       mojom::ManifestLocation location = mojom::ManifestLocation::kInternal,
       int flags = extensions::Extension::NO_FLAGS);
 
+  scoped_refptr<Extension> LoadAndExpectWarnings(
+      const ManifestData& manifest,
+      const std::vector<std::string>& expected_warnings,
+      mojom::ManifestLocation location = mojom::ManifestLocation::kInternal,
+      int flags = extensions::Extension::NO_FLAGS);
+
   scoped_refptr<extensions::Extension> LoadAndExpectWarnings(
       char const* manifest_name,
       const std::vector<std::string>& expected_warnings,
@@ -175,9 +182,7 @@ class ManifestTest : public testing::Test {
              int flags);
   };
 
-  void RunTestcases(const Testcase* testcases,
-                    size_t num_testcases,
-                    ExpectType type);
+  void RunTestcases(base::span<const Testcase> testcases, ExpectType type);
 
   void RunTestcase(const Testcase& testcase, ExpectType type);
 

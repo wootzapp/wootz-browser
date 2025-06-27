@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <set>
 #include <string>
 
@@ -46,7 +47,7 @@ ConfigDirPolicyLoader::ConfigDirPolicyLoader(
       config_dir_(config_dir),
       scope_(scope) {}
 
-ConfigDirPolicyLoader::~ConfigDirPolicyLoader() {}
+ConfigDirPolicyLoader::~ConfigDirPolicyLoader() = default;
 
 void ConfigDirPolicyLoader::InitOnBackgroundThread() {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
@@ -70,9 +71,11 @@ PolicyBundle ConfigDirPolicyLoader::Load() {
 }
 
 base::Time ConfigDirPolicyLoader::LastModificationTime() {
-  static constexpr const base::FilePath::CharType* kConfigDirSuffixes[] = {
-      kMandatoryConfigDir, kRecommendedConfigDir,
-  };
+  constexpr static const auto kConfigDirSuffixes =
+      std::to_array<const base::FilePath::CharType*>({
+          kMandatoryConfigDir,
+          kRecommendedConfigDir,
+      });
 
   base::Time last_modification = base::Time();
   base::File::Info info;

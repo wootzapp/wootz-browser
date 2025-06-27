@@ -15,6 +15,7 @@
 #include "base/memory/raw_ptr.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/view.h"
+#include "ui/views/widget/widget.h"
 
 namespace views {
 class LabelButton;
@@ -23,6 +24,7 @@ class LabelButton;
 namespace ash {
 
 class LockContentsView;
+class LockDebugViewDataDispatcherTransformer;
 
 namespace mojom {
 enum class TrayActionState;
@@ -31,8 +33,7 @@ enum class TrayActionState;
 // Contains the debug UI row (ie, add user, toggle PIN buttons).
 class LockDebugView : public views::View {
  public:
-  LockDebugView(mojom::TrayActionState initial_note_action_state,
-                LockScreen::ScreenType screen_type);
+  LockDebugView(LockScreen::ScreenType screen_type);
 
   LockDebugView(const LockDebugView&) = delete;
   LockDebugView& operator=(const LockDebugView&) = delete;
@@ -46,7 +47,6 @@ class LockDebugView : public views::View {
   LockContentsView* lock() { return lock_; }
 
  private:
-  class DebugDataDispatcherTransformer;
   class DebugLoginDetachableBaseModel;
   enum class AuthErrorType {
     kFirstUnlockFailed,
@@ -67,6 +67,10 @@ class LockDebugView : public views::View {
   // Linux Desktop builds, where the cryptohome dbus stub accepts all passwords
   // as valid.
   void ToggleAuthButtonPressed();
+
+  // Auth panel UI components.
+  void AuthInputRowView();
+  void OnAuthInputRowDebugWidgetClose();
 
   void AddKioskAppButtonPressed();
   void RemoveKioskAppButtonPressed();
@@ -126,8 +130,11 @@ class LockDebugView : public views::View {
   // to.
   raw_ptr<views::View> per_user_action_view_container_ = nullptr;
 
+  raw_ptr<views::Widget> auth_input_row_debug_widget_ = nullptr;
+
   // Debug dispatcher and cached data for the UI.
-  std::unique_ptr<DebugDataDispatcherTransformer> const debug_data_dispatcher_;
+  std::unique_ptr<LockDebugViewDataDispatcherTransformer> const
+      debug_data_dispatcher_;
   // Reference to the detachable base model passed to (and owned by) lock_.
   raw_ptr<DebugLoginDetachableBaseModel, DanglingUntriaged>
       debug_detachable_base_model_ = nullptr;

@@ -2,17 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {CrActionMenuElement} from 'chrome://resources/ash/common/cr_elements/cr_action_menu/cr_action_menu.js';
+import {CrIconButtonElement} from 'chrome://resources/ash/common/cr_elements/cr_icon_button/cr_icon_button.js';
+import {fireAuthTokenInvalidEvent} from 'chrome://resources/ash/common/quick_unlock/utils.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {AuthFactor, AuthFactorConfig, FactorObserverReceiver} from 'chrome://resources/mojo/chromeos/ash/services/auth_factor_config/public/mojom/auth_factor_config.mojom-webui.js';
+import {AuthFactor, AuthFactorConfig, ConfigureResult, FactorObserverReceiver, PasswordFactorEditor} from 'chrome://resources/mojo/chromeos/ash/services/auth_factor_config/public/mojom/auth_factor_config.mojom-webui.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getTemplate} from './password_settings.html.js';
 import {SettingsSetLocalPasswordDialogElement} from './set_local_password_dialog.js';
-
-enum PasswordType {
-  LOCAL = 'local',
-  GAIA = 'gaia',
-}
 
 export class SettingsPasswordSettingsElement extends PolymerElement {
   static get is() {
@@ -41,20 +39,17 @@ export class SettingsPasswordSettingsElement extends PolymerElement {
         value: false,
       },
 
-      // The purpose of this attribute is to allow us to observe when it
-      // changes, i.e., when the user selects a different password type.
-      selectedPasswordType_: {
-        type: String,
-        value: null,
-        observer: 'onSelectedPasswordTypeChanged_',
+      hasCryptohomePinV2_: {
+        type: Boolean,
+        value: false,
       },
     };
   }
 
   authToken: string|null;
+  private hasCryptohomePinV2_: boolean;
   private hasGaiaPassword_: boolean;
   private hasLocalPassword_: boolean;
-  private selectedPasswordType_: PasswordType|null;
 
   override ready(): void {
     super.ready();
@@ -72,6 +67,7 @@ export class SettingsPasswordSettingsElement extends PolymerElement {
     switch (factor) {
       case AuthFactor.kGaiaPassword:
       case AuthFactor.kLocalPassword:
+      case AuthFactor.kCryptohomePinV2:
         this.updatePasswordState_();
         break;
       default:
@@ -88,18 +84,20 @@ export class SettingsPasswordSettingsElement extends PolymerElement {
       return;
     }
     const authToken = this.authToken;
-
     const afc = AuthFactorConfig.getRemote();
-    const [{configured: hasGaiaPassword}, {configured: hasLocalPassword}] =
+    // clang-format off
+    const [{configured: hasGaiaPassword},
+      {configured: hasLocalPassword},
+      {configured: hasCryptohomePinV2}] =
         await Promise.all([
           afc.isConfigured(authToken, AuthFactor.kGaiaPassword),
           afc.isConfigured(authToken, AuthFactor.kLocalPassword),
+          afc.isConfigured(authToken, AuthFactor.kCryptohomePinV2),
         ]);
-
+    // clang-format on
     this.hasGaiaPassword_ = hasGaiaPassword;
     this.hasLocalPassword_ = hasLocalPassword;
-
-    this.selectedPasswordType_ = this.passwordType_();
+    this.hasCryptohomePinV2_ = hasCryptohomePinV2;
   }
 
   private hasPassword_(): boolean {
@@ -110,45 +108,6 @@ export class SettingsPasswordSettingsElement extends PolymerElement {
     return !this.hasPassword_();
   }
 
-  /**
-   * Computes the current |PasswordType| based on the values of
-   * hasGaiaPassword_ and hasLocalPassword_.
-   */
-  private passwordType_(): PasswordType|null {
-    // This control works only when there is at most one password.
-    assert(!(this.hasGaiaPassword_ && this.hasLocalPassword_));
-
-    if (this.hasGaiaPassword_) {
-      return PasswordType.GAIA;
-    }
-
-    if (this.hasLocalPassword_) {
-      return PasswordType.LOCAL;
-    }
-
-    return null;
-  }
-
-  private onSelectedPasswordTypeChanged_(): void {
-    // Check if the selected value is really a valid |PasswordType|. Recall
-    // that typescript's type system is unsound, so this fails at runtime if a
-    // |name| attribute of a select element in the template has a value that is
-    // not listed in |PasswordType|.
-    assert(
-        this.selectedPasswordType_ === null ||
-        Object.values(PasswordType).includes(this.selectedPasswordType_));
-
-    // The `selectedPasswordType_` must always match the actually
-    // configured `passwordType_`, so immediately switch back to it.
-    //
-    // TODO(b/290916811): However, we should now start changing the actually
-    // configured password type, e.g. switch from local to Gaia password, which
-    // will eventually result into an auth factor change notification and
-    // updatePasswordState_ being called, which then sets
-    // `selectedPasswordType_`.
-    this.selectedPasswordType_ = this.passwordType_();
-  }
-
   private setLocalPasswordDialog(): SettingsSetLocalPasswordDialogElement {
     const el = this.shadowRoot!.getElementById('setLocalPasswordDialog');
     assert(el instanceof SettingsSetLocalPasswordDialogElement);
@@ -157,6 +116,60 @@ export class SettingsPasswordSettingsElement extends PolymerElement {
 
   private openSetLocalPasswordDialog_(): void {
     this.setLocalPasswordDialog().showModal();
+  }
+
+  private moreButton_(): CrIconButtonElement {
+    const moreButton = this.shadowRoot!.querySelector('#moreButton');
+    assert(moreButton instanceof CrIconButtonElement);
+    return moreButton;
+  }
+
+  private moreMenu_(): CrActionMenuElement {
+    const moreMenu = this.shadowRoot!.querySelector('#moreMenu');
+    assert(moreMenu instanceof CrActionMenuElement);
+    return moreMenu;
+  }
+
+
+  private onMoreButtonClicked_(event: Event): void {
+    event.preventDefault();  // Prevent default browser action (navigation).
+
+    const moreButton = this.moreButton_();
+    const moreMenu = this.moreMenu_();
+    moreMenu.showAt(moreButton);
+  }
+
+  private isRemoveAllowed_(
+      hasCryptohomePinV2: boolean, hasGaiaPassword: boolean,
+      hasLocalPassword: boolean): boolean {
+    return hasCryptohomePinV2 && (hasGaiaPassword || hasLocalPassword);
+  }
+
+  private async onRemovePasswordButtonClicked_(): Promise<void> {
+    if (typeof this.authToken !== 'string') {
+      console.error('Tried to remove password with expired token.');
+    } else {
+      const { result } =
+      await PasswordFactorEditor.getRemote().removePassword(this.authToken);
+      switch (result) {
+        case ConfigureResult.kSuccess:
+          break;
+        case ConfigureResult.kInvalidTokenError:
+          fireAuthTokenInvalidEvent(this);
+          break;
+        case ConfigureResult.kFatalError:
+          console.error('Error removing Password');
+          break;
+      }
+    }
+
+    // We always close the "more" menu, even when removePassword call didn't
+    // work: If the menu isn't closed but not attached anymore, then the user
+    // can't interact with the whole settings UI at all anymore.
+    const moreMenu = this.moreMenu_();
+    if (moreMenu) {
+      moreMenu.close();
+    }
   }
 }
 

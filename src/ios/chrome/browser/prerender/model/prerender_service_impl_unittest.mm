@@ -6,7 +6,7 @@
 
 #import <memory>
 
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/platform_test.h"
@@ -16,9 +16,9 @@ namespace {
 class PrerenderServiceImplTest : public PlatformTest {
  public:
   PrerenderServiceImplTest() {
-    TestChromeBrowserState::Builder builder;
-    browser_state_ = builder.Build();
-    service_ = std::make_unique<PrerenderServiceImpl>(browser_state_.get());
+    TestProfileIOS::Builder builder;
+    profile_ = std::move(builder).Build();
+    service_ = std::make_unique<PrerenderServiceImpl>(profile_.get());
   }
 
   PrerenderServiceImplTest(const PrerenderServiceImplTest&) = delete;
@@ -28,7 +28,7 @@ class PrerenderServiceImplTest : public PlatformTest {
 
  protected:
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<PrerenderService> service_;
   web::FakeWebState web_state_;
 };

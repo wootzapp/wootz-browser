@@ -18,7 +18,6 @@
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/net/nss_service.h"
 #include "chrome/browser/net/nss_service_factory.h"
 #include "chrome/browser/net/system_network_context_manager.h"
@@ -43,20 +42,17 @@
 #include "chrome/browser/certificate_provider/certificate_provider.h"
 #include "chrome/browser/certificate_provider/certificate_provider_service.h"
 #include "chrome/browser/certificate_provider/certificate_provider_service_factory.h"
-#include "chrome/browser/chromeos/kcer/kcer_factory.h"
 #include "chrome/browser/policy/networking/user_network_configuration_updater.h"
 #include "chrome/browser/policy/networking/user_network_configuration_updater_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chromeos/ash/components/network/policy_certificate_provider.h"
-#include "chromeos/components/kcer/kcer.h"
-#include "chromeos/components/kcer/kcer_histograms.h"
 #include "chromeos/constants/chromeos_features.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "chrome/browser/ash/kcer/kcer_factory_ash.h"
 #include "chrome/browser/policy/networking/user_network_configuration_updater_ash.h"
+#include "chromeos/ash/components/kcer/kcer.h"
+#include "chromeos/ash/components/kcer/kcer_histograms.h"
 #include "chromeos/components/onc/certificate_scope.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using content::BrowserThread;
 
@@ -373,7 +369,7 @@ class CertsSourcePolicy : public CertificateManagerModel::CertsSource,
                     true /* policy_web_trusted */);
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -538,7 +534,7 @@ CertificateManagerModel::CertInfo::CertInfo(net::ScopedCERTCertificate cert,
       hardware_backed_(hardware_backed),
       device_wide_(device_wide) {}
 
-CertificateManagerModel::CertInfo::~CertInfo() {}
+CertificateManagerModel::CertInfo::~CertInfo() = default;
 
 // static
 std::unique_ptr<CertificateManagerModel::CertInfo>
@@ -572,9 +568,8 @@ void CertificateManagerModel::Create(
           browser_context);
   params->extension_certificate_provider =
       certificate_provider_service->CreateCertificateProvider();
-
-  params->kcer =
-      kcer::KcerFactory::GetKcer(Profile::FromBrowserContext(browser_context));
+  params->kcer = kcer::KcerFactoryAsh::GetKcer(
+      Profile::FromBrowserContext(browser_context));
 #endif
 
   content::GetIOThreadTaskRunner({})->PostTask(
@@ -636,7 +631,7 @@ CertificateManagerModel::CertificateManagerModel(
 #endif
 }
 
-CertificateManagerModel::~CertificateManagerModel() {}
+CertificateManagerModel::~CertificateManagerModel() = default;
 
 void CertificateManagerModel::OnCertsSourceUpdated() {
   if (hold_back_updates_)
@@ -717,7 +712,7 @@ void CertificateManagerModel::ImportFromPKCS12(
     // Record the dual-write event. Even if the import fails, it's theoretically
     // possible that some related objects are still created and would need to be
     // deleted in case of a rollback.
-    kcer::KcerFactory::RecordPkcs12CertDualWritten();
+    kcer::KcerFactoryAsh::RecordPkcs12CertDualWritten();
     std::string u8_password = base::UTF16ToUTF8(password);
     return kcer_->ImportPkcs12Cert(
         kcer::Token::kUser,

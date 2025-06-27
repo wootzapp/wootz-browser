@@ -3,14 +3,16 @@
 // found in the LICENSE file.
 
 #include "base/android/meminfo_dump_provider.h"
+
 #include <jni.h>
+
 #include "base/android/jni_android.h"
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
 
 #if BUILDFLAG(ENABLE_BASE_TRACING)
-#include "base/base_jni/MemoryInfoBridge_jni.h"
+#include "base/memory_jni/MemoryInfoBridge_jni.h"
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
 namespace base::android {

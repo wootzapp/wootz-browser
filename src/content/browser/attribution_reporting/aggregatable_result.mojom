@@ -9,6 +9,8 @@ module attribution_reporting.mojom;
 //
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
+//
+// LINT.IfChange(AggregatableResult)
 enum AggregatableResult {
   kSuccess = 0,
   kInternalError = 1,
@@ -24,4 +26,6 @@ enum AggregatableResult {
   kDeduplicated = 11,
   kReportWindowPassed = 12,
   kExcessiveReports = 13,
+  kInsufficientNamedBudget = 14,
 };
+// LINT.ThenChange(//tools/metrics/histograms/enums.xml:ConversionCreateAggregatableReportStatus)

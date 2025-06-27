@@ -23,9 +23,13 @@ class PassageEmbeddingsService : public mojom::PassageEmbeddingsService {
   ~PassageEmbeddingsService() override;
 
  private:
+  // Called when the embedder remote disconnects.
+  void OnEmbedderDisconnect();
+
   // mojom::PassageEmbeddingsService:
-  void LoadModels(mojom::PassageEmbeddingsLoadModelsParamsPtr params,
-                  mojo::PendingReceiver<mojom::PassageEmbedder> model,
+  void LoadModels(mojom::PassageEmbeddingsLoadModelsParamsPtr model_params,
+                  mojom::PassageEmbedderParamsPtr embedder_params,
+                  mojo::PendingReceiver<mojom::PassageEmbedder> receiver,
                   LoadModelsCallback callback) override;
 
   mojo::Receiver<mojom::PassageEmbeddingsService> receiver_;

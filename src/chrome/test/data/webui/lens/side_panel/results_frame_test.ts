@@ -20,12 +20,14 @@ suite('SidePanelResultsFrame', () => {
   let testBrowserProxy: TestLensSidePanelBrowserProxy;
   let lensSidePanelElement: LensSidePanelAppElement;
 
-  setup(() => {
+  setup(async () => {
     testBrowserProxy = new TestLensSidePanelBrowserProxy();
     SidePanelBrowserProxyImpl.setInstance(testBrowserProxy);
 
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     lensSidePanelElement = document.createElement('lens-side-panel-app');
+    // Side panel should call getIsContextualSearchbox on construction.
+    await testBrowserProxy.handler.whenCalled('getIsContextualSearchbox');
     document.body.appendChild(lensSidePanelElement);
   });
 
@@ -45,8 +47,7 @@ suite('SidePanelResultsFrame', () => {
     // Since the two elements are completely overlapping, the element with the
     // larger z-index is the one that is visible.
     let loadingZIndex = parseInt(
-        window.getComputedStyle(lensSidePanelElement.$.loadingResultsImage)
-            .zIndex);
+        window.getComputedStyle(lensSidePanelElement.$.ghostLoader).zIndex);
     let resultsZIndex = parseInt(
         window.getComputedStyle(lensSidePanelElement.$.results).zIndex);
     assertTrue(loadingZIndex > resultsZIndex);
@@ -55,8 +56,7 @@ suite('SidePanelResultsFrame', () => {
     await waitAfterNextRender(lensSidePanelElement);
 
     loadingZIndex = parseInt(
-        window.getComputedStyle(lensSidePanelElement.$.loadingResultsImage)
-            .zIndex);
+        window.getComputedStyle(lensSidePanelElement.$.ghostLoader).zIndex);
     resultsZIndex = parseInt(
         window.getComputedStyle(lensSidePanelElement.$.results).zIndex);
     assertTrue(loadingZIndex < resultsZIndex);
@@ -65,8 +65,7 @@ suite('SidePanelResultsFrame', () => {
     await waitAfterNextRender(lensSidePanelElement);
 
     loadingZIndex = parseInt(
-        window.getComputedStyle(lensSidePanelElement.$.loadingResultsImage)
-            .zIndex);
+        window.getComputedStyle(lensSidePanelElement.$.ghostLoader).zIndex);
     resultsZIndex = parseInt(
         window.getComputedStyle(lensSidePanelElement.$.results).zIndex);
     assertTrue(loadingZIndex > resultsZIndex);

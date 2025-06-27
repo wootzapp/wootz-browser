@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.image_descriptions;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,14 +13,16 @@ import android.widget.CheckBox;
 import android.widget.RadioGroup;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.device.DeviceConditions;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
 import org.chromium.content_public.browser.LoadCommittedDetails;
+import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.net.ConnectionType;
@@ -34,10 +38,13 @@ import org.chromium.ui.widget.Toast;
  * see a new option under the main menu to get image descriptions. If they select that option this
  * dialog will display giving the user the option to enable the feature.
  */
+@NullMarked
 public class ImageDescriptionsDialog
         implements ModalDialogProperties.Controller, RadioGroup.OnCheckedChangeListener {
     // Please treat this list as append only and keep it in sync with
     // AccessibilityImageLabelModeAndroid in enums.xml
+    //
+    // LINT.IfChange(ImageDescriptionsDialogAction)
     @IntDef({
         ImageDescriptionsDialogAction.ENABLED,
         ImageDescriptionsDialogAction.ENABLED_ONLY_ON_WIFI,
@@ -53,6 +60,8 @@ public class ImageDescriptionsDialog
         int CANCEL = 4;
         int NUM_ENTRIES = 5;
     }
+
+    // LINT.ThenChange(/tools/metrics/histograms/metadata/accessibility/enums.xml:AccessibilityImageLabelModeAndroid)
 
     private ImageDescriptionsControllerDelegate mControllerDelegate;
 
@@ -82,7 +91,7 @@ public class ImageDescriptionsDialog
         mModalDialogManager = modalDialogManager;
         mControllerDelegate = delegate;
         mWebContents = webContents;
-        mProfile = Profile.fromWebContents(webContents).getOriginalProfile();
+        mProfile = assumeNonNull(Profile.fromWebContents(webContents)).getOriginalProfile();
         mContext = context;
 
         // Set initial state.
@@ -124,9 +133,12 @@ public class ImageDescriptionsDialog
         mWebContentsObserver =
                 new WebContentsObserver(mWebContents) {
                     @Override
-                    public void wasHidden() {
-                        mDismissalCause = DialogDismissalCause.TAB_SWITCHED;
-                        unregisterObserverAndDismiss();
+                    public void onVisibilityChanged(@Visibility int visibility) {
+                        if (visibility != Visibility.VISIBLE) {
+                            // Treat occlusion as switching tabs.
+                            mDismissalCause = DialogDismissalCause.TAB_SWITCHED;
+                            unregisterObserverAndDismiss();
+                        }
                     }
 
                     @Override
@@ -147,13 +159,9 @@ public class ImageDescriptionsDialog
                     }
 
                     @Override
-                    public void destroy() {
-                        super.destroy();
-                        // If no dismissal cause has been set, web contents were destroyed.
-                        if (mDismissalCause == DialogDismissalCause.UNKNOWN) {
-                            mDismissalCause = DialogDismissalCause.WEB_CONTENTS_DESTROYED;
-                        }
-                        dismiss();
+                    public void webContentsDestroyed() {
+                        mDismissalCause = DialogDismissalCause.WEB_CONTENTS_DESTROYED;
+                        unregisterObserverAndDismiss();
                     }
                 };
 
@@ -266,7 +274,8 @@ public class ImageDescriptionsDialog
      * or on user action. The call to #destroy() will also dismiss the dialog.
      */
     private void unregisterObserverAndDismiss() {
-        mWebContentsObserver.destroy();
+        mWebContentsObserver.observe(null);
+        dismiss();
     }
 
     /** Helper method to display this dialog. */
@@ -282,7 +291,7 @@ public class ImageDescriptionsDialog
     /**
      * Helper method to record metrics for user choice when interacting with dialog.
      *
-     * @param action    @ImageDescriptionsDialogAction int, action user has taken on the dialog
+     * @param action action user has taken on the dialog
      */
     private void recordHistogramMetric(@ImageDescriptionsDialogAction int action) {
         RecordHistogram.recordEnumeratedHistogram(

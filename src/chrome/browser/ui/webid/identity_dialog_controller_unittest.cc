@@ -4,14 +4,24 @@
 
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
 
+#include <memory>
+
 #include "base/functional/callback_helpers.h"
+#include "base/run_loop.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/ui/webid/account_selection_view.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/optimization_guide/core/mock_optimization_guide_decider.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
 #include "components/permissions/test/mock_permission_request.h"
+#include "components/segmentation_platform/public/constants.h"
+#include "components/segmentation_platform/public/features.h"
+#include "components/segmentation_platform/public/result.h"
+#include "components/segmentation_platform/public/segmentation_platform_service.h"
+#include "components/segmentation_platform/public/testing/mock_segmentation_platform_service.h"
 #include "content/public/browser/identity_request_account.h"
 #include "content/public/browser/identity_request_dialog_controller.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -20,8 +30,87 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
+using testing::_;
+
+namespace {
+
+const std::vector<content::IdentityRequestDialogDisclosureField>
+    kDefaultPermissions = {
+        content::IdentityRequestDialogDisclosureField::kName,
+        content::IdentityRequestDialogDisclosureField::kEmail,
+        content::IdentityRequestDialogDisclosureField::kPicture};
+
+}  // namespace
+
 constexpr char kTopFrameEtldPlusOne[] = "top-frame-example.com";
 constexpr char kIdpEtldPlusOne[] = "idp-example.com";
+constexpr float kPerPageLoadClickthroughRate = 0.1;
+constexpr float kPerClientClickthroughRate = 0.2;
+constexpr float kPerImpressionClickthroughRate = 0.3;
+constexpr float kLikelyToSignin = 0.4;
+
+// Mock version of AccountSelectionView for injection during tests.
+class MockAccountSelectionView : public AccountSelectionView {
+ public:
+  MockAccountSelectionView() : AccountSelectionView(/*delegate=*/nullptr) {}
+  ~MockAccountSelectionView() override = default;
+
+  MockAccountSelectionView(const MockAccountSelectionView&) = delete;
+  MockAccountSelectionView& operator=(const MockAccountSelectionView&) = delete;
+
+  MOCK_METHOD(
+      bool,
+      Show,
+      (const content::RelyingPartyData& rp_data,
+       const std::vector<IdentityProviderDataPtr>& identity_provider_data,
+       const std::vector<IdentityRequestAccountPtr>& accounts,
+       Account::SignInMode sign_in_mode,
+       blink::mojom::RpMode rp_mode,
+       const std::vector<IdentityRequestAccountPtr>& new_accounts),
+      (override));
+
+  MOCK_METHOD(bool,
+              ShowFailureDialog,
+              (const std::string& rp_for_display,
+               const std::string& idp_for_display,
+               blink::mojom::RpContext rp_context,
+               blink::mojom::RpMode rp_mode,
+               const content::IdentityProviderMetadata& idp_metadata),
+              (override));
+
+  MOCK_METHOD(bool,
+              ShowErrorDialog,
+              (const std::string& rp_for_display,
+               const std::string& idp_for_display,
+               blink::mojom::RpContext rp_context,
+               blink::mojom::RpMode rp_mode,
+               const content::IdentityProviderMetadata& idp_metadata,
+               const std::optional<TokenError>& error),
+              (override));
+
+  MOCK_METHOD(bool,
+              ShowLoadingDialog,
+              (const std::string& rp_for_display,
+               const std::string& idp_for_display,
+               blink::mojom::RpContext rp_context,
+               blink::mojom::RpMode rp_mode),
+              (override));
+
+  MOCK_METHOD(std::string, GetTitle, (), (const, override));
+
+  MOCK_METHOD(std::optional<std::string>, GetSubtitle, (), (const, override));
+
+  MOCK_METHOD(void, ShowUrl, (LinkType type, const GURL& url), (override));
+
+  MOCK_METHOD(content::WebContents*,
+              ShowModalDialog,
+              (const GURL& url, blink::mojom::RpMode rp_mode),
+              (override));
+
+  MOCK_METHOD(void, CloseModalDialog, (), (override));
+
+  MOCK_METHOD(content::WebContents*, GetRpWebContents, (), (override));
+};
 
 class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
  public:
@@ -38,6 +127,7 @@ class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
     SetContents(CreateTestWebContents());
     NavigateAndCommit(GURL(permissions::MockPermissionRequest::kDefaultOrigin));
     permissions::PermissionRequestManager::CreateForWebContents(web_contents());
+    histogram_tester_ = std::make_unique<base::HistogramTester>();
   }
 
   void TearDown() override { ChromeRenderViewHostTestHarness::TearDown(); }
@@ -62,90 +152,132 @@ class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
     task_environment()->RunUntilIdle();
   }
 
-  std::vector<content::IdentityRequestAccount> CreateAccount() {
-    return {
-        {"account_id1", "", "", "", GURL(),
-         /*login_hints=*/std::vector<std::string>(),
-         /*domain_hints=*/std::vector<std::string>(),
-         /*labels=*/std::vector<std::string>(),
-         /*login_state=*/content::IdentityRequestAccount::LoginState::kSignUp,
-         /*browser_trusted_login_state=*/
-         content::IdentityRequestAccount::LoginState::kSignUp}};
+  std::vector<IdentityRequestAccountPtr> CreateAccount() {
+    return {base::MakeRefCounted<Account>(
+        "account_id1", "", "", "", "", "", GURL(), "", "",
+        /*login_hints=*/std::vector<std::string>(),
+        /*domain_hints=*/std::vector<std::string>(),
+        /*labels=*/std::vector<std::string>(),
+        /*login_state=*/content::IdentityRequestAccount::LoginState::kSignUp,
+        /*browser_trusted_login_state=*/
+        content::IdentityRequestAccount::LoginState::kSignUp)};
   }
 
-  content::IdentityProviderData CreateIdentityProviderData(
-      std::vector<content::IdentityRequestAccount> accounts) {
-    return {kIdpEtldPlusOne,
-            accounts,
-            content::IdentityProviderMetadata(),
-            content::ClientMetadata(GURL(), GURL(), GURL()),
-            blink::mojom::RpContext::kSignIn,
-            /*request_permission=*/true,
-            /*has_login_status_mismatch=*/false};
+  IdentityProviderDataPtr CreateIdentityProviderData(
+      std::vector<IdentityRequestAccountPtr>& accounts) {
+    IdentityProviderDataPtr idp_data =
+        base::MakeRefCounted<content::IdentityProviderData>(
+            kIdpEtldPlusOne, content::IdentityProviderMetadata(),
+            content::ClientMetadata(GURL(), GURL(), GURL(), gfx::Image()),
+            blink::mojom::RpContext::kSignIn, kDefaultPermissions,
+            /*has_login_status_mismatch=*/false);
+    for (auto& account : accounts) {
+      account->identity_provider = idp_data;
+    }
+    return idp_data;
   }
-};
 
-// Mock version of AccountSelectionView for injection during tests.
-class MockAccountSelectionView : public AccountSelectionView {
- public:
-  MockAccountSelectionView() : AccountSelectionView(/*delegate=*/nullptr) {}
-  ~MockAccountSelectionView() override = default;
+  void ShowAccountsDialog(
+      IdentityDialogController& controller,
+      blink::mojom::RpMode rp_mode,
+      DismissCallback dismiss_callback = base::DoNothing()) {
+    accounts_ = CreateAccount();
+    IdentityProviderDataPtr idp_data = CreateIdentityProviderData(accounts_);
+    controller.ShowAccountsDialog(
+        content::RelyingPartyData(kTopFrameEtldPlusOne), {idp_data}, accounts_,
+        content::IdentityRequestAccount::SignInMode::kExplicit, rp_mode,
+        /*new_accounts=*/std::vector<IdentityRequestAccountPtr>(),
+        /*on_selected=*/base::DoNothing(), /*on_add_account=*/base::DoNothing(),
+        std::move(dismiss_callback),
+        /*accounts_displayed_callback=*/base::DoNothing());
+  }
 
-  MockAccountSelectionView(const MockAccountSelectionView&) = delete;
-  MockAccountSelectionView& operator=(const MockAccountSelectionView&) = delete;
+  segmentation_platform::MockSegmentationPlatformService*
+  CreateMockSegmentationPlatformService(const std::string& result_label,
+                                        base::RunLoop& run_loop) {
+    segmentation_platform_service_ = std::make_unique<
+        segmentation_platform::MockSegmentationPlatformService>();
+    ON_CALL(*segmentation_platform_service_,
+            GetClassificationResult(_, _, _, _))
+        .WillByDefault(testing::Invoke(
+            [&run_loop, result_label, this](
+                auto, auto,
+                scoped_refptr<segmentation_platform::InputContext>
+                    input_context,
+                segmentation_platform::ClassificationResultCallback callback) {
+              segmentation_platform::ClassificationResult result(
+                  segmentation_platform::PredictionStatus::kSucceeded);
+              result.request_id = segmentation_platform::TrainingRequestId(1);
+              result.ordered_labels = {result_label};
+              if (this->optimization_guide_decider_) {
+                ASSERT_EQ(
+                    segmentation_platform::processing::ProcessedValue(
+                        kPerPageLoadClickthroughRate),
+                    input_context->GetMetadataArgument(
+                        segmentation_platform::kPerPageLoadClickthroughRate));
+                ASSERT_EQ(
+                    segmentation_platform::processing::ProcessedValue(
+                        kPerClientClickthroughRate),
+                    input_context->GetMetadataArgument(
+                        segmentation_platform::kPerClientClickthroughRate));
+                ASSERT_EQ(
+                    segmentation_platform::processing::ProcessedValue(
+                        kPerImpressionClickthroughRate),
+                    input_context->GetMetadataArgument(
+                        segmentation_platform::kPerImpressionClickthroughRate));
+                ASSERT_EQ(segmentation_platform::processing::ProcessedValue(
+                              kLikelyToSignin),
+                          input_context->GetMetadataArgument(
+                              segmentation_platform::kLikelyToSignin));
+              }
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+                  FROM_HERE, base::BindOnce(std::move(callback), result)
+                                 .Then(run_loop.QuitClosure()));
+            }));
+    return segmentation_platform_service_.get();
+  }
 
-  MOCK_METHOD(
-      void,
-      Show,
-      (const std::string& top_frame_for_display,
-       const std::optional<std::string>& iframe_for_display,
-       const std::vector<content::IdentityProviderData>& identity_provider_data,
-       Account::SignInMode sign_in_mode,
-       blink::mojom::RpMode rp_mode,
-       const std::optional<content::IdentityProviderData>& new_account_idp),
-      (override));
+  optimization_guide::MockOptimizationGuideDecider*
+  CreateMockOptimizationGuideDecider() {
+    optimization_guide_decider_ =
+        std::make_unique<optimization_guide::MockOptimizationGuideDecider>();
+    EXPECT_CALL(*optimization_guide_decider_,
+                RegisterOptimizationTypes(testing::ElementsAre(
+                    optimization_guide::proto::FEDCM_CLICKTHROUGH_RATE)))
+        .Times(1);
+    ON_CALL(*optimization_guide_decider_,
+            CanApplyOptimization(
+                _,
+                optimization_guide::proto::OptimizationType::
+                    FEDCM_CLICKTHROUGH_RATE,
+                testing::An<optimization_guide::OptimizationMetadata*>()))
+        .WillByDefault(
+            [](const GURL& url,
+               optimization_guide::proto::OptimizationType optimization_type,
+               optimization_guide::OptimizationMetadata* metadata)
+                -> optimization_guide::OptimizationGuideDecision {
+              *metadata = {};
+              webid::FedCmClickthroughRateMetadata fedcm_metadata;
+              fedcm_metadata.set_per_page_load_clickthrough_rate(
+                  kPerPageLoadClickthroughRate);
+              fedcm_metadata.set_per_client_clickthrough_rate(
+                  kPerClientClickthroughRate);
+              fedcm_metadata.set_per_impression_clickthrough_rate(
+                  kPerImpressionClickthroughRate);
+              fedcm_metadata.set_likely_to_signin(kLikelyToSignin);
+              metadata->SetAnyMetadataForTesting(fedcm_metadata);
+              return optimization_guide::OptimizationGuideDecision::kTrue;
+            });
+    return optimization_guide_decider_.get();
+  }
 
-  MOCK_METHOD(void,
-              ShowFailureDialog,
-              (const std::string& top_frame_for_display,
-               const std::optional<std::string>& iframe_for_display,
-               const std::string& idp_for_display,
-               blink::mojom::RpContext rp_context,
-               blink::mojom::RpMode rp_mode,
-               const content::IdentityProviderMetadata& idp_metadata),
-              (override));
-
-  MOCK_METHOD(void,
-              ShowErrorDialog,
-              (const std::string& top_frame_for_display,
-               const std::optional<std::string>& iframe_for_display,
-               const std::string& idp_for_display,
-               blink::mojom::RpContext rp_context,
-               blink::mojom::RpMode rp_mode,
-               const content::IdentityProviderMetadata& idp_metadata,
-               const std::optional<TokenError>& error),
-              (override));
-
-  MOCK_METHOD(void,
-              ShowLoadingDialog,
-              (const std::string& top_frame_for_display,
-               const std::string& idp_for_display,
-               blink::mojom::RpContext rp_context,
-               blink::mojom::RpMode rp_mode),
-              (override));
-
-  MOCK_METHOD(std::string, GetTitle, (), (const, override));
-
-  MOCK_METHOD(std::optional<std::string>, GetSubtitle, (), (const, override));
-
-  MOCK_METHOD(void, ShowUrl, (LinkType type, const GURL& url), (override));
-
-  MOCK_METHOD(content::WebContents*,
-              ShowModalDialog,
-              (const GURL& url),
-              (override));
-
-  MOCK_METHOD(void, CloseModalDialog, (), (override));
+ protected:
+  std::vector<IdentityRequestAccountPtr> accounts_;
+  std::unique_ptr<base::HistogramTester> histogram_tester_;
+  std::unique_ptr<segmentation_platform::MockSegmentationPlatformService>
+      segmentation_platform_service_;
+  std::unique_ptr<optimization_guide::MockOptimizationGuideDecider>
+      optimization_guide_decider_;
 };
 
 TEST_F(IdentityDialogControllerTest, Accept) {
@@ -224,25 +356,20 @@ TEST_F(IdentityDialogControllerTest, OnAccountSelectedButtonCallsDismiss) {
   controller.SetAccountSelectionViewForTesting(
       std::make_unique<MockAccountSelectionView>());
 
-  std::vector<content::IdentityRequestAccount> accounts = CreateAccount();
-  content::IdentityProviderData idp_data = CreateIdentityProviderData(accounts);
+  std::vector<IdentityRequestAccountPtr> accounts = CreateAccount();
+  IdentityProviderDataPtr idp_data = CreateIdentityProviderData(accounts);
 
   // Dismiss callback should run once.
   base::MockCallback<DismissCallback> dismiss_callback;
   EXPECT_CALL(dismiss_callback, Run).WillOnce(testing::Return());
 
-  // Show button mode accounts dialog.
-  controller.ShowAccountsDialog(
-      kTopFrameEtldPlusOne, /*iframe_for_display=*/std::nullopt, {idp_data},
-      content::IdentityRequestAccount::SignInMode::kExplicit,
-      blink::mojom::RpMode::kButton, /*new_account_idp=*/std::nullopt,
-      /*on_selected=*/base::DoNothing(), /*on_add_account=*/base::DoNothing(),
-      /*dismiss_callback=*/dismiss_callback.Get(),
-      /*accounts_displayed_callback=*/base::DoNothing());
+  ShowAccountsDialog(controller, blink::mojom::RpMode::kActive,
+                     dismiss_callback.Get());
 
   // User selects an account, and then dismisses it. The expectation set for
   // dismiss callback should pass.
-  controller.OnAccountSelected(GURL(kIdpEtldPlusOne), accounts[0]);
+  controller.OnAccountSelected(GURL(kIdpEtldPlusOne), accounts[0]->id,
+                               *accounts[0]->login_state);
   controller.OnDismiss(IdentityDialogController::DismissReason::kOther);
 }
 
@@ -253,24 +380,157 @@ TEST_F(IdentityDialogControllerTest, OnAccountSelectedWidgetResetsDismiss) {
   controller.SetAccountSelectionViewForTesting(
       std::make_unique<MockAccountSelectionView>());
 
-  std::vector<content::IdentityRequestAccount> accounts = CreateAccount();
-  content::IdentityProviderData idp_data = CreateIdentityProviderData(accounts);
+  std::vector<IdentityRequestAccountPtr> accounts = CreateAccount();
+  IdentityProviderDataPtr idp_data = CreateIdentityProviderData(accounts);
 
   // Dismiss callback should not be run.
   base::MockCallback<DismissCallback> dismiss_callback;
   EXPECT_CALL(dismiss_callback, Run).Times(0);
 
-  // Show widget mode accounts dialog.
-  controller.ShowAccountsDialog(
-      kTopFrameEtldPlusOne, /*iframe_for_display=*/std::nullopt, {idp_data},
-      content::IdentityRequestAccount::SignInMode::kExplicit,
-      blink::mojom::RpMode::kWidget, /*new_account_idp=*/std::nullopt,
-      /*on_selected=*/base::DoNothing(), /*on_add_account=*/base::DoNothing(),
-      /*dismiss_callback=*/dismiss_callback.Get(),
-      /*accounts_displayed_callback=*/base::DoNothing());
+  ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive,
+                     dismiss_callback.Get());
 
   // User selects an account, and then dismisses it. The expectation set for
   // dismiss callback should pass.
-  controller.OnAccountSelected(GURL(kIdpEtldPlusOne), accounts[0]);
+  controller.OnAccountSelected(GURL(kIdpEtldPlusOne), accounts[0]->id,
+                               *accounts[0]->login_state);
   controller.OnDismiss(IdentityDialogController::DismissReason::kOther);
+}
+
+// Crash test for crbug.com/358302105.
+TEST_F(IdentityDialogControllerTest, NoTabDoesNotCrash) {
+  IdentityDialogController controller(web_contents());
+  std::vector<IdentityRequestAccountPtr> accounts = CreateAccount();
+  IdentityProviderDataPtr idp_data = CreateIdentityProviderData(accounts);
+
+  ShowAccountsDialog(controller, blink::mojom::RpMode::kActive);
+}
+
+TEST_F(IdentityDialogControllerTest, SegmentationPlatformShowUi) {
+  base::test::ScopedFeatureList list;
+  list.InitAndEnableFeature(
+      segmentation_platform::features::kSegmentationPlatformFedCmUser);
+  // Mock the segmentation platform service to return "FedCmUserLoud" as the UI
+  // volume recommendation.
+  base::RunLoop run_loop;
+  IdentityDialogController controller(
+      web_contents(),
+      CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
+      CreateMockOptimizationGuideDecider());
+
+  // Show should be called.
+  std::unique_ptr<MockAccountSelectionView> account_selection_view =
+      std::make_unique<MockAccountSelectionView>();
+  EXPECT_CALL(*account_selection_view, Show(_, _, _, _, _, _)).Times(1);
+  controller.SetAccountSelectionViewForTesting(
+      std::move(account_selection_view));
+
+  ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive);
+  run_loop.Run();
+}
+
+TEST_F(IdentityDialogControllerTest, SegmentationPlatformDontShowUi) {
+  base::test::ScopedFeatureList list;
+  list.InitAndEnableFeature(
+      segmentation_platform::features::kSegmentationPlatformFedCmUser);
+  // Mock the segmentation platform service to return "FedCmUserQuiet" as the UI
+  // volume recommendation.
+  base::RunLoop run_loop;
+  IdentityDialogController controller(
+      web_contents(),
+      CreateMockSegmentationPlatformService("FedCmUserQuiet", run_loop),
+      CreateMockOptimizationGuideDecider());
+
+  // Show should not be called.
+  std::unique_ptr<MockAccountSelectionView> account_selection_view =
+      std::make_unique<MockAccountSelectionView>();
+  EXPECT_CALL(*account_selection_view, Show(_, _, _, _, _, _)).Times(0);
+  controller.SetAccountSelectionViewForTesting(
+      std::move(account_selection_view));
+
+  // Dismiss callback should be run.
+  base::MockCallback<DismissCallback> dismiss_callback;
+  EXPECT_CALL(dismiss_callback, Run).WillOnce(testing::Return());
+
+  ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive,
+                     dismiss_callback.Get());
+  run_loop.Run();
+}
+
+TEST_F(IdentityDialogControllerTest,
+       SegmentationPlatformTrainingDataCollection) {
+  base::test::ScopedFeatureList list;
+  list.InitAndEnableFeature(
+      segmentation_platform::features::kSegmentationPlatformFedCmUser);
+
+  auto CheckForSampleAndReset([&](IdentityDialogController::UserAction action) {
+    histogram_tester_->ExpectUniqueSample(
+        "Blink.FedCm.SegmentationPlatform.UserAction", static_cast<int>(action),
+        1);
+    histogram_tester_ = std::make_unique<base::HistogramTester>();
+  });
+
+  {
+    // User proceeds with an account.
+    base::RunLoop run_loop;
+    IdentityDialogController controller(
+        web_contents(),
+        CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
+        CreateMockOptimizationGuideDecider());
+    controller.SetAccountSelectionViewForTesting(
+        std::make_unique<MockAccountSelectionView>());
+    EXPECT_CALL(*segmentation_platform_service_,
+                CollectTrainingData(_, _, _, _, _))
+        .Times(1);
+
+    ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive);
+    run_loop.Run();
+
+    // User selects an account.
+    controller.OnAccountSelected(GURL(kIdpEtldPlusOne), accounts_[0]->id,
+                                 *accounts_[0]->login_state);
+  }
+  CheckForSampleAndReset(IdentityDialogController::UserAction::kSuccess);
+
+  {
+    // User clicks on close button.
+    base::RunLoop run_loop;
+    IdentityDialogController controller(
+        web_contents(),
+        CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
+        CreateMockOptimizationGuideDecider());
+    controller.SetAccountSelectionViewForTesting(
+        std::make_unique<MockAccountSelectionView>());
+    EXPECT_CALL(*segmentation_platform_service_,
+                CollectTrainingData(_, _, _, _, _))
+        .Times(1);
+
+    ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive);
+    run_loop.Run();
+
+    // User closes the dialog.
+    controller.OnDismiss(IdentityDialogController::DismissReason::kCloseButton);
+  }
+  CheckForSampleAndReset(IdentityDialogController::UserAction::kClosed);
+
+  {
+    // User ignores the UI.
+    base::RunLoop run_loop;
+    IdentityDialogController controller(
+        web_contents(),
+        CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
+        CreateMockOptimizationGuideDecider());
+    controller.SetAccountSelectionViewForTesting(
+        std::make_unique<MockAccountSelectionView>());
+    EXPECT_CALL(*segmentation_platform_service_,
+                CollectTrainingData(_, _, _, _, _))
+        .Times(1);
+
+    ShowAccountsDialog(controller, blink::mojom::RpMode::kPassive);
+    run_loop.Run();
+
+    // Dialog gets dismissed for other reasons.
+    controller.OnDismiss(IdentityDialogController::DismissReason::kOther);
+  }
+  CheckForSampleAndReset(IdentityDialogController::UserAction::kIgnored);
 }

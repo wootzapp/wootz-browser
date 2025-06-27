@@ -26,9 +26,18 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 
+namespace net {
+class SchemeHostPortMatcher;
+}
+
 namespace content {
 
 class WebContentsImpl;
+
+struct NamedObject {
+  GinJavaBoundObject::ObjectID object_id;
+  std::string allowlist_rules;
+};
 
 // This class handles injecting Java objects into a single WebContents /
 // WebView. The Java object itself lives in the browser process on a background
@@ -50,10 +59,15 @@ class GinJavaBridgeDispatcherHost
   GinJavaBridgeDispatcherHost& operator=(const GinJavaBridgeDispatcherHost&) =
       delete;
 
+  // Add a JNI object keyed by a name. Only callable by the specified annotation
+  // to prevent accidental exposed methods.
+  // A matcher must also be provided to specify which origins will have this
+  // object injected.
   void AddNamedObject(
       const std::string& name,
       const base::android::JavaRef<jobject>& object,
-      const base::android::JavaRef<jclass>& safe_annotation_clazz);
+      const base::android::JavaRef<jclass>& safe_annotation_clazz,
+      net::SchemeHostPortMatcher matcher);
   void RemoveNamedObject(const std::string& name);
   void SetAllowObjectContentsInspection(bool allow);
 
@@ -62,18 +76,12 @@ class GinJavaBridgeDispatcherHost
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
   void WebContentsDestroyed() override;
   void PrimaryMainDocumentElementAvailable() override;
-  void PrimaryPageChanged(Page& page) override;
 
   // GinJavaMethodInvocationHelper::DispatcherDelegate
   JavaObjectWeakGlobalRef GetObjectWeakRef(
       GinJavaBoundObject::ObjectID object_id) override;
 
   // Run on the background thread.
-  void OnGetMethods(GinJavaBoundObject::ObjectID object_id,
-                    std::vector<std::string>* returned_method_names);
-  void OnHasMethod(GinJavaBoundObject::ObjectID object_id,
-                   const std::string& method_name,
-                   bool* result);
   void OnInvokeMethod(const GlobalRenderFrameHostId& routing_id,
                       GinJavaBoundObject::ObjectID object_id,
                       const std::string& method_name,
@@ -118,8 +126,6 @@ class GinJavaBridgeDispatcherHost
                                       bool should_create);
 
   // Run on the UI thread.
-  void InstallFilterAndRegisterAllRoutingIds();
-  void InstallFilterAndRegisterRoutingId(RenderFrameHost* render_frame_host);
   WebContentsImpl* web_contents() const;
   void RemoteDisconnected(const content::GlobalRenderFrameHostId& routing_id);
 
@@ -140,13 +146,13 @@ class GinJavaBridgeDispatcherHost
                                   GinJavaBoundObject::ObjectID object_id);
 
   // The following objects are used only on the UI thread.
-
-  typedef std::map<std::string, GinJavaBoundObject::ObjectID> NamedObjectMap;
+  typedef std::map<std::string, NamedObject> NamedObjectMap;
   NamedObjectMap named_objects_;
 
   // The following objects are used on both threads, so locking must be used.
 
   GinJavaBoundObject::ObjectID next_object_id_ = 1;
+
   // Every time a GinJavaBoundObject backed by a real Java object is
   // created/destroyed, we insert/remove a strong ref to that Java object into
   // this set so that it doesn't get garbage collected while it's still
@@ -172,7 +178,6 @@ class GinJavaBridgeDispatcherHost
            mojo::AssociatedRemote<mojom::GinJavaBridge>>
       remotes_;
 
-  const bool mojo_enabled_;
   const bool mojo_skip_clear_on_main_document_;
 };
 

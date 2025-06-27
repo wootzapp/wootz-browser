@@ -11,6 +11,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
@@ -18,7 +19,6 @@
 #include "base/threading/sequence_bound.h"
 #include "base/types/expected.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/policy/messaging_layer/storage_selector/storage_selector.h"
 #include "chrome/browser/policy/messaging_layer/util/dm_token_retriever_provider.h"
 #include "chrome/browser/policy/messaging_layer/util/reporting_server_connector.h"
@@ -26,6 +26,7 @@
 #include "components/reporting/client/dm_token_retriever.h"
 #include "components/reporting/client/report_queue_configuration.h"
 #include "components/reporting/storage/storage_module_interface.h"
+#include "components/reporting/util/reporting_errors.h"
 #include "components/reporting/util/status.h"
 #include "components/reporting/util/statusor.h"
 
@@ -347,6 +348,10 @@ void ReportingClient::AsyncStartUploader(
     std::move(start_uploader_cb)
         .Run(base::unexpected(
             Status(error::UNAVAILABLE, "Client not available")));
+    base::UmaHistogramEnumeration(
+        reporting::kUmaUnavailableErrorReason,
+        UnavailableErrorReason::REPORTING_CLIENT_IS_NULL,
+        UnavailableErrorReason::MAX_VALUE);
     return;
   }
   auto* const client = static_cast<ReportingClient*>(instance.get());
@@ -362,11 +367,16 @@ void ReportingClient::DeliverAsyncStartUploader(
     // provider. In case of missived Uploader will be provided by
     // EncryptedReportingServiceProvider so it does not need to be
     // enabled here.
-    if (!StorageSelector::is_uploader_required() ||
-        StorageSelector::is_use_missive()) {
+    if (StorageSelector::is_use_missive() ||
+        storage() == nullptr  // report queue provider is not (yet?) ready
+    ) {
       std::move(start_uploader_cb)
           .Run(base::unexpected(
               Status(error::UNAVAILABLE, "Uploader not available")));
+      base::UmaHistogramEnumeration(
+          reporting::kUmaUnavailableErrorReason,
+          UnavailableErrorReason::UPLOAD_PROVIDER_IS_NULL,
+          UnavailableErrorReason::MAX_VALUE);
       return;
     }
     upload_provider_ = CreateLocalUploadProvider(storage());
@@ -379,6 +389,10 @@ void ReportingClient::DeliverAsyncStartUploader(
              bool need_encryption_key, std::vector<EncryptedRecord> records,
              ScopedReservation scoped_reservation) {
             if (!upload_provider) {
+              base::UmaHistogramEnumeration(
+                  reporting::kUmaUnavailableErrorReason,
+                  UnavailableErrorReason::UPLOAD_PROVIDER_IS_NULL,
+                  UnavailableErrorReason::MAX_VALUE);
               return Status{error::UNAVAILABLE, "Uploader not available"};
             }
             upload_provider->RequestUploadEncryptedRecords(

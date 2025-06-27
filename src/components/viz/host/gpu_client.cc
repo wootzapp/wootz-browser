@@ -10,7 +10,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/checked_math.h"
 #include "base/task/single_thread_task_runner.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/host/gpu_host_impl.h"
 #include "components/viz/host/host_gpu_memory_buffer_manager.h"
 #include "gpu/config/gpu_finch_features.h"
@@ -19,11 +18,6 @@
 #include "gpu/ipc/common/gpu_memory_buffer_impl_shared_memory.h"
 #include "gpu/ipc/common/gpu_memory_buffer_support.h"
 #include "services/viz/privileged/mojom/gl/gpu_service.mojom.h"
-
-#if !BUILDFLAG(IS_CHROMEOS)
-#include "base/feature_list.h"
-#include "components/ml/webnn/features.mojom-features.h"
-#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 namespace viz {
 
@@ -55,14 +49,6 @@ void GpuClient::Add(mojo::PendingReceiver<mojom::Gpu> receiver) {
 void GpuClient::OnError(ErrorReason reason) {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   ClearCallback();
-  if (gpu_receivers_.empty() && delegate_) {
-    if (auto* gpu_memory_buffer_manager =
-            delegate_->GetGpuMemoryBufferManager()) {
-      gpu_memory_buffer_manager->DestroyAllGpuMemoryBufferForClient(client_id_);
-    }
-  }
-  if (reason == ErrorReason::kConnectionLost && connection_error_handler_)
-    std::move(connection_error_handler_).Run(this);
 }
 
 void GpuClient::PreEstablishGpuChannel() {
@@ -113,16 +99,10 @@ void GpuClient::RemoveDiskCacheHandles() {
     gpu_host->RemoveChannelDiskCacheHandles(client_id_);
 }
 
-void GpuClient::SetConnectionErrorHandler(
-    ConnectionErrorHandlerClosure connection_error_handler) {
-  connection_error_handler_ = std::move(connection_error_handler);
-}
-
 base::WeakPtr<GpuClient> GpuClient::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-#if !BUILDFLAG(IS_CHROMEOS)
 void GpuClient::BindWebNNContextProvider(
     mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver) {
   if (auto* gpu_host = delegate_->EnsureGpuHost()) {
@@ -130,7 +110,6 @@ void GpuClient::BindWebNNContextProvider(
                                                       client_id_);
   }
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 void GpuClient::OnEstablishGpuChannel(
     mojo::ScopedMessagePipeHandle channel_handle,
@@ -212,7 +191,7 @@ void GpuClient::EstablishGpuChannel(EstablishGpuChannelCallback callback) {
                      weak_factory_.GetWeakPtr()));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 void GpuClient::CreateJpegDecodeAccelerator(
     mojo::PendingReceiver<chromeos_camera::mojom::MjpegDecodeAccelerator>
         jda_receiver) {
@@ -221,7 +200,7 @@ void GpuClient::CreateJpegDecodeAccelerator(
         std::move(jda_receiver));
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 void GpuClient::CreateVideoEncodeAcceleratorProvider(
     mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
@@ -229,17 +208,6 @@ void GpuClient::CreateVideoEncodeAcceleratorProvider(
   if (auto* gpu_host = delegate_->EnsureGpuHost()) {
     gpu_host->gpu_service()->CreateVideoEncodeAcceleratorProvider(
         std::move(vea_provider_receiver));
-  }
-}
-
-void GpuClient::CreateClientGpuMemoryBufferFactory(
-    mojo::PendingReceiver<gpu::mojom::ClientGmbInterface> receiver) {
-  // Send the PendingReceiver to GpuService via IPC.
-  if (auto* gpu_host = delegate_->EnsureGpuHost()) {
-    gpu_host->gpu_service()->BindClientGmbInterface(std::move(receiver),
-                                                    client_id_);
-  } else {
-    receiver.ResetWithReason(0, "Can not bind the ClientGmbInterface.");
   }
 }
 

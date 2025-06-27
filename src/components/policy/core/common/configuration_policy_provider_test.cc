@@ -10,6 +10,7 @@
 #include "base/functional/callback.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/types/expected_macros.h"
 #include "base/values.h"
 #include "components/policy/core/common/chrome_schema.h"
 #include "components/policy/core/common/configuration_policy_provider.h"
@@ -127,9 +128,9 @@ const char kKeyDictionary[] = "DictionaryPolicy";
 
 }  // namespace test_keys
 
-PolicyTestBase::PolicyTestBase() {}
+PolicyTestBase::PolicyTestBase() = default;
 
-PolicyTestBase::~PolicyTestBase() {}
+PolicyTestBase::~PolicyTestBase() = default;
 
 void PolicyTestBase::SetUp() {
   const PolicyNamespace ns(POLICY_DOMAIN_CHROME, "");
@@ -142,14 +143,13 @@ void PolicyTestBase::TearDown() {
 
 bool PolicyTestBase::RegisterSchema(const PolicyNamespace& ns,
                                     const std::string& schema_string) {
-  std::string error;
-  Schema schema = Schema::Parse(schema_string, &error);
-  if (schema.valid()) {
-    schema_registry_.RegisterComponent(ns, schema);
-    return true;
-  }
-  ADD_FAILURE() << error;
-  return false;
+  ASSIGN_OR_RETURN(const auto schema, Schema::Parse(schema_string),
+                   [](const auto& e) {
+                     ADD_FAILURE() << e;
+                     return false;
+                   });
+  schema_registry_.RegisterComponent(ns, schema);
+  return true;
 }
 
 void PolicyTestBase::RegisterChromeSchema(const PolicyNamespace& ns) {
@@ -161,7 +161,7 @@ PolicyProviderTestHarness::PolicyProviderTestHarness(PolicyLevel level,
                                                      PolicySource source)
     : level_(level), scope_(scope), source_(source) {}
 
-PolicyProviderTestHarness::~PolicyProviderTestHarness() {}
+PolicyProviderTestHarness::~PolicyProviderTestHarness() = default;
 
 PolicyLevel PolicyProviderTestHarness::policy_level() const {
   return level_;
@@ -180,9 +180,9 @@ void PolicyProviderTestHarness::Install3rdPartyPolicy(
   FAIL();
 }
 
-ConfigurationPolicyProviderTest::ConfigurationPolicyProviderTest() {}
+ConfigurationPolicyProviderTest::ConfigurationPolicyProviderTest() = default;
 
-ConfigurationPolicyProviderTest::~ConfigurationPolicyProviderTest() {}
+ConfigurationPolicyProviderTest::~ConfigurationPolicyProviderTest() = default;
 
 void ConfigurationPolicyProviderTest::SetUp() {
   PolicyTestBase::SetUp();
@@ -358,10 +358,10 @@ TEST_P(ConfigurationPolicyProviderTest, RefreshPolicies) {
 }
 
 Configuration3rdPartyPolicyProviderTest::
-    Configuration3rdPartyPolicyProviderTest() {}
+    Configuration3rdPartyPolicyProviderTest() = default;
 
 Configuration3rdPartyPolicyProviderTest::
-    ~Configuration3rdPartyPolicyProviderTest() {}
+    ~Configuration3rdPartyPolicyProviderTest() = default;
 
 TEST_P(Configuration3rdPartyPolicyProviderTest, Load3rdParty) {
   base::Value::Dict policy_dict;

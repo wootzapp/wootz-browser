@@ -26,9 +26,9 @@
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/client_update_protocol/ecdsa.h"
 #include "components/network_time/network_time_pref_names.h"
+#include "components/network_time/time_tracker/time_tracker.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "net/base/load_flags.h"
@@ -56,9 +56,9 @@
 
 namespace network_time {
 
-// Network time queries are enabled on all desktop platforms except ChromeOS,
-// which uses tlsdated to set the system time.
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_IOS)
+// Network time queries are enabled on Android and all desktop platforms except
+// Chrome OS, which uses tlsdated to set the system time.
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_IOS)
 BASE_FEATURE(kNetworkTimeServiceQuerying,
              "NetworkTimeServiceQuerying",
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -106,13 +106,11 @@ constexpr base::FeatureParam<NetworkTimeTracker::FetchBehavior>::Option
 };
 constexpr base::FeatureParam<NetworkTimeTracker::FetchBehavior> kFetchBehavior{
     &kNetworkTimeServiceQuerying, "FetchBehavior",
-    NetworkTimeTracker::FETCHES_ON_DEMAND_ONLY, &kFetchBehaviorOptions};
+    NetworkTimeTracker::FETCHES_IN_BACKGROUND_AND_ON_DEMAND,
+    &kFetchBehaviorOptions};
 
 // Number of time measurements performed in a given network time calculation.
 const uint32_t kNumTimeMeasurements = 7;
-
-// Amount of divergence allowed between wall clock and tick clock.
-const uint32_t kClockDivergenceSeconds = 60;
 
 // Maximum time lapse before deserialized data are considered stale.
 const uint32_t kSerializedDataMaxAgeDays = 7;
@@ -140,16 +138,16 @@ const uint32_t kTimeServerMaxSkewSeconds = 10;
 const char kTimeServiceURL[] = "http://clients2.google.com/time/1/current";
 
 // This is an ECDSA prime256v1 named-curve key.
-const int kKeyVersion = 8;
-const uint8_t kKeyPubBytes[] = {
-    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02,
-    0x01, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07, 0x03,
-    0x42, 0x00, 0x04, 0x62, 0x54, 0x7B, 0x74, 0x30, 0xD7, 0x1A, 0x9C, 0x73,
-    0x88, 0xC8, 0xEE, 0x9B, 0x27, 0x57, 0xCA, 0x2C, 0xCA, 0x93, 0xBF, 0xEA,
-    0x1B, 0xD1, 0x07, 0x58, 0xBB, 0xFF, 0x83, 0x70, 0x30, 0xD0, 0x3C, 0xC7,
-    0x7B, 0x40, 0x60, 0x8D, 0x3E, 0x11, 0x4E, 0x0C, 0x97, 0x16, 0xBF, 0xA7,
-    0x31, 0xAC, 0x29, 0xBC, 0x27, 0x13, 0x69, 0xB8, 0x4D, 0x2B, 0x67, 0x1C,
-    0x90, 0x4C, 0x44, 0x50, 0x6E, 0xD1, 0xE1};
+const int kKeyVersion = 9;
+constexpr auto kPubKey = std::to_array<uint8_t>(
+    {0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02,
+     0x01, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07, 0x03,
+     0x42, 0x00, 0x04, 0x51, 0x8B, 0x06, 0x03, 0x4D, 0xEA, 0x13, 0xC3, 0x32,
+     0x9B, 0x15, 0x73, 0xD6, 0xBC, 0x47, 0x33, 0x3F, 0xB6, 0x95, 0x0E, 0x5D,
+     0x52, 0x73, 0x70, 0x5D, 0xE4, 0x92, 0xBD, 0xFD, 0xC5, 0xB9, 0xC6, 0x51,
+     0x81, 0x2D, 0x8B, 0x46, 0xC4, 0x4C, 0xB0, 0xA5, 0xC6, 0xDB, 0x5B, 0xE4,
+     0xDB, 0x80, 0x57, 0x6B, 0x4D, 0x08, 0x9C, 0x3D, 0x8B, 0xC2, 0xD9, 0x27,
+     0x9A, 0xDE, 0x3D, 0xE2, 0xCC, 0x0A, 0x20});
 
 std::string GetServerProof(
     scoped_refptr<net::HttpResponseHeaders> response_headers) {
@@ -173,11 +171,13 @@ NetworkTimeTracker::NetworkTimeTracker(
     std::unique_ptr<const base::TickClock> tick_clock,
     PrefService* pref_service,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    std::optional<FetchBehavior> fetch_behavior)
+    std::optional<FetchBehavior> fetch_behavior,
+    base::span<const uint8_t> pubkey)
     : server_url_(kTimeServiceURL),
       max_response_size_(1024),
       backoff_(kBackoffInterval.Get()),
       url_loader_factory_(std::move(url_loader_factory)),
+      query_signer_(kKeyVersion, pubkey.empty() ? kPubKey : pubkey),
       clock_(std::move(clock)),
       tick_clock_(std::move(tick_clock)),
       pref_service_(pref_service),
@@ -192,29 +192,29 @@ NetworkTimeTracker::NetworkTimeTracker(
   std::optional<double> network_time_js =
       time_mapping.FindDouble(kPrefNetworkTime);
   if (time_js && ticks_js && uncertainty_js && network_time_js) {
-    time_at_last_measurement_ =
+    base::Time time_at_last_measurement =
         base::Time::FromMillisecondsSinceUnixEpoch(*time_js);
-    ticks_at_last_measurement_ =
+    base::TimeTicks ticks_at_last_measurement =
         base::TimeTicks::FromInternalValue(static_cast<int64_t>(*ticks_js));
-    network_time_uncertainty_ = base::TimeDelta::FromInternalValue(
-        static_cast<int64_t>(*uncertainty_js));
-    network_time_at_last_measurement_ =
+    base::TimeDelta network_time_uncertainty =
+        base::TimeDelta::FromInternalValue(
+            static_cast<int64_t>(*uncertainty_js));
+    base::Time network_time_at_last_measurement =
         base::Time::FromMillisecondsSinceUnixEpoch(*network_time_js);
+    base::Time now = clock_->Now();
+    if (ticks_at_last_measurement > tick_clock_->NowTicks() ||
+        time_at_last_measurement > now ||
+        now - time_at_last_measurement >
+            base::Days(kSerializedDataMaxAgeDays)) {
+      // Drop saved mapping if either clock has run backward, or the data are
+      // too old.
+      pref_service_->ClearPref(prefs::kNetworkTimeMapping);
+    } else {
+      tracker_.emplace(time_at_last_measurement, ticks_at_last_measurement,
+                       network_time_at_last_measurement,
+                       network_time_uncertainty);
+    }
   }
-  base::Time now = clock_->Now();
-  if (ticks_at_last_measurement_ > tick_clock_->NowTicks() ||
-      time_at_last_measurement_ > now ||
-      now - time_at_last_measurement_ > base::Days(kSerializedDataMaxAgeDays)) {
-    // Drop saved mapping if either clock has run backward, or the data are too
-    // old.
-    pref_service_->ClearPref(prefs::kNetworkTimeMapping);
-    network_time_at_last_measurement_ = base::Time();  // Reset.
-  }
-
-  std::string_view public_key = {reinterpret_cast<const char*>(kKeyPubBytes),
-                                 sizeof(kKeyPubBytes)};
-  query_signer_ =
-      client_update_protocol::Ecdsa::Create(kKeyVersion, public_key);
 
   QueueCheckTime(base::Seconds(0));
 }
@@ -236,7 +236,7 @@ void NetworkTimeTracker::UpdateNetworkTime(base::Time network_time,
   // network_time_uncertainty_ too much by a particularly long latency.
   // Maybe only update when the the new time either improves in accuracy or
   // drifts too far from |network_time_at_last_measurement_|.
-  network_time_at_last_measurement_ = network_time;
+  base::Time network_time_at_last_measurement = network_time;
 
   // Calculate the delay since the network time was received.
   base::TimeTicks now_ticks = tick_clock_->NowTicks();
@@ -245,32 +245,37 @@ void NetworkTimeTracker::UpdateNetworkTime(base::Time network_time,
   DCHECK_GE(latency.InMilliseconds(), 0);
   // Estimate that the time was set midway through the latency time.
   base::TimeDelta offset = task_delay + latency / 2;
-  ticks_at_last_measurement_ = now_ticks - offset;
-  time_at_last_measurement_ = clock_->Now() - offset;
+  base::TimeTicks ticks_at_last_measurement = now_ticks - offset;
+  base::Time time_at_last_measurement = clock_->Now() - offset;
 
   // Can't assume a better time than the resolution of the given time and the
   // ticks measurements involved, each with their own uncertainty.  1 & 2 are
   // the ones used to compute the latency, 3 is the Now() from when this task
   // was posted, 4 and 5 are the Now() and NowTicks() above, and 6 and 7 will be
   // the Now() and NowTicks() in GetNetworkTime().
-  network_time_uncertainty_ =
+  base::TimeDelta network_time_uncertainty =
       resolution + latency +
       kNumTimeMeasurements * base::Milliseconds(kTicksResolutionMs);
 
+  tracker_.emplace(time_at_last_measurement, ticks_at_last_measurement,
+                   network_time_at_last_measurement, network_time_uncertainty);
+
   base::Value::Dict time_mapping;
   time_mapping.Set(kPrefTime,
-                   time_at_last_measurement_.InMillisecondsFSinceUnixEpoch());
+                   time_at_last_measurement.InMillisecondsFSinceUnixEpoch());
   time_mapping.Set(
       kPrefTicks,
-      static_cast<double>(ticks_at_last_measurement_.ToInternalValue()));
+      static_cast<double>(ticks_at_last_measurement.ToInternalValue()));
   time_mapping.Set(
       kPrefUncertainty,
-      static_cast<double>(network_time_uncertainty_.ToInternalValue()));
+      static_cast<double>(network_time_uncertainty.ToInternalValue()));
   time_mapping.Set(
       kPrefNetworkTime,
-      network_time_at_last_measurement_.InMillisecondsFSinceUnixEpoch());
+      network_time_at_last_measurement.InMillisecondsFSinceUnixEpoch());
   pref_service_->Set(prefs::kNetworkTimeMapping,
                      base::Value(std::move(time_mapping)));
+
+  NotifyObservers();
 }
 
 bool NetworkTimeTracker::AreTimeFetchesEnabled() const {
@@ -293,10 +298,6 @@ void NetworkTimeTracker::SetMaxResponseSizeForTesting(size_t limit) {
   max_response_size_ = limit;
 }
 
-void NetworkTimeTracker::SetPublicKeyForTesting(std::string_view key) {
-  query_signer_ = client_update_protocol::Ecdsa::Create(kKeyVersion, key);
-}
-
 bool NetworkTimeTracker::QueryTimeServiceForTesting() {
   CheckTime();
   return time_fetcher_ != nullptr;
@@ -308,13 +309,32 @@ void NetworkTimeTracker::WaitForFetch() {
   run_loop.Run();
 }
 
+void NetworkTimeTracker::AddObserver(NetworkTimeObserver* obs) {
+  observers_.AddObserver(obs);
+}
+
+void NetworkTimeTracker::RemoveObserver(NetworkTimeObserver* obs) {
+  observers_.RemoveObserver(obs);
+}
+
+bool NetworkTimeTracker::GetTrackerState(
+    TimeTracker::TimeTrackerState* state) const {
+  base::Time unused;
+  auto res = GetNetworkTime(&unused, nullptr);
+  if (res != NETWORK_TIME_AVAILABLE) {
+    return false;
+  }
+  *state = tracker_->GetStateAtCreation();
+  return true;
+}
+
 void NetworkTimeTracker::WaitForFetchForTesting(uint32_t nonce) {
-  query_signer_->OverrideNonceForTesting(kKeyVersion, nonce);  // IN-TEST
+  query_signer_.OverrideNonceForTesting(kKeyVersion, nonce);  // IN-TEST
   WaitForFetch();
 }
 
 void NetworkTimeTracker::OverrideNonceForTesting(uint32_t nonce) {
-  query_signer_->OverrideNonceForTesting(kKeyVersion, nonce);
+  query_signer_.OverrideNonceForTesting(kKeyVersion, nonce);  // IN-TEST
 }
 
 base::TimeDelta NetworkTimeTracker::GetTimerDelayForTesting() const {
@@ -322,12 +342,16 @@ base::TimeDelta NetworkTimeTracker::GetTimerDelayForTesting() const {
   return timer_.GetCurrentDelay();
 }
 
+void NetworkTimeTracker::ClearNetworkTimeForTesting() {
+  tracker_ = std::nullopt;
+}
+
 NetworkTimeTracker::NetworkTimeResult NetworkTimeTracker::GetNetworkTime(
     base::Time* network_time,
     base::TimeDelta* uncertainty) const {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(network_time);
-  if (network_time_at_last_measurement_.is_null()) {
+  if (!tracker_.has_value()) {
     if (time_query_completed_) {
       // Time query attempts have been made in the past and failed.
       if (time_fetcher_) {
@@ -343,29 +367,9 @@ NetworkTimeTracker::NetworkTimeResult NetworkTimeTracker::GetNetworkTime(
     return NETWORK_TIME_NO_SYNC_ATTEMPT;
   }
 
-  DCHECK(!ticks_at_last_measurement_.is_null());
-  DCHECK(!time_at_last_measurement_.is_null());
-  base::TimeDelta tick_delta =
-      tick_clock_->NowTicks() - ticks_at_last_measurement_;
-  base::TimeDelta time_delta = clock_->Now() - time_at_last_measurement_;
-  if (time_delta.InMilliseconds() < 0) {  // Has wall clock run backward?
-    DVLOG(1) << "Discarding network time due to wall clock running backward";
-    network_time_at_last_measurement_ = base::Time();
+  if (!tracker_->GetTime(clock_->Now(), tick_clock_->NowTicks(), network_time,
+                         uncertainty)) {
     return NETWORK_TIME_SYNC_LOST;
-  }
-  // Now we know that both |tick_delta| and |time_delta| are positive.
-  base::TimeDelta divergence = tick_delta - time_delta;
-  if (divergence.magnitude() > base::Seconds(kClockDivergenceSeconds)) {
-    // Most likely either the machine has suspended, or the wall clock has been
-    // reset.
-    DVLOG(1) << "Discarding network time due to clocks diverging";
-
-    network_time_at_last_measurement_ = base::Time();
-    return NETWORK_TIME_SYNC_LOST;
-  }
-  *network_time = network_time_at_last_measurement_ + tick_delta;
-  if (uncertainty) {
-    *uncertainty = network_time_uncertainty_ + divergence;
   }
   return NETWORK_TIME_AVAILABLE;
 }
@@ -420,11 +424,10 @@ void NetworkTimeTracker::CheckTime() {
   }
 
   std::string query_string;
-  query_signer_->SignRequest("", &query_string);
-  GURL url = server_url_;
+  query_signer_.SignRequest("", &query_string);
   GURL::Replacements replacements;
   replacements.SetQueryStr(query_string);
-  url = url.ReplaceComponents(replacements);
+  GURL url = server_url_.ReplaceComponents(replacements);
 
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("network_time_component", R"(
@@ -450,7 +453,7 @@ void NetworkTimeTracker::CheckTime() {
           }
         })");
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = url;
+  resource_request->url = std::move(url);
   // Not expecting any cookies, but just in case.
   resource_request->load_flags =
       net::LOAD_BYPASS_CACHE | net::LOAD_DISABLE_CACHE;
@@ -483,24 +486,19 @@ bool NetworkTimeTracker::UpdateTimeFromResponse(
 
   std::string_view response(*response_body);
 
-  DCHECK(query_signer_);
-  if (!query_signer_->ValidateResponse(
+  if (!query_signer_.ValidateResponse(
           response, GetServerProof(time_fetcher_->ResponseInfo()->headers))) {
     DVLOG(1) << "invalid signature";
     return false;
   }
   response.remove_prefix(5);  // Skips leading )]}'\n
-  std::optional<base::Value> value = base::JSONReader::Read(response);
+  std::optional<base::Value::Dict> value = base::JSONReader::ReadDict(response);
   if (!value) {
-    DVLOG(1) << "bad JSON";
-    return false;
-  }
-  if (!value->is_dict()) {
     DVLOG(1) << "not a dictionary";
     return false;
   }
   std::optional<double> current_time_millis =
-      value->GetDict().FindDouble("current_time_millis");
+      value->FindDouble("current_time_millis");
   if (!current_time_millis) {
     DVLOG(1) << "no current_time_millis";
     return false;
@@ -593,6 +591,19 @@ bool NetworkTimeTracker::ShouldIssueTimeQuery() {
   }
 
   return base::RandDouble() < probability;
+}
+
+void NetworkTimeTracker::NotifyObservers() {
+  // Don't notify if the current state is not NETWORK_TIME_AVAILABLE.
+  base::Time unused;
+  auto res = GetNetworkTime(&unused, nullptr);
+  if (res != NETWORK_TIME_AVAILABLE) {
+    return;
+  }
+  TimeTracker::TimeTrackerState state = tracker_->GetStateAtCreation();
+  for (NetworkTimeObserver& obs : observers_) {
+    obs.OnNetworkTimeChanged(state);
+  }
 }
 
 }  // namespace network_time

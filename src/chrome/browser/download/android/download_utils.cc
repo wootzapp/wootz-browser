@@ -17,6 +17,8 @@
 #include "components/download/public/common/download_utils.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/download_item_utils.h"
+#include "content/public/browser/download_manager.h"
+#include "content/public/browser/download_manager_delegate.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
@@ -31,7 +33,6 @@ namespace {
 // If received bytes is more than the size limit and resumption will restart
 // from the beginning, throttle it.
 int kDefaultAutoResumptionSizeLimit = 10 * 1024 * 1024;  // 10 MB
-const char kAutoResumptionSizeLimitParamName[] = "AutoResumptionSizeLimit";
 }  // namespace
 
 static jint JNI_DownloadUtils_GetResumeMode(
@@ -45,6 +46,16 @@ static jint JNI_DownloadUtils_GetResumeMode(
       true /* user_action_required */));
 }
 
+static jboolean JNI_DownloadUtils_IsDownloadRestrictedByPolicy(
+    JNIEnv* env,
+    Profile* profile) {
+  content::DownloadManager* manager = profile->GetDownloadManager();
+  if (manager) {
+    return manager->GetDelegate()->IsDownloadRestrictedByPolicy();
+  }
+  return false;
+}
+
 // static
 base::FilePath DownloadUtils::GetUriStringForPath(
     const base::FilePath& file_path) {
@@ -56,13 +67,7 @@ base::FilePath DownloadUtils::GetUriStringForPath(
 
 // static
 int DownloadUtils::GetAutoResumptionSizeLimit() {
-  std::string value = base::GetFieldTrialParamValueByFeature(
-      chrome::android::kDownloadAutoResumptionThrottling,
-      kAutoResumptionSizeLimitParamName);
-  int size_limit;
-  return base::StringToInt(value, &size_limit)
-             ? size_limit
-             : kDefaultAutoResumptionSizeLimit;
+  return kDefaultAutoResumptionSizeLimit;
 }
 
 // static
@@ -106,15 +111,6 @@ bool DownloadUtils::ShouldAutoOpenDownload(download::DownloadItem* item) {
 bool DownloadUtils::IsOmaDownloadDescription(const std::string& mime_type) {
   JNIEnv* env = base::android::AttachCurrentThread();
   return Java_MimeUtils_isOMADownloadDescription(env, mime_type);
-}
-
-// static
-void DownloadUtils::ShowDownloadManager(bool show_prefetched_content,
-                                        DownloadOpenSource open_source) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_DownloadUtils_showDownloadManager(
-      env, nullptr, nullptr, nullptr, static_cast<jint>(open_source),
-      static_cast<jboolean>(show_prefetched_content));
 }
 
 bool DownloadUtils::IsDownloadUserInitiated(download::DownloadItem* download) {

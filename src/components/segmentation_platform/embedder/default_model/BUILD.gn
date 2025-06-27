@@ -18,12 +18,16 @@ static_library("default_model") {
     "device_switcher_model.h",
     "device_switcher_result_dispatcher.cc",
     "device_switcher_result_dispatcher.h",
+    "fedcm_user_segment.cc",
+    "fedcm_user_segment.h",
     "feed_user_segment.cc",
     "feed_user_segment.h",
     "ios_module_ranker.cc",
     "ios_module_ranker.h",
     "low_user_engagement_model.cc",
     "low_user_engagement_model.h",
+    "metrics_clustering.cc",
+    "metrics_clustering.h",
     "most_visited_tiles_user.cc",
     "most_visited_tiles_user.h",
     "optimization_target_segmentation_dummy.cc",
@@ -38,6 +42,8 @@ static_library("default_model") {
     "shopping_user_model.h",
     "tab_resumption_ranker.cc",
     "tab_resumption_ranker.h",
+    "url_visit_resumption_ranker.cc",
+    "url_visit_resumption_ranker.h",
   ]
   deps = [
     "//base",
@@ -49,6 +55,7 @@ static_library("default_model") {
     "//components/segmentation_platform/public",
     "//components/sync/service",
     "//components/sync_device_info",
+    "//components/visited_url_ranking/public",
     "//services/metrics/public/cpp:ukm_builders",
     "//ui/base",
   ]
@@ -87,9 +94,11 @@ source_set("unit_tests") {
     "database_api_clients_unittest.cc",
     "device_switcher_model_unittest.cc",
     "device_switcher_result_dispatcher_unittest.cc",
+    "fedcm_user_segment_unittest.cc",
     "feed_user_segment_unittest.cc",
     "ios_module_ranker_unittest.cc",
     "low_user_engagement_model_unittest.cc",
+    "metrics_clustering_unittest.cc",
     "most_visited_tiles_user_unittest.cc",
     "optimization_target_segmentation_dummy_unittest.cc",
     "password_manager_user_segment_unittest.cc",
@@ -97,6 +106,7 @@ source_set("unit_tests") {
     "search_user_model_unittest.cc",
     "shopping_user_model_unittest.cc",
     "tab_resumption_ranker_unittest.cc",
+    "url_visit_resumption_ranker_unittest.cc",
   ]
 
   if (is_android) {
@@ -124,6 +134,7 @@ source_set("unit_tests") {
     "//components/sync:test_support",
     "//components/sync_device_info",
     "//components/sync_device_info:test_support",
+    "//components/visited_url_ranking/public",
     "//testing/gtest",
   ]
 

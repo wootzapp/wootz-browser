@@ -25,6 +25,7 @@ import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
+import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.base.WindowAndroid;
@@ -52,15 +53,15 @@ public class PasswordManagerErrorMessageHelperBridge {
      * @return whether the UI can be shown given the conditions above.
      */
     @CalledByNative
-    static boolean shouldShowSignInErrorUI(Profile profile) {
-        final CoreAccountInfo primaryAccountInfo =
-                IdentityServicesProvider.get()
-                        .getIdentityManager(profile)
-                        .getPrimaryAccountInfo(ConsentLevel.SIGNIN);
+    static boolean shouldShowSignInErrorUi(Profile profile) {
+        final IdentityManager identityManager =
+                IdentityServicesProvider.get().getIdentityManager(profile);
+        if (identityManager == null) return false;
+
         // It is possible that the account is removed from Chrome between the password manager
         // calling the Google Play Services backend and Chrome receiving the reply. In that
         // case, the error is no longer relevant/fixable.
-        if (primaryAccountInfo == null) return false;
+        if (identityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN) == null) return false;
 
         PrefService prefService = UserPrefs.get(profile);
         long lastShownTimestamp =
@@ -83,7 +84,7 @@ public class PasswordManagerErrorMessageHelperBridge {
      * @return whether the UI can be shown given the conditions above.
      */
     @CalledByNative
-    static boolean shouldShowUpdateGMSCoreErrorUI(Profile profile) {
+    static boolean shouldShowUpdateGMSCoreErrorUi(Profile profile) {
         PrefService prefService = UserPrefs.get(profile);
         long lastShownTimestamp =
                 Long.valueOf(prefService.getString(Pref.UPM_ERROR_UI_SHOWN_TIMESTAMP));
@@ -153,6 +154,6 @@ public class PasswordManagerErrorMessageHelperBridge {
     static void launchGmsUpdate(WindowAndroid windowAndroid) {
         assert windowAndroid.getActivity().get() != null;
         Activity activity = windowAndroid.getActivity().get();
-        PasswordManagerHelper.launchGmsUpdate(activity);
+        GmsUpdateLauncher.launch(activity);
     }
 }

@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 
+#include "ash/constants/ash_features.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
@@ -26,6 +27,7 @@
 #include "google_apis/google_api_keys.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_status_code.h"
+#include "services/device/public/cpp/geolocation/network_location_request_source.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
@@ -141,12 +143,23 @@ void RecordUmaResult(SimpleGeolocationRequestResult result, size_t retries) {
                            std::min(retries, kMaxRetriesValueInHistograms));
 }
 
+void RecordUmaNetworkLocationRequestSource() {
+  base::UmaHistogramEnumeration(
+      "Geolocation.NetworkLocationRequest.Source",
+      device::NetworkLocationRequestSource::kSimpleGeolocationProvider);
+}
+
 // Creates the request url to send to the server.
 GURL GeolocationRequestURL(const GURL& url) {
   if (url != SimpleGeolocationProvider::DefaultGeolocationProviderURL())
     return url;
 
-  std::string api_key = google_apis::GetAPIKey();
+  std::string api_key;
+  if (features::IsCrosSeparateGeoApiKeyEnabled()) {
+    api_key = google_apis::GetCrosSystemGeoAPIKey();
+  } else {
+    api_key = google_apis::GetAPIKey();
+  }
   if (api_key.empty())
     return url;
 
@@ -449,6 +462,7 @@ void SimpleGeolocationRequest::StartRequest() {
       shared_url_loader_factory_.get(),
       base::BindOnce(&SimpleGeolocationRequest::OnSimpleURLLoaderComplete,
                      base::Unretained(this)));
+  RecordUmaNetworkLocationRequestSource();
 }
 
 void SimpleGeolocationRequest::MakeRequest(ResponseCallback callback) {
@@ -468,6 +482,10 @@ void SimpleGeolocationRequest::SetTestMonitor(
 
 std::string SimpleGeolocationRequest::FormatRequestBodyForTesting() const {
   return FormatRequestBody();
+}
+
+GURL SimpleGeolocationRequest::GetServiceURLForTesting() const {
+  return request_url_;
 }
 
 void SimpleGeolocationRequest::Retry(bool server_error) {

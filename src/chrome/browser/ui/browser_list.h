@@ -11,17 +11,20 @@
 
 #include "base/containers/flat_set.h"
 #include "base/functional/callback_forward.h"
+#include "base/functional/function_ref.h"
 #include "base/lazy_instance.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/stack_allocated.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/browser.h"
 
 #if BUILDFLAG(IS_ANDROID)
 // #error This file should only be included on desktop.
 #endif
+
+enum class BrowserClosingStatus;
 
 class Browser;
 class Profile;
@@ -37,6 +40,7 @@ class BrowserList {
  public:
   using BrowserSet = base::flat_set<raw_ptr<Browser, CtnExperimental>>;
   using BrowserVector = std::vector<raw_ptr<Browser, VectorExperimental>>;
+  using BrowserWeakVector = std::vector<base::WeakPtr<Browser>>;
   using CloseCallback = base::RepeatingCallback<void(const base::FilePath&)>;
   using const_iterator = BrowserVector::const_iterator;
   using const_reverse_iterator = BrowserVector::const_reverse_iterator;
@@ -71,6 +75,13 @@ class BrowserList {
 
   Browser* get(size_t index) const { return browsers_[index]; }
 
+  // Enumerate the current browser and the new browser in-order.
+  void ForEachCurrentAndNewBrowser(
+      base::FunctionRef<void(Browser*)> on_browser);
+
+  // Enumerate the current browser in-order.
+  void ForEachCurrentBrowser(base::FunctionRef<void(Browser*)> on_browser);
+
   // Returns iterated access to list of open browsers ordered by activation. The
   // underlying data structure is a vector and we push_back on recent access so
   // a reverse iterator gives the latest accessed browser first.
@@ -81,7 +92,8 @@ class BrowserList {
     return browsers_ordered_by_activation_.rend();
   }
 
-  // Convenience method for iterating over browsers in activation order.
+  // Convenience method for iterating over browsers in activation order. I.e.
+  // the most recently used browser will be at the front of the list.
   // Example:
   // for (Browser* browser : BrowserList::GetInstance()->OrderedByActivation())
   BrowsersOrderedByActivationRange OrderedByActivation() const {
@@ -196,7 +208,7 @@ class BrowserList {
   // method to handle any other OnBeforeUnload events. If aborted in the
   // OnBeforeUnload event, PostTryToCloseBrowserWindow will call
   // |on_close_aborted| instead and reset all OnBeforeUnload event handlers.
-  static void TryToCloseBrowserList(const BrowserVector& browsers_to_close,
+  static void TryToCloseBrowserList(const BrowserWeakVector& browsers_to_close,
                                     const CloseCallback& on_close_success,
                                     const CloseCallback& on_close_aborted,
                                     const base::FilePath& profile_path,
@@ -208,7 +220,7 @@ class BrowserList {
   // |profile_path|. Otherwise, resets all the OnBeforeUnload event handlers and
   // calls |on_close_aborted|.
   static void PostTryToCloseBrowserWindow(
-      const BrowserVector& browsers_to_close,
+      const BrowserWeakVector& browsers_to_close,
       const CloseCallback& on_close_success,
       const CloseCallback& on_close_aborted,
       const base::FilePath& profile_path,

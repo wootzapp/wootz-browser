@@ -6,30 +6,32 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WIDGET_FRAME_WIDGET_H_
 
 #include <optional>
+#include <vector>
 
 #include "base/time/time.h"
+#include "base/types/optional_ref.h"
+#include "cc/input/browser_controls_offset_tag_modifications.h"
 #include "mojo/public/mojom/base/text_direction.mojom-blink.h"
 #include "services/viz/public/mojom/compositing/frame_sink_id.mojom-blink.h"
 #include "third_party/blink/public/mojom/input/input_handler.mojom-blink.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-blink.h"
 #include "third_party/blink/public/platform/web_text_input_info.h"
 #include "third_party/blink/public/platform/web_text_input_type.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "ui/base/ime/mojom/text_input_state.mojom-blink.h"
 #include "ui/base/ime/mojom/virtual_keyboard_types.mojom-blink.h"
-#include "ui/base/ui_base_types.h"
+#include "ui/base/mojom/window_show_state.mojom-blink-forward.h"
 #include "ui/gfx/mojom/delegated_ink_metadata.mojom-blink.h"
 
 namespace cc {
 class AnimationHost;
 class AnimationTimeline;
+class DrawImage;
 enum class EventListenerClass;
 enum class EventListenerProperties;
 class Layer;
 class LayerTreeSettings;
 class LayerTreeDebugState;
-class PaintImage;
 struct ElementId;
 }  // namespace cc
 
@@ -48,6 +50,7 @@ struct FrameTimingDetails;
 
 namespace blink {
 
+class AnimationFrameTimingInfo;
 class LocalFrame;
 // In interface exposed within Blink from local root frames that provides
 // local-root specific things related to compositing and input. This
@@ -72,13 +75,14 @@ class PLATFORM_EXPORT FrameWidget {
 
   // Posts a task with the given delay, then requests an animation frame from
   // the compositor (ie LayerTreeHost::SetNeedsAnimate()).
-  virtual void RequestAnimationAfterDelay(const base::TimeDelta&) = 0;
+  virtual void RequestAnimationAfterDelay(const base::TimeDelta&,
+                                          bool urgent) = 0;
 
   // Sets the root layer. The |layer| can be null when detaching the root layer.
   virtual void SetRootLayer(scoped_refptr<cc::Layer> layer) = 0;
 
   // Image decode functionality.
-  virtual void RequestDecode(const cc::PaintImage&,
+  virtual void RequestDecode(const cc::DrawImage&,
                              base::OnceCallback<void(bool)>) = 0;
 
   // Forwards to `WebFrameWidget::NotifyPresentationTime()`.
@@ -86,7 +90,7 @@ class PLATFORM_EXPORT FrameWidget {
   // is presented to the user. If the presentation is successful, the argument
   // passed to the callback is the presentation timestamp; otherwise, it would
   // be timestamp of when the failure is detected.
-  virtual void NotifyPresentationTimeInBlink(
+  virtual void NotifyPresentationTime(
       base::OnceCallback<void(const viz::FrameTimingDetails&)>
           presentation_callback) = 0;
 
@@ -104,9 +108,12 @@ class PLATFORM_EXPORT FrameWidget {
   virtual const cc::LayerTreeSettings* GetLayerTreeSettings() = 0;
 
   // Sets the state of the browser controls. (Used for URL bar animations.)
-  virtual void UpdateBrowserControlsState(cc::BrowserControlsState constraints,
-                                          cc::BrowserControlsState current,
-                                          bool animate) = 0;
+  virtual void UpdateBrowserControlsState(
+      cc::BrowserControlsState constraints,
+      cc::BrowserControlsState current,
+      bool animate,
+      base::optional_ref<const cc::BrowserControlsOffsetTagModifications>
+          offset_tag_modifications) = 0;
 
   // Set or get what event handlers exist in the document contained in the
   // WebWidget in order to inform the compositor thread if it is able to handle
@@ -122,23 +129,17 @@ class PLATFORM_EXPORT FrameWidget {
   virtual mojom::blink::DisplayMode DisplayMode() const = 0;
 
   // Returns the WindowShowState in use for the widget.
-  virtual ui::WindowShowState WindowShowState() const = 0;
+  virtual ui::mojom::blink::WindowShowState WindowShowState() const = 0;
 
   // Returns the CanResize value of the widget.
   virtual bool Resizable() const = 0;
 
   // Returns the viewport segments for the widget.
-  virtual const WebVector<gfx::Rect>& ViewportSegments() const = 0;
+  virtual const std::vector<gfx::Rect>& ViewportSegments() const = 0;
 
   // Sets the ink metadata on the layer tree host
   virtual void SetDelegatedInkMetadata(
       std::unique_ptr<gfx::DelegatedInkMetadata> metadata) = 0;
-
-  // Called when the main thread overscrolled.
-  virtual void DidOverscroll(const gfx::Vector2dF& overscroll_delta,
-                             const gfx::Vector2dF& accumulated_overscroll,
-                             const gfx::PointF& position,
-                             const gfx::Vector2dF& velocity) = 0;
 
   // For a scrollbar scroll action, requests that a gesture of |injected_type|
   // be reissued at a later point in time. |injected_type| is required to be one
@@ -160,24 +161,19 @@ class PLATFORM_EXPORT FrameWidget {
   virtual void GetCompositionCharacterBoundsInWindow(
       Vector<gfx::Rect>* bounds_in_dips) = 0;
 
-  // Return the visible line bounds in screen coordinates.
-  virtual Vector<gfx::Rect>& GetVisibleLineBoundsOnScreen() = 0;
+  virtual bool HasImeRenderWidgetHost() const { return false; }
 
   // Called to send new cursor anchor info data to the browser.
-  virtual void UpdateCursorAnchorInfo() = 0;
-
-  // Update the current visible line bounds for the focused element.
-  virtual void UpdateLineBounds() = 0;
+  virtual void UpdateCursorAnchorInfo(bool update_requested) = 0;
 
   virtual gfx::Range CompositionRange() = 0;
   // Returns ime_text_spans and corresponding window coordinates for the list
   // of given spans.
   virtual Vector<ui::mojom::blink::ImeTextSpanInfoPtr> GetImeTextSpansInfo(
-      const WebVector<ui::ImeTextSpan>& ime_text_spans) = 0;
+      const std::vector<ui::ImeTextSpan>& ime_text_spans) = 0;
   virtual WebTextInputInfo TextInputInfo() = 0;
   virtual ui::mojom::blink::VirtualKeyboardVisibilityRequest
   GetLastVirtualKeyboardVisibilityRequest() = 0;
-  virtual bool ShouldSuppressKeyboardForFocusedElement() = 0;
 
   // Return the edit context bounds in window coordinates.
   virtual void GetEditContextBoundsInWindow(
@@ -248,7 +244,6 @@ class PLATFORM_EXPORT FrameWidget {
 
   // Converts from DIPs to Blink coordinate space (ie. Viewport/Physical
   // pixels).
-  virtual gfx::RectF DIPsToBlinkSpace(const gfx::RectF& rect) = 0;
   virtual gfx::PointF DIPsToBlinkSpace(const gfx::PointF& point) = 0;
   virtual gfx::Point DIPsToRoundedBlinkSpace(const gfx::Point& point) = 0;
   virtual float DIPsToBlinkSpace(float scalar) = 0;
@@ -321,6 +316,12 @@ class PLATFORM_EXPORT FrameWidget {
   virtual void OnTaskCompletedForFrame(base::TimeTicks start_time,
                                        base::TimeTicks end_time,
                                        LocalFrame*) = 0;
+
+  // Implementation of
+  // https://w3c.github.io/long-animation-frames/#record-rendering-time (the
+  // other parameters are recorded earlier).
+  virtual AnimationFrameTimingInfo* RecordRenderingUpdateEndTime(
+      base::TimeTicks) = 0;
 };
 
 }  // namespace blink

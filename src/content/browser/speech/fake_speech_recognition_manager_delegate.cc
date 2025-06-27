@@ -4,6 +4,7 @@
 
 #include "content/browser/speech/fake_speech_recognition_manager_delegate.h"
 
+#include "base/notimplemented.h"
 #include "base/run_loop.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/speech_recognition_manager_delegate.h"
@@ -46,6 +47,20 @@ void MockOnDeviceWebSpeechRecognitionService::BindRecognizer(
   std::move(callback).Run(false);
 }
 
+void MockOnDeviceWebSpeechRecognitionService::BindWebSpeechRecognizer(
+    mojo::PendingReceiver<media::mojom::SpeechRecognitionSession>
+        session_receiver,
+    mojo::PendingRemote<media::mojom::SpeechRecognitionSessionClient>
+        session_client,
+    mojo::PendingReceiver<media::mojom::SpeechRecognitionAudioForwarder>
+        audio_forwarder,
+    int channel_count,
+    int sample_rate,
+    media::mojom::SpeechRecognitionOptionsPtr options,
+    bool continuous) {
+  NOTIMPLEMENTED();
+}
+
 // media::mojom::SpeechRecognitionRecognizer:
 void MockOnDeviceWebSpeechRecognitionService::MarkDone() {
   recognizer_client_remote_->OnSpeechRecognitionStopped();
@@ -85,19 +100,12 @@ void MockOnDeviceWebSpeechRecognitionService::
 void FakeSpeechRecognitionManagerDelegate::CheckRecognitionIsAllowed(
     int session_id,
     base::OnceCallback<void(bool ask_user, bool is_allowed)> callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 SpeechRecognitionEventListener*
 FakeSpeechRecognitionManagerDelegate::GetEventListener() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
-}
-
-bool FakeSpeechRecognitionManagerDelegate::FilterProfanities(
-    int render_process_id) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void FakeSpeechRecognitionManagerDelegate::BindSpeechRecognitionContext(

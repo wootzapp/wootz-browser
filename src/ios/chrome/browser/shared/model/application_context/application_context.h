@@ -10,6 +10,15 @@
 #include <string>
 
 #include "base/memory/scoped_refptr.h"
+#import "components/optimization_guide/optimization_guide_buildflags.h"
+
+#if BUILDFLAG(BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE)
+#include "base/memory/weak_ptr.h"
+#endif  // BUILDFLAG(BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE)
+
+namespace auto_deletion {
+class AutoDeletionService;
+}  // namespace auto_deletion
 
 namespace component_updater {
 class ComponentUpdateService;
@@ -17,10 +26,6 @@ class ComponentUpdateService;
 
 namespace gcm {
 class GCMDriver;
-}
-
-namespace ios {
-class ChromeBrowserStateManager;
 }
 
 namespace metrics {
@@ -52,12 +57,19 @@ namespace network_time {
 class NetworkTimeTracker;
 }
 
+#if BUILDFLAG(BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE)
+namespace optimization_guide {
+class OnDeviceModelComponentStateManager;
+class OnDeviceModelServiceController;
+}  // namespace optimization_guide
+#endif  // BUILDFLAG(BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE)
+
 namespace os_crypt_async {
 class OSCryptAsync;
 }
 
-namespace segmentation_platform {
-class OTRWebStateObserver;
+namespace signin {
+class ActivePrimaryAccountsMetricsRecorder;
 }
 
 namespace ukm {
@@ -68,15 +80,20 @@ namespace variations {
 class VariationsService;
 }
 
+class AdditionalFeaturesController;
+class AccountProfileMapper;
 class ApplicationContext;
 class BrowserPolicyConnectorIOS;
+class IncognitoSessionTracker;
 class IOSChromeIOThread;
 class PrefService;
+
+class ProfileManagerIOS;
+
 class PushNotificationService;
 class SafeBrowsingService;
 @protocol SingleSignOnService;
 class SystemIdentityManager;
-@class UpgradeCenter;
 
 // Gets the global application context. Cannot return null.
 ApplicationContext* GetApplicationContext();
@@ -90,14 +107,23 @@ class ApplicationContext {
 
   virtual ~ApplicationContext();
 
-  // Invoked when application enters foreground. Cancels the effect of
+  // Invoked when the application enters the foreground. Cancels the effect of
   // OnAppEnterBackground(), in particular removes the boolean preference
-  // indicating that the ChromeBrowserStates have been shutdown.
+  // indicating that the Profiles have been shutdown.
   virtual void OnAppEnterForeground() = 0;
 
-  // Invoked when application enters background. Saves any state that must be
-  // saved before shutdown can continue.
+  // Invoked when the application enters the background from the foreground.
+  // Saves any state that must be saved before shutdown can continue.
   virtual void OnAppEnterBackground() = 0;
+
+  // Invoked when the application is launched in the background and begins doing
+  // background update work.
+  virtual void OnAppStartedBackgroundProcessing() = 0;
+
+  // Invoked when the application has completed update work in the background,
+  // but is not yet in the foreground. At this stage the app is effectively
+  // "background idle".
+  virtual void OnAppFinishedBackgroundProcessing() = 0;
 
   // Returns whether the last complete shutdown was clean (i.e. happened while
   // the application was backgrounded).
@@ -123,8 +149,8 @@ class ApplicationContext {
   // Gets the country locale used by the application
   virtual const std::string& GetApplicationCountry() = 0;
 
-  // Gets the ChromeBrowserStateManager used by this application.
-  virtual ios::ChromeBrowserStateManager* GetChromeBrowserStateManager() = 0;
+  // Gets the Profile Manager used by this application.
+  virtual ProfileManagerIOS* GetProfileManager() = 0;
 
   // Gets the manager for the various metrics-related service, constructing it
   // if necessary. May return null.
@@ -133,6 +159,11 @@ class ApplicationContext {
 
   // Gets the MetricsService used by this application. May return null.
   virtual metrics::MetricsService* GetMetricsService() = 0;
+
+  // Gets the ActivePrimaryAccountsMetricsRecorder used by this application. May
+  // return null.
+  virtual signin::ActivePrimaryAccountsMetricsRecorder*
+  GetActivePrimaryAccountsMetricsRecorder() = 0;
 
   // Gets the UkmRecorder used by this application. May return null.
   virtual ukm::UkmRecorder* GetUkmRecorder() = 0;
@@ -174,21 +205,35 @@ class ApplicationContext {
   // Returns the SystemIdentityManager instance used by this application.
   virtual SystemIdentityManager* GetSystemIdentityManager() = 0;
 
-  // Returns the application's OTRWebStateObserver for segmentation platform.
-  virtual segmentation_platform::OTRWebStateObserver*
-  GetSegmentationOTRWebStateObserver() = 0;
+  // Returns the AccountProfileMapper instance used by this application.
+  virtual AccountProfileMapper* GetAccountProfileMapper() = 0;
+
+  // Returns the application's IncognitoSessionTracker instance.
+  virtual IncognitoSessionTracker* GetIncognitoSessionTracker() = 0;
 
   // Returns the application's PushNotificationService that handles all
   // interactions with the push notification server
   virtual PushNotificationService* GetPushNotificationService() = 0;
 
-  // Returns the application's UpgradeCenter that handle presenting all the
-  // notification to upgrade Chrome on iOS.
-  virtual UpgradeCenter* GetUpgradeCenter() = 0;
-
   // Returns the application's OSCryptAsync instance which can be used to create
   // instances of Encryptor for data encryption.
   virtual os_crypt_async::OSCryptAsync* GetOSCryptAsync() = 0;
+
+  // Returns the application's AdditionalFeaturesController that manages some
+  // features not declared by `BASE_DECLARE_FEATURE()`.
+  virtual AdditionalFeaturesController* GetAdditionalFeaturesController() = 0;
+
+  // Returns the AutoDeletionService instance.
+  virtual auto_deletion::AutoDeletionService* GetAutoDeletionService() = 0;
+
+#if BUILDFLAG(BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE)
+  // Returns the application's OnDeviceModelServiceController which manages the
+  // on-device model service.
+  virtual optimization_guide::OnDeviceModelServiceController*
+  GetOnDeviceModelServiceController(
+      base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
+          on_device_component_manager) = 0;
+#endif  // BUILD_WITH_INTERNAL_OPTIMIZATION_GUIDE
 
  protected:
   // Sets the global ApplicationContext instance.

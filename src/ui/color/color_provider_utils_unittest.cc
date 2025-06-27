@@ -47,8 +47,9 @@ TEST_F(ColorProviderUtilsTest, RendererColorMapGeneratesProvidersCorrectly) {
   // enum is generated in the resulting RendererColorMap.
   ui::ColorProvider color_provider;
   ui::ColorMixer& mixer = color_provider.AddMixer();
-  for (int i = ui::kUiColorsStart + 1; i < ui::kUiColorsEnd; ++i)
+  for (int i = ui::kUiColorsStart + 1; i < ui::kUiColorsEnd; ++i) {
     mixer[i] = {static_cast<SkColor>(i)};
+  }
 
   // The size of the RendererColorMap should match number of defined
   // RendererColorIds.
@@ -60,9 +61,9 @@ TEST_F(ColorProviderUtilsTest, RendererColorMapGeneratesProvidersCorrectly) {
   // also match the number of defined RendererColorIds.
   auto new_color_provider =
       ui::CreateColorProviderFromRendererColorMap(renderer_color_map);
-  new_color_provider.GenerateColorMapForTesting();
+  new_color_provider->GenerateColorMapForTesting();
   EXPECT_EQ(kTotaltRendererColorIds,
-            new_color_provider.color_map_for_testing().size());
+            new_color_provider->color_map_for_testing().size());
 }
 
 TEST_F(ColorProviderUtilsTest, ColorProviderRendererColorMapEquivalence) {
@@ -92,6 +93,16 @@ TEST_F(ColorProviderUtilsTest, DefaultBlinkColorProviderColorMapsValidity) {
   const auto has_valid_colors =
       [](const ui::RendererColorMap renderer_color_map) {
         for (const auto& value : renderer_color_map) {
+          // Test `kColorCssSystemActiveText` separately as it is expected to
+          // exactly equal `gfx::kPlaceholderColor`. This can be removed should
+          // this expectation ever change.
+          if (value.first ==
+              color::mojom::RendererColorId::kColorCssSystemActiveText) {
+            if (value.second == SkColorSetRGB(0xFF, 0x00, 0x00)) {
+              continue;
+            }
+          }
+
           if (value.second == gfx::kPlaceholderColor) {
             return false;
           }

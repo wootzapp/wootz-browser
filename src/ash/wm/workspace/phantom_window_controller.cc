@@ -208,9 +208,10 @@ std::unique_ptr<views::Widget> PhantomWindowController::CreatePhantomWidget(
     aura::Window* root_window,
     const gfx::Rect& bounds_in_screen) {
   auto phantom_widget = std::make_unique<views::Widget>();
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.name = "PhantomWindow";
   params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
   params.parent = root_window->GetChildById(kShellWindowId_ShelfContainer);
@@ -226,7 +227,7 @@ std::unique_ptr<views::Widget> PhantomWindowController::CreatePhantomWidget(
 
   phantom_widget->SetContentsView(
       views::Builder<views::View>()
-          .SetBackground(views::CreateThemedRoundedRectBackground(
+          .SetBackground(views::CreateRoundedRectBackground(
               kColorAshPhantomWindowBackgroundColor,
               kPhantomWindowCornerRadius))
           .SetBorder(std::make_unique<views::HighlightBorder>(
@@ -241,9 +242,10 @@ std::unique_ptr<views::Widget> PhantomWindowController::CreateMaximizeCue(
   DCHECK(phantom_widget_);
 
   auto maximize_cue_widget = std::make_unique<views::Widget>();
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.name = "MaximizeCueWidget";
   params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
   params.parent = root_window->GetChildById(kShellWindowId_OverlayContainer);
@@ -268,7 +270,7 @@ std::unique_ptr<views::Widget> PhantomWindowController::CreateMaximizeCue(
           .SetOrientation(views::BoxLayout::Orientation::kHorizontal)
           .SetInsideBorderInsets(gfx::Insets::VH(kMaximizeCueVerticalInsets,
                                                  kMaximizeCueHorizontalInsets))
-          .SetBackground(views::CreateThemedRoundedRectBackground(
+          .SetBackground(views::CreateRoundedRectBackground(
               kColorAshShieldAndBase20, kPhantomWindowCornerRadius))
           .SetBorder(std::make_unique<views::HighlightBorder>(
               kPhantomWindowCornerRadius,

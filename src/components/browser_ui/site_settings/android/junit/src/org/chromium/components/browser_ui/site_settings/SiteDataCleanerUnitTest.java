@@ -6,6 +6,8 @@ package org.chromium.components.browser_ui.site_settings;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
@@ -13,7 +15,6 @@ import static org.mockito.Mockito.verify;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -23,7 +24,6 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.components.browsing_data.content.BrowsingDataInfo;
 import org.chromium.components.browsing_data.content.BrowsingDataModel;
 import org.chromium.content_public.browser.BrowserContextHandle;
@@ -50,7 +50,6 @@ public class SiteDataCleanerUnitTest {
     public static final WebsiteGroup GROUP =
             new WebsiteGroup(
                     GOOGLE_COM, new ArrayList<>(Arrays.asList(ORIGIN_1, ORIGIN_2, ORIGIN_3)));
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     @Mock private WebsitePreferenceBridge.Natives mBridgeMock;
 
@@ -63,7 +62,7 @@ public class SiteDataCleanerUnitTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(WebsitePreferenceBridgeJni.TEST_HOOKS, mBridgeMock);
+        WebsitePreferenceBridgeJni.setInstanceForTesting(mBridgeMock);
         doReturn(mContextHandle).when(mSiteSettingsDelegate).getBrowserContextHandle();
     }
 
@@ -88,7 +87,7 @@ public class SiteDataCleanerUnitTest {
         HashMap<Origin, BrowsingDataInfo> map = buildBrowsingDataModelInfo();
 
         doReturn(true).when(mSiteSettingsDelegate).isBrowsingDataModelFeatureEnabled();
-        doReturn(map).when(mBrowsingDataModel).getBrowsingDataInfo();
+        doReturn(map).when(mBrowsingDataModel).getBrowsingDataInfo(any(), anyBoolean());
 
         doAnswer(this::mockBDMCallback)
                 .when(mSiteSettingsDelegate)
@@ -107,10 +106,10 @@ public class SiteDataCleanerUnitTest {
 
         verify(mBridgeMock, times(1))
                 .clearBannerData(mContextHandle, ORIGIN_1.getAddress().getOrigin());
-
-        // Cookies and media licenses are cleared in the BDM.
-        verify(mBridgeMock, times(0))
+        verify(mBridgeMock, times(1))
                 .clearCookieData(mContextHandle, ORIGIN_1.getAddress().getOrigin());
+
+        // Media licenses are cleared in the BDM.
         verify(mBridgeMock, times(0))
                 .clearMediaLicenses(mContextHandle, ORIGIN_1.getAddress().getOrigin());
     }
@@ -118,7 +117,7 @@ public class SiteDataCleanerUnitTest {
     private static HashMap<Origin, BrowsingDataInfo> buildBrowsingDataModelInfo() {
         var map = new HashMap<Origin, BrowsingDataInfo>();
         var origin = Origin.create(new GURL(ORIGIN_1.getAddress().getOrigin()));
-        map.put(origin, new BrowsingDataInfo(origin, 0, 100));
+        map.put(origin, new BrowsingDataInfo(origin, 0, 100, false));
         return map;
     }
 

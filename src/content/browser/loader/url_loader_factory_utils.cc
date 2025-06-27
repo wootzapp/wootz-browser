@@ -4,8 +4,11 @@
 
 #include "content/browser/loader/url_loader_factory_utils.h"
 
+#include <variant>
+
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/browser/browser_thread.h"
+#include "net/cookies/cookie_setting_override.h"
 
 namespace content {
 namespace url_loader_factory {
@@ -16,6 +19,8 @@ Interceptor& GetMutableInterceptor() {
   static base::NoDestructor<Interceptor> s_callback;
   return *s_callback;
 }
+
+bool s_has_interceptor = false;
 
 }  // namespace
 
@@ -31,6 +36,18 @@ void SetInterceptorForTesting(const Interceptor& interceptor) {
       << "It is not expected that this is called with non-null callback when "
       << "another overriding callback is already set.";
   GetMutableInterceptor() = interceptor;
+}
+
+bool HasInterceptorOnIOThreadForTesting() {
+  CHECK(!BrowserThread::IsThreadInitialized(BrowserThread::IO) ||
+        BrowserThread::CurrentlyOn(BrowserThread::IO));
+  return s_has_interceptor;
+}
+
+void SetHasInterceptorOnIOThreadForTesting(bool has_interceptor) {
+  CHECK(!BrowserThread::IsThreadInitialized(BrowserThread::IO) ||
+        BrowserThread::CurrentlyOn(BrowserThread::IO));
+  s_has_interceptor = has_interceptor;
 }
 
 TerminalParams::TerminalParams(
@@ -188,7 +205,7 @@ std::tuple<bool, bool> GetIsNavigationAndDownload(
     case ContentBrowserClient::URLLoaderFactoryType::kPrefetch:
     case ContentBrowserClient::URLLoaderFactoryType::kDevTools:
     case ContentBrowserClient::URLLoaderFactoryType::kEarlyHints:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -239,7 +256,7 @@ template <typename OutType, typename... FinishArgs>
                                   factory_builder);
     }
 
-    return absl::visit(
+    return std::visit(
         [&factory_builder, &finish_args...](auto&& terminal) {
           return std::move(factory_builder)
               .template Finish<OutType>(
@@ -266,6 +283,11 @@ template <typename OutType, typename... FinishArgs>
   factory_params->header_client = std::move(header_client);
   factory_params->factory_override = std::move(factory_override);
   factory_params->disable_secure_dns = disable_secure_dns;
+  if (devtools_params) {
+    devtools_instrumentation::ApplyNetworkCookieControlsOverrides(
+        devtools_params->agent_host(),
+        factory_params->devtools_cookie_setting_overrides);
+  }
 
   if (GetTestingInterceptor()) {
     GetTestingInterceptor().Run(terminal_params.process_id(), factory_builder);

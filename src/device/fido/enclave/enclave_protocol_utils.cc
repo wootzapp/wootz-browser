@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "device/fido/enclave/enclave_protocol_utils.h"
 
 #include <array>
+#include <variant>
 
 #include "base/functional/callback.h"
 #include "base/json/json_reader.h"
@@ -25,6 +31,7 @@
 #include "device/fido/attestation_statement.h"
 #include "device/fido/authenticator_data.h"
 #include "device/fido/enclave/constants.h"
+#include "device/fido/enclave/types.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_transport_protocol.h"
@@ -127,10 +134,14 @@ cbor::Value toCbor(const base::Value& json) {
 
 const char* ToString(ClientKeyType key_type) {
   switch (key_type) {
+    case ClientKeyType::kSoftware:
+      return kSoftwareKey;
     case ClientKeyType::kHardware:
-      return "hw";
+      return kHardwareKey;
     case ClientKeyType::kUserVerified:
-      return "uv";
+      return kUserVerificationKey;
+    case ClientKeyType::kSoftwareUserVerified:
+      return kSoftwareUserVerificationKey;
   }
 }
 
@@ -215,48 +226,68 @@ std::optional<std::vector<uint8_t>> ParsePrfResponse(const cbor::Value& v) {
 
 }  // namespace
 
-absl::variant<AuthenticatorGetAssertionResponse, int, std::string>
+ErrorResponse::ErrorResponse(std::string error)
+    : error_string(std::move(error)) {}
+
+ErrorResponse::ErrorResponse(int ind, int code)
+    : index(ind), error_code(code) {}
+
+ErrorResponse::ErrorResponse(int ind, std::string error)
+    : index(ind), error_string(std::move(error)) {}
+
+ErrorResponse::~ErrorResponse() = default;
+
+ErrorResponse::ErrorResponse(ErrorResponse&) = default;
+
+ErrorResponse::ErrorResponse(ErrorResponse&&) = default;
+
+std::variant<AuthenticatorGetAssertionResponse, ErrorResponse>
 ParseGetAssertionResponse(cbor::Value response_value,
                           base::span<const uint8_t> credential_id) {
   if (!response_value.is_array() || response_value.GetArray().empty()) {
-    return "Command response was not a valid CBOR array.";
+    return ErrorResponse("Command response was not a valid CBOR array.");
   }
 
+  int index = 0;
   for (auto& response_element : response_value.GetArray()) {
     if (!response_element.is_map()) {
-      return "Command response element is not a map.";
+      return ErrorResponse("Command response element is not a map.");
     }
     const auto& response_map = response_element.GetMap();
     // Response errors can be either strings or integers.
     auto value_it = response_map.find(cbor::Value(kResponseErrorKey));
     if (value_it != response_map.end()) {
       if (value_it->second.is_integer()) {
-        return value_it->second.GetInteger();
+        return ErrorResponse(index, value_it->second.GetInteger());
       } else if (value_it->second.is_string()) {
-        return base::StrCat(
-            {"Error received from enclave: ", value_it->second.GetString()});
+        return ErrorResponse(index,
+                             base::StrCat({"Error received from enclave: ",
+                                           value_it->second.GetString()}));
       } else {
-        return "Command response contained invalid error field.";
+        return ErrorResponse("Command response contained invalid error field.");
       }
     }
     if (response_map.find(cbor::Value(kResponseSuccessKey)) ==
         response_map.end()) {
-      return "Command response did not contain a successful response or an "
-             "error.";
+      return ErrorResponse(
+          "Command response did not contain a successful "
+          "response or an error.");
     }
+    index++;
   }
 
   const cbor::Value::MapValue* last_response = cborFindMap(
       response_value.GetArray()[response_value.GetArray().size() - 1].GetMap(),
       kResponseSuccessKey);
   if (!last_response) {
-    return "Command response did not contain a map as last entry.";
+    return ErrorResponse(
+        "Command response did not contain a map as last entry.");
   }
 
   const cbor::Value::MapValue* assertion_response =
       cborFindMap(*last_response, kGetAssertionResponseKey);
   if (!assertion_response) {
-    return "Command response did not contain a response field.";
+    return ErrorResponse("Command response did not contain a response field.");
   }
 
   std::optional<std::vector<uint8_t>> prf_results;
@@ -264,14 +295,14 @@ ParseGetAssertionResponse(cbor::Value response_value,
   if (it != last_response->end()) {
     prf_results = ParsePrfResponse(it->second);
     if (!prf_results) {
-      return "Invalid PRF results";
+      return ErrorResponse("Invalid PRF results");
     }
   }
 
   std::optional<AuthenticatorGetAssertionResponse> response =
       AuthenticatorGetAssertionResponseFromValue(*assertion_response);
   if (!response) {
-    return "Assertion response failed to parse.";
+    return ErrorResponse("Assertion response failed to parse.");
   }
 
   response->credential = PublicKeyCredentialDescriptor(
@@ -282,21 +313,21 @@ ParseGetAssertionResponse(cbor::Value response_value,
   return std::move(*response);
 }
 
-absl::variant<std::pair<AuthenticatorMakeCredentialResponse,
-                        sync_pb::WebauthnCredentialSpecifics>,
-              int,
-              std::string>
+std::variant<std::pair<AuthenticatorMakeCredentialResponse,
+                       sync_pb::WebauthnCredentialSpecifics>,
+             ErrorResponse>
 ParseMakeCredentialResponse(cbor::Value response_value,
                             const CtapMakeCredentialRequest& request,
                             int32_t wrapped_secret_version,
-                            bool user_verified) {
+                            UserPresentAndVerifiedBits up_and_uv) {
   if (!response_value.is_array() || response_value.GetArray().empty()) {
-    return "Command response was not a valid CBOR array.";
+    return ErrorResponse("Command response was not a valid CBOR array.");
   }
 
+  int index = 0;
   for (auto& response_element : response_value.GetArray()) {
     if (!response_element.is_map()) {
-      return "Command response element is not a map.";
+      return ErrorResponse("Command response element is not a map.");
     }
     const auto& response_map = response_element.GetMap();
 
@@ -304,38 +335,44 @@ ParseMakeCredentialResponse(cbor::Value response_value,
     auto value_it = response_map.find(cbor::Value(kResponseErrorKey));
     if (value_it != response_map.end()) {
       if (value_it->second.is_integer()) {
-        return value_it->second.GetInteger();
+        return ErrorResponse(index, value_it->second.GetInteger());
       } else if (value_it->second.is_string()) {
-        return base::StrCat(
-            {"Error received from enclave: ", value_it->second.GetString()});
+        return ErrorResponse(index,
+                             base::StrCat({"Error received from enclave: ",
+                                           value_it->second.GetString()}));
       } else {
-        return "Command response contained invalid error field.";
+        return ErrorResponse("Command response contained invalid error field.");
       }
     }
     if (response_map.find(cbor::Value(kResponseSuccessKey)) ==
         response_map.end()) {
-      return "Command response did not contain a successful response or an "
-             "error.";
+      return ErrorResponse(
+          "Command response did not contain a successful "
+          "response or an error.");
     }
+    index++;
   }
 
   const cbor::Value::MapValue* last_response = cborFindMap(
       response_value.GetArray()[response_value.GetArray().size() - 1].GetMap(),
       kResponseSuccessKey);
   if (!last_response) {
-    return "Command response did not contain a map as last entry.";
+    return ErrorResponse(
+        "Command response did not contain a map as last entry.");
   }
 
   const std::vector<uint8_t>* pubkey_field =
       cborFindBytestring(*last_response, kMakeCredentialResponsePubKeyKey);
   if (!pubkey_field) {
-    return "MakeCredential response did not contain a public key.";
+    return ErrorResponse(
+        "MakeCredential response did not contain a public key.");
   }
 
   const std::vector<uint8_t>* encrypted_field =
       cborFindBytestring(*last_response, kMakeCredentialResponseEncryptedKey);
   if (!encrypted_field) {
-    return "MakeCredential response did not contain an encrypted passkey.";
+    return ErrorResponse(
+        "MakeCredential response did not contain an encrypted passkey.");
   }
 
   std::optional<std::vector<uint8_t>> prf_results;
@@ -348,16 +385,14 @@ ParseMakeCredentialResponse(cbor::Value response_value,
       prf_enabled = true;
       prf_results = ParsePrfResponse(it->second);
       if (!prf_results) {
-        return "Invalid PRF results";
+        return ErrorResponse("Invalid PRF results");
       }
     }
   }
 
-  std::vector<uint8_t> credential_id(kCredentialIdSize);
-  crypto::RandBytes(credential_id);
-
-  std::vector<uint8_t> sync_id(kSyncIdSize);
-  crypto::RandBytes(sync_id);
+  std::vector<uint8_t> credential_id =
+      crypto::RandBytesAsVector(kCredentialIdSize);
+  std::vector<uint8_t> sync_id = crypto::RandBytesAsVector(kSyncIdSize);
 
   sync_pb::WebauthnCredentialSpecifics entity;
 
@@ -385,13 +420,22 @@ ParseMakeCredentialResponse(cbor::Value response_value,
                                          std::move(public_key));
 
   uint8_t flags =
-      static_cast<uint8_t>(AuthenticatorData::Flag::kTestOfUserPresence) |
       static_cast<uint8_t>(AuthenticatorData::Flag::kAttestation) |
       static_cast<uint8_t>(AuthenticatorData::Flag::kBackupEligible) |
       static_cast<uint8_t>(AuthenticatorData::Flag::kBackupState);
-  if (user_verified) {
-    flags |=
-        static_cast<uint8_t>(AuthenticatorData::Flag::kTestOfUserVerification);
+  switch (up_and_uv) {
+    case UserPresentAndVerifiedBits::kNeither:
+      break;
+    case UserPresentAndVerifiedBits::kPresentOnly:
+      flags |=
+          static_cast<uint8_t>(AuthenticatorData::Flag::kTestOfUserPresence);
+      break;
+    case UserPresentAndVerifiedBits::kPresentAndVerified:
+      flags |=
+          static_cast<uint8_t>(AuthenticatorData::Flag::kTestOfUserPresence) |
+          static_cast<uint8_t>(
+              AuthenticatorData::Flag::kTestOfUserVerification);
+      break;
   }
   AuthenticatorData authenticator_data(
       fido_parsing_utils::CreateSHA256Hash(request.rp.id), flags,
@@ -434,7 +478,7 @@ cbor::Value BuildGetAssertionCommand(
                       cbor::Value(std::move(*secret)));
   }
 
-  int passkey_byte_size = passkey.ByteSize();
+  int passkey_byte_size = passkey.ByteSizeLong();
   std::vector<uint8_t> serialized_passkey;
   serialized_passkey.resize(passkey_byte_size);
   CHECK(passkey.SerializeToArray(serialized_passkey.data(), passkey_byte_size));

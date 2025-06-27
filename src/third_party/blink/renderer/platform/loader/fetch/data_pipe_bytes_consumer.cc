@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/containers/span.h"
 #include "base/location.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -54,11 +55,10 @@ DataPipeBytesConsumer::DataPipeBytesConsumer(
 
 DataPipeBytesConsumer::~DataPipeBytesConsumer() {}
 
-BytesConsumer::Result DataPipeBytesConsumer::BeginRead(const char** buffer,
-                                                       size_t* available) {
+BytesConsumer::Result DataPipeBytesConsumer::BeginRead(
+    base::span<const char>& buffer) {
   DCHECK(!is_in_two_phase_read_);
-  *buffer = nullptr;
-  *available = 0;
+  buffer = {};
   if (state_ == InternalState::kClosed)
     return Result::kDone;
   if (state_ == InternalState::kErrored)
@@ -69,15 +69,12 @@ BytesConsumer::Result DataPipeBytesConsumer::BeginRead(const char** buffer,
   if (!data_pipe_.is_valid())
     return Result::kShouldWait;
 
-  size_t pipe_available = 0;
-  MojoResult rv =
-      data_pipe_->BeginReadData(reinterpret_cast<const void**>(buffer),
-                                &pipe_available, MOJO_READ_DATA_FLAG_NONE);
-
+  base::span<const uint8_t> bytes;
+  MojoResult rv = data_pipe_->BeginReadData(MOJO_READ_DATA_FLAG_NONE, bytes);
   switch (rv) {
     case MOJO_RESULT_OK:
       is_in_two_phase_read_ = true;
-      *available = pipe_available;
+      buffer = base::as_chars(bytes);
       return Result::kOk;
     case MOJO_RESULT_SHOULD_WAIT:
       watcher_.ArmOrNotify();
@@ -99,8 +96,6 @@ BytesConsumer::Result DataPipeBytesConsumer::BeginRead(const char** buffer,
       SetError(Error("error"));
       return Result::kError;
   }
-
-  NOTREACHED_IN_MIGRATION();
 }
 
 BytesConsumer::Result DataPipeBytesConsumer::EndRead(size_t read) {

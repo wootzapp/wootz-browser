@@ -13,17 +13,20 @@
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/waitable_event.h"
 #include "build/build_config.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/autofill_driver.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/foundations/autofill_driver.h"
 #include "components/autofill/core/browser/payments/full_card_request.h"
-#include "components/autofill/core/browser/payments/payments_network_interface.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
+#include "components/autofill/core/browser/payments/payments_request_details.h"
 #include "components/autofill/core/browser/strike_databases/payments/fido_authentication_strike_database.h"
 #include "components/webauthn/core/browser/internal_authenticator.h"
 #include "device/fido/fido_constants.h"
 #include "third_party/blink/public/mojom/webauthn/authenticator.mojom-forward.h"
 
 namespace autofill {
+
+class AutofillClient;
 
 // Enum denotes user's intention to opt in/out.
 enum class UserOptInIntention {
@@ -78,7 +81,7 @@ class CreditCardFidoAuthenticator
   };
   class Requester {
    public:
-    virtual ~Requester() {}
+    virtual ~Requester() = default;
     virtual void OnFIDOAuthenticationComplete(
         const FidoAuthenticationResponse& response) = 0;
     virtual void OnFidoAuthorizationComplete(bool did_succeed) = 0;
@@ -128,7 +131,7 @@ class CreditCardFidoAuthenticator
   // Return user's opt in/out intention based on unmask detail response and
   // local pref.
   UserOptInIntention GetUserOptInIntention(
-      payments::PaymentsNetworkInterface::UnmaskDetails& unmask_details);
+      payments::UnmaskDetails& unmask_details);
 
   // Cancel the ongoing verification process. Used to reset states in this class
   // and in the FullCardRequest if any.
@@ -150,9 +153,12 @@ class CreditCardFidoAuthenticator
   // Returns the current flow.
   Flow current_flow() { return current_flow_; }
 
+  // Returns true if `request_options` contains a challenge and has a non-empty
+  // list of keys that each have a Credential ID.
+  bool IsValidRequestOptions(const base::Value::Dict& request_options);
+
  private:
-  friend class BrowserAutofillManagerTest;
-  friend class CreditCardAccessManagerTest;
+  friend class CreditCardAccessManagerTestBase;
   friend class CreditCardFidoAuthenticatorTest;
   friend class TestCreditCardFidoAuthenticator;
   FRIEND_TEST_ALL_PREFIXES(CreditCardFidoAuthenticatorTest,
@@ -175,6 +181,7 @@ class CreditCardFidoAuthenticator
       blink::mojom::PublicKeyCredentialCreationOptionsPtr creation_options);
 
   // Makes a request to payments to either opt-in or opt-out the user.
+  // TODO(crbug.com/345006413): Remove logic related to the FIDO opt-out flow.
   void OptChange(
       base::Value::Dict authenticator_response = base::Value::Dict());
 
@@ -196,8 +203,8 @@ class CreditCardFidoAuthenticator
 
   // Sets prefstore to enable credit card authentication if rpc was successful.
   void OnDidGetOptChangeResult(
-      AutofillClient::PaymentsRpcResult result,
-      payments::PaymentsNetworkInterface::OptChangeResponseDetails& response);
+      payments::PaymentsAutofillClient::PaymentsRpcResult result,
+      payments::OptChangeResponseDetails& response);
 
   // payments::FullCardRequest::ResultDelegate:
   void OnFullCardRequestSucceeded(
@@ -230,10 +237,6 @@ class CreditCardFidoAuthenticator
       blink::mojom::MakeCredentialAuthenticatorResponsePtr
           attestation_response);
 
-  // Returns true if |request_options| contains a challenge and has a non-empty
-  // list of keys that each have a Credential ID.
-  bool IsValidRequestOptions(const base::Value::Dict& request_options);
-
   // Returns true if |request_options| contains a challenge.
   bool IsValidCreationOptions(const base::Value::Dict& creation_options);
 
@@ -250,6 +253,10 @@ class CreditCardFidoAuthenticator
 
   // Gets or creates Authenticator pointer to facilitate WebAuthn.
   webauthn::InternalAuthenticator* authenticator();
+
+  PaymentsDataManager& payments_data_manager() {
+    return autofill_client_->GetPersonalDataManager().payments_data_manager();
+  }
 
   // Card being unmasked.
   std::optional<CreditCard> card_;

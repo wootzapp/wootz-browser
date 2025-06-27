@@ -35,6 +35,14 @@ const NameMapElement<ErrorCode> kErrorCodeNames[] = {
      "LOCATION_AUTHZ_POLICY_CHECK_FAILED"},
     {ErrorCode::UNAUTHORIZED_ACCOUNT, "UNAUTHORIZED_ACCOUNT"},
     {ErrorCode::REAUTHZ_POLICY_CHECK_FAILED, "REAUTHZ_POLICY_CHECK_FAILED"},
+    {ErrorCode::NO_COMMON_AUTH_METHOD, "NO_COMMON_AUTH_METHOD"},
+    {ErrorCode::LOGIN_SCREEN_NOT_SUPPORTED, "LOGIN_SCREEN_NOT_SUPPORTED"},
+    {ErrorCode::SESSION_POLICIES_CHANGED, "SESSION_POLICIES_CHANGED"},
+    {ErrorCode::UNEXPECTED_AUTHENTICATOR_ERROR,
+     "UNEXPECTED_AUTHENTICATOR_ERROR"},
+    {ErrorCode::INVALID_STATE, "INVALID_STATE"},
+    {ErrorCode::INVALID_ARGUMENT, "INVALID_ARGUMENT"},
+    {ErrorCode::NETWORK_FAILURE, "NETWORK_FAILURE"},
 };
 
 }  // namespace
@@ -93,6 +101,20 @@ proto::ErrorCode ErrorCodeToProtoEnum(ErrorCode error) {
       return proto::ErrorCode::UNAUTHORIZED_ACCOUNT;
     case ErrorCode::REAUTHZ_POLICY_CHECK_FAILED:
       return proto::ErrorCode::REAUTHORIZATION_FAILED;
+    case ErrorCode::NO_COMMON_AUTH_METHOD:
+      return proto::ErrorCode::NO_COMMON_AUTH_METHOD;
+    case ErrorCode::LOGIN_SCREEN_NOT_SUPPORTED:
+      return proto::ErrorCode::LOGIN_SCREEN_NOT_SUPPORTED;
+    case ErrorCode::SESSION_POLICIES_CHANGED:
+      return proto::ErrorCode::SESSION_POLICIES_CHANGED;
+    case ErrorCode::UNEXPECTED_AUTHENTICATOR_ERROR:
+      return proto::ErrorCode::UNEXPECTED_AUTHENTICATOR_ERROR;
+    case ErrorCode::INVALID_STATE:
+      return proto::ErrorCode::INVALID_STATE;
+    case ErrorCode::INVALID_ARGUMENT:
+      return proto::ErrorCode::INVALID_ARGUMENT;
+    case ErrorCode::NETWORK_FAILURE:
+      return proto::ErrorCode::NETWORK_FAILURE;
   }
 }
 

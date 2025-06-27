@@ -14,7 +14,6 @@
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/strings/string_piece.h"
 #include "chrome/common/extensions/api/passwords_private.h"
 #include "components/password_manager/core/browser/export/export_progress_status.h"
 #include "components/password_manager/core/browser/import/import_results.h"
@@ -48,6 +47,8 @@ class PasswordsPrivateDelegate
   using StartPasswordCheckCallback =
       base::OnceCallback<void(password_manager::BulkLeakCheckService::State)>;
 
+  using AuthenticationCallback = base::OnceCallback<void(bool)>;
+
   // Gets the saved passwords list.
   using UiEntries = std::vector<api::passwords_private::PasswordUiEntry>;
   using UiEntriesCallback = base::OnceCallback<void(const UiEntries&)>;
@@ -69,16 +70,11 @@ class PasswordsPrivateDelegate
   virtual std::optional<api::passwords_private::UrlCollection> GetUrlCollection(
       const std::string& url) = 0;
 
-  // Returns whether the account store is a default location for saving
-  // passwords. False means the device store is a default one. Must be called
-  // when the current user has already opted-in for account storage.
-  virtual bool IsAccountStoreDefault(content::WebContents* web_contents) = 0;
-
   // Adds the |username| and |password| corresponding to the |url| to the
   // specified store and returns true if the operation succeeded. Fails and
   // returns false if the data is invalid or an entry with such origin and
   // username already exists. Updates the default store to the used one on
-  // success if the user has opted-in for account storage.
+  // success if account storage is enabled.
   // |url|: The url of the password entry, must be a valid http(s) ip/web
   //        address as is or after adding http(s) scheme.
   // |username|: The username to save, can be empty.
@@ -195,15 +191,13 @@ class PasswordsPrivateDelegate
   GetExportProgressStatus() = 0;
 
   // Whether the current signed-in user (aka unconsented primary account) has
-  // opted in to use the Google account storage for passwords (as opposed to
+  // the Google account storage for passwords is enabled (as opposed to
   // local/profile storage).
-  virtual bool IsOptedInForAccountStorage() = 0;
+  virtual bool IsAccountStorageEnabled() = 0;
 
-  // Sets whether the user is opted in to use the Google account storage for
-  // passwords. If |opt_in| is true and the user is not currently opted in,
-  // will trigger a reauth flow.
-  virtual void SetAccountStorageOptIn(bool opt_in,
-                                      content::WebContents* web_contents) = 0;
+  // Enables/disables use of the Google account storage for passwords
+  virtual void SetAccountStorageEnabled(bool enabled,
+                                        content::WebContents* web_contents) = 0;
 
   // Obtains information about insecure credentials. This includes the last
   // time a check was run, as well as all insecure credentials that are present
@@ -244,9 +238,11 @@ class PasswordsPrivateDelegate
   virtual void RestartAuthTimer() = 0;
 
   // Switches Biometric authentication before filling state after
-  // successful authentication.
+  // successful authentication.  Invokes `callback` with true if the
+  // authentication was successful, with false otherwise.
   virtual void SwitchBiometricAuthBeforeFillingState(
-      content::WebContents* web_contents) = 0;
+      content::WebContents* web_contents,
+      AuthenticationCallback callback) = 0;
 
   // Triggers a dialog for installing the shortcut for PasswordManager page.
   virtual void ShowAddShortcutDialog(content::WebContents* web_contents) = 0;
@@ -260,10 +256,11 @@ class PasswordsPrivateDelegate
       content::WebContents* web_contents,
       base::OnceCallback<void(bool)> success_callback) = 0;
 
-  // Returns true if it's allowed to change the password manager PIN, if it
+  // Replies true if it's allowed to change the password manager PIN, if it
   // exists.
-  virtual bool IsPasswordManagerPinAvailable(
-      content::WebContents* web_contents) = 0;
+  virtual void IsPasswordManagerPinAvailable(
+      content::WebContents* web_contents,
+      base::OnceCallback<void(bool)> pin_available_callback) = 0;
 
   // Starts the flow for disconnecting a Desktop Chrome client from the cloud
   // authenticator.
@@ -273,6 +270,10 @@ class PasswordsPrivateDelegate
 
   virtual bool IsConnectedToCloudAuthenticator(
       content::WebContents* web_contents) = 0;
+
+  virtual void DeleteAllPasswordManagerData(
+      content::WebContents* web_contents,
+      base::OnceCallback<void(bool)> success_callback) = 0;
 
   virtual base::WeakPtr<PasswordsPrivateDelegate> AsWeakPtr() = 0;
 

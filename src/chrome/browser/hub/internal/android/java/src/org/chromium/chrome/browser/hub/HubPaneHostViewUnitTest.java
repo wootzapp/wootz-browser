@@ -5,33 +5,34 @@
 package org.chromium.chrome.browser.hub;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
-import static org.chromium.chrome.browser.hub.HubPaneHostProperties.ACTION_BUTTON_DATA;
+import static org.chromium.chrome.browser.hub.HubColorMixer.COLOR_MIXER;
+import static org.chromium.chrome.browser.hub.HubPaneHostProperties.HAIRLINE_VISIBILITY;
 import static org.chromium.chrome.browser.hub.HubPaneHostProperties.PANE_ROOT_VIEW;
+import static org.chromium.chrome.browser.hub.HubPaneHostProperties.SNACKBAR_CONTAINER_CALLBACK;
 
 import android.app.Activity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.widget.ImageView;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
-import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.shadows.ShadowLooper;
 
+import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -50,10 +51,13 @@ public class HubPaneHostViewUnitTest {
             new ActivityScenarioRule<>(TestActivity.class);
 
     @Mock Runnable mOnActionButton;
+    @Mock Callback<ViewGroup> mSnackbarContainerCallback;
+    @Mock private HubColorMixer mColorMixer;
 
     private Activity mActivity;
     private HubPaneHostView mPaneHost;
-    private Button mActionButton;
+    private ImageView mHairline;
+    private ViewGroup mSnackbarContainer;
     private PropertyModel mPropertyModel;
 
     @Before
@@ -67,65 +71,18 @@ public class HubPaneHostViewUnitTest {
 
         LayoutInflater inflater = LayoutInflater.from(mActivity);
         mPaneHost = (HubPaneHostView) inflater.inflate(R.layout.hub_pane_host_layout, null, false);
-        mActionButton = mPaneHost.findViewById(R.id.host_action_button);
+        mHairline = mPaneHost.findViewById(R.id.pane_top_hairline);
+        mSnackbarContainer = mPaneHost.findViewById(R.id.pane_host_view_snackbar_container);
         mActivity.setContentView(mPaneHost);
 
-        mPropertyModel = new PropertyModel(HubPaneHostProperties.ALL_KEYS);
+        mPropertyModel =
+                new PropertyModel.Builder(HubPaneHostProperties.ALL_KEYS)
+                        .with(COLOR_MIXER, mColorMixer)
+                        .build();
         PropertyModelChangeProcessor.create(mPropertyModel, mPaneHost, HubPaneHostViewBinder::bind);
     }
 
     @Test
-    @MediumTest
-    public void testActionButtonVisibility() {
-        DisplayButtonData displayButtonData =
-                new ResourceButtonData(
-                        R.string.button_new_tab, R.string.button_new_tab, R.drawable.ic_add);
-        FullButtonData fullButtonData = new DelegateButtonData(displayButtonData, mOnActionButton);
-        assertEquals(View.GONE, mActionButton.getVisibility());
-
-        mPropertyModel.set(ACTION_BUTTON_DATA, fullButtonData);
-        assertEquals(View.VISIBLE, mActionButton.getVisibility());
-
-        mPropertyModel.set(ACTION_BUTTON_DATA, null);
-        assertEquals(View.GONE, mActionButton.getVisibility());
-    }
-
-    @Test
-    @MediumTest
-    public void testActionButtonCallback() {
-        DisplayButtonData displayButtonData =
-                new ResourceButtonData(
-                        R.string.button_new_tab, R.string.button_new_tab, R.drawable.ic_add);
-        FullButtonData fullButtonData = new DelegateButtonData(displayButtonData, mOnActionButton);
-        mPropertyModel.set(ACTION_BUTTON_DATA, fullButtonData);
-        assertTrue(mActionButton.isEnabled());
-
-        mActionButton.callOnClick();
-        verify(mOnActionButton).run();
-
-        Mockito.reset(mOnActionButton);
-        mPropertyModel.set(ACTION_BUTTON_DATA, null);
-
-        mActionButton.callOnClick();
-        verifyNoInteractions(mOnActionButton);
-    }
-
-    @Test
-    @MediumTest
-    public void testEmptyActionButtonCallbackDisablesButton() {
-        DisplayButtonData displayButtonData =
-                new ResourceButtonData(
-                        R.string.button_new_tab, R.string.button_new_tab, R.drawable.ic_add);
-        FullButtonData fullButtonData = new DelegateButtonData(displayButtonData, null);
-        mPropertyModel.set(ACTION_BUTTON_DATA, fullButtonData);
-        assertFalse(mActionButton.isEnabled());
-
-        // Verify this doesn't crash if no button data Runnable exists.
-        mActionButton.callOnClick();
-    }
-
-    @Test
-    @MediumTest
     public void testSetRootView() {
         View root1 = new View(mActivity);
         View root2 = new View(mActivity);
@@ -157,7 +114,6 @@ public class HubPaneHostViewUnitTest {
     }
 
     @Test
-    @MediumTest
     public void testSetRootView_alphaRestored() {
         View root1 = new View(mActivity);
         View root2 = new View(mActivity);
@@ -171,6 +127,28 @@ public class HubPaneHostViewUnitTest {
         mPropertyModel.set(PANE_ROOT_VIEW, null);
         mPropertyModel.set(PANE_ROOT_VIEW, root1);
         assertEquals(1, root1.getAlpha(), /* delta= */ 0);
+    }
+
+    @Test
+    public void testHairlineVisibility() {
+        assertEquals(View.GONE, mHairline.getVisibility());
+
+        mPropertyModel.set(HAIRLINE_VISIBILITY, true);
+        assertEquals(View.VISIBLE, mHairline.getVisibility());
+
+        mPropertyModel.set(HAIRLINE_VISIBILITY, false);
+        assertEquals(View.GONE, mHairline.getVisibility());
+    }
+
+    @Test
+    public void testSnackbarContainerSupplier() {
+        mPropertyModel.set(SNACKBAR_CONTAINER_CALLBACK, mSnackbarContainerCallback);
+        verify(mSnackbarContainerCallback).onResult(mSnackbarContainer);
+    }
+
+    @Test
+    public void testHubColorScheme() {
+        verify(mColorMixer, times(2)).registerBlend(any());
     }
 
     /** Order of children does not matter. */

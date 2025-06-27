@@ -11,13 +11,11 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
-#include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/trace_event/trace_event.h"
 #include "chromeos/ash/components/mojo_service_manager/connection.h"
 #include "components/device_event_log/device_event_log.h"
 #include "media/capture/video/chromeos/mojom/camera_common.mojom.h"
@@ -45,10 +43,27 @@ const base::FilePath::CharType kForceEnableEffectsPath[] =
     "/run/camera/force_enable_effects";
 const base::FilePath::CharType kForceDisableEffectsPath[] =
     "/run/camera/force_disable_effects";
-const base::FilePath::CharType kForceEnableSuperResPath[] =
-    "/run/camera/force_enable_super_res";
-const base::FilePath::CharType kForceDisableSuperResPath[] =
-    "/run/camera/force_disable_super_res";
+const base::FilePath::CharType kEnableRetouchWithRelightPath[] =
+    "/run/camera/enable_retouch_with_relight";
+const base::FilePath::CharType kEnableOnlyRetouchPath[] =
+    "/run/camera/enable_only_retouch";
+
+void CreateFile(const std::vector<std::string>& paths,
+                const std::vector<bool>& should_create) {
+  CHECK(paths.size() == should_create.size());
+  for (size_t i = 0; i < paths.size(); ++i) {
+    base::FilePath path(paths[i]);
+    if (should_create[i]) {
+      if (!base::PathExists(path)) {
+        base::File file(
+            path, base::File::FLAG_CREATE_ALWAYS | base::File::FLAG_WRITE);
+        file.Close();
+      }
+    } else if (!base::DeleteFile(path)) {
+      LOG(WARNING) << "CameraHalDispatcherImpl Error: can't  delete " << path;
+    }
+  }
+}
 
 void CreateEnableDisableFile(const std::string& enable_path,
                              const std::string& disable_path,
@@ -290,12 +305,19 @@ bool CameraHalDispatcherImpl::Start() {
       /*should_enable=*/ash::features::IsVideoConferenceEnabled(),
       /*should_remove_both=*/false);
 
-  CreateEnableDisableFile(
-      kForceEnableSuperResPath, kForceDisableSuperResPath,
-      /*should_enable=*/
-      command_line->GetSwitchValueASCII(switches::kCameraSuperResOverride) !=
-          switches::kCameraSuperResForceDisabled,
-      /*should_remove_both=*/false);
+  std::string face_retouch_override =
+      command_line->GetSwitchValueASCII(switches::kFaceRetouchOverride);
+  CreateFile(
+      {
+          kEnableOnlyRetouchPath,
+          kEnableRetouchWithRelightPath,
+      },
+      {
+          face_retouch_override ==
+              switches::kFaceRetouchForceEnabledWithoutRelighting,
+          face_retouch_override ==
+              switches::kFaceRetouchForceEnabledWithRelighting,
+      });
 
   base::WaitableEvent started;
   // It's important we generate tokens before creating the socket, because
@@ -376,18 +398,8 @@ void CameraHalDispatcherImpl::RemoveCameraPrivacySwitchObserver(
 }
 
 void CameraHalDispatcherImpl::AddCameraEffectObserver(
-    CameraEffectObserver* observer,
-    CameraEffectObserverCallback camera_effect_observer_callback) {
+    CameraEffectObserver* observer) {
   camera_effect_observers_->AddObserver(observer);
-
-  if (proxy_thread_.IsRunning() && !camera_effect_observer_callback.is_null()) {
-    proxy_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(
-            &CameraHalDispatcherImpl::OnCameraEffectsObserverAddOnProxyThread,
-            base::Unretained(this),
-            std::move(camera_effect_observer_callback)));
-  }
 }
 
 void CameraHalDispatcherImpl::RemoveCameraEffectObserver(
@@ -550,6 +562,8 @@ void CameraHalDispatcherImpl::CameraSWPrivacySwitchStateChange(
 
 void CameraHalDispatcherImpl::CameraEffectChange(
     cros::mojom::EffectsConfigPtr config) {}
+void CameraHalDispatcherImpl::AutoFramingStateChange(
+    cros::mojom::CameraAutoFramingState state) {}
 
 base::UnguessableToken CameraHalDispatcherImpl::GetTokenForTrustedClient(
     cros::mojom::CameraClientType type) {
@@ -908,12 +922,6 @@ void CameraHalDispatcherImpl::OnSetCameraEffectsCompleteOnProxyThread(
                                    std::move(new_effects));
 }
 
-void CameraHalDispatcherImpl::OnCameraEffectsObserverAddOnProxyThread(
-    CameraEffectObserverCallback camera_effect_observer_callback) {
-  DCHECK(proxy_task_runner_->BelongsToCurrentThread());
-  std::move(camera_effect_observer_callback).Run(current_effects_.Clone());
-}
-
 std::string CameraHalDispatcherImpl::GetDeviceIdFromCameraId(
     int32_t camera_id) {
   base::AutoLock lock(camera_id_to_device_id_lock_);
@@ -927,7 +935,7 @@ std::string CameraHalDispatcherImpl::GetDeviceIdFromCameraId(
 }
 
 base::flat_set<std::string> CameraHalDispatcherImpl::GetDeviceIdsFromCameraIds(
-    base::flat_set<int32_t> camera_ids) {
+    const base::flat_set<int32_t>& camera_ids) {
   base::flat_set<std::string> device_ids;
   for (const auto& camera_id : camera_ids) {
     device_ids.insert(GetDeviceIdFromCameraId(camera_id));

@@ -109,6 +109,7 @@ OfflineItem OfflineItemUtils::CreateOfflineItem(const std::string& name_space,
   item.is_openable = download_item->CanOpenDownload();
   item.file_path = download_item->GetTargetFilePath();
   item.mime_type = download_item->GetMimeType();
+  item.danger_type = download_item->GetDangerType();
 #if BUILDFLAG(IS_ANDROID)
   item.mime_type = DownloadUtils::RemapGenericMimeType(
       item.mime_type, download_item->GetOriginalUrl(),
@@ -169,7 +170,7 @@ OfflineItem OfflineItemUtils::CreateOfflineItem(const std::string& name_space,
       }
     } break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   // TODO(crbug.com/40582846): Set pending_state correctly.
@@ -318,7 +319,9 @@ std::u16string OfflineItemUtils::GetFailStateMessage(FailState fail_state) {
       break;
 
     case FailState::NO_FAILURE:
-      DUMP_WILL_BE_NOTREACHED_NORETURN();
+      // We reach here if the received bytes is zero. Ideally, we should have a
+      // separate FailState outside of download interrupt reasons, and pass the
+      // bytes info to every function that invokes this.
       [[fallthrough]];
     case FailState::CANNOT_DOWNLOAD:
       [[fallthrough]];

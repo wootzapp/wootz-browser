@@ -15,6 +15,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/public/mojom/webid/federated_auth_request.mojom.h"
+#include "url/origin.h"
 #include "url/url_constants.h"
 
 namespace content {
@@ -57,8 +58,7 @@ std::string GetConsoleErrorMessage(FederatedAuthUserInfoRequestResult error) {
     }
     case FederatedAuthUserInfoRequestResult::kUnhandledRequest:
     case FederatedAuthUserInfoRequestResult::kSuccess: {
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
     }
   }
 }
@@ -145,9 +145,7 @@ void FederatedAuthUserInfoRequest::SetCallbackAndStart(
   }
 
   if (webid::ShouldFailAccountsEndpointRequestBecauseNotSignedInWithIdp(
-          *render_frame_host_, idp_config_url_, permission_delegate_) &&
-      webid::GetIdpSigninStatusMode(*render_frame_host_, idp_origin) ==
-          FedCmIdpSigninStatusMode::ENABLED) {
+          *render_frame_host_, idp_config_url_, permission_delegate_)) {
     CompleteWithError(FederatedAuthUserInfoRequestResult::kNotSignedInWithIdp);
     return;
   }
@@ -168,8 +166,13 @@ void FederatedAuthUserInfoRequest::SetCallbackAndStart(
   // destroyed.
   provider_fetcher_ = std::make_unique<FederatedProviderFetcher>(
       *render_frame_host_, network_manager_.get());
+  // TODO(crbug.com/390626180): It seems ok to ignore the well-known checks in
+  // all cases here. However, keeping this unchanged for now when the IDP
+  // registration API is not enabled since we only really need this for that
+  // case.
   provider_fetcher_->Start(
-      {idp_config_url_}, blink::mojom::RpMode::kWidget, /*icon_ideal_size=*/0,
+      {{idp_config_url_, IsFedCmIdPRegistrationEnabled()}},
+      blink::mojom::RpMode::kPassive, /*icon_ideal_size=*/0,
       /*icon_minimum_size=*/0,
       base::BindOnce(
           &FederatedAuthUserInfoRequest::OnAllConfigAndWellKnownFetched,
@@ -199,23 +202,21 @@ void FederatedAuthUserInfoRequest::OnAllConfigAndWellKnownFetched(
   does_idp_have_failing_signin_status_ =
       webid::ShouldFailAccountsEndpointRequestBecauseNotSignedInWithIdp(
           *render_frame_host_, idp_config_url_, permission_delegate_);
-  if (does_idp_have_failing_signin_status_ &&
-      webid::GetIdpSigninStatusMode(*render_frame_host_,
-                                    url::Origin::Create(idp_config_url_)) ==
-          FedCmIdpSigninStatusMode::ENABLED) {
+  if (does_idp_have_failing_signin_status_) {
     CompleteWithError(FederatedAuthUserInfoRequestResult::kNotSignedInWithIdp);
     return;
   }
 
   network_manager_->SendAccountsRequest(
-      fetch_results[0].endpoints.accounts, client_id_,
+      url::Origin::Create(idp_config_url_), fetch_results[0].endpoints.accounts,
+      client_id_,
       base::BindOnce(&FederatedAuthUserInfoRequest::OnAccountsResponseReceived,
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
 void FederatedAuthUserInfoRequest::OnAccountsResponseReceived(
     IdpNetworkRequestManager::FetchStatus fetch_status,
-    IdpNetworkRequestManager::AccountList accounts) {
+    std::vector<IdentityRequestAccountPtr> accounts) {
   webid::UpdateIdpSigninStatusForAccountsEndpointResponse(
       *render_frame_host_, idp_config_url_, fetch_status,
       does_idp_have_failing_signin_status_, permission_delegate_);
@@ -227,7 +228,7 @@ void FederatedAuthUserInfoRequest::OnAccountsResponseReceived(
     return;
   }
 
-  webid::GetPageData(render_frame_host_)
+  webid::GetPageData(render_frame_host_->GetPage())
       ->SetUserInfoAccountsResponseTime(idp_config_url_,
                                         base::TimeTicks::Now());
 
@@ -236,31 +237,31 @@ void FederatedAuthUserInfoRequest::OnAccountsResponseReceived(
     // We set the login state based on the IDP response if it sends
     // back an approved_clients list. If it does not, we need to set
     // it here based on browser state.
-    if (account.login_state) {
+    if (account->login_state) {
       continue;
     }
 
     LoginState login_state = LoginState::kSignUp;
     // Consider this a sign-in if we have seen a successful sign-up for
     // this account before.
-    if (permission_delegate_->HasSharingPermission(
+    if (permission_delegate_->GetLastUsedTimestamp(
             parent_frame_origin_, embedding_origin_,
-            url::Origin::Create(idp_config_url_), account.id)) {
+            url::Origin::Create(idp_config_url_), account->id)) {
       login_state = LoginState::kSignIn;
     }
-    account.login_state = login_state;
+    account->login_state = login_state;
   }
 
   MaybeReturnAccounts(std::move(accounts));
 }
 
 void FederatedAuthUserInfoRequest::MaybeReturnAccounts(
-    const IdpNetworkRequestManager::AccountList& accounts) {
+    const std::vector<IdentityRequestAccountPtr>& accounts) {
   DCHECK(!accounts.empty());
 
   bool has_returning_accounts = false;
   for (const auto& account : accounts) {
-    if (IsReturningAccount(account)) {
+    if (IsReturningAccount(*account)) {
       has_returning_accounts = true;
       break;
     }
@@ -286,14 +287,14 @@ void FederatedAuthUserInfoRequest::MaybeReturnAccounts(
   std::vector<blink::mojom::IdentityUserInfoPtr> user_info;
   std::vector<blink::mojom::IdentityUserInfoPtr> not_returning_accounts;
   for (const auto& account : accounts) {
-    if (IsReturningAccount(account)) {
+    if (IsReturningAccount(*account)) {
       user_info.push_back(blink::mojom::IdentityUserInfo::New(
-          account.email, account.given_name, account.name,
-          account.picture.spec()));
+          account->email, account->given_name, account->name,
+          account->picture.spec()));
     } else {
       not_returning_accounts.push_back(blink::mojom::IdentityUserInfo::New(
-          account.email, account.given_name, account.name,
-          account.picture.spec()));
+          account->email, account->given_name, account->name,
+          account->picture.spec()));
     }
   }
   user_info.insert(user_info.end(),

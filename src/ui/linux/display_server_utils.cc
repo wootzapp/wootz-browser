@@ -4,6 +4,7 @@
 
 #include "ui/linux/display_server_utils.h"
 
+#include <optional>
 #include <string>
 
 #include "base/command_line.h"
@@ -16,6 +17,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/nix/xdg_util.h"
+#include "ui/base/ui_base_features.h"
 #endif
 
 namespace ui {
@@ -30,22 +32,16 @@ constexpr char kPlatformX11[] = "x11";
 constexpr char kPlatformWayland[] = "wayland";
 
 bool InspectWaylandDisplay(base::Environment& env) {
-  std::string wayland_display;
-  const bool has_wayland_display =
-      env.GetVar("WAYLAND_DISPLAY", &wayland_display) &&
-      !wayland_display.empty();
-  if (has_wayland_display) {
+  std::optional<std::string> wayland_display = env.GetVar("WAYLAND_DISPLAY");
+  if (wayland_display.has_value()) {
     return true;
   }
 
-  std::string xdg_runtime_dir;
-  const bool has_xdg_runtime_dir =
-      env.GetVar("XDG_RUNTIME_DIR", &xdg_runtime_dir) &&
-      !xdg_runtime_dir.empty();
-  if (has_xdg_runtime_dir) {
+  std::optional<std::string> xdg_runtime_dir = env.GetVar("XDG_RUNTIME_DIR");
+  if (xdg_runtime_dir.has_value()) {
     constexpr char kDefaultWaylandSocketName[] = "wayland-0";
     const auto wayland_socket_path =
-        base::FilePath(xdg_runtime_dir).Append(kDefaultWaylandSocketName);
+        base::FilePath(*xdg_runtime_dir).Append(kDefaultWaylandSocketName);
     if (base::PathExists(wayland_socket_path)) {
       env.SetVar("WAYLAND_DISPLAY", kDefaultWaylandSocketName);
       return true;
@@ -70,12 +66,10 @@ std::string MaybeFixPlatformName(const std::string& platform_hint) {
   // Otherwise, fall back to X11.
   if (platform_hint == kPlatformWayland || platform_hint == "auto") {
     auto env = base::Environment::Create();
-    std::string xdg_session_type;
-    const bool has_xdg_session_type =
-        env->GetVar(base::nix::kXdgSessionTypeEnvVar, &xdg_session_type) &&
-        !xdg_session_type.empty();
+    std::optional<std::string> xdg_session_type =
+        env->GetVar(base::nix::kXdgSessionTypeEnvVar);
 
-    if ((has_xdg_session_type && xdg_session_type == "wayland") ||
+    if ((xdg_session_type.has_value() && *xdg_session_type == "wayland") ||
         (platform_hint == kPlatformWayland && HasWaylandDisplay(*env))) {
       return kPlatformWayland;
     }
@@ -109,12 +103,26 @@ std::string MaybeFixPlatformName(const std::string& platform_hint) {
   return platform_hint;
 }
 
+void MaybeOverrideDefaultAsAuto(base::CommandLine& command_line) {
+#if BUILDFLAG(IS_OZONE_WAYLAND)
+  const auto ozone_platform_hint =
+      command_line.GetSwitchValueASCII(switches::kOzonePlatformHint);
+  if (!ozone_platform_hint.empty() ||
+      !base::FeatureList::IsEnabled(
+          features::kOverrideDefaultOzonePlatformHintToAuto)) {
+    return;
+  }
+  command_line.AppendSwitchASCII(switches::kOzonePlatformHint, "auto");
+#endif  // BUILDFLAG(IS_OZONE_WAYLAND)
+}
+
 }  // namespace
 
 void SetOzonePlatformForLinuxIfNeeded(base::CommandLine& command_line) {
   // On the desktop, we fix the platform name if necessary.
   // See https://crbug.com/1246928.
   if (!command_line.HasSwitch(switches::kOzonePlatform)) {
+    MaybeOverrideDefaultAsAuto(command_line);
     const auto ozone_platform_hint =
         command_line.GetSwitchValueASCII(switches::kOzonePlatformHint);
     if (!ozone_platform_hint.empty()) {
@@ -137,8 +145,7 @@ bool HasX11Display(base::Environment& env) {
 #if !BUILDFLAG(IS_OZONE_X11)
   return false;
 #else
-  std::string xdisplay;
-  return env.GetVar("DISPLAY", &xdisplay) && !xdisplay.empty();
+  return env.GetVar("DISPLAY").has_value();
 #endif  // !BUILDFLAG(IS_OZONE_X11)
 }
 

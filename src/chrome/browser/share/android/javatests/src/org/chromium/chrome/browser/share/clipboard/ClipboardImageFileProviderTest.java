@@ -19,13 +19,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ApiCompatibilityUtils;
-import org.chromium.base.ContentUriUtils;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.FileProviderUtils;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.FileProviderHelper;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -50,7 +51,7 @@ public class ClipboardImageFileProviderTest {
 
     private byte[] mTestImageData;
 
-    private class AsyncTaskRunnableHelper extends CallbackHelper implements Runnable {
+    private static class AsyncTaskRunnableHelper extends CallbackHelper implements Runnable {
         @Override
         public void run() {
             notifyCalled();
@@ -79,7 +80,7 @@ public class ClipboardImageFileProviderTest {
         mTestImageData = baos.toByteArray();
 
         mActivityTestRule.startMainActivityFromLauncher();
-        ContentUriUtils.setFileProviderUtil(new FileProviderHelper());
+        FileProviderUtils.setFileProviderUtil(new FileProviderHelper());
     }
 
     @After
@@ -90,6 +91,7 @@ public class ClipboardImageFileProviderTest {
 
     @Test
     @SmallTest
+    @DisabledTest(message = "Flaky, see crbug.com/382511576")
     public void testClipboardSetImage() throws TimeoutException, IOException {
         Clipboard.getInstance().setImageFileProvider(new ClipboardImageFileProvider());
         Clipboard.getInstance().setImage(mTestImageData, TEST_PNG_IMAGE_FILE_EXTENSION);

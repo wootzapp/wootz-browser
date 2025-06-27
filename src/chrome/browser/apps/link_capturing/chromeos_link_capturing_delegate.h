@@ -39,17 +39,12 @@ class ChromeOsLinkCapturingDelegate
   static std::optional<std::string> GetLaunchAppId(
       const AppIdsToLaunchForUrl& app_ids_to_launch,
       bool is_navigation_from_link,
-      std::optional<webapps::AppId> source_app_id);
+      int redirection_chain_size);
 
   // Method intended for testing purposes only.
   // Set clock used for timing to enable manipulation during tests.
   static base::AutoReset<const base::TickClock*> SetClockForTesting(
       const base::TickClock* tick_clock);
-
-  // Override the allowlist of Workspace app IDs, used for tests which can't
-  // install/interact with the real versions of these apps.
-  static base::AutoReset<base::flat_set<std::string>>
-  SetWorkspaceAppAllowlistForTesting(base::flat_set<std::string> allowlist);
 
   // apps::LinkCapturingNavigationThrottle::Delegate:
   bool ShouldCancelThrottleCreation(content::NavigationHandle* handle) override;
@@ -57,7 +52,8 @@ class ChromeOsLinkCapturingDelegate
   CreateLinkCaptureLaunchClosure(Profile* profile,
                                  content::WebContents* web_contents,
                                  const GURL& url,
-                                 bool is_navigation_from_link) final;
+                                 bool is_navigation_from_link,
+                                 int redirection_chain_size) final;
 
  private:
   base::WeakPtrFactory<ChromeOsLinkCapturingDelegate> weak_factory_{this};

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "gpu/command_buffer/service/shared_image/dawn_image_representation_unittest_common.h"
 
 #include "base/threading/platform_thread.h"
@@ -16,12 +21,12 @@ void CopyTexelToBuffer(const wgpu::CommandEncoder& encoder,
                        uint32_t x,
                        uint32_t y,
                        const wgpu::Buffer& buffer) {
-  wgpu::ImageCopyBuffer buffer_copy;
+  wgpu::TexelCopyBufferInfo buffer_copy;
   buffer_copy.buffer = buffer;
   buffer_copy.layout =
-      wgpu::TextureDataLayout{.bytesPerRow = kBufferSizeMinAlignment};
+      wgpu::TexelCopyBufferLayout{.bytesPerRow = kBufferSizeMinAlignment};
 
-  wgpu::ImageCopyTexture texture_copy;
+  wgpu::TexelCopyTextureInfo texture_copy;
   texture_copy.texture = texture;
   texture_copy.mipLevel = 0;
   texture_copy.origin = wgpu::Origin3D{.x = x, .y = y, .z = 0};
@@ -35,7 +40,7 @@ void CopyTexelToBuffer(const wgpu::CommandEncoder& encoder,
 
 wgpu::ShaderModule CreateShaderModule(const wgpu::Device& device,
                                       const char* source) {
-  wgpu::ShaderModuleWGSLDescriptor wgsl_desc;
+  wgpu::ShaderSourceWGSL wgsl_desc;
   wgsl_desc.code = source;
   wgpu::ShaderModuleDescriptor descriptor;
   descriptor.nextInChain = &wgsl_desc;
@@ -107,6 +112,7 @@ wgpu::TextureView CreateTextureView(const wgpu::Texture& texture,
 }
 
 void RunDawnVideoSamplingTest(
+    wgpu::Instance instance,
     wgpu::Device device,
     const std::unique_ptr<DawnImageRepresentation>& shared_image,
     uint8_t expected_y_value,
@@ -228,28 +234,16 @@ struct VertexOut {
 
   device.GetQueue().Submit(1, &command_buffer);
 
-  struct MapCallbackData {
-    bool map_complete = false;
-    WGPUBufferMapAsyncStatus status;
-  } map_callback_data;
-
-  readback_buffer.MapAsync(
+  wgpu::FutureWaitInfo wait_info{readback_buffer.MapAsync(
       wgpu::MapMode::Read, 0, wgpu::kWholeMapSize,
-      [](WGPUBufferMapAsyncStatus status, void* void_userdata) {
-        MapCallbackData* userdata =
-            static_cast<MapCallbackData*>(void_userdata);
-        userdata->status = status;
-        userdata->map_complete = true;
-      },
-      &map_callback_data);
+      wgpu::CallbackMode::WaitAnyOnly,
+      [](wgpu::MapAsyncStatus status, wgpu::StringView) {
+        ASSERT_EQ(status, wgpu::MapAsyncStatus::Success);
+      })};
 
-  // Poll for the map to complete.
-  while (!map_callback_data.map_complete) {
-    base::PlatformThread::Sleep(base::Milliseconds(1));
-    device.Tick();
-  }
-
-  ASSERT_EQ(map_callback_data.status, WGPUBufferMapAsyncStatus_Success);
+  wgpu::WaitStatus status =
+      instance.WaitAny(1, &wait_info, std::numeric_limits<uint64_t>::max());
+  DCHECK(status == wgpu::WaitStatus::Success);
 
   uint8_t pixel_color[4];
 

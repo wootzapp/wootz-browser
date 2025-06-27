@@ -35,16 +35,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
@@ -62,7 +63,6 @@ import org.chromium.components.page_info.proto.AboutThisSiteMetadataProto.SiteDe
 import org.chromium.components.page_info.proto.AboutThisSiteMetadataProto.SiteInfo;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.url.GURL;
@@ -89,13 +89,13 @@ public class PageInfoAboutThisSiteTest {
     public static final ChromeTabbedActivityTestRule sActivityTestRule =
             new ChromeTabbedActivityTestRule();
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Rule
     public final BlankCTATabInitialStateRule mInitialStateRule =
             new BlankCTATabInitialStateRule(sActivityTestRule, false);
 
     @Rule public EmbeddedTestServerRule mTestServerRule = new EmbeddedTestServerRule();
-
-    @Rule public JniMocker mMocker = new JniMocker();
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
@@ -111,16 +111,15 @@ public class PageInfoAboutThisSiteTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         doReturn(true).when(mMockAboutThisSiteJni).isFeatureEnabled();
         doReturn(R.drawable.ic_info_outline_grey_24dp)
                 .when(mMockAboutThisSiteJni)
                 .getJavaDrawableIconId();
-        mMocker.mock(PageInfoAboutThisSiteControllerJni.TEST_HOOKS, mMockAboutThisSiteJni);
+        PageInfoAboutThisSiteControllerJni.setInstanceForTesting(mMockAboutThisSiteJni);
         mTestServerRule.setServerUsesHttps(true);
         sActivityTestRule.loadUrl(mTestServerRule.getServer().getURL(sSimpleHtml));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     TabbedRootUiCoordinator tabbedRootUiCoordinator =
                             ((TabbedRootUiCoordinator)
@@ -142,7 +141,7 @@ public class PageInfoAboutThisSiteTest {
     private void openPageInfo() {
         ChromeTabbedActivity activity = sActivityTestRule.getActivity();
         Tab tab = activity.getActivityTab();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     new ChromePageInfo(
                                     activity.getModalDialogManagerSupplier(),
@@ -158,9 +157,9 @@ public class PageInfoAboutThisSiteTest {
 
     private void dismissPageInfo() throws TimeoutException {
         CallbackHelper helper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    PageInfoController.getLastPageInfoControllerForTesting()
+                    PageInfoController.getLastPageInfoController()
                             .runAfterDismiss(helper::notifyCalled);
                 });
         helper.waitForCallback(0);
@@ -171,11 +170,11 @@ public class PageInfoAboutThisSiteTest {
      * the next command.
      */
     private void endAnimations() {
-        TestThreadUtils.runOnUiThreadBlocking(mSheetTestSupport::endAllAnimations);
+        ThreadUtils.runOnUiThreadBlocking(mSheetTestSupport::endAllAnimations);
     }
 
     private void closeBottomSheet() {
-        TestThreadUtils.runOnUiThreadBlocking(mEphemeralTabCoordinator::close);
+        ThreadUtils.runOnUiThreadBlocking(mEphemeralTabCoordinator::close);
         endAnimations();
         assertFalse(
                 "The bottomsheet should have closed but did not indicate closed",

@@ -30,7 +30,9 @@
 #include "chromeos/ash/components/drivefs/mojom/drivefs.mojom.h"
 #include "components/drive/file_errors.h"
 #include "components/sync_preferences/pref_service_syncable.h"
+#include "components/user_manager/scoped_user_manager.h"
 #include "content/public/test/browser_task_environment.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -181,18 +183,17 @@ class DriveRecentFileSuggestionProviderTest : public ::testing::Test {
         TestingBrowserProcess::GetGlobal());
     ASSERT_TRUE(profile_manager_->SetUp());
 
-    TestingProfile::TestingFactories factories;
-    factories.push_back(
-        {drive::DriveIntegrationServiceFactory::GetInstance(),
-         base::BindRepeating(&DriveRecentFileSuggestionProviderTest::
-                                 BuildTestDriveIntegrationService,
-                             base::Unretained(this))});
-    profile_ =
-        profile_manager_->CreateTestingProfile(kEmail, /*prefs=*/{}, kEmail16,
-                                               /*avatar_id=*/0, factories);
+    profile_ = profile_manager_->CreateTestingProfile(
+        kEmail, /*prefs=*/{}, kEmail16,
+        /*avatar_id=*/0,
+        {TestingProfile::TestingFactory{
+            drive::DriveIntegrationServiceFactory::GetInstance(),
+            base::BindRepeating(&DriveRecentFileSuggestionProviderTest::
+                                    BuildTestDriveIntegrationService,
+                                base::Unretained(this))}});
 
-    AccountId account_id =
-        AccountId::FromUserEmailGaiaId(profile_->GetProfileUserName(), "12345");
+    AccountId account_id = AccountId::FromUserEmailGaiaId(
+        profile_->GetProfileUserName(), GaiaId("12345"));
     fake_user_manager_->AddUserWithAffiliationAndTypeAndProfile(
         account_id, /*is_affiliated=*/false, user_manager::UserType::kRegular,
         profile_.get());

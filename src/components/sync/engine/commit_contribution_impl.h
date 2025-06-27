@@ -23,15 +23,15 @@ namespace syncer {
 // A sync type's contribution to an outgoing commit message.
 //
 // Helps build a commit message and process its response.  It collaborates
-// closely with the ModelTypeWorker.
+// closely with the DataTypeWorker.
 class CommitContributionImpl : public CommitContribution {
  public:
-  // Only one of |on_commit_response_callback| and
-  // |on_full_commit_failure_callback| will be called.
+  // Only one of `on_commit_response_callback` and
+  // `on_full_commit_failure_callback` will be called.
   // TODO(rushans): there is still possible rare case when both of these
   // callbacks are never called, i.e. if get updates from the server fails.
   CommitContributionImpl(
-      ModelType type,
+      DataType type,
       const sync_pb::DataTypeContext& context,
       CommitRequestDataList commit_requests,
       base::OnceCallback<void(const CommitResponseDataList&,
@@ -55,7 +55,7 @@ class CommitContributionImpl : public CommitContribution {
 
   // Public for testing.
   // Copies data to be committed from CommitRequestData into SyncEntity proto.
-  static void PopulateCommitProto(ModelType type,
+  static void PopulateCommitProto(DataType type,
                                   const CommitRequestData& commit_entity,
                                   sync_pb::SyncEntity* commit_proto);
 
@@ -63,7 +63,7 @@ class CommitContributionImpl : public CommitContribution {
   // Generates id for new entities and encrypts entity if needed.
   void AdjustCommitProto(sync_pb::SyncEntity* commit_proto);
 
-  const ModelType type_;
+  const DataType type_;
 
   // A callback to inform the object that created this contribution about commit
   // result.
@@ -72,7 +72,7 @@ class CommitContributionImpl : public CommitContribution {
       on_commit_response_callback_;
 
   // A callback to inform the object that created this contribution about commit
-  // failure. This callback differs from |on_commit_response_callback_| and will
+  // failure. This callback differs from `on_commit_response_callback_` and will
   // be called when the server respond with any error code or do not respond at
   // all (i.e. there is no internet connection).
   base::OnceCallback<void(SyncCommitError)> on_full_commit_failure_callback_;

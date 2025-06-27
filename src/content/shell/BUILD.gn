@@ -33,8 +33,8 @@ if (is_android) {
   import("//third_party/fuchsia-gn-sdk/src/component.gni")
   import("//third_party/fuchsia-gn-sdk/src/package.gni")
 } else if (is_ios) {
-  import("//build/config/ios/config.gni")
-  import("//build/config/ios/swift_source_set.gni")
+  import("//build/config/apple/mobile_config.gni")
+  import("//build/config/apple/swift_source_set.gni")
   import("//content/shell/app/ios/extensions.gni")
 }
 
@@ -49,9 +49,9 @@ declare_args() {
 }
 
 config("content_shell_lib_warnings") {
-  if (is_clang) {
-    # TODO(thakis): Remove this once http://crbug.com/383820 is figured out
-    cflags = [ "-Wno-nonnull" ]
+  if (is_clang && is_mac) {
+    # TODO(thakis): Remove this once http://crbug.com/40370188 is figured out
+    cflags_objcc = [ "-Wno-nonnull" ]
   }
 }
 
@@ -185,8 +185,6 @@ static_library("content_shell_lib") {
     "browser/shell_devtools_manager_delegate.h",
     "browser/shell_download_manager_delegate.cc",
     "browser/shell_download_manager_delegate.h",
-    "browser/shell_federated_permission_context.cc",
-    "browser/shell_federated_permission_context.h",
     "browser/shell_javascript_dialog.h",
     "browser/shell_javascript_dialog_manager.cc",
     "browser/shell_javascript_dialog_manager.h",
@@ -250,18 +248,6 @@ static_library("content_shell_lib") {
 
   if (is_ios) {
     sources += [
-      "browser/bluetooth/ios/shell_bluetooth_chooser_coordinator.h",
-      "browser/bluetooth/ios/shell_bluetooth_chooser_coordinator.mm",
-      "browser/bluetooth/ios/shell_bluetooth_chooser_ios.h",
-      "browser/bluetooth/ios/shell_bluetooth_chooser_ios.mm",
-      "browser/bluetooth/ios/shell_bluetooth_chooser_mediator.h",
-      "browser/bluetooth/ios/shell_bluetooth_chooser_mediator.mm",
-      "browser/bluetooth/ios/shell_bluetooth_device_list_consumer.h",
-      "browser/bluetooth/ios/shell_bluetooth_device_list_delegate.h",
-      "browser/bluetooth/ios/shell_bluetooth_device_list_view_controller.h",
-      "browser/bluetooth/ios/shell_bluetooth_device_list_view_controller.mm",
-      "browser/bluetooth/shell_bluetooth_delegate_impl_client.cc",
-      "browser/bluetooth/shell_bluetooth_delegate_impl_client.h",
       "browser/color_chooser/shell_color_chooser_ios.h",
       "browser/color_chooser/shell_color_chooser_ios.mm",
       "browser/shell_browser_main_parts_ios.mm",
@@ -270,6 +256,23 @@ static_library("content_shell_lib") {
       "browser/shell_platform_delegate_ios.mm",
       "browser/shell_web_contents_view_delegate_ios.mm",
     ]
+
+    if (target_platform == "iphoneos") {
+      sources += [
+        "browser/bluetooth/ios/shell_bluetooth_chooser_coordinator.h",
+        "browser/bluetooth/ios/shell_bluetooth_chooser_coordinator.mm",
+        "browser/bluetooth/ios/shell_bluetooth_chooser_ios.h",
+        "browser/bluetooth/ios/shell_bluetooth_chooser_ios.mm",
+        "browser/bluetooth/ios/shell_bluetooth_chooser_mediator.h",
+        "browser/bluetooth/ios/shell_bluetooth_chooser_mediator.mm",
+        "browser/bluetooth/ios/shell_bluetooth_device_list_consumer.h",
+        "browser/bluetooth/ios/shell_bluetooth_device_list_delegate.h",
+        "browser/bluetooth/ios/shell_bluetooth_device_list_view_controller.h",
+        "browser/bluetooth/ios/shell_bluetooth_device_list_view_controller.mm",
+        "browser/bluetooth/shell_bluetooth_delegate_impl_client.cc",
+        "browser/bluetooth/shell_bluetooth_delegate_impl_client.h",
+      ]
+    }
   }
 
   if (is_win) {
@@ -313,11 +316,13 @@ static_library("content_shell_lib") {
     ":shell_controller_mojom",
     "//base",
     "//base:base_static",
-    "//build:chromeos_buildflags",
     "//cc/base",
     "//components/cdm/renderer",
     "//components/custom_handlers",
     "//components/custom_handlers:test_support",
+    "//components/embedder_support",
+    "//components/embedder_support:user_agent",
+    "//components/input",
     "//components/keyed_service/content",
     "//components/metrics",
     "//components/metrics:net",
@@ -355,7 +360,6 @@ static_library("content_shell_lib") {
     "//third_party/blink/public:image_resources",
     "//third_party/blink/public:resources",
     "//third_party/blink/public/strings",
-    "//third_party/blink/public/strings:accessibility_strings",
     "//third_party/inspector_protocol:crdtp",
     "//ui/base",
     "//ui/base/clipboard",
@@ -363,6 +367,7 @@ static_library("content_shell_lib") {
     "//ui/gfx",
     "//ui/gfx/geometry",
     "//ui/platform_window",
+    "//ui/strings:auto_image_annotation_strings",
     "//url",
     "//v8",
   ]
@@ -448,6 +453,7 @@ static_library("content_shell_lib") {
         "browser/shell_platform_delegate_views.cc",
         "browser/shell_web_contents_view_delegate_views.cc",
       ]
+      public_deps += [ "//ui/base/mojom:ui_base_types" ]
       deps += [
         "//ui/color:color_headers",
         "//ui/native_theme",
@@ -469,15 +475,8 @@ static_library("content_shell_lib") {
     ]
   }
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//chromeos/ash/components/dbus" ]
-  }
-
-  if (is_chromeos_lacros) {
-    deps += [
-      "//chromeos/dbus/constants",
-      "//chromeos/lacros/dbus",
-    ]
   }
 
   if (is_linux || is_chromeos) {
@@ -539,13 +538,15 @@ repack("pak") {
     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_100_percent.pak",
     "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
-    "$root_gen_dir/third_party/blink/public/strings/blink_accessibility_strings_en-US.pak",
     "$root_gen_dir/third_party/blink/public/strings/blink_strings_en-US.pak",
+    "$root_gen_dir/third_party/blink/public/strings/permission_element_generated_strings.pak",
+    "$root_gen_dir/third_party/blink/public/strings/permission_element_strings_en-US.pak",
     "$root_gen_dir/ui/resources/ui_resources_100_percent.pak",
-    "$root_gen_dir/ui/resources/webui_resources.pak",
     "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
+    "$root_gen_dir/ui/strings/auto_image_annotation_strings_en-US.pak",
     "$root_gen_dir/ui/strings/ax_strings_en-US.pak",
     "$root_gen_dir/ui/strings/ui_strings_en-US.pak",
+    "$root_gen_dir/ui/webui/resources/webui_resources.pak",
   ]
 
   deps = [
@@ -563,9 +564,11 @@ repack("pak") {
     "//third_party/blink/public:resources",
     "//third_party/blink/public:scaled_resources_100_percent",
     "//third_party/blink/public/strings",
-    "//third_party/blink/public/strings:accessibility_strings",
+    "//third_party/blink/public/strings:permission_element_generated_strings",
+    "//third_party/blink/public/strings:permission_element_strings",
     "//ui/resources",
     "//ui/strings",
+    "//ui/webui/resources",
   ]
 
   if (enable_vr) {
@@ -652,8 +655,22 @@ if (is_android) {
 
     # Path to an entitlements file used in ios_content_shell. Can be overridden
     # to provide an alternative.
-    ios_content_shell_entitlements_path =
-        "//content/app/ios/appex/app.entitlements"
+    if (target_platform == "iphoneos") {
+      ios_content_shell_entitlements_path =
+          "//content/app/ios/appex/app.entitlements"
+    } else {
+      ios_content_shell_entitlements_path =
+          "//build/config/ios/entitlements.plist"
+    }
+  }
+
+  declare_args() {
+    ios_content_process_bundle_identifier =
+        "$ios_content_shell_bundle_identifier.ContentProcessExtension"
+    ios_network_process_bundle_identifier =
+        "$ios_content_shell_bundle_identifier.NetworkProcessExtension"
+    ios_gpu_process_bundle_identifier =
+        "$ios_content_shell_bundle_identifier.GPUProcessExtension"
   }
 
   ios_app_bundle("content_shell") {
@@ -662,13 +679,18 @@ if (is_android) {
 
     sources = [ "app/ios/shell_main_trampoline.cc" ]
 
-    deps = [
-      ":content_process_bundle",
-      ":content_shell_framework+link",
-      ":gpu_process_bundle",
-      ":network_process_bundle",
-    ]
+    deps = [ ":content_shell_framework+link" ]
+
+    if (target_platform == "iphoneos") {
+      deps += [
+        ":content_process_bundle",
+        ":gpu_process_bundle",
+        ":network_process_bundle",
+      ]
+    }
+
     bundle_deps = [
+      ":content_shell_framework+bundle",
       ":content_shell_framework_resources",
       "app/ios/resources",
     ]
@@ -686,27 +708,29 @@ if (is_android) {
     deps = [
       ":content_shell_app",
       ":content_shell_lib",
-      "//content/app/ios/appex:child_process_bridge",
       "//content/public/app",
       "//content/public/common",
       "//third_party/icu:icudata",
     ]
+    if (target_platform == "iphoneos") {
+      deps += [ "//content/app/ios/appex:child_process_bridge" ]
+    }
     info_plist = "app/ios/ios-app.plist"
   }
 
   browserkit_extension("gpu_process") {
     testonly = true
-    bundle_identifier = "$shared_bundle_id_for_test_apps.GPUProcess"
+    bundle_identifier = ios_gpu_process_bundle_identifier
   }
 
   browserkit_extension("network_process") {
     testonly = true
-    bundle_identifier = "$shared_bundle_id_for_test_apps.NetworkProcess"
+    bundle_identifier = ios_network_process_bundle_identifier
   }
 
   browserkit_extension("content_process") {
     testonly = true
-    bundle_identifier = "$shared_bundle_id_for_test_apps.ContentProcess"
+    bundle_identifier = ios_content_process_bundle_identifier
   }
 } else {
   executable("content_shell") {
@@ -891,7 +915,7 @@ if (is_mac) {
     ]
 
     deps = [
-      ":content_shell_angle_library",
+      ":content_shell_angle_binaries",
       ":content_shell_app",
       "//content/public/app",
       "//content/public/common",
@@ -901,7 +925,7 @@ if (is_mac) {
     bundle_deps = [
       ":content_shell_framework_helpers",
       ":content_shell_framework_resources",
-      ":content_shell_swiftshader_library",
+      ":content_shell_swiftshader_binaries",
     ]
 
     if (enable_ppapi) {
@@ -972,14 +996,16 @@ if (is_mac) {
 
       if (is_component_build) {
         ldflags = [
-          # The helper is in Content Shell.app/Contents/Frameworks/
-          #     Content Shell Framework.framework/Versions/C/Helpers/
-          #     Content Shell Helper.app/Contents/MacOS/
-          # so set rpath up to the base.
-          "-Wl,-rpath,@executable_path/../../../../../../../../../..",
+          # The helper is in Content Shell.app/Contents/Frameworks/Content Shell Framework.framework/Versions/C/Helpers/Content Shell Helper.app/Contents/MacOS
 
-          # ... and up to Contents/Frameworks.
+          # Set up an rpath to the Contents/Frameworks/ directory so that
+          # Content Shell Framework.framework will be found there. This matches
+          # the path that app_shell_main.cc uses with `dlopen` and avoids
+          # loading the framework into memory twice.
           "-Wl,-rpath,@executable_path/../../../../../../..",
+
+          # Add an rpath up to the base for all other libraries.
+          "-Wl,-rpath,@executable_path/../../../../../../../../../..",
         ]
 
         # In a component build, the framework is directly linked to the
@@ -1020,38 +1046,24 @@ if (is_mac) {
     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
   }
 
-  if (use_egl) {
-    # Add the ANGLE .dylibs in the Libraries directory of the Framework.
-    bundle_data("content_shell_angle_binaries") {
-      sources = [
-        "$root_out_dir/egl_intermediates/libEGL.dylib",
-        "$root_out_dir/egl_intermediates/libGLESv2.dylib",
-      ]
-      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
-      public_deps = [ "//ui/gl:angle_library_copy" ]
-    }
-
-    # Add the SwiftShader .dylibs in the Libraries directory of the Framework.
-    bundle_data("content_shell_swiftshader_binaries") {
-      sources = [
-        "$root_out_dir/vk_intermediates/libvk_swiftshader.dylib",
-        "$root_out_dir/vk_intermediates/vk_swiftshader_icd.json",
-      ]
-      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
-      public_deps = [ "//ui/gl:swiftshader_vk_library_copy" ]
-    }
+  # Add the ANGLE .dylibs in the Libraries directory of the Framework.
+  bundle_data("content_shell_angle_binaries") {
+    sources = [
+      "$root_out_dir/egl_intermediates/libEGL.dylib",
+      "$root_out_dir/egl_intermediates/libGLESv2.dylib",
+    ]
+    outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
+    public_deps = [ "//ui/gl:angle_library_copy" ]
   }
 
-  group("content_shell_angle_library") {
-    if (use_egl) {
-      deps = [ ":content_shell_angle_binaries" ]
-    }
-  }
-
-  group("content_shell_swiftshader_library") {
-    if (use_egl) {
-      deps = [ ":content_shell_swiftshader_binaries" ]
-    }
+  # Add the SwiftShader .dylibs in the Libraries directory of the Framework.
+  bundle_data("content_shell_swiftshader_binaries") {
+    sources = [
+      "$root_out_dir/vk_intermediates/libvk_swiftshader.dylib",
+      "$root_out_dir/vk_intermediates/vk_swiftshader_icd.json",
+    ]
+    outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
+    public_deps = [ "//ui/gl:swiftshader_vk_library_copy" ]
   }
 }
 
@@ -1062,6 +1074,7 @@ mojom("content_browsertests_mojom") {
     "common/render_frame_test_helper.mojom",
   ]
   public_deps = [
+    "//mojo/public/mojom/base",
     "//sandbox/policy/mojom",
     "//third_party/blink/public/mojom/tokens",
   ]
@@ -1072,7 +1085,7 @@ group("content_shell_crash_test") {
   data_deps = [
     ":content_shell",
     "//testing:test_scripts_shared",
-    "//third_party/mesa_headers",
+    "//third_party/angle:includes",
   ]
   data = [
     "//content/shell/tools/breakpad_integration_test.py",

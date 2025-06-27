@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <string>
 
 #include "base/test/scoped_feature_list.h"
@@ -22,14 +23,14 @@ namespace content_settings {
 namespace {
 
 // clang-format off
-const char* const kContentSettingNames[] = {
+constexpr auto kContentSettingNames = std::to_array<const char *>({
   "default",
   "allow",
   "block",
   "ask",
   "session_only",
   "detect_important_content",
-};
+});
 // clang-format on
 
 static_assert(std::size(kContentSettingNames) == CONTENT_SETTING_NUM_SETTINGS,

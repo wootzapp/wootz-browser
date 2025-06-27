@@ -4,6 +4,8 @@
 
 #include "components/content_settings/core/browser/content_settings_uma_util.h"
 
+#include <functional>
+
 #include "base/containers/fixed_flat_map.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
@@ -16,6 +18,7 @@ namespace {
 // specified in the ContentType enum in enums.xml. Since these values are
 // used for histograms, please do not reuse the same value for a different
 // content setting. Always append to the end and increment.
+// LINT.IfChange(kHistogramValue)
 constexpr auto kHistogramValue = base::MakeFixedFlatMap<ContentSettingsType,
                                                         int>({
     // Cookies was previously logged to bucket 0, which is not a valid bucket
@@ -54,7 +57,8 @@ constexpr auto kHistogramValue = base::MakeFixedFlatMap<ContentSettingsType,
     {ContentSettingsType::SOUND, 36},
     {ContentSettingsType::CLIENT_HINTS, 37},
     {ContentSettingsType::SENSORS, 38},
-    {ContentSettingsType::ACCESSIBILITY_EVENTS, 39},
+    // ACCESSIBILITY_EVENTS deprecated in M131.
+    {ContentSettingsType::DEPRECATED_ACCESSIBILITY_EVENTS, 39},
     {ContentSettingsType::PAYMENT_HANDLER, 43},
     {ContentSettingsType::USB_GUARD, 44},
     {ContentSettingsType::BACKGROUND_FETCH, 45},
@@ -78,80 +82,89 @@ constexpr auto kHistogramValue = base::MakeFixedFlatMap<ContentSettingsType,
     {ContentSettingsType::SAFE_BROWSING_URL_CHECK_DATA, 63},
     {ContentSettingsType::VR, 64},
     {ContentSettingsType::AR, 65},
-    {ContentSettingsType::WOOTZ_ETHEREUM, 66},
-    {ContentSettingsType::WOOTZ_SOLANA, 67},  
-    {ContentSettingsType::WOOTZ_GOOGLE_SIGN_IN, 68},
-    {ContentSettingsType::WOOTZ_LOCALHOST_ACCESS, 69},
-    {ContentSettingsType::FILE_SYSTEM_READ_GUARD, 70},
-    {ContentSettingsType::STORAGE_ACCESS, 71},
-    {ContentSettingsType::CAMERA_PAN_TILT_ZOOM, 72},
-    {ContentSettingsType::WINDOW_MANAGEMENT, 73},
-    {ContentSettingsType::INSECURE_PRIVATE_NETWORK, 74},
-    {ContentSettingsType::LOCAL_FONTS, 75},
-    {ContentSettingsType::PERMISSION_AUTOREVOCATION_DATA, 76},
-    {ContentSettingsType::FILE_SYSTEM_LAST_PICKED_DIRECTORY, 77},
-    {ContentSettingsType::DISPLAY_CAPTURE, 78},
+    {ContentSettingsType::FILE_SYSTEM_READ_GUARD, 66},
+    {ContentSettingsType::STORAGE_ACCESS, 67},
+    {ContentSettingsType::CAMERA_PAN_TILT_ZOOM, 68},
+    {ContentSettingsType::WINDOW_MANAGEMENT, 69},
+    {ContentSettingsType::INSECURE_PRIVATE_NETWORK, 70},
+    {ContentSettingsType::LOCAL_FONTS, 71},
+    {ContentSettingsType::PERMISSION_AUTOREVOCATION_DATA, 72},
+    {ContentSettingsType::FILE_SYSTEM_LAST_PICKED_DIRECTORY, 73},
+    {ContentSettingsType::DISPLAY_CAPTURE, 74},
     // Removed FILE_HANDLING in M98.
-    {ContentSettingsType::FILE_SYSTEM_ACCESS_CHOOSER_DATA, 80},
-    {ContentSettingsType::FEDERATED_IDENTITY_SHARING, 81},
+    {ContentSettingsType::FILE_SYSTEM_ACCESS_CHOOSER_DATA, 76},
+    {ContentSettingsType::FEDERATED_IDENTITY_SHARING, 77},
     // Removed FEDERATED_IDENTITY_REQUEST in M103.
-    {ContentSettingsType::JAVASCRIPT_JIT, 83},
-    {ContentSettingsType::HTTP_ALLOWED, 84},
-    {ContentSettingsType::FORMFILL_METADATA, 85},
-    {ContentSettingsType::DEPRECATED_FEDERATED_IDENTITY_ACTIVE_SESSION, 86},
-    {ContentSettingsType::AUTO_DARK_WEB_CONTENT, 87},
-    {ContentSettingsType::REQUEST_DESKTOP_SITE, 88},
-    {ContentSettingsType::FEDERATED_IDENTITY_API, 89},
-    {ContentSettingsType::NOTIFICATION_INTERACTIONS, 90},
-    {ContentSettingsType::REDUCED_ACCEPT_LANGUAGE, 91},
-    {ContentSettingsType::NOTIFICATION_PERMISSION_REVIEW, 92},
-    {ContentSettingsType::PRIVATE_NETWORK_GUARD, 93},
-    {ContentSettingsType::PRIVATE_NETWORK_CHOOSER_DATA, 94},
+    {ContentSettingsType::JAVASCRIPT_JIT, 79},
+    {ContentSettingsType::HTTP_ALLOWED, 80},
+    {ContentSettingsType::FORMFILL_METADATA, 81},
+    {ContentSettingsType::DEPRECATED_FEDERATED_IDENTITY_ACTIVE_SESSION, 82},
+    {ContentSettingsType::AUTO_DARK_WEB_CONTENT, 83},
+    {ContentSettingsType::REQUEST_DESKTOP_SITE, 84},
+    {ContentSettingsType::FEDERATED_IDENTITY_API, 85},
+    {ContentSettingsType::NOTIFICATION_INTERACTIONS, 86},
+    {ContentSettingsType::REDUCED_ACCEPT_LANGUAGE, 87},
+    {ContentSettingsType::NOTIFICATION_PERMISSION_REVIEW, 88},
+    {ContentSettingsType::PRIVATE_NETWORK_GUARD, 89},
+    {ContentSettingsType::PRIVATE_NETWORK_CHOOSER_DATA, 90},
     {ContentSettingsType::FEDERATED_IDENTITY_IDENTITY_PROVIDER_SIGNIN_STATUS,
-     95},
-    {ContentSettingsType::REVOKED_UNUSED_SITE_PERMISSIONS, 96},
-    {ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS, 97},
-    {ContentSettingsType::FEDERATED_IDENTITY_AUTO_REAUTHN_PERMISSION, 98},
+     91},
+    {ContentSettingsType::REVOKED_UNUSED_SITE_PERMISSIONS, 92},
+    {ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS, 93},
+    {ContentSettingsType::FEDERATED_IDENTITY_AUTO_REAUTHN_PERMISSION, 94},
     {ContentSettingsType::FEDERATED_IDENTITY_IDENTITY_PROVIDER_REGISTRATION,
-     99},
-    {ContentSettingsType::ANTI_ABUSE, 100},
-    {ContentSettingsType::THIRD_PARTY_STORAGE_PARTITIONING, 101},
-    {ContentSettingsType::HTTPS_ENFORCED, 102},
-    {ContentSettingsType::USB_CHOOSER_DATA, 103},
+     95},
+    {ContentSettingsType::ANTI_ABUSE, 96},
+    {ContentSettingsType::THIRD_PARTY_STORAGE_PARTITIONING, 97},
+    {ContentSettingsType::HTTPS_ENFORCED, 98},
+    {ContentSettingsType::USB_CHOOSER_DATA, 99},
     // The value 100 is assigned to COOKIES!
     // Removed GET_DISPLAY_MEDIA_SET_SELECT_ALL_SCREENS in M116.
-    {ContentSettingsType::MIDI, 106},
-    {ContentSettingsType::ALL_SCREEN_CAPTURE, 107},
-    {ContentSettingsType::COOKIE_CONTROLS_METADATA, 108},
-    {ContentSettingsType::TPCD_TRIAL, 109},
-    {ContentSettingsType::AUTO_PICTURE_IN_PICTURE, 110},
-    {ContentSettingsType::TPCD_METADATA_GRANTS, 111},
-    {ContentSettingsType::FILE_SYSTEM_ACCESS_EXTENDED_PERMISSION, 112},
-    {ContentSettingsType::TPCD_HEURISTICS_GRANTS, 113},
-    {ContentSettingsType::FILE_SYSTEM_ACCESS_RESTORE_PERMISSION, 114},
-    {ContentSettingsType::CAPTURED_SURFACE_CONTROL, 115},
-    {ContentSettingsType::SMART_CARD_GUARD, 116},
-    {ContentSettingsType::SMART_CARD_DATA, 117},
-    {ContentSettingsType::WEB_PRINTING, 118},
-    {ContentSettingsType::TOP_LEVEL_TPCD_TRIAL, 119},
-    {ContentSettingsType::AUTOMATIC_FULLSCREEN, 120},
-    {ContentSettingsType::SUB_APP_INSTALLATION_PROMPTS, 121},
-    {ContentSettingsType::SPEAKER_SELECTION, 122},
-    {ContentSettingsType::DIRECT_SOCKETS, 123},
-    {ContentSettingsType::KEYBOARD_LOCK, 124},
-    {ContentSettingsType::POINTER_LOCK, 125},
-    {ContentSettingsType::REVOKED_ABUSIVE_NOTIFICATION_PERMISSIONS, 126},
-    {ContentSettingsType::TRACKING_PROTECTION, 127},
-    {ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL, 128},
+    {ContentSettingsType::MIDI, 102},
+    {ContentSettingsType::ALL_SCREEN_CAPTURE, 103},
+    {ContentSettingsType::COOKIE_CONTROLS_METADATA, 104},
+    {ContentSettingsType::TPCD_TRIAL, 105},
+    {ContentSettingsType::AUTO_PICTURE_IN_PICTURE, 106},
+    {ContentSettingsType::TPCD_METADATA_GRANTS, 107},
+    {ContentSettingsType::FILE_SYSTEM_ACCESS_EXTENDED_PERMISSION, 108},
+    {ContentSettingsType::TPCD_HEURISTICS_GRANTS, 109},
+    {ContentSettingsType::FILE_SYSTEM_ACCESS_RESTORE_PERMISSION, 110},
+    {ContentSettingsType::CAPTURED_SURFACE_CONTROL, 111},
+    {ContentSettingsType::SMART_CARD_GUARD, 112},
+    {ContentSettingsType::SMART_CARD_DATA, 113},
+    {ContentSettingsType::WEB_PRINTING, 114},
+    {ContentSettingsType::TOP_LEVEL_TPCD_TRIAL, 115},
+    {ContentSettingsType::AUTOMATIC_FULLSCREEN, 116},
+    {ContentSettingsType::SUB_APP_INSTALLATION_PROMPTS, 117},
+    {ContentSettingsType::SPEAKER_SELECTION, 118},
+    {ContentSettingsType::DIRECT_SOCKETS, 119},
+    {ContentSettingsType::KEYBOARD_LOCK, 120},
+    {ContentSettingsType::POINTER_LOCK, 121},
+    {ContentSettingsType::REVOKED_ABUSIVE_NOTIFICATION_PERMISSIONS, 122},
+    {ContentSettingsType::TRACKING_PROTECTION, 123},
+    {ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL, 124},
+    {ContentSettingsType::DISPLAY_MEDIA_SYSTEM_AUDIO, 125},
+    {ContentSettingsType::JAVASCRIPT_OPTIMIZER, 126},
+    {ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL, 127},
+    {ContentSettingsType::HAND_TRACKING, 128},
+    {ContentSettingsType::WEB_APP_INSTALLATION, 129},
+    {ContentSettingsType::DIRECT_SOCKETS_PRIVATE_NETWORK_ACCESS, 130},
+    {ContentSettingsType::LEGACY_COOKIE_SCOPE, 131},
+    {ContentSettingsType::ARE_SUSPICIOUS_NOTIFICATIONS_ALLOWLISTED_BY_USER,
+     132},
+    {ContentSettingsType::CONTROLLED_FRAME, 133},
+    {ContentSettingsType::REVOKED_DISRUPTIVE_NOTIFICATION_PERMISSIONS, 134},
+    {ContentSettingsType::LOCAL_NETWORK_ACCESS, 135},
 
     // As mentioned at the top, please don't forget to update ContentType in
     // enums.xml when you add entries here!
 });
+// LINT.ThenChange(//tools/metrics/histograms/enums.xml:ContentType)
 
 constexpr int kkHistogramValueMax =
-    base::ranges::max_element(kHistogramValue,
-                              base::ranges::less{},
-                              &decltype(kHistogramValue)::value_type::second)
+    std::ranges::max_element(kHistogramValue,
+                             std::ranges::less{},
+                             &decltype(kHistogramValue)::value_type::second)
         ->second;
 
 std::string GetProviderNameForHistograms(
@@ -164,6 +177,8 @@ std::string GetProviderNameForHistograms(
     // when new providers are added.
     case ProviderType::kWebuiAllowlistProvider:
       return "WebuiAllowlistProvider";
+    case ProviderType::kComponentExtensionProvider:
+      return "ComponentExtensionProvider";
     case ProviderType::kPolicyProvider:
       return "PolicyProvider";
     case ProviderType::kSupervisedProvider:
@@ -172,6 +187,8 @@ std::string GetProviderNameForHistograms(
       return "CustomExtensionProvider";
     case ProviderType::kInstalledWebappProvider:
       return "InstalledWebappProvider";
+    case ProviderType::kJavascriptOptimizerAndroidProvider:
+      return "JavascriptOptimizerAndroidProvider";
     case ProviderType::kNotificationAndroidProvider:
       return "NotificationAndroidProvider";
     case ProviderType::kOneTimePermissionProvider:
@@ -185,8 +202,7 @@ std::string GetProviderNameForHistograms(
     case ProviderType::kOtherProviderForTests:
       return "OtherProviderForTests";
     case ProviderType::kNone:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
@@ -201,7 +217,6 @@ void RecordContentSettingsHistogram(const std::string& name,
       kkHistogramValueMax + 1);
 }
 
-
 int ContentSettingTypeToHistogramValue(ContentSettingsType content_setting) {
   static_assert(
       kHistogramValue.size() ==
@@ -215,8 +230,7 @@ int ContentSettingTypeToHistogramValue(ContentSettingsType content_setting) {
         << "Used for deprecated settings: " << static_cast<int>(found->first);
     return found->second;
   }
-  NOTREACHED_IN_MIGRATION();
-  return -1;
+  NOTREACHED();
 }
 
 void RecordActiveExpiryEvent(content_settings::ProviderType provider_type,

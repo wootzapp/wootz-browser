@@ -13,8 +13,8 @@ import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {strictQuery} from 'chrome://resources/ash/common/typescript_utils/strict_query.js';
 import {mojoString16ToString} from 'chrome://resources/js/mojo_type_util.js';
-import {String16} from 'chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-webui.js';
-import {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
+import type {String16} from 'chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-webui.js';
+import type {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {Subactions, UserAction} from '../mojom-webui/shortcut_customization.mojom-webui.js';
@@ -23,7 +23,8 @@ import {getTemplate} from './accelerator_edit_view.html.js';
 import {AcceleratorLookupManager} from './accelerator_lookup_manager.js';
 import {AcceleratorViewElement, ViewState} from './accelerator_view.js';
 import {getShortcutProvider} from './mojo_interface_provider.js';
-import {Accelerator, AcceleratorConfigResult, AcceleratorKeyState, AcceleratorSource, AcceleratorState, AcceleratorType, EditAction, ShortcutProviderInterface, StandardAcceleratorInfo} from './shortcut_types.js';
+import type {Accelerator, AcceleratorSource, ShortcutProviderInterface, StandardAcceleratorInfo} from './shortcut_types.js';
+import {AcceleratorConfigResult, AcceleratorKeyState, AcceleratorState, AcceleratorType, EditAction, MetaKey} from './shortcut_types.js';
 import {getAccelerator, getAriaLabelForStandardAcceleratorInfo} from './shortcut_utils.js';
 
 export type RequestUpdateAcceleratorEvent =
@@ -42,6 +43,7 @@ const accelerator: Accelerator = {
 };
 
 const standardAcceleratorInfoState: StandardAcceleratorInfo = {
+  acceleratorLocked: false,
   locked: false,
   state: AcceleratorState.kEnabled,
   type: AcceleratorType.kDefault,
@@ -269,9 +271,17 @@ export class AcceleratorEditViewElement extends AcceleratorEditViewElementBase {
   }
 
   private getMetaKeyDisplay(): string {
-    return this.lookupManager.getHasLauncherButton() ?
-        this.i18n('iconLabelOpenLauncher') :
-        this.i18n('iconLabelOpenSearch');
+    const metaKey = this.lookupManager.getMetaKeyToDisplay();
+    switch (metaKey) {
+      case MetaKey.kLauncherRefresh:
+        // TODO(b/338134189): Replace it with updated icon when finalized.
+        return this.i18n('iconLabelOpenLauncher');
+      case MetaKey.kSearch:
+        return this.i18n('iconLabelOpenSearch');
+      case MetaKey.kLauncher:
+      default:
+        return this.i18n('iconLabelOpenLauncher');
+    }
   }
 
   getStatusMessageForTesting(): string {

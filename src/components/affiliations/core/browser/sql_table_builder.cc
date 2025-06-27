@@ -4,6 +4,7 @@
 
 #include "components/affiliations/core/browser/sql_table_builder.h"
 
+#include <algorithm>
 #include <set>
 #include <string_view>
 #include <utility>
@@ -12,7 +13,6 @@
 #include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -26,10 +26,11 @@ namespace {
 
 // Appends |name| to |list_of_names|, separating items with ", ".
 void Append(const std::string& name, std::string* list_of_names) {
-  if (list_of_names->empty())
+  if (list_of_names->empty()) {
     *list_of_names = name;
-  else
+  } else {
     *list_of_names += ", " + name;
+  }
 }
 
 // Returns true iff the foreign keys can be safely re-enabled on the database.
@@ -39,9 +40,9 @@ bool CheckForeignKeyConstraints(sql::Database& db) {
   bool ret = true;
   while (stmt.Step()) {
     ret = false;
-    LOG(ERROR) << "Foreign key violation "
-               << stmt.ColumnString(0) + ", " + stmt.ColumnString(1) + ", " +
-                      stmt.ColumnString(2) + ", " + stmt.ColumnString(3);
+    LOG(ERROR) << "Foreign key violation " << stmt.ColumnStringView(0) << ", "
+               << stmt.ColumnStringView(1) << ", " << stmt.ColumnStringView(2)
+               << ", " << stmt.ColumnStringView(3);
   }
   return ret;
 }
@@ -150,7 +151,7 @@ void SQLTableBuilder::RenameColumn(const std::string& old_name,
 
   DCHECK(FindLastColumnByName(new_name) == columns_.rend());
   // Check there is no index in the current version that references |old_name|.
-  DCHECK(base::ranges::none_of(indices_, [&old_name](const Index& index) {
+  DCHECK(std::ranges::none_of(indices_, [&old_name](const Index& index) {
     return index.max_version == kInvalidVersion &&
            base::Contains(index.columns, old_name);
   }));
@@ -186,7 +187,7 @@ void SQLTableBuilder::DropColumn(const std::string& name) {
   auto column = FindLastColumnByName(name);
   DCHECK(column != columns_.rend());
   // Check there is no index in the current version that references |old_name|.
-  DCHECK(base::ranges::none_of(indices_, [&name](const Index& index) {
+  DCHECK(std::ranges::none_of(indices_, [&name](const Index& index) {
     return index.max_version == kInvalidVersion &&
            base::Contains(index.columns, name);
   }));
@@ -213,11 +214,11 @@ void SQLTableBuilder::AddIndex(std::string name,
   DCHECK(FindLastIndexByName(name) == indices_.rend());
   // Check that all referenced columns are present in the last version by making
   // sure that the inner predicate applies to all columns names in |columns|.
-  DCHECK(base::ranges::all_of(columns, [this](const std::string& column_name) {
+  DCHECK(std::ranges::all_of(columns, [this](const std::string& column_name) {
     // Check if there is any column with the required name which is also
     // present in the latest version. Note that we don't require the last
     // version to be sealed.
-    return base::ranges::any_of(columns_, [&column_name](const Column& col) {
+    return std::ranges::any_of(columns_, [&column_name](const Column& col) {
       return col.name == column_name && col.max_version == kInvalidVersion;
     });
   }));
@@ -270,7 +271,7 @@ bool SQLTableBuilder::CreateTable(sql::Database* db) const {
 
   std::string constraints = ComputeConstraints(sealed_version_);
   DCHECK(!constraints.empty() ||
-         base::ranges::any_of(columns_, &Column::is_primary_key));
+         std::ranges::any_of(columns_, &Column::is_primary_key));
 
   std::string names;  // Names and types of the current columns.
   for (const Column& column : columns_) {
@@ -298,10 +299,10 @@ bool SQLTableBuilder::CreateTable(sql::Database* db) const {
           : base::StringPrintf("CREATE TABLE %s (%s, %s)", table_name_.c_str(),
                                names.c_str(), constraints.c_str());
 
-  auto execute = [&db](const auto& sql) { return db->Execute(sql.c_str()); };
+  auto execute = [&db](const auto& sql) { return db->Execute(sql); };
   sql::Transaction transaction(db);
   return transaction.Begin() && execute(create_table_statement) &&
-         base::ranges::all_of(create_index_sqls, execute) &&
+         std::ranges::all_of(create_index_sqls, execute) &&
          transaction.Commit();
 }
 
@@ -354,7 +355,7 @@ std::vector<std::string_view> SQLTableBuilder::AllPrimaryKeyNames() const {
 
 size_t SQLTableBuilder::NumberOfColumns() const {
   DCHECK(IsVersionLastAndSealed(sealed_version_));
-  return base::checked_cast<size_t>(base::ranges::count_if(
+  return base::checked_cast<size_t>(std::ranges::count_if(
       columns_,
       [this](const Column& column) { return IsColumnInLastVersion(column); }));
 }
@@ -465,20 +466,18 @@ bool SQLTableBuilder::MigrateToNextFrom(unsigned old_version,
                   "CREATE TABLE %s (%s, %s)", temp_table_name.c_str(),
                   names_of_all_columns.c_str(), constraints.c_str());
     sql::Transaction transaction(db);
-    if (!(transaction.Begin() && db->Execute(create_table_statement.c_str()) &&
+    if (!(transaction.Begin() && db->Execute(create_table_statement) &&
           db->Execute(base::StringPrintf(
-                          "INSERT OR REPLACE INTO %s (%s) SELECT %s FROM %s",
-                          temp_table_name.c_str(),
-                          new_names_of_existing_columns_without_types.c_str(),
-                          old_names_of_existing_columns_without_types.c_str(),
-                          table_name_.c_str())
-                          .c_str()) &&
-          db->Execute(base::StringPrintf("DROP TABLE %s", table_name_.c_str())
-                          .c_str()) &&
+              "INSERT OR REPLACE INTO %s (%s) SELECT %s FROM %s",
+              temp_table_name.c_str(),
+              new_names_of_existing_columns_without_types.c_str(),
+              old_names_of_existing_columns_without_types.c_str(),
+              table_name_.c_str())) &&
+          db->Execute(
+              base::StringPrintf("DROP TABLE %s", table_name_.c_str())) &&
           db->Execute(base::StringPrintf("ALTER TABLE %s RENAME TO %s",
                                          temp_table_name.c_str(),
-                                         table_name_.c_str())
-                          .c_str()) &&
+                                         table_name_.c_str())) &&
           CheckForeignKeyConstraints(*db) && transaction.Commit() &&
           db->Execute("PRAGMA foreign_keys = ON"))) {
       return false;
@@ -488,12 +487,11 @@ bool SQLTableBuilder::MigrateToNextFrom(unsigned old_version,
     // any.
     auto add_column = [this, &db](const auto& name) {
       return db->Execute(
-          base::StrCat({"ALTER TABLE ", table_name_, " ADD COLUMN ", name})
-              .c_str());
+          base::StrCat({"ALTER TABLE ", table_name_, " ADD COLUMN ", name}));
     };
     sql::Transaction transaction(db);
     if (!(transaction.Begin() &&
-          base::ranges::all_of(names_of_new_columns_list, add_column) &&
+          std::ranges::all_of(names_of_new_columns_list, add_column) &&
           transaction.Commit())) {
       return false;
     }
@@ -524,8 +522,9 @@ bool SQLTableBuilder::MigrateIndicesToNextFrom(unsigned old_version,
       continue;
     }
 
-    if (!db->Execute(sql.c_str()))
+    if (!db->Execute(sql)) {
       return false;
+    }
   }
 
   return transaction.Commit();
@@ -533,12 +532,12 @@ bool SQLTableBuilder::MigrateIndicesToNextFrom(unsigned old_version,
 
 std::vector<SQLTableBuilder::Column>::reverse_iterator
 SQLTableBuilder::FindLastColumnByName(const std::string& name) {
-  return base::ranges::find(base::Reversed(columns_), name, &Column::name);
+  return std::ranges::find(base::Reversed(columns_), name, &Column::name);
 }
 
 std::vector<SQLTableBuilder::Index>::reverse_iterator
 SQLTableBuilder::FindLastIndexByName(const std::string& name) {
-  return base::ranges::find(base::Reversed(indices_), name, &Index::name);
+  return std::ranges::find(base::Reversed(indices_), name, &Index::name);
 }
 
 bool SQLTableBuilder::IsVersionLastAndSealed(unsigned version) const {
@@ -550,8 +549,8 @@ bool SQLTableBuilder::IsVersionLastAndSealed(unsigned version) const {
            column_or_index.max_version != sealed_version_;
   };
   return sealed_version_ == version &&
-         base::ranges::all_of(columns_, is_last_sealed) &&
-         base::ranges::all_of(indices_, is_last_sealed);
+         std::ranges::all_of(columns_, is_last_sealed) &&
+         std::ranges::all_of(indices_, is_last_sealed);
 }
 
 bool SQLTableBuilder::IsColumnInLastVersion(const Column& column) const {

@@ -4,8 +4,7 @@
 
 #include "third_party/blink/renderer/core/permissions_policy/dom_feature_policy.h"
 
-#include "third_party/blink/public/common/permissions_policy/origin_with_possible_wildcards.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
@@ -31,26 +30,17 @@ DOMFeaturePolicy::DOMFeaturePolicy(ExecutionContext* context)
 
 bool DOMFeaturePolicy::allowsFeature(ScriptState* script_state,
                                      const String& feature) const {
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
   ExecutionContext* execution_context =
       script_state ? ExecutionContext::From(script_state) : nullptr;
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
   UseCounter::Count(execution_context,
                     IsIFramePolicy()
                         ? WebFeature::kFeaturePolicyJSAPIAllowsFeatureIFrame
                         : WebFeature::kFeaturePolicyJSAPIAllowsFeatureDocument);
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
   if (FeatureAvailable(feature, execution_context)) {
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
     bool is_isolated_context =
         execution_context && execution_context->IsIsolatedContext();
     auto feature_name =
         GetDefaultFeatureNameMap(is_isolated_context).at(feature);
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
     return GetPolicy()->IsFeatureEnabled(feature_name);
   }
 
@@ -136,7 +126,7 @@ Vector<String> DOMFeaturePolicy::getAllowlistForFeature(
     auto feature_name =
         GetDefaultFeatureNameMap(is_isolated_context).at(feature);
 
-    const PermissionsPolicy::Allowlist allowlist =
+    const network::PermissionsPolicy::Allowlist allowlist =
         GetPolicy()->GetAllowlistForFeature(feature_name);
     const auto& allowed_origins = allowlist.AllowedOrigins();
     if (allowed_origins.empty()) {

@@ -44,6 +44,8 @@ class AssertPageLoadMetricsObserver final
                                  const GURL& currently_committed_url) override;
   ObservePolicy OnPreviewStart(content::NavigationHandle* navigation_handle,
                                const GURL& currently_committed_url) override;
+  ObservePolicy OnNavigationHandleTimingUpdated(
+      content::NavigationHandle* navigation_handle) override;
   ObservePolicy OnRedirect(
       content::NavigationHandle* navigation_handle) override;
 
@@ -95,6 +97,15 @@ class AssertPageLoadMetricsObserver final
       const page_load_metrics::mojom::PageLoadTiming& timing) override;
   void OnParseStop(
       const page_load_metrics::mojom::PageLoadTiming& timing) override;
+
+  void OnConnectStart(
+      const page_load_metrics::mojom::PageLoadTiming& timing) override;
+  void OnConnectEnd(
+      const page_load_metrics::mojom::PageLoadTiming& timing) override;
+  void OnDomainLookupStart(
+      const page_load_metrics::mojom::PageLoadTiming& timing) override;
+  void OnDomainLookupEnd(
+      const page_load_metrics::mojom::PageLoadTiming& timing) override;
   void OnDomContentLoadedEventStart(
       const page_load_metrics::mojom::PageLoadTiming& timing) override;
   void OnLoadEventStart(
@@ -142,7 +153,7 @@ class AssertPageLoadMetricsObserver final
   // RenderFrameHost and FrameTreeNode deletion
   void OnRenderFrameDeleted(
       content::RenderFrameHost* render_frame_host) override;
-  void OnSubFrameDeleted(int frame_tree_node_id) override;
+  void OnSubFrameDeleted(content::FrameTreeNodeId frame_tree_node_id) override;
 
   // The method below are not well investigated.
   //
@@ -163,8 +174,9 @@ class AssertPageLoadMetricsObserver final
   void OnFeaturesUsageObserved(
       content::RenderFrameHost* rfh,
       const std::vector<blink::UseCounterFeature>& features) override {}
-  void SetUpSharedMemoryForSmoothness(
-      const base::ReadOnlySharedMemoryRegion& shared_memory) override {}
+  void SetUpSharedMemoryForUkms(
+      const base::ReadOnlySharedMemoryRegion& smoothness_memory,
+      const base::ReadOnlySharedMemoryRegion& dropped_frames_memory) override {}
   void OnResourceDataUseObserved(
       content::RenderFrameHost* rfh,
       const std::vector<page_load_metrics::mojom::ResourceDataUpdatePtr>&
@@ -211,6 +223,13 @@ class AssertPageLoadMetricsObserver final
                              memory_updates) override {}
   void OnSharedStorageWorkletHostCreated() override {}
   void OnSharedStorageSelectURLCalled() override {}
+  void OnCustomUserTimingMarkObserved(
+      const std::vector<page_load_metrics::mojom::CustomUserTimingMarkPtr>&
+          timings) override {}
+  void OnAdAuctionComplete(bool is_server_auction,
+                           bool is_on_device_auction,
+                           content::AuctionResult result) override {}
+  void OnPrimaryPageRenderProcessGone() override {}
 
   // Reference implementations duplicated from PageLoadMetricsObserver
   ObservePolicy ShouldObserveMimeTypeByDefault(

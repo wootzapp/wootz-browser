@@ -159,7 +159,7 @@ CaptureLabelView::CaptureLabelView(
   SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
 
-  SetBackground(views::CreateThemedSolidBackground(kColorAshShieldAndBase80));
+  SetBackground(views::CreateSolidBackground(kColorAshShieldAndBase80));
   layer()->SetRoundedCornerRadius(gfx::RoundedCornersF(kCaptureLabelRadius));
   layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
   layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
@@ -175,7 +175,7 @@ CaptureLabelView::CaptureLabelView(
   label_ = AddChildView(std::make_unique<views::Label>(std::u16string()));
   label_->SetPaintToLayer();
   label_->layer()->SetFillsBoundsOpaquely(false);
-  label_->SetEnabledColorId(kColorAshTextColorPrimary);
+  label_->SetEnabledColor(kColorAshTextColorPrimary);
   label_->SetBackgroundColor(SK_ColorTRANSPARENT);
 
   capture_mode_util::SetHighlightBorder(
@@ -244,11 +244,10 @@ void CaptureLabelView::UpdateIconAndText() {
       if (!capture_mode_session_->is_selecting_region()) {
         if (CaptureModeController::Get()->user_capture_region().IsEmpty()) {
           // We're now in waiting to select a capture region phase.
-          text = l10n_util::GetStringUTF16(
-              is_capturing_image
-                  ? IDS_ASH_SCREEN_CAPTURE_LABEL_REGION_IMAGE_CAPTURE
-                  : IDS_ASH_SCREEN_CAPTURE_LABEL_REGION_VIDEO_RECORD);
-        } else {
+          text = capture_mode_session_->active_behavior()
+                     ->GetCaptureLabelRegionText();
+        } else if (capture_mode_session_->active_behavior()
+                       ->ShouldShowCaptureButtonAfterRegionSelected()) {
           // We're now in fine-tuning phase (i.e. there's a valid region, and
           // therefore we can show the capture button).
           capture_button_visibility = true;

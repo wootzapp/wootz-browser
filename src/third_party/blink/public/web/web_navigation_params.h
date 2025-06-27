@@ -10,10 +10,13 @@
 
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
+#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "base/uuid.h"
+#include "net/storage_access_api/status.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
 #include "services/network/public/mojom/link_header.mojom-shared.h"
 #include "services/network/public/mojom/referrer_policy.mojom-shared.h"
 #include "services/network/public/mojom/url_loader_factory.mojom-shared.h"
@@ -63,7 +66,6 @@ class TickClock;
 
 namespace blink {
 
-class KURL;
 class WebDocumentLoader;
 class WebServiceWorkerNetworkProvider;
 
@@ -127,6 +129,10 @@ struct BLINK_EXPORT WebNavigationInfo {
   // by the window.open'd frame.
   bool is_opener_navigation = false;
 
+  // True if the initiator explicitly asked for opener relationships to be
+  // preserved, via rel="opener".
+  bool has_rel_opener = false;
+
   // Whether this is a navigation to _unfencedTop, i.e. to the top-level frame
   // from a renderer process that does not get a handle to the frame.
   // The browser should ignore the specified target frame and pick (and
@@ -160,6 +166,18 @@ struct BLINK_EXPORT WebNavigationInfo {
   // the input start time.
   base::TimeTicks input_start;
 
+  // An earlier and more accurate representation of the starting time of the
+  // navigation (based on the creation of the FrameLoadRequest), compared to the
+  // `navigation_start` that is passed through many of the navigation APIs
+  // (which is delayed until after the renderer process runs beforeunload
+  // handlers). The goal is to later use this in many navigation metrics to
+  // better identify performance improvements and regressions, while excluding
+  // just the time spent in beforeunload handlers. This value is currently only
+  // used in trace events and limited metrics to gauge the impact the change.
+  // TODO(crbug.com/385170155): Use this for most navigation metrics, with
+  // better ways to exclude beforeunload time.
+  base::TimeTicks actual_navigation_start;
+
   // Specifies whether or not a MHTML Archive can be used to load a subframe
   // resource instead of doing a network request.
   enum class ArchiveStatus { Absent, Present };
@@ -167,7 +185,7 @@ struct BLINK_EXPORT WebNavigationInfo {
 
   // The origin trial features activated in the document initiating this
   // navigation that should be applied in the document being navigated to.
-  WebVector<int> initiator_origin_trial_features;
+  std::vector<int> initiator_origin_trial_features;
 
   // The value of hrefTranslate attribute of a link, if this navigation was
   // inititated by clicking a link.
@@ -192,18 +210,14 @@ struct BLINK_EXPORT WebNavigationInfo {
   CrossVariantMojoRemote<mojom::NavigationStateKeepAliveHandleInterfaceBase>
       initiator_navigation_state_keep_alive_handle;
 
-  // The initiator frame's LocalDOMWindow's has_storage_access state.
-  bool has_storage_access = false;
+  // The initiator frame's LocalDOMWindow's Storage Access API status.
+  net::StorageAccessApiStatus storage_access_api_status =
+      net::StorageAccessApiStatus::kNone;
 
   // Whether this navigation was initiated by the container, e.g. iframe changed
   // src. Only container-initiated navigation report resource timing to the
   // parent.
   bool is_container_initiated = false;
-
-  // True if the initiator requested that the tab become fullscreen
-  // after navigation (e.g. the initial navigation of a fullscreen popup).
-  // See: https://chromestatus.com/feature/6002307972464640
-  bool is_fullscreen_requested = false;
 };
 
 // This structure holds all information provided by the embedder that is
@@ -231,16 +245,11 @@ struct BLINK_EXPORT WebNavigationParams {
       const WebNavigationInfo&);
 
   // Shortcut for loading html with "text/html" mime type and "UTF8" encoding.
+  static std::unique_ptr<WebNavigationParams> CreateWithEmptyHTMLForTesting(
+      const WebURL& base_url);
   static std::unique_ptr<WebNavigationParams> CreateWithHTMLStringForTesting(
       base::span<const char> html,
       const WebURL& base_url);
-
-#if INSIDE_BLINK
-  // Shortcut for loading html with "text/html" mime type and "UTF8" encoding.
-  static std::unique_ptr<WebNavigationParams> CreateWithHTMLBufferForTesting(
-      scoped_refptr<SharedBuffer> buffer,
-      const KURL& base_url);
-#endif
 
   // Fills |body_loader| based on the provided static data.
   static void FillBodyLoader(WebNavigationParams*, base::span<const char> data);
@@ -252,6 +261,12 @@ struct BLINK_EXPORT WebNavigationParams {
                                  WebString mime_type,
                                  WebString text_encoding,
                                  base::span<const char> data);
+#if INSIDE_BLINK
+  static void FillStaticResponse(WebNavigationParams*,
+                                 WebString mime_type,
+                                 WebString text_encoding,
+                                 SharedBuffer* data);
+#endif
 
   // This block defines the request used to load the main resource
   // for this navigation.
@@ -329,7 +344,7 @@ struct BLINK_EXPORT WebNavigationParams {
   // Redirects which happened while fetching the main resource.
   // TODO(dgozman): we are only interested in the final values instead of
   // all information about redirects.
-  WebVector<RedirectInfo> redirects;
+  std::vector<RedirectInfo> redirects;
   // The final response for the main resource. This will be used to determine
   // the type of resulting document.
   WebURLResponse response;
@@ -427,14 +442,14 @@ struct BLINK_EXPORT WebNavigationParams {
     CrossVariantMojoRemote<network::mojom::URLLoaderFactoryInterfaceBase>
         loader_factory;
   };
-  WebVector<std::unique_ptr<PrefetchedSignedExchange>>
+  std::vector<std::unique_ptr<PrefetchedSignedExchange>>
       prefetched_signed_exchanges;
   // An optional tick clock to be used for document loader timing. This is used
   // for testing.
-  const base::TickClock* tick_clock = nullptr;
+  raw_ptr<const base::TickClock> tick_clock = nullptr;
   // The origin trial features activated in the document initiating this
   // navigation that should be applied in the document being navigated to.
-  WebVector<int> initiator_origin_trial_features;
+  std::vector<int> initiator_origin_trial_features;
 
   // UKM source id to be associated with the Document that will be installed
   // in the current frame.
@@ -445,7 +460,7 @@ struct BLINK_EXPORT WebNavigationParams {
   std::optional<FramePolicy> frame_policy;
 
   // A list of origin trial names to enable for the document being loaded.
-  WebVector<WebString> force_enabled_origin_trials;
+  std::vector<WebString> force_enabled_origin_trials;
 
   // Whether the page is in an origin-keyed agent cluster.
   // https://html.spec.whatwg.org/C/#is-origin-keyed
@@ -458,7 +473,7 @@ struct BLINK_EXPORT WebNavigationParams {
 
   // List of client hints enabled for top-level frame. These still need to be
   // checked against permissions policy before use.
-  WebVector<network::mojom::WebClientHintsType> enabled_client_hints;
+  std::vector<network::mojom::WebClientHintsType> enabled_client_hints;
 
   // Whether the navigation is cross-site and swaps BrowsingContextGroups
   // (BrowsingInstances).
@@ -476,25 +491,25 @@ struct BLINK_EXPORT WebNavigationParams {
   // take precedence over any permissions policy constructed in blink. This is
   // useful for isolated applications, which use a different base permissions
   // policy than blink, which uses a fully permissive policy as its base.
-  std::optional<blink::ParsedPermissionsPolicy> permissions_policy_override;
+  std::optional<network::ParsedPermissionsPolicy> permissions_policy_override;
 
   // These are used to construct a subset of the back/forward list for the
   // window.navigation API. They only have the attributes that are needed for
   // that API.
-  WebVector<WebHistoryItem> navigation_api_back_entries;
-  WebVector<WebHistoryItem> navigation_api_forward_entries;
+  std::vector<WebHistoryItem> navigation_api_back_entries;
+  std::vector<WebHistoryItem> navigation_api_forward_entries;
   WebHistoryItem navigation_api_previous_entry;
 
   // List of URLs which are preloaded by HTTP Early Hints.
   // TODO(https://crbug.com/1317936): Pass information more than URL such as
   // request destination so that ResourceFetcher can provide more useful
   // console messages when Early Hints preloaded resources are not used.
-  WebVector<WebURL> early_hints_preloaded_resources;
+  std::vector<WebURL> early_hints_preloaded_resources;
 
   // If this is a navigation to fenced frame from an interest group auction,
   // contains URNs mapped to the ad components returned by the winning bid.
   // Null, otherwise.
-  std::optional<WebVector<WebURL>> ad_auction_components;
+  std::optional<std::vector<WebURL>> ad_auction_components;
 
   // Whether the current context would be allowed to create an opaque-ads
   //  frame (based on the browser-side calculations). See
@@ -540,8 +555,9 @@ struct BLINK_EXPORT WebNavigationParams {
   base::flat_map<::blink::mojom::RuntimeFeature, bool>
       modified_runtime_features;
 
-  // Whether the document should be loaded with the has_storage_access bit set.
-  bool load_with_storage_access = false;
+  // The Storage Access API status that the document should be loaded with.
+  net::StorageAccessApiStatus load_with_storage_access =
+      net::StorageAccessApiStatus::kNone;
 
   // Indicates which browsing context group this frame belongs to. This starts
   // as nullopt and is only set when we commit a main frame in another browsing
@@ -557,6 +573,35 @@ struct BLINK_EXPORT WebNavigationParams {
 
   // The cookie deprecation label for cookie deprecation facilitated testing.
   WebString cookie_deprecation_label;
+
+  // The :visited link hashtable is stored in shared memory and contains salted
+  // hashes for all visits. Each salt corresponds to a unique origin, and
+  // renderer processes are only informed of salts that correspond to their
+  // origins. As a result, any given renderer process can only
+  // learn about visits relevant to origins for which it has the salt.
+  //
+  // Here we store the salt corresponding to this navigation's origin to
+  // be committed. It will allow the renderer process that commits this
+  // navigation to learn about visits hashed with this salt. If the :visited
+  // link hashtable is not yet initialized (or the feature is disabled), the
+  // salt value will not be set here. Instead, PartitionedVisitedLinkWriter will
+  // send the salt values to the renderer (specifically to VisitedLinkReader via
+  // the VisitedLinkNotificationSink interface) after the :visited link
+  // hashtable is initialized.
+  std::optional<uint64_t> visited_link_salt;
+
+  // Map of permission statuses at commit time.
+  // Note: the permission statues will be only used as initial states of
+  // `CachedPermissionStatus` in renderer side.
+  //  Could be std::nullopt for synchronous commit, same document navigations.
+  std::optional<base::flat_map<mojom::PermissionName, mojom::PermissionStatus>>
+      initial_permission_statuses;
+
+  // When this is set to true, the navigation must create a new document
+  // sequence number to avoid appearing as a same-document navigation, even if
+  // the URL seems like a match. This matters for cross-origin navigations
+  // (apart from error pages with the same precursor origin).
+  bool force_new_document_sequence_number = false;
 };
 
 }  // namespace blink

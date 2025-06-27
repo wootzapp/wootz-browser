@@ -26,13 +26,11 @@ class TrustStore;
 
 namespace cast_channel {
 
-using ::cast::channel::AuthResponse;
-using ::cast::channel::CastMessage;
+using ::openscreen::cast::proto::AuthResponse;
+using ::openscreen::cast::proto::CastMessage;
 
 BASE_DECLARE_FEATURE(kEnforceNonceChecking);
 BASE_DECLARE_FEATURE(kEnforceSHA256Checking);
-BASE_DECLARE_FEATURE(kEnforceFallbackCRLRevocationChecking);
-BASE_DECLARE_FEATURE(kEnforceRevocationChecking);
 
 struct AuthResult {
  public:

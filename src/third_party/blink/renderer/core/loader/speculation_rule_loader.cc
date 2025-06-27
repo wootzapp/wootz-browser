@@ -34,8 +34,8 @@ void SpeculationRuleLoader::LoadResource(SpeculationRulesResource* resource) {
 void SpeculationRuleLoader::NotifyFinished() {
   DCHECK(resource_);
 
-  UMA_HISTOGRAM_MEDIUM_TIMES("Blink.SpeculationRules.FetchTime",
-                             base::TimeTicks::Now() - start_time_);
+  DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES("Blink.SpeculationRules.FetchTime",
+                                        base::TimeTicks::Now() - start_time_);
 
   const ResourceResponse& response = resource_->GetResponse();
   if (resource_->LoadFailedOrCanceled()) {
@@ -80,6 +80,10 @@ void SpeculationRuleLoader::NotifyFinished() {
             resource_->GetResourceRequest().Url().ElidedString() +
             "\" found in Speculation-Rules "
             "header."));
+    return;
+  }
+
+  if (!document_->GetExecutionContext()) {
     return;
   }
 

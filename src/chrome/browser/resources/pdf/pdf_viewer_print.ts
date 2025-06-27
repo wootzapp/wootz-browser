@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './elements/viewer-error-dialog.js';
-import './elements/viewer-page-indicator.js';
-import './elements/viewer-zoom-toolbar.js';
-import './pdf_viewer_shared_style.css.js';
+import './elements/viewer_error_dialog.js';
+import './elements/viewer_page_indicator.js';
+import './elements/viewer_zoom_toolbar.js';
 
 import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
 import {isRTL} from 'chrome://resources/js/util.js';
@@ -15,13 +14,14 @@ import type {ExtendedKeyEvent} from './constants.js';
 import {FittingType} from './constants.js';
 import type {MessageData, PrintPreviewParams} from './controller.js';
 import {PluginController} from './controller.js';
-import type {ViewerPageIndicatorElement} from './elements/viewer-page-indicator.js';
-import type {ViewerZoomToolbarElement} from './elements/viewer-zoom-toolbar.js';
+import type {ViewerPageIndicatorElement} from './elements/viewer_page_indicator.js';
+import type {ViewerZoomToolbarElement} from './elements/viewer_zoom_toolbar.js';
+import {convertDocumentDimensionsMessage, convertLoadProgressMessage} from './message_converter.js';
 import {deserializeKeyEvent, LoadState, serializeKeyEvent} from './pdf_scripting_api.js';
 import type {KeyEventData} from './pdf_viewer_base.js';
 import {PdfViewerBaseElement} from './pdf_viewer_base.js';
-import {getTemplate} from './pdf_viewer_print.html.js';
-import type {DestinationMessageData, DocumentDimensionsMessageData} from './pdf_viewer_utils.js';
+import {getCss} from './pdf_viewer_print.css.js';
+import {getHtml} from './pdf_viewer_print.html.js';
 import {hasCtrlModifierOnly, shouldIgnoreKeyEvents} from './pdf_viewer_utils.js';
 import {ToolbarManager} from './toolbar_manager.js';
 
@@ -41,14 +41,18 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
     return 'pdf-viewer-print';
   }
 
-  static get template() {
-    return getTemplate();
+  static override get styles() {
+    return getCss();
+  }
+
+  override render() {
+    return getHtml.bind(this)();
   }
 
   private isPrintPreviewLoadingFinished_: boolean = false;
   private inPrintPreviewMode_: boolean = false;
   private dark_: boolean = false;
-  private pluginController_: PluginController|undefined = undefined;
+  private pluginController_: PluginController = PluginController.getInstance();
   private toolbarManager_: ToolbarManager|null = null;
 
   override isNewUiEnabled() {
@@ -76,9 +80,9 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
               assert(paths.length === 4);
               assert(paths[3] === 'print.pdf');
               // Valid Print Preview UI ID
-              assert(!Number.isNaN(parseInt(paths[1])));
+              assert(!Number.isNaN(parseInt(paths[1]!)));
               // Valid page index (can be negative for PDFs).
-              assert(!Number.isNaN(parseInt(paths[2])));
+              assert(!Number.isNaN(parseInt(paths[2]!)));
               return url.toString();
             },
             createHTML: () => assertNotReached(),
@@ -95,8 +99,6 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
   init(browserApi: BrowserApi) {
     this.initInternal(
         browserApi, document.documentElement, this.$.sizer, this.$.content);
-
-    this.pluginController_ = PluginController.getInstance();
 
     this.$.pageIndicator.setViewport(this.viewport);
     this.toolbarManager_ = new ToolbarManager(window, this.$.zoomToolbar);
@@ -121,7 +123,7 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
         break;  // Ensure escape falls through to the print-preview handler.
       case 'a':
         if (hasCtrlModifierOnly(e)) {
-          this.pluginController_!.selectAll();
+          this.pluginController_.selectAll();
           // Since we do selection ourselves.
           e.preventDefault();
         }
@@ -146,7 +148,7 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
   }
 
   private setBackgroundColorForPrintPreview_() {
-    this.pluginController_!.setBackgroundColor(
+    this.pluginController_.setBackgroundColor(
         this.dark_ ? PRINT_PREVIEW_DARK_BACKGROUND_COLOR :
                      PRINT_PREVIEW_BACKGROUND_COLOR);
   }
@@ -189,7 +191,7 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
       pageIndicator.style.visibility = 'hidden';
     }
 
-    this.pluginController_!.viewportChanged();
+    this.pluginController_.viewportChanged();
   }
 
   override handleScriptingMessage(message: MessageEvent) {
@@ -207,11 +209,11 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
 
     switch (message.data.type.toString()) {
       case 'getSelectedText':
-        this.pluginController_!.getSelectedText().then(
+        this.pluginController_.getSelectedText().then(
             this.sendScriptingMessage.bind(this));
         break;
       case 'selectAll':
-        this.pluginController_!.selectAll();
+        this.pluginController_.selectAll();
         break;
       default:
         return false;
@@ -230,7 +232,7 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
       case 'loadPreviewPage':
         const loadData =
             messageData as MessageData & {url: string, index: number};
-        this.pluginController_!.loadPreviewPage(loadData.url, loadData.index);
+        this.pluginController_.loadPreviewPage(loadData.url, loadData.index);
         return true;
       case 'resetPrintPreviewMode':
         const printPreviewData =
@@ -249,7 +251,7 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
         this.lastViewportPosition = this.viewport.position;
         this.$.pageIndicator.pageLabels = printPreviewData.pageNumbers;
 
-        this.pluginController_!.resetPrintPreviewMode(printPreviewData);
+        this.pluginController_.resetPrintPreviewMode(printPreviewData);
         return true;
       case 'sendKeyEvent':
         const keyEvent =
@@ -290,38 +292,27 @@ export class PdfViewerPrintElement extends PdfViewerBaseElement {
     const data = e.detail;
     switch (data.type.toString()) {
       case 'documentDimensions':
-        this.setDocumentDimensions(data as DocumentDimensionsMessageData);
-        return;
-      case 'loadProgress':
-        this.updateProgress((data as {progress: number}).progress);
-        return;
-      case 'navigateToDestination':
-        const destinationData = data as DestinationMessageData;
-        this.viewport.handleNavigateToDestination(
-            destinationData.page, destinationData.x, destinationData.y,
-            destinationData.zoom);
-        return;
-      case 'printPreviewLoaded':
-        this.handlePrintPreviewLoaded_();
-        return;
-      case 'setSmoothScrolling':
-        this.viewport.setSmoothScrolling((data as (MessageData & {
-                                            smoothScrolling: boolean,
-                                          })).smoothScrolling);
-        return;
-      case 'touchSelectionOccurred':
-        this.sendScriptingMessage({
-          type: 'touchSelectionOccurred',
-        });
+        this.setDocumentDimensions(convertDocumentDimensionsMessage(data));
         return;
       case 'documentFocusChanged':
         // TODO(crbug.com/40125884): Draw a focus rect around plugin.
+        return;
+      case 'loadProgress':
+        this.updateProgress(convertLoadProgressMessage(data).progress);
+        return;
+      case 'printPreviewLoaded':
+        this.handlePrintPreviewLoaded_();
         return;
       case 'sendKeyEvent':
         const keyEvent = deserializeKeyEvent((data as KeyEventData).keyEvent) as
             ExtendedKeyEvent;
         keyEvent.fromPlugin = true;
         this.handleKeyEvent(keyEvent);
+        return;
+      case 'touchSelectionOccurred':
+        this.sendScriptingMessage({
+          type: 'touchSelectionOccurred',
+        });
         return;
       case 'beep':
       case 'formFocusChange':

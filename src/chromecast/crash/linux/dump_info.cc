@@ -10,8 +10,10 @@
 
 #include <string_view>
 
+#include "base/compiler_specific.h"
 #include "base/i18n/time_formatting.h"
 #include "base/logging.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
 
@@ -89,7 +91,7 @@ base::Value DumpInfo::GetAsValue() const {
                                dump_time_, "yyyy-MM-dd HH:mm:ss"));
 
   result.Set(kDumpKey, crashed_process_dump_);
-  std::string uptime = std::to_string(params_.process_uptime);
+  std::string uptime = base::NumberToString(params_.process_uptime);
   result.Set(kUptimeKey, uptime);
   result.Set(kLogfileKey, logfile_);
 
@@ -144,7 +146,7 @@ bool DumpInfo::ParseEntry(const base::Value* entry) {
   if (!FindString(*dict, kUptimeKey, uptime))
     return false;
   errno = 0;
-  params_.process_uptime = strtoull(uptime.c_str(), nullptr, 0);
+  params_.process_uptime = UNSAFE_TODO(strtoull(uptime.c_str(), nullptr, 0));
   if (errno != 0)
     return false;
 

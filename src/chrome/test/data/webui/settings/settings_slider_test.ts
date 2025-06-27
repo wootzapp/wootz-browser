@@ -5,7 +5,7 @@
 // clang-format off
 import 'chrome://settings/lazy_load.js';
 
-import {keyDownOn, keyUpOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
+import {keyDownOn, keyUpOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {CrSliderElement,SettingsSliderElement} from 'chrome://settings/lazy_load.js';
 import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -76,8 +76,8 @@ suite('SettingsSlider', function() {
   }
 
   function pointerEvent(eventType: string, ratio: number) {
-    const rect = crSlider.shadowRoot!.querySelector<HTMLElement>(
-                                         '#container')!.getBoundingClientRect();
+    const rect = crSlider.shadowRoot.querySelector<HTMLElement>(
+                                        '#container')!.getBoundingClientRect();
     crSlider.dispatchEvent(new PointerEvent(eventType, {
       buttons: 1,
       pointerId: 1,

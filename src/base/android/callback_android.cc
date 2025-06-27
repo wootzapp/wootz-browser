@@ -10,13 +10,9 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/time/time.h"
 #include "base/types/optional_ref.h"
-#include "build/robolectric_buildflags.h"
 
-#if BUILDFLAG(IS_ROBOLECTRIC)
-#include "base/base_robolectric_jni/Callback_jni.h"  // nogncheck
-#else
-#include "base/base_jni/Callback_jni.h"
-#endif
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "base/callback_jni/Callback_jni.h"
 
 namespace base {
 namespace android {

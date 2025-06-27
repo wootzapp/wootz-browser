@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/app/spotlight/bookmarks_spotlight_manager.h"
-
+#import "base/apple/foundation_util.h"
+#import "base/containers/span.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "base/task/sequenced_task_runner.h"
@@ -13,17 +13,17 @@
 #import "base/test/test_timeouts.h"
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "components/bookmarks/browser/bookmark_node.h"
+#import "components/bookmarks/test/bookmark_test_helpers.h"
 #import "components/bookmarks/test/test_bookmark_client.h"
 #import "components/favicon/core/large_icon_service_impl.h"
 #import "components/favicon/core/test/mock_favicon_service.h"
+#import "ios/chrome/app/spotlight/bookmarks_spotlight_manager.h"
 #import "ios/chrome/app/spotlight/fake_searchable_item_factory.h"
 #import "ios/chrome/app/spotlight/fake_spotlight_interface.h"
 #import "ios/chrome/app/spotlight/spotlight_manager.h"
 #import "ios/chrome/app/spotlight/spotlight_util.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_ios_unit_test_support.h"
-#import "ios/chrome/browser/bookmarks/model/legacy_bookmark_model.h"
-#import "ios/chrome/browser/bookmarks/model/legacy_bookmark_model_test_helpers.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "net/base/apple/url_conversions.h"
 #import "testing/gmock/include/gmock/gmock.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -46,8 +46,8 @@ favicon_base::FaviconRawBitmapResult CreateTestBitmap(int w, int h) {
   CGSize size = CGSizeMake(w, h);
   UIImage* favicon = UIImageWithSizeAndSolidColor(size, [UIColor redColor]);
   NSData* png = UIImagePNGRepresentation(favicon);
-  scoped_refptr<base::RefCountedBytes> data(new base::RefCountedBytes(
-      static_cast<const unsigned char*>([png bytes]), [png length]));
+  scoped_refptr<base::RefCountedBytes> data(
+      new base::RefCountedBytes(base::apple::NSDataToSpan(png)));
 
   result.bitmap_data = data;
   result.pixel_size = gfx::Size(w, h);
@@ -98,21 +98,19 @@ class BookmarkSpotlightManagerTest : public BookmarkIOSUnitTestSupport {
 /// Tests that clearAndReindexModel actually clears all bookmarks items and
 /// attempt to reindex the existing items in bookmark.
 TEST_F(BookmarkSpotlightManagerTest, testClearAndReindexModel) {
-  AddBookmark(local_or_syncable_bookmark_model_->mobile_node(), u"foo1",
-              GURL("http://foo1.com"));
-  AddBookmark(account_bookmark_model_->mobile_node(), u"foo2",
+  AddBookmark(bookmark_model_->mobile_node(), u"foo1", GURL("http://foo1.com"));
+  AddBookmark(bookmark_model_->account_mobile_node(), u"foo2",
               GURL("http://foo2.com"));
 
   FakeSpotlightInterface* fakeSpotlightInterface =
       [[FakeSpotlightInterface alloc] init];
 
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:local_or_syncable_bookmark_model_
-              accountBookmarkModel:account_bookmark_model_
-                spotlightInterface:fakeSpotlightInterface
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:bookmark_model_
+            spotlightInterface:fakeSpotlightInterface
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
   NSUInteger initialIndexedItemCount =
       fakeSpotlightInterface.indexSearchableItemsCallsCount;
@@ -141,25 +139,22 @@ TEST_F(BookmarkSpotlightManagerTest, testClearAndReindexModel) {
 /// returns an array of its ancestor folder names
 TEST_F(BookmarkSpotlightManagerTest, testParentFolderNamesForNode) {
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:local_or_syncable_bookmark_model_
-              accountBookmarkModel:account_bookmark_model_
-                spotlightInterface:spotlightInterface_
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:bookmark_model_
+            spotlightInterface:spotlightInterface_
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
-  const bookmarks::BookmarkNode* root =
-      local_or_syncable_bookmark_model_->mobile_node();
+  const bookmarks::BookmarkNode* root = bookmark_model_->mobile_node();
   static const std::string model_string("a 1:[ b c ] d 2:[ 21:[ e ] f g ] h ");
-  AddNodesFromLegacyBookmarkModelString(local_or_syncable_bookmark_model_, root,
-                                        model_string);
+  bookmarks::test::AddNodesFromModelString(bookmark_model_, root, model_string);
   const bookmarks::BookmarkNode* eNode =
       root->children()[3]->children().front()->children().front().get();
   NSMutableArray* folderNames = [manager parentFolderNamesForNode:eNode];
 
   EXPECT_EQ([folderNames count], 2u);
-  EXPECT_TRUE([[folderNames objectAtIndex:0] isEqualToString:@"2"]);
-  EXPECT_TRUE([[folderNames objectAtIndex:1] isEqualToString:@"21"]);
+  EXPECT_NSEQ([folderNames objectAtIndex:0], @"2");
+  EXPECT_NSEQ([folderNames objectAtIndex:1], @"21");
 
   [manager shutdown];
 }
@@ -171,19 +166,17 @@ TEST_F(BookmarkSpotlightManagerTest, testRefreshItemWithURL) {
       [[FakeSpotlightInterface alloc] init];
 
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:local_or_syncable_bookmark_model_
-              accountBookmarkModel:account_bookmark_model_
-                spotlightInterface:fakeSpotlightInterface
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:bookmark_model_
+            spotlightInterface:fakeSpotlightInterface
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
   NSUInteger initialIndexedItemCount =
       fakeSpotlightInterface.indexSearchableItemsCallsCount;
 
-  AddBookmark(local_or_syncable_bookmark_model_->mobile_node(), u"foo1",
-              GURL("http://foo1.com"));
-  AddBookmark(account_bookmark_model_->mobile_node(), u"foo2",
+  AddBookmark(bookmark_model_->mobile_node(), u"foo1", GURL("http://foo1.com"));
+  AddBookmark(bookmark_model_->account_mobile_node(), u"foo2",
               GURL("http://foo2.com"));
 
   // We expect to call indexSearchableItems api method to add the new added
@@ -201,21 +194,19 @@ TEST_F(BookmarkSpotlightManagerTest, testUpdateBookmarkItem) {
       [[FakeSpotlightInterface alloc] init];
 
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:local_or_syncable_bookmark_model_
-              accountBookmarkModel:account_bookmark_model_
-                spotlightInterface:fakeSpotlightInterface
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:bookmark_model_
+            spotlightInterface:fakeSpotlightInterface
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
   NSUInteger currentIndexedItemCount =
       fakeSpotlightInterface.indexSearchableItemsCallsCount;
 
-  const bookmarks::BookmarkNode* addedNode1 =
-      AddBookmark(local_or_syncable_bookmark_model_->mobile_node(), u"foo1",
-                  GURL("http://foo1.com"));
+  const bookmarks::BookmarkNode* addedNode1 = AddBookmark(
+      bookmark_model_->mobile_node(), u"foo1", GURL("http://foo1.com"));
   const bookmarks::BookmarkNode* addedNode2 = AddBookmark(
-      account_bookmark_model_->mobile_node(), u"foo2", GURL("http://foo2.com"));
+      bookmark_model_->account_mobile_node(), u"foo2", GURL("http://foo2.com"));
 
   // We expect to call indexSearchableItems api method to add the new added
   // bookmark item.
@@ -225,12 +216,10 @@ TEST_F(BookmarkSpotlightManagerTest, testUpdateBookmarkItem) {
   currentIndexedItemCount =
       fakeSpotlightInterface.indexSearchableItemsCallsCount;
 
-  local_or_syncable_bookmark_model_->SetTitle(
-      addedNode1, u"new title 1",
-      bookmarks::metrics::BookmarkEditSource::kOther);
-  account_bookmark_model_->SetTitle(
-      addedNode2, u"new title 2",
-      bookmarks::metrics::BookmarkEditSource::kOther);
+  bookmark_model_->SetTitle(addedNode1, u"new title 1",
+                            bookmarks::metrics::BookmarkEditSource::kOther);
+  bookmark_model_->SetTitle(addedNode2, u"new title 2",
+                            bookmarks::metrics::BookmarkEditSource::kOther);
 
   // We expect to delete the modified item using its identifier.
   EXPECT_EQ(
@@ -253,12 +242,11 @@ TEST_F(BookmarkSpotlightManagerTest, testIndexAllBookmarksWithNoBookmarkModel) {
   // Intialize the BookmarksSpotlightManager with a state where bookmarkModels
   // are undefined.
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:nullptr
-              accountBookmarkModel:nullptr
-                spotlightInterface:fakeSpotlightInterface
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:nullptr
+            spotlightInterface:fakeSpotlightInterface
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
   NSUInteger initialIndexedItemCount =
       fakeSpotlightInterface.indexSearchableItemsCallsCount;
@@ -288,17 +276,15 @@ TEST_F(BookmarkSpotlightManagerTest, testUpdatesInBackgroundCauseFullReindex) {
       [[FakeSpotlightInterface alloc] init];
 
   BookmarksSpotlightManager* manager = [[BookmarksSpotlightManager alloc]
-          initWithLargeIconService:large_icon_service_.get()
-      localOrSyncableBookmarkModel:local_or_syncable_bookmark_model_
-              accountBookmarkModel:account_bookmark_model_
-                spotlightInterface:fakeSpotlightInterface
-             searchableItemFactory:searchableItemFactory_
-                       prefService:pref_service_];
+      initWithLargeIconService:large_icon_service_.get()
+                 bookmarkModel:bookmark_model_
+            spotlightInterface:fakeSpotlightInterface
+         searchableItemFactory:searchableItemFactory_
+                   prefService:pref_service_];
 
-  const bookmarks::BookmarkNode* addedNode1 =
-      AddBookmark(local_or_syncable_bookmark_model_->mobile_node(), u"foo1",
-                  GURL("http://foo1.com"));
-  AddBookmark(account_bookmark_model_->mobile_node(), u"foo2",
+  const bookmarks::BookmarkNode* addedNode1 = AddBookmark(
+      bookmark_model_->mobile_node(), u"foo1", GURL("http://foo1.com"));
+  AddBookmark(bookmark_model_->account_mobile_node(), u"foo2",
               GURL("http://foo2.com"));
 
   EXPECT_EQ(fakeSpotlightInterface.indexSearchableItemsCallsCount, 2u);
@@ -308,9 +294,8 @@ TEST_F(BookmarkSpotlightManagerTest, testUpdatesInBackgroundCauseFullReindex) {
                     object:nil
                   userInfo:nil];
 
-  local_or_syncable_bookmark_model_->SetTitle(
-      addedNode1, u"new title 1",
-      bookmarks::metrics::BookmarkEditSource::kOther);
+  bookmark_model_->SetTitle(addedNode1, u"new title 1",
+                            bookmarks::metrics::BookmarkEditSource::kOther);
 
   // Update shouldn't happen until we reach foreground.
   EXPECT_EQ(fakeSpotlightInterface.indexSearchableItemsCallsCount, 2u);

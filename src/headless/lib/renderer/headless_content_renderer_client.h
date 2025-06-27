@@ -22,8 +22,11 @@ class HeadlessContentRendererClient : public content::ContentRendererClient {
 
  private:
   // content::ContentRendererClient overrides.
-  bool IsSupportedVideoType(const media::VideoType& type) override;
+  bool IsDecoderSupportedVideoType(const media::VideoType& type) override;
   void RenderFrameCreated(content::RenderFrame* render_frame) override;
+  std::unique_ptr<blink::URLLoaderThrottleProvider>
+  CreateURLLoaderThrottleProvider(
+      blink::URLLoaderThrottleProviderType provider_type) override;
 
   std::optional<Allowlist> video_codecs_allowlist_;
 };

@@ -8,10 +8,15 @@ import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.method.LinkMovementMethod;
 import android.util.AttributeSet;
+import android.view.Gravity;
 import android.view.View.OnClickListener;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.preference.PreferenceViewHolder;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.widget.ChromeImageView;
 import org.chromium.ui.widget.TextViewWithClickableSpans;
 
@@ -19,15 +24,17 @@ import org.chromium.ui.widget.TextViewWithClickableSpans;
  * A preference wrapper for {@link MaterialCardViewNoShadow} with an icon, a text message and an
  * optional close button.
  */
+@NullMarked
 public class CardPreference extends TextMessagePreference {
-    private CharSequence mSummary;
-    private Drawable mIconDrawable;
+    private @Nullable CharSequence mSummary;
+    private @Nullable Drawable mIconDrawable;
     private int mCloseIconVisibility;
-    private OnClickListener mOnCloseClickListener;
+    private @Nullable OnClickListener mOnCloseClickListener;
 
-    private TextViewWithClickableSpans mDescriptionView;
-    private ChromeImageView mIcon;
-    private ChromeImageView mCloseIcon;
+    private @Nullable TextViewWithClickableSpans mDescriptionView;
+    private @Nullable ChromeImageView mIcon;
+    private @Nullable ChromeImageView mCloseIcon;
+    private boolean mShouldCenterIcon;
 
     /** Constructor for inflating from XML. */
     public CardPreference(Context context, AttributeSet attrs) {
@@ -45,9 +52,20 @@ public class CardPreference extends TextMessagePreference {
 
         mDescriptionView.setText(mSummary);
         mDescriptionView.setMovementMethod(LinkMovementMethod.getInstance());
+
         mIcon.setImageDrawable(mIconDrawable);
+        if (mShouldCenterIcon) {
+            LinearLayout.LayoutParams iconParams =
+                    (LinearLayout.LayoutParams) mIcon.getLayoutParams();
+            iconParams.gravity = Gravity.CENTER_VERTICAL;
+            mIcon.setLayoutParams(iconParams);
+        }
+
         mCloseIcon.setVisibility(mCloseIconVisibility);
         mCloseIcon.setOnClickListener(mOnCloseClickListener);
+
+        TextView titleView = (TextView) holder.findViewById(android.R.id.title);
+        titleView.setTextAppearance(R.style.TextAppearance_Headline2Thick);
     }
 
     /**
@@ -56,7 +74,7 @@ public class CardPreference extends TextMessagePreference {
      * @param summary Summary char sequence.
      */
     @Override
-    public void setSummary(CharSequence summary) {
+    public void setSummary(@Nullable CharSequence summary) {
         mSummary = summary;
     }
 
@@ -85,5 +103,12 @@ public class CardPreference extends TextMessagePreference {
      */
     public void setOnCloseClickListener(OnClickListener onCloseClickListener) {
         this.mOnCloseClickListener = onCloseClickListener;
+    }
+
+    /**
+     * @param shouldCenterIcon Whether to center the left icon vertically inside the card.
+     */
+    public void setShouldCenterIcon(boolean shouldCenterIcon) {
+        mShouldCenterIcon = shouldCenterIcon;
     }
 }

@@ -55,9 +55,10 @@ base::FilePath GetPathForWidget(const base::FilePath& base_path,
 
 void WriteDataToFile(const base::FilePath& location, const SkBitmap& bitmap) {
   DCHECK(!location.empty());
-  std::vector<unsigned char> png_data;
-  gfx::PNGCodec::FastEncodeBGRASkBitmap(bitmap, true, &png_data);
-  if (!base::WriteFile(location, png_data)) {
+  std::optional<std::vector<uint8_t>> png_data =
+      gfx::PNGCodec::FastEncodeBGRASkBitmap(bitmap,
+                                            /*discard_transparency=*/true);
+  if (!png_data || !base::WriteFile(location, png_data.value())) {
     static bool logged_once = false;
     LOG_IF(ERROR, !logged_once)
         << "Failed to write frame to file. "
@@ -233,7 +234,6 @@ std::vector<gl::GLImplementationParts>
 HeadlessSurfaceFactory::GetAllowedGLImplementations() {
   return std::vector<gl::GLImplementationParts>{
       gl::GLImplementationParts(gl::kGLImplementationEGLANGLE),
-      gl::GLImplementationParts(gl::kGLImplementationEGLGLES2),
   };
 }
 

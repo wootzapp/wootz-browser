@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/installer/util/additional_parameters.h"
 
 #include <windows.h>
@@ -214,9 +219,10 @@ std::wstring GetChannelIdentifier(version_info::Channel channel,
     case version_info::Channel::UNKNOWN:
     case version_info::Channel::CANARY:
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-      NOTREACHED_IN_MIGRATION();
-#endif
+      NOTREACHED();
+#else
       return std::wstring();
+#endif
 
     case version_info::Channel::DEV:
       if (!include_arch)

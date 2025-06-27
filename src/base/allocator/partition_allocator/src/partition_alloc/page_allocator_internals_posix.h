@@ -6,6 +6,7 @@
 #define PARTITION_ALLOC_PAGE_ALLOCATOR_INTERNALS_POSIX_H_
 
 #include <sys/mman.h>
+#include <sys/syscall.h>
 
 #include <algorithm>
 #include <atomic>
@@ -14,34 +15,19 @@
 #include <cstring>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/oom.h"
 #include "partition_alloc/page_allocator.h"
 #include "partition_alloc/page_allocator_constants.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_base/notreached.h"
 #include "partition_alloc/partition_alloc_base/posix/eintr_wrapper.h"
 #include "partition_alloc/partition_alloc_check.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
 
-#if BUILDFLAG(IS_APPLE)
-#include "partition_alloc/partition_alloc_base/apple/foundation_util.h"
-#if BUILDFLAG(IS_IOS)
-#include "partition_alloc/partition_alloc_base/ios/ios_util.h"
-#elif BUILDFLAG(IS_MAC)
-#include "partition_alloc/partition_alloc_base/mac/mac_util.h"
-#else
-#error "Unknown platform"
-#endif
-#include "partition_alloc/partition_alloc_base/apple/scoped_cftyperef.h"
-
-#include <Availability.h>
-#include <Security/Security.h>
-#include <mach/mach.h>
-#endif
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX)
+#if PA_BUILDFLAG(IS_ANDROID) || PA_BUILDFLAG(IS_LINUX)
 #include <sys/prctl.h>
 #endif
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if PA_BUILDFLAG(IS_LINUX) || PA_BUILDFLAG(IS_CHROMEOS)
 #include <sys/resource.h>
 #endif
 
@@ -49,114 +35,19 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-#if BUILDFLAG(IS_MAC)
-
-// SecTaskGetCodeSignStatus is marked as unavailable on macOS, although it’s
-// available on iOS and other Apple operating systems. It is, in fact, present
-// on the system since macOS 10.12.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wavailability"
-uint32_t SecTaskGetCodeSignStatus(SecTaskRef task) API_AVAILABLE(macos(10.12));
-#pragma clang diagnostic pop
-
-#endif  // BUILDFLAG(IS_MAC)
-
 namespace partition_alloc::internal {
 
-namespace {
-
 #if defined(LINUX_NAME_REGION)
-
-void NameRegion(void* start, size_t length, PageTag page_tag) {
-  // Important: All the names should be string literals. As per prctl.h in
-  // //third_party/android_toolchain/ndk the kernel keeps a pointer to the name
-  // instead of copying it.
-  //
-  // Having the name in .rodata ensures that the pointer remains valid as
-  // long as the mapping is alive.
-  const char* name = nullptr;
-  switch (page_tag) {
-    case PageTag::kSimulation:
-      name = "simulation";
-      break;
-    case PageTag::kBlinkGC:
-      name = "blink_gc";
-      break;
-    case PageTag::kPartitionAlloc:
-      name = "partition_alloc";
-      break;
-    case PageTag::kChromium:
-      name = "chromium";
-      break;
-    case PageTag::kV8:
-      name = "v8";
-      break;
-    default:
-      PA_NOTREACHED();
-      break;
-  }
-
-  // No error checking on purpose, testing only.
-  prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, start, length, name);
-}
-
+void NameRegion(void* start, size_t length, PageTag page_tag);
 #endif  // defined(LINUX_NAME_REGION)
 
-#if BUILDFLAG(IS_MAC)
+#if PA_BUILDFLAG(IS_APPLE)
 // Tests whether the version of macOS supports the MAP_JIT flag and if the
 // current process is signed with the hardened runtime and the allow-jit
 // entitlement, returning whether MAP_JIT should be used to allocate regions
 // that will contain JIT-compiled executable code.
-bool UseMapJit() {
-  // Until determining that the hardened runtime is enabled, early returns will
-  // return true, so that MAP_JIT will be used. This is important on arm64,
-  // which only allows pages to be simultaneously writable and executable when
-  // in a region allocated with MAP_JIT, regardless of code signing options. On
-  // arm64, an attempt to set a non-MAP_JIT page as simultaneously writable and
-  // executable fails with EPERM. Although this is not enforced on x86_64,
-  // MAP_JIT is harmless in that case.
-
-  base::apple::ScopedCFTypeRef<SecTaskRef> task(
-      SecTaskCreateFromSelf(kCFAllocatorDefault));
-  if (!task) {
-    return true;
-  }
-
-  uint32_t flags = SecTaskGetCodeSignStatus(task);
-  if (!(flags & kSecCodeSignatureRuntime)) {
-    // The hardened runtime is not enabled. Note that kSecCodeSignatureRuntime
-    // == CS_RUNTIME.
-    return true;
-  }
-
-  // The hardened runtime is enabled. From this point on, early returns must
-  // return false, indicating that MAP_JIT is not to be used. It’s an error
-  // (EINVAL) to use MAP_JIT with the hardened runtime unless the JIT
-  // entitlement is specified.
-
-  base::apple::ScopedCFTypeRef<CFTypeRef> jit_entitlement(
-      SecTaskCopyValueForEntitlement(
-          task.get(), CFSTR("com.apple.security.cs.allow-jit"), nullptr));
-  if (!jit_entitlement) {
-    return false;
-  }
-
-  return base::apple::CFCast<CFBooleanRef>(jit_entitlement.get()) ==
-         kCFBooleanTrue;
-}
-#elif BUILDFLAG(IS_IOS)
-bool UseMapJit() {
-// Always enable MAP_JIT in simulator as it is supported unconditionally.
-#if TARGET_IPHONE_SIMULATOR
-  return true;
-#else
-  // TODO(crbug.com/40255826): Fill this out when the API it is
-  // available.
-  return false;
-#endif  // TARGET_IPHONE_SIMULATOR
-}
-#endif  // BUILDFLAG(IS_IOS)
-}  // namespace
+bool UseMapJit();
+#endif  // PA_BUILDFLAG(IS_IOS)
 
 // |mmap| uses a nearby address if the hint address is blocked.
 constexpr bool kHintIsAdvisory = true;
@@ -169,7 +60,7 @@ uintptr_t SystemAllocPagesInternal(uintptr_t hint,
                                    PageAccessibilityConfiguration accessibility,
                                    PageTag page_tag,
                                    int file_descriptor_for_shared_alloc) {
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   // Use a custom tag to make it easier to distinguish PartitionAlloc regions
   // in vmmap(1). Tags between 240-255 are supported.
   int fd = file_descriptor_for_shared_alloc == -1
@@ -182,7 +73,7 @@ uintptr_t SystemAllocPagesInternal(uintptr_t hint,
   int access_flag = GetAccessFlags(accessibility);
   int map_flags = MAP_ANONYMOUS | MAP_PRIVATE;
 
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   // On macOS, executables that are code signed with the "runtime" option cannot
   // execute writable memory by default. They can opt into this capability by
   // specifying the "com.apple.security.cs.allow-jit" code signing entitlement
@@ -192,6 +83,13 @@ uintptr_t SystemAllocPagesInternal(uintptr_t hint,
           PageAccessibilityConfiguration::kInaccessibleWillJitLater &&
       kUseMapJit) {
     map_flags |= MAP_JIT;
+    // iOS devices do not support toggling the page permissions after a MAP_JIT
+    // call, they must be set initially. iOS has per-thread W^X state that
+    // takes precedence over the mapping's permissions for MAP_JIT regions.
+    // See https://developer.apple.com/forums/thread/672804
+#if PA_BUILDFLAG(IS_IOS)
+    access_flag = PROT_READ | PROT_WRITE | PROT_EXEC;
+#endif
   }
 #endif
 
@@ -258,8 +156,16 @@ void SetSystemPagesAccessInternal(
   //
   // In this case, we are almost certainly bumping into the sandbox limit, mark
   // the crash as OOM. See SandboxLinux::LimitAddressSpace() for details.
-  if (ret == -1 && errno == ENOMEM && (access_flags & PROT_WRITE)) {
-    OOM_CRASH(length);
+  if (ret == -1 && errno == ENOMEM) {
+    // Likely setrlimit(2) related.
+    if (access_flags & PROT_WRITE) {
+      OOM_CRASH(length);
+    } else {
+      // Linux-based systems have a low-ish default limit of ~65k VMAs per
+      // process, and we've seen crashes triggered by that. Single out this
+      // error so that we can track it in crashes.
+      OnErrnoNoMem();
+    }
   }
 
   PA_PCHECK(0 == ret);
@@ -299,14 +205,14 @@ void DecommitSystemPagesInternal(
 
   bool change_permissions =
       accessibility_disposition == PageAccessibilityDisposition::kRequireUpdate;
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON)
   // This is not guaranteed, show that we're serious.
   //
   // More specifically, several callers have had issues with assuming that
   // memory is zeroed, this would hopefully make these bugs more visible.  We
   // don't memset() everything, because ranges can be very large, and doing it
   // over the entire range could make Chrome unusable with
-  // PA_BUILDFLAG(PA_DCHECK_IS_ON).
+  // PA_BUILDFLAG(DCHECKS_ARE_ON).
   //
   // Only do it when we are about to change the permissions, since we don't know
   // the previous permissions, and cannot restore them.
@@ -336,7 +242,7 @@ bool DecommitAndZeroSystemPagesInternal(uintptr_t address,
                                         size_t length,
                                         PageTag page_tag) {
   int fd = -1;
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   fd = VM_MAKE_TAG(static_cast<int>(page_tag));
 #endif
 
@@ -377,7 +283,7 @@ void RecommitSystemPagesInternal(
     SetSystemPagesAccess(address, length, accessibility);
   }
 
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   // On macOS, to update accounting, we need to make another syscall. For more
   // details, see https://crbug.com/823915.
   madvise(reinterpret_cast<void*>(address), length, MADV_FREE_REUSE);
@@ -400,7 +306,7 @@ bool TryRecommitSystemPagesInternal(
     }
   }
 
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   // On macOS, to update accounting, we need to make another syscall. For more
   // details, see https://crbug.com/823915.
   madvise(reinterpret_cast<void*>(address), length, MADV_FREE_REUSE);
@@ -411,14 +317,14 @@ bool TryRecommitSystemPagesInternal(
 
 void DiscardSystemPagesInternal(uintptr_t address, size_t length) {
   void* ptr = reinterpret_cast<void*>(address);
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
   int ret = madvise(ptr, length, MADV_FREE_REUSABLE);
   if (ret) {
     // MADV_FREE_REUSABLE sometimes fails, so fall back to MADV_DONTNEED.
     ret = madvise(ptr, length, MADV_DONTNEED);
   }
   PA_PCHECK(ret == 0);
-#else   // BUILDFLAG(IS_APPLE)
+#else   // PA_BUILDFLAG(IS_APPLE)
   // We have experimented with other flags, but with suboptimal results.
   //
   // MADV_FREE (Linux): Makes our memory measurements less predictable;
@@ -426,7 +332,18 @@ void DiscardSystemPagesInternal(uintptr_t address, size_t length) {
   //
   // Therefore, we just do the simple thing: MADV_DONTNEED.
   PA_PCHECK(0 == madvise(ptr, length, MADV_DONTNEED));
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // PA_BUILDFLAG(IS_APPLE)
+}
+
+bool SealSystemPagesInternal(uintptr_t address, size_t length) {
+  // TODO(sroettger): we either need to ensure that __NR_mseal is defined in the
+  // headers used by builders or define it ourselves.
+#if PA_BUILDFLAG(IS_LINUX) && defined(__NR_mseal)
+  long ret = syscall(__NR_mseal, address, length, 0);
+  return ret == 0;
+#else
+  return false;
+#endif
 }
 
 }  // namespace partition_alloc::internal

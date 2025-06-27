@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #ifndef COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_VOTING_VOTING_H_
 #define COMPONENTS_PERFORMANCE_MANAGER_PUBLIC_VOTING_VOTING_H_
 
@@ -45,6 +50,7 @@
 #include "base/containers/flat_map.h"
 #include "base/dcheck_is_on.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/types/id_type.h"
 #include "base/types/pass_key.h"
 
@@ -302,7 +308,7 @@ void VotingChannel<VoteImpl>::ChangeVote(const ContextType* context,
 #if DCHECK_IS_ON()
   // Ensure that a vote exists for this context.
   auto it = votes_.find(context);
-  DCHECK(it != votes_.end());
+  CHECK(it != votes_.end(), base::NotFatalUntil::M130);
 
   // Ensure the vote was actually changed.
   DCHECK(new_vote != it->second);

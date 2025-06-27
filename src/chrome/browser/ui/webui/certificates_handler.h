@@ -12,8 +12,8 @@
 #include "base/memory/weak_ptr.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/certificate_manager_model.h"
+#include "chrome/browser/ui/webui/certificate_manager/certificate_manager_utils.h"
 #include "components/file_access/scoped_file_access.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "net/cert/nss_cert_database.h"
@@ -26,30 +26,6 @@ class PrefRegistrySyncable;
 
 enum class Slot { kUser, kSystem };
 enum class CertificateSource { kBuiltIn, kImported };
-
-// Enumeration of certificate management permissions which corresponds to
-// values of policy ClientCertificateManagementAllowed.
-// Underlying type is int because values are casting to/from prefs values.
-enum class ClientCertificateManagementPermission : int {
-  // Allow users to manage all certificates
-  kAll = 0,
-  // Allow users to manage user certificates
-  kUserOnly = 1,
-  // Disallow users from managing certificates
-  kNone = 2
-};
-
-// Enumeration of certificate management permissions which corresponds to
-// values of policy CACertificateManagementAllowed.
-// Underlying type is int because values are casting to/from prefs values.
-enum class CACertificateManagementPermission : int {
-  // Allow users to manage all certificates
-  kAll = 0,
-  // Allow users to manage user certificates
-  kUserOnly = 1,
-  // Disallow users from managing certificates
-  kNone = 2
-};
 
 namespace certificate_manager {
 
@@ -73,10 +49,8 @@ class CertificatesHandler : public content::WebUIMessageHandler,
   void CertificatesRefreshed() override;
 
   // SelectFileDialog::Listener implementation.
-  void FileSelected(const ui::SelectedFileInfo& file,
-                    int index,
-                    void* params) override;
-  void FileSelectionCanceled(void* params) override;
+  void FileSelected(const ui::SelectedFileInfo& file, int index) override;
+  void FileSelectionCanceled() override;
 
 #if BUILDFLAG(IS_CHROMEOS)
   // Register profile preferences.
@@ -84,6 +58,13 @@ class CertificatesHandler : public content::WebUIMessageHandler,
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
  private:
+  enum PendingOperation {
+    EXPORT_PERSONAL_FILE,
+    IMPORT_PERSONAL_FILE,
+    IMPORT_SERVER_FILE,
+    IMPORT_CA_FILE,
+  };
+
   // View certificate.
   void HandleViewCertificate(const base::Value::List& args);
 
@@ -113,8 +94,7 @@ class CertificatesHandler : public content::WebUIMessageHandler,
   void ExportPersonalFileSelected(const base::FilePath& path);
   void HandleExportPersonalPasswordSelected(const base::Value::List& args);
   void ExportPersonalSlotsUnlocked();
-  void ExportPersonalFileWritten(const int* write_errno,
-                                 const int* bytes_written);
+  void ExportPersonalFileWritten(const int* write_errno);
 
   // Import from PKCS #12 or cert file.  The sequence goes like:
   //  1. user click on import button -> HandleImportPersonal ->
@@ -210,10 +190,6 @@ class CertificatesHandler : public content::WebUIMessageHandler,
       const base::Value::List& args,
       size_t arg_index);
 
-  // Returns true if it is allowed to display the list of client certificates
-  // for the current profile.
-  bool ShouldDisplayClientCertificates();
-
   // Returns true if the user may manage client certificates on |slot|.
   bool IsClientCertificateManagementAllowed(Slot slot);
 
@@ -252,6 +228,7 @@ class CertificatesHandler : public content::WebUIMessageHandler,
   std::string file_data_;
   net::ScopedCERTCertificateList selected_cert_list_;
   scoped_refptr<ui::SelectFileDialog> select_file_dialog_;
+  std::optional<PendingOperation> pending_operation_;
   crypto::ScopedPK11Slot slot_;
 
   // Used in reading and writing certificate files.

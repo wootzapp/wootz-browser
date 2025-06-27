@@ -16,6 +16,7 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/common/features.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -76,15 +77,15 @@ class AttributionSourceBrowserTest : public ContentBrowserTest {
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
 };
 
-class AttributionSourceDisabledBrowserTest : public AttributionSourceBrowserTest {
+class AttributionSourceDisabledBrowserTest
+    : public AttributionSourceBrowserTest {
  public:
   AttributionSourceDisabledBrowserTest() {
     scoped_feature_list_.InitWithFeatures(
         /*enabled_features=*/
         {},
-        /*disabled_features=*/{
-            features::kPrivacySandboxAdsAPIsM1Override,
-            features::kAttributionReportingCrossAppWebOverride});
+        /*disabled_features=*/{features::kPrivacySandboxAdsAPIsM1Override,
+                               features::kPrivacySandboxAdsAPIsOverride});
   }
 
  private:

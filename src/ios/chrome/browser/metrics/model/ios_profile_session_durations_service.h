@@ -18,17 +18,21 @@ namespace signin {
 class IdentityManager;
 }
 
+namespace signin_metrics {
+enum class SingleProfileSigninStatus;
+}
+
 namespace syncer {
 class SyncService;
 class SyncSessionDurationsMetricsRecorder;
-}
+}  // namespace syncer
 
 namespace unified_consent {
 class MsbbSessionDurationsMetricsRecorder;
 }
 
-// Tracks the active browsing time that the user spends signed in and/or syncing
-// as fraction of their total browsing time.
+// Tracks the active browsing time that the user spends signed in as fraction of
+// their total browsing time.
 class IOSProfileSessionDurationsService : public KeyedService {
  public:
   // Callers must ensure that the parameters outlive this object.
@@ -54,7 +58,7 @@ class IOSProfileSessionDurationsService : public KeyedService {
   virtual void OnSessionEnded(base::TimeDelta session_length);
   virtual bool IsSessionActive();
 
-  bool IsSignedIn() const;
+  signin_metrics::SingleProfileSigninStatus GetSigninStatus() const;
   bool IsSyncing() const;
 
  protected:

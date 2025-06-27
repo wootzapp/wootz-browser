@@ -9,7 +9,6 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event_watcher.h"
-#include "base/system/sys_info.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "third_party/leveldatabase/env_chromium.h"
@@ -18,7 +17,7 @@
 #include "third_party/leveldatabase/src/include/leveldb/db.h"
 #include "third_party/leveldatabase/src/include/leveldb/filter_policy.h"
 
-namespace content {
+namespace content::indexed_db {
 namespace {
 
 constexpr size_t kWriteBufferSize = 4 * 1024 * 1024;
@@ -278,4 +277,4 @@ leveldb::Status LevelDBScopesTestBase::CreateAndSaveLevelDBState() {
   return status;
 }
 
-}  // namespace content
+}  // namespace content::indexed_db

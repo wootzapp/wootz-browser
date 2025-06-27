@@ -9,6 +9,7 @@
 #include <hb-ot.h>
 // clang-format on
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.h"
@@ -24,7 +25,7 @@ float HarfBuzzUnitsToFloat(hb_position_t value) {
 // Latin Modern, STIX Two, XITS, Asana, Deja Vu, Libertinus and TeX Gyre fonts
 // provide at most 13 size variant and 5 assembly parts.
 // See https://chromium-review.googlesource.com/c/chromium/src/+/2074678
-unsigned kMaxHarfBuzzRecords = 20;
+constexpr unsigned kMaxHarfBuzzRecords = 20;
 
 hb_direction_t HarfBuzzDirection(
     blink::OpenTypeMathStretchData::StretchAxis stretch_axis) {
@@ -121,9 +122,8 @@ std::optional<float> OpenTypeMathSupport::MathConstant(
     case kRadicalKernAfterDegree:
       return std::optional<float>(HarfBuzzUnitsToFloat(harfbuzz_value));
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  return std::nullopt;
 }
 
 std::optional<float> OpenTypeMathSupport::MathItalicCorrection(
@@ -181,7 +181,7 @@ Vector<RecordType> GetHarfBuzzMathRecord(
   if (prepended_record)
     result.push_back(*prepended_record);
   for (unsigned i = 0; i < count; i++) {
-    result.push_back(converter.Run(chunk[i]));
+    result.push_back(converter.Run(UNSAFE_TODO(chunk[i])));
   }
   return result;
 }

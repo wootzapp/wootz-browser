@@ -51,7 +51,8 @@ ElementFragmentAnchor* ElementFragmentAnchor::TryCreate(const KURL& url,
   if (!url.HasFragmentIdentifier() && !doc.CssTarget() && !doc.IsSVGDocument())
     return nullptr;
 
-  String fragment = RemoveFragmentDirectives(url.FragmentIdentifier());
+  String fragment =
+      RemoveFragmentDirectives(url.FragmentIdentifier().ToString());
   Node* anchor_node = doc.FindAnchor(fragment);
 
   // Setting to null will clear the current target.
@@ -61,7 +62,7 @@ ElementFragmentAnchor* ElementFragmentAnchor::TryCreate(const KURL& url,
   if (doc.IsSVGDocument()) {
     if (auto* svg = DynamicTo<SVGSVGElement>(doc.documentElement())) {
       String decoded = DecodeURLEscapeSequences(fragment, DecodeURLMode::kUTF8);
-      svg->SetupInitialView(decoded, target);
+      svg->SetViewSpec(svg->ParseViewSpec(decoded, target));
     }
   }
 

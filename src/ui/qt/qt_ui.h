@@ -55,10 +55,8 @@ class QtUi : public ui::LinuxUiAndTheme, QtInterface::Delegate {
   int GetCursorThemeSize() override;
   std::unique_ptr<ui::LinuxInputMethodContext> CreateInputMethodContext(
       ui::LinuxInputMethodContextDelegate* delegate) const override;
-  bool GetTextEditCommandsForEvent(
-      const ui::Event& event,
-      int text_flags,
-      std::vector<ui::TextEditCommandAuraLinux>* commands) override;
+  ui::TextEditCommand GetTextEditCommandForEvent(const ui::Event& event,
+                                                 int text_flags) override;
   gfx::FontRenderParams GetDefaultFontRenderParams() override;
   bool AnimationsEnabled() const override;
   void AddWindowButtonOrderObserver(
@@ -79,9 +77,11 @@ class QtUi : public ui::LinuxUiAndTheme, QtInterface::Delegate {
   void GetInactiveSelectionFgColor(SkColor* color) const override;
   bool PreferDarkTheme() const override;
   void SetDarkTheme(bool dark) override;
+  void SetAccentColor(std::optional<SkColor>) override;
   std::unique_ptr<ui::NavButtonProvider> CreateNavButtonProvider() override;
   ui::WindowFrameProvider* GetWindowFrameProvider(bool solid_frame,
-                                                  bool tiled) override;
+                                                  bool tiled,
+                                                  bool maximized) override;
 
   // QtInterface::Delegate:
   void FontChanged() override;
@@ -111,6 +111,8 @@ class QtUi : public ui::LinuxUiAndTheme, QtInterface::Delegate {
   std::unique_ptr<QtInterface> shim_;
 
   std::unique_ptr<QtNativeTheme> native_theme_;
+
+  std::optional<SkColor> accent_color_;
 
   bool scale_factor_task_active_ = false;
 

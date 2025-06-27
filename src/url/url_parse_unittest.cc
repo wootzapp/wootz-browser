@@ -2,10 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/350788890): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "url/third_party/mozilla/url_parse.h"
+
 #include <stddef.h>
 
+#include <array>
+
 #include "testing/gtest/include/gtest/gtest.h"
-#include "url/third_party/mozilla/url_parse.h"
 
 // Interesting IE file:isms...
 //
@@ -345,7 +353,7 @@ TEST(URLParser, Standard) {
 
 // Various incarnations of path URLs.
 // clang-format off
-static PathURLParseCase path_cases[] = {
+auto path_cases = std::to_array<PathURLParseCase>({
 {"",                                        nullptr,       nullptr},
 {":",                                       "",            nullptr},
 {":/",                                      "",            "/"},
@@ -355,7 +363,7 @@ static PathURLParseCase path_cases[] = {
 {"about:blank",                             "about",       "blank"},
 {"  about: blank ",                         "about",       " blank "},
 {"javascript :alert(\"He:/l\\l#o?foo\"); ", "javascript ", "alert(\"He:/l\\l#o?foo\"); "},
-};
+});
 // clang-format on
 
 TEST(URLParser, PathURL) {

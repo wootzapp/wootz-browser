@@ -4,7 +4,7 @@
 
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/worker_main_script_loader.h"
 
-#include "base/test/scoped_feature_list.h"
+#include "base/containers/span.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -12,7 +12,6 @@
 #include "net/http/http_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info_notifier.mojom.h"
 #include "third_party/blink/public/mojom/navigation/renderer_eviction_reason.mojom-blink.h"
@@ -20,6 +19,7 @@
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_observer.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_loader_options.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/worker_main_script_loader_client.h"
+#include "third_party/blink/renderer/platform/loader/testing/fake_resource_load_info_notifier.h"
 #include "third_party/blink/renderer/platform/loader/testing/mock_fetch_context.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 
@@ -40,10 +40,7 @@ class WorkerMainScriptLoaderTest : public testing::Test {
  public:
   WorkerMainScriptLoaderTest()
       : fake_loader_(pending_remote_loader_.InitWithNewPipeAndPassReceiver()),
-        client_(MakeGarbageCollected<TestClient>()) {
-    scoped_feature_list_.InitWithFeatureState(
-        blink::features::kPlzDedicatedWorker, true);
-  }
+        client_(MakeGarbageCollected<TestClient>()) {}
   ~WorkerMainScriptLoaderTest() override {
     // Forced GC in order to finalize objects depending on MockResourceObserver,
     // see details https://crbug.com/1132634.
@@ -58,9 +55,9 @@ class WorkerMainScriptLoaderTest : public testing::Test {
     // Implements WorkerMainScriptLoaderClient.
     void DidReceiveDataWorkerMainScript(base::span<const char> data) override {
       if (!data_)
-        data_ = SharedBuffer::Create(data.data(), data.size());
+        data_ = SharedBuffer::Create(data);
       else
-        data_->Append(data.data(), data.size());
+        data_->Append(data);
     }
     void OnFinishedLoadingWorkerMainScript() override { finished_ = true; }
     void OnFailedLoadingWorkerMainScript() override { failed_ = true; }
@@ -98,51 +95,9 @@ class WorkerMainScriptLoaderTest : public testing::Test {
                         const std::optional<GURL>&) override {}
     void SetPriority(net::RequestPriority priority,
                      int32_t intra_priority_value) override {}
-    void PauseReadingBodyFromNet() override {}
-    void ResumeReadingBodyFromNet() override {}
 
    private:
     mojo::Receiver<network::mojom::URLLoader> receiver_;
-  };
-
-  class FakeResourceLoadInfoNotifier final
-      : public blink::mojom::ResourceLoadInfoNotifier {
-   public:
-    FakeResourceLoadInfoNotifier() = default;
-
-    FakeResourceLoadInfoNotifier(const FakeResourceLoadInfoNotifier&) = delete;
-    FakeResourceLoadInfoNotifier& operator=(
-        const FakeResourceLoadInfoNotifier&) = delete;
-
-    // blink::mojom::ResourceLoadInfoNotifier overrides.
-#if BUILDFLAG(IS_ANDROID)
-    void NotifyUpdateUserGestureCarryoverInfo() override {}
-#endif
-    void NotifyResourceRedirectReceived(
-        const net::RedirectInfo& redirect_info,
-        network::mojom::URLResponseHeadPtr redirect_response) override {}
-    void NotifyResourceResponseReceived(
-        int64_t request_id,
-        const url::SchemeHostPort& final_url,
-        network::mojom::URLResponseHeadPtr head,
-        network::mojom::RequestDestination request_destination,
-        bool is_ad_resource) override {}
-    void NotifyResourceTransferSizeUpdated(
-        int64_t request_id,
-        int32_t transfer_size_diff) override {}
-    void NotifyResourceLoadCompleted(
-        blink::mojom::ResourceLoadInfoPtr resource_load_info,
-        const ::network::URLLoaderCompletionStatus& status) override {
-      resource_load_info_ = std::move(resource_load_info);
-    }
-    void NotifyResourceLoadCanceled(int64_t request_id) override {}
-    void Clone(mojo::PendingReceiver<blink::mojom::ResourceLoadInfoNotifier>
-                   pending_resource_load_info_notifier) override {}
-
-    std::string GetMimeType() { return resource_load_info_->mime_type; }
-
-   private:
-    blink::mojom::ResourceLoadInfoPtr resource_load_info_;
   };
 
   class MockResourceLoadObserver : public ResourceLoadObserver {
@@ -166,7 +121,7 @@ class WorkerMainScriptLoaderTest : public testing::Test {
                       const Resource* resource,
                       ResponseSource));
     MOCK_METHOD2(DidReceiveData,
-                 void(uint64_t identifier, base::span<const char> chunk));
+                 void(uint64_t identifier, base::SpanOrSize<const char> chunk));
     MOCK_METHOD2(DidReceiveTransferSizeUpdate,
                  void(uint64_t identifier, int transfer_size_diff));
     MOCK_METHOD2(DidDownloadToBlob, void(uint64_t identifier, BlobDataHandle*));
@@ -183,6 +138,7 @@ class WorkerMainScriptLoaderTest : public testing::Test {
                       IsInternalRequest));
     MOCK_METHOD2(DidChangeRenderBlockingBehavior,
                  void(Resource* resource, const FetchParameters& params));
+    MOCK_METHOD0(InterestedInAllRequests, bool());
     MOCK_METHOD1(EvictFromBackForwardCache,
                  void(mojom::blink::RendererEvictionReason));
   };
@@ -257,7 +213,6 @@ class WorkerMainScriptLoaderTest : public testing::Test {
   FakeURLLoader fake_loader_;
 
   Persistent<TestClient> client_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(WorkerMainScriptLoaderTest, ResponseWithSucessThenOnComplete) {
@@ -285,8 +240,8 @@ TEST_F(WorkerMainScriptLoaderTest, ResponseWithSucessThenOnComplete) {
   EXPECT_EQ(KURL(kTopLevelScriptURL),
             worker_main_script_loader->GetRequestURL());
   EXPECT_EQ(UTF8Encoding(), worker_main_script_loader->GetScriptEncoding());
-  EXPECT_EQ(kTopLevelScript,
-            std::string(client_->Data()->Data(), client_->Data()->size()));
+  auto flatten_data = client_->Data()->CopyAs<Vector<char>>();
+  EXPECT_EQ(kTopLevelScript, std::string(base::as_string_view(flatten_data)));
   EXPECT_EQ("text/javascript", fake_resource_load_info_notifier.GetMimeType());
 }
 

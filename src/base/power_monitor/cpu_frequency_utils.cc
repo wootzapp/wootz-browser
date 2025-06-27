@@ -13,10 +13,10 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
+#include <winternl.h>
 
 #include <powerbase.h>
 #include <processthreadsapi.h>
-#include <winternl.h>
 #endif
 
 namespace base {
@@ -55,6 +55,7 @@ std::optional<CpuThroughputEstimationResult> EstimateCpuThroughput() {
   // see: https://github.com/google/UIforETW/blob/main/UIforETW/CPUFrequency.cpp
   //      https://github.com/google/UIforETW/blob/main/UIforETW/SpinALot64.asm
   base::ElapsedTimer timer;
+  base::ElapsedThreadTimer thread_timer;
   const int kAmountOfIterations = 50000;
   const int kAmountOfInstructions = 10;
   for (int i = 0; i < kAmountOfIterations; ++i) {
@@ -74,6 +75,7 @@ std::optional<CpuThroughputEstimationResult> EstimateCpuThroughput() {
         : "eax");
   }
 
+  const base::TimeDelta elapsed_thread_time = thread_timer.Elapsed();
   const base::TimeDelta elapsed = timer.Elapsed();
   const double estimated_frequency =
       (kAmountOfIterations * kAmountOfInstructions) / elapsed.InSecondsF();
@@ -81,6 +83,8 @@ std::optional<CpuThroughputEstimationResult> EstimateCpuThroughput() {
   CpuThroughputEstimationResult result{
       .estimated_frequency = estimated_frequency,
       .migrated = false,
+      .wall_time = elapsed,
+      .thread_time = elapsed_thread_time,
   };
 
 #if BUILDFLAG(IS_WIN)
@@ -98,6 +102,7 @@ BASE_EXPORT CpuFrequencyInfo GetCpuFrequencyInfo() {
       .max_mhz = 0,
       .mhz_limit = 0,
       .type = CpuFrequencyInfo::CoreType::kPerformance,
+      .num_active_cpus = 0,
   };
 
 #if BUILDFLAG(IS_WIN)
@@ -120,6 +125,14 @@ BASE_EXPORT CpuFrequencyInfo GetCpuFrequencyInfo() {
     }
     fastest = std::max(fastest, i.MaxMhz);
     slowest = std::min(slowest, i.MaxMhz);
+
+    // Count the amount of CPU that are in the C0 state (active).
+    // `CurrentIdleState` contains the CPU C-State + 1. When `MaxIdleState` is
+    // 1, the `CurrentIdleState` will always be 0 and the C-States are not
+    // supported and we consider the CPU is active.
+    if (i.MaxIdleState == 1 || i.CurrentIdleState == 1) {
+      cpu_info.num_active_cpus++;
+    }
   }
 
   // If the CPU frequency is the fastest of all the cores, or the CPU is

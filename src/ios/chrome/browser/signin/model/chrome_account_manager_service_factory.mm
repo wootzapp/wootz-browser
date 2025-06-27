@@ -5,16 +5,15 @@
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
 
 #import "base/no_destructor.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 
-ChromeAccountManagerService*
-ChromeAccountManagerServiceFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<ChromeAccountManagerService*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true));
+// static
+ChromeAccountManagerService* ChromeAccountManagerServiceFactory::GetForProfile(
+    ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<ChromeAccountManagerService>(
+      profile, /*create=*/true);
 }
 
 ChromeAccountManagerServiceFactory*
@@ -24,9 +23,7 @@ ChromeAccountManagerServiceFactory::GetInstance() {
 }
 
 ChromeAccountManagerServiceFactory::ChromeAccountManagerServiceFactory()
-    : BrowserStateKeyedServiceFactory(
-          "ChromeAccountManagerService",
-          BrowserStateDependencyManager::GetInstance()) {}
+    : ProfileKeyedServiceFactoryIOS("ChromeAccountManagerService") {}
 
 ChromeAccountManagerServiceFactory::~ChromeAccountManagerServiceFactory() =
     default;
@@ -34,6 +31,7 @@ ChromeAccountManagerServiceFactory::~ChromeAccountManagerServiceFactory() =
 std::unique_ptr<KeyedService>
 ChromeAccountManagerServiceFactory::BuildServiceInstanceFor(
     web::BrowserState* context) const {
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(context);
   return std::make_unique<ChromeAccountManagerService>(
-      GetApplicationContext()->GetLocalState());
+      GetApplicationContext()->GetLocalState(), profile->GetProfileName());
 }

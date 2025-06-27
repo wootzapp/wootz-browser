@@ -4,7 +4,6 @@
 
 #include "FindBadConstructsConsumer.h"
 
-#include "FindBadRawPtrPatterns.h"
 #include "Util.h"
 #include "clang/AST/Attr.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -19,6 +18,23 @@ using namespace clang;
 namespace chrome_checker {
 
 namespace {
+
+// A more efficient alternative to NamedDecl::getQualifiedNameAsString():
+// `hasName(decl, "foo", "Bar") iff
+// `decl->getQualifiedNameAsString() == "foo::Bar".
+bool hasName(const TagDecl* decl,
+             StringRef namespace_name,
+             StringRef decl_name) {
+  if (decl->getName() == decl_name) {
+    auto* nd = clang::dyn_cast<clang::NamespaceDecl>(decl->getParent());
+    while (nd && nd->isInline()) {
+      nd = clang::dyn_cast<clang::NamespaceDecl>(nd->getParent());
+    }
+    return nd && nd->getParent()->getRedeclContext()->isTranslationUnit() &&
+           nd->getName() == namespace_name;
+  }
+  return false;
+}
 
 // Returns the underlying Type for |type| by expanding typedefs and removing
 // any namespace qualifiers. This is similar to desugaring, except that for
@@ -38,7 +54,7 @@ bool InTestingNamespace(const Decl* record) {
 }
 
 bool IsGtestTestFixture(const CXXRecordDecl* decl) {
-  return decl->getQualifiedNameAsString() == "testing::Test";
+  return hasName(decl, "testing", "Test");
 }
 
 bool IsMethodInTestingNamespace(const CXXMethodDecl* method) {
@@ -173,7 +189,8 @@ FindBadConstructsConsumer::FindBadConstructsConsumer(CompilerInstance& instance,
   diag_no_explicit_copy_ctor_ = diagnostic().getCustomDiagID(
       getErrorLevel(),
       "[chromium-style] Complex class/struct needs an explicit out-of-line "
-      "copy constructor.");
+      "copy constructor. If this type is meant to be moveable, it also needs "
+      "a move constructor and assignment operator.");
   diag_inline_complex_ctor_ = diagnostic().getCustomDiagID(
       getErrorLevel(),
       "[chromium-style] Complex constructor has an inlined body.");
@@ -233,6 +250,18 @@ FindBadConstructsConsumer::FindBadConstructsConsumer(CompilerInstance& instance,
   diag_note_protected_non_virtual_dtor_ = diagnostic().getCustomDiagID(
       DiagnosticsEngine::Note,
       "[chromium-style] Protected non-virtual destructor declared here");
+
+  diag_span_from_string_literal_ = diagnostic().getCustomDiagID(
+      getErrorLevel(),
+      "[chromium-style] span construction from string literal is problematic.");
+  diag_note_span_from_string_literal1_ = diagnostic().getCustomDiagID(
+      DiagnosticsEngine::Note,
+      "To make a span from a string literal, use:\n"
+      "  * base::span_from_cstring() to make a span without the NUL "
+      "terminator\n"
+      "  * base::span_with_nul_from_cstring() to make a span with the NUL "
+      "terminator\n"
+      "  * a string view type instead of a string literal");
 }
 
 void FindBadConstructsConsumer::Traverse(ASTContext& context) {
@@ -257,13 +286,6 @@ void FindBadConstructsConsumer::Traverse(ASTContext& context) {
   if (ipc_visitor_) {
     ipc_visitor_->set_context(nullptr);
   }
-
-  {
-    llvm::TimeTraceScope TimeScope(
-        "FindBadRawPtrPatterns in "
-        "FindBadConstructsConsumer::Traverse");
-    FindBadRawPtrPatterns(options_, context, instance());
-  }
 }
 
 bool FindBadConstructsConsumer::TraverseDecl(Decl* decl) {
@@ -275,6 +297,14 @@ bool FindBadConstructsConsumer::TraverseDecl(Decl* decl) {
     ipc_visitor_->EndDecl();
   }
   return result;
+}
+
+bool FindBadConstructsConsumer::VisitCXXConstructExpr(
+    clang::CXXConstructExpr* expr) {
+  CheckConstructingSpanFromStringLiteral(
+      expr->getConstructor(),
+      llvm::ArrayRef(expr->getArgs(), expr->getNumArgs()), expr->getExprLoc());
+  return true;
 }
 
 bool FindBadConstructsConsumer::VisitCXXRecordDecl(
@@ -776,25 +806,28 @@ FindBadConstructsConsumer::ClassifyType(const Type* type) {
         return TypeClassification::kTrivial;
       }
 
-      const auto name = record_decl->getQualifiedNameAsString();
-
       // `std::basic_string` is externed by libc++, so even though it's a
       // non-trivial type wrapped by a template, we shouldn't classify it as a
       // `kNonTrivialTemplate`. The `kNonTrivialExternTemplate` classification
       // exists for this purpose.
       // https://github.com/llvm-mirror/libcxx/blob/78d6a7767ed57b50122a161b91f59f19c9bd0d19/include/string#L4317
-      if (name == "std::basic_string") {
+      if (hasName(record_decl, "std", "basic_string")) {
         return TypeClassification::kNonTrivialExternTemplate;
       }
 
-      // `base::raw_ptr` and `base::raw_ref` are non-trivial if the
-      // `use_backup_ref_ptr` flag is enabled, and trivial otherwise. Since
-      // there are many existing types using this that we don't wish to burden
-      // with defining custom ctors/dtors, and we'd rather not vary on
-      // triviality by build config, treat this as always trivial.
-      if (name == "base::raw_ptr" ||
-          (options_.raw_ref_template_as_trivial_member &&
-           name == "base::raw_ref")) {
+      // raw_ptr and raw_ref is non-trivial as in some build configurations it
+      // does work to catch dangling pointers. Nonetheless we want them to be
+      // usable in the same ways as a native pointer and reference. At times
+      // span has to be used instead of raw_span for performance reasons, then
+      // we want the compiler to allow the same class structure and not force an
+      // out of line ctor.
+      if (hasName(record_decl, "base", "raw_ptr")) {
+        return TypeClassification::kTrivialTemplate;
+      }
+      if (hasName(record_decl, "base", "raw_ref")) {
+        return TypeClassification::kTrivialTemplate;
+      }
+      if (hasName(record_decl, "base", "span")) {
         return TypeClassification::kTrivialTemplate;
       }
 
@@ -888,8 +921,7 @@ FindBadConstructsConsumer::ClassifyType(const Type* type) {
       return ClassifyType(decl->getUnderlyingType().getTypePtr());
     }
     default: {
-      // Stupid assumption: anything we see that isn't the above is a POD
-      // or reference type.
+      // Assume that anything that isn't the above is a POD or reference type.
       return TypeClassification::kTrivial;
     }
   }
@@ -1304,6 +1336,62 @@ void FindBadConstructsConsumer::CheckDeducedAutoPointer(
              range,
              GetAutoReplacementTypeAsString(var_decl->getType(),
                                             var_decl->getStorageClass(), true));
+}
+
+void FindBadConstructsConsumer::CheckConstructingSpanFromStringLiteral(
+    clang::CXXConstructorDecl* ctor_decl,
+    llvm::ArrayRef<const clang::Expr*> args,
+    clang::SourceLocation loc) {
+  auto* record_decl = clang::cast<clang::RecordDecl>(ctor_decl->getParent());
+
+  if (!hasName(record_decl, "base", "span")) {
+    return;
+  }
+
+  // Want the base::span(const char (&arr)[N]) constructor.
+  bool is_const_char_array_ctor = false;
+  if (ctor_decl->getNumParams() == 1u) {
+    clang::ParmVarDecl* param = ctor_decl->getParamDecl(0u);
+    const clang::Type* type = &*param->getType();
+    if (type->isReferenceType()) {
+      type = type->getPointeeType()->getUnqualifiedDesugaredType();
+      if (auto* array_type = clang::dyn_cast<clang::ConstantArrayType>(type)) {
+        const clang::Type* element_type =
+            array_type->getElementType()->getUnqualifiedDesugaredType();
+        if (element_type->isSpecificBuiltinType(
+                clang::BuiltinType::Kind::Char_S)) {
+          is_const_char_array_ctor = true;
+        }
+      }
+    }
+  }
+  if (!is_const_char_array_ctor) {
+    return;
+  }
+
+  if (args.size() != 1u) {
+    return;
+  }
+
+  // Find the expression that defines the argument value.
+  const clang::Expr* value_expr = args[0u];
+
+  if (auto* ref_expr = clang::dyn_cast<clang::DeclRefExpr>(args[0u])) {
+    const clang::VarDecl* var_decl =
+        clang::dyn_cast<clang::VarDecl>(ref_expr->getDecl());
+    if (var_decl) {
+      var_decl = var_decl->getInitializingDeclaration();
+      if (var_decl && var_decl->hasInit()) {
+        value_expr = var_decl->getInit();
+      }
+    }
+  }
+
+  value_expr = value_expr->IgnoreParens();
+  if (auto* lit_expr = clang::dyn_cast<clang::StringLiteral>(value_expr)) {
+    ReportIfSpellingLocNotIgnored(loc, diag_span_from_string_literal_);
+    ReportIfSpellingLocNotIgnored(loc, diag_note_span_from_string_literal1_);
+  }
 }
 
 }  // namespace chrome_checker

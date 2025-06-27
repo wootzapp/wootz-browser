@@ -22,11 +22,11 @@ class TrackingProtectionSettingsObserver {
   // For observation of DNT.
   virtual void OnDoNotTrackEnabledChanged() {}
 
-  // For observation of anti-fingerprinting.
-  virtual void OnFingerprintingProtectionEnabledChanged() {}
-
   // For observation of IP protection.
   virtual void OnIpProtectionEnabledChanged() {}
+
+  // For observation of fingerprinting protection.
+  virtual void OnFpProtectionEnabledChanged() {}
 
   // For observation of block all 3PC.
   virtual void OnBlockAllThirdPartyCookiesChanged() {}

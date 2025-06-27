@@ -2,7 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 
 group("browser") {
@@ -30,10 +29,14 @@ source_set("internal") {
     "configuration_policy_handler_list.h",
     "configuration_policy_pref_store.cc",
     "configuration_policy_pref_store.h",
+    "gen_ai_default_settings_policy_handler.cc",
+    "gen_ai_default_settings_policy_handler.h",
     "policy_conversions.cc",
     "policy_conversions.h",
     "policy_conversions_client.cc",
     "policy_conversions_client.h",
+    "policy_data_utils.cc",
+    "policy_data_utils.h",
     "policy_error_map.cc",
     "policy_error_map.h",
     "remote_commands/user_remote_commands_service_base.cc",
@@ -54,8 +57,6 @@ source_set("internal") {
     "webui/json_generation.h",
     "webui/machine_level_user_cloud_policy_status_provider.cc",
     "webui/machine_level_user_cloud_policy_status_provider.h",
-    "webui/policy_data_utils.cc",
-    "webui/policy_data_utils.h",
     "webui/policy_status_provider.cc",
     "webui/policy_status_provider.h",
     "webui/policy_webui_constants.cc",
@@ -64,7 +65,7 @@ source_set("internal") {
     "webui/statistics_collector.h",
   ]
 
-  if (!is_chromeos_ash) {
+  if (!is_chromeos) {
     sources += [
       "cloud/user_policy_signin_service_base.cc",
       "cloud/user_policy_signin_service_base.h",
@@ -78,7 +79,6 @@ source_set("internal") {
   public_deps = [ "//base" ]
   deps = [
     "//build:branding_buildflags",
-    "//build:chromeos_buildflags",
     "//components/google/core/common",
     "//components/invalidation/impl",
     "//components/keyed_service/core",
@@ -148,6 +148,7 @@ source_set("pref_mapping_test_support") {
 
   deps = [
     "//base",
+    "//build:android_buildflags",
     "//build:branding_buildflags",
     "//components/policy:generated",
     "//components/policy/core/common:test_support",
@@ -171,6 +172,7 @@ source_set("unit_tests") {
     "configuration_policy_handler_list_unittest.cc",
     "configuration_policy_handler_unittest.cc",
     "configuration_policy_pref_store_unittest.cc",
+    "gen_ai_default_settings_policy_handler_unittest.cc",
     "policy_conversions_client_unittest.cc",
     "policy_error_map_unittest.cc",
     "signin/user_cloud_signin_restriction_policy_fetcher_unittest.cc",

@@ -19,10 +19,12 @@
 #import "ios/chrome/browser/overlays/model/public/overlay_request_queue.h"
 #import "ios/chrome/browser/overlays/model/test/fake_overlay_presentation_context.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
+#import "ios/chrome/browser/tips_manager/model/tips_manager_ios_factory.h"
 #import "ios/chrome/browser/translate/model/fake_translate_infobar_delegate.h"
+#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "ios/web/public/test/web_task_environment.h"
@@ -35,9 +37,17 @@ class TranslateInfobarPlaceholderOverlayRequestCancelHandlerTest
     : public PlatformTest {
  public:
   TranslateInfobarPlaceholderOverlayRequestCancelHandlerTest() {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
+    TestProfileIOS::Builder test_profile_builder;
+
+    test_profile_builder.AddTestingFactory(
+        TipsManagerIOSFactory::GetInstance(),
+        TipsManagerIOSFactory::GetDefaultFactory());
+
+    profile_ = std::move(test_profile_builder).Build();
+
+    browser_ = std::make_unique<TestBrowser>(profile_.get());
     auto web_state = std::make_unique<web::FakeWebState>();
+    web_state->SetBrowserState(profile_.get());
     web_state_ = web_state.get();
     // Set up WebState and InfoBarManager.
     web_state->SetNavigationManager(
@@ -45,6 +55,7 @@ class TranslateInfobarPlaceholderOverlayRequestCancelHandlerTest
     browser_->GetWebStateList()->InsertWebState(
         std::move(web_state),
         WebStateList::InsertionParams::Automatic().Activate());
+    OverlayRequestQueue::CreateForWebState(web_state_);
     InfoBarManagerImpl::CreateForWebState(web_state_);
     InfobarOverlayRequestInserter::CreateForWebState(
         web_state_, &DefaultInfobarOverlayRequestFactory);
@@ -74,7 +85,8 @@ class TranslateInfobarPlaceholderOverlayRequestCancelHandlerTest
 
  protected:
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<TestBrowser> browser_;
   raw_ptr<web::FakeWebState> web_state_;
   FakeTranslateInfoBarDelegateFactory delegate_factory_;

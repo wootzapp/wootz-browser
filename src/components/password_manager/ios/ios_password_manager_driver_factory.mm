@@ -5,6 +5,7 @@
 #import "components/password_manager/ios/ios_password_manager_driver_factory.h"
 
 #include "components/password_manager/core/browser/password_manager.h"
+#include "third_party/abseil-cpp/absl/memory/memory.h"
 
 // static
 IOSPasswordManagerDriver*
@@ -47,8 +48,6 @@ IOSPasswordManagerDriverFactory::GetRetainableDriver(web::WebState* web_state,
   return IOSPasswordManagerWebFrameDriverHelper::FromWebFrame(web_frame)
       ->RetainableDriver();
 }
-
-WEB_STATE_USER_DATA_KEY_IMPL(IOSPasswordManagerDriverFactory)
 
 // static
 void IOSPasswordManagerWebFrameDriverHelper::CreateForWebFrame(

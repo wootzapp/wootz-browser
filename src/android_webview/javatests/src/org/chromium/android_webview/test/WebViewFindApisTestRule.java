@@ -6,9 +6,6 @@ package org.chromium.android_webview.test;
 
 import androidx.test.InstrumentationRegistry;
 
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
-
 import org.chromium.android_webview.AwContents;
 
 import java.util.concurrent.CountDownLatch;
@@ -24,20 +21,9 @@ public class WebViewFindApisTestRule extends AwActivityTestRule {
     private AwContents mContents;
 
     @Override
-    public Statement apply(final Statement base, Description description) {
-        return super.apply(
-                new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        try {
-                            mContents = loadContentsFromStringSync(WOODCHUCK);
-                        } catch (Throwable t) {
-                            throw new Exception(t);
-                        }
-                        base.evaluate();
-                    }
-                },
-                description);
+    protected void before() throws Throwable {
+        super.before();
+        mContents = loadContentsFromStringSync(WOODCHUCK);
     }
 
     public AwContents contents() {
@@ -70,12 +56,11 @@ public class WebViewFindApisTestRule extends AwActivityTestRule {
     }
 
     /**
-     * Invokes findAllAsync on the UI thread, blocks until find results are
-     * received, and returns the number of matches.
+     * Invokes findAllAsync on the UI thread, blocks until find results are received, and returns
+     * the number of matches.
      *
      * @param searchString A string to search for.
      * @return The number of instances of the string that were found.
-     * @throws Throwable
      */
     public int findAllAsyncOnUiThread(final String searchString) throws Throwable {
         final IntegerFuture future =
@@ -94,13 +79,12 @@ public class WebViewFindApisTestRule extends AwActivityTestRule {
     }
 
     /**
-     * Invokes findNext on the UI thread, blocks until find results are
-     * received, and returns the ordinal of the highlighted match.
+     * Invokes findNext on the UI thread, blocks until find results are received, and returns the
+     * ordinal of the highlighted match.
      *
-     * @param forwards The direction to search as a boolean, with forwards
-     *                 represented as true and backwards as false.
+     * @param forwards The direction to search as a boolean, with forwards represented as true and
+     *     backwards as false.
      * @return The ordinal of the highlighted match.
-     * @throws Throwable
      */
     public int findNextOnUiThread(final boolean forwards) throws Throwable {
         final IntegerFuture future =

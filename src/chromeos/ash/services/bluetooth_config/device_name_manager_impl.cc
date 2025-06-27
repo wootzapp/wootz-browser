@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromeos/ash/services/bluetooth_config/device_name_manager_impl.h"
 
 #include "base/containers/span.h"
@@ -191,8 +196,7 @@ void DeviceNameManagerImpl::MigrateExistingNicknames() {
       continue;
     }
 
-    auto floss_id =
-        base::JoinString(base::make_span(parts.end() - 6, parts.end()), ":");
+    auto floss_id = base::JoinString(base::span(parts).last<6>(), ":");
 
     // Avoid overwriting an existing entry with a BlueZ nickname. This allows us
     // to guarantee that Floss nicknames are migrated and outdate BlueZ

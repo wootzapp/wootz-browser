@@ -2,12 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "mojo/public/c/system/data_pipe.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 
 #include "base/check_op.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/numerics/safe_conversions.h"
@@ -18,7 +27,6 @@
 #include "build/build_config.h"
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/core/test/mojo_test_base.h"
-#include "mojo/public/c/system/data_pipe.h"
 #include "mojo/public/c/system/functions.h"
 #include "mojo/public/c/system/message_pipe.h"
 #include "mojo/public/cpp/system/data_pipe.h"
@@ -219,7 +227,7 @@ TEST_F(DataPipeTest, Basic) {
 
 // Tests creation of data pipes with various (valid) options.
 TEST_F(DataPipeTest, CreateAndMaybeTransfer) {
-  MojoCreateDataPipeOptions test_options[] = {
+  auto test_options = std::to_array<MojoCreateDataPipeOptions>({
       // Default options.
       {},
       // Trivial element size, non-default capacity.
@@ -237,7 +245,8 @@ TEST_F(DataPipeTest, CreateAndMaybeTransfer) {
        MOJO_CREATE_DATA_PIPE_FLAG_NONE,  // |flags|.
        100,                              // |element_num_bytes|.
        0}                                // |capacity_num_bytes|.
-  };
+      ,
+  });
   for (size_t i = 0; i < std::size(test_options); i++) {
     MojoHandle producer_handle, consumer_handle;
     MojoCreateDataPipeOptions* options = i ? &test_options[i] : nullptr;
@@ -1046,7 +1055,7 @@ TEST_F(DataPipeTest, WrapAround) {
                  << "is backed by a circular ring buffer.";
   }
 
-  unsigned char test_data[1000];
+  std::array<unsigned char, 1000> test_data;
   for (size_t i = 0; i < std::size(test_data); i++)
     test_data[i] = static_cast<unsigned char>(i);
 
@@ -1075,7 +1084,7 @@ TEST_F(DataPipeTest, WrapAround) {
             hss.satisfiable_signals);
 
   // Read 10 bytes.
-  unsigned char read_buffer[1000] = {0};
+  unsigned char read_buffer[1000] = {};
   num_bytes = 10u;
   ASSERT_EQ(MOJO_RESULT_OK, ReadData(read_buffer, &num_bytes, true));
   ASSERT_EQ(10u, num_bytes);
@@ -1785,7 +1794,7 @@ TEST_F(DataPipeTest, NoSpuriousEvents) {
 }
 
 DEFINE_TEST_CLIENT_TEST_WITH_PIPE(NoSpuriousEventsHost, DataPipeTest, parent) {
-  const char kData[1024] = {'x'};
+  const std::vector<uint8_t> kData(512, 'x');
 
   MojoHandle client;
   EXPECT_EQ("x", ReadMessageWithHandles(parent, &client, 1));
@@ -1800,8 +1809,9 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(NoSpuriousEventsHost, DataPipeTest, parent) {
 
     for (size_t i = 0; i < 9; ++i) {
       WaitForSignals(producer.get().value(), MOJO_HANDLE_SIGNAL_WRITABLE);
-      size_t size = 512;
-      producer->WriteData(kData, &size, MOJO_WRITE_DATA_FLAG_NONE);
+      size_t bytes_written = 0;
+      producer->WriteData(base::as_byte_span(kData), MOJO_WRITE_DATA_FLAG_NONE,
+                          bytes_written);
     }
   }
 
@@ -1837,10 +1847,9 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(NoSpuriousEventsClient,
                           }
 
                           // Drain everything.
-                          const void* buffer;
-                          size_t num_bytes;
-                          consumer->BeginReadData(&buffer, &num_bytes, 0);
-                          consumer->EndReadData(num_bytes);
+                          base::span<const uint8_t> buffer;
+                          consumer->BeginReadData(0, buffer);
+                          consumer->EndReadData(buffer.size());
                           watcher.ArmOrNotify();
                         } else {
                           CHECK(state.never_readable());
@@ -1943,13 +1952,13 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(MultiprocessClient, DataPipeTest, client_mp) {
 
   // Receive the main data and check it is correct.
   int seq = 0;
-  uint8_t expected_buffer[100];
+  std::array<uint8_t, 100> expected_buffer;
   for (int i = 0; i < kMultiprocessMaxIter; ++i) {
     for (uint32_t size = 1; size <= kMultiprocessCapacity; ++size) {
       for (unsigned int j = 0; j < size; ++j)
         expected_buffer[j] = seq + j;
       EXPECT_TRUE(ReadAllData(consumer, buffer, size, false));
-      EXPECT_EQ(0, memcmp(buffer, expected_buffer, size));
+      EXPECT_EQ(0, memcmp(buffer, expected_buffer.data(), size));
 
       seq += size;
     }
@@ -2155,8 +2164,8 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(DataPipeStatusChangeInTransitClient,
 }
 
 TEST_F(DataPipeTest, StatusChangeInTransit) {
-  MojoHandle producers[6];
-  MojoHandle consumers[6];
+  std::array<MojoHandle, 6> producers;
+  std::array<MojoHandle, 6> consumers;
   for (size_t i = 0; i < 6; ++i)
     CreateDataPipe(&producers[i], &consumers[i], 1);
 

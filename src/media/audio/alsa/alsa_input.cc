@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -62,7 +64,8 @@ AudioInputStream::OpenOutcome AlsaPcmInputStream::Open() {
   buffer_us = std::max(buffer_us, AlsaPcmOutputStream::kMinLatencyMicros);
 
   if (device_name_ == kAutoSelectDevice) {
-    const char* device_names[] = { kDefaultDevice1, kDefaultDevice2 };
+    auto device_names =
+        std::to_array<const char*>({kDefaultDevice1, kDefaultDevice2});
     for (size_t i = 0; i < std::size(device_names); ++i) {
       device_handle_ = alsa_util::OpenCaptureDevice(
           wrapper_, device_names[i], params_.channels(), params_.sample_rate(),

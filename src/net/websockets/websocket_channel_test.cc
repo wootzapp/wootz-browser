@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/websockets/websocket_channel.h"
 
 #include <stddef.h>
@@ -17,13 +22,13 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/containers/span.h"
 #include "base/dcheck_is_on.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -40,6 +45,7 @@
 #include "net/http/http_response_headers.h"
 #include "net/log/net_log_with_source.h"
 #include "net/ssl/ssl_info.h"
+#include "net/storage_access_api/status.h"
 #include "net/test/test_with_task_environment.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
@@ -83,10 +89,8 @@ std::ostream& operator<<(std::ostream& os, const WebSocketFrameHeader& header) {
 
 std::ostream& operator<<(std::ostream& os, const WebSocketFrame& frame) {
   os << "{" << frame.header << ", ";
-  if (frame.payload) {
-    return os << "\""
-              << std::string_view(frame.payload, frame.header.payload_length)
-              << "\"}";
+  if (!frame.payload.empty()) {
+    return os << "\"" << base::as_string_view(frame.payload) << "\"}";
   }
   return os << "NULL}";
 }
@@ -376,7 +380,7 @@ std::vector<std::unique_ptr<WebSocketFrame>> CreateFrameVector(
       result_frame_data->push_back(buffer);
       std::copy(source_frame.data, source_frame.data + frame_length,
                 buffer->data());
-      result_frame->payload = buffer->data();
+      result_frame->payload = buffer->span();
     }
     result_frames.push_back(std::move(result_frame));
   }
@@ -438,7 +442,7 @@ class EqualsFramesMatcher : public ::testing::MatcherInterface<
         return false;
       }
       if (expected_length != 0 &&
-          memcmp(actual_frame.payload, expected_frame.data,
+          memcmp(actual_frame.payload.data(), expected_frame.data,
                  actual_frame.header.payload_length) != 0) {
         *listener << "the data content differs";
         return false;
@@ -611,9 +615,8 @@ class EchoeyFakeWebSocketStream : public FakeWebSocketStream {
     for (const auto& frame : *frames) {
       auto buffer = base::MakeRefCounted<IOBufferWithSize>(
           static_cast<size_t>(frame->header.payload_length));
-      std::copy(frame->payload, frame->payload + frame->header.payload_length,
-                buffer->data());
-      frame->payload = buffer->data();
+      buffer->span().copy_from(frame->payload);
+      frame->payload = buffer->span();
       buffers_.push_back(buffer);
     }
     stored_frames_.insert(stored_frames_.end(),
@@ -758,7 +761,7 @@ struct WebSocketStreamCreationCallbackArgumentSaver {
       const std::vector<std::string>& requested_subprotocols,
       const url::Origin& new_origin,
       const SiteForCookies& new_site_for_cookies,
-      bool new_has_storage_access,
+      StorageAccessApiStatus new_storage_access_api_status,
       const IsolationInfo& new_isolation_info,
       const HttpRequestHeaders& additional_headers,
       URLRequestContext* new_url_request_context,
@@ -768,7 +771,7 @@ struct WebSocketStreamCreationCallbackArgumentSaver {
     socket_url = new_socket_url;
     origin = new_origin;
     site_for_cookies = new_site_for_cookies;
-    has_storage_access = new_has_storage_access;
+    storage_access_api_status = new_storage_access_api_status;
     isolation_info = new_isolation_info;
     url_request_context = new_url_request_context;
     connect_delegate = std::move(new_connect_delegate);
@@ -778,7 +781,7 @@ struct WebSocketStreamCreationCallbackArgumentSaver {
   GURL socket_url;
   url::Origin origin;
   SiteForCookies site_for_cookies;
-  bool has_storage_access;
+  StorageAccessApiStatus storage_access_api_status;
   IsolationInfo isolation_info;
   raw_ptr<URLRequestContext> url_request_context;
   std::unique_ptr<WebSocketStream::ConnectDelegate> connect_delegate;
@@ -793,7 +796,7 @@ std::vector<char> AsVector(std::string_view s) {
 // WebSocketEventInterface requires the IOBuffer type.
 scoped_refptr<IOBuffer> AsIOBuffer(std::string_view s) {
   auto buffer = base::MakeRefCounted<IOBufferWithSize>(s.size());
-  base::ranges::copy(s, buffer->data());
+  std::ranges::copy(s, buffer->data());
   return buffer;
 }
 
@@ -823,7 +826,7 @@ class WebSocketChannelTest : public TestWithTaskEnvironment {
     channel_->SendAddChannelRequestForTesting(
         connect_data_.socket_url, connect_data_.requested_subprotocols,
         connect_data_.origin, connect_data_.site_for_cookies,
-        /*has_storage_access=*/false, connect_data_.isolation_info,
+        net::StorageAccessApiStatus::kNone, connect_data_.isolation_info,
         HttpRequestHeaders(), TRAFFIC_ANNOTATION_FOR_TESTS,
         base::BindOnce(&WebSocketStreamCreationCallbackArgumentSaver::Create,
                        base::Unretained(&connect_data_.argument_saver)));
@@ -861,8 +864,7 @@ class WebSocketChannelTest : public TestWithTaskEnvironment {
         : url_request_context(CreateTestURLRequestContextBuilder()->Build()),
           socket_url("ws://ws/"),
           origin(url::Origin::Create(GURL("http://ws"))),
-          site_for_cookies(SiteForCookies::FromUrl(GURL("http://ws/"))),
-          has_storage_access(false) {
+          site_for_cookies(SiteForCookies::FromUrl(GURL("http://ws/"))) {
       this->isolation_info =
           IsolationInfo::Create(IsolationInfo::RequestType::kOther, origin,
                                 origin, SiteForCookies::FromOrigin(origin));
@@ -880,7 +882,8 @@ class WebSocketChannelTest : public TestWithTaskEnvironment {
     // First party for cookies for the request.
     net::SiteForCookies site_for_cookies;
     // Whether the calling context has opted into the Storage Access API.
-    bool has_storage_access;
+    StorageAccessApiStatus storage_access_api_status =
+        StorageAccessApiStatus::kNone;
     // IsolationInfo created from the origin.
     net::IsolationInfo isolation_info;
 
@@ -1021,7 +1024,8 @@ TEST_F(WebSocketChannelTest, EverythingIsPassedToTheCreatorFunction) {
   EXPECT_EQ(connect_data_.origin.Serialize(), actual.origin.Serialize());
   EXPECT_TRUE(
       connect_data_.site_for_cookies.IsEquivalent(actual.site_for_cookies));
-  EXPECT_EQ(connect_data_.has_storage_access, actual.has_storage_access);
+  EXPECT_EQ(connect_data_.storage_access_api_status,
+            actual.storage_access_api_status);
   EXPECT_TRUE(
       connect_data_.isolation_info.IsEqualForTesting(actual.isolation_info));
 }
@@ -1643,7 +1647,7 @@ TEST_F(WebSocketChannelEventInterfaceTest, OneByteClosePayloadMessage) {
   EXPECT_CALL(
       *event_interface_,
       OnFailChannel(
-          "Received a broken close frame containing an invalid size body.", _,
+          "Received a broken close frame with an invalid size of 1 byte.", _,
           _));
 
   CreateChannelAndConnectSuccessfully();
@@ -2249,8 +2253,9 @@ TEST_F(WebSocketChannelStreamTest, WrittenBinaryFramesAre8BitClean) {
   ASSERT_EQ(1U, frames->size());
   const WebSocketFrame* out_frame = (*frames)[0].get();
   EXPECT_EQ(kBinaryBlobSize, out_frame->header.payload_length);
-  ASSERT_TRUE(out_frame->payload);
-  EXPECT_EQ(0, memcmp(kBinaryBlob, out_frame->payload, kBinaryBlobSize));
+  ASSERT_FALSE(out_frame->payload.empty());
+  EXPECT_EQ(std::string_view(kBinaryBlob, kBinaryBlobSize),
+            base::as_string_view(out_frame->payload));
 }
 
 // Test the read path for 8-bit cleanliness as well.
@@ -2262,7 +2267,7 @@ TEST_F(WebSocketChannelEventInterfaceTest, ReadBinaryFramesAre8BitClean) {
   frame_header.payload_length = kBinaryBlobSize;
   auto buffer = base::MakeRefCounted<IOBufferWithSize>(kBinaryBlobSize);
   memcpy(buffer->data(), kBinaryBlob, kBinaryBlobSize);
-  frame->payload = buffer->data();
+  frame->payload = buffer->span();
   std::vector<std::unique_ptr<WebSocketFrame>> frames;
   frames.push_back(std::move(frame));
   auto stream = std::make_unique<ReadableFakeWebSocketStream>();

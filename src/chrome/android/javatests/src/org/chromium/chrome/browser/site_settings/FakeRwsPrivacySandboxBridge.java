@@ -9,6 +9,7 @@ import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxBridge;
 import org.chromium.chrome.browser.privacy_sandbox.Topic;
 import org.chromium.chrome.browser.profiles.Profile;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -22,6 +23,8 @@ public class FakeRwsPrivacySandboxBridge implements PrivacySandboxBridge.Natives
     // Owner of the one RWS group represented by the fake bridge
     private final String mRwsOwner;
     private final Set<String> mRwsMembers;
+    private final String mGoogleEmbeddedPrivacyPolicyURL =
+            "https://policies.google.com/privacy/embedded";
 
     public FakeRwsPrivacySandboxBridge(String rwsOwner, Set<String> rwsMembers) {
         this.mRwsOwner = rwsOwner;
@@ -39,45 +42,45 @@ public class FakeRwsPrivacySandboxBridge implements PrivacySandboxBridge.Natives
     }
 
     @Override
-    public boolean isFirstPartySetsDataAccessEnabled(Profile profile) {
+    public boolean isRelatedWebsiteSetsDataAccessEnabled(Profile profile) {
         return true;
     }
 
     @Override
-    public boolean isFirstPartySetsDataAccessManaged(Profile profile) {
+    public boolean isRelatedWebsiteSetsDataAccessManaged(Profile profile) {
         return true;
     }
 
     @Override
-    public boolean isPartOfManagedFirstPartySet(Profile profile, String origin) {
+    public boolean isPartOfManagedRelatedWebsiteSet(Profile profile, String origin) {
         return mRwsMembers.contains(origin);
     }
 
     @Override
-    public void setFirstPartySetsDataAccessEnabled(Profile profile, boolean enabled) {}
+    public void setRelatedWebsiteSetsDataAccessEnabled(Profile profile, boolean enabled) {}
 
     @Override
-    public String getFirstPartySetOwner(Profile profile, String memberOrigin) {
+    public String getRelatedWebsiteSetOwner(Profile profile, String memberOrigin) {
         return mRwsMembers.contains(memberOrigin.replace("http://", "")) ? mRwsOwner : "";
     }
 
     @Override
-    public Topic[] getCurrentTopTopics(Profile profile) {
+    public List<Topic> getCurrentTopTopics(Profile profile) {
         return null;
     }
 
     @Override
-    public Topic[] getBlockedTopics(Profile profile) {
+    public List<Topic> getBlockedTopics(Profile profile) {
         return null;
     }
 
     @Override
-    public Topic[] getFirstLevelTopics(Profile profile) {
+    public List<Topic> getFirstLevelTopics(Profile profile) {
         return null;
     }
 
     @Override
-    public Topic[] getChildTopicsCurrentlyAssigned(
+    public List<Topic> getChildTopicsCurrentlyAssigned(
             Profile profile, int topicId, int taxonomyVersion) {
         return null;
     }
@@ -91,7 +94,7 @@ public class FakeRwsPrivacySandboxBridge implements PrivacySandboxBridge.Natives
             Profile profile, Callback<String[]> callback) {}
 
     @Override
-    public String[] getBlockedFledgeJoiningTopFramesForDisplay(Profile profile) {
+    public List<String> getBlockedFledgeJoiningTopFramesForDisplay(Profile profile) {
         return null;
     }
 
@@ -100,16 +103,34 @@ public class FakeRwsPrivacySandboxBridge implements PrivacySandboxBridge.Natives
             Profile profile, String topFrameEtldPlus1, boolean allowed) {}
 
     @Override
-    public int getRequiredPromptType(Profile profile) {
+    public int getRequiredPromptType(Profile profile, int surfaceType) {
         return 0;
     }
 
     @Override
-    public void promptActionOccurred(Profile profile, int action) {}
+    public void promptActionOccurred(Profile profile, int action, int surfaceType) {}
 
     @Override
     public void topicsToggleChanged(Profile profile, boolean newValue) {}
 
     @Override
     public void setAllPrivacySandboxAllowedForTesting(Profile profile) {}
+
+    @Override
+    public void recordActivityType(Profile profile, int activityType) {}
+
+    @Override
+    public boolean privacySandboxPrivacyGuideShouldShowAdTopicsCard(Profile profile) {
+        return false;
+    }
+
+    @Override
+    public boolean shouldUsePrivacyPolicyChinaDomain(Profile profile) {
+        return false;
+    }
+
+    @Override
+    public String getEmbeddedPrivacyPolicyURL(int domainType, int colorScheme, String locale) {
+        return mGoogleEmbeddedPrivacyPolicyURL;
+    }
 }

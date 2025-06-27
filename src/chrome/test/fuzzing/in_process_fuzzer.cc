@@ -61,6 +61,10 @@ InProcessFuzzer::InProcessFuzzer(InProcessFuzzerOptions options)
 
 InProcessFuzzer::~InProcessFuzzer() = default;
 
+bool InProcessFuzzer::UseSingleProcessMode() {
+  return true;
+}
+
 base::CommandLine::StringVector
 InProcessFuzzer::GetChromiumCommandLineArguments() {
   base::CommandLine::StringVector empty;
@@ -68,7 +72,13 @@ InProcessFuzzer::GetChromiumCommandLineArguments() {
 }
 
 void InProcessFuzzer::SetUp() {
-  std::optional<base::test::ScopedRunLoopTimeout> scoped_timeout;
+  // Overrides the default 60s run loop timeout set by `BrowserTestBase`. See
+  // https://source.chromium.org/chromium/chromium/src/+/main:content/public/test/browser_test_base.cc?q=ScopedRunLoopTimeout.
+  // All of the fuzzing engines that we use are having timeouts features, and
+  // this timeout can vary depending on the number of tested testcases. We must
+  // let the engines handle timeouts, and set the maximum here.
+  base::test::ScopedRunLoopTimeout scoped_timeout(FROM_HERE,
+                                                  base::TimeDelta::Max());
 
   switch (options_.run_loop_timeout_behavior) {
     case RunLoopTimeoutBehavior::kContinue:
@@ -79,10 +89,6 @@ void InProcessFuzzer::SetUp() {
       break;
     case RunLoopTimeoutBehavior::kDefault:
       break;
-  }
-
-  if (options_.run_loop_timeout) {
-    scoped_timeout.emplace(FROM_HERE, *options_.run_loop_timeout);
   }
 
   // Note that browser tests are being launched by the `SetUp` method.
@@ -120,6 +126,34 @@ void InProcessFuzzer::Run(
 
 void InProcessFuzzer::SetUpOnMainThread() {
   InProcessBrowserTest::SetUpOnMainThread();
+
+  // All of the engines that are being used to run those fuzzers are handling
+  // process interruption. In case we let Chrome handle those signals itself,
+  // we end up exiting the fuzzing process, and the engine records the last
+  // run as a crash since it cannot not determine the reason why the process
+  // terminated.
+#if BUILDFLAG(IS_POSIX)
+  signal(SIGTERM, SIG_DFL);
+  signal(SIGINT, SIG_DFL);
+#if defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
+  // In case we're being built with a memory tool (asan, msan...), we should
+  // let it handle this signal so that we get better reporting.
+  // As of now, since both in-process stack traces and the crashpad handler are
+  // being disabled, this is the only signal that we need to reset since it's
+  // being set in
+  // https://source.chromium.org/chromium/chromium/src/+/main:content/public/test/browser_test_base.cc?q=SignalHandler
+  signal(SIGSEGV, SIG_DFL);
+#endif  // BUILDFLAG(MEMORY_TOOL_REPLACES_ALLOCATOR)
+#endif  // BUILDFLAG(IS_POSIX)
+}
+
+bool InProcessFuzzer::InMergeMode() const {
+  for (const auto& arg : libfuzzer_command_line_) {
+    if (arg.starts_with("-merge")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 InProcessFuzzer* g_test;
@@ -147,8 +181,7 @@ class InternalsObjectRendererInjector : public ChromeContentRendererClient {
 
 class FuzzerChromeMainDelegate : public ChromeTestChromeMainDelegate {
  public:
-  explicit FuzzerChromeMainDelegate(base::TimeTicks time)
-      : ChromeTestChromeMainDelegate(time) {}
+  FuzzerChromeMainDelegate() = default;
   content::ContentRendererClient* CreateContentRendererClient() override {
     return new InternalsObjectRendererInjector();
   }
@@ -160,8 +193,6 @@ class FuzzerTestLauncherDelegate : public content::TestLauncherDelegate {
                              std::vector<std::string>&& libfuzzer_arguments)
       : fuzzer_(std::move(fuzzer)),
         libfuzzer_arguments_(std::move(libfuzzer_arguments)) {
-    content_main_delegate_ =
-        std::make_unique<FuzzerChromeMainDelegate>(base::TimeTicks::Now());
   }
 
   int RunTestSuite(int argc, char** argv) override {
@@ -172,13 +203,12 @@ class FuzzerTestLauncherDelegate : public content::TestLauncherDelegate {
   // Android browser tests set the ContentMainDelegate itself for the test
   // harness to use, and do not go through ContentMain() in TestLauncher.
   content::ContentMainDelegate* CreateContentMainDelegate() override {
-    return &*content_main_delegate_;
+    return new FuzzerChromeMainDelegate();
   }
 #endif
 
  private:
   std::unique_ptr<InProcessFuzzer> fuzzer_;
-  std::unique_ptr<content::ContentMainDelegate> content_main_delegate_;
   std::vector<std::string> libfuzzer_arguments_;
 };
 
@@ -195,12 +225,17 @@ void InProcessFuzzer::RunTestOnMainThread() {
   int argc = argv.size() - 1;
   char** argv2 = argv.data();
   g_test = this;
-  base::IgnoreResult(LLVMFuzzerRunDriver(&argc, &argv2, fuzz_callback));
+  auto res = LLVMFuzzerRunDriver(&argc, &argv2, fuzz_callback);
   if (exit_after_fuzz_case_) {
     LOG(INFO) << "Early exit requested - exiting after LLVMFuzzerRunDriver.";
     exit(0);
   }
-  g_test = nullptr;
+  // Performing exit here allows us to skip the browser shutdown phase thus
+  // avoid potential hangs. This is the behaviour already observed in libfuzzer
+  // which performs exits within LLVMFuzzerRunDriver. It is important to use the
+  // LLVMFuzzerRunDriver return value for the exit value since this helps
+  // centipede determine which input crashed when rerunning inputs one-by-one.
+  exit(res);
 }
 
 int InProcessFuzzer::DoFuzz(const uint8_t* data, size_t size) {
@@ -210,8 +245,28 @@ int InProcessFuzzer::DoFuzz(const uint8_t* data, size_t size) {
     LOG(INFO) << "Early exit requested - exiting after fuzz case.";
     exit(0);
   }
+  std::optional<base::test::ScopedRunLoopTimeout> scoped_timeout;
+  if (options_.run_loop_timeout) {
+    scoped_timeout.emplace(FROM_HERE, *options_.run_loop_timeout);
+  }
   return Fuzz(data, size);
 }
+
+/// Used only for child processes (e.g. renderers etc.)
+class ChildProcessTestLauncherDelegate : public content::TestLauncherDelegate {
+ public:
+  ChildProcessTestLauncherDelegate() = default;
+  int RunTestSuite(int argc, char** argv) override {
+    LOG(FATAL) << "Trying to run tests in child";
+  }
+#if !BUILDFLAG(IS_ANDROID)
+  // Android browser tests set the ContentMainDelegate itself for the test
+  // harness to use, and do not go through ContentMain() in TestLauncher.
+  content::ContentMainDelegate* CreateContentMainDelegate() override {
+    return new FuzzerChromeMainDelegate();
+  }
+#endif
+};
 
 // Main function for running in process fuzz tests.
 // This aims to replicate //chrome browser tests as much as possible; we want
@@ -220,9 +275,6 @@ int InProcessFuzzer::DoFuzz(const uint8_t* data, size_t size) {
 int main(int argc, char** argv) {
   base::AtExitManager atexit_manager;
   base::CommandLine::Init(argc, argv);
-
-  std::unique_ptr<InProcessFuzzer> fuzzer =
-      g_in_process_fuzzer_factory->CreateInProcessFuzzer();
 
   // Oh dear, you've got to the part of the code relating to command lines.
   // I'm sorry.
@@ -241,49 +293,79 @@ int main(int argc, char** argv) {
   // use a heuristic. If the first argument starts with --, we're assuming
   // we're a Chromium child.
 
-  bool we_are_probably_a_chromium_child_process = false;
   if (base::CommandLine::ForCurrentProcess()->argv().size() > 1) {
     if (base::StartsWith(base::CommandLine::ForCurrentProcess()->argv()[1],
                          FILE_PATH_LITERAL("--"))) {
-      we_are_probably_a_chromium_child_process = true;
+      // If we're a Chromium child, we don't alter the command-line,
+      // and in fact the libfuzzer code will never run, so we don't need to
+      // pass any arguments through to libfuzzer.
+      // Ensure we don't create the InProcessFuzzer in this branch as it
+      // initializes unwelcome things in its base class constructors.
+      ChildProcessTestLauncherDelegate delegate;
+      return LaunchChromeTests(1, &delegate, argc, argv);
     }
   }
-  std::vector<std::string> libfuzzer_arguments;
-  if (we_are_probably_a_chromium_child_process) {
-    // If we're a Chromium child, we don't alter the command-line,
-    // and in fact the libfuzzer code will never run, so we don't need to
-    // pass any arguments through to libfuzzer.
-  } else {
+
+  // We are the outermost process, let's run the fuzzer.
+  std::unique_ptr<InProcessFuzzer> fuzzer =
+      g_in_process_fuzzer_factory->CreateInProcessFuzzer();
 #if BUILDFLAG(IS_WIN)
-    // Convert std::wstring (Windows command lines) to std::string
-    // (as needed by libfuzzer).
-    auto wide_argv = base::CommandLine::ForCurrentProcess()->argv();
-    for (auto arg : wide_argv) {
-      libfuzzer_arguments.push_back(base::SysWideToUTF8(arg));
-    }
-#else
-    libfuzzer_arguments = base::CommandLine::ForCurrentProcess()->argv();
-#endif  // BUILDFLAG(IS_WIN)
-    base::CommandLine::StringType executable_name =
-        base::CommandLine::ForCurrentProcess()->argv().at(0);
-    base::CommandLine::StringVector chromium_arguments =
-        fuzzer->GetChromiumCommandLineArguments();
-    chromium_arguments.insert(chromium_arguments.begin(), executable_name);
-    chromium_arguments.push_back(FILE_PATH_LITERAL("--single-process-tests"));
-    chromium_arguments.push_back(FILE_PATH_LITERAL("--single-process"));
-    chromium_arguments.push_back(FILE_PATH_LITERAL("--no-sandbox"));
-    chromium_arguments.push_back(FILE_PATH_LITERAL("--no-zygote"));
-    chromium_arguments.push_back(FILE_PATH_LITERAL("--disable-gpu"));
-    base::CommandLine::ForCurrentProcess()->InitFromArgv(chromium_arguments);
-
-    // Various bits of setup are done by base::TestSuite::Initialize.
-    // As we're not a functional test suite, most of those things are not
-    // necessary, but at least this is:
-    TestTimeouts::Initialize();
+  // Convert std::wstring (Windows command lines) to std::string
+  // (as needed by libfuzzer).
+  std::vector<std::string> libfuzzer_arguments;
+  auto wide_argv = base::CommandLine::ForCurrentProcess()->argv();
+  for (auto arg : wide_argv) {
+    libfuzzer_arguments.push_back(base::SysWideToUTF8(arg));
   }
+#else
+  std::vector<std::string> libfuzzer_arguments =
+      base::CommandLine::ForCurrentProcess()->argv();
+#endif  // BUILDFLAG(IS_WIN)
+  base::CommandLine::StringType executable_name =
+      base::CommandLine::ForCurrentProcess()->argv().at(0);
+  base::CommandLine::StringVector chromium_arguments =
+      fuzzer->GetChromiumCommandLineArguments();
+  chromium_arguments.insert(chromium_arguments.begin(), executable_name);
+  chromium_arguments.push_back(FILE_PATH_LITERAL("--single-process-tests"));
+  if (fuzzer->UseSingleProcessMode()) {
+    chromium_arguments.push_back(FILE_PATH_LITERAL("--single-process"));
+    chromium_arguments.push_back(
+        FILE_PATH_LITERAL("--disable-crashpad-for-testing"));
+  } else {
+#if BUILDFLAG(IS_CENTIPEDE)
+    // Static destructors in centipede runner code will open
+    // shared memory handles if they find the runner flags lurking in this
+    // environment variable. If child processes do this, they'll
+    // unfortunately clobber valid information from the main process
+    // that it's trying to pass back to the external centipede executor.
+    // Fortunately, this variable is only read during centipede's
+    // static initializers, so we can now safely clear it in our parent
+    // (browser) process in order to ensure it's unset for all children.
+    // TODO(crbug.com/383356867) - stop depending on centipede internals
+    // like this
+    unsetenv("CENTIPEDE_RUNNER_FLAGS");
+#endif
+  }
+  chromium_arguments.push_back(FILE_PATH_LITERAL("--no-zygote"));
+  chromium_arguments.push_back(FILE_PATH_LITERAL("--no-sandbox"));
+  chromium_arguments.push_back(FILE_PATH_LITERAL("--disable-gpu"));
+  chromium_arguments.push_back(
+      FILE_PATH_LITERAL("--enable-unsafe-swiftshader"));
+#if defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
+  // We disable in-process stack trace handling in case we're using memory
+  // tools so that we get better reporting on what happened in case of
+  // SIGSEGV.
+  chromium_arguments.push_back(
+      FILE_PATH_LITERAL("--disable-in-process-stack-traces"));
+#endif
+  base::CommandLine::ForCurrentProcess()->InitFromArgv(chromium_arguments);
 
-  FuzzerTestLauncherDelegate* fuzzer_launcher_delegate =
-      new FuzzerTestLauncherDelegate(std::move(fuzzer),
-                                     std::move(libfuzzer_arguments));
-  return LaunchChromeTests(1, fuzzer_launcher_delegate, argc, argv);
+  // Various bits of setup are done by base::TestSuite::Initialize.
+  // As we're not a functional test suite, most of those things are not
+  // necessary, but at least this is:
+  TestTimeouts::Initialize();
+
+  FuzzerTestLauncherDelegate fuzzer_launcher_delegate(
+      std::move(fuzzer), std::move(libfuzzer_arguments));
+  return LaunchChromeTests(1, &fuzzer_launcher_delegate, argc, argv);
 }

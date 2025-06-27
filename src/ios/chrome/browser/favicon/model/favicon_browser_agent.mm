@@ -6,13 +6,11 @@
 
 #import "base/check.h"
 #import "components/favicon/ios/web_favicon_driver.h"
-#import "ios/chrome/browser/sessions/session_restoration_service.h"
-#import "ios/chrome/browser/sessions/session_restoration_service_factory.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service_factory.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/web/public/web_state.h"
 #import "url/gurl.h"
-
-BROWSER_USER_DATA_KEY_IMPL(FaviconBrowserAgent)
 
 FaviconBrowserAgent::FaviconBrowserAgent(Browser* browser) : browser_(browser) {
   // All the BrowserAgent are attached to the Browser during the creation,
@@ -21,9 +19,9 @@ FaviconBrowserAgent::FaviconBrowserAgent(Browser* browser) : browser_(browser) {
       << "PagePlaceholderBrowserAgent created for a Browser with a non-empty "
          "WebStateList.";
 
-  ChromeBrowserState* browser_state = browser_->GetBrowserState();
+  ProfileIOS* profile = browser_->GetProfile();
   session_restoration_service_observation_.Observe(
-      SessionRestorationServiceFactory::GetForBrowserState(browser_state));
+      SessionRestorationServiceFactory::GetForProfile(profile));
 }
 
 FaviconBrowserAgent::~FaviconBrowserAgent() {

@@ -20,8 +20,6 @@
 #include "url/gurl.h"
 
 class ChromePermissionsClient;
-class DIPSNavigationHandle;
-class DIPSService;
 class PermissionUmaUtil;
 class PlatformNotificationServiceImpl;
 
@@ -34,6 +32,8 @@ class UkmRecorderInterface;
 }  // namespace metrics
 
 namespace content {
+class BtmNavigationHandle;
+class BtmServiceImpl;
 class FedCmMetrics;
 class PaymentAppProviderUtil;
 class RenderFrameHostImpl;
@@ -41,6 +41,7 @@ class RenderFrameHostImpl;
 
 namespace extensions {
 class ExtensionMessagePort;
+class ManifestV2ExperimentManager;
 }
 
 namespace weblayer {
@@ -61,9 +62,6 @@ enum class AppType {
   kCrostini,
   kBorealis,
 };
-
-// TODO(b/316357582): Remove this when the actual enum lands.
-enum class DummyWebFeatures { kFeature1 = 0, kFeature2, kMaxCount };
 
 namespace internal {
 class SourceUrlRecorderWebContentsObserver;
@@ -125,21 +123,25 @@ class METRICS_EXPORT UkmRecorder {
 
   // Gets a new SourceId of REDIRECT_ID type and updates the source URL
   // from the redirect chain. This method should only be called in the
-  // DIPSNavigationHandle class.
-  static SourceId GetSourceIdForRedirectUrl(base::PassKey<DIPSNavigationHandle>,
-                                            const GURL& redirect_url);
+  // BtmNavigationHandle class.
+  static SourceId GetSourceIdForRedirectUrl(
+      base::PassKey<content::BtmNavigationHandle>,
+      const GURL& redirect_url);
 
   // Gets a new SourceId of EXTENSION_ID type and updates the source URL
-  // from the extension message port. This method should only be called in the
-  // ExtensionMessagePort class.
+  // from the extension message port. This method should only be called by
+  // approved cases, indicated by the PassKeys.
   static SourceId GetSourceIdForExtensionUrl(
       base::PassKey<extensions::ExtensionMessagePort>,
       const GURL& extension_url);
+  static SourceId GetSourceIdForExtensionUrl(
+      base::PassKey<extensions::ManifestV2ExperimentManager>,
+      const GURL& extension_url);
 
   // Gets a new SourceId of REDIRECT_ID type and updates the source URL to the
-  // given domain. This method should only be called in the DIPSService class
-  // for sites in the DIPS database. `site` must be a registrable domain.
-  static SourceId GetSourceIdForDipsSite(base::PassKey<DIPSService>,
+  // given domain. This method should only be called in the BtmServiceImpl
+  // class for sites in the DIPS database. `site` must be a registrable domain.
+  static SourceId GetSourceIdForDipsSite(base::PassKey<content::BtmServiceImpl>,
                                          const std::string& site);
 
   // Gets a new SourceId of CHROMEOS_WEBSITE_ID type. This should be only
@@ -174,14 +176,15 @@ class METRICS_EXPORT UkmRecorder {
 
   // Associates web feature usage data with the UkmSource keyed by `source_id`.
   // This function can be called more than once for a given `source_id`. The
-  // effects are additive. For example, after the following calls:
-  //   RecordWebFeature(100, {a, b});
-  //   RecordWebFeature(100, {b, c});
+  // effects are additive. For example, after the following calls, where the
+  // value of each of {a, b, c} is <= 2:
+  //   RecordWebDXFeature(100, {a, b}, 2);
+  //   RecordWebDXFeature(100, {b, c}, 2);
   // The UKM recorder understands that the source identified by `source_id` 100
   // is using features {a, b, c}.
-  virtual void RecordWebFeatures(
-      SourceId source_id,
-      const std::set<DummyWebFeatures>& features) = 0;
+  virtual void RecordWebDXFeatures(SourceId source_id,
+                                   const std::set<int32_t>& features,
+                                   const size_t max_feature_value) = 0;
 
   // Controls sampling for testing purposes. Sampling is 1-in-N (N==rate).
   virtual void SetSamplingForTesting(int rate) {}

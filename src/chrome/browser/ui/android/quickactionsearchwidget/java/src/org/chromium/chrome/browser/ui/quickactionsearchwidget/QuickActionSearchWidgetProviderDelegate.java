@@ -14,12 +14,11 @@ import android.widget.RemoteViews;
 
 import androidx.annotation.DimenRes;
 import androidx.annotation.LayoutRes;
-import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.IntentUtils;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityClient;
-import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.IntentOrigin;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.SearchType;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager.SearchActivityPreferences;
 
@@ -27,6 +26,7 @@ import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferen
  * This class serves as the delegate for the {@link QuickActionSearchWidgetProvider}. This class
  * contains as much of the widget logic for the Quick Action Search Widget as possible.
  */
+@NullMarked
 public class QuickActionSearchWidgetProviderDelegate {
     /** Class describing widget variant characteristics. */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -174,22 +174,22 @@ public class QuickActionSearchWidgetProviderDelegate {
     }
 
     /** The intent to create a new incognito tab. */
-    private final @NonNull Intent mStartIncognitoTabIntent;
+    private final Intent mStartIncognitoTabIntent;
 
     /** The intent to begin the Dino game. */
-    private final @NonNull Intent mStartDinoGameIntent;
+    private final Intent mStartDinoGameIntent;
 
     /** Widget variant describing the Medium widget. */
-    private final @NonNull WidgetVariant mMediumWidgetVariant;
+    private final WidgetVariant mMediumWidgetVariant;
 
     /** Widget variant describing the Small widget. */
-    private final @NonNull WidgetVariant mSmallWidgetVariant;
+    private final WidgetVariant mSmallWidgetVariant;
 
     /** Widget variant describing the Extra Small widget. */
-    private final @NonNull WidgetVariant mExtraSmallWidgetVariant;
+    private final WidgetVariant mExtraSmallWidgetVariant;
 
     /** Widget variant describing the Dino widget. */
-    private final @NonNull WidgetVariant mDinoWidgetVariant;
+    private final WidgetVariant mDinoWidgetVariant;
 
     /**
      * @param context Context that can be used to pre-compute values. Do not cache.
@@ -199,9 +199,7 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @param startDinoGameIntent A trusted intent starting the Dino game.
      */
     public QuickActionSearchWidgetProviderDelegate(
-            @NonNull Context context,
-            @NonNull Intent startIncognitoTabIntent,
-            @NonNull Intent startDinoGameIntent) {
+            Context context, Intent startIncognitoTabIntent, Intent startDinoGameIntent) {
         mStartIncognitoTabIntent = startIncognitoTabIntent;
         mStartDinoGameIntent = startDinoGameIntent;
 
@@ -267,9 +265,9 @@ public class QuickActionSearchWidgetProviderDelegate {
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void applyRemoteViewsButtonVisibilityToFitWidth(
-            @NonNull RemoteViews views,
-            @NonNull SearchActivityPreferences prefs,
-            @NonNull WidgetVariant variant,
+            RemoteViews views,
+            SearchActivityPreferences prefs,
+            WidgetVariant variant,
             int targetWidthDp) {
         WidgetButtonSettings settings = new WidgetButtonSettings(prefs);
         settings.hideButtons(variant.computeNumberOfButtonsToHide(targetWidthDp));
@@ -335,13 +333,13 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @return Whether widget layout direction is RTL.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    boolean isLayoutDirectionRTL(@NonNull Resources resources) {
+    boolean isLayoutDirectionRTL(Resources resources) {
         return resources.getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     void resizeDinoWidgetToFillTargetCellArea(
-            @NonNull Resources resources, RemoteViews views, int areaWidthDp, int areaHeightDp) {
+            Resources resources, RemoteViews views, int areaWidthDp, int areaHeightDp) {
         float density = resources.getDisplayMetrics().density;
 
         // Screen density is used to compute padding in each direction.
@@ -403,10 +401,10 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @param areaHeightDp Height of the widget area.
      * @return RemoteViews to be installed on the Dino widget.
      */
-    public @NonNull RemoteViews createDinoWidgetRemoteViews(
-            @NonNull Context context,
-            @NonNull SearchActivityClient client,
-            @NonNull SearchActivityPreferences prefs,
+    public RemoteViews createDinoWidgetRemoteViews(
+            Context context,
+            SearchActivityClient client,
+            SearchActivityPreferences prefs,
             int areaWidthDp,
             int areaHeightDp) {
         RemoteViews views =
@@ -434,10 +432,10 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @param areaHeightDp Height of the widget area.
      * @return RemoteViews to be installed on the Search widget for the passed variant.
      */
-    public @NonNull RemoteViews createSearchWidgetRemoteViews(
-            @NonNull Context context,
-            @NonNull SearchActivityClient client,
-            @NonNull SearchActivityPreferences prefs,
+    public RemoteViews createSearchWidgetRemoteViews(
+            Context context,
+            SearchActivityClient client,
+            SearchActivityPreferences prefs,
             int areaWidthDp,
             int areaHeightDp) {
         WidgetVariant variant = getSearchWidgetVariantForHeight(areaHeightDp);
@@ -473,9 +471,7 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @return Widget RemoteViews structure describing layout and content of the widget.
      */
     public RemoteViews createWidgetRemoteViews(
-            @NonNull Context context,
-            @NonNull SearchActivityClient client,
-            @LayoutRes int layoutRes) {
+            Context context, SearchActivityClient client, @LayoutRes int layoutRes) {
         RemoteViews remoteViews = new RemoteViews(context.getPackageName(), layoutRes);
 
         // Search Bar Intent
@@ -518,14 +514,9 @@ public class QuickActionSearchWidgetProviderDelegate {
      *     action.
      */
     private PendingIntent createPendingIntentForAction(
-            @NonNull Context context,
-            @NonNull SearchActivityClient client,
-            @SearchType int searchType) {
-        Intent intent =
-                client.createIntent(
-                        context, IntentOrigin.QUICK_ACTION_SEARCH_WIDGET, null, searchType);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        return createPendingIntent(context, intent);
+            Context context, SearchActivityClient client, @SearchType int searchType) {
+        return createPendingIntent(
+                context, client.newIntentBuilder().setSearchType(searchType).build());
     }
 
     /**
@@ -536,7 +527,7 @@ public class QuickActionSearchWidgetProviderDelegate {
      * @return A {@link PendingIntent} that will broadcast a trusted intent for the specified
      *     action.
      */
-    private PendingIntent createPendingIntent(@NonNull Context context, @NonNull Intent intent) {
+    private PendingIntent createPendingIntent(Context context, Intent intent) {
         return PendingIntent.getActivity(
                 context,
                 /* requestCode= */ 0,

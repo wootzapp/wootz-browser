@@ -18,13 +18,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.content.browser.RenderCoordinatesImpl;
 import org.chromium.content.browser.androidoverlay.DialogOverlayImplTestRule.Client;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.concurrent.Callable;
 
@@ -94,7 +94,7 @@ public class DialogOverlayImplPixelTest {
 
     // Maximum status bar height that we'll work with.  This just lets us restrict the area of the
     // screenshot that we inspect, since it's slow.  This should also include the URL bar.
-    private static final int mStatusBarMaxHeightPx = 300;
+    private static final int STATUS_BAR_MAX_HEIGHT_PX = 300;
 
     // Area of interest that contains the div, since the whole image is big.
     Rect mAreaOfInterestPx;
@@ -160,7 +160,7 @@ public class DialogOverlayImplPixelTest {
             mAreaOfInterestPx.left = mDivXPx - FUZZY_PIXELS;
             mAreaOfInterestPx.top = mDivYPx - FUZZY_PIXELS;
             mAreaOfInterestPx.right = mDivXPx + mDivWidthPx - 1 + FUZZY_PIXELS;
-            mAreaOfInterestPx.bottom = mDivYPx + mDivHeightPx + mStatusBarMaxHeightPx;
+            mAreaOfInterestPx.bottom = mDivYPx + mDivHeightPx + STATUS_BAR_MAX_HEIGHT_PX;
 
             mInitialScreenshot = takeScreenshot();
 
@@ -237,7 +237,7 @@ public class DialogOverlayImplPixelTest {
         Assert.assertNotNull(overlay);
         final Client.Event event = mActivityTestRule.getClient().nextEvent();
         Assert.assertTrue(event.surfaceKey > 0);
-        return TestThreadUtils.runOnUiThreadBlocking(
+        return ThreadUtils.runOnUiThreadBlocking(
                 new Callable<Surface>() {
                     @Override
                     public Surface call() {
@@ -273,7 +273,7 @@ public class DialogOverlayImplPixelTest {
         rect.width = mDivWidthPx;
         rect.height = mDivHeightPx;
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     overlay.scheduleLayout(rect);
                 });

@@ -5,6 +5,7 @@
 #ifndef NET_DNS_HOST_RESOLVER_MANAGER_SERVICE_ENDPOINT_REQUEST_IMPL_H_
 #define NET_DNS_HOST_RESOLVER_MANAGER_SERVICE_ENDPOINT_REQUEST_IMPL_H_
 
+#include <deque>
 #include <optional>
 #include <set>
 #include <string>
@@ -21,6 +22,7 @@
 #include "net/dns/host_resolver.h"
 #include "net/dns/host_resolver_manager.h"
 #include "net/dns/host_resolver_manager_job.h"
+#include "net/dns/public/resolve_error_info.h"
 #include "net/dns/resolve_context.h"
 #include "net/log/net_log_with_source.h"
 #include "url/scheme_host_port.h"
@@ -51,6 +53,11 @@ class HostResolverManager::ServiceEndpointRequestImpl
   const std::vector<ServiceEndpoint>& GetEndpointResults() override;
   const std::set<std::string>& GetDnsAliasResults() override;
   bool EndpointsCryptoReady() override;
+  ResolveErrorInfo GetResolveErrorInfo() override;
+  const HostCache::EntryStaleness* GetStaleInfo() const override;
+  bool IsStaleWhileRefresing() const override;
+  void ChangeRequestPriority(RequestPriority priority) override;
+  std::string DebugString() const override;
 
   // These should only be called from HostResolver::Job.
   void AssignJob(base::SafeRef<Job> job);
@@ -62,8 +69,8 @@ class HostResolverManager::ServiceEndpointRequestImpl
 
   const ResolveHostParameters& parameters() const { return parameters_; }
 
-  // TODO(crbug.com/41493696): Support setting priority.
   RequestPriority priority() const { return priority_; }
+  void set_priority(RequestPriority priority) { priority_ = priority; }
 
   HostCache* host_cache() const {
     return resolve_context_ ? resolve_context_->host_cache() : nullptr;
@@ -72,9 +79,33 @@ class HostResolverManager::ServiceEndpointRequestImpl
   base::WeakPtr<ServiceEndpointRequestImpl> GetWeakPtr();
 
  private:
+  enum class State {
+    kNone,
+    kCheckIPv6Reachability,
+    kCheckIPv6ReachabilityComplete,
+    kDoResolveLocally,
+    kStartJob,
+  };
+
+  int DoLoop(int rv);
+  int DoCheckIPv6Reachability();
+  int DoCheckIPv6ReachabilityComplete(int rv);
+  int DoResolveLocally();
+  int DoStartJob();
+
+  void OnIOComplete(int rv);
+
   void SetFinalizedResultFromLegacyResults(const HostCache::Entry& results);
 
+  void MaybeClearStaleResults();
+
   void LogCancelRequest();
+
+  void NotifyDelegateOfUpdated();
+
+  ClientSocketFactory* GetClientSocketFactory();
+
+  State next_state_ = State::kNone;
 
   const HostResolver::Host host_;
   const NetworkAnonymizationKey network_anonymization_key_;
@@ -104,12 +135,25 @@ class HostResolverManager::ServiceEndpointRequestImpl
   // Set when the endpoint results are finalized.
   std::optional<FinalizedResult> finalized_result_;
 
+  // These fields are calculated by DoResolveLocally() and consumed by
+  // DoStartJob().
+  std::optional<JobKey> job_key_;
+  std::deque<TaskType> tasks_;
+
+  // These fields are set when the cache has stale results and `this` allows to
+  // lookup the cache. Cleared upon receiving fresh results if `this` allows
+  // stale results while refreshing.
+  std::optional<HostCache::EntryStaleness> stale_info_;
+  std::vector<ServiceEndpoint> stale_endpoints_;
+
   // Set when a job is associated with `this`. Must be valid unless
   // `resolve_context_` becomes invalid. Cleared when the endpoints are
   // finalized to ensure that `job_` doesn't become a dangling pointer.
   std::optional<base::SafeRef<Job>> job_;
 
   ResolveErrorInfo error_info_;
+
+  std::vector<TaskType> initial_tasks_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

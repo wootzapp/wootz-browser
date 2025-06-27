@@ -76,11 +76,10 @@ class FoldableAPIsOriginTrialBrowserTest : public ContentBrowserTest {
         /* offset */ view()->GetVisibleViewportSize().width() / 2 -
             kDisplayFeatureLength / 2,
         /* mask_length */ kDisplayFeatureLength};
-    view()->SetDisplayFeatureForTesting(&emulated_display_feature);
+    view()->OverrideDisplayFeatureForEmulation(&emulated_display_feature);
     FrameTreeNode* root = web_contents_impl()->GetPrimaryFrameTree().root();
     RenderWidgetHostImpl* root_widget =
         root->current_frame_host()->GetRenderWidgetHost();
-    root_widget->SynchronizeVisualProperties();
     // We need to wait that visual properties are updated before we test the
     // CSS APIs of Viewport Segments.
     while (root_widget->visual_properties_ack_pending_for_testing()) {
@@ -91,27 +90,14 @@ class FoldableAPIsOriginTrialBrowserTest : public ContentBrowserTest {
   void TearDownOnMainThread() override {
     interceptor_.reset();
     ContentBrowserTest::TearDownOnMainThread();
-    web_contents_impl()
-        ->GetDevicePostureProvider()
-        ->DisableDevicePostureOverrideForEmulation();
-    view()->SetDisplayFeatureForTesting(nullptr);
-  }
-
-  bool HasDevicePostureApi() {
-    return EvalJs(shell(), "'devicePosture' in navigator").ExtractBool();
-  }
-
-  bool HasDevicePostureCSSApi() {
-    return EvalJs(shell(),
-                  "window.matchMedia('(device-posture: continuous)').matches")
-               .ExtractBool() ||
-           EvalJs(shell(),
-                  "window.matchMedia('(device-posture: folded)').matches")
-               .ExtractBool();
+    view()->DisableDisplayFeatureOverrideForEmulation();
   }
 
   bool HasViewportSegmentsApi() {
-    return EvalJs(shell(), "'segments' in window.visualViewport").ExtractBool();
+    return EvalJs(
+               shell(),
+               "window.viewport != undefined && 'segments' in window.viewport")
+        .ExtractBool();
   }
 
   bool HasViewportSegmentsCSSApi() {
@@ -139,8 +125,6 @@ IN_PROC_BROWSER_TEST_F(FoldableAPIsOriginTrialBrowserTest,
                        ValidOriginTrialToken) {
   ASSERT_TRUE(NavigateToURL(shell(), kValidTokenUrl));
   SetUpFoldableState();
-  EXPECT_TRUE(HasDevicePostureApi());
-  EXPECT_TRUE(HasDevicePostureCSSApi());
   EXPECT_TRUE(HasViewportSegmentsApi());
   EXPECT_TRUE(HasViewportSegmentsCSSApi());
   EXPECT_TRUE(HasViewportSegmentsEnvVariablesCSSApi());
@@ -149,8 +133,6 @@ IN_PROC_BROWSER_TEST_F(FoldableAPIsOriginTrialBrowserTest,
 IN_PROC_BROWSER_TEST_F(FoldableAPIsOriginTrialBrowserTest, NoOriginTrialToken) {
   ASSERT_TRUE(NavigateToURL(shell(), kNoTokenUrl));
   SetUpFoldableState();
-  EXPECT_FALSE(HasDevicePostureApi());
-  EXPECT_FALSE(HasDevicePostureCSSApi());
   EXPECT_FALSE(HasViewportSegmentsApi());
   EXPECT_FALSE(HasViewportSegmentsCSSApi());
   EXPECT_FALSE(HasViewportSegmentsEnvVariablesCSSApi());
@@ -161,9 +143,8 @@ class FoldableAPIsOriginTrialKillSwitchBrowserTest
  public:
   FoldableAPIsOriginTrialKillSwitchBrowserTest() {
     scoped_feature_list_.Reset();
-    scoped_feature_list_.InitWithFeatures(
-        {},
-        {blink::features::kDevicePosture, blink::features::kViewportSegments});
+    scoped_feature_list_.InitWithFeatures({},
+                                          {blink::features::kViewportSegments});
   }
 
  private:
@@ -174,8 +155,6 @@ IN_PROC_BROWSER_TEST_F(FoldableAPIsOriginTrialKillSwitchBrowserTest,
                        ValidOriginTrialToken) {
   ASSERT_TRUE(NavigateToURL(shell(), kValidTokenUrl));
   SetUpFoldableState();
-  EXPECT_FALSE(HasDevicePostureApi());
-  EXPECT_FALSE(HasDevicePostureCSSApi());
   EXPECT_FALSE(HasViewportSegmentsApi());
   EXPECT_FALSE(HasViewportSegmentsCSSApi());
   EXPECT_FALSE(HasViewportSegmentsEnvVariablesCSSApi());
@@ -185,8 +164,6 @@ IN_PROC_BROWSER_TEST_F(FoldableAPIsOriginTrialKillSwitchBrowserTest,
                        NoOriginTrialToken) {
   ASSERT_TRUE(NavigateToURL(shell(), kNoTokenUrl));
   SetUpFoldableState();
-  EXPECT_FALSE(HasDevicePostureApi());
-  EXPECT_FALSE(HasDevicePostureCSSApi());
   EXPECT_FALSE(HasViewportSegmentsApi());
   EXPECT_FALSE(HasViewportSegmentsCSSApi());
   EXPECT_FALSE(HasViewportSegmentsEnvVariablesCSSApi());

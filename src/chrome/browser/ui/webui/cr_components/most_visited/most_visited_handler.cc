@@ -180,10 +180,6 @@ void MostVisitedHandler::OnMostVisitedTileNavigation(
     bool shift_key) {
   logger_.LogMostVisitedNavigation(MakeNTPTileImpression(*tile, index));
 
-  if (!base::FeatureList::IsEnabled(
-          ntp_features::kNtpHandleMostVisitedNavigationExplicitly))
-    return;
-
   WindowOpenDisposition disposition = ui::DispositionFromClick(
       /*middle_button=*/mouse_button == 1, alt_key, ctrl_key, meta_key,
       shift_key);
@@ -238,9 +234,8 @@ void MostVisitedHandler::PrerenderMostVisitedTile(
   auto* prerender_manager = PrerenderManager::FromWebContents(web_contents_);
 
   prerender_handle_ = prerender_manager->StartPrerenderNewTabPage(
-      tile->url, is_hover_trigger
-                     ? chrome_preloading_predictor::kMouseHoverOnNewTabPage
-                     : chrome_preloading_predictor::kPointerDownOnNewTabPage);
+      tile->url,
+      chrome_preloading_predictor::kMouseHoverOrMouseDownOnNewTabPage);
 }
 
 void MostVisitedHandler::PreconnectMostVisitedTile(
@@ -256,7 +251,8 @@ void MostVisitedHandler::PreconnectMostVisitedTile(
   auto* loading_predictor =
       predictors::LoadingPredictorFactory::GetForProfile(profile_);
   if (loading_predictor) {
-    loading_predictor->PrepareForPageLoad(tile->url,
+    loading_predictor->PrepareForPageLoad(/*initiator_origin=*/std::nullopt,
+                                          tile->url,
                                           predictors::HintOrigin::NEW_TAB_PAGE,
                                           /*preconnectable=*/true);
   }
@@ -316,6 +312,7 @@ void MostVisitedHandler::OnMigrationRun() {
 }
 
 void MostVisitedHandler::OnDestroyed() {
-  if (preinstalled_web_app_observer_.IsObserving())
+  if (preinstalled_web_app_observer_.IsObserving()) {
     preinstalled_web_app_observer_.Reset();
+  }
 }

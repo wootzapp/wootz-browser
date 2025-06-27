@@ -15,8 +15,16 @@
 #include "net/cookies/cookie_partition_key.h"
 
 namespace net {
-
+class URLRequest;
 class CanonicalCookie;
+class FirstPartySetMetadata;
+}
+
+namespace net::device_bound_sessions {
+
+namespace proto {
+class CookieCraving;
+}
 
 // This class represents the need for a certain cookie to be present. It is not
 // a cookie itself, but rather represents a requirement which can be satisfied
@@ -100,7 +108,6 @@ class NET_EXPORT CookieCraving : public CookieBase {
   CookieCraving(CookieCraving&& other);
   CookieCraving& operator=(const CookieCraving& other);
   CookieCraving& operator=(CookieCraving&& other);
-
   ~CookieCraving() override;
 
   // Returns whether all CookieCraving fields are consistent, in canonical form,
@@ -117,6 +124,8 @@ class NET_EXPORT CookieCraving : public CookieBase {
 
   std::string DebugString() const;
 
+  bool IsEqualForTesting(const CookieCraving& other) const;
+
   // May return an invalid instance.
   static CookieCraving CreateUnsafeForTesting(
       std::string name,
@@ -129,6 +138,24 @@ class NET_EXPORT CookieCraving : public CookieBase {
       std::optional<CookiePartitionKey> partition_key,
       CookieSourceScheme source_scheme,
       int source_port);
+
+  // Returns a protobuf object. May only be called for
+  // a valid CookieCraving object.
+  proto::CookieCraving ToProto() const;
+
+  // Creates a CookieCraving object from a protobuf
+  // object. If the protobuf contents are invalid,
+  // a std::nullopt is returned.
+  static std::optional<CookieCraving> CreateFromProto(
+      const proto::CookieCraving& proto);
+
+  // Whether the craving applies to the given `request`, with other
+  // arguments providing context for the access.
+  bool ShouldIncludeForRequest(
+      URLRequest* request,
+      const FirstPartySetMetadata& first_party_set_metadata,
+      const CookieOptions& options,
+      const CookieAccessParams& params) const;
 
  private:
   CookieCraving();
@@ -144,11 +171,13 @@ class NET_EXPORT CookieCraving : public CookieBase {
                 std::optional<CookiePartitionKey> partition_key,
                 CookieSourceScheme source_scheme,
                 int source_port);
+
+  using CookieBase::IncludeForRequestURL;
 };
 
 // Outputs a debug string, e.g. for more helpful test failure messages.
 NET_EXPORT std::ostream& operator<<(std::ostream& os, const CookieCraving& cc);
 
-}  // namespace net
+}  // namespace net::device_bound_sessions
 
 #endif  // NET_DEVICE_BOUND_SESSIONS_COOKIE_CRAVING_H_

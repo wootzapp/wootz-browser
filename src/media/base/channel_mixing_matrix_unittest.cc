@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/strings/stringprintf.h"
 #include "media/base/channel_mixer.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -267,12 +269,15 @@ TEST(ChannelMixingMatrixTest, 5Point1To1Point1) {
 }
 
 TEST(ChannelMixingMatrixTest, DiscreteToDiscrete) {
-  const struct {
+  struct TestCase {
     int input_channels;
     int output_channels;
-  } test_case[] = {
-    {2, 2}, {2, 5}, {5, 2},
   };
+  const auto test_case = std::to_array<TestCase>({
+      {2, 2},
+      {2, 5},
+      {5, 2},
+  });
 
   for (size_t n = 0; n < std::size(test_case); n++) {
     int input_channels = test_case[n].input_channels;

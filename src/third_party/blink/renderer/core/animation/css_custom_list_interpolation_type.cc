@@ -37,19 +37,83 @@ InterpolationValue CSSCustomListInterpolationType::MaybeConvertNeutral(
 
 InterpolationValue CSSCustomListInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers&) const {
   const auto* list = DynamicTo<CSSValueList>(value);
-  if (!list)
+  if (!list) {
     return nullptr;
+  }
 
   ConversionCheckers null_checkers;
 
   return ListInterpolationFunctions::CreateList(
-      list->length(), [this, list, state, &null_checkers](wtf_size_t index) {
+      list->length(), [this, list, &state, &null_checkers](wtf_size_t index) {
         return inner_interpolation_type_->MaybeConvertValue(
             list->Item(index), state, null_checkers);
       });
+}
+
+InterpolationValue
+CSSCustomListInterpolationType::MaybeConvertCustomPropertyUnderlyingValue(
+    const CSSValue& value) const {
+  const auto* list = DynamicTo<CSSValueList>(value);
+  if (!list) {
+    return nullptr;
+  }
+  return ListInterpolationFunctions::CreateList(
+      list->length(), [this, list](wtf_size_t index) {
+        return inner_interpolation_type_
+            ->MaybeConvertCustomPropertyUnderlyingValue(list->Item(index));
+      });
+}
+
+InterpolationValue
+CSSCustomListInterpolationType::PreInterpolationCompositeIfNeeded(
+    InterpolationValue value,
+    const InterpolationValue& underlying,
+    EffectModel::CompositeOperation composite,
+    ConversionCheckers& conversion_checkers) const {
+  // This adapts a ListInterpolationFunctions::CompositeItemCallback function
+  // such that we can use the InterpolationType::Composite function of the
+  // inner interpolation type to get the answer.
+  //
+  // TODO(andruud): Make InterpolationType::Composite take an UnderlyingValue
+  // rather than an UnderlyingValueOwner.
+  UnderlyingValueOwner owner;
+  owner.Set(*this, underlying);
+
+  ConversionCheckers null_checkers;
+
+  const CSSInterpolationType* interpolation_type =
+      inner_interpolation_type_.get();
+  auto composite_callback =
+      [interpolation_type, composite, &null_checkers](
+          UnderlyingValue& underlying_value, double underlying_fraction,
+          const InterpolableValue& interpolable_value,
+          const NonInterpolableValue* non_interpolable_value) {
+        CHECK_EQ(underlying_fraction, 1.0);
+        InterpolationValue value(interpolable_value.Clone(),
+                                 non_interpolable_value);
+        InterpolationValue underlying(
+            underlying_value.MutableInterpolableValue().Clone(),
+            underlying_value.GetNonInterpolableValue());
+        InterpolationValue composite_result =
+            interpolation_type->PreInterpolationCompositeIfNeeded(
+                std::move(value), underlying, composite, null_checkers);
+        composite_result = composite_result.Clone();
+        underlying_value.SetInterpolableValue(
+            composite_result.interpolable_value);
+        underlying_value.SetNonInterpolableValue(
+            composite_result.non_interpolable_value);
+      };
+
+  ListInterpolationFunctions::Composite(
+      owner, 1.0, *this, value,
+      ListInterpolationFunctions::LengthMatchingStrategy::kEqual,
+      ListInterpolationFunctions::InterpolableValuesKnownCompatible,
+      NonInterpolableValuesAreCompatible, composite_callback);
+
+  return owner.Value().Clone();
 }
 
 const CSSValue* CSSCustomListInterpolationType::CreateCSSValue(
@@ -63,15 +127,14 @@ const CSSValue* CSSCustomListInterpolationType::CreateCSSValue(
   CSSValueList* list = nullptr;
 
   switch (syntax_repeat_) {
-    default:
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
     case CSSSyntaxRepeat::kSpaceSeparated:
       list = CSSValueList::CreateSpaceSeparated();
       break;
     case CSSSyntaxRepeat::kCommaSeparated:
       list = CSSValueList::CreateCommaSeparated();
       break;
+    default:
+      NOTREACHED();
   }
 
   DCHECK(!non_interpolable_list ||

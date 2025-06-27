@@ -5,30 +5,25 @@
 package org.chromium.android_webview.common;
 
 import android.content.Context;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
-import org.chromium.content_public.browser.MessagePayload;
-import org.chromium.content_public.browser.MessagePort;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /**
- * This class manages platform-specific services. (i.e. Google Services) The platform
- * should extend this class and use this base class to fetch their specialized version.
+ * This class manages platform-specific services. (i.e. Google Services) The platform should extend
+ * this class and use this base class to fetch their specialized version.
  */
+@NullMarked
 public abstract class PlatformServiceBridge {
-    private static final String TAG = "PlatformServiceBrid-";
-
-    private static PlatformServiceBridge sInstance;
+    private static @Nullable PlatformServiceBridge sInstance;
     private static final Object sInstanceLock = new Object();
 
-    private static HandlerThread sHandlerThread;
-    private static Handler sHandler;
+    private static @Nullable HandlerThread sHandlerThread;
+    private static @Nullable Handler sHandler;
     private static final Object sHandlerLock = new Object();
 
     protected PlatformServiceBridge() {}
@@ -79,7 +74,7 @@ public abstract class PlatformServiceBridge {
     }
 
     // Overriding implementations may call "callback" asynchronously, on any thread.
-    public void querySafeBrowsingUserConsent(@NonNull final Callback<Boolean> callback) {
+    public void querySafeBrowsingUserConsent(final Callback<Boolean> callback) {
         // User opt-in preference depends on a SafetyNet API. In purely upstream builds (which don't
         // communicate with GMS), assume the user has not opted in.
         callback.onResult(false);
@@ -100,7 +95,7 @@ public abstract class PlatformServiceBridge {
         // We don't have this specialized service.
     }
 
-    public void warmUpSafeBrowsing(Context context, @NonNull final Callback<Boolean> callback) {
+    public void warmUpSafeBrowsing(Context context, final Callback<Boolean> callback) {
         callback.onResult(false);
     }
 
@@ -139,16 +134,6 @@ public abstract class PlatformServiceBridge {
     }
 
     /**
-     * Inject optional JS interfaces provided by the platform.
-     *
-     * @param context App context
-     * @param receiver Reference to {@link org.chromium.android_webview.AwContents} where interfaces
-     *     should be injected.
-     */
-    public void injectPlatformJsInterfaces(
-            @NonNull Context context, @NonNull AwContentsWrapper receiver) {}
-
-    /**
      * Asynchronously obtain a MediaIntegrityProvider implementation.
      *
      * @param cloudProjectNumber cloud project number passed by caller
@@ -156,74 +141,11 @@ public abstract class PlatformServiceBridge {
      * @param callback Callback to call with the result containing either a non-null
      *     MediaIntegrityProvider implementation or an appropriate exception.
      */
-    public void getMediaIntegrityProvider(
+    public void getMediaIntegrityProvider2(
             long cloudProjectNumber,
             @MediaIntegrityApiStatus int apiStatus,
-            ValueOrErrorCallback<MediaIntegrityProvider, Integer> callback) {
-        callback.onError(MediaIntegrityErrorCode.NON_RECOVERABLE_ERROR);
-    }
-
-    /**
-     * Wrapper interface to allow us to pass an {@link org.chromium.android_webview.AwContents}
-     * instance through the {@link PlatformServiceBridge} without adding a dependency on the {@code
-     * org.chromium.android_webview package}.
-     *
-     * <p>If this interface is changed, the downstream implementation of {@link
-     * PlatformServiceBridge} must also be updated to use the new interface. Typically, this will
-     * require a 3-way commit.
-     */
-    public interface AwContentsWrapper {
-
-        /** @see org.chromium.android_webview.AwContents#addDocumentStartJavaScript(String, String[]) */
-        void addDocumentStartJavaScript(
-                @NonNull String script, @NonNull String[] allowedOriginRules);
-
-        /**
-         * Add a WebMessageListener to the wrapped AwContents. The WebMessageListener itself is also
-         * a wrapper interface to avoid illegal dependencies.
-         *
-         * @see org.chromium.android_webview.AwContents#addWebMessageListener(String, String[],
-         *     org.chromium.android_webview.WebMessageListener)
-         */
-        void addWrappedWebMessageListener(
-                @NonNull String jsObjectName,
-                @NonNull String[] allowedOriginRules,
-                @NonNull WebMessageListenerWrapper listener);
-
-        /**
-         * Get an identifier for the current profile used by the AwContents.
-         *
-         * <p>This can be used as partitioning information for in-app caches that should be keyed on
-         * Profile.
-         */
-        ProfileIdentifier getProfileIdentifier();
-
-        /** Get the availability status of the WebView Media Integrity API for given URI. */
-        @MediaIntegrityApiStatus int getMediaIntegrityApiStatusForUri(Uri uri);
-    }
-
-    /** @see {@link org.chromium.android_webview.WebMessageListener} */
-    public interface WebMessageListenerWrapper {
-        void onPostMessage(
-                MessagePayload payload,
-                Uri topLevelOrigin,
-                Uri sourceOrigin,
-                boolean isMainFrame,
-                JsReplyProxyWrapper jsReplyProxy,
-                MessagePort[] ports);
-    }
-
-    /** @see org.chromium.android_webview.JsReplyProxy; */
-    public interface JsReplyProxyWrapper {
-        void postMessage(@NonNull final MessagePayload payload);
-    }
-
-    /** Interface for objects that identifies a profile. */
-    public interface ProfileIdentifier {
-        @Override
-        boolean equals(Object o);
-
-        @Override
-        int hashCode();
+            ValueOrErrorCallback<MediaIntegrityProvider, MediaIntegrityErrorWrapper> callback) {
+        callback.onError(
+                new MediaIntegrityErrorWrapper(MediaIntegrityErrorCode.NON_RECOVERABLE_ERROR));
     }
 }

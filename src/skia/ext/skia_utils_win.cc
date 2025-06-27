@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "skia/ext/skia_utils_win.h"
 
 #include <windows.h>
@@ -323,7 +328,8 @@ HGLOBAL CreateDIBV5ImageDataFromN32SkBitmap(const SkBitmap& bitmap) {
   return hglobal;
 }
 
-base::win::ScopedBitmap CreateHBitmapFromN32SkBitmap(const SkBitmap& bitmap) {
+base::win::ScopedGDIObject<HBITMAP> CreateHBitmapFromN32SkBitmap(
+    const SkBitmap& bitmap) {
   BITMAPINFOHEADER header;
   CreateBitmapHeaderForN32SkBitmap(bitmap, &header);
 
@@ -356,7 +362,7 @@ base::win::ScopedBitmap CreateHBitmapFromN32SkBitmap(const SkBitmap& bitmap) {
     base::debug::CollectGDIUsageAndDie(&header, nullptr);
   }
 
-  return base::win::ScopedBitmap(hbitmap);
+  return base::win::ScopedGDIObject<HBITMAP>(hbitmap);
 }
 
 void CreateBitmapHeaderForXRGB888(int width,
@@ -365,10 +371,10 @@ void CreateBitmapHeaderForXRGB888(int width,
   CreateBitmapHeaderWithColorDepth(width, height, 32, hdr);
 }
 
-base::win::ScopedBitmap CreateHBitmapXRGB8888(int width,
-                                              int height,
-                                              HANDLE shared_section,
-                                              void** data) {
+base::win::ScopedGDIObject<HBITMAP> CreateHBitmapXRGB8888(int width,
+                                                          int height,
+                                                          HANDLE shared_section,
+                                                          void** data) {
   // CreateDIBSection fails to allocate anything if we try to create an empty
   // bitmap, so just create a minimal bitmap.
   if ((width == 0) || (height == 0)) {
@@ -386,7 +392,7 @@ base::win::ScopedBitmap CreateHBitmapXRGB8888(int width,
   if (!hbitmap)
     base::debug::CollectGDIUsageAndDie(&hdr, shared_section);
 
-  return base::win::ScopedBitmap(hbitmap);
+  return base::win::ScopedGDIObject<HBITMAP>(hbitmap);
 }
 
 }  // namespace skia

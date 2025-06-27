@@ -34,14 +34,30 @@ struct PixelTestParam {
   std::string test_suffix = "";
   bool use_dark_theme = false;
   bool use_right_to_left_language = false;
-  bool use_small_window = false;
-  bool use_chrome_refresh_2023_style = false;
+
+  // Predefined sizes:
+  //
+  // Small windows: both width and height.
+  static constexpr gfx::Size kSmallWindowSize{750, 590};
+  // Portrait mode: longer height than width compared to the default ratio./
+  // Height of 750px is the maximum height a pixel test can reach.
+  static constexpr gfx::Size kPortraitModeWindowSize{700, 750};
+  // Leaving `window_size` unset means using the default size of the view.
+  std::optional<gfx::Size> window_size;
 };
 
 enum class AccountManagementStatus {
   kManaged = 0,
   kNonManaged,
 };
+
+// Returns an AccountInfo with all fields filled in, such that
+// AccountInfo::IsValid() is true.
+AccountInfo FillAccountInfo(
+    const CoreAccountInfo& core_info,
+    AccountManagementStatus management_status,
+    signin::Tribool
+        can_show_history_sync_opt_ins_without_minor_mode_restrictions);
 
 // Used to create a dummy account and sign it in, by default as a primary
 // account.

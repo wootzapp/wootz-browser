@@ -8,7 +8,7 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
-#include "components/autofill/core/browser/validation.h"
+#include "components/autofill/core/browser/data_quality/validation.h"
 #include "components/password_manager/core/browser/password_sync_util.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 
@@ -20,20 +20,24 @@ MultiProfileCredentialsFilter::MultiProfileCredentialsFilter(
 
 bool MultiProfileCredentialsFilter::ShouldSave(
     const password_manager::PasswordForm& form) const {
-  if (!password_manager::SyncCredentialsFilter::ShouldSave(form))
+  if (!password_manager::SyncCredentialsFilter::ShouldSave(form)) {
     return false;
-  if (!dice_web_signin_interceptor_)
+  }
+  if (!dice_web_signin_interceptor_) {
     return true;  // This happens in incognito.
-  if (!password_manager::sync_util::IsGaiaCredentialPage(form.signon_realm))
+  }
+  if (!password_manager::sync_util::IsGaiaCredentialPage(form.signon_realm)) {
     return true;
+  }
 
   // Note: this function is only called for "Save" bubbles, but not for "Update"
   // bubbles.
 
   // Do not show password bubble if interception is initializing or already
   // shown on screen.
-  if (dice_web_signin_interceptor_->is_interception_in_progress())
+  if (dice_web_signin_interceptor_->is_interception_in_progress()) {
     return false;
+  }
 
   std::string email =
       gaia::SanitizeEmail(base::UTF16ToUTF8(form.username_value));

@@ -9,6 +9,9 @@ if (is_linux) {
   import("//build/linux/strip_binary.gni")
 }
 import("//build/util/lastchange.gni")
+if (is_win) {
+  import("//build/util/process_version.gni")
+}
 import("//testing/test.gni")
 import("//third_party/ffmpeg/ffmpeg_options.gni")
 import("//ui/webui/resources/tools/minify_js.gni")
@@ -172,8 +175,6 @@ source_set("automation_client_lib") {
     "chrome/geoposition.h",
     "chrome/heap_snapshot_taker.cc",
     "chrome/heap_snapshot_taker.h",
-    "chrome/javascript_dialog_manager.cc",
-    "chrome/javascript_dialog_manager.h",
     "chrome/log.cc",
     "chrome/log.h",
     "chrome/mobile_device.cc",
@@ -198,6 +199,8 @@ source_set("automation_client_lib") {
     "chrome/scoped_temp_dir_with_retry.h",
     "chrome/status.cc",
     "chrome/status.h",
+    "chrome/tab_tracker.cc",
+    "chrome/tab_tracker.h",
     "chrome/target_utils.cc",
     "chrome/target_utils.h",
     "chrome/ui_events.cc",
@@ -326,6 +329,8 @@ source_set("lib") {
     "logging.h",
     "performance_logger.cc",
     "performance_logger.h",
+    "prompt_behavior.cc",
+    "prompt_behavior.h",
     "server/http_handler.cc",
     "server/http_handler.h",
     "server/http_server.cc",
@@ -356,7 +361,6 @@ source_set("lib") {
     ":automation_client_lib",
     "//base",
     "//build:branding_buildflags",
-    "//build:chromeos_buildflags",
     "//chrome/common:constants",
     "//chrome/common:version_header",
     "//chrome/test/chromedriver/constants:version_header",
@@ -365,7 +369,6 @@ source_set("lib") {
     "//components/version_info:generate_version_info",
     "//crypto",
     "//net",
-    "//net/server:http_server",
     "//net/traffic_annotation:test_support",
     "//services/device/public/cpp/generic_sensor",
     "//services/network:network_service",
@@ -416,7 +419,7 @@ if (is_linux) {
       ":automation_client_lib",
       ":lib",
       "//mojo/core/embedder",
-      "//net/server:http_server",
+      "//net",
       "//net/traffic_annotation:test_support",
       "//services/network/public/mojom",
     ]
@@ -439,16 +442,19 @@ if (is_linux) {
     deps = [
       ":automation_client_lib",
       ":lib",
-      "//build:chromeos_buildflags",
       "//build/win:default_exe_manifest",
       "//mojo/core/embedder",
-      "//net/server:http_server",
+      "//net",
       "//net/traffic_annotation:test_support",
       "//services/network/public/mojom",
     ]
 
     if (is_mac && is_component_ffmpeg) {
       ldflags = [ "-Wl,-rpath,@executable_path/." ]
+    }
+
+    if (is_win) {
+      deps += [ ":chromedriver_server_version" ]
     }
   }
 }
@@ -457,6 +463,19 @@ if (is_mac) {
   buildflag_header("buildflags") {
     header = "buildflags.h"
     flags = [ "CHROMEDRIVER_DISCLAIM_RESPONSIBILITY=$chromedriver_disclaim_responsibility" ]
+  }
+}
+
+if (is_win) {
+  process_version("chromedriver_server_version") {
+    output = "$target_gen_dir/chromedriver_server_version.rc"
+    sources = [
+      "//chrome/VERSION",
+      "chromedriver_server_exe.ver",
+      "constants/BRANDING",
+      lastchange_file,
+    ]
+    template_file = "//chrome/app/chrome_version.rc.version"
   }
 }
 
@@ -535,7 +554,6 @@ test("chromedriver_unittests") {
     "chrome/frame_tracker_unittest.cc",
     "chrome/geolocation_override_manager_unittest.cc",
     "chrome/heap_snapshot_taker_unittest.cc",
-    "chrome/javascript_dialog_manager_unittest.cc",
     "chrome/mobile_device_unittest.cc",
     "chrome/mobile_emulation_override_manager_unittest.cc",
     "chrome/navigation_tracker_unittest.cc",
@@ -550,6 +568,7 @@ test("chromedriver_unittests") {
     "chrome/stub_web_view.cc",
     "chrome/stub_web_view.h",
     "chrome/web_view_impl_unittest.cc",
+    "chrome/web_view_info_unittest.cc",
     "chrome_launcher_unittest.cc",
     "command_listener_proxy_unittest.cc",
     "commands_unittest.cc",
@@ -571,6 +590,7 @@ test("chromedriver_unittests") {
     "net/timeout_unittest.cc",
     "net/websocket_unittest.cc",
     "performance_logger_unittest.cc",
+    "prompt_behavior_unittest.cc",
     "server/http_handler_unittest.cc",
     "session_commands_unittest.cc",
     "session_unittest.cc",
@@ -601,12 +621,10 @@ test("chromedriver_unittests") {
     "//base",
     "//base/test:run_all_unittests",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//chrome/common",
     "//mojo/core/embedder",
     "//net",
     "//net:test_support",
-    "//net/server:http_server",
     "//services/network/public/cpp",
     "//services/network/public/mojom",
     "//testing/gmock",
@@ -623,10 +641,18 @@ test("chromedriver_unittests") {
 if (is_win || is_posix) {
   test("chromedriver_integrationtests") {
     sources = [
-      "devtools_client_impl_integrationtest.cc",
-      "navigation_tracker_integrationtest.cc",
       "net/test_http_server.cc",
       "net/test_http_server.h",
+      "test/command_injecting_socket.cc",
+      "test/command_injecting_socket.h",
+      "test/commands_integrationtest.cc",
+      "test/devtools_client_impl_integrationtest.cc",
+      "test/integration_test.cc",
+      "test/integration_test.h",
+      "test/navigation_tracker_integrationtest.cc",
+      "test/sync_websocket_wrapper.cc",
+      "test/sync_websocket_wrapper.h",
+      "test/web_view_impl_integrationtest.cc",
     ]
 
     data_deps = [ "//chrome:chrome" ]
@@ -639,7 +665,6 @@ if (is_win || is_posix) {
       "//base/test:test_support",
       "//chrome/common",
       "//net",
-      "//net/server:http_server",
       "//net/traffic_annotation:test_support",
       "//testing/gmock",
       "//testing/gtest",
@@ -648,10 +673,16 @@ if (is_win || is_posix) {
   }
 }
 
-# Generate LICENSE file by recursively joining all dependent licenses.
-action("generate_chromedriver_license") {
+copy("copy_license") {
+  sources = [ "//LICENSE" ]
+  outputs = [ "$root_out_dir/LICENSE.chromedriver" ]
+}
+
+# Generate THIRD_PARTY_NOTICES file by recursively joining all dependent
+# licenses.
+action("generate_chromedriver_notices") {
   testonly = true
-  _license_path = "$root_out_dir/LICENSE.chromedriver"
+  _license_path = "$root_out_dir/THIRD_PARTY_NOTICES.chromedriver"
   script = "//tools/licenses/licenses.py"
   outputs = [ _license_path ]
   args = [
@@ -661,6 +692,8 @@ action("generate_chromedriver_license") {
     "//chrome/test/chromedriver:chromedriver_server",
     "--gn-out-dir",
     ".",
+    "--format",
+    "notice",
   ]
   deps = [ ":chromedriver_server" ]
 }
@@ -669,6 +702,7 @@ group("chromedriver") {
   testonly = true
   deps = [
     ":chromedriver_server",
-    ":generate_chromedriver_license",
+    ":copy_license",
+    ":generate_chromedriver_notices",
   ]
 }

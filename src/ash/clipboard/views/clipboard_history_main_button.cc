@@ -8,7 +8,6 @@
 #include "ash/style/ash_color_id.h"
 #include "ash/style/style_util.h"
 #include "base/functional/bind.h"
-#include "chromeos/constants/chromeos_features.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_provider.h"
@@ -90,11 +89,7 @@ void ClipboardHistoryMainButton::PaintButtonContents(gfx::Canvas* canvas) {
   cc::PaintFlags flags;
   flags.setAntiAlias(true);
 
-  const auto color_id =
-      chromeos::features::IsJellyEnabled()
-          ? static_cast<ui::ColorId>(cros_tokens::kCrosSysHoverOnSubtle)
-          : kColorAshInkDrop;
-  flags.setColor(GetColorProvider()->GetColor(color_id));
+  flags.setColor(GetColorProvider()->GetColor(cros_tokens::kCrosSysHoverOnSubtle));
   flags.setStyle(cc::PaintFlags::kFill_Style);
   canvas->DrawRect(GetLocalBounds(), flags);
 }

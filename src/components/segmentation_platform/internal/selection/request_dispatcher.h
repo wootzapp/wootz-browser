@@ -6,7 +6,9 @@
 #define COMPONENTS_SEGMENTATION_PLATFORM_INTERNAL_SELECTION_REQUEST_DISPATCHER_H_
 
 #include <map>
+#include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -57,6 +59,10 @@ class RequestDispatcher {
                                  const PredictionOptions& options,
                                  scoped_refptr<InputContext> input_context,
                                  AnnotatedNumericResultCallback callback);
+
+  // Client API. See `SegmentationPlatformService::GetInputKeysForModel`.
+  void GetInputKeysForModel(const std::string& segmentation_key,
+                            InputContextKeysCallback callback);
 
   // For testing only.
   int GetPendingActionCountForTesting();

@@ -89,6 +89,7 @@ class MockSharedWorkerFactory : public blink::mojom::SharedWorkerFactory {
       blink::mojom::SharedWorkerInfoPtr info,
       const blink::SharedWorkerToken& token,
       const blink::StorageKey& constructor_key,
+      const url::Origin& renderer_origin,
       bool is_constructor_secure_context,
       const std::string& user_agent,
       const blink::UserAgentMetadata& ua_metadata,
@@ -111,7 +112,11 @@ class MockSharedWorkerFactory : public blink::mojom::SharedWorkerFactory {
       mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker>
           browser_interface_broker,
       ukm::SourceId ukm_source_id,
-      bool require_cross_site_request_for_cookies) override;
+      bool require_cross_site_request_for_cookies,
+      mojo::PendingReceiver<blink::mojom::ReportingObserver>
+          coep_reporting_observer,
+      mojo::PendingReceiver<blink::mojom::ReportingObserver>
+          dip_reporting_observer) override;
 
   struct CreateParams {
     CreateParams();

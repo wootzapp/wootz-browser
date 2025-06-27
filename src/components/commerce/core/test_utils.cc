@@ -10,14 +10,20 @@
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/commerce/core/commerce_feature_list.h"
+#include "components/commerce/core/mock_account_checker.h"
 #include "components/commerce/core/pref_names.h"
 #include "components/commerce/core/price_tracking_utils.h"
 #include "components/commerce/core/shopping_service.h"
 #include "components/commerce/core/subscriptions/commerce_subscription.h"
+#include "components/optimization_guide/core/feature_registry/enterprise_policy_registry.h"
+#include "components/optimization_guide/core/feature_registry/feature_registration.h"
 #include "components/power_bookmarks/core/power_bookmark_utils.h"
 #include "components/power_bookmarks/core/proto/power_bookmark_meta.pb.h"
 #include "components/power_bookmarks/core/proto/shopping_specifics.pb.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/testing_pref_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -78,8 +84,36 @@ void AddProductInfoToExistingBookmark(
                                             std::move(meta));
 }
 
-void SetShoppingListEnterprisePolicyPref(PrefService* prefs, bool enabled) {
-  prefs->SetBoolean(kShoppingListEnabledPrefName, enabled);
+void SetShoppingListEnterprisePolicyPref(TestingPrefServiceSimple* prefs,
+                                         bool enabled) {
+  prefs->SetManagedPref(kShoppingListEnabledPrefName, base::Value(enabled));
+}
+
+void SetTabCompareEnterprisePolicyPref(TestingPrefServiceSimple* prefs,
+                                       int enabled_state) {
+  prefs->SetManagedPref(
+      optimization_guide::prefs::kProductSpecificationsEnterprisePolicyAllowed,
+      base::Value(enabled_state));
+}
+
+void SetUpPriceInsightsEligibility(base::test::ScopedFeatureList* feature_list,
+                                   MockAccountChecker* account_checker,
+                                   bool is_eligible) {
+  feature_list->InitAndEnableFeature(kPriceInsights);
+  account_checker->SetAnonymizedUrlDataCollectionEnabled(is_eligible);
+}
+
+void SetUpDiscountEligibility(base::test::ScopedFeatureList* feature_list,
+                              MockAccountChecker* account_checker,
+                              bool is_eligible) {
+  feature_list->InitAndEnableFeature(kEnableDiscountInfoApi);
+  SetUpDiscountEligibilityForAccount(account_checker, is_eligible);
+}
+
+void SetUpDiscountEligibilityForAccount(MockAccountChecker* account_checker,
+                                        bool is_eligible) {
+  account_checker->SetSignedIn(is_eligible);
+  account_checker->SetAnonymizedUrlDataCollectionEnabled(is_eligible);
 }
 
 std::optional<PriceInsightsInfo> CreateValidPriceInsightsInfo(
@@ -124,18 +158,36 @@ DiscountInfo CreateValidDiscountInfo(const std::string& detail,
                                      const std::string& discount_code,
                                      int64_t id,
                                      bool is_merchant_wide,
-                                     double expiry_time_sec) {
+                                     std::optional<double> expiry_time_sec,
+                                     DiscountClusterType cluster_type) {
   DiscountInfo discount_info;
 
+  discount_info.cluster_type = cluster_type;
   discount_info.description_detail = detail;
   discount_info.terms_and_conditions.emplace(terms_and_conditions);
   discount_info.value_in_text = value_in_text;
   discount_info.discount_code = discount_code;
   discount_info.id = id;
   discount_info.is_merchant_wide = is_merchant_wide;
-  discount_info.expiry_time_sec = expiry_time_sec;
+  if (expiry_time_sec.has_value()) {
+    discount_info.expiry_time_sec = expiry_time_sec;
+  }
 
   return discount_info;
 }
 
+void EnableProductSpecificationsDataFetch(MockAccountChecker* account_checker,
+                                          TestingPrefServiceSimple* prefs) {
+  ON_CALL(*account_checker, IsSyncTypeEnabled)
+      .WillByDefault(testing::Return(true));
+  account_checker->SetAnonymizedUrlDataCollectionEnabled(true);
+  account_checker->SetSignedIn(true);
+  account_checker->SetIsSubjectToParentalControls(false);
+  account_checker->SetCanUseModelExecutionFeatures(true);
+
+  // 0 is the enabled enterprise state for the feature.
+  prefs->SetManagedPref(
+      optimization_guide::prefs::kProductSpecificationsEnterprisePolicyAllowed,
+      base::Value(0));
+}
 }  // namespace commerce

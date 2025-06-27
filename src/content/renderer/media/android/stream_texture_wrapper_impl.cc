@@ -23,7 +23,9 @@ void OnReleaseVideoFrame(scoped_refptr<content::StreamTextureFactory> factories,
                          const gpu::SyncToken& sync_token) {
   gpu::SharedImageInterface* sii = factories->SharedImageInterface();
   sii->DestroySharedImage(sync_token, std::move(shared_image));
-  sii->Flush();
+  // ClientSharedImage destructor calls DestroySharedImage which in turn ensures
+  // that the deferred destroy request is flushed. Thus, clients don't need to
+  // call SharedImageInterface::Flush explicitly.
 }
 }
 
@@ -70,16 +72,19 @@ void StreamTextureWrapperImpl::CreateVideoFrame(
   // The SI backing this VideoFrame will be read by the display compositor and
   // raster. The latter will be over GL if not using OOP-R. NOTE: GL usage can
   // be eliminated once OOP-R ships definitively.
-  auto shared_image =
+  scoped_refptr<gpu::ClientSharedImage> shared_image;
+
+  // Ensure that the ClientSI holds the correct texture target (which is *not*
+  // the texture target that ClientSharedImage would compute internally for
+  // these parameters).
+  shared_image =
       sii->NotifyMailboxAdded(mailbox, viz::SinglePlaneFormat::kRGBA_8888,
                               coded_size, gfx::ColorSpace::CreateSRGB(),
                               kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType,
                               gpu::SHARED_IMAGE_USAGE_DISPLAY_READ |
                                   gpu::SHARED_IMAGE_USAGE_GLES2_READ |
-                                  gpu::SHARED_IMAGE_USAGE_RASTER_READ);
-  scoped_refptr<gpu::ClientSharedImage>
-      shared_images[media::VideoFrame::kMaxPlanes];
-  shared_images[0] = shared_image;
+                                  gpu::SHARED_IMAGE_USAGE_RASTER_READ,
+                              GL_TEXTURE_EXTERNAL_OES);
 
   // The pixel format doesn't matter here as long as it's valid for texture
   // frames. But SkiaRenderer wants to ensure that the format of the resource
@@ -93,9 +98,8 @@ void StreamTextureWrapperImpl::CreateVideoFrame(
   // created, so we don't need to wait on any synctoken, mailbox is ready to
   // use.
   scoped_refptr<media::VideoFrame> new_frame =
-      media::VideoFrame::WrapSharedImages(
-          media::PIXEL_FORMAT_ABGR, shared_images, gpu::SyncToken(),
-          GL_TEXTURE_EXTERNAL_OES,
+      media::VideoFrame::WrapSharedImage(
+          media::PIXEL_FORMAT_ABGR, shared_image, gpu::SyncToken(),
           base::BindPostTask(main_task_runner_,
                              base::BindOnce(&OnReleaseVideoFrame, factory_,
                                             std::move(shared_image))),

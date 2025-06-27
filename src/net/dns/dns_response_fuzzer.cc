@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/dns/dns_response.h"
 
 #include <fuzzer/FuzzedDataProvider.h>
@@ -12,7 +17,6 @@
 
 #include "base/check.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "net/base/io_buffer.h"
 #include "net/dns/dns_names_util.h"
 #include "net/dns/dns_query.h"

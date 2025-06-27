@@ -94,34 +94,20 @@ EventListener* NativeValueTraits<IDLOnErrorEventHandler>::NativeValue(
       value, JSEventHandler::HandlerType::kOnErrorEventHandler);
 }
 
-namespace internal {
+namespace bindings::internal {
 
-// static
-SpanWithInlineStorage SpanWithInlineStorage::GetViewData(
-    v8::Local<v8::ArrayBufferView> view) {
-  const size_t length = view->ByteLength();
-  if (!view->HasBuffer() && length <= sizeof inline_storage_) {
-    SpanWithInlineStorage res(length);
-    view->CopyContents(res.inline_storage_, sizeof inline_storage_);
-    return res;
-  }
-  v8::Local<v8::ArrayBuffer> buffer = view->Buffer();
-  auto buffer_span = base::make_span(
-      reinterpret_cast<const uint8_t*>(buffer->Data()), buffer->ByteLength());
-  return SpanWithInlineStorage(buffer_span.subspan(view->ByteOffset(), length));
-}
-
-SpanWithInlineStorage& SpanWithInlineStorage::operator=(
-    const SpanWithInlineStorage& r) {
+ByteSpanWithInlineStorage& ByteSpanWithInlineStorage::operator=(
+    const ByteSpanWithInlineStorage& r) {
   if (r.span_.data() == r.inline_storage_) {
-    memcpy(inline_storage_, r.inline_storage_, sizeof inline_storage_);
-    span_ = base::make_span(inline_storage_, r.span_.size());
+    auto span = base::span(inline_storage_);
+    span.copy_from(base::span(r.inline_storage_));
+    span_ = span.first(r.span_.size());
   } else {
     span_ = r.span_;
   }
   return *this;
 }
 
-}  // namespace internal
+}  // namespace bindings::internal
 
 }  // namespace blink

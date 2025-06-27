@@ -11,6 +11,7 @@
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/page_node_impl.h"
 #include "components/performance_manager/graph/process_node_impl.h"
+#include "components/performance_manager/test_support/graph/mock_process_node_observer.h"
 #include "components/performance_manager/test_support/graph_test_harness.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -20,23 +21,6 @@ namespace performance_manager {
 namespace {
 
 using LifecycleState = PageNodeImpl::LifecycleState;
-
-class LenientMockProcessNodeObserver : public ProcessNode::ObserverDefaultImpl {
- public:
-  LenientMockProcessNodeObserver() = default;
-
-  LenientMockProcessNodeObserver(const LenientMockProcessNodeObserver&) =
-      delete;
-  LenientMockProcessNodeObserver& operator=(
-      const LenientMockProcessNodeObserver&) = delete;
-
-  ~LenientMockProcessNodeObserver() override = default;
-
-  MOCK_METHOD1(OnAllFramesInProcessFrozen, void(const ProcessNode*));
-};
-
-using MockProcessNodeObserver =
-    ::testing::StrictMock<LenientMockProcessNodeObserver>;
 
 }  // namespace
 
@@ -64,10 +48,9 @@ class FrozenFrameAggregatorTest : public GraphTestHarness {
   void ExpectData(NodeType* node,
                   uint32_t current_frame_count,
                   uint32_t frozen_frame_count) {
-    auto* data = FrozenFrameAggregator::Data::GetForTesting(node);
-    EXPECT_TRUE(data);
-    EXPECT_EQ(current_frame_count, data->current_frame_count);
-    EXPECT_EQ(frozen_frame_count, data->frozen_frame_count);
+    FrozenData& data = FrozenData::Get(node);
+    EXPECT_EQ(current_frame_count, data.current_frame_count());
+    EXPECT_EQ(frozen_frame_count, data.frozen_frame_count());
   }
 
   void ExpectPageData(uint32_t current_frame_count,
@@ -78,11 +61,6 @@ class FrozenFrameAggregatorTest : public GraphTestHarness {
   void ExpectProcessData(uint32_t current_frame_count,
                          uint32_t frozen_frame_count) {
     ExpectData(process_node_.get(), current_frame_count, frozen_frame_count);
-  }
-
-  void ExpectNoProcessData() {
-    EXPECT_EQ(nullptr,
-              FrozenFrameAggregator::Data::GetForTesting(process_node_.get()));
   }
 
   void ExpectRunning() {
@@ -99,7 +77,7 @@ class FrozenFrameAggregatorTest : public GraphTestHarness {
         graph(), process_node_.get(), page_node_.get(), parent_frame_node,
         /*outer_document_for_fenced_frame=*/nullptr, NextTestFrameRoutingId(),
         blink::LocalFrameToken(), content::BrowsingInstanceId(),
-        content::SiteInstanceId(), is_current);
+        content::SiteInstanceGroupId(), is_current);
   }
 
   raw_ptr<FrozenFrameAggregator> ffa_;
@@ -108,31 +86,31 @@ class FrozenFrameAggregatorTest : public GraphTestHarness {
 };
 
 TEST_F(FrozenFrameAggregatorTest, NotCurrent) {
-  // The data should be created when the frame is made current.
-  ExpectNoProcessData();
+  ExpectProcessData(0, 0);
 
   // Add a non-current main frame.
   auto f0 = CreateFrame(nullptr, /*is_current=*/false);
-  ExpectNoProcessData();
+  ExpectProcessData(0, 0);
 
   // Make it current. The frame starts being counted.
-  f0->SetIsCurrent(true);
+  FrameNodeImpl::UpdateCurrentFrame(/*previous_frame_node=*/nullptr,
+                                    /*current_frame_node=*/f0.get(), graph());
   ExpectProcessData(1, 0);
 
   f0->SetLifecycleState(LifecycleState::kFrozen);
   ExpectProcessData(1, 1);
 
   // Make no longer current. Stops being counted.
-  f0->SetIsCurrent(false);
+  FrameNodeImpl::UpdateCurrentFrame(/*previous_frame_node=*/f0.get(),
+                                    /*current_frame_node=*/nullptr, graph());
   ExpectProcessData(0, 0);
 }
 
 TEST_F(FrozenFrameAggregatorTest, ProcessAggregation) {
-  MockProcessNodeObserver obs;
+  LenientMockProcessNodeObserver obs;
   graph()->AddProcessNodeObserver(&obs);
 
-  // The data should be created on first aggregation.
-  ExpectNoProcessData();
+  ExpectProcessData(0, 0);
 
   // Add a main frame.
   auto f0 = CreateFrame(nullptr);
@@ -242,25 +220,20 @@ TEST_F(FrozenFrameAggregatorTest, PageAggregation) {
   ExpectRunning();
 
   // Create a third frame that is not current.
-  auto f1a = CreateFrame(f0.get());
-  f1a->SetIsCurrent(false);
+  auto f1a = CreateFrame(f0.get(), /*is_current=*/false);
   ExpectPageData(2, 0);
   ExpectRunning();
 
   // Swap the f1 and f1a.
-  f1->SetIsCurrent(false);
-  ExpectPageData(1, 0);
-  ExpectRunning();
-  f1a->SetIsCurrent(true);
+  FrameNodeImpl::UpdateCurrentFrame(/*previous_frame_node=*/f1.get(),
+                                    /*current_frame_node=*/f1a.get(), graph());
   ExpectPageData(2, 0);
   ExpectRunning();
 
   // Freeze the original frame and swap it back.
   f1->SetLifecycleState(LifecycleState::kFrozen);
-  f1a->SetIsCurrent(false);
-  ExpectPageData(1, 0);
-  ExpectRunning();
-  f1->SetIsCurrent(true);
+  FrameNodeImpl::UpdateCurrentFrame(/*previous_frame_node=*/f1a.get(),
+                                    /*current_frame_node=*/f1.get(), graph());
   ExpectPageData(2, 1);
   ExpectRunning();
 

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/chromeos/policy/dlp/dlp_content_manager.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,7 +17,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "chrome/browser/chromeos/policy/dlp/dialogs/dlp_warn_notifier.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_confidential_contents.h"
@@ -29,7 +29,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -100,8 +100,7 @@ const std::optional<std::string> RestrictionToWarnProceededUMASuffix(
     case DlpRulesManager::Restriction::kClipboard:
     case DlpRulesManager::Restriction::kPrivacyScreen:
     case DlpRulesManager::Restriction::kFiles:
-      NOTREACHED_IN_MIGRATION();
-      return std::nullopt;
+      NOTREACHED();
   }
 }
 
@@ -378,11 +377,11 @@ void DlpContentManager::ScreenShareInfo::Resume() {
     content::RenderFrameHost* main_frame = web_contents_->GetPrimaryMainFrame();
     DCHECK(main_frame);
     source_callback_.Run(
-        content::DesktopMediaID(
-            content::DesktopMediaID::TYPE_WEB_CONTENTS,
-            content::DesktopMediaID::kNullId,
-            content::WebContentsMediaCaptureId(
-                main_frame->GetProcess()->GetID(), main_frame->GetRoutingID())),
+        content::DesktopMediaID(content::DesktopMediaID::TYPE_WEB_CONTENTS,
+                                content::DesktopMediaID::kNullId,
+                                content::WebContentsMediaCaptureId(
+                                    main_frame->GetProcess()->GetDeprecatedID(),
+                                    main_frame->GetRoutingID())),
         captured_surface_control_active_);
     // Start after source will be changed and notified.
     pending_start_on_source_change_ = true;
@@ -402,7 +401,7 @@ void DlpContentManager::ScreenShareInfo::ChangeStateBeforeSourceChange() {
     state_ = State::kRunningBeforeSourceChange;
   } else {
     // This should only be called if state_ is Running or Paused.
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -412,7 +411,7 @@ void DlpContentManager::ScreenShareInfo::Stop() {
     std::move(stop_callback_).Run();
     state_ = State::kStopped;
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -711,7 +710,7 @@ void DlpContentManager::AddOrUpdateScreenShare(
     base::RepeatingClosure stop_callback,
     content::MediaStreamUI::StateChangeCallback state_change_callback,
     content::MediaStreamUI::SourceCallback source_callback) {
-  auto screen_share_it = base::ranges::find_if(
+  auto screen_share_it = std::ranges::find_if(
       running_screen_shares_,
       [&label, media_id](const std::unique_ptr<ScreenShareInfo>& info) {
         return info && info->label() == label &&
@@ -957,7 +956,7 @@ void DlpContentManager::RemoveAllowedContents(
     DlpConfidentialContents& contents,
     DlpRulesManager::Restriction restriction) {
   base::EraseIf(
-      contents.GetContents(), [=](const DlpConfidentialContent& content) {
+      contents.GetContents(), [=, this](const DlpConfidentialContent& content) {
         return user_allowed_contents_cache_.Contains(content, restriction);
       });
 }

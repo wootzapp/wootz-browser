@@ -9,13 +9,19 @@ import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
 
 import org.chromium.base.Callback;
+import org.chromium.build.annotations.MockedInTests;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Base interface for NofificationManagerProxy that only supports simple functionalities. Remove
  * this once AsyncNofificationManagerProxy is set to default.
  */
+@MockedInTests // Needed due to R8's computeDelayedInterfaceMethodSyntheticBridges. b/147584922
+@NullMarked
 public interface BaseNotificationManagerProxy {
     /**
      * @see <a
@@ -60,6 +66,13 @@ public interface BaseNotificationManagerProxy {
     void deleteNotificationChannel(String id);
 
     /**
+     * Delete all notification channels that satisfies a given function.
+     *
+     * @param func Function to determine whether a channel Id needs to be deleted.
+     */
+    void deleteAllNotificationChannels(Function<String, Boolean> func);
+
+    /**
      * Post a Android notification to the notification bar.
      *
      * @param notification A NotificationWrapper object containing all the information about the
@@ -87,6 +100,13 @@ public interface BaseNotificationManagerProxy {
      *     https://developer.android.com/reference/android/app/NotificationManager#getNotificationChannels()</a>
      */
     void getNotificationChannels(Callback<List<NotificationChannel>> callback);
+
+    /**
+     * @see <a
+     *     href="https://developer.android.com/reference/android/app/NotificationManager#getNotificationChannel()">
+     *     https://developer.android.com/reference/android/app/NotificationManager#getNotificationChannel()</a>
+     */
+    void getNotificationChannel(String channelId, Callback<@Nullable NotificationChannel> callback);
 
     /**
      * A proxy for Android's StatusBarNotification.

@@ -17,17 +17,20 @@ class GPU_GLES2_EXPORT DawnGLTextureRepresentation
       SharedImageManager* manager,
       SharedImageBacking* backing,
       MemoryTypeTracker* tracker,
-      wgpu::Device device);
+      wgpu::Device device,
+      std::vector<wgpu::TextureFormat> view_formats);
   ~DawnGLTextureRepresentation() override;
 
  private:
-  wgpu::Texture BeginAccess(wgpu::TextureUsage usage) override;
+  wgpu::Texture BeginAccess(wgpu::TextureUsage usage,
+                            wgpu::TextureUsage internal_usage) override;
   void EndAccess() override;
 
  private:
   std::unique_ptr<GLTextureImageRepresentationBase> gl_representation_;
   const wgpu::Device device_;
   wgpu::Texture texture_ = nullptr;
+  std::vector<wgpu::TextureFormat> view_formats_;
 };
 
 }  // namespace gpu

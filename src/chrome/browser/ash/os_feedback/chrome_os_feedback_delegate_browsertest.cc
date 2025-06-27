@@ -39,7 +39,7 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/webui/ash/os_feedback_dialog.h"
+#include "chrome/browser/ui/webui/ash/os_feedback_dialog/os_feedback_dialog.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/feedback/content/content_tracing_manager.h"
@@ -121,7 +121,6 @@ class FakeFeedbackPrivateDelegate : public FeedbackPrivateDelegate {
       extensions::FetchExtraLogsCallback callback) const override;
   extensions::api::feedback_private::LandingPageType GetLandingPageType(
       const feedback::FeedbackData& feedback_data) const override;
-  void GetLacrosHistograms(GetHistogramsCallback callback) override;
   std::string GetSignedInUserEmail(
       content::BrowserContext* context) const override;
   void NotifyFeedbackDelayed() const override;
@@ -175,11 +174,6 @@ FakeFeedbackPrivateDelegate::GetLandingPageType(
   return extensions::api::feedback_private::LandingPageType::kNoLandingPage;
 }
 
-void FakeFeedbackPrivateDelegate::GetLacrosHistograms(
-    GetHistogramsCallback callback) {
-  std::move(callback).Run(std::string());
-}
-
 std::string FakeFeedbackPrivateDelegate::GetSignedInUserEmail(
     content::BrowserContext* context) const {
   return std::string();
@@ -201,7 +195,7 @@ FakeFeedbackPrivateDelegate::GetFeedbackUploaderForContext(
 
 class ChromeOsFeedbackDelegateTest : public InProcessBrowserTest {
  public:
-  ChromeOsFeedbackDelegateTest() {}
+  ChromeOsFeedbackDelegateTest() = default;
 
   ~ChromeOsFeedbackDelegateTest() override = default;
 
@@ -322,7 +316,7 @@ class ChromeOsFeedbackDelegateTest : public InProcessBrowserTest {
 
   scoped_refptr<base::RefCountedMemory> CreateFakePngData() {
     const unsigned char kData[] = {12, 11, 99};
-    return base::MakeRefCounted<base::RefCountedBytes>(kData, std::size(kData));
+    return base::MakeRefCounted<base::RefCountedBytes>(kData);
   }
 
   // Find the url of the active tab of the browser if any.
@@ -877,8 +871,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
   LaunchFeedbackDialog();
   gfx::NativeWindow feedback_window = OsFeedbackDialog::FindDialogWindow();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_pre_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window, &owned_widgets_pre_dialog);
+  views::Widget::Widgets owned_widgets_pre_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_pre_dialog.size(), 0u);
 
@@ -888,9 +882,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
 
   feedback_delegate.OpenDiagnosticsApp();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_post_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window,
-                                    &owned_widgets_post_dialog);
+  views::Widget::Widgets owned_widgets_post_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_post_dialog.size(), 1u);
 }
@@ -922,8 +915,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest, OpenMetricsDialog) {
   gfx::NativeWindow feedback_window =
       feedback_browser->window()->GetNativeWindow();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_pre_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window, &owned_widgets_pre_dialog);
+  views::Widget::Widgets owned_widgets_pre_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_pre_dialog.size(), 0u);
 
@@ -933,9 +926,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest, OpenMetricsDialog) {
 
   feedback_delegate.OpenMetricsDialog();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_post_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window,
-                                    &owned_widgets_post_dialog);
+  views::Widget::Widgets owned_widgets_post_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_post_dialog.size(), 1u);
 }
@@ -949,8 +941,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
   gfx::NativeWindow feedback_window =
       feedback_browser->window()->GetNativeWindow();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_pre_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window, &owned_widgets_pre_dialog);
+  views::Widget::Widgets owned_widgets_pre_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_pre_dialog.size(), 0u);
 
@@ -960,9 +952,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
 
   feedback_delegate.OpenSystemInfoDialog();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_post_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window,
-                                    &owned_widgets_post_dialog);
+  views::Widget::Widgets owned_widgets_post_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_post_dialog.size(), 1u);
 }
@@ -975,8 +966,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
 
   gfx::NativeWindow feedback_window = OsFeedbackDialog::FindDialogWindow();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_pre_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window, &owned_widgets_pre_dialog);
+  views::Widget::Widgets owned_widgets_pre_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_pre_dialog.size(), 0u);
 
@@ -986,9 +977,8 @@ IN_PROC_BROWSER_TEST_F(ChromeOsFeedbackDelegateTest,
 
   feedback_delegate.OpenSystemInfoDialog();
 
-  std::set<raw_ptr<views::Widget, SetExperimental>> owned_widgets_post_dialog;
-  views::Widget::GetAllOwnedWidgets(feedback_window,
-                                    &owned_widgets_post_dialog);
+  views::Widget::Widgets owned_widgets_post_dialog =
+      views::Widget::GetAllOwnedWidgets(feedback_window);
 
   EXPECT_EQ(owned_widgets_post_dialog.size(), 1u);
 }

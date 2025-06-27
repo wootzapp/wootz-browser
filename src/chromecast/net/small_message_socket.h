@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/containers/span.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "net/base/io_buffer.h"
@@ -161,6 +162,8 @@ class SmallMessageSocket {
     size_t used() const { return used_; }
     size_t capacity() const { return capacity_; }
 
+    base::span<const uint8_t> used_span() const;
+
    private:
     ~BufferWrapper() override;
 
@@ -183,9 +186,9 @@ class SmallMessageSocket {
   bool HandleReadResult(int result);
   bool HandleCompletedMessages();
   bool HandleCompletedMessageBuffers();
-  void ActivateBufferPool(char* current_data, size_t current_size);
+  void ActivateBufferPool(base::span<const uint8_t> current_data);
 
-  Delegate* const delegate_;
+  const raw_ptr<Delegate> delegate_;
   const std::unique_ptr<net::Socket> socket_;
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 

@@ -7,10 +7,15 @@
 #include "base/no_destructor.h"
 #include "chrome/browser/enterprise/remote_commands/user_remote_commands_service.h"
 #include "chrome/browser/invalidation/profile_invalidation_provider_factory.h"
+#include "chrome/browser/policy/cloud/user_fm_registration_token_uploader_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_selections.h"
 
 namespace enterprise_commands {
+
+BASE_FEATURE(kUserRemoteCommands,
+             "UserRemoteCommands",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // static
 UserRemoteCommandsServiceFactory*
@@ -28,10 +33,13 @@ UserRemoteCommandsService* UserRemoteCommandsServiceFactory::GetForProfile(
 std::unique_ptr<KeyedService>
 UserRemoteCommandsServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
+  if (!base::FeatureList::IsEnabled(kUserRemoteCommands)) {
+    return nullptr;
+  }
+
   Profile* profile = Profile::FromBrowserContext(context);
-  // UserCloudPolicyManager doesn't exist for Lacros main profile or in some
-  // test environments. In those cases, we skip the creation of KeyedService
-  // here.
+  // UserCloudPolicyManager doesn't exist in some test environments. In those
+  // cases, we skip the creation of KeyedService here.
   if (!profile->GetUserCloudPolicyManager()) {
     return nullptr;
   }
@@ -43,6 +51,7 @@ UserRemoteCommandsServiceFactory::UserRemoteCommandsServiceFactory()
           "UserRemoteCommands",
           ProfileSelections::BuildRedirectedInIncognito()) {
   DependsOn(invalidation::ProfileInvalidationProviderFactory::GetInstance());
+  DependsOn(policy::UserFmRegistrationTokenUploaderFactory::GetInstance());
 }
 UserRemoteCommandsServiceFactory::~UserRemoteCommandsServiceFactory() = default;
 

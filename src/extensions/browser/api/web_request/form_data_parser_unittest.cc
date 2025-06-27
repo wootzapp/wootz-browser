@@ -21,8 +21,9 @@ std::unique_ptr<FormDataParser> InitParser(
     const std::string& content_type_header) {
   std::unique_ptr<FormDataParser> parser(
       FormDataParser::CreateFromContentTypeHeader(&content_type_header));
-  if (parser.get() == nullptr)
+  if (parser.get() == nullptr) {
     return nullptr;
+  }
   return parser;
 }
 
@@ -36,12 +37,14 @@ bool RunParser(const std::string& content_type_header,
   DCHECK(output);
   output->clear();
   std::unique_ptr<FormDataParser> parser(InitParser(content_type_header));
-  if (!parser.get())
+  if (!parser.get()) {
     return false;
+  }
   FormDataParser::Result result;
   for (size_t block = 0; block < bytes.size(); ++block) {
-    if (!parser->SetSource(*(bytes[block])))
+    if (!parser->SetSource(*(bytes[block]))) {
       return false;
+    }
     while (parser->GetNextNameValue(&result)) {
       output->push_back(result.name());
       base::Value value = result.take_value();
@@ -63,12 +66,14 @@ bool CheckParserFails(const std::string& content_type_header,
                       const std::vector<const std::string_view*>& bytes) {
   std::vector<std::string> output;
   std::unique_ptr<FormDataParser> parser(InitParser(content_type_header));
-  if (!parser.get())
+  if (!parser.get()) {
     return false;
+  }
   FormDataParser::Result result;
   for (size_t block = 0; block < bytes.size(); ++block) {
-    if (!parser->SetSource(*(bytes[block])))
+    if (!parser->SetSource(*(bytes[block]))) {
       break;
+    }
     while (parser->GetNextNameValue(&result)) {
       output.push_back(result.name());
       base::Value value = result.take_value();
@@ -171,26 +176,26 @@ TEST(WebRequestFormDataParserTest, Parsing) {
   const std::string kMultipart =
       std::string("multipart/form-data; boundary=") + kBoundary;
   // Expected output.
-  const char* kPairs[] = {"text",
-                          "test\rtext\nwith non-CRLF line breaks",
-                          "file",
-                          "test",
-                          "password",
-                          "test password",
-                          "radio",
-                          "Yes",
-                          "check",
-                          "option A",
-                          "check",
-                          "option B",
-                          "txtarea",
-                          "Some text.\r\nOther.\r\n",
-                          "select",
-                          "one",
-                          "binary",
-                          ("\u0420\u043e\u0434\u0436\u0435\u0440 "
-                           "\u0416\u0435\u043b\u044f\u0437\u043d\u044b")};
-  const std::vector<std::string> kExpected(kPairs, kPairs + std::size(kPairs));
+  const std::vector<std::string> kExpected = {
+      "text",
+      "test\rtext\nwith non-CRLF line breaks",
+      "file",
+      "test",
+      "password",
+      "test password",
+      "radio",
+      "Yes",
+      "check",
+      "option A",
+      "check",
+      "option B",
+      "txtarea",
+      "Some text.\r\nOther.\r\n",
+      "select",
+      "one",
+      "binary",
+      "\u0420\u043e\u0434\u0436\u0435\u0440 "
+      "\u0416\u0435\u043b\u044f\u0437\u043d\u044b"};
 
   std::vector<const std::string_view*> input;
   std::vector<std::string> output;

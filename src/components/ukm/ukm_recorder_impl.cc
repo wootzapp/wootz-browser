@@ -52,6 +52,8 @@ BASE_FEATURE(kUkmSamplingRateFeature,
 
 namespace {
 
+// Allowlisted source ids are sent. Non-allowlisted source ids are sent if the
+// url matches that of an allow-listed source.
 bool IsAllowlistedSourceId(SourceId source_id) {
   SourceIdType type = GetSourceIdType(source_id);
   switch (type) {
@@ -64,13 +66,14 @@ bool IsAllowlistedSourceId(SourceId source_id) {
     case ukm::SourceIdObj::Type::REDIRECT_ID:
     case ukm::SourceIdObj::Type::WEB_IDENTITY_ID:
     case ukm::SourceIdObj::Type::CHROMEOS_WEBSITE_ID:
-    case ukm::SourceIdObj::Type::EXTENSION_ID: {
+    case ukm::SourceIdObj::Type::NOTIFICATION_ID:
+    case ukm::SourceIdObj::Type::EXTENSION_ID:
+    case ukm::SourceIdObj::Type::CDM_ID: {
       return true;
     }
     case ukm::SourceIdObj::Type::DEFAULT:
     case ukm::SourceIdObj::Type::DEPRECATED_DESKTOP_WEB_APP_ID:
     case ukm::SourceIdObj::Type::WORKER_ID:
-    case ukm::SourceIdObj::Type::NOTIFICATION_ID:
       return false;
   }
 }
@@ -108,16 +111,16 @@ void StoreEntryProto(const mojom::UkmEntry& in, Entry* out) {
   }
 }
 
-void StoreWebFeaturesProto(SourceId source_id,
-                           const BitSet& in,
-                           HighLevelWebFeatures* out) {
+void StoreWebDXFeaturesProto(SourceId source_id,
+                             const BitSet& in,
+                             HighLevelWebFeatures* out) {
   out->set_source_id(source_id);
   out->set_bit_vector(in.Serialize());
 
   // The encoding version should be changed if the underlying enum is changed
   // (e.g. renumbered).
-  constexpr uint32_t kWebFeaturesEncodingVersion = 0;
-  out->set_encoding_version(kWebFeaturesEncodingVersion);
+  constexpr uint32_t kWebDXFeaturesEncodingVersion = 0;
+  out->set_encoding_version(kWebDXFeaturesEncodingVersion);
 }
 
 GURL SanitizeURL(const GURL& url) {
@@ -126,7 +129,7 @@ GURL SanitizeURL(const GURL& url) {
   remove_params.ClearPassword();
   // chrome:// and about: URLs params are never used for navigation, only to
   // prepopulate data on the page, so don't include their params.
-  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("wootzapp")) {
+  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("chrome")) {
     remove_params.ClearQuery();
   }
   if (url.SchemeIs(kExtensionScheme)) {
@@ -174,14 +177,13 @@ bool HasUnknownMetrics(const builders::DecodeMap& decode_map,
   return false;
 }
 
-std::string WebFeaturesToStringForDebug(
-    const std::set<DummyWebFeatures>& features) {
+std::string WebDXFeaturesToStringForDebug(const std::set<int32_t>& features) {
   std::string features_string;
   for (const auto& feature : features) {
     if (!features_string.empty()) {
       features_string += ",";
     }
-    features_string += base::NumberToString(static_cast<size_t>(feature));
+    features_string += base::NumberToString(feature);
   }
   return features_string;
 }
@@ -236,9 +238,9 @@ void UkmRecorderImpl::SetSamplingForTesting(int rate) {
   event_sampling_rates_.clear();
 }
 
-void UkmRecorderImpl::SetWebFeaturesSamplingForTesting(int rate) {
+void UkmRecorderImpl::SetWebDXFeaturesSamplingForTesting(int rate) {
   sampling_forced_for_testing_ = true;
-  web_features_sampling_ = rate;
+  webdx_features_sampling_ = rate;
 }
 
 bool UkmRecorderImpl::ShouldDropEntryForTesting(mojom::UkmEntry* entry) {
@@ -324,8 +326,8 @@ void UkmRecorderImpl::PurgeDataBySourceIds(
     return source_ids.count(event->source_id);
   });
 
-  std::map<SourceId, BitSet>& web_features = recordings_.web_features;
-  std::erase_if(web_features, [&](const auto& features) {
+  std::map<SourceId, BitSet>& webdx_features = recordings_.webdx_features;
+  std::erase_if(webdx_features, [&](const auto& features) {
     return source_ids.count(features.first);
   });
 }
@@ -386,6 +388,14 @@ void UkmRecorderImpl::OnUkmAllowedStateChanged(UkmConsentState state) {
   NotifyAllObservers(&UkmRecorderObserver::OnUkmAllowedStateChanged, state);
 }
 
+void UkmRecorderImpl::StoreWebDXFeaturesDownsamplingParameter(Report* report) {
+  Report::DownsamplingRate* rate = report->add_downsampling_rates();
+  // TODO(crbug.com/381251064): Consider populating all the other applied
+  // downsampling rates too.
+  rate->set_event_hash(base::HashMetricName(kWebFeatureSamplingKeyword));
+  rate->set_standard_rate(webdx_features_sampling_);
+}
+
 void UkmRecorderImpl::StoreRecordingsInReport(Report* report) {
   DVLOG(DebuggingLogLevel::Rare) << "StoreRecordingsInReport starts";
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -398,9 +408,9 @@ void UkmRecorderImpl::StoreRecordingsInReport(Report* report) {
     source_ids_seen.insert(entry->source_id);
   }
 
-  for (const auto& [source_id, features_set] : recordings_.web_features) {
+  for (const auto& [source_id, features_set] : recordings_.webdx_features) {
     HighLevelWebFeatures* features = report->add_web_features();
-    StoreWebFeaturesProto(source_id, features_set, features);
+    StoreWebDXFeaturesProto(source_id, features_set, features);
     source_ids_seen.insert(source_id);
   }
 
@@ -472,8 +482,8 @@ void UkmRecorderImpl::StoreRecordingsInReport(Report* report) {
                             num_serialized_sources);
   UMA_HISTOGRAM_COUNTS_100000("UKM.Entries.SerializedCount2",
                               num_serialized_entries);
-  UMA_HISTOGRAM_COUNTS_1000("UKM.WebFeatureSets.SerializedCount",
-                            recordings_.web_features.size());
+  UMA_HISTOGRAM_COUNTS_1000("UKM.WebDXFeatureSets.SerializedCount",
+                            recordings_.webdx_features.size());
   UMA_HISTOGRAM_COUNTS_1000("UKM.Sources.UnsentSourcesCount",
                             num_sources_unsent);
   UMA_HISTOGRAM_COUNTS_1000("UKM.Sources.UnmatchedSourcesCount",
@@ -526,7 +536,7 @@ void UkmRecorderImpl::StoreRecordingsInReport(Report* report) {
 
   recordings_.source_counts.Reset();
   recordings_.entries.clear();
-  recordings_.web_features.clear();
+  recordings_.webdx_features.clear();
   recordings_.event_aggregations.clear();
 
   report->set_is_continuous(recording_is_continuous_);
@@ -569,6 +579,10 @@ void UkmRecorderImpl::StoreRecordingsInReport(Report* report) {
   DVLOG(DebuggingLogLevel::Rare)
       << "StoreRecordingsInReport done [num_serialized_entries="
       << num_serialized_entries << "]";
+
+  StoreWebDXFeaturesDownsamplingParameter(report);
+  DVLOG(DebuggingLogLevel::Rare) << "# of downsampling parameters stored: "
+                                 << report->downsampling_rates().size();
 }
 
 int UkmRecorderImpl::PruneData(std::set<SourceId>& source_ids_seen) {
@@ -799,6 +813,7 @@ UkmConsentType UkmRecorderImpl::GetConsentType(SourceIdType type) {
     case SourceIdType::CHROMEOS_WEBSITE_ID:
     case SourceIdType::EXTENSION_ID:
     case SourceIdType::NOTIFICATION_ID:
+    case SourceIdType::CDM_ID:
       return UkmConsentType::MSBB;
   }
   return UkmConsentType::MSBB;
@@ -851,7 +866,8 @@ void UkmRecorderImpl::MaybeMarkForDeletion(SourceId source_id) {
     case ukm::SourceIdObj::Type::WEB_IDENTITY_ID:
     case ukm::SourceIdObj::Type::CHROMEOS_WEBSITE_ID:
     case ukm::SourceIdObj::Type::EXTENSION_ID:
-    case ukm::SourceIdObj::Type::NOTIFICATION_ID: {
+    case ukm::SourceIdObj::Type::NOTIFICATION_ID:
+    case ukm::SourceIdObj::Type::CDM_ID: {
       // Don't keep sources of these types after current report because their
       // entries are logged only at source creation time.
       MarkSourceForDeletion(source_id);
@@ -1055,28 +1071,31 @@ void UkmRecorderImpl::AddEntry(mojom::UkmEntryPtr entry) {
   recordings_.entries.push_back(std::move(entry));
 }
 
-void UkmRecorderImpl::RecordWebFeatures(
-    SourceId source_id,
-    const std::set<DummyWebFeatures>& features) {
+void UkmRecorderImpl::RecordWebDXFeatures(SourceId source_id,
+                                          const std::set<int32_t>& features,
+                                          size_t max_feature_value) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  // Sanity check that we don't have an unreasonably large max feature
+  // value. This isn't expected to grow much past 2000 for a long time.
+  DCHECK_LT(max_feature_value, 3000u);
 
   if (!recording_enabled()) {
-    RecordDroppedWebFeaturesSet(DroppedDataReason::RECORDING_DISABLED);
+    RecordDroppedWebDXFeaturesSet(DroppedDataReason::RECORDING_DISABLED);
     return;
   }
 
   const auto required_consent = GetConsentType(GetSourceIdType(source_id));
   if (!recording_enabled(required_consent)) {
     if (required_consent == UkmConsentType::MSBB) {
-      RecordDroppedWebFeaturesSet(DroppedDataReason::MSBB_CONSENT_DISABLED);
+      RecordDroppedWebDXFeaturesSet(DroppedDataReason::MSBB_CONSENT_DISABLED);
     } else if (required_consent == UkmConsentType::APPS) {
-      RecordDroppedWebFeaturesSet(DroppedDataReason::APPS_CONSENT_DISABLED);
+      RecordDroppedWebDXFeaturesSet(DroppedDataReason::APPS_CONSENT_DISABLED);
     }
     return;
   }
 
   if (!IsSamplingConfigured()) {
-    RecordDroppedWebFeaturesSet(DroppedDataReason::SAMPLING_UNCONFIGURED);
+    RecordDroppedWebDXFeaturesSet(DroppedDataReason::SAMPLING_UNCONFIGURED);
     return;
   }
 
@@ -1087,22 +1106,26 @@ void UkmRecorderImpl::RecordWebFeatures(
   // Note: the `event_id` passed is 0. The actual number doesn't really matter,
   // what matters is that we either record all features or no features at all
   // for a given source.
-  if (!IsSampledIn(source_id, /*event_id=*/0, web_features_sampling_)) {
-    RecordDroppedWebFeaturesSet(DroppedDataReason::SAMPLED_OUT);
+  if (!IsSampledIn(source_id, /*event_id=*/0, webdx_features_sampling_)) {
+    RecordDroppedWebDXFeaturesSet(DroppedDataReason::SAMPLED_OUT);
     return;
   }
 
-  // Create a bitset for `source_id` if there is not already one.
-  auto result = recordings_.web_features.try_emplace(
-      source_id, /*set_size=*/static_cast<size_t>(DummyWebFeatures::kMaxCount));
+  // Create a bitset for `source_id` if there is not already one. The size of
+  // the bitset is max_feature_value + 1 since 0 is included.
+  auto result = recordings_.webdx_features.try_emplace(
+      source_id,
+      /*set_size=*/max_feature_value + 1);
   BitSet& features_set = result.first->second;
+  CHECK_EQ(features_set.set_size(), max_feature_value + 1);
+
   for (const auto& feature : features) {
-    features_set.Add(static_cast<size_t>(feature));
+    features_set.Add(feature);
   }
 
   DVLOG(DebuggingLogLevel::Medium)
-      << "RecordWebFeatures: [source_id=" << source_id << " features={"
-      << WebFeaturesToStringForDebug(features) << "}]";
+      << "RecordWebDXFeatures: [source_id=" << source_id << " features={"
+      << WebDXFeaturesToStringForDebug(features) << "}]";
 }
 
 void UkmRecorderImpl::LoadExperimentSamplingInfo() {
@@ -1150,13 +1173,13 @@ void UkmRecorderImpl::LoadExperimentSamplingParams(
       continue;
     }
 
-    // Special string value used in the experiment configs for web features
+    // Special string value used in the experiment configs for webdx features
     // sampling.
-    if (event_name == "_web_features_sampling") {
+    if (event_name == kWebFeatureSamplingKeyword) {
       // Sampling rates must be non-negative integers.
       if (base::StringToInt(event_param, &sampling_rate) &&
           sampling_rate >= 0) {
-        web_features_sampling_ = sampling_rate;
+        webdx_features_sampling_ = sampling_rate;
       }
       continue;
     }
@@ -1219,10 +1242,8 @@ bool UkmRecorderImpl::IsSampledIn(int64_t source_id,
   // behavior. CRC32 is fast and statistically random enough for these
   // purposes.
   uint32_t sampled_num = sampling_seed_;
-  sampled_num =
-      base::Crc32(sampled_num, base::as_bytes(base::make_span(&source_id, 1u)));
-  sampled_num =
-      base::Crc32(sampled_num, base::as_bytes(base::make_span(&event_id, 1u)));
+  sampled_num = base::Crc32(sampled_num, base::byte_span_from_ref(source_id));
+  sampled_num = base::Crc32(sampled_num, base::byte_span_from_ref(event_id));
 
   return sampled_num % sampling_rate == 0;
 }

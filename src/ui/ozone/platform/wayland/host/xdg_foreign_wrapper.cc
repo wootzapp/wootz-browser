@@ -7,9 +7,11 @@
 #include <xdg-foreign-unstable-v1-client-protocol.h>
 #include <xdg-foreign-unstable-v2-client-protocol.h>
 
+#include <algorithm>
+
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 #include "ui/ozone/platform/wayland/host/wayland_window.h"
 #include "ui/platform_window/platform_window_init_properties.h"
@@ -105,9 +107,9 @@ class XdgForeignWrapperImpl
   void ExportSurfaceInternal(wl_surface* surface, OnHandleExported cb);
 
   void OnWindowRemoved(WaylandWindow* window) override {
-    auto it = base::ranges::find(
-        exported_surfaces_, window->root_surface()->surface(),
-        &ExportedSurface<ExportedType>::surface_for_export);
+    auto it =
+        std::ranges::find(exported_surfaces_, window->root_surface()->surface(),
+                          &ExportedSurface<ExportedType>::surface_for_export);
     if (it != exported_surfaces_.end())
       exported_surfaces_.erase(it);
   }
@@ -127,10 +129,11 @@ class XdgForeignWrapperImpl
         static_cast<XdgForeignWrapperImpl<ExporterType, ExportedType>*>(data);
     DCHECK(self);
 
-    auto exported_surface_it = base::ranges::find(
-        self->exported_surfaces_, exported,
-        [](const auto& item) { return item.exported.get(); });
-    DCHECK(exported_surface_it != self->exported_surfaces_.end());
+    auto exported_surface_it =
+        std::ranges::find(self->exported_surfaces_, exported,
+                          [](const auto& item) { return item.exported.get(); });
+    CHECK(exported_surface_it != self->exported_surfaces_.end(),
+          base::NotFatalUntil::M130);
     exported_surface_it->exported_handle = handle;
 
     for (auto& cb : exported_surface_it->callbacks) {
@@ -195,7 +198,7 @@ void XdgForeignWrapper::Instantiate(WaylandConnection* connection,
     connection->xdg_foreign_ = CreateWrapper<zxdg_exporter_v2>(
         connection, registry, name, kMinVersion);
   } else {
-    NOTREACHED_IN_MIGRATION() << " unexpected interface name: " << interface;
+    NOTREACHED() << " unexpected interface name: " << interface;
   }
 }
 

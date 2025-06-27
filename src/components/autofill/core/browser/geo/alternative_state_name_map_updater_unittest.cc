@@ -13,13 +13,13 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/country_type.h"
+#include "components/autofill/core/browser/data_manager/addresses/test_address_data_manager.h"
+#include "components/autofill/core/browser/foundations/test_autofill_client.h"
 #include "components/autofill/core/browser/geo/alternative_state_name_map.h"
 #include "components/autofill/core/browser/geo/alternative_state_name_map_test_utils.h"
 #include "components/autofill/core/browser/geo/mock_alternative_state_name_map_updater.h"
-#include "components/autofill/core/browser/test_address_data_manager.h"
-#include "components/autofill/core/browser/test_autofill_client.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_prefs.h"
@@ -60,10 +60,10 @@ class AlternativeStateNameMapUpdaterTest : public ::testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_;
   TestAutofillClient autofill_client_;
+  TestAddressDataManager address_data_manager_;
   std::unique_ptr<AlternativeStateNameMapUpdater>
       alternative_state_name_map_updater_;
   base::ScopedTempDir data_install_dir_;
-  TestAddressDataManager address_data_manager_;
 };
 
 // Tests that the states data is added to AlternativeStateNameMap.

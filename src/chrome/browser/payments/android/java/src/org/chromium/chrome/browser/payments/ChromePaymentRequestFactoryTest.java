@@ -19,7 +19,6 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.JUnitProcessor;
 import org.chromium.chrome.browser.payments.test_support.ShadowProfile;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.payments.InvalidPaymentRequest;
@@ -39,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
         shadows = {ShadowWebContentsStatics.class, ShadowProfile.class})
 public class ChromePaymentRequestFactoryTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.LENIENT);
-    @Rule public JUnitProcessor mFeaturesProcessor = new JUnitProcessor();
 
     @Mock RenderFrameHost mRenderFrameHost;
     @Mock WebContents mWebContents;
@@ -94,7 +92,7 @@ public class ChromePaymentRequestFactoryTest {
                 .terminateRendererDueToBadMessage(Mockito.anyInt());
         Assert.assertNull(createFactory(mRenderFrameHost).createImpl());
         // 241 == PAYMENTS_WITHOUT_PERMISSION.
-        Assert.assertEquals(isKilledReason.get(), 241);
+        Assert.assertEquals(241, isKilledReason.get());
     }
 
     @Test

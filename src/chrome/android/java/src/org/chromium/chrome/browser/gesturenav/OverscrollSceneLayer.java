@@ -46,10 +46,11 @@ class OverscrollSceneLayer extends SceneOverlayLayer {
 
     /**
      * Send down the swipe offset to update animation for overscroll effect.
+     *
      * @param resourceManager An object for accessing static and dynamic resources.
      * @param offset Swipe offset from touch events.
-     * @return {@code true} if the animation is still in progress; {@code false} if the animation
-     *         is completed.
+     * @return {@code true} if the animation is still in progress; {@code false} if the animation is
+     *     completed.
      */
     boolean update(ResourceManager resourceManager, float offset) {
         float xDelta = -(offset - mAccumulatedScroll);

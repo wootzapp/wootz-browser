@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/modules/direct_sockets/tcp_readable_stream_wrapper.h"
 
+#include "base/containers/span.h"
 #include "base/functional/callback_helpers.h"
 #include "base/test/mock_callback.h"
 #include "net/base/net_errors.h"
@@ -11,6 +12,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_tester.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_readable_stream_read_result.h"
 #include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/modules/direct_sockets/stream_wrapper.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
@@ -52,7 +54,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
     stream_wrapper_ = MakeGarbageCollected<TCPReadableStreamWrapper>(
         script_state,
         WTF::BindOnce(&StreamCreator::Close, WrapWeakPersistent(this)),
-        std::move(data_pipe_consumer));
+        std::move(data_pipe_consumer), /*inspector_id=*/0);
 
     scope.PerformMicrotaskCheckpoint();
     test::RunPendingTasks();
@@ -63,11 +65,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
   void ResetPipe() { data_pipe_producer_.reset(); }
 
   void WriteToPipe(Vector<uint8_t> data) {
-    size_t num_bytes = data.size();
-    EXPECT_EQ(data_pipe_producer_->WriteData(data.data(), &num_bytes,
-                                             MOJO_WRITE_DATA_FLAG_ALL_OR_NONE),
-              MOJO_RESULT_OK);
-    EXPECT_EQ(num_bytes, data.size());
+    EXPECT_EQ(data_pipe_producer_->WriteAllData(data), MOJO_RESULT_OK);
   }
 
   // Copies the contents of a v8::Value containing a Uint8Array to a Vector.
@@ -82,8 +80,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
       ADD_FAILURE() << "chunk is not an Uint8Array";
       return ret;
     }
-    ret.Append(static_cast<uint8_t*>(value->Data()),
-               static_cast<wtf_size_t>(value->byteLength()));
+    ret.AppendSpan(value->ByteSpan());
     return ret;
   }
 
@@ -97,8 +94,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
   // static Iterator Read(const V8TestingScope& scope,
   Iterator Read(V8TestingScope& scope, ReadableStreamDefaultReader* reader) {
     auto* script_state = scope.GetScriptState();
-    ScriptPromiseUntyped read_promise =
-        reader->read(script_state, ASSERT_NO_EXCEPTION);
+    auto read_promise = reader->read(script_state, ASSERT_NO_EXCEPTION);
     ScriptPromiseTester tester(script_state, read_promise);
     tester.WaitUntilSettled();
     EXPECT_TRUE(tester.IsFulfilled());
@@ -132,7 +128,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
   void Cleanup() { data_pipe_producer_.reset(); }
 
  private:
-  void Close(ScriptValue exception) {
+  void Close(v8::Local<v8::Value> exception, int net_error) {
     close_called_with_ = !exception.IsEmpty();
   }
 
@@ -193,8 +189,7 @@ TEST(TCPReadableStreamWrapperTest, WriteToPipeWithPendingRead) {
   auto* reader =
       tcp_readable_stream_wrapper->Readable()->GetDefaultReaderForTesting(
           script_state, ASSERT_NO_EXCEPTION);
-  ScriptPromiseUntyped read_promise =
-      reader->read(script_state, ASSERT_NO_EXCEPTION);
+  auto read_promise = reader->read(script_state, ASSERT_NO_EXCEPTION);
   ScriptPromiseTester tester(script_state, read_promise);
 
   stream_creator->WriteToPipe({'A'});
@@ -226,8 +221,7 @@ TEST_P(TCPReadableStreamWrapperCloseTest, TriggerClose) {
   auto* reader =
       tcp_readable_stream_wrapper->Readable()->GetDefaultReaderForTesting(
           script_state, ASSERT_NO_EXCEPTION);
-  ScriptPromiseUntyped read_promise =
-      reader->read(script_state, ASSERT_NO_EXCEPTION);
+  auto read_promise = reader->read(script_state, ASSERT_NO_EXCEPTION);
   ScriptPromiseTester tester(script_state, read_promise);
 
   stream_creator->WriteToPipe({'A'});
@@ -261,8 +255,7 @@ TEST_P(TCPReadableStreamWrapperCloseTest, TriggerCloseInReverseOrder) {
   auto* reader =
       tcp_readable_stream_wrapper->Readable()->GetDefaultReaderForTesting(
           script_state, ASSERT_NO_EXCEPTION);
-  ScriptPromiseUntyped read_promise =
-      reader->read(script_state, ASSERT_NO_EXCEPTION);
+  auto read_promise = reader->read(script_state, ASSERT_NO_EXCEPTION);
   ScriptPromiseTester tester(script_state, read_promise);
 
   stream_creator->WriteToPipe({'A'});

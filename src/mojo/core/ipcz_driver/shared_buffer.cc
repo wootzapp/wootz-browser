@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/core/ipcz_driver/shared_buffer.h"
 
+#include <array>
 #include <cstdint>
 #include <utility>
 
@@ -142,7 +148,7 @@ scoped_refptr<SharedBuffer> SharedBuffer::CreateForMojoWrapper(
     return nullptr;
   }
 
-  PlatformHandle handles[2];
+  std::array<PlatformHandle, 2> handles;
   for (size_t i = 0; i < mojo_platform_handles.size(); ++i) {
     handles[i] =
         PlatformHandle::FromMojoPlatformHandle(&mojo_platform_handles[i]);

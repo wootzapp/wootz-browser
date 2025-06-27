@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -16,11 +17,11 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
+#include "build/android_buildflags.h"
 #include "build/build_config.h"
 #include "content/browser/renderer_host/media/fake_video_capture_provider.h"
 #include "content/browser/renderer_host/media/in_process_video_capture_provider.h"
@@ -29,19 +30,23 @@
 #include "content/browser/renderer_host/media/video_capture_provider_switcher.h"
 #include "content/browser/screenlock_monitor/screenlock_monitor.h"
 #include "content/browser/screenlock_monitor/screenlock_monitor_source.h"
-#include "content/common/buildflags.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/desktop_media_id.h"
+#include "content/public/common/buildflags.h"
 #include "content/public/common/content_client.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_browser_context.h"
 #include "media/base/media_switches.h"
 #include "media/capture/video/fake_video_capture_device_factory.h"
 #include "media/capture/video/video_capture_system_impl.h"
-#include "services/video_effects/public/mojom/video_effects_processor.mojom-forward.h"
+#include "services/video_effects/public/cpp/buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
+
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
+#include "services/video_effects/public/mojom/video_effects_processor.mojom-forward.h"
+#endif
 
 using ::testing::_;
 using ::testing::AnyNumber;
@@ -151,7 +156,7 @@ class WrappedDeviceFactory final : public media::FakeVideoCaptureDeviceFactory {
   void OnDeviceCreated(WrappedDevice* device) { devices_.push_back(device); }
 
   void OnDeviceDestroyed(WrappedDevice* device) {
-    const auto it = base::ranges::find(devices_, device);
+    const auto it = std::ranges::find(devices_, device);
     CHECK(it != devices_.end());
     devices_.erase(it);
   }
@@ -231,14 +236,14 @@ class ScreenlockMonitorTestSource : public ScreenlockMonitorSource {
   }
 };
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
 class MockBrowserClient : public content::ContentBrowserClient {
  public:
   MOCK_METHOD(void,
-              BindVideoEffectsManager,
+              BindReadonlyVideoEffectsManager,
               (const std::string& device_id,
                content::BrowserContext* browser_context,
-               mojo::PendingReceiver<media::mojom::VideoEffectsManager>
+               mojo::PendingReceiver<media::mojom::ReadonlyVideoEffectsManager>
                    video_effects_manager),
               (override));
 
@@ -251,7 +256,7 @@ class MockBrowserClient : public content::ContentBrowserClient {
            video_effects_processor),
       (override));
 };
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // BUILDFLAG(ENABLE_VIDEO_EFFECTS)
 
 }  // namespace
 
@@ -296,9 +301,9 @@ class VideoCaptureManagerTest : public testing::Test {
 
  protected:
   void SetUp() override {
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
     content::SetBrowserClientForTesting(&browser_client_);
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif
     listener_ = std::make_unique<MockMediaStreamProviderListener>();
     auto video_capture_device_factory =
         std::make_unique<WrappedDeviceFactory>();
@@ -359,7 +364,7 @@ class VideoCaptureManagerTest : public testing::Test {
 
     VideoCaptureControllerID client_id = base::UnguessableToken::Create();
     vcm_->ConnectClient(
-        session_id, params, client_id, frame_observer_.get(),
+        session_id, params, client_id, frame_observer_.get(), std::nullopt,
         base::BindOnce(&VideoCaptureManagerTest::OnGotControllerCallback,
                        base::Unretained(this), client_id, expect_success),
         /*browser_context=*/&browser_context_);
@@ -395,7 +400,7 @@ class VideoCaptureManagerTest : public testing::Test {
     base::RunLoop().RunUntilIdle();
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_DESKTOP_ANDROID)
   void ApplicationStateChange(base::android::ApplicationState state) {
     vcm_->OnApplicationStateChange(state);
   }
@@ -404,25 +409,28 @@ class VideoCaptureManagerTest : public testing::Test {
   BrowserTaskEnvironment task_environment_;
   raw_ptr<ScreenlockMonitorTestSource> screenlock_monitor_source_;
   std::unique_ptr<ScreenlockMonitor> screenlock_monitor_;
-  std::map<VideoCaptureControllerID, VideoCaptureController*> controllers_;
+  std::map<VideoCaptureControllerID,
+           raw_ptr<VideoCaptureController, CtnExperimental>>
+      controllers_;
   scoped_refptr<VideoCaptureManager> vcm_;
   std::unique_ptr<MockMediaStreamProviderListener> listener_;
   std::unique_ptr<MockFrameObserver> frame_observer_;
   raw_ptr<WrappedDeviceFactory> video_capture_device_factory_;
   blink::MediaStreamDevices devices_;
   content::TestBrowserContext browser_context_;
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
   MockBrowserClient browser_client_;
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif
 };
 
 // Test cases
 
 // Try to open, start, stop and close a device.
 TEST_F(VideoCaptureManagerTest, CreateAndClose) {
-#if !BUILDFLAG(IS_ANDROID)
-  EXPECT_CALL(browser_client_, BindVideoEffectsManager(_, _, _)).Times(0);
-#endif  // !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
+  EXPECT_CALL(browser_client_, BindReadonlyVideoEffectsManager(_, _, _))
+      .Times(0);
+#endif
   InSequence s;
   EXPECT_CALL(*listener_,
               Opened(blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE, _));
@@ -441,12 +449,12 @@ TEST_F(VideoCaptureManagerTest, CreateAndClose) {
   vcm_->UnregisterListener(listener_.get());
 }
 
-#if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
+#if BUILDFLAG(ENABLE_VIDEO_EFFECTS)
 // Try to start and stop a device with an effects processor
 TEST_F(VideoCaptureManagerTest, CreateWithVideoEffectsProcessor) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(media::kCameraMicEffects);
-  mojo::PendingReceiver<media::mojom::VideoEffectsManager> receiver;
+  mojo::PendingReceiver<media::mojom::ReadonlyVideoEffectsManager> receiver;
   EXPECT_CALL(browser_client_, BindVideoEffectsProcessor(devices_.front().id,
                                                          &browser_context_, _))
       .Times(1);
@@ -455,8 +463,7 @@ TEST_F(VideoCaptureManagerTest, CreateWithVideoEffectsProcessor) {
   auto client_id = StartClient(video_session_id, true);
   StopClient(client_id);
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID) &&
-        // !BUILDFLAG(IS_FUCHSIA)
+#endif  // BUILDFLAG(ENABLE_VIDEO_EFFECTS)
 
 TEST_F(VideoCaptureManagerTest, CreateAndCloseMultipleTimes) {
   InSequence s;
@@ -897,16 +904,19 @@ TEST_F(VideoCaptureManagerTest, PauseAndResumeClient) {
   // Test pause/resume when only one client is present.
   EXPECT_CALL(*video_capture_device_factory_, WillSuspendDevice()).Times(1);
   PauseClient(client_id);
-  EXPECT_CALL(*video_capture_device_factory_, WillResumeDevice()).Times(1);
+  EXPECT_CALL(*video_capture_device_factory_, WillResumeDevice()).Times(2);
   ResumeClient(video_session_id, client_id);
 
-  // Attempting to resume the client a second time should not cause any calls to
-  // VideoCaptureDevice::Resume().
+  // Attempting to resume the same client a second time should not cause any
+  // calls to VideoCaptureDevice::Resume() because VideoCaptureManager will
+  // not attempt to resume the device if the client is not paused.
   ResumeClient(video_session_id, client_id);
 
   // Add a second client that is never paused, then pause/resume the first
-  // client, and no calls to VideoCaptureDevice::MaybeSuspend() or Resume() are
-  // made.
+  // client, and no calls to VideoCaptureDevice::MaybeSuspend() is made.
+  // However, a call to VideoCaptureDevice::Resume() is still made because
+  // VideoCaptureManager will attempt to resume the device if the client is
+  // paused.
   EXPECT_CALL(*frame_observer_, OnStarted(_));
   const VideoCaptureControllerID client_id2 =
       StartClient(video_session_id, true);
@@ -925,7 +935,7 @@ TEST_F(VideoCaptureManagerTest, PauseAndResumeClient) {
   vcm_->UnregisterListener(listener_.get());
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_DESKTOP_ANDROID)
 // Try to open, start, pause and resume a device.
 TEST_F(VideoCaptureManagerTest, PauseAndResumeDevice) {
   InSequence s;
@@ -958,7 +968,7 @@ TEST_F(VideoCaptureManagerTest, PauseAndResumeDevice) {
   base::RunLoop().RunUntilIdle();
   vcm_->UnregisterListener(listener_.get());
 }
-#else
+#elif !BUILDFLAG(IS_DESKTOP_ANDROID)
 TEST_F(VideoCaptureManagerTest, PauseAndResumeDeviceOnScreenLock) {
   vcm_->set_idle_close_timeout_for_testing(base::TimeDelta());
 

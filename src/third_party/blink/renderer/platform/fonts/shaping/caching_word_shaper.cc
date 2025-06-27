@@ -103,10 +103,10 @@ int CachingWordShaper::OffsetForPosition(
   return buffer.OffsetForPosition(run, target_x, partial_glyphs, break_glyphs);
 }
 
-void CachingWordShaper::FillResultBuffer(const TextRunPaintInfo& run_info,
+void CachingWordShaper::FillResultBuffer(const TextRun& run,
                                          ShapeResultBuffer* buffer) {
   DCHECK(buffer);
-  ShapeResultsForRun(GetShapeCache(), &font_, run_info.run, buffer);
+  ShapeResultsForRun(GetShapeCache(), &font_, run, buffer);
 }
 
 CharacterRange CachingWordShaper::GetCharacterRange(const TextRun& run,
@@ -117,14 +117,6 @@ CharacterRange CachingWordShaper::GetCharacterRange(const TextRun& run,
 
   return buffer.GetCharacterRange(run.ToStringView(), run.Direction(),
                                   total_width, from, to);
-}
-
-Vector<double> CachingWordShaper::IndividualCharacterAdvances(
-    const TextRun& run) {
-  ShapeResultBuffer buffer;
-  float total_width = ShapeResultsForRun(GetShapeCache(), &font_, run, &buffer);
-  return buffer.IndividualCharacterAdvances(run.ToStringView(), run.Direction(),
-                                            total_width);
 }
 
 HeapVector<ShapeResult::RunFontData> CachingWordShaper::GetRunFontData(

@@ -808,7 +808,7 @@ TEST(ElementTrackerTest, HideDuringShowCallbackMultipleListeners) {
           ->AddElementShownInAnyContextCallback(
               e1.identifier(),
               base::BindLambdaForTesting(
-                  [&](TrackedElement* element) { NOTREACHED_IN_MIGRATION(); }));
+                  [&](TrackedElement* element) { NOTREACHED(); }));
   e1.Show();
   EXPECT_TRUE(called1);
   EXPECT_TRUE(called2);
@@ -921,6 +921,16 @@ TEST(SafeElementReferenceTest, ElementHidden) {
   EXPECT_FALSE(ref);
   EXPECT_TRUE(!ref);
   EXPECT_EQ(nullptr, ref.get());
+}
+
+TEST(SafeElementReferenceTest, GetAs) {
+  test::TestElement e1(kElementIdentifier1, kElementContext1);
+  e1.Show();
+  SafeElementReference ref(&e1);
+  EXPECT_EQ(&e1, ref.get_as<test::TestElement>());
+  EXPECT_EQ(nullptr, ref.get_as<test::TestElementOtherFramework>());
+  e1.Hide();
+  EXPECT_EQ(nullptr, ref.get_as<test::TestElement>());
 }
 
 TEST(SafeElementReferenceTest, MoveConstructor) {

@@ -38,15 +38,13 @@ void SensitivityPersistedTabDataAndroid::From(
     TabAndroid* tab_android,
     PersistedTabDataAndroid::FromCallback from_callback) {
   PersistedTabDataAndroid::From(
-      tab_android->GetWeakPtr(),
+      tab_android->GetTabAndroidWeakPtr(),
       SensitivityPersistedTabDataAndroid::UserDataKey(),
-      base::BindOnce(
-          [](TabAndroid* tab_android)
-              -> std::unique_ptr<PersistedTabDataAndroid> {
-            return std::make_unique<SensitivityPersistedTabDataAndroid>(
-                tab_android);
-          },
-          tab_android),
+      base::BindOnce([](TabAndroid* tab_android)
+                         -> std::unique_ptr<PersistedTabDataAndroid> {
+        return std::make_unique<SensitivityPersistedTabDataAndroid>(
+            tab_android);
+      }),
       std::move(from_callback));
 }
 
@@ -55,8 +53,8 @@ SensitivityPersistedTabDataAndroid::Serialize() {
   sensitivity::SensitivityData sensitivity_data;
   sensitivity_data.set_is_sensitive(is_sensitive_);
   std::unique_ptr<std::vector<uint8_t>> data =
-      std::make_unique<std::vector<uint8_t>>(sensitivity_data.ByteSize());
-  sensitivity_data.SerializeToArray(data->data(), sensitivity_data.ByteSize());
+      std::make_unique<std::vector<uint8_t>>(sensitivity_data.ByteSizeLong());
+  sensitivity_data.SerializeToArray(data->data(), data->size());
   return data;
 }
 

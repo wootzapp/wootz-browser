@@ -153,9 +153,11 @@ The following extensions are not included in
 useful for you as well:
 
 ```bash
-$ echo "wmaurer.change-case shd101wyy.markdown-preview-enhanced Gruntfuggly.todo-tree alefragnani.Bookmarks spmeesseman.vscode-taskexplorer streetsidesoftware.code-spell-checker george-alisson.html-preview-vscode anseki.vscode-color" | xargs -n 1 code --force --install-extension
+$ echo "ryu1kn.annotator wmaurer.change-case shd101wyy.markdown-preview-enhanced Gruntfuggly.todo-tree alefragnani.Bookmarks spmeesseman.vscode-taskexplorer streetsidesoftware.code-spell-checker george-alisson.html-preview-vscode anseki.vscode-color" | xargs -n 1 code --force --install-extension
 ```
 
+*   [**Annotator**](https://marketplace.visualstudio.com/items?itemName=ryu1kn.annotator) -
+    Display git blame info along with your code. Can open the diff of a particular commit from there.
 *   [**change-case**](https://marketplace.visualstudio.com/items?itemName=wmaurer.change-case) -
     Quickly change the case of the current selection or current word.
 *   [**Markdown Preview Enhanced**](https://marketplace.visualstudio.com/items?itemName=shd101wyy.markdown-preview-enhanced) -
@@ -236,61 +238,97 @@ Note: See also [Key Bindings for Visual Studio Code
 
 ### Java/Android Support
 
-Follow these steps to get full IDE support (outline, autocompletion, jump to
-definition including automatic decompilation of prebuilts, real-time reporting
-of compile errors/warnings, Javadocs, etc.) when editing `.java` files in
-Chromium:
+There are two extensions you can use to get Java/Android support in VSCode:
+
+*   a. [ChromiumIDE](https://marketplace.visualstudio.com/items?itemName=Google.cros-ide)
+*   b. [Language Support for Java™ by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.java)
+
+ChromiumIDE is much faster and more stable than the other extension, mainly
+because it does not rely on background indexing and persistent cache. It works
+without manually running scripts from the command line as the extension knows
+how to extract build configurations from GN. On the other hand, its features are
+limited compared to the other extension (e.g. debugger is not supported yet).
+
+Language Support for Java™ by Red Hat has more features as it is based on the
+Eclipse JDT Language Server. But it is known to be very slow (it takes tens of
+minutes to index the whole project in a single thread before serving requests
+from VSCode) and less stable (it often gets confused when you sync the source
+checkout, forcing you to clear the cache and wait indexing again).
+
+#### a. ChromiumIDE
+
+Install the latest **pre-release** version of
+[ChromiumIDE](https://marketplace.visualstudio.com/items?itemName=Google.cros-ide)
+from the VSCode marketplace. Make sure the extension version is **0.35.32** or
+later.
+
+Then just open a VSCode workspace containing Chromium source tree (opening
+subdirectories is fine) and open a Java file. If you haven't, you're prompted to
+select the default build output directory (e.g. `out/Default`).
+
+#### b. Language Support for Java™ by Red Hat
 
 1. **Add the following to your VS Code workspace `settings.json`:**
-    * `"java.import.gradle.enabled": false`
-      `"java.import.maven.enabled": false`
-      This will prevent the language server from attempting to build *all*
-      Gradle and Maven projects that can be found anywhere in the Chromium
-      source tree, which typically results in hilarity.
-    * `"java.jdt.ls.java.home": "<< ABSOLUTE PATH TO YOUR WORKING COPY OF CHROMIUM >>/src/third_party/jdk/current"`
-      This one is optional but reduces the likelihood of problems by making sure
-      the language server uses the same JDK as the Chromium build system (as
-      opposed to some random JDK from your host system).
+
+   ```
+   "java.import.gradle.enabled": false,
+   "java.import.maven.enabled": false
+   ```
+
+   This will prevent the language server from attempting to build *all* Gradle
+   and Maven projects that can be found anywhere in the Chromium source tree,
+   which typically results in hilarity.
+
+   ```
+   "java.jdt.ls.java.home": "<< ABSOLUTE PATH TO YOUR WORKING COPY OF CHROMIUM >>/src/third_party/jdk/current"
+   ```
+
+   This one is optional but reduces the likelihood of problems by making sure
+   the language server uses the same JDK as the Chromium build system (as
+   opposed to some random JDK from your host system).
+
+   Also increase the resources available to the Java Language Server, for
+   example:
+
+   ```
+   "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx64G -Xms100m -Xlog:disable"
+   ```
+
 2. **Install the
    [*Language Support for Java™ by Red Hat*](https://marketplace.visualstudio.com/items?itemName=redhat.java)
    extension.**
    You do not need any other extension.
-3. In the VS Code explorer (left-hand pane) **right-click on a folder (any folder)
-   and click *Add Folder to Java Source Path***.
-   This is just one way to force the extension to generate an internal build
-   project for the language server. The specific folder doesn't matter because
-   the source path configuration will be overwritten in step 6.
-4. **Wait for the *Successfully added '...' to the project src_...'s source
-   path* pop-up notification to appear**.
-   Note that this can take some time (1-2 minutes), during which VS Code seems
-   to be idle.
-5. **Build your code** in the usual way (i.e. using gn and ninja commands).
+3. **Build your code** in the usual way (i.e. using gn and ninja commands).
    This will produce build config files that are necessary for the next step. It
    will also make autogenerated code visible to the language server.
-6. **Generate the `.classpath` file** for the internal build project by running
-   `build/android/generate_vscode_classpath.py` with the appropriate arguments
-   from the root of your VS Code workspace folder.
-   For example, if your VS Code workspace is rooted in `src`, your build
-   output directory is `out/Debug-x86` and your build target is
-   `//components/cronet/android:cronet_javatests`, run:
-   `build/android/generate_vscode_classpath.py --output-dir out/Debug-x86 --build-config gen/components/cronet/android/cronet_javatests.build_config.json > ~/.vscode*/data/User/workspaceStorage/*/redhat.java/jdt_ws/.metadata/.plugins/org.eclipse.core.resources/.projects/src_*/.classpath`
-7. **Reload** your VS Code window.
-8. **Open a Java source file then wait a couple of minutes** for the language
+4. **Generate the Eclipse JDT project** by running
+   `build/android/generate_vscode_project.py` from the `src` directory.
+   For example, if your build output directory is `out/Debug-x86` and your build
+   target is `//chrome/android:chrome_java`, run:
+   `build/android/generate_vscode_project.py --output-dir out/Debug-x86 --build-config gen/chrome/android/chrome_java.build_config.json`.
+   This will create `.project` and `.classpath` in the `src` directory.
+5. **Reload** your VS Code window to let it start importing the generated
+   project.
+6. **Open a Java source file then wait a couple of minutes** for the language
    server to build the project.
-9. **Done!** You should now have full Java language support for any `.java` file
+7. **Done!** You should now have full Java language support for any `.java` file
    that is included in the build.
 
-*** note
-**Warning:** do not attempt to change the extension's source path settings, as
-that risks overwriting the generated `.classpath` file.
-***
-
-#### Known issues
+##### Known issues
 
 * Errors related to `GEN_JNI` are caused by the language server (rightfully)
   getting confused about multiple definitions of the
   [autogenerated](/third_party/jni_zero/README.md) `GEN_JNI` class. This
   is a known quirk of the JNI generator.
+
+##### Troubleshooting
+
+* If you have used the previous instructions to use
+  `generate_vscode_classpath.py` or you think something went wrong, try clearing
+  the internal state of the language server by executing
+  `Java: Clean Java Language Server Workspace` from the command palette. This
+  will force the language server to rebuild its internal workspace by importing
+  the generated Eclipse JDT project.
 
 #### Automatic formatting
 
@@ -343,7 +381,7 @@ extensions and perform customization.
 As described in the [Useful Extensions](#useful-extensions) sections, there are
 essential extensions to help Chromium development. Follow the steps below:
 
-1. In VS Code's Command Palette (`Ctrl+P`, or `Cmd+Shift+P` in macOS),
+1. In VS Code's Command Palette (`Ctrl+Shift+P`, or `Cmd+Shift+P` in macOS),
    type `Show Recommended Extensions`, and press `Enter`.
 2. In the WORKSPACE RECOMMENDATIONS section of the EXTENSIONS sidebar, click the
    `Install Workspace Recommended Extensions` (shown as a cloud icon).

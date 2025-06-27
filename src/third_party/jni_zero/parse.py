@@ -8,6 +8,7 @@ from typing import List
 from typing import Optional
 
 import java_types
+import common
 
 _MODIFIER_KEYWORDS = (r'(?:(?:' + '|'.join([
     'abstract',
@@ -105,13 +106,13 @@ _GENERICS_REGEX = re.compile(r'<[^<>\n]*>(?!>*")')
 def _remove_generics(value):
   """Strips Java generics from a string."""
   while True:
-    ret = _GENERICS_REGEX.sub('', value)
+    ret = _GENERICS_REGEX.sub(' ', value)
     if len(ret) == len(value):
       return ret
     value = ret
 
 
-_PACKAGE_REGEX = re.compile('^package\s+(\S+?);', flags=re.MULTILINE)
+_PACKAGE_REGEX = re.compile(r'^package\s+(\S+?);', flags=re.MULTILINE)
 
 
 def _parse_package(contents):
@@ -132,6 +133,7 @@ _CLASSES_REGEX = re.compile(
 def _parse_java_classes(contents):
   package = _parse_package(contents).replace('.', '/')
   outer_class = None
+  null_marked = False
   nested_classes = []
   for m in _CLASSES_REGEX.finditer(contents):
     preamble, class_name = m.groups()
@@ -140,54 +142,77 @@ def _parse_java_classes(contents):
       continue
     if outer_class is None:
       outer_class = java_types.JavaClass(f'{package}/{class_name}')
+      null_marked = contents.find('@NullMarked', 0, m.start(2)) != -1
     else:
       nested_classes.append(outer_class.make_nested(class_name))
 
   if outer_class is None:
     raise ParseError('No classes found.')
 
-  return outer_class, nested_classes
+  return outer_class, nested_classes, null_marked
 
 
 _ANNOTATION_REGEX = re.compile(
-    r'@(?P<annotation_name>[\w.]+)(?P<annotation_args>\(\s*(?:[^)]+)\s*\))?\s*')
+    r'@(?P<annotation_name>[\w.]+)(?P<annotation_args>\([^)]+\))?\s*')
 # Only supports ("foo")
 _ANNOTATION_ARGS_REGEX = re.compile(
     r'\(\s*"(?P<annotation_value>[^"]*?)"\s*\)\s*')
 
 def _parse_annotations(value):
   annotations = {}
-  last_idx = 0
   for m in _ANNOTATION_REGEX.finditer(value):
     string_value = ''
     if match_args := m.group('annotation_args'):
       if match_arg_value := _ANNOTATION_ARGS_REGEX.match(match_args):
         string_value = match_arg_value.group('annotation_value')
     annotations[m.group('annotation_name')] = string_value
-    last_idx = m.end()
 
-  return annotations, value[last_idx:]
+  # Use replace rather than tracking end index to handle:
+  # "OuterClass.@Nullable InnerClass"
+  return annotations, _ANNOTATION_REGEX.sub('', value)
 
 
 def _parse_type(type_resolver, value):
   """Parses a string into a JavaType."""
-  annotations, value = _parse_annotations(value)
+  annotations, parsed_value = _parse_annotations(value)
   array_dimensions = 0
-  while value[-2:] == '[]':
+  while parsed_value[-2:] == '[]':
     array_dimensions += 1
-    value = value[:-2]
+    # strip to remove possible spaces between type and [].
+    parsed_value = parsed_value[:-2].strip()
 
-  if value in java_types.PRIMITIVES:
-    primitive_name = value
+  if parsed_value in java_types.PRIMITIVES:
+    primitive_name = parsed_value
     java_class = None
   else:
     primitive_name = None
-    java_class = type_resolver.resolve(value)
+    java_class = type_resolver.resolve(parsed_value)
+
+  converted_type = annotations.get('JniType', None)
+  if converted_type == 'std::vector':
+    # Allow "std::vector" as shorthand for types that can be inferred:
+    if array_dimensions == 1 and primitive_name:
+      # e.g.: std::vector<jint>
+      converted_type += f'<j{primitive_name}>'
+    elif array_dimensions > 0 or java_class in java_types.COLLECTION_CLASSES:
+      # std::vector<jni_zero::ScopedJavaLocalRef<jobject>>
+      converted_type += '<jni_zero::ScopedJavaLocalRef<jobject>>'
+    else:
+      raise ParseError('Found non-templatized @JniType("std::vector") on '
+                       'non-array, non-List type: ' + value)
+
+  if primitive_name and array_dimensions == 0:
+    nullable = False
+  elif type_resolver.null_marked:
+    nullable = annotations.get('Nullable') is not None
+  else:
+    nullable = annotations.get('NonNull') is None
 
   return java_types.JavaType(array_dimensions=array_dimensions,
                              primitive_name=primitive_name,
                              java_class=java_class,
-                             annotations=annotations)
+                             converted_type=converted_type,
+                             nullable=nullable)
 
 
 _FINAL_REGEX = re.compile(r'\bfinal\s')
@@ -198,7 +223,19 @@ def _parse_param_list(type_resolver, value) -> java_types.JavaParamList:
     return java_types.EMPTY_PARAM_LIST
   params = []
   value = _FINAL_REGEX.sub('', value)
+  pending = ''
   for param_str in value.split(','):
+    # Combine multiple entries when , is in an annotation.
+    # E.g.: @JniType("std::map<std::string, std::string>") Map arg0
+    if pending:
+      pending += ',' + param_str
+      if '"' not in param_str:
+        continue
+      param_str = pending
+      pending = ''
+    elif param_str.count('"') == 1:
+      pending = param_str
+      continue
     param_str = param_str.strip()
     param_str, _, param_name = param_str.rpartition(' ')
     param_str = param_str.rstrip()
@@ -261,13 +298,13 @@ _NON_PROXY_NATIVES_REGEX = re.compile(
     r'\(\"(?P<native_class_name>\S*?)\"\)\s+)?'
     r'(?P<qualifiers>\w+\s\w+|\w+|\s+)\s*native\s+'
     r'(?P<return_type>\S*)\s+'
-    r'(?P<name>native\w+)\((?P<params>.*?)\);', re.DOTALL)
+    r'native(?P<name>\w+)\((?P<params>.*?)\);', re.DOTALL)
 
 
 def _parse_non_proxy_natives(type_resolver, contents):
   ret = []
   for match in _NON_PROXY_NATIVES_REGEX.finditer(contents):
-    name = match.group('name').replace('native', '')
+    name = match.group('name')
     return_type = _parse_type(type_resolver, match.group('return_type'))
     params = _parse_param_list(type_resolver, match.group('params'))
     signature = java_types.JavaSignature.from_params(return_type, params)
@@ -289,7 +326,7 @@ _CALLED_BY_NATIVE_REGEX = re.compile(
     r'(?P<method_annotations>(?:\s*@\w+(?:\(.*?\))?)+)?'
     r'\s+(?P<modifiers>' + _MODIFIER_KEYWORDS + r')' +
     r'(?P<return_type_annotations>(?:\s*@\w+(?:\(.*?\))?)+)?'
-    r'\s*(?P<return_type>\S*?)'
+    r'\s*(?P<return_type>[\S ]*?)'
     r'\s*(?P<name>\w+)'
     r'\s*\(\s*(?P<params>[^{;]*)\)'
     r'\s*(?:throws\s+[^{;]+)?'
@@ -353,7 +390,7 @@ def _parse_imports(contents):
           package.replace('.', '/') + '/' + class_name.replace('.', '$'))
 
 
-_JNI_NAMESPACE_REGEX = re.compile('@JNINamespace\("(.*?)"\)')
+_JNI_NAMESPACE_REGEX = re.compile(r'@JNINamespace\("(.*?)"\)')
 
 
 def _parse_jni_namespace(contents):
@@ -365,7 +402,7 @@ def _parse_jni_namespace(contents):
   return m[0]
 
 
-def _do_parse(filename, *, package_prefix):
+def _do_parse(filename, *, package_prefix, package_prefix_filter):
   assert not filename.endswith('.kt'), (
       f'Found {filename}, but Kotlin is not supported by JNI generator.')
   with open(filename) as f:
@@ -373,18 +410,19 @@ def _do_parse(filename, *, package_prefix):
   contents = _remove_comments(contents)
   contents = _remove_generics(contents)
 
-  outer_class, nested_classes = _parse_java_classes(contents)
+  outer_class, nested_classes, null_marked = _parse_java_classes(contents)
 
   expected_name = os.path.splitext(os.path.basename(filename))[0]
   if outer_class.name != expected_name:
     raise ParseError(
         f'Found class "{outer_class.name}" but expected "{expected_name}".')
 
-  if package_prefix:
+  if package_prefix and common.should_rename_package(
+      outer_class.package_with_dots, package_prefix_filter):
     outer_class = outer_class.make_prefixed(package_prefix)
     nested_classes = [c.make_prefixed(package_prefix) for c in nested_classes]
 
-  type_resolver = java_types.TypeResolver(outer_class)
+  type_resolver = java_types.TypeResolver(outer_class, null_marked=null_marked)
   for java_class in _parse_imports(contents):
     type_resolver.add_import(java_class)
   for java_class in nested_classes:
@@ -414,11 +452,20 @@ def _do_parse(filename, *, package_prefix):
   return ret
 
 
-def parse_java_file(filename, *, package_prefix=None):
+def parse_java_file(filename,
+                    *,
+                    package_prefix=None,
+                    package_prefix_filter=None):
   try:
-    return _do_parse(filename, package_prefix=package_prefix)
-  except ParseError as e:
-    e.suffix = f' (when parsing {filename})'
+    return _do_parse(filename,
+                     package_prefix=package_prefix,
+                     package_prefix_filter=package_prefix_filter)
+  except Exception as e:
+    note = f' (when parsing {filename})'
+    if e.args and isinstance(e.args[0], str):
+      e.args = (e.args[0] + note, *e.args[1:])
+    else:
+      e.args = e.args + (note, )
     raise
 
 
@@ -457,16 +504,6 @@ def parse_javap(filename, contents):
                              signature=signature,
                              static='static' in modifiers))
   called_by_natives.sort()
-
-  # Although javac will not allow multiple methods with no args and different
-  # return types, Class.class has just that, and it breaks with our
-  # name-mangling logic which assumes this cannot happen.
-  if java_class.full_name_with_slashes == 'java/lang/Class':
-    called_by_natives = [
-        x for x in called_by_natives if 'TypeDescriptor' not in (
-            x.signature.return_type.non_array_full_name_with_slashes)
-    ]
-
   return ParsedFile(filename=filename,
                     type_resolver=type_resolver,
                     proxy_methods=[],

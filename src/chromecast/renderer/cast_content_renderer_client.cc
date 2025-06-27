@@ -35,13 +35,13 @@
 #include "media/base/audio_parameters.h"
 #include "media/base/key_system_info.h"
 #include "media/base/media.h"
+#include "media/base/remoting_constants.h"
 #include "media/remoting/receiver_controller.h"
-#include "media/remoting/remoting_constants.h"
 #include "media/remoting/stream_provider.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/web_runtime_features.h"
 #include "third_party/blink/public/web/web_frame_widget.h"
 #include "third_party/blink/public/web/web_security_policy.h"
@@ -155,7 +155,7 @@ void CastContentRendererClient::RenderFrameCreated(
 
   if (!app_media_capabilities_observer_receiver_.is_bound()) {
     mojo::Remote<mojom::ApplicationMediaCapabilities> app_media_capabilities;
-    render_frame->GetBrowserInterfaceBroker()->GetInterface(
+    render_frame->GetBrowserInterfaceBroker().GetInterface(
         app_media_capabilities.BindNewPipeAndPassReceiver());
     app_media_capabilities->AddObserver(
         app_media_capabilities_observer_receiver_.BindNewPipeAndPassRemote());
@@ -181,14 +181,13 @@ CastContentRendererClient::GetSupportedKeySystems(
 #else
   ::media::KeySystemInfos key_systems;
   media::AddChromecastKeySystems(&key_systems,
-                                 false /* enable_persistent_license_support */,
-                                 false /* enable_playready */);
+                                 false /* enable_persistent_license_support */);
   std::move(cb).Run(std::move(key_systems));
   return nullptr;
 #endif  // BUILDFLAG(IS_ANDROID)
 }
 
-bool CastContentRendererClient::IsSupportedAudioType(
+bool CastContentRendererClient::IsDecoderSupportedAudioType(
     const ::media::AudioType& type) {
 #if BUILDFLAG(IS_ANDROID)
   if (type.spatial_rendering)
@@ -217,7 +216,7 @@ bool CastContentRendererClient::IsSupportedAudioType(
            supported_bitstream_audio_codecs_info_.codecs;
   }
 
-  return ::media::IsDefaultSupportedAudioType(type);
+  return ::media::IsDefaultDecoderSupportedAudioType(type);
 #else
   if (type.profile == ::media::AudioCodecProfile::kXHE_AAC)
     return false;
@@ -240,7 +239,7 @@ bool CastContentRendererClient::IsSupportedAudioType(
 #endif
 }
 
-bool CastContentRendererClient::IsSupportedVideoType(
+bool CastContentRendererClient::IsDecoderSupportedVideoType(
     const ::media::VideoType& type) {
   // TODO(servolk): make use of eotf.
 

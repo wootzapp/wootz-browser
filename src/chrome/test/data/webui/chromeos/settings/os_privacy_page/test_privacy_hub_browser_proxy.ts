@@ -2,13 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {PrivacyHubBrowserProxy} from 'chrome://os-settings/lazy_load.js';
+import type {PrivacyHubBrowserProxy} from 'chrome://os-settings/lazy_load.js';
+import {GeolocationAccessLevel} from 'chrome://os-settings/os_settings.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 export class TestPrivacyHubBrowserProxy extends TestBrowserProxy implements
     PrivacyHubBrowserProxy {
   microphoneToggleIsEnabled: boolean;
+  microphoneMutedBySecurityCurtain: boolean;
   cameraSwitchIsForceDisabled: boolean;
+  primaryUserLocationAccessLevel: GeolocationAccessLevel;
   cameraLEDFallbackState: boolean;
   currentTimeZoneName: string;
   currentSunRiseTime: string;
@@ -16,16 +19,18 @@ export class TestPrivacyHubBrowserProxy extends TestBrowserProxy implements
   constructor() {
     super([
       'getInitialMicrophoneHardwareToggleState',
+      'getInitialMicrophoneMutedBySecurityCurtainState',
       'getInitialCameraSwitchForceDisabledState',
-      'sendLeftOsPrivacyPage',
-      'sendOpenedOsPrivacyPage',
+      'getInitialGeolocationAccessLevelState',
       'getCameraLedFallbackState',
       'getCurrentTimeZoneName',
       'getCurrentSunriseTime',
       'getCurrentSunsetTime',
     ]);
     this.microphoneToggleIsEnabled = false;
+    this.microphoneMutedBySecurityCurtain = false;
     this.cameraSwitchIsForceDisabled = false;
+    this.primaryUserLocationAccessLevel = GeolocationAccessLevel.DISALLOWED;
     this.cameraLEDFallbackState = false;
     this.currentTimeZoneName = 'Test Time Zone';
     this.currentSunRiseTime = '7:00AM';
@@ -37,9 +42,19 @@ export class TestPrivacyHubBrowserProxy extends TestBrowserProxy implements
     return Promise.resolve(this.microphoneToggleIsEnabled);
   }
 
+  getInitialMicrophoneMutedBySecurityCurtainState(): Promise<boolean> {
+    this.methodCalled('getInitialMicrophoneMutedBySecurityCurtainState');
+    return Promise.resolve(this.microphoneMutedBySecurityCurtain);
+  }
+
   getInitialCameraSwitchForceDisabledState(): Promise<boolean> {
     this.methodCalled('getInitialCameraSwitchForceDisabledState');
     return Promise.resolve(this.cameraSwitchIsForceDisabled);
+  }
+
+  getInitialGeolocationAccessLevelState(): Promise<GeolocationAccessLevel> {
+    this.methodCalled('getInitialGeolocationAccessLevelState');
+    return Promise.resolve(this.primaryUserLocationAccessLevel);
   }
 
   getCameraLedFallbackState(): Promise<boolean> {
@@ -60,13 +75,5 @@ export class TestPrivacyHubBrowserProxy extends TestBrowserProxy implements
   getCurrentSunsetTime(): Promise<string> {
     this.methodCalled('getCurrentSunsetTime');
     return Promise.resolve(this.currentSunSetTime);
-  }
-
-  sendLeftOsPrivacyPage(): void {
-    this.methodCalled('sendLeftOsPrivacyPage');
-  }
-
-  sendOpenedOsPrivacyPage(): void {
-    this.methodCalled('sendOpenedOsPrivacyPage');
   }
 }

@@ -40,7 +40,7 @@ std::unique_ptr<BookmarkModel> TestBookmarkClient::CreateModelWithClient(
 
 BookmarkPermanentNode* TestBookmarkClient::EnableManagedNode() {
   managed_node_ = BookmarkPermanentNode::CreateManagedBookmarks(/*id=*/100);
-  // Keep a copy of the node in |unowned_managed_node_| for the accessor
+  // Keep a copy of the node in `unowned_managed_node_` for the accessor
   // functions.
   unowned_managed_node_ = managed_node_.get();
   return unowned_managed_node_;
@@ -95,6 +95,11 @@ void TestBookmarkClient::SetAccountBookmarkSyncMetadataAndScheduleWrite(
   account_bookmark_sync_metadata_save_closure_.Run();
 }
 
+void TestBookmarkClient::SetDecodeAccountBookmarkSyncMetadataResult(
+    DecodeAccountBookmarkSyncMetadataResult result) {
+  decode_account_bookmark_sync_metadata_result_ = result;
+}
+
 LoadManagedNodeCallback TestBookmarkClient::GetLoadManagedNodeCallback() {
   return base::BindOnce(&TestBookmarkClient::LoadManagedNode,
                         std::move(managed_node_));
@@ -125,11 +130,13 @@ void TestBookmarkClient::DecodeLocalOrSyncableBookmarkSyncMetadata(
     const std::string& metadata_str,
     const base::RepeatingClosure& schedule_save_closure) {}
 
-void TestBookmarkClient::DecodeAccountBookmarkSyncMetadata(
+BookmarkClient::DecodeAccountBookmarkSyncMetadataResult
+TestBookmarkClient::DecodeAccountBookmarkSyncMetadata(
     const std::string& metadata_str,
     const base::RepeatingClosure& schedule_save_closure) {
   account_bookmark_sync_metadata_ = metadata_str;
   account_bookmark_sync_metadata_save_closure_ = schedule_save_closure;
+  return decode_account_bookmark_sync_metadata_result_;
 }
 
 base::CancelableTaskTracker::TaskId
@@ -142,7 +149,6 @@ TestBookmarkClient::GetFaviconImageForPageURL(
 }
 
 void TestBookmarkClient::OnBookmarkNodeRemovedUndoable(
-    BookmarkModel* model,
     const BookmarkNode* parent,
     size_t index,
     std::unique_ptr<BookmarkNode> node) {}

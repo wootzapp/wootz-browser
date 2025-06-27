@@ -28,9 +28,6 @@ DeskAnimationBase::DeskAnimationBase(DesksController* controller,
 DeskAnimationBase::~DeskAnimationBase() {
   for (auto& observer : controller_->observers_)
     observer.OnDeskSwitchAnimationFinished();
-
-  if (finished_callback_)
-    std::move(finished_callback_).Run();
 }
 
 void DeskAnimationBase::Launch() {
@@ -45,7 +42,7 @@ void DeskAnimationBase::Launch() {
     // Request a new sequence tracker so the tracking number can't be reused.
     throughput_tracker_ =
         desks_util::GetSelectedCompositorForPerformanceMetrics()
-            ->RequestNewThroughputTracker();
+            ->RequestNewCompositorMetricsTracker();
     throughput_tracker_->Start(GetSmoothnessReportCallback());
   }
 
@@ -102,7 +99,7 @@ void DeskAnimationBase::OnStartingDeskScreenshotTaken(int ending_desk_index) {
       return;
   }
 
-  // If ending desk index goes out of sync with the one provided due to screenshot delay 
+  // If ending desk index goes out of sync with the one provided due to screenshot delay
   // and user action, end animation. Speculative fix for http://b/307304567.
   if (ending_desk_index != ending_desk_index_) {
     // This will effectively delete `this`.
@@ -212,7 +209,6 @@ void DeskAnimationBase::ActivateDeskDuringAnimation(
   // `is_overview_toggle_allowed_` to false to prevent any subsequent overview
   // toggling (i.e. user input).
   is_overview_toggle_allowed_ =
-      features::IsOverviewDeskNavigationEnabled() &&
       Shell::Get()->overview_controller()->InOverviewSession();
   controller_->ActivateDeskInternal(desk, update_window_activation);
   is_overview_toggle_allowed_ = false;

@@ -113,9 +113,8 @@ MediaEngagementPreloadComponentInstallerPolicy::GetRelativeInstallDir() const {
 
 void MediaEngagementPreloadComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(
-      kMeiPreloadPublicKeySHA256,
-      kMeiPreloadPublicKeySHA256 + std::size(kMeiPreloadPublicKeySHA256));
+  hash->assign(std::begin(kMeiPreloadPublicKeySHA256),
+               std::end(kMeiPreloadPublicKeySHA256));
 }
 
 std::string MediaEngagementPreloadComponentInstallerPolicy::GetName() const {

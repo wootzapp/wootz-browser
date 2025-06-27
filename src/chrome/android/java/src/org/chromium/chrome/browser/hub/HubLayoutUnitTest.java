@@ -13,7 +13,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +22,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,6 +34,7 @@ import android.animation.AnimatorSet;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -42,28 +43,35 @@ import android.widget.FrameLayout;
 import android.widget.FrameLayout.LayoutParams;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
-import androidx.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.ParameterizedRobolectricTestRunner;
+import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
+import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.LazyOneshotSupplier;
+import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.supplier.SyncOneshotSupplierImpl;
-import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
+import org.chromium.base.test.BaseRobolectricTestRule;
+import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.UserActionTester;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.compositor.layouts.Layout.ViewportMode;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
@@ -73,20 +81,26 @@ import org.chromium.chrome.browser.compositor.scene_layer.SolidColorSceneLayer;
 import org.chromium.chrome.browser.compositor.scene_layer.SolidColorSceneLayerJni;
 import org.chromium.chrome.browser.compositor.scene_layer.StaticTabSceneLayer;
 import org.chromium.chrome.browser.compositor.scene_layer.StaticTabSceneLayerJni;
+import org.chromium.chrome.browser.hub.HubColorMixer.OverviewModeAlphaObserver;
+import org.chromium.chrome.browser.hub.HubLayout.HubLayoutAnimationListenerImpl;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayerJni;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
+import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.ui.desktop_windowing.DesktopWindowStateProvider;
+import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
+import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.resources.ResourceManager;
+import org.chromium.ui.util.XrUtils;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.function.DoubleConsumer;
 
 /**
  * Unit tests for {@link HubLayout}.
@@ -94,25 +108,37 @@ import java.util.function.DoubleConsumer;
  * <p>TODO(crbug.com/40283200): Once integrated with LayoutManager we should also add integration
  * tests.
  */
-@RunWith(BaseRobolectricTestRunner.class)
+@RunWith(ParameterizedRobolectricTestRunner.class)
 public class HubLayoutUnitTest {
+    // All the tests in this file will run twice, once for isXrDevice=true and once for
+    // isXrDevice=false. Expect all the tests with the same results on XR devices too.
+    // The setup ensures the correct environment is configured for each run.
+    @Parameters
+    public static Collection<Object[]> data() {
+        return Arrays.asList(new Object[][] {{true}, {false}});
+    }
+
+    @Parameter(0)
+    public boolean mIsXrDevice;
+
     private static final int DEFAULT_COLOR = 0xFFABCDEF;
     private static final int INCOGNITO_COLOR = 0xFF001122;
     private static final long FAKE_NATIVE_ADDRESS_1 = 498723734L;
     private static final long FAKE_NATIVE_ADDRESS_2 = 123210L;
     private static final float FLOAT_ERROR = 0.001f;
-    private static final int TAB_ID = 5;
-    private static final int NEW_TAB_ID = 6;
+    private static final @TabId int TAB_ID = 5;
+    private static final @TabId int NEW_TAB_ID = 6;
     private static final int NEW_TAB_INDEX = 0;
     // This animation doesn't depend on time from the LayoutManager.
     private static final long FAKE_TIME = 0L;
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     @Rule
     public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
             new ActivityScenarioRule<>(TestActivity.class);
+
+    @Rule public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
 
     @Mock private LayoutUpdateHost mUpdateHost;
     @Mock private LayoutRenderHost mRenderHost;
@@ -123,11 +149,13 @@ public class HubLayoutUnitTest {
     @Mock private StaticTabSceneLayer.Natives mStaticTabSceneLayerJni;
     @Mock private SolidColorSceneLayer.Natives mSolidColorSceneLayerJni;
     @Mock private HubManager mHubManager;
+    @Mock private HubColorMixer mHubColorMixer;
     @Mock private HubController mHubController;
     @Mock private PaneManager mPaneManager;
     @Mock private HubLayoutScrimController mScrimController;
     @Mock private Pane mTabSwitcherPane;
     @Mock private Pane mIncognitoTabSwitcherPane;
+    @Mock private Pane mTabGroupPane;
     @Mock private HubLayoutAnimator mHubLayoutAnimatorMock;
     @Mock private HubLayoutAnimatorProvider mHubLayoutAnimatorProviderMock;
     @Mock private Bitmap mBitmap;
@@ -135,8 +163,12 @@ public class HubLayoutUnitTest {
     @Mock private TabContentManager mTabContentManager;
     @Mock private TabModelSelector mTabModelSelector;
     @Mock private Tab mTab;
-    @Mock private DoubleConsumer mOnAlphaChange;
-    @Mock private DesktopWindowStateProvider mDesktopWindowStateProvider;
+    @Mock private OverviewModeAlphaObserver mOnAlphaChange;
+    @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
+    @Mock private HubContainerView mHubContainerViewMock;
+    @Mock private HubContainerView mPaneHostViewMock;
+    @Mock private HubLayoutAnimationRunner mCurrentAnimationRunner;
+    @Captor private ArgumentCaptor<HubLayoutAnimationListener> mAnimationListenerCaptor;
 
     private UserActionTester mActionTester;
 
@@ -149,12 +181,15 @@ public class HubLayoutUnitTest {
     private SyncOneshotSupplierImpl<HubLayoutAnimator> mHubLayoutAnimatorSupplier;
     private Supplier<TabModelSelector> mTabModelSelectorSupplier;
     private ObservableSupplierImpl<Pane> mPaneSupplier = new ObservableSupplierImpl<>();
+    private HubShowPaneHelper mHubShowPaneHelper;
 
     @Before
     public void setUp() {
-        mJniMocker.mock(SceneLayerJni.TEST_HOOKS, mSceneLayerJni);
-        mJniMocker.mock(StaticTabSceneLayerJni.TEST_HOOKS, mStaticTabSceneLayerJni);
-        mJniMocker.mock(SolidColorSceneLayerJni.TEST_HOOKS, mSolidColorSceneLayerJni);
+        XrUtils.setXrDeviceForTesting(mIsXrDevice);
+
+        SceneLayerJni.setInstanceForTesting(mSceneLayerJni);
+        StaticTabSceneLayerJni.setInstanceForTesting(mStaticTabSceneLayerJni);
+        SolidColorSceneLayerJni.setInstanceForTesting(mSolidColorSceneLayerJni);
 
         mActionTester = new UserActionTester();
         ShadowLooper.runUiThreadTasks();
@@ -162,6 +197,12 @@ public class HubLayoutUnitTest {
         when(mTabSwitcherPane.getPaneId()).thenReturn(PaneId.TAB_SWITCHER);
         when(mTabSwitcherPane.getColorScheme()).thenReturn(HubColorScheme.DEFAULT);
         when(mTabSwitcherPane.createShowHubLayoutAnimatorProvider(any()))
+                .thenReturn(mHubLayoutAnimatorProviderMock);
+        when(mTabSwitcherPane.createHideHubLayoutAnimatorProvider(any()))
+                .thenReturn(mHubLayoutAnimatorProviderMock);
+        when(mTabGroupPane.getPaneId()).thenReturn(PaneId.TAB_GROUPS);
+        when(mTabGroupPane.getColorScheme()).thenReturn(HubColorScheme.DEFAULT);
+        when(mTabGroupPane.createShowHubLayoutAnimatorProvider(any()))
                 .thenReturn(mHubLayoutAnimatorProviderMock);
         when(mTabSwitcherPane.createHideHubLayoutAnimatorProvider(any()))
                 .thenReturn(mHubLayoutAnimatorProviderMock);
@@ -212,6 +253,9 @@ public class HubLayoutUnitTest {
                                 case PaneId.INCOGNITO_TAB_SWITCHER:
                                     mPaneSupplier.set(mIncognitoTabSwitcherPane);
                                     break;
+                                case PaneId.TAB_GROUPS:
+                                    mPaneSupplier.set(mTabGroupPane);
+                                    break;
                                 default:
                                     fail("Invalid pane id" + paneId);
                             }
@@ -219,8 +263,11 @@ public class HubLayoutUnitTest {
                         })
                 .when(mPaneManager)
                 .focusPane(anyInt());
+        when(mHubController.getHubColorMixer()).thenReturn(mHubColorMixer);
         when(mHubManager.getPaneManager()).thenReturn(mPaneManager);
         when(mHubManager.getHubController()).thenReturn(mHubController);
+        mHubShowPaneHelper = new HubShowPaneHelper();
+        when(mHubManager.getHubShowPaneHelper()).thenReturn(mHubShowPaneHelper);
         doAnswer(
                         invocation -> {
                             Pane pane = (Pane) invocation.getArguments()[0];
@@ -244,14 +291,10 @@ public class HubLayoutUnitTest {
         doAnswer(
                         invocation -> {
                             var args = invocation.getArguments();
-                            return new LayoutTab(
-                                    (Integer) args[0],
-                                    (Boolean) args[1],
-                                    ((Float) args[2]).intValue(),
-                                    ((Float) args[3]).intValue());
+                            return new LayoutTab((Integer) args[0], (Boolean) args[1], -1, -1);
                         })
                 .when(mUpdateHost)
-                .createLayoutTab(anyInt(), anyBoolean(), anyFloat(), anyFloat());
+                .createLayoutTab(anyInt(), anyBoolean());
         when(mTab.getId()).thenReturn(TAB_ID);
         when(mTab.isNativePage()).thenReturn(false);
         when(mTabModelSelector.getCurrentTab()).thenReturn(mTab);
@@ -265,7 +308,9 @@ public class HubLayoutUnitTest {
         mActivity = activity;
         mFrameLayout = new FrameLayout(mActivity);
         mHubContainerView = new HubContainerView(mActivity);
-        View hubLayout = LayoutInflater.from(activity).inflate(R.layout.hub_layout, null);
+        int layoutId = mIsXrDevice ? R.layout.hub_xr_layout : R.layout.hub_layout;
+        View hubLayout = LayoutInflater.from(activity).inflate(layoutId, null);
+
         mHubContainerView.setLayoutParams(
                 new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
         mHubContainerView.addView(hubLayout);
@@ -293,7 +338,7 @@ public class HubLayoutUnitTest {
                                 mLayoutStateProvider,
                                 dependencyHolder,
                                 mTabModelSelectorSupplier,
-                                mDesktopWindowStateProvider));
+                                mDesktopWindowStateManager));
         mHubLayout.setTabModelSelector(mTabModelSelector);
         mHubLayout.setTabContentManager(mTabContentManager);
         mHubLayout.onFinishNativeInitialization();
@@ -303,10 +348,10 @@ public class HubLayoutUnitTest {
     public void tearDown() {
         mHubLayout.destroy();
         mActionTester.tearDown();
+        XrUtils.resetXrDeviceForTesting();
     }
 
     @Test
-    @SmallTest
     public void testFixedReturnValues() {
         // These are not expected to change. This is here to get unit test coverage.
         assertEquals(ViewportMode.ALWAYS_FULLSCREEN, mHubLayout.getViewportMode());
@@ -321,7 +366,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testUpdateSceneLayerAndLayoutTabsDuringShow() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.FADE_IN);
         animateCheckingSceneLayerAndLayoutTabs(
@@ -331,7 +375,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testUpdateSceneLayerAndLayoutTabsDuringHide() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.FADE_OUT);
         animateCheckingSceneLayerAndLayoutTabs(
@@ -341,7 +384,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     @Config(qualifiers = "sw600dp")
     public void testShowTablet() {
         show(LayoutType.BROWSING, true, HubLayoutAnimationType.TRANSLATE_UP);
@@ -349,16 +391,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
-    public void testShowFromStartSurface() {
-        show(LayoutType.START_SURFACE, true, HubLayoutAnimationType.FADE_IN);
-        verify(mTabContentManager, never())
-                .cacheTabThumbnailWithCallback(any(), anyBoolean(), any());
-        verify(mTabSwitcherPane, never()).createShowHubLayoutAnimatorProvider(any());
-    }
-
-    @Test
-    @SmallTest
     public void testShowWithNoSelectedPane() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
         when(mTabModelSelector.isIncognitoSelected()).thenReturn(false);
@@ -370,7 +402,19 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
+    public void testShowWithSelectedPane() {
+        setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
+
+        when(mTabModelSelector.isIncognitoSelected()).thenReturn(false);
+        mHubShowPaneHelper.setPaneToShow(PaneId.TAB_GROUPS);
+        show(LayoutType.BROWSING, true, HubLayoutAnimationType.SHRINK_TAB);
+        verify(mTabContentManager).cacheTabThumbnailWithCallback(any(), anyBoolean(), any());
+        verify(mPaneManager).focusPane(PaneId.TAB_GROUPS);
+
+        verify(mSolidColorSceneLayerJni).setBackgroundColor(FAKE_NATIVE_ADDRESS_2, DEFAULT_COLOR);
+    }
+
+    @Test
     public void testShowWithIncognitoPane() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
         when(mTabModelSelector.isIncognitoSelected()).thenReturn(true);
@@ -382,7 +426,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testShowFromBrowsingWithThumbnailCallback() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
         when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
@@ -406,7 +449,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testShowFromBrowsingWithFallbackNativePageThumbnailCallback() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
         when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
@@ -440,7 +482,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testShowFromBrowsingWithoutFallbackThumbnailCallback() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
         when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
@@ -465,24 +506,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
-    public void testShowFromStartSurfaceWithThumbnailCallback() {
-        setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.SHRINK_TAB);
-        when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
-        doReturn(mHubLayoutAnimatorProviderMock).when(mHubLayout).createShowAnimatorProvider(any());
-
-        show(LayoutType.START_SURFACE, true, HubLayoutAnimationType.SHRINK_TAB);
-
-        // No TabContentManager callbacks will be invoked because there is no tab to capture.
-        // This will still invoke the callback with a null result.
-        verify(mThumbnailCallback).bind(isNull());
-        verify(mTabContentManager, never())
-                .cacheTabThumbnailWithCallback(any(), anyBoolean(), any());
-        verify(mTabContentManager, never()).getEtc1TabThumbnailWithCallback(anyInt(), any());
-    }
-
-    @Test
-    @SmallTest
     @Config(qualifiers = "sw600dp")
     public void testHideTablet() {
         hide(
@@ -494,20 +517,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
-    public void testHideToStartSurface() {
-        mPaneSupplier.set(mTabSwitcherPane);
-        hide(
-                LayoutType.START_SURFACE,
-                Tab.INVALID_TAB_ID,
-                /* skipStartHiding= */ false,
-                HubLayoutAnimationType.FADE_OUT);
-        verify(mTabContentManager, never()).getEtc1TabThumbnailWithCallback(anyInt(), any());
-        verify(mTabSwitcherPane, never()).createHideHubLayoutAnimatorProvider(any());
-    }
-
-    @Test
-    @SmallTest
     public void testHideWithNoPane() {
         hide(
                 LayoutType.BROWSING,
@@ -518,7 +527,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testHideViaNewTab() {
         forceLayout();
         mHubLayout.onTabCreated(FAKE_TIME, NEW_TAB_ID, NEW_TAB_INDEX, TAB_ID, false, false, 0, 0);
@@ -531,7 +539,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     @Config(qualifiers = "sw600dp")
     public void testHideViaNewTabTablet() {
         mHubLayout.onTabCreated(FAKE_TIME, NEW_TAB_ID, NEW_TAB_INDEX, TAB_ID, false, false, 0, 0);
@@ -544,7 +551,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testHideToBrowsingThumbnailCallback() {
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.EXPAND_TAB);
         mPaneSupplier.set(mTabSwitcherPane);
@@ -570,16 +576,13 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
     public void testHideToBrowsingThumbnailCallbackNoTabIdInStartHiding() {
         when(mTabModelSelector.getCurrentTabId()).thenReturn(TAB_ID);
 
         setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.EXPAND_TAB);
         mPaneSupplier.set(mTabSwitcherPane);
         when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
-        doReturn(mHubLayoutAnimatorProviderMock)
-                .when(mHubLayout)
-                .createHideAnimatorProvider(any(), anyInt());
+        doReturn(mHubLayoutAnimatorProviderMock).when(mHubLayout).createHideAnimatorProvider(any());
         when(mTab.isNativePage()).thenReturn(true);
 
         // Succeed on the thumbnail attempt
@@ -601,27 +604,6 @@ public class HubLayoutUnitTest {
     }
 
     @Test
-    @SmallTest
-    public void testHideToStartSurfaceThumbnailCallback() {
-        setupHubLayoutAnimatorAndProvider(HubLayoutAnimationType.EXPAND_TAB);
-        when(mHubLayoutAnimatorProviderMock.getThumbnailCallback()).thenReturn(mThumbnailCallback);
-        doReturn(mHubLayoutAnimatorProviderMock)
-                .when(mHubLayout)
-                .createHideAnimatorProvider(any(), anyInt());
-        when(mTab.isNativePage()).thenReturn(true);
-
-        hide(
-                LayoutType.START_SURFACE,
-                TAB_ID,
-                /* skipStartHiding= */ false,
-                HubLayoutAnimationType.EXPAND_TAB);
-
-        verify(mThumbnailCallback).onResult(isNull());
-        verify(mTabContentManager, never()).getEtc1TabThumbnailWithCallback(anyInt(), any());
-    }
-
-    @Test
-    @SmallTest
     public void testShowInterruptedByHide() {
         mPaneSupplier.set(mTabSwitcherPane);
         assertFalse(mHubLayout.isRunningAnimations());
@@ -658,6 +640,162 @@ public class HubLayoutUnitTest {
         verify(mTab, never()).hide(anyInt());
     }
 
+    @Test
+    @DisableFeatures(OmniboxFeatureList.ANDROID_HUB_SEARCH)
+    public void testFinalRect_SameModel() {
+        setupFinalRectMocks(/* modelIsIncognito= */ false);
+        Rect expectedRect = new Rect(0, 10, 90, 110);
+        Rect actualRect = new Rect();
+
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ false, actualRect);
+        assertEquals(expectedRect, actualRect);
+
+        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ true, actualRect);
+        assertEquals(expectedRect, actualRect);
+    }
+
+    @Test
+    @DisableFeatures(OmniboxFeatureList.ANDROID_HUB_SEARCH)
+    public void testFinalRect_SwitchingModel() {
+        setupFinalRectMocks(/* modelIsIncognito= */ false);
+        Rect expectedRect = new Rect(0, 0, 90, 110);
+        Rect actualRect = new Rect();
+
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ true, actualRect);
+        assertEquals(expectedRect, actualRect);
+
+        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ false, actualRect);
+        assertEquals(expectedRect, actualRect);
+    }
+
+    @Test
+    @EnableFeatures(OmniboxFeatureList.ANDROID_HUB_SEARCH)
+    public void testFinalRectWithHubSearch_SwitchingModel() {
+        setupFinalRectMocks(/* modelIsIncognito= */ false);
+        Rect expectedRect = new Rect(0, 0, 90, 110);
+        Rect actualRect = new Rect();
+
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ true, actualRect);
+        assertEquals(expectedRect, actualRect);
+
+        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ false, actualRect);
+        assertEquals(expectedRect, actualRect);
+    }
+
+    @Test
+    @EnableFeatures(OmniboxFeatureList.ANDROID_HUB_SEARCH)
+    public void testFinalRectWithHubSearch_SameModel() {
+        setupFinalRectMocks(/* modelIsIncognito= */ false);
+        Rect spyRect = spy(new Rect());
+
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ false, spyRect);
+        verify(spyRect, times(2)).offset(anyInt(), anyInt());
+
+        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
+        reset(spyRect);
+        mHubLayout.getFinalRectForNewTabAnimation(
+                mHubContainerViewMock, /* newIsIncognito= */ true, spyRect);
+        verify(spyRect, times(2)).offset(anyInt(), anyInt());
+    }
+
+    @Test
+    public void testHubLayoutAnimationListener() {
+        ObservableSupplierImpl<Boolean> isAnimatingSupplier = new ObservableSupplierImpl<>();
+        HubLayoutAnimationListenerImpl listener =
+                new HubLayoutAnimationListenerImpl(isAnimatingSupplier);
+
+        listener.onStart();
+        assertTrue(isAnimatingSupplier.get());
+
+        listener.onEnd(false);
+        assertFalse(isAnimatingSupplier.get());
+    }
+
+    @Test
+    public void testIsAnimatingSupplier_startShowing() {
+        setUpHubLayoutForAnimatingSupplierTests();
+        ObservableSupplier<Boolean> isAnimatingSupplier = mHubLayout.getIsAnimatingSupplier();
+
+        startShowing(LayoutType.BROWSING, true);
+        verify(mCurrentAnimationRunner).addListener(mAnimationListenerCaptor.capture());
+        HubLayoutAnimationListener listener = mAnimationListenerCaptor.getValue();
+
+        listener.onStart();
+        assertTrue(isAnimatingSupplier.get());
+
+        listener.onEnd(false);
+        assertFalse(isAnimatingSupplier.get());
+    }
+
+    @Test
+    public void testIsAnimatingSupplier_startHiding() {
+        setUpHubLayoutForAnimatingSupplierTests();
+        ObservableSupplier<Boolean> isAnimatingSupplier = mHubLayout.getIsAnimatingSupplier();
+
+        startHiding(LayoutType.BROWSING, NEW_TAB_ID);
+        verify(mCurrentAnimationRunner).addListener(mAnimationListenerCaptor.capture());
+        HubLayoutAnimationListener listener = mAnimationListenerCaptor.getValue();
+
+        listener.onStart();
+        assertTrue(isAnimatingSupplier.get());
+
+        listener.onEnd(false);
+        assertFalse(isAnimatingSupplier.get());
+    }
+
+    @Test
+    public void testIsAnimatingSupplier_onTabCreated() {
+        setUpHubLayoutForAnimatingSupplierTests();
+        ObservableSupplier<Boolean> isAnimatingSupplier = mHubLayout.getIsAnimatingSupplier();
+
+        mHubLayout.onTabCreated(FAKE_TIME, NEW_TAB_ID, NEW_TAB_INDEX, TAB_ID, false, false, 0, 0);
+        verify(mCurrentAnimationRunner).addListener(mAnimationListenerCaptor.capture());
+        HubLayoutAnimationListener listener = mAnimationListenerCaptor.getValue();
+
+        listener.onStart();
+        assertTrue(isAnimatingSupplier.get());
+
+        listener.onEnd(false);
+        assertFalse(isAnimatingSupplier.get());
+    }
+
+    private void setUpHubLayoutForAnimatingSupplierTests() {
+        LazyOneshotSupplier<HubManager> hubManagerSupplier =
+                LazyOneshotSupplier.fromValue(mHubManager);
+        LazyOneshotSupplier<ViewGroup> rootViewSupplier =
+                LazyOneshotSupplier.fromValue(mFrameLayout);
+        HubLayoutDependencyHolder dependencyHolder =
+                new HubLayoutDependencyHolder(
+                        hubManagerSupplier, rootViewSupplier, mScrimController, mOnAlphaChange);
+        mHubLayout =
+                new HubLayout(
+                        mActivity,
+                        mUpdateHost,
+                        mRenderHost,
+                        mLayoutStateProvider,
+                        dependencyHolder,
+                        mTabModelSelectorSupplier,
+                        mDesktopWindowStateManager,
+                        ignored -> mCurrentAnimationRunner);
+        mHubLayout.setTabModelSelector(mTabModelSelector);
+        mHubLayout.setTabContentManager(mTabContentManager);
+        mHubLayout.onFinishNativeInitialization();
+
+        assertFalse(mHubLayout.isRunningAnimations());
+        assertFalse(mHubLayout.onUpdateAnimation(FAKE_TIME, false));
+        assertFalse(mHubLayout.forceHideBrowserControlsAndroidView());
+    }
+
     private void show(
             @LayoutType int fromLayout,
             boolean animate,
@@ -671,7 +809,7 @@ public class HubLayoutUnitTest {
         verify(mHubController, times(1)).onHubLayoutShow();
         assertEquals(1, mFrameLayout.getChildCount());
 
-        if (animate && fromLayout != LayoutType.START_SURFACE) {
+        if (animate) {
             assertEquals(expectedAnimationType, mHubLayout.getCurrentAnimationType());
             assertTrue(mHubLayout.isRunningAnimations());
             assertTrue(mHubLayout.onUpdateAnimation(FAKE_TIME, false));
@@ -687,16 +825,12 @@ public class HubLayoutUnitTest {
         assertTrue(mHubLayout.forceHideBrowserControlsAndroidView());
         assertEquals(1, mActionTester.getActionCount("MobileToolbarShowStackView"));
         verify(mTab).hide(eq(TabHidingType.TAB_SWITCHER_SHOWN));
-        if (fromLayout == LayoutType.START_SURFACE) {
-            verify(mScrimController).forceAnimationToFinish();
-        } else {
-            verify(mScrimController, never()).forceAnimationToFinish();
-        }
+        verify(mScrimController, never()).forceAnimationToFinish();
     }
 
     private void hide(
             @LayoutType int nextLayout,
-            int nextTabId,
+            @TabId int nextTabId,
             boolean skipStartHiding,
             @HubLayoutAnimationType int expectedAnimationType) {
         if (skipStartHiding) {
@@ -725,11 +859,7 @@ public class HubLayoutUnitTest {
         assertFalse(mHubLayout.forceHideBrowserControlsAndroidView());
         assertEquals(1, mActionTester.getActionCount("MobileExitStackView"));
 
-        if (nextLayout == LayoutType.START_SURFACE) {
-            verify(mScrimController).forceAnimationToFinish();
-        } else {
-            verify(mScrimController, never()).forceAnimationToFinish();
-        }
+        verify(mScrimController, never()).forceAnimationToFinish();
     }
 
     private void startShowing(@LayoutType int fromLayout, boolean animate) {
@@ -740,7 +870,7 @@ public class HubLayoutUnitTest {
         mHubLayout.show(FAKE_TIME, animate);
     }
 
-    private void startHiding(@LayoutType int nextLayout, int nextTabId) {
+    private void startHiding(@LayoutType int nextLayout, @TabId int nextTabId) {
         @LayoutType int layoutType = mHubLayout.getLayoutType();
         when(mLayoutStateProvider.getActiveLayoutType()).thenReturn(layoutType);
         when(mLayoutStateProvider.getNextLayoutType()).thenReturn(nextLayout);
@@ -754,7 +884,7 @@ public class HubLayoutUnitTest {
     }
 
     private void animateCheckingSceneLayerAndLayoutTabs(
-            Runnable startAnimationRunnable, int tabId) {
+            Runnable startAnimationRunnable, @TabId int tabId) {
         assertThat(mHubLayout.getSceneLayer(), instanceOf(SolidColorSceneLayer.class));
         LayoutTab[] layoutTabs = mHubLayout.getLayoutTabsToRender();
         assertNull(layoutTabs);
@@ -806,6 +936,33 @@ public class HubLayoutUnitTest {
         mHubLayoutAnimatorSupplier.set(mHubLayoutAnimatorMock);
         when(mHubLayoutAnimatorProviderMock.getAnimatorSupplier())
                 .thenReturn(mHubLayoutAnimatorSupplier);
+    }
+
+    private void setupFinalRectMocks(boolean modelIsIncognito) {
+        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(modelIsIncognito);
+        when(mHubController.getContainerView()).thenReturn(mHubContainerViewMock);
+        when(mHubContainerViewMock.isLaidOut()).thenReturn(true);
+        Rect hubContainerRect = new Rect(10, 10, 100, 100);
+        doAnswer(
+                        invocation -> {
+                            Rect rect = invocation.getArgument(0);
+                            rect.set(hubContainerRect);
+                            return true;
+                        })
+                .when(mHubContainerViewMock)
+                .getGlobalVisibleRect(any());
+
+        when(mHubController.getPaneHostView()).thenReturn(mPaneHostViewMock);
+        when(mPaneHostViewMock.isLaidOut()).thenReturn(true);
+        Rect paneHostRect = new Rect(10, 20, 100, 120);
+        doAnswer(
+                        invocation -> {
+                            Rect rect = invocation.getArgument(0);
+                            rect.set(paneHostRect);
+                            return true;
+                        })
+                .when(mPaneHostViewMock)
+                .getGlobalVisibleRect(any());
     }
 
     private void forceLayout() {

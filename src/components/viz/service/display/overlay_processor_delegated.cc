@@ -12,7 +12,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/viz_utils.h"
 #include "components/viz/service/debugger/viz_debugger.h"
@@ -77,10 +76,10 @@ namespace viz {
 OverlayProcessorDelegated::OverlayProcessorDelegated(
     std::unique_ptr<ui::OverlayCandidatesOzone> overlay_candidates,
     std::vector<OverlayStrategy> available_strategies,
-    gpu::SharedImageInterface* shared_image_interface)
+    std::unique_ptr<PixmapProvider> pixmap_provider)
     : OverlayProcessorOzone(std::move(overlay_candidates),
                             available_strategies,
-                            shared_image_interface) {
+                            std::move(pixmap_provider)) {
   // TODO(msisov, petermcneeley): remove this once Wayland uses only delegated
   // context. May be null in tests.
   if (ui::OzonePlatform::GetInstance()->GetOverlayManager()) {
@@ -88,15 +87,6 @@ OverlayProcessorDelegated::OverlayProcessorDelegated(
         ->GetOverlayManager()
         ->SetContextDelegated();
   }
-
-  const auto& runtime_props =
-      ui::OzonePlatform::GetInstance()->GetPlatformRuntimeProperties();
-  supports_clip_rect_ = runtime_props.supports_clip_rect;
-  supports_out_of_window_clip_rect_ =
-      runtime_props.supports_out_of_window_clip_rect;
-  needs_background_image_ = runtime_props.needs_background_image;
-  supports_affine_transform_ = runtime_props.supports_affine_transform;
-  has_transformation_fix_ = runtime_props.has_transformation_fix;
 }
 
 OverlayProcessorDelegated::~OverlayProcessorDelegated() = default;
@@ -156,11 +146,11 @@ bool OverlayProcessorDelegated::AttemptWithStrategies(
 
   OverlayCandidateFactory::OverlayContext context;
   context.is_delegated_context = true;
-  context.supports_clip_rect = supports_clip_rect_;
-  context.supports_out_of_window_clip_rect = supports_out_of_window_clip_rect_;
-  context.supports_arbitrary_transform = supports_affine_transform_;
+  context.supports_clip_rect = false;
+  context.supports_out_of_window_clip_rect = false;
+  context.supports_arbitrary_transform = false;
   context.supports_mask_filter = true;
-  context.transform_and_clip_rpdq = has_transformation_fix_;
+  context.transform_and_clip_rpdq = false;
   context.supports_flip_rotate_transform = SupportsFlipRotateTransform();
 
   OverlayCandidateFactory candidate_factory = OverlayCandidateFactory(

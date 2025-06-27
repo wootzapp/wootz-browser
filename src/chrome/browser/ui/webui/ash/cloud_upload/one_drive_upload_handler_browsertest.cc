@@ -12,6 +12,7 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -158,11 +159,12 @@ class OneDriveUploadHandlerTest : public InProcessBrowserTest,
 
   void SetUpObservers() {
     // Subscribe to Notification updates to track copy/move ODFS notifications.
-    NotificationDisplayService::GetForProfile(profile())->AddObserver(this);
+    NotificationDisplayServiceFactory::GetForProfile(profile())->AddObserver(
+        this);
   }
 
   void RemoveObservers() {
-    NotificationDisplayService::GetForProfile(browser()->profile())
+    NotificationDisplayServiceFactory::GetForProfile(browser()->profile())
         ->RemoveObserver(this);
   }
 
@@ -695,51 +697,6 @@ IN_PROC_BROWSER_TEST_F(OneDriveUploadHandlerTest,
                                 -base::File::FILE_ERROR_ACCESS_DENIED, 1);
   histogram_.ExpectUniqueSample(kOneDriveUploadResultMetricName,
                                 OfficeFilesUploadResult::kCloudAccessDenied, 1);
-}
-
-// Tests that a duplicate upload is abandoned.
-IN_PROC_BROWSER_TEST_F(OneDriveUploadHandlerTest, NoDuplicateUploads) {
-  SetUpObservers();
-  SetUpMyFiles();
-  SetUpODFS();
-  const std::string test_file_name = "text.docx";
-  FileSystemURL source_file_url = CopyTestFile(test_file_name, my_files_dir_);
-
-  // Start the second upload after the first one starts.
-  provided_file_system_->SetCreateFileCallback(
-      base::BindLambdaForTesting([&]() {
-        auto one_drive_upload_handler2 =
-            std::make_unique<OneDriveUploadHandler>(
-                profile(), source_file_url,
-                base::BindOnce(
-                    &OneDriveUploadHandlerTest::OnUploadFailedOrAbandoned,
-                    base::Unretained(this), /*expected_task_result=*/
-                    OfficeTaskResult::kFileAlreadyBeingUploaded),
-                cloud_open_metrics_ref_);
-        one_drive_upload_handler2->Run();
-      }));
-
-  // Start the first upload.
-  auto one_drive_upload_handler1 = std::make_unique<OneDriveUploadHandler>(
-      profile(), source_file_url,
-      base::BindOnce(&OneDriveUploadHandlerTest::OnUploadSuccessful,
-                     base::Unretained(this),
-                     /*expected_task_result=*/OfficeTaskResult::kMoved),
-      cloud_open_metrics_ref_);
-  one_drive_upload_handler1->Run();
-
-  SetUpRunLoopAndWait(/*conditions_to_end_wait=*/2);
-
-  // Check that the source file has been moved to OneDrive.
-  {
-    base::ScopedAllowBlockingForTesting allow_blocking;
-    EXPECT_FALSE(base::PathExists(my_files_dir_.AppendASCII(test_file_name)));
-    CheckPathExistsOnODFS(base::FilePath("/").AppendASCII(test_file_name));
-  }
-
-  // There should only be one UploadResult from the first upload.
-  histogram_.ExpectUniqueSample(kOneDriveUploadResultMetricName,
-                                OfficeFilesUploadResult::kSuccess, 1);
 }
 
 // Tests that when there is an upload occurring followed by a second, unrelated

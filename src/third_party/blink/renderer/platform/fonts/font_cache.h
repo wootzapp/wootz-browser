@@ -85,9 +85,11 @@ enum class AlternateFontName {
   kLastResort
 };
 
-// "und-Zsye", the special locale for retrieving the color emoji font defined
-// in UTS #51: https://unicode.org/reports/tr51/#Emoji_Script
+// "und-Zsye" and "und-Zsym", the special locale for retrieving the color emoji
+// font and text emoji font correspondingly defined in UTS #51:
+// https://unicode.org/reports/tr51/#Emoji_Script
 extern const char kColorEmojiLocale[];
+extern const char kMonoEmojiLocale[];
 
 #if BUILDFLAG(IS_ANDROID)
 extern const char kNotoColorEmojiCompat[];
@@ -162,6 +164,8 @@ class PLATFORM_EXPORT FontCache final {
 #else
   static void PrewarmFamily(const AtomicString& family_name) {}
 #endif
+
+  static void MaybePreloadSystemFonts();
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // These are needed for calling QueryRenderStyleForStrike, since

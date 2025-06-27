@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ppapi/proxy/ppb_graphics_3d_proxy.h"
 
 #include <memory>
@@ -76,7 +81,7 @@ PP_Bool Graphics3D::SetGetBuffer(int32_t /* transfer_buffer_id */) {
   return PP_FALSE;
 }
 
-PP_Bool Graphics3D::Flush(int32_t put_offset) {
+PP_Bool Graphics3D::Flush(int32_t put_offset, uint64_t release_count) {
   return PP_FALSE;
 }
 
@@ -104,11 +109,11 @@ gpu::CommandBuffer::State Graphics3D::WaitForGetOffsetInRange(
 }
 
 void Graphics3D::EnsureWorkVisible() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void Graphics3D::ResolveAndDetachFramebuffer() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 gpu::CommandBuffer* Graphics3D::GetCommandBuffer() {
@@ -356,10 +361,11 @@ void PPB_Graphics3D_Proxy::OnMsgWaitForGetOffsetInRange(
 }
 
 void PPB_Graphics3D_Proxy::OnMsgAsyncFlush(const HostResource& context,
-                                           int32_t put_offset) {
+                                           int32_t put_offset,
+                                           uint64_t release_count) {
   EnterHostFromHostResource<PPB_Graphics3D_API> enter(context);
   if (enter.succeeded())
-    enter.object()->Flush(put_offset);
+    enter.object()->Flush(put_offset, release_count);
 }
 
 void PPB_Graphics3D_Proxy::OnMsgCreateTransferBuffer(

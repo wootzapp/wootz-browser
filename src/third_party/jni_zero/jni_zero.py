@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 
+import common
 import jni_generator
 import jni_registration_generator
 
@@ -25,6 +26,15 @@ def _add_io_args(parser, *, is_final=False, is_javap=False):
         required=True,
         help='Newline-separated file containing paths to .java or .jni.pickle '
         'files, taken from Java dependency tree.')
+    inputs.add_argument(
+        '--priority-java-sources-file',
+        help='Same format as java-sources-file, only used by multiplexing to '
+        'pick certain methods to be the first N numbers in the switch table.')
+    inputs.add_argument(
+        '--never-omit-switch-num',
+        action='store_true',
+        help='Only used by multiplexing. Whether to disable optimization of '
+        'omitting switch_num for unique signatures.')
     inputs.add_argument(
         '--native-sources-file',
         help='Newline-separated file containing paths to .java or .jni.pickle '
@@ -76,6 +86,7 @@ def _add_io_args(parser, *, is_final=False, is_javap=False):
 
 def _add_codegen_args(parser, *, is_final=False, is_javap=False):
   group = parser.add_argument_group(title='Codegen Options')
+  mode_group = parser.add_mutually_exclusive_group()
   group.add_argument(
       '--module-name',
       help='Only look at natives annotated with a specific module name.')
@@ -95,19 +106,6 @@ def _add_codegen_args(parser, *, is_final=False, is_javap=False):
     group.add_argument(
         '--namespace',
         help='Native namespace to wrap the registration functions into.')
-    # TODO(crbug.com/898261) hook these flags up to the build config to enable
-    # mocking in instrumentation tests
-    group.add_argument(
-        '--enable-proxy-mocks',
-        default=False,
-        action='store_true',
-        help='Allows proxy native impls to be mocked through Java.')
-    group.add_argument(
-        '--require-mocks',
-        default=False,
-        action='store_true',
-        help='Requires all used native implementations to have a mock set when '
-        'called. Otherwise an exception will be thrown.')
     group.add_argument('--manual-jni-registration',
                        action='store_true',
                        help='Generate a call to RegisterNatives()')
@@ -122,25 +120,38 @@ def _add_codegen_args(parser, *, is_final=False, is_javap=False):
     group.add_argument(
         '--split-name',
         help='Split name that the Java classes should be loaded from.')
-    group.add_argument('--per-file-natives', action='store_true')
+    mode_group.add_argument(
+        '--per-file-natives',
+        action='store_true',
+        help='Generate .srcjar and .h such that a final generate-final '
+        'step is not necessary')
+    group.add_argument(
+        '--enable-definition-macros',
+        action='store_true',
+        help='Generate JNI glue code in DEFINE_JNI_FOR_MyClass() macros')
 
   if is_javap:
     group.add_argument('--unchecked-exceptions',
                        action='store_true',
                        help='Do not check that no exceptions were thrown.')
   else:
-    group.add_argument(
+    mode_group.add_argument(
         '--use-proxy-hash',
         action='store_true',
         help='Enables hashing of the native declaration for methods in '
         'a @NativeMethods interface')
-    group.add_argument('--enable-jni-multiplexing',
-                       action='store_true',
-                       help='Enables JNI multiplexing for Java native methods')
+    mode_group.add_argument(
+        '--enable-jni-multiplexing',
+        action='store_true',
+        help='Enables JNI multiplexing for Java native methods')
     group.add_argument(
         '--package-prefix',
         help='Adds a prefix to the classes fully qualified-name. Effectively '
         'changing a class name from foo.bar -> prefix.foo.bar')
+    group.add_argument(
+        '--package-prefix-filter',
+        help=
+        ': separated list of java packages to apply the --package-prefix to.')
 
   if not is_final:
     if is_javap:
@@ -205,8 +216,11 @@ def main():
     parser.parse_args(sys.argv[1:] + ['-h'])
   else:
     args = parser.parse_args()
-    args.func(parser, args)
-
+    bool_arg = lambda name: getattr(args, name, False)
+    jni_mode = common.JniMode(is_hashing=bool_arg('use_proxy_hash'),
+                              is_muxing=bool_arg('enable_jni_multiplexing'),
+                              is_per_file=bool_arg('per_file_natives'))
+    args.func(parser, args, jni_mode)
 
 if __name__ == '__main__':
   _maybe_relaunch_with_newer_python()

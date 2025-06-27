@@ -4,7 +4,7 @@
 
 package org.chromium.chrome.browser.password_manager;
 
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -19,20 +19,23 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
+import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
 import org.chromium.url.GURL;
@@ -59,16 +62,27 @@ public class TouchToFillMainFlowIntegrationTest {
     private PasswordStoreBridge mPasswordStoreBridge;
 
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule public SigninTestRule mSigninTestRule = new SigninTestRule();
 
+    private WebPageStation mStartingPage;
+
+    public TouchToFillMainFlowIntegrationTest() {
+        // This test suite relies on the real password store. However, that can only store
+        // passwords if the device it runs on has the required min GMS Core version.
+        // To ensure the tests don't depend on the device configuration, set up a fake GMS
+        // Core version instead.
+        PasswordManagerTestHelper.setUpPwmRequiredMinGmsVersion();
+    }
+
     @Before
     public void setUp() {
-        mActivityTestRule.startMainActivityOnBlankPage();
+        mStartingPage = mActivityTestRule.startOnBlankPage();
         PasswordManagerTestHelper.setAccountForPasswordStore(SigninTestRule.TEST_ACCOUNT_EMAIL);
         PasswordManagerTestUtilsBridge.disableServerPredictions();
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
 
         mTestServer =
                 EmbeddedTestServer.createAndStartHTTPSServer(
@@ -79,14 +93,15 @@ public class TouchToFillMainFlowIntegrationTest {
                 () -> {
                     mBottomSheetController =
                             BottomSheetControllerProvider.from(
-                                    mActivityTestRule.getActivity().getWindowAndroid());
+                                    mStartingPage.getActivity().getWindowAndroid());
                 });
 
-        mWebContents = mActivityTestRule.getWebContents();
+        mWebContents = mStartingPage.webContentsElement.get();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mPasswordStoreBridge = new PasswordStoreBridge();
+                    mPasswordStoreBridge =
+                            new PasswordStoreBridge(mActivityTestRule.getProfile(false));
                 });
     }
 
@@ -100,7 +115,7 @@ public class TouchToFillMainFlowIntegrationTest {
     public void testClickingSuggestionPopulatesForm()
             throws TimeoutException, InterruptedException {
         // Fill the password store.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPasswordStoreBridge.insertPasswordCredential(
                             new PasswordStoreCredential(

@@ -8,27 +8,19 @@
 
 namespace features {
 
-#if BUILDFLAG(IS_WIN)
-// Enables blocking local UNC path on Windows for the File System Access API.
-BASE_FEATURE(kFileSystemAccessLocalUNCPathBlock,
-             "kFileSystemAccessLocalUNCPathBlock",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
-
 // Enables persistent permissions for the File System Access API.
 BASE_FEATURE(kFileSystemAccessPersistentPermissions,
              "kFileSystemAccessPersistentPermissions",
+#if BUILDFLAG(IS_ANDROID)
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#else
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables the updated Page Info UI for the persistent permissions feature.
-BASE_FEATURE(kFileSystemAccessPersistentPermissionsUpdatedPageInfo,
-             "kFileSystemAccessPersistentPermissionsUpdatedPageInfo",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+#endif
 
 // Enables performing the blocklist check on a full absolute path, which
 // resolves any symbolic link.
 BASE_FEATURE(kFileSystemAccessSymbolicLinkCheck,
              "FileSystemAccessSymbolicLinkCheck",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 }  // namespace features

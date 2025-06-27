@@ -15,31 +15,33 @@ def __filegroups(ctx):
     fg.update(typescript.filegroups(ctx))
     return fg
 
-# to reduce unnecessary local process and
-# unnecessary digest calculation of output file.
-def __copy_bundle_data(ctx, cmd):
-    input = cmd.inputs[0]
-    out = cmd.outputs[0]
-    ctx.actions.copy(input, out, recursive = ctx.fs.is_dir(input))
-    ctx.actions.exit(exit_status = 0)
+def __codesign(ctx, cmd):
+    # codesign.py uses the last arguments as bundle.path
+    # and it would remove existing files under bundle.path,
+    # but siso could not detect such removal, so would cause failure
+    # in subsequent steps. https://crbug.com/372628498
+    # To capture such removal, specify the bundle path as output,
+    # so hashfs.RetrieveUpdateEntriesFromLocal can detect them.
+    bundle_path = ctx.fs.canonpath(cmd.args[-1])
+    ctx.actions.fix(reconcile_outputdirs = [bundle_path])
 
 __handlers = {
-    "copy_bundle_data": __copy_bundle_data,
+    "codesign": __codesign,
 }
 __handlers.update(clang.handlers)
 __handlers.update(typescript.handlers)
 
 def __step_config(ctx, step_config):
     config.check(ctx)
-    step_config["rules"].extend([
-        {
-            "name": "mac/copy_bundle_data",
-            "action": "(.*)?copy_bundle_data",
-            "handler": "copy_bundle_data",
-        },
-    ])
     step_config = clang.step_config(ctx, step_config)
     step_config = typescript.step_config(ctx, step_config)
+    step_config["rules"].extend([
+        {
+            "name": "codesign",
+            "command_prefix": "python3 ../../build/config/apple/codesign.py ",
+            "handler": "codesign",
+        },
+    ])
     return step_config
 
 chromium = module(

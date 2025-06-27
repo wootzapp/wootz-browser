@@ -40,8 +40,7 @@ SwitchAccessMenuButton::SwitchAccessMenuButton(std::string action_name,
                                                int label_text_id)
     : views::Button(
           base::BindRepeating(&SwitchAccessMenuButton::OnButtonPressed,
-                              base::Unretained(this))),
-      action_name_(action_name) {
+                              base::Unretained(this))) {
   std::u16string label_text = l10n_util::GetStringUTF16(label_text_id);
   views::Builder<SwitchAccessMenuButton>(this)
       .SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY)
@@ -54,7 +53,7 @@ SwitchAccessMenuButton::SwitchAccessMenuButton(std::string action_name,
                        .SetText(label_text)
                        .SetTextContext(views::style::CONTEXT_BUTTON)
                        .SetAutoColorReadabilityEnabled(false)
-                       .SetEnabledColorId(kColorAshTextColorPrimary)
+                       .SetEnabledColor(kColorAshTextColorPrimary)
                        .SetMultiLine(true)
                        .SetMaximumWidth(kLabelMaxWidthDip))
       .BuildChildren();
@@ -83,17 +82,12 @@ SwitchAccessMenuButton::SwitchAccessMenuButton(std::string action_name,
 
   GetViewAccessibility().SetName(label_text, ax::mojom::NameFrom::kAttribute);
   GetViewAccessibility().SetIsLeaf(true);
-}
-
-void SwitchAccessMenuButton::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  views::Button::GetAccessibleNodeData(node_data);
-  node_data->AddStringAttribute(ax::mojom::StringAttribute::kValue,
-                                action_name_);
+  GetViewAccessibility().SetValue(action_name);
 }
 
 void SwitchAccessMenuButton::OnButtonPressed() {
-  NotifyAccessibilityEvent(ax::mojom::Event::kClicked,
-                           /*send_native_event=*/false);
+  NotifyAccessibilityEventDeprecated(ax::mojom::Event::kClicked,
+                                     /*send_native_event=*/false);
 }
 
 BEGIN_METADATA(SwitchAccessMenuButton)

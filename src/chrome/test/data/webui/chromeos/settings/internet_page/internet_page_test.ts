@@ -5,24 +5,27 @@
 import 'chrome://os-settings/os_settings.js';
 import 'chrome://os-settings/lazy_load.js';
 
-import {ApnSubpageElement, CrActionMenuElement, CrExpandButtonElement, CrIconButtonElement, CrToggleElement, EsimRemoveProfileDialogElement, EsimRenameDialogElement, NetworkSummaryElement, NetworkSummaryItemElement, OsSettingsCellularSetupDialogElement, OsSettingsSubpageElement, PaperTooltipElement, Router, routes, settingMojom, SettingsInternetPageElement} from 'chrome://os-settings/os_settings.js';
+import type {ApnSubpageElement, CrActionMenuElement, CrExpandButtonElement, CrIconButtonElement, CrToggleElement, EsimRemoveProfileDialogElement, EsimRenameDialogElement, NetworkSummaryElement, NetworkSummaryItemElement, OsSettingsCellularSetupDialogElement, OsSettingsSubpageElement, PaperTooltipElement, SettingsInternetPageElement} from 'chrome://os-settings/os_settings.js';
+import {Router, routes, settingMojom} from 'chrome://os-settings/os_settings.js';
 import {CellularSetupPageName} from 'chrome://resources/ash/common/cellular_setup/cellular_types.js';
 import {setESimManagerRemoteForTesting} from 'chrome://resources/ash/common/cellular_setup/mojo_interface_provider.js';
 import {MojoConnectivityProvider} from 'chrome://resources/ash/common/connectivity/mojo_connectivity_provider.js';
 import {setHotspotConfigForTesting} from 'chrome://resources/ash/common/hotspot/cros_hotspot_config.js';
-import {HotspotAllowStatus, HotspotInfo, HotspotState, WiFiBand, WiFiSecurityMode} from 'chrome://resources/ash/common/hotspot/cros_hotspot_config.mojom-webui.js';
+import type {HotspotInfo} from 'chrome://resources/ash/common/hotspot/cros_hotspot_config.mojom-webui.js';
+import {HotspotAllowStatus, HotspotState, WiFiBand, WiFiSecurityMode} from 'chrome://resources/ash/common/hotspot/cros_hotspot_config.mojom-webui.js';
 import {FakeHotspotConfig} from 'chrome://resources/ash/common/hotspot/fake_hotspot_config.js';
 import {MojoInterfaceProviderImpl} from 'chrome://resources/ash/common/network/mojo_interface_provider.js';
 import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
 import {getDeepActiveElement} from 'chrome://resources/ash/common/util.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {ApnProperties, DeviceStateProperties, GlobalPolicy, InhibitReason, MAX_NUM_CUSTOM_APNS, VpnType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import type {ApnProperties, DeviceStateProperties, GlobalPolicy} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import {InhibitReason, MAX_NUM_CUSTOM_APNS, VpnType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {ConnectionStateType, DeviceStateType, NetworkType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
 import {assertEquals, assertFalse, assertNotEquals, assertNull, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {FakeESimManagerRemote} from 'chrome://webui-test/chromeos/cellular_setup/fake_esim_manager_remote.js';
 import {FakeNetworkConfig} from 'chrome://webui-test/chromeos/fake_network_config_mojom.js';
 import {FakePasspointService} from 'chrome://webui-test/chromeos/fake_passpoint_service_mojom.js';
-import {FakeESimManagerRemote} from 'chrome://webui-test/cr_components/chromeos/cellular_setup/fake_esim_manager_remote.js';
 import {flushTasks, waitAfterNextRender, waitBeforeNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise, isVisible} from 'chrome://webui-test/test_util.js';
 
@@ -771,7 +774,6 @@ suite('<settings-internet-page>', () => {
   });
 
   test('Show carrier lock sub header when locked', async () => {
-    loadTimeData.overrideValues({isCellularCarrierLockEnabled: true});
     await init();
 
     const params = new URLSearchParams();
@@ -800,7 +802,6 @@ suite('<settings-internet-page>', () => {
   test(
       'Verify carrier lock sub header not displayed when unlocked',
       async () => {
-        loadTimeData.overrideValues({isCellularCarrierLockEnabled: true});
         await init();
 
         const params = new URLSearchParams();
@@ -828,37 +829,57 @@ suite('<settings-internet-page>', () => {
         assertNull(cellularSubtitle);
       });
 
-  test(
-      'Verify carrier lock sub header not displayed when feature disabled',
-      async () => {
-        loadTimeData.overrideValues({isCellularCarrierLockEnabled: false});
-        await init();
+  test('Show modem flashing sub header when flashing', async () => {
+    await init();
 
-        const params = new URLSearchParams();
-        params.append(
-            'type', OncMojo.getNetworkTypeString(NetworkType.kCellular));
+    const params = new URLSearchParams();
+    params.append('type', OncMojo.getNetworkTypeString(NetworkType.kCellular));
 
-        // Pretend that we initially started on the INTERNET_NETWORKS route with
-        // the params.
-        Router.getInstance().navigateTo(routes.INTERNET_NETWORKS, params);
-        internetPage.currentRouteChanged(routes.INTERNET_NETWORKS, undefined);
+    // Pretend that we initially started on the INTERNET_NETWORKS route with the
+    // params.
+    Router.getInstance().navigateTo(routes.INTERNET_NETWORKS, params);
+    internetPage.currentRouteChanged(routes.INTERNET_NETWORKS, undefined);
 
-        // Update the device state here to trigger an onDeviceStatesChanged_()
-        // call.
-        mojoApi.setDeviceStateForTest({
-          type: NetworkType.kCellular,
-          deviceState: DeviceStateType.kEnabled,
-          inhibitReason: InhibitReason.kNotInhibited,
-          isCarrierLocked: true,
-        } as DeviceStateProperties);
-        await flushTasks();
+    // Update the device state here to trigger an onDeviceStatesChanged_() call.
+    mojoApi.setDeviceStateForTest({
+      type: NetworkType.kCellular,
+      deviceState: DeviceStateType.kEnabled,
+      inhibitReason: InhibitReason.kNotInhibited,
+      isFlashing: true,
+    } as DeviceStateProperties);
+    await flushTasks();
 
-        const cellularSubtitle =
-            internetPage.shadowRoot!.querySelector<HTMLElement>(
-                '#cellularSubtitle');
-        assertNull(cellularSubtitle);
-      });
+    const flashingSubtitle =
+        internetPage.shadowRoot!.querySelector<HTMLElement>(
+            '#flashingSubtitle');
+    assertTrue(!!flashingSubtitle);
+  });
 
+  test('Not showing modem flashing sub header when flashing', async () => {
+    await init();
+
+    const params = new URLSearchParams();
+    params.append('type', OncMojo.getNetworkTypeString(NetworkType.kCellular));
+
+    // Pretend that we initially started on the INTERNET_NETWORKS route with the
+    // params.
+    Router.getInstance().navigateTo(routes.INTERNET_NETWORKS, params);
+    internetPage.currentRouteChanged(routes.INTERNET_NETWORKS, undefined);
+
+    // Update the device state here to trigger an onDeviceStatesChanged_() call.
+    mojoApi.setDeviceStateForTest({
+      type: NetworkType.kCellular,
+      deviceState: DeviceStateType.kEnabled,
+      inhibitReason: InhibitReason.kNotInhibited,
+      isFlashing: false,
+    } as DeviceStateProperties);
+    await flushTasks();
+
+    const flashingSubtitle =
+        internetPage.shadowRoot!.querySelector<HTMLElement>(
+            '#flashingSubtitle');
+    assertNull(flashingSubtitle);
+  });
 
   test(
       'Show no connection toast if receive show-cellular-setup' +
@@ -1163,14 +1184,16 @@ suite('<settings-internet-page>', () => {
         });
   });
 
-  [true, false].forEach(isApnRevampAndPoliciesEnabled => {
+  [true, false].forEach(isApnRevampAndAllowApnModificationPolicyEnabled => {
     test(
-        `Managed APN UI states when isApnRevampAndPoliciesEnabled is ${
-            isApnRevampAndPoliciesEnabled}`,
+        `Managed APN UI states when ` +
+            `isApnRevampAndAllowApnModificationPolicyEnabled is ${
+                isApnRevampAndAllowApnModificationPolicyEnabled}`,
         async () => {
           loadTimeData.overrideValues({
             isApnRevampEnabled: true,
-            isApnRevampAndPoliciesEnabled: isApnRevampAndPoliciesEnabled,
+            isApnRevampAndAllowApnModificationPolicyEnabled:
+                isApnRevampAndAllowApnModificationPolicyEnabled,
           });
           await navigateToApnSubpage();
 
@@ -1206,11 +1229,14 @@ suite('<settings-internet-page>', () => {
           } as GlobalPolicy;
           mojoApi.setGlobalPolicy(globalPolicy);
           await flushTasks();
-          assertEquals(isApnRevampAndPoliciesEnabled, !!getApnManagedIcon());
           assertEquals(
-              isApnRevampAndPoliciesEnabled, apnActionMenuButton.disabled);
+              isApnRevampAndAllowApnModificationPolicyEnabled,
+              !!getApnManagedIcon());
           assertEquals(
-              isApnRevampAndPoliciesEnabled,
+              isApnRevampAndAllowApnModificationPolicyEnabled,
+              apnActionMenuButton.disabled);
+          assertEquals(
+              isApnRevampAndAllowApnModificationPolicyEnabled,
               apnSubpage.shouldDisallowApnModification);
         });
   });

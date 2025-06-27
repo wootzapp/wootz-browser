@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/task/single_thread_task_runner.h"
@@ -94,10 +95,11 @@ void UDPSocketEventDispatcher::StartReceive(const ReceiveParams& params) {
       << "Socket has wrong owner.";
 
   // Don't start another read if the socket has been paused.
-  if (socket->paused())
+  if (socket->paused()) {
     return;
+  }
 
-  int buffer_size = (socket->buffer_size() <= 0 ? 4096 : socket->buffer_size());
+  int buffer_size = socket->buffer_size() <= 0 ? 4096 : socket->buffer_size();
   socket->RecvFrom(
       buffer_size,
       base::BindOnce(&UDPSocketEventDispatcher::ReceiveCallback, params));
@@ -121,7 +123,8 @@ void UDPSocketEventDispatcher::ReceiveCallback(
     // Dispatch "onReceive" event.
     sockets_udp::ReceiveInfo receive_info;
     receive_info.socket_id = params.socket_id;
-    receive_info.data.assign(io_buffer->data(), io_buffer->data() + bytes_read);
+    receive_info.data =
+        base::ToVector(io_buffer->first(static_cast<size_t>(bytes_read)));
     receive_info.remote_address = address;
     receive_info.remote_port = port;
     auto args = sockets_udp::OnReceive::Create(receive_info);
@@ -159,8 +162,9 @@ void UDPSocketEventDispatcher::ReceiveCallback(
       // "resumes" it.
       ResumableUDPSocket* socket =
           params.sockets->Get(params.extension_id, params.socket_id);
-      if (socket)
+      if (socket) {
         socket->set_paused(true);
+      }
     }
   }
 }
@@ -181,13 +185,15 @@ void UDPSocketEventDispatcher::DispatchEvent(void* browser_context_id,
                                              std::unique_ptr<Event> event) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+  if (!ExtensionsBrowserClient::Get()->IsValidContext(browser_context_id)) {
+    return;
+  }
+
   content::BrowserContext* context =
       reinterpret_cast<content::BrowserContext*>(browser_context_id);
-  if (!extensions::ExtensionsBrowserClient::Get()->IsValidContext(context))
-    return;
   EventRouter* router = EventRouter::Get(context);
   if (router) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     // Terminal app is the only non-extension to use sockets
     // (crbug.com/1350479).
     if (extension_id == kCrOSTerminal) {

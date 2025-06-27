@@ -13,6 +13,10 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "third_party/blink/public/common/features.h"
 
+#if BUILDFLAG(IS_ANDROID)
+#include "media/midi/midi_manager_android.h"
+#endif  // BUILDFLAG(IS_ANDROID)
+
 namespace content {
 
 namespace {
@@ -30,6 +34,12 @@ class MidiBrowserTest : public ContentBrowserTest {
   }
 
   void NavigateAndCheckResult(const std::string& path) {
+#if BUILDFLAG(IS_ANDROID)
+    if (!midi::HasSystemFeatureMidiForTesting()) {
+      GTEST_SKIP() << "MIDI service is not available on this device.";
+    }
+#endif  // BUILDFLAG(IS_ANDROID)
+
     const std::u16string expected = u"pass";
     content::TitleWatcher watcher(shell()->web_contents(), expected);
     const std::u16string failed = u"fail";
@@ -38,7 +48,7 @@ class MidiBrowserTest : public ContentBrowserTest {
     EXPECT_TRUE(NavigateToURL(shell(), https_test_server_->GetURL(path)));
 
     const std::u16string result = watcher.WaitAndGetTitle();
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     // Try does not allow accessing /dev/snd/seq, and it results in a platform
     // specific initialization error. See http://crbug.com/371230.
     // Also, Chromecast does not support the feature and results in
@@ -88,7 +98,7 @@ class MidiBrowserTestBlockMidiByDefault : public ContentBrowserTest {
     EXPECT_TRUE(NavigateToURL(shell(), https_test_server_->GetURL(path)));
 
     const std::u16string result = watcher.WaitAndGetTitle();
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     // Try does not allow accessing /dev/snd/seq, and it results in a platform
     // specific initialization error. See http://crbug.com/371230.
     // Also, Chromecast does not support the feature and results in

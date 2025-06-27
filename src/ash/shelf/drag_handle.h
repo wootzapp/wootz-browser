@@ -72,12 +72,9 @@ class ASH_EXPORT DragHandle : public views::Button,
   // contextual nudge will remain visible while the gesture is in progress.
   void SetWindowDragFromShelfInProgress(bool gesture_in_progress);
 
-  void UpdateColor();
-
   // views::View:
   void OnGestureEvent(ui::GestureEvent* event) override;
   gfx::Rect GetAnchorBoundsInScreen() const override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void OnThemeChanged() override;
 
   // OverviewObserver:
@@ -155,6 +152,14 @@ class ASH_EXPORT DragHandle : public views::Button,
 
   // Stops the timer to show the drag handle nudge.
   void StopDragHandleNudgeShowTimer();
+
+  // Sets accessible states of the view.
+  void UpdateExpandedCollapsedAccessibleState();
+
+  void UpdateAccessibleName();
+
+  // Updates previous-focus and next-focus accessible states of the view.
+  void UpdateAccessiblePreviousAndNextFocus();
 
   // Pointer to the shelf that owns the drag handle.
   const raw_ptr<Shelf> shelf_;

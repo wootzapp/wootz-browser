@@ -98,9 +98,8 @@ base::FilePath CrowdDenyComponentInstallerPolicy::GetRelativeInstallDir()
 
 void CrowdDenyComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(
-      kCrowdDenyPublicKeySHA256,
-      kCrowdDenyPublicKeySHA256 + std::size(kCrowdDenyPublicKeySHA256));
+  hash->assign(std::begin(kCrowdDenyPublicKeySHA256),
+               std::end(kCrowdDenyPublicKeySHA256));
 }
 
 std::string CrowdDenyComponentInstallerPolicy::GetName() const {

@@ -5,6 +5,7 @@
 import './screenshot.js';
 import './support_tool_shared.css.js';
 import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
 
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -40,13 +41,15 @@ export class DataCollectorsElement extends DataCollectorsElementBase {
       allSelected_: {
         type: Boolean,
         value: false,
+        notify: true,
+        observer: 'onAllSelectedChanged_',
       },
     };
   }
 
-  private dataCollectors_: DataCollectorItem[];
-  private enableScreenshot_: boolean;
-  private allSelected_: boolean;
+  declare private dataCollectors_: DataCollectorItem[];
+  declare private enableScreenshot_: boolean;
+  declare private allSelected_: boolean;
   private browserProxy_: BrowserProxy = BrowserProxyImpl.getInstance();
 
   override connectedCallback() {
@@ -78,16 +81,7 @@ export class DataCollectorsElement extends DataCollectorsElementBase {
         '';
   }
 
-  private getSelectAllButtonLabel_(selectAllClicked: boolean): string {
-    if (selectAllClicked) {
-      return this.i18n('selectNone');
-    } else {
-      return this.i18n('selectAll');
-    }
-  }
-
-  private onSelectAllClick_() {
-    this.allSelected_ = !this.allSelected_;
+  private onAllSelectedChanged_() {
     // Update this.dataCollectors_ to reflect the selection choice.
     for (let index = 0; index < this.dataCollectors_.length; index++) {
       // Mutate the array observably. See:

@@ -31,6 +31,12 @@ class SecurePaymentConfirmationModel {
   const std::u16string& title() const { return title_; }
   void set_title(const std::u16string& title) { title_ = title; }
 
+  // Descriptive text that goes under the title.
+  const std::u16string& description() const { return description_; }
+  void set_description(const std::u16string& description) {
+    description_ = description;
+  }
+
   // Label for the merchant row, e.g. "Store".
   const std::u16string& merchant_label() const { return merchant_label_; }
   void set_merchant_label(const std::u16string& merchant_label) {
@@ -85,8 +91,8 @@ class SecurePaymentConfirmationModel {
   }
 
   // Network icon.
-  const SkBitmap* network_icon() const { return &network_icon_; }
-  void set_network_icon(const SkBitmap& network_icon) {
+  const SkBitmap* network_icon() const { return network_icon_; }
+  void set_network_icon(const SkBitmap* network_icon) {
     network_icon_ = network_icon;
   }
 
@@ -103,8 +109,8 @@ class SecurePaymentConfirmationModel {
   }
 
   // Issuer icon.
-  const SkBitmap* issuer_icon() const { return &issuer_icon_; }
-  void set_issuer_icon(const SkBitmap& issuer_icon) {
+  const SkBitmap* issuer_icon() const { return issuer_icon_; }
+  void set_issuer_icon(const SkBitmap* issuer_icon) {
     issuer_icon_ = issuer_icon;
   }
 
@@ -196,6 +202,7 @@ class SecurePaymentConfirmationModel {
 
  private:
   std::u16string title_;
+  std::u16string description_;
 
   std::u16string merchant_label_;
   std::optional<std::u16string> merchant_name_;
@@ -203,15 +210,15 @@ class SecurePaymentConfirmationModel {
 
   std::u16string instrument_label_;
   std::u16string instrument_value_;
-  raw_ptr<const SkBitmap, DanglingUntriaged> instrument_icon_ = nullptr;
+  raw_ptr<const SkBitmap> instrument_icon_ = nullptr;
 
   std::u16string network_label_;
   std::u16string network_value_;
-  SkBitmap network_icon_;
+  raw_ptr<const SkBitmap> network_icon_ = nullptr;
 
   std::u16string issuer_label_;
   std::u16string issuer_value_;
-  SkBitmap issuer_icon_;
+  raw_ptr<const SkBitmap> issuer_icon_ = nullptr;
 
   std::u16string total_label_;
   std::u16string total_value_;

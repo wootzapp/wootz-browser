@@ -4,9 +4,12 @@
 
 #include "third_party/blink/renderer/core/paint/text_shadow_painter.h"
 
+#include <algorithm>
+
+#include "base/containers/heap_array.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/renderer/core/style/shadow_list.h"
+#include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 
 namespace blink {
 
@@ -41,7 +44,7 @@ sk_sp<PaintFilter> MakeTextShadowFilter(const TextPaintStyle& text_style) {
         DropShadowPaintFilter::ShadowMode::kDrawShadowOnly);
   }
   auto shadow_filters =
-      std::make_unique<sk_sp<PaintFilter>[]>(shadow_list.size());
+      base::HeapArray<sk_sp<PaintFilter>>::WithSize(shadow_list.size());
   wtf_size_t count = 0;
   for (const ShadowData& shadow : shadow_list) {
     if (sk_sp<PaintFilter> shadow_filter = MakeOneTextShadowFilter(
@@ -54,10 +57,9 @@ sk_sp<PaintFilter> MakeTextShadowFilter(const TextPaintStyle& text_style) {
     return nullptr;
   }
   // Reverse to get the proper paint order (last shadow painted first).
-  base::span<sk_sp<PaintFilter>> used_filters(shadow_filters.get(), count);
-  base::ranges::reverse(used_filters);
-  return sk_make_sp<MergePaintFilter>(shadow_filters.get(),
-                                      base::saturated_cast<int>(count));
+  base::span<sk_sp<PaintFilter>> used_filters(shadow_filters.first(count));
+  std::ranges::reverse(used_filters);
+  return sk_make_sp<MergePaintFilter>(used_filters);
 }
 
 }  // namespace

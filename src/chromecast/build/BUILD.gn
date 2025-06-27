@@ -10,15 +10,13 @@ if (is_android) {
   copy("archive_public_cast_apk") {
     sources = [ "$root_out_dir/apks/CastShell.apk" ]
     outputs = [ "$root_out_dir/archive/CastShell-$artifact_type_suffix.apk" ]
-    deps = [ "//chromecast:cast_shell_apk" ]
+    deps = [ "//chromecast:cast_browser_apk" ]
   }
 }
 
 group("archive") {
   testonly = true
-  if (chromecast_branding == "internal") {
-    deps = [ "//chromecast/internal/build:archive" ]
-  } else if (is_android) {
+  if (is_android) {
     deps = [ ":archive_public_cast_apk" ]
   }
 }

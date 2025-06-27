@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
@@ -14,7 +15,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/features.h"
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
@@ -96,7 +96,7 @@ class HttpAuthHandlerNegotiateTest : public PlatformTest,
   void SetupMocks(MockAuthLibrary* mock_library) {
 #if BUILDFLAG(IS_WIN)
     security_package_ = std::make_unique<SecPkgInfoW>();
-    memset(security_package_.get(), 0x0, sizeof(SecPkgInfoW));
+    UNSAFE_TODO(memset(security_package_.get(), 0x0, sizeof(SecPkgInfoW)));
     security_package_->cbMaxToken = 1337;
     mock_library->ExpectQuerySecurityPackageInfo(SEC_E_OK,
                                                  security_package_.get());
@@ -503,19 +503,19 @@ class TestAuthSystem : public HttpAuthMechanism {
   bool NeedsIdentity() const override { return true; }
   bool AllowsExplicitCredentials() const override { return true; }
 
-  net::HttpAuth::AuthorizationResult ParseChallenge(
-      net::HttpAuthChallengeTokenizer* tok) override {
-    return net::HttpAuth::AUTHORIZATION_RESULT_ACCEPT;
+  HttpAuth::AuthorizationResult ParseChallenge(
+      HttpAuthChallengeTokenizer* tok) override {
+    return HttpAuth::AUTHORIZATION_RESULT_ACCEPT;
   }
 
-  int GenerateAuthToken(const net::AuthCredentials* credentials,
+  int GenerateAuthToken(const AuthCredentials* credentials,
                         const std::string& spn,
                         const std::string& channel_bindings,
                         std::string* auth_token,
                         const NetLogWithSource& net_log,
-                        net::CompletionOnceCallback callback) override {
+                        CompletionOnceCallback callback) override {
     *auth_token = kFakeToken;
-    return net::OK;
+    return OK;
   }
 
   void SetDelegation(HttpAuth::DelegationType delegation_type) override {}

@@ -4,6 +4,7 @@
 
 #include "components/browsing_topics/common/semantic_tree.h"
 
+#include <array>
 #include <map>
 #include <set>
 #include <variant>
@@ -12,6 +13,7 @@
 #include "base/check_op.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/span.h"
+#include "base/memory/raw_span.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "components/strings/grit/components_strings.h"
@@ -31,7 +33,7 @@ constexpr Topic kNullTopic = Topic(0);
 // kChildToParent stores the first parent for each topic. This data structure
 // was chosen to reduce the binary size, since most topics have at most one
 // parent. Additional parents are added in GetParentTopics.
-const uint16_t kChildToFirstParent[] = {
+constexpr auto kChildToFirstParent = std::to_array<uint16_t>({
     0,   1,   1,   352, 1,   1,   1,   7,   352, 1,   1,   1,   12,  12,  12,
     12,  12,  12,  12,  12,  12,  12,  1,   23,  23,  23,  23,  23,  23,  23,
     23,  23,  23,  33,  33,  33,  23,  23,  23,  23,  40,  1,   1,   1,   363,
@@ -73,7 +75,8 @@ const uint16_t kChildToFirstParent[] = {
     570, 289, 572, 572, 572, 575, 572, 577, 578, 577, 577, 577, 572, 583, 572,
     585, 585, 585, 572, 572, 572, 572, 572, 572, 572, 572, 572, 572, 298, 298,
     289, 289, 289, 289, 604, 604, 289, 289, 299, 299, 299, 611, 611, 611, 611,
-    611, 611, 611, 611, 299, 299, 340, 343, 332, 332, 332, 626, 626, 626};
+    611, 611, 611, 611, 299, 299, 340, 343, 332, 332, 332, 626, 626, 626,
+});
 
 static_assert(SemanticTree::kNumTopics == std::size(kChildToFirstParent));
 
@@ -90,7 +93,7 @@ struct TaxonomyUpdate {
   // message ID.
   base::flat_map<uint16_t, uint16_t> renamed_topics;
   // The topics that have been deleted since the prior taxonomy version.
-  const base::span<const uint16_t> deleted_topics;
+  const base::raw_span<const uint16_t> deleted_topics;
 };
 
 const uint16_t kDeletedTopicsV2[] = {
@@ -867,7 +870,7 @@ const RepresentativenessMap& GetRepresentativenessMapForCurrentTaxonomy() {
       static const base::NoDestructor<RepresentativenessMap>
           kRepresentativenessMapV2([]() -> RepresentativenessMap {
             RepresentativenessMap map;
-            base::ranges::copy_if(
+            std::ranges::copy_if(
                 GetInternalRepresentativenessMap(),
                 std::inserter(map, map.end()), [](const auto& topic_kv) {
                   return topic_kv.first != 275 && topic_kv.first != 279;
@@ -876,7 +879,7 @@ const RepresentativenessMap& GetRepresentativenessMapForCurrentTaxonomy() {
           }());
       return *kRepresentativenessMapV2;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 }  // namespace

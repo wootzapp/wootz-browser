@@ -32,8 +32,6 @@
 
 namespace blink {
 
-SVGViewSpec::SVGViewSpec() : zoom_and_pan_(kSVGZoomAndPanUnknown) {}
-
 void SVGViewSpec::Trace(Visitor* visitor) const {
   visitor->Trace(view_box_);
   visitor->Trace(preserve_aspect_ratio_);
@@ -61,12 +59,21 @@ const SVGViewSpec* SVGViewSpec::CreateForViewElement(
   return view_spec;
 }
 
+const SVGViewSpec* SVGViewSpec::CreateFromAspectRatio(
+    const SVGPreserveAspectRatio* preserve_aspect_ratio) {
+  if (!preserve_aspect_ratio) {
+    return nullptr;
+  }
+  SVGViewSpec* view_spec = MakeGarbageCollected<SVGViewSpec>();
+  view_spec->preserve_aspect_ratio_ = preserve_aspect_ratio;
+  return view_spec;
+}
+
 bool SVGViewSpec::ParseViewSpec(const String& spec) {
   if (spec.empty())
     return false;
-  return WTF::VisitCharacters(spec, [&](const auto* chars, unsigned length) {
-    return ParseViewSpecInternal(chars, chars + length);
-  });
+  return WTF::VisitCharacters(
+      spec, [&](auto chars) { return ParseViewSpecInternal(chars); });
 }
 
 namespace {
@@ -110,21 +117,28 @@ static ViewSpecFunctionType ScanViewSpecFunction(const CharType*& ptr,
 }  // namespace
 
 template <typename CharType>
-bool SVGViewSpec::ParseViewSpecInternal(const CharType* ptr,
-                                        const CharType* end) {
+bool SVGViewSpec::ParseViewSpecInternal(base::span<const CharType> chars) {
+  const CharType* ptr = chars.data();
+  const CharType* end = UNSAFE_TODO(ptr + chars.size());
   if (!SkipToken(ptr, end, "svgView"))
     return false;
 
-  if (!SkipExactly<CharType>(ptr, end, '('))
+  size_t position = ptr - chars.data();
+  if (!SkipExactly<CharType>(chars, '(', position)) {
     return false;
+  }
+  ptr = UNSAFE_TODO(chars.data() + position);
 
   while (ptr < end && *ptr != ')') {
     ViewSpecFunctionType function_type = ScanViewSpecFunction(ptr, end);
     if (function_type == kUnknown)
       return false;
 
-    if (!SkipExactly<CharType>(ptr, end, '('))
+    position = ptr - chars.data();
+    if (!SkipExactly<CharType>(chars, '(', position)) {
       return false;
+    }
+    ptr = UNSAFE_TODO(chars.data() + position);
 
     switch (function_type) {
       case kViewBox: {
@@ -151,26 +165,34 @@ bool SVGViewSpec::ParseViewSpecInternal(const CharType* ptr,
         if (zoom_and_pan_ == kSVGZoomAndPanUnknown)
           return false;
         break;
-      case kPreserveAspectRatio:
-        preserve_aspect_ratio_ = MakeGarbageCollected<SVGPreserveAspectRatio>();
-        if (!preserve_aspect_ratio_->Parse(ptr, end, false))
+      case kPreserveAspectRatio: {
+        auto* preserve_aspect_ratio =
+            MakeGarbageCollected<SVGPreserveAspectRatio>();
+        if (!preserve_aspect_ratio->Parse(ptr, end, false)) {
           return false;
+        }
+        preserve_aspect_ratio_ = preserve_aspect_ratio;
         break;
-      case kTransform:
-        transform_ = MakeGarbageCollected<SVGTransformList>();
-        transform_->Parse(ptr, end);
+      }
+      case kTransform: {
+        auto* transform = MakeGarbageCollected<SVGTransformList>();
+        transform->Parse(ptr, end);
+        transform_ = transform;
         break;
+      }
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
 
-    if (!SkipExactly<CharType>(ptr, end, ')'))
+    position = ptr - chars.data();
+    if (!SkipExactly<CharType>(chars, ')', position)) {
       return false;
+    }
 
-    SkipExactly<CharType>(ptr, end, ';');
+    SkipExactly<CharType>(chars, ';', position);
+    ptr = UNSAFE_TODO(chars.data() + position);
   }
-  return SkipExactly<CharType>(ptr, end, ')');
+  return SkipExactly<CharType>(chars, ')', position);
 }
 
 }  // namespace blink

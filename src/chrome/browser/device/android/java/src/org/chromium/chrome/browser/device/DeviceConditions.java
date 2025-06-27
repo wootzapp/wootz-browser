@@ -13,11 +13,11 @@ import android.net.NetworkInfo;
 import android.os.BatteryManager;
 import android.os.PowerManager;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.compat.ApiHelperForM;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.net.ConnectionType;
 import org.chromium.net.NetworkChangeNotifier;
 
@@ -25,6 +25,7 @@ import org.chromium.net.NetworkChangeNotifier;
  * Device network and power conditions that can be either checked individually with the specific
  * static methods or gathered all at once using {@link.getCurrent}.
  */
+@NullMarked
 public class DeviceConditions {
     // Battery and power related variables.
     private boolean mPowerConnected;
@@ -74,15 +75,15 @@ public class DeviceConditions {
      * Returns the current device conditions if the device supports obtaining battery status.
      * Otherwise it will return the most restrictive device conditions.
      */
-    public static @NonNull DeviceConditions getCurrent(Context context) {
+    public static DeviceConditions getCurrent(Context context) {
         Intent batteryStatus = getBatteryStatus(context);
         if (batteryStatus == null) {
             return new DeviceConditions();
         }
 
         return new DeviceConditions(
-                isCurrentlyPowerConnected(context, batteryStatus),
-                getCurrentBatteryPercentage(context, batteryStatus),
+                isCurrentlyPowerConnected(batteryStatus),
+                getCurrentBatteryPercentage(batteryStatus),
                 getCurrentNetConnectionType(context),
                 isCurrentlyInPowerSaveMode(context),
                 isCurrentActiveNetworkMetered(context),
@@ -94,10 +95,10 @@ public class DeviceConditions {
         Intent batteryStatus = getBatteryStatus(context);
         if (batteryStatus == null) return false;
 
-        return isCurrentlyPowerConnected(context, batteryStatus);
+        return isCurrentlyPowerConnected(batteryStatus);
     }
 
-    private static boolean isCurrentlyPowerConnected(Context context, Intent batteryStatus) {
+    private static boolean isCurrentlyPowerConnected(Intent batteryStatus) {
         int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
         boolean isConnected =
                 (status == BatteryManager.BATTERY_STATUS_CHARGING
@@ -110,10 +111,10 @@ public class DeviceConditions {
         Intent batteryStatus = getBatteryStatus(context);
         if (batteryStatus == null) return 0;
 
-        return getCurrentBatteryPercentage(context, batteryStatus);
+        return getCurrentBatteryPercentage(batteryStatus);
     }
 
-    private static int getCurrentBatteryPercentage(Context context, Intent batteryStatus) {
+    private static int getCurrentBatteryPercentage(Intent batteryStatus) {
         int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
         if (scale == 0) return 0;
 
@@ -134,8 +135,7 @@ public class DeviceConditions {
      * @return Whether the device is in idle / doze mode.
      */
     public static boolean isCurrentlyInIdleMode(Context context) {
-        return ApiHelperForM.isDeviceIdleMode(
-                (PowerManager) context.getSystemService(Context.POWER_SERVICE));
+        return ((PowerManager) context.getSystemService(Context.POWER_SERVICE)).isDeviceIdleMode();
     }
 
     /**
@@ -161,8 +161,7 @@ public class DeviceConditions {
             ConnectivityManager cm =
                     (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-            boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
-            if (isConnected) {
+            if (activeNetwork != null && activeNetwork.isConnectedOrConnecting()) {
                 connectionType = convertAndroidNetworkTypeToConnectionType(activeNetwork.getType());
             }
         }
@@ -190,7 +189,7 @@ public class DeviceConditions {
         return powerManager.isInteractive();
     }
 
-    private static Intent getBatteryStatus(Context context) {
+    private static @Nullable Intent getBatteryStatus(Context context) {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
         // Note this is a sticky intent, so we aren't really registering a receiver, just getting
         // the sticky intent.  That means that we don't need to unregister the filter later.

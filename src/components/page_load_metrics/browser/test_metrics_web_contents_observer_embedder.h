@@ -27,14 +27,16 @@ class TestMetricsWebContentsObserverEmbedder
 
   // PageLoadMetricsEmbedderInterface:
   bool IsNewTabPageUrl(const GURL& url) override;
-  void RegisterObservers(PageLoadTracker* tracker) override;
+  void RegisterObservers(PageLoadTracker* tracker,
+                         content::NavigationHandle* navigation_handle) override;
   std::unique_ptr<base::OneShotTimer> CreateTimer() override;
   bool IsNoStatePrefetch(content::WebContents* web_contents) override;
   bool IsExtensionUrl(const GURL& url) override;
-  bool IsSidePanel(content::WebContents* web_contents) override;
-  bool IsNonTabWebUI() override;
+  bool IsNonTabWebUI(const GURL& url) override;
+  bool ShouldObserveScheme(std::string_view scheme) override;
   PageLoadMetricsMemoryTracker* GetMemoryTrackerForBrowserContext(
       content::BrowserContext* browser_context) override;
+  bool IsIncognito(content::WebContents* web_contents) override;
 
   void set_is_ntp(bool is_ntp) { is_ntp_ = is_ntp; }
 
@@ -50,6 +52,10 @@ class TestMetricsWebContentsObserverEmbedder
   const std::vector<mojom::PageLoadTimingPtr>& updated_subframe_timings()
       const {
     return updated_subframe_timings_;
+  }
+  const std::vector<mojom::CustomUserTimingMarkPtr>&
+  updated_custom_user_timings() const {
+    return updated_custom_user_timings_;
   }
 
   // currently_committed_urls passed to OnStart().
@@ -87,6 +93,7 @@ class TestMetricsWebContentsObserverEmbedder
   std::vector<mojom::PageLoadTimingPtr> updated_subframe_timings_;
   std::vector<mojom::PageLoadTimingPtr> complete_timings_;
   std::vector<mojom::CpuTimingPtr> updated_cpu_timings_;
+  std::vector<mojom::CustomUserTimingMarkPtr> updated_custom_user_timings_;
   std::vector<GURL> observed_committed_urls_;
   std::vector<GURL> observed_aborted_urls_;
   std::vector<ExtraRequestCompleteInfo> loaded_resources_;

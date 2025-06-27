@@ -9,6 +9,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
@@ -20,11 +21,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataType;
 import org.chromium.chrome.browser.browsing_data.TimePeriod;
@@ -37,7 +41,6 @@ import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.browsing_data.content.BrowsingDataInfo;
 import org.chromium.components.browsing_data.content.BrowsingDataModel;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
@@ -79,8 +82,11 @@ public class ChromeSiteSettingsDelegateTest {
     // This is a regression test for crbug.com/1077716.
     @Test
     @SmallTest
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.TIRAMISU,
+            message = "crbug.com/396752397")
     public void testFallbackFaviconLoads() throws TimeoutException {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSiteSettingsDelegate =
                             new ChromeSiteSettingsDelegate(
@@ -113,6 +119,7 @@ public class ChromeSiteSettingsDelegateTest {
     // Tests that getBrowsingDataInfo returns the correct sample test data in the hashmap.
     @Test
     @SmallTest
+    @DisabledTest(message = "https://crbug.com/396752397")
     public void testGetBrowsingDataInfoCookie() throws TimeoutException {
         setCookie(Scheme.HTTP, BROWSING_DATA_HOST, "'foo1=bar1'");
         setCookie(Scheme.HTTPS, BROWSING_DATA_HOST, "'foo2=bar2'");
@@ -139,6 +146,7 @@ public class ChromeSiteSettingsDelegateTest {
     // Tests that removeBrowsingData removes data correctly for a given host.
     @Test
     @SmallTest
+    @DisabledTest(message = "https://crbug.com/396752397")
     public void testRemoveBrowsingData() throws TimeoutException {
         setCookie(Scheme.HTTP, BROWSING_DATA_HOST, null);
 
@@ -150,7 +158,7 @@ public class ChromeSiteSettingsDelegateTest {
         CallbackHelper helper = new CallbackHelper();
 
         // Remove browsing-data.com host data.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     browsingDataModel[0].removeBrowsingData(
                             /* host= */ BROWSING_DATA_HOST, helper::notifyCalled);
@@ -191,7 +199,7 @@ public class ChromeSiteSettingsDelegateTest {
 
     private void clearBrowsingData(int dataType, int timePeriod) throws TimeoutException {
         CallbackHelper helper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BrowsingDataBridge.getForProfile(ProfileManager.getLastUsedRegularProfile())
                             .clearBrowsingData(
@@ -206,7 +214,7 @@ public class ChromeSiteSettingsDelegateTest {
         CallbackHelper helper = new CallbackHelper();
 
         // Run browsing data methods require running on UI thread.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSiteSettingsDelegate =
                             new ChromeSiteSettingsDelegate(
@@ -221,7 +229,9 @@ public class ChromeSiteSettingsDelegateTest {
 
         helper.waitForNext();
 
-        Map<Origin, BrowsingDataInfo> result = browsingDataModel[0].getBrowsingDataInfo();
+        Map<Origin, BrowsingDataInfo> result =
+                browsingDataModel[0].getBrowsingDataInfo(
+                        mSiteSettingsDelegate.getBrowserContextHandle(), false);
         return result;
     }
 }

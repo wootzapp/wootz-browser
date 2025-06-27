@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "content/browser/preloading/prerender/prerender_host.h"
+
 #include <memory>
 
 #include "base/functional/bind.h"
@@ -12,6 +13,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "components/ukm/test_ukm_recorder.h"
+#include "content/browser/preloading/preload_pipeline_info_impl.h"
 #include "content/browser/preloading/preloading.h"
 #include "content/browser/preloading/prerender/prerender_attributes.h"
 #include "content/browser/preloading/prerender/prerender_features.h"
@@ -19,6 +21,7 @@
 #include "content/browser/preloading/prerender/prerender_host.h"
 #include "content/browser/preloading/prerender/prerender_host_registry.h"
 #include "content/browser/preloading/prerender/prerender_metrics.h"
+#include "content/public/browser/preload_pipeline_info.h"
 #include "content/public/browser/preloading.h"
 #include "content/public/browser/preloading_data.h"
 #include "content/public/test/mock_web_contents_observer.h"
@@ -275,18 +278,20 @@ class PrerenderHostTest : public RenderViewHostImplTestHarness {
 
   PrerenderAttributes GeneratePrerenderAttributesWithPredicate(
       const GURL& url,
-      base::RepeatingCallback<bool(const GURL&)> url_match_predicate) {
+      base::RepeatingCallback<bool(const GURL&,
+                                   const std::optional<content::UrlMatchType>&)>
+          url_match_predicate) {
     RenderFrameHostImpl* rfh = contents()->GetPrimaryMainFrame();
     return PrerenderAttributes(
         url, PreloadingTriggerType::kSpeculationRule,
-        /*embedder_histogram_suffix=*/"",
-        blink::mojom::SpeculationTargetHint::kNoHint, Referrer(),
-        blink::mojom::SpeculationEagerness::kEager,
-        rfh->GetLastCommittedOrigin(), rfh->GetProcess()->GetID(),
-        contents()->GetWeakPtr(), rfh->GetFrameToken(),
-        rfh->GetFrameTreeNodeId(), rfh->GetPageUkmSourceId(),
-        ui::PAGE_TRANSITION_LINK, std::move(url_match_predicate),
-        /*prerender_navigation_handle_callback=*/{});
+        /*embedder_histogram_suffix=*/"", SpeculationRulesParams(), Referrer(),
+        /*no_vary_search_hint=*/std::nullopt, rfh, contents()->GetWeakPtr(),
+        ui::PAGE_TRANSITION_LINK,
+        /*should_warm_up_compositor=*/false,
+        /*should_prepare_paint_tree=*/false, std::move(url_match_predicate),
+        /*prerender_navigation_handle_callback=*/{},
+        PreloadPipelineInfoImpl::Create(
+            /*planned_max_preloading_type=*/PreloadingType::kPrerender));
   }
 
   void ExpectFinalStatus(PrerenderFinalStatus status) {
@@ -326,32 +331,11 @@ class PrerenderHostTest : public RenderViewHostImplTestHarness {
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-class NoVarySearchHeaderPrerenderHostTest
-    : public PrerenderHostTest,
-      public ::testing::WithParamInterface<bool> {
- public:
-  NoVarySearchHeaderPrerenderHostTest() {
-    bool is_nvs_header_enabled = GetParam();
-    if (is_nvs_header_enabled) {
-      scoped_feature_list_.InitAndEnableFeature(
-          blink::features::kPrerender2NoVarySearch);
-    } else {
-      scoped_feature_list_.InitAndDisableFeature(
-          blink::features::kPrerender2NoVarySearch);
-    }
-  }
-
-  ~NoVarySearchHeaderPrerenderHostTest() override = default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-TEST_P(NoVarySearchHeaderPrerenderHostTest, IsNoVarySearchHeaderSet) {
-  bool is_nvs_header_enabled = GetParam();
+TEST_F(PrerenderHostTest, IsNoVarySearchHeaderSet) {
   // Start prerendering a page.
   const GURL kPrerenderingUrl("https://example.com/next");
-  int prerender_frame_tree_node_id = contents()->AddPrerender(kPrerenderingUrl);
+  FrameTreeNodeId prerender_frame_tree_node_id =
+      contents()->AddPrerender(kPrerenderingUrl);
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   CommitPrerenderNavigation(
@@ -359,18 +343,14 @@ TEST_P(NoVarySearchHeaderPrerenderHostTest, IsNoVarySearchHeaderSet) {
       net::HttpResponseHeaders::Builder(net::HttpVersion(1, 1), "200 OK")
           .AddHeader("No-Vary-Search", "params=(\"a\")")
           .Build());
-  EXPECT_EQ(prerender_host->no_vary_search().has_value(),
-            is_nvs_header_enabled);
+  EXPECT_TRUE(prerender_host->no_vary_search().has_value());
 }
-
-INSTANTIATE_TEST_SUITE_P(PrerenderHostTest,
-                         NoVarySearchHeaderPrerenderHostTest,
-                         ::testing::Bool());
 
 TEST_F(PrerenderHostTest, Activate) {
   // Start prerendering a page.
   const GURL kPrerenderingUrl("https://example.com/next");
-  int prerender_frame_tree_node_id = contents()->AddPrerender(kPrerenderingUrl);
+  FrameTreeNodeId prerender_frame_tree_node_id =
+      contents()->AddPrerender(kPrerenderingUrl);
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   CommitPrerenderNavigation(*prerender_host);
@@ -384,7 +364,7 @@ TEST_F(PrerenderHostTest, Activate) {
 TEST_F(PrerenderHostTest, DontActivate) {
   // Start the prerendering navigation, but don't activate it.
   const GURL kPrerenderingUrl("https://example.com/next");
-  const int prerender_frame_tree_node_id =
+  const FrameTreeNodeId prerender_frame_tree_node_id =
       contents()->AddPrerender(kPrerenderingUrl);
   registry().CancelHost(prerender_frame_tree_node_id,
                         PrerenderFinalStatus::kDestroyed);
@@ -463,8 +443,9 @@ TEST_F(PrerenderHostTest, MainFrameNavigationForReservedHost) {
 TEST_F(PrerenderHostTest, ActivationAfterPageStateUpdate) {
   // Start prerendering a page.
   const GURL kPrerenderingUrl("https://example.com/next");
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl));
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   CommitPrerenderNavigation(*prerender_host);
@@ -561,8 +542,9 @@ TEST_F(PrerenderHostTest, LoadProgressChangedInvokedOnActivation) {
 
 TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsHidden) {
   const GURL kPrerenderingUrl = GURL("https://example.com/empty.html");
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl));
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -579,8 +561,9 @@ TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsHidden) {
 
 TEST_F(PrerenderHostTest, CancelActivationFromHiddenPage) {
   const GURL kPrerenderingUrl = GURL("https://example.com/empty.html");
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl));
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -607,8 +590,9 @@ TEST_F(PrerenderHostTest, CancelActivationFromHiddenPage) {
 
 TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsVisible) {
   const GURL kPrerenderingUrl = GURL("https://example.com/empty.html");
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl));
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -624,8 +608,9 @@ TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsVisible) {
 #if !BUILDFLAG(IS_ANDROID)
 TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsOcculded) {
   const GURL kPrerenderingUrl = GURL("https://example.com/empty.html");
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl));
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -640,10 +625,13 @@ TEST_F(PrerenderHostTest, DontCancelPrerenderWhenTriggerGetsOcculded) {
 
 TEST_F(PrerenderHostTest, UrlMatchPredicate) {
   const GURL kPrerenderingUrl = GURL("https://example.com/empty.html");
-  base::RepeatingCallback callback =
-      base::BindRepeating([](const GURL&) { return true; });
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributesWithPredicate(kPrerenderingUrl, callback));
+  base::RepeatingCallback callback = base::BindRepeating(
+      [](const GURL&, const std::optional<content::UrlMatchType>&) {
+        return true;
+      });
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributesWithPredicate(kPrerenderingUrl, callback));
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -672,8 +660,9 @@ TEST_F(PrerenderHostTest, CanceledPrerenderCannotBeReadyForActivation) {
       PreloadingType::kPrerender, std::move(same_url_matcher),
       contents()->GetPrimaryMainFrame()->GetPageUkmSourceId());
 
-  const int prerender_frame_tree_node_id = registry().CreateAndStartHost(
-      GeneratePrerenderAttributes(kPrerenderingUrl), preloading_attempt);
+  const FrameTreeNodeId prerender_frame_tree_node_id =
+      registry().CreateAndStartHost(
+          GeneratePrerenderAttributes(kPrerenderingUrl), preloading_attempt);
   PrerenderHost* prerender_host =
       registry().FindNonReservedHostById(prerender_frame_tree_node_id);
   ASSERT_NE(prerender_host, nullptr);
@@ -720,9 +709,38 @@ TEST(AreHttpRequestHeadersCompatible, IgnoreRTT) {
   const std::string prerender_headers = "rtt: 1 \r\n downlink: 3";
   const std::string potential_activation_headers = "rtt: 2 \r\n downlink: 4";
   EXPECT_TRUE(PrerenderHost::AreHttpRequestHeadersCompatible(
-      potential_activation_headers, prerender_headers,
-      PreloadingTriggerType::kSpeculationRule,
-      /*embedder_histogram_suffix=*/"", reason));
+      potential_activation_headers,
+#if BUILDFLAG(IS_ANDROID)
+      /*potential_activation_additional_headers=*/"",
+#endif  // BUILDFLAG(IS_ANDROID)
+      prerender_headers, PreloadingTriggerType::kSpeculationRule,
+      /*embedder_histogram_suffix=*/"", /*allow_x_header_mismatch=*/false,
+      reason));
+}
+
+TEST(AreHttpRequestHeadersCompatible, XHeaders) {
+  PrerenderCancellationReason reason = PrerenderCancellationReason(
+      PrerenderFinalStatus::kActivationNavigationParameterMismatch);
+  const std::string prerender_headers = "x-hello: 1";
+  const std::string potential_activation_headers = "X-world: 2";
+
+  EXPECT_FALSE(PrerenderHost::AreHttpRequestHeadersCompatible(
+      potential_activation_headers,
+#if BUILDFLAG(IS_ANDROID)
+      /*potential_activation_additional_headers=*/"",
+#endif  // BUILDFLAG(IS_ANDROID)
+      prerender_headers, PreloadingTriggerType::kSpeculationRule,
+      /*embedder_histogram_suffix=*/"", /*allow_x_header_mismatch=*/false,
+      reason));
+
+  EXPECT_TRUE(PrerenderHost::AreHttpRequestHeadersCompatible(
+      potential_activation_headers,
+#if BUILDFLAG(IS_ANDROID)
+      /*potential_activation_additional_headers=*/"",
+#endif  // BUILDFLAG(IS_ANDROID)
+      prerender_headers, PreloadingTriggerType::kSpeculationRule,
+      /*embedder_histogram_suffix=*/"", /*allow_x_header_mismatch=*/true,
+      reason));
 }
 
 }  // namespace

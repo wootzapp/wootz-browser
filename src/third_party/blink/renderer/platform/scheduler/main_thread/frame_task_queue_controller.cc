@@ -4,12 +4,14 @@
 
 #include "third_party/blink/renderer/platform/scheduler/main_thread/frame_task_queue_controller.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
 #include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/functional/callback.h"
+#include "base/not_fatal_until.h"
 #include "base/trace_event/traced_value.h"
 #include "third_party/blink/renderer/platform/scheduler/common/tracing_helper.h"
 #include "third_party/blink/renderer/platform/scheduler/main_thread/frame_scheduler_impl.h"
@@ -45,7 +47,7 @@ FrameTaskQueueController::GetTaskQueue(
   if (!task_queues_.Contains(queue_traits.Key()))
     CreateTaskQueue(queue_traits);
   auto it = task_queues_.find(queue_traits.Key());
-  DCHECK(it != task_queues_.end());
+  CHECK(it != task_queues_.end(), base::NotFatalUntil::M130);
   return it->value;
 }
 
@@ -121,14 +123,11 @@ void FrameTaskQueueController::RemoveTaskQueueAndVoter(
   DCHECK(task_queue_enabled_voters_.Contains(queue));
   task_queue_enabled_voters_.erase(queue);
 
-  bool found_task_queue = false;
-  for (auto* it = all_task_queues_and_voters_.begin();
-       it != all_task_queues_and_voters_.end(); ++it) {
-    if (it->first == queue) {
-      found_task_queue = true;
-      all_task_queues_and_voters_.erase(it);
-      break;
-    }
+  auto it = std::ranges::find(all_task_queues_and_voters_, queue,
+                              &TaskQueueAndEnabledVoterPair::first);
+  bool found_task_queue = it != all_task_queues_and_voters_.end();
+  if (found_task_queue) {
+    all_task_queues_and_voters_.erase(it);
   }
   DCHECK(found_task_queue);
 }

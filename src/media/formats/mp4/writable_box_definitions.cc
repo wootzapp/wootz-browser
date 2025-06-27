@@ -83,6 +83,15 @@ VPCodecConfiguration::VPCodecConfiguration(
     const gfx::ColorSpace& in_color_space)
     : profile(in_profile), level(in_level), color_space(in_color_space) {}
 
+ColorInformation::ColorInformation(VideoColorSpace video_color_space)
+    : video_color_space(video_color_space) {
+  DCHECK(video_color_space.IsSpecified());
+}
+ColorInformation::~ColorInformation() = default;
+ColorInformation::ColorInformation(const ColorInformation&) = default;
+ColorInformation& ColorInformation::operator=(const ColorInformation&) =
+    default;
+
 VisualSampleEntry::VisualSampleEntry(VideoCodec in_codec) : codec(in_codec) {}
 VisualSampleEntry::~VisualSampleEntry() = default;
 VisualSampleEntry::VisualSampleEntry(const VisualSampleEntry&) = default;
@@ -107,5 +116,12 @@ OpusSpecificBox::OpusSpecificBox() = default;
 OpusSpecificBox::~OpusSpecificBox() = default;
 OpusSpecificBox::OpusSpecificBox(const OpusSpecificBox&) = default;
 OpusSpecificBox& OpusSpecificBox::operator=(const OpusSpecificBox&) = default;
+
+AV1CodecConfiguration::AV1CodecConfiguration() = default;
+AV1CodecConfiguration::~AV1CodecConfiguration() = default;
+AV1CodecConfiguration::AV1CodecConfiguration(const AV1CodecConfiguration&) =
+    default;
+AV1CodecConfiguration& AV1CodecConfiguration::operator=(
+    const AV1CodecConfiguration&) = default;
 
 }  // namespace media::mp4::writable_boxes

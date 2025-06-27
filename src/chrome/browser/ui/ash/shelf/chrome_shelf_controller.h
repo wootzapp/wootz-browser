@@ -26,7 +26,6 @@
 #include "chrome/browser/ui/ash/shelf/shelf_app_updater.h"
 #include "components/account_id/account_id.h"
 #include "components/prefs/pref_change_registrar.h"
-#include "components/services/app_service/public/cpp/shortcut/shortcut.h"
 #include "components/sync_preferences/pref_service_syncable_observer.h"
 
 class AppIconLoader;
@@ -43,7 +42,6 @@ class ShelfSpinnerController;
 
 namespace apps {
 class PromiseAppUpdate;
-class ShortcutUpdate;
 }
 
 namespace ash {
@@ -67,8 +65,6 @@ class BaseWindow;
 namespace sync_preferences {
 class PrefServiceSyncable;
 }
-
-class BrowserAppShelfController;
 
 // ChromeShelfController helps manage Ash's shelf for Chrome prefs and apps.
 // It helps synchronize shelf state with profile preferences and app content.
@@ -211,7 +207,7 @@ class ChromeShelfController
 
   // Updates the browser shortcut item state.
   // This may create or delete the item, specifically if the browser icon
-  // is not pinned. Practically, when Lacros is the primary browser.
+  // is not pinned.
   void UpdateBrowserItemState();
 
   // Sets the shelf id for the browser window if the browser is represented.
@@ -279,8 +275,6 @@ class ChromeShelfController
                                 bool by_migration) override;
   void OnPromiseAppUpdate(const apps::PromiseAppUpdate& update) override;
   void OnPromiseAppRemoved(const apps::PackageId& package_id) override;
-  void OnShortcutUpdated(const apps::ShortcutUpdate& update) override;
-  void OnShortcutRemoved(const apps::ShortcutId& id) override;
 
   // AppIconLoaderDelegate:
   void OnAppImageUpdated(
@@ -480,9 +474,6 @@ class ChromeShelfController
 
   // Responsible for bridging between the shelf and sync/prefs.
   std::unique_ptr<ChromeShelfPrefs> shelf_prefs_;
-
-  // Manages shelf item for browser-based apps and Lacros.
-  std::unique_ptr<BrowserAppShelfController> browser_app_shelf_controller_;
 
   // The list of running & un-pinned applications for different users on hidden
   // desktops.

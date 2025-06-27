@@ -98,10 +98,6 @@ class CORE_EXPORT PerformanceTimingForReporting final
   LargestContentfulPaintDetailsForReporting
   SoftNavigationLargestContentfulPaintDetailsForMetrics() const;
 
-  LargestContentfulPaintDetailsForReporting
-  PopulateLargestContentfulPaintDetailsForReporting(
-      const LargestContentfulPaintDetails& timing) const;
-
   // The time at which the frame is first eligible for painting due to not
   // being throttled. A zero value indicates throttling.
   uint64_t FirstEligibleToPaint() const;
@@ -158,15 +154,16 @@ class CORE_EXPORT PerformanceTimingForReporting final
   // available.
   std::optional<base::TimeDelta> UserTimingMarkInteractive() const;
 
+  // The name and startTime of the user timing mark.
+  std::optional<std::tuple<AtomicString, base::TimeDelta>>
+  CustomUserTimingMark() const;
+
   uint64_t ParseStart() const;
   uint64_t ParseStop() const;
   uint64_t ParseBlockedOnScriptLoadDuration() const;
   uint64_t ParseBlockedOnScriptLoadFromDocumentWriteDuration() const;
   uint64_t ParseBlockedOnScriptExecutionDuration() const;
   uint64_t ParseBlockedOnScriptExecutionFromDocumentWriteDuration() const;
-
-  // The time of the first paint after a portal activation.
-  std::optional<base::TimeTicks> LastPortalActivatedPaint() const;
 
   // The start time of the prerender activation navigation.
   std::optional<base::TimeDelta> PrerenderActivationStart() const;
@@ -187,6 +184,9 @@ class CORE_EXPORT PerformanceTimingForReporting final
   InteractiveDetector* GetInteractiveDetector() const;
   std::optional<base::TimeDelta> MonotonicTimeToPseudoWallTime(
       const std::optional<base::TimeTicks>&) const;
+  LargestContentfulPaintDetailsForReporting
+  PopulateLargestContentfulPaintDetailsForReporting(
+      const LargestContentfulPaintDetails& timing) const;
 
   bool cross_origin_isolated_capability_;
 };

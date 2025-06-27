@@ -8,6 +8,8 @@
 #include "base/logging.h"
 #include "base/notreached.h"
 
+#include <dxgi1_6.h>
+
 namespace gfx {
 
 namespace {
@@ -19,7 +21,8 @@ Microsoft::WRL::ComPtr<ID3D11DeviceContext4> GetDeviceContext4(
   Microsoft::WRL::ComPtr<ID3D11DeviceContext4> context4;
   HRESULT hr = context.As(&context4);
   if (FAILED(hr)) {
-    DLOG(ERROR) << "Failed to get ID3D11DeviceContext4: 0x" << std::hex << hr;
+    DLOG(ERROR) << "Failed to get ID3D11DeviceContext4: "
+                << logging::SystemErrorCodeToString(hr);
     return nullptr;
   }
   return context4;
@@ -34,7 +37,7 @@ base::win::ScopedHandle DuplicateSharedHandle(HANDLE shared_handle) {
   if (!result) {
     const DWORD last_error = ::GetLastError();
     base::debug::Alias(&last_error);
-    CHECK(false);
+    NOTREACHED();
   }
   return base::win::ScopedHandle(duplicated_handle);
 }
@@ -42,11 +45,12 @@ base::win::ScopedHandle DuplicateSharedHandle(HANDLE shared_handle) {
 
 // static
 scoped_refptr<D3DSharedFence> D3DSharedFence::CreateForD3D11(
-    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_device) {
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_signal_device) {
   Microsoft::WRL::ComPtr<ID3D11Device5> d3d11_device5;
-  HRESULT hr = d3d11_device.As(&d3d11_device5);
+  HRESULT hr = d3d11_signal_device.As(&d3d11_device5);
   if (FAILED(hr)) {
-    DLOG(ERROR) << "Failed to get ID3D11Device5: 0x" << std::hex << hr;
+    DLOG(ERROR) << "Failed to get ID3D11Device5: "
+                << logging::SystemErrorCodeToString(hr);
     return nullptr;
   }
 
@@ -54,35 +58,72 @@ scoped_refptr<D3DSharedFence> D3DSharedFence::CreateForD3D11(
   hr = d3d11_device5->CreateFence(0, D3D11_FENCE_FLAG_SHARED,
                                   IID_PPV_ARGS(&d3d11_fence));
   if (FAILED(hr)) {
-    DLOG(ERROR) << "CreateFence failed with error 0x" << std::hex << hr;
+    DLOG(ERROR) << "CreateFence failed with error "
+                << logging::SystemErrorCodeToString(hr);
     return nullptr;
   }
 
+  return CreateFromD3D11Fence(std::move(d3d11_signal_device),
+                              std::move(d3d11_fence),
+                              /*fence_value=*/0);
+}
+
+// static
+scoped_refptr<D3DSharedFence> D3DSharedFence::CreateFromD3D11Fence(
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_signal_device,
+    Microsoft::WRL::ComPtr<ID3D11Fence> d3d11_fence,
+    uint64_t fence_value) {
   HANDLE shared_handle = nullptr;
-  hr = d3d11_fence->CreateSharedHandle(nullptr, GENERIC_ALL, nullptr,
-                                       &shared_handle);
+  HRESULT hr = d3d11_fence->CreateSharedHandle(nullptr, GENERIC_ALL, nullptr,
+                                               &shared_handle);
   if (FAILED(hr)) {
-    DLOG(ERROR) << "Unable to create shared handle for D3D11Fence: 0x"
-                << std::hex << hr;
+    DLOG(ERROR) << "Unable to create shared handle for D3D11Fence: "
+                << logging::SystemErrorCodeToString(hr);
     return nullptr;
   }
   auto fence = base::WrapRefCounted(new D3DSharedFence(
       base::win::ScopedHandle(shared_handle), DXGIHandleToken()));
-  fence->d3d11_device_ = std::move(d3d11_device);
+  fence->d3d11_signal_device_ = std::move(d3d11_signal_device);
   fence->d3d11_signal_fence_ = std::move(d3d11_fence);
+  fence->fence_value_ = fence_value;
   return fence;
 }
 
 // static
 bool D3DSharedFence::IsSupported(ID3D11Device* d3d11_device) {
   DCHECK(d3d11_device);
+  // Check for ID3D11Device5:
   Microsoft::WRL::ComPtr<ID3D11Device5> d3d11_device5;
   HRESULT hr = d3d11_device->QueryInterface(IID_PPV_ARGS(&d3d11_device5));
   if (FAILED(hr)) {
-    DVLOG(1) << "Failed to get ID3D11Device5: 0x" << std::hex << hr;
+    DVLOG(1) << "Failed to get ID3D11Device5: "
+             << logging::SystemErrorCodeToString(hr);
     return false;
   }
-  return true;
+
+  // Check for IDXGIAdapter4:
+  Microsoft::WRL::ComPtr<IDXGIDevice> dxgi_device;
+  hr = d3d11_device->QueryInterface(IID_PPV_ARGS(&dxgi_device));
+  CHECK_EQ(hr, S_OK);
+
+  Microsoft::WRL::ComPtr<IDXGIAdapter> dxgi_adapter;
+  hr = dxgi_device->GetAdapter(&dxgi_adapter);
+  CHECK_EQ(hr, S_OK);
+
+  Microsoft::WRL::ComPtr<IDXGIAdapter4> dxgi_adapter4;
+  hr = dxgi_adapter.As(&dxgi_adapter4);
+  if (FAILED(hr)) {
+    DVLOG(1) << "Failed to get IDXGIAdapter4: "
+             << logging::SystemErrorCodeToString(hr);
+    return false;
+  }
+
+  DXGI_ADAPTER_DESC3 adapter_desc;
+  hr = dxgi_adapter4->GetDesc3(&adapter_desc);
+  CHECK_EQ(hr, S_OK);
+
+  // The adapter must support monitored fences.
+  return adapter_desc.Flags & DXGI_ADAPTER_FLAG3_SUPPORT_MONITORED_FENCES;
 }
 
 // static
@@ -124,7 +165,7 @@ const DXGIHandleToken& D3DSharedFence::GetDXGIHandleToken() const {
 }
 
 Microsoft::WRL::ComPtr<ID3D11Device> D3DSharedFence::GetD3D11Device() const {
-  return d3d11_device_;
+  return d3d11_signal_device_;
 }
 
 bool D3DSharedFence::IsSameFenceAsHandle(HANDLE shared_handle) const {
@@ -138,58 +179,68 @@ void D3DSharedFence::Update(uint64_t fence_value) {
 }
 
 bool D3DSharedFence::WaitD3D11(
-    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_device) {
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d11_wait_device) {
   // Skip wait if passed in device is the same as signaling device.
-  if (d3d11_device == d3d11_device_) {
+  if (d3d11_wait_device == d3d11_signal_device_) {
     return true;
   }
 
-  auto it = d3d11_wait_fence_map_.Get(d3d11_device);
+  auto it = d3d11_wait_fence_map_.Get(d3d11_wait_device);
   if (it == d3d11_wait_fence_map_.end()) {
     Microsoft::WRL::ComPtr<ID3D11Device5> d3d11_device5;
-    HRESULT hr = d3d11_device.As(&d3d11_device5);
+    HRESULT hr = d3d11_wait_device.As(&d3d11_device5);
     if (FAILED(hr)) {
-      DLOG(ERROR) << "Failed to get ID3D11Device5: 0x" << std::hex << hr;
+      DLOG(ERROR) << "Failed to get ID3D11Device5: "
+                  << logging::SystemErrorCodeToString(hr);
       return false;
     }
     Microsoft::WRL::ComPtr<ID3D11Fence> d3d11_fence;
     hr = d3d11_device5->OpenSharedFence(shared_handle_.get(),
                                         IID_PPV_ARGS(&d3d11_fence));
     if (FAILED(hr)) {
-      DLOG(ERROR) << "OpenSharedFence failed: 0x" << std::hex << hr;
+      DLOG(ERROR) << "OpenSharedFence failed: "
+                  << logging::SystemErrorCodeToString(hr);
       return false;
     }
-    it = d3d11_wait_fence_map_.Put(d3d11_device, d3d11_fence);
+    it = d3d11_wait_fence_map_.Put(d3d11_wait_device, std::move(d3d11_fence));
+  }
+
+  const Microsoft::WRL::ComPtr<ID3D11Fence>& fence = it->second;
+  // Skip wait if we're already past the wait value.
+  if (fence->GetCompletedValue() >= fence_value_) {
+    return true;
   }
 
   Microsoft::WRL::ComPtr<ID3D11DeviceContext4> context4 =
-      GetDeviceContext4(d3d11_device.Get());
+      GetDeviceContext4(d3d11_wait_device.Get());
   if (!context4) {
     return false;
   }
 
-  const Microsoft::WRL::ComPtr<ID3D11Fence>& fence = it->second;
   HRESULT hr = context4->Wait(fence.Get(), fence_value_);
   if (FAILED(hr)) {
-    DLOG(ERROR) << "D3D11 fence wait failed: 0x" << std::hex << hr;
+    DLOG(ERROR) << "D3D11 fence wait failed: "
+                << logging::SystemErrorCodeToString(hr);
     return false;
   }
   return true;
 }
 
 bool D3DSharedFence::IncrementAndSignalD3D11() {
-  DCHECK(d3d11_device_);
+  CHECK(d3d11_signal_device_)
+      << "D3D11 fence is expected to be signaled externally";
   DCHECK(d3d11_signal_fence_);
 
   Microsoft::WRL::ComPtr<ID3D11DeviceContext4> context4 =
-      GetDeviceContext4(d3d11_device_.Get());
+      GetDeviceContext4(d3d11_signal_device_.Get());
   if (!context4) {
     return false;
   }
 
   HRESULT hr = context4->Signal(d3d11_signal_fence_.Get(), fence_value_ + 1);
   if (FAILED(hr)) {
-    DLOG(ERROR) << "D3D11 fence signal failed: 0x" << std::hex << hr;
+    DLOG(ERROR) << "D3D11 fence signal failed: "
+                << logging::SystemErrorCodeToString(hr);
     return false;
   }
   fence_value_++;

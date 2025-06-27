@@ -93,16 +93,15 @@ class MediaRouterDialogControllerViews
   // running a PWA.) or (2) |hide_media_button_for_testing_| is true.
   MediaToolbarButtonView* GetMediaButton();
 
-  // MediaRouterActionController is responsible for showing and hiding the
+  // CastToolbarButtonController is responsible for showing and hiding the
   // toolbar action. It's owned by MediaRouterUIService and it may be nullptr.
-  MediaRouterActionController* GetActionController();
+  CastToolbarButtonController* GetActionController();
 
   MediaRouterUI* ui() { return ui_.get(); }
 
   // Responsible for notifying the dialog view of dialog model updates and
   // sending route requests to MediaRouter. Set to nullptr when the dialog is
-  // closed. Not used for presentation requests when
-  // GlobalMediaControlsCastStartStopEnabled() returns true.
+  // closed. Not used for presentation requests.
   std::unique_ptr<MediaRouterUI> ui_;
 
   CastDialogCoordinator cast_dialog_coordinator_;
@@ -112,7 +111,7 @@ class MediaRouterDialogControllerViews
   base::ScopedMultiSourceObservation<views::Widget, views::WidgetObserver>
       scoped_widget_observations_{this};
 
-  // Service that provides MediaRouterActionController. It outlives |this|.
+  // Service that provides CastToolbarButtonController. It outlives |this|.
   const raw_ptr<MediaRouterUIService> media_router_ui_service_;
 
   bool hide_media_button_for_testing_ = false;

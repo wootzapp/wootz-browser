@@ -22,7 +22,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/autofill/core/browser/test_event_waiter.h"
+#include "components/autofill/core/browser/test_utils/test_event_waiter.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/payments/content/payment_manifest_web_data_service.h"
 #include "components/payments/core/error_strings.h"
@@ -290,6 +290,27 @@ IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationDisableDebugTest,
 IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationTest,
                        CanMakePayment_HasAuthenticator) {
   test_controller()->SetHasAuthenticator(true);
+  NavigateTo("a.com", "/secure_payment_confirmation.html");
+
+  EXPECT_EQ("true",
+            content::EvalJs(GetActiveWebContents(),
+                            "securePaymentConfirmationCanMakePayment()"));
+  EXPECT_EQ("true",
+            content::EvalJs(GetActiveWebContents(),
+                            "securePaymentConfirmationCanMakePaymentTwice()"));
+  EXPECT_EQ("true", content::EvalJs(
+                        GetActiveWebContents(),
+                        "securePaymentConfirmationHasEnrolledInstrument()"));
+}
+
+// canMakePayment() and hasEnrolledInstrument() should return true on platforms
+// with a compatible authenticator regardless of the value of the
+// "prefs.can_make_payment_enabled" pref.
+IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationTest,
+                       CanMakePayment_CanMakePaymentEnabledPref) {
+  test_controller()->SetHasAuthenticator(true);
+  test_controller()->SetCanMakePaymentEnabledPref(false);
+
   NavigateTo("a.com", "/secure_payment_confirmation.html");
 
   EXPECT_EQ("true",

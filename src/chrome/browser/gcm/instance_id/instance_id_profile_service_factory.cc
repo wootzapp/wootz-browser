@@ -51,6 +51,9 @@ InstanceIDProfileServiceFactory::InstanceIDProfileServiceFactory()
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOwnInstance)
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   // GCM is needed for device ID.
   DependsOn(gcm::GCMProfileServiceFactory::GetInstance());
@@ -58,7 +61,8 @@ InstanceIDProfileServiceFactory::InstanceIDProfileServiceFactory()
 
 InstanceIDProfileServiceFactory::~InstanceIDProfileServiceFactory() = default;
 
-KeyedService* InstanceIDProfileServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+InstanceIDProfileServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -69,7 +73,7 @@ KeyedService* InstanceIDProfileServiceFactory::BuildServiceInstanceFor(
   bool is_incognito = profile->IsOffTheRecord();
 #endif
 
-  return new InstanceIDProfileService(
+  return std::make_unique<InstanceIDProfileService>(
       gcm::GCMProfileServiceFactory::GetForProfile(profile)->driver(),
       is_incognito);
 }

@@ -68,11 +68,6 @@ TestCase& TestCase::Offline() {
   return *this;
 }
 
-TestCase& TestCase::FilesExperimental() {
-  options.files_experimental = true;
-  return *this;
-}
-
 TestCase& TestCase::EnableConflictDialog() {
   options.enable_conflict_dialog = true;
   return *this;
@@ -174,18 +169,13 @@ TestCase& TestCase::EnableLocalImageSearch() {
   return *this;
 }
 
-TestCase& TestCase::EnableFSPsInRecents() {
-  options.enable_fsps_in_recents = true;
-  return *this;
-}
-
-TestCase& TestCase::EnableGoogleOneOfferFilesBanner() {
-  options.enable_google_one_offer_files_banner = true;
-  return *this;
-}
-
 TestCase& TestCase::DisableGoogleOneOfferFilesBanner() {
   options.enable_google_one_offer_files_banner = false;
+  return *this;
+}
+
+TestCase& TestCase::DisableGoogleOneOfferFilesBannerWithG1Nudge() {
+  options.disable_google_one_offer_files_banner = true;
   return *this;
 }
 
@@ -254,10 +244,6 @@ std::string TestCase::GetFullName() const {
     full_name += "_Offline";
   }
 
-  if (options.files_experimental) {
-    full_name += "_FilesExperimental";
-  }
-
   if (options.enable_conflict_dialog) {
     full_name += "_ConflictDialog";
   }
@@ -294,15 +280,18 @@ std::string TestCase::GetFullName() const {
     full_name += "_LocalImageSearch";
   }
 
-  if (options.enable_fsps_in_recents) {
-    full_name += "_FSPsInRecents";
-  }
-
   // Google One offer is enabled by default. Append it to a test name only if
   // it's different from the default value.
   // TODO(b/315829911): Remove Google One offer files banner flag.
   if (!options.enable_google_one_offer_files_banner) {
     full_name += "_DisableGoogleOneOfferFilesBanner";
+  }
+
+  // Google One offer is disabled by default. Append it to a test name only if
+  // it's different from the default value.
+  // TODO(b/315829911): Remove Google One offer files banner flag.
+  if (options.disable_google_one_offer_files_banner) {
+    full_name += "_DisableGoogleOneOfferFilesBannerWithNudge";
   }
 
   if (options.enable_drive_bulk_pinning) {

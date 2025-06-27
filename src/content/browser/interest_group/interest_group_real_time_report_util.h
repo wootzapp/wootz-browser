@@ -16,13 +16,18 @@
 
 namespace content {
 
+// Calculate flip probability that'll be used in Rappor(). `epsilon` is a
+// measure of the privacy loss (higher is less private).
+CONTENT_EXPORT double CalculateFlipProbability(double epsilon);
+
 // Basic RAPPOR noises each coordinate of the bit vector (of size `num_buckets`)
-// independently, and it is parameterized by epsilon, a measure of privacy loss.
+// independently. `flip_probability` is calculated from an epsilon which is
+// a measure of privacy loss. When `flip_probability` is 0, no noise is added.
 // See the explainer for more details:
 // https://github.com/WICG/turtledove/blob/main/PA_real_time_monitoring.md#histogram-contributions-and-the-rappor-noise-algorithm
 // CONTENT_EXPORT for testing.
 CONTENT_EXPORT std::vector<uint8_t> Rappor(std::optional<int32_t> maybe_bucket,
-                                           double epsilon,
+                                           double flip_probability,
                                            int num_buckets);
 
 // Randomly select one contribution from `contributions` and return its index if
@@ -40,12 +45,14 @@ CalculateRealTimeReportingHistograms(
     std::map<
         url::Origin,
         std::vector<auction_worklet::mojom::RealTimeReportingContributionPtr>>
-        contributions);
+        contributions,
+    double flip_probability);
 
 // Get the destination of sending real time report.
 CONTENT_EXPORT GURL GetRealTimeReportDestination(const url::Origin& origin);
 
-// Returns false if contribution has an invalid bucket.
+// Returns false if contribution has an invalid bucket. Note that it treats
+// platform buckets as valid.
 CONTENT_EXPORT bool HasValidRealTimeBucket(
     const auction_worklet::mojom::RealTimeReportingContributionPtr&
         contribution);
@@ -54,6 +61,14 @@ CONTENT_EXPORT bool HasValidRealTimeBucket(
 CONTENT_EXPORT bool HasValidRealTimePriorityWeight(
     const auction_worklet::mojom::RealTimeReportingContributionPtr&
         contribution);
+
+// Bit-pack a vector of 0 and 1s, i.e., use a bit to represent a 0/1, instead of
+// a byte. The first 8 elements of `data` packs to byte 0, the next 8 elements
+// packs to byte 1, until all elements are packed into the output. Within each
+// group of 8 elements, the first element packs to the most significant bit of
+// a byte. For example, the result of packing [0,0,0,0,0,0,0,1, 1]
+// is output[0]: 1, output[1]: 128.
+CONTENT_EXPORT std::vector<uint8_t> BitPacking(std::vector<uint8_t> data);
 
 }  // namespace content
 

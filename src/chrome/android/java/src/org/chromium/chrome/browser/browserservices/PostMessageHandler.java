@@ -27,6 +27,7 @@ import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.MessagePort.MessageCallback;
 import org.chromium.content_public.browser.NavigationHandle;
+import org.chromium.content_public.browser.Page;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.net.GURLUtils;
@@ -63,6 +64,11 @@ public class PostMessageHandler implements OriginVerificationListener {
                 (messagePayload, sentPorts) -> {
                     if (mChannel[0].isTransferred()) {
                         Log.e(TAG, "Discarding postMessage as channel has been transferred.");
+                        return;
+                    }
+
+                    if (mWebContents == null || mWebContents.isDestroyed()) {
+                        Log.e(TAG, "Discarding postMessage as web contents has been destroyed.");
                         return;
                     }
 
@@ -104,7 +110,7 @@ public class PostMessageHandler implements OriginVerificationListener {
                         && navigation.hasCommitted()
                         && !navigation.isSameDocument()
                         && mChannel != null) {
-                    webContents.removeObserver(this);
+                    observe(null);
                     disconnectChannel();
                     return;
                 }
@@ -119,7 +125,9 @@ public class PostMessageHandler implements OriginVerificationListener {
 
             @Override
             public void documentLoadedInPrimaryMainFrame(
-                    GlobalRenderFrameHostId rfhId, @LifecycleState int rfhLifecycleState) {
+                    Page page,
+                    GlobalRenderFrameHostId rfhId,
+                    @LifecycleState int rfhLifecycleState) {
                 if (mChannel != null) {
                     return;
                 }
@@ -190,8 +198,6 @@ public class PostMessageHandler implements OriginVerificationListener {
                         mChannel[0].postMessage(new MessagePayload(message), null);
                     }
                 });
-        RecordHistogram.recordBooleanHistogram(
-                "CustomTabs.PostMessage.PostMessageFromClientApp", true);
         return CustomTabsService.RESULT_SUCCESS;
     }
 

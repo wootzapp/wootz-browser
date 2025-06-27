@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/filters/ffmpeg_aac_bitstream_converter.h"
 
 #include "base/logging.h"
@@ -171,7 +176,7 @@ FFmpegAACBitstreamConverter::FFmpegAACBitstreamConverter(
 FFmpegAACBitstreamConverter::~FFmpegAACBitstreamConverter() = default;
 
 bool FFmpegAACBitstreamConverter::ConvertPacket(AVPacket* packet) {
-  if (packet == NULL || !packet->data) {
+  if (packet == nullptr || !packet->data) {
     return false;
   }
 

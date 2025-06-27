@@ -98,10 +98,6 @@ void SyntheticTrialSyncer::OnSyntheticTrialsChanged(
 
 void SyntheticTrialSyncer::BrowserChildProcessLaunchedAndConnected(
     const ChildProcessData& data) {
-  if (!data.GetProcess().IsValid()) {
-    return;
-  }
-
   const int unique_id = data.id;
   ChildProcessHost* host = FindChildProcessHost(unique_id);
   if (host == nullptr) {
@@ -143,7 +139,7 @@ void SyntheticTrialSyncer::RenderProcessReady(RenderProcessHost* host) {
     return;
   }
 
-  const int unique_id = host->GetID();
+  const int unique_id = host->GetDeprecatedID();
   mojo::Remote<mojom::SyntheticTrialConfiguration>
       synthetic_trial_configuration;
   host->BindReceiver(
@@ -166,7 +162,7 @@ void SyntheticTrialSyncer::RenderProcessReady(RenderProcessHost* host) {
 void SyntheticTrialSyncer::RenderProcessExited(
     RenderProcessHost* host,
     const ChildProcessTerminationInfo& info) {
-  child_process_unique_id_to_mojo_connections_.erase(host->GetID());
+  child_process_unique_id_to_mojo_connections_.erase(host->GetDeprecatedID());
 
   // To ensure this is removed from the observer list, call RemoveObserver()
   // again.
@@ -174,7 +170,7 @@ void SyntheticTrialSyncer::RenderProcessExited(
 }
 
 void SyntheticTrialSyncer::RenderProcessHostDestroyed(RenderProcessHost* host) {
-  child_process_unique_id_to_mojo_connections_.erase(host->GetID());
+  child_process_unique_id_to_mojo_connections_.erase(host->GetDeprecatedID());
 
   // To ensure this is removed from the observer list, call RemoveObserver()
   // again.

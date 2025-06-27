@@ -8,7 +8,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/payments/secure_payment_confirmation_browsertest.h"
-#include "components/autofill/core/browser/test_event_waiter.h"
+#include "components/autofill/core/browser/test_utils/test_event_waiter.h"
 #include "components/payments/content/secure_payment_confirmation_app.h"
 #include "components/payments/core/journey_logger.h"
 #include "components/payments/core/secure_payment_confirmation_metrics.h"
@@ -149,15 +149,8 @@ IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationAuthenticatorCreateTest,
   EXPECT_EQ("PublicKeyCredential", info.webidl_type);
   EXPECT_EQ("webauthn.create", info.type);
 
-  // Verify that the correct metrics are recorded.
-  histogram_tester_.ExpectTotalCount(
-      "PaymentRequest.SecurePaymentConfirmationCredentialIdSizeInBytes", 1U);
-
-  // Check that we can create a second credential, and that the tracked metrics
-  // update.
+  // Check that we can create a second credential successfully.
   CreatePaymentCredential();
-  histogram_tester_.ExpectTotalCount(
-      "PaymentRequest.SecurePaymentConfirmationCredentialIdSizeInBytes", 2U);
 }
 
 // b.com cannot create a credential with RP = "a.com".
@@ -165,10 +158,10 @@ IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationAuthenticatorCreateTest,
                        RelyingPartyIsEnforced) {
   auto scoped_auth_env = ReplaceFidoDiscoveryFactory(/*should_succeed=*/true);
   NavigateTo("b.com", "/secure_payment_confirmation.html");
-  EXPECT_EQ(
-      "SecurityError: The relying party ID is not a registrable domain suffix "
-      "of, nor equal to the current domain.",
-      content::EvalJs(GetActiveWebContents(), "createPaymentCredential()"));
+  EXPECT_THAT(
+      content::EvalJs(GetActiveWebContents(), "createPaymentCredential()")
+          .ExtractString(),
+      testing::HasSubstr("SecurityError: The relying party ID is not"));
 }
 
 IN_PROC_BROWSER_TEST_F(SecurePaymentConfirmationAuthenticatorCreateTest,

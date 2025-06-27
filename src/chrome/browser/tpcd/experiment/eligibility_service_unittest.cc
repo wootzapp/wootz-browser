@@ -10,6 +10,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/to_string.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -48,10 +49,6 @@ using TpcdExperimentEligibility = privacy_sandbox::TpcdExperimentEligibility;
 constexpr char kReasonForEligibilityStoredInPrefsHistogram[] =
     "PrivacySandbox.CookieDeprecationFacilitatedTesting."
     "ReasonForEligibilityStoredInPrefs";
-
-constexpr char kReasonForComputedEligibilityForProfileHistogram[] =
-    "PrivacySandbox.CookieDeprecationFacilitatedTesting."
-    "ReasonForComputedEligibilityForProfile";
 
 }  // namespace
 
@@ -98,11 +95,6 @@ class EligibilityServiceTest : public EligibilityServiceTestBase {
         features::kCookieDeprecationFacilitatedTesting);
   }
 
- protected:
-  void SetChannelVersion(version_info::Channel channel) {
-    onboarding_service_->channel_ = channel;
-  }
-
  private:
   base::test::ScopedFeatureList feature_list_;
 };
@@ -118,10 +110,6 @@ TEST_F(EligibilityServiceTest, ClientEligibilityKnown_ClientEligibilityNotSet) {
                                          experiment_manager_.get());
 
   histograms.ExpectTotalCount(kReasonForEligibilityStoredInPrefsHistogram, 0);
-  histograms.ExpectUniqueSample(
-      kReasonForComputedEligibilityForProfileHistogram,
-      /*sample=*/TpcdExperimentEligibility::Reason::kEligible,
-      /*expected_bucket_count=*/1);
 }
 
 TEST_F(EligibilityServiceTest,
@@ -145,10 +133,6 @@ TEST_F(EligibilityServiceTest,
 
   histograms.ExpectUniqueSample(
       kReasonForEligibilityStoredInPrefsHistogram,
-      /*sample=*/TpcdExperimentEligibility::Reason::k3pCookiesBlocked,
-      /*expected_bucket_count=*/1);
-  histograms.ExpectUniqueSample(
-      kReasonForComputedEligibilityForProfileHistogram,
       /*sample=*/TpcdExperimentEligibility::Reason::k3pCookiesBlocked,
       /*expected_bucket_count=*/1);
 }
@@ -176,34 +160,6 @@ TEST_F(EligibilityServiceTest,
       kReasonForEligibilityStoredInPrefsHistogram,
       /*sample=*/TpcdExperimentEligibility::Reason::kEligible,
       /*expected_bucket_count=*/1);
-  histograms.ExpectUniqueSample(
-      kReasonForComputedEligibilityForProfileHistogram,
-      /*sample=*/TpcdExperimentEligibility::Reason::kEligible,
-      /*expected_bucket_count=*/1);
-}
-
-TEST_F(EligibilityServiceTest, VersionChange_OnboardingPrefsReset) {
-  EXPECT_CALL(*experiment_manager_, DidVersionChange).WillOnce(Return(true));
-
-  SetChannelVersion(version_info::Channel::BETA);
-
-  // Simulate onboarding a profile.
-  onboarding_service_->MaybeMarkEligible();
-  onboarding_service_->OnboardingNoticeShown();
-  onboarding_service_->NoticeActionTaken(
-      privacy_sandbox::TrackingProtectionOnboarding::NoticeType::kOnboarding,
-      privacy_sandbox::TrackingProtectionOnboarding::NoticeAction::kGotIt);
-
-  EXPECT_EQ(onboarding_service_->GetOnboardingStatus(),
-            privacy_sandbox::TrackingProtectionOnboarding::OnboardingStatus::
-                kOnboarded);
-
-  EligibilityService eligibility_service(&profile_, onboarding_service_,
-                                         privacy_sandbox_settings_,
-                                         experiment_manager_.get());
-  EXPECT_EQ(onboarding_service_->GetOnboardingStatus(),
-            privacy_sandbox::TrackingProtectionOnboarding::OnboardingStatus::
-                kIneligible);
 }
 
 class EligibilityServiceOTRProfileTest
@@ -213,7 +169,7 @@ class EligibilityServiceOTRProfileTest
   EligibilityServiceOTRProfileTest() {
     feature_list_.InitAndEnableFeatureWithParameters(
         features::kCookieDeprecationFacilitatedTesting,
-        {{"enable_otr_profiles", GetParam() ? "true" : "false"}});
+        {{"enable_otr_profiles", base::ToString(GetParam())}});
   }
 
  private:
@@ -241,121 +197,5 @@ TEST_P(EligibilityServiceOTRProfileTest, Creation) {
 INSTANTIATE_TEST_SUITE_P(All,
                          EligibilityServiceOTRProfileTest,
                          testing::Bool());
-
-struct EligibilityServiceHistogramTestCase {
-  bool is_client_eligible = true;
-  bool is_profile_eligible = true;
-  ProfileEligibilityMismatch expected_histogram_enum;
-};
-
-const EligibilityServiceHistogramTestCase kTestCases[] = {
-    {
-        .expected_histogram_enum =
-            ProfileEligibilityMismatch::kEligibleProfileInExperiment,
-    },
-    {
-        .is_client_eligible = false,
-        .is_profile_eligible = false,
-        .expected_histogram_enum =
-            ProfileEligibilityMismatch::kIneligibleProfileNotInExperiment,
-    },
-    {
-        .is_profile_eligible = false,
-        .expected_histogram_enum =
-            ProfileEligibilityMismatch::kIneligibleProfileInExperiment,
-    },
-    {
-        .is_client_eligible = false,
-        .expected_histogram_enum =
-            ProfileEligibilityMismatch::kEligibleProfileNotInExperiment,
-    }};
-
-class EligibilityServiceHistogramTest
-    : public EligibilityServiceTest,
-      public testing::WithParamInterface<EligibilityServiceHistogramTestCase> {
- public:
-  EligibilityServiceHistogramTest() = default;
-
-  const base::HistogramTester& histograms() const { return histogram_tester_; }
-
- protected:
-  base::HistogramTester histogram_tester_;
-};
-
-TEST_P(EligibilityServiceHistogramTest, ProfileEligibilityMismatch) {
-  const EligibilityServiceHistogramTestCase& test_case = GetParam();
-  // Client eligibility already set, and is not eligible, but current profile is
-  // eligible.
-  EXPECT_CALL(*experiment_manager_, IsClientEligible)
-      .WillOnce(Return(test_case.is_client_eligible));
-  EXPECT_CALL(*privacy_sandbox_delegate_,
-              GetCookieDeprecationExperimentCurrentEligibility)
-      .WillOnce(Return(TpcdExperimentEligibility(
-          test_case.is_profile_eligible
-              ? TpcdExperimentEligibility::Reason::kEligible
-              : TpcdExperimentEligibility::Reason::kHasNotSeenNotice)));
-
-  EligibilityService eligibility_service(&profile_, onboarding_service_,
-                                         privacy_sandbox_settings_,
-                                         experiment_manager_.get());
-
-  // Expect mismatch value recorded in histogram.
-  histograms().ExpectBucketCount(ProfileEligibilityMismatchHistogramName,
-                                 test_case.expected_histogram_enum, 1);
-}
-
-INSTANTIATE_TEST_SUITE_P(EligibilityServiceHistogramTests,
-                         EligibilityServiceHistogramTest,
-                         testing::ValuesIn(kTestCases));
-
-class EligibilityServiceDisable3PCsTest : public EligibilityServiceTestBase {
- public:
-  EligibilityServiceDisable3PCsTest() {
-    feature_list_.InitAndEnableFeatureWithParameters(
-        features::kCookieDeprecationFacilitatedTesting,
-        {{kDisable3PCookiesName, "true"}});
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-TEST_F(EligibilityServiceDisable3PCsTest, Onboarded_NotifyManager) {
-  EXPECT_CALL(*experiment_manager_, IsClientEligible).WillOnce(Return(true));
-  EligibilityService eligibility_service(&profile_, onboarding_service_,
-                                         privacy_sandbox_settings_,
-                                         experiment_manager_.get());
-
-  EXPECT_CALL(*experiment_manager_, NotifyProfileTrackingProtectionOnboarded);
-
-  // Simulate onboarding a profile.
-  onboarding_service_->OnboardingNoticeShown();
-}
-
-class EligibilityServiceSilentOnboardingTest
-    : public EligibilityServiceTestBase {
- public:
-  EligibilityServiceSilentOnboardingTest() {
-    feature_list_.InitAndEnableFeatureWithParameters(
-        features::kCookieDeprecationFacilitatedTesting,
-        {{kDisable3PCookiesName, "false"},
-         {kEnableSilentOnboardingName, "true"}});
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-TEST_F(EligibilityServiceSilentOnboardingTest, Onboarded_NotifyManager) {
-  EXPECT_CALL(*experiment_manager_, IsClientEligible).WillOnce(Return(true));
-  EligibilityService eligibility_service(&profile_, onboarding_service_,
-                                         privacy_sandbox_settings_,
-                                         experiment_manager_.get());
-
-  EXPECT_CALL(*experiment_manager_, NotifyProfileTrackingProtectionOnboarded);
-
-  // Simulate onboarding a profile.
-  onboarding_service_->SilentOnboardingNoticeShown();
-}
 
 }  // namespace tpcd::experiment

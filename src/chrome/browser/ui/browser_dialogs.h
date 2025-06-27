@@ -13,9 +13,11 @@
 
 #include "base/functional/callback.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/task_manager/task_manager_metrics_recorder.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
+#include "components/autofill/core/common/unique_ids.h"
 #include "components/compose/buildflags.h"
+#include "components/compose/core/browser/compose_client.h"
 #include "extensions/buildflags/buildflags.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -70,7 +72,9 @@ namespace chrome {
 // Shows or hides the Task Manager. |browser| can be NULL when called from Ash.
 // Returns a pointer to the underlying TableModel, which can be ignored, or used
 // for testing.
-task_manager::TaskManagerTableModel* ShowTaskManager(Browser* browser);
+task_manager::TaskManagerTableModel* ShowTaskManager(
+    Browser* browser,
+    task_manager::StartAction start_action = task_manager::StartAction::kOther);
 void HideTaskManager();
 
 // Creates and shows an HTML dialog with the given delegate and context.
@@ -93,7 +97,7 @@ views::Widget* ShowBrowserModal(Browser* browser,
 // TODO(pbos): Make utility functions for querying whether an anchor_element is
 // present in `browser` or `browser_window` and then refer to those here so that
 // a call site can provide fallback options for `anchor_element`.
-void ShowBubble(Browser* browser,
+void ShowBubble(ui::ElementContext element_context,
                 ui::ElementIdentifier anchor_element,
                 std::unique_ptr<ui::DialogModel> dialog_model);
 
@@ -113,10 +117,16 @@ void ShowCreateChromeAppShortcutsDialog(
     const std::string& web_app_id,
     base::OnceCallback<void(bool /* created */)> close_callback);
 
+// Shows a tab modal dialog based on `dialog_model`.
+void ShowTabModal(std::unique_ptr<ui::DialogModel> dialog_model,
+                  content::WebContents* web_contents);
+
 #if BUILDFLAG(IS_MAC)
 
 // Bridging methods that show/hide the toolkit-views based Task Manager on Mac.
-task_manager::TaskManagerTableModel* ShowTaskManagerViews(Browser* browser);
+task_manager::TaskManagerTableModel* ShowTaskManagerViews(
+    Browser* browser,
+    task_manager::StartAction start_action = task_manager::StartAction::kOther);
 void HideTaskManagerViews();
 
 #endif  // BUILDFLAG(IS_MAC)
@@ -140,7 +150,8 @@ std::unique_ptr<ui::DialogModel> CreateWindowNamePromptDialogModelForTesting(
 #if BUILDFLAG(ENABLE_COMPOSE)
 std::unique_ptr<compose::ComposeDialogController> ShowComposeDialog(
     content::WebContents& web_contents,
-    const gfx::RectF& element_bounds_in_screen);
+    const gfx::RectF& element_bounds_in_screen,
+    compose::ComposeClient::FieldIdentifier field_ids);
 #endif
 
 // Shows the 'Create Shortcut' dialog to create fire and forget entities on the

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "device/fido/mac/credential_store.h"
 
 #include <CoreFoundation/CoreFoundation.h>
@@ -448,9 +453,7 @@ bool TouchIdCredentialStore::DeleteCredentialsSync(
       DLOG(ERROR) << "missing application label";
       continue;
     }
-    if (!DeleteCredentialById(base::make_span(
-            CFDataGetBytePtr(credential_id_data),
-            base::checked_cast<size_t>(CFDataGetLength(credential_id_data))))) {
+    if (!DeleteCredentialById(base::apple::CFDataToSpan(credential_id_data))) {
       // Indicate failure, but keep deleting remaining items.
       result = false;
     }
@@ -560,9 +563,9 @@ TouchIdCredentialStore::FindCredentialsImpl(
       FIDO_LOG(ERROR) << "credential with missing application label";
       return std::nullopt;
     }
-    std::vector<uint8_t> credential_id(CFDataGetBytePtr(application_label),
-                                       CFDataGetBytePtr(application_label) +
-                                           CFDataGetLength(application_label));
+    auto credential_id_span = base::apple::CFDataToSpan(application_label);
+    const std::vector<uint8_t> credential_id(credential_id_span.begin(),
+                                             credential_id_span.end());
     if (!credential_ids.empty() &&
         !base::Contains(credential_ids, credential_id)) {
       continue;
@@ -577,10 +580,7 @@ TouchIdCredentialStore::FindCredentialsImpl(
     // On version < 3 credentials, kSecAttrApplicationTag is a CFStringRef,
     // which means `application_tag_ref` would be nullptr.
     if (application_tag_ref) {
-      const base::span<const uint8_t> application_tag(
-          CFDataGetBytePtr(application_tag_ref),
-          CFDataGetBytePtr(application_tag_ref) +
-              CFDataGetLength(application_tag_ref));
+      auto application_tag = base::apple::CFDataToSpan(application_tag_ref);
       metadata = UnsealMetadataFromApplicationTag(config_.metadata_secret,
                                                   rp_id_value, application_tag);
     } else {

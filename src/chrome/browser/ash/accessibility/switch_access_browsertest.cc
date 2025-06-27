@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ash/public/cpp/window_tree_host_lookup.h"
+#include "ash/shell.h"
 #include "chrome/browser/ash/accessibility/accessibility_feature_browsertest.h"
 #include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ash/accessibility/automation_test_utils.h"
@@ -10,12 +11,12 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
 #include "ui/aura/client/cursor_client.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/display/screen.h"
+#include "ui/events/test/event_generator.h"
 
 namespace ash {
 
@@ -29,11 +30,12 @@ class SwitchAccessTest : public AccessibilityFeatureBrowserTest {
   void SetUpOnMainThread() override {
     switch_access_test_utils_ = std::make_unique<SwitchAccessTestUtils>(
         AccessibilityManager::Get()->profile());
+    generator_ = std::make_unique<ui::test::EventGenerator>(
+        Shell::Get()->GetPrimaryRootWindow());
   }
 
   void SendVirtualKeyPress(ui::KeyboardCode key) {
-    ASSERT_NO_FATAL_FAILURE(ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-        nullptr, key, false, false, false, false)));
+    generator_->PressAndReleaseKey(key);
   }
 
   // Returns cursor client for root window at location (in DIPs) |x| and |y|.
@@ -71,6 +73,7 @@ class SwitchAccessTest : public AccessibilityFeatureBrowserTest {
 
  private:
   std::unique_ptr<SwitchAccessTestUtils> switch_access_test_utils_;
+  std::unique_ptr<ui::test::EventGenerator> generator_;
 };
 
 // Flaky. See https://crbug.com/1224254.
@@ -163,10 +166,6 @@ IN_PROC_BROWSER_TEST_F(SwitchAccessTest, NavigateButtonsInTextFieldMenu) {
   // Wait for switch access to focus on the text field.
   utils()->WaitForFocusRing("primary", "textField", "MyTextField");
 
-  // TODO(b/301253962): This fails in Lacros because the virtual keyboard is
-  // automatically opened when focus reached the text field, so the key press of
-  // "select" does not open the switch access menu.
-
   // Send "select", which opens the switch access menu.
   SendVirtualKeyPress(ui::KeyboardCode::VKEY_1);
 
@@ -184,6 +183,12 @@ IN_PROC_BROWSER_TEST_F(SwitchAccessTest, NavigateButtonsInTextFieldMenu) {
 
   // The next menu item is the "dictation" button.
   utils()->WaitForFocusRing("primary", "button", "Dictation");
+
+  // Send "next".
+  SendVirtualKeyPress(ui::KeyboardCode::VKEY_2);
+
+  // The next menu item is the "enter" button.
+  utils()->WaitForFocusRing("primary", "button", "Drill down");
 
   // Send "next".
   SendVirtualKeyPress(ui::KeyboardCode::VKEY_2);

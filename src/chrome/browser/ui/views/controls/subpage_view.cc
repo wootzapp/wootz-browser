@@ -23,11 +23,11 @@
 
 namespace {
 constexpr int kSeparatorBottomMargin = 16;
-constexpr int kBackIconSize = 16;
-constexpr int kBackIconSizeRefreshStyle = 20;
+constexpr int kBackIconSize = 20;
 }  // namespace
 
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSubpageViewId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSubpageBackButtonElementId);
 
 SubpageView::SubpageView(views::Button::PressedCallback callback,
                          views::BubbleFrameView* bubble_frame_view)
@@ -58,24 +58,20 @@ void SubpageView::SetUpSubpageTitle(views::Button::PressedCallback callback) {
           .right());
 
   auto back_button = views::CreateVectorImageButtonWithNativeTheme(
-      std::move(callback),
-      features::IsChromeRefresh2023()
-          ? vector_icons::kArrowBackChromeRefreshIcon
-          : vector_icons::kArrowBackIcon,
-      features::IsChromeRefresh2023() ? kBackIconSizeRefreshStyle
-                                      : kBackIconSize);
+      std::move(callback), vector_icons::kArrowBackChromeRefreshIcon,
+      kBackIconSize);
   back_button->SetID(VIEW_ID_SUBPAGE_BACK_BUTTON);
   back_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_ACCNAME_BACK));
   back_button->SetProperty(views::kInternalPaddingKey,
                            back_button->GetInsets());
+  back_button->SetProperty(views::kElementIdentifierKey,
+                           kSubpageBackButtonElementId);
   views::InstallCircleHighlightPathGenerator(back_button.get());
   title_view->AddChildView(std::move(back_button));
 
   title_ = title_view->AddChildView(
       views::Builder<views::Label>()
-          .SetTextStyle(features::IsChromeRefresh2023()
-                            ? views::style::STYLE_HEADLINE_4
-                            : views::style::STYLE_SECONDARY)
+          .SetTextStyle(views::style::STYLE_HEADLINE_4)
           .SetTextContext(views::style::CONTEXT_DIALOG_TITLE)
           .SetHorizontalAlignment(gfx::ALIGN_LEFT)
           .Build());

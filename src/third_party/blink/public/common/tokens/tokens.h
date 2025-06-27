@@ -143,6 +143,13 @@ using WebGPUExecutionContextToken = MultiToken<DocumentToken,
                                                SharedWorkerToken,
                                                ServiceWorkerToken>;
 
+// Identify various WebNN types in a renderer process and the WebNN service.
+using WebNNContextToken = base::TokenType<class WebNNContextTokenTypeMarker>;
+using WebNNPendingConstantToken =
+    base::TokenType<class WebNNPendingConstantTokenTypeMarker>;
+using WebNNTensorToken = base::TokenType<class WebNNTensorTokenTypeMarker>;
+using WebNNGraphToken = base::TokenType<class WebNNGraphTokenTypeMarker>;
+
 }  // namespace blink
 
 #endif  // THIRD_PARTY_BLINK_PUBLIC_COMMON_TOKENS_TOKENS_H_

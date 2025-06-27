@@ -9,6 +9,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/web/web_range.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
@@ -611,7 +612,7 @@ TEST_F(FrameSelectionTest, MoveRangeSelectionNoLiveness) {
 // For http://crbug.com/695317
 TEST_F(FrameSelectionTest, SelectAllWithInputElement) {
   SetBodyContent("<input>123");
-  Element* const input = GetDocument().QuerySelector(AtomicString("input"));
+  Element* const input = QuerySelector("input");
   Node* const last_child = GetDocument().body()->lastChild();
   Selection().SelectAll();
   const SelectionInDOMTree& result_in_dom_tree =
@@ -738,7 +739,7 @@ TEST_F(FrameSelectionTest, SelectionOnRangeHidesHandles) {
 TEST_F(FrameSelectionTest, SelectInvalidPositionInFlatTreeDoesntCrash) {
   SetBodyContent("foo<option><select></select></option>");
   Element* body = GetDocument().body();
-  Element* select = GetDocument().QuerySelector(AtomicString("select"));
+  Element* select = QuerySelector("select");
   Node* foo = body->firstChild();
   Selection().SetSelection(SelectionInDOMTree::Builder()
                                .Collapse(Position(body, 0))
@@ -752,7 +753,7 @@ TEST_F(FrameSelectionTest, SelectInvalidPositionInFlatTreeDoesntCrash) {
 
   // This only records the current behavior. It might be changed in the future.
   EXPECT_EQ(PositionInFlatTree(foo, 0), selection.Anchor());
-  EXPECT_EQ(PositionInFlatTree(foo, 0), selection.Focus());
+  EXPECT_NE(PositionInFlatTree(foo, 0), selection.Focus());
 }
 
 TEST_F(FrameSelectionTest, CaretInShadowTree) {
@@ -898,8 +899,7 @@ TEST_F(FrameSelectionTest, FocusingButtonHidesRangeInReadOnlyTextControl) {
   EXPECT_FALSE(Selection().SelectionHasFocus());
   EXPECT_TRUE(Selection().IsHidden());
 
-  Element* const textarea =
-      GetDocument().QuerySelector(AtomicString("textarea"));
+  Element* const textarea = QuerySelector("textarea");
   textarea->Focus();
   EXPECT_TRUE(Selection().GetSelectionInDOMTree().IsCaret());
 
@@ -908,7 +908,7 @@ TEST_F(FrameSelectionTest, FocusingButtonHidesRangeInReadOnlyTextControl) {
   EXPECT_TRUE(Selection().SelectionHasFocus());
   EXPECT_FALSE(Selection().IsHidden());
 
-  Element* const submit = GetDocument().QuerySelector(AtomicString("input"));
+  Element* const submit = QuerySelector("input");
   submit->Focus();
   EXPECT_TRUE(Selection().GetSelectionInDOMTree().IsRange());
   EXPECT_FALSE(Selection().SelectionHasFocus());
@@ -923,8 +923,7 @@ TEST_F(FrameSelectionTest, FocusingButtonHidesRangeInDisabledTextControl) {
   EXPECT_FALSE(Selection().SelectionHasFocus());
   EXPECT_TRUE(Selection().IsHidden());
 
-  Element* const textarea =
-      GetDocument().QuerySelector(AtomicString("textarea"));
+  Element* const textarea = QuerySelector("textarea");
   textarea->Focus();
   EXPECT_TRUE(Selection().GetSelectionInDOMTree().IsNone());
 
@@ -945,7 +944,7 @@ TEST_F(FrameSelectionTest, FocusingButtonHidesRangeInDisabledTextControl) {
   EXPECT_TRUE(Selection().SelectionHasFocus());
   EXPECT_FALSE(Selection().IsHidden());
 
-  Element* const submit = GetDocument().QuerySelector(AtomicString("input"));
+  Element* const submit = QuerySelector("input");
   submit->Focus();
   EXPECT_TRUE(Selection().GetSelectionInDOMTree().IsRange());
   EXPECT_FALSE(Selection().SelectionHasFocus());
@@ -1510,24 +1509,23 @@ TEST_F(FrameSelectionTest, PaintCaretRecordsSelectionWithNoSelectionHandles) {
   EXPECT_TRUE(Selection().ShouldPaintCaret(
       *To<LayoutBlock>(GetDocument().body()->GetLayoutObject())));
 
-  auto* paint_controller =
-      MakeGarbageCollected<PaintController>(PaintController::kTransient);
+  PaintController paint_controller;
   {
-    GraphicsContext context(*paint_controller);
-    paint_controller->UpdateCurrentPaintChunkProperties(
+    GraphicsContext context(paint_controller);
+    paint_controller.UpdateCurrentPaintChunkProperties(
         root_paint_chunk_id_, *root_paint_property_client_,
         PropertyTreeState::Root());
     Selection().PaintCaret(context, PhysicalOffset());
   }
-  paint_controller->CommitNewDisplayItems();
+  auto& paint_artifact = paint_controller.CommitNewDisplayItems();
 
-  const PaintChunk& chunk = paint_controller->GetPaintChunks()[0];
+  const PaintChunk& chunk = paint_artifact.GetPaintChunks()[0];
   EXPECT_THAT(chunk.layer_selection_data, Not(IsNull()));
-  LayerSelectionData selection_data = *chunk.layer_selection_data;
-  EXPECT_TRUE(selection_data.start.has_value());
-  EXPECT_EQ(gfx::SelectionBound::HIDDEN, selection_data.start->type);
-  EXPECT_TRUE(selection_data.end.has_value());
-  EXPECT_EQ(gfx::SelectionBound::HIDDEN, selection_data.end->type);
+  LayerSelectionData* selection_data = chunk.layer_selection_data;
+  EXPECT_TRUE(selection_data->start.has_value());
+  EXPECT_EQ(gfx::SelectionBound::HIDDEN, selection_data->start->type);
+  EXPECT_TRUE(selection_data->end.has_value());
+  EXPECT_EQ(gfx::SelectionBound::HIDDEN, selection_data->end->type);
 }
 
 }  // namespace blink

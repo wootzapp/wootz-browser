@@ -17,7 +17,9 @@
 #include "base/memory/weak_ptr.h"
 #include "base/threading/sequence_bound.h"
 #include "base/time/time.h"
+#include "content/browser/interest_group/for_debugging_only_report_util.h"
 #include "content/browser/interest_group/interest_group_storage.h"
+#include "content/browser/interest_group/interest_group_update.h"
 #include "content/browser/interest_group/storage_interest_group.h"
 #include "content/services/auction_worklet/public/mojom/bidder_worklet.mojom.h"
 #include "third_party/blink/public/common/interest_group/interest_group.h"
@@ -95,10 +97,38 @@ class CONTENT_EXPORT StorageInterestGroups
 // not be accessed outside of this class. InterestGroupCachingStorage provides a
 // pointer to in-memory values for GetInterestGroupsForOwner when available and
 // invalidates the cached values when necessary (when an update to the values
-// occurs).
+// occurs). It also provides cached values of the owner and bidding signals
+// origins so that they can be prefetched before loading interest groups.
 class CONTENT_EXPORT InterestGroupCachingStorage {
  public:
   static constexpr base::TimeDelta kMinimumCacheHoldTime = base::Seconds(10);
+
+  // The most the entry will be kept in the cache, even if people keep using
+  // it. (Only effective if clickiness is on, since that requires this for
+  // some degree of freshness).
+  static constexpr base::TimeDelta kMaximumCacheHoldTime = base::Seconds(120);
+
+  struct CONTENT_EXPORT CachedOriginsInfo {
+    CachedOriginsInfo();
+    explicit CachedOriginsInfo(const blink::InterestGroup& group);
+
+    CachedOriginsInfo(const CachedOriginsInfo& other) = delete;
+    CachedOriginsInfo& operator=(const CachedOriginsInfo& other) = delete;
+    CachedOriginsInfo(CachedOriginsInfo&& other);
+    CachedOriginsInfo& operator=(CachedOriginsInfo&& other);
+
+    ~CachedOriginsInfo();
+
+    // The name of an owner's latest expiring interest group (of the interest
+    // groups encountered by the cache via a join or load).
+    std::string interest_group_name;
+    // The expiry of the interest group.
+    base::Time expiry = base::Time::Min();
+    // The bidding signals origin of the interest group, if it's non-null and
+    // different from the owner.
+    std::optional<url::Origin> bidding_signals_origin;
+  };
+
   explicit InterestGroupCachingStorage(const base::FilePath& path,
                                        bool in_memory);
   ~InterestGroupCachingStorage();
@@ -117,13 +147,39 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
       const url::Origin& owner,
       base::OnceCallback<void(scoped_refptr<StorageInterestGroups>)> callback);
 
+  // For a given `owner`, return whether the owner origin and bidding signal
+  // origin were cached in-memory via UpdateCachedOriginsIfEnabled.
+  // If the `owner` origin was cached, update `signals_origin` to the one that
+  // was cached -- or set to nullopt if no bidding signals origin was cached or
+  // if it would be the same as the owner origin. The cache includes at most one
+  // entry per origin, and may not reflect the results of interest group
+  // updates. It's intended to be used for best-effort preconnecting, and should
+  // not be considered authoritative. It is guaranteed not to contain interest
+  // groups that have are beyond the max expiration time limit, so preconnecting
+  // should not leak data the bidder would otherwise have access to, if it so
+  // desired. That is, manual voluntarily removing or expiring of an interest
+  // group may not be reflected in the result, but hitting the the global
+  // interest group lifetime cap will be respected.
+  bool GetCachedOwnerAndSignalsOrigins(
+      const url::Origin& owner,
+      std::optional<url::Origin>& signals_origin);
+
+  // Update the cached owner and signal origins for an owner's interest groups
+  // if kFledgeUsePreconnectCache or kFledgeStartAnticipatoryProcesses are
+  // enabled and the owner's IGs are still in memory.
+  void UpdateCachedOriginsIfEnabled(const url::Origin& owner);
+
   // Joins an interest group. If the interest group does not exist, a new one
   // is created based on the provided group information. If the interest group
   // exists, the existing interest group is overwritten. In either case a join
-  // record for this interest group is created.
-  void JoinInterestGroup(const blink::InterestGroup& group,
-                         const GURL& main_frame_joining_url,
-                         base::OnceClosure callback);
+  // record for this interest group is created. Returns the necessary
+  // information for a k-anon update if the join was successful, or nullopt if
+  // not.
+  void JoinInterestGroup(
+      const blink::InterestGroup& group,
+      const GURL& main_frame_joining_url,
+      base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+          callback);
 
   // Remove the interest group if it exists.
   void LeaveInterestGroup(const blink::InterestGroupKey& group_key,
@@ -142,13 +198,16 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
   // `update`.
   //
   // If it fails for any reason (e.g., the interest group does not exist, or the
-  // data in `update` is not valid), returns false.
-  void UpdateInterestGroup(const blink::InterestGroupKey& group_key,
-                           InterestGroupUpdate update,
-                           base::OnceCallback<void(bool)> callback);
+  // data in `update` is not valid), returns nullopt. Otherwise, returns the
+  // information required a k-anon update.
+  void UpdateInterestGroup(
+      const blink::InterestGroupKey& group_key,
+      InterestGroupUpdate update,
+      base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+          callback);
   // Allows the interest group specified by `group_key` to be updated if it was
   // last updated before `update_if_older_than`.
-  void AllowUpdateIfOlderThan(const blink::InterestGroupKey& group_key,
+  void AllowUpdateIfOlderThan(blink::InterestGroupKey group_key,
                               base::TimeDelta update_if_older_than);
   // Report that updating of the interest group with owner `owner` and name
   // `name` failed. With the exception of parse failures, the rate limit
@@ -165,14 +224,38 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
                               const std::string& ad_json);
   // Adds an entry to forDebuggingOnly report lockout table if the table is
   // empty. Otherwise replaces the existing entry.
-  void RecordDebugReportLockout(base::Time last_report_sent_time);
+  void RecordDebugReportLockout(base::Time starting_time,
+                                base::TimeDelta duration);
   // Adds an entry to forDebuggingOnly report cooldown table for `origin` if it
   // does not exist, otherwise replaces the existing entry.
   void RecordDebugReportCooldown(const url::Origin& origin,
                                  base::Time cooldown_start,
                                  DebugReportCooldownType cooldown_type);
-  // Records K-anonymity.
-  void UpdateKAnonymity(const StorageInterestGroup::KAnonymityData& data);
+  // Records a view or a click event. Aggregate time bucketed view and click
+  // information is provided to bidder's browsing signals in generateBid().
+  void RecordViewClick(network::AdAuctionEventRecord event_record);
+
+  // Invokes `callback` with whether the database has a record of click/view
+  // events for given combination of provider & eligible origins.
+  //
+  // nullopt is passed in in case of an error.
+  void CheckViewClickInfoInDbForTesting(
+      url::Origin provider_origin,
+      url::Origin eligible_origin,
+      base::OnceCallback<void(std::optional<bool>)> callback);
+
+  // Records a K-anonymity update for an interest group. If
+  // `replace_existing_values` is true, this update will store the new
+  // `update_time` and `positive_hashed_values`, replacing the interest
+  // group's existing update time and keys. If `replace_existing_values` is
+  // false, `positive_hashed_keys` will be added to the existing positive keys
+  // without updating the stored update time.  No value is stored if
+  // `update_time` is older than the `update_time` already stored in the
+  // database.
+  void UpdateKAnonymity(const blink::InterestGroupKey& interest_group_key,
+                        const std::vector<std::string>& positive_hashed_keys,
+                        const base::Time update_time,
+                        bool replace_existing_values = true);
 
   // Gets the last time that the key was reported to the k-anonymity server.
   void GetLastKAnonymityReported(
@@ -200,16 +283,15 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
       base::OnceCallback<void(std::vector<InterestGroupUpdateParameter>)>
           callback);
 
-  // Gets all KAnonymityData for ads part of the interest group specified by
-  // `interest_group_key`.
-  void GetKAnonymityDataForUpdate(
-      const blink::InterestGroupKey& group_key,
-      base::OnceCallback<void(
-          const std::vector<StorageInterestGroup::KAnonymityData>&)> callback);
-
-  // Gets lockout and cooldown for sending forDebuggingOnly reports.
+  // Gets lockout and cooldowns of `origins` for sending forDebuggingOnly
+  // reports.
   void GetDebugReportLockoutAndCooldowns(
       base::flat_set<url::Origin> origins,
+      base::OnceCallback<void(std::optional<DebugReportLockoutAndCooldowns>)>
+          callback);
+
+  // Gets lockout and all cooldowns for sending forDebuggingOnly reports.
+  void GetDebugReportLockoutAndAllCooldowns(
       base::OnceCallback<void(std::optional<DebugReportLockoutAndCooldowns>)>
           callback);
 
@@ -229,6 +311,7 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
   // Clear out storage for the matching owning storage key.
   void DeleteInterestGroupData(
       StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+      bool user_initiated_deletion,
       base::OnceClosure callback);
   // Clear out all interest group storage including k-anonymity store.
   void DeleteAllInterestGroupData(base::OnceClosure callback);
@@ -249,22 +332,46 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
 
   // Update B&A keys for a coordinator. This function will overwrite any
   // existing keys for the coordinator.
-  void SetBiddingAndAuctionServerKeys(
-      const url::Origin& coordinator,
-      const std::vector<BiddingAndAuctionServerKey>& keys,
-      base::Time expiration);
+  void SetBiddingAndAuctionServerKeys(const url::Origin& coordinator,
+                                      std::string serialized_keys,
+                                      base::Time expiration);
   // Load stored B&A server keys for a coordinator along with the keys'
   // expiration.
   void GetBiddingAndAuctionServerKeys(
       const url::Origin& coordinator,
-      base::OnceCallback<
-          void(std::pair<base::Time, std::vector<BiddingAndAuctionServerKey>>)>
+      base::OnceCallback<void(std::pair<base::Time, std::string>)> callback);
+
+  // Writes all of these keys to the cache, the first vector with
+  // `is_kanon = true`, and the second vector with `is_kanon = false`.
+  void WriteHashedKAnonymityKeysToCache(
+      const std::vector<std::string>& positive_hashed_keys,
+      const std::vector<std::string>& negative_hashed_keys,
+      base::Time time_fetched);
+
+  // Takes a vector of keys to lookup from the cache. Calls a callback that
+  // provides two vectors of keys: the first a vector that includes those
+  // unexpired keys for which it was found in the cache that that key is
+  // k-anonymous, the second a vector that includes all keys not found in the
+  // cache.
+  void LoadPositiveHashedKAnonymityKeysFromCache(
+      const std::vector<std::string>& keys,
+      base::Time min_valid_time,
+      base::OnceCallback<void(InterestGroupStorage::KAnonymityCacheResponse)>
           callback);
 
   void GetLastMaintenanceTimeForTesting(
       base::RepeatingCallback<void(base::Time)> callback) const;
 
  private:
+  // Once JoinInterestGroup completes successfully, maybe update the cached
+  // origins and run the callback.
+  void OnJoinInterestGroup(
+      const url::Origin& owner,
+      CachedOriginsInfo cached_origins_info,
+      base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+          callback,
+      std::optional<InterestGroupKanonUpdateParameter> update);
+
   // After the async call to load interest groups from storage, cache the result
   // in a StorageInterestGroups. Also call
   // callbacks in outstanding_interest_group_for_owner_callbacks_ with a
@@ -275,11 +382,6 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
       uint32_t version,
       std::vector<StorageInterestGroup> interest_groups);
 
-  void OnLoadInterestGroupsForOwnerNoCaching(
-      const url::Origin& owner,
-      base::OnceCallback<void(scoped_refptr<StorageInterestGroups>)> callback,
-      std::vector<StorageInterestGroup> interest_groups);
-
   void InvalidateCachedInterestGroupsForOwner(const url::Origin& owner);
   void InvalidateAllCachedInterestGroups();
 
@@ -287,7 +389,8 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
 
   // Start a timer that holds a reference to `groups` so that it stays in memory
   // for a minimum amount of time (kMinimumCacheHoldTime). If such a timer
-  // already exists, restart it.
+  // already exists, restart it. Staying in memory is relevant because
+  // `cached_interest_groups_` contains weak pointers.
   void StartTimerForInterestGroupHold(
       const url::Origin& owner,
       scoped_refptr<StorageInterestGroups> groups);
@@ -330,6 +433,17 @@ class CONTENT_EXPORT InterestGroupCachingStorage {
   // invalidated. The versions are reset when
   // interest_groups_sequenced_callbacks_ becomes empty.
   std::map<url::Origin, uint32_t> valid_interest_group_versions_;
+
+  // For each owner for which we've run UpdateCachedOriginsIfEnabled,
+  // hold onto the owner origin and the origin of the bidding signals url for
+  // the purpose of preconnecting to them or starting worklets for them in later
+  // auctions. CachedOriginsInfo tracks the latest expiring interest group that
+  // we know about to prevent preconnecting to origins no longer in the
+  // database. Owners may be cleared from the map if the corresponding interest
+  // group is left or expired. A flat map is used because the number of interest
+  // group owners is expected to be relatively small.
+  base::flat_map<url::Origin, CachedOriginsInfo>
+      cached_owners_and_signals_origins_;
 
   base::WeakPtrFactory<InterestGroupCachingStorage> weak_factory_{this};
 };

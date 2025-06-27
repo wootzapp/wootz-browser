@@ -329,8 +329,7 @@ class MEDIA_EXPORT ChunkDemuxer : public Demuxer {
   // otherwise alter their behavior to attempt to buffer media for further
   // playback.
   [[nodiscard]] bool AppendToParseBuffer(const std::string& id,
-                                         const uint8_t* data,
-                                         size_t length);
+                                         base::span<const uint8_t> data);
 
   // Tells the stream parser for the source buffer associated with `id` to parse
   // more of the data previously sent to it from this object's
@@ -604,7 +603,8 @@ class MEDIA_EXPORT ChunkDemuxer : public Demuxer {
   // in a shut down state, so reading from them will return EOS.
   std::vector<std::unique_ptr<ChunkDemuxerStream>> removed_streams_;
 
-  std::map<MediaTrack::Id, ChunkDemuxerStream*> track_id_to_demux_stream_map_;
+  std::map<MediaTrack::Id, raw_ptr<ChunkDemuxerStream, CtnExperimental>>
+      track_id_to_demux_stream_map_;
 
   bool supports_change_type_ = true;
 };

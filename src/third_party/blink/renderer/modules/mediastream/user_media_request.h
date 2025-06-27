@@ -108,7 +108,6 @@ class MODULES_EXPORT UserMediaRequest final
                    MediaConstraints audio,
                    MediaConstraints video,
                    bool should_prefer_current_tab,
-                   bool auto_select_all_screens,
                    CaptureController* capture_controller,
                    Callbacks*,
                    IdentifiableSurface surface);
@@ -118,7 +117,7 @@ class MODULES_EXPORT UserMediaRequest final
 
   void Start();
 
-  void Succeed(const MediaStreamDescriptorVector& streams);
+  void Succeed(const GCedMediaStreamDescriptorVector& streams);
   void OnMediaStreamInitialized(MediaStream* stream);
   void OnMediaStreamsInitialized(MediaStreamVector streams);
   void FailConstraint(const String& constraint_name, const String& message);
@@ -199,8 +198,6 @@ class MODULES_EXPORT UserMediaRequest final
     return suppress_local_audio_playback_;
   }
 
-  bool auto_select_all_screens() const { return auto_select_all_screens_; }
-
   // Mark this request as an GetOpenDevice request for initializing a
   // TransferredMediaStreamTrack from the deviced identified by session_id.
   void SetTransferData(const base::UnguessableToken& session_id,
@@ -223,7 +220,7 @@ class MODULES_EXPORT UserMediaRequest final
   // Completes the re-creation of the transferred MediaStreamTrack by
   // constructing the MediaStreamTrackImpl object.
   void FinalizeTransferredTrackInitialization(
-      const MediaStreamDescriptorVector& streams_descriptors);
+      const GCedMediaStreamDescriptorVector& streams_descriptors);
 
   void Trace(Visitor*) const override;
 

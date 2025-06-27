@@ -15,17 +15,29 @@
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 
+SampleSystemAppDelegate::SampleSystemAppDelegate(Profile* profile)
+    : ash::SystemWebAppDelegate(
+          ash::SystemWebAppType::SAMPLE,
+          "Sample",
+          GURL("chrome://sample-system-web-app/pwa.html"),
+          profile,
+          ash::OriginTrialsMap(
+              {{ash::GetOrigin("chrome://sample-system-web-app"),
+                {"Frobulate"}},
+               {ash::GetOrigin("chrome-untrusted://sample-system-web-app"),
+                {"Frobulate"}}})) {}
+
 std::unique_ptr<web_app::WebAppInstallInfo>
-CreateWebAppInfoForSampleSystemWebApp() {
-  std::unique_ptr<web_app::WebAppInstallInfo> info =
-      std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(ash::kChromeUISampleSystemWebAppURL);
+SampleSystemAppDelegate::GetWebAppInfo() const {
+  GURL start_url = GURL(ash::kChromeUISampleSystemWebAppURL);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
   info->scope = GURL(ash::kChromeUISampleSystemWebAppURL);
   // |title| should come from a resource string, but this is the sample app, and
   // doesn't have one.
   info->title = u"Sample System Web App";
   web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
+      info->start_url(),
       {{"app_icon_192.png", 192,
         IDR_ASH_SAMPLE_SYSTEM_WEB_APP_APP_ICON_192_PNG}},
       *info);
@@ -65,23 +77,6 @@ CreateWebAppInfoForSampleSystemWebApp() {
   return info;
 }
 
-SampleSystemAppDelegate::SampleSystemAppDelegate(Profile* profile)
-    : ash::SystemWebAppDelegate(
-          ash::SystemWebAppType::SAMPLE,
-          "Sample",
-          GURL("chrome://sample-system-web-app/pwa.html"),
-          profile,
-          ash::OriginTrialsMap(
-              {{ash::GetOrigin("chrome://sample-system-web-app"),
-                {"Frobulate"}},
-               {ash::GetOrigin("chrome-untrusted://sample-system-web-app"),
-                {"Frobulate"}}})) {}
-
-std::unique_ptr<web_app::WebAppInstallInfo>
-SampleSystemAppDelegate::GetWebAppInfo() const {
-  return CreateWebAppInfoForSampleSystemWebApp();
-}
-
 bool SampleSystemAppDelegate::ShouldCaptureNavigations() const {
   return true;
 }
@@ -90,8 +85,9 @@ bool SampleSystemAppDelegate::ShouldShowNewWindowMenuOption() const {
   return true;
 }
 
-Browser* SampleSystemAppDelegate::GetWindowForLaunch(Profile* profile,
-                                                     const GURL& url) const {
+ash::BrowserDelegate* SampleSystemAppDelegate::GetWindowForLaunch(
+    Profile* profile,
+    const GURL& url) const {
   return nullptr;
 }
 

@@ -4,7 +4,6 @@
 
 #include "third_party/blink/renderer/core/css/style_rule.h"
 
-#include "third_party/blink/renderer/bindings/core/v8/v8_css_style_sheet_init.h"
 #include "third_party/blink/renderer/core/css/css_rule_list.h"
 #include "third_party/blink/renderer/core/css/css_scope_rule.h"
 #include "third_party/blink/renderer/core/css/css_style_rule.h"
@@ -16,11 +15,7 @@
 
 namespace blink {
 
-using css_test_helpers::MakeInvisibleRule;
-using css_test_helpers::MakeSignalingRule;
-using css_test_helpers::ParseInvisibleRule;
 using css_test_helpers::ParseRule;
-using css_test_helpers::ParseSignalingRule;
 
 class StyleRuleTest : public PageTestBase {};
 
@@ -68,35 +63,6 @@ std::pair<CSSNestingType, const StyleRule*> FindNestingContext(
       parent_selector ? parent_selector->ParentRule() : nullptr);
 }
 
-String ToString(const HeapVector<Member<StyleRuleBase>>& rules) {
-  StringBuilder builder;
-  for (StyleRuleBase* rule : rules) {
-    if (!builder.empty()) {
-      builder.Append(",");
-    }
-    builder.Append(To<StyleRule>(*rule).SelectorsText());
-  }
-  return builder.ToString();
-}
-
-String ToStringUsingRange(const StyleRuleBase::ChildRuleVector& rules) {
-  HeapVector<Member<StyleRuleBase>> vector;
-  for (StyleRuleBase* rule : rules) {
-    vector.push_back(rule);
-  }
-  return ToString(vector);
-}
-
-// The same as ToStringUsingRange, except using operator[] instead
-// of begin()/end().
-String ToStringUsingSubscript(const StyleRuleBase::ChildRuleVector& rules) {
-  HeapVector<Member<StyleRuleBase>> vector;
-  for (wtf_size_t i = 0; i < rules.size(); ++i) {
-    vector.push_back(rules[i]);
-  }
-  return ToString(vector);
-}
-
 }  // namespace
 
 TEST_F(StyleRuleTest, StyleRulePropertyCopy) {
@@ -127,60 +93,63 @@ TEST_F(StyleRuleTest, StyleRulePropertyCopy) {
 }
 
 TEST_F(StyleRuleTest, SetPreludeTextReparentsStyleRules) {
-  auto* scope_rule = DynamicTo<StyleRuleScope>(
+  CSSStyleSheet* sheet = css_test_helpers::CreateStyleSheet(GetDocument());
+  auto* scope_rule = DynamicTo<CSSScopeRule>(
       css_test_helpers::ParseRule(GetDocument(), R"CSS(
       @scope (.a) to (.b &) {
         .c & { }
       }
-    )CSS"));
+    )CSS")
+          ->CreateCSSOMWrapper(/*position_hint=*/0, sheet));
 
   ASSERT_TRUE(scope_rule);
-  ASSERT_EQ(1u, scope_rule->ChildRules().size());
-  StyleRule& child_rule = To<StyleRule>(*scope_rule->ChildRules()[0]);
+  ASSERT_EQ(1u, scope_rule->GetStyleRuleScope().ChildRules().size());
+  StyleRule& child_rule_before =
+      To<StyleRule>(*scope_rule->GetStyleRuleScope().ChildRules()[0]);
 
-  const StyleScope& scope_before = scope_rule->GetStyleScope();
+  const StyleScope& scope_before =
+      scope_rule->GetStyleRuleScope().GetStyleScope();
   StyleRule* rule_before = scope_before.RuleForNesting();
   ASSERT_TRUE(rule_before);
   EXPECT_EQ(".a", rule_before->SelectorsText());
 
   EXPECT_EQ(rule_before, FindParentSelector(scope_before.To())->ParentRule());
-  EXPECT_EQ(rule_before,
-            FindParentSelector(child_rule.FirstSelector())->ParentRule());
+  EXPECT_EQ(
+      rule_before,
+      FindParentSelector(child_rule_before.FirstSelector())->ParentRule());
 
-  // Note that CSSNestingType::kNone here refers to the nesting context outside
-  // of `scope_rule` (which in this case has no parent rule).
   scope_rule->SetPreludeText(GetDocument().GetExecutionContext(),
-                             "(.x) to (.b &)", CSSNestingType::kNone,
-                             /* parent_rule_for_nesting */ nullptr,
-                             /* is_within_scope */ false,
-                             /* style_sheet */ nullptr);
+                             "(.x) to (.b &)");
 
-  const StyleScope& scope_after = scope_rule->GetStyleScope();
+  DLOG(INFO) << "A";
+  const StyleScope& scope_after =
+      scope_rule->GetStyleRuleScope().GetStyleScope();
   StyleRule* rule_after = scope_after.RuleForNesting();
   ASSERT_TRUE(rule_after);
   EXPECT_EQ(".x", rule_after->SelectorsText());
+  StyleRule& child_rule_afer =
+      To<StyleRule>(*scope_rule->GetStyleRuleScope().ChildRules()[0]);
 
   // Verify that '&' (in '.b &') now points to `rule_after`.
   EXPECT_EQ(rule_after, FindParentSelector(scope_after.To())->ParentRule());
   // Verify that '&' (in '.c &') now points to `rule_after`.
   EXPECT_EQ(rule_after,
-            FindParentSelector(child_rule.FirstSelector())->ParentRule());
+            FindParentSelector(child_rule_afer.FirstSelector())->ParentRule());
 }
 
 TEST_F(StyleRuleTest, SetPreludeTextWithEscape) {
-  auto* scope_rule = DynamicTo<StyleRuleScope>(
+  CSSStyleSheet* sheet = css_test_helpers::CreateStyleSheet(GetDocument());
+  auto* scope_rule = DynamicTo<CSSScopeRule>(
       css_test_helpers::ParseRule(GetDocument(), R"CSS(
       @scope (.a) to (.b &) {
         .c & { }
       }
-    )CSS"));
+    )CSS")
+          ->CreateCSSOMWrapper(/*position_hint=*/0, sheet));
 
   // Don't crash.
   scope_rule->SetPreludeText(GetDocument().GetExecutionContext(),
-                             "(.x) to (.\\1F60A)", CSSNestingType::kNone,
-                             /* parent_rule_for_nesting */ nullptr,
-                             /* is_within_scope */ false,
-                             /* style_sheet */ nullptr);
+                             "(.x) to (.\\1F60A)");
 }
 
 TEST_F(StyleRuleTest, SetPreludeTextPreservesNestingContext) {
@@ -312,331 +281,120 @@ TEST_F(StyleRuleTest, SetPreludeTextBecomesNonImplicitScope) {
   EXPECT_FALSE(scope_rule->GetStyleRuleScope().GetStyleScope().IsImplicit());
 }
 
-TEST_F(StyleRuleTest, HasSignalingChildRule_StyleRule) {
-  StyleRule* parent_rule =
-      DynamicTo<StyleRule>(ParseRule(GetDocument(), "body { width: 1px; }"));
-  StyleRule* signaling_rule =
-      ParseSignalingRule(GetDocument(), "div { color: red; }",
-                         CSSSelector::Signal::kBareDeclarationShift);
+TEST_F(StyleRuleTest, SetPreludeTextInvalid) {
+  CSSStyleSheet* sheet = css_test_helpers::CreateStyleSheet(GetDocument());
+  auto* css_scope_rule = DynamicTo<CSSScopeRule>(
+      css_test_helpers::ParseRule(GetDocument(), "@scope (.a) {}")
+          ->CreateCSSOMWrapper(/*position_hint=*/0, sheet));
 
-  EXPECT_FALSE(parent_rule->IsSignaling());
-  EXPECT_TRUE(signaling_rule->IsSignaling());
-
-  EXPECT_FALSE(parent_rule->HasSignalingChildRule());
-  EXPECT_FALSE(signaling_rule->HasSignalingChildRule());
-
-  parent_rule->AddChildRule(signaling_rule);
-
-  EXPECT_TRUE(parent_rule->HasSignalingChildRule());
-  EXPECT_TRUE(parent_rule->Copy()->HasSignalingChildRule());
-
-  EXPECT_FALSE(signaling_rule->HasSignalingChildRule());
-  EXPECT_FALSE(signaling_rule->Copy()->HasSignalingChildRule());
+  StyleRuleScope* before_rule = &css_scope_rule->GetStyleRuleScope();
+  // Don't crash:
+  css_scope_rule->SetPreludeText(GetDocument().GetExecutionContext(),
+                                 "(.a) to !!!!");
+  StyleRuleScope* after_rule = &css_scope_rule->GetStyleRuleScope();
+  EXPECT_EQ(after_rule, before_rule);
 }
 
-TEST_F(StyleRuleTest, HasSignalingChildRule_GroupingRule_NoSignal) {
-  // Any subclass of StyleRuleGroup will do here, @supports is chosen
-  // since it's relatively easy to instantiate.
-  auto* supports_rule = MakeGarbageCollected<StyleRuleSupports>(
-      "width:100px", /* condition_is_supported */ true,
-      /* rules */ HeapVector<Member<StyleRuleBase>>());
-  EXPECT_FALSE(supports_rule->IsSignaling());
-  EXPECT_FALSE(supports_rule->HasSignalingChildRule());
-  EXPECT_FALSE(supports_rule->Copy()->HasSignalingChildRule());
+TEST_F(StyleRuleTest, SetPreludeTextUnexpectedTrailingTokens) {
+  CSSStyleSheet* sheet = css_test_helpers::CreateStyleSheet(GetDocument());
+  auto* css_scope_rule = DynamicTo<CSSScopeRule>(
+      css_test_helpers::ParseRule(GetDocument(), "@scope (.a) {}")
+          ->CreateCSSOMWrapper(/*position_hint=*/0, sheet));
+
+  StyleRuleScope* before_rule = &css_scope_rule->GetStyleRuleScope();
+  // Don't crash:
+  css_scope_rule->SetPreludeText(GetDocument().GetExecutionContext(),
+                                 "(.a) to (.b) trailing");
+  StyleRuleScope* after_rule = &css_scope_rule->GetStyleRuleScope();
+  EXPECT_EQ(after_rule, before_rule);
 }
 
-TEST_F(StyleRuleTest, HasSignalingChildRule_GroupingRule) {
-  HeapVector<Member<StyleRuleBase>> child_rules;
-  child_rules.push_back(ParseRule(GetDocument(), "div { color: green; }"));
-  child_rules.push_back(
-      ParseSignalingRule(GetDocument(), "div { color: red; }",
-                         CSSSelector::Signal::kBareDeclarationShift));
-  auto* supports_rule = MakeGarbageCollected<StyleRuleSupports>(
-      "width:100px", /* condition_is_supported */ true, std::move(child_rules));
-  EXPECT_FALSE(supports_rule->IsSignaling());
-  EXPECT_TRUE(supports_rule->HasSignalingChildRule());
-  EXPECT_TRUE(supports_rule->Copy()->HasSignalingChildRule());
+TEST_F(StyleRuleTest, RenestStyleRule) {
+  auto* a = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".a {}"));
+  auto* b = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".b {}"));
+  auto* nested = To<StyleRule>(css_test_helpers::ParseNestedRule(
+      GetDocument(), "& {}", CSSNestingType::kNesting,
+      /*parent_rule_for_nesting=*/a));
+
+  EXPECT_EQ(":is(.a)",
+            nested->FirstSelector()->SelectorTextExpandingPseudoReferences(
+                /*scope_id=*/0));
+
+  auto* reparented = To<StyleRule>(nested->Renest(b));
+  EXPECT_NE(nested, reparented);
+  EXPECT_EQ(":is(.a)",
+            nested->FirstSelector()->SelectorTextExpandingPseudoReferences(
+                /*scope_id=*/0));
+  EXPECT_EQ(":is(.b)",
+            reparented->FirstSelector()->SelectorTextExpandingPseudoReferences(
+                /*scope_id=*/0));
 }
 
-TEST_F(StyleRuleTest, HasSignalingChildRule_GroupingRule_Invisible) {
-  HeapVector<Member<StyleRuleBase>> child_rules;
-  child_rules.push_back(ParseRule(GetDocument(), "div { color: green; }"));
-
-  // Create a rule that's both invisible and signaling.
-  auto* style_rule =
-      DynamicTo<StyleRule>(ParseRule(GetDocument(), "div { color: red; }"));
-  style_rule = MakeInvisibleRule(std::move(*style_rule));
-  style_rule = MakeSignalingRule(std::move(*style_rule),
-                                 CSSSelector::Signal::kBareDeclarationShift);
-  child_rules.push_back(style_rule);
-
-  auto* supports_rule = MakeGarbageCollected<StyleRuleSupports>(
-      "width:100px", /* condition_is_supported */ true, std::move(child_rules));
-  EXPECT_FALSE(supports_rule->IsSignaling());
-  EXPECT_TRUE(supports_rule->HasSignalingChildRule());
-  EXPECT_TRUE(supports_rule->Copy()->HasSignalingChildRule());
+TEST_F(StyleRuleTest, RenestStyleRuleNoOp) {
+  auto* a = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".a {}"));
+  auto* nested = To<StyleRule>(css_test_helpers::ParseNestedRule(
+      GetDocument(), "& {}", CSSNestingType::kNesting,
+      /*parent_rule_for_nesting=*/a));
+  EXPECT_EQ(":is(.a)",
+            nested->FirstSelector()->SelectorTextExpandingPseudoReferences(
+                /*scope_id=*/0));
+  auto* reparented = To<StyleRule>(nested->Renest(a));
+  EXPECT_EQ(nested, reparented);
 }
 
-class ChildRuleVectorTest : public PageTestBase {};
+TEST_F(StyleRuleTest, RenestStyleRuleMedia) {
+  auto* a = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".a {}"));
+  auto* b = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".b {}"));
+  auto* media = To<StyleRuleMedia>(css_test_helpers::ParseNestedRule(
+      GetDocument(), "@media (width) { & {} }", CSSNestingType::kNesting,
+      /*parent_rule_for_nesting=*/a));
 
-TEST_F(ChildRuleVectorTest, InvisibleChildRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
+  ASSERT_EQ(1u, media->ChildRules().size());
+  EXPECT_EQ(":is(.a)",
+            To<StyleRule>(media->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
 
-  EXPECT_EQ("", ToStringUsingRange(*rules));
-  EXPECT_EQ("", ToStringUsingSubscript(*rules));
+  EXPECT_EQ(media->Renest(a), media);  // No-op.
 
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  EXPECT_EQ("#r1", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1", ToStringUsingSubscript(*rules));
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-
-  // Invisible rules should not be observable via ChildRules().
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-
-  // Another non-invisible rule:
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r3{}"));
-  EXPECT_EQ("#r1,#r2,#r3", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2,#r3", ToStringUsingSubscript(*rules));
+  auto* reparented = To<StyleRuleMedia>(media->Renest(b));
+  EXPECT_NE(media, reparented);
+  EXPECT_EQ(":is(.a)",
+            To<StyleRule>(media->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
+  EXPECT_EQ(":is(.b)",
+            To<StyleRule>(reparented->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
 }
 
-TEST_F(ChildRuleVectorTest, NoInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
+TEST_F(StyleRuleTest, RenestStyleRuleStartingStyle) {
+  auto* a = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".a {}"));
+  auto* b = To<StyleRule>(css_test_helpers::ParseRule(GetDocument(), ".b {}"));
+  auto* starting_style =
+      To<StyleRuleStartingStyle>(css_test_helpers::ParseNestedRule(
+          GetDocument(), "@starting-style { & {} }", CSSNestingType::kNesting,
+          /*parent_rule_for_nesting=*/a));
 
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r3{}"));
+  ASSERT_EQ(1u, starting_style->ChildRules().size());
+  EXPECT_EQ(":is(.a)",
+            To<StyleRule>(starting_style->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
 
-  EXPECT_EQ("#r1,#r2,#r3", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2,#r3", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#r1,#r2,#r3", ToString(rules->RawChildRules()));
-}
+  EXPECT_EQ(starting_style->Renest(a), starting_style);  // No-op.
 
-TEST_F(ChildRuleVectorTest, AllInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q3{}"));
-
-  EXPECT_EQ("", ToStringUsingRange(*rules));
-  EXPECT_EQ("", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#q1,#q2,#q3", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, LeadingInvisibleRule) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#q1,#r1,#r2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, TwoLeadingInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#q1,#q2,#r1,#r2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, IntermediateInvisibleRule) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#r1,#q1,#r2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, TwoIntermediateInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#r1,#q1,#q2,#r2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, TrailingInvisibleRule) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#r1,#r2,#q1", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, TwoTrailingInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-
-  EXPECT_EQ("#r1,#r2", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#r1,#r2,#q1,#q2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, LeadingMidTrailingInvisibleRules) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r3{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q3{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q4{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r4{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q5{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q6{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q7{}"));
-
-  EXPECT_EQ("#r1,#r2,#r3,#r4", ToStringUsingRange(*rules));
-  EXPECT_EQ("#r1,#r2,#r3,#r4", ToStringUsingSubscript(*rules));
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, InsertErase_AllInvisible) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q3{}"));
-
-  rules->WrapperInsertRule(/* index */ 0, ParseRule(GetDocument(), "#r1{}"));
-  EXPECT_EQ("#q1,#q2,#q3,#r1", ToString(rules->RawChildRules()));
-
-  rules->WrapperRemoveRule(/* index */ 0);
-  EXPECT_EQ("#q1,#q2,#q3", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, InsertErase_LeadingInvisible) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-
-  rules->WrapperInsertRule(/* index */ 0, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#X,#r1,#r2", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 0);
-  EXPECT_EQ("#q1,#r1,#r2", ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 1, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#r1,#X,#r2", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 1);
-  EXPECT_EQ("#q1,#r1,#r2", ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 2, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#r1,#r2,#X", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 2);
-  EXPECT_EQ("#q1,#r1,#r2", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, InsertErase_TrailingInvisible) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-
-  rules->WrapperInsertRule(/* index */ 0, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#X,#r1,#r2,#q1", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 0);
-  EXPECT_EQ("#r1,#r2,#q1", ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 1, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#r1,#X,#r2,#q1", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 1);
-  EXPECT_EQ("#r1,#r2,#q1", ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 2, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#r1,#r2,#q1,#X", ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 2);
-  EXPECT_EQ("#r1,#r2,#q1", ToString(rules->RawChildRules()));
-}
-
-TEST_F(ChildRuleVectorTest, InsertErase_Mix) {
-  auto* rules = MakeGarbageCollected<StyleRuleBase::ChildRuleVector>();
-
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q1{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r1{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r2{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r3{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q3{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q4{}"));
-  rules->AddChildRule(ParseRule(GetDocument(), "#r4{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q5{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q6{}"));
-  rules->AddChildRule(ParseInvisibleRule(GetDocument(), "#q7{}"));
-
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-  EXPECT_EQ(4u, rules->size());
-  EXPECT_EQ("#r1,#r2,#r3,#r4", ToStringUsingRange(*rules));
-
-  rules->WrapperInsertRule(/* index */ 0, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#X,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 0);
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 1, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#r1,#q2,#X,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 1);
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 2, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#X,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 2);
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-
-  rules->WrapperInsertRule(/* index */ 3, ParseRule(GetDocument(), "#X{}"));
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#X,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
-  rules->WrapperRemoveRule(/* index */ 3);
-  EXPECT_EQ("#q1,#r1,#q2,#r2,#r3,#q3,#q4,#r4,#q5,#q6,#q7",
-            ToString(rules->RawChildRules()));
+  auto* reparented = To<StyleRuleStartingStyle>(starting_style->Renest(b));
+  EXPECT_NE(starting_style, reparented);
+  EXPECT_EQ(":is(.a)",
+            To<StyleRule>(starting_style->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
+  EXPECT_EQ(":is(.b)",
+            To<StyleRule>(reparented->ChildRules().front().Get())
+                ->FirstSelector()
+                ->SelectorTextExpandingPseudoReferences(/*scope_id=*/0));
 }
 
 }  // namespace blink

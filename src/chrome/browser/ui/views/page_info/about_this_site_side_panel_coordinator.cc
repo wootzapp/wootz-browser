@@ -7,14 +7,15 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/page_info/about_this_site_side_panel.h"
-#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/page_info/about_this_site_side_panel_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
+#include "chrome/browser/ui/views/page_info/web_view_side_panel_view.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "components/page_info/core/about_this_site_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/navigation_handle.h"
@@ -24,6 +25,9 @@
 #include "net/base/url_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/vector_icons.h"
+
+constexpr char kStaticLoadingScreenURL[] =
+    "https://www.gstatic.com/diner/chrome/atp_loading.html";
 
 namespace {
 content::OpenURLParams CreateOpenUrlParams(const GURL& url) {
@@ -68,7 +72,7 @@ void AboutThisSideSidePanelCoordinator::RegisterEntry(
     return;
   }
 
-  auto* registry = SidePanelRegistry::Get(web_contents());
+  auto* registry = SidePanelRegistry::GetDeprecated(web_contents());
   last_url_info_ = {web_contents()->GetLastCommittedURL(), more_about_url,
                     CreateOpenUrlParams(more_about_url)};
   registered_but_not_shown_ = true;
@@ -76,14 +80,8 @@ void AboutThisSideSidePanelCoordinator::RegisterEntry(
   // Check if the view is already registered.
   if (!registry->GetEntryForKey(
           SidePanelEntry::Key(SidePanelEntry::Id::kAboutThisSite))) {
-    const int icon_size = ChromeLayoutProvider::Get()->GetDistanceMetric(
-        ChromeDistanceMetric::DISTANCE_SIDE_PANEL_HEADER_VECTOR_ICON_SIZE);
     auto entry = std::make_unique<SidePanelEntry>(
         SidePanelEntry::Id::kAboutThisSite,
-        l10n_util::GetStringUTF16(IDS_PAGE_INFO_ABOUT_THIS_PAGE_TITLE),
-        ui::ImageModel::FromVectorIcon(
-            PageInfoViewFactory::GetAboutThisSiteColorVectorIcon(),
-            ui::kColorIcon, icon_size),
         base::BindRepeating(
             &AboutThisSideSidePanelCoordinator::CreateAboutThisSiteWebView,
             base::Unretained(this)),
@@ -133,7 +131,7 @@ void AboutThisSideSidePanelCoordinator::DidFinishNavigation(
     return;
   }
 
-  auto* registry = SidePanelRegistry::Get(web_contents());
+  auto* registry = SidePanelRegistry::GetDeprecated(web_contents());
   SidePanelEntry::Key key(SidePanelEntry::Id::kAboutThisSite);
 
   // Update the SidePanel when a user navigates to another url with the
@@ -160,7 +158,8 @@ void AboutThisSideSidePanelCoordinator::DidFinishNavigation(
 }
 
 std::unique_ptr<views::View>
-AboutThisSideSidePanelCoordinator::CreateAboutThisSiteWebView() {
+AboutThisSideSidePanelCoordinator::CreateAboutThisSiteWebView(
+    SidePanelEntryScope& scope) {
   DCHECK(GetBrowserView());
   DCHECK(last_url_info_);
   if (registered_but_not_shown_) {
@@ -168,8 +167,9 @@ AboutThisSideSidePanelCoordinator::CreateAboutThisSiteWebView() {
     registered_but_not_shown_ = false;
   }
 
-  auto side_panel_view_ =
-      std::make_unique<AboutThisSiteSidePanelView>(web_contents());
+  auto side_panel_view_ = std::make_unique<WebViewSidePanelView>(
+      web_contents(), kStaticLoadingScreenURL,
+      page_info::AboutThisSiteRenderModeParameterName);
   side_panel_view_->OpenUrl(last_url_info_->url_params);
   about_this_site_side_panel_view_ = side_panel_view_->AsWeakPtr();
   return side_panel_view_;
@@ -182,7 +182,7 @@ BrowserView* AboutThisSideSidePanelCoordinator::GetBrowserView() const {
 
 SidePanelUI* AboutThisSideSidePanelCoordinator::GetSidePanelUI() {
   auto* browser = chrome::FindBrowserWithTab(web_contents());
-  return browser ? SidePanelUI::GetSidePanelUIForBrowser(browser) : nullptr;
+  return browser ? browser->GetFeatures().side_panel_ui() : nullptr;
 }
 
 GURL AboutThisSideSidePanelCoordinator::GetOpenInNewTabUrl() {

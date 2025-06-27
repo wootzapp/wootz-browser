@@ -22,7 +22,7 @@
 
 namespace blink {
 
-typedef HeapVector<LayoutOpportunity, 8> LayoutOpportunityVector;
+typedef HeapVector<LayoutOpportunity, 1> LayoutOpportunityVector;
 
 // This class is an implementation detail. For use of the exclusion space,
 // see ExclusionSpace below. ExclusionSpace was designed to be cheap
@@ -96,8 +96,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
       case EClear::kBoth:
         return std::max(left_clear_offset_, right_clear_offset_);
       default:
-        NOTREACHED_IN_MIGRATION();
-        return LayoutUnit::Min();
+        NOTREACHED();
     }
   }
 
@@ -118,8 +117,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
         return std::max(initial_letter_left_clear_offset_,
                         initial_letter_right_clear_offset_);
       default:
-        NOTREACHED_IN_MIGRATION();
-        return LayoutUnit::Min();
+        NOTREACHED();
     }
   }
 
@@ -137,8 +135,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
   void SetHasBreakBeforeFloat(EFloat type) {
     switch (type) {
       default:
-        NOTREACHED_IN_MIGRATION();
-        [[fallthrough]];
+        NOTREACHED();
       case EFloat::kLeft:
         has_break_before_left_float_ = true;
         break;
@@ -151,8 +148,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
   void SetHasBreakInsideFloat(EFloat type) {
     switch (type) {
       default:
-        NOTREACHED_IN_MIGRATION();
-        [[fallthrough]];
+        NOTREACHED();
       case EFloat::kLeft:
         has_break_inside_left_float_ = true;
         break;
@@ -166,8 +162,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
     bool needs_clearance = false;
     switch (type) {
       default:
-        NOTREACHED_IN_MIGRATION();
-        [[fallthrough]];
+        NOTREACHED();
       case EClear::kNone:
         return false;
       case EClear::kLeft:
@@ -423,7 +418,7 @@ class CORE_EXPORT ExclusionSpaceInternal final {
   //
   // `exclusions_` contains `ExclusionArea` in ascent order of block start
   // offset.
-  Persistent<ExclusionAreaPtrArray> exclusions_;
+  Persistent<GCedExclusionAreaPtrArray> exclusions_;
   wtf_size_t num_exclusions_ = 0;
 
   // These members are used for keeping track of the "lowest" offset for each

@@ -27,6 +27,7 @@
 #include "base/notreached.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/trace_event/trace_event.h"
 #include "base/trace_event/traced_value.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "chromeos/ui/base/chromeos_ui_constants.h"
@@ -54,6 +55,8 @@
 #include "ui/aura/window_targeter.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/class_property.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor_extra/shadow.h"
 #include "ui/display/display.h"
@@ -78,12 +81,6 @@
 
 namespace exo {
 namespace {
-
-bool IsRadiiUniform(const gfx::RoundedCornersF& radii) {
-  return radii.upper_left() == radii.upper_right() &&
-         radii.lower_left() == radii.lower_right() &&
-         radii.upper_left() == radii.lower_left();
-}
 
 // The accelerator keys used to close ShellSurfaces.
 const struct {
@@ -152,7 +149,7 @@ class CustomFrameView : public ash::NonClientFrameViewAsh {
   void UpdateWindowRoundedCorners() override {
     if (!chromeos::features::IsRoundedWindowsEnabled() && GetFrameEnabled()) {
       header_view_->SetHeaderCornerRadius(
-          chromeos::GetFrameCornerRadius(frame()->GetNativeWindow()));
+          chromeos::GetWindowRadii(frame()->GetNativeWindow()).upper_left());
     }
 
     if (!GetWidget()) {
@@ -182,7 +179,6 @@ class CustomFrameView : public ash::NonClientFrameViewAsh {
           window_radii.value_or(shadow_radii.value_or(gfx::RoundedCornersF()));
 
       // TODO(crbug.com/40256581): Support variable window radii.
-      DCHECK(IsRadiiUniform(radii));
       corner_radius = radii.upper_left();
     }
 
@@ -199,7 +195,8 @@ class CustomFrameView : public ash::NonClientFrameViewAsh {
       header_view_->SetHeaderCornerRadius(corner_radius);
     }
 
-    GetWidget()->client_view()->UpdateWindowRoundedCorners(corner_radius);
+    GetWidget()->client_view()->UpdateWindowRoundedCorners(
+        gfx::RoundedCornersF(corner_radius));
   }
 
   gfx::Rect GetWindowBoundsForClientBounds(
@@ -271,7 +268,8 @@ class CustomClientView : public views::ClientView {
   ~CustomClientView() override = default;
 
   // ClientView:
-  void UpdateWindowRoundedCorners(int corner_radius) override {
+  void UpdateWindowRoundedCorners(
+      const gfx::RoundedCornersF& window_radii) override {
     DCHECK(GetWidget());
     const CustomFrameView* custom_frame_view = static_cast<CustomFrameView*>(
         GetWidget()->non_client_view()->frame_view());
@@ -286,17 +284,19 @@ class CustomClientView : public views::ClientView {
         !custom_frame_view->GetFrameEnabled() ||
         custom_frame_view->GetFrameOverlapped();
 
-    const float corner_radius_f = corner_radius;
     const gfx::RoundedCornersF root_surface_radii = {
-        should_round_client_view_upper_corner ? corner_radius_f : 0,
-        should_round_client_view_upper_corner ? corner_radius_f : 0,
-        corner_radius_f, corner_radius_f};
+        should_round_client_view_upper_corner ? window_radii.upper_left() : 0,
+        should_round_client_view_upper_corner ? window_radii.upper_right() : 0,
+        window_radii.lower_right(), window_radii.lower_left()};
 
     const Surface* root_surface = shell_surface_->root_surface();
 
-    shell_surface_->ApplyRoundedCornersToSurfaceTree(
-        gfx::RectF(root_surface->surface_hierarchy_content_bounds()),
-        root_surface_radii);
+    const gfx::RectF bounds =
+        root_surface_radii.IsEmpty()
+            ? gfx::RectF()
+            : gfx::RectF(root_surface->surface_hierarchy_content_bounds());
+    shell_surface_->ApplyRoundedCornersToSurfaceTree(bounds,
+                                                     root_surface_radii);
   }
 
  private:
@@ -432,13 +432,14 @@ ShellSurfaceBase::ShellSurfaceBase(Surface* surface,
   surface->AddSurfaceObserver(this);
   SetRootSurface(surface);
   host_window()->Show();
-  set_owned_by_client();
+  set_owned_by_client(OwnedByClientPassKey());
 
   SetCanMinimize(can_minimize_);
   SetCanMaximize(ash::desks_util::IsDeskContainerId(container_));
   SetCanFullscreen(ash::desks_util::IsDeskContainerId(container_));
   SetCanResize(true);
   SetShowTitle(false);
+  GetViewAccessibility().SetRole(ax::mojom::Role::kClient);
 }
 
 ShellSurfaceBase::~ShellSurfaceBase() {
@@ -601,8 +602,8 @@ void ShellSurfaceBase::UpdateSystemModal() {
   DCHECK(widget_);
   DCHECK_EQ(container_, ash::kShellWindowId_SystemModalContainer);
   widget_->GetNativeWindow()->SetProperty(
-      aura::client::kModalKey,
-      system_modal_ ? ui::MODAL_TYPE_SYSTEM : ui::MODAL_TYPE_NONE);
+      aura::client::kModalKey, system_modal_ ? ui::mojom::ModalType::kSystem
+                                             : ui::mojom::ModalType::kNone);
 }
 
 void ShellSurfaceBase::UpdateShape() {
@@ -647,9 +648,13 @@ void ShellSurfaceBase::SetApplicationId(const char* application_id) {
     ui::PropertyHandler& property_handler = *widget_->GetNativeWindow();
     WMHelper::GetInstance()->PopulateAppProperties(params, property_handler);
   }
-
-  this->NotifyAccessibilityEvent(ax::mojom::Event::kChildrenChanged,
-                                 /* send_native_event */ false);
+  if (application_id_) {
+    GetViewAccessibility().SetChildTreeNodeAppId(*application_id_);
+  } else {
+    GetViewAccessibility().RemoveChildTreeNodeAppId();
+  }
+  this->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kChildrenChanged,
+                                           /* send_native_event */ false);
 }
 
 void ShellSurfaceBase::SetStartupId(const char* startup_id) {
@@ -824,8 +829,9 @@ void ShellSurfaceBase::UpdateTopInset() {
 }
 
 void ShellSurfaceBase::SetChildAxTreeId(ui::AXTreeID child_ax_tree_id) {
-  GetViewAccessibility().OverrideChildTreeID(child_ax_tree_id);
-  this->NotifyAccessibilityEvent(ax::mojom::Event::kChildrenChanged, false);
+  GetViewAccessibility().SetChildTreeID(child_ax_tree_id);
+  this->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kChildrenChanged,
+                                           false);
 }
 
 void ShellSurfaceBase::SetGeometry(const gfx::Rect& geometry) {
@@ -1020,8 +1026,7 @@ void ShellSurfaceBase::RebindRootSurface(Surface* root_surface,
   if (window) {
     // Int properties.
     for (auto* const key :
-         {aura::client::kSkipImeProcessing, chromeos::kFrameRestoreLookKey,
-          ash::kFrameRateThrottleKey}) {
+         {aura::client::kSkipImeProcessing, chromeos::kFrameRestoreLookKey}) {
       if (base::Contains(window->GetAllPropertyKeys(), key)) {
         OnWindowPropertyChanged(window, key,
                                 /*old_value(unused)=*/0);
@@ -1071,9 +1076,10 @@ void ShellSurfaceBase::AddOverlay(OverlayParams&& overlay_params) {
   overlay_overlaps_frame_ = overlay_params.overlaps_frame;
   overlay_can_resize_ = std::move(overlay_params.can_resize);
 
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_CONTROL);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_CONTROL);
   params.parent = widget_->GetNativeWindow();
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   if (overlay_params.translucent)
     params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
 
@@ -1081,7 +1087,8 @@ void ShellSurfaceBase::AddOverlay(OverlayParams&& overlay_params) {
     params.activatable = views::Widget::InitParams::Activatable::kYes;
 
   params.delegate = new views::WidgetDelegate();
-  params.delegate->SetOwnedByWidget(true);
+  params.delegate->SetOwnedByWidget(
+      views::WidgetDelegate::OwnedByWidgetPassKey());
   params.delegate->SetContentsView(std::move(overlay_params.contents_view));
   params.name = "Overlay";
 
@@ -1551,21 +1558,21 @@ gfx::Size ShellSurfaceBase::CalculatePreferredSize(
 }
 
 gfx::Size ShellSurfaceBase::GetMinimumSize() const {
-  return minimum_size_.IsEmpty() ? gfx::Size(1, 1) : minimum_size_;
+  return requested_minimum_size_.IsEmpty() ? gfx::Size(1, 1)
+                                           : requested_minimum_size_;
 }
 
 gfx::Size ShellSurfaceBase::GetMaximumSize() const {
   // On ChromeOS, non empty maximum size will make the window
   // non maximizable.
-  return maximum_size_;
-}
-
-void ShellSurfaceBase::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  node_data->role = ax::mojom::Role::kClient;
-  if (application_id_) {
-    node_data->AddStringAttribute(
-        ax::mojom::StringAttribute::kChildTreeNodeAppId, *application_id_);
+  gfx::Size maximum_size = requested_maximum_size_;
+  // Make sure that the max size is already equal to or greater than the min
+  // size if set.
+  if (!requested_minimum_size_.IsEmpty() &&
+      !requested_maximum_size_.IsEmpty()) {
+    maximum_size.SetToMax(requested_minimum_size_);
   }
+  return maximum_size;
 }
 
 views::FocusTraversable* ShellSurfaceBase::GetFocusTraversable() {
@@ -1604,9 +1611,6 @@ void ShellSurfaceBase::OnWindowPropertyChanged(aura::Window* window,
         window->GetProperty(chromeos::kFrameRestoreLookKey));
   } else if (key == aura::client::kWindowWorkspaceKey) {
     root_surface()->OnDeskChanged(GetWindowDeskStateChanged(window));
-  } else if (key == ash::kFrameRateThrottleKey) {
-    root_surface()->ThrottleFrameRate(
-        window->GetProperty(ash::kFrameRateThrottleKey));
   }
 }
 
@@ -1651,7 +1655,7 @@ void ShellSurfaceBase::OnWindowActivated(ActivationReason reason,
 // wm::TooltipObserver overrides:
 
 void ShellSurfaceBase::OnTooltipShown(aura::Window* target,
-                                      const std::u16string& text,
+                                      std::u16string_view text,
                                       const gfx::Rect& bounds) {
   if (root_surface()) {
     root_surface()->OnTooltipShown(text, bounds);
@@ -1717,7 +1721,7 @@ float ShellSurfaceBase::GetPendingScaleFactor() const {
 // ShellSurfaceBase, protected:
 
 void ShellSurfaceBase::CreateShellSurfaceWidget(
-    ui::WindowShowState show_state) {
+    ui::mojom::WindowShowState show_state) {
   DCHECK(GetEnabled());
   DCHECK(!widget_);
 
@@ -1738,15 +1742,15 @@ void ShellSurfaceBase::CreateShellSurfaceWidget(
   }
 
   if (system_modal_)
-    SetModalType(ui::MODAL_TYPE_SYSTEM);
+    SetModalType(ui::mojom::ModalType::kSystem);
 
-  views::Widget::InitParams params;
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   params.type = (emulate_x11_override_redirect || is_menu_)
                     ? views::Widget::InitParams::TYPE_MENU
                     : (is_popup_ ? views::Widget::InitParams::TYPE_POPUP
                                  : views::Widget::InitParams::TYPE_WINDOW);
 
-  params.ownership = views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET;
   params.delegate = this;
   params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
@@ -2160,11 +2164,9 @@ void ShellSurfaceBase::UpdateShadowRoundedCorners() {
     // TODO(crbug.com/40256581): Revisit once all the clients have migrated.
     shadow_radii = shadow_corners_radii_dp_.value_or(
         window_corners_radii_dp_.value_or(gfx::RoundedCornersF()));
-
-    // TODO(crbug.com/40256581): Support shadow with variable radius corners.
-    DCHECK(IsRadiiUniform(shadow_radii));
   }
 
+  // TODO(crbug.com/40256581): Support shadow with variable radius corners.
   shadow->SetRoundedCornerRadius(shadow_radii.upper_left());
 }
 
@@ -2321,8 +2323,9 @@ bool ShellSurfaceBase::CalculateCanResize() const {
 }
 
 void ShellSurfaceBase::CommitWidget() {
-  bool size_constraint_changed = minimum_size_ != pending_minimum_size_ ||
-                                 maximum_size_ != pending_maximum_size_;
+  bool size_constraint_changed =
+      requested_minimum_size_ != pending_minimum_size_ ||
+      requested_maximum_size_ != pending_maximum_size_;
   set_bounds_is_dirty(
       bounds_is_dirty() || origin_ != pending_geometry_.origin() ||
       geometry_ != pending_geometry_ || display_id_ != pending_display_id_ ||
@@ -2333,9 +2336,9 @@ void ShellSurfaceBase::CommitWidget() {
   display_id_ = pending_display_id_;
   shape_dp_ = pending_shape_dp_;
 
-  // Apply new minimum/maximium size.
-  minimum_size_ = pending_minimum_size_;
-  maximum_size_ = pending_maximum_size_;
+  // Apply new minimum/maximum size.
+  requested_minimum_size_ = pending_minimum_size_;
+  requested_maximum_size_ = pending_maximum_size_;
   UpdateResizability();
 
   if (!widget_)

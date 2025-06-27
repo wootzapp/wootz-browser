@@ -93,6 +93,7 @@ ModuleScriptDownloader::ModuleScriptDownloader(
   resource_request->headers.SetHeader(
       net::HttpRequestHeaders::kAccept,
       std::string_view("application/javascript"));
+  resource_request->site_for_cookies = net::SiteForCookies::FromUrl(source_url);
 
   simple_url_loader_ = network::SimpleURLLoader::Create(
       std::move(resource_request), kTrafficAnnotation);
@@ -133,7 +134,8 @@ void ModuleScriptDownloader::OnBodyReceived(std::unique_ptr<std::string> body) {
           net::ErrorToString(simple_url_loader->NetError()).c_str());
     }
     std::move(module_script_downloader_callback_)
-        .Run(/*body=*/nullptr, error_message);
+        .Run(/*body=*/nullptr, error_message,
+             simple_url_loader->TakeResponseInfo());
     return;
   }
 
@@ -143,7 +145,8 @@ void ModuleScriptDownloader::OnBodyReceived(std::unique_ptr<std::string> body) {
         .Run(/*body=*/nullptr,
              base::StringPrintf(
                  "Rejecting load of %s due to unexpected MIME type.",
-                 source_url_.spec().c_str()));
+                 source_url_.spec().c_str()),
+             simple_url_loader->TakeResponseInfo());
     return;
   }
 
@@ -152,13 +155,15 @@ void ModuleScriptDownloader::OnBodyReceived(std::unique_ptr<std::string> body) {
         .Run(/*body=*/nullptr,
              base::StringPrintf(
                  "Rejecting load of %s due to unexpected charset.",
-                 source_url_.spec().c_str()));
+                 source_url_.spec().c_str()),
+             simple_url_loader->TakeResponseInfo());
     return;
   }
 
   // All OK!
   std::move(module_script_downloader_callback_)
-      .Run(std::move(body), /*error_message=*/{});
+      .Run(std::move(body), /*error_message=*/{},
+           simple_url_loader->TakeResponseInfo());
 }
 
 void ModuleScriptDownloader::OnRedirect(
@@ -172,8 +177,10 @@ void ModuleScriptDownloader::OnRedirect(
   simple_url_loader_.reset();
 
   std::move(module_script_downloader_callback_)
-      .Run(/*body=*/nullptr, base::StringPrintf("Unexpected redirect on %s.",
-                                                source_url_.spec().c_str()));
+      .Run(/*body=*/nullptr,
+           base::StringPrintf("Unexpected redirect on %s.",
+                              source_url_.spec().c_str()),
+           nullptr);
 }
 
 }  // namespace blink

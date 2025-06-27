@@ -1,12 +1,15 @@
 // Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 
-import {Category, PageHandlerFactory, PageHandlerRemote, Status, TenorGifResponse} from './emoji_picker.mojom-webui.js';
+import type {Category, HistoryItem} from './emoji_picker.mojom-webui.js';
+import {PageHandlerFactory, PageHandlerRemote} from './emoji_picker.mojom-webui.js';
 import {EmojiSearch} from './emoji_search.mojom-webui.js';
 import {NewWindowProxy} from './new_window_proxy.mojom-webui.js';
-import {EmojiVariants, GifSubcategoryData, VisualContent} from './types.js';
+import type {PaginatedGifResponses} from './tenor_types.mojom-webui.js';
+import {Status} from './tenor_types.mojom-webui.js';
+import type {EmojiVariants, GifSubcategoryData, VisualContent} from './types.js';
 
 const HELP_CENTRE_URL = 'https://support.google.com/chrome?p=palette';
 
@@ -49,7 +52,7 @@ export class EmojiPickerApiProxy {
   }
 
   getFeaturedGifs(pos?: string):
-      Promise<{status: Status, featuredGifs: TenorGifResponse}> {
+      Promise<{status: Status, featuredGifs: PaginatedGifResponses}> {
     if (!navigator.onLine) {
       return Promise.resolve({
         status: Status.kNetError,
@@ -63,7 +66,7 @@ export class EmojiPickerApiProxy {
   }
 
   searchGifs(query: string, pos?: string):
-      Promise<{status: Status, searchGifs: TenorGifResponse}> {
+      Promise<{status: Status, searchGifs: PaginatedGifResponses}> {
     if (!navigator.onLine) {
       return Promise.resolve({
         status: Status.kNetError,
@@ -89,7 +92,9 @@ export class EmojiPickerApiProxy {
   }
 
   searchEmoji(query: string) {
-    return this.searchProxy().searchEmoji(query);
+    // TODO(b/346457889): Add multilingual search for emoji picker.
+    // For now assume English.
+    return this.searchProxy().searchEmoji(query, ['en']);
   }
 
   /** @override */
@@ -112,11 +117,28 @@ export class EmojiPickerApiProxy {
     return this.handler.getInitialQuery();
   }
 
+  updateHistoryInPrefs(category: Category, history: HistoryItem[]): void {
+    this.handler.updateHistoryInPrefs(category, history);
+  }
+
+  updatePreferredVariantsInPrefs(preferredVariants: Record<string, string>):
+      void {
+    this.handler.updatePreferredVariantsInPrefs(
+        Object.keys(preferredVariants).map(base => ({
+                                             'base': base,
+                                             'variant': preferredVariants[base],
+                                           })));
+  }
+
+  getHistoryFromPrefs(category: Category): Promise<{history: HistoryItem[]}> {
+    return this.handler.getHistoryFromPrefs(category);
+  }
+
   onUiFullyLoaded(): void {
     this.handler.onUiFullyLoaded();
   }
 
-  convertTenorGifsToEmoji(gifs: TenorGifResponse): EmojiVariants[] {
+  convertTenorGifsToEmoji(gifs: PaginatedGifResponses): EmojiVariants[] {
     return gifs.results.map(({
                               id,
                               url,

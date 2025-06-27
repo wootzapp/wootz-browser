@@ -10,10 +10,11 @@
 #import "base/metrics/user_metrics_action.h"
 #import "components/navigation_metrics/navigation_metrics.h"
 #import "components/profile_metrics/browser_profile_type.h"
+#import "ios/chrome/browser/crash_report/model/crash_keys_helper.h"
 #import "ios/chrome/browser/crash_report/model/crash_loop_detection_util.h"
-#import "ios/chrome/browser/sessions/session_restoration_service.h"
-#import "ios/chrome/browser/sessions/session_restoration_service_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service_factory.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/all_web_state_observation_forwarder.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
@@ -24,8 +25,6 @@
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state.h"
-
-BROWSER_USER_DATA_KEY_IMPL(WebStateListMetricsBrowserAgent)
 
 WebStateListMetricsBrowserAgent::WebStateListMetricsBrowserAgent(
     Browser* browser,
@@ -39,9 +38,12 @@ WebStateListMetricsBrowserAgent::WebStateListMetricsBrowserAgent(
   web_state_forwarder_ =
       std::make_unique<AllWebStateObservationForwarder>(web_state_list_, this);
 
-  ChromeBrowserState* browser_state = browser->GetBrowserState();
+  ProfileIOS* profile = browser->GetProfile();
   session_restoration_service_observation_.Observe(
-      SessionRestorationServiceFactory::GetForBrowserState(browser_state));
+      SessionRestorationServiceFactory::GetForProfile(profile));
+
+  is_off_record_ = profile->IsOffTheRecord();
+  is_inactive_ = browser->IsInactive();
 }
 
 WebStateListMetricsBrowserAgent::~WebStateListMetricsBrowserAgent() = default;
@@ -101,6 +103,9 @@ void WebStateListMetricsBrowserAgent::WebStateListDidChange(
     WebStateList* web_state_list,
     const WebStateListChange& change,
     const WebStateListStatus& status) {
+  if (web_state_list->IsBatchInProgress()) {
+    return;
+  }
   if (metric_collection_paused_) {
     return;
   }
@@ -113,6 +118,29 @@ void WebStateListMetricsBrowserAgent::WebStateListDidChange(
 
     base::RecordAction(base::UserMetricsAction("MobileTabSwitched"));
   }
+  switch (change.type()) {
+    case WebStateListChange::Type::kInsert:
+    case WebStateListChange::Type::kDetach:
+    case WebStateListChange::Type::kMove: {
+      UpdateCrashkeysTabCount();
+      break;
+    }
+    case WebStateListChange::Type::kStatusOnly:
+    case WebStateListChange::Type::kReplace:
+    case WebStateListChange::Type::kGroupCreate:
+    case WebStateListChange::Type::kGroupVisualDataUpdate:
+    case WebStateListChange::Type::kGroupMove:
+    case WebStateListChange::Type::kGroupDelete:
+      break;
+  }
+}
+
+void WebStateListMetricsBrowserAgent::BatchOperationEnded(
+    WebStateList* web_state_list) {
+  if (metric_collection_paused_) {
+    return;
+  }
+  UpdateCrashkeysTabCount();
 }
 
 #pragma mark - WebStateObserver
@@ -168,4 +196,17 @@ void WebStateListMetricsBrowserAgent::BrowserDestroyed(Browser* browser) {
   web_state_list_ = nullptr;
 
   browser->RemoveObserver(this);
+}
+
+void WebStateListMetricsBrowserAgent::UpdateCrashkeysTabCount() {
+  if (is_off_record_) {
+    crash_keys::SetIncognitoTabCount(web_state_list_->count());
+    return;
+  }
+  if (is_inactive_) {
+    crash_keys::SetInactiveTabCount(web_state_list_->count());
+    return;
+  }
+
+  crash_keys::SetRegularTabCount(web_state_list_->count());
 }

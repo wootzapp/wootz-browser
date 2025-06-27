@@ -2,6 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("//components/enterprise/buildflags/buildflags.gni")
 import("//components/safe_browsing/buildflags.gni")
 
 if (is_android) {
@@ -34,6 +35,7 @@ source_set("internal") {
     "download_interrupt_reasons_utils.cc",
     "download_item_impl.cc",
     "download_item_impl_delegate.cc",
+    "download_item_rename_handler.cc",
     "download_job.cc",
     "download_job_factory.cc",
     "download_job_impl.cc",
@@ -65,6 +67,7 @@ source_set("internal") {
   ]
 
   public_deps = [
+    "//components/enterprise/buildflags",
     "//components/services/quarantine/public/mojom",
     "//mojo/public/cpp/bindings",
     "//services/network/public/mojom",
@@ -94,10 +97,17 @@ source_set("internal") {
     deps += [ "//components/safe_browsing/content/common:file_type_policies" ]
   }
 
+  if (enterprise_cloud_content_analysis) {
+    deps +=
+        [ "//components/enterprise/obfuscation/core:enterprise_obfuscation" ]
+  }
+
   if (is_android) {
     sources += [
       "android/download_collection_bridge.cc",
       "android/download_collection_bridge.h",
+      "in_memory_download_file.cc",
+      "in_memory_download_file.h",
     ]
 
     deps += [ ":jni_headers" ]
@@ -118,6 +128,7 @@ if (is_android) {
     sources = [
       "android/java/src/org/chromium/components/download/DownloadCollectionBridge.java",
       "android/java/src/org/chromium/components/download/DownloadDelegate.java",
+      "android/java/src/org/chromium/components/download/InMemoryDownloadFile.java",
     ]
 
     deps = [
@@ -131,7 +142,10 @@ if (is_android) {
 
   generate_jni("jni_headers") {
     visibility = [ ":*" ]
-    sources = [ "android/java/src/org/chromium/components/download/DownloadCollectionBridge.java" ]
+    sources = [
+      "android/java/src/org/chromium/components/download/DownloadCollectionBridge.java",
+      "android/java/src/org/chromium/components/download/InMemoryDownloadFile.java",
+    ]
   }
 }
 
@@ -170,7 +184,6 @@ source_set("unit_tests") {
   deps = [
     ":for_tests",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/download/database",
     "//components/download/public/common:test_support",
     "//components/leveldb_proto",

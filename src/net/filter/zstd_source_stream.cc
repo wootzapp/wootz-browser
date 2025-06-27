@@ -12,9 +12,12 @@
 
 #include "base/bits.h"
 #include "base/check_op.h"
+#include "base/debug/alias.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "net/base/io_buffer.h"
+#include "net/filter/source_stream_type.h"
 #include "third_party/zstd/src/lib/zstd.h"
 #include "third_party/zstd/src/lib/zstd_errors.h"
 
@@ -35,26 +38,34 @@ class ZstdSourceStream : public FilterSourceStream {
   explicit ZstdSourceStream(std::unique_ptr<SourceStream> upstream,
                             scoped_refptr<IOBuffer> dictionary = nullptr,
                             size_t dictionary_size = 0u)
-      : FilterSourceStream(SourceStream::TYPE_ZSTD, std::move(upstream)),
+      : FilterSourceStream(SourceStreamType::kZstd, std::move(upstream)),
         dictionary_(std::move(dictionary)),
         dictionary_size_(dictionary_size) {
+    // Following RFC 9659, use a maximum 8MB memory buffer to decompress frames
+    // to '... protect decoders from unreasonable memory requirements'.
+    int window_log_max = 23;
+    if (dictionary_) {
+      // For shared dictionary case, allow using larger window size:
+      //   clamp(dictionary size * 1.25, 8MB, 128MB)
+      // See https://github.com/httpwg/http-extensions/issues/2754 for more
+      // details. To avoid floating point calculations, using `* 5 / 4` for
+      // `* 1.25` specified by the standard.
+      // Note: `base::checked_cast<uint32_t>` is safe because we have the size
+      // limit per shared dictionary and the total dictionary size limit.
+      window_log_max = std::clamp(
+          base::bits::Log2Ceiling(
+              base::checked_cast<uint32_t>(dictionary_size_ * 5 / 4)),
+          23,   // 8MB
+          27);  // 128MB
+    }
+    // Max window size, 10% allowance for overhead. Set before we allocate any
+    // memory.
+    max_expected_allocation_ = (1 << window_log_max) * 11 / 10;
+
     ZSTD_customMem custom_mem = {&customMalloc, &customFree, this};
     dctx_.reset(ZSTD_createDCtx_advanced(custom_mem));
     CHECK(dctx_);
 
-    // Following RFC 8878 recommendation (see section 3.1.1.1.2 Window
-    // Descriptor) of using a maximum 8MB memory buffer to decompress frames
-    // to '... protect decoders from unreasonable memory requirements'.
-    int window_log_max = 23;
-    if (dictionary_) {
-      // For shared dictionary case, allow using larger window size (Log2Ceiling
-      // of `dictionary_size`). It is safe because we have the size limit per
-      // shared dictionary and the total dictionary size limit.
-      window_log_max =
-          std::max(base::bits::Log2Ceiling(
-                       base::checked_cast<uint32_t>(dictionary_size_)),
-                   window_log_max);
-    }
     ZSTD_DCtx_setParameter(dctx_.get(), ZSTD_d_windowLogMax, window_log_max);
     if (dictionary_) {
       size_t result = ZSTD_DCtx_loadDictionary_advanced(
@@ -91,6 +102,16 @@ class ZstdSourceStream : public FilterSourceStream {
   }
 
  private:
+  NOINLINE NOT_TAIL_CALLED void DumpExceededMaxAllocationWithoutDictionary() {
+    NO_CODE_FOLDING();
+    base::debug::DumpWithoutCrashing();
+  }
+
+  NOINLINE NOT_TAIL_CALLED void DumpExceededMaxAllocationWithDictionary() {
+    NO_CODE_FOLDING();
+    base::debug::DumpWithoutCrashing();
+  }
+
   static void* customMalloc(void* opaque, size_t size) {
     return reinterpret_cast<ZstdSourceStream*>(opaque)->customMalloc(size);
   }
@@ -102,6 +123,12 @@ class ZstdSourceStream : public FilterSourceStream {
     total_allocated_ += size;
     if (total_allocated_ > max_allocated_) {
       max_allocated_ = total_allocated_;
+      if (!exceeded_max_allocation_ &&
+          max_allocated_ > max_expected_allocation_) {
+        exceeded_max_allocation_ = true;
+        dictionary_ ? DumpExceededMaxAllocationWithDictionary()
+                    : DumpExceededMaxAllocationWithoutDictionary();
+      }
     }
     return address;
   }
@@ -176,6 +203,8 @@ class ZstdSourceStream : public FilterSourceStream {
   size_t total_allocated_ = 0;
   size_t max_allocated_ = 0;
   std::unordered_map<void*, size_t> malloc_sizes_;
+  size_t max_expected_allocation_;
+  bool exceeded_max_allocation_ = false;
 
   const scoped_refptr<IOBuffer> dictionary_;
   const size_t dictionary_size_;

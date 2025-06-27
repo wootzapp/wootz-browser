@@ -19,8 +19,6 @@ bool ShouldAutofillOnEmptyValues(
     case AutofillSuggestionTriggerSource::kFormControlElementClicked:
     case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
     case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
-    case AutofillSuggestionTriggerSource::kManualFallbackAddress:
-    case AutofillSuggestionTriggerSource::kManualFallbackPayments:
     case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
     case AutofillSuggestionTriggerSource::kManualFallbackPlusAddresses:
     case AutofillSuggestionTriggerSource::
@@ -30,19 +28,20 @@ bool ShouldAutofillOnEmptyValues(
     case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
     case AutofillSuggestionTriggerSource::kContentEditableClicked:
     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kAutofillAi:
       return true;
-    case AutofillSuggestionTriggerSource::kTextFieldDidChange:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
       return false;
-    // `kShowCardsFromAccount`, `kPasswordManager`, `kAndroidWebView` and `kiOS`
-    // are not used in the renderer code. As such, suggestion properties don't
-    // apply to them.
-    case AutofillSuggestionTriggerSource::kShowCardsFromAccount:
-    case mojom::AutofillSuggestionTriggerSource::kPasswordManager:
-    case mojom::AutofillSuggestionTriggerSource::kiOS:
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess` are
+    // not used in the renderer code. As such, suggestion properties don't apply
+    // to them.
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 bool ShouldAutofillOnLongValues(
@@ -54,37 +53,34 @@ bool ShouldAutofillOnLongValues(
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
       return true;
     case AutofillSuggestionTriggerSource::kFormControlElementClicked:
-    case AutofillSuggestionTriggerSource::kManualFallbackAddress:
-    case AutofillSuggestionTriggerSource::kManualFallbackPayments:
     case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
     case AutofillSuggestionTriggerSource::kManualFallbackPlusAddresses:
     case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
     case AutofillSuggestionTriggerSource::
         kShowPromptAfterDialogClosedNonManualFallback:
-    case AutofillSuggestionTriggerSource::kTextFieldDidChange:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
     case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kAutofillAi:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
       return false;
-    case AutofillSuggestionTriggerSource::kShowCardsFromAccount:
-    case mojom::AutofillSuggestionTriggerSource::kPasswordManager:
-    case mojom::AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 bool RequiresCaretAtEnd(AutofillSuggestionTriggerSource trigger_source) {
   switch (trigger_source) {
-    case AutofillSuggestionTriggerSource::kTextFieldDidChange:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
     case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
       return true;
     case AutofillSuggestionTriggerSource::kFormControlElementClicked:
     case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
     case AutofillSuggestionTriggerSource::kContentEditableClicked:
     case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
-    case AutofillSuggestionTriggerSource::kManualFallbackAddress:
-    case AutofillSuggestionTriggerSource::kManualFallbackPayments:
     case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
     case AutofillSuggestionTriggerSource::kManualFallbackPlusAddresses:
     case AutofillSuggestionTriggerSource::
@@ -92,17 +88,18 @@ bool RequiresCaretAtEnd(AutofillSuggestionTriggerSource trigger_source) {
     case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kAutofillAi:
       return false;
-    // `kShowCardsFromAccount`, `kPasswordManager`, `kAndroidWebView` and `kiOS`
-    // are not used in the renderer code. As such, suggestion properties don't
-    // apply to them.
-    case AutofillSuggestionTriggerSource::kShowCardsFromAccount:
-    case mojom::AutofillSuggestionTriggerSource::kPasswordManager:
-    case mojom::AutofillSuggestionTriggerSource::kiOS:
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess` are
+    // not used in the renderer code. As such, suggestion properties don't apply
+    // to them.
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 bool ShouldShowFullSuggestionListForPasswordManager(
@@ -117,33 +114,31 @@ bool ShouldShowFullSuggestionListForPasswordManager(
       return element.IsAutofilled() || !element.UserHasEditedTheField();
     case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
     case AutofillSuggestionTriggerSource::kContentEditableClicked:
-    case AutofillSuggestionTriggerSource::kTextFieldDidChange:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
     case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
     case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
-    case AutofillSuggestionTriggerSource::kManualFallbackAddress:
-    case AutofillSuggestionTriggerSource::kManualFallbackPayments:
     case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
     case AutofillSuggestionTriggerSource::kManualFallbackPlusAddresses:
     case AutofillSuggestionTriggerSource::
         kShowPromptAfterDialogClosedNonManualFallback:
     case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
+    case AutofillSuggestionTriggerSource::kAutofillAi:
       return false;
-    // `kShowCardsFromAccount`, `kPasswordManager`, `kAndroidWebView` and `kiOS`
-    // are not used in the renderer code. As such, suggestion properties don't
-    // apply to them.
-    // `kPasswordManager` specifically is used to identify password manager
-    // suggestions in the browser process. In the renderer, the logic triggering
-    // suggestions through Blink events is shared. Thus, the return values for
-    // `kFormControlElementClicked` etc. matter for the password manager in the
-    // renderer.
-    case AutofillSuggestionTriggerSource::kShowCardsFromAccount:
-    case mojom::AutofillSuggestionTriggerSource::kPasswordManager:
-    case mojom::AutofillSuggestionTriggerSource::kiOS:
+    // `kPasswordManager`, `kiOS`, and `kPlusAddressUpdatedInBrowserProcess` are
+    // not used in the renderer code. As such, suggestion properties don't apply
+    // to them. `kPasswordManager` specifically is used to identify password
+    // manager suggestions in the browser process. In the renderer, the logic
+    // triggering suggestions through Blink events is shared. Thus, the return
+    // values for `kFormControlElementClicked` etc. matter for the password
+    // manager in the renderer.
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kUnspecified:
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace autofill

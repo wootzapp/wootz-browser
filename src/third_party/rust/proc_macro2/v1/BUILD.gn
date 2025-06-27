@@ -12,27 +12,29 @@ cargo_crate("lib") {
   crate_name = "proc_macro2"
   epoch = "1"
   crate_type = "rlib"
-  crate_root = "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/lib.rs"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/lib.rs"
   sources = [
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/detection.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/extra.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/fallback.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/lib.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/location.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/marker.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/parse.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/rcvec.rs",
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/src/wrapper.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/detection.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/extra.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/fallback.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/location.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/marker.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/parse.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/rcvec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/src/wrapper.rs",
   ]
   inputs = []
 
   build_native_rust_unit_tests = false
   edition = "2021"
-  cargo_pkg_version = "1.0.82"
+  cargo_pkg_version = "1.0.94"
   cargo_pkg_authors =
       "David Tolnay <dtolnay@gmail.com>, Alex Crichton <alex@alexcrichton.com>"
   cargo_pkg_name = "proc-macro2"
   cargo_pkg_description = "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case."
+  library_configs -= [ "//build/config/coverage:default_coverage" ]
   library_configs -= [ "//build/config/compiler:chromium_code" ]
   library_configs += [ "//build/config/compiler:no_chromium_code" ]
   executable_configs -= [ "//build/config/compiler:chromium_code" ]
@@ -41,12 +43,15 @@ cargo_crate("lib") {
   proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
   deps = [ "//third_party/rust/unicode_ident/v1:lib" ]
   features = [
+    "default",
     "proc-macro",
     "span-locations",
   ]
   build_root =
-      "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/build.rs"
-  build_sources = [
-    "//third_party/rust/chromium_crates_io/vendor/proc-macro2-1.0.82/build.rs",
+      "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/build.rs"
+  build_sources =
+      [ "//third_party/rust/chromium_crates_io/vendor/proc-macro2-v1/build.rs" ]
+  rustflags = [
+    "--cap-lints=allow",  # Suppress all warnings in crates.io crates
   ]
 }

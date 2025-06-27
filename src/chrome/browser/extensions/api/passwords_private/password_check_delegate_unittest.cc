@@ -147,8 +147,8 @@ PasswordForm MakeSavedFederatedCredential(
   form.signon_realm = std::string(signon_realm);
   form.url = GURL(signon_realm);
   form.username_value = std::u16string(username);
-  form.federation_origin = url::Origin::Create(GURL(provider));
-  CHECK(!form.federation_origin.opaque());
+  form.federation_origin = url::SchemeHostPort(GURL(provider));
+  CHECK(form.federation_origin.IsValid());
   form.in_store = store;
   return form;
 }
@@ -280,6 +280,9 @@ class PasswordCheckDelegateTest : public ::testing::Test {
   PasswordCheckDelegateTest() {
     prefs_.registry()->RegisterDoublePref(kLastTimePasswordCheckCompleted, 0.0);
     presenter_.Init();
+    delegate_ = std::make_unique<PasswordCheckDelegate>(
+        profile_.get(), &presenter_, &credential_id_generator_,
+        PasswordsPrivateEventRouterFactory::GetForProfile(profile_.get()));
   }
 
   void RunUntilIdle() { task_env_.RunUntilIdle(); }
@@ -312,11 +315,16 @@ class PasswordCheckDelegateTest : public ::testing::Test {
         SyncServiceFactory::GetForProfile(profile_.get()));
   }
   SavedPasswordsPresenter& presenter() { return presenter_; }
-  PasswordCheckDelegate& delegate() { return delegate_; }
+  PasswordCheckDelegate& delegate() { return *delegate_; }
 
   PasswordCheckDelegate CreateDelegate(SavedPasswordsPresenter* presenter) {
     return PasswordCheckDelegate(profile_.get(), presenter,
                                  &credential_id_generator_);
+  }
+
+  void ResetWithoutEventRouter() {
+    delegate_ = std::make_unique<PasswordCheckDelegate>(
+        profile_.get(), &presenter_, &credential_id_generator_, nullptr);
   }
 
  private:
@@ -336,8 +344,7 @@ class PasswordCheckDelegateTest : public ::testing::Test {
                                      AccountPasswordStoreFactory::GetForProfile(
                                          profile_.get(),
                                          ServiceAccessType::EXPLICIT_ACCESS)};
-  PasswordCheckDelegate delegate_{profile_.get(), &presenter_,
-                                  &credential_id_generator_};
+  std::unique_ptr<PasswordCheckDelegate> delegate_;
 };
 
 }  // namespace
@@ -397,6 +404,7 @@ TEST_F(PasswordCheckDelegateTest, WeakCheckWhenUserSignedOut) {
 // credential covers the "Just now" cases (less than a minute ago), as well as
 // months and years.
 TEST_F(PasswordCheckDelegateTest, GetInsecureCredentialsHandlesTimes) {
+  RunUntilIdle();
   PasswordForm form_com_username1 = MakeSavedPassword(kExampleCom, kUsername1);
   AddIssueToForm(&form_com_username1, InsecureType::kLeaked, base::Seconds(59));
   store().AddLogin(form_com_username1);
@@ -445,6 +453,7 @@ TEST_F(PasswordCheckDelegateTest, GetInsecureCredentialsHandlesTimes) {
 // most recent compromise.
 TEST_F(PasswordCheckDelegateTest,
        GetInsecureCredentialsDedupesLeakedAndCompromised) {
+  RunUntilIdle();
   PasswordForm form_com_username1 = MakeSavedPassword(kExampleCom, kUsername1);
   AddIssueToForm(&form_com_username1, InsecureType::kLeaked, base::Minutes(1));
   AddIssueToForm(&form_com_username1, InsecureType::kPhished, base::Minutes(5));
@@ -492,6 +501,7 @@ TEST_F(PasswordCheckDelegateTest,
 }
 
 TEST_F(PasswordCheckDelegateTest, GetInsecureCredentialsInjectsAndroid) {
+  RunUntilIdle();
   PasswordForm form = MakeSavedPassword(kExampleCom, kUsername1);
   AddIssueToForm(&form, InsecureType::kLeaked, base::Minutes(5));
   store().AddLogin(form);
@@ -1127,6 +1137,22 @@ TEST_F(PasswordCheckDelegateTest,
   RunUntilIdle();
 
   EXPECT_THAT(delegate().GetCredentialsWithReusedPassword(), IsEmpty());
+}
+
+// Verify that computation of weak credentials notifies observers.
+TEST_F(PasswordCheckDelegateTest, NoNotificationsWithoutRouter) {
+  ResetWithoutEventRouter();
+  const char* const kEventName =
+      api::passwords_private::OnInsecureCredentialsChanged::kEventName;
+
+  // Verify that the event was not fired during construction.
+  EXPECT_FALSE(base::Contains(event_router_observer().events(), kEventName));
+
+  // Verify that the event gets fired after weak check is complete.
+  delegate().StartPasswordCheck(
+      password_manager::LeakDetectionInitiator::kBulkSyncedPasswordsCheck);
+  RunUntilIdle();
+  EXPECT_FALSE(base::Contains(event_router_observer().events(), kEventName));
 }
 
 }  // namespace extensions

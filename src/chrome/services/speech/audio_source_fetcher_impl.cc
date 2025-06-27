@@ -179,8 +179,7 @@ void AudioSourceFetcherImpl::Stop() {
 void AudioSourceFetcherImpl::Capture(const media::AudioBus* audio_source,
                                      base::TimeTicks audio_capture_time,
                                      const media::AudioGlitchInfo& glitch_info,
-                                     double volume,
-                                     bool key_pressed) {
+                                     double volume) {
   audio_length_ += media::AudioTimestampHelper::FramesToTime(
       audio_source->frames(), audio_parameters_.sample_rate());
 
@@ -214,8 +213,11 @@ void AudioSourceFetcherImpl::SendAudioToSpeechRecognitionService(
 void AudioSourceFetcherImpl::SendAudioToResample(
     std::unique_ptr<media::AudioBus> audio_data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  converter_->Push(std::move(audio_data));
-  DrainConverterOutput();
+  // `converter_` will be null if Stop() has been called.
+  if (converter_) {
+    converter_->Push(std::move(audio_data));
+    DrainConverterOutput();
+  }
 }
 
 void AudioSourceFetcherImpl::SendError() {

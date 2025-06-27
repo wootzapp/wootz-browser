@@ -13,16 +13,12 @@
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_ui_controller.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
-#include "chrome/browser/sharing/features.h"
-#include "chrome/browser/sharing/sharing_constants.h"
-#include "chrome/browser/sharing/sharing_sync_preference.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
@@ -33,8 +29,13 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
+#include "components/sharing_message/features.h"
+#include "components/sharing_message/pref_names.h"
+#include "components/sharing_message/sharing_constants.h"
+#include "components/sharing_message/sharing_sync_preference.h"
 #include "components/sync/service/sync_service_impl.h"
 #include "components/ukm/test_ukm_recorder.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -70,7 +71,7 @@ class ClickToCallBrowserTest : public SharingBrowserTest {
 
   void CheckLastSharingMessageSent(
       const std::string& expected_phone_number) const {
-    chrome_browser_sharing::SharingMessage sharing_message =
+    components_sharing_message::SharingMessage sharing_message =
         GetLastSharingMessageSent();
     ASSERT_TRUE(sharing_message.has_click_to_call_message());
     EXPECT_EQ(expected_phone_number,
@@ -181,7 +182,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
   ASSERT_TRUE(menu->IsItemPresent(
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
 
-  ui::MenuModel* sub_menu_model = nullptr;
+  raw_ptr<ui::MenuModel> sub_menu_model = nullptr;
   size_t device_id = 0;
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(kSubMenuFirstDeviceCommandId,
                                              &sub_menu_model, &device_id));
@@ -214,7 +215,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest,
   ASSERT_TRUE(menu->IsItemPresent(
       IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES));
 
-  ui::MenuModel* sub_menu_model = nullptr;
+  raw_ptr<ui::MenuModel> sub_menu_model = nullptr;
   size_t device_id = 0;
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(kSubMenuFirstDeviceCommandId,
                                              &sub_menu_model, &device_id));
@@ -360,7 +361,8 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, CloseTabWithBubble) {
 
   // Click on the tel link to trigger the bubble view.
   web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+      u"document.querySelector('a').click();", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
   // Wait until the bubble is visible.
   run_loop.Run();
 
@@ -370,7 +372,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, CloseTabWithBubble) {
 }
 
 // TODO(himanshujaju) - Add chromeos test for same flow.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, LeftClick_ChooseDevice) {
   Init(sync_pb::SharingSpecificFields::CLICK_TO_CALL_V2,
        sync_pb::SharingSpecificFields::UNKNOWN);
@@ -389,7 +391,8 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, LeftClick_ChooseDevice) {
 
   // Click on the tel link to trigger the bubble view.
   web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+      u"document.querySelector('a').click();", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
   // Wait until the bubble is visible.
   run_loop.Run();
 
@@ -404,7 +407,7 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, LeftClick_ChooseDevice) {
   const auto& buttons = dialog->button_list_for_testing()->children();
   ASSERT_GT(buttons.size(), 0u);
   views::test::ButtonTestApi(static_cast<views::Button*>(buttons[0]))
-      .NotifyClick(ui::MouseEvent(ui::ET_MOUSE_PRESSED, gfx::Point(),
+      .NotifyClick(ui::MouseEvent(ui::EventType::kMousePressed, gfx::Point(),
                                   gfx::Point(), ui::EventTimeForNow(), 0, 0));
 
   CheckLastReceiver(devices[0]);
@@ -441,10 +444,10 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, OpenNewTabAndShowBubble) {
       GetPageActionIconView(PageActionIconType::kClickToCall)->GetBubble();
   ASSERT_NE(nullptr, bubble);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Ensure that the dialog shows the origin in the footnote.
   EXPECT_NE(nullptr, bubble->GetFootnoteViewForTesting());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, NavigateDifferentOrigin) {
@@ -459,7 +462,8 @@ IN_PROC_BROWSER_TEST_F(ClickToCallBrowserTest, NavigateDifferentOrigin) {
 
   // Click on the tel link to trigger the bubble view.
   web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"document.querySelector('a').click();", base::NullCallback());
+      u"document.querySelector('a').click();", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
   // Wait until the bubble is visible.
   run_loop.Run();
   EXPECT_NE(nullptr, click_to_call_icon->GetBubble());
@@ -515,10 +519,11 @@ IN_PROC_BROWSER_TEST_P(ClickToCallPolicyTest, RunTest) {
 
   std::optional<std::string> extracted =
       ExtractPhoneNumberForClickToCall(browser()->profile(), kPhoneNumber);
-  if (expected_enabled)
+  if (expected_enabled) {
     EXPECT_EQ(kPhoneNumber, extracted.value());
-  else
+  } else {
     EXPECT_FALSE(extracted.has_value());
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(All,

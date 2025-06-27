@@ -9,8 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/session/arc_service_manager.h"
-#include "ash/components/arc/test/fake_arc_session.h"
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/test/test_new_window_delegate.h"
 #include "base/containers/adapters.h"
@@ -40,8 +38,11 @@
 #include "chromeos/ash/components/dbus/cryptohome/UserDataAuth.pb.h"
 #include "chromeos/ash/components/dbus/spaced/spaced_client.h"
 #include "chromeos/ash/components/dbus/userdataauth/mock_userdataauth_client.h"
+#include "chromeos/ash/components/dbus/vm_concierge/concierge_service.pb.h"
 #include "chromeos/ash/components/disks/disk_mount_manager.h"
 #include "chromeos/ash/components/disks/fake_disk_mount_manager.h"
+#include "chromeos/ash/experiences/arc/session/arc_service_manager.h"
+#include "chromeos/ash/experiences/arc/test/fake_arc_session.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user_names.h"
@@ -158,16 +159,9 @@ class StorageHandlerTest : public testing::Test {
         file_manager::util::GetDownloadsMountPointName(profile_),
         storage::kFileSystemTypeLocal, storage::FileSystemMountOption(),
         my_files_path));
-
-    auto instance = std::make_unique<MockNewWindowDelegate>();
-    auto primary = std::make_unique<MockNewWindowDelegate>();
-    new_window_delegate_primary_ = primary.get();
-    new_window_provider_ = std::make_unique<TestNewWindowDelegateProvider>(
-        std::move(instance), std::move(primary));
   }
 
   void TearDown() override {
-    new_window_provider_.reset();
     web_ui_.reset();
     total_disk_space_test_api_.reset();
     free_disk_space_test_api_.reset();
@@ -203,8 +197,8 @@ class StorageHandlerTest : public testing::Test {
   // space state determined by the UpdateOverallStatistics function, provided
   // that the spaced client is not available.
   int GetSpaceStateNoSpacedClient(int64_t total_size, int64_t available_size) {
-    total_disk_space_test_api_->SimulateOnGetTotalDiskSpace(&total_size);
-    free_disk_space_test_api_->SimulateOnGetFreeDiskSpace(&available_size);
+    total_disk_space_test_api_->SimulateOnGetTotalDiskSpace(total_size);
+    free_disk_space_test_api_->SimulateOnGetFreeDiskSpace(available_size);
     task_environment_.RunUntilIdle();
     const base::Value* dictionary =
         GetWebUICallbackMessage("storage-size-stat-changed");
@@ -281,6 +275,8 @@ class StorageHandlerTest : public testing::Test {
     ASSERT_EQ(expected_size, stat.st_size);
   }
 
+  MockNewWindowDelegate& new_window_delegate() { return new_window_delegate_; }
+
   raw_ptr<StorageHandler, DanglingUntriaged> handler_;
   std::unique_ptr<content::TestWebUI> web_ui_;
   content::BrowserTaskEnvironment task_environment_;
@@ -295,14 +291,12 @@ class StorageHandlerTest : public testing::Test {
   std::unique_ptr<DriveOfflineSizeTestAPI> drive_offline_size_test_api_;
   std::unique_ptr<CrostiniSizeTestAPI> crostini_size_test_api_;
   std::unique_ptr<OtherUsersSizeTestAPI> other_users_size_test_api_;
-  raw_ptr<MockNewWindowDelegate, DanglingUntriaged>
-      new_window_delegate_primary_;
   MockUserDataAuthClient userdataauth_;
 
  private:
   std::unique_ptr<arc::ArcServiceManager> arc_service_manager_;
   std::unique_ptr<arc::ArcSessionManager> arc_session_manager_;
-  std::unique_ptr<TestNewWindowDelegateProvider> new_window_provider_;
+  MockNewWindowDelegate new_window_delegate_;
 };
 
 TEST_F(StorageHandlerTest, RoundByteSize) {
@@ -589,7 +583,7 @@ TEST_F(StorageHandlerTest, SystemSize) {
   int64_t total_size = TB;
   int64_t available_size = 100 * GB;
   total_disk_space_test_api_->SimulateOnGetRootDeviceSize(total_size);
-  free_disk_space_test_api_->SimulateOnGetFreeDiskSpace(&available_size);
+  free_disk_space_test_api_->SimulateOnGetFreeDiskSpace(available_size);
   drive_offline_size_test_api_->SimulateOnGetOfflineItemsSize(50 * GB);
   const base::Value* callback =
       GetWebUICallbackMessage("storage-size-stat-changed");
@@ -709,7 +703,7 @@ TEST_F(StorageHandlerTest, SystemSize) {
 }
 
 TEST_F(StorageHandlerTest, OpenBrowsingDataSettings) {
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(GURL(chrome::kChromeUISettingsURL)
                           .Resolve(chrome::kClearBrowserDataSubPage),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,

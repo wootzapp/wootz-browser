@@ -17,9 +17,10 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/test_simple_task_runner.h"
-#include "components/subresource_filter/content/shared/common/subresource_filter_utils.h"
+#include "components/subresource_filter/content/shared/browser/utils.h"
 #include "components/subresource_filter/core/browser/async_document_subresource_filter.h"
 #include "components/subresource_filter/core/browser/async_document_subresource_filter_test_utils.h"
+#include "components/subresource_filter/core/common/constants.h"
 #include "components/subresource_filter/core/common/scoped_timers.h"
 #include "components/subresource_filter/core/common/test_ruleset_creator.h"
 #include "components/subresource_filter/core/common/test_ruleset_utils.h"
@@ -52,7 +53,7 @@ class ActivationStateComputingNavigationThrottleTest
   ActivationStateComputingNavigationThrottleTest& operator=(
       const ActivationStateComputingNavigationThrottleTest&) = delete;
 
-  ~ActivationStateComputingNavigationThrottleTest() override {}
+  ~ActivationStateComputingNavigationThrottleTest() override = default;
 
   void SetUp() override {
     content::RenderViewHostTestHarness::SetUp();
@@ -153,7 +154,7 @@ class ActivationStateComputingNavigationThrottleTest
   void InitializeRulesetHandles(
       scoped_refptr<base::SequencedTaskRunner> ruleset_task_runner) {
     dealer_handle_ = std::make_unique<VerifiedRulesetDealer::Handle>(
-        std::move(ruleset_task_runner));
+        std::move(ruleset_task_runner), kSafeBrowsingRulesetConfig);
     dealer_handle_->TryOpenAndSetRulesetFile(test_ruleset_pair_.indexed.path,
                                              /*expected_checksum=*/0,
                                              base::DoNothing());
@@ -190,10 +191,11 @@ class ActivationStateComputingNavigationThrottleTest
     std::unique_ptr<ActivationStateComputingNavigationThrottle> throttle =
         IsInSubresourceFilterRoot(navigation_handle)
             ? ActivationStateComputingNavigationThrottle::CreateForRoot(
-                  navigation_handle)
+                  navigation_handle, kSafeBrowsingRulesetConfig.uma_tag)
             : ActivationStateComputingNavigationThrottle::CreateForChild(
                   navigation_handle, ruleset_handle_.get(),
-                  parent_activation_state_.value());
+                  parent_activation_state_.value(),
+                  kSafeBrowsingRulesetConfig.uma_tag);
     if (navigation_handle->IsInMainFrame() && dryrun_speculation_) {
       mojom::ActivationState dryrun_state;
       dryrun_state.activation_level = mojom::ActivationLevel::kDryRun;
@@ -206,11 +208,13 @@ class ActivationStateComputingNavigationThrottleTest
 
   void ReadyToCommitNavigation(
       content::NavigationHandle* navigation_handle) override {
-    if (!test_throttle_)
+    if (!test_throttle_) {
       return;
+    }
     ASSERT_EQ(navigation_handle, test_throttle_->navigation_handle());
-    if (test_throttle_->filter())
+    if (test_throttle_->filter()) {
       test_throttle_->WillSendActivationToRenderer();
+    }
 
     if (auto filter = test_throttle_->ReleaseFilter()) {
       EXPECT_NE(mojom::ActivationLevel::kDisabled,
@@ -223,8 +227,9 @@ class ActivationStateComputingNavigationThrottleTest
 
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override {
-    if (!test_throttle_)
+    if (!test_throttle_) {
       return;
+    }
     last_committed_frame_host_ = navigation_handle->GetRenderFrameHost();
     test_throttle_ = nullptr;
   }

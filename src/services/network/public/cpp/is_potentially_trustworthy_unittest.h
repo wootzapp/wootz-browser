@@ -263,7 +263,7 @@ TYPED_TEST_P(AbstractTrustworthinessTest, TestcasesInheritedFromBlink) {
     const char* url;
   };
 
-  TestCase inputs[] = {
+  static constexpr TestCase inputs[] = {
       // Access is granted to webservers running on localhost.
       {true, true, "http://localhost"},
       {true, true, "http://localhost."},
@@ -355,20 +355,19 @@ TYPED_TEST_P(AbstractTrustworthinessTest, TestcasesInheritedFromBlink) {
       {false, false, "data:text/html,Hello"},
   };
 
-  for (size_t i = 0; i < std::size(inputs); ++i) {
-    SCOPED_TRACE(inputs[i].url);
-    auto origin = this->CreateOriginFromString(inputs[i].url);
-    EXPECT_EQ(inputs[i].is_potentially_trustworthy,
+  for (const auto& [is_potentially_trustworthy, is_localhost, url] : inputs) {
+    SCOPED_TRACE(url);
+    auto origin = this->CreateOriginFromString(url);
+    EXPECT_EQ(is_potentially_trustworthy,
               this->IsOriginPotentiallyTrustworthy(origin));
-    EXPECT_EQ(inputs[i].is_localhost, this->IsOriginOfLocalhost(origin));
+    EXPECT_EQ(is_localhost, this->IsOriginOfLocalhost(origin));
 
-    GURL test_gurl(inputs[i].url);
+    GURL test_gurl(url);
     if (!(test_gurl.SchemeIsBlob() || test_gurl.SchemeIsFileSystem())) {
       // Check that the origin's notion of localhost matches //net's notion of
       // localhost. This is skipped for blob: and filesystem: URLs since
       // blink::SecurityOrigin uses their inner URL's origin.
-      EXPECT_EQ(net::IsLocalhost(GURL(inputs[i].url)),
-                this->IsOriginOfLocalhost(origin));
+      EXPECT_EQ(net::IsLocalhost(GURL(url)), this->IsOriginOfLocalhost(origin));
     }
   }
 }

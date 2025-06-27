@@ -26,9 +26,9 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -40,7 +40,7 @@ import org.chromium.blink.mojom.StylusWritingGestureData;
  * representation to their Blink representation. These tests construct gesture objects and use the
  * converter to convert them into gesture data. The gesture data is then checked for accuracy.
  */
-@RunWith(RobolectricTestRunner.class)
+@RunWith(BaseRobolectricTestRunner.class)
 @Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({"enable-features=StylusRichGestures"})
 @Config(sdk = VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -227,6 +227,31 @@ public class StylusGestureConverterTest {
         assertMojoRectsAreEqual(createMojoRect(10, 10, 35, 45), gestureData.startRect);
         assertMojoRectsAreEqual(createMojoRect(0, 100, 70, 100), gestureData.endRect);
         assertEquals(FALLBACK_TEXT, toJavaString(gestureData.textAlternative));
+        assertNull(gestureData.textToInsert);
+        histogram.assertExpected();
+    }
+
+    @Test
+    @SmallTest
+    public void testNullFallbackText() {
+        var histogram =
+                HistogramWatcher.newSingleRecordWatcher(
+                        GESTURE_TYPE_HISTOGRAM, StylusGestureConverter.UmaGestureType.SELECT);
+        SelectGesture gesture =
+                new SelectGesture.Builder()
+                        .setGranularity(GRANULARITY_CHARACTER)
+                        .setSelectionArea(new RectF(0, 0, 10, 10))
+                        .build();
+        StylusWritingGestureData gestureData = StylusGestureConverter.createGestureData(gesture);
+
+        assertNotNull(gestureData);
+        assertEquals(StylusWritingGestureAction.SELECT_TEXT, gestureData.action);
+        assertEquals(
+                org.chromium.blink.mojom.StylusWritingGestureGranularity.CHARACTER,
+                gestureData.granularity);
+        assertMojoRectsAreEqual(createMojoRect(0, 5, 0, 0), gestureData.startRect);
+        assertMojoRectsAreEqual(createMojoRect(10, 5, 0, 0), gestureData.endRect);
+        assertEquals("", toJavaString(gestureData.textAlternative));
         assertNull(gestureData.textToInsert);
         histogram.assertExpected();
     }

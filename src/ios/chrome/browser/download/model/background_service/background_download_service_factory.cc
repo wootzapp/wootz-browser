@@ -22,11 +22,10 @@
 #include "components/download/internal/background_service/proto/entry.pb.h"
 #include "components/download/public/background_service/background_download_service.h"
 #include "components/download/public/background_service/clients.h"
-#include "components/keyed_service/ios/browser_state_dependency_manager.h"
 #include "components/leveldb_proto/public/proto_database_provider.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "ios/chrome/browser/optimization_guide/model/prediction_model_download_client.h"
-#include "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#include "ios/chrome/browser/shared/model/profile/profile_ios.h"
 
 // The root directory for background download system, under browser state
 // directory.
@@ -42,10 +41,10 @@ const base::FilePath::CharType kFilesStorageDir[] = FILE_PATH_LITERAL("Files");
 
 // static
 download::BackgroundDownloadService*
-BackgroundDownloadServiceFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<download::BackgroundDownloadService*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true));
+BackgroundDownloadServiceFactory::GetForProfile(ProfileIOS* profile) {
+  return GetInstance()
+      ->GetServiceForProfileAs<download::BackgroundDownloadService>(
+          profile, /*create=*/true);
 }
 
 // static
@@ -56,9 +55,7 @@ BackgroundDownloadServiceFactory::GetInstance() {
 }
 
 BackgroundDownloadServiceFactory::BackgroundDownloadServiceFactory()
-    : BrowserStateKeyedServiceFactory(
-          "BackgroundDownloadService",
-          BrowserStateDependencyManager::GetInstance()) {}
+    : ProfileKeyedServiceFactoryIOS("BackgroundDownloadService") {}
 
 BackgroundDownloadServiceFactory::~BackgroundDownloadServiceFactory() = default;
 
@@ -71,7 +68,7 @@ BackgroundDownloadServiceFactory::BuildServiceInstanceFor(
   if (optimization_guide::features::IsModelDownloadingEnabled()) {
     auto prediction_model_download_client =
         std::make_unique<optimization_guide::PredictionModelDownloadClient>(
-            ChromeBrowserState::FromBrowserState(context));
+            ProfileIOS::FromBrowserState(context));
     clients->insert(std::make_pair(
         download::DownloadClient::OPTIMIZATION_GUIDE_PREDICTION_MODELS,
         std::move(prediction_model_download_client)));

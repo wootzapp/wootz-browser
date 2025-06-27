@@ -11,6 +11,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "components/policy/core/common/features.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 
 namespace policy {
@@ -20,9 +21,11 @@ constexpr auto kDomainPrefixMap =
     base::MakeFixedFlatMap<DeviceLocalAccountType, std::string_view>({
         {DeviceLocalAccountType::kPublicSession, "public-accounts"},
         {DeviceLocalAccountType::kKioskApp, "kiosk-apps"},
-        {DeviceLocalAccountType::kArcKioskApp, "arc-kiosk-apps"},
+        {DeviceLocalAccountType::kArcvmKioskApp, "arcvm-kiosk-apps"},
         {DeviceLocalAccountType::kSamlPublicSession, "saml-public-accounts"},
         {DeviceLocalAccountType::kWebKioskApp, "web-kiosk-apps"},
+        {DeviceLocalAccountType::kKioskIsolatedWebApp, "isolated-kiosk-apps"},
+
     });
 
 constexpr char kDeviceLocalAccountDomainSuffix[] = ".device-local.localhost";
@@ -33,10 +36,12 @@ bool IsValidDeviceLocalAccountType(int value) {
   switch (static_cast<DeviceLocalAccountType>(value)) {
     case DeviceLocalAccountType::kPublicSession:
     case DeviceLocalAccountType::kKioskApp:
-    case DeviceLocalAccountType::kArcKioskApp:
     case DeviceLocalAccountType::kSamlPublicSession:
     case DeviceLocalAccountType::kWebKioskApp:
+    case DeviceLocalAccountType::kKioskIsolatedWebApp:
       return true;
+    case DeviceLocalAccountType::kArcvmKioskApp:
+      return policy::features::IsHeliumArcvmKioskEnabled();
   }
   return false;
 }
@@ -78,7 +83,7 @@ GetDeviceLocalAccountType(std::string_view user_id) {
   }
 
   // |user_id| is a device-local account but its type is not recognized.
-  NOTREACHED_IN_MIGRATION();
+  DUMP_WILL_BE_NOTREACHED();
   return base::unexpected(GetDeviceLocalAccountTypeError::kUnknownDomain);
 }
 

@@ -6,15 +6,18 @@ package org.chromium.chrome.browser.multiwindow;
 
 import androidx.annotation.IntDef;
 
+import org.chromium.build.annotations.NullMarked;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Locale;
 
 /**
- * Struct containing the info of ChromeTabbedActivity instance needed to manage
- * multi-instance support on Android S.
+ * Struct containing the info of ChromeTabbedActivity instance needed to manage multi-instance
+ * support on Android S.
  */
-final class InstanceInfo {
+@NullMarked
+public final class InstanceInfo {
     /** Type of the instance necessary for UI. */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({Type.CURRENT, Type.ADJACENT, Type.OTHER})

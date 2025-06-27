@@ -12,28 +12,15 @@
 
 namespace blink {
 
-namespace {
-
-// This converts -0.0 to 0.0, so that they have the same hash value. This
-// ensures that equal FontDescription have the same hash value.
-float NormalizeSign(float number) {
-  if (UNLIKELY(number == 0.0)) {
-    return 0.0;
-  }
-  return number;
-}
-
-}  // namespace
-
 unsigned FontPalette::GetHash() const {
   unsigned computed_hash = 0;
   WTF::AddIntToHash(computed_hash, palette_keyword_);
 
   if (palette_keyword_ == kInterpolablePalette) {
-    WTF::AddFloatToHash(computed_hash, NormalizeSign(percentages_.start));
-    WTF::AddFloatToHash(computed_hash, NormalizeSign(percentages_.end));
-    WTF::AddFloatToHash(computed_hash, NormalizeSign(normalized_percentage_));
-    WTF::AddFloatToHash(computed_hash, NormalizeSign(alpha_multiplier_));
+    WTF::AddFloatToHash(computed_hash, percentages_.start);
+    WTF::AddFloatToHash(computed_hash, percentages_.end);
+    WTF::AddFloatToHash(computed_hash, normalized_percentage_);
+    WTF::AddFloatToHash(computed_hash, alpha_multiplier_);
     WTF::AddIntToHash(computed_hash,
                       static_cast<uint8_t>(color_interpolation_space_));
     if (hue_interpolation_method_.has_value()) {
@@ -72,7 +59,6 @@ String FontPalette::ToString() const {
     case kCustomPalette:
       return palette_values_name_.GetString();
     case kInterpolablePalette:
-      DCHECK(RuntimeEnabledFeatures::FontPaletteAnimationEnabled());
       StringBuilder builder;
       builder.Append("palette-mix(in ");
       if (hue_interpolation_method_.has_value()) {
@@ -97,11 +83,9 @@ String FontPalette::ToString() const {
 
 bool FontPalette::operator==(const FontPalette& other) const {
   if (IsInterpolablePalette() != other.IsInterpolablePalette()) {
-    DCHECK(RuntimeEnabledFeatures::FontPaletteAnimationEnabled());
     return false;
   }
   if (IsInterpolablePalette() && other.IsInterpolablePalette()) {
-    DCHECK(RuntimeEnabledFeatures::FontPaletteAnimationEnabled());
     return *start_.get() == *other.start_.get() &&
            *end_.get() == *other.end_.get() &&
            percentages_ == other.percentages_ &&

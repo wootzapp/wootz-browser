@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/device/usb/webusb_descriptors.h"
 
 #include <limits>
@@ -63,7 +68,7 @@ void OnReadLandingPage(uint8_t landing_page_id,
   }
 
   GURL url;
-  ParseWebUsbUrlDescriptor(base::make_span(buffer->data(), length), &url);
+  ParseWebUsbUrlDescriptor(base::span(buffer->data(), length), &url);
   std::move(callback).Run(url);
 }
 
@@ -79,8 +84,7 @@ void OnReadBosDescriptor(scoped_refptr<UsbDeviceHandle> device_handle,
   }
 
   WebUsbPlatformCapabilityDescriptor descriptor;
-  if (!descriptor.ParseFromBosDescriptor(
-          base::make_span(buffer->data(), length))) {
+  if (!descriptor.ParseFromBosDescriptor(base::span(buffer->data(), length))) {
     std::move(callback).Run(std::nullopt);
     return;
   }

@@ -14,13 +14,13 @@ import './base_page.js';
 import './cellular_setup_icons.html.js';
 
 import type {CrButtonElement} from '//resources/ash/common/cr_elements/cr_button/cr_button.js';
-import {CrInputElement} from '//resources/ash/common/cr_elements/cr_input/cr_input.js';
+import type {CrInputElement} from '//resources/ash/common/cr_elements/cr_input/cr_input.js';
 import {I18nMixin} from '//resources/ash/common/cr_elements/i18n_mixin.js';
 import {MojoInterfaceProviderImpl} from '//resources/ash/common/network/mojo_interface_provider.js';
 import {assert} from '//resources/js/assert.js';
 import {focusWithoutInk} from '//resources/js/focus_without_ink.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
-import {CrosNetworkConfigInterface} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import type {CrosNetworkConfigInterface} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {NetworkType} from '//resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
 import {afterNextRender, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -115,7 +115,7 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
        * A UiElement is passed between html and JS for
        * certain UI elements to determine their state.
        */
-      UiElement: {
+      uiElementEnum_: {
         type: Object,
         value: UiElement,
       },
@@ -168,14 +168,6 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
         value: false,
       },
 
-      isCellularCarrierLockEnabled_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.valueExists('isCellularCarrierLockEnabled') &&
-              loadTimeData.getBoolean('isCellularCarrierLockEnabled');
-        },
-      },
-
       /**
        * Indicates whether or not |activationCode| matches the correct
        * activation code format. If there is a partial match (i.e. the code is
@@ -198,7 +190,6 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
   private expanded_: boolean;
   private qrCodeCameraA11yString_: string;
   private isDeviceCarrierLocked_: boolean;
-  private isCellularCarrierLockEnabled_: boolean;
   private isActivationCodeInvalidFormat_: boolean;
   private networkConfig_: CrosNetworkConfigInterface|null = null;
   private mediaDevices_: MediaDevices|null = null;
@@ -216,10 +207,6 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
 
   constructor() {
     super();
-
-    if (!this.isCellularCarrierLockEnabled_) {
-      return;
-    }
 
     this.networkConfig_ =
         MojoInterfaceProviderImpl.getInstance().getMojoServiceRemote();
@@ -259,16 +246,20 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
   private playVideo_(): void {
     const videoElement = this.shadowRoot!.querySelector<HTMLVideoElement>('#video');
     if (videoElement) {
+      assert(this.stream_);
+      videoElement.srcObject = this.stream_;
       videoElement.play();
     }
   }
 
   /**
-   * Function used to stop a stream. Can be overwritten by setFakesForTesting().
+   * Function used to stop a stream.
    */
   private stopStream_(stream: MediaStream|null): void {
     if (stream) {
-      stream.getTracks()[0].stop();
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
     }
   }
 
@@ -277,7 +268,7 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
   }
 
   private shouldShowCarrierLockWarning_(): boolean {
-    return this.isCellularCarrierLockEnabled_ && this.isDeviceCarrierLocked_;
+    return this.isDeviceCarrierLocked_;
   }
 
   /**
@@ -311,14 +302,12 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
       barcodeDetectorClass: typeof BarcodeDetector,
       imageCaptureClass: typeof ImageCapture,
       setIntervalFunction: (callback: Function, interval: number) => number,
-      playVideoFunction: () => void,
-      stopStreamFunction: (stream: MediaStream) => void): Promise<void> {
+      playVideoFunction: () => void): Promise<void> {
     this.barcodeDetectorClass_ = barcodeDetectorClass;
     await this.initBarcodeDetector_();
     this.imageCaptureClass_ = imageCaptureClass;
     this.setIntervalFunction_ = setIntervalFunction;
     this.playVideo_ = playVideoFunction;
-    this.stopStream_ = stopStreamFunction;
   }
 
   getQrCodeDetectorTimerForTest(): number|null {
@@ -380,9 +369,12 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
   }
 
   private startScanning_(): void {
-    const oldStream = this.stream_;
     if (this.qrCodeDetectorTimer_) {
       this.clearQrCodeDetectorTimer_();
+    }
+
+    if (this.stream_) {
+      this.stopStream_(this.stream_);
     }
 
     const useUserFacingCamera =
@@ -396,17 +388,11 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
           },
           audio: false,
         })
-        .then(stream => {
+        .then((stream: MediaStream) => {
           this.stream_ = stream;
           if (this.stream_) {
-            const videoElement =
-                this.shadowRoot!.querySelector<HTMLVideoElement>('#video');
-            if (videoElement) {
-              videoElement.srcObject = stream;
-              this.playVideo_();
-            }
+            this.playVideo_();
           }
-          this.stopStream_(oldStream);
 
           this.activationCode = '';
           this.state_ = useUserFacingCamera ?
@@ -427,7 +413,7 @@ export class ActivationCodePageElement extends ActivationCodePageElementBase {
    * detected, activationCode is set to the QR code's value and the detection
    * stops.
    */
-  private async detectQrCode_(): Promise<void> {
+  private detectQrCode_(): void {
     try {
       this.qrCodeDetectorTimer_ = this.setIntervalFunction_(
           (async () => {

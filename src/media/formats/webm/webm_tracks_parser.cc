@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/formats/webm/webm_tracks_parser.h"
 
 #include <memory>
@@ -104,7 +109,7 @@ WebMParserClient* WebMTracksParser::OnListStart(int id) {
   if (id == kWebMIdContentEncodings) {
     if (track_content_encodings_client_) {
       MEDIA_LOG(ERROR, media_log_) << "Multiple ContentEncodings lists";
-      return NULL;
+      return nullptr;
     }
 
     track_content_encodings_client_ =
@@ -181,7 +186,7 @@ bool WebMTracksParser::OnListEnd(int id) {
           return false;
         }
         media_tracks_->AddAudioTrack(
-            audio_decoder_config_,
+            audio_decoder_config_, true,
             static_cast<StreamParser::TrackId>(track_num_),
             MediaTrack::Kind("main"), MediaTrack::Label(track_name_),
             MediaTrack::Language(track_language_));
@@ -209,7 +214,7 @@ bool WebMTracksParser::OnListEnd(int id) {
           return false;
         }
         media_tracks_->AddVideoTrack(
-            video_decoder_config_,
+            video_decoder_config_, true,
             static_cast<StreamParser::TrackId>(track_num_),
             MediaTrack::Kind("main"), MediaTrack::Label(track_name_),
             MediaTrack::Language(track_language_));
@@ -244,7 +249,7 @@ bool WebMTracksParser::OnListEnd(int id) {
 }
 
 bool WebMTracksParser::OnUInt(int id, int64_t val) {
-  int64_t* dst = NULL;
+  int64_t* dst = nullptr;
 
   switch (id) {
     case kWebMIdTrackNumber:

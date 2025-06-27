@@ -80,7 +80,9 @@ class HoldingSpaceTrayIcon::ResizeAnimation
         target_size_(target_size),
         animation_(this),
         animation_throughput_tracker_(
-            icon->GetWidget()->GetCompositor()->RequestNewThroughputTracker()) {
+            icon->GetWidget()
+                ->GetCompositor()
+                ->RequestNewCompositorMetricsTracker()) {
     animation_.SetTweenType(gfx::Tween::FAST_OUT_SLOW_IN);
     animation_.SetSlideDuration(
         ui::ScopedAnimationDurationScaleMode::duration_multiplier() *
@@ -159,14 +161,6 @@ void HoldingSpaceTrayIcon::Clear() {
   previews_by_id_.clear();
   removed_previews_.clear();
   SetPreferredSize(CalculatePreferredSize({}));
-}
-
-int HoldingSpaceTrayIcon::GetHeightForWidth(int width) const {
-  // The parent for this view (`TrayContainer`) uses a `BoxLayout` for its
-  // `LayoutManager`. When the shelf orientation is vertical, the `BoxLayout`
-  // will also have vertical orientation and will invoke `GetHeightForWidth()`
-  // instead of `GetPreferredSize()` when determining preferred size.
-  return GetPreferredSize(views::SizeBounds(width, {})).height();
 }
 
 gfx::Size HoldingSpaceTrayIcon::CalculatePreferredSize(

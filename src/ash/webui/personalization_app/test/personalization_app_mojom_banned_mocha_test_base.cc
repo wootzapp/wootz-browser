@@ -74,6 +74,10 @@ class MockPersonalizationAppAmbientProvider
               IsGeolocationEnabledForSystemServices,
               (IsGeolocationEnabledForSystemServicesCallback callback),
               (override));
+  MOCK_METHOD(void,
+              IsGeolocationUserModifiable,
+              (IsGeolocationUserModifiableCallback callback),
+              (override));
 };
 
 class MockPersonalizationAppKeyboardBacklightProvider
@@ -114,22 +118,30 @@ class MockSeaPenProvider
                   ::ash::personalization_app::mojom::SeaPenProvider> receiver),
               (override));
   bool IsEligibleForSeaPen() override { return true; }
+  bool IsEligibleForSeaPenTextInput() override { return true; }
+  bool IsManagedSeaPenEnabled() override { return true; }
+  bool IsManagedSeaPenFeedbackEnabled() override { return false; }
   // ::ash::personalization_app::mojom::SeaPenProvider:
   MOCK_METHOD(void,
-              SearchWallpaper,
-              (const mojom::SeaPenQueryPtr, SearchWallpaperCallback callback),
+              SetSeaPenObserver,
+              (mojo::PendingRemote<mojom::SeaPenObserver>),
+              (override));
+  MOCK_METHOD(void,
+              GetSeaPenThumbnails,
+              (const mojom::SeaPenQueryPtr,
+               GetSeaPenThumbnailsCallback callback),
               (override));
   MOCK_METHOD(void,
               SelectSeaPenThumbnail,
-              (uint32_t, SelectSeaPenThumbnailCallback),
+              (uint32_t, bool preview_mode, SelectSeaPenThumbnailCallback),
               (override));
   MOCK_METHOD(void,
               SelectRecentSeaPenImage,
-              (uint32_t id, SelectRecentSeaPenImageCallback),
+              (uint32_t id, bool preview_mode, SelectRecentSeaPenImageCallback),
               (override));
   MOCK_METHOD(void,
-              GetRecentSeaPenImages,
-              (GetRecentSeaPenImagesCallback),
+              GetRecentSeaPenImageIds,
+              (GetRecentSeaPenImageIdsCallback),
               (override));
   MOCK_METHOD(void,
               GetRecentSeaPenImageThumbnail,
@@ -148,6 +160,19 @@ class MockSeaPenProvider
               (ShouldShowSeaPenIntroductionDialogCallback callback),
               (override));
   MOCK_METHOD(void, HandleSeaPenIntroductionDialogClosed, (), (override));
+  MOCK_METHOD(void,
+              ShouldShowSeaPenFreeformIntroductionDialog,
+              (ShouldShowSeaPenFreeformIntroductionDialogCallback callback),
+              (override));
+  MOCK_METHOD(void,
+              HandleSeaPenFreeformIntroductionDialogClosed,
+              (),
+              (override));
+  MOCK_METHOD(void,
+              IsInTabletMode,
+              (IsInTabletModeCallback callback),
+              (override));
+  MOCK_METHOD(void, MakeTransparent, (), (override));
 };
 
 class MockPersonalizationAppThemeProvider
@@ -197,6 +222,10 @@ class MockPersonalizationAppThemeProvider
   MOCK_METHOD(void,
               IsGeolocationEnabledForSystemServices,
               (IsGeolocationEnabledForSystemServicesCallback callback),
+              (override));
+  MOCK_METHOD(void,
+              IsGeolocationUserModifiable,
+              (IsGeolocationUserModifiableCallback callback),
               (override));
 };
 

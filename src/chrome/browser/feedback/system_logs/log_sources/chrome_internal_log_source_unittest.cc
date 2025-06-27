@@ -4,12 +4,16 @@
 
 #include "chrome/browser/feedback/system_logs/log_sources/chrome_internal_log_source.h"
 
+#include <memory>
+#include <vector>
+
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
+#include "content/public/browser/gpu_data_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -19,19 +23,23 @@
 
 #if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
+#include "chrome/browser/metrics/chrome_metrics_service_client.h"
+#include "chrome/browser/updater/browser_updater_client.h"
+#include "chrome/browser/updater/browser_updater_client_testutils.h"
+#include "chrome/updater/constants.h"       // nogncheck
+#include "chrome/updater/update_service.h"  // nogncheck
+#include "chrome/updater/updater_scope.h"   // nogncheck
 #endif
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/test/base/scoped_channel_override.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/dbus/spaced/fake_spaced_client.h"
 #include "chromeos/ash/components/dbus/spaced/spaced_client.h"
 #include "chromeos/ash/components/login/auth/auth_events_recorder.h"
 #endif
-
-#include "gpu/config/gpu_finch_features.h"
 
 namespace system_logs {
 namespace {
@@ -58,14 +66,14 @@ class ChromeInternalLogSourceTest : public BrowserWithTestWindowTest {
   ~ChromeInternalLogSourceTest() override = default;
 
   void SetUp() override {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     auth_events_recorder_ = ash::AuthEventsRecorder::CreateForTesting();
 #endif
     BrowserWithTestWindowTest::SetUp();
   }
 
  protected:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<ash::AuthEventsRecorder> auth_events_recorder_;
 #endif
 };
@@ -92,15 +100,22 @@ TEST_F(ChromeInternalLogSourceTest, VersionTagContainsExtendedLabel) {
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_CHROMEOS)
 
-TEST_F(ChromeInternalLogSourceTest, GraphiteEnabledPresentAndValid) {
+TEST_F(ChromeInternalLogSourceTest, SkiaGraphiteStatusPresentAndValid) {
   auto response = GetChromeInternalLogs();
-  auto value = response->at("graphite_enabled");
+  auto value = response->at("skia_graphite_status");
+  EXPECT_EQ(value, "unknown");
 
-  std::string expected_value =
-      features::IsSkiaGraphiteEnabled(base::CommandLine::ForCurrentProcess())
-          ? "true"
-          : "false";
-  EXPECT_EQ(value, expected_value);
+  content::GpuDataManager::GetInstance()->SetSkiaGraphiteEnabledForTesting(
+      true);
+  response = GetChromeInternalLogs();
+  value = response->at("skia_graphite_status");
+  EXPECT_EQ(value, "enabled");
+
+  content::GpuDataManager::GetInstance()->SetSkiaGraphiteEnabledForTesting(
+      false);
+  response = GetChromeInternalLogs();
+  value = response->at("skia_graphite_status");
+  EXPECT_EQ(value, "disabled");
 }
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
@@ -142,7 +157,7 @@ TEST_F(ChromeInternalLogSourceTest, CpuTypePresentAndValid) {
 }
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 TEST_F(ChromeInternalLogSourceTest, FreeAndTotalDiskSpacePresent) {
   ash::SpacedClient::InitializeFake();
   ash::FakeSpacedClient::Get()->set_free_disk_space(1000);
@@ -186,7 +201,25 @@ TEST_F(ChromeInternalLogSourceTest, RecordedAuthEventsPresent) {
             "auth_surface_change_Login,update_lock_screen_view,auth_submit,"
             "login_offline,login_screen_exit_success,");
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_MAC)
+TEST_F(ChromeInternalLogSourceTest, UpdaterDataPresent) {
+  base::RunLoop loop;
+  BrowserUpdaterClient::Create(
+      updater::MakeFakeService(updater::UpdateService::Result::kSuccess, {}),
+      updater::UpdaterScope::kUser)
+      ->CheckForUpdate(base::BindLambdaForTesting(
+          [&](const updater::UpdateService::UpdateState& status) {
+            loop.QuitWhenIdle();
+          }));
+  loop.Run();
+
+  std::unique_ptr<SystemLogsResponse> response = GetChromeInternalLogs();
+  EXPECT_EQ(response->at("update_error_code"), "0/0");
+  EXPECT_EQ(response->at("update_hresult"), "0");
+}
+#endif  // BUILDFLAG(IS_MAC)
 
 }  // namespace
 }  // namespace system_logs

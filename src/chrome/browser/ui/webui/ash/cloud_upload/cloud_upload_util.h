@@ -23,8 +23,19 @@ class Profile;
 
 namespace ash::cloud_upload {
 
+// The state of the user's OneDrive account. Matches the enum in ODFS.
+enum class OdfsAccountState {
+  kNormal = 0,
+  kReauthenticationRequired = 1,
+  kFrozenAccount = 2,
+};
+
 struct ODFSMetadata {
+  // TODO(b/330786891): Remove reauthentication_required and make the
+  // account_state non-optional once no longer needed for backwards
+  // compatibility with ODFS.
   bool reauthentication_required = false;
+  std::optional<OdfsAccountState> account_state;
   std::string user_email;
 };
 
@@ -99,7 +110,8 @@ enum class OfficeDriveOpenErrors {
   kDisableDrivePreferenceSet = 14,
   kDriveDisabledForAccountType = 15,
   kCannotGetRelativePath = 16,
-  kMaxValue = kCannotGetRelativePath,
+  kDriveFsUnavailable = 17,
+  kMaxValue = kDriveFsUnavailable,
 };
 
 // List of UMA enum values for opening Office files from OneDrive, with the
@@ -121,7 +133,9 @@ enum class OfficeOneDriveOpenErrors {
   kEmailsDoNotMatch = 12,
   kAndroidOneDriveUnsupportedLocation = 13,
   kAndroidOneDriveInvalidUrl = 14,
-  kMaxValue = kAndroidOneDriveInvalidUrl,
+  kFailedToLaunch = 15,
+  kMS365NotInstalled = 16,
+  kMaxValue = kMS365NotInstalled,
 };
 
 // Records the source volume that an office file is opened from. The values up
@@ -174,7 +188,8 @@ enum class OfficeTaskResult {
   kFallbackQuickOfficeAfterOpen = 18,
   kCancelledAtFallbackAfterOpen = 19,
   kCannotGetFallbackChoiceAfterOpen = 20,
-  kMaxValue = kCannotGetFallbackChoiceAfterOpen,
+  kFileAlreadyBeingOpened = 21,
+  kMaxValue = kFileAlreadyBeingOpened,
 };
 
 // The result of the "Upload to cloud" workflow for Office files.
@@ -298,8 +313,11 @@ const char kODFSMetadataQueryPath[] = "/";
 // Custom action ids passed from ODFS.
 const char kOneDriveUrlActionId[] = "HIDDEN_ONEDRIVE_URL";
 const char kUserEmailActionId[] = "HIDDEN_ONEDRIVE_USER_EMAIL";
+// TODO(b/330786891): Remove this once it's no longer needed for backwards
+// compatibility with ODFS.
 const char kReauthenticationRequiredId[] =
     "HIDDEN_ONEDRIVE_REAUTHENTICATION_REQUIRED";
+const char kAccountStateId[] = "HIDDEN_ONEDRIVE_ACCOUNT_STATE";
 
 // Get generic error message for uploading office files.
 std::string GetGenericErrorMessage();
@@ -307,6 +325,10 @@ std::string GetGenericErrorMessage();
 std::string GetReauthenticationRequiredMessage();
 // Get error message for when the file is not a valid document.
 std::string GetNotAValidDocumentErrorMessage();
+// Get message for when a file is already being opened.
+std::string GetAlreadyBeingOpenedMessage();
+// Get title for when a file is already being opened.
+std::string GetAlreadyBeingOpenedTitle();
 
 // Converts an absolute FilePath into a filesystem URL.
 storage::FileSystemURL FilePathToFileSystemURL(

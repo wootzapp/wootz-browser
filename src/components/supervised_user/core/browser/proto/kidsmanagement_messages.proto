@@ -11,8 +11,9 @@ import "permissions_common.proto";
 // only).
 
 message ListMembersRequest {
-  // Must always be "mine" (enforced by the API config). Required.
-  optional string family_id = 1;
+  // If set to true, returns an empty response (no members field set) instead of
+  // throwing NOT_FOUND errors when the authenticated user has no family.
+  optional bool allow_empty_family = 4;
 }
 
 message ListMembersResponse {
@@ -104,6 +105,16 @@ message DefineChromeTestStateRequest {
   // Empty message has "do not change" semantics. Use
   // ResetChromeDefaultTestStateRequest to reset to defaults.
   optional UrlFilteringSettings url_filtering_settings = 2;
+
+  // Whether websites can request child sensitive information such as access
+  // to their camera, microphone and location.
+  optional bool websites_can_request_permissions = 3;
+
+  // Whether cookies can be blocked by the child.
+  optional bool can_block_cookies = 4;
+
+  // Whether child can add extensions on Chrome.
+  optional bool can_add_extensions = 5;
 
   message UrlFilteringSettings {
     // Filter level to apply. If absent, the permission won't change.

@@ -13,7 +13,7 @@
  * regenerate.
  */
 
-import {ChromeEvent} from '../../../../../../tools/typescript/definitions/chrome_event.js';
+import type {ChromeEvent} from '../../../../../../tools/typescript/definitions/chrome_event.js';
 
 declare global {
   export namespace chrome {
@@ -96,6 +96,7 @@ declare global {
         CUT = 'cut',
         DECREMENT = 'decrement',
         DICTATION = 'dictation',
+        DRILL_DOWN = 'drillDown',
         END_TEXT_SELECTION = 'endTextSelection',
         INCREMENT = 'increment',
         ITEM_SCAN = 'itemScan',
@@ -163,6 +164,10 @@ declare global {
         y: number;
         touchAccessibility?: boolean;
         mouseButton?: SyntheticMouseEventButton;
+        isDoubleClick?: boolean;
+        isTripleClick?: boolean;
+        useRewriters?: boolean;
+        forceNotSynthetic?: boolean;
       }
 
       export enum SelectToSpeakState {
@@ -211,6 +216,7 @@ declare global {
         DICTATION_CONTEXT_CHECKING = 'dictationContextChecking',
         FACE_GAZE = 'faceGaze',
         GOOGLE_TTS_HIGH_QUALITY_VOICES = 'googleTtsHighQualityVoices',
+        CAPTIONS_ON_BRAILLE_DISPLAY = 'captionsOnBrailleDisplay',
       }
 
       export enum SelectToSpeakPanelAction {
@@ -325,6 +331,39 @@ declare global {
         wasm: ArrayBuffer;
       }
 
+      export enum ScrollDirection {
+        UP = 'up',
+        DOWN = 'down',
+        LEFT = 'left',
+        RIGHT = 'right',
+      }
+
+      export enum FacialGesture {
+        BROW_INNER_UP = 'browInnerUp',
+        BROWS_DOWN = 'browsDown',
+        EYE_SQUINT_LEFT = 'eyeSquintLeft',
+        EYE_SQUINT_RIGHT = 'eyeSquintRight',
+        EYES_BLINK = 'eyesBlink',
+        EYES_LOOK_DOWN = 'eyesLookDown',
+        EYES_LOOK_LEFT = 'eyesLookLeft',
+        EYES_LOOK_RIGHT = 'eyesLookRight',
+        EYES_LOOK_UP = 'eyesLookUp',
+        JAW_LEFT = 'jawLeft',
+        JAW_OPEN = 'jawOpen',
+        JAW_RIGHT = 'jawRight',
+        MOUTH_FUNNEL = 'mouthFunnel',
+        MOUTH_LEFT = 'mouthLeft',
+        MOUTH_PUCKER = 'mouthPucker',
+        MOUTH_RIGHT = 'mouthRight',
+        MOUTH_SMILE = 'mouthSmile',
+        MOUTH_UPPER_UP = 'mouthUpperUp',
+      }
+
+      export interface GestureInfo {
+        gesture: FacialGesture;
+        confidence: number;
+      }
+
       export function getDisplayNameForLocale(
           localeCodeToTranslate: string, displayLocaleCode: string): string;
 
@@ -342,6 +381,8 @@ declare global {
 
       export function setNativeAccessibilityEnabled(enabled: boolean): void;
 
+      export function enableLiveCaption(enabled: boolean): void;
+
       export function setFocusRings(
           focusRings: FocusRingInfo[], atType: AssistiveTechnologyType): void;
 
@@ -349,6 +390,8 @@ declare global {
 
       export function setKeyboardListener(enabled: boolean, capture: boolean):
           void;
+
+      export function setChromeVoxFocus(bounds: ScreenRect): void;
 
       export function setSelectToSpeakFocus(bounds: ScreenRect): void;
 
@@ -370,7 +413,8 @@ declare global {
           callback: SetNativeChromeVoxArcSupportForCurrentAppCallback): void;
 
       export function sendSyntheticKeyEvent(
-          keyEvent: SyntheticKeyboardEvent, useRewriters?: boolean): void;
+          keyEvent: SyntheticKeyboardEvent, useRewriters?: boolean,
+          isRepeat?: boolean): void;
 
       export function enableMouseEvents(enabled: boolean): void;
 
@@ -380,8 +424,6 @@ declare global {
           void;
 
       export function setSelectToSpeakState(state: SelectToSpeakState): void;
-
-      export function clipboardCopyInActiveLacrosGoogleDoc(url: string): void;
 
       export function handleScrollableBoundsForPointFound(rect: ScreenRect):
           void;
@@ -432,15 +474,26 @@ declare global {
           dlc: DlcType, variant: TtsVariant,
           callback: GetDlcContentsCallback): void;
 
-      type IsLacrosPrimaryCallback = (result: boolean) => void;
-      export function isLacrosPrimary(callback: IsLacrosPrimaryCallback): void;
-
       export function getDisplayBounds(
           callback: (screens: ScreenRect[]) => void): void;
 
       export function showToast(type: ToastType): void;
 
+      export function scrollAtPoint(
+          target: ScreenPoint, direction: ScrollDirection): void;
+
+      export function sendGestureInfoToSettings(gestureInfo: GestureInfo[]):
+          void;
+
+      export function updateFaceGazeBubble(text: string, isWarning?: boolean):
+          void;
+
+      export function enableDragEventRewriter(enabled: boolean): void;
+
       export const onIntroduceChromeVox: ChromeEvent<() => void>;
+
+      export const onChromeVoxFocusChanged:
+          ChromeEvent<(bounds: ScreenRect) => void>;
 
       export const onAccessibilityGesture:
           ChromeEvent<(gesture: Gesture, x: number, y: number) => void>;
@@ -485,6 +538,8 @@ declare global {
 
       export const onToggleDictation: ChromeEvent<(activated: boolean) => void>;
 
+      export const onToggleGestureInfoForSettings:
+          ChromeEvent<(enabled: boolean) => void>;
     }
   }
 }

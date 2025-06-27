@@ -14,7 +14,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "gpu/ipc/service/gpu_channel.h"
 #include "media/base/audio_decoder.h"
 #include "media/base/audio_encoder.h"
@@ -24,7 +23,6 @@
 #include "media/base/media_util.h"
 #include "media/base/video_decoder.h"
 #include "media/gpu/gpu_video_accelerator_util.h"
-#include "media/gpu/gpu_video_decode_accelerator_factory.h"
 #include "media/gpu/gpu_video_decode_accelerator_helpers.h"
 #include "media/gpu/ipc/service/media_gpu_channel_manager.h"
 #include "media/mojo/mojom/video_decoder.mojom.h"
@@ -64,19 +62,6 @@ gpu::CommandBufferStub* GetCommandBufferStub(
   return stub;
 }
 
-SupportedVideoDecoderConfigs GetVDAVideoDecoderConfigs(
-    const gpu::GpuPreferences& gpu_preferences,
-    const gpu::GpuDriverBugWorkarounds& gpu_workarounds) {
-  VideoDecodeAccelerator::Capabilities capabilities =
-      GpuVideoAcceleratorUtil::ConvertGpuToMediaDecodeCapabilities(
-          GpuVideoDecodeAcceleratorFactory::GetDecoderCapabilities(
-              gpu_preferences, gpu_workarounds));
-  return ConvertFromSupportedProfiles(
-      capabilities.supported_profiles,
-      capabilities.flags &
-          VideoDecodeAccelerator::Capabilities::SUPPORTS_ENCRYPTED_STREAMS);
-}
-
 }  // namespace
 
 // Forward declaration of the platform specific GpuMojoMediaClient factory
@@ -92,7 +77,7 @@ VideoDecoderTraits::VideoDecoderTraits(
     const gfx::ColorSpace* target_color_space,
     GetConfigCacheCB get_cached_configs_cb,
     GetCommandBufferStubCB get_command_buffer_stub_cb,
-    mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder)
+    mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder)
     : task_runner(std::move(task_runner)),
       media_log(std::move(media_log)),
       request_overlay_info_cb(request_overlay_info_cb),
@@ -120,14 +105,11 @@ GpuMojoMediaClientTraits::GpuMojoMediaClientTraits(
 
 std::unique_ptr<GpuMojoMediaClient> GpuMojoMediaClient::Create(
     GpuMojoMediaClientTraits& traits) {
-  DCHECK(traits.gpu_task_runner->BelongsToCurrentThread());
-  DCHECK(traits.media_gpu_channel_manager);
+  DCHECK(!traits.gpu_task_runner ||
+         traits.gpu_task_runner->BelongsToCurrentThread());
 
   auto client = CreateGpuMediaService(traits);
   DCHECK(client);
-
-  base::UmaHistogramEnumeration("Media.GPU.VideoDecoderType",
-                                client->GetDecoderImplementationType());
   return client;
 }
 
@@ -159,6 +141,12 @@ VideoDecoderType GpuMojoMediaClient::GetDecoderImplementationType() {
   return GetPlatformDecoderImplementationType();
 }
 
+SupportedAudioDecoderConfigs
+GpuMojoMediaClient::GetSupportedAudioDecoderConfigs() {
+  return GetPlatformSupportedAudioDecoderConfigs().value_or(
+      SupportedAudioDecoderConfigs{});
+}
+
 SupportedVideoDecoderConfigs
 GpuMojoMediaClient::GetSupportedVideoDecoderConfigs() {
   if (!supported_config_cache_) {
@@ -170,9 +158,7 @@ GpuMojoMediaClient::GetSupportedVideoDecoderConfigs() {
          gpu::kGpuFeatureStatusEnabled)) {
       supported_config_cache_ = SupportedVideoDecoderConfigs();
     } else {
-      supported_config_cache_ =
-          GetPlatformSupportedVideoDecoderConfigs(base::BindOnce(
-              &GetVDAVideoDecoderConfigs, gpu_preferences_, gpu_workarounds_));
+      supported_config_cache_ = GetPlatformSupportedVideoDecoderConfigs();
     }
 
     // Once per GPU process record accelerator information. Profile support is
@@ -215,9 +201,8 @@ GpuMojoMediaClient::GetSupportedVideoDecoderConfigs() {
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 void GpuMojoMediaClient::NotifyDecoderSupportKnown(
-    mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder,
-    base::OnceCallback<
-        void(mojo::PendingRemote<stable::mojom::StableVideoDecoder>)> cb) {
+    mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder,
+    base::OnceCallback<void(mojo::PendingRemote<mojom::VideoDecoder>)> cb) {
 #if BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC)
   // TODO(b/195769334): this call should ideally be guarded only by
   // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER) because eventually, the GPU process
@@ -238,7 +223,7 @@ std::unique_ptr<VideoDecoder> GpuMojoMediaClient::CreateVideoDecoder(
     mojom::CommandBufferIdPtr command_buffer_id,
     RequestOverlayInfoCB request_overlay_info_cb,
     const gfx::ColorSpace& target_color_space,
-    mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder) {
+    mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder) {
   // Always respect GPU features.
   if (gpu_preferences_.disable_accelerated_video_decode ||
       (gpu_feature_info_
@@ -288,6 +273,12 @@ std::unique_ptr<CdmFactory> GpuMojoMediaClient::CreatePlatformCdmFactory(
     mojom::FrameInterfaceFactory* frame_interfaces) {
   NOTIMPLEMENTED();
   return nullptr;
+}
+
+std::optional<SupportedAudioDecoderConfigs>
+GpuMojoMediaClient::GetPlatformSupportedAudioDecoderConfigs() {
+  NOTIMPLEMENTED();
+  return std::nullopt;
 }
 
 }  // namespace media

@@ -6,14 +6,18 @@
 
 #include <vector>
 
+#include "cc/input/android/offset_tag_android.h"
 #include "cc/slim/filter.h"
 #include "cc/slim/layer.h"
-#include "chrome/android/chrome_jni_headers/StaticTabSceneLayer_jni.h"
 #include "chrome/browser/android/compositor/layer/content_layer.h"
 #include "chrome/browser/android/compositor/layer_title_cache.h"
 #include "chrome/browser/android/compositor/tab_content_manager.h"
+#include "components/viz/common/quads/offset_tag.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/android/resources/resource_manager_impl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/StaticTabSceneLayer_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::JavaRef;
@@ -58,15 +62,15 @@ SkColor StaticTabSceneLayer::GetBackgroundColor() {
   return background_color_;
 }
 
-void StaticTabSceneLayer::UpdateTabLayer(JNIEnv* env,
-                                         const JavaParamRef<jobject>& jobj,
-                                         jint id,
-                                         jboolean can_use_live_layer,
-                                         jint default_background_color,
-                                         jfloat x,
-                                         jfloat y,
-                                         jfloat static_to_view_blend,
-                                         jfloat saturation) {
+void StaticTabSceneLayer::UpdateTabLayer(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& jobj,
+    jint id,
+    jboolean can_use_live_layer,
+    jint default_background_color,
+    jfloat x,
+    jfloat y,
+    const JavaParamRef<jobject>& joffset_tag) {
   DCHECK(tab_content_manager_)
       << "TabContentManager must be set before updating the layer";
 
@@ -75,24 +79,31 @@ void StaticTabSceneLayer::UpdateTabLayer(JNIEnv* env,
     content_layer_ = android::ContentLayer::Create(tab_content_manager_);
     layer_->AddChild(content_layer_->layer());
   }
+
   if (id != -1 && can_use_live_layer) {
     // StaticLayout may not know that the live layer cannot draw. Ensure it gets
     // a thumbnail if needed.
-    auto live_layer = tab_content_manager_->GetLiveLayer(id);
-    if (live_layer) {
+    bool update_visible_ids = true;
+    if (auto live_layer = tab_content_manager_->GetLiveLayer(id)) {
       live_layer->SetHideLayerAndSubtree(!can_use_live_layer);
-      if (!LayerDraws(live_layer)) {
-        std::vector<int> tab_ids = {id};
-        tab_content_manager_->UpdateVisibleIds(tab_ids, id);
-      }
+      update_visible_ids = !LayerDraws(live_layer);
+    }
+    if (update_visible_ids) {
+      tab_content_manager_->UpdateVisibleIds({id}, id);
     }
   }
 
-  content_layer_->SetProperties(id, can_use_live_layer, static_to_view_blend,
-                                false, 1.f, saturation, false, gfx::Rect());
+  content_layer_->SetProperties(
+      id, can_use_live_layer, /* static_to_view_blend= */ 0.f,
+      /* should_override_content_alpha= */ false,
+      /* content_alpha_override= */ 1.f, /* saturation= */ 1.f,
+      /* should_clip= */ false, /* clip= */ gfx::Rect());
 
   content_layer_->layer()->SetPosition(gfx::PointF(x, y));
   content_layer_->layer()->SetIsDrawable(true);
+
+  viz::OffsetTag tag = cc::android::FromJavaOffsetTag(env, joffset_tag);
+  content_layer_->layer()->SetOffsetTag(tag);
 }
 
 void StaticTabSceneLayer::SetTabContentManager(

@@ -24,6 +24,7 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/tab_helper.h"
+#include "chrome/browser/google/google_brand.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profile_resetter/brandcode_config_fetcher.h"
 #include "chrome/browser/profile_resetter/profile_reset_report.pb.h"
@@ -32,6 +33,7 @@
 #include "chrome/browser/search/background/ntp_custom_background_service.h"
 #include "chrome/browser/search/background/ntp_custom_background_service_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/search_engines/template_url_service_test_util.h"
 #include "chrome/browser/themes/test/theme_service_changed_waiter.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
@@ -47,6 +49,7 @@
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/test_utils.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_constants.h"
@@ -69,6 +72,17 @@
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/shortcut.h"
 #endif
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "base/containers/to_vector.h"
+#include "chromeos/ash/components/dbus/hermes/hermes_euicc_client.h"
+#include "chromeos/ash/components/dbus/hermes/hermes_manager_client.h"
+#include "chromeos/ash/components/dbus/hermes/hermes_profile_client.h"
+#include "chromeos/ash/components/dbus/shill/shill_clients.h"
+#include "chromeos/ash/components/dbus/shill/shill_service_client.h"
+#include "chromeos/ash/components/network/managed_network_configuration_handler_impl.h"
+#include "third_party/cros_system_api/dbus/shill/dbus-constants.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using extensions::mojom::ManifestLocation;
 
@@ -116,6 +130,19 @@ const char kXmlConfig[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
 using extensions::Extension;
 using extensions::Manifest;
 
+class FakeNtpCustomBackgroundService : public NtpCustomBackgroundService {
+ public:
+  using NtpCustomBackgroundService::NtpCustomBackgroundService;
+  void FetchCustomBackgroundAndExtractBackgroundColor(
+      const GURL& image_url,
+      const GURL& fetch_url) override {}
+};
+
+std::unique_ptr<KeyedService> CreateFakeNtpCustomBackgroundService(
+    content::BrowserContext* context) {
+  Profile* profile = Profile::FromBrowserContext(context);
+  return std::make_unique<FakeNtpCustomBackgroundService>(profile);
+}
 
 // ProfileResetterTest --------------------------------------------------------
 
@@ -150,15 +177,23 @@ ProfileResetterTest::ProfileResetterTest()
 #endif
 {}
 
-ProfileResetterTest::~ProfileResetterTest() {
-}
+ProfileResetterTest::~ProfileResetterTest() = default;
 
 void ProfileResetterTest::SetUp() {
   extensions::ExtensionServiceTestBase::SetUp();
-  InitializeEmptyExtensionService();
+  ExtensionServiceInitParams params;
+  params.testing_factories = {
+      TestingProfile::TestingFactory(
+          NtpCustomBackgroundServiceFactory::GetInstance(),
+          base::BindRepeating(&CreateFakeNtpCustomBackgroundService)),
+      TestingProfile::TestingFactory(
+          TemplateURLServiceFactory::GetInstance(),
+          TemplateURLServiceTestUtil::GetTemplateURLServiceTestingFactory()),
+  };
 
-  TemplateURLServiceFactory::GetInstance()->SetTestingFactory(
-      profile(), base::BindRepeating(&CreateTemplateURLServiceForTesting));
+  InitializeExtensionService(std::move(params));
+
+  google_brand::BrandForTesting brand_for_testing("");
   resetter_ = std::make_unique<ProfileResetter>(profile());
 }
 
@@ -182,6 +217,40 @@ std::unique_ptr<content::WebContents> PinnedTabsResetTest::CreateWebContents() {
       content::WebContents::CreateParams(profile()));
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+// DnsConfigResetTest --------------------------------------------------------
+
+class DnsConfigResetTest : public BrowserWithTestWindowTest,
+                           public ProfileResetterTestBase {
+ protected:
+  void SetUp() override {
+    BrowserWithTestWindowTest::SetUp();
+
+    // Required for initializing NetworkHandler.
+    ash::HermesProfileClient::InitializeFake();
+    ash::HermesManagerClient::InitializeFake();
+    ash::HermesEuiccClient::InitializeFake();
+
+    ash::shill_clients::InitializeFakes();
+    ash::NetworkHandler::InitializeFake();
+
+    // Run the message loop to run the signal connection result callback.
+    base::RunLoop().RunUntilIdle();
+
+    resetter_ = std::make_unique<ProfileResetter>(profile());
+  }
+  void TearDown() override {
+    ash::NetworkHandler::Shutdown();
+    ash::shill_clients::Shutdown();
+
+    ash::HermesEuiccClient::Shutdown();
+    ash::HermesManagerClient::Shutdown();
+    ash::HermesProfileClient::Shutdown();
+
+    BrowserWithTestWindowTest::TearDown();
+  }
+};
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // ConfigParserTest -----------------------------------------------------------
 
@@ -207,7 +276,7 @@ class ConfigParserTest : public testing::Test {
 ConfigParserTest::ConfigParserTest()
     : task_environment_(content::BrowserTaskEnvironment::IO_MAINLOOP) {}
 
-ConfigParserTest::~ConfigParserTest() {}
+ConfigParserTest::~ConfigParserTest() = default;
 
 std::unique_ptr<BrandcodeConfigFetcher> ConfigParserTest::WaitForRequest(
     const GURL& url) {
@@ -253,8 +322,7 @@ class ShortcutHandler {
 };
 
 #if BUILDFLAG(IS_WIN)
-ShortcutHandler::ShortcutHandler() {
-}
+ShortcutHandler::ShortcutHandler() = default;
 
 ShortcutHandler::~ShortcutHandler() {
   if (!shortcut_path_.empty())
@@ -315,9 +383,9 @@ bool ShortcutHandler::IsFileHidden() const {
 }
 
 #else
-ShortcutHandler::ShortcutHandler() {}
+ShortcutHandler::ShortcutHandler() = default;
 
-ShortcutHandler::~ShortcutHandler() {}
+ShortcutHandler::~ShortcutHandler() = default;
 
 // static
 bool ShortcutHandler::IsSupported() {
@@ -367,7 +435,7 @@ scoped_refptr<Extension> CreateExtension(const std::u16string& name,
       // do nothing
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   manifest.SetByDottedPath(extensions::manifest_keys::kOmniboxKeyword, name);
   std::string error;
@@ -391,6 +459,26 @@ void ReplaceString(std::string* str,
   str->replace(placeholder_pos, placeholder.size(), substitution);
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+// Returns the configured static name servers from `shill_properties`, or an
+// empty vector if no static name servers are configured.
+std::vector<std::string> GetStaticNameServersFromShillProperties(
+    const base::Value::Dict& shill_properties) {
+  const base::Value::Dict* static_ip_config =
+      shill_properties.FindDict(shill::kStaticIPConfigProperty);
+  if (!static_ip_config) {
+    return {};
+  }
+  const base::Value::List* nameservers =
+      static_ip_config->FindList(shill::kNameServersProperty);
+  if (!nameservers) {
+    return {};
+  }
+  return base::ToVector(*nameservers, [](const base::Value& nameserver) {
+    return nameserver.GetString();
+  });
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 /********************* Tests *********************/
 
@@ -538,28 +626,28 @@ TEST_F(ProfileResetterTest, ResetExtensionsByDisabling) {
   scoped_refptr<Extension> ext2 = CreateExtension(
       u"example2", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext2.get());
+  registrar()->AddExtension(ext2.get());
   // Component extensions and policy-managed extensions shouldn't be disabled.
   scoped_refptr<Extension> ext3 = CreateExtension(
       u"example3", base::FilePath(FILE_PATH_LITERAL("//nonexistent2")),
       ManifestLocation::kComponent, extensions::Manifest::TYPE_EXTENSION,
       false);
-  service_->AddExtension(ext3.get());
+  registrar()->AddExtension(ext3.get());
   scoped_refptr<Extension> ext4 = CreateExtension(
       u"example4", base::FilePath(FILE_PATH_LITERAL("//nonexistent3")),
       ManifestLocation::kExternalPolicyDownload,
       extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext4.get());
+  registrar()->AddExtension(ext4.get());
   scoped_refptr<Extension> ext5 = CreateExtension(
       u"example5", base::FilePath(FILE_PATH_LITERAL("//nonexistent4")),
       ManifestLocation::kExternalComponent,
       extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext5.get());
+  registrar()->AddExtension(ext5.get());
   scoped_refptr<Extension> ext6 = CreateExtension(
       u"example6", base::FilePath(FILE_PATH_LITERAL("//nonexistent5")),
       ManifestLocation::kExternalPolicy, extensions::Manifest::TYPE_EXTENSION,
       false);
-  service_->AddExtension(ext6.get());
+  registrar()->AddExtension(ext6.get());
   EXPECT_EQ(6u, registry()->enabled_extensions().size());
 
   ResetAndWait(ProfileResetter::EXTENSIONS);
@@ -577,12 +665,12 @@ TEST_F(ProfileResetterTest, ResetExtensionsByDisablingNonOrganic) {
   scoped_refptr<Extension> ext2 = CreateExtension(
       u"example2", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext2.get());
+  registrar()->AddExtension(ext2.get());
   // Components and external policy extensions shouldn't be deleted.
   scoped_refptr<Extension> ext3 = CreateExtension(
       u"example3", base::FilePath(FILE_PATH_LITERAL("//nonexistent2")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext3.get());
+  registrar()->AddExtension(ext3.get());
   EXPECT_EQ(2u, registry()->enabled_extensions().size());
 
   std::string master_prefs(kDistributionConfig);
@@ -614,12 +702,12 @@ TEST_F(ProfileResetterTest, ResetExtensionsAndDefaultApps) {
   scoped_refptr<Extension> ext2 = CreateExtension(
       u"example2", base::FilePath(FILE_PATH_LITERAL("//nonexistent2")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext2.get());
+  registrar()->AddExtension(ext2.get());
 
   scoped_refptr<Extension> ext3 = CreateExtension(
       u"example2", base::FilePath(FILE_PATH_LITERAL("//nonexistent3")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_HOSTED_APP, true);
-  service_->AddExtension(ext3.get());
+  registrar()->AddExtension(ext3.get());
   EXPECT_EQ(3u, registry()->enabled_extensions().size());
 
   ResetAndWait(ProfileResetter::EXTENSIONS);
@@ -641,7 +729,7 @@ TEST_F(ProfileResetterTest, ResetExtensionsByReenablingExternalComponents) {
       u"example", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kExternalComponent,
       extensions::Manifest::TYPE_EXTENSION, false);
-  service_->AddExtension(ext.get());
+  registrar()->AddExtension(ext.get());
 
   service_->DisableExtension(ext->id(),
                              extensions::disable_reason::DISABLE_USER_ACTION);
@@ -665,7 +753,8 @@ TEST_F(ProfileResetterTest, ResetStartPageNonOrganic) {
   startup_pref = SessionStartupPref::GetStartupPref(prefs);
   EXPECT_EQ(SessionStartupPref::URLS, startup_pref.type);
   const GURL urls[] = {GURL("http://goo.gl"), GURL("http://foo.de")};
-  EXPECT_EQ(std::vector<GURL>(urls, urls + std::size(urls)), startup_pref.urls);
+  EXPECT_EQ(std::vector<GURL>(std::begin(urls), std::end(urls)),
+            startup_pref.urls);
 }
 
 
@@ -675,14 +764,15 @@ TEST_F(ProfileResetterTest, ResetStartPagePartially) {
 
   const GURL urls[] = {GURL("http://foo"), GURL("http://bar")};
   SessionStartupPref startup_pref(SessionStartupPref::URLS);
-  startup_pref.urls.assign(urls, urls + std::size(urls));
+  startup_pref.urls.assign(std::begin(urls), std::end(urls));
   SessionStartupPref::SetStartupPref(prefs, startup_pref);
 
   ResetAndWait(ProfileResetter::STARTUP_PAGES, std::string());
 
   startup_pref = SessionStartupPref::GetStartupPref(prefs);
   EXPECT_EQ(SessionStartupPref::GetDefaultStartupType(), startup_pref.type);
-  EXPECT_EQ(std::vector<GURL>(urls, urls + std::size(urls)), startup_pref.urls);
+  EXPECT_EQ(std::vector<GURL>(std::begin(urls), std::end(urls)),
+            startup_pref.urls);
 }
 
 TEST_F(PinnedTabsResetTest, ResetPinnedTabs) {
@@ -830,7 +920,7 @@ TEST_F(ProfileResetterTest, CheckSnapshots) {
       u"example", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
   ASSERT_TRUE(ext.get());
-  service_->AddExtension(ext.get());
+  registrar()->AddExtension(ext.get());
 
   std::string master_prefs(kDistributionConfig);
   std::string ext_id = ext->id();
@@ -885,7 +975,7 @@ TEST_F(ProfileResetterTest, CheckSnapshots) {
   EXPECT_EQ(diff_fields, nonorganic_snap.FindDifferentFields(organic_snap));
   nonorganic_snap.Subtract(organic_snap);
   const GURL urls[] = {GURL("http://foo.de"), GURL("http://goo.gl")};
-  EXPECT_EQ(std::vector<GURL>(urls, urls + std::size(urls)),
+  EXPECT_EQ(std::vector<GURL>(std::begin(urls), std::end(urls)),
             nonorganic_snap.startup_urls());
   EXPECT_EQ(SessionStartupPref::URLS, nonorganic_snap.startup_type());
   EXPECT_EQ("http://www.foo.com", nonorganic_snap.homepage());
@@ -914,7 +1004,7 @@ TEST_F(ProfileResetterTest, FeedbackSerializationAsProtoTest) {
       u"example", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
   ASSERT_TRUE(ext.get());
-  service_->AddExtension(ext.get());
+  registrar()->AddExtension(ext.get());
 
   ShortcutHandler shortcut;
   ShortcutCommand command_line = shortcut.CreateWithArguments(
@@ -974,7 +1064,7 @@ TEST_F(ProfileResetterTest, GetReadableFeedback) {
       u"Tiësto", base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
       ManifestLocation::kUnpacked, extensions::Manifest::TYPE_EXTENSION, false);
   ASSERT_TRUE(ext.get());
-  service_->AddExtension(ext.get());
+  registrar()->AddExtension(ext.get());
 
   PrefService* prefs = profile()->GetPrefs();
   DCHECK(prefs);
@@ -1057,5 +1147,45 @@ TEST_F(ProfileResetterTest, ResetNTPCustomizationsTest) {
   EXPECT_FALSE(
       ntp_custom_background_service->GetCustomBackground().has_value());
 }
+
+#if BUILDFLAG(IS_CHROMEOS)
+TEST_F(DnsConfigResetTest, ResetDnsConfigurations) {
+  ash::ShillServiceClient::TestInterface* shill_service_client =
+      ash::ShillServiceClient::Get()->GetTestInterface();
+
+  // DNS settings.
+  // Set the profile so this shows up as a configured network.
+  const std::string kWifi1Path = "/service/wifi1";
+  ash::NetworkHandler::Get()
+      ->managed_network_configuration_handler()
+      ->SetPolicy(::onc::ONC_SOURCE_DEVICE_POLICY, std::string(),
+                  base::Value::List(), base::Value::Dict());
+  // Set a static NameServers config.
+  base::Value::Dict static_ip_config;
+  base::Value::List name_servers;
+  name_servers.Append("8.8.3.1");
+  name_servers.Append("8.8.2.1");
+  name_servers.Append("0.0.0.0");
+  name_servers.Append("0.0.0.0");
+  static_ip_config.Set(shill::kNameServersProperty, std::move(name_servers));
+  shill_service_client->SetServiceProperty(
+      kWifi1Path, shill::kStaticIPConfigProperty,
+      base::Value(std::move(static_ip_config)));
+
+  // Verify that network exists and the custom name server has been applied.
+  const base::Value::Dict* shill_properties =
+      shill_service_client->GetServiceProperties(kWifi1Path);
+  ASSERT_TRUE(shill_properties);
+  EXPECT_THAT(GetStaticNameServersFromShillProperties(*shill_properties),
+              testing::ElementsAre("8.8.3.1", "8.8.2.1", "0.0.0.0", "0.0.0.0"));
+
+  ResetAndWait(ProfileResetter::DNS_CONFIGURATIONS);
+
+  // Check DNS settings have changed to expected defaults.
+  // Verify that the given network has it's NameServers field cleared.
+  EXPECT_THAT(GetStaticNameServersFromShillProperties(*shill_properties),
+              testing::IsEmpty());
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace

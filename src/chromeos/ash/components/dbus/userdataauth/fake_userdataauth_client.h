@@ -6,6 +6,7 @@
 #define CHROMEOS_ASH_COMPONENTS_DBUS_USERDATAAUTH_FAKE_USERDATAAUTH_CLIENT_H_
 
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -36,17 +37,18 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
     kAuthenticateAuthFactor,
     kPrepareGuestVault,
     kPrepareEphemeralVault,
-    kRestoreDeviceKey,
     kCreatePersistentUser,
     kPreparePersistentVault,
     kPrepareVaultForMigration,
     kAddAuthFactor,
     kUpdateAuthFactor,
     kUpdateAuthFactorMetadata,
+    kReplaceAuthFactor,
     kListAuthFactors,
     kStartMigrateToDircrypto,
     kRemove,
     kGetRecoverableKeyStores,
+    kLockFactorUntilReboot,
   };
 
   // The method by which a user's home directory can be encrypted.
@@ -89,6 +91,10 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
     void set_enable_auth_check(bool enable_auth_check) {
       FakeUserDataAuthClient::Get()->enable_auth_check_ = enable_auth_check;
     }
+
+    void SetPinType(const cryptohome::AccountIdentifier& account_id,
+                    const std::string& label,
+                    bool legacy_pin);
 
     // Sets whether ARC disk quota is supported or not.
     void set_arc_quota_supported(bool supported) {
@@ -136,8 +142,9 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
 
     // Adds the given key as a fake auth factor to the user (the user must
     // already exist).
-    void AddKey(const cryptohome::AccountIdentifier& account_id,
-                const cryptohome::Key& key);
+    void AddAuthFactor(const cryptohome::AccountIdentifier& account_id,
+                       const user_data_auth::AuthFactor& factor,
+                       const user_data_auth::AuthInput& input);
 
     void AddRecoveryFactor(const cryptohome::AccountIdentifier& account_id);
     bool HasRecoveryFactor(const cryptohome::AccountIdentifier& account_id);
@@ -160,6 +167,8 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
     // Sets the CryptohomeError value to return during next operation.
     void SetNextOperationError(Operation operation,
                                ::cryptohome::ErrorWrapper error);
+
+    bool IsAuthenticated(const cryptohome::AccountIdentifier& account_id);
 
    private:
     FakeUserDataAuthClient::UserCryptohomeState& GetUserState(
@@ -218,6 +227,10 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
       PrepareAuthFactorProgressObserver* observer) override;
   void RemovePrepareAuthFactorProgressObserver(
       PrepareAuthFactorProgressObserver* observer) override;
+  void AddAuthFactorStatusUpdateObserver(
+      AuthFactorStatusUpdateObserver* observer) override;
+  void RemoveAuthFactorStatusUpdateObserver(
+      AuthFactorStatusUpdateObserver* observer) override;
   void WaitForServiceToBeAvailable(
       chromeos::WaitForServiceToBeAvailableCallback callback) override;
   void IsMounted(const ::user_data_auth::IsMountedRequest& request,
@@ -253,9 +266,6 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   void CreatePersistentUser(
       const ::user_data_auth::CreatePersistentUserRequest& request,
       CreatePersistentUserCallback callback) override;
-  void RestoreDeviceKey(
-      const ::user_data_auth::RestoreDeviceKeyRequest& request,
-      RestoreDeviceKeyCallback callback) override;
   void PreparePersistentVault(
       const ::user_data_auth::PreparePersistentVaultRequest& request,
       PreparePersistentVaultCallback callback) override;
@@ -279,6 +289,9 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   void UpdateAuthFactorMetadata(
       const ::user_data_auth::UpdateAuthFactorMetadataRequest& request,
       UpdateAuthFactorMetadataCallback callback) override;
+  void ReplaceAuthFactor(
+      const ::user_data_auth::ReplaceAuthFactorRequest& request,
+      ReplaceAuthFactorCallback callback) override;
   void RemoveAuthFactor(
       const ::user_data_auth::RemoveAuthFactorRequest& request,
       RemoveAuthFactorCallback callback) override;
@@ -302,6 +315,12 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   void GetRecoverableKeyStores(
       const ::user_data_auth::GetRecoverableKeyStoresRequest& request,
       GetRecoverableKeyStoresCallback) override;
+  void SetUserDataStorageWriteEnabled(
+      const ::user_data_auth::SetUserDataStorageWriteEnabledRequest& request,
+      SetUserDataStorageWriteEnabledCallback callback) override;
+  void LockFactorUntilReboot(
+      const ::user_data_auth::LockFactorUntilRebootRequest& request,
+      FakeUserDataAuthClient::LockFactorUntilRebootCallback callback) override;
 
   int get_prepare_guest_request_count() const {
     return prepare_guest_request_count_;
@@ -324,7 +343,6 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   FUDAC_OPERATION_TYPES(kPrepareGuestVault, PrepareGuestVaultRequest);
   FUDAC_OPERATION_TYPES(kPrepareEphemeralVault, PrepareEphemeralVaultRequest);
   FUDAC_OPERATION_TYPES(kCreatePersistentUser, CreatePersistentUserRequest);
-  FUDAC_OPERATION_TYPES(kRestoreDeviceKey, RestoreDeviceKeyRequest);
   FUDAC_OPERATION_TYPES(kPreparePersistentVault, PreparePersistentVaultRequest);
   FUDAC_OPERATION_TYPES(kPrepareVaultForMigration,
                         PrepareVaultForMigrationRequest);
@@ -332,12 +350,14 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   FUDAC_OPERATION_TYPES(kUpdateAuthFactor, UpdateAuthFactorRequest);
   FUDAC_OPERATION_TYPES(kUpdateAuthFactorMetadata,
                         UpdateAuthFactorMetadataRequest);
+  FUDAC_OPERATION_TYPES(kReplaceAuthFactor, ReplaceAuthFactorRequest);
   FUDAC_OPERATION_TYPES(kListAuthFactors, ListAuthFactorsRequest);
   FUDAC_OPERATION_TYPES(kStartMigrateToDircrypto,
                         StartMigrateToDircryptoRequest);
   FUDAC_OPERATION_TYPES(kRemove, RemoveRequest);
   FUDAC_OPERATION_TYPES(kGetRecoverableKeyStores,
                         GetRecoverableKeyStoresRequest);
+  FUDAC_OPERATION_TYPES(kLockFactorUntilReboot, LockFactorUntilRebootRequest);
 
 #undef FUDAC_OPERATION_TYPES
 
@@ -377,6 +397,12 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   // Reads synchronously from disk, so must only be called in a scope that
   // allows blocking IO.
   void SetUserDataDir(base::FilePath path);
+
+  // Adds a default Gaia password factor if none other auth factors exist
+  // when AuthSession starts.
+  void set_add_default_password_factor(bool add_default_password_factor) {
+    add_default_password_factor_ = add_default_password_factor;
+  }
 
  private:
   enum class AuthResult {
@@ -479,6 +505,10 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   // List of PrepareAuthFactorProgress event observers.
   base::ObserverList<PrepareAuthFactorProgressObserver> progress_observers_;
 
+  // List of observers for dbus signal AuthFactorStatusUpdate.
+  base::ObserverList<AuthFactorStatusUpdateObserver>
+      auth_factor_status_observer_list_;
+
   // Do we run the dircrypto migration, as in, emit signals, when
   // StartMigrateToDircrypto() is called?
   bool run_default_dircrypto_migration_ = true;
@@ -500,6 +530,9 @@ class COMPONENT_EXPORT(USERDATAAUTH_CLIENT) FakeUserDataAuthClient
   // service is not available (instead of adding the callback to pending
   // callback list).
   bool service_reported_not_available_ = false;
+
+  // If set, adds a default Gaia password factor when AuthSession starts.
+  bool add_default_password_factor_ = false;
 };
 
 }  // namespace ash

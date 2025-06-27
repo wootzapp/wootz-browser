@@ -15,6 +15,7 @@
 #include "base/time/default_clock.h"
 #include "components/optimization_guide/core/hints_processing_util.h"
 #include "components/optimization_guide/core/optimization_guide_common.mojom.h"
+#include "components/optimization_guide/core/optimization_guide_constants.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_logger.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
@@ -48,8 +49,7 @@ std::string GetStringNameForRequestContext(
   switch (request_context) {
     case proto::RequestContext::CONTEXT_UNSPECIFIED:
     case proto::RequestContext::CONTEXT_BATCH_UPDATE_MODELS:
-      NOTREACHED_IN_MIGRATION();
-      return "Unknown";
+      NOTREACHED();
     case proto::RequestContext::CONTEXT_PAGE_NAVIGATION:
       return "PageNavigation";
     case proto::RequestContext::CONTEXT_BATCH_UPDATE_GOOGLE_SRP:
@@ -68,9 +68,12 @@ std::string GetStringNameForRequestContext(
       return "NonPersonalizedPageInsightsHub";
     case proto::RequestContext::CONTEXT_SHOPPING:
       return "Shopping";
+    case proto::RequestContext::CONTEXT_SHOP_CARD:
+      return "ShopCard";
+    case proto::RequestContext::CONTEXT_GLIC_ZERO_STATE_SUGGESTIONS:
+      return "GlicZeroStateSuggestions";
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 void RecordRequestStatusHistogram(proto::RequestContext request_context,
@@ -80,6 +83,18 @@ void RecordRequestStatusHistogram(proto::RequestContext request_context,
       "OptimizationGuide.HintsFetcher.GetHintsRequest.RequestStatus." +
           GetStringNameForRequestContext(request_context),
       status);
+}
+
+// Appends override headers as specified by the command line arguments.
+void AppendOverrideHeadersIfNeeded(network::ResourceRequest& request) {
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kOptimizationGuideLanguageOverride)) {
+    return;
+  }
+  request.headers.SetHeaderIfMissing(
+      kOptimizationGuideLanguageOverrideHeaderKey,
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          switches::kOptimizationGuideLanguageOverride));
 }
 
 }  // namespace
@@ -302,6 +317,7 @@ bool HintsFetcher::FetchOptimizationGuideServiceHints(
     PopulateAuthorizationRequestHeader(resource_request.get(), access_token);
   }
 
+  AppendOverrideHeadersIfNeeded(*resource_request);
   active_url_loader_ = variations::CreateSimpleURLLoaderWithVariationsHeader(
       std::move(resource_request),
       // This is always InIncognito::kNo as the OptimizationGuideKeyedService
@@ -370,7 +386,7 @@ void HintsFetcher::HandleResponse(const std::string& get_hints_response_data,
         get_hints_response->hints_size());
     base::TimeDelta fetch_latency =
         base::TimeTicks::Now() - hints_fetch_start_time_;
-    UMA_HISTOGRAM_MEDIUM_TIMES(
+    DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
         "OptimizationGuide.HintsFetcher.GetHintsRequest.FetchLatency",
         fetch_latency);
     base::UmaHistogramMediumTimes(

@@ -66,7 +66,7 @@ base::WeakPtr<SyncValueStoreCache> SyncValueStoreCache::AsWeakPtr() {
 }
 
 syncer::SyncableService* SyncValueStoreCache::GetSyncableService(
-    syncer::ModelType type) {
+    syncer::DataType type) {
   DCHECK(IsOnBackendSequence());
   DCHECK(initialized_);
 
@@ -76,8 +76,7 @@ syncer::SyncableService* SyncValueStoreCache::GetSyncableService(
     case syncer::EXTENSION_SETTINGS:
       return extension_backend_.get();
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 

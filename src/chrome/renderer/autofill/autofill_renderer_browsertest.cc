@@ -41,7 +41,7 @@ auto FormField(
 }
 
 auto FormWithFields(auto matcher) {
-  return ElementsAre(Field(&FormData::fields, matcher));
+  return ElementsAre(Property(&FormData::fields, matcher));
 }
 
 auto Nth(int index, auto matcher) {
@@ -144,7 +144,7 @@ TEST_F(AutofillRendererTest, DynamicallyAddedUnownedFormElements) {
 }
 
 TEST_F(AutofillRendererTest, IgnoreNonUserGestureTextFieldChanges) {
-  EXPECT_CALL(autofill_driver(), TextFieldDidChange).Times(0);
+  EXPECT_CALL(autofill_driver(), TextFieldValueChanged).Times(0);
   LoadHTML(R"(<form method='post'>
                 <input type='text' id='full_name'/>
               </form>)");
@@ -158,10 +158,10 @@ TEST_F(AutofillRendererTest, IgnoreNonUserGestureTextFieldChanges) {
     GetMainFrame()->View()->AdvanceFocus(false);
 
   full_name.SetValue("Alice", true);
-  GetMainFrame()->AutofillClient()->TextFieldDidChange(full_name);
+  GetMainFrame()->AutofillClient()->TextFieldValueChanged(full_name);
 
-  EXPECT_CALL(autofill_driver(), TextFieldDidChange);
-  SimulateUserInputChangeForElement(&full_name, "Alice");
+  EXPECT_CALL(autofill_driver(), TextFieldValueChanged);
+  SimulateUserInputChangeForElement(full_name, "Alice");
 }
 
 }  // namespace

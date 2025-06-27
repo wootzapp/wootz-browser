@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/omnibox/browser/keyword_provider.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <map>
 #include <memory>
 #include <utility>
@@ -18,6 +24,7 @@
 #include "components/omnibox/browser/autocomplete_scheme_classifier.h"
 #include "components/omnibox/browser/mock_autocomplete_provider_client.h"
 #include "components/search_engines/search_engines_switches.h"
+#include "components/search_engines/search_engines_test_environment.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -42,43 +49,7 @@ class TestingSchemeClassifier : public AutocompleteSchemeClassifier {
   }
 };
 
-}  // namespace
-
-class KeywordProviderTest : public testing::Test {
- protected:
-  template<class ResultType>
-  struct MatchType {
-    const ResultType member;
-    bool allowed_to_be_default_match;
-  };
-
-  template<class ResultType>
-  struct TestData {
-    const std::u16string input;
-    const size_t num_results;
-    const MatchType<ResultType> output[3];
-  };
-
-  KeywordProviderTest() : kw_provider_(nullptr) {}
-  ~KeywordProviderTest() override = default;
-
-  void SetUp() override;
-
-  template<class ResultType>
-  void RunTest(TestData<ResultType>* keyword_cases,
-               int num_cases,
-               ResultType AutocompleteMatch::* member);
-
- protected:
-  static const TemplateURLService::Initializer kTestData[];
-
-  base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<MockAutocompleteProviderClient> client_;
-  scoped_refptr<KeywordProvider> kw_provider_;
-};
-
-// static
-const TemplateURLService::Initializer KeywordProviderTest::kTestData[] = {
+const TemplateURLService::Initializer kTestData[] = {
     {"aa", "aa.com?foo={searchTerms}", "aa"},
     {"aaaa", "http://aaaa/?aaaa=1&b={searchTerms}&c", "aaaa"},
     {"aaaaa", "{searchTerms}", "aaaaa"},
@@ -114,17 +85,52 @@ const TemplateURLService::Initializer KeywordProviderTest::kTestData[] = {
      "clean v8 slash"},
 };
 
+}  // namespace
+
+class KeywordProviderTest : public testing::Test {
+ protected:
+  template <class ResultType>
+  struct MatchType {
+    const ResultType member;
+    bool allowed_to_be_default_match;
+  };
+
+  template <class ResultType>
+  struct TestData {
+    const std::u16string input;
+    const size_t num_results;
+    const MatchType<ResultType> output[3];
+  };
+
+  KeywordProviderTest() : kw_provider_(nullptr) {}
+  ~KeywordProviderTest() override = default;
+
+  void SetUp() override;
+
+  template <class ResultType>
+  void RunTest(TestData<ResultType>* keyword_cases,
+               int num_cases,
+               ResultType AutocompleteMatch::*member);
+
+ protected:
+  search_engines::SearchEnginesTestEnvironment search_engines_test_environment_{
+      {.template_url_service_initializer = kTestData}};
+  base::test::TaskEnvironment task_environment_;
+  std::unique_ptr<MockAutocompleteProviderClient> client_;
+  scoped_refptr<KeywordProvider> kw_provider_;
+};
+
 void KeywordProviderTest::SetUp() {
   client_ = std::make_unique<MockAutocompleteProviderClient>();
   client_->set_template_url_service(
-      std::make_unique<TemplateURLService>(kTestData, std::size(kTestData)));
+      search_engines_test_environment_.template_url_service());
   kw_provider_ = new KeywordProvider(client_.get(), nullptr);
 }
 
-template<class ResultType>
+template <class ResultType>
 void KeywordProviderTest::RunTest(TestData<ResultType>* keyword_cases,
                                   int num_cases,
-                                  ResultType AutocompleteMatch::* member) {
+                                  ResultType AutocompleteMatch::*member) {
   ACMatches matches;
   for (int i = 0; i < num_cases; ++i) {
     SCOPED_TRACE(keyword_cases[i].input);
@@ -220,7 +226,7 @@ TEST_F(KeywordProviderTest, Edit) {
 }
 
 TEST_F(KeywordProviderTest, URL) {
-  const MatchType<GURL> kEmptyMatch = { GURL(), false };
+  const MatchType<GURL> kEmptyMatch = {GURL(), false};
   TestData<GURL> url_cases[] = {
       // No query input -> empty destination URL.
       {u"z", 1, {{GURL(), true}, kEmptyMatch, kEmptyMatch}},
@@ -319,52 +325,70 @@ TEST_F(KeywordProviderTest, RemoveKeyword) {
 }
 
 TEST_F(KeywordProviderTest, GetKeywordForInput) {
-  EXPECT_EQ(u"aa", kw_provider_->GetKeywordForText(u"aa"));
-  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(u"aafoo"));
-  EXPECT_EQ(u"aa", kw_provider_->GetKeywordForText(u"aa foo"));
+  TemplateURLService* template_url_service = client_->GetTemplateURLService();
+  EXPECT_EQ(u"aa",
+            kw_provider_->GetKeywordForText(u"aa", template_url_service));
+  EXPECT_EQ(std::u16string(),
+            kw_provider_->GetKeywordForText(u"aafoo", template_url_service));
+  EXPECT_EQ(u"aa",
+            kw_provider_->GetKeywordForText(u"aa foo", template_url_service));
   EXPECT_EQ(u"cleantestv1.com",
-            kw_provider_->GetKeywordForText(u"http://cleantestv1.com"));
+            kw_provider_->GetKeywordForText(u"http://cleantestv1.com",
+                                            template_url_service));
   EXPECT_EQ(u"cleantestv1.com",
-            kw_provider_->GetKeywordForText(u"www.cleantestv1.com"));
+            kw_provider_->GetKeywordForText(u"www.cleantestv1.com",
+                                            template_url_service));
+  EXPECT_EQ(u"cleantestv1.com", kw_provider_->GetKeywordForText(
+                                    u"cleantestv1.com/", template_url_service));
   EXPECT_EQ(u"cleantestv1.com",
-            kw_provider_->GetKeywordForText(u"cleantestv1.com/"));
-  EXPECT_EQ(u"cleantestv1.com",
-            kw_provider_->GetKeywordForText(u"https://www.cleantestv1.com/"));
-  EXPECT_EQ(u"cleantestv2.com",
-            kw_provider_->GetKeywordForText(u"cleantestv2.com"));
+            kw_provider_->GetKeywordForText(u"https://www.cleantestv1.com/",
+                                            template_url_service));
+  EXPECT_EQ(u"cleantestv2.com", kw_provider_->GetKeywordForText(
+                                    u"cleantestv2.com", template_url_service));
   EXPECT_EQ(u"www.cleantestv2.com",
-            kw_provider_->GetKeywordForText(u"www.cleantestv2.com"));
-  EXPECT_EQ(u"cleantestv2.com",
-            kw_provider_->GetKeywordForText(u"cleantestv2.com/"));
+            kw_provider_->GetKeywordForText(u"www.cleantestv2.com",
+                                            template_url_service));
+  EXPECT_EQ(u"cleantestv2.com", kw_provider_->GetKeywordForText(
+                                    u"cleantestv2.com/", template_url_service));
   EXPECT_EQ(u"www.cleantestv3.com",
-            kw_provider_->GetKeywordForText(u"www.cleantestv3.com"));
-  EXPECT_EQ(std::u16string(),
-            kw_provider_->GetKeywordForText(u"cleantestv3.com"));
+            kw_provider_->GetKeywordForText(u"www.cleantestv3.com",
+                                            template_url_service));
+  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(
+                                  u"cleantestv3.com", template_url_service));
   EXPECT_EQ(u"http://cleantestv4.com",
-            kw_provider_->GetKeywordForText(u"http://cleantestv4.com"));
-  EXPECT_EQ(std::u16string(),
-            kw_provider_->GetKeywordForText(u"cleantestv4.com"));
-  EXPECT_EQ(u"cleantestv5.com",
-            kw_provider_->GetKeywordForText(u"cleantestv5.com"));
+            kw_provider_->GetKeywordForText(u"http://cleantestv4.com",
+                                            template_url_service));
+  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(
+                                  u"cleantestv4.com", template_url_service));
+  EXPECT_EQ(u"cleantestv5.com", kw_provider_->GetKeywordForText(
+                                    u"cleantestv5.com", template_url_service));
   EXPECT_EQ(u"http://cleantestv5.com",
-            kw_provider_->GetKeywordForText(u"http://cleantestv5.com"));
-  EXPECT_EQ(u"cleantestv6:", kw_provider_->GetKeywordForText(u"cleantestv6:"));
-  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(u"cleantestv6"));
-  EXPECT_EQ(u"cleantestv7/", kw_provider_->GetKeywordForText(u"cleantestv7/"));
-  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(u"cleantestv7"));
-  EXPECT_EQ(u"cleantestv8/", kw_provider_->GetKeywordForText(u"cleantestv8/"));
-  EXPECT_EQ(u"cleantestv8", kw_provider_->GetKeywordForText(u"cleantestv8"));
+            kw_provider_->GetKeywordForText(u"http://cleantestv5.com",
+                                            template_url_service));
+  EXPECT_EQ(u"cleantestv6:", kw_provider_->GetKeywordForText(
+                                 u"cleantestv6:", template_url_service));
+  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(
+                                  u"cleantestv6", template_url_service));
+  EXPECT_EQ(u"cleantestv7/", kw_provider_->GetKeywordForText(
+                                 u"cleantestv7/", template_url_service));
+  EXPECT_EQ(std::u16string(), kw_provider_->GetKeywordForText(
+                                  u"cleantestv7", template_url_service));
+  EXPECT_EQ(u"cleantestv8/", kw_provider_->GetKeywordForText(
+                                 u"cleantestv8/", template_url_service));
+  EXPECT_EQ(u"cleantestv8", kw_provider_->GetKeywordForText(
+                                u"cleantestv8", template_url_service));
 }
 
 TEST_F(KeywordProviderTest, GetSubstitutingTemplateURLForInput) {
-  struct {
+  struct Cases {
     const std::string text;
     const size_t cursor_position;
     const bool allow_exact_keyword_match;
     const std::string expected_url;
     const std::string updated_text;
     const size_t updated_cursor_position;
-  } cases[] = {
+  };
+  auto cases = std::to_array<Cases>({
       {"foo", std::u16string::npos, true, "", "foo", std::u16string::npos},
       {"aa foo", std::u16string::npos, true, "aa.com?foo={searchTerms}", "foo",
        std::u16string::npos},
@@ -396,14 +420,14 @@ TEST_F(KeywordProviderTest, GetSubstitutingTemplateURLForInput) {
       // Disallow exact keyword match.
       {"aa foo", std::u16string::npos, false, "", "aa foo",
        std::u16string::npos},
-  };
+  });
   for (size_t i = 0; i < std::size(cases); i++) {
     AutocompleteInput input(
         ASCIIToUTF16(cases[i].text), cases[i].cursor_position,
         metrics::OmniboxEventProto::OTHER, TestingSchemeClassifier());
     input.set_allow_exact_keyword_match(cases[i].allow_exact_keyword_match);
     const TemplateURL* url =
-        KeywordProvider::GetSubstitutingTemplateURLForInput(
+        AutocompleteInput::GetSubstitutingTemplateURLForInput(
             client_->GetTemplateURLService(), &input);
     if (cases[i].expected_url.empty())
       EXPECT_FALSE(url);
@@ -438,4 +462,22 @@ TEST_F(KeywordProviderTest, DoesNotProvideMatchesOnFocus) {
   input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
   kw_provider_->Start(input, false);
   ASSERT_TRUE(kw_provider_->matches().empty());
+}
+
+// Ensure that the KeywordProvider does not return a match based on a custom
+// TemplateURL, which, after substituting user input, has an invalid destination
+// URL.
+TEST_F(KeywordProviderTest, TemplateSchemeKeyword) {
+  TemplateURLData data;
+  data.SetShortName(u"я");
+  data.SetKeyword(u"я://я");
+  data.SetURL("{searchTerms}://{searchTerms}");
+  data.starter_pack_id = 1;
+  client_->GetTemplateURLService()->Add(std::make_unique<TemplateURL>(data));
+
+  TestData<void*> url_cases[] = {
+      {u"я я", 0, {}},
+      {u"я://я", 0, {}},
+  };
+  RunTest<void*>(url_cases, std::size(url_cases), nullptr);
 }

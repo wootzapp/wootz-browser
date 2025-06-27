@@ -28,11 +28,9 @@ const int kDownstreamEnrollBillableServiceNumber =
 }  // namespace
 
 GetDetailsForEnrollmentRequest::GetDetailsForEnrollmentRequest(
-    const PaymentsNetworkInterface::GetDetailsForEnrollmentRequestDetails&
-        request_details,
-    base::OnceCallback<void(AutofillClient::PaymentsRpcResult,
-                            const PaymentsNetworkInterface::
-                                GetDetailsForEnrollmentResponseDetails&)>
+    const GetDetailsForEnrollmentRequestDetails& request_details,
+    base::OnceCallback<void(PaymentsAutofillClient::PaymentsRpcResult,
+                            const GetDetailsForEnrollmentResponseDetails&)>
         callback)
     : request_details_(request_details), callback_(std::move(callback)) {}
 
@@ -61,8 +59,7 @@ std::string GetDetailsForEnrollmentRequest::GetRequestContent() {
       billable_service_number = kDownstreamEnrollBillableServiceNumber;
       break;
     case VirtualCardEnrollmentSource::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   context.Set("billable_service", billable_service_number);
   if (request_details_.billing_customer_number != 0) {
@@ -89,13 +86,13 @@ std::string GetDetailsForEnrollmentRequest::GetRequestContent() {
       request_dict.Set("channel_type", "CHROME_DOWNSTREAM");
       break;
     case VirtualCardEnrollmentSource::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   std::string request_content;
   base::JSONWriter::Write(request_dict, &request_content);
-  VLOG(3) << "GetDetailsForEnrollmentRequest request body: " << request_content;
+  DVLOG(3) << "GetDetailsForEnrollmentRequest request body: "
+           << request_content;
   return request_content;
 }
 
@@ -128,7 +125,7 @@ bool GetDetailsForEnrollmentRequest::IsResponseComplete() {
 }
 
 void GetDetailsForEnrollmentRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result, response_details_);
 }
 

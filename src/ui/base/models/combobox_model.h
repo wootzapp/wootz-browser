@@ -29,10 +29,6 @@ class COMPONENT_EXPORT(UI_BASE) ComboboxModel {
   // Returns the string at the specified index.
   virtual std::u16string GetItemAt(size_t index) const = 0;
 
-  // Returns the string to be shown in the dropdown for the item at |index|. By
-  // default, it returns GetItemAt(index).
-  virtual std::u16string GetDropDownTextAt(size_t index) const;
-
   // Returns the secondary string at the specified index. Secondary strings are
   // displayed in a second line inside every menu item.
   virtual std::u16string GetDropDownSecondaryTextAt(size_t index) const;
@@ -48,6 +44,10 @@ class COMPONENT_EXPORT(UI_BASE) ComboboxModel {
   // Should return true if the item at |index| is a non-selectable separator
   // item.
   virtual bool IsItemSeparatorAt(size_t index) const;
+
+  // TODO(pbos): Consider replacing this (and IsItemSeparatorAt) with something
+  // that either returns or maps well to MenuModel::ItemType.
+  virtual bool IsItemTitleAt(size_t index) const;
 
   // The index of the item that is selected by default (before user
   // interaction).

@@ -12,7 +12,9 @@
 #include "net/base/net_error_details.h"
 #include "net/base/net_export.h"
 #include "net/base/request_priority.h"
+#include "net/http/alternative_service.h"
 #include "net/http/http_response_info.h"
+#include "net/http/http_stream_pool_request_info.h"
 #include "net/log/net_log_source.h"
 #include "net/log/net_log_with_source.h"
 #include "net/proxy_resolution/proxy_info.h"
@@ -109,6 +111,14 @@ class NET_EXPORT_PRIVATE HttpStreamRequest {
     // Called when finding all QUIC alternative services are marked broken for
     // the origin in this request which advertises supporting QUIC.
     virtual void OnQuicBroken() = 0;
+
+    // Called when the call site should use HttpStreamPool to request an
+    // HttpStream.
+    // TODO(crbug.com/346835898): Remove this method once we figure out a
+    // better way to resolve proxies. This method is needed because currently
+    // HttpStreamFactory::JobController resolves proxies.
+    virtual void OnSwitchesToHttpStreamPool(
+        HttpStreamPoolRequestInfo request_info) = 0;
   };
 
   class NET_EXPORT_PRIVATE Helper {
@@ -184,6 +194,17 @@ class NET_EXPORT_PRIVATE HttpStreamRequest {
 
   bool completed() const { return completed_; }
 
+  void SetDnsResolutionTimeOverrides(
+      base::TimeTicks dns_resolution_start_time_override,
+      base::TimeTicks dns_resolution_end_time_override);
+
+  base::TimeTicks dns_resolution_start_time_override() const {
+    return dns_resolution_start_time_override_;
+  }
+  base::TimeTicks dns_resolution_end_time_override() const {
+    return dns_resolution_end_time_override_;
+  }
+
  private:
   // Unowned. The helper must not be destroyed before this object is.
   raw_ptr<Helper> helper_;
@@ -194,13 +215,16 @@ class NET_EXPORT_PRIVATE HttpStreamRequest {
 
   bool completed_ = false;
   // Protocol negotiated with the server.
-  NextProto negotiated_protocol_ = kProtoUnknown;
+  NextProto negotiated_protocol_ = NextProto::kProtoUnknown;
   // The reason why Chrome uses a specific transport protocol for HTTP
   // semantics.
   AlternateProtocolUsage alternate_protocol_usage_ =
       AlternateProtocolUsage::ALTERNATE_PROTOCOL_USAGE_UNSPECIFIED_REASON;
   ConnectionAttempts connection_attempts_;
   const StreamType stream_type_;
+
+  base::TimeTicks dns_resolution_start_time_override_;
+  base::TimeTicks dns_resolution_end_time_override_;
 };
 
 }  // namespace net

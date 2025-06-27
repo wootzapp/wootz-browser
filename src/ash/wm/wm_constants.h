@@ -15,10 +15,7 @@ namespace ash {
 // 1. The WindowMiniView might have a non-empty border.
 // 2. The focus ring which is a child view of the WindowMiniView couldn't be
 // drawn correctly if its parent's layer is clipped.
-// Please consider using the corner radius value returned from
-// `window_util::GetMiniWindowRoundedCornerRadius()` instead of directly
-// applying the value below to account for the rounded windows Jelly feature.
-ASH_EXPORT inline constexpr int kWindowMiniViewCornerRadius = 16;
+ASH_EXPORT inline constexpr int kWindowMiniViewCornerRadius = 12;
 
 // Height value for the header view.
 ASH_EXPORT inline constexpr int kWindowMiniViewHeaderHeight = 40;
@@ -28,6 +25,10 @@ ASH_EXPORT inline constexpr int kWindowMiniViewHeaderHeight = 40;
 // with. Since the thickness is 2px and the stroke is in the middle, we use a
 // -3px inset to achieve this.
 inline constexpr int kWindowMiniViewFocusRingHaloInset = -3;
+
+// Decrement the inner outset of the focus ring for `WindowMiniView` (in a
+// SnapGroup) by 1px to avoid potential focus ring occlusion.
+inline constexpr int kWindowMiniViewFocusRingHaloInternalInset = -2;
 
 }  // namespace ash
 

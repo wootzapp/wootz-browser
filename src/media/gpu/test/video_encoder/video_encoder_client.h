@@ -68,6 +68,8 @@ struct VideoEncoderClientConfig {
   media::VideoBitrateAllocation bitrate_allocation;
   // The desired framerate in frames/second.
   uint32_t framerate = 30.0;
+  // Group of pictures length.
+  uint32_t gop_length = 0;
   // The interval of calling VideoEncodeAccelerator::Encode(). If this is
   // std::nullopt, Encode() is called once VideoEncodeAccelerator consumes
   // the previous VideoFrames.
@@ -145,6 +147,8 @@ class VideoEncoderClient : public VideoEncodeAccelerator::Client {
   // kFlushing/kFlushDone event is sent upon start/finish. The kFlushDone
   // event is always sent after all associated kFrameEncoded events.
   void Flush();
+
+  bool IsFlushSupported() { return encoder_->IsFlushSupported(); }
 
   // Updates bitrate based on the specified |bitrate| and |framerate|.
   void UpdateBitrate(const VideoBitrateAllocation& bitrate, uint32_t framerate);

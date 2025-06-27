@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -18,6 +19,8 @@
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
+#include "components/content_settings/core/common/content_settings.h"
+#include "components/permissions/features.h"
 #include "components/permissions/permission_prompt.h"
 #include "components/permissions/permission_request_queue.h"
 #include "components/permissions/permission_ui_selector.h"
@@ -30,7 +33,7 @@
 #include "ui/gfx/geometry/rect.h"
 
 class GURL;
-class WidevinePermissionAndroidTest;
+
 namespace content {
 class RenderFrameHost;
 }
@@ -182,6 +185,7 @@ class PermissionRequestManager
   base::WeakPtr<PermissionPrompt::Delegate> GetWeakPtr() override;
   content::WebContents* GetAssociatedWebContents() override;
   bool RecreateView() override;
+  const PermissionPrompt* GetCurrentPrompt() const override;
 
   // Returns the bounds of the active permission prompt view if we're
   // displaying one.
@@ -222,21 +226,9 @@ class PermissionRequestManager
     return permission_ui_selectors_;
   }
 
-  void AcceptDenyCancel(const std::vector<PermissionRequest*>& accepted_requests,  
-                   const std::vector<PermissionRequest*>& denied_requests,    
-                   const std::vector<PermissionRequest*>& cancelled_requests);
-  bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) const; 
-                                                                              
- private:                                                                     
-  bool ShouldBeGrouppedInRequests(PermissionRequest* a) const;                
-  friend class ::WidevinePermissionAndroidTest;                               
-                                                                              
- public:                                                                      
   void set_view_factory_for_testing(PermissionPrompt::Factory view_factory) {
     view_factory_ = std::move(view_factory);
   }
-
-  PermissionPrompt* view_for_testing() const { return view_.get(); }
 
   void set_current_request_first_display_time_for_testing(base::Time time) {
     current_request_first_display_time_ = time;
@@ -245,6 +237,15 @@ class PermissionRequestManager
   std::optional<PermissionUmaUtil::PredictionGrantLikelihood>
   prediction_grant_likelihood_for_testing() const {
     return prediction_grant_likelihood_;
+  }
+
+  std::optional<bool> was_decision_held_back_for_testing() const {
+    return was_decision_held_back_;
+  }
+
+  std::optional<PermissionRequestRelevance>
+  permission_request_relevance_for_testing() const {
+    return permission_request_relevance_;
   }
 
   std::optional<permissions::PermissionPromptDisposition>
@@ -429,6 +430,14 @@ class PermissionRequestManager
       PermissionRequest* request,
       PermissionAction permission_action);
 
+  // Take a snapshot of the content setting status for the current requests,
+  // which can change based on the user's decision. Used in HaTS as a filter.
+  // This defaults to "DEFAULT" if there's no ContentSettingsType associated
+  // with the PermissionType.
+  void SetCurrentRequestsInitialStatuses();
+
+  ContentSetting GetRequestInitialStatus(PermissionRequest* request);
+
   // Factory to be used to create views when needed.
   PermissionPrompt::Factory view_factory_;
 
@@ -506,9 +515,13 @@ class PermissionRequestManager
   std::optional<UiDecision> current_request_ui_to_use_;
 
   // The likelihood value returned by the Web Permission Predictions Service,
-  // to be recoreded in UKM.
+  // to be recorded in UKM.
   std::optional<PermissionUmaUtil::PredictionGrantLikelihood>
       prediction_grant_likelihood_;
+
+  // The permission request relevance returned by an on-device ML model,
+  // to be recorded in UKM.
+  std::optional<PermissionRequestRelevance> permission_request_relevance_;
 
   // Status of the decision made by the Web Permission Prediction Service, if
   // it was held back or not.
@@ -538,6 +551,12 @@ class PermissionRequestManager
 
   bool did_click_learn_more_ = false;
 
+  // Whether the current request can be preempted or not. This is set when
+  // callbacks are being issued to prevent potential re-entrant behavior of
+  // those callbacks requesting a permission that would preempt the current one
+  // and thus invalidate the iterator being used to issue the callback.
+  bool can_preempt_current_request_ = true;
+
   std::optional<base::TimeDelta> time_to_decision_for_test_;
 
   std::optional<bool> enabled_app_level_notification_permission_for_testing_;
@@ -549,6 +568,16 @@ class PermissionRequestManager
   base::OneShotTimer preignore_timer_;
 
   std::optional<base::OnceCallback<void()>> hats_shown_callback_;
+
+  // Holds the position of the current prompt, only relevant for permission
+  // element prompts.
+  std::optional<feature_params::PermissionElementPromptPosition>
+      current_request_pepc_prompt_position_;
+
+  // Holds the initial statuses of the current requests, one for each request in
+  // |requests_|.
+  std::map<PermissionRequest*, ContentSetting>
+      current_requests_initial_statuses_;
 
   base::WeakPtrFactory<PermissionRequestManager> weak_factory_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();

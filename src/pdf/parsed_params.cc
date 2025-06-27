@@ -5,11 +5,11 @@
 #include "pdf/parsed_params.h"
 
 #include <string>
+#include <vector>
 
 #include "base/strings/string_number_conversions.h"
 #include "pdf/pdfium/pdfium_form_filler.h"
 #include "third_party/blink/public/platform/web_string.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_plugin_params.h"
 
 namespace chrome_pdf {
@@ -19,8 +19,8 @@ ParsedParams::ParsedParams() = default;
 ParsedParams::ParsedParams(const ParsedParams& other) = default;
 ParsedParams& ParsedParams::operator=(const ParsedParams& other) = default;
 
-ParsedParams::ParsedParams(ParsedParams&& other) = default;
-ParsedParams& ParsedParams::operator=(ParsedParams&& other) = default;
+ParsedParams::ParsedParams(ParsedParams&& other) noexcept = default;
+ParsedParams& ParsedParams::operator=(ParsedParams&& other) noexcept = default;
 
 ParsedParams::~ParsedParams() = default;
 

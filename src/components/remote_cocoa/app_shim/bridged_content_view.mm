@@ -224,7 +224,7 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
   return self;
 }
 
-- (ui::TextInputClient*)textInputClient {
+- (ui::TextInputClient*)textInputClientForTesting {
   return _bridge ? _bridge->host_helper()->GetTextInputClient() : nullptr;
 }
 
@@ -335,7 +335,23 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
     event_location =
         MovePointToWindow(theEvent.locationInWindow, source, target);
   }
-  [self updateTooltipIfRequiredAt:event_location];
+
+  // The tooltip update event should be forwarded to the window where the event
+  // occurs. This is how it works with Aura, and the backend logic expects that
+  // the mouse location is in the coordinate system of the window from which the
+  // event originated.
+  auto* event_window =
+      base::apple::ObjCCast<NativeWidgetMacNSWindow>(theEvent.window);
+  remote_cocoa::NativeWidgetNSWindowBridge* event_bridge =
+      [event_window bridge];
+  if (event_bridge) {
+    gfx::Point location_in_source_content = MovePointToView(
+        theEvent.locationInWindow, source, event_bridge->ns_view());
+    [self updateTooltipIfRequiredAt:location_in_source_content
+                             bridge:event_bridge];
+  } else {
+    [self updateTooltipIfRequiredAt:event_location bridge:_bridge];
+  }
 
   if (isScrollEvent) {
     auto event =
@@ -350,15 +366,27 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
   }
 }
 
-- (void)updateTooltipIfRequiredAt:(const gfx::Point&)locationInContent {
-  DCHECK(_bridge);
-  std::u16string newTooltipText;
-
-  _bridge->host()->GetTooltipTextAt(locationInContent, &newTooltipText);
-  if (newTooltipText != _lastTooltipText) {
-    std::swap(newTooltipText, _lastTooltipText);
-    [self setToolTipAtMousePoint:base::SysUTF16ToNSString(_lastTooltipText)];
-  }
+- (void)updateTooltipIfRequiredAt:(const gfx::Point&)locationInContent
+                           bridge:(remote_cocoa::NativeWidgetNSWindowBridge*)
+                                      bridge {
+  DCHECK(bridge);
+  __weak BridgedContentView* weakSelf = self;
+  bridge->host()->GetTooltipTextAt(
+      locationInContent,
+      base::BindOnce(
+          [](__weak BridgedContentView* weakView,
+             const std::u16string& newTooltipText) {
+            if (!weakView) {
+              return;
+            }
+            __strong BridgedContentView* strongSelf = weakView;
+            if (newTooltipText != strongSelf->_lastTooltipText) {
+              strongSelf->_lastTooltipText = newTooltipText;
+              [strongSelf setToolTipAtMousePoint:base::SysUTF16ToNSString(
+                                                     newTooltipText)];
+            }
+          },
+          weakSelf));
 }
 
 - (void)updateFullKeyboardAccess {
@@ -451,7 +479,7 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
     eventFlags |= ui::EF_SHIFT_DOWN;
 
   // Generate a synthetic event with the keycode toolkit-views expects.
-  ui::KeyEvent event(ui::ET_KEY_PRESSED, keyCode, domCode, eventFlags);
+  ui::KeyEvent event(ui::EventType::kKeyPressed, keyCode, domCode, eventFlags);
 
   // If the current event is a key event, assume it's the event that led to this
   // edit command and attach it. Note that it isn't always the case that the
@@ -467,10 +495,12 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
 
   // If there's an active TextInputClient, schedule the editing command to be
   // performed.
-  // TODO(crbug.com/40600822): Add mojo support for ui::TextEditCommand.
-  if ([self textInputClient] &&
-          [self textInputClient] -> IsTextEditCommandEnabled(command)) {
-    [self textInputClient] -> SetTextEditCommandForNextKeyEvent(command);
+  bool out_enabled = false;
+  if (_bridge &&
+      _bridge->text_input_host()->IsTextEditCommandEnabled(command,
+                                                           &out_enabled) &&
+      out_enabled) {
+    _bridge->text_input_host()->SetTextEditCommandForNextKeyEvent(command);
   }
 
   [self dispatchKeyEvent:&event];
@@ -650,7 +680,7 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
 
   // Aura updates tooltips with the help of aura::Window::AddPreTargetHandler().
   // Mac hooks in here.
-  [self updateTooltipIfRequiredAt:event->location()];
+  [self updateTooltipIfRequiredAt:event->location() bridge:_bridge];
   _bridge->host()->OnMouseEvent(std::move(event));
 }
 
@@ -861,7 +891,7 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
 
   // Aura updates tooltips with the help of aura::Window::AddPreTargetHandler().
   // Mac hooks in here.
-  [self updateTooltipIfRequiredAt:event->location()];
+  [self updateTooltipIfRequiredAt:event->location() bridge:_bridge];
   _bridge->host()->OnScrollEvent(std::move(event));
 }
 
@@ -877,8 +907,8 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
 
   // We need to invert deltas in order to match GestureEventDetails's
   // directions.
-  ui::GestureEventDetails swipeDetails(ui::ET_GESTURE_SWIPE, -[event deltaX],
-                                       -[event deltaY]);
+  ui::GestureEventDetails swipeDetails(ui::EventType::kGestureSwipe,
+                                       -[event deltaX], -[event deltaY]);
   swipeDetails.set_device_type(ui::GestureDeviceType::DEVICE_TOUCHPAD);
   swipeDetails.set_touch_points(3);
 
@@ -1346,45 +1376,35 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
           eventFlags:0];
 }
 
-// Support for Services in context menus.
-// Currently we only support reading and writing plain strings.
 - (id)validRequestorForSendType:(NSString*)sendType
                      returnType:(NSString*)returnType {
-  BOOL canWrite = [sendType isEqualToString:NSPasteboardTypeString] &&
-                  [self selectedRange].length > 0;
-  BOOL canRead = [returnType isEqualToString:NSPasteboardTypeString];
-  // Valid if (sendType, returnType) is either (string, nil), (nil, string),
-  // or (string, string).
-  BOOL valid =
-      [self hasTextInputClient] && ((canWrite && (canRead || !returnType)) ||
-                                    (canRead && (canWrite || !sendType)));
-  return valid
-             ? self
-             : [super validRequestorForSendType:sendType returnType:returnType];
+  UTType* sendUTType = ui::UTTypeForServicesType(sendType);
+  UTType* acceptUTType = ui::UTTypeForServicesType(returnType);
+
+  const BOOL hasTextInputClient = [self hasTextInputClient];
+  const BOOL canSendText = [sendUTType isEqual:UTTypeUTF8PlainText] &&
+                           hasTextInputClient &&
+                           [self selectedRange].length > 0;
+  const BOOL canAcceptText =
+      [acceptUTType isEqual:UTTypeUTF8PlainText] && hasTextInputClient;
+
+  // This is a valid requestor if the send/accept types can be fulfilled or if
+  // they are `nil` (and therefore not the wrong type).
+  if ((canSendText && !acceptUTType) || (!sendUTType && canAcceptText) ||
+      (canSendText && canAcceptText)) {
+    return self;
+  }
+  return [super validRequestorForSendType:sendType returnType:returnType];
 }
 
 // NSServicesMenuRequestor protocol
 
 - (BOOL)writeSelectionToPasteboard:(NSPasteboard*)pboard types:(NSArray*)types {
-  // /!\ Compatibility hack!
-  //
-  // The NSServicesMenuRequestor protocol does not pass in the correct
-  // NSPasteboardType constants in the `types` array, verified through macOS 13
-  // (FB11838671). To keep the code below clean, if an obsolete type is passed
-  // in, rewrite the array.
-  //
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  if ([types containsObject:NSStringPboardType] &&
-      ![types containsObject:NSPasteboardTypeString]) {
-    types = [types arrayByAddingObject:NSPasteboardTypeString];
-  }
-#pragma clang diagnostic pop
-  // /!\ End compatibility hack.
+  NSSet<UTType*>* typeSet = ui::UTTypesForServicesTypeArray(types);
 
   bool wasAbleToWriteAtLeastOneType = false;
 
-  if ([types containsObject:NSPasteboardTypeString]) {
+  if ([typeSet containsObject:UTTypeUTF8PlainText]) {
     bool result = false;
     std::u16string selection_text;
     if (_bridge)
@@ -1589,12 +1609,16 @@ ui::TextEditCommand GetTextEditCommandForMenuAction(SEL action) {
   if (command == ui::TextEditCommand::INVALID_COMMAND)
     return NO;
 
-  // TODO(crbug.com/40600822): Add mojo support for ui::TextEditCommand.
-  if ([self textInputClient])
-    return [self textInputClient] -> IsTextEditCommandEnabled(command);
+  bool out_enabled = false;
+  _bridge->text_input_host()->IsTextEditCommandEnabled(command, &out_enabled);
+  if (out_enabled) {
+    return YES;
+  }
 
   // views::Label does not implement the TextInputClient interface but still
   // needs to intercept the Copy and Select All menu actions.
+  // We can't tell if TextInputClient returned NO or was absent entirely.
+  // So if we got NO from IsTextEditCommandEnabled, try this special case.
   if (command != ui::TextEditCommand::COPY &&
       command != ui::TextEditCommand::SELECT_ALL)
     return NO;

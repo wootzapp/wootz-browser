@@ -23,6 +23,7 @@ import static org.mockito.Mockito.verify;
 
 import static org.chromium.base.test.util.CriteriaHelper.pollInstrumentationThread;
 import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
+import static org.chromium.chrome.browser.autofill.AutofillTestHelper.singleMouseClickView;
 import static org.chromium.chrome.browser.keyboard_accessory.all_passwords_bottom_sheet.AllPasswordsBottomSheetProperties.VISIBLE;
 
 import android.text.method.PasswordTransformationMethod;
@@ -38,22 +39,23 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.autofill.helpers.FaviconHelper;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.keyboard_accessory.R;
-import org.chromium.chrome.browser.keyboard_accessory.helper.FaviconHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -68,13 +70,39 @@ import java.util.concurrent.ExecutionException;
 @EnableFeatures(ChromeFeatureList.FILLING_PASSWORDS_FROM_ANY_ORIGIN)
 public class AllPasswordsBottomSheetViewTest {
     private static final Credential ANA =
-            new Credential("Ana", "S3cr3t", "Ana", "https://example.com", false, "");
+            new Credential(
+                    /* username= */ "ana@gmail.com",
+                    /* password= */ "S3cr3t",
+                    /* formattedUsername= */ "ana@gmail.com",
+                    /* originUrl= */ "https://example.com",
+                    /* isAndroidCredential= */ false,
+                    /* appDisplayName= */ "",
+                    /* isPlusAddressUsername= */ true);
     private static final Credential NO_ONE =
-            new Credential("", "***", "No Username", "https://m.example.xyz", false, "");
+            new Credential(
+                    /* username= */ "",
+                    /* password= */ "***",
+                    /* formattedUsername= */ "No Username",
+                    /* originUrl= */ "https://m.example.xyz",
+                    /* isAndroidCredential= */ false,
+                    /* appDisplayName= */ "",
+                    /* isPlusAddressUsername= */ false);
     private static final Credential BOB =
-            new Credential("Bob", "***", "Bob", "android://com.facebook.org", true, "facebook");
+            new Credential(
+                    /* username= */ "Bob",
+                    /* password= */ "***",
+                    /* formattedUsername= */ "Bob",
+                    /* originUrl= */ "android://com.facebook.org",
+                    /* isAndroidCredential= */ true,
+                    /* appDisplayName= */ "facebook",
+                    /* isPlusAddressUsername= */ false);
     private static final boolean IS_PASSWORD_FIELD = true;
     private static final String EXAMPLE_ORIGIN = "https://m.example.com/";
+
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Rule
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     @Mock private Callback<Integer> mDismissHandler;
     @Mock private Callback<CredentialFillRequest> mCredentialFillRequestCallback;
@@ -85,14 +113,10 @@ public class AllPasswordsBottomSheetViewTest {
     private AllPasswordsBottomSheetView mAllPasswordsBottomSheetView;
     private BottomSheetController mBottomSheetController;
 
-    @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
-
     @Before
     public void setUp() throws InterruptedException {
-        MockitoAnnotations.initMocks(this);
         mActivityTestRule.startMainActivityOnBlankPage();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel =
                             AllPasswordsBottomSheetProperties.createDefaultModel(
@@ -119,12 +143,12 @@ public class AllPasswordsBottomSheetViewTest {
     @MediumTest
     public void testVisibilityChangedByModel() {
         // After setting the visibility to true, the view should exist and be visible.
-        TestThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
         pollUiThread(() -> getBottomSheetState() == SheetState.FULL);
         assertThat(mAllPasswordsBottomSheetView.getContentView().isShown(), is(true));
 
         // After hiding the view, the view should still exist but be invisible.
-        TestThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, false));
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, false));
         pollUiThread(() -> getBottomSheetState() == BottomSheetController.SheetState.HIDDEN);
         assertThat(mAllPasswordsBottomSheetView.getContentView().isShown(), is(false));
     }
@@ -132,7 +156,7 @@ public class AllPasswordsBottomSheetViewTest {
     @Test
     @MediumTest
     public void testShowsWarningWithOriginByDefaultWithUpmEnabled() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
         pollUiThread(() -> getBottomSheetState() == SheetState.FULL);
         assertThat(mAllPasswordsBottomSheetView.getContentView().isShown(), is(true));
         assertEquals(
@@ -230,7 +254,7 @@ public class AllPasswordsBottomSheetViewTest {
     @MediumTest
     public void testFillingPasswordInNonPasswordFieldShowsWarningDialog()
             throws ExecutionException {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAllPasswordsBottomSheetView.setVisible(true);
                     mListModel.add(
@@ -256,12 +280,23 @@ public class AllPasswordsBottomSheetViewTest {
 
     @Test
     @MediumTest
+    public void testConsumesGenericMotionEventsToPreventMouseClicksThroughSheet() {
+        // After setting the visibility to true, the view should exist and be visible.
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
+        pollUiThread(() -> getBottomSheetState() == SheetState.FULL);
+        assertThat(mAllPasswordsBottomSheetView.getContentView().isShown(), is(true));
+
+        assertThat(singleMouseClickView(mAllPasswordsBottomSheetView.getContentView()), is(true));
+    }
+
+    @Test
+    @MediumTest
     public void testDismissesWhenHidden() {
         addDefaultCredentialsToTheModel();
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
         pollUiThread(() -> getBottomSheetState() == SheetState.FULL);
-        TestThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, false));
+        ThreadUtils.runOnUiThreadBlocking(() -> mModel.set(VISIBLE, false));
         pollUiThread(() -> getBottomSheetState() == BottomSheetController.SheetState.HIDDEN);
         verify(mDismissHandler).onResult(BottomSheetController.StateChangeReason.NONE);
     }
@@ -276,7 +311,7 @@ public class AllPasswordsBottomSheetViewTest {
 
     // Adds three credential items to the model.
     private void addDefaultCredentialsToTheModel() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAllPasswordsBottomSheetView.setVisible(true);
                     mListModel.add(
@@ -318,20 +353,15 @@ public class AllPasswordsBottomSheetViewTest {
         return mBottomSheetController.getSheetState();
     }
 
-    private RecyclerView getCredentials() {
-        return (RecyclerView)
-                mAllPasswordsBottomSheetView.getContentView().findViewById(R.id.sheet_item_list);
-    }
-
     private TextView getCredentialOrigin(View parent) {
         return parent.findViewById(R.id.password_info_title);
     }
 
     private ChipView getCredentialName(View parent) {
-        return ((ChipView) parent.findViewById(R.id.suggestion_text));
+        return parent.findViewById(R.id.suggestion_text);
     }
 
     private ChipView getCredentialPassword(View parent) {
-        return ((ChipView) parent.findViewById(R.id.password_text));
+        return parent.findViewById(R.id.password_text);
     }
 }

@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {FileSnapshot, LastLoadedFilesResponse, TestMessageQueryData, TestMessageResponseData, TestMessageRunTestCase} from './driver_api.js';
+import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+
+import type {FileSnapshot, LastLoadedFilesResponse, TestMessageQueryData, TestMessageResponseData, TestMessageRunTestCase} from './driver_api.js';
 import {TEST_ONLY} from './launch.js';
 
 const {
@@ -213,21 +215,23 @@ export class FakeFileSystemDirectoryHandle extends FakeFileSystemHandle
   }
   async getDirectoryHandle(
       _name: string, _options?: FileSystemGetDirectoryOptions):
-      Promise<FakeFileSystemDirectoryHandle> {
+      Promise<FileSystemDirectoryHandle> {
     throw new Error('Not implemented');
   }
 
-  async * entries(): AsyncIterableIterator<[string, FileSystemHandle]> {
+  async *
+      entries():
+          FileSystemDirectoryHandleAsyncIterator<[string, FileSystemHandle]> {
     for (const file of this.files) {
       yield [file.name, file];
     }
   }
-  async * keys(): AsyncIterableIterator<string> {
+  async * keys(): FileSystemDirectoryHandleAsyncIterator<string> {
     for (const file of this.files) {
       yield file.name;
     }
   }
-  async * values(): AsyncIterableIterator<FileSystemHandle> {
+  async * values(): FileSystemDirectoryHandleAsyncIterator<FileSystemHandle> {
     for (const file of this.files) {
       if (file.errorToFireOnIterate) {
         const error = file.errorToFireOnIterate;
@@ -239,7 +243,7 @@ export class FakeFileSystemDirectoryHandle extends FakeFileSystemHandle
   }
   async *
       [Symbol.asyncIterator]():
-          AsyncIterableIterator<[string, FileSystemHandle]> {
+          FileSystemDirectoryHandleAsyncIterator<[string, FileSystemHandle]> {
     for (const file of this.files) {
       if (file.errorToFireOnIterate) {
         const error = file.errorToFireOnIterate;
@@ -375,8 +379,8 @@ export function assertFilenamesToBe(
     expectedFilenames: string, testCase?: string) {
   // Use filenames as an approximation of file uniqueness.
   const currentFilenames = currentFiles.map(d => d.handle.name).join();
-  chai.assert.equal(
-      currentFilenames, expectedFilenames,
+  assertEquals(
+      expectedFilenames, currentFilenames,
       `Expected '${expectedFilenames}' but got '${currentFilenames}'` +
           (testCase ? ` for ${testCase}` : ''));
 }
@@ -427,15 +431,15 @@ export function launchWithFocusFile(directory: FakeFileSystemDirectoryHandle):
 
 export async function assertSingleFileLaunch(
     directory: FakeFileSystemDirectoryHandle, totalFiles: number) {
-  chai.assert.equal(1, currentFiles.length);
+  assertEquals(1, currentFiles.length);
 
   await sendFilesToGuest();
 
   const loadedFiles = await getLoadedFiles();
   // The untrusted context only loads the first file.
-  chai.assert.equal(1, loadedFiles.length);
+  assertEquals(1, loadedFiles.length);
   // All files are in the `FileSystemDirectoryHandle`.
-  chai.assert.equal(totalFiles, directory.files.length);
+  assertEquals(totalFiles, directory.files.length);
 }
 
 /**
@@ -445,11 +449,11 @@ export async function assertSingleFileLaunch(
 export async function assertFilesLoaded(
     directory: FakeFileSystemDirectoryHandle, fileNames: string[],
     testCase?: string) {
-  chai.assert.equal(fileNames.length, directory.files.length);
-  chai.assert.equal(fileNames.length, currentFiles.length);
+  assertEquals(fileNames.length, directory.files.length);
+  assertEquals(fileNames.length, currentFiles.length);
 
   const loadedFiles = await getLoadedFiles();
-  chai.assert.equal(fileNames.length, loadedFiles.length);
+  assertEquals(fileNames.length, loadedFiles.length);
 
   // Check `currentFiles` in the trusted context matches up with files sent
   // to guest.

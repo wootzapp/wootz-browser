@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 // This file contains the command buffer helper class.
 
 #ifndef GPU_COMMAND_BUFFER_CLIENT_CMD_BUFFER_HELPER_H_
@@ -12,6 +17,7 @@
 #include <string.h>
 
 #include "base/check_op.h"
+#include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
@@ -262,11 +268,27 @@ class GPU_EXPORT CommandBufferHelper {
     }
   }
 
-  void InsertFenceSync(uint64_t release_count) {
-    cmd::InsertFenceSync* c = GetCmdSpace<cmd::InsertFenceSync>();
-    if (c) {
-      c->Init(release_count);
+  uint64_t InsertFenceSync(base::FunctionRef<uint64_t()> sync_token_generator) {
+    cmd::InsertFenceSync* cmd = GetCmdSpace<cmd::InsertFenceSync>();
+
+    // Please note that it is important to generate the sync token after
+    // GetCmdSpace().
+    // 1) If InsertFenceSync command `cmd` is not successfully allocated, a sync
+    //    token shouldn't be created either. Otherwise, it results in waiting
+    //    for a fence sync that is never released.
+    // 2) Even if `cmd` is successfully allocated, we still need to generate the
+    //    sync token afterwards: The GetCmdSpace() call may result in a flush of
+    //    the command buffer. On the other hand, command buffer implementations
+    //    (such as CommandBufferProxyImpl) may assume that when a flush happens,
+    //    the commands releasing the previously-generated sync tokens are
+    //    already in the buffer and thus all flushed.
+    if (cmd) {
+      uint64_t release_count = sync_token_generator();
+      cmd->Init(release_count);
+      return release_count;
     }
+
+    return 0;
   }
 
   CommandBuffer* command_buffer() const { return command_buffer_; }

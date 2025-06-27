@@ -5,11 +5,15 @@
 #import "ios/web/content/web_state/content_web_state.h"
 
 #import "base/apple/foundation_util.h"
+#import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "components/embedder_support/ios/delegate/color_chooser/color_chooser_ios.h"
 #import "components/embedder_support/ios/delegate/file_chooser/file_select_helper_ios.h"
+#import "components/javascript_dialogs/tab_modal_dialog_manager.h"
 #import "content/public/browser/file_select_listener.h"
+#import "content/public/browser/javascript_dialog_manager.h"
 #import "content/public/browser/navigation_entry.h"
+#import "content/public/browser/visibility.h"
 #import "content/public/browser/web_contents.h"
 #import "ios/web/content/content_browser_context.h"
 #import "ios/web/content/navigation/content_navigation_context.h"
@@ -19,6 +23,7 @@
 #import "ios/web/find_in_page/java_script_find_in_page_manager_impl.h"
 #import "ios/web/public/favicon/favicon_url.h"
 #import "ios/web/public/navigation/navigation_item.h"
+#import "ios/web/public/navigation/navigation_util.h"
 #import "ios/web/public/navigation/web_state_policy_decider.h"
 #import "ios/web/public/session/crw_navigation_item_storage.h"
 #import "ios/web/public/session/crw_session_storage.h"
@@ -26,12 +31,13 @@
 #import "ios/web/public/session/proto/storage.pb.h"
 #import "ios/web/public/web_state_delegate.h"
 #import "ios/web/public/web_state_observer.h"
-#import "ios/web/text_fragments/text_fragments_manager_impl.h"
+#import "ios/web/util/content_type_util.h"
 #import "net/cert/x509_util.h"
 #import "net/cert/x509_util_apple.h"
 #import "services/network/public/mojom/referrer_policy.mojom-shared.h"
 #import "skia/ext/skia_utils_ios.h"
 #import "third_party/blink/public/mojom/favicon/favicon_url.mojom.h"
+#import "third_party/blink/public/mojom/page/page_visibility_state.mojom.h"
 #import "ui/display/display.h"
 #import "ui/display/screen.h"
 
@@ -67,8 +73,7 @@ FaviconURL::IconType IconTypeFromContentIconType(
     case blink::mojom::FaviconIconType::kInvalid:
       return FaviconURL::IconType::kInvalid;
   }
-  NOTREACHED_IN_MIGRATION();
-  return FaviconURL::IconType::kInvalid;
+  NOTREACHED();
 }
 
 // Creates a CRWSessionStorage instance from protobuf message.
@@ -77,9 +82,28 @@ FaviconURL::IconType IconTypeFromContentIconType(
 CRWSessionStorage* CreateSessionStorage(
     WebStateID unique_identifier,
     proto::WebStateMetadataStorage metadata,
-    WebState::WebStateStorageLoader storage_loader) {
-  // Load the data from disk as this is needed to create the CRWSessionStorage.
-  proto::WebStateStorage storage = std::move(storage_loader).Run();
+    WebState::WebStateStorageLoader storage_loader,
+    base::Time creation_time) {
+  // Load the data from disk, as it is required to create the CRWSessionStorage,
+  // or return an empty WebStateStorage if no storage value exists.
+  // As https://crrev.com/c/6377364 changed the way that WebState data is loaded
+  // from WebStateStorageLoader, the following has also been updated based on
+  // WebStateImpl::SerializedData::LoadStorage().
+  auto storage_optional = std::move(storage_loader).Run();
+  GURL page_visible_url = GURL(metadata.active_page().page_url());
+  proto::WebStateStorage storage;
+  if (storage_optional.has_value()) {
+    storage = std::move(storage_optional).value();
+  } else if (page_visible_url.is_valid()) {
+    const std::u16string page_title =
+        base::UTF8ToUTF16(metadata.active_page().page_title());
+    storage = CreateWebStateStorage(
+        NavigationManager::WebLoadParams(page_visible_url), page_title, false,
+        UserAgentType::AUTOMATIC, creation_time);
+  } else {
+    storage = proto::WebStateStorage();
+  }
+
   *storage.mutable_metadata() = std::move(metadata);
 
   return [[CRWSessionStorage alloc] initWithProto:storage
@@ -90,10 +114,11 @@ CRWSessionStorage* CreateSessionStorage(
 }  // namespace
 
 ContentWebState::ContentWebState(const CreateParams& params)
-    : ContentWebState(params, nil) {}
+    : ContentWebState(params, nil, base::ReturnValueOnce<NSData*>(nil)) {}
 
 ContentWebState::ContentWebState(const CreateParams& params,
-                                 CRWSessionStorage* session_storage)
+                                 CRWSessionStorage* session_storage,
+                                 NativeSessionFetcher session_fetcher)
     : unique_identifier_(session_storage ? session_storage.uniqueIdentifier
                                          : WebStateID::NewUnique()) {
   content::BrowserContext* browser_context =
@@ -101,7 +126,8 @@ ContentWebState::ContentWebState(const CreateParams& params,
   scoped_refptr<content::SiteInstance> site_instance;
   content::WebContents::CreateParams createParams(browser_context,
                                                   site_instance);
-  if (params.created_with_opener) {
+  created_with_opener_ = params.created_with_opener;
+  if (created_with_opener_) {
     ContentWebState* opener_web_state =
         static_cast<ContentWebState*>(params.opener_web_state);
     DCHECK(opener_web_state->child_web_contents_);
@@ -116,7 +142,12 @@ ContentWebState::ContentWebState(const CreateParams& params,
           params.browser_state);
   navigation_manager_ = std::make_unique<ContentNavigationManager>(
       this, params.browser_state, web_contents_->GetController());
-  web_frames_manager_ = std::make_unique<ContentWebFramesManager>(this);
+  managers_[ContentWorld::kAllContentWorlds] =
+      std::make_unique<ContentWebFramesManager>(this);
+  managers_[ContentWorld::kPageContentWorld] =
+      std::make_unique<ContentWebFramesManager>(this);
+  managers_[ContentWorld::kIsolatedWorld] =
+      std::make_unique<ContentWebFramesManager>(this);
 
   UIScrollView* web_contents_view = base::apple::ObjCCastStrict<UIScrollView>(
       web_contents_->GetNativeView().Get());
@@ -133,7 +164,6 @@ ContentWebState::ContentWebState(const CreateParams& params,
 
   // These should be moved when the are removed from CRWWebController.
   web::JavaScriptFindInPageManagerImpl::CreateForWebState(this);
-  web::TextFragmentsManagerImpl::CreateForWebState(this);
 
   session_storage_ = session_storage;
   if (session_storage) {
@@ -141,6 +171,9 @@ ContentWebState::ContentWebState(const CreateParams& params,
   } else {
     UUID_ = [[[NSUUID UUID] UUIDString] copy];
   }
+
+  creation_time_ = base::Time::Now();
+  last_active_time_ = params.last_active_time.value_or(creation_time_);
 
   RegisterNotificationObservers();
 }
@@ -153,7 +186,9 @@ ContentWebState::ContentWebState(BrowserState* browser_state,
     : ContentWebState(CreateParams(browser_state),
                       CreateSessionStorage(unique_identifier,
                                            std::move(metadata),
-                                           std::move(storage_loader))) {}
+                                           std::move(storage_loader),
+                                           base::Time::Now()),
+                      base::ReturnValueOnce<NSData*>(nil)) {}
 
 ContentWebState::~ContentWebState() {
   WebContentsObserver::Observe(nullptr);
@@ -181,6 +216,7 @@ void ContentWebState::SerializeToProto(proto::WebStateStorage& storage) const {
   // CRWSessionStorage and then converting to protobuf message format.
   DCHECK(IsRealized());
   CRWSessionStorage* session_storage = BuildSessionStorage();
+  storage.set_has_opener(created_with_opener_);
   [session_storage serializeToProto:storage];
 }
 
@@ -200,7 +236,8 @@ std::unique_ptr<WebState> ContentWebState::Clone() const {
   CRWSessionStorage* session_storage = BuildSessionStorage();
   session_storage.stableIdentifier = [[NSUUID UUID] UUIDString];
   session_storage.uniqueIdentifier = WebStateID::NewUnique();
-  auto clone = std::make_unique<ContentWebState>(params, session_storage);
+  auto clone = std::make_unique<ContentWebState>(
+      params, session_storage, base::ReturnValueOnce<NSData*>(nil));
   IgnoreOverRealizationCheck();
   clone->ForceRealized();
   return clone;
@@ -250,15 +287,19 @@ void ContentWebState::DidCoverWebContent() {}
 void ContentWebState::DidRevealWebContent() {}
 
 base::Time ContentWebState::GetLastActiveTime() const {
-  return base::Time::Now();
+  return last_active_time_;
 }
 
 base::Time ContentWebState::GetCreationTime() const {
-  return base::Time::Now();
+  return creation_time_;
 }
 
 void ContentWebState::WasShown() {
   ForceRealized();
+
+  // Update last active time when the ContentWebState transition to visible.
+  last_active_time_ = base::Time::Now();
+
   for (auto& observer : observers_) {
     observer.WasShown(this);
   }
@@ -281,7 +322,11 @@ base::WeakPtr<WebState> ContentWebState::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-void ContentWebState::OpenURL(const OpenURLParams& params) {}
+void ContentWebState::OpenURL(const OpenURLParams& params) {
+  if (delegate_) {
+    delegate_->OpenURLFromWebState(this, params);
+  }
+}
 
 void ContentWebState::LoadSimulatedRequest(const GURL& url,
                                            NSString* response_html_string) {}
@@ -290,7 +335,10 @@ void ContentWebState::LoadSimulatedRequest(const GURL& url,
                                            NSData* response_data,
                                            NSString* mime_type) {}
 
-void ContentWebState::Stop() {}
+void ContentWebState::Stop() {
+  DCHECK(web_contents_);
+  web_contents_->Stop();
+}
 
 const NavigationManager* ContentWebState::GetNavigationManager() const {
   return navigation_manager_.get();
@@ -301,7 +349,7 @@ NavigationManager* ContentWebState::GetNavigationManager() {
 }
 
 WebFramesManager* ContentWebState::GetPageWorldWebFramesManager() {
-  return web_frames_manager_.get();
+  return managers_[ContentWorld::kPageContentWorld].get();
 }
 
 const SessionCertificatePolicyCache*
@@ -325,7 +373,13 @@ void ContentWebState::LoadData(NSData* data,
                                NSString* mime_type,
                                const GURL& url) {}
 
-void ContentWebState::ExecuteUserJavaScript(NSString* javaScript) {}
+void ContentWebState::ExecuteUserJavaScript(NSString* javaScript) {
+  auto* primary_main_frame = web_contents_->GetPrimaryMainFrame();
+  DCHECK(primary_main_frame);
+
+  primary_main_frame->ExecuteJavaScript(base::SysNSStringToUTF16(javaScript),
+                                        {});
+}
 
 NSString* ContentWebState::GetStableIdentifier() const {
   return UUID_;
@@ -336,12 +390,11 @@ WebStateID ContentWebState::GetUniqueIdentifier() const {
 }
 
 const std::string& ContentWebState::GetContentsMimeType() const {
-  static std::string type = "text/html";
-  return type;
+  return web_contents_->GetContentsMimeType();
 }
 
 bool ContentWebState::ContentIsHTML() const {
-  return true;
+  return web::IsContentTypeHtml(GetContentsMimeType());
 }
 
 const std::u16string& ContentWebState::GetTitle() const {
@@ -363,11 +416,14 @@ double ContentWebState::GetLoadingProgress() const {
 }
 
 bool ContentWebState::IsVisible() const {
-  return true;
+  DCHECK(web_contents_);
+  return web_contents_->GetVisibility() == content::Visibility::VISIBLE ? true
+                                                                        : false;
 }
 
 bool ContentWebState::IsCrashed() const {
-  return false;
+  DCHECK(web_contents_);
+  return web_contents_->IsCrashed();
 }
 
 bool ContentWebState::IsEvicted() const {
@@ -375,11 +431,13 @@ bool ContentWebState::IsEvicted() const {
 }
 
 bool ContentWebState::IsBeingDestroyed() const {
-  return false;
+  DCHECK(web_contents_);
+  return web_contents_->IsBeingDestroyed();
 }
 
 bool ContentWebState::IsWebPageInFullscreenMode() const {
-  return false;
+  DCHECK(web_contents_);
+  return web_contents_->IsFullscreen();
 }
 
 const FaviconStatus& ContentWebState::GetFaviconStatus() const {
@@ -417,7 +475,7 @@ std::optional<GURL> ContentWebState::GetLastCommittedURLIfTrusted() const {
 }
 
 WebFramesManager* ContentWebState::GetWebFramesManager(ContentWorld world) {
-  return web_frames_manager_.get();
+  return managers_[world].get();
 }
 
 CRWWebViewProxyType ContentWebState::GetWebViewProxy() const {
@@ -432,7 +490,11 @@ void ContentWebState::RemoveObserver(WebStateObserver* observer) {
   observers_.RemoveObserver(observer);
 }
 
-void ContentWebState::CloseWebState() {}
+void ContentWebState::CloseWebState() {
+  if (delegate_) {
+    delegate_->CloseWebState(this);
+  }
+}
 
 bool ContentWebState::SetSessionStateData(NSData* data) {
   return false;
@@ -509,10 +571,12 @@ void ContentWebState::DidChangeVisibleSecurityState() {
 }
 
 bool ContentWebState::HasOpener() const {
-  return false;
+  return created_with_opener_;
 }
 
-void ContentWebState::SetHasOpener(bool has_opener) {}
+void ContentWebState::SetHasOpener(bool has_opener) {
+  created_with_opener_ = has_opener;
+}
 
 bool ContentWebState::CanTakeSnapshot() const {
   return false;
@@ -573,9 +637,43 @@ void ContentWebState::DidStopLoading() {
   }
 }
 
+void ContentWebState::DidFinishLoad(content::RenderFrameHost* render_frame_host,
+                                    const GURL& validated_url) {
+  if (!render_frame_host->IsInPrimaryMainFrame()) {
+    return;
+  }
+
+  for (auto& observer : observers_) {
+    observer.PageLoaded(this, web::PageLoadCompletionStatus::SUCCESS);
+  }
+}
+
+void ContentWebState::DidFailLoad(content::RenderFrameHost* render_frame_host,
+                                  const GURL& validated_url,
+                                  int error_code) {
+  if (!render_frame_host->IsInPrimaryMainFrame()) {
+    return;
+  }
+
+  for (auto& observer : observers_) {
+    observer.PageLoaded(this, web::PageLoadCompletionStatus::FAILURE);
+  }
+}
+
 void ContentWebState::LoadProgressChanged(double progress) {
   for (auto& observer : observers_) {
     observer.LoadProgressChanged(this, progress);
+  }
+}
+
+void ContentWebState::OnVisibilityChanged(content::Visibility visibility) {
+  // Occlusion is not supported on iOS.
+  DCHECK_NE(visibility, content::Visibility::OCCLUDED);
+
+  if (visibility == content::Visibility::VISIBLE) {
+    WasShown();
+  } else {
+    WasHidden();
   }
 }
 
@@ -632,7 +730,7 @@ void ContentWebState::PrimaryMainFrameRenderProcessGone(
   }
 }
 
-void ContentWebState::AddNewContents(
+content::WebContents* ContentWebState::AddNewContents(
     content::WebContents* source,
     std::unique_ptr<content::WebContents> new_contents,
     const GURL& target_url,
@@ -645,6 +743,7 @@ void ContentWebState::AddNewContents(
   delegate_->CreateNewWebState(this, target_url, GetLastCommittedURL(),
                                user_gesture);
   DCHECK(!child_web_contents_);
+  return nullptr;
 }
 
 int ContentWebState::GetTopControlsHeight() {
@@ -760,6 +859,13 @@ void ContentWebState::RunFileChooser(
     const blink::mojom::FileChooserParams& params) {
   web_contents_delegate_ios::FileSelectHelperIOS::RunFileChooser(
       render_frame_host, listener, params);
+}
+
+content::JavaScriptDialogManager* ContentWebState::GetJavaScriptDialogManager(
+    content::WebContents* source) {
+  content::JavaScriptDialogManager* dialog =
+      javascript_dialogs::TabModalDialogManager::FromWebContents(source);
+  return dialog;
 }
 
 }  // namespace web

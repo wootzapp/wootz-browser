@@ -6,17 +6,14 @@
 
 #include "base/command_line.h"
 #include "base/test/run_until.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/test/fullscreen_test_util.h"
 #include "chrome/browser/ui/test/popup_test_base.h"
-#include "chrome/browser/ui/views/exclusive_access_bubble_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "content/public/test/browser_test.h"
@@ -29,57 +26,27 @@
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/shell.h"
-#include "ui/display/test/display_manager_test_api.h"  // nogncheck
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
 namespace {
-
-// Time to wait for exit bubble transitions.
-static constexpr int kExitBubbleTransitionTimeMs = 500;
-
-// Async function which opens a fullscreen popup on another screen.
-// Falls back to opening a popup on the current screen in testing scenarios
-// where window management is not granted in SetUpWindowManagement().
-static constexpr char kFullscreenPopupOtherScreenScript[] = R"JS(
-    (() =>
-          {
-            otherScreen = (!!window.screenDetails && screenDetails.screens
-              .find(s => s != screenDetails.currentScreen)) || window.screen;
-            return open('/simple.html', '_blank',
-                    `top=${otherScreen.availTop},
-                    left=${otherScreen.availLeft},
-                    height=200,
-                    width=200,
-                    popup,
-                    fullscreen`);
-          })()
-  )JS";
-
-// Return the exclusive access bubble view for a specified browser.
-ExclusiveAccessBubbleViews* GetExclusiveAccessBubble(Browser* browser) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  return browser_view->exclusive_access_bubble();
-}
 
 // Tests popups with multi-screen features from the Window Management API.
 // Tests are run with and without the requisite Window Management permission.
 // Tests must run in series to manage virtual displays on supported platforms.
 // Use 2+ physical displays to run locally with --gtest_also_run_disabled_tests.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+// See: //docs/ui/display/multiscreen_testing.md
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 #define MAYBE_PopupMultiScreenTest PopupMultiScreenTest
 #else
 #define MAYBE_PopupMultiScreenTest DISABLED_PopupMultiScreenTest
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/371121282): Re-enable the test.
+// TODO(crbug.com/365126887): Re-enable the test.
+#undef MAYBE_PopupMultiScreenTest
+#define MAYBE_PopupMultiScreenTest DISABLED_PopupMultiScreenTest
+#endif  // BUILDFLAG(IS_WIN)
 class MAYBE_PopupMultiScreenTest : public PopupTestBase,
                                    public ::testing::WithParamInterface<bool> {
  public:
-  MAYBE_PopupMultiScreenTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {blink::features::kFullscreenPopupWindows}, {});
-  }
-
   void SetUpCommandLine(base::CommandLine* command_line) override {
     PopupTestBase::SetUpCommandLine(command_line);
     command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
@@ -95,16 +62,14 @@ class MAYBE_PopupMultiScreenTest : public PopupTestBase,
     content::WebContents* web_contents =
         browser()->tab_strip_model()->GetActiveWebContents();
     ASSERT_TRUE(NavigateToURL(web_contents,
-                embedded_test_server()->GetURL("/simple.html")));
+                              embedded_test_server()->GetURL("/simple.html")));
     EXPECT_TRUE(WaitForRenderFrameReady(web_contents->GetPrimaryMainFrame()));
     if (ShouldTestWindowManagement()) {
       SetUpWindowManagement(browser());
     }
   }
 
-  void TearDownOnMainThread() override {
-    virtual_display_util_.reset();
-  }
+  void TearDownOnMainThread() override { virtual_display_util_.reset(); }
 
  protected:
   bool ShouldTestWindowManagement() { return GetParam(); }
@@ -116,23 +81,16 @@ class MAYBE_PopupMultiScreenTest : public PopupTestBase,
     if (display::Screen::GetScreen()->GetNumDisplays() > 1) {
       return true;
     }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    display::test::DisplayManagerTestApi(ash::Shell::Get()->display_manager())
-        .UpdateDisplay("100+100-801x802,901+100-802x803");
-    return true;
-#else
     if ((virtual_display_util_ = display::test::VirtualDisplayUtil::TryCreate(
              display::Screen::GetScreen()))) {
       virtual_display_util_->AddDisplay(
-          1, display::test::VirtualDisplayUtil::k1920x1080);
+          display::test::VirtualDisplayUtil::k1024x768);
       return true;
     }
     return false;
-#endif
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<display::test::VirtualDisplayUtil> virtual_display_util_;
 };
 
@@ -145,7 +103,7 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, Basic) {
       display::Screen::GetScreen()->GetAllDisplays();
   for (const display::Display& opener_display : displays) {
     browser()->window()->SetBounds(opener_display.work_area());
-    ASSERT_EQ(opener_display, GetDisplayNearestBrowser(browser()));
+    ASSERT_EQ(opener_display.id(), GetDisplayNearestBrowser(browser()).id());
     for (const char* url : {"/simple.html", "about:blank"}) {
       const std::string open_script =
           content::JsReplace("open($1, '', 'popup');", url);
@@ -173,7 +131,7 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, OpenOnAnotherScreen) {
       display::Screen::GetScreen()->GetAllDisplays();
   for (const display::Display& opener_display : displays) {
     browser()->window()->SetBounds(opener_display.work_area());
-    ASSERT_EQ(opener_display, GetDisplayNearestBrowser(browser()));
+    ASSERT_EQ(opener_display.id(), GetDisplayNearestBrowser(browser()).id());
     for (const display::Display& target_display : displays) {
       for (const char* url : {"/simple.html", "about:blank"}) {
         const std::string open_script = content::JsReplace(
@@ -201,7 +159,9 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, OpenOnAnotherScreen) {
 }
 
 // Tests opening a popup on the same screen, then moving it to another screen.
-IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, MoveToAnotherScreen) {
+// TODO(crbug.com/365057654): Test is failing on Mac bot.
+IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest,
+                       DISABLED_MoveToAnotherScreen) {
   content::WebContents* opener_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   // Copy the display vector so references are not invalidated while looping.
@@ -209,7 +169,7 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, MoveToAnotherScreen) {
   std::vector<display::Display> displays = screen->GetAllDisplays();
   for (const display::Display& opener_display : displays) {
     browser()->window()->SetBounds(opener_display.work_area());
-    ASSERT_EQ(opener_display, GetDisplayNearestBrowser(browser()));
+    ASSERT_EQ(opener_display.id(), GetDisplayNearestBrowser(browser()).id());
     gfx::Point opener_display_center = opener_display.work_area().CenterPoint();
     for (const display::Display& target_display : displays) {
       for (const char* url : {"/simple.html", "about:blank"}) {
@@ -227,7 +187,8 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, MoveToAnotherScreen) {
             target_display.work_area().y());
         {
           SCOPED_TRACE(
-              testing::Message() << "\n"
+              testing::Message()
+              << "\n"
               << "script: " << open_script << " " << move_script << "\n"
               << "opener: " << browser()->window()->GetBounds().ToString()
               << " popup: " << popup->window()->GetBounds().ToString());
@@ -291,7 +252,7 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, CrossOriginIFrame) {
       display::Screen::GetScreen()->GetAllDisplays();
   for (const display::Display& opener_display : displays) {
     browser()->window()->SetBounds(opener_display.work_area());
-    ASSERT_EQ(opener_display, GetDisplayNearestBrowser(browser()));
+    ASSERT_EQ(opener_display.id(), GetDisplayNearestBrowser(browser()).id());
     for (const bool iframe_policy_granted : {true, false}) {
       content::RenderFrameHost* cross_origin_iframe =
           ChildFrameAt(web_contents, iframe_policy_granted ? 1 : 0);
@@ -320,74 +281,6 @@ IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, CrossOriginIFrame) {
       }
     }
   }
-}
-
-// Tests opening a fullscreen popup on another display, when permitted.
-IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest, FullscreenDifferentScreen) {
-  Browser* popup = OpenPopup(browser(), kFullscreenPopupOtherScreenScript);
-  content::WebContents* popup_contents =
-      popup->tab_strip_model()->GetActiveWebContents();
-  if (ShouldTestWindowManagement()) {
-    content::WaitForHTMLFullscreen(popup_contents);
-  }
-  EXPECT_EQ(EvalJs(popup_contents,
-                   "!!document.fullscreenElement && "
-                   "document.fullscreenElement == document.documentElement")
-                .ExtractBool(),
-            ShouldTestWindowManagement());
-  EXPECT_TRUE(EvalJs(popup_contents,
-                     "screen.availLeft == opener.otherScreen.availLeft && "
-                     "screen.availTop == opener.otherScreen.availTop")
-                  .ExtractBool());
-  FullscreenController* fullscreen_controller =
-      popup->exclusive_access_manager()->fullscreen_controller();
-  EXPECT_FALSE(fullscreen_controller->IsFullscreenForBrowser());
-  EXPECT_EQ(fullscreen_controller->IsTabFullscreen(),
-            ShouldTestWindowManagement());
-}
-
-// Similar to FullscreenDifferentScreen, but focuses on exit bubble behavior.
-// Tests that the fullscreen exit bubble is reshown when the cursor initially
-// enters the screen where a fullscreen popup was opened.
-IN_PROC_BROWSER_TEST_P(MAYBE_PopupMultiScreenTest,
-                       FullscreenDifferentScreenExitBubble) {
-  if (!ShouldTestWindowManagement()) {
-    GTEST_SKIP() << "Test not applicable with window management disabled.";
-  }
-  Browser* popup = OpenPopup(browser(), kFullscreenPopupOtherScreenScript);
-  content::WebContents* popup_contents =
-      popup->tab_strip_model()->GetActiveWebContents();
-
-  WaitForHTMLFullscreen(popup_contents);
-  ASSERT_TRUE(base::test::RunUntil(
-      [&]() { return GetExclusiveAccessBubble(popup) != nullptr; }));
-  ExclusiveAccessBubbleViews* bubble = GetExclusiveAccessBubble(popup);
-  auto wait_for_visible = [&](bool visible) {
-    return base::test::RunUntil(
-        [&]() { return bubble->IsVisibleForTesting() == visible; });
-  };
-  // Wait for the exit bubble to become visible.
-  ASSERT_TRUE(wait_for_visible(true));
-  // Wait for the exit bubble to auto-hide.
-  ASSERT_TRUE(wait_for_visible(false));
-  // Simulate user input on the exclusive context.
-  display::Screen::GetScreen()->SetCursorScreenPointForTesting(
-      popup->window()->GetBounds().CenterPoint());
-  bubble->OnUserInput();
-  // Wait for bubble to re-appear.
-  ASSERT_TRUE(wait_for_visible(true));
-  // Wait for the bubble to auto-hide again.
-  ASSERT_TRUE(wait_for_visible(false));
-  // Simulate input and ensure the exit bubble doesn't show again.
-  bubble->OnUserInput();
-  // Wait a short amount of time (for any transition), and ensure the exit
-  // bubble is not visible.
-  base::Time now = base::Time::Now();
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return (base::Time::Now() - now).InMilliseconds() >
-           kExitBubbleTransitionTimeMs;
-  }));
-  EXPECT_FALSE(bubble->IsVisibleForTesting());
 }
 
 }  // namespace

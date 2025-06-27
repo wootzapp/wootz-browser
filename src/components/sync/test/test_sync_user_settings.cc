@@ -4,7 +4,6 @@
 
 #include "components/sync/test/test_sync_user_settings.h"
 
-#include "build/chromeos_buildflags.h"
 #include "components/sync/base/passphrase_enums.h"
 #include "components/sync/base/user_selectable_type.h"
 #include "components/sync/engine/nigori/nigori.h"
@@ -20,25 +19,25 @@ const char kDefaultPassphrase[] = "TestPassphrase";
 
 }  // namespace
 
-ModelTypeSet UserSelectableTypesToModelTypes(
+DataTypeSet UserSelectableTypesToDataTypes(
     UserSelectableTypeSet selected_types) {
-  ModelTypeSet preferred_types;
+  DataTypeSet preferred_types;
   for (UserSelectableType type : selected_types) {
-    preferred_types.PutAll(UserSelectableTypeToAllModelTypes(type));
+    preferred_types.PutAll(UserSelectableTypeToAllDataTypes(type));
   }
   return preferred_types;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-ModelTypeSet UserSelectableOsTypesToModelTypes(
+#if BUILDFLAG(IS_CHROMEOS)
+DataTypeSet UserSelectableOsTypesToDataTypes(
     UserSelectableOsTypeSet selected_types) {
-  ModelTypeSet preferred_types;
+  DataTypeSet preferred_types;
   for (UserSelectableOsType type : selected_types) {
-    preferred_types.PutAll(UserSelectableOsTypeToAllModelTypes(type));
+    preferred_types.PutAll(UserSelectableOsTypeToAllDataTypes(type));
   }
   return preferred_types;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 TestSyncUserSettings::TestSyncUserSettings(TestSyncService* service)
     : service_(service) {}
@@ -49,12 +48,12 @@ bool TestSyncUserSettings::IsInitialSyncFeatureSetupComplete() const {
   return initial_sync_feature_setup_complete_;
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 void TestSyncUserSettings::SetInitialSyncFeatureSetupComplete(
     SyncFirstSetupCompleteSource source) {
   SetInitialSyncFeatureSetupComplete();
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 bool TestSyncUserSettings::IsSyncEverythingEnabled() const {
   return sync_everything_enabled_;
@@ -82,21 +81,31 @@ void TestSyncUserSettings::SetSelectedType(UserSelectableType type,
   }
 }
 
+void TestSyncUserSettings::ResetSelectedType(UserSelectableType type) {
+  // In the real implementation, this would reset the selected type to its
+  // default value. Since `selected_types_` is populated with all types by
+  // default, this can be considered resetting.
+  selected_types_.Put(type);
+}
+
 void TestSyncUserSettings::KeepAccountSettingsPrefsOnlyForUsers(
     const std::vector<signin::GaiaIdHash>& available_gaia_ids) {}
 
 UserSelectableTypeSet TestSyncUserSettings::GetSelectedTypes() const {
+  if (service_->GetAccountInfo().IsEmpty()) {
+    return {};
+  }
   return selected_types_;
 }
 
 bool TestSyncUserSettings::IsTypeManagedByPolicy(
     UserSelectableType type) const {
-  return managed_types_.Has(type);
+  return managed_by_policy_types_.Has(type);
 }
 
 bool TestSyncUserSettings::IsTypeManagedByCustodian(
     UserSelectableType type) const {
-  return false;
+  return managed_by_custodian_types_.Has(type);
 }
 
 SyncUserSettings::UserSelectableTypePrefState
@@ -108,18 +117,12 @@ TestSyncUserSettings::GetTypePrefStateForAccount(
   return SyncUserSettings::UserSelectableTypePrefState::kDisabled;
 }
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-int TestSyncUserSettings::GetNumberOfAccountsWithPasswordsSelected() const {
-  return selected_types_.Has(UserSelectableType::kPasswords) ? 1 : 0;
-}
-#endif
-
-ModelTypeSet TestSyncUserSettings::GetPreferredDataTypes() const {
-  ModelTypeSet types = UserSelectableTypesToModelTypes(GetSelectedTypes());
+DataTypeSet TestSyncUserSettings::GetPreferredDataTypes() const {
+  DataTypeSet types = UserSelectableTypesToDataTypes(GetSelectedTypes());
   types.PutAll(AlwaysPreferredUserTypes());
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  types.PutAll(UserSelectableOsTypesToModelTypes(GetSelectedOsTypes()));
+#if BUILDFLAG(IS_CHROMEOS)
+  types.PutAll(UserSelectableOsTypesToDataTypes(GetSelectedOsTypes()));
 #endif
   types.PutAll(ControlTypes());
   return types;
@@ -130,7 +133,7 @@ UserSelectableTypeSet TestSyncUserSettings::GetRegisteredSelectableTypes()
   return registered_selectable_types_;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 bool TestSyncUserSettings::IsSyncFeatureDisabledViaDashboard() const {
   return sync_feature_disabled_via_dashboard_;
 }
@@ -178,20 +181,6 @@ UserSelectableOsTypeSet TestSyncUserSettings::GetRegisteredSelectableOsTypes()
 }
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-void TestSyncUserSettings::SetAppsSyncEnabledByOs(bool apps_sync_enabled) {
-  UserSelectableTypeSet selected_types = GetSelectedTypes();
-  if (apps_sync_enabled) {
-    selected_types.Put(UserSelectableType::kApps);
-  } else {
-    selected_types.Remove(UserSelectableType::kApps);
-  }
-  SetSelectedTypes(
-      /*sync_everything=*/false,
-      /*types=*/selected_types);
-}
-#endif
-
 bool TestSyncUserSettings::IsCustomPassphraseAllowed() const {
   return custom_passphrase_allowed_;
 }
@@ -204,7 +193,7 @@ bool TestSyncUserSettings::IsEncryptEverythingEnabled() const {
   return IsExplicitPassphrase(passphrase_type_);
 }
 
-ModelTypeSet TestSyncUserSettings::GetAllEncryptedDataTypes() const {
+DataTypeSet TestSyncUserSettings::GetAllEncryptedDataTypes() const {
   return IsUsingExplicitPassphrase() ? EncryptableUserTypes()
                                      : AlwaysEncryptedUserTypes();
 }
@@ -288,16 +277,25 @@ void TestSyncUserSettings::ClearInitialSyncFeatureSetupComplete() {
   initial_sync_feature_setup_complete_ = false;
 }
 
-void TestSyncUserSettings::SetTypeIsManaged(UserSelectableType type,
-                                            bool managed) {
+void TestSyncUserSettings::SetTypeIsManagedByPolicy(UserSelectableType type,
+                                                    bool managed) {
   if (managed) {
-    managed_types_.Put(type);
+    managed_by_policy_types_.Put(type);
   } else {
-    managed_types_.Remove(type);
+    managed_by_policy_types_.Remove(type);
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+void TestSyncUserSettings::SetTypeIsManagedByCustodian(UserSelectableType type,
+                                                       bool managed) {
+  if (managed) {
+    managed_by_custodian_types_.Put(type);
+  } else {
+    managed_by_custodian_types_.Remove(type);
+  }
+}
+
+#if BUILDFLAG(IS_CHROMEOS)
 void TestSyncUserSettings::SetOsTypeIsManaged(UserSelectableOsType type,
                                               bool managed) {
   if (managed) {

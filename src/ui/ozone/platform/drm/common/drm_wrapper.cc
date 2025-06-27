@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/ozone/platform/drm/common/drm_wrapper.h"
 
 #include <fcntl.h>
@@ -200,13 +205,21 @@ bool DrmWrapper::SetCursor(uint32_t crtc_id,
 bool DrmWrapper::SetMaster() {
   TRACE_EVENT1("drm", "DrmWrapper::SetMaster", "path", device_path_.value());
   DCHECK(drm_fd_.is_valid());
-  return (drmSetMaster(drm_fd_.get()) == 0);
+  has_master_ = (drmSetMaster(drm_fd_.get()) == 0);
+  return has_master_;
 }
 
 bool DrmWrapper::DropMaster() {
   TRACE_EVENT1("drm", "DrmWrapper::DropMaster", "path", device_path_.value());
   DCHECK(drm_fd_.is_valid());
-  return (drmDropMaster(drm_fd_.get()) == 0);
+  const bool drop_master_result = (drmDropMaster(drm_fd_.get()) == 0);
+  // Chrome no longer has DRM master if drop master call succeeded.
+  has_master_ = !drop_master_result;
+  return drop_master_result;
+}
+
+bool DrmWrapper::has_master() const {
+  return has_master_;
 }
 
 /**************

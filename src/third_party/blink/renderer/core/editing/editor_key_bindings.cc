@@ -27,7 +27,6 @@
 #include "third_party/blink/renderer/core/editing/editor.h"
 
 #include "third_party/blink/public/common/input/web_input_event.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/editing/commands/editing_command_filter.h"
 #include "third_party/blink/renderer/core/editing/commands/editor_command.h"
 #include "third_party/blink/renderer/core/editing/editing_behavior.h"
@@ -55,7 +54,8 @@ bool Editor::HandleEditingKeyboardEvent(KeyboardEvent* evt) {
     node = frame_->GetDocument()->FocusedElement();
   }
   if (node) {
-    if (const ComputedStyle* style = node->GetComputedStyle()) {
+    if (const ComputedStyle* style =
+            GetComputedStyleForElementOrLayoutObject(*node)) {
       writing_mode = style->GetWritingMode();
     }
   }
@@ -88,11 +88,12 @@ bool Editor::HandleEditingKeyboardEvent(KeyboardEvent* evt) {
   if (auto* edit_context =
           GetFrame().GetInputMethodController().GetActiveEditContext()) {
     if (DispatchBeforeInputInsertText(evt->target()->ToNode(),
-                                      key_event->text) !=
-        DispatchEventResult::kNotCanceled)
+                                      key_event->text.data()) !=
+        DispatchEventResult::kNotCanceled) {
       return true;
+    }
 
-    WebString text(WTF::String(key_event->text));
+    WebString text(WTF::String(key_event->text.data()));
     edit_context->InsertText(text);
     return true;
   }
@@ -112,11 +113,13 @@ bool Editor::HandleEditingKeyboardEvent(KeyboardEvent* evt) {
     return false;
 
   // Return true to prevent default action. e.g. Space key scroll.
-  if (DispatchBeforeInputInsertText(evt->target()->ToNode(), key_event->text) !=
-      DispatchEventResult::kNotCanceled)
+  if (DispatchBeforeInputInsertText(evt->target()->ToNode(),
+                                    key_event->text.data()) !=
+      DispatchEventResult::kNotCanceled) {
     return true;
+  }
 
-  return InsertText(key_event->text, evt);
+  return InsertText(key_event->text.data(), evt);
 }
 
 void Editor::HandleKeyboardEvent(KeyboardEvent* evt) {

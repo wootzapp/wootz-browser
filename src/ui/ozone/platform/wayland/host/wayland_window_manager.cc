@@ -4,8 +4,12 @@
 
 #include "ui/ozone/platform/wayland/host/wayland_window_manager.h"
 
+#include <algorithm>
+
+#include "base/check.h"
 #include "base/observer_list.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+#include "ui/display/display.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 #include "ui/ozone/platform/wayland/host/wayland_window.h"
 #include "ui/ozone/platform/wayland/host/wayland_window_drag_controller.h"
@@ -27,13 +31,16 @@ void WaylandWindowManager::RemoveObserver(WaylandWindowObserver* observer) {
 }
 
 void WaylandWindowManager::NotifyWindowConfigured(WaylandWindow* window) {
-  for (WaylandWindowObserver& observer : observers_)
-    observer.OnWindowConfigured(window);
+  observers_.Notify(&WaylandWindowObserver::OnWindowConfigured, window);
 }
 
 void WaylandWindowManager::NotifyWindowRoleAssigned(WaylandWindow* window) {
-  for (WaylandWindowObserver& observer : observers_)
-    observer.OnWindowRoleAssigned(window);
+  observers_.Notify(&WaylandWindowObserver::OnWindowRoleAssigned, window);
+}
+
+void WaylandWindowManager::NotifyWindowRemovedFromSession(
+    WaylandWindow* window) {
+  observers_.Notify(&WaylandWindowObserver::OnWindowRemovedFromSession, window);
 }
 
 void WaylandWindowManager::GrabLocatedEvents(WaylandWindow* window) {
@@ -185,20 +192,33 @@ void WaylandWindowManager::SetKeyboardFocusedWindow(WaylandWindow* window) {
   if (window == old_focused_window)
     return;
   keyboard_focused_window_ = window;
-  for (auto& observer : observers_)
-    observer.OnKeyboardFocusedWindowChanged();
+  observers_.Notify(&WaylandWindowObserver::OnKeyboardFocusedWindowChanged);
+  auto* old_focused_toplevel_window =
+      old_focused_window
+          ? old_focused_window->GetRootParentWindow()->AsWaylandToplevelWindow()
+          : nullptr;
+  auto* focused_toplevel_window =
+      window ? window->GetRootParentWindow()->AsWaylandToplevelWindow()
+             : nullptr;
+  if (focused_toplevel_window != old_focused_toplevel_window) {
+    if (old_focused_toplevel_window) {
+      old_focused_toplevel_window->UpdateActivationState();
+    }
+    if (focused_toplevel_window) {
+      focused_toplevel_window->UpdateActivationState();
+    }
+  }
 }
 
 void WaylandWindowManager::AddWindow(gfx::AcceleratedWidget widget,
                                      WaylandWindow* window) {
   window_map_[widget] = window;
 
-  for (WaylandWindowObserver& observer : observers_)
-    observer.OnWindowAdded(window);
+  observers_.Notify(&WaylandWindowObserver::OnWindowAdded, window);
 }
 
 void WaylandWindowManager::RemoveWindow(gfx::AcceleratedWidget widget) {
-  auto* window = window_map_[widget];
+  auto* window = window_map_[widget].get();
   DCHECK(window);
 
   window_map_.erase(widget);
@@ -215,32 +235,33 @@ void WaylandWindowManager::RemoveWindow(gfx::AcceleratedWidget widget) {
   }
   if (window == keyboard_focused_window_) {
     keyboard_focused_window_ = nullptr;
-    for (auto& observer : observers_) {
-      observer.OnKeyboardFocusedWindowChanged();
+    observers_.Notify(&WaylandWindowObserver::OnKeyboardFocusedWindowChanged);
+    auto* toplevel_window =
+        window->GetRootParentWindow()->AsWaylandToplevelWindow();
+    if (toplevel_window && toplevel_window != window) {
+      toplevel_window->UpdateActivationState();
     }
   }
 
-  for (WaylandWindowObserver& observer : observers_) {
-    observer.OnWindowRemoved(window);
-  }
+  observers_.Notify(&WaylandWindowObserver::OnWindowRemoved, window);
 }
 
 void WaylandWindowManager::AddSubsurface(gfx::AcceleratedWidget widget,
                                          WaylandSubsurface* subsurface) {
-  auto* window = window_map_[widget];
+  auto* window = window_map_[widget].get();
   DCHECK(window);
 
-  for (WaylandWindowObserver& observer : observers_)
-    observer.OnSubsurfaceAdded(window, subsurface);
+  observers_.Notify(&WaylandWindowObserver::OnSubsurfaceAdded, window,
+                    subsurface);
 }
 
 void WaylandWindowManager::RemoveSubsurface(gfx::AcceleratedWidget widget,
                                             WaylandSubsurface* subsurface) {
-  auto* window = window_map_[widget];
+  auto* window = window_map_[widget].get();
   DCHECK(window);
 
-  for (WaylandWindowObserver& observer : observers_)
-    observer.OnSubsurfaceRemoved(window, subsurface);
+  observers_.Notify(&WaylandWindowObserver::OnSubsurfaceRemoved, window,
+                    subsurface);
 }
 
 void WaylandWindowManager::RecycleSubsurface(
@@ -279,6 +300,38 @@ bool WaylandWindowManager::IsWindowValid(const WaylandWindow* window) const {
       return true;
   }
   return false;
+}
+
+void WaylandWindowManager::SetFontScale(float new_font_scale) {
+  if (new_font_scale == font_scale_) {
+    return;
+  }
+  font_scale_ = new_font_scale;
+  for (WaylandWindow* window : GetAllWindows()) {
+    window->OnFontScaleFactorChanged();
+  }
+}
+
+float WaylandWindowManager::DetermineUiScale() const {
+  using display::Display;
+  constexpr float kMinUiScale = 0.5f;
+  constexpr float kMaxUiScale = 3.0f;
+  CHECK(connection_->IsUiScaleEnabled() || font_scale_ == 1.0f) << font_scale_;
+
+  const float ui_scale =
+      Display::HasForceDeviceScaleFactor() && connection_->IsUiScaleEnabled()
+          ? Display::GetForcedDeviceScaleFactor()
+          : font_scale_;
+  return std::clamp(ui_scale, kMinUiScale, kMaxUiScale);
+}
+
+void WaylandWindowManager::UpdateActivationState() {
+  for (auto& pair : window_map_) {
+    auto* toplevel_window = pair.second->AsWaylandToplevelWindow();
+    if (toplevel_window) {
+      toplevel_window->UpdateActivationState();
+    }
+  }
 }
 
 }  // namespace ui

@@ -4,8 +4,9 @@
 
 #include "chrome/browser/ui/webui/metrics_internals/metrics_internals_ui.h"
 
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/webui/metrics_internals/field_trials_handler.h"
 #include "chrome/browser/ui/webui/metrics_internals/metrics_internals_handler.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/grit/metrics_internals_resources.h"
 #include "components/grit/metrics_internals_resources_map.h"
@@ -14,6 +15,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "ui/webui/webui_util.h"
 
 #if BUILDFLAG(STRUCTURED_METRICS_DEBUG_ENABLED)
 #include "chrome/browser/ui/webui/metrics_internals/structured_metrics_internals_handler.h"
@@ -27,12 +29,14 @@ MetricsInternalsUI::MetricsInternalsUI(content::WebUI* web_ui)
       chrome::kChromeUIMetricsInternalsHost);
 
   // Add required resources.
-  webui::SetupWebUIDataSource(source,
-                              base::make_span(kMetricsInternalsResources,
-                                              kMetricsInternalsResourcesSize),
+  webui::SetupWebUIDataSource(source, kMetricsInternalsResources,
                               IDR_METRICS_INTERNALS_METRICS_INTERNALS_HTML);
 
   web_ui->AddMessageHandler(std::make_unique<MetricsInternalsHandler>());
+
+  web_ui->AddMessageHandler(
+      std::make_unique<FieldTrialsHandler>(Profile::FromBrowserContext(
+          web_ui->GetWebContents()->GetBrowserContext())));
 
 // Set up the resource and message handler for
 // chrome://metrics-internals/structured.

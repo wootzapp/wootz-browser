@@ -6,17 +6,21 @@
 
 #include <algorithm>
 
+#include "base/check.h"
 #include "build/build_config.h"
 #include "components/vector_icons/vector_icons.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/base/default_style.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
+#include "ui/color/color_variant.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/paint_recorder.h"
 #include "ui/display/display.h"
@@ -29,6 +33,7 @@
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/strings/grit/ui_strings.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/footnote_container_view.h"
@@ -39,6 +44,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/layout_provider.h"
+#include "ui/views/metadata/type_conversion.h"
 #include "ui/views/paint_info.h"
 #include "ui/views/resources/grit/views_resources.h"
 #include "ui/views/style/typography.h"
@@ -58,8 +64,9 @@ namespace {
 int GetOverflowLength(const gfx::Rect& available_bounds,
                       const gfx::Rect& window_bounds,
                       bool vertical) {
-  if (available_bounds.IsEmpty() || available_bounds.Contains(window_bounds))
+  if (available_bounds.IsEmpty() || available_bounds.Contains(window_bounds)) {
     return 0;
+  }
 
   //  window_bounds
   //  +---------------------------------+
@@ -69,9 +76,10 @@ int GetOverflowLength(const gfx::Rect& available_bounds,
   //  |      +------------------+       |
   //  |            bottom               |
   //  +---------------------------------+
-  if (vertical)
+  if (vertical) {
     return std::max(0, available_bounds.y() - window_bounds.y()) +
            std::max(0, window_bounds.bottom() - available_bounds.bottom());
+  }
   return std::max(0, available_bounds.x() - window_bounds.x()) +
          std::max(0, window_bounds.right() - available_bounds.right());
 }
@@ -106,8 +114,9 @@ BubbleFrameView::BubbleFrameView(const gfx::Insets& title_margins,
 
   auto minimize = CreateMinimizeButton(base::BindRepeating(
       [](BubbleFrameView* view, const ui::Event& event) {
-        if (view->input_protector_.IsPossiblyUnintendedInteraction(event))
+        if (view->input_protector_.IsPossiblyUnintendedInteraction(event)) {
           return;
+        }
         view->GetWidget()->Minimize();
       },
       this));
@@ -117,8 +126,9 @@ BubbleFrameView::BubbleFrameView(const gfx::Insets& title_margins,
 
   auto close = CreateCloseButton(base::BindRepeating(
       [](BubbleFrameView* view, const ui::Event& event) {
-        if (view->input_protector_.IsPossiblyUnintendedInteraction(event))
+        if (view->input_protector_.IsPossiblyUnintendedInteraction(event)) {
           return;
+        }
         view->GetWidget()->CloseWithReason(
             Widget::ClosedReason::kCloseButtonClicked);
       },
@@ -147,6 +157,7 @@ std::unique_ptr<Label> BubbleFrameView::CreateDefaultTitleLabel(
       title_text, style::CONTEXT_DIALOG_TITLE, style::STYLE_PRIMARY);
   if (base::FeatureList::IsEnabled(features::kBubbleFrameViewTitleIsHeading)) {
     label->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
+    label->GetViewAccessibility().SetHierarchicalLevel(1);
   }
   return label;
 }
@@ -157,7 +168,8 @@ std::unique_ptr<Button> BubbleFrameView::CreateCloseButton(
   auto close_button = CreateVectorImageButtonWithNativeTheme(
       std::move(callback), vector_icons::kCloseChromeRefreshIcon);
   close_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_APP_CLOSE));
-  close_button->SetAccessibleName(l10n_util::GetStringUTF16(IDS_APP_CLOSE));
+  close_button->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_APP_CLOSE));
   close_button->SizeToPreferredSize();
 
   InstallCircleHighlightPathGenerator(close_button.get());
@@ -172,7 +184,7 @@ std::unique_ptr<Button> BubbleFrameView::CreateMinimizeButton(
       std::move(callback), kWindowControlMinimizeIcon);
   minimize_button->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_APP_ACCNAME_MINIMIZE));
-  minimize_button->SetAccessibleName(
+  minimize_button->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_APP_ACCNAME_MINIMIZE));
   minimize_button->SizeToPreferredSize();
 
@@ -242,18 +254,22 @@ int BubbleFrameView::NonClientHitTest(const gfx::Point& point) {
 #if !BUILDFLAG(IS_WIN)
   // Windows will automatically create a tooltip for the button based on
   // the HTCLOSE or the HTMINBUTTON
-  if (close_->GetVisible() && close_->GetMirroredBounds().Contains(point))
+  if (close_->GetVisible() && close_->GetMirroredBounds().Contains(point)) {
     return HTCLOSE;
-  if (minimize_->GetVisible() && minimize_->GetMirroredBounds().Contains(point))
+  }
+  if (minimize_->GetVisible() &&
+      minimize_->GetMirroredBounds().Contains(point)) {
     return HTMINBUTTON;
+  }
 #endif
 
   // Convert to RRectF to accurately represent the rounded corners of the
   // dialog and allow events to pass through the shadows.
   gfx::RRectF round_contents_bounds(gfx::RectF(GetContentsBounds()),
                                     bubble_border_->corner_radius());
-  if (bubble_border_->shadow() != BubbleBorder::NO_SHADOW)
+  if (bubble_border_->shadow() != BubbleBorder::NO_SHADOW) {
     round_contents_bounds.Outset(BubbleBorder::kBorderThicknessDip);
+  }
   gfx::RectF rectf_point(point.x(), point.y(), 1, 1);
   if (!round_contents_bounds.Contains(rectf_point)) {
     return HTTRANSPARENT;
@@ -279,15 +295,17 @@ int BubbleFrameView::NonClientHitTest(const gfx::Point& point) {
 void BubbleFrameView::GetWindowMask(const gfx::Size& size,
                                     SkPath* window_mask) {
   if (bubble_border_->shadow() != BubbleBorder::STANDARD_SHADOW &&
-      bubble_border_->shadow() != BubbleBorder::NO_SHADOW)
+      bubble_border_->shadow() != BubbleBorder::NO_SHADOW) {
     return;
+  }
 
   // We don't return a mask for windows with arrows unless they use
   // BubbleBorder::NO_SHADOW.
   if (bubble_border_->shadow() != BubbleBorder::NO_SHADOW &&
       bubble_border_->arrow() != BubbleBorder::NONE &&
-      bubble_border_->arrow() != BubbleBorder::FLOAT)
+      bubble_border_->arrow() != BubbleBorder::FLOAT) {
     return;
+  }
 
   // Use a window mask roughly matching the border in the image assets.
   const int kBorderStrokeSize =
@@ -354,13 +372,11 @@ void BubbleFrameView::UpdateWindowTitle() {
   InvalidateLayout();
 }
 
-void BubbleFrameView::SizeConstraintsChanged() {}
-
 void BubbleFrameView::InsertClientView(ClientView* client_view) {
   // Place the client view before any footnote view for focus order.
   footnote_container_
       ? AddChildViewAt(client_view, GetIndexOf(footnote_container_).value())
-      : AddChildView(client_view);
+      : AddChildViewRaw(client_view);
 }
 
 void BubbleFrameView::UpdateWindowRoundedCorners() {
@@ -370,7 +386,8 @@ void BubbleFrameView::UpdateWindowRoundedCorners() {
   // to the client view layer or applying a mask.  However, certain
   // implementations of the client view may need to do additional work to have a
   // rounded window.
-  GetWidget()->client_view()->UpdateWindowRoundedCorners(GetCornerRadius());
+  GetWidget()->client_view()->UpdateWindowRoundedCorners(
+      gfx::RoundedCornersF(GetCornerRadius()));
 }
 
 bool BubbleFrameView::HasWindowTitle() const {
@@ -609,8 +626,24 @@ void BubbleFrameView::Layout(PassKey) {
       title_label_x, bounds.y() + (title_height - title_preferred_height) / 2,
       title_available_width, title_preferred_height);
 
-  title_icon_->SetBounds(bounds.x(), bounds.y(), title_icon_pref_size.width(),
-                         title_height);
+  // For default titles, align the icon with the first line of the title if the
+  // icon height is equal to or smaller than the line height. Otherwise, align
+  // the title with the center of the icon.
+  if (default_title_ &&
+      title_icon_pref_size.height() <= default_title_->GetLineHeight()) {
+    // Offsets the y bounds by half the difference of the first line height and
+    // icon height which essentially centers the icon with the middle of the
+    // first line.
+    title_icon_->SetBounds(
+        bounds.x(),
+        bounds.y() +
+            (default_title_->GetLineHeight() - title_icon_pref_size.height()) /
+                2,
+        title_icon_pref_size.width(), title_icon_pref_size.height());
+  } else {
+    title_icon_->SetBounds(bounds.x(), bounds.y(), title_icon_pref_size.width(),
+                           title_height);
+  }
 
   main_image_->SetBounds(0, 0, main_image_->GetPreferredSize({}).width(),
                          main_image_->GetPreferredSize({}).height());
@@ -688,8 +721,9 @@ void BubbleFrameView::PaintChildren(const PaintInfo& paint_info) {
 void BubbleFrameView::SetBubbleBorder(std::unique_ptr<BubbleBorder> border) {
   bubble_border_ = border.get();
 
-  if (footnote_container_)
+  if (footnote_container_) {
     footnote_container_->SetCornerRadius(border->corner_radius());
+  }
 
   // Update the background, which relies on the border. First set it to null to
   // avoid dangling pointers, and then update it.
@@ -791,14 +825,10 @@ bool BubbleFrameView::GetDisplayVisibleArrow() const {
   return bubble_border_->visible_arrow();
 }
 
-void BubbleFrameView::SetBackgroundColor(SkColor color) {
+void BubbleFrameView::SetBackgroundColor(ui::ColorVariant color) {
   bubble_border_->SetColor(color);
   UpdateClientViewBackground();
   SchedulePaint();
-}
-
-SkColor BubbleFrameView::GetBackgroundColor() const {
-  return bubble_border_->color();
 }
 
 void BubbleFrameView::UpdateClientViewBackground() {
@@ -811,8 +841,10 @@ void BubbleFrameView::UpdateClientViewBackground() {
   if (client_view->layer()) {
     // If the ClientView's background is transparent this could result in visual
     // artifacts. Make sure this isn't the case.
-    DCHECK_EQ(SK_AlphaOPAQUE, SkColorGetA(GetBackgroundColor()));
-    client_view->SetBackground(CreateSolidBackground(GetBackgroundColor()));
+    const SkColor color =
+        background_color().ResolveToSkColor(GetWidget()->GetColorProvider());
+    CHECK(SkColor4f::FromColor(color).isOpaque());
+    client_view->SetBackground(CreateSolidBackground(color));
     client_view->SchedulePaint();
   }
 }
@@ -903,8 +935,9 @@ gfx::Rect BubbleFrameView::GetAvailableAnchorWindowBounds() const {
       GetWidget()->widget_delegate()->AsBubbleDialogDelegate();
   if (bubble_delegate_view) {
     views::View* const anchor_view = bubble_delegate_view->GetAnchorView();
-    if (anchor_view && anchor_view->GetWidget())
+    if (anchor_view && anchor_view->GetWidget()) {
       return anchor_view->GetWidget()->GetWindowBoundsInScreen();
+    }
   }
   return gfx::Rect();
 }
@@ -986,8 +1019,9 @@ void BubbleFrameView::OffsetArrowIfOutOfBounds(
          preferred_arrow_adjustment_ == PreferredArrowAdjustment::kOffset);
 
   gfx::Rect window_bounds(bubble_border_->GetBounds(anchor_rect, client_size));
-  if (available_bounds.IsEmpty() || available_bounds.Contains(window_bounds))
+  if (available_bounds.IsEmpty() || available_bounds.Contains(window_bounds)) {
     return;
+  }
 
   // Calculate off-screen adjustment.
   const bool is_horizontal = BubbleBorder::is_arrow_on_horizontal(arrow);
@@ -997,10 +1031,11 @@ void BubbleFrameView::OffsetArrowIfOutOfBounds(
     // offset the window to fit as much of it in the available bounds as
     // possible without exiting the other side of the available bounds.
     if (window_bounds.width() > available_bounds.width()) {
-      if (window_bounds.x() < available_bounds.x())
+      if (window_bounds.x() < available_bounds.x()) {
         offscreen_adjust = available_bounds.right() - window_bounds.right();
-      else
+      } else {
         offscreen_adjust = available_bounds.x() - window_bounds.x();
+      }
     } else if (window_bounds.x() < available_bounds.x()) {
       offscreen_adjust = available_bounds.x() - window_bounds.x();
     } else if (window_bounds.right() > available_bounds.right()) {
@@ -1008,10 +1043,11 @@ void BubbleFrameView::OffsetArrowIfOutOfBounds(
     }
   } else {
     if (window_bounds.height() > available_bounds.height()) {
-      if (window_bounds.y() < available_bounds.y())
+      if (window_bounds.y() < available_bounds.y()) {
         offscreen_adjust = available_bounds.bottom() - window_bounds.bottom();
-      else
+      } else {
         offscreen_adjust = available_bounds.y() - window_bounds.y();
+      }
     } else if (window_bounds.y() < available_bounds.y()) {
       offscreen_adjust = available_bounds.y() - window_bounds.y();
     } else if (window_bounds.bottom() > available_bounds.bottom()) {
@@ -1038,8 +1074,9 @@ int BubbleFrameView::GetFrameWidthForClientWidth(int client_width) const {
 
   DialogDelegate* const dialog_delegate =
       GetWidget()->widget_delegate()->AsDialogDelegate();
-  bool snapping = dialog_delegate &&
-                  dialog_delegate->GetDialogButtons() != ui::DIALOG_BUTTON_NONE;
+  bool snapping =
+      dialog_delegate && dialog_delegate->buttons() !=
+                             static_cast<int>(ui::mojom::DialogButton::kNone);
   return snapping ? LayoutProvider::Get()->GetSnappedDialogWidth(frame_width)
                   : frame_width;
 }
@@ -1053,8 +1090,9 @@ gfx::Size BubbleFrameView::GetFrameSizeForClientSize(
 
   // Only account for footnote_container_'s height if it's visible, because
   // content_margins_ adds extra padding even if all child views are invisible.
-  if (footnote_container_ && footnote_container_->GetVisible())
+  if (footnote_container_ && footnote_container_->GetVisible()) {
     size.Enlarge(0, footnote_container_->GetHeightForWidth(size.width()));
+  }
 
   if (main_image_->GetVisible()) {
     size.set_height(
@@ -1227,6 +1265,10 @@ std::unique_ptr<Label> BubbleFrameView::CreateLabelWithContextAndStyle(
   return label;
 }
 
+SkColor BubbleFrameView::GetBackgroundColor() const {
+  return bubble_border_->color().ResolveToSkColor(GetColorProvider());
+}
+
 BEGIN_METADATA(BubbleFrameView)
 ADD_PROPERTY_METADATA(std::optional<double>, Progress)
 ADD_PROPERTY_METADATA(gfx::Insets, ContentMargins)
@@ -1246,3 +1288,8 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(BubbleFrameView,
                                       kProgressIndicatorElementId);
 
 }  // namespace views
+
+DEFINE_ENUM_CONVERTERS(
+    views::BubbleFrameView::PreferredArrowAdjustment,
+    {views::BubbleFrameView::PreferredArrowAdjustment::kMirror, u"kMirror"},
+    {views::BubbleFrameView::PreferredArrowAdjustment::kOffset, u"kOffset"})

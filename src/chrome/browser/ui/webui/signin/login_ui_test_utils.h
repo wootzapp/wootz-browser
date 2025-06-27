@@ -47,14 +47,21 @@ bool SignInWithUI(Browser* browser,
 // Waits for sync confirmation dialog to get displayed, then executes javascript
 // to click on confirm button. Returns false if dialog wasn't dismissed before
 // |timeout|.
-bool ConfirmSyncConfirmationDialog(
+[[nodiscard]] bool ConfirmSyncConfirmationDialog(
+    Browser* browser,
+    base::TimeDelta timeout = kSyncConfirmationDialogTimeout);
+
+// Waits for sync confirmation dialog to get displayed, then executes javascript
+// to click on settings button. Returns false if dialog wasn't dismissed before
+// |timeout|.
+[[nodiscard]] bool GoToSettingsSyncConfirmationDialog(
     Browser* browser,
     base::TimeDelta timeout = kSyncConfirmationDialogTimeout);
 
 // Waits for sync confirmation dialog to get displayed, then executes javascript
 // to click on cancel button. Returns false if dialog wasn't dismissed before
 // |timeout|.
-bool CancelSyncConfirmationDialog(
+[[nodiscard]] bool CancelSyncConfirmationDialog(
     Browser* browser,
     base::TimeDelta timeout = kSyncConfirmationDialogTimeout);
 
@@ -65,16 +72,6 @@ bool CompleteSigninEmailConfirmationDialog(
     Browser* browser,
     base::TimeDelta timeout,
     SigninEmailConfirmationDialog::Action action);
-
-// Waits for the reauth confirmation dialog to get displayed, then executes
-// javascript to click on confirm button. Returns false if dialog wasn't
-// dismissed before |timeout|.
-bool ConfirmReauthConfirmationDialog(Browser* browser, base::TimeDelta timeout);
-
-// Waits for the reauth confirmation dialog to get displayed, then executes
-// javascript to click on cancel button. Returns false if dialog wasn't
-// dismissed before |timeout|.
-bool CancelReauthConfirmationDialog(Browser* browser, base::TimeDelta timeout);
 
 // Waits for profile customization dialog to get displayed, then executes
 // javascript to click on done button. Returns false if dialog wasn't

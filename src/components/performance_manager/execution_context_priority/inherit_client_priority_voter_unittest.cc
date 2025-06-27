@@ -28,62 +28,40 @@ const execution_context::ExecutionContext* GetExecutionContext(
       ->GetExecutionContextForWorkerNode(worker_node);
 }
 
-// All voting system components are expected to live on the graph, without being
-// actual GraphOwned objects. This class wraps them to allow this.
-class GraphOwnedWrapper : public GraphOwned {
- public:
-  GraphOwnedWrapper()
-      : inherit_client_priority_voter_(
-            dummy_vote_observer_.BuildVotingChannel()),
-        voter_id_(inherit_client_priority_voter_.voter_id()) {}
-
-  GraphOwnedWrapper(const GraphOwnedWrapper&) = delete;
-  GraphOwnedWrapper& operator=(const GraphOwnedWrapper&) = delete;
-
-  // GraphOwned:
-  void OnPassedToGraph(Graph* graph) override {
-    inherit_client_priority_voter_.InitializeOnGraph(graph);
-  }
-  void OnTakenFromGraph(Graph* graph) override {
-    inherit_client_priority_voter_.TearDownOnGraph(graph);
-  }
-
-  // Exposes the vote observer to validate expectations.
-  const DummyVoteObserver& observer() const { return dummy_vote_observer_; }
-
-  VoterId voter_id() { return voter_id_; }
-
- private:
-  DummyVoteObserver dummy_vote_observer_;
-
-  InheritClientPriorityVoter inherit_client_priority_voter_;
-
-  // The VoterId of |inherit_client_priority_voter_|.
-  VoterId voter_id_;
-};
-
-}  // namespace
-
 class InheritClientPriorityVoterTest : public GraphTestHarness {
  public:
   using Super = GraphTestHarness;
 
+  InheritClientPriorityVoterTest() = default;
+  ~InheritClientPriorityVoterTest() override = default;
+
+  InheritClientPriorityVoterTest(const InheritClientPriorityVoterTest&) =
+      delete;
+  InheritClientPriorityVoterTest& operator=(
+      const InheritClientPriorityVoterTest&) = delete;
+
   void SetUp() override {
     Super::SetUp();
+    inherit_client_priority_voter_.InitializeOnGraph(
+        graph(), observer_.BuildVotingChannel());
+  }
 
-    auto wrapper = std::make_unique<GraphOwnedWrapper>();
-    wrapper_ = wrapper.get();
-    graph()->PassToGraph(std::move(wrapper));
+  void TearDown() override {
+    inherit_client_priority_voter_.TearDownOnGraph(graph());
+    Super::TearDown();
   }
 
   // Exposes the DummyVoteObserver to validate expectations.
-  const DummyVoteObserver& observer() const { return wrapper_->observer(); }
+  const DummyVoteObserver& observer() const { return observer_; }
 
-  VoterId voter_id() { return wrapper_->voter_id(); }
+  VoterId voter_id() const { return inherit_client_priority_voter_.voter_id(); }
 
  private:
-  raw_ptr<GraphOwnedWrapper> wrapper_ = nullptr;
+  DummyVoteObserver observer_;
+  InheritClientPriorityVoter inherit_client_priority_voter_;
 };
+
+}  // namespace
 
 TEST_F(InheritClientPriorityVoterTest, OneWorker) {
   MockSinglePageInSingleProcessGraph mock_graph(graph());
@@ -94,17 +72,16 @@ TEST_F(InheritClientPriorityVoterTest, OneWorker) {
 
   EXPECT_EQ(observer().GetVoteCount(), 0u);
 
-  // Create the worker. A vote will be submitted to inherit the (currently
-  // default) priority of its client.
+  // Create the worker. No vote will be submitted yet as it still has a default
+  // priority.
   WorkerNodeImpl* worker_node =
       test_worker_node_factory_.CreateDedicatedWorker(process_node, frame_node);
-  EXPECT_EQ(observer().GetVoteCount(), 1u);
-  EXPECT_TRUE(observer().HasVote(
-      voter_id(), GetExecutionContext(worker_node), base::TaskPriority::LOWEST,
-      InheritClientPriorityVoter::kPriorityInheritedReason));
+  EXPECT_EQ(observer().GetVoteCount(), 0u);
+  EXPECT_FALSE(
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node)));
 
-  // Test that changing the priority for the frame also changes the inherited
-  // vote.
+  // Now set the priority of the client to a non-default value, and expect an
+  // inherited vote.
   frame_node->SetPriorityAndReason(
       {base::TaskPriority::USER_VISIBLE, "Some reason"});
 
@@ -128,7 +105,7 @@ TEST_F(InheritClientPriorityVoterTest, MultipleWorkers) {
   ProcessNodeImpl* process_node = mock_graph.process.get();
   FrameNodeImpl* frame_node = mock_graph.frame.get();
 
-  // Set the priority of the frame node.
+  // Set a non-default priority on the client frame.
   frame_node->SetPriorityAndReason(
       {base::TaskPriority::USER_VISIBLE, "Some reason"});
 
@@ -161,7 +138,7 @@ TEST_F(InheritClientPriorityVoterTest, DeepWorkerTree) {
   ProcessNodeImpl* process_node = mock_graph.process.get();
   FrameNodeImpl* frame_node = mock_graph.frame.get();
 
-  // Set the priority of the frame node.
+  // Set a non-default priority on the client frame.
   frame_node->SetPriorityAndReason(
       {base::TaskPriority::USER_VISIBLE, "Some reason"});
 
@@ -212,12 +189,13 @@ TEST_F(InheritClientPriorityVoterTest, MultipleClients) {
   WorkerNodeImpl* worker_node = test_worker_node_factory_.CreateSharedWorker(
       process_node, {frame_node_1, frame_node_2});
 
-  EXPECT_EQ(observer().GetVoteCount(), 1u);
-  EXPECT_TRUE(observer().HasVote(
-      voter_id(), GetExecutionContext(worker_node), base::TaskPriority::LOWEST,
-      InheritClientPriorityVoter::kPriorityInheritedReason));
+  // No vote will be submitted yet as its clients still have a default priority.
+  EXPECT_EQ(observer().GetVoteCount(), 0u);
+  EXPECT_FALSE(
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node)));
 
-  // Change the priority of the first client.
+  // Change the priority of the first client to a non-default value. This will
+  // create a vote for the worker.
   frame_node_1->SetPriorityAndReason(
       {base::TaskPriority::USER_VISIBLE, "Some reason"});
   EXPECT_EQ(observer().GetVoteCount(), 1u);
@@ -226,7 +204,8 @@ TEST_F(InheritClientPriorityVoterTest, MultipleClients) {
                          base::TaskPriority::USER_VISIBLE,
                          InheritClientPriorityVoter::kPriorityInheritedReason));
 
-  // Change the priority of the second client.
+  // Change the priority of the second client to a higher priority. The worker
+  // will inherit this priority instead.
   frame_node_2->SetPriorityAndReason(
       {base::TaskPriority::USER_BLOCKING, "Some reason"});
   EXPECT_EQ(observer().GetVoteCount(), 1u);
@@ -243,26 +222,33 @@ TEST_F(InheritClientPriorityVoterTest, SamePriorityDifferentReason) {
   ProcessNodeImpl* process_node = mock_graph.process.get();
   FrameNodeImpl* frame_node = mock_graph.frame.get();
 
+  // Set a non-default priority on the client frame.
+  frame_node->SetPriorityAndReason(
+      {base::TaskPriority::USER_VISIBLE, "Some reason"});
+
   EXPECT_EQ(observer().GetVoteCount(), 0u);
 
-  // Create the worker. A vote will be submitted to inherit the (currently
-  // default) priority of its client.
+  // Create the worker. A vote will be submitted to inherit the priority of its
+  // client.
   WorkerNodeImpl* worker_node =
       test_worker_node_factory_.CreateDedicatedWorker(process_node, frame_node);
   EXPECT_EQ(observer().GetVoteCount(), 1u);
-  EXPECT_TRUE(observer().HasVote(
-      voter_id(), GetExecutionContext(worker_node), base::TaskPriority::LOWEST,
-      InheritClientPriorityVoter::kPriorityInheritedReason));
+  EXPECT_TRUE(
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
+                         base::TaskPriority::USER_VISIBLE,
+                         InheritClientPriorityVoter::kPriorityInheritedReason));
 
-  // Set a different PriorityAndReason. The priority stays the same, but the
-  // reason changed.
-  frame_node->SetPriorityAndReason({base::TaskPriority::LOWEST, "Some reason"});
+  // Set a different PriorityAndReason for the client. The priority stays the
+  // same, but the reason changed.
+  frame_node->SetPriorityAndReason(
+      {base::TaskPriority::USER_VISIBLE, "Another reason"});
 
   // Should not change the inherited priority and should not crash.
   EXPECT_EQ(observer().GetVoteCount(), 1u);
-  EXPECT_TRUE(observer().HasVote(
-      voter_id(), GetExecutionContext(worker_node), base::TaskPriority::LOWEST,
-      InheritClientPriorityVoter::kPriorityInheritedReason));
+  EXPECT_TRUE(
+      observer().HasVote(voter_id(), GetExecutionContext(worker_node),
+                         base::TaskPriority::USER_VISIBLE,
+                         InheritClientPriorityVoter::kPriorityInheritedReason));
 
   // Removing the worker also removes the inherited vote.
   test_worker_node_factory_.DeleteWorker(worker_node);

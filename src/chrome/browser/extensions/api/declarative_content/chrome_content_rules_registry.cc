@@ -18,6 +18,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/rules_registry_ids.h"
 #include "extensions/common/api/declarative/declarative_constants.h"
 #include "extensions/common/extension_id.h"
 
@@ -82,7 +83,7 @@ ChromeContentRulesRegistry::ChromeContentRulesRegistry(
     : ContentRulesRegistry(browser_context,
                            declarative_content_constants::kOnPageChanged,
                            cache_delegate,
-                           RulesRegistryService::kDefaultRulesRegistryID),
+                           rules_registry_ids::kDefaultRulesRegistryID),
       evaluators_(std::move(evaluators_factory).Run(this)),
       evaluation_disposition_(EVALUATE_REQUESTS) {}
 
@@ -156,7 +157,7 @@ ChromeContentRulesRegistry::ContentRule::ContentRule(
       actions(std::move(actions)),
       priority(priority) {}
 
-ChromeContentRulesRegistry::ContentRule::~ContentRule() {}
+ChromeContentRulesRegistry::ContentRule::~ContentRule() = default;
 
 std::unique_ptr<const ChromeContentRulesRegistry::ContentRule>
 ChromeContentRulesRegistry::CreateRule(
@@ -437,7 +438,6 @@ size_t ChromeContentRulesRegistry::GetActiveRulesCountForTesting() {
   return count;
 }
 
-ChromeContentRulesRegistry::~ChromeContentRulesRegistry() {
-}
+ChromeContentRulesRegistry::~ChromeContentRulesRegistry() = default;
 
 }  // namespace extensions

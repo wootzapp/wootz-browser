@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/check_op.h"
+#include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
@@ -54,7 +55,7 @@ class SyncLoadContext::SignalHelper final {
   void SignalRedirectOrResponseComplete() {
     abort_watcher_.StopWatching();
     if (timeout_timer_)
-      timeout_timer_->AbandonAndStop();
+      timeout_timer_->Stop();
     redirect_or_response_event_->Signal();
   }
 
@@ -104,7 +105,7 @@ void SyncLoadContext::StartAsyncWithWaitableEvent(
     uint32_t loader_options,
     std::unique_ptr<network::PendingSharedURLLoaderFactory>
         pending_url_loader_factory,
-    WebVector<std::unique_ptr<URLLoaderThrottle>> throttles,
+    std::vector<std::unique_ptr<URLLoaderThrottle>> throttles,
     SyncLoadResponse* response,
     SyncLoadContext** context_for_redirect,
     base::WaitableEvent* redirect_or_response_event,
@@ -290,10 +291,9 @@ void SyncLoadContext::OnBodyReadable(MojoResult,
                                      const mojo::HandleSignalsState&) {
   DCHECK_EQ(Mode::kDataPipe, mode_);
   DCHECK(body_handle_.is_valid());
-  const void* buffer = nullptr;
-  size_t read_bytes = 0;
-  MojoResult result = body_handle_->BeginReadData(&buffer, &read_bytes,
-                                                  MOJO_READ_DATA_FLAG_NONE);
+  base::span<const uint8_t> buffer;
+  MojoResult result =
+      body_handle_->BeginReadData(MOJO_READ_DATA_FLAG_NONE, buffer);
   if (result == MOJO_RESULT_SHOULD_WAIT) {
     body_watcher_.ArmOrNotify();
     return;
@@ -316,12 +316,11 @@ void SyncLoadContext::OnBodyReadable(MojoResult,
   }
 
   if (!response_->data) {
-    response_->data =
-        SharedBuffer::Create(static_cast<const char*>(buffer), read_bytes);
+    response_->data = SharedBuffer::Create(buffer);
   } else {
-    response_->data->Append(static_cast<const char*>(buffer), read_bytes);
+    response_->data->Append(buffer);
   }
-  body_handle_->EndReadData(read_bytes);
+  body_handle_->EndReadData(buffer.size());
   body_watcher_.ArmOrNotify();
 }
 

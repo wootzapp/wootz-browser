@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "content/common/content_switches_internal.h"
 
 #include <string>
@@ -65,14 +70,6 @@ std::string FromNativeString(const std::string& string) {
 
 }  // namespace
 
-bool IsPinchToZoomEnabled() {
-  const base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
-
-  // Enable pinch everywhere unless it's been explicitly disabled.
-  return !command_line.HasSwitch(switches::kDisablePinch);
-}
-
 blink::mojom::V8CacheOptions GetV8CacheOptions() {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
@@ -130,7 +127,7 @@ std::vector<std::string> FeaturesFromSwitch(
     const base::CommandLine& command_line,
     const char* switch_name) {
   using NativeString = base::CommandLine::StringType;
-  using NativeStringPiece = base::CommandLine::StringPieceType;
+  using NativeStringView = base::CommandLine::StringViewType;
 
   std::vector<std::string> features;
   if (!command_line.HasSwitch(switch_name))
@@ -140,7 +137,7 @@ std::vector<std::string> FeaturesFromSwitch(
   // (No string copies for the args that don't match the prefix.)
   NativeString prefix =
       ToNativeString(base::StringPrintf("--%s=", switch_name));
-  for (NativeStringPiece arg : command_line.argv()) {
+  for (NativeStringView arg : command_line.argv()) {
     // Switch names are case insensitive on Windows, but base::CommandLine has
     // already made them lowercase when building argv().
     if (!base::StartsWith(arg, prefix, base::CompareCase::SENSITIVE)) {

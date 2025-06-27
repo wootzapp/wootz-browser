@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/child_accounts/usage_time_limit_processor.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
@@ -12,7 +18,6 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -1073,7 +1078,7 @@ base::TimeDelta DictToTimeDelta(const base::Value::Dict& policy_time) {
 
 // Transforms weekday strings into the Weekday enum.
 Weekday GetWeekday(std::string weekday) {
-  base::ranges::transform(weekday, weekday.begin(), ::tolower);
+  std::ranges::transform(weekday, weekday.begin(), ::tolower);
   for (int i = 0; i < static_cast<int>(Weekday::kCount); i++) {
     if (weekday == kTimeLimitWeekdays[i]) {
       return static_cast<Weekday>(i);

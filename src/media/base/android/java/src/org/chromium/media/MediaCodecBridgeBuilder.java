@@ -13,15 +13,18 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 
 import org.chromium.base.Log;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.media.MediaCodecUtil.CodecCreationInfo;
 import org.chromium.media.MediaCodecUtil.MimeTypes;
 
 @JNINamespace("media")
+@NullMarked
 class MediaCodecBridgeBuilder {
     private static final String TAG = "MediaCodecBridge";
 
     @CalledByNative
-    static MediaCodecBridge createVideoDecoder(
+    static @Nullable MediaCodecBridge createVideoDecoder(
             String mime,
             @CodecType int codecType,
             MediaCrypto mediaCrypto,
@@ -33,14 +36,17 @@ class MediaCodecBridgeBuilder {
             HdrMetadata hdrMetadata,
             boolean allowAdaptivePlayback,
             boolean useAsyncApi,
-            String decoderName) {
+            boolean useBlockModel,
+            String decoderName,
+            int profile) {
         CodecCreationInfo info = new CodecCreationInfo();
         try {
             Log.i(
                     TAG,
-                    "create MediaCodec video decoder, mime %s, decoder name %s",
+                    "create MediaCodec video decoder, mime %s, decoder name %s, block_model=%b",
                     mime,
-                    decoderName);
+                    decoderName,
+                    useBlockModel);
             if (!decoderName.isEmpty()) {
                 info = MediaCodecUtil.createDecoderByName(mime, decoderName);
             } else {
@@ -59,9 +65,17 @@ class MediaCodecBridgeBuilder {
                             height,
                             csds,
                             hdrMetadata,
-                            info.supportsAdaptivePlayback && allowAdaptivePlayback);
+                            info.supportsAdaptivePlayback && allowAdaptivePlayback,
+                            profile);
+            assert format != null;
 
-            if (!bridge.configureVideo(format, surface, mediaCrypto, 0)) return null;
+            if (!bridge.configureVideo(
+                    format,
+                    surface,
+                    mediaCrypto,
+                    useBlockModel ? MediaCodec.CONFIGURE_FLAG_USE_BLOCK_MODEL : 0)) {
+                return null;
+            }
 
             if (!bridge.start()) {
                 bridge.release();
@@ -82,7 +96,7 @@ class MediaCodecBridgeBuilder {
     }
 
     @CalledByNative
-    static MediaCodecBridge createVideoEncoder(
+    static @Nullable MediaCodecBridge createVideoEncoder(
             String mime,
             int width,
             int height,
@@ -131,7 +145,7 @@ class MediaCodecBridgeBuilder {
     }
 
     @CalledByNative
-    static MediaCodecBridge createAudioDecoder(
+    static @Nullable MediaCodecBridge createAudioDecoder(
             String mime,
             MediaCrypto mediaCrypto,
             int sampleRate,
@@ -145,25 +159,27 @@ class MediaCodecBridgeBuilder {
         try {
             Log.i(TAG, "create MediaCodec audio decoder, mime %s", mime);
             info = MediaCodecUtil.createDecoder(mime, CodecType.ANY, mediaCrypto);
+
+            if (info.mediaCodec == null) return null;
+
+            MediaCodecBridge bridge =
+                    new MediaCodecBridge(info.mediaCodec, info.bitrateAdjuster, useAsyncApi);
+            byte[][] csds = {csd0, csd1, csd2};
+            MediaFormat format =
+                    MediaFormatBuilder.createAudioFormat(
+                            mime, sampleRate, channelCount, csds, frameHasAdtsHeader);
+
+            if (!bridge.configureAudio(format, mediaCrypto, 0)) return null;
+
+            if (!bridge.start()) {
+                bridge.release();
+                return null;
+            }
+            return bridge;
+
         } catch (Exception e) {
             Log.e(TAG, "Failed to create MediaCodec audio decoder: %s", mime, e);
         }
-
-        if (info.mediaCodec == null) return null;
-
-        MediaCodecBridge bridge =
-                new MediaCodecBridge(info.mediaCodec, info.bitrateAdjuster, useAsyncApi);
-        byte[][] csds = {csd0, csd1, csd2};
-        MediaFormat format =
-                MediaFormatBuilder.createAudioFormat(
-                        mime, sampleRate, channelCount, csds, frameHasAdtsHeader);
-
-        if (!bridge.configureAudio(format, mediaCrypto, 0)) return null;
-
-        if (!bridge.start()) {
-            bridge.release();
-            return null;
-        }
-        return bridge;
+        return null;
     }
 }

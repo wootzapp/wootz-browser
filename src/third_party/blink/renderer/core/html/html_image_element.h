@@ -35,7 +35,6 @@
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html/html_image_loader.h"
 #include "third_party/blink/renderer/core/resize_observer/resize_observer.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_types.h"
 #include "third_party/blink/renderer/platform/graphics/image_orientation.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
@@ -177,10 +176,6 @@ class CORE_EXPORT HTMLImageElement
   void SetPredictedLcpElement() { is_predicted_lcp_element_ = true; }
   bool IsPredictedLcpElement() const { return is_predicted_lcp_element_; }
 
-  bool IsChangedShortlyAfterMouseover() const {
-    return is_changed_shortly_after_mouseover_;
-  }
-
   void InvalidateAttributeMapping();
 
   bool IsRichlyEditableForAccessibility() const override { return false; }
@@ -230,13 +225,13 @@ class CORE_EXPORT HTMLImageElement
   void CollectStyleForPresentationAttribute(
       const QualifiedName&,
       const AtomicString&,
-      MutableCSSPropertyValueSet*) override;
+      HeapVector<CSSPropertyValue, 8>&) override;
   // For mapping attributes from the <source> element, if any.
   bool HasExtraStyleForPresentationAttribute() const override {
     return source_ != nullptr;
   }
   void CollectExtraStyleForPresentationAttribute(
-      MutableCSSPropertyValueSet*) override;
+      HeapVector<CSSPropertyValue, 8>&) override;
   void SetLayoutDisposition(LayoutDisposition, bool force_reattach = false);
 
   void AttachLayoutTree(AttachContext&) override;
@@ -284,7 +279,6 @@ class CORE_EXPORT HTMLImageElement
   bool is_legacy_format_or_unoptimized_image_ : 1;
   bool is_ad_related_ : 1;
   bool is_lcp_element_ : 1;
-  bool is_changed_shortly_after_mouseover_ : 1;
   bool is_auto_sized_ : 1;
   bool is_predicted_lcp_element_ : 1;
 

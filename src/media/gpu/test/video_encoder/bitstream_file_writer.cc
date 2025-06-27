@@ -2,13 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/test/video_encoder/bitstream_file_writer.h"
+
+#include <algorithm>
 
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/ranges/algorithm.h"
 #include "media/gpu/test/video_test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -139,6 +145,9 @@ void BitstreamFileWriter::ProcessBitstream(
       temporal_idx = bitstream->metadata.vp8->temporal_idx;
     else if (bitstream->metadata.vp9)
       temporal_idx = bitstream->metadata.vp9->temporal_idx;
+    else if (bitstream->metadata.svc_generic) {
+      temporal_idx = bitstream->metadata.svc_generic->temporal_idx;
+    }
 
     CHECK_NE(temporal_idx, 255) << "No metadata about temporal idx";
 
@@ -162,9 +171,10 @@ void BitstreamFileWriter::WriteBitstreamTask(
     size_t frame_index) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(writer_thread_sequence_checker_);
   const DecoderBuffer& buffer = *bitstream->buffer.get();
+  auto buffer_span = base::span(buffer);
   bool success = frame_file_writer_->WriteFrame(
-      static_cast<uint32_t>(buffer.size()), static_cast<uint64_t>(frame_index),
-      buffer.data());
+      static_cast<uint32_t>(buffer_span.size()),
+      static_cast<uint64_t>(frame_index), buffer_span.data());
 
   base::AutoLock auto_lock(writer_lock_);
   num_errors_ += !success;

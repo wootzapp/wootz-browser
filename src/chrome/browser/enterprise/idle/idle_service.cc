@@ -14,7 +14,6 @@
 #include "chrome/browser/enterprise/idle/idle_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
-#include "components/enterprise/idle/idle_features.h"
 #include "components/enterprise/idle/idle_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/idle/idle.h"
@@ -77,11 +76,11 @@ class IdleService::BrowserObserver : public BrowserListObserver {
 
   IdleDialog::ActionSet GetActionSet(PrefService* prefs) {
     std::vector<ActionType> actions;
-    base::ranges::transform(prefs->GetList(prefs::kIdleTimeoutActions),
-                            std::back_inserter(actions),
-                            [](const base::Value& action) {
-                              return static_cast<ActionType>(action.GetInt());
-                            });
+    std::ranges::transform(prefs->GetList(prefs::kIdleTimeoutActions),
+                           std::back_inserter(actions),
+                           [](const base::Value& action) {
+                             return static_cast<ActionType>(action.GetInt());
+                           });
     return ActionsToActionSet(base::flat_set<ActionType>(std::move(actions)));
   }
 
@@ -103,10 +102,6 @@ IdleService::IdleService(Profile* profile)
       action_runner_(
           std::make_unique<ActionRunner>(profile_,
                                          ActionFactory::GetInstance())) {
-  if (!base::FeatureList::IsEnabled(kIdleTimeout)) {
-    // Policy disabled by kill-switch.
-    return;
-  }
   browser_observer_ = std::make_unique<BrowserObserver>(profile);
   DCHECK_EQ(profile_->GetOriginalProfile(), profile_);
   pref_change_registrar_.Init(profile->GetPrefs());

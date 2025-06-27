@@ -16,13 +16,14 @@
 #include "base/no_destructor.h"
 #include "chrome/browser/favicon/large_icon_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/supervised_user/android/favicon_fetcher.h"
-#include "chrome/browser/supervised_user/website_parent_approval_jni_headers/WebsiteParentApproval_jni.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/supervised_user/website_parent_approval_jni_headers/WebsiteParentApproval_jni.h"
 
 using base::android::JavaParamRef;
 
@@ -88,12 +89,12 @@ static void JNI_WebsiteParentApproval_FetchFavicon(
     const JavaParamRef<jobject>& j_url,
     jint min_source_size_in_pixel,
     jint desired_size_in_pixel,
+    Profile* profile,
     const base::android::JavaParamRef<jobject>& on_favicon_fetched_callback) {
   GURL url = url::GURLAndroid::ToNativeGURL(env, j_url);
 
-  FaviconFetcher* faviconFetcher =
-      new FaviconFetcher(LargeIconServiceFactory::GetForBrowserContext(
-          ProfileManager::GetActiveUserProfile()));
+  FaviconFetcher* faviconFetcher = new FaviconFetcher(
+      LargeIconServiceFactory::GetForBrowserContext(profile));
 
   faviconFetcher->FetchFavicon(
       url, true, min_source_size_in_pixel, desired_size_in_pixel,

@@ -7,16 +7,21 @@ package org.chromium.chrome.browser.pwd_migration;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.Espresso.pressBack;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.verify;
 
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
 import static org.chromium.chrome.browser.password_manager.PasswordMetricsUtil.POST_PASSWORD_MIGRATION_SHEET_OUTCOME;
 import static org.chromium.chrome.browser.pwd_migration.PostPasswordMigrationSheetProperties.VISIBLE;
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
+
+import android.content.Context;
 
 import androidx.test.filters.MediumTest;
 
@@ -25,7 +30,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
@@ -33,6 +37,7 @@ import org.mockito.quality.Strictness;
 import org.chromium.base.Callback;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.password_manager.PasswordMetricsUtil.PostPasswordMigrationSheetOutcome;
@@ -63,7 +68,6 @@ public class PostPasswordMigrationSheetViewTest {
 
     @Before
     public void setupTest() throws InterruptedException {
-        MockitoAnnotations.initMocks(this);
         mActivityTestRule.startMainActivityOnBlankPage();
         mBottomSheetController =
                 mActivityTestRule
@@ -162,6 +166,30 @@ public class PostPasswordMigrationSheetViewTest {
         pressBack();
 
         histogram.assertExpected();
+    }
+
+    @Test
+    @MediumTest
+    @DisabledTest(message = "crbug.com/369371078")
+    public void sheetSetsTheTitleAndSubtitleAboutLocalPasswords() {
+        // The sheet is shown.
+        runOnUiThreadBlocking(() -> mModel.set(VISIBLE, true));
+        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+
+        Context context = mActivityTestRule.getActivity();
+        onView(
+                        withText(
+                                context.getString(
+                                        R.string
+                                                .post_password_migration_sheet_title_about_local_pwd)))
+                .check(matches(isDisplayed()));
+        onView(
+                        withText(
+                                context.getString(
+                                                R.string
+                                                        .post_pwd_migration_sheet_subtitle_about_local_pwd)
+                                        .replace("%1$s", "")))
+                .check(matches(isDisplayed()));
     }
 
     private @SheetState int getBottomSheetState() {

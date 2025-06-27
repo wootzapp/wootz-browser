@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "tools/ipc_fuzzer/fuzzer/fuzzer.h"
+
 #include <iostream>
 #include <iterator>
 #include <set>
@@ -23,6 +25,8 @@
 #include "components/viz/common/surfaces/local_surface_id.h"
 #include "gpu/command_buffer/common/command_buffer.h"
 #include "gpu/command_buffer/common/context_creation_attribs.h"
+#include "gpu/command_buffer/common/mailbox_holder.h"
+#include "gpu/command_buffer/common/sync_token.h"
 #include "gpu/ipc/common/gpu_param_traits_macros.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_utils.h"
@@ -36,7 +40,6 @@
 #include "third_party/blink/public/common/page_state/page_state.h"
 #include "third_party/blink/public/mojom/widget/device_emulation_params.mojom-shared.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-#include "tools/ipc_fuzzer/fuzzer/fuzzer.h"
 #include "tools/ipc_fuzzer/fuzzer/rand_util.h"
 #include "tools/ipc_fuzzer/message_lib/message_cracker.h"
 #include "tools/ipc_fuzzer/message_lib/message_file.h"
@@ -533,7 +536,7 @@ struct FuzzTraits<base::Value> {
           size_t bin_length = RandInRange(sizeof(tmp));
           fuzzer->FuzzData(tmp, bin_length);
           random_value =
-              base::Value(base::as_bytes(base::make_span(tmp, bin_length)));
+              base::Value(base::as_bytes(base::span(tmp, bin_length)));
           break;
         }
         case base::Value::Type::STRING: {
@@ -755,11 +758,35 @@ struct FuzzTraits<gfx::GpuMemoryBufferHandle> {
     int type;
     if (!FuzzParam(&type, fuzzer))
       return false;
+    auto buffer_type = static_cast<gfx::GpuMemoryBufferType>(type);
+    switch (buffer_type) {
+      case gfx::SHARED_MEMORY_BUFFER: {
+        base::UnsafeSharedMemoryRegion region;
+        if (!FuzzParam(&region, fuzzer)) {
+          return false;
+        }
+        *p = gfx::GpuMemoryBufferHandle(std::move(region));
+        break;
+      }
+#if BUILDFLAG(IS_WIN)
+      case gfx::DXGI_SHARED_HANDLE: {
+        gfx::DXGIHandle dxgi_handle = gfx::DXGIHandle::CreateFakeForTest();
+        base::UnsafeSharedMemoryRegion region;
+        if (!FuzzParam(&region, fuzzer)) {
+          return false;
+        }
+        *p = gfx::GpuMemoryBufferHandle(
+            dxgi_handle.CloneWithRegion(std::move(region)));
+        break;
+      }
+#endif
+      default:
+        p->type = buffer_type;
+        break;
+    }
     if (!FuzzParam(&p->offset, fuzzer))
       return false;
     if (!FuzzParam(&p->stride, fuzzer))
-      return false;
-    if (!FuzzParam(&p->region, fuzzer))
       return false;
     p->type = static_cast<gfx::GpuMemoryBufferType>(type);
     return true;

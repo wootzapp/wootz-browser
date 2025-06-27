@@ -4,24 +4,34 @@
 
 #import "ios/chrome/browser/docking_promo/model/utils.h"
 
-#import "base/feature_list.h"
-#import "base/metrics/histogram_macros.h"
 #import "base/strings/sys_string_conversions.h"
-#import "base/time/time.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
 #import "ios/chrome/browser/promos_manager/model/constants.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
-#import "ios/chrome/browser/ui/start_surface/start_surface_util.h"
+#import "ios/chrome/browser/start_surface/ui_bundled/start_surface_util.h"
 
 namespace {
 
-// Killswitch to control new DockingPromo histograms.
-BASE_FEATURE(kDockingPromoHistogramKillswitch,
-             "DockingPromoHistogramKillswitch",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+// Compare two optional TimeDelta and return the minimum of the two, but
+// consider that std::nullopt is greater than any other TimeDelta (this
+// is the opposite of operator <(...) which consider std::nullopt smaller
+// than any defined value).
+std::optional<base::TimeDelta> MinimumTimeDelta(
+    std::optional<base::TimeDelta> lhs,
+    std::optional<base::TimeDelta> rhs) {
+  if (!lhs.has_value()) {
+    return rhs;
+  }
+
+  if (!rhs.has_value()) {
+    return lhs;
+  }
+
+  return std::min(*lhs, *rhs);
+}
 
 }  // namespace
 
@@ -44,15 +54,6 @@ BOOL IsDockingPromoForcedForDisplay() {
 }
 
 BOOL CanShowDockingPromo(base::TimeDelta time_since_last_foreground) {
-  // TODO(crbug.com/330387623): Cleanup Docking Promo histograms.
-  if (base::FeatureList::IsEnabled(kDockingPromoHistogramKillswitch)) {
-    // Logs the time since last foreground over a range of 2 weeks.
-    UMA_HISTOGRAM_CUSTOM_COUNTS(
-        "IOS.DockingPromo.LastForegroundTimeViaAppState",
-        time_since_last_foreground.InMinutes(), 1, base::Days(14).InMinutes(),
-        100);
-  }
-
   if (IsDockingPromoForcedForDisplay()) {
     return YES;
   }
@@ -76,18 +77,10 @@ BOOL CanShowDockingPromo(base::TimeDelta time_since_last_foreground) {
 
 std::optional<base::TimeDelta> MinTimeSinceLastForeground(
     NSArray<SceneState*>* foregroundScenes) {
-  std::optional<base::TimeDelta> minTimeSinceLastForeground = std::nullopt;
-
+  std::optional<base::TimeDelta> minimum;
   for (SceneState* scene in foregroundScenes) {
-    const base::TimeDelta timeSinceLastForeground =
-        GetTimeSinceMostRecentTabWasOpenForSceneState(scene);
-
-    if (!minTimeSinceLastForeground.has_value()) {
-      minTimeSinceLastForeground = timeSinceLastForeground;
-    } else if (timeSinceLastForeground < minTimeSinceLastForeground.value()) {
-      minTimeSinceLastForeground = timeSinceLastForeground;
-    }
+    minimum = MinimumTimeDelta(
+        minimum, GetTimeSinceMostRecentTabWasOpenForSceneState(scene));
   }
-
-  return minTimeSinceLastForeground;
+  return minimum;
 }

@@ -8,7 +8,6 @@
 #include "ash/wallpaper/sea_pen_wallpaper_manager.h"
 
 class AccountId;
-class PrefService;
 
 namespace ash {
 
@@ -26,9 +25,8 @@ class SeaPenWallpaperManagerSessionDelegateImpl
 
   // SeaPenWallpaperManager::SessionDelegate:
   base::FilePath GetStorageDirectory(const AccountId& account_id) override;
-  PrefService* GetPrefService(const AccountId& account_id) override;
 };
 
 }  // namespace ash
 
-#endif  // ASH_WALLPAPER_SEA_PEN_WALLPAPER_MANAGER_SESSION_DELEGATE_H_
+#endif  // ASH_WALLPAPER_SEA_PEN_WALLPAPER_MANAGER_SESSION_DELEGATE_IMPL_H_

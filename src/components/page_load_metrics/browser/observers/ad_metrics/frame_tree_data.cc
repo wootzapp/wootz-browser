@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/page_load_metrics/browser/observers/ad_metrics/frame_tree_data.h"
 
 #include <algorithm>
@@ -47,7 +52,7 @@ unsigned int GetFullFrameDepth(content::RenderFrameHost* rfh) {
 
 }  // namespace
 
-FrameTreeData::FrameTreeData(FrameTreeNodeId root_frame_tree_node_id,
+FrameTreeData::FrameTreeData(content::FrameTreeNodeId root_frame_tree_node_id,
                              int heavy_ad_network_threshold_noise)
     : root_frame_tree_node_id_(root_frame_tree_node_id),
       frame_size_(gfx::Size()),
@@ -59,8 +64,6 @@ void FrameTreeData::MaybeUpdateFrameDepth(
     content::RenderFrameHost* render_frame_host) {
   if (!render_frame_host)
     return;
-  // TODO(crbug.com/40834817): Current logic may not work with Portals'
-  // activation. Revisit later to make sure that the logic below works.
   DCHECK_GE(GetFullFrameDepth(render_frame_host), root_frame_depth_);
   if (GetFullFrameDepth(render_frame_host) - root_frame_depth_ > frame_depth_)
     frame_depth_ = GetFullFrameDepth(render_frame_host) - root_frame_depth_;
@@ -139,8 +142,7 @@ FrameTreeData::GetCreativeOriginStatusWithThrottling() const {
       return OriginStatusWithThrottling::kCrossAndUnthrottled;
     // We expect the above values to cover all cases.
     default:
-      NOTREACHED_IN_MIGRATION();
-      return OriginStatusWithThrottling::kUnknownAndUnthrottled;
+      NOTREACHED();
   }
 }
 

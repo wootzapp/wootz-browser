@@ -11,6 +11,7 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "components/permissions/features.h"
 #include "components/permissions/permission_ui_selector.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
@@ -52,7 +53,7 @@ class PermissionPrompt {
   // be persisted in the per-tab UI state.
   class Delegate {
    public:
-    virtual ~Delegate() {}
+    virtual ~Delegate() = default;
 
     // These pointers should not be stored as the actual request objects may be
     // deleted upon navigation and so on.
@@ -133,6 +134,8 @@ class PermissionPrompt {
     // Recreate the UI view because the UI flavor needs to change. Returns true
     // iff successful.
     virtual bool RecreateView() = 0;
+
+    virtual const PermissionPrompt* GetCurrentPrompt() const = 0;
   };
 
   typedef base::RepeatingCallback<
@@ -143,7 +146,7 @@ class PermissionPrompt {
   static std::unique_ptr<PermissionPrompt> Create(
       content::WebContents* web_contents,
       Delegate* delegate);
-  virtual ~PermissionPrompt() {}
+  virtual ~PermissionPrompt() = default;
 
   // Updates where the prompt should be anchored. ex: fullscreen toggle.
   // Returns true, if the update was successful, and false if the caller should
@@ -174,6 +177,9 @@ class PermissionPrompt {
   // Permission Element.
   virtual std::vector<permissions::ElementAnchoredBubbleVariant>
   GetPromptVariants() const = 0;
+
+  virtual std::optional<feature_params::PermissionElementPromptPosition>
+  GetPromptPosition() const = 0;
 };
 }  // namespace permissions
 

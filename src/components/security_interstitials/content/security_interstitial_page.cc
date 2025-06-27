@@ -26,10 +26,9 @@ SecurityInterstitialPage::SecurityInterstitialPage(
     content::WebContents* web_contents,
     const GURL& request_url,
     std::unique_ptr<SecurityInterstitialControllerClient> controller)
-    : web_contents_(web_contents),
+    : web_contents_(web_contents->GetWeakPtr()),
       request_url_(request_url),
       create_view_(true),
-      on_show_extended_reporting_pref_exists_(false),
       on_show_extended_reporting_pref_value_(false),
       controller_(std::move(controller)) {
   // Determine if any prefs need to be updated prior to showing the security
@@ -46,7 +45,7 @@ SecurityInterstitialPage::~SecurityInterstitialPage() {
 }
 
 content::WebContents* SecurityInterstitialPage::web_contents() const {
-  return web_contents_;
+  return &*web_contents_;
 }
 
 GURL SecurityInterstitialPage::request_url() const {
@@ -96,8 +95,6 @@ void SecurityInterstitialPage::SetUpMetrics() {
   // to the same data when the interstitial is closed.
   PrefService* prefs = controller_->GetPrefService();
   if (prefs) {
-    on_show_extended_reporting_pref_exists_ =
-        safe_browsing::ExtendedReportingPrefExists(*prefs);
     on_show_extended_reporting_pref_value_ =
         safe_browsing::IsExtendedReportingEnabled(*prefs);
   }

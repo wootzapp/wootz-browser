@@ -23,12 +23,13 @@ class TestMediaRouterFactory : public MediaRouterFactory {
   TestMediaRouterFactory() = default;
   ~TestMediaRouterFactory() override = default;
 
-  void ResetTestingFactory(content::BrowserContext* context) {
+  void ShutdownForBrowserContext(content::BrowserContext* context) {
+    BrowserContextShutdown(context);
     BrowserContextDestroyed(context);
   }
 
-  MOCK_METHOD(KeyedService*,
-              BuildServiceInstanceFor,
+  MOCK_METHOD(std::unique_ptr<KeyedService>,
+              BuildServiceInstanceForBrowserContext,
               (content::BrowserContext * context),
               (const));
 };
@@ -77,7 +78,7 @@ class MirroringToFlingingSwitcherTest : public testing::Test {
   MirroringToFlingingSwitcherTest() = default;
 
   ~MirroringToFlingingSwitcherTest() override {
-    media_router_factory_.ResetTestingFactory(&browser_context_);
+    media_router_factory_.ShutdownForBrowserContext(&browser_context_);
   }
 
   void SetUp() override {
@@ -96,7 +97,7 @@ class MirroringToFlingingSwitcherTest : public testing::Test {
         presentation_manager_.get());
   }
 
-  int GetNewTabSource() {
+  content::FrameTreeNodeId GetNewTabSource() {
     return web_contents_->GetPrimaryMainFrame()->GetFrameTreeNodeId();
   }
 

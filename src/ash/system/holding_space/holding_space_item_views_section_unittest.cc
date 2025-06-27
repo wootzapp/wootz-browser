@@ -27,6 +27,8 @@
 namespace ash {
 namespace {
 
+// Helpers ---------------------------------------------------------------------
+
 std::vector<std::pair<HoldingSpaceSectionId, HoldingSpaceItem::Type>>
 GetSectionIdItemTypePairs() {
   std::vector<std::pair<HoldingSpaceSectionId, HoldingSpaceItem::Type>> pairs;
@@ -46,6 +48,8 @@ GetSectionIdItemTypePairs() {
 
 }  // namespace
 
+// HoldingSpaceItemViewsSectionTest --------------------------------------------
+
 class HoldingSpaceItemViewsSectionTest
     : public HoldingSpaceAshTestBase,
       public testing::WithParamInterface<
@@ -63,11 +67,12 @@ class HoldingSpaceItemViewsSectionTest
   }
 
  private:
-  // HoldingSpaceAshTestBase
+  // HoldingSpaceAshTestBase:
   void SetUp() override {
     HoldingSpaceAshTestBase::SetUp();
     widget_ = std::make_unique<views::Widget>();
-    widget_->Init(views::Widget::InitParams{});
+    widget_->Init(views::Widget::InitParams{
+        views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET});
 
     view_delegate_ = std::make_unique<HoldingSpaceViewDelegate>(nullptr);
 
@@ -117,6 +122,8 @@ class HoldingSpaceItemViewsSectionTest
 INSTANTIATE_TEST_SUITE_P(All,
                          HoldingSpaceItemViewsSectionTest,
                          testing::ValuesIn(GetSectionIdItemTypePairs()));
+
+// Tests -----------------------------------------------------------------------
 
 // Verifies the items are ordered as expected.
 TEST_P(HoldingSpaceItemViewsSectionTest, ItemOrder) {

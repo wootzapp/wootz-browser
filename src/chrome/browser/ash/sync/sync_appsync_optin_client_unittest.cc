@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/sync/sync_appsync_optin_client.h"
+
 #include <memory>
 
 #include "base/files/file_path.h"
@@ -24,6 +25,7 @@
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "google_apis/gaia/core_account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace ash {
@@ -33,7 +35,7 @@ namespace {
 class FakeSyncService : public syncer::TestSyncService {
  public:
   FakeSyncService() {
-    SetTransportState(TransportState::INITIALIZING);
+    SetMaxTransportState(TransportState::INITIALIZING);
     SetLastCycleSnapshot(syncer::SyncCycleSnapshot());
   }
 
@@ -43,8 +45,8 @@ class FakeSyncService : public syncer::TestSyncService {
   ~FakeSyncService() override { Shutdown(); }
 
   void SetStatus(bool has_passphrase, bool active) {
-    SetTransportState(active ? TransportState::ACTIVE
-                             : TransportState::INITIALIZING);
+    SetMaxTransportState(active ? TransportState::ACTIVE
+                                : TransportState::INITIALIZING);
     SetIsUsingExplicitPassphrase(has_passphrase);
 
     // It doesn't matter what exactly we set here, it's only relevant that the
@@ -56,14 +58,6 @@ class FakeSyncService : public syncer::TestSyncService {
         sync_pb::SyncEnums::UNKNOWN_ORIGIN, base::Minutes(1), false));
 
     NotifyObserversOfStateChanged();
-  }
-
-  void SetUserFromAccountId(const AccountId& account_id) {
-    CoreAccountInfo account_info;
-    account_info.account_id = CoreAccountId::FromGaiaId(account_id.GetGaiaId());
-    account_info.gaia = account_id.GetGaiaId();
-    account_info.email = account_id.GetUserEmail();
-    SetAccountInfo(account_info);
   }
 
   void SetAppsyncOptin(bool opted_in) {
@@ -131,10 +125,15 @@ class SyncAppsyncOptinClientTest : public testing::Test {
     tmp_dir_path_ = test_daemon_dir_.GetPath().Append("test@test.com-hash");
     base::CreateDirectory(tmp_dir_path_);
 
-    auto account_id = AccountId::FromUserEmailGaiaId("test@test.com", "1");
+    auto account_id =
+        AccountId::FromUserEmailGaiaId("test@test.com", GaiaId("1"));
     auto* test_user = RegisterUser(account_id);
     LoginUser(test_user);
-    test_sync_service_->SetUserFromAccountId(account_id);
+    CoreAccountInfo account_info;
+    account_info.account_id = CoreAccountId::FromGaiaId(account_id.GetGaiaId());
+    account_info.gaia = account_id.GetGaiaId();
+    account_info.email = account_id.GetUserEmail();
+    test_sync_service_->SetSignedIn(signin::ConsentLevel::kSync, account_info);
     test_sync_service_->SetStatus(/*has_passphrase=*/false, /*active=*/true);
   }
 

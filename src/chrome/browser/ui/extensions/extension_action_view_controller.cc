@@ -15,8 +15,8 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/extensions/api/commands/command_service.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
+#include "chrome/browser/extensions/commands/command_service.h"
 #include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_context_menu_model.h"
 #include "chrome/browser/extensions/extension_view.h"
@@ -45,6 +45,7 @@
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/gfx/image/image_skia.h"
+#include "ui/gfx/native_widget_types.h"
 #include "ui/native_theme/native_theme.h"
 
 using extensions::ActionInfo;
@@ -109,17 +110,19 @@ ExtensionActionViewController::HoverCardState::AdminPolicy
 GetHoverCardPolicyState(Browser* browser,
                         const extensions::ExtensionId& extension_id) {
   auto* const model = ToolbarActionsModel::Get(browser->profile());
-  if (model->IsActionForcePinned(extension_id))
+  if (model->IsActionForcePinned(extension_id)) {
     return ExtensionActionViewController::HoverCardState::AdminPolicy::
         kPinnedByAdmin;
+  }
 
   scoped_refptr<const extensions::Extension> extension =
       extensions::ExtensionRegistry::Get(browser->profile())
           ->enabled_extensions()
           .GetByID(extension_id);
-  if (extensions::Manifest::IsPolicyLocation(extension->location()))
+  if (extensions::Manifest::IsPolicyLocation(extension->location())) {
     return ExtensionActionViewController::HoverCardState::AdminPolicy::
         kInstalledByAdmin;
+  }
 
   return ExtensionActionViewController::HoverCardState::AdminPolicy::kNone;
 }
@@ -176,10 +179,7 @@ ExtensionActionViewController::ExtensionActionViewController(
       popup_host_(nullptr),
       view_delegate_(nullptr),
       platform_delegate_(ExtensionActionPlatformDelegate::Create(this)),
-      icon_factory_(browser->profile(),
-                    extension_.get(),
-                    extension_action,
-                    this),
+      icon_factory_(extension_.get(), extension_action, this),
       extension_registry_(extension_registry) {}
 
 ExtensionActionViewController::~ExtensionActionViewController() {
@@ -205,16 +205,18 @@ void ExtensionActionViewController::SetDelegate(
 ui::ImageModel ExtensionActionViewController::GetIcon(
     content::WebContents* web_contents,
     const gfx::Size& size) {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return ui::ImageModel();
+  }
 
   return ui::ImageModel::FromImageSkia(
       gfx::ImageSkia(GetIconImageSource(web_contents, size), size));
 }
 
 std::u16string ExtensionActionViewController::GetActionName() const {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return std::u16string();
+  }
 
   return base::UTF8ToUTF16(extension_->name());
 }
@@ -232,13 +234,15 @@ std::u16string ExtensionActionViewController::GetActionTitle(
 
 std::u16string ExtensionActionViewController::GetAccessibleName(
     content::WebContents* web_contents) const {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return std::u16string();
+  }
 
   // GetAccessibleName() can (surprisingly) be called during browser
   // teardown. Handle this gracefully.
-  if (!web_contents)
+  if (!web_contents) {
     return base::UTF8ToUTF16(extension()->name());
+  }
 
   std::u16string action_title = GetActionTitle(web_contents);
   std::u16string accessible_name =
@@ -350,26 +354,29 @@ void ExtensionActionViewController::HidePopup() {
   if (IsShowingPopup()) {
     // Only call Close() on the popup if it's been shown; otherwise, the popup
     // will be cleaned up in ShowPopup().
-    if (has_opened_popup_)
+    if (has_opened_popup_) {
       popup_host_->Close();
+    }
     // We need to do these actions synchronously (instead of closing and then
     // performing the rest of the cleanup in OnExtensionHostDestroyed()) because
     // the extension host may close asynchronously, and we need to keep the view
     // delegate up to date.
-    if (popup_host_)
+    if (popup_host_) {
       OnPopupClosed();
+    }
   }
 }
 
 gfx::NativeView ExtensionActionViewController::GetPopupNativeView() {
-  return popup_host_ ? popup_host_->view()->GetNativeView() : nullptr;
+  return popup_host_ ? popup_host_->view()->GetNativeView() : gfx::NativeView();
 }
 
 ui::MenuModel* ExtensionActionViewController::GetContextMenu(
     extensions::ExtensionContextMenuModel::ContextMenuSource
         context_menu_source) {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return nullptr;
+  }
 
   bool is_pinned =
       ToolbarActionsModel::Get(browser_->profile())->IsActionPinned(GetId());
@@ -399,8 +406,9 @@ void ExtensionActionViewController::OnContextMenuClosed(
 }
 
 void ExtensionActionViewController::ExecuteUserAction(InvocationSource source) {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return;
+  }
 
   if (!IsEnabled(view_delegate_->GetCurrentWebContents())) {
     GetPreferredPopupViewController()
@@ -412,8 +420,9 @@ void ExtensionActionViewController::ExecuteUserAction(InvocationSource source) {
       view_delegate_->GetCurrentWebContents();
   ExtensionActionRunner* action_runner =
       ExtensionActionRunner::GetForWebContents(web_contents);
-  if (!action_runner)
+  if (!action_runner) {
     return;
+  }
 
   RecordInvocationSource(source);
 
@@ -446,8 +455,9 @@ void ExtensionActionViewController::TriggerPopupForAPI(
 }
 
 void ExtensionActionViewController::UpdateState() {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return;
+  }
 
   view_delegate_->UpdateState();
 }
@@ -455,15 +465,17 @@ void ExtensionActionViewController::UpdateState() {
 void ExtensionActionViewController::UpdateHoverCard(
     ToolbarActionView* action_view,
     ToolbarActionHoverCardUpdateType update_type) {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return;
+  }
 
   extensions_container_->UpdateToolbarActionHoverCard(action_view, update_type);
 }
 
 void ExtensionActionViewController::RegisterCommand() {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return;
+  }
 
   platform_delegate_->RegisterCommand();
 }
@@ -479,16 +491,12 @@ void ExtensionActionViewController::InspectPopup() {
       PopupShowAction::kShowAndInspect, /*by_user*/ true, ShowPopupCallback());
 }
 
-void ExtensionActionViewController::TriggerPopupForAPI() {
-  GetPreferredPopupViewController()->TriggerPopup(
-      PopupShowAction::kShowAndInspect, /*by_user*/ false, ShowPopupCallback());
-}
-
 void ExtensionActionViewController::OnIconUpdated() {
   // We update the view first, so that if the observer relies on its UI it can
   // be ready.
-  if (view_delegate_)
+  if (view_delegate_) {
     view_delegate_->UpdateState();
+  }
 }
 
 void ExtensionActionViewController::OnExtensionHostDestroyed(
@@ -510,8 +518,9 @@ bool ExtensionActionViewController::ExtensionIsValid() const {
 bool ExtensionActionViewController::GetExtensionCommand(
     extensions::Command* command) const {
   DCHECK(command);
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return false;
+  }
 
   CommandService* command_service = CommandService::Get(browser_->profile());
   return command_service->GetExtensionActionCommand(
@@ -541,8 +550,9 @@ ExtensionActionViewController::GetHoverCardState(
 }
 
 bool ExtensionActionViewController::CanHandleAccelerators() const {
-  if (!ExtensionIsValid())
+  if (!ExtensionIsValid()) {
     return false;
+  }
 
 #if DCHECK_IS_ON()
   {
@@ -622,8 +632,9 @@ void ExtensionActionViewController::ShowPopup(
   // It's possible that the popup should be closed before it finishes opening
   // (since it can open asynchronously). Check before proceeding.
   if (!popup_host_) {
-    if (callback)
+    if (callback) {
       std::move(callback).Run(nullptr);
+    }
     return;
   }
   // NOTE: Today, ShowPopup() always synchronously creates the platform-specific
@@ -632,7 +643,7 @@ void ExtensionActionViewController::ShowPopup(
   // ExtensionViewHost). This doesn't necessarily mean that the popup has
   // completed rendering on the screen.
   has_opened_popup_ = true;
-  platform_delegate_->ShowPopup(std::move(popup_host), by_user, show_action,
+  platform_delegate_->ShowPopup(std::move(popup_host), show_action,
                                 std::move(callback));
   view_delegate_->OnPopupShown(by_user);
 }

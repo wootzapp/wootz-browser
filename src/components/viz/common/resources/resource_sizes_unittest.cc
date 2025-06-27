@@ -17,33 +17,31 @@ struct TestFormat {
   size_t expected_bytes_aligned;
 };
 
-// Modify this constant as per TestFormat variables defined in following tests.
-const int kTestFormats = 4;
-
 class ResourceUtilTest : public testing::Test {
  public:
-  void TestCheckedWidthInBytes(int width, const TestFormat* test_formats) {
-    for (int i = 0; i < kTestFormats; ++i) {
-      size_t bytes = ResourceSizes::CheckedWidthInBytes<size_t>(
-          width, test_formats[i].format);
-      EXPECT_EQ(bytes, test_formats[i].expected_bytes);
+  void TestCheckedWidthInBytes(int width, base::span<TestFormat> test_formats) {
+    for (auto& test_format : test_formats) {
+      size_t bytes =
+          ResourceSizes::CheckedWidthInBytes<size_t>(width, test_format.format);
+      EXPECT_EQ(bytes, test_format.expected_bytes);
     }
   }
 
-  void TestUncheckedWidthInBytes(int width, const TestFormat* test_formats) {
-    for (int i = 0; i < kTestFormats; ++i) {
+  void TestUncheckedWidthInBytes(int width,
+                                 base::span<TestFormat> test_formats) {
+    for (auto& test_format : test_formats) {
       size_t bytes = ResourceSizes::UncheckedWidthInBytes<size_t>(
-          width, test_formats[i].format);
-      EXPECT_EQ(bytes, test_formats[i].expected_bytes);
+          width, test_format.format);
+      EXPECT_EQ(bytes, test_format.expected_bytes);
     }
   }
 
   void TestCheckedSizeInBytes(const gfx::Size& size,
-                              const TestFormat* test_formats) {
-    for (int i = 0; i < kTestFormats; ++i) {
-      size_t bytes = ResourceSizes::CheckedSizeInBytes<size_t>(
-          size, test_formats[i].format);
-      EXPECT_EQ(bytes, test_formats[i].expected_bytes);
+                              base::span<TestFormat> test_formats) {
+    for (auto& test_format : test_formats) {
+      size_t bytes =
+          ResourceSizes::CheckedSizeInBytes<size_t>(size, test_format.format);
+      EXPECT_EQ(bytes, test_format.expected_bytes);
     }
   }
 };

@@ -39,6 +39,10 @@
 #include "gpu/command_buffer/service/shared_image/dawn_gl_texture_representation.h"
 #endif
 
+#if BUILDFLAG(IS_WIN)
+#include "gpu/command_buffer/service/shared_image/d3d_image_representation.h"
+#endif
+
 namespace gpu {
 
 namespace {
@@ -142,8 +146,7 @@ class SkiaGaneshImageRepresentationImpl : public SkiaGaneshImageRepresentation {
     }
 
     for (int plane = 0; plane < format().NumberOfPlanes(); ++plane) {
-      SkColorType sk_color_type = viz::ToClosestSkColorType(
-          /*gpu_compositing=*/true, format(), plane);
+      SkColorType sk_color_type = viz::ToClosestSkColorType(format(), plane);
       // Gray is not a renderable single channel format, but alpha is.
       if (sk_color_type == kGray_8_SkColorType) {
         sk_color_type = kAlpha_8_SkColorType;
@@ -259,7 +262,7 @@ GLTextureImageBacking::GLTextureImageBacking(const Mailbox& mailbox,
                                              const gfx::ColorSpace& color_space,
                                              GrSurfaceOrigin surface_origin,
                                              SkAlphaType alpha_type,
-                                             uint32_t usage,
+                                             SharedImageUsageSet usage,
                                              std::string debug_label,
                                              bool is_passthrough)
     : ClearTrackingSharedImageBacking(mailbox,
@@ -394,7 +397,8 @@ std::unique_ptr<DawnImageRepresentation> GLTextureImageBacking::ProduceDawn(
       image = ProduceGLTexture(manager, tracker);
     }
     auto result = std::make_unique<DawnGLTextureRepresentation>(
-        std::move(image), manager, this, tracker, device);
+        std::move(image), manager, this, tracker, device,
+        std::move(view_formats));
     return result;
   }
 #endif
@@ -403,7 +407,7 @@ std::unique_ptr<DawnImageRepresentation> GLTextureImageBacking::ProduceDawn(
   // Otherwise optimize this path with a GPU copy.
   SCOPED_CRASH_KEY_STRING256("", "GLSharedImage_DebugLabel", debug_label());
   SCOPED_CRASH_KEY_STRING32("", "GLSharedImage_Usage",
-                            base::NumberToString(usage()));
+                            base::NumberToString(uint32_t(usage())));
   base::debug::DumpWithoutCrashing();
 
 #if BUILDFLAG(USE_DAWN)
@@ -431,6 +435,22 @@ GLTextureImageBacking::ProduceSkiaGanesh(
   return std::make_unique<SkiaGaneshImageRepresentationImpl>(
       manager, this, std::move(context_state), cached_promise_textures_,
       tracker);
+}
+
+std::unique_ptr<VideoImageRepresentation> GLTextureImageBacking::ProduceVideo(
+    SharedImageManager* manager,
+    MemoryTypeTracker* tracker,
+    VideoDevice device) {
+#if BUILDFLAG(IS_WIN)
+  DCHECK_EQ(textures_.size(), 1u);
+  DCHECK(device);
+
+  return D3D11VideoImageCopyRepresentation::CreateFromGL(
+      textures_[0].GetServiceId(), debug_label(), device.Get(), manager, this,
+      tracker);
+#else
+  return nullptr;
+#endif
 }
 
 void GLTextureImageBacking::InitializeGLTexture(

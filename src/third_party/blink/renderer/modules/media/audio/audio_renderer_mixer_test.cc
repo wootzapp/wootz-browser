@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/modules/media/audio/audio_renderer_mixer.h"
 
 #include <stddef.h>
@@ -95,7 +100,8 @@ class AudioRendererMixerTest
   AudioRendererMixerTest(const AudioRendererMixerTest&) = delete;
   AudioRendererMixerTest& operator=(const AudioRendererMixerTest&) = delete;
 
-  AudioRendererMixer* GetMixer(const FrameToken&,
+  AudioRendererMixer* GetMixer(const LocalFrameToken&,
+                               const FrameToken&,
                                const media::AudioParameters&,
                                media::AudioLatency::Type,
                                const media::OutputDeviceInfo&,
@@ -108,6 +114,7 @@ class AudioRendererMixerTest
   }
 
   scoped_refptr<media::AudioRendererSink> GetSink(const LocalFrameToken&,
+                                                  const FrameToken&,
                                                   std::string_view) override {
     return sink_;
   }

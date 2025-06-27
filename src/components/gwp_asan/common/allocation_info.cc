@@ -13,7 +13,7 @@
 
 namespace gwp_asan::internal {
 
-size_t AllocationInfo::GetStackTrace(const void** trace, size_t count) {
+size_t AllocationInfo::GetStackTrace(base::span<const void*> trace) {
   // TODO(vtsyrklevich): Investigate using trace_event::CFIBacktraceAndroid
   // on 32-bit Android for canary/dev (where we can dynamically load unwind
   // data.)
@@ -22,21 +22,9 @@ size_t AllocationInfo::GetStackTrace(const void** trace, size_t count) {
   // stack trace collection for base::debug::StackTrace doesn't work; however,
   // AArch64 builds ship with frame pointers so we can still collect stack
   // traces in that case.
-  return base::debug::TraceStackFramePointers(trace, count, 0);
+  return base::debug::TraceStackFramePointers(trace, 0);
 #else
-  return base::debug::CollectStackTrace(trace, count);
-#endif
-}
-
-// Report a tid that matches what crashpad collects which may differ from what
-// base::PlatformThread::CurrentId() returns.
-uint64_t AllocationInfo::GetCurrentTid() {
-#if !BUILDFLAG(IS_APPLE)
-  return base::PlatformThread::CurrentId();
-#else
-  uint64_t tid = base::kInvalidThreadId;
-  pthread_threadid_np(nullptr, &tid);
-  return tid;
+  return base::debug::CollectStackTrace(trace);
 #endif
 }
 

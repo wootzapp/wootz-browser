@@ -4,9 +4,11 @@
 
 #include "chrome/browser/ui/views/bluetooth_device_credentials_view.h"
 
+#include <algorithm>
+#include <string_view>
+
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "chrome/browser/ui/bluetooth/bluetooth_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -16,8 +18,11 @@
 #include "device/bluetooth/strings/grit/bluetooth_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/color/color_id.h"
 #include "ui/compositor/layer.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/flex_layout.h"
@@ -36,8 +41,8 @@ void ShowBluetoothDeviceCredentialsDialog(
 
 namespace {
 
-bool IsInputTextValid(const std::u16string& text) {
-  const size_t num_digits = base::ranges::count_if(
+bool IsInputTextValid(std::u16string_view text) {
+  const size_t num_digits = std::ranges::count_if(
       text, [](char16_t ch) { return base::IsAsciiDigit(ch); });
   // This dialog is currently only used to prompt for Bluetooth PINs which
   // are always six digit numeric values as per the spec. This function could
@@ -54,7 +59,7 @@ BluetoothDeviceCredentialsView::BluetoothDeviceCredentialsView(
     const std::u16string& device_identifier,
     BluetoothDelegate::PairPromptCallback close_callback)
     : close_callback_(std::move(close_callback)) {
-  SetModalType(ui::MODAL_TYPE_CHILD);
+  SetModalType(ui::mojom::ModalType::kChild);
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
       views::DialogContentType::kText, views::DialogContentType::kText));
   SetAcceptCallback(
@@ -97,7 +102,7 @@ void BluetoothDeviceCredentialsView::InitControls(
   // to ensure the proper spacing is maintained between items when stacking
   // vertically.
   const int vertical_spacing = ChromeLayoutProvider::Get()->GetDistanceMetric(
-                                   DISTANCE_CONTROL_LIST_VERTICAL) /
+                                   views::DISTANCE_CONTROL_LIST_VERTICAL) /
                                2;
   constexpr int horizontal_spacing = 0;
 
@@ -141,7 +146,7 @@ void BluetoothDeviceCredentialsView::InitControls(
     passkey_text_->SetDefaultWidthInChars(kDefaultTextfieldNumChars);
     passkey_text_->SetMinimumWidthInChars(kMinimumTextfieldNumChars);
     passkey_text_->SetTextInputType(ui::TEXT_INPUT_TYPE_TEXT);
-    passkey_text_->SetAccessibleName(passkey_prompt_label_ptr);
+    passkey_text_->GetViewAccessibility().SetName(*passkey_prompt_label_ptr);
     // TODO(cmumford): Windows Narrator says "no item in view".
   }
 
@@ -161,9 +166,10 @@ gfx::Size BluetoothDeviceCredentialsView::CalculatePreferredSize(
 }
 
 bool BluetoothDeviceCredentialsView::IsDialogButtonEnabled(
-    ui::DialogButton button) const {
-  if (button != ui::DIALOG_BUTTON_OK)
+    ui::mojom::DialogButton button) const {
+  if (button != ui::mojom::DialogButton::kOk) {
     return true;  // Only "OK" button is sensitized - all others are enabled.
+  }
 
   return IsInputTextValid(passkey_text_->GetText());
 }
@@ -173,7 +179,7 @@ std::u16string BluetoothDeviceCredentialsView::GetWindowTitle() const {
 }
 
 void BluetoothDeviceCredentialsView::OnDialogAccepted() {
-  DCHECK(IsDialogButtonEnabled(ui::DIALOG_BUTTON_OK));
+  DCHECK(IsDialogButtonEnabled(ui::mojom::DialogButton::kOk));
 
   std::u16string trimmed_input;
   base::TrimWhitespace(passkey_text_->GetText(), base::TRIM_ALL,
@@ -189,7 +195,8 @@ void BluetoothDeviceCredentialsView::ContentsChanged(
     views::Textfield* sender,
     const std::u16string& new_contents) {
   DCHECK_EQ(sender, passkey_text_);
-  SetButtonEnabled(ui::DIALOG_BUTTON_OK, IsInputTextValid(new_contents));
+  SetButtonEnabled(ui::mojom::DialogButton::kOk,
+                   IsInputTextValid(new_contents));
   DialogModelChanged();
 }
 

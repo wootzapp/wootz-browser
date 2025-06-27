@@ -12,6 +12,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "base/check.h"
@@ -30,13 +31,13 @@
 #include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
+#include "base/test/gmock_expected_support.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -50,9 +51,11 @@
 #include "chrome/browser/web_applications/external_install_options.h"
 #include "chrome/browser/web_applications/externally_managed_app_manager.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_sync_test_utils.h"
@@ -69,6 +72,8 @@
 #include "chrome/browser/web_applications/web_app_install_finalizer.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
+#include "chrome/browser/web_applications/web_app_origin_association_manager.h"
 #include "chrome/browser/web_applications/web_app_proto_utils.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
@@ -80,6 +85,7 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "chrome/test/base/web_feature_histogram_tester.h"
 #include "components/services/app_service/public/cpp/file_handler.h"
 #include "components/services/app_service/public/cpp/icon_info.h"
 #include "components/services/app_service/public/cpp/protocol_handler_info.h"
@@ -125,13 +131,8 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
-#include "chromeos/constants/chromeos_features.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "ash/constants/ash_features.h"
 #include "chrome/browser/ash/system_web_apps/test_support/test_system_web_app_installation.h"
-#include "chromeos/ash/components/standalone_browser/feature_refs.h"
 #endif
 
 #if BUILDFLAG(IS_LINUX)
@@ -333,12 +334,7 @@ class ManifestUpdateManagerBrowserTest : public WebAppBrowserTestBase {
  public:
   ManifestUpdateManagerBrowserTest()
       : update_dialog_scope_(SetIdentityUpdateDialogActionForTesting(
-            AppIdentityUpdate::kSkipped)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    scoped_feature_list_.InitWithFeatures(
-        {}, ash::standalone_browser::GetFeatureRefs());
-#endif
-  }
+            AppIdentityUpdate::kSkipped)) {}
   ManifestUpdateManagerBrowserTest(const ManifestUpdateManagerBrowserTest&) =
       delete;
   ManifestUpdateManagerBrowserTest& operator=(
@@ -401,7 +397,7 @@ class ManifestUpdateManagerBrowserTest : public WebAppBrowserTestBase {
       const webapps::AppId& app_id,
       const std::vector<std::pair<std::pair<int, int>, SkColor>>&
           expectations) {
-    GetProvider().os_integration_manager().GetShortcutInfoForApp(
+    GetProvider().os_integration_manager().GetShortcutInfoForAppFromRegistrar(
         app_id, base::BindOnce(
                     &ManifestUpdateManagerBrowserTest::OnShortcutInfoRetrieved,
                     base::Unretained(this)));
@@ -472,7 +468,7 @@ class ManifestUpdateManagerBrowserTest : public WebAppBrowserTestBase {
     return http_server_.GetURL("/banners/no_manifest_test_page.html");
   }
 
-  // Mimics the Create Shortcut flow from the three dot overflow menu.
+  // Mimics the `DIY` app install flow from the three dot overflow menu.
   webapps::AppId InstallWebAppWithoutManifest() {
     GURL app_url = GetAppURLWithoutManifest();
     EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), app_url));
@@ -481,11 +477,11 @@ class ManifestUpdateManagerBrowserTest : public WebAppBrowserTestBase {
     base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
         install_future;
     GetProvider().scheduler().FetchManifestAndInstall(
-        webapps::WebappInstallSource::MENU_CREATE_SHORTCUT,
+        webapps::WebappInstallSource::MENU_BROWSER_TAB,
         browser()->tab_strip_model()->GetActiveWebContents()->GetWeakPtr(),
         base::BindOnce(test::TestAcceptDialogCallback),
         install_future.GetCallback(),
-        FallbackBehavior::kAllowFallbackDataAlways);
+        FallbackBehavior::kUseFallbackInfoWhenNotInstallable);
     EXPECT_EQ(install_future.Get<webapps::InstallResultCode>(),
               webapps::InstallResultCode::kSuccessNewInstall);
     return install_future.Get<webapps::AppId>();
@@ -756,7 +752,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
 
   webapps::AppId app_id = InstallWebApp();
 
-  EXPECT_EQ(GetResultAfterPageLoad(GURL("http://example.org")),
+  EXPECT_EQ(GetResultAfterPageLoad(GURL("https://example.org")),
             ManifestUpdateResult::kNoAppInScope);
 
   histogram_tester_.ExpectTotalCount(kUpdateHistogramName, 0);
@@ -813,8 +809,9 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
       kUpdateHistogramName, ManifestUpdateResult::kWebContentsDestroyed, 1);
 }
 
+// TODO(crbug.com/402699278): Fix and re-enable.
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
-                       CheckCancelledByAppUninstalled) {
+                       DISABLED_CheckCancelledByAppUninstalled) {
   webapps::AppId app_id = InstallWebApp();
   GetManifestUpdateManager(browser()->profile())
       .hang_update_checks_for_testing();
@@ -827,7 +824,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   GetProvider().scheduler().RemoveUserUninstallableManagements(
       app_id, webapps::WebappUninstallSource::kAppMenu,
       base::BindLambdaForTesting([&](webapps::UninstallResultCode code) {
-        EXPECT_EQ(code, webapps::UninstallResultCode::kSuccess);
+        EXPECT_EQ(code, webapps::UninstallResultCode::kAppRemoved);
         run_loop.Quit();
       }));
 
@@ -841,13 +838,6 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
                        TriggersAfterLoadingNewManifestUrl) {
-#if BUILDFLAG(IS_CHROMEOS)
-  if (chromeos::features::IsCrosShortstandEnabled()) {
-    GTEST_SKIP()
-        << "Shortcuts do not manifest update when Shortstand is enabled.";
-  }
-#endif
-
   // Install an app with no manifest, trigger an update by navigation.
   GURL no_manifest_url = GetAppURLWithoutManifest();
   const webapps::AppId app_id = InstallWebAppWithoutManifest();
@@ -859,6 +849,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   EXPECT_TRUE(load_observer.AwaitCorrectPageLoaded());
   EXPECT_TRUE(GetManifestUpdateManager(browser()->profile())
                   .IsAppPendingPageAndManifestUrlLoadForTesting(app_id));
+  EXPECT_TRUE(GetProvider().registrar_unsafe().IsDiyApp(app_id));
 
   // Inject new manifest into the page once DidFinishLoad() is triggered. This
   // should start the manifest checking command without the need for a refresh.
@@ -871,6 +862,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
             std::move(result_awaiter).AwaitNextResult());
   EXPECT_EQ(GetProvider().registrar_unsafe().GetAppManifestUrl(app_id),
             newly_loaded_manifest_url);
+  EXPECT_FALSE(GetProvider().registrar_unsafe().IsDiyApp(app_id));
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
@@ -897,6 +889,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
                        CheckIgnoresNameChange) {
+  WebFeatureHistogramTester web_feature_histogram_tester;
   constexpr char kManifestTemplate[] = R"(
     {
       "name": "$1",
@@ -915,6 +908,8 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
             ManifestUpdateResult::kAppUpToDate);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpToDate, 1);
+  EXPECT_EQ(0, web_feature_histogram_tester.GetCount(
+                   blink::mojom::WebFeature::kWebAppManifestUpdate));
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
@@ -1054,7 +1049,8 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   // beginning.
   GetProvider().sync_bridge_unsafe().SetAppNotLocallyInstalledForTesting(
       app_id);
-  EXPECT_FALSE(GetProvider().registrar_unsafe().IsLocallyInstalled(app_id));
+  EXPECT_EQ(GetProvider().registrar_unsafe().GetInstallState(app_id),
+            proto::SUGGESTED_FROM_ANOTHER_DEVICE);
 
   OverrideManifest(kManifestTemplate, {kInstallableIconList, "red"});
   EXPECT_EQ(GetResultAfterPageLoad(GetAppURL()),
@@ -1168,9 +1164,9 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   WebAppInstallManagerObserverAdapter install_observer(
       &GetProvider().install_manager());
   install_observer.SetWebAppInstalledDelegate(base::BindLambdaForTesting(
-      [](const webapps::AppId& app_id) { NOTREACHED_IN_MIGRATION(); }));
+      [](const webapps::AppId& app_id) { NOTREACHED(); }));
   install_observer.SetWebAppUninstalledDelegate(base::BindLambdaForTesting(
-      [](const webapps::AppId& app_id) { NOTREACHED_IN_MIGRATION(); }));
+      [](const webapps::AppId& app_id) { NOTREACHED(); }));
 
   // CSS #RRGGBBAA syntax.
   OverrideManifest(kManifestTemplate, {kInstallableIconList, "#00FF00F0"});
@@ -1192,6 +1188,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
                        CheckFindsBackgroundColorChange) {
+  WebFeatureHistogramTester web_feature_histogram_tester;
   constexpr char kManifestTemplate[] = R"(
     {
       "name": "Test app name",
@@ -1213,7 +1210,8 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
-
+  EXPECT_EQ(1, web_feature_histogram_tester.GetCount(
+                   blink::mojom::WebFeature::kWebAppManifestUpdate));
   EXPECT_EQ(GetProvider().registrar_unsafe().GetAppBackgroundColor(app_id),
             SkColorSetARGB(0xFF, 0xFF, 0x00, 0x00));
 }
@@ -1503,7 +1501,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
   // This is to ensure that the uninstall command that was scheduled also
   // completes.
   GetProvider().command_manager().AwaitAllCommandsCompleteForTesting();
-  EXPECT_FALSE(GetProvider().registrar_unsafe().IsInstalled(app_id));
+  EXPECT_FALSE(GetProvider().registrar_unsafe().IsInRegistrar(app_id));
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
@@ -2193,8 +2191,10 @@ IN_PROC_BROWSER_TEST_P(ManifestUpdateManagerBrowserTest_UpdateDialog,
 
   // ManifestUpdateManager updates only locally installed apps. Installs web app
   // locally on Win/Mac/Linux.
-  if (!web_app->is_locally_installed())
+  if (GetProvider().registrar_unsafe().GetInstallState(app_id) ==
+      proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE) {
     InstallAppLocally(web_app);
+  }
 
   // Autogenerated icons in `ResizeIconsAndGenerateMissing()` use hardcoded dark
   // gray color as background.
@@ -2258,13 +2258,7 @@ INSTANTIATE_TEST_SUITE_P(
                       UpdateDialogParam::kDisabled),
     ManifestUpdateManagerBrowserTest_UpdateDialog::ParamToString);
 
-class ManifestUpdateManagerLaunchHandlerBrowserTest
-    : public ManifestUpdateManagerBrowserTest {
-  base::test::ScopedFeatureList scoped_feature_list_{
-      blink::features::kWebAppEnableLaunchHandler};
-};
-
-IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerLaunchHandlerBrowserTest,
+IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest,
                        CheckFindsLaunchHandlerChange) {
   constexpr char kManifestTemplate[] = R"(
     {
@@ -2281,9 +2275,12 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerLaunchHandlerBrowserTest,
     "client_mode": "focus-existing"
   })"});
   webapps::AppId app_id = InstallWebApp();
+  auto expected_launch_handler =
+      LaunchHandler{LaunchHandler::ClientMode::kFocusExisting};
   EXPECT_EQ(
-      GetProvider().registrar_unsafe().GetAppById(app_id)->launch_handler(),
-      (LaunchHandler{LaunchHandler::ClientMode::kFocusExisting}));
+      expected_launch_handler,
+      GetProvider().registrar_unsafe().GetAppById(app_id)->launch_handler());
+  EXPECT_TRUE(expected_launch_handler.client_mode_valid_and_specified());
 
   // New launch_handler syntax.
   OverrideManifest(kManifestTemplate, {kInstallableIconList, R"({
@@ -2299,12 +2296,16 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerLaunchHandlerBrowserTest,
                                  {{96, kWin}, kInstallableIconTopLeftColor},
                                  {{128, kAll}, kInstallableIconTopLeftColor},
                                  {{256, kAll}, kInstallableIconTopLeftColor}});
+
+  expected_launch_handler =
+      LaunchHandler{LaunchHandler::ClientMode::kNavigateExisting};
   EXPECT_EQ(
-      GetProvider().registrar_unsafe().GetAppById(app_id)->launch_handler(),
-      (LaunchHandler{LaunchHandler::ClientMode::kNavigateExisting}));
+      expected_launch_handler,
+      GetProvider().registrar_unsafe().GetAppById(app_id)->launch_handler());
+  EXPECT_TRUE(expected_launch_handler.client_mode_valid_and_specified());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 class ManifestUpdateManagerSystemAppBrowserTest
     : public ManifestUpdateManagerBrowserTest {
  public:
@@ -2329,29 +2330,25 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerSystemAppBrowserTest,
   EXPECT_EQ(GetProvider().registrar_unsafe().GetAppThemeColor(app_id),
             SK_ColorGREEN);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 class ManifestUpdateManagerIsolatedWebAppBrowserTest
     : public IsolatedWebAppBrowserTestHarness {
- public:
-  ManifestUpdateManagerIsolatedWebAppBrowserTest() {
-    isolated_web_app_dev_server_ =
-        CreateAndStartServer(FILE_PATH_LITERAL("web_apps/simple_isolated_app"));
-  }
-
  protected:
-  std::unique_ptr<net::EmbeddedTestServer> isolated_web_app_dev_server_;
   base::HistogramTester histogram_tester_;
 };
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerIsolatedWebAppBrowserTest,
                        CheckUpdateSkipped) {
-  IsolatedWebAppUrlInfo url_info_ = InstallDevModeProxyIsolatedWebApp(
-      isolated_web_app_dev_server_->GetOrigin());
+  std::unique_ptr<ScopedBundledIsolatedWebApp> app =
+      IsolatedWebAppBuilder(ManifestBuilder().SetStartUrl("/index.html"))
+          .AddHtml("/index.html", "<html></html>")
+          .BuildBundle();
+  ASSERT_OK_AND_ASSIGN(IsolatedWebAppUrlInfo url_info, app->Install(profile()));
 
   UpdateCheckResultAwaiter awaiter(
-      url_info_.origin().GetURL().Resolve("/index.html"));
-  EXPECT_TRUE(OpenApp(url_info_.app_id()));
+      url_info.origin().GetURL().Resolve("/index.html"));
+  EXPECT_TRUE(OpenApp(url_info.app_id()));
   EXPECT_EQ(std::move(awaiter).AwaitNextResult(),
             ManifestUpdateResult::kAppIsIsolatedWebApp);
 
@@ -4179,11 +4176,7 @@ class ManifestUpdateManagerBrowserTest_ScopeExtensions
   std::string OriginAssociationFileFromAppIdentity(const GURL& app_identity) {
     constexpr char kOriginAssociationTemplate[] = R"(
     {
-      "web_apps": [
-        {
-          "web_app_identity": "$1"
-        }
-      ]
+      "$1" : {}
     })";
     return base::ReplaceStringPlaceholders(kOriginAssociationTemplate,
                                            {app_identity.spec()}, nullptr);
@@ -4219,7 +4212,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
@@ -4234,11 +4227,16 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
+
   // Check that origin association validation succeeded with extension.com.
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  GURL scope("https://extension.com");
+  ScopeExtensions expected_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
-  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_extensions);
+
+  ScopeExtensions expected_validated_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
+  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_validated_extensions);
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
@@ -4253,7 +4251,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
@@ -4266,8 +4264,9 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  ScopeExtensions expected_extensions =
+      ScopeExtensions({ScopeExtensionInfo::CreateForOrigin(
+          url::Origin::Create(GURL("https://extension.com")))});
   EXPECT_EQ(GetValidatedScopeExtensions(app_id), ScopeExtensions());
 }
 
@@ -4277,7 +4276,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
@@ -4286,8 +4285,9 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
                              OriginAssociationFileFromAppIdentity(
                                  GetAppURL().GetWithoutFilename())}});
   webapps::AppId app_id = InstallWebApp();
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  ScopeExtensions expected_extensions =
+      ScopeExtensions({ScopeExtensionInfo::CreateForOrigin(
+          url::Origin::Create(GURL("https://extension.com")))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
 
   // Update with empty scope_extensions.
@@ -4309,7 +4309,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension_1.com"
+              "type": "origin", "origin": "https://extension_1.com"
             }
           ]
       )");
@@ -4319,33 +4319,38 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
             GetAppURL().GetWithoutFilename())}});
   webapps::AppId app_id = InstallWebApp();
 
-  ScopeExtensions expected_extensions = ScopeExtensions({ScopeExtensionInfo(
-      url::Origin::Create(GURL("https://extension_1.com")))});
+  GURL scope("https://extension_1.com");
+  ScopeExtensions expected_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
-  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_extensions);
+  ScopeExtensions expected_validated_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
+  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_validated_extensions);
 
   // Update with empty scope_extensions.
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension_2.com"
+              "type": "origin", "origin": "https://extension_2.com"
             }
           ]
       )");
+  GURL scope2("https://extension_2.com");
   SetOriginAssociationData(
-      {{url::Origin::Create(GURL("https://extension_2.com")),
-        OriginAssociationFileFromAppIdentity(
-            GetAppURL().GetWithoutFilename())}});
+      {{url::Origin::Create(scope2), OriginAssociationFileFromAppIdentity(
+                                         GetAppURL().GetWithoutFilename())}});
   // Check that changes in manifest's scope_extensions caused successful update.
   EXPECT_EQ(GetResultAfterPageLoad(GetAppURL()),
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
   // Check that origin association validation succeeded with extension.com.
-  expected_extensions = ScopeExtensions({ScopeExtensionInfo(
-      url::Origin::Create(GURL("https://extension_2.com")))});
+  expected_extensions = ScopeExtensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope2))});
+  expected_validated_extensions = ScopeExtensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope2))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
-  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_extensions);
+  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_validated_extensions);
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
@@ -4354,7 +4359,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
@@ -4363,8 +4368,9 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
                                  GetAppURL().GetWithoutFilename())}});
 
   webapps::AppId app_id = InstallWebApp();
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  ScopeExtensions expected_extensions =
+      ScopeExtensions({ScopeExtensionInfo::CreateForOrigin(
+          url::Origin::Create(GURL("https://extension.com")))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
 
   // Check that failure to validate origin associations caused successful
@@ -4375,8 +4381,8 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
   // Check that origin association validation succeeded with extension.com.
-  expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  expected_extensions = ScopeExtensions({ScopeExtensionInfo::CreateForOrigin(
+      url::Origin::Create(GURL("https://extension.com")))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
   EXPECT_EQ(GetValidatedScopeExtensions(app_id), ScopeExtensions());
 }
@@ -4387,29 +4393,33 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
   // Validation should fail during initial install.
   SetOriginAssociationData({});
   webapps::AppId app_id = InstallWebApp();
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  GURL scope("https://extension.com");
+  ScopeExtensions expected_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
+
+  ScopeExtensions expected_validated_extensions(
+      {ScopeExtensionInfo::CreateForOrigin(url::Origin::Create(scope))});
   EXPECT_EQ(GetValidatedScopeExtensions(app_id), ScopeExtensions());
 
   // Check that successful validation caused successful update.
-  SetOriginAssociationData({{url::Origin::Create(GURL("https://extension.com")),
-                             OriginAssociationFileFromAppIdentity(
-                                 GetAppURL().GetWithoutFilename())}});
+  SetOriginAssociationData(
+      {{url::Origin::Create(scope), OriginAssociationFileFromAppIdentity(
+                                        GetAppURL().GetWithoutFilename())}});
 
   EXPECT_EQ(GetResultAfterPageLoad(GetAppURL()),
             ManifestUpdateResult::kAppUpdated);
   histogram_tester_.ExpectBucketCount(kUpdateHistogramName,
                                       ManifestUpdateResult::kAppUpdated, 1);
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
-  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_extensions);
+  EXPECT_EQ(GetValidatedScopeExtensions(app_id), expected_validated_extensions);
 }
 
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
@@ -4418,15 +4428,16 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_ScopeExtensions,
   OverrideScopeExtensions(R"(
           [
             {
-              "origin": "https://extension.com"
+              "type": "origin", "origin": "https://extension.com"
             }
           ]
       )");
   // Validation should fail during initial install.
   SetOriginAssociationData({});
   webapps::AppId app_id = InstallWebApp();
-  ScopeExtensions expected_extensions = ScopeExtensions(
-      {ScopeExtensionInfo(url::Origin::Create(GURL("https://extension.com")))});
+  ScopeExtensions expected_extensions =
+      ScopeExtensions({ScopeExtensionInfo::CreateForOrigin(
+          url::Origin::Create(GURL("https://extension.com")))});
   EXPECT_EQ(GetScopeExtensions(app_id), expected_extensions);
   EXPECT_EQ(GetValidatedScopeExtensions(app_id), ScopeExtensions());
 
@@ -4469,17 +4480,12 @@ class ManifestUpdateManagerAppIdentityBrowserTest
       features::kPwaUpdateDialogForIcon};
 };
 
+#if BUILDFLAG(IS_CHROMEOS)
 // This test verifies that shortcut apps with custom name overrides don't try to
-// update the name back to the manifest app name.
+// update the name back to the manifest app name. Shortcut apps only exist on
+// ChromeOS at the moment.
 IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
                        CheckShortcutAppDoesntPromptForUpdates) {
-#if BUILDFLAG(IS_CHROMEOS)
-  if (chromeos::features::IsCrosShortstandEnabled()) {
-    GTEST_SKIP()
-        << "Shortcuts do not manifest update when Shortstand is enabled.";
-  }
-#endif
-
   constexpr char kAppName[] = "Test app";
   constexpr char kOverrideName[] = "Override name";
 
@@ -4537,6 +4543,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerAppIdentityBrowserTest,
             GetProvider().registrar_unsafe().GetAppShortName(app_id));
   EXPECT_EQ(SK_ColorRED, ReadAppIconPixel(app_id, /*size=*/256));
 }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Test that showing the AppIdentity update confirmation and allowing the update
 // sends the right signal back.
@@ -4715,7 +4722,8 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerPrerenderingBrowserTest,
 
   base::HistogramTester histogram_tester;
   const GURL prerender_url = http_server_.GetURL("/title1.html");
-  int host_id = prerender_helper().AddPrerender(prerender_url);
+  content::FrameTreeNodeId host_id =
+      prerender_helper().AddPrerender(prerender_url);
   content::test::PrerenderHostObserver host_observer(*web_contents, host_id);
   // Prerendering doesn't update the existing App ID.
   const webapps::AppId* app_id_on_prerendering =
@@ -4792,7 +4800,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_TabStrip,
   EXPECT_TRUE(web_app->tab_strip().has_value());
   EXPECT_EQ(http_server_.GetURL("/new-tab-url"),
             web_app->tab_strip().value().new_tab_button.url);
-  EXPECT_EQ(absl::get<blink::Manifest::HomeTabParams>(
+  EXPECT_EQ(std::get<blink::Manifest::HomeTabParams>(
                 web_app->tab_strip().value().home_tab)
                 .scope_patterns.size(),
             1u);
@@ -4823,7 +4831,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_TabStrip,
   EXPECT_TRUE(web_app->tab_strip().has_value());
   EXPECT_EQ(http_server_.GetURL("/new-tab-url"),
             web_app->tab_strip().value().new_tab_button.url);
-  EXPECT_TRUE(absl::holds_alternative<blink::Manifest::HomeTabParams>(
+  EXPECT_TRUE(std::holds_alternative<blink::Manifest::HomeTabParams>(
       web_app->tab_strip().value().home_tab));
 
   OverrideManifest(kTabStripManifestTemplate, {kInstallableIconList});
@@ -4834,7 +4842,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_TabStrip,
   EXPECT_TRUE(web_app->tab_strip().has_value());
   EXPECT_EQ(http_server_.GetURL("/new-tab-url"),
             web_app->tab_strip().value().new_tab_button.url);
-  EXPECT_TRUE(absl::holds_alternative<blink::Manifest::HomeTabParams>(
+  EXPECT_TRUE(std::holds_alternative<blink::Manifest::HomeTabParams>(
       web_app->tab_strip().value().home_tab));
 }
 
@@ -4912,7 +4920,7 @@ IN_PROC_BROWSER_TEST_F(ManifestUpdateManagerBrowserTest_TabStrip,
   EXPECT_TRUE(web_app->tab_strip().has_value());
   EXPECT_EQ(http_server_.GetURL("/new-tab-url"),
             web_app->tab_strip().value().new_tab_button.url);
-  EXPECT_TRUE(absl::holds_alternative<blink::Manifest::HomeTabParams>(
+  EXPECT_TRUE(std::holds_alternative<blink::Manifest::HomeTabParams>(
       web_app->tab_strip().value().home_tab));
 
   OverrideManifest(kManifestTemplate, {kInstallableIconList});
@@ -5521,7 +5529,7 @@ IN_PROC_BROWSER_TEST_P(
     ending_stage = starting_stage;  // No icon change.
     expected_shortcut_colors_if_updated = expected_shortcut_colors_before;
   } else {
-    NOTREACHED_IN_MIGRATION();  // Unhandled test input.
+    NOTREACHED();  // Unhandled test input.
   }
 
   OverrideManifest(kManifestTemplate, {app_name, starting_stage});
@@ -5536,7 +5544,7 @@ IN_PROC_BROWSER_TEST_P(
   } else if (IsWebApp()) {
     app_id = InstallWebApp();
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   const WebApp* web_app = GetProvider().registrar_unsafe().GetAppById(app_id);

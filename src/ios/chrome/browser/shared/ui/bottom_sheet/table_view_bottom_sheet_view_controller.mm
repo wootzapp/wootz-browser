@@ -5,12 +5,14 @@
 #import "ios/chrome/browser/shared/ui/bottom_sheet/table_view_bottom_sheet_view_controller.h"
 
 #import <Foundation/Foundation.h>
+
 #import <optional>
 #import <ostream>
 
 #import "base/check.h"
 #import "base/notreached.h"
 #import "ios/chrome/browser/shared/ui/bottom_sheet/table_view_bottom_sheet_view_controller+subclassing.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 
 namespace {
@@ -84,7 +86,27 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
              : UITableViewCellAccessoryNone;
 }
 
+- (void)adjustTransactionsPrimaryActionButtonHorizontalConstraints {
+  CGFloat buttonHorizontalMargin =
+      ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad
+           ? 64.0
+           : 24.0);
+
+  [self.primaryActionButton.leadingAnchor
+      constraintEqualToAnchor:(self.view.leadingAnchor)
+                     constant:buttonHorizontalMargin]
+      .active = YES;
+  [self.primaryActionButton.trailingAnchor
+      constraintEqualToAnchor:(self.view.trailingAnchor)
+                     constant:-buttonHorizontalMargin]
+      .active = YES;
+}
+
 #pragma mark - Subclassing
+
+- (UIView*)createUnderTitleView {
+  return [self createTableView];
+}
 
 - (UITableView*)createTableView {
   _tableView = [[UITableView alloc] initWithFrame:CGRectZero
@@ -115,13 +137,13 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
 }
 
 - (NSUInteger)rowCount {
-  NOTREACHED_NORETURN() << "Subclasses of TableViewBottomSheetViewController "
-                           "must implement this method.";
+  NOTREACHED() << "Subclasses of TableViewBottomSheetViewController "
+                  "must implement this method.";
 }
 
 - (CGFloat)computeTableViewCellHeightAtIndex:(NSUInteger)index {
-  NOTREACHED_NORETURN() << "Subclasses of TableViewBottomSheetViewController "
-                           "must implement this method.";
+  NOTREACHED() << "Subclasses of TableViewBottomSheetViewController "
+                  "must implement this method.";
 }
 
 #pragma mark - UIViewController
@@ -133,7 +155,7 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
   // minimized.
   _tableViewIsMinimized = [self rowCount] > [self initialNumberOfVisibleCells];
 
-  self.underTitleView = [self createTableView];
+  self.underTitleView = [self createUnderTitleView];
 
   // Set the properties read by the super when constructing the
   // views in `-[ConfirmationAlertViewController viewDidLoad]`.
@@ -157,6 +179,13 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
 
   // Set selection to the first one.
   [self selectFirstRow];
+
+  if (@available(iOS 17, *)) {
+    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+        @[ UITraitPreferredContentSizeCategory.class ]);
+    [self registerForTraitChanges:traits
+                       withAction:@selector(updateHeightOnTraitChange)];
+  }
 }
 
 - (void)viewIsAppearing:(BOOL)animated {
@@ -167,15 +196,19 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
   [self updateHeight];
 }
 
+#if !defined(__IPHONE_17_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
+  if (@available(iOS 17, *)) {
+    return;
+  }
 
   if (self.traitCollection.preferredContentSizeCategory !=
       previousTraitCollection.preferredContentSizeCategory) {
-    _minimizedStateHeight = std::nullopt;
-    [self updateHeight];
+    [self updateHeightOnTraitChange];
   }
 }
+#endif
 
 #pragma mark - UITableViewDelegate
 
@@ -282,23 +315,21 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
   // Setup the minimized height (if the table has more than
   // `initialNumberOfVisibleCells` rows).
   NSMutableArray* currentDetents = [[NSMutableArray alloc] init];
-  if (@available(iOS 16, *)) {
-    if (useMinimizedState) {
-      // Show gradient view when the user is in minimized state to show that the
-      // view can be scrolled.
-      [self displayGradientView:YES];
+  if (useMinimizedState) {
+    // Show gradient view when the user is in minimized state to show that the
+    // view can be scrolled.
+    [self displayGradientView:YES];
 
-      CGFloat bottomSheetHeight = [self initialHeight];
-      auto detentBlock = ^CGFloat(
-          id<UISheetPresentationControllerDetentResolutionContext> context) {
-        return bottomSheetHeight;
-      };
-      UISheetPresentationControllerDetent* customDetent =
-          [UISheetPresentationControllerDetent
-              customDetentWithIdentifier:kCustomMinimizedDetentIdentifier
-                                resolver:detentBlock];
-      [currentDetents addObject:customDetent];
-    }
+    CGFloat bottomSheetHeight = [self initialHeight];
+    auto detentBlock = ^CGFloat(
+        id<UISheetPresentationControllerDetentResolutionContext> context) {
+      return bottomSheetHeight;
+    };
+    UISheetPresentationControllerDetent* customDetent =
+        [UISheetPresentationControllerDetent
+            customDetentWithIdentifier:kCustomMinimizedDetentIdentifier
+                              resolver:detentBlock];
+    [currentDetents addObject:customDetent];
   }
 
   // Done calculating the height for the bottom sheet for
@@ -308,22 +339,20 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
 
   // Calculate the full height of the bottom sheet with the minimized height
   // constraint disabled.
-  if (@available(iOS 16, *)) {
-    __weak __typeof(self) weakSelf = self;
-    auto fullHeightBlock = ^CGFloat(
-        id<UISheetPresentationControllerDetentResolutionContext> context) {
-      return [weakSelf computeHeight:context.maximumDetentValue];
-    };
-    UISheetPresentationControllerDetent* customDetentExpand =
-        [UISheetPresentationControllerDetent
-            customDetentWithIdentifier:kCustomDetentIdentifier
-                              resolver:fullHeightBlock];
-    [currentDetents addObject:customDetentExpand];
-    presentationController.detents = currentDetents;
-    presentationController.selectedDetentIdentifier =
-        useMinimizedState ? kCustomMinimizedDetentIdentifier
-                          : kCustomDetentIdentifier;
-  }
+  __weak __typeof(self) weakSelf = self;
+  auto fullHeightBlock = ^CGFloat(
+      id<UISheetPresentationControllerDetentResolutionContext> context) {
+    return [weakSelf computeHeight:context.maximumDetentValue];
+  };
+  UISheetPresentationControllerDetent* customDetentExpand =
+      [UISheetPresentationControllerDetent
+          customDetentWithIdentifier:kCustomDetentIdentifier
+                            resolver:fullHeightBlock];
+  [currentDetents addObject:customDetentExpand];
+  presentationController.detents = currentDetents;
+  presentationController.selectedDetentIdentifier =
+      useMinimizedState ? kCustomMinimizedDetentIdentifier
+                        : kCustomDetentIdentifier;
 }
 
 // Returns whether the provided index path points to the last row of the table
@@ -363,4 +392,12 @@ NSString* const kCustomDetentIdentifier = @"customDetent";
   }
   return _minimizedStateHeight.value();
 }
+
+// Updates the view's height properties when UITraitPreferredContentSizeCategory
+// is modified.
+- (void)updateHeightOnTraitChange {
+  _minimizedStateHeight = std::nullopt;
+  [self updateHeight];
+}
+
 @end

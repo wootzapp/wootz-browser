@@ -14,9 +14,9 @@
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "components/input/cursor_manager.h"
 #include "components/viz/common/surfaces/frame_sink_id.h"
 #include "components/viz/host/host_frame_sink_client.h"
-#include "content/browser/renderer_host/cursor_manager.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/renderer_host/render_widget_host_view_child_frame.h"
@@ -120,6 +120,7 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase,
                                  const gfx::Rect& bounds) override {}
   void ClearKeyboardTriggeredTooltip() override {}
   gfx::Rect GetBoundsInRootWindow() override;
+  const viz::LocalSurfaceId& IncrementSurfaceIdForNavigation() override;
   blink::mojom::PointerLockResult LockPointer(bool) override;
   blink::mojom::PointerLockResult ChangePointerLock(bool) override;
   void UnlockPointer() override;
@@ -129,9 +130,8 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase,
   std::unique_ptr<SyntheticGestureTarget> CreateSyntheticGestureTarget()
       override;
   ui::Compositor* GetCompositor() override;
-  CursorManager* GetCursorManager() override;
+  input::CursorManager* GetCursorManager() override;
   void InvalidateLocalSurfaceIdAndAllocationGroup() override {}
-  bool IsTestRenderWidgetHostView() const override;
 
   bool is_showing() const { return is_showing_; }
   bool is_occluded() const { return is_occluded_; }
@@ -156,13 +156,12 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase,
     return take_fallback_content_from_called_;
   }
 
-  void set_has_focus(bool has_focus) { has_focus_ = has_focus; }
-
  protected:
   // RenderWidgetHostViewBase:
   void UpdateBackgroundColor() override;
   std::optional<DisplayFeature> GetDisplayFeature() override;
-  void SetDisplayFeatureForTesting(
+  void DisableDisplayFeatureOverrideForEmulation() override;
+  void OverrideDisplayFeatureForEmulation(
       const DisplayFeature* display_feature) override;
   void NotifyHostAndDelegateOnWasShown(
       blink::mojom::RecordContentToVisibleTimeRequestPtr) override;
@@ -197,13 +196,7 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase,
 
   raw_ptr<ui::Compositor, DanglingUntriaged> compositor_ = nullptr;
 
-  CursorManager cursor_manager_;
-
-  // What `HasFocus()` will return.  Note that this is entirely a lie; it
-  // defaults to true, will change to false with `Hide()`, and can be toggled
-  // manually via `set_has_focus()`.  It does not reflect any other type of
-  // focus tracking, and may be out of sync with other notions of focus.
-  bool has_focus_ = true;
+  input::CursorManager cursor_manager_;
 };
 
 // TestRenderWidgetHostViewChildFrame -----------------------------------------

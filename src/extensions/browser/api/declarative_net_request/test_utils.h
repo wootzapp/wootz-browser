@@ -28,6 +28,10 @@ namespace content {
 class BrowserContext;
 }  // namespace content
 
+namespace net {
+class HttpResponseHeaders;
+}  // namespace net
+
 namespace extensions {
 
 class Extension;
@@ -35,6 +39,7 @@ class Extension;
 namespace declarative_net_request {
 
 class FileBackedRulesetSource;
+struct RequestParams;
 class RulesetMatcher;
 struct RuleCounts;
 struct TestRule;
@@ -87,7 +92,11 @@ FileBackedRulesetSource CreateTemporarySource(
 api::declarative_net_request::ModifyHeaderInfo CreateModifyHeaderInfo(
     api::declarative_net_request::HeaderOperation operation,
     std::string header,
-    std::optional<std::string> value);
+    std::optional<std::string> value,
+    std::optional<std::string> regex_filter = std::nullopt,
+    std::optional<std::string> regex_substitution = std::nullopt,
+    std::optional<api::declarative_net_request::HeaderRegexOptions>
+        regex_options = std::nullopt);
 
 bool EqualsForTesting(
     const api::declarative_net_request::ModifyHeaderInfo& lhs,
@@ -159,6 +168,10 @@ base::flat_set<int> GetDisabledRuleIdsFromMatcherForTesting(
     const RulesetManager& ruleset_manager,
     const Extension& extension,
     const std::string& ruleset_id_string);
+
+RequestParams CreateRequestWithResponseHeaders(
+    const GURL& url,
+    const net::HttpResponseHeaders* headers);
 
 }  // namespace declarative_net_request
 }  // namespace extensions

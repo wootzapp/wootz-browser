@@ -8,27 +8,39 @@ build_webui("build") {
   grd_prefix = "traces_internals"
 
   static_files = [
-    "trace_report_internals.html",
     "trace_report_internals.css",
+    "trace_report_internals.html",
   ]
 
-  web_component_files = [
-    "trace_report_list.ts",
+  ts_files = [
+    "app.html.ts",
+    "app.ts",
+    "trace_report.html.ts",
     "trace_report.ts",
+    "trace_report_browser_proxy.ts",
+    "trace_report_list.html.ts",
+    "trace_report_list.ts",
+    "tracing_scenarios_config.html.ts",
+    "tracing_scenarios_config.ts",
+  ]
+
+  css_files = [
+    "app.css",
+    "trace_report.css",
+    "trace_report_list.css",
+    "tracing_scenarios_config.css",
   ]
 
   icons_html_files = [ "icons.html" ]
-
-  non_web_component_files = [ "trace_report_browser_proxy.ts" ]
+  html_to_wrapper_template = "detect"
 
   ts_deps = [
-    "//third_party/polymer/v3_0:library",
+    "//third_party/lit/v3_0:build_ts",
     "//ui/webui/resources/cr_elements:build_ts",
     "//ui/webui/resources/js:build_ts",
     "//ui/webui/resources/mojo:build_ts",
   ]
 
-  ts_composite = true
   webui_context_type = "trusted"
 
   mojo_files_deps =

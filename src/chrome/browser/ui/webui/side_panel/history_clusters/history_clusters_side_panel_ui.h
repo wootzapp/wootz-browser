@@ -10,11 +10,15 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/history_clusters/history_clusters_metrics_logger.h"
 #include "chrome/browser/ui/webui/top_chrome/top_chrome_web_ui_controller.h"
+#include "chrome/browser/ui/webui/top_chrome/top_chrome_webui_config.h"
+#include "chrome/common/webui_url_constants.h"
 #include "components/page_image_service/mojom/page_image_service.mojom.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/common/url_constants.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/webui/resources/cr_components/color_change_listener/color_change_listener.mojom.h"
 #include "ui/webui/resources/cr_components/history_clusters/history_clusters.mojom-forward.h"
+#include "ui/webui/resources/cr_components/history_embeddings/history_embeddings.mojom.h"
 
 namespace ui {
 class ColorChangeHandler;
@@ -24,9 +28,29 @@ namespace history_clusters {
 class HistoryClustersHandler;
 }
 
+class HistoryEmbeddingsHandler;
+
 namespace page_image_service {
 class ImageServiceHandler;
 }
+
+namespace content {
+class BrowserContext;
+}
+
+class BrowserWindowInterface;
+class HistoryClustersSidePanelUI;
+
+class HistoryClustersSidePanelUIConfig
+    : public DefaultTopChromeWebUIConfig<HistoryClustersSidePanelUI> {
+ public:
+  HistoryClustersSidePanelUIConfig();
+
+  // DefaultTopChromeWebUIConfig::
+  bool IsPreloadable() override;
+  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
+  std::optional<int> GetCommandIdForTesting() override;
+};
 
 class HistoryClustersSidePanelUI : public TopChromeWebUIController,
                                    public content::WebContentsObserver {
@@ -36,6 +60,10 @@ class HistoryClustersSidePanelUI : public TopChromeWebUIController,
   HistoryClustersSidePanelUI& operator=(const HistoryClustersSidePanelUI&) =
       delete;
   ~HistoryClustersSidePanelUI() override;
+
+  // Expected to be called immediately after construction.
+  void SetBrowserWindowInterface(
+      BrowserWindowInterface* browser_window_interface);
 
   void BindInterface(
       mojo::PendingReceiver<color_change_listener::mojom::PageHandler>
@@ -47,6 +75,9 @@ class HistoryClustersSidePanelUI : public TopChromeWebUIController,
                          pending_page_handler);
   void BindInterface(
       mojo::PendingReceiver<page_image_service::mojom::PageImageServiceHandler>
+          pending_page_handler);
+  void BindInterface(
+      mojo::PendingReceiver<history_embeddings::mojom::PageHandler>
           pending_page_handler);
 
   // Gets a weak pointer to this object.
@@ -69,6 +100,7 @@ class HistoryClustersSidePanelUI : public TopChromeWebUIController,
   // WebContentsObserver:
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
+  void OnVisibilityChanged(content::Visibility visibility) override;
 
   static constexpr std::string GetWebUIName() {
     return "HistoryClustersSidePanel";
@@ -80,11 +112,14 @@ class HistoryClustersSidePanelUI : public TopChromeWebUIController,
       history_clusters_handler_;
   std::unique_ptr<page_image_service::ImageServiceHandler>
       image_service_handler_;
+  std::unique_ptr<HistoryEmbeddingsHandler> history_embeddings_handler_;
 
   // The initial state that we have to cache here until the page finishes its
   // navigation to the WebUI host.
   history_clusters::HistoryClustersInitialState metrics_initial_state_ =
       history_clusters::HistoryClustersInitialState::kUnknown;
+
+  raw_ptr<BrowserWindowInterface> browser_window_interface_;
 
   // Used for `GetWeakPtr()`.
   base::WeakPtrFactory<HistoryClustersSidePanelUI> weak_ptr_factory_{this};

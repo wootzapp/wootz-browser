@@ -29,7 +29,7 @@ class ProgressBarTest : public ViewsTestBase {
   void SetUp() override {
     ViewsTestBase::SetUp();
 
-    widget_ = CreateTestWidget();
+    widget_ = CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
     container_view_ = widget_->SetContentsView(std::make_unique<View>());
     auto* layout =
         container_view_->SetLayoutManager(std::make_unique<FlexLayout>());
@@ -69,7 +69,7 @@ TEST_F(ProgressBarTest, AccessibleNodeData) {
 
 // Verifies the correct a11y events are raised for an accessible progress bar.
 TEST_F(ProgressBarTest, AccessibilityEvents) {
-  test::AXEventCounter ax_counter(views::AXEventManager::Get());
+  test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
   EXPECT_EQ(0, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
 
   bar()->SetValue(0.50);
@@ -163,6 +163,18 @@ TEST_F(ProgressBarTest, RoundCornerMax) {
   views::test::RunScheduledLayout(container_view_);
   EXPECT_EQ(gfx::RoundedCornersF(12, 12, 12, 12),
             bar()->GetPreferredCornerRadii());
+}
+
+// Test that if value is set negative, which means progress bar is
+// indeterminate, the string attribute value should be empty.
+TEST_F(ProgressBarTest, RemoveValue) {
+  // setting negative progress bar value
+  bar()->SetValue(-0.626);
+
+  ui::AXNodeData node_data;
+  bar()->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ(std::string(""),
+            node_data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
 }
 
 }  // namespace views

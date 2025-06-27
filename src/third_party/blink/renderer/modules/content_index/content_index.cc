@@ -6,9 +6,8 @@
 
 #include <optional>
 
-#include "base/feature_list.h"
 #include "base/task/sequenced_task_runner.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_content_icon_definition.h"
@@ -21,16 +20,6 @@
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
-
-namespace features {
-
-// If enabled, registering content index entries will perform a check
-// to see if the provided launch url is offline-capable.
-BASE_FEATURE(kContentIndexCheckOffline,
-             "ContentIndexCheckOffline",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-}  // namespace features
 
 namespace blink {
 
@@ -95,7 +84,7 @@ ScriptPromise<IDLUndefined> ContentIndex::add(
   if (!registration_->active()) {
     exception_state.ThrowTypeError(
         "No active registration available on the ServiceWorkerRegistration.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   ExecutionContext* execution_context = ExecutionContext::From(script_state);
@@ -103,14 +92,14 @@ ScriptPromise<IDLUndefined> ContentIndex::add(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "ContentIndex is not allowed in fenced frames.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   WTF::String description_error =
       ValidateDescription(*description, registration_.Get());
   if (!description_error.IsNull()) {
     exception_state.ThrowTypeError(description_error);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
@@ -173,32 +162,6 @@ void ContentIndex::DidGetIcons(ScriptPromiseResolver<IDLUndefined>* resolver,
   KURL launch_url = registration_->GetExecutionContext()->CompleteURL(
       description->launch_url);
 
-  if (base::FeatureList::IsEnabled(features::kContentIndexCheckOffline)) {
-    GetService()->CheckOfflineCapability(
-        registration_->RegistrationId(), launch_url,
-        WTF::BindOnce(&ContentIndex::DidCheckOfflineCapability,
-                      WrapPersistent(this), launch_url, std::move(description),
-                      std::move(icons), WrapPersistent(resolver)));
-    return;
-  }
-
-  DidCheckOfflineCapability(std::move(launch_url), std::move(description),
-                            std::move(icons), resolver,
-                            /* is_offline_capable= */ true);
-}
-
-void ContentIndex::DidCheckOfflineCapability(
-    KURL launch_url,
-    mojom::blink::ContentDescriptionPtr description,
-    Vector<SkBitmap> icons,
-    ScriptPromiseResolver<IDLUndefined>* resolver,
-    bool is_offline_capable) {
-  if (!is_offline_capable) {
-    resolver->RejectWithTypeError(
-        "The provided launch URL is not offline-capable.");
-    return;
-  }
-
   GetService()->Add(
       registration_->RegistrationId(), std::move(description), icons,
       launch_url,
@@ -218,8 +181,7 @@ void ContentIndex::DidAdd(ScriptPromiseResolver<IDLUndefined>* resolver,
       return;
     case mojom::blink::ContentIndexError::INVALID_PARAMETER:
       // The renderer should have been killed.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case mojom::blink::ContentIndexError::NO_SERVICE_WORKER:
       resolver->RejectWithTypeError("Service worker must be active");
       return;
@@ -233,7 +195,7 @@ ScriptPromise<IDLUndefined> ContentIndex::deleteDescription(
   if (!registration_->active()) {
     exception_state.ThrowTypeError(
         "No active registration available on the ServiceWorkerRegistration.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   ExecutionContext* execution_context = ExecutionContext::From(script_state);
@@ -241,7 +203,7 @@ ScriptPromise<IDLUndefined> ContentIndex::deleteDescription(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "ContentIndex is not allowed in fenced frames.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
@@ -269,12 +231,10 @@ void ContentIndex::DidDeleteDescription(
       return;
     case mojom::blink::ContentIndexError::INVALID_PARAMETER:
       // The renderer should have been killed.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case mojom::blink::ContentIndexError::NO_SERVICE_WORKER:
       // This value shouldn't apply to this callback.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 }
 
@@ -328,12 +288,10 @@ void ContentIndex::DidGetDescriptions(
       return;
     case mojom::blink::ContentIndexError::INVALID_PARAMETER:
       // The renderer should have been killed.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case mojom::blink::ContentIndexError::NO_SERVICE_WORKER:
       // This value shouldn't apply to this callback.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 }
 

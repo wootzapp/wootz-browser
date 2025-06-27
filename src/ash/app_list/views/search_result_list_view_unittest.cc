@@ -72,8 +72,8 @@ class SearchResultListViewTest : public views::test::WidgetTest {
     answer_card_view_->SetActive(true);
 
     widget_->SetBounds(gfx::Rect(0, 0, 700, 500));
-    widget_->GetContentsView()->AddChildView(default_view_.get());
-    widget_->GetContentsView()->AddChildView(answer_card_view_.get());
+    widget_->GetContentsView()->AddChildViewRaw(default_view_.get());
+    widget_->GetContentsView()->AddChildViewRaw(answer_card_view_.get());
     widget_->Show();
     default_view_->SetResults(GetResults());
     answer_card_view_->SetResults(GetResults());
@@ -276,7 +276,7 @@ class SearchResultListViewTest : public views::test::WidgetTest {
   void DeleteResultAt(int index) { GetResults()->DeleteAt(index); }
 
   bool KeyPress(ui::KeyboardCode key_code) {
-    ui::KeyEvent event(ui::ET_KEY_PRESSED, key_code, ui::EF_NONE);
+    ui::KeyEvent event(ui::EventType::kKeyPressed, key_code, ui::EF_NONE);
     return default_view_->OnKeyPressed(event);
   }
 

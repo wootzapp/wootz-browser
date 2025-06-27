@@ -18,8 +18,7 @@ ProfileListDesktop::ProfileListDesktop(
     : profile_storage_(profile_storage) {
 }
 
-ProfileListDesktop::~ProfileListDesktop() {
-}
+ProfileListDesktop::~ProfileListDesktop() = default;
 
 size_t ProfileListDesktop::GetNumberOfItems() const {
   return items_.size();
@@ -44,7 +43,6 @@ void ProfileListDesktop::RebuildMenu() {
         new AvatarMenu::Item(items_.size(), entry->GetPath(), icon));
     item->name = entry->GetName();
     item->username = entry->GetUserName();
-    item->signed_in = entry->IsAuthenticated();
     if (entry->GetSigninState() == SigninState::kNotSignedIn) {
       item->username =
           l10n_util::GetStringUTF16(IDS_PROFILES_LOCAL_PROFILE_STATE);

@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
 #include "third_party/blink/renderer/core/layout/box_fragment_builder.h"
 #include "third_party/blink/renderer/core/layout/column_spanner_path.h"
 #include "third_party/blink/renderer/core/layout/exclusions/exclusion_space.h"
@@ -122,13 +123,20 @@ LayoutResult::LayoutResult(LineBoxFragmentBuilderPassKey passkey,
     EnsureRareData()->SetLineBoxBfcBlockOffset(
         *builder->line_box_bfc_block_offset_);
   }
+
+  // `EnsureLineData()` must be done before `EnsureLineSmallData()`.
+  DCHECK(!rare_data_ || !rare_data_->HasData(RareData::kLineSmallData));
   if (builder->annotation_block_offset_adjustment_) {
     EnsureRareData()->EnsureLineData()->annotation_block_offset_adjustment =
         builder->annotation_block_offset_adjustment_;
   }
   if (builder->clearance_after_line_) {
-    EnsureRareData()->EnsureLineData()->clearance_after_line =
-        builder->clearance_after_line_;
+    EnsureRareData()->EnsureLineSmallData()->clearance_after_line =
+        *builder->clearance_after_line_;
+  }
+  if (builder->trim_block_end_by_) {
+    EnsureRareData()->EnsureLineSmallData()->trim_block_end_by =
+        *builder->trim_block_end_by_;
   }
 }
 
@@ -237,10 +245,14 @@ LayoutResult::LayoutResult(const PhysicalFragment* physical_fragment,
   } else {
     space_.GetExclusionSpace().MoveDerivedGeometry(builder->exclusion_space_);
   }
-  if (builder->lines_until_clamp_)
+  if (builder->lines_until_clamp_) {
     EnsureRareData()->lines_until_clamp = *builder->lines_until_clamp_;
-  if (builder->is_text_box_trim_applied_) {
-    EnsureRareData()->set_text_box_trim_is_applied();
+  }
+  if (builder->is_block_end_trimmable_line_) {
+    EnsureRareData()->set_is_block_end_trimmable_line();
+  }
+  if (builder->would_be_last_line_if_not_for_ellipsis_) {
+    EnsureRareData()->set_would_be_last_line_if_not_for_ellipsis();
   }
 
   if (builder->tallest_unbreakable_block_size_ >= LayoutUnit()) {
@@ -266,8 +278,7 @@ LayoutResult::LayoutResult(const PhysicalFragment* physical_fragment,
   }
 
   if (builder->column_spanner_path_) {
-    EnsureRareData()->EnsureBlockData()->column_spanner_path =
-        builder->column_spanner_path_;
+    EnsureRareData()->column_spanner_path = builder->column_spanner_path_;
     bitfields_.is_empty_spanner_parent = builder->is_empty_spanner_parent_;
   }
 
@@ -313,6 +324,21 @@ void LayoutResult::CopyMutableOutOfFlowData(const LayoutResult& other) const {
       other.OutOfFlowInsetsForGetComputedStyle());
   GetMutableForOutOfFlow().SetOutOfFlowPositionedOffset(
       other.OutOfFlowPositionedOffset());
+}
+
+void LayoutResult::MutableForOutOfFlow::SetAccessibilityAnchor(
+    Element* anchor) {
+  if (layout_result_->rare_data_ || anchor) {
+    layout_result_->EnsureRareData()->accessibility_anchor = anchor;
+  }
+}
+
+void LayoutResult::MutableForOutOfFlow::SetDisplayLocksAffectedByAnchors(
+    GCedHeapHashSet<Member<Element>>* display_locks) {
+  if (layout_result_->rare_data_ || display_locks) {
+    layout_result_->EnsureRareData()->display_locks_affected_by_anchors =
+        display_locks;
+  }
 }
 
 #if DCHECK_IS_ON()
@@ -370,6 +396,7 @@ void LayoutResult::AssertSoleBoxFragment() const {
 #endif
 
 void LayoutResult::Trace(Visitor* visitor) const {
+  visitor->Trace(space_);
   visitor->Trace(physical_fragment_);
   visitor->Trace(rare_data_);
 }
@@ -377,10 +404,9 @@ void LayoutResult::Trace(Visitor* visitor) const {
 void LayoutResult::RareData::Trace(Visitor* visitor) const {
   visitor->Trace(early_break);
   visitor->Trace(non_overflowing_scroll_ranges);
-  // This will not cause TOCTOU issue because data_union_type is set in the
-  // constructor and never changed.
-  if (const BlockData* data = GetBlockData())
-    visitor->Trace(data->column_spanner_path);
+  visitor->Trace(column_spanner_path);
+  visitor->Trace(accessibility_anchor);
+  visitor->Trace(display_locks_affected_by_anchors);
 }
 
 }  // namespace blink

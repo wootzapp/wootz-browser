@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/350788890): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "url/url_util.h"
 
 #include <stddef.h>
@@ -61,7 +66,6 @@ struct SchemeRegistry {
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
       {kChromeScheme, SCHEME_WITH_HOST},
       {"wootzapp", SCHEME_WITH_HOST},
-
   };
 
   // Schemes that are allowed for referrers.
@@ -124,6 +128,13 @@ struct SchemeRegistry {
   std::vector<std::string> opaque_non_special_schemes = {
       // See https://crrev.com/c/5465607 for the reason.
       kAndroidScheme,
+      // Temporarily opted-out. See https://crrev.com/c/5569365.
+      kDrivefsScheme,
+      // Temporarily opted-out. See https://crrev.com/c/5568919.
+      kChromeosSteamScheme,
+      kSteamScheme,
+      // Temporarily opted-out. See https://crrev.com/c/5578066.
+      kMaterializedViewScheme,
   };
 
   // Schemes with a predefined default custom handler.
@@ -523,7 +534,8 @@ bool DoReplaceComponents(const char* spec,
     return ReplaceMailtoURL(spec, parsed, replacements, output, out_parsed);
   }
 
-  if (IsUsingStandardCompliantNonSpecialSchemeURLParsing()) {
+  if (IsUsingStandardCompliantNonSpecialSchemeURLParsing() &&
+      !DoIsOpaqueNonSpecial(spec, parsed.scheme)) {
     return ReplaceNonSpecialURL(spec, parsed, replacements, charset_converter,
                                 *output, *out_parsed);
   }
@@ -559,7 +571,6 @@ void DoAddSchemeWithHandler(const char* new_scheme,
   DCHECK(strlen(new_scheme) > 0);
   DCHECK(strlen(handler) > 0);
   DCHECK_EQ(base::ToLowerASCII(new_scheme), new_scheme);
-  LOG(ERROR) << "wootz: " << new_scheme;
   DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithHandler::scheme));
   schemes->push_back({new_scheme, handler});
 }
@@ -569,7 +580,7 @@ void DoAddScheme(const char* new_scheme, std::vector<std::string>* schemes) {
   DCHECK(schemes);
   DCHECK(strlen(new_scheme) > 0);
   DCHECK_EQ(base::ToLowerASCII(new_scheme), new_scheme);
-  DCHECK(!base::Contains(*schemes, new_scheme));
+  // DCHECK(!base::Contains(*schemes, new_scheme));
   schemes->push_back(new_scheme);
 }
 
@@ -580,7 +591,7 @@ void DoAddSchemeWithType(const char* new_scheme,
   DCHECK(schemes);
   DCHECK(strlen(new_scheme) > 0);
   DCHECK_EQ(base::ToLowerASCII(new_scheme), new_scheme);
-  // DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithType::scheme)); // wootz todo seems exts scheme dcheck
+  DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithType::scheme));
   schemes->push_back({new_scheme, type});
 }
 

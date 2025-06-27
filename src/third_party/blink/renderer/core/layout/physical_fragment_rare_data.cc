@@ -23,7 +23,13 @@ PhysicalFragmentRareData::PhysicalFragmentRareData(
     BoxFragmentBuilder& builder,
     wtf_size_t num_fields)
     : table_collapsed_borders_(builder.table_collapsed_borders_),
-      mathml_paint_info_(builder.mathml_paint_info_) {
+      mathml_paint_info_(builder.mathml_paint_info_),
+      reading_flow_nodes_(
+          builder.reading_flow_nodes_.size()
+              ? MakeGarbageCollected<GCedHeapVector<Member<Node>>>(
+                    builder.reading_flow_nodes_)
+              : nullptr),
+      gap_geometry_(builder.gap_geometry_) {
   field_list_.ReserveInitialCapacity(num_fields);
 
   // Each field should be processed in order of FieldId to avoid vector
@@ -73,9 +79,8 @@ PhysicalFragmentRareData::PhysicalFragmentRareData(
   }
 
   if (!builder.table_column_geometries_.empty()) {
-    table_column_geometries_ =
-        MakeGarbageCollected<TableFragmentData::ColumnGeometries>(
-            builder.table_column_geometries_);
+    table_column_geometries_ = MakeGarbageCollected<GCedTableColumnGeometries>(
+        builder.table_column_geometries_);
   }
 
   // size() can be smaller than num_fields because FieldId::kMargins is not
@@ -96,7 +101,8 @@ PhysicalFragmentRareData::PhysicalFragmentRareData(
 PhysicalFragmentRareData::PhysicalFragmentRareData(
     const PhysicalFragmentRareData& other)
     : table_collapsed_borders_(other.table_collapsed_borders_),
-      table_column_geometries_(other.table_column_geometries_) {
+      table_column_geometries_(other.table_column_geometries_),
+      gap_geometry_(other.gap_geometry_) {
   field_list_.ReserveInitialCapacity(other.field_list_.capacity());
 
   // Each field should be processed in order of FieldId to avoid vector

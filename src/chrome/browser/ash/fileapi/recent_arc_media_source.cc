@@ -19,6 +19,7 @@
 #include "chrome/browser/ash/arc/fileapi/arc_documents_provider_util.h"
 #include "chrome/browser/ash/arc/fileapi/arc_media_view_util.h"
 #include "chrome/browser/ash/fileapi/recent_file.h"
+#include "chrome/common/extensions/api/file_manager_private.h"
 #include "content/public/browser/browser_thread.h"
 #include "storage/browser/file_system/external_mount_points.h"
 
@@ -28,9 +29,12 @@ namespace ash {
 
 namespace {
 
+namespace fmp = extensions::api::file_manager_private;
+
 const char kAndroidDownloadDirPrefix[] = "/storage/emulated/0/Download/";
 // The path of the MyFiles directory inside Android. The UUID "0000....2019" is
-// defined in ash/components/arc/volume_mounter/arc_volume_mounter_bridge.cc.
+// defined in
+// chromeos/ash/experiences/arc/volume_mounter/arc_volume_mounter_bridge.cc.
 // TODO(crbug.com/929031): Move MyFiles constants to a common place.
 const char kAndroidMyFilesDirPrefix[] =
     "/storage/0000000000000000000000000000CAFEF00D2019/";
@@ -99,7 +103,8 @@ const char RecentArcMediaSource::kLoadHistogramName[] =
 
 RecentArcMediaSource::RecentArcMediaSource(Profile* profile,
                                            const std::string& root_id)
-    : profile_(profile),
+    : RecentSource(fmp::VolumeType::kMediaView),
+      profile_(profile),
       root_id_(root_id),
       relative_mount_path_(GetRelativeMountPath(root_id)) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);

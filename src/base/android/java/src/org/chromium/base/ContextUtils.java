@@ -12,31 +12,29 @@ import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.res.AssetManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Process;
 import android.preference.PreferenceManager;
 
-import androidx.annotation.Nullable;
-
 import org.jni_zero.JNINamespace;
 
-import org.chromium.base.compat.ApiHelperForM;
-import org.chromium.base.compat.ApiHelperForO;
 import org.chromium.build.BuildConfig;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** This class provides Android application context related utility methods. */
 @JNINamespace("base::android")
+@NullMarked
 public class ContextUtils {
     private static final String TAG = "ContextUtils";
-    private static Context sApplicationContext;
+    private static @Nullable Context sApplicationContext;
 
     /**
      * Flag for {@link Context#registerReceiver}: The receiver can receive broadcasts from other
      * Apps. Has the same behavior as marking a statically registered receiver with "exported=true".
      *
-     * TODO(mthiesse): Move to ApiHelperForT when we build against T SDK.
+     * <p>TODO(mthiesse): Move to ApiHelperForT when we build against T SDK.
      */
     public static final int RECEIVER_EXPORTED = 0x2;
 
@@ -51,16 +49,18 @@ public class ContextUtils {
     /**
      * Get the Android application context.
      *
-     * Under normal circumstances there is only one application context in a process, so it's safe
-     * to treat this as a global. In WebView it's possible for more than one app using WebView to be
-     * running in a single process, but this mechanism is rarely used and this is not the only
+     * <p>Under normal circumstances there is only one application context in a process, so it's
+     * safe to treat this as a global. In WebView it's possible for more than one app using WebView
+     * to be running in a single process, but this mechanism is rarely used and this is not the only
      * problem in that scenario, so we don't currently forbid using it as a global.
      *
-     * Do not downcast the context returned by this method to Application (or any subclass). It may
-     * not be an Application object; it may be wrapped in a ContextWrapper. The only assumption you
-     * may make is that it is a Context whose lifetime is the same as the lifetime of the process.
+     * <p>Do not downcast the context returned by this method to Application (or any subclass). It
+     * may not be an Application object; it may be wrapped in a ContextWrapper. The only assumption
+     * you may make is that it is a Context whose lifetime is the same as the lifetime of the
+     * process.
      */
     public static Context getApplicationContext() {
+        assert sApplicationContext != null;
         return sApplicationContext;
     }
 
@@ -91,7 +91,7 @@ public class ContextUtils {
         // This may need to create the prefs directory if we've never used shared prefs before, so
         // allow disk writes. This is rare but can happen if code used early in startup reads prefs.
         try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
-            return PreferenceManager.getDefaultSharedPreferences(sApplicationContext);
+            return PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         }
     }
 
@@ -139,23 +139,6 @@ public class ContextUtils {
     }
 
     /**
-     * In most cases, {@link Context#getAssets()} can be used directly. Modified resources are
-     * used downstream and are set up on application startup, and this method provides access to
-     * regular assets before that initialization is complete.
-     *
-     * This method should ONLY be used for accessing files within the assets folder.
-     *
-     * @return Application assets.
-     */
-    public static AssetManager getApplicationAssets() {
-        Context context = getApplicationContext();
-        while (context instanceof ContextWrapper) {
-            context = ((ContextWrapper) context).getBaseContext();
-        }
-        return context.getAssets();
-    }
-
-    /**
      * @return Whether the process is isolated.
      */
     @SuppressWarnings("NewApi")
@@ -175,14 +158,28 @@ public class ContextUtils {
         }
     }
 
-    /** @return The name of the current process. E.g. "org.chromium.chrome:privileged_process0". */
+    /**
+     * @return The name of the current process. E.g. "org.chromium.chrome:privileged_process0".
+     */
     public static String getProcessName() {
-        return ApiCompatibilityUtils.getProcessName();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return Application.getProcessName();
+        }
+        try {
+            Class<?> activityThreadClazz = Class.forName("android.app.ActivityThread");
+            return (String) activityThreadClazz.getMethod("currentProcessName").invoke(null);
+        } catch (Exception e) {
+            // If fallback logic is ever needed, refer to:
+            // https://chromium-review.googlesource.com/c/chromium/src/+/905563/1
+            throw JavaUtils.throwUnchecked(e);
+        }
     }
 
-    /** @return Whether the current process is 64-bit. */
+    /**
+     * @return Whether the current process is 64-bit.
+     */
     public static boolean isProcess64Bit() {
-        return ApiHelperForM.isProcess64Bit();
+        return Process.is64Bit();
     }
 
     /**
@@ -222,14 +219,17 @@ public class ContextUtils {
      * <p>
      * You can unregister receivers using the normal {@link Context#unregisterReceiver} method.
      */
-    public static Intent registerProtectedBroadcastReceiver(
-            Context context, BroadcastReceiver receiver, IntentFilter filter) {
+    public static @Nullable Intent registerProtectedBroadcastReceiver(
+            Context context, @Nullable BroadcastReceiver receiver, IntentFilter filter) {
         return registerBroadcastReceiver(
                 context, receiver, filter, /* permission= */ null, /* scheduler= */ null, 0);
     }
 
-    public static Intent registerProtectedBroadcastReceiver(
-            Context context, BroadcastReceiver receiver, IntentFilter filter, Handler scheduler) {
+    public static @Nullable Intent registerProtectedBroadcastReceiver(
+            Context context,
+            @Nullable BroadcastReceiver receiver,
+            IntentFilter filter,
+            Handler scheduler) {
         return registerBroadcastReceiver(
                 context, receiver, filter, /* permission= */ null, scheduler, 0);
     }
@@ -246,8 +246,11 @@ public class ContextUtils {
      * <p>
      * You can unregister receivers using the normal {@link Context#unregisterReceiver} method.
      */
-    public static Intent registerExportedBroadcastReceiver(
-            Context context, BroadcastReceiver receiver, IntentFilter filter, String permission) {
+    public static @Nullable Intent registerExportedBroadcastReceiver(
+            Context context,
+            @Nullable BroadcastReceiver receiver,
+            IntentFilter filter,
+            @Nullable String permission) {
         return registerBroadcastReceiver(
                 context, receiver, filter, permission, /* scheduler= */ null, RECEIVER_EXPORTED);
     }
@@ -284,8 +287,8 @@ public class ContextUtils {
      * <p>
      * You can unregister receivers using the normal {@link Context#unregisterReceiver} method.
      */
-    public static Intent registerNonExportedBroadcastReceiver(
-            Context context, BroadcastReceiver receiver, IntentFilter filter) {
+    public static @Nullable Intent registerNonExportedBroadcastReceiver(
+            Context context, @Nullable BroadcastReceiver receiver, IntentFilter filter) {
         return registerBroadcastReceiver(
                 context,
                 receiver,
@@ -295,8 +298,11 @@ public class ContextUtils {
                 RECEIVER_NOT_EXPORTED);
     }
 
-    public static Intent registerNonExportedBroadcastReceiver(
-            Context context, BroadcastReceiver receiver, IntentFilter filter, Handler scheduler) {
+    public static @Nullable Intent registerNonExportedBroadcastReceiver(
+            Context context,
+            @Nullable BroadcastReceiver receiver,
+            IntentFilter filter,
+            @Nullable Handler scheduler) {
         return registerBroadcastReceiver(
                 context,
                 receiver,
@@ -306,16 +312,15 @@ public class ContextUtils {
                 RECEIVER_NOT_EXPORTED);
     }
 
-    private static Intent registerBroadcastReceiver(
+    private static @Nullable Intent registerBroadcastReceiver(
             Context context,
-            BroadcastReceiver receiver,
+            @Nullable BroadcastReceiver receiver,
             IntentFilter filter,
-            String permission,
-            Handler scheduler,
+            @Nullable String permission,
+            @Nullable Handler scheduler,
             int flags) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return ApiHelperForO.registerReceiver(
-                    context, receiver, filter, permission, scheduler, flags);
+            return context.registerReceiver(receiver, filter, permission, scheduler, flags);
         } else {
             return context.registerReceiver(receiver, filter, permission, scheduler);
         }

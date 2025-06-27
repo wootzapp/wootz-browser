@@ -11,6 +11,7 @@
 #include "third_party/blink/renderer/core/dom/range.h"
 #include "third_party/blink/renderer/core/editing/dom_selection.h"
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/fragment_directive/css_selector_directive.h"
 #include "third_party/blink/renderer/core/fragment_directive/text_directive.h"
 #include "third_party/blink/renderer/core/fragment_directive/text_fragment_selector_generator.h"
@@ -30,7 +31,7 @@ FragmentDirective::~FragmentDirective() = default;
 KURL FragmentDirective::ConsumeFragmentDirective(const KURL& url) {
   // Strip the fragment directive from the URL fragment. E.g. "#id:~:text=a"
   // --> "#id". See https://github.com/WICG/scroll-to-text-fragment.
-  String fragment = url.FragmentIdentifier();
+  String fragment = url.FragmentIdentifier().ToString();
   wtf_size_t start_pos =
       fragment.Find(shared_highlighting::kFragmentsUrlDelimiter);
 
@@ -64,31 +65,17 @@ const HeapVector<Member<Directive>>& FragmentDirective::items() const {
   return directives_;
 }
 
-namespace {
-void RejectWithCode(ScriptPromiseResolverBase* resolver,
-                    DOMExceptionCode code,
-                    const String& message) {
-  ScriptState::Scope scope(resolver->GetScriptState());
-  ExceptionState exception_state(resolver->GetScriptState()->GetIsolate(),
-                                 ExceptionContextType::kOperationInvoke,
-                                 "FragmentDirective",
-                                 "createSelectorDirective");
-  exception_state.ThrowDOMException(code, message);
-  resolver->Reject(exception_state);
-}
-
 void DisposeTemporaryRange(Range* range) {
   if (range) {
     range->Dispose();
   }
 }
-}  // namespace
 
 ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
     ScriptState* state,
     const V8UnionRangeOrSelection* arg) {
   if (ExecutionContext::From(state)->IsContextDestroyed())
-    return ScriptPromise<SelectorDirective>();
+    return EmptyPromise();
 
   auto* resolver =
       MakeGarbageCollected<ScriptPromiseResolver<SelectorDirective>>(state);
@@ -104,8 +91,8 @@ ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
   if (is_content_type_selection) {
     DOMSelection* selection = arg->GetAsSelection();
     if (selection->rangeCount() == 0) {
-      RejectWithCode(resolver, DOMExceptionCode::kNotSupportedError,
-                     "Selection must contain a range");
+      resolver->RejectWithDOMException(DOMExceptionCode::kNotSupportedError,
+                                       "Selection must contain a range");
       return promise;
     }
 
@@ -117,8 +104,9 @@ ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
   }
 
   if (!range || range->collapsed()) {
-    RejectWithCode(resolver, DOMExceptionCode::kNotSupportedError,
-                   "RangeOrSelector must be non-null and non-collapsed");
+    resolver->RejectWithDOMException(
+        DOMExceptionCode::kNotSupportedError,
+        "RangeOrSelector must be non-null and non-collapsed");
     if (is_content_type_selection) {
       DisposeTemporaryRange(range);
     }
@@ -126,8 +114,9 @@ ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
   }
 
   if (range->OwnerDocument() != owner_document_) {
-    RejectWithCode(resolver, DOMExceptionCode::kWrongDocumentError,
-                   "RangeOrSelector must be from this document");
+    resolver->RejectWithDOMException(
+        DOMExceptionCode::kWrongDocumentError,
+        "RangeOrSelector must be from this document");
     if (is_content_type_selection) {
       DisposeTemporaryRange(range);
     }
@@ -136,8 +125,8 @@ ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
 
   LocalFrame* frame = range->OwnerDocument().GetFrame();
   if (!frame) {
-    RejectWithCode(resolver, DOMExceptionCode::kInvalidStateError,
-                   "Document must be attached to frame");
+    resolver->RejectWithDOMException(DOMExceptionCode::kInvalidStateError,
+                                     "Document must be attached to frame");
     if (is_content_type_selection) {
       DisposeTemporaryRange(range);
     }
@@ -158,8 +147,9 @@ ScriptPromise<SelectorDirective> FragmentDirective::createSelectorDirective(
              shared_highlighting::LinkGenerationError error) {
             if (selector.Type() ==
                 TextFragmentSelector::SelectorType::kInvalid) {
-              RejectWithCode(resolver, DOMExceptionCode::kOperationError,
-                             "Failed to generate selector for the given range");
+              resolver->RejectWithDOMException(
+                  DOMExceptionCode::kOperationError,
+                  "Failed to generate selector for the given range");
               return;
             }
             TextDirective* dom_text_directive =

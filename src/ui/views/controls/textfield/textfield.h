@@ -12,6 +12,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -19,13 +20,11 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/ime/text_edit_commands.h"
 #include "ui/base/ime/text_input_client.h"
 #include "ui/base/ime/text_input_type.h"
-#include "ui/base/models/simple_menu_model.h"
-#include "ui/base/pointer/touch_editing_controller.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/events/gesture_event_details.h"
 #include "ui/events/keycodes/keyboard_codes.h"
@@ -34,6 +33,8 @@
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/selection_model.h"
 #include "ui/gfx/text_constants.h"
+#include "ui/menus/simple_menu_model.h"
+#include "ui/touch_selection/touch_editing_controller.h"
 #include "ui/touch_selection/touch_selection_metrics.h"
 #include "ui/views/buildflags.h"
 #include "ui/views/context_menu_controller.h"
@@ -142,10 +143,10 @@ class VIEWS_EXPORT Textfield : public View,
   // Gets the text for the Textfield.
   // NOTE: Call sites should take care to not reveal the text for a password
   // textfield.
-  const std::u16string& GetText() const;
+  std::u16string_view GetText() const;
 
   // Sets the text currently displayed in the Textfield.
-  void SetText(const std::u16string& new_text);
+  void SetText(std::u16string_view new_text);
 
   // Sets the text currently displayed in the Textfield and the cursor position.
   // Does not fire notifications about the caret bounds changing. This is
@@ -155,7 +156,7 @@ class VIEWS_EXPORT Textfield : public View,
   // selection or cursor separately afterwards does not update the edit history,
   // i.e. the cursor position after redoing this change will be determined by
   // |cursor_position| and not by subsequent calls to e.g. SetSelectedRange().
-  void SetTextWithoutCaretBoundsChangeNotification(const std::u16string& text,
+  void SetTextWithoutCaretBoundsChangeNotification(std::u16string_view text,
                                                    size_t cursor_position);
 
   // Scrolls all of |scroll_positions| into view, if possible. For each
@@ -179,7 +180,7 @@ class VIEWS_EXPORT Textfield : public View,
   // Returns the text that is currently selected.
   // NOTE: Call sites should take care to not reveal the text for a password
   // textfield.
-  std::u16string GetSelectedText() const;
+  std::u16string_view GetSelectedText() const;
 
   // Select the entire text range. If |reversed| is true, the range will end at
   // the logical beginning of the text; this generally shows the leading portion
@@ -238,8 +239,8 @@ class VIEWS_EXPORT Textfield : public View,
   void SetMinimumWidthInChars(int minimum_width);
 
   // Gets/Sets the text to display when empty.
-  const std::u16string& GetPlaceholderText() const;
-  void SetPlaceholderText(const std::u16string& text);
+  std::u16string_view GetPlaceholderText() const;
+  void SetPlaceholderText(std::u16string_view text);
 
   void set_placeholder_text_color(SkColor color) {
     placeholder_text_color_ = color;
@@ -359,7 +360,10 @@ class VIEWS_EXPORT Textfield : public View,
   views::View::DropCallback GetDropCallback(
       const ui::DropTargetEvent& event) override;
   void OnDragDone() override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
+  // We don't want to compute the accessible text offsets unless accessibility
+  // is enabled. We need to override this function to make sure that when
+  // accessibility turns on, we compute the current accessible text offsets.
+  void OnAccessibilityInitializing(ui::AXNodeData* node_data) override;
   bool HandleAccessibleAction(const ui::AXActionData& action_data) override;
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
   bool GetNeedsNotificationWhenVisibleBoundsChange() const override;
@@ -375,9 +379,10 @@ class VIEWS_EXPORT Textfield : public View,
   void OnTextChanged() override;
 
   // ContextMenuController overrides:
-  void ShowContextMenuForViewImpl(View* source,
-                                  const gfx::Point& point,
-                                  ui::MenuSourceType source_type) override;
+  void ShowContextMenuForViewImpl(
+      View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override;
 
   // DragController overrides:
   void WriteDragDataForView(View* sender,
@@ -421,6 +426,7 @@ class VIEWS_EXPORT Textfield : public View,
   void ExecuteCommand(int command_id, int event_flags) override;
 
   // ui::TextInputClient overrides:
+  base::WeakPtr<ui::TextInputClient> AsWeakPtr() override;
   void SetCompositionText(const ui::CompositionText& composition) override;
   size_t ConfirmCompositionText(bool keep_selection) override;
   void ClearCompositionText() override;
@@ -434,6 +440,13 @@ class VIEWS_EXPORT Textfield : public View,
   bool CanComposeInline() const override;
   gfx::Rect GetCaretBounds() const override;
   gfx::Rect GetSelectionBoundingBox() const override;
+#if BUILDFLAG(IS_WIN)
+  std::optional<gfx::Rect> GetProximateCharacterBounds(
+      const gfx::Range& range) const override;
+  std::optional<size_t> GetProximateCharacterIndexFromPoint(
+      const gfx::Point& screen_point_in_dips,
+      ui::IndexFromPointFlags flags) const override;
+#endif  // BUILDFLAG(IS_WIN)
   bool GetCompositionCharacterBounds(size_t index,
                                      gfx::Rect* rect) const override;
   bool HasCompositionText() const override;
@@ -546,12 +559,6 @@ class VIEWS_EXPORT Textfield : public View,
   // Get the default command for a given key |event|.
   virtual ui::TextEditCommand GetCommandForKeyEvent(const ui::KeyEvent& event);
 
-#if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
-  // Called when the accessible text offsets for the textfield need to be
-  // recomputed on the next pass.
-  virtual void SetNeedsAccessibleTextOffsetsUpdate();
-#endif  // BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
-
   // Update the cursor position in the text field.
   void UpdateCursorViewPosition();
 
@@ -560,6 +567,12 @@ class VIEWS_EXPORT Textfield : public View,
 
   // Returns true if a context menu for this view is showing.
   bool IsMenuShowing() const;
+
+  void AddedToWidget() override;
+
+#if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
+  void UpdateAccessibleTextOffsetsIfNeeded();
+#endif  // BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
 
  private:
   friend class TextfieldTestApi;
@@ -602,6 +615,8 @@ class VIEWS_EXPORT Textfield : public View,
   // Updates the selection background color.
   void UpdateSelectionBackgroundColor();
 
+  virtual void UpdateAccessibleTextSelection();
+
   // Does necessary updates when the text and/or cursor position changes.
   // If |notify_caret_bounds_changed| is not explicitly set, it will be computed
   // based on whether either of the other arguments is set.
@@ -609,6 +624,12 @@ class VIEWS_EXPORT Textfield : public View,
       TextChangeType text_change_type,
       bool cursor_changed,
       std::optional<bool> notify_caret_bounds_changed = std::nullopt);
+
+  virtual void UpdateAccessibilityTextDirection();
+
+  // Subclass OmniboxViewViews is overriding this method to update the
+  // accessible value.
+  virtual void UpdateAccessibleValue();
 
   // Updates cursor visibility and blinks the cursor if needed.
   void ShowCursor();
@@ -708,6 +729,8 @@ class VIEWS_EXPORT Textfield : public View,
   bool StartSelectionDragging(const ui::GestureEvent& event);
 
   void StopSelectionDragging();
+
+  void UpdateAccessibleDefaultActionVerb();
 
 #if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
   // Calculate widths for each grapheme and word starts and ends. Used for
@@ -918,7 +941,6 @@ class VIEWS_EXPORT Textfield : public View,
           base::BindRepeating(&Textfield::OnEnabledChanged,
                               base::Unretained(this)));
 
-  // Used to bind callback functions to this object.
   base::WeakPtrFactory<Textfield> weak_ptr_factory_{this};
 
   // Used to bind drop callback functions to this object.

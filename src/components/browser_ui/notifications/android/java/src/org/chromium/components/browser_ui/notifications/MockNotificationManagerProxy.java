@@ -7,10 +7,8 @@ package org.chromium.components.browser_ui.notifications;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
-import android.os.Build;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 import org.chromium.base.Callback;
 import org.chromium.base.task.PostTask;
@@ -20,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Mocked implementation of the NotificationManagerProxy. Imitates behavior of the Android
@@ -58,6 +57,7 @@ public class MockNotificationManagerProxy implements NotificationManagerProxy {
 
     // Maps (id:tag) to a NotificationEntry.
     private final Map<String, NotificationEntry> mNotifications;
+    private final Map<String, NotificationChannel> mChannels;
 
     private int mMutationCount;
 
@@ -65,6 +65,7 @@ public class MockNotificationManagerProxy implements NotificationManagerProxy {
 
     public MockNotificationManagerProxy() {
         mNotifications = new LinkedHashMap<>();
+        mChannels = new LinkedHashMap<>();
         mMutationCount = 0;
     }
 
@@ -91,15 +92,6 @@ public class MockNotificationManagerProxy implements NotificationManagerProxy {
         if (mutationCount > 0) mMutationCount--;
 
         return mutationCount;
-    }
-
-    public void setNotificationsEnabled(boolean enabled) {
-        mNotificationsEnabled = enabled;
-    }
-
-    @Override
-    public boolean areNotificationsEnabled() {
-        return mNotificationsEnabled;
     }
 
     @Override
@@ -145,44 +137,50 @@ public class MockNotificationManagerProxy implements NotificationManagerProxy {
         return key;
     }
 
-    // The following Channel methods are not implemented because a naive implementation would
-    // have compatibility issues (NotificationChannel is new in O), and we currently don't need them
-    // where the MockNotificationManagerProxy is used in tests.
-
-    @RequiresApi(Build.VERSION_CODES.O)
     @Override
-    public void createNotificationChannel(NotificationChannel channel) {}
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    @Override
-    public void createNotificationChannelGroup(NotificationChannelGroup channelGroup) {}
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    @Override
-    public List<NotificationChannel> getNotificationChannels() {
-        return null;
+    public void createNotificationChannel(NotificationChannel channel) {
+        mChannels.put(channel.getId(), channel);
     }
 
     @Override
-    @RequiresApi(Build.VERSION_CODES.O)
+    public void createNotificationChannelGroup(NotificationChannelGroup channelGroup) {}
+
+    @Override
+    public List<NotificationChannel> getNotificationChannels() {
+        return new ArrayList<NotificationChannel>(mChannels.values());
+    }
+
+    @Override
     public void getNotificationChannelGroups(Callback<List<NotificationChannelGroup>> callback) {
         callback.onResult(null);
     }
 
     @Override
-    @RequiresApi(Build.VERSION_CODES.O)
     public void getNotificationChannels(Callback<List<NotificationChannel>> callback) {
-        callback.onResult(null);
+        callback.onResult(getNotificationChannels());
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     @Override
-    public void deleteNotificationChannel(String id) {}
+    public void deleteNotificationChannel(String id) {
+        mChannels.remove(id);
+    }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @Override
+    public void deleteAllNotificationChannels(Function<String, Boolean> func) {
+        var it = mChannels.entrySet().iterator();
+        while (it.hasNext()) {
+            if (func.apply(it.next().getKey())) it.remove();
+        }
+    }
+
     @Override
     public NotificationChannel getNotificationChannel(String channelId) {
-        return null;
+        return mChannels.get(channelId);
+    }
+
+    @Override
+    public void getNotificationChannel(String channelId, Callback<NotificationChannel> callback) {
+        callback.onResult(mChannels.get(channelId));
     }
 
     @Override

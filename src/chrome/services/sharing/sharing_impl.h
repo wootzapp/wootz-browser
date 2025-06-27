@@ -66,7 +66,11 @@ class SharingImpl : public mojom::Sharing {
 
   // These values are used for metrics. Entries should not be renumbered and
   // numeric values should never be reused. If entries are added, kMaxValue
-  // should be updated.
+  // should be updated. Keep in sync with the
+  // NearbyConnectionsUtilityProcessMojoDependencyName UMA enum defined in
+  // //tools/metrics/histograms/metadata/nearby/enums.xml.
+  //
+  // LINT.IfChange(NearbyConnectionsUtilityProcessMojoDependencyName)
   enum class MojoDependencyName {
     kNearbyConnections = 0,
     kBluetoothAdapter = 1,
@@ -82,8 +86,10 @@ class SharingImpl : public mojom::Sharing {
     kQuickStartDecoder = 11,
     kNearbyPresenceCredentialStorage = 12,
     kWifiDirectManager = 13,
-    kMaxValue = kWifiDirectManager
+    kMdnsManager = 14,
+    kMaxValue = kMdnsManager
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/nearby/enums.xml:NearbyConnectionsUtilityProcessMojoDependencyName)
 
   void DoShutDown(bool is_expected);
   void OnDisconnect(MojoDependencyName mojo_dependency_name);

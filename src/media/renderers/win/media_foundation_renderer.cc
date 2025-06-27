@@ -8,6 +8,7 @@
 #include <mferror.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -226,12 +227,18 @@ HRESULT MediaFoundationRenderer::CreateMediaEngine(
     }
   }
 
+  std::optional<media::VideoDecoderConfig> video_decoder_config = std::nullopt;
+  std::optional<media::AudioDecoderConfig> audio_decoder_config = std::nullopt;
+
   // Only call the following when there is a video stream.
   for (media::DemuxerStream* stream : media_resource->GetAllStreams()) {
     if (stream->type() == media::DemuxerStream::VIDEO) {
+      video_decoder_config = stream->video_decoder_config();
       RETURN_IF_FAILED(InitializeDXGIDeviceManager());
       RETURN_IF_FAILED(InitializeVirtualVideoWindow());
       break;
+    } else if (stream->type() == media::DemuxerStream::AUDIO) {
+      audio_decoder_config = stream->audio_decoder_config();
     }
   }
 
@@ -258,7 +265,8 @@ HRESULT MediaFoundationRenderer::CreateMediaEngine(
       base::BindPostTaskToCurrentDefault(base::BindRepeating(
           &MediaFoundationRenderer::OnFrameStepCompleted, weak_this)),
       base::BindPostTaskToCurrentDefault(base::BindRepeating(
-          &MediaFoundationRenderer::OnTimeUpdate, weak_this))));
+          &MediaFoundationRenderer::OnTimeUpdate, weak_this)),
+      video_decoder_config, audio_decoder_config));
 
   ComPtr<IMFAttributes> creation_attributes;
   RETURN_IF_FAILED(MFCreateAttributes(&creation_attributes, 6));
@@ -328,12 +336,6 @@ HRESULT MediaFoundationRenderer::CreateMediaEngine(
   // SetDefaultPlaybackRate as using SetPlaybackRate may be overwritten while
   // the topology is loading.
   RETURN_IF_FAILED(mf_media_engine_->SetDefaultPlaybackRate(0.0));
-
-  auto media_resource_type_ = media_resource->GetType();
-  if (media_resource_type_ != MediaResource::Type::kStream) {
-    DLOG(ERROR) << "MediaResource is not of STREAM";
-    return E_INVALIDARG;
-  }
 
   RETURN_IF_FAILED(MakeAndInitialize<MediaFoundationSourceWrapper>(
       &mf_source_, media_resource, media_log_.get(), task_runner_));
@@ -437,11 +439,33 @@ HRESULT MediaFoundationRenderer::InitializeDXGIDeviceManager() {
     }
   }
 
-  RETURN_IF_FAILED(D3D11CreateDevice(
+  HRESULT hr = D3D11CreateDevice(
       adapter_to_use.Get(),
       adapter_to_use ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, 0,
       creation_flags, feature_levels, std::size(feature_levels),
-      D3D11_SDK_VERSION, &d3d11_device, nullptr, nullptr));
+      D3D11_SDK_VERSION, &d3d11_device, nullptr, nullptr);
+  if (FAILED(hr)) {
+    base::UmaHistogramSparse(
+        "Media.MediaFoundationRenderer.D3D11CreateDeviceFailed", hr);
+    if (hr == DXGI_ERROR_UNSUPPORTED) {
+      // If hardware device creation fails, try creating a software device.
+      // HWDRM cases require hardware security, which is not applicable for a
+      // basic software GPU adapter without hardware-level security. Using 0 for
+      // creation_flags is acceptable for basic video rendering, as warp devices
+      // lack video support, and the warp adapter is a software GPU so
+      // D3D11_CREATE_DEVICE_BGRA_SUPPORT and
+      // D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS don't
+      // apply.
+      RETURN_IF_FAILED(D3D11CreateDevice(
+          adapter_to_use.Get(),
+          adapter_to_use ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE,
+          0,
+          /*creation_flags=*/0, feature_levels, std::size(feature_levels),
+          D3D11_SDK_VERSION, &d3d11_device, nullptr, nullptr));
+    } else {
+      RETURN_IF_FAILED(hr);
+    }
+  }
   RETURN_IF_FAILED(media::SetDebugName(d3d11_device.Get(), "Media_MFRenderer"));
 
   ComPtr<ID3D10Multithread> multithreaded_device;

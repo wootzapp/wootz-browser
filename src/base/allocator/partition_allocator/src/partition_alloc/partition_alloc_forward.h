@@ -5,14 +5,14 @@
 #ifndef PARTITION_ALLOC_PARTITION_ALLOC_FORWARD_H_
 #define PARTITION_ALLOC_PARTITION_ALLOC_FORWARD_H_
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
+#include "partition_alloc/partition_alloc_base/cxx_wrapper/algorithm.h"
 #include "partition_alloc/partition_alloc_base/thread_annotations.h"
 #include "partition_alloc/partition_alloc_config.h"
 
@@ -35,7 +35,6 @@ static_assert(kAlignment <= 16,
               "PartitionAlloc doesn't support a fundamental alignment larger "
               "than 16 bytes.");
 
-struct SlotSpanMetadata;
 class PA_LOCKABLE Lock;
 
 // This type trait verifies a type can be used as a pointer offset.
@@ -45,6 +44,19 @@ class PA_LOCKABLE Lock;
 template <typename Z>
 static constexpr bool is_offset_type =
     std::is_integral_v<Z> && sizeof(Z) <= sizeof(ptrdiff_t);
+
+enum class MetadataKind { kWritable, kReadOnly };
+
+template <const MetadataKind kind, typename T>
+struct MaybeConst {
+  using Type = std::conditional_t<kind == MetadataKind::kReadOnly, T const, T>;
+};
+
+template <const MetadataKind kind, typename T>
+using MaybeConstT = typename MaybeConst<kind, T>::Type;
+
+template <MetadataKind>
+struct SlotSpanMetadata;
 
 }  // namespace internal
 

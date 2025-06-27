@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "mojo/core/message_pipe_dispatcher.h"
 
 #include <limits>
@@ -158,8 +163,7 @@ MojoResult MessagePipeDispatcher::WriteMessage(
       return MOJO_RESULT_FAILED_PRECONDITION;
     }
 
-    NOTREACHED_IN_MIGRATION();
-    return MOJO_RESULT_UNKNOWN;
+    NOTREACHED();
   }
 
   // We may need to update anyone watching our signals in case we just exceeded
@@ -181,8 +185,7 @@ MojoResult MessagePipeDispatcher::ReadMessage(
         rv == ports::ERROR_PORT_STATE_UNEXPECTED)
       return MOJO_RESULT_INVALID_ARGUMENT;
 
-    NOTREACHED_IN_MIGRATION();
-    return MOJO_RESULT_UNKNOWN;
+    NOTREACHED();
   }
 
   if (!*message) {

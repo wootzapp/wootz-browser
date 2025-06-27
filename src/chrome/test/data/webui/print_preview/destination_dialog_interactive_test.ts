@@ -4,8 +4,8 @@
 
 import type {PrintPreviewDestinationDialogElement} from 'chrome://print/print_preview.js';
 import {NativeLayerImpl, State} from 'chrome://print/print_preview.js';
-import {keyDownOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {keyDownOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {fakeDataBind} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
@@ -43,7 +43,6 @@ suite('DestinationDialogInteractiveTest', function() {
     // Initialize
     destinationSettings.init(
         'FooDevice' /* printerName */, false /* pdfPrinterDisabled */,
-        true /* isDriveMounted */,
         '' /* serializedDefaultDestinationSelectionRulesStr */);
     return nativeLayer.whenCalled('getPrinterCapabilities').then(() => {
       // Retrieve a reference to dialog

@@ -22,34 +22,35 @@
 #include "third_party/skia/include/core/SkColorType.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/core/SkTextureCompressionType.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
-#include "third_party/skia/include/gpu/GrTypes.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/GrTypes.h"
 
 namespace gpu {
 namespace {
 // NOTE: WrappedSkImage cannot be used with raster-over-GLES2 as it doesn't
 // support GLES2 usage, and hence it doesn't support RASTER_OVER_GLES2_ONLY
 // usage.
-constexpr uint32_t kSupportedUsage =
+constexpr SharedImageUsageSet kSupportedUsage =
     SHARED_IMAGE_USAGE_DISPLAY_READ | SHARED_IMAGE_USAGE_DISPLAY_WRITE |
     SHARED_IMAGE_USAGE_RASTER_READ | SHARED_IMAGE_USAGE_RASTER_WRITE |
     SHARED_IMAGE_USAGE_OOP_RASTERIZATION | SHARED_IMAGE_USAGE_CPU_UPLOAD |
     SHARED_IMAGE_USAGE_MIPMAP;
 
-uint32_t GetSupportedUsage(const SharedContextState* context_state) {
+SharedImageUsageSet GetSupportedUsage(const SharedContextState* context_state) {
 #if BUILDFLAG(SKIA_USE_DAWN) && !BUILDFLAG(IS_ANDROID)
   // We support WebGL and WebGPU fallback when using Graphite Dawn Vulkan or
   // D3D12. Except on Android where AHardwareBufferImageBackingFactory is used
   // for interop with WebGL and WebGPU.
-  constexpr uint32_t kGraphiteDawnFallbackUsage =
+  constexpr SharedImageUsageSet kGraphiteDawnFallbackUsage =
       SHARED_IMAGE_USAGE_GLES2_READ | SHARED_IMAGE_USAGE_GLES2_WRITE |
       SHARED_IMAGE_USAGE_GLES2_FOR_RASTER_ONLY |
+      SHARED_IMAGE_USAGE_HIGH_PERFORMANCE_GPU |
       // NOTE: In this case, it is also possible to support raster-over-GLES2.
       SHARED_IMAGE_USAGE_RASTER_OVER_GLES2_ONLY |
       SHARED_IMAGE_USAGE_WEBGPU_READ | SHARED_IMAGE_USAGE_WEBGPU_WRITE |
       SHARED_IMAGE_USAGE_WEBGPU_SWAP_CHAIN_TEXTURE;
 
-  if (context_state->gr_context_type() == GrContextType::kGraphiteDawn) {
+  if (context_state->IsGraphiteDawn()) {
     switch (context_state->dawn_context_provider()->backend_type()) {
       case wgpu::BackendType::D3D12:
       case wgpu::BackendType::Vulkan:
@@ -67,7 +68,7 @@ bool GraphiteSupportsCompressedTextures(
 #if BUILDFLAG(SKIA_USE_DAWN)
   // TODO(b/281151641): Query graphite instead of dawn to see if compressed
   // textures are supported.
-  if (context_state->gr_context_type() == GrContextType::kGraphiteDawn) {
+  if (context_state->IsGraphiteDawn()) {
     return context_state->dawn_context_provider()->SupportsFeature(
         wgpu::FeatureName::TextureCompressionETC2);
   }
@@ -81,7 +82,7 @@ WrappedSkImageBackingFactory::WrappedSkImageBackingFactory(
     scoped_refptr<SharedContextState> context_state)
     : SharedImageBackingFactory(GetSupportedUsage(context_state.get())),
       context_state_(std::move(context_state)),
-      use_graphite_(context_state_->graphite_context()),
+      use_graphite_(context_state_->graphite_shared_context()),
       is_drdc_enabled_(
           features::IsDrDcEnabled() &&
           !context_state_->feature_info()->workarounds().disable_drdc),
@@ -99,7 +100,7 @@ WrappedSkImageBackingFactory::CreateSharedImage(
     const gfx::ColorSpace& color_space,
     GrSurfaceOrigin surface_origin,
     SkAlphaType alpha_type,
-    uint32_t usage,
+    SharedImageUsageSet usage,
     std::string debug_label,
     bool is_thread_safe) {
   if (use_graphite_) {
@@ -131,7 +132,7 @@ WrappedSkImageBackingFactory::CreateSharedImage(
     const gfx::ColorSpace& color_space,
     GrSurfaceOrigin surface_origin,
     SkAlphaType alpha_type,
-    uint32_t usage,
+    SharedImageUsageSet usage,
     std::string debug_label,
     bool is_thread_safe,
     base::span<const uint8_t> data) {
@@ -156,37 +157,8 @@ WrappedSkImageBackingFactory::CreateSharedImage(
   return backing;
 }
 
-std::unique_ptr<SharedImageBacking>
-WrappedSkImageBackingFactory::CreateSharedImage(
-    const Mailbox& mailbox,
-    viz::SharedImageFormat format,
-    const gfx::Size& size,
-    const gfx::ColorSpace& color_space,
-    GrSurfaceOrigin surface_origin,
-    SkAlphaType alpha_type,
-    uint32_t usage,
-    std::string debug_label,
-    gfx::GpuMemoryBufferHandle handle) {
-  NOTREACHED_NORETURN();
-}
-
-std::unique_ptr<SharedImageBacking>
-WrappedSkImageBackingFactory::CreateSharedImage(
-    const Mailbox& mailbox,
-    gfx::GpuMemoryBufferHandle handle,
-    gfx::BufferFormat buffer_format,
-    gfx::BufferPlane plane,
-    const gfx::Size& size,
-    const gfx::ColorSpace& color_space,
-    GrSurfaceOrigin surface_origin,
-    SkAlphaType alpha_type,
-    uint32_t usage,
-    std::string debug_label) {
-  NOTREACHED_NORETURN();
-}
-
 bool WrappedSkImageBackingFactory::IsSupported(
-    uint32_t usage,
+    SharedImageUsageSet usage,
     viz::SharedImageFormat format,
     const gfx::Size& size,
     bool thread_safe,
@@ -197,7 +169,7 @@ bool WrappedSkImageBackingFactory::IsSupported(
     return false;
   }
 
-  if (usage & ~GetSupportedUsage(context_state_.get())) {
+  if (!GetSupportedUsage(context_state_.get()).HasAll(usage)) {
     return false;
   }
 
@@ -233,7 +205,7 @@ bool WrappedSkImageBackingFactory::IsSupported(
              format == viz::SinglePlaneFormat::kBGR_565) {
     // For BGRX_8888/BGR_565 there is no equivalent SkColorType. Skia will use
     // the RGBX_8888/RGB_565 color type on upload so R/B channels are reversed.
-    if (usage & SHARED_IMAGE_USAGE_CPU_UPLOAD || !pixel_data.empty()) {
+    if (usage.Has(SHARED_IMAGE_USAGE_CPU_UPLOAD) || !pixel_data.empty()) {
       return false;
     }
   }
@@ -259,8 +231,15 @@ bool WrappedSkImageBackingFactory::IsSupported(
   if (context_state_->gr_context()) {
     // Check that skia-ganesh can create the required backend textures.
     for (int plane = 0; plane < format.NumberOfPlanes(); ++plane) {
-      SkColorType color_type =
-          viz::ToClosestSkColorType(/*gpu_compositing=*/true, format, plane);
+      SkColorType color_type = viz::ToClosestSkColorType(format, plane);
+      // For ALPHA8 skia will pick format depending on context version and
+      // extensions available and we'll have to match that format when we record
+      // DDLs. To avoid matching logic here, fallback to other backings (e.g
+      // GLTextureImageBacking) where we control what format was used.
+      if (color_type == kAlpha_8_SkColorType &&
+          context_state_->feature_info()->workarounds().r8_egl_images_broken) {
+        return false;
+      }
       auto backend_format = context_state_->gr_context()->defaultBackendFormat(
           color_type, GrRenderable::kYes);
       if (!backend_format.isValid()) {

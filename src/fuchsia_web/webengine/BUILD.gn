@@ -166,17 +166,21 @@ foreach(locale, locales_with_pseudolocales) {
     # 1. Locale settings (e.g. default encoding, accept-languages per locale).
     # 2. Blink strings for UI elements, e.g. drop-down lists.
     # 3. //ui strings used to configure e.g. preferred font family.
+    # 4. //ui/strings/ax_strings are used for accessibility-related strings, of
+    # which fuchsia only uses a subset.
 
     sources = [
       "$root_gen_dir/components/strings/components_locale_settings_${locale}.pak",
       "$root_gen_dir/third_party/blink/public/strings/blink_strings_${locale}.pak",
       "$root_gen_dir/ui/strings/app_locale_settings_${locale}.pak",
+      "$root_gen_dir/ui/strings/ax_strings_${locale}.pak",
     ]
 
     deps = [
       "//components/strings:components_locale_settings",
       "//third_party/blink/public/strings",
       "//ui/strings:app_locale_settings",
+      "//ui/strings:ax_strings",
     ]
 
     output = "$root_gen_dir/locales/${locale}.pak"
@@ -195,7 +199,7 @@ component("web_engine_core") {
     "//components/cdm/renderer",
     "//components/client_hints/browser:in_memory",
     "//components/embedder_support",
-    "//components/embedder_support:browser_util",
+    "//components/embedder_support:user_agent",
     "//components/embedder_support/origin_trials",
     "//components/favicon/content",
     "//components/favicon/core",
@@ -210,6 +214,7 @@ component("web_engine_core") {
     "//components/permissions",
     "//components/policy/content:safe_sites_navigation_throttle",
     "//components/profile_metrics",
+    "//components/reduce_accept_language/browser:in_memory",
     "//components/site_isolation",
     "//components/strings:components_locale_settings",
     "//components/url_rewrite/browser",
@@ -433,8 +438,8 @@ executable("web_engine_exe") {
 }
 
 source_set("webui_resources") {
-  data = [ "$root_gen_dir/ui/resources/webui_resources.pak" ]
-  deps = [ "//ui/resources" ]
+  data = [ "$root_gen_dir/ui/webui/resources/webui_resources.pak" ]
+  deps = [ "//ui/webui/resources:resources_grit" ]
 }
 
 _web_engine_excluded_files = [

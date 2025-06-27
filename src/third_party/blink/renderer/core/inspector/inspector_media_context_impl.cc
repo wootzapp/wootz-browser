@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "base/not_fatal_until.h"
 #include "base/unguessable_token.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
@@ -51,8 +52,7 @@ void MediaInspectorContextImpl::Trace(Visitor* visitor) const {
 }
 
 Vector<WebString> MediaInspectorContextImpl::AllPlayerIdsAndMarkSent() {
-  Vector<WebString> existing_players;
-  WTF::CopyKeysToVector(players_, existing_players);
+  Vector<WebString> existing_players(players_.Keys());
   unsent_players_.clear();
   return existing_players;
 }
@@ -60,7 +60,7 @@ Vector<WebString> MediaInspectorContextImpl::AllPlayerIdsAndMarkSent() {
 const MediaPlayer& MediaInspectorContextImpl::MediaPlayerFromId(
     const WebString& player_id) {
   const auto& player = players_.find(player_id);
-  DCHECK_NE(player, players_.end());
+  CHECK_NE(player, players_.end(), base::NotFatalUntil::M130);
   return *player->value;
 }
 
@@ -199,7 +199,7 @@ void MediaInspectorContextImpl::SetPlayerProperties(
   if (player != players_.end()) {
     for (const auto& property : props)
       player->value->properties.Set(property.name, property);
-    WTF::CopyValuesToVector(player->value->properties, properties);
+    properties.assign(player->value->properties.Values());
   }
   probe::PlayerPropertiesChanged(GetSupplementable(), playerId, properties);
 }

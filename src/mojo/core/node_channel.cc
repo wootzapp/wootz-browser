@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/core/node_channel.h"
 
 #include <cstring>
@@ -18,6 +23,7 @@
 #include "mojo/core/channel.h"
 #include "mojo/core/configuration.h"
 #include "mojo/core/core.h"
+#include "mojo/core/ipcz_driver/envelope.h"
 #include "mojo/core/request_context.h"
 
 namespace mojo {
@@ -571,9 +577,11 @@ void NodeChannel::CreateAndBindLocalBrokerHost(
 #endif
 }
 
-void NodeChannel::OnChannelMessage(const void* payload,
-                                   size_t payload_size,
-                                   std::vector<PlatformHandle> handles) {
+void NodeChannel::OnChannelMessage(
+    const void* payload,
+    size_t payload_size,
+    std::vector<PlatformHandle> handles,
+    scoped_refptr<ipcz_driver::Envelope> envelope) {
   DCHECK(owning_task_runner()->RunsTasksInCurrentSequence());
 
   RequestContext request_context(RequestContext::Source::SYSTEM);
@@ -751,11 +759,17 @@ void NodeChannel::OnChannelMessage(const void* payload,
         if (payload_size <= sizeof(Header) + sizeof(data))
           break;
 
+        Channel::HandlePolicy handle_policy;
+        {
+          base::AutoLock lock(channel_lock_);
+          handle_policy = channel_->handle_policy();
+        }
+
         const void* message_start = reinterpret_cast<const uint8_t*>(payload) +
                                     sizeof(Header) + sizeof(data);
         Channel::MessagePtr message = Channel::Message::Deserialize(
             message_start, payload_size - sizeof(Header) - sizeof(data),
-            Channel::HandlePolicy::kAcceptHandles, from_process);
+            handle_policy, from_process);
         if (!message) {
           DLOG(ERROR) << "Dropping invalid relay message.";
           break;

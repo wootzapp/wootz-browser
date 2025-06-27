@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/containers/flat_set.h"
-#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -18,11 +17,10 @@
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_command_line.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/test_file_util.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
@@ -55,7 +53,6 @@
 #include "components/policy/core/common/policy_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/search_engines_pref_names.h"
-#include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/signin/public/base/consent_level.h"
@@ -72,16 +69,11 @@
 #include "components/unified_consent/url_keyed_data_collection_consent_helper.h"
 #include "content/public/test/browser_task_environment.h"
 #include "google_apis/gaia/core_account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/lacros/account_manager/account_profile_mapper.h"
-#include "components/account_manager_core/account.h"
-#include "components/account_manager_core/mock_account_manager_facade.h"
-#endif
 
 using ::testing::AtLeast;
 using ::testing::Invoke;
@@ -93,13 +85,13 @@ namespace {
 
 const char kEmail[] = "foo@gmail.com";
 const char kPreviousEmail[] = "notme@bar.com";
-const char kPreviousGaiaId[] = "gaia_id_for_not_me_at_bar_com";
+const GaiaId::Literal kPreviousGaiaId("gaia_id_for_not_me_at_bar_com");
 const char kEnterpriseEmail[] = "enterprise@managed.com";
 const char kEnterpriseHostedDomain[] = "managed.com";
 const char kUserAffiliationId[] = "user-affiliation-id";
 
 const signin_metrics::AccessPoint kAccessPoint =
-    signin_metrics::AccessPoint::ACCESS_POINT_BOOKMARK_MANAGER;
+    signin_metrics::AccessPoint::kBookmarkManager;
 const signin_metrics::PromoAction kSigninPromoAction =
     signin_metrics::PromoAction::PROMO_ACTION_WITH_DEFAULT;
 
@@ -115,7 +107,7 @@ struct ExpectedMetricsState {
   bool sync_opt_in_started = false;
   bool sync_opt_in_completed = false;
   bool sync_settings_opened = false;
-  bool sign_out = false;
+  std::optional<signin_metrics::ProfileSignout> profile_signout;
   bool sync_turn_off = false;
 };
 
@@ -161,6 +153,7 @@ class TestTurnSyncOnHelperDelegate : public TurnSyncOnHelper::Delegate {
  public:
   explicit TestTurnSyncOnHelperDelegate(TurnSyncOnHelperTest* test_fixture);
   ~TestTurnSyncOnHelperDelegate() override;
+  bool IsProfileCreationRequiredByPolicy() const override;
 
  private:
   // TurnSyncOnHelper::Delegate:
@@ -190,8 +183,8 @@ class TestTurnSyncOnHelperDelegate : public TurnSyncOnHelper::Delegate {
 // callback for the next profile creation.
 class UnittestProfileManager : public FakeProfileManager {
  public:
-  using ProfileBuilderCallback = base::RepeatingCallback<
-      std::unique_ptr<TestingProfile>(const base::FilePath&, Delegate*)>;
+  using ProfileBuilderCallback = base::RepeatingCallback<std::unique_ptr<
+      TestingProfile>(const base::FilePath&, Delegate*, Profile::CreateMode)>;
 
   explicit UnittestProfileManager(
       const base::FilePath& user_data_dir,
@@ -206,19 +199,14 @@ class UnittestProfileManager : public FakeProfileManager {
 
   std::unique_ptr<TestingProfile> BuildTestingProfile(
       const base::FilePath& path,
-      Delegate* delegate) override {
-    auto profile = profile_builder_callback_.Run(path, delegate);
+      Delegate* delegate,
+      Profile::CreateMode create_mode) override {
+    auto profile = profile_builder_callback_.Run(path, delegate, create_mode);
     if (next_profile_created_callback_) {
       std::move(next_profile_created_callback_).Run(profile.get());
     }
     return profile;
   }
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  void SetAccountProfileMapper(std::unique_ptr<AccountProfileMapper> mapper) {
-    FakeProfileManager::SetAccountProfileMapperForTests(std::move(mapper));
-  }
-#endif
 
  private:
   base::OnceCallback<void(Profile*)> next_profile_created_callback_;
@@ -408,7 +396,7 @@ class TurnSyncOnHelperTest : public testing::Test {
                                 base::Unretained(this))));
     auto testing_profile = BuildTestingProfile(
         temp_user_data_dir.Append(FILE_PATH_LITERAL("profile")),
-        /*delegate=*/nullptr);
+        /*delegate=*/nullptr, Profile::CreateMode::kSynchronous);
     profile_ = testing_profile.get();
 
     // Makes sure the profile has profile storage entries.
@@ -417,44 +405,6 @@ class TurnSyncOnHelperTest : public testing::Test {
     identity_test_env_profile_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(profile_);
     account_id_ = identity_test_env()->MakeAccountAvailable(kEmail).account_id;
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    // Lacros expects that the main profile always exists.
-    auto main_profile = BuildTestingProfile(
-        temp_user_data_dir.Append(FILE_PATH_LITERAL("Default")),
-        /*delegate=*/nullptr);
-    profile_manager()->RegisterTestingProfile(std::move(main_profile),
-                                              /*add_to_storage=*/true);
-
-    // Configure a mock account manager facade to return two accounts (`kEmail`
-    // and `kEnterpriseEmail`) with no error.
-    ON_CALL(mock_account_manager_facade_, GetAccounts(testing::_))
-        .WillByDefault(
-            [](base::OnceCallback<void(
-                   const std::vector<account_manager::Account>&)> callback) {
-              account_manager::AccountKey key(
-                  signin::GetTestGaiaIdForEmail(kEmail),
-                  account_manager::AccountType::kGaia);
-              account_manager::AccountKey enterprise_key(
-                  signin::GetTestGaiaIdForEmail(kEnterpriseEmail),
-                  account_manager::AccountType::kGaia);
-              std::move(callback).Run({{key, kEmail},
-                                       { enterprise_key,
-                                         kEnterpriseEmail }});
-            });
-    ON_CALL(mock_account_manager_facade_, GetPersistentErrorForAccount)
-        .WillByDefault(
-            [](const account_manager::AccountKey&,
-               base::OnceCallback<void(const GoogleServiceAuthError&)>
-                   callback) {
-              std::move(callback).Run(GoogleServiceAuthError::AuthErrorNone());
-            });
-    profile_manager()->SetAccountProfileMapper(
-        std::make_unique<AccountProfileMapper>(
-            &mock_account_manager_facade_,
-            &profile_manager()->GetProfileAttributesStorage(),
-            g_browser_process->local_state()));
-#endif
 
     user_policy_signin_service_ = static_cast<FakeUserPolicySigninService*>(
         policy::UserPolicySigninServiceFactory::GetForProfile(profile()));
@@ -511,16 +461,15 @@ class TurnSyncOnHelperTest : public testing::Test {
   // Builds a testing profile with the right setup for this test.
   std::unique_ptr<TestingProfile> BuildTestingProfile(
       const base::FilePath& path,
-      Profile::Delegate* delegate) {
+      Profile::Delegate* delegate,
+      Profile::CreateMode create_mode) {
     TestingProfile::Builder profile_builder;
 
     AddTestingProfileFactories(profile_builder);
 
     profile_builder.SetDelegate(delegate);
+    profile_builder.SetCreateMode(create_mode);
     profile_builder.SetPath(path);
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    profile_builder.SetIsMainProfile(Profile::IsMainProfilePath(path));
-#endif
     profile_builder.SetPolicyService(std::make_unique<FakePolicyService>());
 
     return IdentityTestEnvironmentProfileAdaptor::
@@ -599,7 +548,7 @@ class TurnSyncOnHelperTest : public testing::Test {
   }
 
   void UseInvalidAccount() {
-    account_id_ = CoreAccountId::FromGaiaId("invalid_account_gaia_id");
+    account_id_ = CoreAccountId::FromGaiaId(GaiaId("invalid_account_gaia_id"));
   }
 
   void SetExpectationsForSyncStartupCompleted(Profile* profile) {
@@ -687,19 +636,17 @@ class TurnSyncOnHelperTest : public testing::Test {
         BucketsAre(
             Bucket(kAccessPoint, expected.sync_settings_opened ? 1 : 0)));
 
-    EXPECT_THAT(histogram_tester_->GetAllSamples("Signin.SignOut.Completed"),
-                BucketsAre(Bucket(signin_metrics::ProfileSignout::
-                                      kCancelSyncConfirmationRemoveAccount,
-                                  expected.sign_out ? 1 : 0)));
+    if (expected.profile_signout) {
+      EXPECT_THAT(histogram_tester_->GetAllSamples("Signin.SignOut.Completed"),
+                  BucketsAre(Bucket(expected.profile_signout.value(), 1)));
+    } else {
+      histogram_tester_->ExpectTotalCount("Signin.SignOut.Completed", 0);
+    }
 
     EXPECT_THAT(
         histogram_tester_->GetAllSamples("Signin.SyncTurnOff.Completed"),
         BucketsAre(Bucket(signin_metrics::ProfileSignout::kTest,
                           expected.sync_turn_off ? 1 : 0)));
-
-    histogram_tester_->ExpectUniqueTimeSample(
-        "Signin.SyncOptIn.PreSyncConfirmationLatency", base::Milliseconds(0),
-        expected.sync_opt_in_started ? 1 : 0);
 
     // Reset the tester so that these histograms don't need to be taken into
     // account for future verifications.
@@ -800,62 +747,31 @@ class TurnSyncOnHelperTest : public testing::Test {
 
     auto* new_identity_manager =
         IdentityManagerFactory::GetForProfile(new_profile);
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    // On Lacros, the `FakeProfileOAuth2TokenService` is used, and it is not
-    // connected to the `AccountProfileMapper`. As a result, it does not pick up
-    // the new account automatically, and the `SigninManager` is not triggered
-    // to set the primary account. The test only checks that the account mapping
-    // was updated correctly.
-    CoreAccountInfo core_account_info =
-        identity_manager()->FindExtendedAccountInfoByAccountId(account_id());
-    EXPECT_TRUE(profile_manager()
-                    ->GetProfileAttributesStorage()
-                    .GetProfileAttributesWithPath(new_profile->GetPath())
-                    ->GetGaiaIds()
-                    .contains(core_account_info.gaia));
-    EXPECT_FALSE(profile_manager()
-                     ->GetProfileAttributesStorage()
-                     .GetProfileAttributesWithPath(profile()->GetPath())
-                     ->GetGaiaIds()
-                     .contains(core_account_info.gaia));
-    // Simulate the token service removing the account in the source profile.
-    signin::RemoveRefreshTokenForAccount(identity_manager(), account_id());
-#else
     // The token has been transferred to the new token service, regardless of
     // SigninAbortedMode.
     EXPECT_FALSE(identity_manager()->HasAccountWithRefreshToken(account_id_));
-#endif
 
     EXPECT_TRUE(new_identity_manager->HasAccountWithRefreshToken(account_id_));
 
-    // TODO(crbug.com/40201807): Fix device ids on Lacros.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
     // The initial device ID is no longer used by any profile.
     EXPECT_NE(initial_device_id(),
               GetSigninScopedDeviceIdForProfile(profile()));
     EXPECT_NE(initial_device_id(),
               GetSigninScopedDeviceIdForProfile(new_profile));
-#endif
 
     new_profile_ = new_profile;
     switched_to_new_profile_ = true;
   }
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // The `FakeProfileOAuth2TokenService` is not connected to the account
-  // mapping. Set the account manually. The mapping is tested in
-  // `SwitchToProfile()`.
-  void SimulateAccountAddedToProfileLacros(Profile* profile) {
-    auto* new_identity_manager = IdentityManagerFactory::GetForProfile(profile);
-    CoreAccountInfo core_account_info =
-        identity_manager()->FindExtendedAccountInfoByAccountId(account_id());
-    signin::MakeAccountAvailable(new_identity_manager, core_account_info.email);
-    signin::SetPrimaryAccount(new_identity_manager, core_account_info.email,
-                              signin::ConsentLevel::kSignin);
-  }
-#endif
-
   void OnDelegateDestroyed() { ++delegate_destroyed_; }
+
+  bool IsProfileCreationRequiredByPolicy() const {
+    return profile_creation_required_by_policy_;
+  }
+
+  void SetIsProfileCreationRequiredByPolicy(bool required) {
+    profile_creation_required_by_policy_ = required;
+  }
 
  protected:
   // Type of sync disabled confirmation shown.
@@ -873,6 +789,7 @@ class TurnSyncOnHelperTest : public testing::Test {
       LoginUIService::SyncConfirmationUIClosedResult::ABORT_SYNC;
   bool abort_before_show_sync_disabled_confirmation_ = false;
   bool run_delegate_callbacks_ = true;
+  bool profile_creation_required_by_policy_ = false;
 
   // Expected delegate calls.
   std::optional<SigninUIError> expected_login_error_;
@@ -902,11 +819,6 @@ class TurnSyncOnHelperTest : public testing::Test {
   std::unique_ptr<policy::ScopedManagementServiceOverrideForTesting>
       platform_management_;
   std::unique_ptr<base::HistogramTester> histogram_tester_;
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  testing::NiceMock<account_manager::MockAccountManagerFacade>
-      mock_account_manager_facade_;
-#endif
 
   // State of the delegate calls.
   int delegate_destroyed_ = 0;
@@ -943,17 +855,6 @@ class TurnSyncOnHelperWithMockSigninManagerTest : public TurnSyncOnHelperTest {
     return {mock_signin_manager->handle_creation_count(),
             mock_signin_manager->handle_deletion_count()};
   }
-
-  static std::optional<signin::ConsentLevel>
-  GetExpectedPreSyncFlowConsentLevel() {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    // For the primary profile, there is always a primary account set by the
-    // `SigninManager`.
-    return signin::ConsentLevel::kSignin;
-#else
-    return std::nullopt;
-#endif
-  }
 };
 
 TestTurnSyncOnHelperDelegate::TestTurnSyncOnHelperDelegate(
@@ -962,6 +863,10 @@ TestTurnSyncOnHelperDelegate::TestTurnSyncOnHelperDelegate(
 
 TestTurnSyncOnHelperDelegate::~TestTurnSyncOnHelperDelegate() {
   test_fixture_->OnDelegateDestroyed();
+}
+
+bool TestTurnSyncOnHelperDelegate::IsProfileCreationRequiredByPolicy() const {
+  return test_fixture_->IsProfileCreationRequiredByPolicy();
 }
 
 void TestTurnSyncOnHelperDelegate::ShowLoginError(const SigninUIError& error) {
@@ -1099,7 +1004,8 @@ TEST_F(TurnSyncOnHelperTest, SyncDisabledAbortRemoveAccount) {
   CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
                       .sign_in_recorded = true,
                       .sync_opt_in_started = true,
-                      .sign_out = true});
+                      .profile_signout = signin_metrics::ProfileSignout::
+                          kCancelSyncConfirmationRemoveAccount});
 }
 
 // Tests that the sync disabled message is displayed and that the account is
@@ -1124,7 +1030,8 @@ TEST_F(TurnSyncOnHelperTest, SyncDisabledAbortKeepAccount) {
   CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
                       .sign_in_recorded = true,
                       .sync_opt_in_started = true,
-                      .sign_out = true});
+                      .profile_signout = signin_metrics::ProfileSignout::
+                          kCancelSyncConfirmationRemoveAccount});
 }
 
 // Tests that the sync disabled message is displayed and that the account is
@@ -1139,8 +1046,8 @@ TEST_F(TurnSyncOnHelperWithMockSigninManagerTest,
       SYNC_WITH_DEFAULT_SETTINGS;
 
   // Signin flow.
-  EXPECT_EQ(GetExpectedPreSyncFlowConsentLevel(),
-            signin::GetPrimaryAccountConsentLevel(identity_manager()));
+  EXPECT_FALSE(
+      signin::GetPrimaryAccountConsentLevel(identity_manager()).has_value());
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
 
@@ -1152,14 +1059,10 @@ TEST_F(TurnSyncOnHelperWithMockSigninManagerTest,
   CheckDelegateCalls();
   EXPECT_EQ(std::make_pair(/*creations=*/1, /*deletions=*/1),
             GetSignInManagerHandleState());
-  CheckSigninMetrics(
-      {.sign_in_access_point =
-           GetExpectedPreSyncFlowConsentLevel().has_value()
-               ? std::nullopt
-               : std::optional<signin_metrics::AccessPoint>(kAccessPoint),
-       .sign_in_recorded = true,
-       .sync_opt_in_started = true,
-       .sync_opt_in_completed = true});
+  CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
+                      .sign_in_recorded = true,
+                      .sync_opt_in_started = true,
+                      .sync_opt_in_completed = true});
 }
 
 // Tests that the sync disabled message is displayed and that the account is
@@ -1176,8 +1079,8 @@ TEST_F(TurnSyncOnHelperWithMockSigninManagerTest,
       SYNC_WITH_DEFAULT_SETTINGS;
 
   // Signin flow.
-  EXPECT_EQ(GetExpectedPreSyncFlowConsentLevel(),
-            signin::GetPrimaryAccountConsentLevel(identity_manager()));
+  EXPECT_FALSE(
+      signin::GetPrimaryAccountConsentLevel(identity_manager()).has_value());
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
 
@@ -1189,14 +1092,10 @@ TEST_F(TurnSyncOnHelperWithMockSigninManagerTest,
   CheckDelegateCalls();
   EXPECT_EQ(std::make_pair(/*creations=*/1, /*deletions=*/1),
             GetSignInManagerHandleState());
-  CheckSigninMetrics(
-      {.sign_in_access_point =
-           GetExpectedPreSyncFlowConsentLevel().has_value()
-               ? std::nullopt
-               : std::optional<signin_metrics::AccessPoint>(kAccessPoint),
-       .sign_in_recorded = true,
-       .sync_opt_in_started = true,
-       .sync_opt_in_completed = true});
+  CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
+                      .sign_in_recorded = true,
+                      .sync_opt_in_started = true,
+                      .sync_opt_in_completed = true});
 }
 
 // Tests that the sync aborted before displaying the sync disabled message and
@@ -1220,7 +1119,8 @@ TEST_F(TurnSyncOnHelperTest, SyncDisabledAbortWithoutShowingUIRemoveAccount) {
   CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
                       .sign_in_recorded = true,
                       .sync_opt_in_started = true,
-                      .sign_out = true});
+                      .profile_signout = signin_metrics::ProfileSignout::
+                          kCancelSyncConfirmationRemoveAccount});
 }
 
 // Tests that the sync aborted before displaying the sync disabled message and
@@ -1246,39 +1146,6 @@ TEST_F(TurnSyncOnHelperTest, SyncDisabledAbortWithoutShowingUI_KeepAccount) {
                       .sync_opt_in_started = true});
 }
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-// Tests that the sync aborted before displaying the sync disabled message and
-// there is no crash with a primary profile.
-// Regression test for crbug.com/1367078.
-TEST_F(TurnSyncOnHelperTest, SyncDisabledAbortWithoutShowingUI_PrimaryProfile) {
-  profile()->AsTestingProfile()->SetIsMainProfile(true);
-  profile()->GetProfilePolicyConnector()->OverrideIsManagedForTesting(true);
-
-  // Set expectations.
-  expected_sync_disabled_confirmation_ = kAbortedBeforeShown;
-  expected_enterprise_confirmation_email_ = kEnterpriseEmail;
-  SetExpectationsForSyncDisabled(profile());
-
-  // Configure the test.
-  UseEnterpriseAccount();
-  enterprise_choice_ = signin::SIGNIN_CHOICE_CONTINUE;
-  abort_before_show_sync_disabled_confirmation_ = true;
-
-  // Signin flow.
-  EXPECT_FALSE(
-      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
-  CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT);
-  WaitUntilFlowCompletion();
-
-  // Check expectations.
-  CheckSyncAborted(/*kept_account=*/true);
-  CheckDelegateCalls();
-  CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
-                      .sign_in_recorded = true,
-                      .sync_opt_in_started = true});
-}
-#endif
-
 // Aborts the flow after the cross account dialog.
 TEST_F(TurnSyncOnHelperTest, CrossAccountAbort) {
   // Set expectations.
@@ -1288,7 +1155,7 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountAbort) {
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingUsername,
                                    kPreviousEmail);
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingGaiaId,
-                                   kPreviousGaiaId);
+                                   kPreviousGaiaId.ToString());
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
@@ -1310,10 +1177,10 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountAbortAlreadyManaged) {
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingUsername,
                                    kPreviousEmail);
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingGaiaId,
-                                   kPreviousGaiaId);
+                                   kPreviousGaiaId.ToString());
   user_policy_signin_service()->set_dm_token("foo");
   user_policy_signin_service()->set_client_id("bar");
-  chrome::enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
+  enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
@@ -1338,7 +1205,7 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountContinue) {
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingUsername,
                                    kPreviousEmail);
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingGaiaId,
-                                   kPreviousGaiaId);
+                                   kPreviousGaiaId.ToString());
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
@@ -1349,7 +1216,8 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountContinue) {
   CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
                       .sign_in_recorded = true,
                       .sync_opt_in_started = true,
-                      .sign_out = true});
+                      .profile_signout = signin_metrics::ProfileSignout::
+                          kCancelSyncConfirmationRemoveAccount});
 }
 
 // Merge data after the cross account dialog.
@@ -1364,10 +1232,10 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountContinueAlreadyManaged) {
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingUsername,
                                    kPreviousEmail);
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingGaiaId,
-                                   kPreviousGaiaId);
+                                   kPreviousGaiaId.ToString());
   user_policy_signin_service()->set_dm_token("foo");
   user_policy_signin_service()->set_client_id("bar");
-  chrome::enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
+  enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   EXPECT_EQ(0, delegate_destroyed());
@@ -1400,15 +1268,11 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountNewProfile) {
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingUsername,
                                    kPreviousEmail);
   profile()->GetPrefs()->SetString(prefs::kGoogleServicesLastSyncingGaiaId,
-                                   kPreviousGaiaId);
+                                   kPreviousGaiaId.ToString());
   // Signin flow.
   ProfileWaiter profile_waiter;
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT);
   Profile* created_profile = profile_waiter.WaitForProfileAdded();
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  SimulateAccountAddedToProfileLacros(created_profile);
-#endif
 
   AccountRemovedWaiter account_removed_waiter(identity_manager(), account_id());
   account_removed_waiter.Wait();
@@ -1425,15 +1289,11 @@ TEST_F(TurnSyncOnHelperTest, CrossAccountNewProfile) {
   EXPECT_FALSE(created_entry->IsOmitted());
   EXPECT_FALSE(created_entry->IsEphemeral());
   CheckDelegateCalls();
-  CheckSigninMetrics({
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-      .sign_in_access_point =
-          signin_metrics::AccessPoint::ACCESS_POINT_SETTINGS,
-#else
-      .sign_in_access_point = kAccessPoint,
-#endif
-      .sign_in_recorded = true,
-      .sync_opt_in_started = true});
+  CheckSigninMetrics(
+      {.sign_in_access_point =
+           signin_metrics::AccessPoint::kSigninInterceptFirstRunExperience,
+       .sign_in_recorded = true,
+       .sync_opt_in_started = true});
 }
 
 // Abort after the enterprise confirmation prompt.
@@ -1443,6 +1303,28 @@ TEST_F(TurnSyncOnHelperTest, EnterpriseConfirmationAbort) {
   // Configure the test.
   user_policy_signin_service()->set_dm_token("foo");
   user_policy_signin_service()->set_client_id("bar");
+  // Signin flow.
+  CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
+  WaitUntilFlowCompletion();
+
+  // Check expectations.
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
+  EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id()));
+  CheckDelegateCalls();
+  CheckSigninMetrics({});
+}
+
+// Abort after the enterprise confirmation prompt.
+TEST_F(TurnSyncOnHelperTest, EnterpriseConfirmationAbortSeparationEnforced) {
+  // Set expectations.
+  expected_enterprise_confirmation_email_ = kEmail;
+  // Configure the test.
+  user_policy_signin_service()->set_dm_token("foo");
+  user_policy_signin_service()->set_client_id("bar");
+
+  SetIsProfileCreationRequiredByPolicy(true);
+
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   WaitUntilFlowCompletion();
@@ -1500,9 +1382,6 @@ TEST_F(TurnSyncOnHelperTest, EnterpriseConfirmationNewProfile) {
   Profile* created_profile = profile_waiter.WaitForProfileAdded();
   EXPECT_TRUE(created_profile);
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  SimulateAccountAddedToProfileLacros(created_profile);
-#endif
   policy_service(created_profile)->SimulateCloudPolicyUpdate();
 
   AccountRemovedWaiter account_removed_waiter(identity_manager(), account_id());
@@ -1512,15 +1391,11 @@ TEST_F(TurnSyncOnHelperTest, EnterpriseConfirmationNewProfile) {
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
   EXPECT_FALSE(identity_manager()->HasAccountWithRefreshToken(account_id()));
   CheckDelegateCalls();
-  CheckSigninMetrics({
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-      .sign_in_access_point =
-          signin_metrics::AccessPoint::ACCESS_POINT_SETTINGS,
-#else
-      .sign_in_access_point = kAccessPoint,
-#endif
-      .sign_in_recorded = true,
-      .sync_opt_in_started = true});
+  CheckSigninMetrics(
+      {.sign_in_access_point =
+           signin_metrics::AccessPoint::kSigninInterceptFirstRunExperience,
+       .sign_in_recorded = true,
+       .sync_opt_in_started = true});
 }
 
 // Wait for cloud policy to be merged before showing sync confirmation.
@@ -1528,7 +1403,7 @@ TEST_F(TurnSyncOnHelperTest, LoadPolicyBeforeShowingSyncConfirmation) {
   // Configure the test.
   user_policy_signin_service()->set_dm_token("foo");
   user_policy_signin_service()->set_client_id("bar");
-  chrome::enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
+  enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   base::RunLoop().RunUntilIdle();
@@ -1546,7 +1421,7 @@ TEST_F(TurnSyncOnHelperTest, LoadPolicyBeforeShowingSyncConfirmation_Timeout) {
   // Configure the test.
   user_policy_signin_service()->set_dm_token("foo");
   user_policy_signin_service()->set_client_id("bar");
-  chrome::enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
+  enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   base::RunLoop().RunUntilIdle();
@@ -1577,20 +1452,16 @@ TEST_F(TurnSyncOnHelperTest, SignedInAccountUndoSyncKeepAccount) {
   UseEnterpriseAccount();
   identity_manager()->GetPrimaryAccountMutator()->SetPrimaryAccount(
       account_id(), signin::ConsentLevel::kSignin,
-      signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN);
+      signin_metrics::AccessPoint::kWebSignin);
 
   CheckSigninMetrics(
-      {.sign_in_access_point =
-           signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN});
+      {.sign_in_access_point = signin_metrics::AccessPoint::kWebSignin});
 
   // Signin flow.
   ProfileWaiter profile_waiter;
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT);
   Profile* created_profile = profile_waiter.WaitForProfileAdded();
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  SimulateAccountAddedToProfileLacros(created_profile);
-#endif
   policy_service(created_profile)->SimulateCloudPolicyUpdate();
 
   // The account is removed from the source profile.
@@ -1612,24 +1483,89 @@ TEST_F(TurnSyncOnHelperTest, SignedInAccountUndoSyncKeepAccount) {
   EXPECT_EQ(signin::ConsentLevel::kSignin,
             signin::GetPrimaryAccountConsentLevel(new_identity_manager));
   CheckDelegateCalls();
-  CheckSigninMetrics({
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-      .sign_in_access_point =
-          signin_metrics::AccessPoint::ACCESS_POINT_SETTINGS,
-#else
-      .sign_in_access_point = kAccessPoint,
-#endif
-      .sign_in_recorded = true,
-      .sync_opt_in_started = true});
+  CheckSigninMetrics(
+      {.sign_in_access_point =
+           signin_metrics::AccessPoint::kSigninInterceptFirstRunExperience,
+       .sign_in_recorded = true,
+       .sync_opt_in_started = true,
+       .profile_signout = std::optional<signin_metrics::ProfileSignout>(
+           signin_metrics::ProfileSignout::kMovePrimaryAccount)});
 }
 
-class TurnSyncOnHelperSearchEngineTest : public TurnSyncOnHelperTest {
- private:
-  base::test::ScopedFeatureList feature_list_{
-      switches::kSearchEngineChoiceTrigger};
-};
+// Test that the unconsented primary account is removed is not forced to have a
+// profile and refuses the enterprise consent.
+TEST_F(TurnSyncOnHelperTest,
+       SignedInAccountEnterpriseCancelStaysKeepsWebAccount) {
+  // Set expectations.
+  expected_enterprise_confirmation_email_ = kEnterpriseEmail;
+  expected_switched_to_new_profile_ = true;
+  expected_sync_confirmation_shown_ = true;
+  sync_confirmation_result_ =
+      LoginUIService::SyncConfirmationUIClosedResult::ABORT_SYNC;
+  SetExpectationsForSyncStartupCompletedForNextProfileCreated();
+  // Configure the test.
+  user_policy_signin_service()->set_dm_token("foo");
+  user_policy_signin_service()->set_client_id("bar");
+  enterprise_choice_ = signin::SIGNIN_CHOICE_CANCEL;
+  UseEnterpriseAccount();
+  identity_manager()->GetPrimaryAccountMutator()->SetPrimaryAccount(
+      account_id(), signin::ConsentLevel::kSignin,
+      signin_metrics::AccessPoint::kWebSignin);
 
-TEST_F(TurnSyncOnHelperSearchEngineTest, SearchEngineImportedToNewProfile) {
+  CheckSigninMetrics(
+      {.sign_in_access_point = signin_metrics::AccessPoint::kWebSignin});
+
+  // Signin flow.
+  ProfileWaiter profile_waiter;
+  CreateTurnOnSyncHelper(
+      TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT_ON_WEB_ONLY);
+  WaitUntilFlowCompletion();
+
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
+  EXPECT_TRUE(identity_manager()->HasAccountWithRefreshToken(account_id()));
+}
+
+// Test that the unconsented primary account is removed if profile separation is
+// forced and the enterprise consent is declined.
+TEST_F(TurnSyncOnHelperTest,
+       SignedInAccountEnterpriseCancelRemovesKeepsWebAccount) {
+  // Set expectations.
+  expected_enterprise_confirmation_email_ = kEnterpriseEmail;
+  expected_switched_to_new_profile_ = true;
+  expected_sync_confirmation_shown_ = true;
+  sync_confirmation_result_ =
+      LoginUIService::SyncConfirmationUIClosedResult::ABORT_SYNC;
+  SetExpectationsForSyncStartupCompletedForNextProfileCreated();
+  // Configure the test.
+  user_policy_signin_service()->set_dm_token("foo");
+  user_policy_signin_service()->set_client_id("bar");
+  enterprise_choice_ = signin::SIGNIN_CHOICE_CANCEL;
+  UseEnterpriseAccount();
+  SetIsProfileCreationRequiredByPolicy(true);
+  identity_manager()->GetPrimaryAccountMutator()->SetPrimaryAccount(
+      account_id(), signin::ConsentLevel::kSignin,
+      signin_metrics::AccessPoint::kWebSignin);
+
+  CheckSigninMetrics(
+      {.sign_in_access_point = signin_metrics::AccessPoint::kWebSignin});
+
+  // Signin flow.
+  ProfileWaiter profile_waiter;
+  CreateTurnOnSyncHelper(
+      TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT_ON_WEB_ONLY);
+  WaitUntilFlowCompletion();
+
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
+  EXPECT_FALSE(identity_manager()->HasAccountWithRefreshToken(account_id()));
+}
+
+TEST_F(TurnSyncOnHelperTest, SearchEngineImportedToNewProfile) {
   // Set expectations.
   expected_enterprise_confirmation_email_ = kEnterpriseEmail;
   expected_switched_to_new_profile_ = true;
@@ -1644,11 +1580,10 @@ TEST_F(TurnSyncOnHelperSearchEngineTest, SearchEngineImportedToNewProfile) {
   UseEnterpriseAccount();
   identity_manager()->GetPrimaryAccountMutator()->SetPrimaryAccount(
       account_id(), signin::ConsentLevel::kSignin,
-      signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN);
+      signin_metrics::AccessPoint::kWebSignin);
 
   CheckSigninMetrics(
-      {.sign_in_access_point =
-           signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN});
+      {.sign_in_access_point = signin_metrics::AccessPoint::kWebSignin});
 
   // Set some search engine in the source profile.
   const char kCustomSearchEngineDomain[] = "bar.com";
@@ -1683,9 +1618,6 @@ TEST_F(TurnSyncOnHelperSearchEngineTest, SearchEngineImportedToNewProfile) {
   ProfileWaiter profile_waiter;
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::KEEP_ACCOUNT);
   Profile* created_profile = profile_waiter.WaitForProfileAdded();
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  SimulateAccountAddedToProfileLacros(created_profile);
-#endif
   policy_service(created_profile)->SimulateCloudPolicyUpdate();
   // The account is removed from the source profile.
   AccountRemovedWaiter account_removed_waiter(identity_manager(), account_id());
@@ -1723,10 +1655,9 @@ TEST_F(TurnSyncOnHelperTest, SignedInAccountUndoSyncRemoveAccount) {
   UseEnterpriseAccount();
   identity_manager()->GetPrimaryAccountMutator()->SetPrimaryAccount(
       account_id(), signin::ConsentLevel::kSignin,
-      signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN);
+      signin_metrics::AccessPoint::kWebSignin);
   CheckSigninMetrics(
-      {.sign_in_access_point =
-           signin_metrics::AccessPoint::ACCESS_POINT_WEB_SIGNIN});
+      {.sign_in_access_point = signin_metrics::AccessPoint::kWebSignin});
 
   // Signin flow.
   CreateTurnOnSyncHelper(TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
@@ -1737,9 +1668,7 @@ TEST_F(TurnSyncOnHelperTest, SignedInAccountUndoSyncRemoveAccount) {
   CheckSyncAborted(/*kept_account=*/true);
   CheckDelegateCalls();
 
-  CheckSigninMetrics({.sign_in_recorded = true,
-                      .sync_opt_in_started = true,
-                      .sign_out = false});
+  CheckSigninMetrics({.sign_in_recorded = true, .sync_opt_in_started = true});
 }
 
 // Tests that the sync confirmation is shown and the user can abort.
@@ -1760,7 +1689,8 @@ TEST_F(TurnSyncOnHelperTest, UndoSync) {
   CheckSigninMetrics({.sign_in_access_point = kAccessPoint,
                       .sign_in_recorded = true,
                       .sync_opt_in_started = true,
-                      .sign_out = true});
+                      .profile_signout = signin_metrics::ProfileSignout::
+                          kCancelSyncConfirmationRemoveAccount});
 }
 
 // Tests that the sync settings page is shown.
@@ -1871,8 +1801,8 @@ TEST_F(TurnSyncOnHelperWithMockSigninManagerTest,
   SetExpectationsForSyncStartupPending(profile());
 
   // Signin flow.
-  EXPECT_EQ(GetExpectedPreSyncFlowConsentLevel(),
-            signin::GetPrimaryAccountConsentLevel(identity_manager()));
+  EXPECT_FALSE(
+      signin::GetPrimaryAccountConsentLevel(identity_manager()).has_value());
   TurnSyncOnHelper* sync_starter = CreateTurnOnSyncHelper(
       TurnSyncOnHelper::SigninAbortedMode::REMOVE_ACCOUNT);
   base::RunLoop().RunUntilIdle();

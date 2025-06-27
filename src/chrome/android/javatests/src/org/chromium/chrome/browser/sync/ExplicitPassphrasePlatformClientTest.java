@@ -18,15 +18,17 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ServiceLoaderUtil;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.sync.ExplicitPassphrasePlatformClient;
 import org.chromium.components.sync.SyncService;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /**
  * Integration test for ExplicitPassphrasePlatformClient.
@@ -49,19 +51,20 @@ public class ExplicitPassphrasePlatformClientTest {
 
     @Before
     public void setUp() {
-        ExplicitPassphrasePlatformClient.overrideForTesting(mExplicitPassphrasePlatformClient);
+        ServiceLoaderUtil.setInstanceForTesting(
+                ExplicitPassphrasePlatformClient.class, mExplicitPassphrasePlatformClient);
     }
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/386744084")
     public void testInvokeIfCorrectDecryptionPassphraseSet() throws Exception {
         mSyncTestRule.getFakeServerHelper().setCustomPassphraseNigori("passphrase");
-        CoreAccountInfo account = mSyncTestRule.setUpAccountAndEnableSyncForTesting();
+        CoreAccountInfo account = mSyncTestRule.setUpAccountAndSignInForTesting();
         SyncService syncService = mSyncTestRule.getSyncService();
         CriteriaHelper.pollUiThread(() -> syncService.isPassphraseRequiredForPreferredDataTypes());
 
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> syncService.setDecryptionPassphrase("passphrase"));
+        ThreadUtils.runOnUiThreadBlocking(() -> syncService.setDecryptionPassphrase("passphrase"));
 
         verify(mExplicitPassphrasePlatformClient)
                 .setExplicitDecryptionPassphrase(eq(account), notNull());
@@ -71,13 +74,14 @@ public class ExplicitPassphrasePlatformClientTest {
     // wrong.
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/386744084")
     public void testInvokeIfWrongDecryptionPassphraseSet() throws Exception {
         mSyncTestRule.getFakeServerHelper().setCustomPassphraseNigori("correctPassphrase");
-        CoreAccountInfo account = mSyncTestRule.setUpAccountAndEnableSyncForTesting();
+        CoreAccountInfo account = mSyncTestRule.setUpAccountAndSignInForTesting();
         SyncService syncService = mSyncTestRule.getSyncService();
         CriteriaHelper.pollUiThread(() -> syncService.isPassphraseRequiredForPreferredDataTypes());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> syncService.setDecryptionPassphrase("wrongPassphrase"));
 
         verify(mExplicitPassphrasePlatformClient)

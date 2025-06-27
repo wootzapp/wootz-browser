@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/client_hints/browser/client_hints.h"
+
 #include <cmath>
 #include <functional>
 #include <string>
@@ -9,7 +11,6 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/json/json_reader.h"
-#include "components/client_hints/browser/client_hints.h"
 #include "components/client_hints/common/client_hints.h"
 #include "components/client_hints/common/switches.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -21,6 +22,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "services/network/public/cpp/client_hints.h"
+#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/public/common/client_hints/enabled_client_hints.h"
 #include "third_party/blink/public/common/features.h"
@@ -29,7 +31,7 @@ namespace client_hints {
 
 namespace {
 base::flat_map<url::Origin, std::vector<network::mojom::WebClientHintsType>>
-ParseInitializeClientHintsStroage() {
+ParseInitializeClientHintsStorage() {
   auto results =
       base::flat_map<url::Origin,
                      std::vector<network::mojom::WebClientHintsType>>();
@@ -38,17 +40,17 @@ ParseInitializeClientHintsStroage() {
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           switches::kInitializeClientHintsStorage);
 
-  std::optional<base::Value> maybe_value =
-      base::JSONReader::Read(raw_client_hint_json);
+  std::optional<base::Value::Dict> maybe_value =
+      base::JSONReader::ReadDict(raw_client_hint_json);
 
-  if (!maybe_value || !maybe_value->is_dict()) {
+  if (!maybe_value) {
     LOG(WARNING)
         << "The 'initialize-client-hints-storage' switch value could not be "
         << "properly parsed.";
     return {};
   }
 
-  for (auto entry : maybe_value->GetDict()) {
+  for (auto entry : *maybe_value) {
     url::Origin origin = url::Origin::Create(GURL(entry.first));
     if (origin.opaque() || origin.scheme() != url::kHttpsScheme) {
       LOG(WARNING)
@@ -101,7 +103,7 @@ ClientHints::ClientHints(
   if (!context->IsOffTheRecord() &&
       base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kInitializeClientHintsStorage)) {
-    auto command_line_hints = ParseInitializeClientHintsStroage();
+    auto command_line_hints = ParseInitializeClientHintsStorage();
 
     for (const auto& origin_hints_pair : command_line_hints) {
       PersistClientHints(origin_hints_pair.first, nullptr,
@@ -119,6 +121,9 @@ network::NetworkQualityTracker* ClientHints::GetNetworkQualityTracker() {
 void ClientHints::GetAllowedClientHintsFromSource(
     const url::Origin& origin,
     blink::EnabledClientHints* client_hints) {
+  if (network::features::ShouldBlockAcceptClientHintsFor(origin)) {
+    return;
+  }
   const GURL& url = origin.GetURL();
   if (!network::IsUrlPotentiallyTrustworthy(url)) {
     return;
@@ -142,11 +147,6 @@ bool ClientHints::IsJavaScriptAllowed(const GURL& url,
                               .GetURL()
                         : url,
              url, ContentSettingsType::JAVASCRIPT) != CONTENT_SETTING_BLOCK;
-}
-
-bool ClientHints::AreThirdPartyCookiesBlocked(const GURL& url,
-                                              content::RenderFrameHost* rfh) {
-  return !cookie_settings_->IsThirdPartyAccessAllowed(url);
 }
 
 blink::UserAgentMetadata ClientHints::GetUserAgentMetadata() {

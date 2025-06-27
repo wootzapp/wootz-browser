@@ -89,6 +89,8 @@ class CORE_EXPORT LayoutEmbeddedContent : public LayoutReplaced {
  protected:
   PaintLayerType LayerTypeRequired() const override;
 
+  PhysicalNaturalSizingInfo GetNaturalDimensions() const override;
+
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) final;
   void PaintReplaced(const PaintInfo&,
                      const PhysicalOffset& paint_offset) const override;
@@ -116,6 +118,8 @@ class CORE_EXPORT LayoutEmbeddedContent : public LayoutReplaced {
   bool PointOverResizer(const HitTestResult&,
                         const HitTestLocation&,
                         const PhysicalOffset& accumulated_offset) const;
+
+  void PropagateZoomFactor(double zoom_factor);
 };
 
 template <>

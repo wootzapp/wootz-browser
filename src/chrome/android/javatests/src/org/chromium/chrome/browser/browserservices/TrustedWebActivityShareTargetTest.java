@@ -21,11 +21,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
@@ -34,7 +34,6 @@ import org.chromium.chrome.browser.webapps.WebApkPostShareTargetNavigatorJni;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
 
 import java.util.Collections;
@@ -65,8 +64,6 @@ public class TrustedWebActivityShareTargetTest {
 
     @Rule public EmbeddedTestServerRule mEmbeddedTestServerRule = new EmbeddedTestServerRule();
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
     private static final String TEST_PAGE = "/chrome/test/data/android/google.html";
     private static final String SHARE_TEST_PAGE = "/chrome/test/data/android/about.html";
     private static final String PACKAGE_NAME =
@@ -84,7 +81,7 @@ public class TrustedWebActivityShareTargetTest {
 
     @Before
     public void setUp() throws Exception {
-        mJniMocker.mock(WebApkPostShareTargetNavigatorJni.TEST_HOOKS, mPostNavigatorNatives);
+        WebApkPostShareTargetNavigatorJni.setInstanceForTesting(mPostNavigatorNatives);
         mCustomTabActivityTestRule.setFinishActivity(true);
 
         LibraryLoader.getInstance().ensureInitialized();
@@ -171,7 +168,7 @@ public class TrustedWebActivityShareTargetTest {
     private void deliverNewIntent(Intent intent) {
         // Delivering intents to existing CustomTabActivity in tests is error-prone and out of scope
         // of these tests. Thus calling onNewIntent directly.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mCustomTabActivityTestRule.getActivity().onNewIntent(intent));
     }
 

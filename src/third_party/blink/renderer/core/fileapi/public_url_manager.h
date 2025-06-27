@@ -44,7 +44,7 @@ namespace blink {
 
 class KURL;
 class ExecutionContext;
-class StorageAccessHandle;
+class GlobalStorageAccessHandle;
 class URLRegistry;
 class URLRegistrable;
 
@@ -54,7 +54,7 @@ class CORE_EXPORT PublicURLManager final
  public:
   explicit PublicURLManager(ExecutionContext*);
   explicit PublicURLManager(
-      base::PassKey<StorageAccessHandle>,
+      base::PassKey<GlobalStorageAccessHandle>,
       ExecutionContext*,
       mojo::PendingAssociatedRemote<mojom::blink::BlobURLStore>);
 
@@ -72,7 +72,9 @@ class CORE_EXPORT PublicURLManager final
   // BlobURLToken. This token can be used by the browser process to securely
   // lookup what blob a URL used to refer to, even after the URL is revoked.
   // If the URL fails to resolve the request will simply be disconnected.
-  void Resolve(const KURL&, mojo::PendingReceiver<mojom::blink::BlobURLToken>);
+  void ResolveAsBlobURLToken(const KURL&,
+                             mojo::PendingReceiver<mojom::blink::BlobURLToken>,
+                             bool is_top_level_navigation);
 
   // ExecutionContextLifecycleObserver interface.
   void ContextDestroyed() override;

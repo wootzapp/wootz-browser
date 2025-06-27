@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
+
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 #include "url/url_util.h"
@@ -251,12 +253,13 @@ TEST_F(SchemeHostPortTest, Serialization) {
 }
 
 TEST_F(SchemeHostPortTest, Comparison) {
-  // These tuples are arranged in increasing order:
+  // These tuples are arranged in increasing order
   struct SchemeHostPorts {
     const char* scheme;
     const char* host;
     uint16_t port;
-  } tuples[] = {
+  };
+  auto tuples = std::to_array<SchemeHostPorts>({
       {"http", "a", 80},
       {"http", "b", 80},
       {"https", "a", 80},
@@ -265,7 +268,7 @@ TEST_F(SchemeHostPortTest, Comparison) {
       {"http", "b", 81},
       {"https", "a", 81},
       {"https", "b", 81},
-  };
+  });
 
   for (size_t i = 0; i < std::size(tuples); i++) {
     url::SchemeHostPort current(tuples[i].scheme, tuples[i].host,

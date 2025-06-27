@@ -4,7 +4,10 @@
 
 #include "chrome/browser/ssl/https_upgrades_navigation_throttle.h"
 
+#include <utility>
+
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
@@ -24,6 +27,8 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/metrics/public/cpp/ukm_recorder.h"
 #include "ui/base/page_transition_types.h"
 
 using security_interstitials::https_only_mode::Event;
@@ -51,13 +56,6 @@ HttpsUpgradesNavigationThrottle::MaybeCreateThrottleFor(
     return nullptr;
   }
 
-  // Repair prefs if the user was previously affected by crbug.com/1475747. This
-  // will reset the affected prefs, before setting up the state for the Throttle
-  // for this navigation.
-  // TODO(crbug.com/40070502): Remove this after M120 (or after
-  // kHttpsFirstModeV2ForTypicallySecureUsers is enabled by default).
-  HttpsFirstModeService::FixTypicallySecureUserPrefs(profile);
-
   PrefService* prefs = profile->GetPrefs();
   security_interstitials::https_only_mode::HttpInterstitialState
       interstitial_state;
@@ -67,13 +65,19 @@ HttpsUpgradesNavigationThrottle::MaybeCreateThrottleFor(
   if (base::FeatureList::IsEnabled(features::kHttpsFirstModeIncognito)) {
     if (profile->IsIncognitoProfile() && prefs &&
         prefs->GetBoolean(prefs::kHttpsFirstModeIncognito)) {
-      interstitial_state.enabled_by_pref = true;
+      interstitial_state.enabled_by_incognito = true;
     }
   }
 
   StatefulSSLHostStateDelegate* state =
       static_cast<StatefulSSLHostStateDelegate*>(
           profile->GetSSLHostStateDelegate());
+
+  if (IsBalancedModeEnabled(prefs) && state &&
+      !state->HttpsFirstBalancedModeSuppressedForTesting()) {
+    interstitial_state.enabled_in_balanced_mode = true;
+  }
+
   auto* storage_partition =
       handle->GetWebContents()->GetPrimaryMainFrame()->GetStoragePartition();
 
@@ -88,7 +92,8 @@ HttpsUpgradesNavigationThrottle::MaybeCreateThrottleFor(
 
   // StatefulSSLHostStateDelegate can be null during tests.
   if (state &&
-      state->IsHttpsEnforcedForUrl(handle->GetURL(), storage_partition)) {
+      state->IsHttpsEnforcedForUrl(handle->GetURL(), storage_partition) &&
+      !MustDisableSiteEngagementHeuristic(profile)) {
     interstitial_state.enabled_by_engagement_heuristic = true;
   }
 
@@ -155,16 +160,21 @@ HttpsUpgradesNavigationThrottle::WillStartRequest() {
 
       // Mark this as a fallback HTTP navigation and trigger the interstitial.
       tab_helper->set_is_navigation_fallback(true);
+
+      ukm::SourceId source_id =
+          ukm::ConvertToSourceId(navigation_handle()->GetNavigationId(),
+                                 ukm::SourceIdType::NAVIGATION_ID);
       std::unique_ptr<security_interstitials::HttpsOnlyModeBlockingPage>
           blocking_page =
               blocking_page_factory_->CreateHttpsOnlyModeBlockingPage(
-                  contents, handle->GetURL(), interstitial_state_);
+                  contents, handle->GetURL(), interstitial_state_,
+                  base::BindRepeating(&RecordHttpsFirstModeUKM, source_id));
       std::string interstitial_html = blocking_page->GetHTMLContents();
       security_interstitials::SecurityInterstitialTabHelper::
           AssociateBlockingPage(handle, std::move(blocking_page));
       return content::NavigationThrottle::ThrottleCheckResult(
           content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
-          interstitial_html);
+          std::move(interstitial_html));
     }
 
     // Otherwise, just record metrics and continue.
@@ -203,28 +213,34 @@ HttpsUpgradesNavigationThrottle::WillRedirectRequest() {
   auto* contents = handle->GetWebContents();
   auto* tab_helper = HttpsOnlyModeTabHelper::FromWebContents(contents);
 
-  if (tab_helper->is_navigation_fallback() &&
-      !handle->GetURL().SchemeIsCryptographic()) {
-    if (IsInterstitialEnabled(interstitial_state_)) {
-      security_interstitials::https_only_mode::RecordInterstitialReason(
-          interstitial_state_);
-
-      std::unique_ptr<security_interstitials::HttpsOnlyModeBlockingPage>
-          blocking_page =
-              blocking_page_factory_->CreateHttpsOnlyModeBlockingPage(
-                  contents, handle->GetURL(), interstitial_state_);
-      std::string interstitial_html = blocking_page->GetHTMLContents();
-      security_interstitials::SecurityInterstitialTabHelper::
-          AssociateBlockingPage(handle, std::move(blocking_page));
-      return content::NavigationThrottle::ThrottleCheckResult(
-          content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
-          interstitial_html);
-    }
-
-    // Otherwise, just record metrics and continue.
-    // TODO(crbug.com/40904694): Record a separate histogram for Site Engagement
-    // heuristic.
+  // Slow loading fallback URLs should be handled by the net stack.
+  if (tab_helper->is_navigation_fallback()) {
+    handle->CancelNavigationTimeout();
   }
+
+  ukm::SourceId source_id = ukm::ConvertToSourceId(
+      navigation_handle()->GetNavigationId(), ukm::SourceIdType::NAVIGATION_ID);
+  if (tab_helper->is_navigation_fallback() &&
+      !handle->GetURL().SchemeIsCryptographic() &&
+      IsInterstitialEnabled(interstitial_state_)) {
+    security_interstitials::https_only_mode::RecordInterstitialReason(
+        interstitial_state_);
+
+    std::unique_ptr<security_interstitials::HttpsOnlyModeBlockingPage>
+        blocking_page = blocking_page_factory_->CreateHttpsOnlyModeBlockingPage(
+            contents, handle->GetURL(), interstitial_state_,
+            base::BindRepeating(&RecordHttpsFirstModeUKM, source_id));
+    std::string interstitial_html = blocking_page->GetHTMLContents();
+    security_interstitials::SecurityInterstitialTabHelper::
+        AssociateBlockingPage(handle, std::move(blocking_page));
+    return content::NavigationThrottle::ThrottleCheckResult(
+        content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
+        std::move(interstitial_html));
+  }
+
+  // Otherwise, just record metrics and continue.
+  // TODO(crbug.com/40904694): Record a separate histogram for Site Engagement
+  // heuristic.
 
   // If the navigation was upgraded by the Interceptor, then the Throttle's
   // WillRedirectRequest() will get triggered by the artificial redirect to
@@ -284,6 +300,6 @@ const char* HttpsUpgradesNavigationThrottle::GetNameForLogging() {
 
 // static
 void HttpsUpgradesNavigationThrottle::set_timeout_for_testing(
-    int timeout_in_seconds) {
-  g_fallback_delay = base::Seconds(timeout_in_seconds);
+    base::TimeDelta timeout) {
+  g_fallback_delay = timeout;
 }

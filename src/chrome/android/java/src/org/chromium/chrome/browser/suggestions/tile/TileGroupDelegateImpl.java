@@ -6,19 +6,27 @@ package org.chromium.chrome.browser.suggestions.tile;
 
 import android.content.Context;
 
-import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp.NewTabPageUma;
+import org.chromium.chrome.browser.preloading.AndroidPrerenderManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.suggestions.SuggestionsDependencyFactory;
 import org.chromium.chrome.browser.suggestions.SuggestionsNavigationDelegate;
 import org.chromium.chrome.browser.suggestions.mostvisited.MostVisitedSites;
+import org.chromium.chrome.browser.suggestions.tile.TileGroup.PendingChanges;
+import org.chromium.chrome.browser.suggestions.tile.tile_edit_dialog.CustomTileEditCoordinator;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
+import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
+import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.mojom.WindowOpenDisposition;
 import org.chromium.url.GURL;
 
@@ -32,64 +40,110 @@ import java.util.Set;
  * the {@link TileGroup} should not know about.
  */
 public class TileGroupDelegateImpl implements TileGroup.Delegate {
-    private static final Set<Integer> MVTilesClickForUserAction =
+    private static final Set<Integer> sMvtClickForUserAction =
             new HashSet<>(
                     Arrays.asList(
                             WindowOpenDisposition.CURRENT_TAB,
                             WindowOpenDisposition.OFF_THE_RECORD));
 
     private final Context mContext;
+    private final Profile mProfile;
     private final SnackbarManager mSnackbarManager;
     private final SuggestionsNavigationDelegate mNavigationDelegate;
     private final MostVisitedSites mMostVisitedSites;
 
+    private @Nullable ModalDialogManager mModalDialogManager;
+    private @Nullable PendingChanges mPendingChanges;
+
     private boolean mIsDestroyed;
     private SnackbarController mTileRemovedSnackbarController;
-    @BrowserUiUtils.HostSurface private int mHostSurface;
 
     public TileGroupDelegateImpl(
             Context context,
             Profile profile,
             SuggestionsNavigationDelegate navigationDelegate,
-            SnackbarManager snackbarManager,
-            @BrowserUiUtils.HostSurface int hostSurface) {
+            SnackbarManager snackbarManager) {
         mContext = context;
-        mSnackbarManager = snackbarManager;
+        mProfile = profile;
         mNavigationDelegate = navigationDelegate;
+        mSnackbarManager = snackbarManager;
         mMostVisitedSites =
                 SuggestionsDependencyFactory.getInstance().createMostVisitedSites(profile);
-        mHostSurface = hostSurface;
+    }
+
+    // CustomLinkOperations -> TileGroup.Delegate implementation.
+    @Override
+    public boolean addCustomLink(String name, @Nullable GURL url) {
+        assert !mIsDestroyed;
+        return mMostVisitedSites.addCustomLink(name, url);
     }
 
     @Override
-    public void removeMostVisitedItem(Tile item, Callback<GURL> removalUndoneCallback) {
+    public boolean assignCustomLink(GURL keyUrl, String name, @Nullable GURL url) {
+        assert !mIsDestroyed;
+        return mMostVisitedSites.assignCustomLink(keyUrl, name, url);
+    }
+
+    @Override
+    public boolean deleteCustomLink(GURL keyUrl) {
+        assert !mIsDestroyed;
+        return mMostVisitedSites.deleteCustomLink(keyUrl);
+    }
+
+    @Override
+    public boolean hasCustomLink(GURL keyUrl) {
+        assert !mIsDestroyed;
+        return mMostVisitedSites.hasCustomLink(keyUrl);
+    }
+
+    // TileGroup.Delegate implementation.
+    @Override
+    @Initializer
+    public void setPendingChanges(PendingChanges pendingChanges) {
+        mPendingChanges = pendingChanges;
+    }
+
+    @Override
+    public void removeMostVisitedItem(Tile item) {
         assert !mIsDestroyed;
 
-        mMostVisitedSites.addBlocklistedUrl(item.getUrl());
-        showTileRemovedSnackbar(item.getUrl(), removalUndoneCallback);
+        GURL url = item.getUrl();
+        // Handle change detection. This only tracks the most recent removal, and not all removals.
+        // But if the removal is committed, this is good enough for change detection.
+        if (mPendingChanges != null) {
+            mPendingChanges.removalUrl = url;
+        }
+        mMostVisitedSites.addBlocklistedUrl(url);
+        showTileRemovedSnackbar(url);
     }
 
     @Override
     public void openMostVisitedItem(int windowDisposition, Tile item) {
         assert !mIsDestroyed;
 
-        recordClickMvTiles(windowDisposition, mHostSurface);
+        recordClickMvTiles(windowDisposition);
 
-        String url = item.getUrl().getSpec();
+        GURL url = item.getUrl();
 
-        // TODO(treib): Should we call recordOpenedMostVisitedItem here?
         if (windowDisposition != WindowOpenDisposition.NEW_WINDOW) {
             recordOpenedTile(item);
         }
 
-        mNavigationDelegate.navigateToSuggestionUrl(windowDisposition, url, false);
+        if (ChromeFeatureList.sMostVisitedTilesReselect.isEnabled() && tileIsReselectable(item)) {
+            if (mNavigationDelegate.maybeSelectTabWithUrl(url)) {
+                return;
+            }
+            // Failed to select existing tab with the same URL, so just navigate.
+        }
+
+        mNavigationDelegate.navigateToSuggestionUrl(windowDisposition, url.getSpec(), false);
     }
 
     @Override
     public void openMostVisitedItemInGroup(int windowDisposition, Tile item) {
         assert !mIsDestroyed;
 
-        recordClickMvTiles(windowDisposition, mHostSurface);
+        recordClickMvTiles(windowDisposition);
 
         String url = item.getUrl().getSpec();
 
@@ -119,6 +173,24 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
     }
 
     @Override
+    public void initAndroidPrerenderManager(AndroidPrerenderManager androidPrerenderManager) {
+        if (mNavigationDelegate != null) {
+            mNavigationDelegate.initAndroidPrerenderManager(androidPrerenderManager);
+        }
+    }
+
+    @Override
+    public CustomTileEditCoordinator createCustomTileEditCoordinator(@Nullable Tile originalTile) {
+        assert !mIsDestroyed;
+
+        if (mModalDialogManager == null) {
+            mModalDialogManager =
+                    new ModalDialogManager(new AppModalPresenter(mContext), ModalDialogType.APP);
+        }
+        return CustomTileEditCoordinator.make(mModalDialogManager, mContext, originalTile);
+    }
+
+    @Override
     public void destroy() {
         assert !mIsDestroyed;
         mIsDestroyed = true;
@@ -129,7 +201,7 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
         mMostVisitedSites.destroy();
     }
 
-    private void showTileRemovedSnackbar(GURL url, final Callback<GURL> removalUndoneCallback) {
+    private void showTileRemovedSnackbar(GURL url) {
         if (mTileRemovedSnackbarController == null) {
             mTileRemovedSnackbarController =
                     new SnackbarController() {
@@ -141,7 +213,9 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
                         public void onAction(Object actionData) {
                             if (mIsDestroyed) return;
                             GURL url = (GURL) actionData;
-                            removalUndoneCallback.onResult(url);
+                            if (mPendingChanges != null) {
+                                mPendingChanges.insertionUrl = url;
+                            }
                             mMostVisitedSites.removeBlocklistedUrl(url);
                         }
                     };
@@ -163,21 +237,22 @@ public class TileGroupDelegateImpl implements TileGroup.Delegate {
     }
 
     /**
-     * Records user clicking on MV tiles in New tab page or Start surface.
+     * Records user clicking on MV tiles in New tab page.
+     *
      * @param windowDisposition How to open (new window, current tab, etc).
-     * @param hostSurface The corresponding item of the host name in {@link
-     *                    BrowserUiUtils.HostSurface} which indicates the page
-     *                    where the Mv tiles located.
      */
-    private void recordClickMvTiles(
-            int windowDisposition, @BrowserUiUtils.HostSurface int hostSurface) {
+    private void recordClickMvTiles(int windowDisposition) {
         if (windowDisposition != WindowOpenDisposition.NEW_WINDOW) {
-            BrowserUiUtils.recordModuleClickHistogram(
-                    hostSurface, ModuleTypeOnStartAndNtp.MOST_VISITED_TILES);
+            BrowserUiUtils.recordModuleClickHistogram(ModuleTypeOnStartAndNtp.MOST_VISITED_TILES);
         }
-        if (MVTilesClickForUserAction.contains(windowDisposition)) {
-            RecordUserAction.record(
-                    "Suggestions.Tile.Tapped." + BrowserUiUtils.getHostName(hostSurface));
+        if (sMvtClickForUserAction.contains(windowDisposition)) {
+            RecordUserAction.record("Suggestions.Tile.Tapped.NewTabPage");
         }
+    }
+
+    private boolean tileIsReselectable(Tile tile) {
+        // Search suggestions should not reselect existing tab; a new search is always conducted to
+        // ensure freshness.
+        return !TileUtils.isSearchTile(mProfile, tile);
     }
 }

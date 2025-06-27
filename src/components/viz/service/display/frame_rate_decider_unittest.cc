@@ -4,7 +4,9 @@
 
 #include "components/viz/service/display/frame_rate_decider.h"
 
+#include <array>
 #include <memory>
+#include <string_view>
 
 #include "base/functional/callback_helpers.h"
 #include "base/test/scoped_feature_list.h"
@@ -64,9 +66,9 @@ class FrameRateDeciderTest : public testing::Test,
   }
 
   // SurfaceManagerDelegate implementation.
-  base::StringPiece GetFrameSinkDebugLabel(
+  std::string_view GetFrameSinkDebugLabel(
       const FrameSinkId& frame_sink_id) const override {
-    return base::StringPiece();
+    return std::string_view();
   }
   void AggregatedFrameSinksChanged() override {}
 
@@ -240,7 +242,7 @@ TEST_F(FrameRateDeciderTest, OptimalFrameSinkIntervalIsPicked) {
     frame_rate_decider_->OnSurfaceWillBeDrawn(surface1);
   }
 
-#if BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_APPLE)
   // iOS supports setting any frame rate that doesn't exceed a maximum supported
   // one as the system will round it to be a factor of the maximum supported
   // refresh rate. Thus, the FrameRateDecider must pick the most min interval
@@ -258,7 +260,7 @@ TEST_F(FrameRateDeciderTest, OptimalFrameSinkIntervalIsPicked) {
     frame_rate_decider_->OnSurfaceWillBeDrawn(surface2);
   }
 
-#if BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_APPLE)
   EXPECT_EQ(display_interval_, min_supported_interval * 2.03);
 #else
   EXPECT_EQ(display_interval_, min_supported_interval * 2);
@@ -271,19 +273,19 @@ TEST_F(FrameRateDeciderTest, OptimalFrameSinkIntervalIsPicked) {
     frame_rate_decider_->OnSurfaceWillBeDrawn(surface2);
     frame_rate_decider_->OnSurfaceWillBeDrawn(surface3);
   }
-#if BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_APPLE)
   EXPECT_EQ(display_interval_, min_supported_interval * 0.5);
 #else
   EXPECT_EQ(display_interval_, FrameRateDecider::UnspecifiedFrameInterval());
 #endif
 }
 
-#if BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_APPLE)
 // TODO(crbug.com/40255724): currently failing on iOS.
 #define MAYBE_MinFrameSinkIntervalIsPicked DISABLED_MinFrameSinkIntervalIsPicked
 #else
 #define MAYBE_MinFrameSinkIntervalIsPicked MinFrameSinkIntervalIsPicked
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // BUILDFLAG(IS_APPLE)
 TEST_F(FrameRateDeciderTest, MAYBE_MinFrameSinkIntervalIsPicked) {
   base::TimeDelta min_supported_interval = base::Seconds(1);
   const std::vector<base::TimeDelta> supported_intervals = {
@@ -432,7 +434,7 @@ TEST_F(FrameRateDeciderTest, ManySinksWithMinInterval) {
   frame_rate_decider_->SetSupportedFrameIntervals(supported_intervals);
   EXPECT_EQ(display_interval_, FrameRateDecider::UnspecifiedFrameInterval());
 
-  Surface* surfaces[3];
+  std::array<Surface*, 3> surfaces;
   for (int i = 0; i < 3; ++i) {
     FrameSinkId frame_sink_id(1u, i);
     if (i == 0)
@@ -461,7 +463,7 @@ TEST_F(FrameRateDeciderTest, NoFixedIntervalSurfaces) {
   frame_rate_decider_->SetSupportedFrameIntervals(supported_intervals);
   EXPECT_EQ(display_interval_, FrameRateDecider::UnspecifiedFrameInterval());
 
-  Surface* surfaces[3];
+  std::array<Surface*, 3> surfaces;
   for (int i = 0; i < 3; ++i) {
     FrameSinkId frame_sink_id(1u, i);
     preferred_intervals_[frame_sink_id] =

@@ -1,8 +1,8 @@
 // Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 syntax = "proto3";
+
 option optimize_for = LITE_RUNTIME;
 option java_package = "org.chromium.components.optimization_guide.proto";
 option java_outer_classname = "ModelExecutionProto";
@@ -10,6 +10,14 @@ option java_outer_classname = "ModelExecutionProto";
 package optimization_guide.proto;
 
 import "components/optimization_guide/proto/descriptors.proto";
+
+enum ControlToken {
+  CONTROL_TOKEN_UNKNOWN = 0;
+  CONTROL_TOKEN_SYSTEM = 1;
+  CONTROL_TOKEN_MODEL = 2;
+  CONTROL_TOKEN_USER = 3;
+  CONTROL_TOKEN_END = 4;
+}
 
 message SubstitutedString {
   reserved 2, 3;
@@ -44,11 +52,24 @@ message RangeExpr {
   SubstitutedString expr = 2;
 }
 
+message IndexExpr {
+  // If true, use 1-based indexes instead of 0-based.
+  bool one_based = 1;
+}
+
+message MediaField {
+  // Field containing the media.
+  ProtoField proto_field = 1;
+}
+
 message StringArg {
   oneof arg {
     string raw_string = 1;
     ProtoField proto_field = 2;
     RangeExpr range_expr = 4;
+    IndexExpr index_expr = 5;
+    ControlToken control_token = 6;
+    MediaField media_field = 7;
   }
 
   // TODO(b/302402959): Add support for max number of characters to apply.

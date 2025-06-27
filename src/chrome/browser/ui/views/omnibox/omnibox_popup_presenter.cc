@@ -24,7 +24,7 @@ OmniboxPopupPresenter::OmniboxPopupPresenter(LocationBarView* location_bar_view,
       location_bar_view_(location_bar_view),
       widget_(nullptr),
       requested_handler_(false) {
-  set_owned_by_client();
+  set_owned_by_client(OwnedByClientPassKey());
 
   // Build URL with SessionID to ensure correct omnibox controller binding
   // without relying on mutable state subject to timing and destruction issues.
@@ -37,9 +37,9 @@ OmniboxPopupPresenter::OmniboxPopupPresenter(LocationBarView* location_bar_view,
   // the time window of loading the URL in a separate process. Using a unique
   // session ID avoids these problems and ensures that only the omnibox
   // controller that owns this popup presenter will be selected.
-  GURL url(base::StringPrintf("%s?session_id=%d",
-                              chrome::kChromeUIOmniboxPopupURL,
-                              location_bar_view->browser()->session_id().id()));
+  const GURL url(
+      base::StringPrintf("%s?session_id=%d", chrome::kChromeUIOmniboxPopupURL,
+                         location_bar_view->browser()->session_id().id()));
   LoadInitialURL(url);
 
   location_bar_view_->AddObserver(this);
@@ -54,8 +54,10 @@ void OmniboxPopupPresenter::Show() {
   if (!widget_) {
     widget_ = new ThemeCopyingWidget(location_bar_view_->GetWidget());
 
-    views::Widget* parent_widget = location_bar_view_->GetWidget();
-    views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+    const views::Widget* parent_widget = location_bar_view_->GetWidget();
+    views::Widget::InitParams params(
+        views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+        views::Widget::InitParams::TYPE_POPUP);
 #if BUILDFLAG(IS_WIN)
     // On Windows use the software compositor to ensure that we don't block
     // the UI thread during command buffer creation. See http://crbug.com/125248
@@ -93,7 +95,7 @@ bool OmniboxPopupPresenter::IsShown() const {
 }
 
 RealboxHandler* OmniboxPopupPresenter::GetHandler() {
-  bool ready = IsHandlerReady();
+  const bool ready = IsHandlerReady();
   if (!requested_handler_) {
     // Only log on first access.
     requested_handler_ = true;

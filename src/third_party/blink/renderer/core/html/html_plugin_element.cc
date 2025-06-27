@@ -22,12 +22,13 @@
 
 #include "third_party/blink/renderer/core/html/html_plugin_element.h"
 
+#include <algorithm>
+
 #include "base/feature_list.h"
-#include "base/ranges/algorithm.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
 #include "third_party/blink/public/mojom/loader/request_context_frame_type.mojom-blink.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
 #include "third_party/blink/public/mojom/permissions_policy/policy_value.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
@@ -72,7 +73,7 @@ namespace blink {
 namespace {
 
 String GetMIMETypeFromURL(const KURL& url) {
-  String filename = url.LastPathComponent();
+  String filename = url.LastPathComponent().ToString();
   int extension_pos = filename.ReverseFind('.');
   if (extension_pos >= 0) {
     String extension = filename.Substring(extension_pos + 1);
@@ -110,13 +111,13 @@ void PluginParameters::AppendNameWithValue(const String& name,
 }
 
 void PluginParameters::MapDataParamToSrc() {
-  if (base::ranges::any_of(names_, [](auto name) {
+  if (std::ranges::any_of(names_, [](auto name) {
         return EqualIgnoringASCIICase(name, "src");
       })) {
     return;
   }
 
-  auto* data = base::ranges::find_if(
+  auto data = std::ranges::find_if(
       names_, [](auto name) { return EqualIgnoringASCIICase(name, "data"); });
 
   if (data != names_.end()) {
@@ -260,9 +261,9 @@ void HTMLPlugInElement::AttachLayoutTree(AttachContext& context) {
   dispose_view_ = false;
 }
 
-void HTMLPlugInElement::IntrinsicSizingInfoChanged() {
+void HTMLPlugInElement::NaturalSizingInfoChanged() {
   if (auto* embedded_object = GetLayoutEmbeddedObject())
-    embedded_object->IntrinsicSizeChanged();
+    embedded_object->NaturalSizeChanged();
 }
 
 void HTMLPlugInElement::UpdatePlugin() {
@@ -293,17 +294,9 @@ bool HTMLPlugInElement::ShouldAccelerate() const {
   return plugin && plugin->CcLayer();
 }
 
-ParsedPermissionsPolicy HTMLPlugInElement::ConstructContainerPolicy() const {
-  // Plugin elements (<object> and <embed>) are not allowed to enable the
-  // fullscreen feature. Add an empty allowlist for the fullscreen feature so
-  // that the nested browsing context is unable to use the API, regardless of
-  // origin.
-  // https://fullscreen.spec.whatwg.org/#model
-  ParsedPermissionsPolicy container_policy;
-  ParsedPermissionsPolicyDeclaration allowlist(
-      mojom::blink::PermissionsPolicyFeature::kFullscreen);
-  container_policy.push_back(allowlist);
-  return container_policy;
+network::ParsedPermissionsPolicy HTMLPlugInElement::ConstructContainerPolicy()
+    const {
+  return GetLegacyFramePolicies();
 }
 
 void HTMLPlugInElement::DetachLayoutTree(bool performing_reattach) {
@@ -485,8 +478,7 @@ NamedPropertySetterResult HTMLPlugInElement::AnonymousNamedSetter(
   v8::Local<v8::String> v8_name =
       V8AtomicString(script_state->GetIsolate(), name);
   v8::Local<v8::Object> this_wrapper =
-      ToV8Traits<HTMLPlugInElement>::ToV8(script_state, this)
-          .As<v8::Object>();
+      ToV8Traits<HTMLPlugInElement>::ToV8(script_state, this).As<v8::Object>();
   bool instance_has_property;
   bool holder_has_property;
   if (!instance->HasOwnProperty(context, v8_name).To(&instance_has_property) ||
@@ -538,7 +530,7 @@ bool HTMLPlugInElement::IsPresentationAttribute(
 void HTMLPlugInElement::CollectStyleForPresentationAttribute(
     const QualifiedName& name,
     const AtomicString& value,
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (name == html_names::kWidthAttr) {
     AddHTMLLengthToStyle(style, CSSPropertyID::kWidth, value);
   } else if (name == html_names::kHeightAttr) {
@@ -595,9 +587,9 @@ LayoutEmbeddedContent* HTMLPlugInElement::LayoutEmbeddedContentForJSBindings()
   return ExistingLayoutEmbeddedContent();
 }
 
-bool HTMLPlugInElement::IsKeyboardFocusable(
+bool HTMLPlugInElement::IsKeyboardFocusableSlow(
     UpdateBehavior update_behavior) const {
-  if (HTMLFrameOwnerElement::IsKeyboardFocusable(update_behavior)) {
+  if (HTMLFrameOwnerElement::IsKeyboardFocusableSlow(update_behavior)) {
     return true;
   }
 
@@ -634,7 +626,8 @@ void HTMLPlugInElement::DisconnectContentFrame() {
 }
 
 bool HTMLPlugInElement::IsFocusableStyle(UpdateBehavior update_behavior) const {
-  if (HTMLFrameOwnerElement::SupportsFocus(update_behavior) &&
+  if (HTMLFrameOwnerElement::SupportsFocus(update_behavior) !=
+          FocusableState::kNotFocusable &&
       HTMLFrameOwnerElement::IsFocusableStyle(update_behavior)) {
     return true;
   }
@@ -833,6 +826,12 @@ bool HTMLPlugInElement::AllowedToLoadObject(const KURL& url,
   if (url.IsEmpty() && mime_type.empty())
     return false;
 
+  // If present, `url` must contain a valid non-empty URL potentially surrounded
+  // by spaces.
+  if (!url.IsEmpty() && !url.IsValid()) {
+    return false;
+  }
+
   LocalFrame* frame = GetDocument().GetFrame();
   Settings* settings = frame->GetSettings();
   if (!settings)
@@ -936,9 +935,11 @@ const ComputedStyle* HTMLPlugInElement::CustomStyleForLayoutObject(
       OriginalStyleForLayoutObject(style_recalc_context);
   if (IsImageType() && !GetLayoutObject() && style &&
       LayoutObjectIsNeeded(*style)) {
-    if (!image_loader_)
+    if (!image_loader_) {
       image_loader_ = MakeGarbageCollected<HTMLImageLoader>(this);
-    image_loader_->UpdateFromElement();
+    }
+    image_loader_->UpdateFromElement(ImageLoader::kUpdateNormal,
+                                     /* force_blocking */ true);
   }
   return style;
 }

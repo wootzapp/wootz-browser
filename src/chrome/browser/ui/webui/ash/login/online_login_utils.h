@@ -12,9 +12,8 @@
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/login/login_client_cert_usage_observer.h"
 #include "chrome/browser/ash/login/signin_partition_manager.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
-#include "chrome/browser/ash/login/ui/signin_ui.h"
-#include "chrome/browser/extensions/api/cookies/cookies_api.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/ash/login/signin_ui.h"
 #include "chromeos/ash/components/login/auth/public/challenge_response_key.h"
 #include "chromeos/ash/components/login/auth/public/saml_password_attributes.h"
 #include "components/account_id/account_id.h"
@@ -22,7 +21,9 @@
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_ui.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_urls.h"
+#include "mojo/public/cpp/bindings/receiver.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 
 namespace ash {
@@ -36,14 +37,12 @@ namespace login {
 struct GaiaContext {
   GaiaContext();
   GaiaContext(GaiaContext const&);
-  // Forces Gaia to reload.
-  bool force_reload = false;
 
   // Email of the current user.
   std::string email;
 
   // GAIA ID of the current user.
-  std::string gaia_id;
+  GaiaId gaia_id;
 
   // GAPS cookie.
   std::string gaps_cookie;
@@ -75,7 +74,7 @@ struct OnlineSigninArtifacts {
   OnlineSigninArtifacts(OnlineSigninArtifacts&& original);
   ~OnlineSigninArtifacts();
 
-  std::string gaia_id;
+  GaiaId gaia_id;
   std::string email;
   bool using_saml;
 
@@ -140,7 +139,7 @@ std::unique_ptr<UserContext> BuildUserContextForGaiaSignIn(
 // Returns user canonical e-mail. Finds already used account alias, if
 // user has already signed in.
 AccountId GetAccountId(const std::string& authenticated_email,
-                       const std::string& gaia_id,
+                       const std::string& id,
                        const AccountType& account_type);
 
 // Common utility for checking whether family link is allowed.
@@ -161,7 +160,8 @@ class GaiaCookieRetriever : public network::mojom::CookieChangeListener {
   explicit GaiaCookieRetriever(
       std::string signin_partition_name,
       login::SigninPartitionManager* signin_partition_manager,
-      OnCookieTimeoutCallback on_cookie_timeout_callback);
+      OnCookieTimeoutCallback on_cookie_timeout_callback,
+      bool allow_empty_auth_code_for_testing = false);
 
   GaiaCookieRetriever(const GaiaCookieRetriever&) = delete;
   GaiaCookieRetriever& operator=(const GaiaCookieRetriever&) = delete;
@@ -195,6 +195,9 @@ class GaiaCookieRetriever : public network::mojom::CookieChangeListener {
   OnCookieTimeoutCallback on_cookie_timeout_callback_;
 
   std::optional<OnCookieRetrievedCallback> on_cookie_retrieved_callback_;
+
+  // To allow testing to continue without an oauth cookie.
+  bool allow_empty_auth_code_for_testing_ = false;
 
   base::WeakPtrFactory<GaiaCookieRetriever> weak_factory_{this};
 };

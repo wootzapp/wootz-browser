@@ -4,6 +4,8 @@
 
 #include "ash/system/notification_center/stacked_notification_bar.h"
 
+#include <algorithm>
+
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
 #include "ash/style/pill_button.h"
@@ -14,7 +16,6 @@
 #include "ash/system/tray/tray_constants.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -27,6 +28,7 @@
 #include "ui/gfx/interpolated_transform.h"
 #include "ui/message_center/message_center.h"
 #include "ui/message_center/vector_icons.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 
@@ -48,6 +50,7 @@ class StackingBarLabelButton : public PillButton {
                    PillButton::Type::kFloatingWithoutIcon,
                    /*icon=*/nullptr,
                    kNotificationPillButtonHorizontalSpacing) {
+    SetEnabled(false);
     StyleUtil::SetUpInkDropForButton(this, gfx::Insets(),
                                      /*highlight_on_hover=*/true,
                                      /*highlight_on_focus=*/true);
@@ -98,11 +101,11 @@ class StackedNotificationBar::StackedNotificationBarIcon
         accent_color);
 
     if (masked_small_icon.IsEmpty()) {
-      SetImage(gfx::CreateVectorIcon(message_center::kProductIcon,
-                                     kStackedNotificationIconSize,
-                                     accent_color));
+      SetImage(ui::ImageModel::FromVectorIcon(message_center::kProductIcon,
+                                              accent_color,
+                                              kStackedNotificationIconSize));
     } else {
-      SetImage(masked_small_icon.AsImageSkia());
+      SetImage(ui::ImageModel::FromImage(masked_small_icon));
     }
   }
 
@@ -239,7 +242,7 @@ StackedNotificationBar::StackedNotificationBar(
 
   message_center::MessageCenter::Get()->AddObserver(this);
 
-  count_label_->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+  count_label_->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
   TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosAnnotation1,
                                         *count_label_);
 
@@ -280,8 +283,8 @@ bool StackedNotificationBar::Update(
       IDS_ASH_MESSAGE_CENTER_STACKING_BAR_CLEAR_ALL_BUTTON_TOOLTIP,
       unpinned_count);
   clear_all_button_->SetTooltipText(tooltip);
-  clear_all_button_->SetAccessibleName(tooltip);
-  clear_all_button_->SetEnabled(unpinned_count != 0);
+  clear_all_button_->GetViewAccessibility().SetName(tooltip);
+  clear_all_button_->SetEnabled(unpinned_count > 0);
 
   return true;
 }
@@ -314,7 +317,7 @@ void StackedNotificationBar::OnIconAnimatedOut(std::string notification_id,
 
 StackedNotificationBar::StackedNotificationBarIcon*
 StackedNotificationBar::GetFrontIcon(bool animating_out) {
-  const auto i = base::ranges::find(
+  const auto i = std::ranges::find(
       notification_icons_container_->children(), animating_out,
       [](const views::View* v) {
         return static_cast<const StackedNotificationBarIcon*>(v)

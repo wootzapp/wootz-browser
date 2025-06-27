@@ -5,9 +5,8 @@
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "components/input/render_widget_host_input_event_router.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
-#include "content/browser/renderer_host/render_widget_host_input_event_router.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -90,7 +89,7 @@ class WheelScrollLatchingBrowserTest : public ContentBrowserTest {
     return static_cast<WebContentsImpl*>(shell()->web_contents());
   }
 
-  RenderWidgetHostInputEventRouter* GetRouter() {
+  input::RenderWidgetHostInputEventRouter* GetRouter() {
     return web_contents()->GetInputEventRouter();
   }
 
@@ -254,7 +253,7 @@ IN_PROC_BROWSER_TEST_F(
              EvalJs(shell(), "scrollableDiv.getBoundingClientRect().bottom")
                  .ExtractDouble()) /
             2;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   bool precise = true;
 #else
   bool precise = false;

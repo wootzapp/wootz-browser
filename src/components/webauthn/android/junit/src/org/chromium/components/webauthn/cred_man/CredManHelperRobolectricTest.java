@@ -32,9 +32,8 @@ import android.os.Bundle;
 import androidx.test.filters.SmallTest;
 
 import org.junit.After;
-import org.junit.Assume;
+import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -46,16 +45,19 @@ import org.robolectric.shadow.api.Shadow;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
+import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.blink.mojom.AuthenticatorStatus;
+import org.chromium.blink.mojom.Mediation;
 import org.chromium.blink.mojom.PublicKeyCredentialCreationOptions;
 import org.chromium.blink.mojom.PublicKeyCredentialDescriptor;
 import org.chromium.blink.mojom.PublicKeyCredentialRequestOptions;
 import org.chromium.blink.mojom.ResidentKeyRequirement;
+import org.chromium.components.payments.test_support.ShadowWebContentsStatics;
 import org.chromium.components.webauthn.AuthenticationContextProvider;
 import org.chromium.components.webauthn.Barrier;
 import org.chromium.components.webauthn.Fido2ApiTestHelper;
-import org.chromium.components.webauthn.ShadowWebContentStatics;
+import org.chromium.components.webauthn.GetAssertionOutcome;
+import org.chromium.components.webauthn.MakeCredentialOutcome;
 import org.chromium.components.webauthn.WebauthnBrowserBridge;
 import org.chromium.components.webauthn.WebauthnModeProvider;
 import org.chromium.components.webauthn.cred_man.CredManMetricsHelper.CredManCreateRequestEnum;
@@ -63,6 +65,7 @@ import org.chromium.components.webauthn.cred_man.CredManMetricsHelper.CredManGet
 import org.chromium.components.webauthn.cred_man.CredManMetricsHelper.CredManPrepareRequestEnum;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.mojo_base.mojom.String16;
 
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(
@@ -81,15 +84,16 @@ import org.chromium.content_public.browser.WebContents;
             ShadowGetCredentialRequest.ShadowBuilder.class,
             ShadowGetCredentialResponse.class,
             ShadowPrepareGetCredentialResponse.class,
-            ShadowWebContentStatics.class
+            ShadowWebContentsStatics.class
         })
+@MinAndroidSdkLevel(Build.VERSION_CODES.P)
 public class CredManHelperRobolectricTest {
     private CredManHelper mCredManHelper;
     private Fido2ApiTestHelper.AuthenticatorCallback mCallback;
     private PublicKeyCredentialCreationOptions mCreationOptions;
     private PublicKeyCredentialRequestOptions mRequestOptions;
     private String mOriginString = "https://subdomain.coolwebsitekayserispor.com";
-    private byte[] mMaybeClientDataHash = new byte[] {1, 2, 3};
+    private byte[] mClientDataHash = new byte[] {1, 2, 3};
 
     private CredentialManager mCredentialManager = Shadow.newInstanceOf(CredentialManager.class);
     @Mock private Context mContext;
@@ -97,7 +101,7 @@ public class CredManHelperRobolectricTest {
     @Mock private WebContents mWebContents;
     @Mock private CredManMetricsHelper mMetricsHelper;
     @Mock private WebauthnBrowserBridge mBrowserBridge;
-    @Mock private Callback<Integer> mErrorCallback;
+    @Mock private CredManHelper.ErrorCallback mErrorCallback;
     @Mock private Barrier mBarrier;
     @Mock private CredManRequestDecorator mRequestDecorator;
     @Mock private WebauthnModeProvider mWebauthnModeProvider;
@@ -114,13 +118,8 @@ public class CredManHelperRobolectricTest {
                 }
             };
 
-    @Rule public JniMocker mMocker = new JniMocker();
-
     @Before
     public void setUp() throws Exception {
-        // Calls to `context.getMainExecutor()` require API level 28 or higher.
-        Assume.assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
-
         MockitoAnnotations.openMocks(this);
 
         mCreationOptions = Fido2ApiTestHelper.createDefaultMakeCredentialOptions();
@@ -128,8 +127,8 @@ public class CredManHelperRobolectricTest {
         mRequestOptions = Fido2ApiTestHelper.createDefaultGetAssertionOptions();
         mRequestOptions.allowCredentials = new PublicKeyCredentialDescriptor[0];
 
-        Fido2ApiTestHelper.mockFido2CredentialRequestJni(mMocker);
-        Fido2ApiTestHelper.mockClientDataJson(mMocker, "{}");
+        Fido2ApiTestHelper.mockFido2CredentialRequestJni();
+        Fido2ApiTestHelper.mockClientDataJson("{}");
 
         mCallback = Fido2ApiTestHelper.getAuthenticatorCallback();
 
@@ -166,7 +165,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startMakeRequest(
                         mCreationOptions,
                         mOriginString,
-                        /* maybeClientDataHash= */ null,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onRegisterResponse,
                         mErrorCallback);
 
@@ -195,7 +195,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startMakeRequest(
                         mCreationOptions,
                         mOriginString,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onRegisterResponse,
                         mErrorCallback);
 
@@ -221,7 +222,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startMakeRequest(
                         mCreationOptions,
                         mOriginString,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onRegisterResponse,
                         mErrorCallback);
 
@@ -233,7 +235,10 @@ public class CredManHelperRobolectricTest {
         shadowException.setType("android.credentials.CreateCredentialException.TYPE_USER_CANCELED");
         shadowCredentialManager.getCreateCredentialCallback().onError(exception);
 
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.NOT_ALLOWED_ERROR);
+        verify(mErrorCallback, times(1))
+                .onResult(
+                        AuthenticatorStatus.NOT_ALLOWED_ERROR,
+                        MakeCredentialOutcome.USER_CANCELLATION);
         verify(mMetricsHelper, times(1))
                 .recordCredManCreateRequestHistogram(CredManCreateRequestEnum.CANCELLED);
     }
@@ -245,7 +250,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startMakeRequest(
                         mCreationOptions,
                         mOriginString,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onRegisterResponse,
                         mErrorCallback);
 
@@ -258,7 +264,10 @@ public class CredManHelperRobolectricTest {
                 CredManHelper.CRED_MAN_EXCEPTION_CREATE_CREDENTIAL_TYPE_INVALID_STATE_ERROR);
         shadowCredentialManager.getCreateCredentialCallback().onError(exception);
 
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.CREDENTIAL_EXCLUDED);
+        verify(mErrorCallback, times(1))
+                .onResult(
+                        AuthenticatorStatus.CREDENTIAL_EXCLUDED,
+                        MakeCredentialOutcome.CREDENTIAL_EXCLUDED);
         verify(mMetricsHelper, times(1))
                 .recordCredManCreateRequestHistogram(CredManCreateRequestEnum.SUCCESS);
     }
@@ -270,7 +279,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startMakeRequest(
                         mCreationOptions,
                         mOriginString,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onRegisterResponse,
                         mErrorCallback);
 
@@ -282,7 +292,7 @@ public class CredManHelperRobolectricTest {
         shadowException.setType("android.credentials.CreateCredentialException.TYPE_UNKNOWN");
         shadowCredentialManager.getCreateCredentialCallback().onError(exception);
 
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.UNKNOWN_ERROR);
+        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.UNKNOWN_ERROR, null);
         verify(mMetricsHelper, times(1))
                 .recordCredManCreateRequestHistogram(CredManCreateRequestEnum.FAILURE);
     }
@@ -294,8 +304,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        /* maybeClientDataHash= */ null,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -325,8 +335,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -349,8 +359,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -376,8 +386,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -388,7 +398,10 @@ public class CredManHelperRobolectricTest {
         GetCredentialException exception =
                 new GetCredentialException(GetCredentialException.TYPE_NO_CREDENTIAL, "Message");
         shadowCredentialManager.getGetCredentialCallback().onError(exception);
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.NOT_ALLOWED_ERROR);
+        verify(mErrorCallback, times(1))
+                .onResult(
+                        AuthenticatorStatus.NOT_ALLOWED_ERROR,
+                        GetAssertionOutcome.CREDENTIAL_NOT_RECOGNIZED);
     }
 
     @Test
@@ -398,8 +411,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -411,7 +424,10 @@ public class CredManHelperRobolectricTest {
                 new GetCredentialException(GetCredentialException.TYPE_USER_CANCELED, "Message");
         shadowCredentialManager.getGetCredentialCallback().onError(exception);
 
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.NOT_ALLOWED_ERROR);
+        verify(mErrorCallback, times(1))
+                .onResult(
+                        AuthenticatorStatus.NOT_ALLOWED_ERROR,
+                        GetAssertionOutcome.USER_CANCELLATION);
         verify(mBrowserBridge, times(1)).onCredManUiClosed(any(), anyBoolean());
         verify(mMetricsHelper, times(1))
                 .reportGetCredentialMetrics(eq(CredManGetRequestEnum.CANCELLED), any());
@@ -424,8 +440,8 @@ public class CredManHelperRobolectricTest {
                 mCredManHelper.startGetRequest(
                         mRequestOptions,
                         mOriginString,
-                        /* isCrossOrigin= */ false,
-                        mMaybeClientDataHash,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
                         mCallback::onSignResponse,
                         mErrorCallback,
                         /* ignoreGpm= */ false);
@@ -437,7 +453,7 @@ public class CredManHelperRobolectricTest {
                 new GetCredentialException(GetCredentialException.TYPE_UNKNOWN, "Message");
         shadowCredentialManager.getGetCredentialCallback().onError(exception);
 
-        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.UNKNOWN_ERROR);
+        verify(mErrorCallback, times(1)).onResult(AuthenticatorStatus.UNKNOWN_ERROR, null);
         verify(mBrowserBridge, times(1)).onCredManUiClosed(any(), anyBoolean());
         verify(mMetricsHelper, times(1))
                 .reportGetCredentialMetrics(eq(CredManGetRequestEnum.FAILURE), any());
@@ -446,13 +462,13 @@ public class CredManHelperRobolectricTest {
     @Test
     @SmallTest
     public void testStartPrefetchRequest_default_success() {
-        mRequestOptions.isConditional = true;
+        mRequestOptions.mediation = Mediation.CONDITIONAL;
 
         mCredManHelper.startPrefetchRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 mBarrier,
@@ -489,13 +505,13 @@ public class CredManHelperRobolectricTest {
     @Test
     @SmallTest
     public void testStartPrefetchRequest_unknownError_unknownError() {
-        mRequestOptions.isConditional = true;
+        mRequestOptions.mediation = Mediation.CONDITIONAL;
 
         mCredManHelper.startPrefetchRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 mBarrier,
@@ -513,19 +529,20 @@ public class CredManHelperRobolectricTest {
                 .recordCredmanPrepareRequestHistogram(eq(CredManPrepareRequestEnum.SENT_REQUEST));
         verify(mMetricsHelper, times(1))
                 .recordCredmanPrepareRequestHistogram(eq(CredManPrepareRequestEnum.FAILURE));
-        verify(mMetricsHelper, times(0)).recordCredmanPrepareRequestDuration(anyLong());
+        verify(mMetricsHelper, times(0))
+                .recordCredmanPrepareRequestDuration(anyLong(), anyBoolean());
     }
 
     @Test
     @SmallTest
     public void testCancelConditionalGetAssertion_whileWaitingForSelection_notAllowedError() {
-        mRequestOptions.isConditional = true;
+        mRequestOptions.mediation = Mediation.CONDITIONAL;
 
         mCredManHelper.startPrefetchRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 mBarrier,
@@ -556,13 +573,13 @@ public class CredManHelperRobolectricTest {
     public void
             testStartGetRequestAfterStartPrefetchRequest_userCancelWhileWaitingForSelection_doesNotCancelConditionalRequest() {
         ArgumentCaptor<Callback<Boolean>> callbackCaptor = ArgumentCaptor.forClass(Callback.class);
-        mRequestOptions.isConditional = true;
+        mRequestOptions.mediation = Mediation.CONDITIONAL;
 
         mCredManHelper.startPrefetchRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 mBarrier,
@@ -581,7 +598,8 @@ public class CredManHelperRobolectricTest {
         verify(mBarrier).onCredManSuccessful(credManCallSuccessfulRunback.capture());
         credManCallSuccessfulRunback.getValue().run();
 
-        verify(mMetricsHelper, times(1)).recordCredmanPrepareRequestDuration(anyLong());
+        verify(mMetricsHelper, times(1))
+                .recordCredmanPrepareRequestDuration(anyLong(), anyBoolean());
 
         // Setup the test for startGetRequest:
         verify(mBrowserBridge, times(1))
@@ -608,13 +626,13 @@ public class CredManHelperRobolectricTest {
     public void
             testStartGetRequestAfterStartPrefetchRequest_userSelectsPassword_canHavePasswordResponse() {
         ArgumentCaptor<Callback<Boolean>> callbackCaptor = ArgumentCaptor.forClass(Callback.class);
-        mRequestOptions.isConditional = true;
+        mRequestOptions.mediation = Mediation.CONDITIONAL;
 
         mCredManHelper.startPrefetchRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 mBarrier,
@@ -633,7 +651,8 @@ public class CredManHelperRobolectricTest {
         verify(mBarrier).onCredManSuccessful(credManCallSuccessfulRunback.capture());
         credManCallSuccessfulRunback.getValue().run();
 
-        verify(mMetricsHelper, times(1)).recordCredmanPrepareRequestDuration(anyLong());
+        verify(mMetricsHelper, times(1))
+                .recordCredmanPrepareRequestDuration(anyLong(), anyBoolean());
         verify(mBrowserBridge, times(1))
                 .onCredManConditionalRequestPending(any(), anyBoolean(), callbackCaptor.capture());
 
@@ -662,8 +681,8 @@ public class CredManHelperRobolectricTest {
         mCredManHelper.startGetRequest(
                 mRequestOptions,
                 mOriginString,
-                /* isCrossOrigin= */ false,
-                /* maybeClientDataHash= */ null,
+                /* clientDataJson= */ null,
+                mClientDataHash,
                 mCallback::onSignResponse,
                 mErrorCallback,
                 /* ignoreGpm= */ true);
@@ -671,6 +690,43 @@ public class CredManHelperRobolectricTest {
         ShadowCredentialManager shadowCredentialManager = Shadow.extract(mCredentialManager);
         GetCredentialRequest credManRequest = shadowCredentialManager.getGetCredentialRequest();
         assertThat(credManRequest).isEqualTo(mGetCredentialRequest);
+    }
+
+    @Test
+    @SmallTest
+    public void testImmediateMediation_userSelectsPassword_canHavePasswordResponse() {
+        mRequestOptions.mediation = Mediation.IMMEDIATE;
+
+        int result =
+                mCredManHelper.startGetRequest(
+                        mRequestOptions,
+                        mOriginString,
+                        /* clientDataJson= */ null,
+                        mClientDataHash,
+                        mCallback::onSignResponse,
+                        mErrorCallback,
+                        /* ignoreGpm= */ false);
+
+        assertThat(result).isEqualTo(AuthenticatorStatus.SUCCESS);
+
+        ShadowCredentialManager shadowCredentialManager = Shadow.extract(mCredentialManager);
+        String username = "user123";
+        String password = "hunter2";
+        GetCredentialResponse response =
+                new GetCredentialResponse(createPasswordCredential(username, password));
+        shadowCredentialManager.getGetCredentialCallback().onResult(response);
+
+        verify(mBrowserBridge, never()).onCredManUiClosed(any(), anyBoolean());
+        verify(mBrowserBridge, never()).onPasswordCredentialReceived(any(), any(), any());
+
+        assertThat(mCallback.getStatus()).isEqualTo(Integer.valueOf(AuthenticatorStatus.SUCCESS));
+        Assert.assertNotNull(mCallback.getGetAssertionPasswordCredential());
+        assertThat(mojoStringToJavaString(mCallback.getGetAssertionPasswordCredential().name))
+                .isEqualTo(username);
+        assertThat(mojoStringToJavaString(mCallback.getGetAssertionPasswordCredential().id))
+                .isEqualTo(username);
+        assertThat(mojoStringToJavaString(mCallback.getGetAssertionPasswordCredential().password))
+                .isEqualTo(password);
     }
 
     private Credential createPasskeyCredential() {
@@ -684,5 +740,14 @@ public class CredManHelperRobolectricTest {
         data.putString("androidx.credentials.BUNDLE_KEY_ID", username);
         data.putString("androidx.credentials.BUNDLE_KEY_PASSWORD", password);
         return new Credential(Credential.TYPE_PASSWORD_CREDENTIAL, data);
+    }
+
+    private static String mojoStringToJavaString(String16 mojoString) {
+        short[] data = mojoString.data;
+        char[] chars = new char[data.length];
+        for (int i = 0; i < chars.length; i++) {
+            chars[i] = (char) data[i];
+        }
+        return String.valueOf(chars);
     }
 }

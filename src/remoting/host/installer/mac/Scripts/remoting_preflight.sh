@@ -14,6 +14,7 @@ OLD_SCRIPT_FILE="$HELPERTOOLS/$SERVICE_NAME.me2me.sh"
 HOST_SERVICE_BINARY="$HELPERTOOLS/$HOST_BUNDLE_NAME/Contents/MacOS/remoting_me2me_host_service"
 USERS_TMP_FILE="$HOST_SERVICE_BINARY.users"
 PLIST=/Library/LaunchAgents/org.chromium.chromoting.plist
+BROKER_PLIST=/Library/LaunchDaemons/org.chromium.chromoting.broker.plist
 ENABLED_FILE="$HELPERTOOLS/$SERVICE_NAME.me2me_enabled"
 ENABLED_FILE_BACKUP="$ENABLED_FILE.backup"
 PREF_PANE=/Library/PreferencePanes/ChromeRemoteDesktop.prefPane
@@ -63,8 +64,8 @@ trap on_error ERR
 
 logger Running Chrome Remote Desktop preflight script @@VERSION@@
 
-# If there is an _enabled file, rename it while upgrading.
 if [[ -f "$ENABLED_FILE" ]]; then
+  # If there is an _enabled file, rename it while upgrading.
   logger Moving _enabled file
   mv "$ENABLED_FILE" "$ENABLED_FILE_BACKUP"
 fi
@@ -119,6 +120,9 @@ for uid in $(find_users_with_active_hosts); do
     $bootstrap_user $sudo_user $unload
   fi
 done
+
+logger Unloading broker service
+launchctl unload -w $BROKER_PLIST
 
 # The installer no longer includes a preference-pane applet, so remove any
 # pref-pane from a previous installation.

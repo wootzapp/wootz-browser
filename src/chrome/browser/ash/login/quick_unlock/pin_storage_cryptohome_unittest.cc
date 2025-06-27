@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/run_loop.h"
 #include "chrome/browser/ash/login/quick_unlock/fake_pin_salt_storage.h"
@@ -16,7 +17,6 @@
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_utils.h"
 #include "chromeos/ash/components/cryptohome/common_types.h"
 #include "chromeos/ash/components/cryptohome/cryptohome_parameters.h"
-#include "chromeos/ash/components/cryptohome/cryptohome_util.h"
 #include "chromeos/ash/components/cryptohome/system_salt_getter.h"
 #include "chromeos/ash/components/dbus/cryptohome/rpc.pb.h"
 #include "chromeos/ash/components/dbus/userdataauth/fake_cryptohome_misc_client.h"
@@ -25,6 +25,7 @@
 #include "chromeos/ash/components/login/auth/public/user_context.h"
 #include "components/account_id/account_id.h"
 #include "content/public/test/browser_task_environment.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace ash::quick_unlock {
@@ -100,7 +101,8 @@ class PinStorageCryptohomeUnitTest : public testing::Test {
     storage_->CanAuthenticate(
         std::make_unique<UserContext>(*user_context_), Purpose::kAny,
         base::BindOnce(
-            [](base::OnceClosure closure, bool* res, bool can_auth) {
+            [](base::OnceClosure closure, bool* res, bool can_auth,
+               cryptohome::PinLockAvailability available_at) {
               *res = can_auth;
               std::move(closure).Run();
             },
@@ -227,7 +229,7 @@ class PinStorageCryptohomeUnitTest : public testing::Test {
 
   std::unique_ptr<PinStorageCryptohome> storage_;
   AccountId test_account_id_{
-      AccountId::FromUserEmailGaiaId("user@example.com", "11111")};
+      AccountId::FromUserEmailGaiaId("user@example.com", GaiaId("11111"))};
   std::unique_ptr<UserContext> user_context_ =
       std::make_unique<UserContext>(user_manager::UserType::kRegular,
                                     test_account_id_);

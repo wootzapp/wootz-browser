@@ -57,11 +57,9 @@ class DropdownFieldView implements FieldView {
     /**
      * Builds a dropdown view.
      *
-     * @param context              The application context to use when creating widgets.
-     * @param root                 The object that provides a set of LayoutParams values for
-     *                             the view.
-     * @param fieldModel           The data model of the dropdown.
-     * @param hasRequiredIndicator Whether the required (*) indicator is visible.
+     * @param context The application context to use when creating widgets.
+     * @param root The object that provides a set of LayoutParams values for the view.
+     * @param fieldModel The data model of the dropdown.
      */
     public DropdownFieldView(Context context, ViewGroup root, final PropertyModel fieldModel) {
         mContext = context;
@@ -156,8 +154,10 @@ class DropdownFieldView implements FieldView {
     }
 
     void setValue(@Nullable String value) {
-        if (mAdapter == null) {
-            // Can't set value when adapter hasn't been initialized.
+        if (mAdapter == null || mAdapter.isEmpty()) {
+            // Can't set value when adapter hasn't been initialized or is empty.
+            mSelectedIndex = 0;
+            mDropdown.setContentDescription(mLabel.getText());
             return;
         }
         // If no value is selected or the value previously entered is not valid, we'll  select the
@@ -171,6 +171,10 @@ class DropdownFieldView implements FieldView {
         // Invalid value in the mFieldModel
         if (mSelectedIndex < 0) mSelectedIndex = 0;
         mDropdown.setSelection(mSelectedIndex);
+
+        // Set up accessibility content description dynamically.
+        mDropdown.setContentDescription(
+                mLabel.getText() + "/" + mAdapter.getItem(mSelectedIndex).toString());
     }
 
     void setErrorMessage(@Nullable String errorMessage) {
@@ -180,7 +184,7 @@ class DropdownFieldView implements FieldView {
             if (view != null && view instanceof TextView) {
                 ((TextView) view).setError(null);
             }
-            mUnderline.setBackgroundColor(mContext.getColor(R.color.modern_grey_600));
+            mUnderline.setBackgroundColor(mContext.getColor(R.color.baseline_neutral_40));
             mErrorLabel.setText(null);
             mErrorLabel.setVisibility(View.GONE);
             return;

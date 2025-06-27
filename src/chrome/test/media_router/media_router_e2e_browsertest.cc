@@ -36,16 +36,22 @@ const char kOrigin[] = "http://origin/";
 
 namespace media_router {
 
-MediaRouterE2EBrowserTest::MediaRouterE2EBrowserTest()
-    : media_router_(nullptr) {}
+MediaRouterE2EBrowserTest::MediaRouterE2EBrowserTest(
+    UiForBrowserTest test_ui_type)
+    : MediaRouterIntegrationBrowserTest(test_ui_type), media_router_(nullptr) {}
 
-MediaRouterE2EBrowserTest::~MediaRouterE2EBrowserTest() {}
+MediaRouterE2EBrowserTest::~MediaRouterE2EBrowserTest() = default;
 
 void MediaRouterE2EBrowserTest::SetUpOnMainThread() {
   MediaRouterIntegrationBrowserTest::SetUpOnMainThread();
   media_router_ =
       MediaRouterFactory::GetApiForBrowserContext(browser()->profile());
   DCHECK(media_router_);
+// On Mac, cast device discovery isn't started until explicit user gesture.
+// Starting sink discovery now for tests.
+#if BUILDFLAG(IS_MAC)
+  media_router_->OnUserGesture();
+#endif
 }
 
 void MediaRouterE2EBrowserTest::TearDownOnMainThread() {
@@ -127,7 +133,7 @@ void MediaRouterE2EBrowserTest::OpenMediaPage() {
 
 // Test cases
 
-IN_PROC_BROWSER_TEST_P(MediaRouterE2EBrowserTest, MANUAL_TabMirroring) {
+IN_PROC_BROWSER_TEST_F(MediaRouterE2EBrowserTest, MANUAL_TabMirroring) {
   EXPECT_EQ(1u, chrome::GetTotalBrowserCount());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
@@ -147,7 +153,7 @@ IN_PROC_BROWSER_TEST_P(MediaRouterE2EBrowserTest, MANUAL_TabMirroring) {
   Wait(base::Seconds(10));
 }
 
-IN_PROC_BROWSER_TEST_P(MediaRouterE2EBrowserTest, MANUAL_CastApp) {
+IN_PROC_BROWSER_TEST_F(MediaRouterE2EBrowserTest, MANUAL_CastApp) {
   // Wait for 30 seconds to make sure the route is stable.
   CreateMediaRoute(
       MediaSource::ForPresentationUrl(GURL(kCastAppPresentationUrl)),
@@ -158,8 +164,5 @@ IN_PROC_BROWSER_TEST_P(MediaRouterE2EBrowserTest, MANUAL_CastApp) {
   StopMediaRoute();
   Wait(base::Seconds(10));
 }
-
-INSTANTIATE_MEDIA_ROUTER_INTEGRATION_BROWER_TEST_SUITE(
-    MediaRouterE2EBrowserTest);
 
 }  // namespace media_router

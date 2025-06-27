@@ -6,15 +6,16 @@ package org.chromium.chrome.browser.ui.hats;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.Activity;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,24 +28,25 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.InMemorySharedPreferences;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.PauseResumeWithNativeObserver;
 import org.chromium.chrome.browser.preferences.Pref;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(shadows = ShadowPostTask.class)
@@ -56,28 +58,30 @@ public class SurveyClientUnitTest {
     private TestSurveyUtils.TestSurveyController mSurveyController;
 
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     @Mock private ActivityLifecycleDispatcher mLifecycleDispatcher;
     @Mock private UserPrefs.Natives mUserPrefsJniMock;
     @Mock private PrefService mPrefServiceMock;
     @Mock private Activity mActivity;
     @Mock private Profile mProfile;
+    @Mock private PrivacyPreferencesManager mPrivacyPreferencesManager;
     @Captor private ArgumentCaptor<PauseResumeWithNativeObserver> mLifecycleObserverCaptor;
 
     @Before
     public void setup() {
         ProfileManager.setLastUsedProfileForTesting(mProfile);
-        mJniMocker.mock(UserPrefsJni.TEST_HOOKS, mUserPrefsJniMock);
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
         when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefServiceMock);
         when(mPrefServiceMock.getBoolean(Pref.FEEDBACK_SURVEYS_ENABLED)).thenReturn(true);
 
-        mCrashUploadPermissionSupplier = new ObservableSupplierImpl<>();
-        mCrashUploadPermissionSupplier.set(true);
+        mCrashUploadPermissionSupplier = new ObservableSupplierImpl<>(true);
+        doReturn(mCrashUploadPermissionSupplier)
+                .when(mPrivacyPreferencesManager)
+                .getUsageAndCrashReportingPermittedObservableSupplier();
 
         mSurveyUiDelegate = new TestSurveyUtils.TestSurveyUiDelegate();
         mSurveyController = new TestSurveyUtils.TestSurveyController();
-        SurveyClientFactory.initialize(mCrashUploadPermissionSupplier);
+        SurveyClientFactory.initialize(mPrivacyPreferencesManager);
         SurveyMetadata.initializeForTesting(new InMemorySharedPreferences(), null);
 
         ShadowPostTask.setTestImpl(
@@ -88,7 +92,7 @@ public class SurveyClientUnitTest {
                         task.run();
                     }
                 });
-        TestThreadUtils.setThreadAssertsDisabled(true);
+        ThreadUtils.hasSubtleSideEffectsSetThreadAssertsDisabledForTesting(true);
     }
 
     @Test
@@ -161,7 +165,9 @@ public class SurveyClientUnitTest {
                         probability,
                         false,
                         new String[0],
-                        new String[0]);
+                        new String[0],
+                        Optional.empty(),
+                        SurveyConfig.RequestedBrowserType.REGULAR);
         SurveyClientImpl client =
                 new SurveyClientImpl(
                         config,
@@ -373,7 +379,9 @@ public class SurveyClientUnitTest {
                         1.0f,
                         false,
                         new String[] {"bitField"},
-                        new String[] {"stringField"});
+                        new String[] {"stringField"},
+                        Optional.empty(),
+                        SurveyConfig.RequestedBrowserType.REGULAR);
         SurveyClientImpl client =
                 new SurveyClientImpl(
                         config,
@@ -381,13 +389,13 @@ public class SurveyClientUnitTest {
                         mSurveyController,
                         mCrashUploadPermissionSupplier,
                         mProfile);
-        Assert.assertThrows(
+        assertThrows(
                 "Expected PSD(s) are missing.",
                 AssertionError.class,
                 () -> {
                     client.showSurvey(mActivity, mLifecycleDispatcher);
                 });
-        Assert.assertThrows(
+        assertThrows(
                 "Expected PSD(s) are missing.",
                 AssertionError.class,
                 () -> {
@@ -398,7 +406,7 @@ public class SurveyClientUnitTest {
         stringValues.clear();
         bitValues.clear();
         bitValues.put("bitField", true);
-        Assert.assertThrows(
+        assertThrows(
                 "Expected PSD(s) are missing.",
                 AssertionError.class,
                 () -> {
@@ -409,7 +417,7 @@ public class SurveyClientUnitTest {
         stringValues.clear();
         bitValues.clear();
         stringValues.put("stringField", "value");
-        Assert.assertThrows(
+        assertThrows(
                 "Expected PSD(s) are missing.",
                 AssertionError.class,
                 () -> {
@@ -421,7 +429,7 @@ public class SurveyClientUnitTest {
         bitValues.clear();
         stringValues.put("stringField", "value");
         stringValues.put("stringField2", "value2");
-        Assert.assertThrows(
+        assertThrows(
                 "Extra string PSDs were provided.",
                 AssertionError.class,
                 () -> {
@@ -439,6 +447,13 @@ public class SurveyClientUnitTest {
 
     private SurveyConfig newSurveyConfigWithoutPsd() {
         return new SurveyConfig(
-                TEST_SURVEY_TRIGGER, TEST_TRIGGER_ID, 1.0f, false, new String[0], new String[0]);
+                TEST_SURVEY_TRIGGER,
+                TEST_TRIGGER_ID,
+                1.0f,
+                false,
+                new String[0],
+                new String[0],
+                Optional.empty(),
+                SurveyConfig.RequestedBrowserType.REGULAR);
     }
 }

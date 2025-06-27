@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/354829279): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gfx/geometry/matrix44.h"
 
 #include <algorithm>
@@ -123,7 +128,7 @@ void Matrix44::PreTranslate3d(double dx, double dy, double dz) {
 }
 
 void Matrix44::PostTranslate(double dx, double dy) {
-  if (LIKELY(!HasPerspective())) {
+  if (!HasPerspective()) [[likely]] {
     matrix_[3][0] += dx;
     matrix_[3][1] += dy;
   } else {
@@ -147,7 +152,7 @@ void Matrix44::PostTranslate3d(double dx, double dy, double dz) {
   if (AllTrue(t == Double4{0, 0, 0, 0}))
     return;
 
-  if (LIKELY(!HasPerspective())) {
+  if (!HasPerspective()) [[likely]] {
     SetCol(3, Col(3) + t);
   } else {
     for (int i = 0; i < 4; ++i)
@@ -261,7 +266,7 @@ void Matrix44::Skew(double tan_skew_x, double tan_skew_y) {
   SetCol(1, c1 + c0 * tan_skew_x);
 }
 
-void Matrix44::ApplyDecomposedSkews(const double skews[3]) {
+void Matrix44::ApplyDecomposedSkews(base::span<const double, 3> skews) {
   Double4 c0 = Col(0);
   Double4 c1 = Col(1);
   Double4 c2 = Col(2);

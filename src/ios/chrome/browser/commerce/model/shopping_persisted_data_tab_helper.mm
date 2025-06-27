@@ -14,7 +14,7 @@
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service_factory.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
@@ -46,8 +46,7 @@ const char* GetLogIdString(PriceDropLogId& log_id) {
     case NAVIGATION_COMPLETE:
       return kFinishNavigationMetricsString;
   }
-  NOTREACHED_IN_MIGRATION() << "Unknown PriceDropLogId " << log_id;
-  return "";
+  NOTREACHED() << "Unknown PriceDropLogId " << log_id;
 }
 
 const char* GetTabStatusString(base::Time time_last_accessed) {
@@ -88,9 +87,8 @@ ShoppingPersistedDataTabHelper::GetPriceDrop() {
       IsPriceDropStale(price_drop_->timestamp)) {
     ResetPriceDrop();
     OptimizationGuideService* optimization_guide_service =
-        OptimizationGuideServiceFactory::GetForBrowserState(
-            ChromeBrowserState::FromBrowserState(
-                web_state_->GetBrowserState()));
+        OptimizationGuideServiceFactory::GetForProfile(
+            ProfileIOS::FromBrowserState(web_state_->GetBrowserState()));
     if (!optimization_guide_service) {
       return nullptr;
     }
@@ -131,8 +129,8 @@ ShoppingPersistedDataTabHelper::ShoppingPersistedDataTabHelper(
   web_state_->AddObserver(this);
 
   OptimizationGuideService* optimization_guide_service =
-      OptimizationGuideServiceFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState()));
+      OptimizationGuideServiceFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state_->GetBrowserState()));
 
   if (!optimization_guide_service) {
     return;
@@ -184,8 +182,8 @@ void ShoppingPersistedDataTabHelper::DidFinishNavigation(
 
   ResetPriceDrop();
   OptimizationGuideService* optimization_guide_service =
-      OptimizationGuideServiceFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state->GetBrowserState()));
+      OptimizationGuideServiceFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state->GetBrowserState()));
   if (!optimization_guide_service) {
     return;
   }
@@ -280,5 +278,3 @@ void ShoppingPersistedDataTabHelper::ParseProto(
 void ShoppingPersistedDataTabHelper::ResetPriceDrop() {
   price_drop_ = nullptr;
 }
-
-WEB_STATE_USER_DATA_KEY_IMPL(ShoppingPersistedDataTabHelper)

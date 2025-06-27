@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ssl/https_first_mode_settings_tracker.h"
+
 #include <string_view>
 
 #include "base/feature_list.h"
@@ -12,12 +13,14 @@
 #include "base/task/thread_pool.h"
 #include "base/time/default_clock.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
+#include "chrome/browser/ssl/chrome_security_blocking_page_factory.h"
 #include "chrome/browser/ssl/https_upgrades_interceptor.h"
+#include "chrome/browser/ssl/https_upgrades_util.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -27,25 +30,26 @@
 #include "components/variations/synthetic_trials.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
+#include "net/base/url_util.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Minimum score of an HTTPS origin to enable HFM on its hostname.
 const base::FeatureParam<int> kHttpsAddThreshold{
-    &features::kHttpsFirstModeV2ForEngagedSites, "https-add-threshold", 40};
+    &features::kHttpsFirstModeV2ForEngagedSites, "https-add-threshold", 80};
 
 // Maximum score of an HTTP origin to enable HFM on its hostname.
 const base::FeatureParam<int> kHttpsRemoveThreshold{
-    &features::kHttpsFirstModeV2ForEngagedSites, "https-remove-threshold", 30};
+    &features::kHttpsFirstModeV2ForEngagedSites, "https-remove-threshold", 75};
 
 // If HTTPS score goes below kHttpsRemoveThreshold or HTTP score goes above
 // kHttpRemoveThreshold, disable HFM on this hostname.
 const base::FeatureParam<int> kHttpAddThreshold{
-    &features::kHttpsFirstModeV2ForEngagedSites, "http-add-threshold", 5};
+    &features::kHttpsFirstModeV2ForEngagedSites, "http-add-threshold", 1};
 const base::FeatureParam<int> kHttpRemoveThreshold{
-    &features::kHttpsFirstModeV2ForEngagedSites, "http-remove-threshold", 10};
+    &features::kHttpsFirstModeV2ForEngagedSites, "http-remove-threshold", 5};
 
 // Parameters for Typically Secure User heuristic:
 
@@ -114,7 +118,7 @@ const char kHttpsFirstModeServiceName[] = "HttpsFirstModeService";
 const char kHttpsFirstModeSyntheticFieldTrialName[] =
     "HttpsFirstModeClientSetting";
 const char kHttpsFirstModeSyntheticFieldTrialEnabledGroup[] = "Enabled";
-const char kHttpsFirstModeSyntheticFieldTrialIncognitoGroup[] = "Incognito";
+const char kHttpsFirstModeSyntheticFieldTrialBalancedGroup[] = "Balanced";
 const char kHttpsFirstModeSyntheticFieldTrialDisabledGroup[] = "Disabled";
 
 // We don't need to protect this with a lock since it's only set while
@@ -181,14 +185,14 @@ GURL GetHttpsUrlFromHttp(const GURL& http_url) {
 
 std::unique_ptr<KeyedService> BuildService(content::BrowserContext* context) {
   Profile* profile = Profile::FromBrowserContext(context);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Explicitly check for ChromeOS sign-in profiles (which would cause
   // double-counting of at-startup metrics for ChromeOS restarts) which are not
   // covered by the `IsRegularProfile()` check.
   if (ash::ProfileHelper::IsSigninProfile(profile)) {
     return nullptr;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   return std::make_unique<HttpsFirstModeService>(profile, GetClock());
 }
 
@@ -207,38 +211,16 @@ std::string GetSyntheticFieldTrialGroupName(HttpsFirstModeSetting setting) {
   switch (setting) {
     case HttpsFirstModeSetting::kEnabledFull:
       return kHttpsFirstModeSyntheticFieldTrialEnabledGroup;
-    case HttpsFirstModeSetting::kEnabledIncognito:
-      return kHttpsFirstModeSyntheticFieldTrialIncognitoGroup;
+    case HttpsFirstModeSetting::kEnabledBalanced:
+      return kHttpsFirstModeSyntheticFieldTrialBalancedGroup;
     case HttpsFirstModeSetting::kDisabled:
       return kHttpsFirstModeSyntheticFieldTrialDisabledGroup;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
 }  // namespace
-
-// static
-void HttpsFirstModeService::FixTypicallySecureUserPrefs(Profile* profile) {
-  if (!base::FeatureList::IsEnabled(
-          features::kHttpsFirstModeV2ForTypicallySecureUsers)) {
-    // HFM-for-typically-secure-users has never been enabled intentionally. If
-    // we see that the preference is enabled, that was by accident. Unset the
-    // relevant preferences to undo the damage.
-    if (profile->GetPrefs()->GetBoolean(prefs::kHttpsOnlyModeAutoEnabled)) {
-      // If HFM had already been enabled, the code wouldn't have toggled
-      // kHttpsOnlyModeAutoEnabled. That means it's safe to disable HFM here --
-      // HFM can only be enabled because we set it that way. We clear the pref
-      // here so it is treated as though the user has not explicitly set it.
-      profile->GetPrefs()->ClearPref(prefs::kHttpsOnlyModeEnabled);
-      // Clear the kHttpsOnlyModeAutoEnabled pref entirely, as some of the
-      // HFM-for-typically-secure users logic relies on checking whether it has
-      // ever been set.
-      profile->GetPrefs()->ClearPref(prefs::kHttpsOnlyModeAutoEnabled);
-    }
-  }
-}
 
 HttpsFirstModeService::HttpsFirstModeService(Profile* profile,
                                              base::Clock* clock)
@@ -251,7 +233,7 @@ HttpsFirstModeService::HttpsFirstModeService(Profile* profile,
       base::BindRepeating(&HttpsFirstModeService::OnHttpsFirstModePrefChanged,
                           base::Unretained(this)));
   pref_change_registrar_.Add(
-      prefs::kHttpsFirstModeIncognito,
+      prefs::kHttpsFirstBalancedMode,
       base::BindRepeating(&HttpsFirstModeService::OnHttpsFirstModePrefChanged,
                           base::Unretained(this)));
 
@@ -272,20 +254,11 @@ HttpsFirstModeService::HttpsFirstModeService(Profile* profile,
   // Make sure the pref state is logged and the synthetic field trial state is
   // created at startup (as the pref may never change over the session).
   HttpsFirstModeSetting setting = GetCurrentSetting();
-  if (base::FeatureList::IsEnabled(features::kHttpsFirstModeIncognito)) {
-    base::UmaHistogramEnumeration(
-        "Security.HttpsFirstMode.SettingEnabledAtStartup2", setting);
-    ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-        kHttpsFirstModeSyntheticFieldTrialName,
-        GetSyntheticFieldTrialGroupName(setting));
-  } else {
-    bool fully_enabled = setting == HttpsFirstModeSetting::kEnabledFull;
-    base::UmaHistogramBoolean("Security.HttpsFirstMode.SettingEnabledAtStartup",
-                              fully_enabled);
-    ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-        kHttpsFirstModeSyntheticFieldTrialName,
-        GetSyntheticFieldTrialGroupName(setting));
-  }
+  base::UmaHistogramEnumeration(
+      "Security.HttpsFirstMode.SettingEnabledAtStartup2", setting);
+  ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
+      kHttpsFirstModeSyntheticFieldTrialName,
+      GetSyntheticFieldTrialGroupName(setting));
 
   // Restore navigation counts from the pref to be used in the Typically Secure
   // heuristic.
@@ -302,30 +275,32 @@ HttpsFirstModeService::HttpsFirstModeService(Profile* profile,
 }
 
 void HttpsFirstModeService::AfterStartup() {
-  if (base::FeatureList::IsEnabled(
-          features::kHttpsFirstModeV2ForTypicallySecureUsers)) {
-    CheckUserIsTypicallySecureAndMaybeEnableHttpsFirstMode();
-  }
-  if (base::FeatureList::IsEnabled(
-          features::kHttpsFirstModeV2ForEngagedSites)) {
-    MaybeEnableHttpsFirstModeForEngagedSites(base::OnceClosure());
-  }
+  CheckUserIsTypicallySecureAndMaybeEnableHttpsFirstBalancedMode();
+  MaybeEnableHttpsFirstModeForEngagedSites(base::OnceClosure());
 }
 
 void HttpsFirstModeService::
-    CheckUserIsTypicallySecureAndMaybeEnableHttpsFirstMode() {
+    CheckUserIsTypicallySecureAndMaybeEnableHttpsFirstBalancedMode() {
+  if (MustDisableTypicallySecureUserHeuristic(profile_)) {
+    return;
+  }
+
   // If HFM or the auto-enable prefs were previously set, do not modify them.
   if (profile_->GetPrefs()->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
+      profile_->GetPrefs()->HasPrefPath(prefs::kHttpsFirstBalancedMode) ||
       profile_->GetPrefs()->HasPrefPath(prefs::kHttpsOnlyModeAutoEnabled)) {
     return;
   }
   if (!IsUserTypicallySecure()) {
     return;
   }
-  // The prefs must be set in this order, as setting kHttpsOnlyModeEnabled
-  // will cause kHttpsOnlyModeAutoEnabled to be reset to false.
+  // The prefs must be set in this order, as setting kHttpsFirstBalancedMode
+  // will cause kHttpsFirstBalancedModeEnabledByTypicallySecureHeuristic to be
+  // reset to false.
+  // TODO(crbug.com/349860796): Consider having the typically-secure heuristic
+  // turn on Balanced Mode instead.
   keep_http_allowlist_on_next_pref_change_ = true;
-  profile_->GetPrefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, true);
+  profile_->GetPrefs()->SetBoolean(prefs::kHttpsFirstBalancedMode, true);
   profile_->GetPrefs()->SetBoolean(prefs::kHttpsOnlyModeAutoEnabled, true);
 }
 
@@ -333,21 +308,10 @@ HttpsFirstModeService::~HttpsFirstModeService() = default;
 
 void HttpsFirstModeService::OnHttpsFirstModePrefChanged() {
   HttpsFirstModeSetting setting = GetCurrentSetting();
-  if (base::FeatureList::IsEnabled(features::kHttpsFirstModeIncognito)) {
-    base::UmaHistogramEnumeration("Security.HttpsFirstMode.SettingChanged2",
-                                  setting);
-    ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-        kHttpsFirstModeSyntheticFieldTrialName,
-        GetSyntheticFieldTrialGroupName(setting));
-  } else {
-    bool fully_enabled = setting == HttpsFirstModeSetting::kEnabledFull;
-    base::UmaHistogramBoolean("Security.HttpsFirstMode.SettingChanged",
-                              fully_enabled);
-    // Update synthetic field trial group registration.
-    ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-        kHttpsFirstModeSyntheticFieldTrialName,
-        GetSyntheticFieldTrialGroupName(setting));
-  }
+  // Update synthetic field trial group registration.
+  ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
+      kHttpsFirstModeSyntheticFieldTrialName,
+      GetSyntheticFieldTrialGroupName(setting));
 
   // Reset the HTTP allowlist and HTTPS enforcelist when the pref changes.
   // A user going from HTTPS-Upgrades to HTTPS-First Mode shouldn't inherit the
@@ -379,10 +343,9 @@ void HttpsFirstModeService::OnAdvancedProtectionStatusChanged(bool enabled) {
 
 bool HttpsFirstModeService::
     IsInterstitialEnabledByTypicallySecureUserHeuristic() const {
-  return base::FeatureList::IsEnabled(
-             features::kHttpsFirstModeV2ForTypicallySecureUsers) &&
+  return !MustDisableTypicallySecureUserHeuristic(profile_) &&
          profile_->GetPrefs()->GetBoolean(prefs::kHttpsOnlyModeAutoEnabled) &&
-         profile_->GetPrefs()->GetBoolean(prefs::kHttpsOnlyModeEnabled);
+         profile_->GetPrefs()->GetBoolean(prefs::kHttpsFirstBalancedMode);
 }
 
 void HttpsFirstModeService::RecordHttpsUpgradeFallbackEvent() {
@@ -395,7 +358,13 @@ bool HttpsFirstModeService::IsUserTypicallySecure() {
 
 bool HttpsFirstModeService::UpdateFallbackEntries(bool add_new_entry) {
   if (!base::FeatureList::IsEnabled(
-          features::kHttpsFirstModeV2ForTypicallySecureUsers)) {
+          features::kHttpsFirstModeV2ForTypicallySecureUsers) ||
+      !IsBalancedModeAvailable()) {
+    // Normally we'd use MustDisableTypicallySecureUserHeuristic() here, but
+    // we want to record fallback entries even on enterprise devices. Otherwise,
+    // if an enterprise managed device becomes unmanaged, the heuristic would
+    // have zero fallback entries recorded. It would then try to enable the
+    // interstitial because the user would appear typically secure.
     return false;
   }
   // Profile shouldn't be too new.
@@ -484,7 +453,9 @@ void HttpsFirstModeService::MaybeEnableHttpsFirstModeForEngagedSites(
     base::OnceClosure done_callback) {
   // If HFM or the auto-enable prefs were previously set, do not modify HFM
   // status.
-  if (profile_->GetPrefs()->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
+  if (MustDisableSiteEngagementHeuristic(profile_) ||
+      profile_->GetPrefs()->HasPrefPath(prefs::kHttpsOnlyModeEnabled) ||
+      profile_->GetPrefs()->HasPrefPath(prefs::kHttpsFirstBalancedMode) ||
       profile_->GetPrefs()->HasPrefPath(prefs::kHttpsOnlyModeAutoEnabled)) {
     if (!done_callback.is_null()) {
       std::move(done_callback).Run();
@@ -518,6 +489,8 @@ void HttpsFirstModeService::MaybeEnableHttpsFirstModeForEngagedSites(
 void HttpsFirstModeService::ProcessEngagedSitesList(
     base::OnceClosure done_callback,
     const std::vector<site_engagement::mojom::SiteEngagementDetails>& details) {
+  DCHECK(IsBalancedModeAvailable());
+
   StatefulSSLHostStateDelegate* state =
       static_cast<StatefulSSLHostStateDelegate*>(
           profile_->GetSSLHostStateDelegate());
@@ -554,11 +527,25 @@ void HttpsFirstModeService::MaybeEnableHttpsFirstModeForUrl(
     const GURL& url,
     site_engagement::SiteEngagementService* engagement_service,
     StatefulSSLHostStateDelegate* state) {
+  DCHECK(IsBalancedModeAvailable());
+
   DCHECK(url.port().empty()) << "Url should have a default port";
   bool enforced =
       state->IsHttpsEnforcedForUrl(url, profile_->GetDefaultStoragePartition());
   GURL https_url = url.SchemeIsCryptographic() ? url : GetHttpsUrlFromHttp(url);
   GURL http_url = !url.SchemeIsCryptographic() ? url : GetHttpUrlFromHttps(url);
+
+  // If a non-unique hostname is in the enforcement list, it must have been
+  // added by a previous version of Chrome, so remove it. Otherwise, ignore
+  // non-unique hostnames.
+  if (net::IsHostnameNonUnique(url.host())) {
+    if (enforced) {
+      state->SetHttpsEnforcementForHost(url.host(),
+                                        /*enforced=*/false,
+                                        profile_->GetDefaultStoragePartition());
+    }
+    return;
+  }
 
   double https_score = engagement_service->GetScore(https_url);
   double http_score = engagement_service->GetScore(http_url);
@@ -586,12 +573,67 @@ void HttpsFirstModeService::MaybeEnableHttpsFirstModeForUrl(
 HttpsFirstModeSetting HttpsFirstModeService::GetCurrentSetting() const {
   if (profile_->GetPrefs()->GetBoolean(prefs::kHttpsOnlyModeEnabled)) {
     return HttpsFirstModeSetting::kEnabledFull;
-  } else if (base::FeatureList::IsEnabled(features::kHttpsFirstModeIncognito) &&
-             profile_->GetPrefs()->GetBoolean(
-                 prefs::kHttpsFirstModeIncognito)) {
-    return HttpsFirstModeSetting::kEnabledIncognito;
+  }
+  if (IsBalancedModeEnabled(profile_->GetPrefs())) {
+    return HttpsFirstModeSetting::kEnabledBalanced;
   }
   return HttpsFirstModeSetting::kDisabled;
+}
+
+bool HttpsFirstModeService::UpdatePrefs(
+    const HttpsFirstModeSetting& selection) {
+  if (selection != HttpsFirstModeSetting::kDisabled &&
+      selection != HttpsFirstModeSetting::kEnabledBalanced &&
+      selection != HttpsFirstModeSetting::kEnabledFull) {
+    return false;
+  }
+
+  if (!IsBalancedModeAvailable() &&
+      selection == HttpsFirstModeSetting::kEnabledBalanced) {
+    return false;
+  }
+
+  // Update both HTTPS-First Mode preferences to match the selection.
+  //
+  // Note that the HttpsFirstModeSetting::kEnabledBalanced is not available by
+  // default. If the feature flag is disabled, then the kEnabledFull and
+  // kDisabled settings will only be mapped to the kHttpsOnlyModeEnabled pref.
+  //
+  // Note: The Security.HttpsFirstMode.SettingChanged* histograms are logged
+  // here instead of in HttpsFirstModeService::OnHttpsFirstModePrefChanged()
+  // because this will fire the pref observer _twice_, so logging the histogram
+  // in the pref observer would cause double counting.
+  if (IsBalancedModeAvailable()) {
+    switch (selection) {
+      case HttpsFirstModeSetting::kDisabled:
+        base::UmaHistogramEnumeration("Security.HttpsFirstMode.SettingChanged2",
+                                      HttpsFirstModeSetting::kDisabled);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, false);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsFirstBalancedMode, false);
+        break;
+      case HttpsFirstModeSetting::kEnabledBalanced:
+        base::UmaHistogramEnumeration("Security.HttpsFirstMode.SettingChanged2",
+                                      HttpsFirstModeSetting::kEnabledBalanced);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, false);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsFirstBalancedMode, true);
+        break;
+      case HttpsFirstModeSetting::kEnabledFull:
+        base::UmaHistogramEnumeration("Security.HttpsFirstMode.SettingChanged2",
+                                      HttpsFirstModeSetting::kEnabledFull);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsOnlyModeEnabled, true);
+        profile_->GetPrefs()->SetBoolean(prefs::kHttpsFirstBalancedMode, false);
+        break;
+    }
+  } else {
+    // TODO(crbug.com/349860796): Remove old settings path once Balanced Mode
+    // is launched.
+    base::UmaHistogramBoolean("Security.HttpsFirstMode.SettingChanged",
+                              selection == HttpsFirstModeSetting::kEnabledFull);
+    profile_->GetPrefs()->SetBoolean(
+        prefs::kHttpsOnlyModeEnabled,
+        selection == HttpsFirstModeSetting::kEnabledFull);
+  }
+  return true;
 }
 
 void HttpsFirstModeService::IncrementRecentNavigationCount() {
@@ -614,7 +656,7 @@ size_t HttpsFirstModeService::GetFallbackEntryCountForTesting() const {
       profile_->GetPrefs()->GetDict(prefs::kHttpsUpgradeFallbacks);
   const base::Value::List* fallback_events =
       base_pref.FindList(kFallbackEventsKey);
-  return fallback_events->size();
+  return fallback_events ? fallback_events->size() : 0;
 }
 
 // static
@@ -641,7 +683,12 @@ HttpsFirstModeServiceFactory::HttpsFirstModeServiceFactory()
           // Don't create a service for non-regular profiles. This includes
           // Incognito (which uses the settings of the main profile) and Guest
           // Mode.
-          ProfileSelections::BuildForRegularProfile()) {
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
+              .Build()) {
   DependsOn(
       safe_browsing::AdvancedProtectionStatusManagerFactory::GetInstance());
 }

@@ -12,7 +12,6 @@
 #include "base/feature_list.h"
 #include "content/browser/preloading/prefetch/prefetch_container.h"
 #include "net/http/http_no_vary_search_data.h"
-#include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/no_vary_search.mojom.h"
 #include "url/gurl.h"
 
@@ -53,7 +52,7 @@ template <>
 class PrefetchKeyTraits<PrefetchContainer::Key> {
  public:
   static const GURL& GetURL(const PrefetchContainer::Key& key) {
-    return key.prefetch_url();
+    return key.url();
   }
   static PrefetchContainer::Key KeyWithNewURL(
       const PrefetchContainer::Key& old_key,
@@ -70,8 +69,11 @@ enum class MatchType {
   // URL is exactly the same.
   kExact,
 
-  // URL is equivalent due to the received No-Vary-Search data.
-  kNoVarySearch,
+  // URL is equivalent due to the received No-Vary-Search header.
+  kNoVarySearchHeader,
+
+  // URL is equivalent due to the No-Vary-Search hint.
+  kNoVarySearchHint,
 
   // The non-ref/query parts of URL are the same.
   kOther
@@ -98,11 +100,6 @@ void IterateCandidates(
         IterateCandidateResult::kFinish) {
       return;
     }
-  }
-
-  // Fall back to No-Vary-Search equivalence if enabled.
-  if (!base::FeatureList::IsEnabled(network::features::kPrefetchNoVarySearch)) {
-    return;
   }
 
   GURL::Replacements replacements;
@@ -162,11 +159,17 @@ void IterateCandidates(
       continue;
     }
 
-    const auto match_type = (it->second->GetNoVarySearchData() &&
-                             it->second->GetNoVarySearchData()->AreEquivalent(
-                                 key_url, prefetch_container_url))
-                                ? MatchType::kNoVarySearch
-                                : MatchType::kOther;
+    const MatchType match_type = [&]() {
+      const auto& prefetch_container = it->second;
+      if (prefetch_container->IsNoVarySearchHeaderMatch(key_url)) {
+        return MatchType::kNoVarySearchHeader;
+      } else if (prefetch_container->ShouldWaitForNoVarySearchHeader(key_url)) {
+        return MatchType::kNoVarySearchHint;
+      } else {
+        return MatchType::kOther;
+      }
+    }();
+
     if (callback.Run(it->second, match_type) ==
         IterateCandidateResult::kFinish) {
       break;
@@ -190,13 +193,14 @@ base::WeakPtr<PrefetchContainer> MatchUrl(
              const Value& prefetch_container, MatchType match_type) {
             switch (match_type) {
               case MatchType::kExact:
-              case MatchType::kNoVarySearch:
+              case MatchType::kNoVarySearchHeader:
                 // TODO(crbug.com/40064891): Revisit which PrefetchContainer to
                 // return when there are multiple candidates. Currently we
                 // return the first PrefetchContainer in URL lexicographic
                 // order.
                 *result = prefetch_container->GetWeakPtr();
                 return IterateCandidateResult::kFinish;
+              case MatchType::kNoVarySearchHint:
               case MatchType::kOther:
                 return IterateCandidateResult::kContinue;
             }
@@ -239,6 +243,8 @@ std::optional<net::HttpNoVarySearchData> ProcessHead(
     const GURL& url,
     RenderFrameHost* rfh);
 
+// TODO(crbug.com/331591646): This is used in both prerender and prefetch,
+// consider moving in a common location.
 // Parse No-Vary-Search from mojom structure received from network service.
 net::HttpNoVarySearchData ParseHttpNoVarySearchDataFromMojom(
     const network::mojom::NoVarySearchPtr& no_vary_search_ptr);

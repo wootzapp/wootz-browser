@@ -4,6 +4,7 @@
 
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
 
+#include "build/build_config.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/ui/tab_helpers.h"
@@ -16,13 +17,15 @@ namespace prerender {
 // static
 NoStatePrefetchContents* ChromeNoStatePrefetchContentsDelegate::FromWebContents(
     content::WebContents* web_contents) {
-  if (!web_contents)
+  if (!web_contents) {
     return nullptr;
+  }
   NoStatePrefetchManager* no_state_prefetch_manager =
       NoStatePrefetchManagerFactory::GetForBrowserContext(
           web_contents->GetBrowserContext());
-  if (!no_state_prefetch_manager)
+  if (!no_state_prefetch_manager) {
     return nullptr;
+  }
   return no_state_prefetch_manager->GetNoStatePrefetchContents(web_contents);
 }
 

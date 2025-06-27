@@ -417,8 +417,9 @@ TEST(ServiceWorkerRouterTypeConverterTest, Race) {
   expected_rule.condition =
       blink::ServiceWorkerRouterCondition::WithUrlPattern(expected_url_pattern);
   blink::ServiceWorkerRouterSource expected_source;
-  expected_source.type = network::mojom::ServiceWorkerRouterSourceType::kRace;
-  expected_source.race_source.emplace();
+  expected_source.type =
+      network::mojom::ServiceWorkerRouterSourceType::kRaceNetworkAndFetchEvent;
+  expected_source.race_network_and_fetch_event_source.emplace();
   expected_rule.sources.emplace_back(expected_source);
 
   V8TestingScope scope;
@@ -801,9 +802,6 @@ TEST(ServiceWorkerRouterTypeConverterTest,
 // TODO(crbug.com/1490445): Add tests to limit depth of condition nests
 
 TEST(ServiceWorkerRouterTypeConverterTest, NotCondition) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitWithFeatures(
-      {blink::features::kServiceWorkerStaticRouterNotConditionEnabled}, {});
   test::TaskEnvironment task_environment;
   auto* idl_rule = blink::RouterRule::Create();
   auto* idl_condition = blink::RouterCondition::Create();
@@ -845,9 +843,6 @@ TEST(ServiceWorkerRouterTypeConverterTest, NotCondition) {
 }
 
 TEST(ServiceWorkerRouterTypeConverterTest, NestedNotCondition) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitWithFeatures(
-      {blink::features::kServiceWorkerStaticRouterNotConditionEnabled}, {});
   test::TaskEnvironment task_environment;
   auto* idl_rule = blink::RouterRule::Create();
   auto* idl_condition = blink::RouterCondition::Create();

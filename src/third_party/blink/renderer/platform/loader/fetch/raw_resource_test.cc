@@ -89,7 +89,7 @@ class DummyClient final : public GarbageCollected<DummyClient>,
   String DebugName() const override { return "DummyClient"; }
 
   void DataReceived(Resource*, base::span<const char> data) override {
-    data_.Append(data.data(), base::checked_cast<wtf_size_t>(data.size()));
+    data_.AppendSpan(data);
   }
 
   bool RedirectReceived(Resource*,
@@ -244,8 +244,7 @@ TEST_F(RawResourceTest, PreloadWithAsynchronousAddClient) {
   platform_->RunUntilIdle();
 
   EXPECT_TRUE(dummy_client->Called());
-  EXPECT_EQ("hello",
-            String(dummy_client->Data().data(), dummy_client->Data().size()));
+  EXPECT_EQ("hello", String(dummy_client->Data()));
 }
 
 }  // namespace blink

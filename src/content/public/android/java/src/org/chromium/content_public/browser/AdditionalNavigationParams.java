@@ -4,15 +4,16 @@
 
 package org.chromium.content_public.browser;
 
-import androidx.annotation.Nullable;
-
 import org.chromium.base.UnguessableToken;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /**
  * Holds parameters for NavigationController::LoadUrlParams::AdditionalNavigationParams. This is
  * used to route information about the initiator frame to the navigation request, which is needed
  * for event-level reporting to function properly.
  */
+@NullMarked
 public class AdditionalNavigationParams {
     private final UnguessableToken mInitiatorFrameToken;
     private final int mInitiatorProcessId;
@@ -20,17 +21,14 @@ public class AdditionalNavigationParams {
     // Parameters related to Attribution Reporting Impressions. May not always
     // be set.
     private final @Nullable UnguessableToken mAttributionSrcToken;
-    private final long mAttributionRuntimeFeatures;
 
     public AdditionalNavigationParams(
             UnguessableToken initiatorFrameToken,
             int initiatorProcessId,
-            @Nullable UnguessableToken attributionSrcToken,
-            long attributionRuntimeFeatures) {
+            @Nullable UnguessableToken attributionSrcToken) {
         mInitiatorFrameToken = initiatorFrameToken;
         mInitiatorProcessId = initiatorProcessId;
         mAttributionSrcToken = attributionSrcToken;
-        mAttributionRuntimeFeatures = attributionRuntimeFeatures;
     }
 
     public UnguessableToken getInitiatorFrameToken() {
@@ -43,9 +41,5 @@ public class AdditionalNavigationParams {
 
     public @Nullable UnguessableToken getAttributionSrcToken() {
         return mAttributionSrcToken;
-    }
-
-    public long getAttributionRuntimeFeatures() {
-        return mAttributionRuntimeFeatures;
     }
 }

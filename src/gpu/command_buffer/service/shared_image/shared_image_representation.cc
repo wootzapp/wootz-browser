@@ -4,6 +4,8 @@
 
 #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
 
+#include <tuple>
+
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "components/viz/common/resources/shared_image_format_utils.h"
@@ -12,9 +14,9 @@
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "third_party/skia/include/core/SkColorSpace.h"
 #include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
-#include "third_party/skia/include/gpu/GrYUVABackendTextures.h"
 #include "third_party/skia/include/gpu/MutableTextureState.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/GrYUVABackendTextures.h"
 #include "third_party/skia/include/gpu/ganesh/SkImageGanesh.h"
 #include "third_party/skia/include/gpu/graphite/Image.h"
 #include "third_party/skia/include/gpu/graphite/YUVABackendTextures.h"
@@ -26,6 +28,48 @@
 #endif
 
 namespace gpu {
+
+namespace {
+using GraphiteTextureHolder = SkiaImageRepresentation::GraphiteTextureHolder;
+
+// Wrap the original release proc in a newer release proc that will release
+// the given GraphiteTextureHolder refs.
+std::tuple<SkImages::TextureReleaseProc, SkImages::ReleaseContext>
+CreateGraphiteSkImageReleaseProc(
+    SkImages::TextureReleaseProc texture_release_proc,
+    SkImages::ReleaseContext release_context,
+    std::vector<scoped_refptr<GraphiteTextureHolder>> texture_holders) {
+  SkImages::TextureReleaseProc wrapped_release_proc;
+  SkImages::ReleaseContext wrapped_release_context;
+
+  // Keep the GraphiteTextureHolder refs until the wrapped_release_proc is
+  // called. This will keep the GraphiteTextureHolder alive until Graphite is
+  // done with the SkImage.
+  struct WrappedReleaseContext {
+    std::vector<scoped_refptr<GraphiteTextureHolder>> texture_holders;
+    SkImages::TextureReleaseProc original_release_proc;
+    SkImages::ReleaseContext original_context;
+  };
+
+  auto* wrapped_context_ptr = new WrappedReleaseContext;
+  wrapped_context_ptr->texture_holders = std::move(texture_holders);
+  wrapped_context_ptr->original_release_proc = texture_release_proc;
+  wrapped_context_ptr->original_context = release_context;
+
+  wrapped_release_proc = [](SkImages::ReleaseContext context) {
+    auto* wrapped_context = static_cast<WrappedReleaseContext*>(context);
+    if (wrapped_context->original_release_proc) {
+      wrapped_context->original_release_proc(wrapped_context->original_context);
+    }
+
+    delete wrapped_context;
+  };
+
+  wrapped_release_context = wrapped_context_ptr;
+
+  return {wrapped_release_proc, wrapped_release_context};
+}
+}  // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 // SharedImageRepresentation
@@ -71,7 +115,9 @@ GLTextureImageRepresentationBase::BeginScopedAccess(
     GLenum mode,
     AllowUnclearedAccess allow_uncleared) {
   if (allow_uncleared != AllowUnclearedAccess::kYes && !IsCleared()) {
-    LOG(ERROR) << "Attempt to access an uninitialized SharedImage";
+    LOG(ERROR)
+        << "Attempt to access an uninitialized SharedImage. debug_label: "
+        << debug_label();
     return nullptr;
   }
 
@@ -84,10 +130,8 @@ GLTextureImageRepresentationBase::BeginScopedAccess(
   AccessMode access_mode;
   if (mode == kReadAccessMode) {
     access_mode = AccessMode::kRead;
-    backing()->OnReadSucceeded();
   } else {
     access_mode = AccessMode::kWrite;
-    backing()->OnWriteSucceeded();
   }
 
   return std::make_unique<ScopedAccess>(
@@ -183,15 +227,15 @@ SkiaImageRepresentation::ScopedWriteAccess::ScopedWriteAccess(
     : ScopedAccessBase(representation, AccessMode::kWrite),
       promise_image_textures_(std::move(promise_image_textures)) {
   CHECK(!promise_image_textures_.empty());
-  CHECK(graphite_textures_.empty());
+  CHECK(graphite_texture_holders_.empty());
 }
 
 SkiaImageRepresentation::ScopedWriteAccess::ScopedWriteAccess(
     SkiaImageRepresentation* representation,
-    std::vector<skgpu::graphite::BackendTexture> graphite_textures)
+    std::vector<scoped_refptr<GraphiteTextureHolder>> graphite_textures)
     : ScopedAccessBase(representation, AccessMode::kWrite),
-      graphite_textures_(graphite_textures) {
-  CHECK(!graphite_textures_.empty());
+      graphite_texture_holders_(std::move(graphite_textures)) {
+  CHECK(!graphite_texture_holders_.empty());
   CHECK(promise_image_textures_.empty());
 }
 
@@ -202,26 +246,34 @@ SkiaImageRepresentation::ScopedWriteAccess::~ScopedWriteAccess() {
   representation()->EndWriteAccess();
 }
 
+bool SkiaImageRepresentation::ScopedWriteAccess::NeedGraphiteContextSubmit() {
+  return representation()->NeedGraphiteContextSubmitBeforeEndAccess();
+}
+
 SkiaImageRepresentation::ScopedReadAccess::ScopedReadAccess(
     SkiaImageRepresentation* representation,
     std::vector<sk_sp<GrPromiseImageTexture>> promise_image_textures)
     : ScopedAccessBase(representation, AccessMode::kRead),
       promise_image_textures_(std::move(promise_image_textures)) {
   CHECK(!promise_image_textures_.empty());
-  CHECK(graphite_textures_.empty());
+  CHECK(graphite_texture_holders_.empty());
 }
 
 SkiaImageRepresentation::ScopedReadAccess::ScopedReadAccess(
     SkiaImageRepresentation* representation,
-    std::vector<skgpu::graphite::BackendTexture> graphite_textures)
+    std::vector<scoped_refptr<GraphiteTextureHolder>> graphite_textures)
     : ScopedAccessBase(representation, AccessMode::kRead),
-      graphite_textures_(graphite_textures) {
-  CHECK(!graphite_textures_.empty());
+      graphite_texture_holders_(std::move(graphite_textures)) {
+  CHECK(!graphite_texture_holders_.empty());
   CHECK(promise_image_textures_.empty());
 }
 
 SkiaImageRepresentation::ScopedReadAccess::~ScopedReadAccess() {
   representation()->EndReadAccess();
+}
+
+bool SkiaImageRepresentation::ScopedReadAccess::NeedGraphiteContextSubmit() {
+  return representation()->NeedGraphiteContextSubmitBeforeEndAccess();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -234,6 +286,11 @@ SkiaGaneshImageRepresentation::SkiaGaneshImageRepresentation(
     MemoryTypeTracker* tracker)
     : SkiaImageRepresentation(manager, backing, tracker),
       gr_context_(gr_context) {}
+
+bool SkiaGaneshImageRepresentation::NeedGraphiteContextSubmitBeforeEndAccess() {
+  // Ganesh shouldn't need a Graphite context submit.
+  return false;
+}
 
 SkiaGaneshImageRepresentation::ScopedGaneshWriteAccess::ScopedGaneshWriteAccess(
     base::PassKey<SkiaGaneshImageRepresentation> /* pass_key */,
@@ -258,10 +315,9 @@ SkiaGaneshImageRepresentation::ScopedGaneshWriteAccess::ScopedGaneshWriteAccess(
 SkiaGaneshImageRepresentation::ScopedGaneshWriteAccess::
     ~ScopedGaneshWriteAccess() {
   if (end_state_) {
-    NOTREACHED_IN_MIGRATION()
-        << "Before ending write access TakeEndState() must be called "
-           "and the result passed to skia to make sure all layout and "
-           "ownership transitions are done.";
+    NOTREACHED() << "Before ending write access TakeEndState() must be called "
+                    "and the result passed to skia to make sure all layout and "
+                    "ownership transitions are done.";
   }
 }
 
@@ -306,13 +362,16 @@ SkiaGaneshImageRepresentation::BeginScopedWriteAccess(
     AllowUnclearedAccess allow_uncleared,
     bool use_sk_surface) {
   if (allow_uncleared != AllowUnclearedAccess::kYes && !IsCleared()) {
-    LOG(ERROR) << "Attempt to write to an uninitialized SharedImage";
+    LOG(ERROR)
+        << "Attempt to write to an uninitialized SharedImage. debug_label: "
+        << debug_label();
     return nullptr;
   }
 
   if (surface_origin() != kTopLeft_GrSurfaceOrigin) {
-    LOG(ERROR)
-        << "Skia write access is only allowed for top left origin surfaces.";
+    LOG(ERROR) << "Skia write access is only allowed for top left origin "
+                  "surfaces. debug_label: "
+               << debug_label();
     return nullptr;
   }
 
@@ -326,8 +385,6 @@ SkiaGaneshImageRepresentation::BeginScopedWriteAccess(
       return nullptr;
     }
 
-    backing()->OnWriteSucceeded();
-
     return std::make_unique<ScopedGaneshWriteAccess>(
         base::PassKey<SkiaGaneshImageRepresentation>(), this,
         std::move(surfaces), std::move(end_state));
@@ -338,8 +395,6 @@ SkiaGaneshImageRepresentation::BeginScopedWriteAccess(
     LOG(ERROR) << "Unable to initialize GrPromiseImageTexture";
     return nullptr;
   }
-
-  backing()->OnWriteSucceeded();
 
   return std::make_unique<ScopedGaneshWriteAccess>(
       base::PassKey<SkiaGaneshImageRepresentation>(), this,
@@ -383,10 +438,9 @@ SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::ScopedGaneshReadAccess(
 SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::
     ~ScopedGaneshReadAccess() {
   if (end_state_) {
-    NOTREACHED_IN_MIGRATION()
-        << "Before ending read access TakeEndState() must be called "
-           "and the result passed to skia to make sure all layout and "
-           "ownership transitions are done.";
+    NOTREACHED() << "Before ending read access TakeEndState() must be called "
+                    "and the result passed to skia to make sure all layout and "
+                    "ownership transitions are done.";
   }
 }
 
@@ -402,10 +456,9 @@ SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::CreateSkImage(
   if (format.is_single_plane() || format.PrefersExternalSampler()) {
     DCHECK_EQ(static_cast<int>(promise_image_textures_.size()), 1);
     auto alpha_type = representation()->alpha_type();
-    auto color_type =
-        format.PrefersExternalSampler()
-            ? ToClosestSkColorTypeExternalSampler(format)
-            : viz::ToClosestSkColorType(/*gpu_compositing=*/true, format);
+    auto color_type = format.PrefersExternalSampler()
+                          ? ToClosestSkColorTypeExternalSampler(format)
+                          : viz::ToClosestSkColorType(format);
     return SkImages::BorrowTextureFrom(
         context_state->gr_context(), promise_image_texture()->backendTexture(),
         surface_origin, color_type, alpha_type, sk_color_space,
@@ -449,8 +502,7 @@ SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::CreateSkImageForPlane(
 
   auto surface_origin = representation()->surface_origin();
   auto alpha_type = SkAlphaType::kOpaque_SkAlphaType;
-  auto color_type =
-      viz::ToClosestSkColorType(/*gpu_compositing=*/true, format, plane_index);
+  auto color_type = viz::ToClosestSkColorType(format, plane_index);
   return SkImages::BorrowTextureFrom(
       context_state->gr_context(),
       promise_image_texture(plane_index)->backendTexture(), surface_origin,
@@ -500,8 +552,6 @@ SkiaGaneshImageRepresentation::BeginScopedReadAccess(
     return nullptr;
   }
 
-  backing()->OnReadSucceeded();
-
   return std::make_unique<ScopedGaneshReadAccess>(
       base::PassKey<SkiaGaneshImageRepresentation>(), this,
       std::move(promise_image_textures), std::move(end_state));
@@ -516,6 +566,12 @@ SkiaGraphiteImageRepresentation::SkiaGraphiteImageRepresentation(
     MemoryTypeTracker* tracker)
     : SkiaImageRepresentation(manager, backing, tracker) {}
 
+bool SkiaGraphiteImageRepresentation::
+    NeedGraphiteContextSubmitBeforeEndAccess() {
+  // As default, assume Graphite context submit is needed.
+  return true;
+}
+
 SkiaGraphiteImageRepresentation::ScopedGraphiteWriteAccess::
     ScopedGraphiteWriteAccess(
         base::PassKey<SkiaGraphiteImageRepresentation> /* pass_key */,
@@ -529,9 +585,9 @@ SkiaGraphiteImageRepresentation::ScopedGraphiteWriteAccess::
     ScopedGraphiteWriteAccess(
         base::PassKey<SkiaGraphiteImageRepresentation> /* pass_key */,
         SkiaImageRepresentation* representation,
-        std::vector<skgpu::graphite::BackendTexture> backend_textures)
-    : ScopedWriteAccess(representation, backend_textures) {
-  CHECK(!graphite_textures_.empty());
+        std::vector<scoped_refptr<GraphiteTextureHolder>> backend_textures)
+    : ScopedWriteAccess(representation, std::move(backend_textures)) {
+  CHECK(!graphite_texture_holders_.empty());
 }
 
 SkiaGraphiteImageRepresentation::ScopedGraphiteWriteAccess::
@@ -557,13 +613,16 @@ SkiaGraphiteImageRepresentation::BeginScopedWriteAccess(
     AllowUnclearedAccess allow_uncleared,
     bool use_sk_surface) {
   if (allow_uncleared != AllowUnclearedAccess::kYes && !IsCleared()) {
-    LOG(ERROR) << "Attempt to write to an uninitialized SharedImage";
+    LOG(ERROR)
+        << "Attempt to write to an uninitialized SharedImage. debug_label: "
+        << debug_label();
     return nullptr;
   }
 
   if (surface_origin() != kTopLeft_GrSurfaceOrigin) {
-    LOG(ERROR)
-        << "Skia write access is only allowed for top left origin surfaces.";
+    LOG(ERROR) << "Skia write access is only allowed for top left origin "
+                  "surfaces. debug_label: "
+               << debug_label();
     return nullptr;
   }
 
@@ -575,20 +634,16 @@ SkiaGraphiteImageRepresentation::BeginScopedWriteAccess(
       return nullptr;
     }
 
-    backing()->OnWriteSucceeded();
-
     return std::make_unique<ScopedGraphiteWriteAccess>(
         base::PassKey<SkiaGraphiteImageRepresentation>(), this,
         std::move(surfaces));
   }
-  std::vector<skgpu::graphite::BackendTexture> graphite_textures =
+  std::vector<scoped_refptr<GraphiteTextureHolder>> graphite_textures =
       BeginWriteAccess();
   if (graphite_textures.empty()) {
     LOG(ERROR) << "Unable to initialize graphite::BackendTextures";
     return nullptr;
   }
-
-  backing()->OnWriteSucceeded();
 
   return std::make_unique<ScopedGraphiteWriteAccess>(
       base::PassKey<SkiaGraphiteImageRepresentation>(), this,
@@ -623,9 +678,9 @@ SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::
     ScopedGraphiteReadAccess(
         base::PassKey<SkiaGraphiteImageRepresentation> /* pass_key */,
         SkiaImageRepresentation* representation,
-        std::vector<skgpu::graphite::BackendTexture> graphite_textures)
+        std::vector<scoped_refptr<GraphiteTextureHolder>> graphite_textures)
     : ScopedReadAccess(representation, graphite_textures) {
-  CHECK(!graphite_textures_.empty());
+  CHECK(!graphite_texture_holders_.empty());
 }
 
 SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::
@@ -640,20 +695,25 @@ SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::CreateSkImage(
   auto sk_color_space =
       representation()->color_space().GetAsFullRangeRGB().ToSkColorSpace();
   auto* recorder = context_state->gpu_main_graphite_recorder();
+
+  auto [wrapped_release_proc, wrapped_release_context] =
+      CreateGraphiteSkImageReleaseProc(texture_release_proc, release_context,
+                                       graphite_texture_holders_);
+
   if (format.is_single_plane() || format.PrefersExternalSampler()) {
-    CHECK_EQ(static_cast<int>(graphite_textures_.size()), 1);
+    CHECK_EQ(static_cast<int>(graphite_texture_holders_.size()), 1);
     auto alpha_type = representation()->alpha_type();
-    auto color_type =
-        format.PrefersExternalSampler()
-            ? ToClosestSkColorTypeExternalSampler(format)
-            : viz::ToClosestSkColorType(/*gpu_compositing=*/true, format);
+    auto color_type = format.PrefersExternalSampler()
+                          ? ToClosestSkColorTypeExternalSampler(format)
+                          : viz::ToClosestSkColorType(format);
     auto origin = representation()->surface_origin() == kTopLeft_GrSurfaceOrigin
                       ? skgpu::Origin::kTopLeft
                       : skgpu::Origin::kBottomLeft;
-    return SkImages::AdoptTextureFrom(recorder, graphite_texture(), color_type,
-                                      alpha_type, sk_color_space, origin);
+    return SkImages::WrapTexture(recorder, graphite_texture(), color_type,
+                                 alpha_type, sk_color_space, origin,
+                                 wrapped_release_proc, wrapped_release_context);
   } else {
-    CHECK_EQ(static_cast<int>(graphite_textures_.size()),
+    CHECK_EQ(static_cast<int>(graphite_texture_holders_.size()),
              format.NumberOfPlanes());
     SkISize sk_size = gfx::SizeToSkISize(representation()->size());
     // TODO(crbug.com/41380578): This should really default to rec709.
@@ -662,11 +722,16 @@ SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::CreateSkImage(
         format.MultiplanarBitDepth(), &yuv_color_space);
     SkYUVAInfo yuva_info(sk_size, ToSkYUVAPlaneConfig(format),
                          ToSkYUVASubsampling(format), yuv_color_space);
+    std::vector<skgpu::graphite::BackendTexture> backend_textures(
+        graphite_texture_holders_.size());
+    for (int i = 0; i < format.NumberOfPlanes(); ++i) {
+      backend_textures[i] = graphite_texture_holders_[i]->texture();
+    }
     skgpu::graphite::YUVABackendTextures yuva_backend_textures(
-        recorder, yuva_info, graphite_textures_);
+        yuva_info, backend_textures);
     return SkImages::TextureFromYUVATextures(
-        recorder, yuva_backend_textures, sk_color_space, texture_release_proc,
-        release_context);
+        recorder, yuva_backend_textures, sk_color_space, wrapped_release_proc,
+        wrapped_release_context);
   }
 }
 
@@ -675,17 +740,19 @@ sk_sp<SkImage> SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::
                           SharedContextState* context_state,
                           SkImages::TextureReleaseProc texture_release_proc,
                           SkImages::ReleaseContext release_context) {
+  auto [wrapped_release_proc, wrapped_release_context] =
+      CreateGraphiteSkImageReleaseProc(texture_release_proc, release_context,
+                                       {graphite_texture_holder(plane_index)});
   auto format = representation()->format();
   CHECK(format.is_multi_plane());
-  CHECK_EQ(static_cast<int>(graphite_textures_.size()),
+  CHECK_EQ(static_cast<int>(graphite_texture_holders_.size()),
            format.NumberOfPlanes());
   auto alpha_type = SkAlphaType::kOpaque_SkAlphaType;
-  auto color_type =
-      viz::ToClosestSkColorType(/*gpu_compositing=*/true, format, plane_index);
-  return SkImages::AdoptTextureFrom(context_state->gpu_main_graphite_recorder(),
-                                    graphite_texture(plane_index), color_type,
-                                    alpha_type, /*colorSpace=*/nullptr,
-                                    texture_release_proc, release_context);
+  auto color_type = viz::ToClosestSkColorType(format, plane_index);
+  return SkImages::WrapTexture(context_state->gpu_main_graphite_recorder(),
+                               graphite_texture(plane_index), color_type,
+                               alpha_type, /*colorSpace=*/nullptr,
+                               wrapped_release_proc, wrapped_release_context);
 }
 
 bool SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::
@@ -706,24 +773,35 @@ SkiaGraphiteImageRepresentation::BeginScopedReadAccess(
     auto cr = ClearedRect();
     LOG(ERROR) << base::StringPrintf(
         "Attempt to read from an uninitialized SharedImage. "
-        "Initialized region: (%d, %d, %d, %d) Size: (%d, %d)",
+        "Initialized region: (%d, %d, %d, %d) Size: (%d, %d) Debug Label: %s",
         cr.x(), cr.y(), cr.width(), cr.height(), size().width(),
-        size().height());
+        size().height(), debug_label());
     return nullptr;
   }
 
-  std::vector<skgpu::graphite::BackendTexture> graphite_textures =
+  std::vector<scoped_refptr<GraphiteTextureHolder>> graphite_textures =
       BeginReadAccess();
   if (graphite_textures.empty()) {
     LOG(ERROR) << "Unable to initialize graphite::BackendTextures";
     return nullptr;
   }
 
-  backing()->OnReadSucceeded();
-
   return std::make_unique<ScopedGraphiteReadAccess>(
       base::PassKey<SkiaGraphiteImageRepresentation>(), this,
       graphite_textures);
+}
+
+std::string SkiaGraphiteImageRepresentation::WrappedTextureDebugLabel(
+    int plane) const {
+  std::string debug_label;
+  if (format().is_single_plane()) {
+    debug_label = base::StringPrintf("%s_%s", backing()->GetName(),
+                                     backing()->debug_label().c_str());
+  } else {
+    debug_label = base::StringPrintf("%s_%s_Plane%d", backing()->GetName(),
+                                     backing()->debug_label().c_str(), plane);
+  }
+  return debug_label;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -731,13 +809,11 @@ SkiaGraphiteImageRepresentation::BeginScopedReadAccess(
 
 #if BUILDFLAG(IS_ANDROID)
 AHardwareBuffer* OverlayImageRepresentation::GetAHardwareBuffer() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 std::unique_ptr<base::android::ScopedHardwareBufferFenceSync>
 OverlayImageRepresentation::GetAHardwareBufferFenceSync() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 #elif BUILDFLAG(IS_OZONE)
 scoped_refptr<gfx::NativePixmap> OverlayImageRepresentation::GetNativePixmap() {
@@ -746,8 +822,7 @@ scoped_refptr<gfx::NativePixmap> OverlayImageRepresentation::GetNativePixmap() {
 #elif BUILDFLAG(IS_WIN)
 std::optional<gl::DCLayerOverlayImage>
 OverlayImageRepresentation::GetDCLayerOverlayImage() {
-  NOTREACHED_IN_MIGRATION();
-  return std::nullopt;
+  NOTREACHED();
 }
 #elif BUILDFLAG(IS_APPLE)
 gfx::ScopedIOSurface OverlayImageRepresentation::GetIOSurface() const {
@@ -772,7 +847,9 @@ OverlayImageRepresentation::ScopedReadAccess::~ScopedReadAccess() {
 std::unique_ptr<OverlayImageRepresentation::ScopedReadAccess>
 OverlayImageRepresentation::BeginScopedReadAccess() {
   if (!IsCleared()) {
-    LOG(ERROR) << "Attempt to read from an uninitialized SharedImage";
+    LOG(ERROR)
+        << "Attempt to read from an uninitialized SharedImage. debug_label: "
+        << debug_label();
     return nullptr;
   }
 
@@ -780,8 +857,6 @@ OverlayImageRepresentation::BeginScopedReadAccess() {
   if (!BeginReadAccess(acquire_fence)) {
     return nullptr;
   }
-
-  backing()->OnReadSucceeded();
 
   return std::make_unique<ScopedReadAccess>(
       base::PassKey<OverlayImageRepresentation>(), this,
@@ -807,19 +882,40 @@ std::unique_ptr<DawnImageRepresentation::ScopedAccess>
 DawnImageRepresentation::BeginScopedAccess(
     wgpu::TextureUsage usage,
     AllowUnclearedAccess allow_uncleared) {
-  return BeginScopedAccess(usage, allow_uncleared, gfx::Rect(size()));
+  return BeginScopedAccess(usage, wgpu::TextureUsage::None, allow_uncleared,
+                           gfx::Rect(size()));
+}
+
+std::unique_ptr<DawnImageRepresentation::ScopedAccess>
+DawnImageRepresentation::BeginScopedAccess(
+    wgpu::TextureUsage usage,
+    wgpu::TextureUsage internal_usage,
+    AllowUnclearedAccess allow_uncleared) {
+  return BeginScopedAccess(usage, internal_usage, allow_uncleared,
+                           gfx::Rect(size()));
 }
 
 std::unique_ptr<DawnImageRepresentation::ScopedAccess>
 DawnImageRepresentation::BeginScopedAccess(wgpu::TextureUsage usage,
                                            AllowUnclearedAccess allow_uncleared,
                                            const gfx::Rect& update_rect) {
+  return BeginScopedAccess(usage, wgpu::TextureUsage::None, allow_uncleared,
+                           update_rect);
+}
+
+std::unique_ptr<DawnImageRepresentation::ScopedAccess>
+DawnImageRepresentation::BeginScopedAccess(wgpu::TextureUsage usage,
+                                           wgpu::TextureUsage internal_usage,
+                                           AllowUnclearedAccess allow_uncleared,
+                                           const gfx::Rect& update_rect) {
   if (allow_uncleared != AllowUnclearedAccess::kYes && !IsCleared()) {
-    LOG(ERROR) << "Attempt to access an uninitialized SharedImage";
+    LOG(ERROR)
+        << "Attempt to access an uninitialized SharedImage. debug_label: "
+        << debug_label();
     return nullptr;
   }
 
-  wgpu::Texture texture = BeginAccess(usage, update_rect);
+  wgpu::Texture texture = BeginAccess(usage, internal_usage, update_rect);
   if (!texture) {
     LOG(ERROR) << "Error creating wgpu::Texture";
     return nullptr;
@@ -828,10 +924,8 @@ DawnImageRepresentation::BeginScopedAccess(wgpu::TextureUsage usage,
   AccessMode access_mode;
   if (usage & kWriteUsage) {
     access_mode = AccessMode::kWrite;
-    backing()->OnWriteSucceeded();
   } else {
     access_mode = AccessMode::kRead;
-    backing()->OnReadSucceeded();
   }
 
   return std::make_unique<ScopedAccess>(
@@ -841,20 +935,37 @@ DawnImageRepresentation::BeginScopedAccess(wgpu::TextureUsage usage,
 
 wgpu::Texture DawnImageRepresentation::BeginAccess(
     wgpu::TextureUsage usage,
+    wgpu::TextureUsage internal_usage,
     const gfx::Rect& update_rect) {
-#if BUILDFLAG(IS_WIN)
-  // The `update_rect` is a hint to update only certain portion
-  // of shared image but it doesn't have to match the size of shared image for
-  // eg. CopyOutput cases where an empty rect is passed to as there is no intent
-  // to update the shared image. Keeping this windows only for helping compare
-  // with DComp/DXGI cases.
-  DCHECK_EQ(update_rect, gfx::Rect(size()));
-#endif
-  return this->BeginAccess(usage);
+  return this->BeginAccess(usage, internal_usage);
 }
 
-bool DawnImageRepresentation::SupportsMultipleConcurrentReadAccess() {
-  return false;
+///////////////////////////////////////////////////////////////////////////////
+// DawnBufferRepresentation
+
+DawnBufferRepresentation::ScopedAccess::ScopedAccess(
+    base::PassKey<DawnBufferRepresentation> /* pass_key */,
+    DawnBufferRepresentation* representation,
+    wgpu::Buffer buffer,
+    AccessMode access_mode)
+    : ScopedAccessBase(representation, access_mode),
+      buffer_(std::move(buffer)) {}
+
+DawnBufferRepresentation::ScopedAccess::~ScopedAccess() {
+  representation()->EndAccess();
+}
+
+std::unique_ptr<DawnBufferRepresentation::ScopedAccess>
+DawnBufferRepresentation::BeginScopedAccess(wgpu::BufferUsage usage) {
+  wgpu::Buffer buffer = BeginAccess(usage);
+  if (!buffer) {
+    LOG(ERROR) << "Error creating wgpu::Buffer";
+    return nullptr;
+  }
+
+  return std::make_unique<ScopedAccess>(
+      base::PassKey<DawnBufferRepresentation>(), this, std::move(buffer),
+      AccessMode::kWrite);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -881,39 +992,6 @@ SharedImageRepresentationFactoryRef::~SharedImageRepresentationFactoryRef() {
     backing()->UnregisterImageFactory();
     backing()->MarkForDestruction();
   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// VaapiImageRepresentation
-
-VaapiImageRepresentation::VaapiImageRepresentation(
-    SharedImageManager* manager,
-    SharedImageBacking* backing,
-    MemoryTypeTracker* tracker,
-    VaapiDependencies* vaapi_deps)
-    : SharedImageRepresentation(manager, backing, tracker),
-      vaapi_deps_(vaapi_deps) {}
-
-VaapiImageRepresentation::~VaapiImageRepresentation() = default;
-
-VaapiImageRepresentation::ScopedWriteAccess::ScopedWriteAccess(
-    base::PassKey<VaapiImageRepresentation> /* pass_key */,
-    VaapiImageRepresentation* representation)
-    : ScopedAccessBase(representation, AccessMode::kWrite) {}
-
-VaapiImageRepresentation::ScopedWriteAccess::~ScopedWriteAccess() {
-  representation()->EndAccess();
-}
-
-const media::VASurface*
-VaapiImageRepresentation::ScopedWriteAccess::va_surface() {
-  return representation()->vaapi_deps_->GetVaSurface();
-}
-
-std::unique_ptr<VaapiImageRepresentation::ScopedWriteAccess>
-VaapiImageRepresentation::BeginScopedWriteAccess() {
-  return std::make_unique<ScopedWriteAccess>(
-      base::PassKey<VaapiImageRepresentation>(), this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -986,33 +1064,50 @@ RasterImageRepresentation::BeginScopedWriteAccess(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// VideoDecodeImageRepresentation
+// VideoImageRepresentation
 
-VideoDecodeImageRepresentation::VideoDecodeImageRepresentation(
-    SharedImageManager* manager,
-    SharedImageBacking* backing,
-    MemoryTypeTracker* tracker)
+VideoImageRepresentation::VideoImageRepresentation(SharedImageManager* manager,
+                                                   SharedImageBacking* backing,
+                                                   MemoryTypeTracker* tracker)
     : SharedImageRepresentation(manager, backing, tracker) {}
 
-VideoDecodeImageRepresentation::~VideoDecodeImageRepresentation() = default;
+VideoImageRepresentation::~VideoImageRepresentation() = default;
 
-VideoDecodeImageRepresentation::ScopedWriteAccess::ScopedWriteAccess(
-    base::PassKey<VideoDecodeImageRepresentation> /* pass_key */,
-    VideoDecodeImageRepresentation* representation)
+VideoImageRepresentation::ScopedWriteAccess::ScopedWriteAccess(
+    base::PassKey<VideoImageRepresentation> /* pass_key */,
+    VideoImageRepresentation* representation)
     : ScopedAccessBase(representation, AccessMode::kWrite) {}
 
-VideoDecodeImageRepresentation::ScopedWriteAccess::~ScopedWriteAccess() {
+VideoImageRepresentation::ScopedWriteAccess::~ScopedWriteAccess() {
   representation()->EndWriteAccess();
 }
 
-std::unique_ptr<VideoDecodeImageRepresentation::ScopedWriteAccess>
-VideoDecodeImageRepresentation::BeginScopedWriteAccess() {
+std::unique_ptr<VideoImageRepresentation::ScopedWriteAccess>
+VideoImageRepresentation::BeginScopedWriteAccess() {
   if (!BeginWriteAccess()) {
     return nullptr;
   }
 
   return std::make_unique<ScopedWriteAccess>(
-      base::PassKey<VideoDecodeImageRepresentation>(), this);
+      base::PassKey<VideoImageRepresentation>(), this);
+}
+VideoImageRepresentation::ScopedReadAccess::ScopedReadAccess(
+    base::PassKey<VideoImageRepresentation> /* pass_key */,
+    VideoImageRepresentation* representation)
+    : ScopedAccessBase(representation, AccessMode::kWrite) {}
+
+VideoImageRepresentation::ScopedReadAccess::~ScopedReadAccess() {
+  representation()->EndReadAccess();
+}
+
+std::unique_ptr<VideoImageRepresentation::ScopedReadAccess>
+VideoImageRepresentation::BeginScopedReadAccess() {
+  if (!BeginReadAccess()) {
+    return nullptr;
+  }
+
+  return std::make_unique<ScopedReadAccess>(
+      base::PassKey<VideoImageRepresentation>(), this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

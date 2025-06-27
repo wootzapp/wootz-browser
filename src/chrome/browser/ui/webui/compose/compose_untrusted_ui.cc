@@ -12,8 +12,8 @@
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/compose/chrome_compose_client.h"
+#include "chrome/browser/compose/compose_enabling.h"
 #include "chrome/browser/ui/webui/theme_source.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/grit/compose_resources.h"
 #include "chrome/grit/compose_resources_map.h"
 #include "chrome/grit/generated_resources.h"
@@ -23,8 +23,12 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/resources/grit/webui_resources.h"
 #include "ui/webui/color_change_listener/color_change_handler.h"
+#include "ui/webui/webui_util.h"
+
+ComposeUIUntrustedConfig::ComposeUIUntrustedConfig()
+    : DefaultTopChromeWebUIConfig(content::kChromeUIUntrustedScheme,
+                                  chrome::kChromeUIUntrustedComposeHost) {}
 
 bool ComposeUIUntrustedConfig::IsWebUIEnabled(
     content::BrowserContext* browser_context) {
@@ -32,14 +36,17 @@ bool ComposeUIUntrustedConfig::IsWebUIEnabled(
       Profile::FromBrowserContext(browser_context));
 }
 
+bool ComposeUIUntrustedConfig::ShouldAutoResizeHost() {
+  return true;
+}
+
 ComposeUntrustedUI::ComposeUntrustedUI(content::WebUI* web_ui)
     : UntrustedTopChromeWebUIController(web_ui) {
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       web_ui->GetWebContents()->GetBrowserContext(),
       chrome::kChromeUIUntrustedComposeUrl);
-webui::SetupWebUIDataSource(
-      source, base::make_span(kComposeResources, kComposeResourcesSize),
-      IDR_COMPOSE_COMPOSE_HTML);
+  webui::SetupWebUIDataSource(source, kComposeResources,
+                              IDR_COMPOSE_COMPOSE_HTML);
 
   // Localized strings.
   static constexpr webui::LocalizedString kStrings[] = {
@@ -57,6 +64,9 @@ webui::SetupWebUIDataSource(
       {"inputPlaceholderLine1", IDS_COMPOSE_INPUT_PLACEHOLDER_LINE_1},
       {"inputPlaceholderLine2", IDS_COMPOSE_INPUT_PLACEHOLDER_LINE_2},
       {"inputPlaceholderLine3", IDS_COMPOSE_INPUT_PLACEHOLDER_LINE_3},
+      {"inputModeChipPolish", IDS_COMPOSE_INPUT_MODE_POLISH},
+      {"inputModeChipElaborate", IDS_COMPOSE_INPUT_MODE_ELABORATE},
+      {"inputModeChipFormalize", IDS_COMPOSE_INPUT_MODE_FORMALIZE},
       {"inputFooter", IDS_COMPOSE_INPUT_FOOTER},
       {"submitButton", IDS_COMPOSE_SUBMIT_BUTTON},
       {"onDeviceUsedFooter", IDS_COMPOSE_FOOTER_FISHFOOD_ON_DEVICE_USED},
@@ -69,6 +79,7 @@ webui::SetupWebUIDataSource(
       {"lengthMenuTitle", IDS_COMPOSE_MENU_LENGTH_TITLE},
       {"toneMenuTitle", IDS_COMPOSE_MENU_TONE_TITLE},
       {"modifierMenuTitle", IDS_COMPOSE_MODIFIERS_MENU_TITLE},
+      {"modifierMenuLabel", IDS_COMPOSE_MODIFIERS_MENU_LABEL},
       {"retryOption", IDS_COMPOSE_MENU_RETRY_OPTION},
       {"shorterOption", IDS_COMPOSE_MENU_SHORTER_OPTION},
       {"longerOption", IDS_COMPOSE_MENU_LONGER_OPTION},
@@ -94,6 +105,11 @@ webui::SetupWebUIDataSource(
       {"resubmit", IDS_COMPOSE_RESUBMIT},
       {"thumbsDown", IDS_COMPOSE_THUMBS_DOWN},
       {"thumbsUp", IDS_COMPOSE_THUMBS_UP},
+      {"resultText", IDS_COMPOSE_RESULT_TEXT_LABEL},
+      {"resultLoadingA11yMessage", IDS_COMPOSE_RESULT_LOADING_A11Y_MESSAGE},
+      {"resultUpdatedA11yMessage", IDS_COMPOSE_RESULT_UPDATED_A11Y_MESSAGE},
+      {"undoResultA11yMessage", IDS_COMPOSE_UNDO_RESULT_A11Y_MESSAGE},
+      {"redoResultA11yMessage", IDS_COMPOSE_REDO_RESULT_A11Y_MESSAGE},
   };
   source->AddLocalizedStrings(kStrings);
   source->AddBoolean("enableAnimations",
@@ -103,10 +119,9 @@ webui::SetupWebUIDataSource(
       "enableOnDeviceDogfoodFooter",
       base::FeatureList::IsEnabled(
           compose::features::kEnableComposeOnDeviceDogfoodFooter));
-
-  source->AddBoolean(
-      "enableRefinedUi",
-      base::FeatureList::IsEnabled(compose::features::kComposeUiRefinement));
+  source->AddBoolean("enableUpfrontInputModes",
+                     base::FeatureList::IsEnabled(
+                         compose::features::kComposeUpfrontInputModes));
 
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::StyleSrc,

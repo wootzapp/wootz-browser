@@ -18,14 +18,37 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/speech_recognition_audio_forwarder_config.h"
 #include "content/public/browser/speech_recognition_manager_delegate.h"
 #include "content/public/browser/speech_recognition_session_config.h"
 #include "content/public/browser/speech_recognition_session_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
+#include "media/mojo/mojom/speech_recognizer.mojom.h"
+#include "mojo/public/cpp/bindings/message.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+
+namespace {
+std::string GetAcceptedLanguages(const std::string& language,
+                                 const std::string& accept_language) {
+  std::string langs = language;
+  if (langs.empty() && !accept_language.empty()) {
+    // If no language is provided then we use the first from the accepted
+    // language list. If this list is empty then it defaults to "en-US".
+    // Example of the contents of this list: "es,en-GB;q=0.8", ""
+    size_t separator = accept_language.find_first_of(",;");
+    if (separator != std::string::npos) {
+      langs = accept_language.substr(0, separator);
+    }
+  }
+  if (langs.empty()) {
+    langs = "en-US";
+  }
+  return langs;
+}
+}  // namespace
 
 namespace content {
 
@@ -60,6 +83,18 @@ SpeechRecognitionDispatcherHost::AsWeakPtr() {
 void SpeechRecognitionDispatcherHost::Start(
     media::mojom::StartSpeechRecognitionRequestParamsPtr params) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
+
+  if (params->audio_forwarder.is_valid()) {
+    CHECK_GT(params->channel_count, 0);
+    if (params->channel_count <= 0) {
+      mojo::ReportBadMessage("Channel count must be positive.");
+      return;
+    }
+    if (params->sample_rate <= 0) {
+      mojo::ReportBadMessage("Sample rate must be positive.");
+      return;
+    }
+  }
 
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
@@ -116,18 +151,12 @@ void SpeechRecognitionDispatcherHost::StartRequestOnUI(
       embedder_frame = outer_web_contents->GetPrimaryMainFrame();
     }
 
-    embedder_render_process_id = embedder_frame->GetProcess()->GetID();
+    embedder_render_process_id =
+        embedder_frame->GetProcess()->GetDeprecatedID();
     DCHECK_NE(embedder_render_process_id, 0);
     embedder_render_frame_id = embedder_frame->GetRoutingID();
     DCHECK_NE(embedder_render_frame_id, MSG_ROUTING_NONE);
   }
-
-  bool filter_profanities =
-      SpeechRecognitionManagerImpl::GetInstance() &&
-      SpeechRecognitionManagerImpl::GetInstance()->delegate() &&
-      SpeechRecognitionManagerImpl::GetInstance()
-          ->delegate()
-          ->FilterProfanities(embedder_render_process_id);
 
   content::BrowserContext* browser_context = web_contents->GetBrowserContext();
   StoragePartition* storage_partition =
@@ -139,7 +168,7 @@ void SpeechRecognitionDispatcherHost::StartRequestOnUI(
           &SpeechRecognitionDispatcherHost::StartSessionOnIO,
           speech_recognition_dispatcher_host, std::move(params),
           embedder_render_process_id, embedder_render_frame_id,
-          rfh->GetLastCommittedOrigin(), filter_profanities,
+          rfh->GetLastCommittedOrigin(),
           storage_partition->GetURLLoaderFactoryForBrowserProcessIOThread(),
           GetContentClient()->browser()->GetAcceptLangs(browser_context)));
 }
@@ -149,7 +178,6 @@ void SpeechRecognitionDispatcherHost::StartSessionOnIO(
     int embedder_render_process_id,
     int embedder_render_frame_id,
     const url::Origin& origin,
-    bool filter_profanities,
     std::unique_ptr<network::PendingSharedURLLoaderFactory>
         pending_shared_url_loader_factory,
     const std::string& accept_language) {
@@ -162,35 +190,57 @@ void SpeechRecognitionDispatcherHost::StartSessionOnIO(
   context.embedder_render_process_id = embedder_render_process_id;
   context.embedder_render_frame_id = embedder_render_frame_id;
 
-  auto session =
-      std::make_unique<SpeechRecognitionSession>(std::move(params->client));
-
   SpeechRecognitionSessionConfig config;
-  config.language = params->language;
-  config.accept_language = accept_language;
+  config.language = GetAcceptedLanguages(params->language, accept_language);
   config.max_hypotheses = params->max_hypotheses;
   config.origin = origin;
   config.initial_context = context;
   config.shared_url_loader_factory = network::SharedURLLoaderFactory::Create(
       std::move(pending_shared_url_loader_factory));
-  config.filter_profanities = filter_profanities;
+  config.filter_profanities = false;
   config.continuous = params->continuous;
   config.interim_results = params->interim_results;
-  config.event_listener = session->AsWeakPtr();
+  config.on_device = params->on_device;
+  config.allow_cloud_fallback = params->allow_cloud_fallback;
+  config.recognition_context = params->recognition_context;
 
   for (media::mojom::SpeechRecognitionGrammarPtr& grammar_ptr :
        params->grammars) {
     config.grammars.push_back(*grammar_ptr);
   }
 
-  int session_id =
-      SpeechRecognitionManager::GetInstance()->CreateSession(config);
-  DCHECK_NE(session_id, SpeechRecognitionManager::kSessionIDInvalid);
-  session->SetSessionId(session_id);
-  mojo::MakeSelfOwnedReceiver(std::move(session),
-                              std::move(params->session_receiver));
+  if (SpeechRecognitionManager::GetInstance()->UseOnDeviceSpeechRecognition(
+          config) &&
+      params->audio_forwarder.is_valid()) {
+    // Use on-device speech recognition, bypassing the browser process. The
+    // speech recognition session will live in the speech recognition service
+    // process.
+    SpeechRecognitionManager::GetInstance()->CreateSession(
+        config, std::move(params->session_receiver), std::move(params->client),
+        std::make_optional<SpeechRecognitionAudioForwarderConfig>(
+            std::move(params->audio_forwarder), params->channel_count,
+            params->sample_rate));
+  } else {
+    // Create the speech recognition session in the browser if cloud-based
+    // speech recognition is used or if microphone audio input is used.
+    auto session =
+        std::make_unique<SpeechRecognitionSession>(std::move(params->client));
+    config.event_listener = session->AsWeakPtr();
 
-  SpeechRecognitionManager::GetInstance()->StartSession(session_id);
+    int session_id = SpeechRecognitionManager::GetInstance()->CreateSession(
+        config, mojo::NullReceiver(), mojo::NullRemote(),
+        params->audio_forwarder.is_valid()
+            ? std::make_optional<SpeechRecognitionAudioForwarderConfig>(
+                  std::move(params->audio_forwarder), params->channel_count,
+                  params->sample_rate)
+            : std::nullopt);
+    DCHECK_NE(session_id, SpeechRecognitionManager::kSessionIDInvalid);
+    session->SetSessionId(session_id);
+    mojo::MakeSelfOwnedReceiver(std::move(session),
+                                std::move(params->session_receiver));
+
+    SpeechRecognitionManager::GetInstance()->StartSession(session_id);
+  }
 }
 
 }  // namespace content

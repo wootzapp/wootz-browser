@@ -23,19 +23,18 @@
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/ui/android/omnibox/jni_headers/OmniboxPrerender_jni.h"
 
 using base::android::JavaParamRef;
 using predictors::AutocompleteActionPredictor;
 using predictors::AutocompleteActionPredictorFactory;
 
-OmniboxPrerender::OmniboxPrerender(JNIEnv* env, jobject obj)
-    : weak_java_omnibox_(env, obj) {
-}
+OmniboxPrerender::OmniboxPrerender(JNIEnv* env,
+                                   const jni_zero::JavaRef<jobject>& obj)
+    : weak_java_omnibox_(env, obj) {}
 
-OmniboxPrerender::~OmniboxPrerender() {
-}
+OmniboxPrerender::~OmniboxPrerender() = default;
 
 static jlong JNI_OmniboxPrerender_Init(JNIEnv* env,
                                        const JavaParamRef<jobject>& obj) {
@@ -124,8 +123,7 @@ void OmniboxPrerender::PrerenderMaybe(
     case AutocompleteActionPredictor::ACTION_NONE:
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -145,10 +143,8 @@ void OmniboxPrerender::DoPrerender(const AutocompleteMatch& match,
   // SearchPrefetchService is responsible for handling search
   // AutocompleteMatches and preloading search result pages when needed.
   DCHECK(!AutocompleteMatch::IsSearchType(match.type));
-  gfx::Rect container_bounds = web_contents->GetContainerBounds();
   predictors::AutocompleteActionPredictorFactory::GetForProfile(profile)
-      ->StartPrerendering(match.destination_url, *web_contents,
-                          container_bounds.size());
+      ->StartPrerendering(match.destination_url, *web_contents);
 }
 
 void OmniboxPrerender::DoPreconnect(const AutocompleteMatch& match,
@@ -157,7 +153,8 @@ void OmniboxPrerender::DoPreconnect(const AutocompleteMatch& match,
       predictors::LoadingPredictorFactory::GetForProfile(profile);
   if (loading_predictor) {
     loading_predictor->PrepareForPageLoad(
-        match.destination_url, predictors::HintOrigin::OMNIBOX,
+        /*initiator_origin=*/std::nullopt, match.destination_url,
+        predictors::HintOrigin::OMNIBOX,
         predictors::AutocompleteActionPredictor::IsPreconnectable(match));
   }
 }

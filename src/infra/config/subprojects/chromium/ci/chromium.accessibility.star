@@ -6,7 +6,7 @@
 load("//lib/branches.star", "branches")
 load("//lib/builder_config.star", "builder_config")
 load("//lib/builder_health_indicators.star", "health_spec")
-load("//lib/builders.star", "os", "sheriff_rotations", "siso")
+load("//lib/builders.star", "gardener_rotations", "os", "siso")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 load("//lib/gn_args.star", "gn_args")
@@ -21,6 +21,7 @@ ci.defaults.set(
     execution_timeout = ci.DEFAULT_EXECUTION_TIMEOUT,
     health_spec = health_spec.DEFAULT,
     notifies = ["cr-accessibility"],
+    reclient_enabled = False,
     service_account = ci.DEFAULT_SERVICE_ACCOUNT,
     shadow_service_account = ci.DEFAULT_SHADOW_SERVICE_ACCOUNT,
     siso_enabled = True,
@@ -56,10 +57,11 @@ ci.builder(
     gn_args = gn_args.config(
         configs = [
             "release_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia",
             "blink_symbol",
             "minimal_symbols",
+            "x64",
         ],
     ),
     targets = targets.bundle(
@@ -84,7 +86,7 @@ ci.builder(
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
             console_view = "sheriff.fuchsia",
-            category = "gardener|ci|x64",
+            category = "ci|x64",
             short_name = "a11y",
         ),
     ],
@@ -107,8 +109,10 @@ ci.builder(
     gn_args = gn_args.config(
         configs = [
             "release_builder_blink",
-            "reclient",
+            "remoteexec",
             "dcheck_always_on",
+            "linux",
+            "x64",
         ],
     ),
     targets = targets.bundle(
@@ -136,9 +140,19 @@ ci.builder(
                     "--flag-specific=force-renderer-accessibility",
                 ],
             ),
+            "chrome_wpt_tests": targets.mixin(
+                args = [
+                    "--flag-specific=force-renderer-accessibility",
+                ],
+            ),
+            "headless_shell_wpt_tests": targets.mixin(
+                args = [
+                    "--flag-specific=force-renderer-accessibility",
+                ],
+            ),
         },
     ),
-    sheriff_rotations = sheriff_rotations.CHROMIUM,
+    gardener_rotations = gardener_rotations.CHROMIUM,
     console_view_entry = consoles.console_view_entry(
         category = "rel",
         short_name = "x64",

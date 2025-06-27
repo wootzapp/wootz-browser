@@ -2,7 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/exo/keyboard.h"
+
+#include <algorithm>
 
 #include "ash/accelerators/accelerator_controller_impl.h"
 #include "ash/accelerators/accelerator_table.h"
@@ -19,7 +26,6 @@
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "chromeos/ui/base/app_types.h"
@@ -110,7 +116,6 @@ bool IsImeSupportedSurface(Surface* surface) {
     switch (app_type) {
       case chromeos::AppType::ARC_APP:
       case chromeos::AppType::CROSTINI_APP:
-      case chromeos::AppType::LACROS:
         return true;
       default:
         // Do nothing.
@@ -130,54 +135,6 @@ bool IsImeSupportedSurface(Surface* surface) {
     }
   }
   return false;
-}
-
-// Returns true if the surface can consume ash accelerators.
-bool CanConsumeAshAccelerators(Surface* surface) {
-  aura::Window* window = surface->window();
-  for (; window; window = window->parent()) {
-    const auto app_type = window->GetProperty(chromeos::kAppTypeKey);
-    // TOOD(hidehiko): get rid of this if check, after introducing capability,
-    // followed by ARC/Crostini migration.
-    if (app_type == chromeos::AppType::LACROS) {
-      return surface->is_keyboard_shortcuts_inhibited();
-    }
-  }
-  return true;
-}
-
-// Returns true if an accelerator is an ash accelerator which can be handled
-// before sending it to client and it is actually processed by ash-chrome.
-bool ProcessAshAcceleratorIfPossible(Surface* surface, ui::KeyEvent* event) {
-  // Process ash accelerators before sending it to client only when the client
-  // should not consume ash accelerators. (e.g. Lacros-chrome)
-  if (CanConsumeAshAccelerators(surface))
-    return false;
-
-  // If accelerators can be processed by browser, send it to the app.
-  static const base::NoDestructor<std::vector<ui::Accelerator>>
-      kAppHandlingAccelerators([] {
-        std::vector<ui::Accelerator> result;
-        for (size_t i = 0; i < ash::kAcceleratorDataLength; ++i) {
-          const auto& ash_entry = ash::kAcceleratorData[i];
-          if (base::Contains(base::span<const ash::AcceleratorAction>(
-                                 ash::kActionsInterceptableByBrowser,
-                                 ash::kActionsInterceptableByBrowserLength),
-                             ash_entry.action) ||
-              base::Contains(base::span<const ash::AcceleratorAction>(
-                                 ash::kActionsDuplicatedWithBrowser,
-                                 ash::kActionsDuplicatedWithBrowserLength),
-                             ash_entry.action)) {
-            result.emplace_back(ash_entry.keycode, ash_entry.modifiers);
-          }
-        }
-        return result;
-      }());
-  ui::Accelerator accelerator(*event);
-  if (base::Contains(*kAppHandlingAccelerators, accelerator))
-    return false;
-
-  return ash::AcceleratorController::Get()->Process(accelerator);
 }
 
 bool IsAutoRepeatEnabled(const ui::KeyEvent& event) {
@@ -300,8 +257,7 @@ void Keyboard::OnKeyEvent(ui::KeyEvent* event) {
 
   // Process reserved accelerators or ash accelerators which need to be handled
   // before sending it to client.
-  if (ProcessAcceleratorIfReserved(focus_, event) ||
-      ProcessAshAcceleratorIfPossible(focus_, event)) {
+  if (ProcessAcceleratorIfReserved(focus_, event)) {
     // Discard a key press event if the corresponding accelerator is handled.
     event->SetHandled();
     // The current focus might have been reset while processing accelerators.
@@ -340,7 +296,7 @@ void Keyboard::OnKeyEvent(ui::KeyEvent* event) {
   }
 
   switch (event->type()) {
-    case ui::ET_KEY_PRESSED: {
+    case ui::EventType::kKeyPressed: {
       auto it = pressed_keys_.find(physical_code);
       const bool should_handle =
           (it == pressed_keys_.end()) ||
@@ -388,7 +344,7 @@ void Keyboard::OnKeyEvent(ui::KeyEvent* event) {
           event->SetHandled();
       }
     } break;
-    case ui::ET_KEY_RELEASED: {
+    case ui::EventType::kKeyReleased: {
       // Process key release event if currently pressed.
       auto key_state_set_iter = pressed_keys_.find(physical_code);
       if (key_state_set_iter == pressed_keys_.end()) {
@@ -396,7 +352,7 @@ void Keyboard::OnKeyEvent(ui::KeyEvent* event) {
       }
 
       auto& key_state_set = key_state_set_iter->second;
-      auto key_state_iter = base::ranges::find(
+      auto key_state_iter = std::ranges::find(
           key_state_set, event->code(),
           [](const KeyState& key_state) { return key_state.code; });
 
@@ -441,8 +397,7 @@ void Keyboard::OnKeyEvent(ui::KeyEvent* event) {
       }
     } break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   if (pending_key_acks_.empty())
@@ -497,7 +452,7 @@ void Keyboard::OnKeyRepeatSettingsChanged(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// ash::ImeControllerImpl::Observer overrides:
+// ash::ImeController::Observer overrides:
 
 void Keyboard::OnCapsLockChanged(bool enabled) {}
 

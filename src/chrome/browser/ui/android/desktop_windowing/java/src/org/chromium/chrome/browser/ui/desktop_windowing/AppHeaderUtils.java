@@ -4,40 +4,41 @@
 
 package org.chromium.chrome.browser.ui.desktop_windowing;
 
+import android.app.Activity;
+
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher.ActivityState;
+import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 
 /** Utility class for the desktop windowing feature implementation. */
 // TODO (crbug/328055199): Rename this to DesktopWindowUtils.
+@NullMarked
 public class AppHeaderUtils {
     // These values are persisted to logs. Entries should not be renumbered and
     // numeric values should never be reused.
     @IntDef({
         DesktopWindowHeuristicResult.UNKNOWN,
         DesktopWindowHeuristicResult.IN_DESKTOP_WINDOW,
-        DesktopWindowHeuristicResult.NOT_IN_MULTIWINDOW_MODE,
-        DesktopWindowHeuristicResult.NAV_BAR_BOTTOM_INSETS_PRESENT,
-        DesktopWindowHeuristicResult.CAPTION_BAR_BOUNDING_RECTS_UNEXPECTED_NUMBER,
         DesktopWindowHeuristicResult.CAPTION_BAR_TOP_INSETS_ABSENT,
         DesktopWindowHeuristicResult.CAPTION_BAR_BOUNDING_RECT_INVALID_HEIGHT,
+        DesktopWindowHeuristicResult.WIDEST_UNOCCLUDED_RECT_EMPTY,
         DesktopWindowHeuristicResult.NUM_ENTRIES,
     })
     public @interface DesktopWindowHeuristicResult {
         int UNKNOWN = 0;
         int IN_DESKTOP_WINDOW = 1;
-        int NOT_IN_MULTIWINDOW_MODE = 2;
-        int NAV_BAR_BOTTOM_INSETS_PRESENT = 3;
-        int CAPTION_BAR_BOUNDING_RECTS_UNEXPECTED_NUMBER = 4;
-        int CAPTION_BAR_TOP_INSETS_ABSENT = 5;
-        int CAPTION_BAR_BOUNDING_RECT_INVALID_HEIGHT = 6;
+        int CAPTION_BAR_TOP_INSETS_ABSENT = 2;
+        int CAPTION_BAR_BOUNDING_RECT_INVALID_HEIGHT = 3;
+        int WIDEST_UNOCCLUDED_RECT_EMPTY = 4;
 
         // Be sure to also update enums.xml when updating these values.
-        int NUM_ENTRIES = 7;
+        int NUM_ENTRIES = 5;
     }
 
     // These values are persisted to logs. Entries should not be renumbered and
@@ -56,7 +57,27 @@ public class AppHeaderUtils {
         int NUM_ENTRIES = 3;
     }
 
-    private static Boolean sIsAppInDesktopWindowForTesting;
+    // These values are persisted to logs. Entries should not be renumbered and
+    // numeric values should never be reused.
+    @IntDef({
+        WindowingMode.UNKNOWN,
+        WindowingMode.FULLSCREEN,
+        WindowingMode.PICTURE_IN_PICTURE,
+        WindowingMode.DESKTOP_WINDOW,
+        WindowingMode.MULTI_WINDOW,
+    })
+    public @interface WindowingMode {
+        int UNKNOWN = 0;
+        int FULLSCREEN = 1;
+        int PICTURE_IN_PICTURE = 2;
+        int DESKTOP_WINDOW = 3;
+        int MULTI_WINDOW = 4;
+
+        // Be sure to also update enums.xml when updating these values.
+        int NUM_ENTRIES = 5;
+    }
+
+    private static @Nullable Boolean sIsAppInDesktopWindowForTesting;
 
     /**
      * Determines whether the currently starting activity is focused, based on the {@link
@@ -76,14 +97,14 @@ public class AppHeaderUtils {
     }
 
     /**
-     * @param desktopWindowStateProvider The {@link DesktopWindowStateProvider} instance.
+     * @param desktopWindowStateManager The {@link DesktopWindowStateManager} instance.
      * @return {@code true} if the current activity is in a desktop window, {@code false} otherwise.
      */
     public static boolean isAppInDesktopWindow(
-            @Nullable DesktopWindowStateProvider desktopWindowStateProvider) {
+            @Nullable DesktopWindowStateManager desktopWindowStateManager) {
         if (sIsAppInDesktopWindowForTesting != null) return sIsAppInDesktopWindowForTesting;
-        if (desktopWindowStateProvider == null) return false;
-        var appHeaderState = desktopWindowStateProvider.getAppHeaderState();
+        if (desktopWindowStateManager == null) return false;
+        var appHeaderState = desktopWindowStateManager.getAppHeaderState();
 
         return appHeaderState != null && appHeaderState.isInDesktopWindow();
     }
@@ -106,24 +127,52 @@ public class AppHeaderUtils {
     /**
      * Records an enumerated histogram using {@link DesktopWindowModeState}.
      *
-     * @param desktopWindowStateProvider The {@link DesktopWindowStateProvider} instance.
+     * @param desktopWindowStateManager The {@link DesktopWindowStateManager} instance.
      * @param histogramName The name of the histogram.
      */
     public static void recordDesktopWindowModeStateEnumHistogram(
-            @Nullable DesktopWindowStateProvider desktopWindowStateProvider, String histogramName) {
+            @Nullable DesktopWindowStateManager desktopWindowStateManager, String histogramName) {
         @DesktopWindowModeState int state;
-        // |desktopWindowStateProvider| will be null on a device that does not support desktop
+        // |desktopWindowStateManager| will be null on a device that does not support desktop
         // windowing.
-        if (desktopWindowStateProvider == null) {
+        if (desktopWindowStateManager == null) {
             state = DesktopWindowModeState.UNAVAILABLE;
         } else {
             state =
-                    isAppInDesktopWindow(desktopWindowStateProvider)
+                    isAppInDesktopWindow(desktopWindowStateManager)
                             ? DesktopWindowModeState.ACTIVE
                             : DesktopWindowModeState.INACTIVE;
         }
         RecordHistogram.recordEnumeratedHistogram(
                 histogramName, state, DesktopWindowModeState.NUM_ENTRIES);
+    }
+
+    /**
+     * Returns the {@link WindowingMode} in which the app is running.
+     *
+     * @param activity The {@link Activity} that is running in the window.
+     * @param isInDesktopWindow Whether the app is running in a desktop window.
+     * @param currentMode The current {@link WindowingMode}.
+     */
+    public static int getWindowingMode(
+            Activity activity, boolean isInDesktopWindow, int currentMode) {
+        @WindowingMode int newMode;
+        if (isInDesktopWindow) {
+            newMode = WindowingMode.DESKTOP_WINDOW;
+        } else if (activity.isInPictureInPictureMode()) {
+            newMode = WindowingMode.PICTURE_IN_PICTURE;
+        } else {
+            newMode =
+                    activity.isInMultiWindowMode()
+                            ? WindowingMode.MULTI_WINDOW
+                            : WindowingMode.FULLSCREEN;
+        }
+        if (newMode != currentMode) {
+            // Record histogram only when the windowing mode changes.
+            RecordHistogram.recordEnumeratedHistogram(
+                    "Android.MultiWindowMode.Configuration", newMode, WindowingMode.NUM_ENTRIES);
+        }
+        return newMode;
     }
 
     /**

@@ -6,6 +6,7 @@
 
 #include <string.h>
 
+#include "base/android/android_image_reader_compat.h"
 #include "base/android/scoped_hardware_buffer_fence_sync.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -49,7 +50,7 @@ std::unique_ptr<ui::ScopedMakeCurrent> MakeCurrent(
 }
 
 TextureOwner::Mode GetTextureOwnerMode() {
-  return features::IsAImageReaderEnabled()
+  return base::android::EnableAndroidImageReader()
              ? TextureOwner::Mode::kAImageReaderInsecure
              : TextureOwner::Mode::kSurfaceTextureInsecure;
 }
@@ -155,8 +156,7 @@ void StreamTexture::NotifyOverlayPromotion(bool promotion,
                                            const gfx::Rect& bounds) {}
 
 bool StreamTexture::RenderToOverlay() {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool StreamTexture::TextureOwnerBindsTextureOnUpdate() {
@@ -176,7 +176,7 @@ void StreamTexture::OnFrameAvailable() {
   if (rotated_visible_size_.IsEmpty())
     return;
 
-  texture_owner_->UpdateTexImage();
+  texture_owner_->UpdateTexImage(/*discard=*/false);
   has_pending_frame_ = false;
 
   gfx::Rect visible_rect;
@@ -234,14 +234,14 @@ gpu::Mailbox StreamTexture::CreateSharedImage(const gfx::Size& coded_size) {
   // need to ensure that it gets updated here.
 
   auto scoped_make_current = MakeCurrent(context_state_.get());
-  auto mailbox = gpu::Mailbox::GenerateForSharedImage();
+  auto mailbox = gpu::Mailbox::Generate();
 
   // TODO(vikassoni): Hardcoding colorspace to SRGB. Figure how if we have a
   // colorspace and wire it here.
   auto shared_image = AndroidVideoImageBacking::Create(
       mailbox, coded_size, gfx::ColorSpace::CreateSRGB(),
-      kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType, this, context_state_,
-      GetDrDcLock());
+      kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType,
+      /*debug_label=*/"StreamTexture", this, context_state_, GetDrDcLock());
   channel_->shared_image_stub()->factory()->RegisterBacking(
       std::move(shared_image));
 

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/formats/mp4/track_run_iterator.h"
 
 #include <algorithm>
@@ -287,14 +292,14 @@ bool TrackRunIterator::Init(const MovieFragment& moof) {
   for (size_t i = 0; i < moof.tracks.size(); i++) {
     const TrackFragment& traf = moof.tracks[i];
 
-    const Track* trak = NULL;
+    const Track* trak = nullptr;
     for (size_t t = 0; t < moov_->tracks.size(); t++) {
       if (moov_->tracks[t].header.track_id == traf.header.track_id)
         trak = &moov_->tracks[t];
     }
     RCHECK(trak);
 
-    const TrackExtends* trex = NULL;
+    const TrackExtends* trex = nullptr;
     for (size_t t = 0; t < moov_->extends.tracks.size(); t++) {
       if (moov_->extends.tracks[t].track_id == traf.header.track_id)
         trex = &moov_->extends.tracks[t];
@@ -426,7 +431,7 @@ bool TrackRunIterator::Init(const MovieFragment& moof) {
 
       // Avoid allocating insane sample counts for invalid media.
       size_t max_sample_count =
-          GetDemuxerMemoryLimit(Demuxer::DemuxerTypes::kChunkDemuxer) /
+          GetDemuxerMemoryLimit(DemuxerType::kChunkDemuxer) /
           sizeof(decltype(tri.samples)::value_type);
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION

@@ -44,7 +44,7 @@ void ExpectSwitchValue(const std::wstring& cmd_line,
 }
 }  // namespace
 
-// Tests that `HandleRunElevated` returns `UNABLE_TO_ELEVATE_METAINSTALLER` when
+// Tests that `HandleRunElevated` returns `UNEXPECTED_ELEVATION_LOOP` when
 // not elevated and called with `kCmdLineExpectElevated` argument.
 TEST(InstallerTest, HandleRunElevated) {
   if (::IsUserAnAdmin()) {
@@ -59,7 +59,7 @@ TEST(InstallerTest, HandleRunElevated) {
 
   updater::ProcessExitResult exit_result =
       updater::HandleRunElevated(command_line);
-  EXPECT_EQ(exit_result.exit_code, updater::UNABLE_TO_ELEVATE_METAINSTALLER);
+  EXPECT_EQ(exit_result.exit_code, updater::UNEXPECTED_ELEVATION_LOOP);
   EXPECT_EQ(exit_result.windows_error, 0U);
 }
 
@@ -185,7 +185,7 @@ TEST(BuildInstallerCommandLineArgumentsTest, LegacyCommandLine) {
   EXPECT_EQ(exit_result.exit_code, updater::SUCCESS_EXIT_CODE);
   const base::CommandLine command_line = base::CommandLine::FromString(
       base::StrCat({L"exe.exe ", cmd_line_args.get()}));
-  EXPECT_EQ(command_line.GetSwitchValueASCII(updater::kInstallSwitch),
+  EXPECT_EQ(command_line.GetSwitchValueUTF8(updater::kInstallSwitch),
             "appguid={8A69D345-D564-463C-AFF1-A69D9E530F96}&appname=Google%"
             "20Chrome&needsadmin=Prefers&lang=en");
 }

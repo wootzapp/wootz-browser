@@ -29,6 +29,7 @@ import org.chromium.android_webview.test.util.AwTestTouchUtils;
 import org.chromium.android_webview.test.util.CommonResources;
 import org.chromium.android_webview.test.util.GraphicsTestUtils;
 import org.chromium.android_webview.test.util.JavascriptEventObserver;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DoNotBatch;
@@ -91,9 +92,7 @@ public class FencedFrameTest extends AwParameterizedTest {
         return mWebServer.setResponse(mainPath, mainResponseStr, null);
     }
 
-    /**
-     * Test that a java object is mirrored in a fenced frame.
-     **/
+    /** Test that a java object is mirrored in a fenced frame. */
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
@@ -168,16 +167,14 @@ public class FencedFrameTest extends AwParameterizedTest {
         mActivityTestRule.loadUrlSync(
                 mAwContents, mContentsClient.getOnPageFinishedHelper(), mainUrl);
 
-        mActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAwContents.evaluateJavaScript("testObserver.setString('SET');", null);
                 });
         testObserver.waitForEvent();
     }
 
-    /**
-     * Test that a hit test in a fenced frame produces the correct results on the WebView API.
-     **/
+    /** Test that a hit test in a fenced frame produces the correct results on the WebView API. */
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})
@@ -219,9 +216,7 @@ public class FencedFrameTest extends AwParameterizedTest {
                 });
     }
 
-    /**
-     * Test that a fenced frame is rastered correctly.
-     **/
+    /** Test that a fenced frame is rastered correctly. */
     @Test
     @SmallTest
     @Feature({"AndroidWebView", "Android-JavaBridge"})

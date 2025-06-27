@@ -18,7 +18,7 @@ NavigationRequestInfo::NavigationRequestInfo(
     bool is_outermost_main_frame,
     bool is_main_frame,
     bool are_ancestors_secure,
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     bool report_raw_headers,
     bool upgrade_if_insecure,
     std::unique_ptr<network::PendingSharedURLLoaderFactory>
@@ -27,7 +27,7 @@ NavigationRequestInfo::NavigationRequestInfo(
     const base::UnguessableToken& devtools_frame_token,
     net::HttpRequestHeaders cors_exempt_headers,
     network::mojom::ClientSecurityStatePtr client_security_state,
-    const std::optional<std::vector<net::SourceStream::SourceType>>&
+    const std::optional<std::vector<net::SourceStreamType>>&
         devtools_accepted_stream_types,
     bool is_pdf,
     int initiator_process_id,
@@ -38,7 +38,8 @@ NavigationRequestInfo::NavigationRequestInfo(
     bool allow_cookies_from_browser,
     int64_t navigation_id,
     bool shared_storage_writable_eligible,
-    bool is_ad_tagged)
+    bool is_ad_tagged,
+    bool force_no_https_upgrade)
     : common_params(std::move(common_params)),
       begin_params(std::move(begin_params)),
       sandbox_flags(sandbox_flags),
@@ -65,7 +66,8 @@ NavigationRequestInfo::NavigationRequestInfo(
       allow_cookies_from_browser(allow_cookies_from_browser),
       navigation_id(navigation_id),
       shared_storage_writable_eligible(shared_storage_writable_eligible),
-      is_ad_tagged(is_ad_tagged) {}
+      is_ad_tagged(is_ad_tagged),
+      force_no_https_upgrade(force_no_https_upgrade) {}
 
 NavigationRequestInfo::~NavigationRequestInfo() {}
 

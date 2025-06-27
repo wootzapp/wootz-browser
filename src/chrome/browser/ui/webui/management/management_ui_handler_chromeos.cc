@@ -4,44 +4,45 @@
 
 #include "chrome/browser/ui/webui/management/management_ui_handler_chromeos.h"
 
+#include "ash/constants/ash_features.h"
 #include "base/check_is_test.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/browser_process.h"
-#include "chrome/browser/enterprise/browser_management/management_service_factory.h"
-#include "chrome/browser/enterprise/reporting/prefs.h"
-#include "chrome/browser/media/webrtc/capture_policy_utils.h"
-#include "chrome/browser/policy/networking/policy_cert_service.h"
-#include "chrome/browser/policy/networking/policy_cert_service_factory.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/management/management_ui_constants.h"
-#include "chrome/browser/ui/webui/webui_util.h"
-#include "chrome/common/pref_names.h"
-#include "components/policy/core/common/management/management_service.h"
-#include "components/strings/grit/components_strings.h"
-#include "ui/base/l10n/l10n_util.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chrome/browser/ash/crostini/crostini_features.h"
 #include "chrome/browser/ash/crostini/crostini_pref_names.h"
+#include "chrome/browser/ash/floating_sso/floating_sso_service.h"
+#include "chrome/browser/ash/floating_sso/floating_sso_service_factory.h"
+#include "chrome/browser/ash/floating_workspace/floating_workspace_util.h"
+#include "chrome/browser/ash/net/secure_dns_manager.h"
 #include "chrome/browser/ash/plugin_vm/plugin_vm_pref_names.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/ash/policy/core/device_cloud_policy_manager_ash.h"
 #include "chrome/browser/ash/policy/handlers/minimum_version_policy_handler.h"
 #include "chrome/browser/ash/policy/reporting/metrics_reporting/metric_reporting_prefs.h"
+#include "chrome/browser/ash/policy/skyvault/policy_utils.h"
 #include "chrome/browser/ash/policy/status_collector/device_status_collector.h"
 #include "chrome/browser/ash/policy/status_collector/status_collector.h"
 #include "chrome/browser/ash/policy/uploading/status_uploader.h"
 #include "chrome/browser/ash/policy/uploading/system_log_uploader.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part_ash.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_rules_manager.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_rules_manager_factory.h"
 #include "chrome/browser/chromeos/reporting/metric_reporting_prefs.h"
+#include "chrome/browser/enterprise/browser_management/management_service_factory.h"
+#include "chrome/browser/enterprise/reporting/prefs.h"
+#include "chrome/browser/media/webrtc/capture_policy_utils.h"
 #include "chrome/browser/net/stub_resolver_config_reader.h"
 #include "chrome/browser/net/system_network_context_manager.h"
+#include "chrome/browser/policy/networking/policy_cert_service.h"
+#include "chrome/browser/policy/networking/policy_cert_service_factory.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/managed_ui.h"
+#include "chrome/browser/ui/webui/management/management_ui_constants.h"
 #include "chrome/browser/ui/webui/management/management_ui_handler_chromeos.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/grit/branded_strings.h"
+#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/ash/components/network/proxy/proxy_config_handler.h"
 #include "chromeos/ash/components/network/proxy/ui_proxy_config_service.h"
@@ -49,18 +50,15 @@
 #include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "components/enterprise/browser/reporting/common_pref_names.h"
 #include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
+#include "components/policy/core/common/management/management_service.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
+#include "components/strings/grit/components_strings.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/storage_partition.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/chromeos/devicetype_utils.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "base/strings/escape.h"
-#include "chrome/browser/ui/managed_ui.h"
-#include "chromeos/lacros/lacros_service.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#include "ui/webui/webui_util.h"
 
 namespace {
 
@@ -88,9 +86,8 @@ enum class DeviceReportingType {
   kPeripherals,
   kLegacyTech,
   kWebsiteInfoAndActivity,
+  kFileEvents,
 };
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 
 const char kCustomerLogo[] = "customerLogo";
 
@@ -158,9 +155,10 @@ std::string ToJSDeviceReportingType(const DeviceReportingType& type) {
       return kReportingTypeLegacyTech;
     case DeviceReportingType::kWebsiteInfoAndActivity:
       return "website info and activity";
+    case DeviceReportingType::kFileEvents:
+      return "file events";
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown device reporting type";
-      return "device";
+      NOTREACHED() << "Unknown device reporting type";
   }
 }
 
@@ -338,6 +336,11 @@ void AddDeviceReportingInfo(base::Value::List* report_sources,
                               DeviceReportingType::kLoginLogout);
   }
 
+  if (report_xdr_events) {
+    AddDeviceReportingElement(report_sources, kManagementReportFileEvents,
+                              DeviceReportingType::kFileEvents);
+  }
+
   bool report_crd_sessions = false;
   ash::CrosSettings::Get()->GetBoolean(ash::kReportCRDSessions,
                                        &report_crd_sessions);
@@ -414,25 +417,41 @@ void AddStatusOverviewManagedDeviceAndAccount(
                     base::UTF8ToUTF16(account_manager))));
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+
+bool IsCloudDestination(policy::local_user_files::FileSaveDestination dest) {
+  return dest == policy::local_user_files::FileSaveDestination::kGoogleDrive ||
+         dest == policy::local_user_files::FileSaveDestination::kOneDrive;
+}
+
+bool IsActiveProfile(const Profile* profile) {
+  const auto* active_user = user_manager::UserManager::Get()->GetActiveUser();
+  if (!active_user) {
+    return false;
+  }
+  auto* active_browser_context =
+      ash::BrowserContextHelper::Get()->GetBrowserContextByUser(active_user);
+  if (!active_browser_context) {
+    return false;
+  }
+  return profile == Profile::FromBrowserContext(active_browser_context);
+}
+
+bool IsFloatingSsoEnabled(Profile* profile) {
+  if (!ash::features::IsFloatingSsoAllowed()) {
+    return false;
+  }
+  ash::floating_sso::FloatingSsoService* floating_sso_service =
+      ash::floating_sso::FloatingSsoServiceFactory::GetForProfile(profile);
+  if (!floating_sso_service) {
+    return false;
+  }
+  return floating_sso_service->IsFloatingSsoEnabled();
+}
 
 }  // namespace
 
 ManagementUIHandlerChromeOS::ManagementUIHandlerChromeOS(Profile* profile)
     : ManagementUIHandler(profile) {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  chromeos::LacrosService* service = chromeos::LacrosService::Get();
-  // Get device report sources.
-  if (service->IsAvailable<crosapi::mojom::DeviceSettingsService>() &&
-      service->GetInterfaceVersion<crosapi::mojom::DeviceSettingsService>() >=
-          static_cast<int>(crosapi::mojom::DeviceSettingsService::
-                               kGetDeviceReportSourcesMinVersion)) {
-    service->GetRemote<crosapi::mojom::DeviceSettingsService>()
-        ->GetDeviceReportSources(base::BindOnce(
-            &ManagementUIHandlerChromeOS::OnGotDeviceReportSources,
-            weak_factory_.GetWeakPtr()));
-  }
-#endif
   // profile is unset during unittest, in which case, we can initial device
   // managed state in ctor either. Hence skip the process.
   if (!profile) {
@@ -461,16 +480,17 @@ void ManagementUIHandlerChromeOS::RegisterMessages() {
       base::BindRepeating(
           &ManagementUIHandlerChromeOS::HandleGetPluginVmDataCollectionStatus,
           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "getFilesUploadToCloudInfo",
+      base::BindRepeating(
+          &ManagementUIHandlerChromeOS::HandleGetFilesUploadToCloudInfo,
+          base::Unretained(this)));
 
-  capture_policy::CheckGetAllScreensMediaAllowedForAnyOrigin(
-      Profile::FromWebUI(web_ui()),
-      base::BindOnce(
-          &ManagementUIHandlerChromeOS::
-              CheckGetAllScreensMediaAllowedForAnyOriginResultReceived,
-          weak_factory_.GetWeakPtr()));
+  capture_policy::CheckGetAllScreensMediaAllowedForAnyOrigin(base::BindOnce(
+      &ManagementUIHandlerChromeOS::
+          CheckGetAllScreensMediaAllowedForAnyOriginResultReceived,
+      weak_factory_.GetWeakPtr()));
 }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 
 // static
 base::Value::List ManagementUIHandlerChromeOS::GetDeviceReportingInfo(
@@ -560,10 +580,13 @@ void ManagementUIHandlerChromeOS::AddMonitoredNetworkPrivacyDisclosure(
   bool showMonitoredNetworkDisclosure = false;
 
   // Check for secure DNS templates with identifiers.
+  std::optional<std::string> doh_with_identifiers_servers_for_display;
+
+  doh_with_identifiers_servers_for_display =
+      GetSecureDnsManager()->GetDohWithIdentifiersDisplayServers();
+
   showMonitoredNetworkDisclosure =
-      SystemNetworkContextManager::GetStubResolverConfigReader()
-          ->GetDohWithIdentifiersDisplayServers()
-          .has_value();
+      doh_with_identifiers_servers_for_display.has_value();
   if (showMonitoredNetworkDisclosure) {
     response->Set("showMonitoredNetworkPrivacyDisclosure",
                   showMonitoredNetworkDisclosure);
@@ -616,6 +639,16 @@ void ManagementUIHandlerChromeOS::AddMonitoredNetworkPrivacyDisclosure(
                 showMonitoredNetworkDisclosure);
 }
 
+void ManagementUIHandlerChromeOS::AddDeskSyncNotice(
+    Profile* profile,
+    base::Value::Dict* response) {
+  const bool are_windows_synced =
+      IsActiveProfile(profile) &&
+      ash::floating_workspace_util::IsFloatingWorkspaceV2Enabled();
+  response->Set("showWindowsNoticeForDeskSync", are_windows_synced);
+  response->Set("showCookiesNoticeForDeskSync", IsFloatingSsoEnabled(profile));
+}
+
 void ManagementUIHandlerChromeOS::RegisterPrefChange(
     PrefChangeRegistrar& pref_registrar) {
   ManagementUIHandler::RegisterPrefChange(pref_registrar);
@@ -626,33 +659,17 @@ void ManagementUIHandlerChromeOS::RegisterPrefChange(
           base::Unretained(this)));
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
 base::Value::Dict ManagementUIHandlerChromeOS::GetContextualManagedData(
     Profile* profile) {
-  base::Value::Dict response;
-  std::string enterprise_manager;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  enterprise_manager = GetDeviceManager();
-#endif
+  std::string enterprise_manager = GetDeviceManager();
   if (enterprise_manager.empty()) {
     enterprise_manager = GetAccountManager(profile);
   }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+  base::Value::Dict response;
   AddUpdateRequiredEolInfo(&response);
   AddMonitoredNetworkPrivacyDisclosure(&response);
-#endif
+  AddDeskSyncNotice(profile, &response);
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  response.Set("pageSubtitle", chrome::GetManagementPageSubtitle(profile));
-  response.Set("browserManagementNotice",
-               l10n_util::GetStringFUTF16(
-                   managed() ? IDS_MANAGEMENT_BROWSER_NOTICE
-                             : IDS_MANAGEMENT_NOT_MANAGED_NOTICE,
-                   chrome::kManagedUiLearnMoreUrl,
-                   base::EscapeForHTML(l10n_util::GetStringUTF16(
-                       IDS_MANAGEMENT_LEARN_MORE_ACCCESSIBILITY_TEXT))));
-#endif
   if (enterprise_manager.empty()) {
     response.Set(
         "extensionReportingSubtitle",
@@ -663,7 +680,6 @@ base::Value::Dict ManagementUIHandlerChromeOS::GetContextualManagedData(
     response.Set(
         "managedWebsitesSubtitle",
         l10n_util::GetStringUTF16(IDS_MANAGEMENT_MANAGED_WEBSITES_EXPLANATION));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     const auto device_type = ui::GetChromeOSDeviceTypeResourceId();
     response.Set("pageSubtitle",
                  managed() ? l10n_util::GetStringFUTF16(
@@ -672,7 +688,6 @@ base::Value::Dict ManagementUIHandlerChromeOS::GetContextualManagedData(
                            : l10n_util::GetStringFUTF16(
                                  IDS_MANAGEMENT_NOT_MANAGED_SUBTITLE,
                                  l10n_util::GetStringUTF16(device_type)));
-#endif
   } else {
     response.Set(
         "extensionReportingSubtitle",
@@ -686,7 +701,6 @@ base::Value::Dict ManagementUIHandlerChromeOS::GetContextualManagedData(
                  l10n_util::GetStringFUTF16(
                      IDS_MANAGEMENT_MANAGED_WEBSITES_BY_EXPLANATION,
                      base::UTF8ToUTF16(enterprise_manager)));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     const auto device_type = ui::GetChromeOSDeviceTypeResourceId();
     response.Set("pageSubtitle",
                  managed() ? l10n_util::GetStringFUTF16(
@@ -696,17 +710,14 @@ base::Value::Dict ManagementUIHandlerChromeOS::GetContextualManagedData(
                            : l10n_util::GetStringFUTF16(
                                  IDS_MANAGEMENT_NOT_MANAGED_SUBTITLE,
                                  l10n_util::GetStringUTF16(device_type)));
-#endif
   }
   response.Set("managed", managed());
   GetManagementStatus(profile, &response);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   AsyncUpdateLogo();
   if (!fetched_image_.empty()) {
     response.Set(kCustomerLogo, base::Value(fetched_image_));
   }
-#endif
 
   return response;
 }
@@ -732,7 +743,6 @@ bool ManagementUIHandlerChromeOS::UpdateDeviceManagedState() {
   return is_updated;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 void ManagementUIHandlerChromeOS::AsyncUpdateLogo() {
   policy::BrowserPolicyConnectorAsh* connector =
       g_browser_process->platform_part()->browser_policy_connector_ash();
@@ -767,17 +777,6 @@ void ManagementUIHandlerChromeOS::NotifyPluginVmDataCollectionUpdated() {
           plugin_vm::prefs::kPluginVmDataCollectionAllowed)));
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-void ManagementUIHandlerChromeOS::OnGotDeviceReportSources(
-    base::Value::List report_sources,
-    bool plugin_vm_data_collection_enabled) {
-  report_sources_ = std::move(report_sources);
-  plugin_vm_data_collection_enabled_ = plugin_vm_data_collection_enabled;
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
 void ManagementUIHandlerChromeOS::GetManagementStatus(
     Profile* profile,
     base::Value::Dict* status) const {
@@ -789,7 +788,6 @@ void ManagementUIHandlerChromeOS::GetManagementStatus(
                                IDS_MANAGEMENT_DEVICE_NOT_MANAGED)));
     return;
   }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   std::string account_manager = GetAccountManager(profile);
   auto* primary_user = user_manager::UserManager::Get()->GetPrimaryUser();
   auto* primary_profile =
@@ -807,7 +805,6 @@ void ManagementUIHandlerChromeOS::GetManagementStatus(
   AddStatusOverviewManagedDeviceAndAccount(
       status, device_managed_, account_managed() || primary_user_managed,
       device_manager, account_manager);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 }
 
 void ManagementUIHandlerChromeOS::HandleGetLocalTrustRootsInfo(
@@ -819,36 +816,97 @@ void ManagementUIHandlerChromeOS::HandleGetLocalTrustRootsInfo(
   policy::PolicyCertService* policy_service =
       policy::PolicyCertServiceFactory::GetForProfile(
           Profile::FromWebUI(web_ui()));
-  if (policy_service && policy_service->has_policy_certificates()) {
+  if (policy_service && policy_service->IsObservingCertChanges() &&
+      policy_service->has_policy_certificates()) {
     trust_roots_configured = base::Value(true);
   }
 
   ResolveJavascriptCallback(args[0] /* callback_id */, trust_roots_configured);
 }
 
+std::u16string ManagementUIHandlerChromeOS::GetFilesUploadToCloudInfo(
+    Profile* profile) {
+  policy::local_user_files::FileSaveDestination download_destination =
+      policy::local_user_files::GetDownloadsDestination(profile);
+  policy::local_user_files::FileSaveDestination screenshot_destination =
+      policy::local_user_files::GetScreenCaptureDestination(profile);
+  int uploads_id = -1;
+  int destination_id = -1;
+  if (IsCloudDestination(download_destination) &&
+      IsCloudDestination(screenshot_destination)) {
+    uploads_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_DOWNLOADS_AND_SCREENSHOTS;
+    if (download_destination ==
+            policy::local_user_files::FileSaveDestination::kGoogleDrive &&
+        screenshot_destination ==
+            policy::local_user_files::FileSaveDestination::kGoogleDrive) {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_GOOGLE_DRIVE;
+    } else if (download_destination ==
+                   policy::local_user_files::FileSaveDestination::kOneDrive &&
+               screenshot_destination ==
+                   policy::local_user_files::FileSaveDestination::kOneDrive) {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_ONEDRIVE;
+    } else {
+      destination_id =
+          IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_GOOGLE_DRIVE_AND_ONEDRIVE;
+    }
+  } else if (IsCloudDestination(download_destination)) {
+    uploads_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_DOWNLOADS;
+    if (download_destination ==
+        policy::local_user_files::FileSaveDestination::kGoogleDrive) {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_GOOGLE_DRIVE;
+    } else {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_ONEDRIVE;
+    }
+  } else if (IsCloudDestination(screenshot_destination)) {
+    uploads_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_SCREENSHOTS;
+    if (screenshot_destination ==
+        policy::local_user_files::FileSaveDestination::kGoogleDrive) {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_GOOGLE_DRIVE;
+    } else {
+      destination_id = IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_ONEDRIVE;
+    }
+  }
+
+  if (uploads_id == -1) {
+    return std::u16string();
+  }
+
+  return l10n_util::GetStringFUTF16(
+      IDS_MANAGEMENT_FILES_CLOUD_UPLOAD_CONFIGURATION,
+      l10n_util::GetStringUTF16(uploads_id),
+      l10n_util::GetStringUTF16(destination_id));
+}
+
+const ash::SecureDnsManager* ManagementUIHandlerChromeOS::GetSecureDnsManager()
+    const {
+  return g_browser_process->platform_part()->secure_dns_manager();
+}
+
+void ManagementUIHandlerChromeOS::HandleGetFilesUploadToCloudInfo(
+    const base::Value::List& args) {
+  CHECK_EQ(1U, args.size());
+
+  AllowJavascript();
+
+  ResolveJavascriptCallback(
+      args[0] /* callback_id */,
+      base::Value(GetFilesUploadToCloudInfo(Profile::FromWebUI(web_ui()))));
+}
+
 void ManagementUIHandlerChromeOS::HandleGetDeviceReportingInfo(
     const base::Value::List& args) {
   AllowJavascript();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   base::Value::List report_sources = GetDeviceReportingInfo(
       GetDeviceCloudPolicyManager(), Profile::FromWebUI(web_ui()));
   ResolveJavascriptCallback(args[0] /* callback_id */, report_sources);
-#else
-  ResolveJavascriptCallback(args[0] /* callback_id */, report_sources_);
-#endif
 }
 
 void ManagementUIHandlerChromeOS::HandleGetPluginVmDataCollectionStatus(
     const base::Value::List& args) {
   CHECK_EQ(1U, args.size());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   base::Value plugin_vm_data_collection_enabled(
       Profile::FromWebUI(web_ui())->GetPrefs()->GetBoolean(
           plugin_vm::prefs::kPluginVmDataCollectionAllowed));
-#else
-  base::Value plugin_vm_data_collection_enabled(
-      plugin_vm_data_collection_enabled_);
-#endif
   AllowJavascript();
   ResolveJavascriptCallback(args[0] /* callback_id */,
                             plugin_vm_data_collection_enabled);

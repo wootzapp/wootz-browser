@@ -9,8 +9,8 @@
 #include <type_traits>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
 #include "partition_alloc/partition_alloc_base/immediate_crash.h"
 #include "partition_alloc/partition_alloc_base/thread_annotations.h"
 #include "partition_alloc/partition_alloc_base/threading/platform_thread.h"
@@ -24,7 +24,8 @@ class PA_LOCKABLE Lock {
  public:
   inline constexpr Lock();
   void Acquire() PA_EXCLUSIVE_LOCK_FUNCTION() {
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
     LiftThreadIsolationScope lift_thread_isolation_restrictions;
 #endif
@@ -50,59 +51,99 @@ class PA_LOCKABLE Lock {
       // Note that we don't rely on a DCHECK() in base::Lock(), as it would
       // itself allocate. Meaning that without this code, a reentrancy issue
       // hangs on Linux.
-      if (PA_UNLIKELY(owning_thread_ref_.load(std::memory_order_acquire) ==
-                      current_thread)) {
+      if (owning_thread_ref_.load(std::memory_order_acquire) == current_thread)
+          [[unlikely]] {
         // Trying to acquire lock while it's held by this thread: reentrancy
         // issue.
-        PA_IMMEDIATE_CRASH();
+        ReentrancyIssueDetected();
       }
       lock_.Acquire();
     }
     owning_thread_ref_.store(current_thread, std::memory_order_release);
 #else
     lock_.Acquire();
-#endif
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
+        // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
   }
 
   void Release() PA_UNLOCK_FUNCTION() {
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
     LiftThreadIsolationScope lift_thread_isolation_restrictions;
 #endif
     owning_thread_ref_.store(base::PlatformThreadRef(),
                              std::memory_order_release);
-#endif
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
+        // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
     lock_.Release();
   }
+
+  bool TryAcquire() PA_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
+    // Unlike `Acquire()`, `TryAcquire()` does not provide any reentrancy
+    // protection. Instead, it just fails and returns `false`.
+    // Hence this should not be used in (de)allocation code path.
+    if (!lock_.Try()) {
+      return false;
+    }
+
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
+#if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
+    LiftThreadIsolationScope lift_thread_isolation_restrictions;
+#endif
+
+    base::PlatformThreadRef current_thread = base::PlatformThread::CurrentRef();
+    owning_thread_ref_.store(current_thread, std::memory_order_release);
+#endif
+
+    return true;
+  }
+
   void AssertAcquired() const PA_ASSERT_EXCLUSIVE_LOCK() {
     lock_.AssertAcquired();
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
     LiftThreadIsolationScope lift_thread_isolation_restrictions;
 #endif
     PA_DCHECK(owning_thread_ref_.load(std ::memory_order_acquire) ==
               base::PlatformThread::CurrentRef());
-#endif
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
+        // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
   }
 
   void Reinit() PA_UNLOCK_FUNCTION() {
     lock_.AssertAcquired();
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
     owning_thread_ref_.store(base::PlatformThreadRef(),
                              std::memory_order_release);
-#endif
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
+        // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
     lock_.Reinit();
   }
 
+#if PA_BUILDFLAG(ENABLE_PARTITION_LOCK_PRIORITY_INHERITANCE)
+  bool HasWaitersForTesting() const { return lock_.HasWaitersForTesting(); }
+#endif
+
  private:
+  [[noreturn]] PA_NOINLINE PA_NOT_TAIL_CALLED void ReentrancyIssueDetected() {
+    PA_NO_CODE_FOLDING();
+    PA_IMMEDIATE_CRASH();
+  }
+
   SpinningMutex lock_;
 
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
+    PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
   // Should in theory be protected by |lock_|, but we need to read it to detect
   // recursive lock acquisition (and thus, the allocator becoming reentrant).
   std::atomic<base::PlatformThreadRef> owning_thread_ref_ =
       base::PlatformThreadRef();
-#endif
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON) ||
+        // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_REENTRANCY_CHECK)
 };
 
 class PA_SCOPED_LOCKABLE ScopedGuard {

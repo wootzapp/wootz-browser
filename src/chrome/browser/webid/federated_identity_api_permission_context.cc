@@ -49,8 +49,7 @@ FederatedIdentityApiPermissionContext::GetApiPermissionStatus(
     case CONTENT_SETTING_BLOCK:
       return PermissionStatus::BLOCKED_SETTINGS;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return PermissionStatus::BLOCKED_SETTINGS;
+      NOTREACHED();
   }
 
   if (permission_autoblocker_->IsEmbargoed(
@@ -64,8 +63,9 @@ FederatedIdentityApiPermissionContext::GetApiPermissionStatus(
 void FederatedIdentityApiPermissionContext::RecordDismissAndEmbargo(
     const url::Origin& relying_party_embedder) {
   const GURL rp_embedder_url = relying_party_embedder.GetURL();
-  // If content setting is allowed for `rp_embedder_url`, reset it.
-  // See crbug.com/1340127 for why the resetting is not conditional on the
+  // If content setting is allowed for `rp_embedder_url` but is disabled
+  // globally, reset it first to make sure the toggle in PageInfo is correct.
+  // See crbug.com/40230194 for why the resetting is not conditional on the
   // default content setting state.
   const ContentSetting setting = host_content_settings_map_->GetContentSetting(
       rp_embedder_url, rp_embedder_url,
@@ -77,7 +77,7 @@ void FederatedIdentityApiPermissionContext::RecordDismissAndEmbargo(
   }
   permission_autoblocker_->RecordDismissAndEmbargo(
       rp_embedder_url, ContentSettingsType::FEDERATED_IDENTITY_API,
-      false /* dismissed_prompt_was_quiet */);
+      /*dismissed_prompt_was_quiet=*/false);
 }
 
 void FederatedIdentityApiPermissionContext::RemoveEmbargoAndResetCounts(
@@ -85,6 +85,26 @@ void FederatedIdentityApiPermissionContext::RemoveEmbargoAndResetCounts(
   permission_autoblocker_->RemoveEmbargoAndResetCounts(
       relying_party_embedder.GetURL(),
       ContentSettingsType::FEDERATED_IDENTITY_API);
+}
+
+void FederatedIdentityApiPermissionContext::RecordIgnoreAndEmbargo(
+    const url::Origin& relying_party_embedder) {
+  const GURL rp_embedder_url = relying_party_embedder.GetURL();
+  // If content setting is allowed for `rp_embedder_url` but is disabled
+  // globally, reset it first to make sure the toggle in PageInfo is correct.
+  // See crbug.com/40230194 for why the resetting is not conditional on the
+  // default content setting state.
+  const ContentSetting setting = host_content_settings_map_->GetContentSetting(
+      rp_embedder_url, rp_embedder_url,
+      ContentSettingsType::FEDERATED_IDENTITY_API);
+  if (setting == CONTENT_SETTING_ALLOW) {
+    host_content_settings_map_->SetContentSettingDefaultScope(
+        rp_embedder_url, rp_embedder_url,
+        ContentSettingsType::FEDERATED_IDENTITY_API, CONTENT_SETTING_DEFAULT);
+  }
+  permission_autoblocker_->RecordIgnoreAndEmbargo(
+      rp_embedder_url, ContentSettingsType::FEDERATED_IDENTITY_API,
+      /*ignored_prompt_was_quiet=*/false);
 }
 
 bool FederatedIdentityApiPermissionContext::HasThirdPartyCookiesAccess(
@@ -97,4 +117,9 @@ bool FederatedIdentityApiPermissionContext::HasThirdPartyCookiesAccess(
       net::SiteForCookies::FromOrigin(relying_party_embedder),
       /*top_frame_origin=*/relying_party_embedder,
       host.GetCookieSettingOverrides());
+}
+
+bool FederatedIdentityApiPermissionContext::
+    AreThirdPartyCookiesEnabledInSettings() const {
+  return !cookie_settings_->ShouldBlockThirdPartyCookies();
 }

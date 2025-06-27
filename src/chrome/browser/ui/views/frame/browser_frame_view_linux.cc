@@ -8,6 +8,7 @@
 #include "chrome/browser/ui/views/frame/browser_frame_view_paint_utils_linux.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/desktop_browser_frame_aura_linux.h"
+#include "ui/base/hit_test.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/shadow_value.h"
@@ -15,6 +16,15 @@
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/views/layout/layout_provider.h"
 #include "ui/views/window/window_button_order_provider.h"
+
+namespace {
+
+// The resize border at the top of the caption area. Only used when frame
+// shadows are disabled. The value is chosen to match the left, right, and
+// bottom resize borders.
+constexpr int kResizeTopBorderThickness = 4;
+
+}  // namespace
 
 BrowserFrameViewLinux::BrowserFrameViewLinux(
     BrowserFrame* frame,
@@ -30,8 +40,8 @@ BrowserFrameViewLinux::BrowserFrameViewLinux(
 
 BrowserFrameViewLinux::~BrowserFrameViewLinux() = default;
 
-gfx::Insets BrowserFrameViewLinux::MirroredFrameBorderInsets() const {
-  return layout_->MirroredFrameBorderInsets();
+gfx::Insets BrowserFrameViewLinux::RestoredMirroredFrameBorderInsets() const {
+  return layout_->RestoredMirroredFrameBorderInsets();
 }
 
 gfx::Insets BrowserFrameViewLinux::GetInputInsets() const {
@@ -41,7 +51,7 @@ gfx::Insets BrowserFrameViewLinux::GetInputInsets() const {
 SkRRect BrowserFrameViewLinux::GetRestoredClipRegion() const {
   gfx::RectF bounds_dip(GetLocalBounds());
   if (ShouldDrawRestoredFrameShadow()) {
-    gfx::InsetsF border(layout_->MirroredFrameBorderInsets());
+    gfx::InsetsF border(layout_->RestoredMirroredFrameBorderInsets());
     bounds_dip.Inset(border);
   }
   float radius_dip = GetRestoredCornerRadiusDip();
@@ -70,7 +80,7 @@ void BrowserFrameViewLinux::PaintRestoredFrameBorder(
   PaintRestoredFrameBorderLinux(
       *canvas, *this, frame_background(), GetRestoredClipRegion(),
       ShouldDrawRestoredFrameShadow(), ShouldPaintAsActive(),
-      layout_->MirroredFrameBorderInsets(), shadow_values, tiled);
+      layout_->RestoredMirroredFrameBorderInsets(), shadow_values, tiled);
 }
 
 void BrowserFrameViewLinux::GetWindowMask(const gfx::Size& size,
@@ -101,6 +111,17 @@ void BrowserFrameViewLinux::OnWindowButtonOrderingChange() {
     root_view->DeprecatedLayoutImmediately();
     root_view->SchedulePaint();
   }
+}
+
+int BrowserFrameViewLinux::NonClientHitTest(const gfx::Point& point) {
+  int frame_component = OpaqueBrowserFrameView::NonClientHitTest(point);
+  // Allow resizing at the top of the caption area. This is only done when
+  // shadows are not drawn, since the resize area is on the shadows otherwise.
+  if (frame_component == HTCAPTION && !ShouldDrawRestoredFrameShadow() &&
+      !IsFrameCondensed() && point.y() < kResizeTopBorderThickness) {
+    return HTTOP;
+  }
+  return frame_component;
 }
 
 float BrowserFrameViewLinux::GetRestoredCornerRadiusDip() const {

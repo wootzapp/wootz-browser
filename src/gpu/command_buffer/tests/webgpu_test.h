@@ -6,6 +6,7 @@
 #define GPU_COMMAND_BUFFER_TESTS_WEBGPU_TEST_H_
 
 #include <dawn/webgpu_cpp.h>
+#include <dawn/webgpu_cpp_print.h>
 
 #include <memory>
 
@@ -45,7 +46,7 @@ class WebGPUTest : public testing::Test {
     SharedMemoryLimits shared_memory_limits =
         SharedMemoryLimits::ForWebGPUContext();
     bool force_fallback_adapter = false;
-    bool compatibility_mode = false;
+    wgpu::FeatureLevel feature_level = wgpu::FeatureLevel::Core;
     bool enable_unsafe_webgpu = false;
     bool use_skia_graphite = false;
 
@@ -75,13 +76,20 @@ class WebGPUTest : public testing::Test {
   void WaitForCompletion(wgpu::Device device);
   void PollUntilIdle();
 
-  wgpu::Device GetNewDevice();
+  wgpu::Device GetNewDevice(
+      std::vector<wgpu::FeatureName> requiredFeatures = {});
 
   viz::TestGpuServiceHolder* GetGpuServiceHolder() {
     return gpu_service_holder_.get();
   }
 
-  static std::map<std::pair<WGPUDevice, WGPUErrorType>, /* matched */ bool>
+  bool IsUsingFallbackAdapter() {
+    wgpu::AdapterInfo adapter_info = {};
+    adapter_.GetInfo(&adapter_info);
+    return adapter_info.adapterType == wgpu::AdapterType::CPU;
+  }
+
+  static std::map<std::pair<WGPUDevice, wgpu::ErrorType>, /* matched */ bool>
       s_expected_errors;
 
   wgpu::Instance instance_ = nullptr;

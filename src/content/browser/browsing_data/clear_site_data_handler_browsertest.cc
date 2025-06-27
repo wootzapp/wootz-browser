@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -53,6 +54,7 @@
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
+#include "services/network/public/cpp/features.h"
 #include "storage/browser/quota/quota_settings.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/common/features.h"
@@ -94,22 +96,20 @@ enum class SetStorageKey { kYes, kNo };
 // ClearSiteData.
 class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
  public:
-  // TODO(crbug.com/328043119): Remove code associated with
-  // kAncestorChainBitEnabledInPartitionedCookies after it's enabled by default.
-  TestBrowsingDataRemoverDelegate() {
-    feature_list_.InitAndEnableFeature(
-        net::features::kAncestorChainBitEnabledInPartitionedCookies);
-  }
+  TestBrowsingDataRemoverDelegate() = default;
   // Sets a test expectation that a Clear-Site-Data header call from |origin|
   // (under |top_level_site|) instructing to delete |cookies|, |storage|, and
   // |cache|, will schedule the corresponding BrowsingDataRemover deletion
   // tasks. If |set_storage_key|=kYes (the default) then a storage key will be
   // set on the filter builder.
   //
-  // `cookie_partition_key_third_party` is true when cookie partition key is
-  // expected to be third party due to the expected ancestor chain bit value
-  // indicating cross-site even if the `top_level_site` and origin are
-  // same-site.
+  // When `override_partition_key_cross_site` is true, it indicates that the
+  // expected value of the ancestor chain bit does not align with boolean value
+  // that comes from comparing the origin and the top_level_site and the value
+  // should indicate cross-site. This can occur on redirects as well as A->B->A
+  // cases where the top_level_site is the same as the origin but are cross-site
+  // because of the B in the chain.
+
   void ExpectClearSiteDataCall(
       const StoragePartitionConfig& storage_partition_config,
       const url::Origin& origin,
@@ -117,27 +117,29 @@ class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
       bool cookies,
       bool storage,
       bool cache,
-      bool cookie_partition_key_third_party = false,
+      bool override_partition_key_cross_site = false,
       SetStorageKey set_storage_key = SetStorageKey::kYes) {
     const uint64_t kOriginTypeMask =
         BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
         BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB;
+    bool partition_key_cross_site =
+        override_partition_key_cross_site ||
+        net::SchemefulSite(origin) != top_level_site;
 
     if (cookies) {
       uint64_t data_type_mask =
           BrowsingDataRemover::DATA_TYPE_COOKIES |
-          BrowsingDataRemover::DATA_TYPE_AVOID_CLOSING_CONNECTIONS;
+          BrowsingDataRemover::DATA_TYPE_AVOID_CLOSING_CONNECTIONS |
+          BrowsingDataRemover::DATA_TYPE_DEVICE_BOUND_SESSIONS;
       net::CookiePartitionKey::AncestorChainBit ancestor_chain_bit =
-          cookie_partition_key_third_party ||
-                  (net::SchemefulSite(origin) != top_level_site)
-              ? net::CookiePartitionKey::AncestorChainBit::kCrossSite
-              : net::CookiePartitionKey::AncestorChainBit::kSameSite;
+          net::CookiePartitionKey::BoolToAncestorChainBit(
+              partition_key_cross_site);
       BrowsingDataFilterBuilderImpl filter_builder(
           BrowsingDataFilterBuilder::Mode::kDelete);
       filter_builder.AddRegisterableDomain(origin.host());
       filter_builder.SetStoragePartitionConfig(storage_partition_config);
       filter_builder.SetCookiePartitionKeyCollection(
-          net::CookiePartitionKeyCollection::FromOptional(
+          net::CookiePartitionKeyCollection(
               net::CookiePartitionKey::FromStorageKeyComponents(
                   top_level_site, ancestor_chain_bit, /*nonce=*/std::nullopt)));
 
@@ -147,23 +149,25 @@ class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
     if (storage || cache) {
       uint64_t data_type_mask =
           (storage ? BrowsingDataRemover::DATA_TYPE_DOM_STORAGE |
-                         BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX
+                         BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX |
+                         BrowsingDataRemover::DATA_TYPE_DEVICE_BOUND_SESSIONS
                    : 0) |
           (cache ? BrowsingDataRemover::DATA_TYPE_CACHE : 0);
       data_type_mask &=
           ~BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX_INTERNAL;
+      data_type_mask &=
+          ~BrowsingDataRemover::DATA_TYPE_INTEREST_GROUPS_USER_CLEAR;
 
       BrowsingDataFilterBuilderImpl filter_builder(
           BrowsingDataFilterBuilder::Mode::kDelete);
       filter_builder.AddOrigin(origin);
       filter_builder.SetStoragePartitionConfig(storage_partition_config);
       if (set_storage_key == SetStorageKey::kYes) {
-        blink::mojom::AncestorChainBit ancestor_chain_bit =
-            (net::SchemefulSite(origin) == top_level_site
-                 ? blink::mojom::AncestorChainBit::kSameSite
-                 : blink::mojom::AncestorChainBit::kCrossSite);
         filter_builder.SetStorageKey(blink::StorageKey::Create(
-            origin, top_level_site, ancestor_chain_bit));
+            origin, top_level_site,
+            partition_key_cross_site
+                ? blink::mojom::AncestorChainBit::kCrossSite
+                : blink::mojom::AncestorChainBit::kSameSite));
       }
 
       ExpectCall(base::Time(), base::Time::Max(), data_type_mask,
@@ -175,14 +179,16 @@ class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
   // |origin|'s site is used as |top_level_site| if omitted. This is useful for
   // most tests that use |kClearCookiesHeader|.
   //
-  // `cookie_partition_key_third_party` is true when cookie partition key is
-  // expected to be third party due to the expected ancestor chain bit value
-  // indicating cross-site even if the `top_level_site` and origin are
-  // same-site.
+  // When `override_partition_key_cross_site` is true, it indicates that the
+  // expected value of the ancestor chain bit does not align with boolean value
+  // that comes from comparing the origin and the top_level_site and the value
+  // should indicate cross-site. This can occur on redirects as well as A->B->A
+  // cases where the top_level_site is the same as the origin but are cross-site
+  // because of the B in the chain.
   void ExpectClearSiteDataCookiesCall(
       const StoragePartitionConfig& storage_partition_config,
       const url::Origin& origin,
-      bool cookie_partition_key_third_party = false,
+      bool override_partition_key_cross_site = false,
       base::optional_ref<const net::SchemefulSite> top_level_site =
           base::optional_ref<const net::SchemefulSite>()) {
     ExpectClearSiteDataCall(storage_partition_config, origin,
@@ -191,11 +197,8 @@ class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
                                 : net::SchemefulSite(origin),
                             /*cookies=*/true,
                             /*storage=*/false,
-                            /*cache=*/false, cookie_partition_key_third_party);
+                            /*cache=*/false, override_partition_key_cross_site);
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 }  // namespace
@@ -203,7 +206,6 @@ class TestBrowsingDataRemoverDelegate : public MockBrowsingDataRemoverDelegate {
 class ClearSiteDataHandlerBrowserTest : public ContentBrowserTest {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    ContentBrowserTest::SetUpCommandLine(command_line);
     browsing_data_browsertest_utils::SetIgnoreCertificateErrors(command_line);
   }
 
@@ -431,7 +433,7 @@ class ClearSiteDataHandlerBrowserTest : public ContentBrowserTest {
 #endif
 IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
                        MAYBE_RedirectNavigation) {
-  GURL page_urls[3] = {
+  std::array<GURL, 3> page_urls = {
       https_server()->GetURL("origin1.com", "/"),
       https_server()->GetURL("origin2.com", "/foo/bar"),
       https_server()->GetURL("origin3.com", "/index.html"),
@@ -440,7 +442,7 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
   // Iterate through the configurations. URLs whose index is matched by the mask
   // will send the header, the others won't.
   for (int mask = 0; mask < (1 << 3); ++mask) {
-    GURL urls[3];
+    std::array<GURL, 3> urls;
 
     // Set up the expectations.
     for (int i = 0; i < 3; ++i) {
@@ -451,7 +453,7 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
       if (mask & (1 << i))
         delegate()->ExpectClearSiteDataCookiesCall(
             storage_partition_config(), url::Origin::Create(urls[i]),
-            /*cookie_partition_key_third_party=*/false);
+            /*override_partition_key_cross_site=*/false);
     }
 
     // Set up redirects between urls 0 --> 1 --> 2.
@@ -481,7 +483,7 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
 #endif
 IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
                        MAYBE_RedirectResourceLoad) {
-  GURL resource_urls[3] = {
+  std::array<GURL, 3> resource_urls = {
       https_server()->GetURL("origin1.com", "/redirect-start"),
       https_server()->GetURL("origin2.com", "/redirect-middle"),
       https_server()->GetURL("origin3.com", "/redirect-end"),
@@ -490,7 +492,7 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
   // Iterate through the configurations. URLs whose index is matched by the mask
   // will send the header, the others won't.
   for (int mask = 0; mask < (1 << 3); ++mask) {
-    GURL urls[3];
+    std::array<GURL, 3> urls;
 
     // Set up the expectations.
     GURL page_with_image = https_server()->GetURL("origin4.com", "/index.html");
@@ -502,7 +504,7 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
       if (mask & (1 << i))
         delegate()->ExpectClearSiteDataCookiesCall(
             storage_partition_config(), url::Origin::Create(urls[i]),
-            /*cookie_partition_key_third_party=*/true,
+            /*override_partition_key_cross_site=*/true,
             net::SchemefulSite(page_with_image));
     }
 
@@ -655,16 +657,16 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest, ServiceWorker) {
   // i.e. that it isn't always 1 as in the case of |origin1| and |origin2|.
   delegate()->ExpectClearSiteDataCookiesCall(
       storage_partition_config(), url::Origin::Create(origin1),
-      /*cookie_partition_key_third_party=*/false, net::SchemefulSite(url));
+      /*override_partition_key_cross_site=*/false, net::SchemefulSite(url));
   delegate()->ExpectClearSiteDataCookiesCall(
       storage_partition_config(), url::Origin::Create(origin4),
-      /*cookie_partition_key_third_party=*/false, net::SchemefulSite(url));
+      /*override_partition_key_cross_site=*/true, net::SchemefulSite(url));
   delegate()->ExpectClearSiteDataCookiesCall(
       storage_partition_config(), url::Origin::Create(origin2),
-      /*cookie_partition_key_third_party=*/true, net::SchemefulSite(url));
+      /*override_partition_key_cross_site=*/true, net::SchemefulSite(url));
   delegate()->ExpectClearSiteDataCookiesCall(
       storage_partition_config(), url::Origin::Create(origin4),
-      /*cookie_partition_key_third_party=*/false, net::SchemefulSite(url));
+      /*override_partition_key_cross_site=*/true, net::SchemefulSite(url));
 
   url = https_server()->GetURL("origin1.com", "/anything-in-workers-scope");
   AddQuery(&url, "origin1", origin1.spec());
@@ -699,15 +701,16 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest, MAYBE_Credentials) {
     bool same_origin;
     std::string credentials;
     bool should_run;
+    bool override_partition_key_cross_site;
   } kTestCases[] = {
-      {true, "", true},
-      {true, "omit", false},
-      {true, "same-origin", true},
-      {true, "include", true},
-      {false, "", false},
-      {false, "omit", false},
-      {false, "same-origin", false},
-      {false, "include", true},
+      {true, "", true, false},
+      {true, "omit", false, false},
+      {true, "same-origin", true, false},
+      {true, "include", true, false},
+      {false, "", false, false},
+      {false, "omit", false, false},
+      {false, "same-origin", false, false},
+      {false, "include", true, true},
   };
 
   for (const TestCase& test_case : kTestCases) {
@@ -736,7 +739,9 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest, MAYBE_Credentials) {
     if (test_case.should_run)
       delegate()->ExpectClearSiteDataCookiesCall(
           storage_partition_config(), url::Origin::Create(resource),
-          /*cookie_partition_key_third_party=*/false, net::SchemefulSite(page));
+          /*override_partition_key_cross_site=*/
+          test_case.override_partition_key_cross_site,
+          net::SchemefulSite(page));
 
     EXPECT_TRUE(NavigateToURL(shell(), page));
     WaitForTitle(shell(), "done");
@@ -747,10 +752,10 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest, MAYBE_Credentials) {
 // Tests that the credentials flag is correctly taken into account when it
 // interpretation changes after redirect.
 IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest, CredentialsOnRedirect) {
-  GURL urls[2] = {
+  auto urls = std::to_array<GURL, 2>({
       https_server()->GetURL("origin1.com", "/image.png"),
       https_server()->GetURL("origin2.com", "/image.png"),
-  };
+  });
 
   AddQuery(&urls[0], "header", kClearCookiesHeader);
   AddQuery(&urls[1], "header", kClearCookiesHeader);
@@ -855,9 +860,10 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
   // When third-party cookie blocking is disabled, both cookies should be
   // cleared.
   AddCookie(https_server()->GetURL("origin1.com", "/"));
-  AddCookie(
-      https_server()->GetURL("origin1.com", "/"),
-      net::CookiePartitionKey::FromURLForTesting(GURL("https://origin2.com")));
+  AddCookie(https_server()->GetURL("origin1.com", "/"),
+            net::CookiePartitionKey::FromURLForTesting(
+                GURL("https://origin2.com"),
+                net::CookiePartitionKey::AncestorChainBit::kCrossSite));
 
   GURL url = https_server()->GetURL("origin2.com", "/");
   EXPECT_TRUE(NavigateToURL(shell(), url));
@@ -888,9 +894,10 @@ IN_PROC_BROWSER_TEST_F(ClearSiteDataHandlerBrowserTest,
   AddCookie(https_server()->GetURL("origin1.com", "/"));
   // Partitioned cookie set in the partition we are clearing, should still
   // be removed.
-  AddCookie(
-      https_server()->GetURL("origin1.com", "/"),
-      net::CookiePartitionKey::FromURLForTesting(GURL("https://origin2.com")));
+  AddCookie(https_server()->GetURL("origin1.com", "/"),
+            net::CookiePartitionKey::FromURLForTesting(
+                GURL("https://origin2.com"),
+                net::CookiePartitionKey::AncestorChainBit::kCrossSite));
 
   EXPECT_EQ(true, EvalJs(shell()->web_contents(), script));
 
@@ -1058,7 +1065,7 @@ class ClearSiteDataHandlerStorageBucketsBrowserTest
     : public ClearSiteDataHandlerBrowserTest,
       public testing::WithParamInterface<TestScenario> {
  public:
-  explicit ClearSiteDataHandlerStorageBucketsBrowserTest() {
+  ClearSiteDataHandlerStorageBucketsBrowserTest() {
     enum TestScenario test_scenario = GetParam();
     std::vector<base::test::FeatureRef> activated_features = {};
 
@@ -1141,7 +1148,7 @@ class ClearSiteDataHandlerSharedStorageBrowserTest
     : public ClearSiteDataHandlerBrowserTest {
  public:
   ClearSiteDataHandlerSharedStorageBrowserTest() {
-    feature_list_.InitAndEnableFeature(blink::features::kSharedStorageAPI);
+    feature_list_.InitAndEnableFeature(network::features::kSharedStorageAPI);
   }
 
  private:

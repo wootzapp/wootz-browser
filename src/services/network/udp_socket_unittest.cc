@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "services/network/udp_socket.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
 #include <limits>
 #include <utility>
-
-#include "services/network/udp_socket.h"
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
@@ -31,6 +36,10 @@
 #include "services/network/test/udp_socket_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+#if BUILDFLAG(IS_MAC)
+#include "base/mac/mac_util.h"
+#endif  // BUILDFLAG(IS_MAC)
+
 namespace network {
 
 namespace {
@@ -49,14 +58,12 @@ class SocketWrapperTestImpl : public UDPSocket::SocketWrapper {
   int Connect(const net::IPEndPoint& remote_addr,
               mojom::UDPSocketOptionsPtr options,
               net::IPEndPoint* local_addr_out) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
+    NOTREACHED();
   }
   int Bind(const net::IPEndPoint& local_addr,
            mojom::UDPSocketOptionsPtr options,
            net::IPEndPoint* local_addr_out) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
+    NOTREACHED();
   }
   int SendTo(
       net::IOBuffer* buf,
@@ -64,43 +71,25 @@ class SocketWrapperTestImpl : public UDPSocket::SocketWrapper {
       const net::IPEndPoint& dest_addr,
       net::CompletionOnceCallback callback,
       const net::NetworkTrafficAnnotationTag& traffic_annotation) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
+    NOTREACHED();
   }
-  int SetBroadcast(bool broadcast) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
-  }
-  int SetSendBufferSize(int send_buffer_size) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
-  }
-  int SetReceiveBufferSize(int receive_buffer_size) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
-  }
-  int JoinGroup(const net::IPAddress& group_address) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
-  }
-  int LeaveGroup(const net::IPAddress& group_address) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
-  }
+  int SetBroadcast(bool broadcast) override { NOTREACHED(); }
+  int SetSendBufferSize(int send_buffer_size) override { NOTREACHED(); }
+  int SetReceiveBufferSize(int receive_buffer_size) override { NOTREACHED(); }
+  int JoinGroup(const net::IPAddress& group_address) override { NOTREACHED(); }
+  int LeaveGroup(const net::IPAddress& group_address) override { NOTREACHED(); }
   int Write(
       net::IOBuffer* buf,
       int buf_len,
       net::CompletionOnceCallback callback,
       const net::NetworkTrafficAnnotationTag& traffic_annotation) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
+    NOTREACHED();
   }
   int RecvFrom(net::IOBuffer* buf,
                int buf_len,
                net::IPEndPoint* address,
                net::CompletionOnceCallback callback) override {
-    NOTREACHED_IN_MIGRATION();
-    return net::ERR_NOT_IMPLEMENTED;
+    NOTREACHED();
   }
 };
 
@@ -684,6 +673,13 @@ TEST_F(UDPSocketTest, TestReadZeroByte) {
 #define MAYBE_JoinMulticastGroup JoinMulticastGroup
 #endif  // BUILDFLAG(IS_ANDROID)
 TEST_F(UDPSocketTest, MAYBE_JoinMulticastGroup) {
+#if BUILDFLAG(IS_MAC)
+  // See https://crbug.com/354933441
+  if (base::mac::MacOSMajorVersion() == 15) {
+    GTEST_SKIP() << "Disabled on macOS Sequoia.";
+  }
+#endif
+
   const char kGroup[] = "237.132.100.17";
 
   net::IPAddress group_ip;

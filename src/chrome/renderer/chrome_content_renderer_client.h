@@ -21,7 +21,7 @@
 #include "chrome/common/media/webrtc_logging.mojom.h"
 #include "chrome/services/speech/buildflags/buildflags.h"
 #include "components/nacl/common/buildflags.h"
-#include "components/safe_browsing/content/renderer/phishing_classifier/phishing_model_setter_impl.h"
+#include "components/safe_browsing/buildflags.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/public/renderer/render_thread.h"
@@ -36,6 +36,7 @@
 #include "printing/buildflags/buildflags.h"
 #include "services/service_manager/public/cpp/local_interface_provider.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
+#include "third_party/blink/public/common/tokens/tokens.h"
 #include "v8/include/v8-forward.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -46,11 +47,18 @@
 #include "chrome/common/plugin.mojom.h"
 #endif
 
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+#include "components/safe_browsing/content/renderer/phishing_classifier/phishing_model_setter_impl.h"
+#endif
+
 class ChromeRenderThreadObserver;
 #if BUILDFLAG(ENABLE_SPELLCHECK)
 class SpellCheck;
 #endif
+
+namespace sampling_profiler {
 class ThreadProfiler;
+}  // namespace sampling_profiler
 
 namespace blink {
 class WebServiceWorkerContextProxy;
@@ -71,6 +79,10 @@ namespace extensions {
 class Extension;
 }
 #endif
+
+namespace fingerprinting_protection_filter {
+class UnverifiedRulesetDealer;
+}  // namespace fingerprinting_protection_filter
 
 namespace subresource_filter {
 class UnverifiedRulesetDealer;
@@ -108,6 +120,7 @@ class ChromeContentRendererClient
                                  const blink::WebElement& plugin_element,
                                  const GURL& original_url,
                                  const std::string& mime_type) override;
+  bool IsDomStorageDisabled() const override;
   v8::Local<v8::Object> GetScriptableObject(
       const blink::WebElement& plugin_element,
       v8::Isolate* isolate) override;
@@ -149,19 +162,28 @@ class ChromeContentRendererClient
       const url::Origin& origin) override;
   void WillSendRequest(blink::WebLocalFrame* frame,
                        ui::PageTransition transition_type,
-                       const blink::WebURL& url,
+                       const blink::WebURL& upstream_url,
+                       const blink::WebURL& target_url,
                        const net::SiteForCookies& site_for_cookies,
                        const url::Origin* initiator_origin,
                        GURL* new_url) override;
   bool IsPrefetchOnly(content::RenderFrame* render_frame) override;
   uint64_t VisitedLinkHash(std::string_view canonical_url) override;
+  uint64_t PartitionedVisitedLinkFingerprint(
+      std::string_view canonical_link_url,
+      const net::SchemefulSite& top_level_site,
+      const url::Origin& frame_origin) override;
   bool IsLinkVisited(uint64_t link_hash) override;
+  void AddOrUpdateVisitedLinkSalt(const url::Origin& origin,
+                                  uint64_t salt) override;
   std::unique_ptr<blink::WebPrescientNetworking> CreatePrescientNetworking(
       content::RenderFrame* render_frame) override;
   bool IsExternalPepperPlugin(const std::string& module_name) override;
   bool IsOriginIsolatedPepperPlugin(const base::FilePath& plugin_path) override;
   std::unique_ptr<blink::WebSocketHandshakeThrottleProvider>
   CreateWebSocketHandshakeThrottleProvider() override;
+  bool ShouldUseCodeCacheWithHashing(
+      const blink::WebURL& request_url) const override;
   bool ShouldReportDetailedMessageForSource(
       const std::u16string& source) override;
   std::unique_ptr<blink::WebContentSettingsClient>
@@ -191,7 +213,8 @@ class ChromeContentRendererClient
       v8::Local<v8::Context> v8_context,
       int64_t service_worker_version_id,
       const GURL& service_worker_scope,
-      const GURL& script_url) override;
+      const GURL& script_url,
+      const blink::ServiceWorkerToken& service_worker_token) override;
   void DidStartServiceWorkerContextOnWorkerThread(
       int64_t service_worker_version_id,
       const GURL& service_worker_scope,
@@ -212,7 +235,7 @@ class ChromeContentRendererClient
   void DidSetUserAgent(const std::string& user_agent) override;
   void AppendContentSecurityPolicy(
       const blink::WebURL& url,
-      blink::WebVector<blink::WebContentSecurityPolicyHeader>* csp) override;
+      std::vector<blink::WebContentSecurityPolicyHeader>* csp) override;
   std::unique_ptr<blink::WebLinkPreviewTriggerer> CreateLinkPreviewTriggerer()
       override;
 
@@ -274,7 +297,7 @@ class ChromeContentRendererClient
 #endif
 
   // Used to profile main thread.
-  std::unique_ptr<ThreadProfiler> main_thread_profiler_;                                       
+  std::unique_ptr<sampling_profiler::ThreadProfiler> main_thread_profiler_;
   std::unique_ptr<WootzRenderThreadObserver> wootz_observer_;
   std::unique_ptr<ChromeRenderThreadObserver> chrome_observer_;
   std::unique_ptr<web_cache::WebCacheImpl> web_cache_impl_;
@@ -285,11 +308,15 @@ class ChromeContentRendererClient
 #endif
   std::unique_ptr<subresource_filter::UnverifiedRulesetDealer>
       subresource_filter_ruleset_dealer_;
+  std::unique_ptr<fingerprinting_protection_filter::UnverifiedRulesetDealer>
+      fingerprinting_protection_ruleset_dealer_;
 #if BUILDFLAG(ENABLE_PLUGINS)
   std::set<std::string> allowed_camera_device_origins_;
 #endif
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
   std::unique_ptr<safe_browsing::PhishingModelSetterImpl>
       phishing_model_setter_;
+#endif
 
   scoped_refptr<blink::ThreadSafeBrowserInterfaceBrokerProxy>
       browser_interface_broker_;

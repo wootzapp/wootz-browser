@@ -117,8 +117,9 @@ void ExtensionDownloaderTestHelper::StartUpdateCheck(
 
 network::TestURLLoaderFactory::PendingRequest*
 ExtensionDownloaderTestHelper::GetPendingRequest(size_t index) {
-  if (index >= test_url_loader_factory_.pending_requests()->size())
+  if (index >= test_url_loader_factory_.pending_requests()->size()) {
     return nullptr;
+  }
   return &(*test_url_loader_factory_.pending_requests())[index];
 }
 
@@ -130,6 +131,15 @@ std::unique_ptr<ExtensionDownloader>
 ExtensionDownloaderTestHelper::CreateDownloader() {
   return std::make_unique<ExtensionDownloader>(
       &delegate_, test_shared_url_loader_factory_, GetTestVerifierFormat());
+}
+
+const DownloadPingData* ExtensionDownloaderTestHelper::GetTestPingData() {
+  static const DownloadPingData kNeverPingedData =
+      DownloadPingData(/*rollcall=*/ManifestFetchData::kNeverPinged,
+                       /*active=*/ManifestFetchData::kNeverPinged,
+                       /*enabled=*/true,
+                       /*disable_reasons=*/{});
+  return &kNeverPingedData;
 }
 
 ExtensionDownloaderTask CreateDownloaderTask(const ExtensionId& id,
@@ -144,7 +154,7 @@ void AddExtensionToFetchDataForTesting(ManifestFetchData* fetch_data,
                                        const ExtensionId& id,
                                        const std::string& version,
                                        const GURL& update_url,
-                                       DownloadPingData ping_data) {
+                                       const DownloadPingData& ping_data) {
   fetch_data->AddExtension(id, version, &ping_data,
                            ExtensionDownloaderTestHelper::kEmptyUpdateUrlData,
                            std::string(), mojom::ManifestLocation::kInternal,
@@ -158,7 +168,7 @@ void AddExtensionToFetchDataForTesting(ManifestFetchData* fetch_data,
                                        const GURL& update_url) {
   AddExtensionToFetchDataForTesting(
       fetch_data, id, version, update_url,
-      ExtensionDownloaderTestHelper::kNeverPingedData);
+      *ExtensionDownloaderTestHelper::GetTestPingData());
 }
 
 UpdateManifestItem::UpdateManifestItem(ExtensionId id) : id(std::move(id)) {}

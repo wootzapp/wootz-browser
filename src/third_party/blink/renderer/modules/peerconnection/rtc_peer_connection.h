@@ -50,6 +50,7 @@
 #include "third_party/blink/renderer/modules/peerconnection/rtc_peer_connection_controller.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtc_peer_connection_handler.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtc_rtp_transceiver.h"
+#include "third_party/blink/renderer/modules/peerconnection/rtc_rtp_transport.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtc_session_description_enums.h"
 #include "third_party/blink/renderer/modules/peerconnection/rtp_contributing_source_cache.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
@@ -86,8 +87,12 @@ class RTCSessionDescription;
 class RTCSessionDescriptionInit;
 class RTCStatsReport;
 class ScriptState;
+class V8RTCIceGatheringState;
+class V8RTCIceConnectionState;
+class V8RTCPeerConnectionState;
 class V8RTCPeerConnectionErrorCallback;
 class V8RTCSessionDescriptionCallback;
+class V8RTCSignalingState;
 class V8UnionMediaStreamTrackOrString;
 class V8VoidFunction;
 
@@ -128,7 +133,8 @@ class MODULES_EXPORT RTCPeerConnection final
                                            V8RTCPeerConnectionErrorCallback*,
                                            ExceptionState&);
 
-  ScriptPromise<IDLUndefined> setLocalDescription(ScriptState*);
+  ScriptPromise<IDLUndefined> setLocalDescription(ScriptState*,
+                                                  ExceptionState&);
   ScriptPromise<IDLUndefined> setLocalDescription(
       ScriptState*,
       const RTCSessionDescriptionInit*,
@@ -155,7 +161,7 @@ class MODULES_EXPORT RTCPeerConnection final
   RTCSessionDescription* currentRemoteDescription() const;
   RTCSessionDescription* pendingRemoteDescription() const;
 
-  String signalingState() const;
+  V8RTCSignalingState signalingState() const;
 
   RTCConfiguration* getConfiguration(ScriptState*) const;
   void setConfiguration(ScriptState*, const RTCConfiguration*, ExceptionState&);
@@ -176,11 +182,11 @@ class MODULES_EXPORT RTCPeerConnection final
                                               V8RTCPeerConnectionErrorCallback*,
                                               ExceptionState&);
 
-  String iceGatheringState() const;
+  V8RTCIceGatheringState iceGatheringState() const;
 
-  String iceConnectionState() const;
+  V8RTCIceConnectionState iceConnectionState() const;
 
-  String connectionState() const;
+  V8RTCPeerConnectionState connectionState() const;
 
   std::optional<bool> canTrickleIceCandidates() const;
 
@@ -191,9 +197,9 @@ class MODULES_EXPORT RTCPeerConnection final
   // A remote stream is any stream associated with a receiver.
   MediaStreamVector getRemoteStreams() const;
 
-  void addStream(ScriptState*, MediaStream*, ExceptionState&);
+  void addStream(v8::Isolate*, MediaStream*, ExceptionState&);
 
-  void removeStream(MediaStream*, ExceptionState&);
+  void removeStream(v8::Isolate*, MediaStream*, ExceptionState&);
 
   ScriptPromise<RTCStatsReport> getStats(ScriptState* script_state,
                                          MediaStreamTrack* selector,
@@ -282,7 +288,7 @@ class MODULES_EXPORT RTCPeerConnection final
                              Vector<uintptr_t>,
                              bool is_remote_description_or_rollback) override;
   void DidAddRemoteDataChannel(
-      rtc::scoped_refptr<webrtc::DataChannelInterface> channel) override;
+      webrtc::scoped_refptr<webrtc::DataChannelInterface> channel) override;
   void DidNoteInterestingUsage(int usage_pattern) override;
   void UnregisterPeerConnectionHandler() override;
   void ClosePeerConnection() override;
@@ -306,11 +312,13 @@ class MODULES_EXPORT RTCPeerConnection final
 
   static void GenerateCertificateCompleted(
       ScriptPromiseResolver<RTCCertificate>* resolver,
-      rtc::scoped_refptr<rtc::RTCCertificate> certificate);
+      webrtc::scoped_refptr<webrtc::RTCCertificate> certificate);
 
   // Called by RTCIceTransport::OnStateChange to update the ice connection
   // state.
   void UpdateIceConnectionState();
+
+  RTCRtpTransport* rtpTransport() { return rtp_transport_; }
 
   void Trace(Visitor*) const override;
 
@@ -393,13 +401,13 @@ class MODULES_EXPORT RTCPeerConnection final
   // Creates or updates the RTCDtlsTransport object corresponding to the
   // given webrtc::DtlsTransportInterface object.
   RTCDtlsTransport* CreateOrUpdateDtlsTransport(
-      rtc::scoped_refptr<webrtc::DtlsTransportInterface>,
+      webrtc::scoped_refptr<webrtc::DtlsTransportInterface>,
       const webrtc::DtlsTransportInformation& info);
 
   // Creates or updates the RTCIceTransport object corresponding to the given
   // webrtc::IceTransportInterface object.
   RTCIceTransport* CreateOrUpdateIceTransport(
-      rtc::scoped_refptr<webrtc::IceTransportInterface>);
+      webrtc::scoped_refptr<webrtc::IceTransportInterface>);
 
   // Update the |receiver->streams()| to the streams indicated by |stream_ids|,
   // adding to |remove_list| and |add_list| accordingly.
@@ -548,6 +556,8 @@ class MODULES_EXPORT RTCPeerConnection final
 
   // Insertable streams.
   bool encoded_insertable_streams_;
+
+  Member<RTCRtpTransport> rtp_transport_;
 };
 
 }  // namespace blink

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/browser/devtools/render_frame_devtools_agent_host.h"
 
 #include <string_view>
@@ -67,13 +72,8 @@ class StubDevToolsAgentHostClient : public content::DevToolsAgentHostClient {
 // the ReadyToCommit stage.
 // See https://crbug.com/695203.
 // TODO(crbug.com/40916125): Re-enable this test
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #define MAYBE_CancelCrossOriginNavigationAfterReadyToCommit \
   DISABLED_CancelCrossOriginNavigationAfterReadyToCommit
-#else
-#define MAYBE_CancelCrossOriginNavigationAfterReadyToCommit \
-  CancelCrossOriginNavigationAfterReadyToCommit
-#endif
 IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
                        MAYBE_CancelCrossOriginNavigationAfterReadyToCommit) {
   net::test_server::ControllableHttpResponse response_b(embedded_test_server(),
@@ -103,8 +103,7 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
   GURL url_b(embedded_test_server()->GetURL("b.com", "/response_b"));
   TestNavigationManager observer_b(shell()->web_contents(), url_b);
   shell()->LoadURL(url_b);
-  EXPECT_TRUE(observer_b.WaitForRequestStart());
-
+  observer_b.WaitForSpeculativeRenderFrameHostCreation();
   RenderFrameHostImpl* current_rfh =
       root->render_manager()->current_frame_host();
   RenderFrameHostImpl* speculative_rfh_b =
@@ -114,7 +113,6 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
   EXPECT_EQ(current_rfh, rfh_devtools_agent->GetFrameHostForTesting());
 
   // 3.b) Navigation: ReadyToCommit.
-  observer_b.ResumeNavigation();  // Send the request.
   response_b.WaitForRequest();
   response_b.Send(
       "HTTP/1.1 200 OK\r\n"
@@ -125,8 +123,9 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
   EXPECT_EQ(speculative_rfh_b, rfh_devtools_agent->GetFrameHostForTesting());
   auto speculative_rfh_b_site_id =
       speculative_rfh_b->GetSiteInstance()->GetId();
-  if (AreDefaultSiteInstancesEnabled())
+  if (!AreAllSitesIsolatedForTesting()) {
     EXPECT_TRUE(speculative_rfh_b->GetSiteInstance()->IsDefaultSiteInstance());
+  }
 
   // 4) Navigate elsewhere, it will cancel the previous navigation if navigation
   // queueing is not enabled.
@@ -152,7 +151,12 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
     EXPECT_TRUE(speculative_rfh_c);
     auto speculative_rfh_c_site_id =
         speculative_rfh_c->GetSiteInstance()->GetId();
-    if (AreDefaultSiteInstancesEnabled()) {
+    if (AreAllSitesIsolatedForTesting()) {
+      // Verify that the RenderFrameHost is restored because the new URL
+      // required a new SiteInstance.
+      EXPECT_EQ(current_rfh, rfh_devtools_agent->GetFrameHostForTesting());
+      EXPECT_NE(speculative_rfh_b_site_id, speculative_rfh_c_site_id);
+    } else {
       // Verify that this new URL also belongs to the default SiteInstance and
       // therefore the RenderFrameHost from the previous navigation could be
       // reused.
@@ -161,11 +165,6 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
       EXPECT_EQ(speculative_rfh_c,
                 rfh_devtools_agent->GetFrameHostForTesting());
       EXPECT_EQ(speculative_rfh_b_site_id, speculative_rfh_c_site_id);
-    } else {
-      // Verify that the RenderFrameHost is restored because the new URL
-      // required a new SiteInstance.
-      EXPECT_EQ(current_rfh, rfh_devtools_agent->GetFrameHostForTesting());
-      EXPECT_NE(speculative_rfh_b_site_id, speculative_rfh_c_site_id);
     }
   }
 
@@ -209,8 +208,7 @@ IN_PROC_BROWSER_TEST_F(RenderFrameDevToolsAgentHostBrowserTest,
   TestNavigationObserver reload_observer(shell()->web_contents());
   constexpr char kMsg[] = R"({"id":1,"method":"Page.reload"})";
   devtools_agent_host->DispatchProtocolMessage(
-      &devtools_agent_host_client,
-      base::as_bytes(base::make_span(kMsg, strlen(kMsg))));
+      &devtools_agent_host_client, base::byte_span_from_cstring(kMsg));
   reload_observer.Wait();
   devtools_agent_host->DetachClient(&devtools_agent_host_client);
 }

@@ -192,19 +192,7 @@ void WaylandKeyboard::OnUnhandledKeyEvent(const KeyEvent& key_event) {
   extended_keyboard_->AckKey(serial, false);
 }
 
-// Two different behaviors are currently implemented for KeyboardLock support
-// on Wayland:
-//
-// 1. On Lacros, shortcuts are kept inhibited since the window initialization.
-// Such approach relies on the Exo-specific zcr-keyboard-extension protocol
-// extension, which allows Lacros (ozone/wayland based) to report back to the
-// Wayland compositor that a given key was not processed by the client, giving
-// it a chance of processing global shortcuts (even with a shortcuts inhibitor
-// in place), which is not currently possible with standard Wayland protocol
-// and extensions. That is also required to keep Lacros behaving just like Ash
-// Chrome's classic browser.
-//
-// 2. Otherwise, keyboard shortcuts will be inhibited only when in fullscreen
+// Keyboard shortcuts will be inhibited only when in fullscreen
 // and when a WaylandKeyboardHook is in place for a given widget. See
 // KeyboardLock spec for more details: https://wicg.github.io/keyboard-lock
 //
@@ -214,13 +202,8 @@ std::unique_ptr<PlatformKeyboardHook> WaylandKeyboard::CreateKeyboardHook(
     std::optional<base::flat_set<DomCode>> dom_codes,
     PlatformKeyboardHook::KeyEventCallback callback) {
   DCHECK(window);
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  return std::make_unique<BaseKeyboardHook>(std::move(dom_codes),
-                                            std::move(callback));
-#else
   return std::make_unique<WaylandKeyboardHook>(
       CreateShortcutsInhibitor(window));
-#endif
 }
 
 wl::Object<zwp_keyboard_shortcuts_inhibitor_v1>
@@ -260,7 +243,7 @@ void WaylandKeyboard::OnKeymap(void* data,
 
   const char* keymap_string = static_cast<const char*>(keymap);
   if (!self->layout_engine_->SetCurrentLayoutFromBuffer(
-          keymap_string, strnlen(keymap_string, size))) {
+          keymap_string, UNSAFE_TODO(strnlen(keymap_string, size)))) {
     DLOG(ERROR) << "Failed to set XKB keymap.";
   }
   munmap(keymap, size);
@@ -367,7 +350,7 @@ void WaylandKeyboard::FlushInput(base::OnceClosure closure) {
   // wl_display_sync gives a chance for any key "up" events to arrive.
   // With a well behaved wayland compositor this should ensure we never
   // get spurious repeats.
-  sync_callback_.reset(wl_display_sync(connection_->display_wrapper()));
+  sync_callback_.reset(connection_->GetSyncCallback());
 
   static constexpr wl_callback_listener kSyncCallbackListener = {
       .done = &OnSyncDone,
@@ -437,8 +420,8 @@ void WaylandKeyboard::DispatchKey(unsigned int key,
   // Pass empty DomKey and KeyboardCode here so the delegate can pre-process
   // and decode it when needed.
   uint32_t result = delegate_->OnKeyboardKeyEvent(
-      down ? ET_KEY_PRESSED : ET_KEY_RELEASED, dom_code, repeat, serial,
-      timestamp, device_id, kind);
+      down ? EventType::kKeyPressed : EventType::kKeyReleased, dom_code, repeat,
+      serial, timestamp, device_id, kind);
 
   if (extended_keyboard_ && !(result & POST_DISPATCH_STOP_PROPAGATION) &&
       serial.has_value()) {

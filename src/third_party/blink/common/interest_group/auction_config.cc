@@ -111,6 +111,9 @@ int AuctionConfig::NumPromises() const {
   if (non_shared_params.seller_signals.is_promise()) {
     ++total;
   }
+  if (non_shared_params.seller_tkv_signals.is_promise()) {
+    ++total;
+  }
   if (non_shared_params.per_buyer_signals.is_promise()) {
     ++total;
   }
@@ -153,12 +156,7 @@ bool AuctionConfig::IsValidTrustedScoringSignalsURL(const GURL& url) const {
     return false;
   }
 
-  if (base::FeatureList::IsEnabled(
-          blink::features::kFledgePermitCrossOriginTrustedSignals)) {
-    return url.scheme() == url::kHttpsScheme;
-  } else {
-    return IsHttpsAndMatchesSellerOrigin(url);
-  }
+  return url.scheme() == url::kHttpsScheme;
 }
 
 bool AuctionConfig::IsDirectFromSellerSignalsValid(

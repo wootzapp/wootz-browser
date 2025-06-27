@@ -15,17 +15,16 @@ import '../../components/common_styles/oobe_dialog_host_styles.css.js';
 import '../../components/dialogs/oobe_adaptive_dialog.js';
 import '../../components/dialogs/oobe_loading_dialog.js';
 
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {NetworkList} from 'chrome://resources/ash/common/network/network_list_types.js';
-import {NetworkSelectElement} from 'chrome://resources/ash/common/network/network_select.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {NetworkSelectElement} from 'chrome://resources/ash/common/network/network_select.js';
 import {assert} from 'chrome://resources/js/assert.js';
 
-import {LoginScreenBehavior, LoginScreenBehaviorInterface} from '../../components/behaviors/login_screen_behavior.js';
-import {MultiStepBehavior, MultiStepBehaviorInterface} from '../../components/behaviors/multi_step_behavior.js';
-import {OobeDialogHostBehavior, OobeDialogHostBehaviorInterface} from '../../components/behaviors/oobe_dialog_host_behavior.js';
-import {OobeI18nMixin, OobeI18nMixinInterface} from '../../components/mixins/oobe_i18n_mixin.js';
 import {OobeAdaptiveDialog} from '../../components/dialogs/oobe_adaptive_dialog.js';
+import {LoginScreenMixin} from '../../components/mixins/login_screen_mixin.js';
+import {MultiStepMixin} from '../../components/mixins/multi_step_mixin.js';
+import {OobeDialogHostMixin} from '../../components/mixins/oobe_dialog_host_mixin.js';
+import {OobeI18nMixin} from '../../components/mixins/oobe_i18n_mixin.js';
 import {NetworkSelectLogin} from '../../components/network_select_login.js';
 
 import {getTemplate} from './oobe_network.html.js';
@@ -37,17 +36,8 @@ export enum NetworkScreenStates {
   QUICK_START_CONNECTING = 'quick-start-connecting',
 }
 
-const NetworkScreenBase = mixinBehaviors(
-                              [
-                                OobeDialogHostBehavior,
-                                LoginScreenBehavior,
-                                MultiStepBehavior,
-                              ],
-                              OobeI18nMixin(PolymerElement)) as {
-  new (): PolymerElement & OobeI18nMixinInterface &
-      OobeDialogHostBehaviorInterface & LoginScreenBehaviorInterface &
-      MultiStepBehaviorInterface,
-};
+const NetworkScreenBase = OobeDialogHostMixin(
+    LoginScreenMixin(MultiStepMixin(OobeI18nMixin(PolymerElement))));
 
 interface NetworkScreenData {
   ssid: string|undefined;
@@ -139,7 +129,7 @@ class NetworkScreen extends NetworkScreenBase {
   }
 
   override get EXTERNAL_API() {
-    return ['setError', 'setQuickStartVisible'];
+    return ['setError', 'setQuickStartEntryPointVisibility'];
   }
 
   private errorMessage: string;
@@ -177,6 +167,7 @@ class NetworkScreen extends NetworkScreenBase {
    * @param data Screen init payload.
    */
   override onBeforeShow(data: NetworkScreenData): void {
+    super.onBeforeShow(data);
     // Right now `ssid` is only set during quick start flow.
     if (data && 'ssid' in data && data['ssid']) {
       this.ssid = data['ssid'];
@@ -201,9 +192,11 @@ class NetworkScreen extends NetworkScreenBase {
   }
 
   /** Called when dialog is hidden. */
-  onBeforeHide() {
+  override onBeforeHide() {
+    super.onBeforeHide();
     this.getNetworkSelectLogin().onBeforeHide();
     this.enableWifiScans = false;
+    this.isQuickStartVisible = false;
   }
 
   override ready(): void {
@@ -265,16 +258,15 @@ class NetworkScreen extends NetworkScreenBase {
     this.useQuickStartWiFiErrorStrings = false;
   }
 
-  setQuickStartVisible() {
-    this.isQuickStartVisible = true;
+  setQuickStartEntryPointVisibility(visible: boolean): void {
+    this.isQuickStartVisible = visible;
   }
 
   /**
    * Returns element of the network list with the given name.
    * Used to simplify testing.
    */
-  getNetworkListItemByNameForTest(name: string): null
-      |NetworkList.NetworkListItemType {
+  getNetworkListItemByNameForTest(name: string): HTMLElement|null {
     const item =
         this.getNetworkSelectLogin()
             ?.shadowRoot?.querySelector<NetworkSelectElement>('#networkSelect')

@@ -4,8 +4,9 @@
 
 #include "ui/gtk/native_theme_gtk.h"
 
+#include <algorithm>
+
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "cc/paint/paint_canvas.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -96,14 +97,11 @@ NativeThemeGtk* NativeThemeGtk::instance() {
 NativeThemeGtk::NativeThemeGtk()
     : NativeThemeBase(/*should_only_use_dark_colors=*/false,
                       ui::SystemTheme::kGtk) {
-  ui::ColorProviderManager::Get().AppendColorProviderInitializer(
-      base::BindRepeating(AddGtkNativeColorMixer));
-
   OnThemeChanged(gtk_settings_get_default(), nullptr);
 }
 
 NativeThemeGtk::~NativeThemeGtk() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void NativeThemeGtk::SetThemeCssOverride(ScopedCssProvider provider) {
@@ -135,20 +133,15 @@ void NativeThemeGtk::SetThemeCssOverride(ScopedCssProvider provider) {
 }
 
 void NativeThemeGtk::NotifyOnNativeThemeUpdated() {
-  NativeTheme::NotifyOnNativeThemeUpdated();
-
-  // Update the preferred contrast settings for the NativeThemeAura instance and
-  // notify its observers about the change.
-  for (ui::NativeTheme* native_theme :
-       {ui::NativeTheme::GetInstanceForNativeUi(),
-        ui::NativeTheme::GetInstanceForWeb()}) {
-    native_theme->SetPreferredContrast(
-        UserHasContrastPreference()
-            ? ui::NativeThemeBase::PreferredContrast::kMore
-            : ui::NativeThemeBase::PreferredContrast::kNoPreference);
-    native_theme->set_prefers_reduced_transparency(UserHasContrastPreference());
-    native_theme->NotifyOnNativeThemeUpdated();
+  // NativeThemeGtk pulls information about contrast from NativeThemeAura. As
+  // such, Aura must be updated with this information before we call
+  // NotifyOnNativeThemeUpdated().
+  if (auto* native_theme_aura = ui::NativeTheme::GetInstanceForNativeUi();
+      native_theme_aura->UpdateContrastRelatedStates(*this)) {
+    native_theme_aura->NotifyOnNativeThemeUpdated();
   }
+
+  NativeTheme::NotifyOnNativeThemeUpdated();
 }
 
 void NativeThemeGtk::OnThemeChanged(GtkSettings* settings,
@@ -174,7 +167,7 @@ void NativeThemeGtk::OnThemeChanged(GtkSettings* settings,
   // HighContrast (GNOME) and ContrastHighInverse (MATE).  So infer the contrast
   // based on if the theme name contains both "high" and "contrast",
   // case-insensitive.
-  base::ranges::transform(theme_name, theme_name.begin(), ::tolower);
+  std::ranges::transform(theme_name, theme_name.begin(), ::tolower);
   bool high_contrast = theme_name.find("high") != std::string::npos &&
                        theme_name.find("contrast") != std::string::npos;
   SetPreferredContrast(

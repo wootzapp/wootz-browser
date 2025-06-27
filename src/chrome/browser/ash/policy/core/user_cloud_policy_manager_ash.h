@@ -25,6 +25,7 @@
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_manager.h"
 #include "components/policy/core/common/cloud/cloud_policy_service.h"
+#include "components/session_manager/core/session_manager.h"
 #include "components/session_manager/core/session_manager_observer.h"
 
 class GoogleServiceAuthError;
@@ -324,6 +325,16 @@ class UserCloudPolicyManagerAsh
 
   base::ScopedObservation<Profile, ProfileObserver> observed_profile_{this};
 
+  base::ScopedObservation<CloudPolicyClient, CloudPolicyClient::Observer>
+      observed_cloud_policy_client_{this};
+
+  base::ScopedObservation<CloudPolicyService, CloudPolicyService::Observer>
+      observed_cloud_policy_service_{this};
+
+  base::ScopedObservation<session_manager::SessionManager,
+                          session_manager::SessionManagerObserver>
+      observed_session_manager_{this};
+
   // Refresh token used in tests instead of the user context refresh token to
   // fetch the policy OAuth token.
   std::optional<std::string> user_context_refresh_token_for_tests_;
@@ -333,8 +344,8 @@ class UserCloudPolicyManagerAsh
   // to load policy with error |DM_STATUS_SERVICE_DEVICE_NOT_FOUND|.
   bool is_in_reregistration_state_ = false;
 
-  // Tracks LocalUserDataEnabled policy changes and removes user files if
-  // needed.
+  // Tracks LocalUserFilesAllowed policy changes and removes user files if
+  // needed. Used for SkyVault TT version.
   std::unique_ptr<local_user_files::LocalFilesCleanup> local_files_cleanup_;
 };
 

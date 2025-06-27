@@ -51,8 +51,8 @@ class CheckboxTest : public ViewsTestBase {
     // Create a widget so that the Checkbox can query the hover state
     // correctly.
     widget_ = std::make_unique<Widget>();
-    Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_POPUP);
-    params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+    Widget::InitParams params = CreateParams(
+        Widget::InitParams::CLIENT_OWNS_WIDGET, Widget::InitParams::TYPE_POPUP);
     params.bounds = gfx::Rect(0, 0, 650, 650);
     widget_->Init(std::move(params));
     widget_->Show();
@@ -78,7 +78,7 @@ TEST_F(CheckboxTest, AccessibilityTest) {
   const std::u16string label_text = u"Some label";
   StyledLabel label;
   label.SetText(label_text);
-  checkbox()->SetAccessibleName(&label);
+  checkbox()->GetViewAccessibility().SetName(label);
 
   // Use `ViewAccessibility::GetAccessibleNodeData` so that we can get the
   // label's accessible id to compare with the checkbox's labelled-by id.
@@ -90,7 +90,7 @@ TEST_F(CheckboxTest, AccessibilityTest) {
 
   EXPECT_EQ(ax_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
             label_text);
-  EXPECT_EQ(checkbox()->GetAccessibleName(), label_text);
+  EXPECT_EQ(checkbox()->GetViewAccessibility().GetCachedName(), label_text);
   EXPECT_EQ(ax_data.GetNameFrom(), ax::mojom::NameFrom::kRelatedElement);
   EXPECT_EQ(ax_data.GetIntListAttribute(
                 ax::mojom::IntListAttribute::kLabelledbyIds)[0],
@@ -132,6 +132,40 @@ TEST_F(CheckboxTest, TestCorrectContainerColor) {
   EXPECT_EQ(actual, expected);
 }
 
+TEST_F(CheckboxTest, AccessibleDefaultActionVerb) {
+  ui::AXNodeData data;
+
+  // Enabled
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetDefaultActionVerb(), ax::mojom::DefaultActionVerb::kCheck);
+
+  data = ui::AXNodeData();
+  checkbox()->SetChecked(true);
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetDefaultActionVerb(),
+            ax::mojom::DefaultActionVerb::kUncheck);
+
+  data = ui::AXNodeData();
+  checkbox()->SetChecked(false);
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetDefaultActionVerb(), ax::mojom::DefaultActionVerb::kCheck);
+
+  // Disabled
+  checkbox()->SetEnabled(false);
+
+  data = ui::AXNodeData();
+  checkbox()->SetChecked(false);
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_FALSE(
+      data.HasIntAttribute(ax::mojom::IntAttribute::kDefaultActionVerb));
+
+  data = ui::AXNodeData();
+  checkbox()->SetChecked(true);
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_FALSE(
+      data.HasIntAttribute(ax::mojom::IntAttribute::kDefaultActionVerb));
+}
+
 using CheckboxActionViewControllerTest = CheckboxTest;
 
 TEST_F(CheckboxActionViewControllerTest, TestActionViewInterface) {
@@ -164,6 +198,18 @@ TEST_F(CheckboxActionViewControllerTest, TestCheckboxClicked) {
   // the same ActionItem.
   checkbox()->SetChecked(true);
   EXPECT_TRUE(action_item->GetChecked());
+}
+
+TEST_F(CheckboxTest, AccessibleCheckedState) {
+  checkbox()->SetChecked(true);
+  ui::AXNodeData data;
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetCheckedState(), ax::mojom::CheckedState::kTrue);
+
+  checkbox()->SetChecked(false);
+  data = ui::AXNodeData();
+  checkbox()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetCheckedState(), ax::mojom::CheckedState::kFalse);
 }
 
 }  // namespace views

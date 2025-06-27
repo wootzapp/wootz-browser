@@ -9,7 +9,6 @@
 #include "base/scoped_observation.h"
 #include "base/test/bind.h"
 #include "base/unguessable_token.h"
-#include "chrome/browser/ash/file_manager/app_id.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/ash/fileapi/file_change_service_factory.h"
@@ -20,6 +19,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile_manager.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
 #include "mojo/public/cpp/system/string_data_source.h"
@@ -77,11 +77,6 @@ class MockFileChangeServiceObserver : public FileChangeServiceObserver {
   MOCK_METHOD(void,
               OnFileModified,
               (const storage::FileSystemURL& url),
-              (override));
-  MOCK_METHOD(void,
-              OnFileCopied,
-              (const storage::FileSystemURL& src,
-               const storage::FileSystemURL& dst),
               (override));
   MOCK_METHOD(void,
               OnFileMoved,
@@ -238,14 +233,15 @@ class FileChangeServiceTest : public BrowserWithTestWindowTest {
   ~FileChangeServiceTest() override = default;
 
   // Creates and returns a new profile for the specified `name`.
-  TestingProfile* CreateLoggedInUserProfile(const std::string& name) {
-    LogIn(name);
-    return CreateProfile(name);
+  TestingProfile* CreateLoggedInUserProfile(std::string_view name,
+                                            const GaiaId& gaia_id) {
+    LogIn(name, gaia_id);
+    return CreateProfile(std::string(name));
   }
 
  private:
   // BrowserWithTestWindowTest:
-  std::string GetDefaultProfileName() override {
+  std::optional<std::string> GetDefaultProfileName() override {
     return "promary_profile@test";
   }
 };
@@ -266,7 +262,9 @@ TEST_F(FileChangeServiceTest, CreatesServiceInstancesPerProfile) {
 
   // `FileChangeService` should be created as needed for additional profiles.
   constexpr char kSecondaryProfileName[] = "secondary_profile@test";
-  auto* secondary_profile = CreateLoggedInUserProfile(kSecondaryProfileName);
+  const GaiaId kFakeGaia2("fakegaia2");
+  auto* secondary_profile =
+      CreateLoggedInUserProfile(kSecondaryProfileName, kFakeGaia2);
   auto* secondary_profile_service = factory->GetService(secondary_profile);
   ASSERT_TRUE(secondary_profile_service);
 
@@ -327,82 +325,6 @@ TEST_F(FileChangeServiceTest, CreatesServiceInstanceForOTRGuestProfile) {
 
   // OTR service instances should be distinct from non-OTR service instances.
   ASSERT_NE(otr_guest_profile_service, guest_profile_service);
-}
-
-// Verifies `OnFileCopied()` events are propagated to observers.
-TEST_F(FileChangeServiceTest, PropagatesOnFileCopiedEvents) {
-  auto* profile = GetProfile();
-  auto* service = FileChangeServiceFactory::GetInstance()->GetService(profile);
-  ASSERT_TRUE(service);
-
-  testing::NiceMock<MockFileChangeServiceObserver> mock_observer;
-  base::ScopedObservation<FileChangeService, FileChangeServiceObserver>
-      scoped_observation{&mock_observer};
-  scoped_observation.Observe(service);
-
-  TempFileSystem temp_file_system(profile);
-  temp_file_system.SetUp();
-
-  storage::FileSystemURL src = temp_file_system.CreateFileSystemURL("src");
-  storage::FileSystemURL dst = temp_file_system.CreateFileSystemURL("dst");
-
-  ASSERT_EQ(temp_file_system.CreateFile(src), base::File::FILE_OK);
-
-  EXPECT_CALL(mock_observer, OnFileModified)
-      .WillRepeatedly([&](const storage::FileSystemURL& propagated_url) {
-        EXPECT_EQ(dst, propagated_url);
-      });
-
-  {
-    base::RunLoop copy_run_loop;
-    EXPECT_CALL(mock_observer, OnFileCopied)
-        .WillOnce([&](const storage::FileSystemURL& propagated_src,
-                      const storage::FileSystemURL& propagated_dst) {
-          EXPECT_EQ(src, propagated_src);
-          EXPECT_EQ(dst, propagated_dst);
-          copy_run_loop.Quit();
-        })
-        .RetiresOnSaturation();
-
-    base::RunLoop modify_run_loop;
-    EXPECT_CALL(mock_observer, OnFileModified)
-        .WillOnce([&](const storage::FileSystemURL& propagated_url) {
-          EXPECT_EQ(dst, propagated_url);
-          modify_run_loop.Quit();
-        })
-        .RetiresOnSaturation();
-
-    ASSERT_EQ(temp_file_system.CopyFile(src, dst), base::File::FILE_OK);
-    copy_run_loop.Run();
-    modify_run_loop.Run();
-  }
-
-  ::testing::Mock::VerifyAndClearExpectations(&mock_observer);
-  ASSERT_EQ(temp_file_system.RemoveFile(dst), base::File::FILE_OK);
-
-  {
-    base::RunLoop copy_run_loop;
-    EXPECT_CALL(mock_observer, OnFileCopied)
-        .WillOnce([&](const storage::FileSystemURL& propagated_src,
-                      const storage::FileSystemURL& propagated_dst) {
-          EXPECT_EQ(src, propagated_src);
-          EXPECT_EQ(dst, propagated_dst);
-          copy_run_loop.Quit();
-        })
-        .RetiresOnSaturation();
-
-    base::RunLoop modify_run_loop;
-    EXPECT_CALL(mock_observer, OnFileModified)
-        .WillOnce([&](const storage::FileSystemURL& propagated_url) {
-          EXPECT_EQ(dst, propagated_url);
-          modify_run_loop.Quit();
-        })
-        .RetiresOnSaturation();
-
-    ASSERT_EQ(temp_file_system.CopyFileLocal(src, dst), base::File::FILE_OK);
-    copy_run_loop.Run();
-    modify_run_loop.Run();
-  }
 }
 
 // Verifies `OnFileMoved()` events are propagated to observers.

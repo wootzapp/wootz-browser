@@ -22,6 +22,7 @@
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_token_status.h"
 #include "components/sync/service/sync_user_settings.h"
+#include "components/sync/service/trusted_vault_synthetic_field_trial.h"
 #include "components/version_info/version_info.h"
 #include "url/gurl.h"
 
@@ -33,6 +34,45 @@ const char kUninitialized[] = "Uninitialized";
 
 const char kUninitializedCSSClass[] = "uninitialized";
 const char kBadStateCSSClass[] = "in_bad_state";
+
+std::string SeverityToString(TypeStatusForDebugging::Severity severity) {
+  switch (severity) {
+    case TypeStatusForDebugging::Severity::kError:
+      return "severity_error";
+    case TypeStatusForDebugging::Severity::kWarning:
+      return "severity_warning";
+    case TypeStatusForDebugging::Severity::kInfo:
+      return "severity_info";
+    case TypeStatusForDebugging::Severity::kTransitioning:
+      return "transitioning";
+    case TypeStatusForDebugging::Severity::kOk:
+      return "ok";
+  }
+  NOTREACHED();
+}
+
+// Converts TypeStatusMapForDebugging to a base::Value::List.
+base::Value::List TypeStatusMapToValueList(
+    const TypeStatusMapForDebugging& map) {
+  base::Value::List result;
+  auto type_status_header = base::Value::Dict()
+                                .Set("status", "header")
+                                .Set("name", "Data Type")
+                                .Set("num_entries", "Total Entries")
+                                .Set("num_live", "Live Entries")
+                                .Set("message", "Message")
+                                .Set("state", "State");
+  result.Append(std::move(type_status_header));
+  for (const auto& [type, status] : map) {
+    base::Value::Dict type_status;
+    type_status.Set("name", DataTypeToDebugString(type));
+    type_status.Set("status", SeverityToString(status.severity));
+    type_status.Set("state", status.state);
+    type_status.Set("message", status.message);
+    result.Append(std::move(type_status));
+  }
+  return result;
+}
 
 // This class represents one field in chrome://sync-internals. It gets
 // serialized into a dictionary with entries for 'stat_name', 'stat_value' and
@@ -119,14 +159,14 @@ class SectionList {
   SectionList() = default;
 
   // WARNING: If this section includes any Personally Identifiable Information,
-  // |is_sensitive| should be set to true.
+  // `is_sensitive` should be set to true.
   Section* AddSection(const std::string& title, bool is_sensitive) {
     sections_.push_back(std::make_unique<Section>(title, is_sensitive));
     return sections_.back().get();
   }
 
-  // If |include_sensitive_data| is true, returns all added sections. Otherwise,
-  // omits those added with |is_sensitive| set to true.
+  // If `include_sensitive_data` is true, returns all added sections. Otherwise,
+  // omits those added with `is_sensitive` set to true.
   base::Value::List ToValue(IncludeSensitiveData include_sensitive_data) const {
     base::Value::List result;
     for (const std::unique_ptr<Section>& section : sections_) {
@@ -176,8 +216,7 @@ std::string GetTransportStateString(syncer::SyncService::TransportState state) {
     case syncer::SyncService::TransportState::ACTIVE:
       return "Active";
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 std::string GetUserActionableErrorString(
@@ -199,12 +238,9 @@ std::string GetUserActionableErrorString(
     case SyncService::UserActionableError::
         kTrustedVaultRecoverabilityDegradedForEverything:
       return "Trusted vault recoverability degraded for everything";
-    case SyncService::UserActionableError::kGenericUnrecoverableError:
-      return "Generic unrecoverable error";
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 // Returns a string describing the chrome version environment. Version format:
@@ -215,7 +251,7 @@ std::string GetUserActionableErrorString(
 std::string GetVersionString(const std::string& channel) {
   // Build a version string that matches syncer::MakeUserAgentForSync with the
   // addition of channel info and proper OS names.
-  // |channel| will be an empty string for stable channel or unofficial builds,
+  // `channel` will be an empty string for stable channel or unofficial builds,
   // the channel string otherwise. We want to have "-devel" for unofficial
   // builds only.
   std::string version_modifier = channel;
@@ -289,8 +325,7 @@ std::string GetConnectionStatus(const SyncTokenStatus& status) {
           "server error since %s",
           GetTimeStr(status.connection_status_update_time).c_str());
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -391,6 +426,8 @@ base::Value::Dict ConstructAboutInformation(
       section_encryption->AddStringStat("Trusted Vault Migration Time");
   Stat<int>* trusted_vault_key_version =
       section_encryption->AddIntStat("Trusted Vault Version/Epoch");
+  Stat<std::string>* trusted_vault_auto_upgrade_experiment_group =
+      section_encryption->AddStringStat("Trusted Vault Auto Upgrade Group");
 
   Section* section_last_session = section_list.AddSection(
       "Status from Last Completed Session", /*is_sensitive=*/false);
@@ -469,7 +506,7 @@ base::Value::Dict ConstructAboutInformation(
   bool is_local_sync_enabled_state = service->IsLocalSyncEnabled();
 
   // Version Info.
-  // |client_version| was already set above.
+  // `client_version` was already set above.
   if (!is_local_sync_enabled_state) {
     server_url->Set(service->GetSyncServiceUrlForDebugging().spec());
   }
@@ -540,8 +577,7 @@ base::Value::Dict ConstructAboutInformation(
   if (is_status_valid) {
     cryptographer_can_encrypt->Set(full_status.cryptographer_can_encrypt);
     has_pending_keys->Set(full_status.crypto_has_pending_keys);
-    encrypted_types->Set(
-        ModelTypeSetToDebugString(full_status.encrypted_types));
+    encrypted_types->Set(DataTypeSetToDebugString(full_status.encrypted_types));
     has_keystore_key->Set(full_status.has_keystore_key);
     keystore_migration_time->Set(
         GetTimeStr(full_status.keystore_migration_time, "Not Migrated"));
@@ -553,6 +589,16 @@ base::Value::Dict ConstructAboutInformation(
           full_status.trusted_vault_debug_info.migration_time()));
       trusted_vault_key_version->Set(
           full_status.trusted_vault_debug_info.key_version());
+    }
+
+    if (full_status.trusted_vault_debug_info
+            .has_auto_upgrade_experiment_group()) {
+      const TrustedVaultAutoUpgradeSyntheticFieldTrialGroup group =
+          TrustedVaultAutoUpgradeSyntheticFieldTrialGroup::FromProto(
+              full_status.trusted_vault_debug_info
+                  .auto_upgrade_experiment_group());
+      trusted_vault_auto_upgrade_experiment_group->Set(
+          group.is_valid() ? group.name() : std::string("Invalid"));
     }
   }
 
@@ -646,7 +692,8 @@ base::Value::Dict ConstructAboutInformation(
                    base::Value(unrecoverable_error_message));
   }
 
-  about_info.Set("type_status", service->GetTypeStatusMapForDebugging());
+  about_info.Set("type_status", TypeStatusMapToValueList(
+                                    service->GetTypeStatusMapForDebugging()));
 
   return about_info;
 }

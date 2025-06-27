@@ -7,7 +7,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/paint/inline_paint_context.h"
 #include "third_party/blink/renderer/core/paint/line_relative_rect.h"
 #include "third_party/blink/renderer/core/paint/paint_controller_paint_test.h"
@@ -17,7 +17,6 @@
 #include "third_party/blink/renderer/core/paint/text_painter.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/platform/fonts/text_fragment_paint_info.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -39,7 +38,7 @@ TEST_P(HighlightPainterTest, FastSpellingGrammarPaintCase) {
 
   auto expect = [&](HighlightPainter::Case expected, unsigned line) {
     LayoutObject& body = *GetDocument().body()->GetLayoutObject();
-    const auto& block_flow = To<LayoutNGBlockFlow>(body);
+    const auto& block_flow = To<LayoutBlockFlow>(body);
     InlinePaintContext inline_context{};
     InlineCursor cursor{block_flow};
     cursor.MoveToFirstLine();
@@ -60,9 +59,10 @@ TEST_P(HighlightPainterTest, FastSpellingGrammarPaintCase) {
         selection = &*maybe_selection;
     }
 
-    GraphicsContext graphics_context{RootPaintController()};
-    PaintInfo paint_info{graphics_context, cull_rect, PaintPhase::kForeground,
-                         /*descendant_painting_blocked=*/false};
+    PaintController controller;
+    GraphicsContext graphics_context(controller);
+    PaintInfo paint_info(graphics_context, cull_rect, PaintPhase::kForeground,
+                         /*descendant_painting_blocked=*/false);
     TextPaintStyle text_style =
         TextPainter::TextPaintingStyle(GetDocument(), style, paint_info);
     if (selection) {
@@ -75,7 +75,7 @@ TEST_P(HighlightPainterTest, FastSpellingGrammarPaintCase) {
     TextPainter text_painter(
         graphics_context, /*svg_context_paints*/ nullptr,
         text_item.ScaledFont(), rect,
-        LineRelativeOffset::CreateFromBoxOrigin(physical_offset), true);
+        LineRelativeOffset::CreateFromBoxOrigin(physical_offset));
     TextDecorationPainter decoration_painter(text_painter, &inline_context,
                                              paint_info, style, text_style,
                                              rotated_rect, selection);
@@ -129,57 +129,6 @@ TEST_P(HighlightPainterTest, FastSpellingGrammarPaintCase) {
   GetDocument().Markers().AddSpellingMarker(test(R"HTML(
       body { color: green; }
       ::spelling-error { color: green; }
-  )HTML"));
-  expect(HighlightPainter::kFastSpellingGrammar, __LINE__);
-
-  // ‘-webkit-text-fill-color’
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-fill-color: green; }
-      ::spelling-error { /* -webkit-text-fill-color = blue */ }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-fill-color: green; }
-      ::spelling-error { -webkit-text-fill-color: red; }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-fill-color: green; }
-      ::spelling-error { -webkit-text-fill-color: green; }
-  )HTML"));
-  expect(HighlightPainter::kFastSpellingGrammar, __LINE__);
-
-  // ‘-webkit-text-stroke-color’
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-stroke-color: green; }
-      ::spelling-error { /* -webkit-text-stroke-color = blue */ }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-stroke-color: green; }
-      ::spelling-error { -webkit-text-stroke-color: red; }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { color: blue; -webkit-text-stroke-color: green; }
-      ::spelling-error { -webkit-text-stroke-color: green; }
-  )HTML"));
-  expect(HighlightPainter::kFastSpellingGrammar, __LINE__);
-
-  // ‘-webkit-text-stroke-width’
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { -webkit-text-stroke-width: 1px; }
-      ::spelling-error { /* -webkit-text-stroke-width = 0 */ }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { -webkit-text-stroke-width: 1px; }
-      ::spelling-error { -webkit-text-stroke-width: 2px; }
-  )HTML"));
-  expect(HighlightPainter::kOverlay, __LINE__);
-  GetDocument().Markers().AddSpellingMarker(test(R"HTML(
-      body { -webkit-text-stroke-width: 1px; }
-      ::spelling-error { -webkit-text-stroke-width: 1px; }
   )HTML"));
   expect(HighlightPainter::kFastSpellingGrammar, __LINE__);
 

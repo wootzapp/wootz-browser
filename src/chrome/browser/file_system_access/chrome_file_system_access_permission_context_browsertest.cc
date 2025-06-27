@@ -9,6 +9,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_file_util.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
@@ -17,6 +18,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/permissions/features.h"
 #include "components/permissions/permission_util.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -204,7 +206,8 @@ IN_PROC_BROWSER_TEST_F(
 
   // Add prerendering.
   GURL prerender_url = embedded_test_server()->GetURL("/title1.html");
-  int host_id = prerender_helper().AddPrerender(prerender_url);
+  content::FrameTreeNodeId host_id =
+      prerender_helper().AddPrerender(prerender_url);
   content::RenderFrameHost* prerendered_frame_host =
       prerender_helper().GetPrerenderedMainFrameHost(host_id);
 
@@ -255,10 +258,17 @@ IN_PROC_BROWSER_TEST_F(
   ui::SelectFileDialog::SetFactory(nullptr);
 }
 
-class FileSystemChromeAppTest : public extensions::PlatformAppBrowserTest {};
+class FileSystemChromeAppTest : public extensions::PlatformAppBrowserTest {
+ public:
+  FileSystemChromeAppTest() {
+    scoped_feature_list_.InitWithFeatures(
+        {features::kFileSystemAccessPersistentPermissions}, {});
+  }
 
-// TODO(b/276433834): Implement an end-to-end test for getDirectoryPicker in
-// Chrome apps.
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
 IN_PROC_BROWSER_TEST_F(FileSystemChromeAppTest,
                        FileSystemAccessPermissionRequestManagerExists) {
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -279,4 +289,62 @@ IN_PROC_BROWSER_TEST_F(FileSystemChromeAppTest,
   EXPECT_TRUE(web_contents);
   EXPECT_NE(nullptr, FileSystemAccessPermissionRequestManager::FromWebContents(
                          web_contents));
+}
+
+IN_PROC_BROWSER_TEST_F(FileSystemChromeAppTest,
+                       FileSystemAccessPersistentPermissionsPrompt) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  ExtensionTestMessageListener launched_listener("Launched");
+
+  // Install Platform App.
+  content::CreateAndLoadWebContentsObserver app_loaded_observer;
+  const extensions::Extension* extension =
+      InstallPlatformApp("file_system_test");
+  ASSERT_TRUE(extension);
+
+  // Launch Platform App.
+  LaunchPlatformApp(extension);
+  app_loaded_observer.Wait();
+  ASSERT_TRUE(launched_listener.WaitUntilSatisfied());
+
+  // Initialize permission context.
+  content::WebContents* web_contents = GetFirstAppWindowWebContents();
+  Profile* const profile = browser()->profile();
+  TestFileSystemAccessPermissionContext permission_context(profile);
+  content::SetFileSystemAccessPermissionContext(profile, &permission_context);
+  FileSystemAccessPermissionRequestManager::FromWebContents(web_contents)
+      ->set_auto_response_for_test(permissions::PermissionAction::GRANTED);
+
+  // Initialize file permission grant.
+  const url::Origin kTestOrigin = extension->origin();
+  const content::PathInfo kTestPathInfo(FILE_PATH_LITERAL("/foo/bar"));
+  auto grant = permission_context.GetReadPermissionGrant(
+      kTestOrigin, kTestPathInfo,
+      ChromeFileSystemAccessPermissionContext::HandleType::kFile,
+      ChromeFileSystemAccessPermissionContext::UserAction::kOpen);
+  EXPECT_EQ(grant->GetStatus(), content::PermissionStatus::GRANTED);
+
+  // Dormant grants exist after tabs are backgrounded for the amount of time
+  // specified by the extended permissions policy.
+  permission_context.OnAllTabsInBackgroundTimerExpired(
+      kTestOrigin,
+      OneTimePermissionsTrackerObserver::BackgroundExpiryType::kLongTimeout);
+  EXPECT_EQ(grant->GetStatus(), content::PermissionStatus::ASK);
+
+  // When `requestPermission()` is called on the handle of an existing
+  // dormant grant, the restore prompt is not triggered because there is a
+  // platform app installed.
+  base::test::TestFuture<
+      content::FileSystemAccessPermissionGrant::PermissionRequestOutcome>
+      future;
+  auto* rfh = web_contents->GetPrimaryMainFrame();
+  grant->RequestPermission(
+      content::GlobalRenderFrameHostId(rfh->GetProcess()->GetDeprecatedID(),
+                                       rfh->GetRoutingID()),
+      content::FileSystemAccessPermissionGrant::UserActivationState::
+          kNotRequired,
+      future.GetCallback());
+  auto result = future.Get();
+  EXPECT_NE(result, content::FileSystemAccessPermissionGrant::
+                        PermissionRequestOutcome::kGrantedByRestorePrompt);
 }

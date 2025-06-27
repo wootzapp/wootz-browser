@@ -8,13 +8,13 @@ load("@stdlib//internal/graph.star", "graph")
 load("../common.star", _targets_common = "common")
 load("../nodes.star", _targets_nodes = "nodes")
 
-def _isolated_script_test_spec_init(node, settings):
-    return _targets_common.spec_init(node, settings)
+def _isolated_script_test_spec_init(node, settings, **kwargs):
+    return _targets_common.spec_init(node, settings, **kwargs)
 
-def _isolated_script_test_spec_finalize(name, settings, spec_value):
+def _isolated_script_test_spec_finalize(builder_name, test_name, settings, spec_value, **kwargs):
     default_merge_script = "standard_isolated_script_merge"
-    spec_value = _targets_common.spec_finalize(settings, spec_value, default_merge_script)
-    return "isolated_scripts", name, spec_value
+    test_type, spec_value = _targets_common.spec_finalize(builder_name, settings, spec_value, default_merge_script, default_test_type = "isolated_scripts", **kwargs)
+    return test_type, test_name, spec_value
 
 def create_isolated_script_test_spec_handler(type_name):
     """Create spec handler for test type implemented via isolated scripts.
@@ -32,9 +32,10 @@ def create_isolated_script_test_spec_handler(type_name):
         finalize = _isolated_script_test_spec_finalize,
     )
 
-def isolated_script_test_details(args = None):
+def isolated_script_test_details(*, args = None, additional_fields = {}):
     return struct(
         args = args,
+        **additional_fields
     )
 
 _isolated_script_test_spec_handler = create_isolated_script_test_spec_handler("isolated script")

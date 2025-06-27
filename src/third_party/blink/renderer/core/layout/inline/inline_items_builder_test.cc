@@ -8,7 +8,6 @@
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_node_data.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
-#include "third_party/blink/renderer/core/layout/layout_ruby_column.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
@@ -23,7 +22,7 @@ namespace blink {
 
 #define EXPECT_ITEM_OFFSET(item, type, start, end) \
   {                                                \
-    const auto& item_ref = (item);                 \
+    const auto& item_ref = *(item);                \
     EXPECT_EQ(type, item_ref.Type());              \
     EXPECT_EQ(start, item_ref.StartOffset());      \
     EXPECT_EQ(end, item_ref.EndOffset());          \
@@ -35,9 +34,9 @@ class InlineItemsBuilderTest : public RenderingTest {
     RenderingTest::SetUp();
     style_ = &GetDocument().GetStyleResolver().InitialStyle();
     block_flow_ = LayoutBlockFlow::CreateAnonymous(&GetDocument(), style_);
-    items_ = MakeGarbageCollected<HeapVector<InlineItem>>();
+    items_ = MakeGarbageCollected<InlineItemsHolder>();
     anonymous_objects_ =
-        MakeGarbageCollected<HeapVector<Member<LayoutObject>>>();
+        MakeGarbageCollected<GCedHeapVector<Member<LayoutObject>>>();
     anonymous_objects_->push_back(block_flow_);
   }
 
@@ -90,14 +89,6 @@ class InlineItemsBuilderTest : public RenderingTest {
     builder->AppendBlockInInline(layout_block_flow);
   }
 
-  void AppendRubyColumn(InlineItemsBuilder* builder) {
-    auto* ruby_column = MakeGarbageCollected<LayoutRubyColumn>();
-    ruby_column->SetDocumentForAnonymous(&GetDocument());
-    ruby_column->SetStyle(style_);
-    anonymous_objects_->push_back(ruby_column);
-    builder->AppendAtomicInline(ruby_column);
-  }
-
   struct Input {
     const String text;
     EWhiteSpace whitespace = EWhiteSpace::kNormal;
@@ -105,9 +96,9 @@ class InlineItemsBuilderTest : public RenderingTest {
   };
 
   const String& TestAppend(Vector<Input> inputs) {
-    items_->clear();
+    items()->clear();
     HeapVector<Member<LayoutText>> anonymous_objects;
-    InlineItemsBuilder builder(GetLayoutBlockFlow(), items_);
+    InlineItemsBuilder builder(GetLayoutBlockFlow(), items());
     for (Input& input : inputs) {
       if (!input.layout_text) {
         input.layout_text = LayoutText::CreateEmptyAnonymous(
@@ -142,8 +133,8 @@ class InlineItemsBuilderTest : public RenderingTest {
 
   void ValidateItems() {
     unsigned current_offset = 0;
-    for (unsigned i = 0; i < items_->size(); i++) {
-      const InlineItem& item = items_->at(i);
+    for (unsigned i = 0; i < items()->size(); i++) {
+      const InlineItem& item = *items()->at(i);
       EXPECT_EQ(current_offset, item.StartOffset());
       EXPECT_LE(item.StartOffset(), item.EndOffset());
       current_offset = item.EndOffset();
@@ -157,20 +148,21 @@ class InlineItemsBuilderTest : public RenderingTest {
     fake_data.text_content = text_;
     fake_data.is_bidi_enabled_ = has_bidi_controls;
 
-    HeapVector<InlineItem> reuse_items;
+    InlineItems reuse_items;
     InlineItemsBuilder reuse_builder(GetLayoutBlockFlow(), &reuse_items);
     InlineItemsData* data = MakeGarbageCollected<InlineItemsData>();
-    data->items = *items_;
+    data->items = *items();
     for (Input& input : inputs) {
       // Collect items for this LayoutObject.
       DCHECK(input.layout_text);
       for (wtf_size_t i = 0; i != data->items.size();) {
-        if (data->items[i].GetLayoutObject() == input.layout_text) {
+        if (data->items[i]->GetLayoutObject() == input.layout_text) {
           wtf_size_t begin = i;
           i++;
           while (i < data->items.size() &&
-                 data->items[i].GetLayoutObject() == input.layout_text)
+                 data->items[i]->GetLayoutObject() == input.layout_text) {
             i++;
+          }
           input.layout_text->SetInlineItems(data, begin, i - begin);
         } else {
           ++i;
@@ -191,11 +183,14 @@ class InlineItemsBuilderTest : public RenderingTest {
     EXPECT_EQ(text_, reuse_text);
   }
 
+  InlineItems* items() const { return &items_->Value(); }
+
   Persistent<LayoutBlockFlow> block_flow_;
-  Persistent<HeapVector<InlineItem>> items_;
+  using InlineItemsHolder = DisallowNewWrapper<InlineItems>;
+  Persistent<InlineItemsHolder> items_;
   String text_;
   Persistent<const ComputedStyle> style_;
-  Persistent<HeapVector<Member<LayoutObject>>> anonymous_objects_;
+  Persistent<GCedHeapVector<Member<LayoutObject>>> anonymous_objects_;
 };
 
 #define TestWhitespaceValue(expected_text, input, whitespace) \
@@ -332,7 +327,7 @@ TEST_F(InlineItemsBuilderTest, CollapseZeroWidthSpaces) {
 
 TEST_F(InlineItemsBuilderTest, CollapseZeroWidthSpaceAndNewLineAtEnd) {
   EXPECT_EQ(String(u"\u200B"), TestAppend(u"\u200B\n"));
-  EXPECT_EQ(InlineItem::kNotCollapsible, items_->at(0).EndCollapseType());
+  EXPECT_EQ(InlineItem::kNotCollapsible, items()->at(0)->EndCollapseType());
 }
 
 #if SEGMENT_BREAK_TRANSFORMATION_FOR_EAST_ASIAN_WIDTH
@@ -354,7 +349,7 @@ TEST_F(InlineItemsBuilderTest, CollapseEastAsianWidth) {
 #endif
 
 TEST_F(InlineItemsBuilderTest, OpaqueToSpaceCollapsing) {
-  InlineItemsBuilder builder(GetLayoutBlockFlow(), items_);
+  InlineItemsBuilder builder(GetLayoutBlockFlow(), items());
   AppendText("Hello ", &builder);
   builder.AppendOpaque(InlineItem::kBidiControl, kFirstStrongIsolateCharacter);
   AppendText(" ", &builder);
@@ -364,7 +359,7 @@ TEST_F(InlineItemsBuilderTest, OpaqueToSpaceCollapsing) {
 }
 
 TEST_F(InlineItemsBuilderTest, CollapseAroundReplacedElement) {
-  InlineItemsBuilder builder(GetLayoutBlockFlow(), items_);
+  InlineItemsBuilder builder(GetLayoutBlockFlow(), items());
   AppendText("Hello ", &builder);
   AppendAtomicInline(&builder);
   AppendText(" World", &builder);
@@ -372,33 +367,33 @@ TEST_F(InlineItemsBuilderTest, CollapseAroundReplacedElement) {
 }
 
 TEST_F(InlineItemsBuilderTest, CollapseNewlineAfterObject) {
-  InlineItemsBuilder builder(GetLayoutBlockFlow(), items_);
+  InlineItemsBuilder builder(GetLayoutBlockFlow(), items());
   AppendAtomicInline(&builder);
   AppendText("\n", &builder);
   AppendAtomicInline(&builder);
   EXPECT_EQ(String(u"\uFFFC \uFFFC"), builder.ToString());
-  EXPECT_EQ(3u, items_->size());
-  EXPECT_ITEM_OFFSET(items_->at(0), InlineItem::kAtomicInline, 0u, 1u);
-  EXPECT_ITEM_OFFSET(items_->at(1), InlineItem::kText, 1u, 2u);
-  EXPECT_ITEM_OFFSET(items_->at(2), InlineItem::kAtomicInline, 2u, 3u);
+  EXPECT_EQ(3u, items()->size());
+  EXPECT_ITEM_OFFSET(items()->at(0), InlineItem::kAtomicInline, 0u, 1u);
+  EXPECT_ITEM_OFFSET(items()->at(1), InlineItem::kText, 1u, 2u);
+  EXPECT_ITEM_OFFSET(items()->at(2), InlineItem::kAtomicInline, 2u, 3u);
 }
 
 TEST_F(InlineItemsBuilderTest, AppendEmptyString) {
   EXPECT_EQ("", TestAppend(""));
-  EXPECT_EQ(1u, items_->size());
-  EXPECT_ITEM_OFFSET(items_->at(0), InlineItem::kText, 0u, 0u);
+  EXPECT_EQ(1u, items()->size());
+  EXPECT_ITEM_OFFSET(items()->at(0), InlineItem::kText, 0u, 0u);
 }
 
 TEST_F(InlineItemsBuilderTest, NewLines) {
   SetWhiteSpace(EWhiteSpace::kPre);
   EXPECT_EQ("apple\norange\ngrape\n", TestAppend("apple\norange\ngrape\n"));
-  EXPECT_EQ(6u, items_->size());
-  EXPECT_EQ(InlineItem::kText, items_->at(0).Type());
-  EXPECT_EQ(InlineItem::kControl, items_->at(1).Type());
-  EXPECT_EQ(InlineItem::kText, items_->at(2).Type());
-  EXPECT_EQ(InlineItem::kControl, items_->at(3).Type());
-  EXPECT_EQ(InlineItem::kText, items_->at(4).Type());
-  EXPECT_EQ(InlineItem::kControl, items_->at(5).Type());
+  EXPECT_EQ(6u, items()->size());
+  EXPECT_EQ(InlineItem::kText, items()->at(0)->Type());
+  EXPECT_EQ(InlineItem::kControl, items()->at(1)->Type());
+  EXPECT_EQ(InlineItem::kText, items()->at(2)->Type());
+  EXPECT_EQ(InlineItem::kControl, items()->at(3)->Type());
+  EXPECT_EQ(InlineItem::kText, items()->at(4)->Type());
+  EXPECT_EQ(InlineItem::kControl, items()->at(5)->Type());
 }
 
 TEST_F(InlineItemsBuilderTest, IgnorablePre) {
@@ -414,16 +409,16 @@ TEST_F(InlineItemsBuilderTest, IgnorablePre) {
                  "orange"
                  "\n"
                  "grape"));
-  EXPECT_EQ(5u, items_->size());
-  EXPECT_ITEM_OFFSET(items_->at(0), InlineItem::kText, 0u, 5u);
-  EXPECT_ITEM_OFFSET(items_->at(1), InlineItem::kControl, 5u, 6u);
-  EXPECT_ITEM_OFFSET(items_->at(2), InlineItem::kText, 6u, 12u);
-  EXPECT_ITEM_OFFSET(items_->at(3), InlineItem::kControl, 12u, 13u);
-  EXPECT_ITEM_OFFSET(items_->at(4), InlineItem::kText, 13u, 18u);
+  EXPECT_EQ(5u, items()->size());
+  EXPECT_ITEM_OFFSET(items()->at(0), InlineItem::kText, 0u, 5u);
+  EXPECT_ITEM_OFFSET(items()->at(1), InlineItem::kControl, 5u, 6u);
+  EXPECT_ITEM_OFFSET(items()->at(2), InlineItem::kText, 6u, 12u);
+  EXPECT_ITEM_OFFSET(items()->at(3), InlineItem::kControl, 12u, 13u);
+  EXPECT_ITEM_OFFSET(items()->at(4), InlineItem::kText, 13u, 18u);
 }
 
 TEST_F(InlineItemsBuilderTest, Empty) {
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
   const ComputedStyle* block_style =
       &GetDocument().GetStyleResolver().InitialStyle();
@@ -466,7 +461,7 @@ TEST_F(InlineItemsBuilderTest, GenerateBreakOpportunityAfterLeadingSpaces) {
 }
 
 TEST_F(InlineItemsBuilderTest, BidiBlockOverride) {
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
   ComputedStyleBuilder block_style_builder(
       GetDocument().GetStyleResolver().InitialStyle());
@@ -498,7 +493,7 @@ static LayoutInline* CreateLayoutInline(
 }
 
 TEST_F(InlineItemsBuilderTest, BidiIsolate) {
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
   AppendText("Hello ", &builder);
   LayoutInline* const isolate_rtl =
@@ -523,7 +518,7 @@ TEST_F(InlineItemsBuilderTest, BidiIsolate) {
 }
 
 TEST_F(InlineItemsBuilderTest, BidiIsolateOverride) {
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
   AppendText("Hello ", &builder);
   LayoutInline* const isolate_override_rtl =
@@ -548,7 +543,7 @@ TEST_F(InlineItemsBuilderTest, BidiIsolateOverride) {
 }
 
 TEST_F(InlineItemsBuilderTest, BlockInInline) {
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
   AppendText("Hello ", &builder);
   AppendBlockInInline(&builder);
@@ -557,31 +552,7 @@ TEST_F(InlineItemsBuilderTest, BlockInInline) {
   EXPECT_EQ(String(u"Hello\uFFFCWorld"), builder.ToString());
 }
 
-TEST_F(InlineItemsBuilderTest, HasRuby) {
-  ScopedRubyLineBreakableForTest enable_ruby_line_breakable(false);
-  HeapVector<InlineItem> items;
-  InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
-  EXPECT_FALSE(HasRuby(builder)) << "has_ruby_ should be false initially.";
-
-  AppendText("Hello ", &builder);
-  EXPECT_FALSE(HasRuby(builder))
-      << "Adding non-AtomicInline should not affect it.";
-
-  AppendAtomicInline(&builder);
-  EXPECT_FALSE(HasRuby(builder))
-      << "Adding non-ruby AtomicInline should not affect it.";
-
-  AppendRubyColumn(&builder);
-  EXPECT_TRUE(HasRuby(builder))
-      << "Adding a ruby AtomicInline should set it to true.";
-
-  AppendAtomicInline(&builder);
-  EXPECT_TRUE(HasRuby(builder))
-      << "Adding non-ruby AtomicInline should not clear it.";
-}
-
 TEST_F(InlineItemsBuilderTest, OpenCloseRubyColumns) {
-  ScopedRubyLineBreakableForTest enable_ruby_line_breakable(true);
   GetDocument().Lifecycle().AdvanceTo(DocumentLifecycle::kInStyleRecalc);
   LayoutInline* ruby =
       CreateLayoutInline(&GetDocument(), [](ComputedStyleBuilder& builder) {
@@ -598,7 +569,7 @@ TEST_F(InlineItemsBuilderTest, OpenCloseRubyColumns) {
         builder.SetDisplay(EDisplay::kRubyText);
       });
   GetLayoutBlockFlow()->AddChild(orphan_rt);
-  HeapVector<InlineItem> items;
+  InlineItems items;
   InlineItemsBuilder builder(GetLayoutBlockFlow(), &items);
 
   // Input: <ruby>base1<rt>anno1</rt>base2<rt>anno2</ruby><rt>anno3</rt>.
@@ -642,19 +613,16 @@ TEST_F(InlineItemsBuilderTest, OpenCloseRubyColumns) {
   EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 23u, 23u);
   EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseTag, 23u, 23u);  // </rt>
   EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseRubyColumn, 23u, 24u);
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseTag, 24u, 24u);  // </ruby>
+
   EXPECT_ITEM_OFFSET(items[++i], InlineItem::kOpenRubyColumn, 24u, 25u);
   EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 25u, 25u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseRubyColumn, 25u, 26u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseTag, 26u, 26u);  // </ruby>
-
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kOpenRubyColumn, 26u, 27u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 27u, 27u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kOpenTag, 27u, 27u);  // <rt>
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 27u, 27u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kText, 27u, 32u);  // "anno3"
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 32u, 32u);
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseTag, 32u, 32u);  // </rt>
-  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseRubyColumn, 32u, 33u);
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kOpenTag, 25u, 25u);  // <rt>
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 25u, 25u);
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kText, 25u, 30u);  // "anno3"
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kRubyLinePlaceholder, 30u, 30u);
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseTag, 30u, 30u);  // </rt>
+  EXPECT_ITEM_OFFSET(items[++i], InlineItem::kCloseRubyColumn, 30u, 31u);
 
   orphan_rt->Destroy();
   rt->Destroy();

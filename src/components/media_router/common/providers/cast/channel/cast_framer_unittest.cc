@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/containers/span.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/openscreen/src/cast/common/channel/proto/cast_channel.pb.h"
 
@@ -19,8 +20,8 @@ using ::cast_channel::ChannelError;
 
 class CastFramerTest : public testing::Test {
  public:
-  CastFramerTest() {}
-  ~CastFramerTest() override {}
+  CastFramerTest() = default;
+  ~CastFramerTest() override = default;
 
   void SetUp() override {
     cast_message_.set_protocol_version(CastMessage::CASTV2_1_0);
@@ -37,7 +38,7 @@ class CastFramerTest : public testing::Test {
   }
 
   void WriteToBuffer(const std::string& data) {
-    memcpy(buffer_->StartOfBuffer(), data.data(), data.size());
+    buffer_->everything().copy_prefix_from(base::as_byte_span(data));
   }
 
  protected:

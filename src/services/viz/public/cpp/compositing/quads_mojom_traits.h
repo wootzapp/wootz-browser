@@ -13,6 +13,7 @@
 #include "base/memory/stack_allocated.h"
 #include "base/notreached.h"
 #include "base/unguessable_token.h"
+#include "cc/mojom/paint_flags_mojom_traits.h"
 #include "components/viz/common/quads/compositor_render_pass_draw_quad.h"
 #include "components/viz/common/quads/debug_border_draw_quad.h"
 #include "components/viz/common/quads/picture_draw_quad.h"
@@ -22,7 +23,6 @@
 #include "components/viz/common/quads/texture_draw_quad.h"
 #include "components/viz/common/quads/tile_draw_quad.h"
 #include "components/viz/common/quads/video_hole_draw_quad.h"
-#include "components/viz/common/quads/yuv_video_draw_quad.h"
 #include "components/viz/common/resources/resource_id.h"
 #include "components/viz/common/view_transition_element_resource_id.h"
 #include "services/viz/public/cpp/compositing/filter_operation_mojom_traits.h"
@@ -57,8 +57,7 @@ struct EnumTraits<viz::mojom::ProtectedVideoState, gfx::ProtectedVideoType> {
       case gfx::ProtectedVideoType::kSoftwareProtected:
         return viz::mojom::ProtectedVideoState::kSoftwareProtected;
     }
-    NOTREACHED_IN_MIGRATION();
-    return viz::mojom::ProtectedVideoState::kClear;
+    NOTREACHED();
   }
 
   static bool FromMojom(viz::mojom::ProtectedVideoState input,
@@ -74,8 +73,7 @@ struct EnumTraits<viz::mojom::ProtectedVideoState, gfx::ProtectedVideoType> {
         *out = gfx::ProtectedVideoType::kSoftwareProtected;
         return true;
     }
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 };
 
@@ -90,8 +88,7 @@ struct EnumTraits<viz::mojom::OverlayPriority, viz::OverlayPriority> {
       case viz::OverlayPriority::kRequired:
         return viz::mojom::OverlayPriority::kRequired;
     }
-    NOTREACHED_IN_MIGRATION();
-    return viz::mojom::OverlayPriority::kLow;
+    NOTREACHED();
   }
 
   static bool FromMojom(viz::mojom::OverlayPriority input,
@@ -107,8 +104,7 @@ struct EnumTraits<viz::mojom::OverlayPriority, viz::OverlayPriority> {
         *out = viz::OverlayPriority::kRequired;
         return true;
     }
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 };
 
@@ -154,13 +150,10 @@ struct UnionTraits<viz::mojom::DrawQuadStateDataView, viz::DrawQuad> {
         return viz::mojom::DrawQuadStateDataView::Tag::kTileQuadState;
       case viz::DrawQuad::Material::kVideoHole:
         return viz::mojom::DrawQuadStateDataView::Tag::kVideoHoleQuadState;
-      case viz::DrawQuad::Material::kYuvVideoContent:
-        return viz::mojom::DrawQuadStateDataView::Tag::kYuvVideoQuadState;
       case viz::DrawQuad::Material::kSharedElement:
         return viz::mojom::DrawQuadStateDataView::Tag::kSharedElementQuadState;
     }
-    NOTREACHED_IN_MIGRATION();
-    return viz::mojom::DrawQuadStateDataView::Tag::kDebugBorderQuadState;
+    NOTREACHED();
   }
 
   static const viz::DrawQuad& debug_border_quad_state(
@@ -199,10 +192,6 @@ struct UnionTraits<viz::mojom::DrawQuadStateDataView, viz::DrawQuad> {
     return quad;
   }
 
-  static const viz::DrawQuad& yuv_video_quad_state(const viz::DrawQuad& quad) {
-    return quad;
-  }
-
   static const viz::DrawQuad& shared_element_quad_state(
       const viz::DrawQuad& quad) {
     return quad;
@@ -224,23 +213,20 @@ struct UnionTraits<viz::mojom::DrawQuadStateDataView, viz::DrawQuad> {
         return data.ReadTileQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kVideoHoleQuadState:
         return data.ReadVideoHoleQuadState(out);
-      case viz::mojom::DrawQuadStateDataView::Tag::kYuvVideoQuadState:
-        return data.ReadYuvVideoQuadState(out);
       case viz::mojom::DrawQuadStateDataView::Tag::kSharedElementQuadState:
         return data.ReadSharedElementQuadState(out);
     }
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 };
 
 template <>
 struct StructTraits<viz::mojom::SharedElementQuadStateDataView, viz::DrawQuad> {
-  static const viz::ViewTransitionElementResourceId& resource_id(
+  static const viz::ViewTransitionElementResourceId& element_resource_id(
       const viz::DrawQuad& input) {
     const viz::SharedElementDrawQuad* quad =
         viz::SharedElementDrawQuad::MaterialCast(&input);
-    return quad->resource_id;
+    return quad->element_resource_id;
   }
 
   static bool Read(viz::mojom::SharedElementQuadStateDataView data,
@@ -397,6 +383,20 @@ struct StructTraits<viz::mojom::SurfaceQuadStateDataView, viz::DrawQuad> {
     return quad->allow_merge;
   }
 
+  static std::optional<cc::PaintFlags::FilterQuality>
+  override_child_filter_quality(const viz::DrawQuad& input) {
+    const viz::SurfaceDrawQuad* quad =
+        viz::SurfaceDrawQuad::MaterialCast(&input);
+    return quad->override_child_filter_quality;
+  }
+
+  static std::optional<cc::PaintFlags::DynamicRangeLimitMixture>
+  override_child_dynamic_range_limit(const viz::DrawQuad& input) {
+    const viz::SurfaceDrawQuad* quad =
+        viz::SurfaceDrawQuad::MaterialCast(&input);
+    return quad->override_child_dynamic_range_limit;
+  }
+
   static bool Read(viz::mojom::SurfaceQuadStateDataView data,
                    viz::DrawQuad* out);
 };
@@ -406,13 +406,7 @@ struct StructTraits<viz::mojom::TextureQuadStateDataView, viz::DrawQuad> {
   static viz::ResourceId resource_id(const viz::DrawQuad& input) {
     const viz::TextureDrawQuad* quad =
         viz::TextureDrawQuad::MaterialCast(&input);
-    return quad->resource_id();
-  }
-
-  static const gfx::Size& resource_size_in_pixels(const viz::DrawQuad& input) {
-    const viz::TextureDrawQuad* quad =
-        viz::TextureDrawQuad::MaterialCast(&input);
-    return quad->resource_size_in_pixels();
+    return quad->resource_id;
   }
 
   static viz::TextureDrawQuad::RoundedDisplayMasksInfo
@@ -446,12 +440,6 @@ struct StructTraits<viz::mojom::TextureQuadStateDataView, viz::DrawQuad> {
     return quad->background_color;
   }
 
-  static bool y_flipped(const viz::DrawQuad& input) {
-    const viz::TextureDrawQuad* quad =
-        viz::TextureDrawQuad::MaterialCast(&input);
-    return quad->y_flipped;
-  }
-
   static bool force_rgbx(const viz::DrawQuad& input) {
     const viz::TextureDrawQuad* quad =
         viz::TextureDrawQuad::MaterialCast(&input);
@@ -462,6 +450,13 @@ struct StructTraits<viz::mojom::TextureQuadStateDataView, viz::DrawQuad> {
     const viz::TextureDrawQuad* quad =
         viz::TextureDrawQuad::MaterialCast(&input);
     return quad->nearest_neighbor;
+  }
+
+  static cc::PaintFlags::DynamicRangeLimitMixture dynamic_range_limit(
+      const viz::DrawQuad& input) {
+    const viz::TextureDrawQuad* quad =
+        viz::TextureDrawQuad::MaterialCast(&input);
+    return quad->dynamic_range_limit;
   }
 
   static bool secure_output_only(const viz::DrawQuad& input) {
@@ -480,12 +475,6 @@ struct StructTraits<viz::mojom::TextureQuadStateDataView, viz::DrawQuad> {
     const viz::TextureDrawQuad* quad =
         viz::TextureDrawQuad::MaterialCast(&input);
     return quad->is_video_frame;
-  }
-
-  static const gfx::HDRMetadata& hdr_metadata(const viz::DrawQuad& input) {
-    const viz::TextureDrawQuad* quad =
-        viz::TextureDrawQuad::MaterialCast(&input);
-    return quad->hdr_metadata;
   }
 
   static gfx::ProtectedVideoType protected_video_type(
@@ -537,7 +526,7 @@ struct StructTraits<viz::mojom::TileQuadStateDataView, viz::DrawQuad> {
 
   static viz::ResourceId resource_id(const viz::DrawQuad& input) {
     const viz::TileDrawQuad* quad = viz::TileDrawQuad::MaterialCast(&input);
-    return quad->resource_id();
+    return quad->resource_id;
   }
 
   static bool force_anti_aliasing_off(const viz::DrawQuad& input) {
@@ -546,91 +535,6 @@ struct StructTraits<viz::mojom::TileQuadStateDataView, viz::DrawQuad> {
   }
 
   static bool Read(viz::mojom::TileQuadStateDataView data, viz::DrawQuad* out);
-};
-
-template <>
-struct StructTraits<viz::mojom::YUVVideoQuadStateDataView, viz::DrawQuad> {
-  static const gfx::Size& coded_size(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->coded_size;
-  }
-
-  static const gfx::Rect& video_visible_rect(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->video_visible_rect;
-  }
-
-  static uint8_t u_scale(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->u_scale;
-  }
-
-  static uint8_t v_scale(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->v_scale;
-  }
-
-  static viz::ResourceId y_plane_resource_id(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->y_plane_resource_id();
-  }
-
-  static viz::ResourceId u_plane_resource_id(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->u_plane_resource_id();
-  }
-
-  static viz::ResourceId v_plane_resource_id(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->v_plane_resource_id();
-  }
-
-  static viz::ResourceId a_plane_resource_id(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->a_plane_resource_id();
-  }
-
-  static uint32_t bits_per_channel(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->bits_per_channel;
-  }
-  static gfx::ColorSpace video_color_space(const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->video_color_space;
-  }
-  static gfx::ProtectedVideoType protected_video_type(
-      const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->protected_video_type;
-  }
-
-  static const std::optional<gfx::HDRMetadata> hdr_metadata(
-      const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->hdr_metadata;
-  }
-
-  static const std::optional<gfx::Rect>& damage_rect(
-      const viz::DrawQuad& input) {
-    const viz::YUVVideoDrawQuad* quad =
-        viz::YUVVideoDrawQuad::MaterialCast(&input);
-    return quad->damage_rect;
-  }
-
-  static bool Read(viz::mojom::YUVVideoQuadStateDataView data,
-                   viz::DrawQuad* out);
 };
 
 struct DrawQuadWithSharedQuadState {

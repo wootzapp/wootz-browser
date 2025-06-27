@@ -6,9 +6,10 @@
 #define IOS_CHROME_BROWSER_TRUSTED_VAULT_MODEL_IOS_TRUSTED_VAULT_CLIENT_H_
 
 #import "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/memory/weak_ptr.h"
-#include "components/trusted_vault/trusted_vault_client.h"
+#import "base/memory/scoped_refptr.h"
+#import "base/memory/weak_ptr.h"
+#import "components/trusted_vault/trusted_vault_client.h"
+#import "components/trusted_vault/trusted_vault_server_constants.h"
 
 namespace network {
 class SharedURLLoaderFactory;
@@ -40,7 +41,7 @@ class IOSTrustedVaultClient : public trusted_vault::TrustedVaultClient {
       const CoreAccountInfo& account_info,
       base::OnceCallback<void(const std::vector<std::vector<uint8_t>>&)>
           callback) override;
-  void StoreKeys(const std::string& gaia_id,
+  void StoreKeys(const GaiaId& gaia_id,
                  const std::vector<std::vector<uint8_t>>& keys,
                  int last_key_version) override;
   void MarkLocalKeysAsStale(const CoreAccountInfo& account_info,
@@ -48,7 +49,7 @@ class IOSTrustedVaultClient : public trusted_vault::TrustedVaultClient {
   void GetIsRecoverabilityDegraded(
       const CoreAccountInfo& account_info,
       base::OnceCallback<void(bool)> callback) override;
-  void AddTrustedRecoveryMethod(const std::string& gaia_id,
+  void AddTrustedRecoveryMethod(const GaiaId& gaia_id,
                                 const std::vector<uint8_t>& public_key,
                                 int method_type_hint,
                                 base::OnceClosure callback) override;
@@ -64,6 +65,8 @@ class IOSTrustedVaultClient : public trusted_vault::TrustedVaultClient {
 
   const raw_ptr<ChromeAccountManagerService> account_manager_service_;
   const raw_ptr<TrustedVaultClientBackend> backend_;
+  // TODO(crbug.com/343007092): Need to set the right security domain path.
+  const trusted_vault::SecurityDomainId security_domain_id_;
   base::WeakPtrFactory<IOSTrustedVaultClient> weak_ptr_factory_{this};
 };
 

@@ -12,28 +12,29 @@
 namespace blink {
 
 WebGLQuery::WebGLQuery(WebGL2RenderingContextBase* ctx)
-    : WebGLSharedPlatform3DObject(ctx),
+    : WebGLObject(ctx),
       target_(0),
       can_update_availability_(false),
       query_result_available_(false),
       query_result_(0),
       task_runner_(ctx->GetContextTaskRunner()) {
   GLuint query;
-  ctx->ContextGL()->GenQueriesEXT(1, &query);
-  SetObject(query);
+  if (!ctx->isContextLost()) {
+    ctx->ContextGL()->GenQueriesEXT(1, &query);
+    SetObject(query);
+  }
 }
 
 WebGLQuery::~WebGLQuery() = default;
 
 void WebGLQuery::SetTarget(GLenum target) {
-  DCHECK(Object());
+  DCHECK(HasObject());
   DCHECK(!target_);
   target_ = target;
 }
 
 void WebGLQuery::DeleteObjectImpl(gpu::gles2::GLES2Interface* gl) {
-  gl->DeleteQueriesEXT(1, &object_);
-  object_ = 0;
+  gl->DeleteQueriesEXT(1, &Object());
 }
 
 void WebGLQuery::ResetCachedResult() {
@@ -47,6 +48,8 @@ void WebGLQuery::ResetCachedResult() {
 }
 
 void WebGLQuery::UpdateCachedResult(gpu::gles2::GLES2Interface* gl) {
+  // Context loss is checked at higher levels.
+
   if (query_result_available_)
     return;
 

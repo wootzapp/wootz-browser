@@ -19,6 +19,7 @@
 #include "components/webapps/browser/webapps_client.h"
 #include "content/public/browser/web_contents.h"
 #include "testing/gmock/include/gmock/gmock.h"
+#include "third_party/blink/public/common/manifest/manifest_util.h"
 
 namespace webapps {
 
@@ -96,7 +97,7 @@ void TestAppBannerManagerDesktop::OnDidGetManifest(
   if (base::Contains(result.errors,
                      InstallableStatusCode::MANIFEST_URL_CHANGED)) {
     installable_.reset();
-  } else if (!result.errors.empty()) {
+  } else if (blink::IsEmptyManifest(*result.manifest)) {
     // AppBannerManagerDesktop does not call
     // |OnDidPerformInstallableWebAppCheck| to complete the installability check
     // in this case, instead it early exits with failure.
@@ -105,6 +106,11 @@ void TestAppBannerManagerDesktop::OnDidGetManifest(
 }
 void TestAppBannerManagerDesktop::OnDidPerformInstallableWebAppCheck(
     const InstallableData& result) {
+  // If the renderer is existing, ensure installable isn't accidentally set
+  // twice.
+  if (base::Contains(result.errors, InstallableStatusCode::RENDERER_EXITING)) {
+    installable_.reset();
+  }
   debug_log_.Append("OnDidPerformInstallableWebAppCheck");
   AppBannerManagerDesktop::OnDidPerformInstallableWebAppCheck(result);
   SetInstallable(result.errors.empty());
@@ -165,8 +171,7 @@ void TestAppBannerManagerDesktop::UpdateState(AppBannerManager::State state) {
       base::StringPrintf("State updated to %d", static_cast<int>(state)));
   AppBannerManager::UpdateState(state);
 
-  if (state == AppBannerManager::State::PENDING_ENGAGEMENT ||
-      state == AppBannerManager::State::PENDING_PROMPT_CANCELED ||
+  if (state == AppBannerManager::State::PENDING_PROMPT_CANCELED ||
       state == AppBannerManager::State::PENDING_PROMPT_NOT_CANCELED ||
       state == AppBannerManager::State::COMPLETE) {
     OnFinished();

@@ -29,6 +29,7 @@
 #include "components/signin/public/identity_manager/accounts_mutator.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "google_apis/gaia/gaia_auth_util.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "url/gurl.h"
@@ -39,15 +40,14 @@ constexpr char kGaiaUsername[] = "username";
 constexpr char16_t kGaiaUsername16[] = u"username";
 constexpr char kGaiaEmail[] = "username@gmail.com";
 constexpr char16_t kGaiaEmail16[] = u"username@gmail.com";
-constexpr char kGaiaId[] = "test_gaia_id";
+constexpr GaiaId::Literal kGaiaId("test_gaia_id");
 
 }  // namespace
 
 PasswordManagerSigninInterceptTestHelper::
     PasswordManagerSigninInterceptTestHelper(
         net::test_server::EmbeddedTestServer* https_test_server)
-    : https_test_server_(https_test_server) {
-}
+    : https_test_server_(https_test_server) {}
 
 PasswordManagerSigninInterceptTestHelper::
     ~PasswordManagerSigninInterceptTestHelper() = default;
@@ -118,13 +118,13 @@ void PasswordManagerSigninInterceptTestHelper::SetupProfilesForInterception(
 CoreAccountId PasswordManagerSigninInterceptTestHelper::AddGaiaAccountToProfile(
     Profile* profile,
     const std::string& email,
-    const std::string& gaia_id) {
+    const GaiaId& gaia_id) {
   auto* accounts_mutator =
       IdentityManagerFactory::GetForProfile(profile)->GetAccountsMutator();
   return accounts_mutator->AddOrUpdateAccount(
       gaia_id, email, "refresh_token",
       /*is_under_advanced_protection=*/false,
-      signin_metrics::AccessPoint::ACCESS_POINT_UNKNOWN,
+      signin_metrics::AccessPoint::kUnknown,
       signin_metrics::SourceForRefreshTokenOperation::kUnknown);
 }
 
@@ -142,6 +142,6 @@ std::string PasswordManagerSigninInterceptTestHelper::gaia_email() const {
   return kGaiaEmail;
 }
 
-std::string PasswordManagerSigninInterceptTestHelper::gaia_id() const {
+GaiaId PasswordManagerSigninInterceptTestHelper::gaia_id() const {
   return kGaiaId;
 }

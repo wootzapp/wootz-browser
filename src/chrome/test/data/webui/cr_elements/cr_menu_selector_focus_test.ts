@@ -8,8 +8,8 @@ import type {CrMenuSelector} from 'chrome://resources/cr_elements/cr_menu_select
 import {FocusOutlineManager} from 'chrome://resources/js/focus_outline_manager.js';
 import {getTrustedHTML} from 'chrome://resources/js/static_types.js';
 import {getDeepActiveElement} from 'chrome://resources/js/util.js';
-import {keyDownOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {keyDownOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 
@@ -163,7 +163,7 @@ suite('CrMenuSelectorFocusTest', () => {
     const itemToSelect = getChild(1);
     const onActivate = eventToPromise('iron-activate', element);
     const onSelect = eventToPromise('iron-select', element);
-    itemToSelect.dispatchEvent(new Event('click', {bubbles: true}));
+    itemToSelect.click();
     await Promise.all([onActivate, onSelect]);
     assertTrue(itemToSelect.hasAttribute('selected'));
     assertEquals(itemToSelect.getAttribute('href'), element.selected);

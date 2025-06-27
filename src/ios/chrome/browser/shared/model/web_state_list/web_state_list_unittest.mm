@@ -9,10 +9,13 @@
 #import "base/scoped_observation.h"
 #import "base/supports_user_data.h"
 #import "components/tab_groups/tab_group_color.h"
+#import "components/tab_groups/tab_group_id.h"
+#import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/removing_indexes.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/model/web_state_list/test/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/shared/model/web_state_list/test/web_state_list_builder_from_description.h"
+#import "ios/chrome/browser/shared/model/web_state_list/web_state_list_groups_delegate.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
@@ -22,6 +25,7 @@
 #import "testing/platform_test.h"
 #import "url/gurl.h"
 
+using tab_groups::TabGroupId;
 using tab_groups::TabGroupVisualData;
 
 namespace {
@@ -443,11 +447,34 @@ class TestWebStateListDelegate final : public WebStateListDelegate {
   raw_ptr<web::WebState> last_activated_web_state_;
 };
 
+class TestWebStateListGroupsDelegate final : public WebStateListGroupsDelegate {
+ public:
+  void SetShouldDeleteGroup(bool group_deletion) {
+    group_deletion_ = group_deletion;
+  }
+
+  // WebStateListGroupsDelegate implementation.
+  bool ShouldDeleteGroup(const TabGroup* group) final {
+    return group_deletion_;
+  }
+
+  std::unique_ptr<web::WebState> WebStateToAddToEmptyGroup() final {
+    auto fake_web_state = std::make_unique<web::FakeWebState>();
+    fake_web_state->SetCurrentURL(GURL(kChromeUINewTabURL));
+    fake_web_state->SetNavigationManager(
+        std::make_unique<FakeNavigationManager>());
+    return fake_web_state;
+  }
+
+ private:
+  bool group_deletion_ = true;
+};
+
 }  // namespace
 
 class WebStateListTest : public PlatformTest {
  public:
-  WebStateListTest() : web_state_list_(&delegate_) {
+  WebStateListTest() : web_state_list_(&delegate_, &groups_delegate_) {
     observer_.Observe(&web_state_list_);
   }
 
@@ -456,6 +483,7 @@ class WebStateListTest : public PlatformTest {
 
  protected:
   TestWebStateListDelegate delegate_;
+  TestWebStateListGroupsDelegate groups_delegate_;
   WebStateList web_state_list_;
   WebStateListTestObserver observer_;
 
@@ -2599,7 +2627,8 @@ TEST_F(WebStateListTest, GetGroups) {
 
   TabGroupVisualData visual_data =
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kPink);
-  const TabGroup* group_1 = web_state_list_.CreateGroup({2}, visual_data);
+  const TabGroup* group_1 =
+      web_state_list_.CreateGroup({2}, visual_data, TabGroupId::GenerateNew());
   builder.SetTabGroupIdentifier(group_1, '1');
 
   EXPECT_EQ("| [ 0 a b ] [ 1 c ] d* e", builder.GetWebStateListDescription());
@@ -2618,15 +2647,18 @@ TEST_F(WebStateListTest, GetGroups) {
 TEST_F(WebStateListTest, CreateGroup_OneTab_NotMoving) {
   WebStateListBuilderFromDescription builder(&web_state_list_);
   ASSERT_TRUE(builder.BuildWebStateListFromDescription("| a*"));
+  TabGroupId tab_group_id = TabGroupId::GenerateNew();
   TabGroupVisualData visual_data =
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kGrey);
 
   observer_.ResetStatistics();
-  const TabGroup* group = web_state_list_.CreateGroup({0}, visual_data);
+  const TabGroup* group =
+      web_state_list_.CreateGroup({0}, visual_data, tab_group_id);
 
   builder.SetTabGroupIdentifier(group, '0');
   EXPECT_EQ("| [ 0 a* ]", builder.GetWebStateListDescription());
   EXPECT_EQ(TabGroupRange(0, 1), group->range());
+  EXPECT_EQ(tab_group_id, group->tab_group_id());
   EXPECT_EQ(visual_data, group->visual_data());
   EXPECT_EQ(0, observer_.web_state_activated_count());
   EXPECT_EQ(0, observer_.web_state_moved_count());
@@ -2640,15 +2672,18 @@ TEST_F(WebStateListTest, CreateGroup_OneTab_NotMoving) {
 TEST_F(WebStateListTest, CreateGroup_OneTab_Moving) {
   WebStateListBuilderFromDescription builder(&web_state_list_);
   ASSERT_TRUE(builder.BuildWebStateListFromDescription("a* b |"));
+  TabGroupId tab_group_id = TabGroupId::GenerateNew();
   TabGroupVisualData visual_data =
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kGrey);
 
   observer_.ResetStatistics();
-  const TabGroup* group = web_state_list_.CreateGroup({0}, visual_data);
+  const TabGroup* group =
+      web_state_list_.CreateGroup({0}, visual_data, tab_group_id);
 
   builder.SetTabGroupIdentifier(group, '0');
   EXPECT_EQ("b | [ 0 a* ]", builder.GetWebStateListDescription());
   EXPECT_EQ(TabGroupRange(1, 1), group->range());
+  EXPECT_EQ(tab_group_id, group->tab_group_id());
   EXPECT_EQ(visual_data, group->visual_data());
   EXPECT_EQ(0, observer_.web_state_activated_count());
   EXPECT_EQ(1, observer_.web_state_moved_count());
@@ -2662,15 +2697,18 @@ TEST_F(WebStateListTest, CreateGroup_OneTab_Moving) {
 TEST_F(WebStateListTest, CreateGroup_SeveralTabs) {
   WebStateListBuilderFromDescription builder(&web_state_list_);
   ASSERT_TRUE(builder.BuildWebStateListFromDescription("| a b* c d e"));
+  TabGroupId tab_group_id = TabGroupId::GenerateNew();
   TabGroupVisualData visual_data =
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kGrey);
 
   observer_.ResetStatistics();
-  const TabGroup* group = web_state_list_.CreateGroup({0, 2, 4}, visual_data);
+  const TabGroup* group =
+      web_state_list_.CreateGroup({0, 2, 4}, visual_data, tab_group_id);
 
   builder.SetTabGroupIdentifier(group, '0');
   EXPECT_EQ("| [ 0 a c e ] b* d", builder.GetWebStateListDescription());
   EXPECT_EQ(TabGroupRange(0, 3), group->range());
+  EXPECT_EQ(tab_group_id, group->tab_group_id());
   EXPECT_EQ(visual_data, group->visual_data());
   EXPECT_EQ(0, observer_.web_state_activated_count());
   EXPECT_EQ(2, observer_.web_state_moved_count());
@@ -2684,15 +2722,18 @@ TEST_F(WebStateListTest, CreateGroup_SeveralTabs) {
 TEST_F(WebStateListTest, CreateGroup_SeveralTabs_SomePinned) {
   WebStateListBuilderFromDescription builder(&web_state_list_);
   ASSERT_TRUE(builder.BuildWebStateListFromDescription("a b* c | d e"));
+  TabGroupId tab_group_id = TabGroupId::GenerateNew();
   TabGroupVisualData visual_data =
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kGrey);
 
   observer_.ResetStatistics();
-  const TabGroup* group = web_state_list_.CreateGroup({1, 3}, visual_data);
+  const TabGroup* group =
+      web_state_list_.CreateGroup({1, 3}, visual_data, tab_group_id);
 
   builder.SetTabGroupIdentifier(group, '0');
   EXPECT_EQ("a c | [ 0 b* d ] e", builder.GetWebStateListDescription());
   EXPECT_EQ(TabGroupRange(2, 2), group->range());
+  EXPECT_EQ(tab_group_id, group->tab_group_id());
   EXPECT_EQ(visual_data, group->visual_data());
   EXPECT_EQ(0, observer_.web_state_activated_count());
   EXPECT_EQ(1, observer_.web_state_moved_count());
@@ -2711,7 +2752,8 @@ TEST_F(WebStateListTest, CreateGroup_SeveralTabs_SomeGrouped) {
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kBlue);
 
   observer_.ResetStatistics();
-  const TabGroup* group_1 = web_state_list_.CreateGroup({1, 3}, visual_data_1);
+  const TabGroup* group_1 = web_state_list_.CreateGroup(
+      {1, 3}, visual_data_1, TabGroupId::GenerateNew());
 
   builder.SetTabGroupIdentifier(group_1, '1');
   EXPECT_EQ("| [ 0 a c ] [ 1 b d* ] e", builder.GetWebStateListDescription());
@@ -2736,8 +2778,8 @@ TEST_F(WebStateListTest, CreateGroup_SeveralTabs_PinnedAndGrouped) {
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kBlue);
 
   observer_.ResetStatistics();
-  const TabGroup* group_1 =
-      web_state_list_.CreateGroup({0, 1, 2, 3, 7, 8, 9}, visual_data_1);
+  const TabGroup* group_1 = web_state_list_.CreateGroup(
+      {0, 1, 2, 3, 7, 8, 9}, visual_data_1, TabGroupId::GenerateNew());
 
   builder.SetTabGroupIdentifier(group_1, '1');
   EXPECT_EQ("e f | [ 1 a b c d h i j ] g [ 0 k ] l",
@@ -2759,8 +2801,8 @@ TEST_F(WebStateListTest, CreateGroup_SeveralTabs_GroupedLeftAndRight) {
       TabGroupVisualData(u"Group", tab_groups::TabGroupColorId::kOrange);
 
   observer_.ResetStatistics();
-  const TabGroup* group_2 =
-      web_state_list_.CreateGroup({1, 4, 7, 8}, visual_data_2);
+  const TabGroup* group_2 = web_state_list_.CreateGroup(
+      {1, 4, 7, 8}, visual_data_2, TabGroupId::GenerateNew());
 
   builder.SetTabGroupIdentifier(group_2, '2');
   EXPECT_EQ("| [ 0 a c ] [ 2 b e h i ] d f [ 1 g j ] k l",
@@ -2824,26 +2866,6 @@ TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToLeftGroup) {
   EXPECT_EQ(group_0, observer_.status_only_new_group());
 }
 
-// Tests keeping the same index but adding to the group on the right.
-// TODO(crbug.com/328831758): Update to use MoveToGroup when it accepts a
-// `to_index`.
-TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToRightGroup) {
-  WebStateListBuilderFromDescription builder(&web_state_list_);
-  ASSERT_TRUE(builder.BuildWebStateListFromDescription("| a [ 0 b ]"));
-  const TabGroup* group_0 = builder.GetTabGroupForIdentifier('0');
-
-  observer_.ResetStatistics();
-  auto lock = web_state_list_.LockForMutation();
-  web_state_list_.MoveWebStateWrapperAt(0, 0, false, group_0);
-
-  EXPECT_EQ("| [ 0 a b ]", builder.GetWebStateListDescription());
-  EXPECT_EQ(TabGroupRange(0, 2), group_0->range());
-  EXPECT_EQ(0, observer_.web_state_moved_count());
-  EXPECT_EQ(1, observer_.status_only_count());
-  EXPECT_EQ(nullptr, observer_.status_only_old_group());
-  EXPECT_EQ(group_0, observer_.status_only_new_group());
-}
-
 // Tests keeping the same index but moving from own group to the group on the
 // left (old group having no remaining tab in it).
 TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToLeftGroup_OldGroupEmpty) {
@@ -2866,30 +2888,6 @@ TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToLeftGroup_OldGroupEmpty) {
 }
 
 // Tests keeping the same index but moving from own group to the group on the
-// right (old group having no remaining tab in it).
-// TODO(crbug.com/328831758): Update to use MoveToGroup when it accepts a
-// `to_index`.
-TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToRightGroup_OldGroupEmpty) {
-  WebStateListBuilderFromDescription builder(&web_state_list_);
-  ASSERT_TRUE(builder.BuildWebStateListFromDescription("| [ 0 a ] [ 1 b ]"));
-  const TabGroup* group_0 = builder.GetTabGroupForIdentifier('0');
-  const TabGroup* group_1 = builder.GetTabGroupForIdentifier('1');
-
-  observer_.ResetStatistics();
-  auto lock = web_state_list_.LockForMutation();
-  web_state_list_.MoveWebStateWrapperAt(0, 0, false, group_1);
-
-  EXPECT_EQ("| [ 1 a b ]", builder.GetWebStateListDescription());
-  EXPECT_EQ(TabGroupRange(0, 2), group_1->range());
-  EXPECT_EQ(0, observer_.web_state_moved_count());
-  EXPECT_EQ(1, observer_.status_only_count());
-  EXPECT_EQ(group_0, observer_.status_only_old_group());
-  EXPECT_EQ(group_1, observer_.status_only_new_group());
-  EXPECT_EQ(1, observer_.group_deleted_count());
-  EXPECT_EQ(group_0, observer_.group_deleted_group());
-}
-
-// Tests keeping the same index but moving from own group to the group on the
 // left (old group still having remaining tab in it).
 TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToLeftGroup_OldGroupNonEmpty) {
   WebStateListBuilderFromDescription builder(&web_state_list_);
@@ -2908,51 +2906,6 @@ TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToLeftGroup_OldGroupNonEmpty) {
   EXPECT_EQ(1, observer_.status_only_count());
   EXPECT_EQ(group_1, observer_.status_only_old_group());
   EXPECT_EQ(group_0, observer_.status_only_new_group());
-}
-
-// Tests keeping the same index but moving from own group to the group on the
-// right (old group still having remaining tabs in it).
-// TODO(crbug.com/328831758): Update to use MoveToGroup when it accepts a
-// `to_index`.
-TEST_F(WebStateListTest, MoveToGroup_NoMove_GoToRightGroup_OldGroupNonEmpty) {
-  WebStateListBuilderFromDescription builder(&web_state_list_);
-  ASSERT_TRUE(
-      builder.BuildWebStateListFromDescription("| [ 0 a b ] [ 1 c d ]"));
-  const TabGroup* group_0 = builder.GetTabGroupForIdentifier('0');
-  const TabGroup* group_1 = builder.GetTabGroupForIdentifier('1');
-
-  observer_.ResetStatistics();
-  auto lock = web_state_list_.LockForMutation();
-  web_state_list_.MoveWebStateWrapperAt(1, 1, false, group_1);
-
-  EXPECT_EQ("| [ 0 a ] [ 1 b c d ]", builder.GetWebStateListDescription());
-  EXPECT_EQ(TabGroupRange(0, 1), group_0->range());
-  EXPECT_EQ(TabGroupRange(1, 3), group_1->range());
-  EXPECT_EQ(0, observer_.web_state_moved_count());
-  EXPECT_EQ(1, observer_.status_only_count());
-  EXPECT_EQ(group_0, observer_.status_only_old_group());
-  EXPECT_EQ(group_1, observer_.status_only_new_group());
-}
-
-// Tests moving a pinned tab to a group while keeping the same position.
-// TODO(crbug.com/328831758): Update to use MoveToGroup when it accepts a
-// `to_index`.
-TEST_F(WebStateListTest, MoveToGroup_NoMove_PinnedToGroup) {
-  WebStateListBuilderFromDescription builder(&web_state_list_);
-  ASSERT_TRUE(builder.BuildWebStateListFromDescription("a | [ 0 b ]"));
-  const TabGroup* group = builder.GetTabGroupForIdentifier('0');
-
-  observer_.ResetStatistics();
-  auto lock = web_state_list_.LockForMutation();
-  web_state_list_.MoveWebStateWrapperAt(0, 0, false, group);
-
-  EXPECT_EQ("| [ 0 a b ]", builder.GetWebStateListDescription());
-  EXPECT_EQ(TabGroupRange(0, 2), group->range());
-  EXPECT_EQ(0, observer_.web_state_moved_count());
-  EXPECT_EQ(1, observer_.status_only_count());
-  EXPECT_EQ(1, observer_.pinned_state_changed());
-  EXPECT_EQ(nullptr, observer_.status_only_old_group());
-  EXPECT_EQ(group, observer_.status_only_new_group());
 }
 
 // Tests moving a pinned tab to a group with a change of index.
@@ -3399,7 +3352,8 @@ TEST_F(WebStateListTest, ContainsGroup) {
   ASSERT_TRUE(builder.BuildWebStateListFromDescription("| [0 a* b] [ 1 c ] d"));
   const TabGroup* group_0 = builder.GetTabGroupForIdentifier('0');
   const TabGroup* group_1 = builder.GetTabGroupForIdentifier('1');
-  TabGroup outside_group{tab_groups::TabGroupVisualData()};
+  TabGroup outside_group{TabGroupId::GenerateNew(),
+                         tab_groups::TabGroupVisualData()};
 
   EXPECT_TRUE(web_state_list_.ContainsGroup(group_0));
   EXPECT_TRUE(web_state_list_.ContainsGroup(group_1));
@@ -3455,4 +3409,34 @@ TEST_F(WebStateListTest, CloseOtherWebStates_GroupNoPinned) {
   EXPECT_TRUE(web_state_list_.ContainsGroup(group_0));
   EXPECT_TRUE(observer_.batch_operation_started());
   EXPECT_TRUE(observer_.batch_operation_ended());
+}
+
+// Ensures when the delegate allows group deletion, detaching the last tab
+// results in the group's removal.
+TEST_F(WebStateListTest, GroupDeletedWhenShouldBeDeleted) {
+  WebStateListBuilderFromDescription builder(&web_state_list_);
+  ASSERT_TRUE(builder.BuildWebStateListFromDescription("| [ 0 a ]"));
+
+  observer_.ResetStatistics();
+  web_state_list_.DetachWebStateAt(0);
+  EXPECT_EQ("|", builder.GetWebStateListDescription());
+  EXPECT_TRUE(observer_.web_state_detached());
+}
+
+// Ensures when the delegate prevents group deletion, the group remains, and
+// detaching its final tab results in a new tab being added to it.
+TEST_F(WebStateListTest, GroupNotDeletedWhenShouldNotBeDeleted) {
+  WebStateListBuilderFromDescription builder(&web_state_list_);
+  ASSERT_TRUE(builder.BuildWebStateListFromDescription("| [ 0 a ]"));
+  const TabGroup* group_0 = builder.GetTabGroupForIdentifier('0');
+
+  observer_.ResetStatistics();
+  groups_delegate_.SetShouldDeleteGroup(false);
+  web_state_list_.DetachWebStateAt(0);
+
+  EXPECT_NE("| [ 0 a ]", builder.GetWebStateListDescription());
+  EXPECT_TRUE(web_state_list_.ContainsGroup(group_0));
+  EXPECT_TRUE(observer_.web_state_detached());
+  EXPECT_TRUE(observer_.web_state_inserted());
+  EXPECT_EQ(1, group_0->range().count());
 }

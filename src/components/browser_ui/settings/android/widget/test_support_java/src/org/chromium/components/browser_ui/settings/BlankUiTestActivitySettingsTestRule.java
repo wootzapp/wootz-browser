@@ -7,16 +7,17 @@ package org.chromium.components.browser_ui.settings;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
+import androidx.lifecycle.Lifecycle.State;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
 
 import org.hamcrest.Matchers;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Facilitates testing of Fragments/Settings using the BlankUiTestActivity */
@@ -64,7 +65,7 @@ public class BlankUiTestActivitySettingsTestRule extends BaseActivityTestRule<Bl
         if (getActivity() == null) launchActivity(null);
 
         PreferenceFragmentCompat preference =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             PreferenceFragmentCompat fragment =
                                     (PreferenceFragmentCompat)
@@ -92,8 +93,13 @@ public class BlankUiTestActivitySettingsTestRule extends BaseActivityTestRule<Bl
     public void launchPreference(PreferenceFragmentCompat preference) {
         if (getActivity() == null) launchActivity(null);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        CriteriaHelper.pollUiThread(
                 () -> {
+                    // NOTE: Address test flakiness by ensuring that the activity is ready for
+                    // fragment transactions. It otherwise may not be due to state changes which may
+                    // occur between activity creation and the fragment transaction attempt.
+                    final State state = getActivity().getLifecycle().getCurrentState();
+                    Criteria.checkThat(state.isAtLeast(State.RESUMED), Matchers.is(true));
                     mPreferenceFragment = preference;
                     getActivity()
                             .getSupportFragmentManager()
@@ -108,7 +114,7 @@ public class BlankUiTestActivitySettingsTestRule extends BaseActivityTestRule<Bl
                     Criteria.checkThat(
                             mPreferenceFragment.getPreferenceScreen(), Matchers.notNullValue());
                 });
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPreferenceScreen = mPreferenceFragment.getPreferenceScreen();
                 });

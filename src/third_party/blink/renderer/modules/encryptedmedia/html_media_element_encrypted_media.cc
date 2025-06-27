@@ -4,6 +4,8 @@
 
 #include "third_party/blink/renderer/modules/encryptedmedia/html_media_element_encrypted_media.h"
 
+#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "media/base/eme_constants.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
@@ -96,27 +98,18 @@ class SetContentDecryptionModuleResult final
   }
 
   void CompleteWithContentDecryptionModule(
-      WebContentDecryptionModule*) override {
-    NOTREACHED_IN_MIGRATION();
-    std::move(failure_callback_)
-        .Run(kWebContentDecryptionModuleExceptionInvalidStateError,
-             "Unexpected completion.");
+      std::unique_ptr<WebContentDecryptionModule>) override {
+    NOTREACHED();
   }
 
   void CompleteWithSession(
       WebContentDecryptionModuleResult::SessionStatus status) override {
-    NOTREACHED_IN_MIGRATION();
-    std::move(failure_callback_)
-        .Run(kWebContentDecryptionModuleExceptionInvalidStateError,
-             "Unexpected completion.");
+    NOTREACHED();
   }
 
   void CompleteWithKeyStatus(
       WebEncryptedMediaKeyInformation::KeyStatus key_status) override {
-    NOTREACHED_IN_MIGRATION();
-    std::move(failure_callback_)
-        .Run(kWebContentDecryptionModuleExceptionInvalidStateError,
-             "Unexpected completion.");
+    NOTREACHED();
   }
 
   void CompleteWithError(WebContentDecryptionModuleException code,
@@ -395,7 +388,7 @@ ScriptPromise<IDLUndefined> HTMLMediaElementEncryptedMedia::setMediaKeys(
   if (this_element.is_attaching_media_keys_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "Another request is in progress.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   // 2. If mediaKeys and the mediaKeys attribute are the same object,
@@ -418,7 +411,8 @@ static Event* CreateEncryptedEvent(media::EmeInitDataType init_data_type,
   MediaEncryptedEventInit* initializer = MediaEncryptedEventInit::Create();
   initializer->setInitDataType(
       EncryptedMediaUtils::ConvertFromInitDataType(init_data_type));
-  initializer->setInitData(DOMArrayBuffer::Create(init_data, init_data_length));
+  initializer->setInitData(DOMArrayBuffer::Create(
+      UNSAFE_TODO(base::span(init_data, init_data_length))));
   initializer->setBubbles(false);
   initializer->setCancelable(false);
 

@@ -15,8 +15,8 @@
 #import "testing/platform_test.h"
 #import "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 
-using base::test::ios::WaitUntilConditionOrTimeout;
 using base::test::ios::kWaitForJSCompletionTimeout;
+using base::test::ios::WaitUntilConditionOrTimeout;
 
 namespace web {
 
@@ -34,7 +34,7 @@ NSString* const kMockGetExistingFramesScript =
 
 // Returns the WKFrameInfo instance for the main frame of `web_view`.
 WKFrameInfo* GetMainFrameWKFrameInfo(WKWebView* web_view) {
-  // Setup a message handler and recieve a message to obtain a WKFrameInfo
+  // Setup a message handler and receive a message to obtain a WKFrameInfo
   // instance.
   CRWFakeScriptMessageHandler* script_message_handler =
       [[CRWFakeScriptMessageHandler alloc] init];
@@ -248,8 +248,9 @@ TEST_F(WebViewJsUtilsTest, ValueResultFromArrayWithDepthCheckWKResult) {
     ASSERT_TRUE(current_list);
 
     inner_list = nullptr;
-    if (!current_list->empty())
+    if (!current_list->empty()) {
       inner_list = (*current_list)[0].GetIfList();
+    }
     current_list = inner_list;
   }
   EXPECT_FALSE(current_list);

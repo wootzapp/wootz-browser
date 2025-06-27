@@ -14,9 +14,6 @@
 #include "base/android/jni_string.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/touch_to_fill/password_manager/android/internal/jni/TouchToFillBridge_jni.h"
-#include "chrome/browser/touch_to_fill/password_manager/android/jni_headers/Credential_jni.h"
-#include "chrome/browser/touch_to_fill/password_manager/android/jni_headers/WebauthnCredential_jni.h"
 #include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_controller.h"  // nogncheck
 #include "chrome/browser/ui/passwords/ui_utils.h"
 #include "components/password_manager/core/browser/origin_credential_store.h"
@@ -28,6 +25,11 @@
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/touch_to_fill/password_manager/android/internal/jni/TouchToFillBridge_jni.h"
+#include "chrome/browser/touch_to_fill/password_manager/android/jni_headers/Credential_jni.h"
+#include "chrome/browser/touch_to_fill/password_manager/android/jni_headers/WebauthnCredential_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF16;
@@ -49,6 +51,8 @@ UiCredential ConvertJavaCredential(JNIEnv* env,
                                Java_Credential_getPassword(env, credential)),
       url::Origin::Create(GURL(ConvertJavaStringToUTF8(
           env, Java_Credential_getOriginUrl(env, credential)))),
+      ConvertJavaStringToUTF8(env,
+                              Java_Credential_getDisplayName(env, credential)),
       static_cast<password_manager_util::GetLoginMatchType>(
           Java_Credential_getMatchType(env, credential)),
       base::Time::FromMillisecondsSinceUnixEpoch(

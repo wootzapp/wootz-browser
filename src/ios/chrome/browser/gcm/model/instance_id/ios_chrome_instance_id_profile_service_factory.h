@@ -8,28 +8,20 @@
 #include <memory>
 
 #include "base/no_destructor.h"
-#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
-
-class ChromeBrowserState;
+#include "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
 namespace instance_id {
 class InstanceIDProfileService;
 }
 
 // Singleton that owns all InstanceIDProfileService and associates them with
-// ChromeBrowserState.
+// ProfileIOS.
 class IOSChromeInstanceIDProfileServiceFactory
-    : public BrowserStateKeyedServiceFactory {
+    : public ProfileKeyedServiceFactoryIOS {
  public:
-  static instance_id::InstanceIDProfileService* GetForBrowserState(
-      ChromeBrowserState* browser_state);
-
+  static instance_id::InstanceIDProfileService* GetForProfile(
+      ProfileIOS* profile);
   static IOSChromeInstanceIDProfileServiceFactory* GetInstance();
-
-  IOSChromeInstanceIDProfileServiceFactory(
-      const IOSChromeInstanceIDProfileServiceFactory&) = delete;
-  IOSChromeInstanceIDProfileServiceFactory& operator=(
-      const IOSChromeInstanceIDProfileServiceFactory&) = delete;
 
  private:
   friend class base::NoDestructor<IOSChromeInstanceIDProfileServiceFactory>;

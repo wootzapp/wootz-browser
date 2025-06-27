@@ -159,8 +159,7 @@ base::FileErrorOr<base::File> FilesystemProxy::OpenFile(
       mode = mojom::FileOpenMode::kOpenIfExistsAndTruncate;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << "Invalid open mode flags: " << mode_flags;
-      return base::unexpected(base::File::FILE_ERROR_FAILED);
+      NOTREACHED() << "Invalid open mode flags: " << mode_flags;
   }
 
   mojom::FileReadAccess read_access =
@@ -181,9 +180,7 @@ base::FileErrorOr<base::File> FilesystemProxy::OpenFile(
       write_access = mojom::FileWriteAccess::kAppendOnly;
       break;
     default:
-      NOTREACHED_IN_MIGRATION()
-          << "Invalid write access flags: " << write_flags;
-      return base::unexpected(base::File::FILE_ERROR_FAILED);
+      NOTREACHED() << "Invalid write access flags: " << write_flags;
   }
 
   base::File::Error error = base::File::FILE_ERROR_IO;
@@ -263,11 +260,12 @@ base::File::Error FilesystemProxy::RenameFile(const base::FilePath& old_path,
 }
 
 base::FileErrorOr<std::unique_ptr<FilesystemProxy::FileLock>>
-FilesystemProxy::LockFile(const base::FilePath& path) {
+FilesystemProxy::LockFile(const base::FilePath& path,
+                          bool* same_process_failure) {
   if (!remote_directory_) {
     base::FilePath full_path = MaybeMakeAbsolute(path);
-    ASSIGN_OR_RETURN(base::File result,
-                     FilesystemImpl::LockFileLocal(full_path));
+    ASSIGN_OR_RETURN(base::File result, FilesystemImpl::LockFileLocal(
+                                            full_path, same_process_failure));
     return std::make_unique<LocalFileLockImpl>(std::move(full_path),
                                                std::move(result));
   }
@@ -280,16 +278,6 @@ FilesystemProxy::LockFile(const base::FilePath& path) {
     return base::unexpected(error);
 
   return std::make_unique<RemoteFileLockImpl>(std::move(remote_lock));
-}
-
-bool FilesystemProxy::SetOpenedFileLength(base::File* file, uint64_t length) {
-  if (!remote_directory_)
-    return file->SetLength(length);
-
-  bool success = false;
-  remote_directory_->SetOpenedFileLength(std::move(*file), length, &success,
-                                         file);
-  return success;
 }
 
 base::FilePath FilesystemProxy::MakeRelative(const base::FilePath& path) const {

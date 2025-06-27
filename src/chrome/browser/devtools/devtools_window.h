@@ -9,7 +9,6 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
@@ -183,18 +182,12 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   static std::unique_ptr<content::NavigationThrottle>
   MaybeCreateNavigationThrottle(content::NavigationHandle* handle);
 
-  // Updates the WebContents inspected by the DevToolsWindow by reattaching
-  // the binding to |new_web_contents|. Called when swapping an outer
-  // WebContents with its inner WebContents.
-  void UpdateInspectedWebContents(content::WebContents* new_web_contents,
-                                  base::OnceCallback<void()> callback);
-
   // Sets closure to be called after load is done. If already loaded, calls
   // closure immediately.
   void SetLoadCompletedCallback(base::OnceClosure closure);
 
   // Forwards an unhandled keyboard event to the DevTools frontend.
-  bool ForwardKeyboardEvent(const content::NativeWebKeyboardEvent& event);
+  bool ForwardKeyboardEvent(const input::NativeWebKeyboardEvent& event);
 
   // Reloads inspected web contents as if it was triggered from DevTools.
   // Returns true if it has successfully handled reload, false if the caller
@@ -284,10 +277,13 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   // by user.
   static void OnPageCloseCanceled(content::WebContents* contents);
 
-  content::WebContents* GetInspectedWebContents();
-
   // content::DevToolsUIBindings::Delegate overrides
+  content::WebContents* GetInspectedWebContents() override;
   void ActivateWindow() override;
+
+  void MainWebContentRenderFrameHostChanged(
+      content::RenderFrameHost* old_frame,
+      content::RenderFrameHost* new_frame);
 
  private:
   friend class DevToolsWindowTesting;
@@ -335,6 +331,7 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
     kFrontendNode,
     kFrontendRemote,
     kFrontendRemoteWorker,
+    kFrontendRemoteTab,
   };
 
   DevToolsWindow(FrontendType frontend_type,
@@ -388,13 +385,14 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
 
   // content::WebContentsDelegate:
   void ActivateContents(content::WebContents* contents) override;
-  void AddNewContents(content::WebContents* source,
-                      std::unique_ptr<content::WebContents> new_contents,
-                      const GURL& target_url,
-                      WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
-                      bool user_gesture,
-                      bool* was_blocked) override;
+  content::WebContents* AddNewContents(
+      content::WebContents* source,
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override;
   void WebContentsCreated(content::WebContents* source_contents,
                           int opener_render_process_id,
                           int opener_render_frame_id,
@@ -408,10 +406,9 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
                          bool* proceed_to_fire_unload) override;
   content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
       content::WebContents* source,
-      const content::NativeWebKeyboardEvent& event) override;
-  bool HandleKeyboardEvent(
-      content::WebContents* source,
-      const content::NativeWebKeyboardEvent& event) override;
+      const input::NativeWebKeyboardEvent& event) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
   content::JavaScriptDialogManager* GetJavaScriptDialogManager(
       content::WebContents* source) override;
   std::unique_ptr<content::EyeDropper> OpenEyeDropper(
@@ -472,8 +469,6 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   // display web modal dialogs triggered by it.
   void RegisterModalDialogManager(Browser* browser);
 
-  void OnReattachMainTargetComplete(base::Value);
-
   // Called when the accepted language changes. |navigator.language| of the
   // DevTools window should match the application language. When the user
   // changes the accepted language then this listener flips the language back
@@ -488,6 +483,21 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   FrontendType frontend_type_;
   raw_ptr<Profile> profile_;
   raw_ptr<content::WebContents> main_web_contents_;
+
+  class MainWebContentsObserver : public content::WebContentsObserver {
+   public:
+    MainWebContentsObserver(content::WebContents& web_contents,
+                            DevToolsWindow& window)
+        : WebContentsObserver(&web_contents), window_(window) {}
+    ~MainWebContentsObserver() override;
+
+   private:
+    void RenderFrameHostChanged(content::RenderFrameHost* old_frame,
+                                content::RenderFrameHost* new_frame) override;
+
+    raw_ref<DevToolsWindow> window_;
+  };
+  MainWebContentsObserver main_web_contents_observer_;
 
   // DevToolsWindow is informed of the creation of the |toolbox_web_contents_|
   // in WebContentsCreated right before ownership is passed to to DevToolsWindow
@@ -534,8 +544,6 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   bool open_new_window_for_popups_ = false;
   raw_ptr<infobars::InfoBar> sharing_infobar_ = nullptr;
   int checked_sharing_process_id_ = content::ChildProcessHost::kInvalidUniqueID;
-
-  base::OnceCallback<void()> reattach_complete_callback_;
 
   PrefChangeRegistrar pref_change_registrar_;
 

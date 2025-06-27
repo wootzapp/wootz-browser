@@ -73,10 +73,10 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) ClipboardMac : public Clipboard {
   void ReadPng(ClipboardBuffer buffer,
                const DataTransferEndpoint* data_dst,
                ReadPngCallback callback) const override;
-  void ReadCustomData(ClipboardBuffer buffer,
-                      const std::u16string& type,
-                      const DataTransferEndpoint* data_dst,
-                      std::u16string* result) const override;
+  void ReadDataTransferCustomData(ClipboardBuffer buffer,
+                                  const std::u16string& type,
+                                  const DataTransferEndpoint* data_dst,
+                                  std::u16string* result) const override;
   void ReadFilenames(ClipboardBuffer buffer,
                      const DataTransferEndpoint* data_dst,
                      std::vector<ui::FileInfo>* result) const override;
@@ -89,6 +89,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) ClipboardMac : public Clipboard {
   void WritePortableAndPlatformRepresentations(
       ClipboardBuffer buffer,
       const ObjectMap& objects,
+      const std::vector<RawData>& raw_objects,
       std::vector<Clipboard::PlatformRepresentation> platform_representations,
       std::unique_ptr<DataTransferEndpoint> data_src,
       uint32_t privacy_types) override;
@@ -118,6 +119,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) ClipboardMac : public Clipboard {
   void WritePortableAndPlatformRepresentationsInternal(
       ClipboardBuffer buffer,
       const ObjectMap& objects,
+      const std::vector<RawData>& raw_objects,
       std::vector<Clipboard::PlatformRepresentation> platform_representations,
       std::unique_ptr<DataTransferEndpoint> data_src,
       NSPasteboard* pasteboard,

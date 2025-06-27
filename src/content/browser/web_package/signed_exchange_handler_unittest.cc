@@ -25,7 +25,6 @@
 #include "content/browser/web_package/signed_exchange_utils.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
-#include "content/public/common/content_features.h"
 #include "content/public/common/content_paths.h"
 #include "content/public/test/browser_task_environment.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -34,7 +33,9 @@
 #include "net/base/load_flags.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/test_completion_callback.h"
+#include "net/cert/cert_status_flags.h"
 #include "net/cert/ct_policy_enforcer.h"
+#include "net/cert/ct_policy_status.h"
 #include "net/cert/mock_cert_verifier.h"
 #include "net/cert/sct_auditing_delegate.h"
 #include "net/cert/signed_certificate_timestamp_and_status.h"
@@ -123,7 +124,7 @@ class MockSignedExchangeCertFetcherFactory
     EXPECT_EQ(cert_url, expected_cert_url_);
 
     auto cert_chain = SignedExchangeCertificateChain::Parse(
-        base::as_bytes(base::make_span(cert_str_)), devtools_proxy);
+        base::as_byte_span(cert_str_), devtools_proxy);
     EXPECT_TRUE(cert_chain);
 
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -192,7 +193,6 @@ class SignedExchangeHandlerTest
     original_client_ = SetBrowserClientForTesting(&browser_client_);
     signed_exchange_utils::SetVerificationTimeForTesting(
         base::Time::UnixEpoch() + base::Seconds(kSignatureHeaderDate));
-    feature_list_.InitAndEnableFeature(features::kSignedHTTPExchange);
 
     source_stream_ = std::make_unique<net::MockSourceStream>();
     source_stream_->set_read_one_byte_at_a_time(true);
@@ -237,7 +237,7 @@ class SignedExchangeHandlerTest
   // Creates a net::CertVerifyResult with some useful default values.
   net::CertVerifyResult CreateCertVerifyResult() {
     net::CertVerifyResult result;
-    result.cert_status = net::OK;
+    result.cert_status = 0;
     result.ocsp_result.response_status = bssl::OCSPVerifyResult::PROVIDED;
     result.ocsp_result.revocation_status = bssl::OCSPRevocationStatus::GOOD;
     // Return CT_POLICY_COMPLIES_VIA_SCTS by default. This may be overridden by
@@ -256,7 +256,10 @@ class SignedExchangeHandlerTest
     result.verified_cert = original_cert;
     auto mock_cert_verifier = std::make_unique<net::MockCertVerifier>();
     mock_cert_verifier->AddResultForCertAndHost(
-        original_cert, "test.example.org", result, net::OK);
+        original_cert, "test.example.org", result,
+        net::IsCertStatusError(result.cert_status)
+            ? net::MapCertStatusToNetError(result.cert_status)
+            : net::OK);
     SetCertVerifier(std::move(mock_cert_verifier));
   }
 
@@ -341,7 +344,7 @@ class SignedExchangeHandlerTest
         std::make_unique<blink::WebPackageRequestMatcher>(
             net::HttpRequestHeaders(), std::string() /* accept_langs */),
         nullptr /* devtools_proxy */, nullptr /* reporter */,
-        FrameTreeNode::kFrameTreeNodeInvalidId);
+        FrameTreeNodeId());
   }
 
   void WaitForHeader() {
@@ -803,7 +806,7 @@ TEST_P(SignedExchangeHandlerTest, CertVerifierParams) {
       LoadCertificate("prime256v1-sha256.public.pem");
   net::CertVerifyResult fake_result;
   fake_result.verified_cert = original_cert;
-  fake_result.cert_status = net::OK;
+  fake_result.cert_status = 0;
   fake_result.ocsp_result.response_status = bssl::OCSPVerifyResult::PROVIDED;
   fake_result.ocsp_result.revocation_status = bssl::OCSPRevocationStatus::GOOD;
 
@@ -852,6 +855,9 @@ TEST_P(SignedExchangeHandlerTest, NotEnoughSCTsFromPubliclyTrustedCert) {
   cert_result.is_issued_by_known_root = true;
   cert_result.policy_compliance =
       net::ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS;
+  cert_result.ct_requirement_status =
+      net::ct::CTRequirementsStatus::CT_REQUIREMENTS_NOT_MET;
+  cert_result.cert_status = net::CERT_STATUS_CERTIFICATE_TRANSPARENCY_REQUIRED;
   SetupMockCertVerifier("prime256v1-sha256.public.pem", cert_result);
 
 

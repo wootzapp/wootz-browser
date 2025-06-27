@@ -33,7 +33,9 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   RowIdentifierUsername,
   RowIdentifierPassword,
   RowIdentifierNote,
-  NumRows
+  NumRows,
+  RowIdentifierUserDisplayName,
+  RowIdentifierCreationDate,
 };
 
 }  // namespace
@@ -100,7 +102,8 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 - (UITableViewCell*)tableView:(UITableView*)tableView
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  if (indexPath.row == RowIdentifier::RowIdentifierNote) {
+  RowIdentifier rowIdentifier = [self rowIdentifier:indexPath.row];
+  if (rowIdentifier == RowIdentifier::RowIdentifierNote) {
     PasswordNoteCell* cell =
         [tableView dequeueReusableCellWithIdentifier:PasswordNoteCell.reuseID];
     if (!cell) {
@@ -124,7 +127,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   cell.detailTextLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
   cell.accessibilityTraits |= UIAccessibilityTraitButton;
 
-  switch (indexPath.row) {
+  switch (rowIdentifier) {
     case RowIdentifier::RowIdentifierURL:
       cell.accessoryView = nil;
       cell.textLabel.text =
@@ -135,7 +138,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
       cell.accessoryView = nil;
       cell.textLabel.text = NSLocalizedString(
           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_USERNAME", @"Username");
-      cell.detailTextLabel.text = self.credential.user;
+      cell.detailTextLabel.text = self.credential.username;
       break;
     case RowIdentifier::RowIdentifierPassword:
       cell.accessoryView = [self passwordIconButton];
@@ -144,6 +147,20 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
       cell.detailTextLabel.text = [self password];
       break;
     case RowIdentifier::RowIdentifierNote:
+      break;
+    case RowIdentifier::RowIdentifierUserDisplayName:
+      cell.accessoryView = nil;
+      cell.textLabel.text = NSLocalizedString(
+          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_USER_DISPLAY_NAME",
+          @"User Display Name");
+      cell.detailTextLabel.text = self.credential.userDisplayName;
+      break;
+    case RowIdentifier::RowIdentifierCreationDate:
+      cell.accessoryView = nil;
+      cell.textLabel.text = NSLocalizedString(
+          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_SHOW_CREATION_DATE",
+          @"Passkey");
+      cell.detailTextLabel.text = [self creationDate];
       break;
     default:
       break;
@@ -160,34 +177,50 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   // though you can find it in the View Hierarchy. Using custom one.
   UITableViewCell* cell = [tableView cellForRowAtIndexPath:indexPath];
 
-  switch (indexPath.row) {
+  switch ([self rowIdentifier:indexPath.row]) {
     case RowIdentifier::RowIdentifierURL:
-      [self showTootip:NSLocalizedString(
-                           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
-            atBottomOf:cell
-                action:@selector(copyURL)];
+      [self
+          showTooltip:NSLocalizedString(
+                          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
+           atBottomOf:cell
+               action:@selector(copyURL)];
       break;
     case RowIdentifier::RowIdentifierUsername:
-      [self showTootip:NSLocalizedString(
-                           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
-            atBottomOf:cell
-                action:@selector(copyUsername)];
+      [self
+          showTooltip:NSLocalizedString(
+                          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
+           atBottomOf:cell
+               action:@selector(copyUsername)];
       break;
     case RowIdentifier::RowIdentifierPassword:
       if (self.clearPassword) {
-        [self
-            showTootip:NSLocalizedString(
-                           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
-            atBottomOf:cell
-                action:@selector(copyPassword)];
+        [self showTooltip:NSLocalizedString(
+                              @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY",
+                              @"Copy")
+               atBottomOf:cell
+                   action:@selector(copyPassword)];
       } else {
-        [self
-            showTootip:NSLocalizedString(
-                           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_SHOW_PASSWORD",
-                           @"Show Password")
-            atBottomOf:cell
-                action:@selector(showPassword)];
+        [self showTooltip:
+                  NSLocalizedString(
+                      @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_SHOW_PASSWORD",
+                      @"Show Password")
+               atBottomOf:cell
+                   action:@selector(showPassword)];
       }
+      break;
+    case RowIdentifier::RowIdentifierUserDisplayName:
+      [self
+          showTooltip:NSLocalizedString(
+                          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
+           atBottomOf:cell
+               action:@selector(copyUserDisplayName)];
+      break;
+    case RowIdentifier::RowIdentifierCreationDate:
+      [self
+          showTooltip:NSLocalizedString(
+                          @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_COPY", @"Copy")
+           atBottomOf:cell
+               action:@selector(copyCreationDate)];
       break;
     default:
       break;
@@ -203,6 +236,27 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 #pragma mark - Private
 
+// Returns the identifier for the provided row.
+// Returns "RowIdentifier::NumRows" if the provided row is invalid.
+- (RowIdentifier)rowIdentifier:(NSInteger)row {
+  switch (row) {
+    case 0:
+      return RowIdentifier::RowIdentifierURL;
+    case 1:
+      return RowIdentifier::RowIdentifierUsername;
+    case 2:
+      return self.credential.isPasskey
+                 ? RowIdentifier::RowIdentifierUserDisplayName
+                 : RowIdentifier::RowIdentifierPassword;
+    case 3:
+      return self.credential.isPasskey
+                 ? RowIdentifier::RowIdentifierCreationDate
+                 : RowIdentifier::RowIdentifierNote;
+    default:
+      return RowIdentifier::NumRows;
+  }
+}
+
 // Copy credential URL to clipboard.
 - (void)copyURL {
   UIPasteboard* generalPasteboard = [UIPasteboard generalPasteboard];
@@ -213,8 +267,22 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 // Copy credential Username to clipboard.
 - (void)copyUsername {
   UIPasteboard* generalPasteboard = [UIPasteboard generalPasteboard];
-  generalPasteboard.string = self.credential.user;
+  generalPasteboard.string = self.credential.username;
   UpdateUMACountForKey(app_group::kCredentialExtensionCopyUsernameCount);
+}
+
+// Copy credential User Display Name to clipboard.
+- (void)copyUserDisplayName {
+  UIPasteboard* generalPasteboard = [UIPasteboard generalPasteboard];
+  generalPasteboard.string = self.credential.userDisplayName;
+  UpdateUMACountForKey(app_group::kCredentialExtensionCopyUserDisplayNameCount);
+}
+
+// Copy creation date to clipboard.
+- (void)copyCreationDate {
+  UIPasteboard* generalPasteboard = [UIPasteboard generalPasteboard];
+  generalPasteboard.string = [self creationDate];
+  UpdateUMACountForKey(app_group::kCredentialExtensionCopyCreationDateCount);
 }
 
 // Copy password to clipboard.
@@ -260,6 +328,26 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   return enterButton;
 }
 
+// Returns the string to display as passkey creation date.
+- (NSString*)creationDate {
+  NSString* formattedDate =
+      [self formattedDateForPasskeyCreationDate:self.credential.creationDate];
+  NSString* baseLocalizedString = NSLocalizedString(
+      @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_CREATION_DATE", @"00/00/00");
+
+  return
+      [baseLocalizedString stringByReplacingOccurrencesOfString:@"$1"
+                                                     withString:formattedDate];
+  ;
+}
+
+// Formats and returns the passkey creation date to be displayed in the UI.
+- (NSString*)formattedDateForPasskeyCreationDate:(NSDate*)creationDate {
+  return [NSDateFormatter localizedStringFromDate:creationDate
+                                        dateStyle:NSDateFormatterMediumStyle
+                                        timeStyle:NSDateFormatterNoStyle];
+}
+
 // Returns the string to display as password.
 - (NSString*)password {
   return self.clearPassword ? self.clearPassword : kMaskedPassword;
@@ -297,7 +385,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   return button;
 }
 
-// Called when show/hine password icon is tapped.
+// Called when show/hide password icon is tapped.
 - (void)passwordIconButtonTapped:(id)sender event:(id)event {
   // Only password reveal / hide is an accessory, so no need to check
   // indexPath.
@@ -316,8 +404,9 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 // Hides the password and toggles the "Show/Hide" button.
 - (void)hidePassword {
-  if (!self.clearPassword)
+  if (!self.clearPassword) {
     return;
+  }
   self.clearPassword = nil;
   [self updatePasswordRow];
 }
@@ -331,9 +420,9 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
                         withRowAnimation:UITableViewRowAnimationAutomatic];
 }
 
-- (void)showTootip:(NSString*)message
-        atBottomOf:(UITableViewCell*)cell
-            action:(SEL)action {
+- (void)showTooltip:(NSString*)message
+         atBottomOf:(UITableViewCell*)cell
+             action:(SEL)action {
   TooltipView* tooltip = [[TooltipView alloc] initWithKeyWindow:self.view
                                                          target:self
                                                          action:action];

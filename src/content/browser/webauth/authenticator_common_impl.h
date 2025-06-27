@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/weak_ptr.h"
+#include "base/types/strong_alias.h"
+#include "content/browser/webauth/client_data_json.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/authenticator_common.h"
 #include "content/public/browser/authenticator_request_client_delegate.h"
@@ -19,6 +22,7 @@
 #include "content/public/browser/web_authentication_request_proxy.h"
 #include "device/fido/authenticator_get_assertion_response.h"
 #include "device/fido/authenticator_make_credential_response.h"
+#include "device/fido/fido_request_handler_base.h"
 #include "device/fido/make_credential_request_handler.h"
 #include "third_party/blink/public/mojom/webauthn/authenticator.mojom.h"
 
@@ -46,6 +50,23 @@ class WebAuthRequestSecurityChecker;
 enum class RequestExtension;
 enum class AttestationErasureOption;
 
+// https://w3c.github.io/webauthn/#enumdef-clientcapability
+namespace client_capabilities {
+
+// This is the subset of client capabilities computed by the browser. See also
+// //third_party/blink/renderer/modules/credentialmanagement/public_key_credential.cc.
+inline constexpr char kConditionalCreate[] = "conditionalCreate";
+inline constexpr char kConditionalGet[] = "conditionalGet";
+inline constexpr char kHybridTransport[] = "hybridTransport";
+inline constexpr char kPasskeyPlatformAuthenticator[] =
+    "passkeyPlatformAuthenticator";
+inline constexpr char kUserVerifyingPlatformAuthenticator[] =
+    "userVerifyingPlatformAuthenticator";
+inline constexpr char kRelatedOrigins[] = "relatedOrigins";
+inline constexpr char kImmediateGet[] = "immediateGet";
+
+}  // namespace client_capabilities
+
 // Common code for any WebAuthn Authenticator interfaces.
 class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
  public:
@@ -61,7 +82,7 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
 
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused.
-  enum class GetAssertionResult {
+  enum class CredentialRequestResult {
     kTimeout = 0,
     kUserCancelled = 1,
 
@@ -104,11 +125,11 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
       url::Origin caller_origin,
       blink::mojom::PublicKeyCredentialCreationOptionsPtr options,
       blink::mojom::Authenticator::MakeCredentialCallback callback) override;
-  void GetAssertion(
+  void GetCredential(
       url::Origin caller_origin,
       blink::mojom::PublicKeyCredentialRequestOptionsPtr options,
       blink::mojom::PaymentOptionsPtr payment,
-      blink::mojom::Authenticator::GetAssertionCallback callback) override;
+      blink::mojom::Authenticator::GetCredentialCallback callback) override;
   void IsUserVerifyingPlatformAuthenticatorAvailable(
       url::Origin caller_origin,
       blink::mojom::Authenticator::
@@ -125,6 +146,21 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
   RenderFrameHost* GetRenderFrameHost() const override;
   void EnableRequestProxyExtensionsAPISupport() override;
 
+  // GetClientCapabilities returns a list WebAuthn capabilities of the browser
+  // via the `callback` parameter. Websites can use this information to
+  // determine which WebAuthn features and extensions are supported and tailor
+  // their requests accordingly.
+  void GetClientCapabilities(
+      url::Origin caller_origin,
+      blink::mojom::Authenticator::GetClientCapabilitiesCallback callback);
+
+  // Report attempts to report a WebAuthn credential on behalf of
+  // `caller_origin` using the supplied `options` and invokes `callback` with
+  // the result.
+  void Report(url::Origin caller_origin,
+              blink::mojom::PublicKeyCredentialReportOptionsPtr options,
+              blink::mojom::Authenticator::ReportCallback callback);
+
  protected:
   // MaybeCreateRequestDelegate returns the embedder-provided implementation of
   // AuthenticatorRequestClientDelegate, which encapsulates per-request state
@@ -138,6 +174,10 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
  private:
   friend class AuthenticatorImplTest;
   struct RequestState;
+  // A RequestKey is a magic value that identifies a request. Since requests can
+  // be canceled, some callbacks need to ensure that they're still operating on
+  // the same request when they resolve.
+  using RequestKey = base::StrongAlias<class RequestKeyTag, uint64_t>;
 
   // Enumerates whether or not to check that the WebContents has focus.
   enum class Focus {
@@ -146,29 +186,36 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
   };
 
   void ContinueMakeCredentialAfterRpIdCheck(
+      RequestKey request_key,
       url::Origin caller_origin,
       blink::mojom::PublicKeyCredentialCreationOptionsPtr options,
       bool is_cross_origin_iframe,
       blink::mojom::AuthenticatorStatus rp_id_validation_result);
   void ContinueMakeCredentialAfterBrowserPasskeysAvailabilityCheck(
+      RequestKey request_key,
       bool available);
   void ContinueMakeCredentialAfterIsUvpaaOverrideCheck(
+      RequestKey request_key,
       std::optional<bool> is_uvpaa_override);
 
   void ContinueGetAssertionAfterRpIdCheck(
+      RequestKey request_key,
       url::Origin caller_origin,
       blink::mojom::PublicKeyCredentialRequestOptionsPtr options,
       blink::mojom::PaymentOptionsPtr payment_options,
       bool is_cross_origin_iframe,
       blink::mojom::AuthenticatorStatus rp_id_validation_result);
   void ContinueGetAssertionAfterBrowserPasskeysAvailabilityCheck(
+      RequestKey request_key,
       bool available);
   void ContinueGetAssertionAfterIsUvpaaOverrideCheck(
+      RequestKey request_key,
       std::optional<bool> is_uvpaa_override);
 
   void ContinueIsUvpaaAfterOverrideCheck(
       blink::mojom::Authenticator::
           IsUserVerifyingPlatformAuthenticatorAvailableCallback callback,
+      bool is_get_client_capabilities_call,
       std::optional<bool> is_uvpaa_override);
 
   void ContinueIsConditionalMediationAvailableAfterOverrideCheck(
@@ -176,6 +223,22 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
       blink::mojom::Authenticator::IsConditionalMediationAvailableCallback
           callback,
       std::optional<bool> is_uvpaa_override);
+
+  void ContinueReportAfterRpIdCheck(
+      RequestKey request_key,
+      blink::mojom::PublicKeyCredentialReportOptionsPtr options,
+      blink::mojom::AuthenticatorStatus rp_id_validation_result);
+
+  void GetMetricsWrappedMakeCredentialCallback(
+      blink::mojom::Authenticator::MakeCredentialCallback callback,
+      blink::mojom::AuthenticatorStatus status,
+      blink::mojom::MakeCredentialAuthenticatorResponsePtr
+          authenticator_response,
+      blink::mojom::WebAuthnDOMExceptionDetailsPtr dom_exception_details);
+
+  void GetMetricsWrappedGetCredentialCallback(
+      blink::mojom::Authenticator::GetCredentialCallback callback,
+      blink::mojom::GetCredentialResponsePtr response);
 
   // Replaces the current |request_handler_| with a
   // |MakeCredentialRequestHandler|, effectively restarting the request.
@@ -187,6 +250,22 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
 
   bool IsFocused() const;
 
+  // Checks if hybrid transport is supported on this device, i.e. if it has a
+  // Bluetooth adapter that supports BLE. If so, runs |callback| with `true`.
+  // Otherwise, or if Bluetooth is disabled by Permissions Policy, runs
+  // |callback| with `false`.
+  void IsHybridTransportSupported(base::OnceCallback<void(bool)> callback);
+
+  // `is_get_client_capabilities_call` is true if this call originated from the
+  // `GetClientCapabilities` method. The UMA metric is only recorded if this is
+  // false, i.e. the call came directly from
+  // `IsUserVerifyingPlatformAuthenticatorAvailable`.
+  void IsUvpaaAvailableInternal(
+      url::Origin caller_origin,
+      blink::mojom::Authenticator::
+          IsUserVerifyingPlatformAuthenticatorAvailableCallback callback,
+      bool is_get_client_capabilities_call);
+
   void DispatchGetAssertionRequest(
       const std::string& authenticator_id,
       std::optional<std::vector<uint8_t>> credential_id);
@@ -196,13 +275,6 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
       device::MakeCredentialStatus status_code,
       std::optional<device::AuthenticatorMakeCredentialResponse> response_data,
       const device::FidoAuthenticator* authenticator);
-
-  // Callback to complete the registration process once a decision about
-  // whether or not to return attestation data has been made.
-  void OnRegisterResponseAttestationDecided(
-      AttestationErasureOption attestation_erasure,
-      device::AuthenticatorMakeCredentialResponse response_data,
-      bool attestation_permitted);
 
   // Callback to handle the async response from a U2fDevice.
   void OnSignResponse(
@@ -260,8 +332,15 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
       blink::mojom::WebAuthnDOMExceptionDetailsPtr dom_exception_details =
           nullptr);
 
+  void HandlePasswordResponse(password_manager::CredentialInfo credential);
+
   AuthenticatorRequestClientDelegate::RequestSource RequestSource() const;
   BrowserContext* GetBrowserContext() const;
+
+  // Runs |report_response_callback_| and then Cleanup().
+  void CompleteReportRequest(blink::mojom::AuthenticatorStatus status,
+                             blink::mojom::WebAuthnDOMExceptionDetailsPtr
+                                 dom_exception_details = nullptr);
 
   // Returns the FidoDiscoveryFactory for the current request. This may be a
   // real instance, or one injected by the Virtual Authenticator environment, or
@@ -274,14 +353,27 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
       const url::Origin& caller_origin);
 
   void OnMakeCredentialProxyResponse(
+      RequestKey request_key,
       WebAuthenticationRequestProxy::RequestId request_id,
       blink::mojom::WebAuthnDOMExceptionDetailsPtr error,
       blink::mojom::MakeCredentialAuthenticatorResponsePtr response);
 
   void OnGetAssertionProxyResponse(
+      RequestKey request_key,
       WebAuthenticationRequestProxy::RequestId request_id,
       blink::mojom::WebAuthnDOMExceptionDetailsPtr error,
       blink::mojom::GetAssertionAuthenticatorResponsePtr response);
+
+  void UpdateChallengeFromUrl(
+      ClientDataJsonParams params,
+      std::optional<base::span<const uint8_t>> challenge);
+
+  // Get an identifier for the current request. Callbacks that might span a
+  // cancelation must hold one of these values to check whether they're still
+  // pertinent when called.
+  RequestKey GetRequestKey();
+  // Check whether the given `RequestKey` identifies the current request.
+  [[nodiscard]] bool CheckRequestKey(RequestKey key);
 
   const GlobalRenderFrameHostId render_frame_host_id_;
   const ServingRequestsFor serving_requests_for_;
@@ -293,6 +385,10 @@ class CONTENT_EXPORT AuthenticatorCommonImpl : public AuthenticatorCommon {
   bool disable_tls_check_ = false;
   bool disable_ui_ = false;
   bool enable_request_proxy_api_ = false;
+
+  // The RequestKey of the next request. This starts at one so that a
+  // `RequestKey` that was default initialized to zero is invalid.
+  uint64_t next_request_key_ = 1;
 
   // req_state_ contains all state specific to a single WebAuthn call. It
   // only contains a value when a request is being processed.

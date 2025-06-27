@@ -29,12 +29,9 @@ class PerformanceManagerMetricsProviderDesktopTest : public testing::Test {
   }
 
   void SetBatterySaverEnabled(bool enabled) {
-    local_state()->SetInteger(
-        performance_manager::user_tuning::prefs::kBatterySaverModeState,
-        static_cast<int>(enabled ? performance_manager::user_tuning::prefs::
-                                       BatterySaverModeState::kEnabled
-                                 : performance_manager::user_tuning::prefs::
-                                       BatterySaverModeState::kDisabled));
+    performance_manager::user_tuning::
+        TestUserPerformanceTuningManagerEnvironment::SetBatterySaverMode(
+            &local_state_, enabled);
   }
 
   void ExpectSingleUniqueSample(
@@ -283,15 +280,22 @@ TEST_F(PerformanceManagerMetricsProviderDesktopTest,
   FastForwardBy(base::Minutes(5));
   tester.ExpectTotalCount(
       "CPU.Experimental.EstimatedFrequencyAsPercentOfMax.Performance",
-      performance_manager::MetricsProviderDesktop::
-              ShouldCollectCpuFrequencyMetrics()
-          ? 1
-          : 0);
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
 
   tester.ExpectTotalCount(
       "CPU.Experimental.EstimatedFrequencyAsPercentOfLimit.Performance",
-      performance_manager::MetricsProviderDesktop::
-              ShouldCollectCpuFrequencyMetrics()
-          ? 1
-          : 0);
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
+
+  tester.ExpectTotalCount(
+      "CPU.Experimental.CpuEstimationTaskQueuedTime.Performance",
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
+  tester.ExpectTotalCount(
+      "CPU.Experimental.CpuEstimationTaskTotalTime.Performance",
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
+  tester.ExpectTotalCount(
+      "CPU.Experimental.CpuEstimationTaskThreadTime.Performance",
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
+  tester.ExpectTotalCount(
+      "CPU.Experimental.CpuEstimationTaskWallTime.Performance",
+      SHOULD_COLLECT_CPU_FREQUENCY_METRICS() ? 1 : 0);
 }

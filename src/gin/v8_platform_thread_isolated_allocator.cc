@@ -3,16 +3,17 @@
 // found in the LICENSE file.
 
 #include "gin/v8_platform_thread_isolated_allocator.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_root.h"
+
+#include "partition_alloc/partition_alloc_constants.h"
+#include "partition_alloc/partition_root.h"
 
 #if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
 
 #include <sys/mman.h>
 #include <sys/syscall.h>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/thread_isolation/pkey.h"
 #include "gin/thread_isolation.h"
+#include "partition_alloc/thread_isolation/pkey.h"
 
 #if PA_BUILDFLAG(ENABLE_PKEYS)
 #else  // PA_BUILDFLAG(ENABLE_PKEYS)
@@ -28,6 +29,16 @@ void ThreadIsolatedAllocator::Initialize(int pkey) {
   pkey_ = pkey;
   partition_alloc::PartitionOptions opts;
   opts.thread_isolation = partition_alloc::ThreadIsolationOption(pkey_);
+
+  // TODO(crbug.com/40274683): This will disappear when we reduce
+  // freelist impl selection to a compile-time seam.
+  opts.use_pool_offset_freelists = partition_alloc::PartitionOptions::kEnabled;
+
+  // TODO(crbug.com/333443437): Remove this user-configurable toggle and
+  // default all buckets to "small" single-slot spans.
+  opts.use_small_single_slot_spans =
+      partition_alloc::PartitionOptions::kEnabled;
+
   allocator_.init(opts);
 }
 

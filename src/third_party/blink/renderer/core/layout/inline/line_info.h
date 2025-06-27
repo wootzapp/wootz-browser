@@ -166,7 +166,6 @@ class CORE_EXPORT LineInfo {
 
   bool HasTrailingSpaces() const { return has_trailing_spaces_; }
   void SetHasTrailingSpaces() { has_trailing_spaces_ = true; }
-  bool ShouldHangTrailingSpaces() const;
 
   // True if this line has overflow, excluding preserved trailing spaces.
   bool HasOverflow() const { return has_overflow_; }
@@ -185,6 +184,13 @@ class CORE_EXPORT LineInfo {
   const InlineItemTextIndex& Start() const { return start_; }
   unsigned StartOffset() const { return start_.text_offset; }
   void SetStart(const InlineItemTextIndex& index) { start_ = index; }
+
+  // Start text offset of this line, excluding out-of-flow objects, and
+  // zero-length items.
+  // Returns EndTextOffset() if the line is empty or all item results are
+  // excluded.
+  unsigned InflowStartOffset() const;
+
   // End offset of this line. This is the same as the start offset of the next
   // line, or the end of block if this is the last line.
   InlineItemTextIndex End() const;
@@ -194,6 +200,7 @@ class CORE_EXPORT LineInfo {
   unsigned InflowEndOffset() const {
     return InflowEndOffsetInternal(/* skip_forced_break */ false);
   }
+  // In addition to the above, forced breaks and collapsed spaces are excluded.
   unsigned InflowEndOffsetWithoutForcedBreak() const {
     return InflowEndOffsetInternal(/* skip_forced_break */ true);
   }
@@ -206,6 +213,8 @@ class CORE_EXPORT LineInfo {
   // End item index of this line.
   unsigned EndItemIndex() const { return end_item_index_; }
   void SetEndItemIndex(unsigned index) { end_item_index_ = index; }
+
+  bool GlyphCountIsGreaterThan(wtf_size_t limit) const;
 
   // The base direction of this line for the bidi algorithm.
   TextDirection BaseDirection() const { return base_direction_; }

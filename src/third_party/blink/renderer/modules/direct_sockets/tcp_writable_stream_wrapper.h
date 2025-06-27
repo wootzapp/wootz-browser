@@ -5,10 +5,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_DIRECT_SOCKETS_TCP_WRITABLE_STREAM_WRAPPER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_DIRECT_SOCKETS_TCP_WRITABLE_STREAM_WRAPPER_H_
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_root.h"
 #include "base/notreached.h"
 #include "mojo/public/cpp/system/data_pipe.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
+#include "partition_alloc/partition_root.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -35,7 +35,8 @@ class MODULES_EXPORT TCPWritableStreamWrapper
  public:
   TCPWritableStreamWrapper(ScriptState*,
                            CloseOnceCallback,
-                           mojo::ScopedDataPipeProducerHandle);
+                           mojo::ScopedDataPipeProducerHandle,
+                           uint64_t inspector_id);
 
   // WritableStreamWrapper:
   void CloseStream() override;
@@ -74,6 +75,9 @@ class MODULES_EXPORT TCPWritableStreamWrapper
   // Prepares the object for destruction.
   void Dispose();
 
+  // Reports write error to Devtools Protocol.
+  void ReportWriteError(const WTF::String& message);
+
   CloseOnceCallback on_close_;
 
   mojo::ScopedDataPipeProducerHandle data_pipe_;
@@ -95,6 +99,9 @@ class MODULES_EXPORT TCPWritableStreamWrapper
   // If an asynchronous write() on the underlying sink object is pending, this
   // will be non-null.
   Member<ScriptPromiseResolver<IDLUndefined>> write_promise_resolver_;
+
+  // Unique id for devtools inspector_network_agent.
+  const uint64_t inspector_id_;
 };
 
 }  // namespace blink

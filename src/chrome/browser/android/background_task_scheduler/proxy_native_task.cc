@@ -11,8 +11,9 @@
 #include "chrome/browser/android/profile_key_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_key.h"
+#include "chrome/browser/profiles/profile_key_android.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/ProxyNativeTask_jni.h"
 
 static jlong JNI_ProxyNativeTask_Init(JNIEnv* env,
@@ -48,7 +49,7 @@ ProxyNativeTask::ProxyNativeTask(
       task_params_(std::move(task_params)),
       finish_callback_(std::move(finish_callback)) {}
 
-ProxyNativeTask::~ProxyNativeTask() {}
+ProxyNativeTask::~ProxyNativeTask() = default;
 
 void ProxyNativeTask::Destroy(JNIEnv* env,
                               const JavaParamRef<jobject>& jcaller) {

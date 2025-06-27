@@ -25,26 +25,20 @@ namespace manta {
 namespace {
 
 constexpr char kOauthConsumerName[] = "manta_snapper";
+constexpr base::TimeDelta kTimeout = base::Seconds(30);
 
 }  // namespace
 
 SnapperProvider::SnapperProvider(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     signin::IdentityManager* identity_manager,
-    bool is_demo_mode,
-    const std::string& chrome_version)
-    : BaseProvider(url_loader_factory,
-                   identity_manager,
-                   is_demo_mode,
-                   chrome_version) {}
+    const ProviderParams& provider_params)
+    : BaseProvider(url_loader_factory, identity_manager, provider_params) {}
 
 SnapperProvider::SnapperProvider(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     signin::IdentityManager* identity_manager)
-    : SnapperProvider(url_loader_factory,
-                      identity_manager,
-                      false,
-                      std::string()) {}
+    : BaseProvider(url_loader_factory, identity_manager) {}
 
 SnapperProvider::~SnapperProvider() = default;
 
@@ -54,7 +48,7 @@ void SnapperProvider::Call(manta::proto::Request& request,
   RequestInternal(
       GURL{GetProviderEndpoint(features::IsSeaPenUseProdServerEnabled())},
       kOauthConsumerName, traffic_annotation, request,
-      MantaMetricType::kSnapper, std::move(done_callback));
+      MantaMetricType::kSnapper, std::move(done_callback), kTimeout);
 }
 
 }  // namespace manta

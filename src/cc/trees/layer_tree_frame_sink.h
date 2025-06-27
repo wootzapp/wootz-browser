@@ -17,7 +17,6 @@
 #include "cc/cc_export.h"
 #include "cc/scheduler/scheduler.h"
 #include "cc/trees/raster_context_provider_wrapper.h"
-#include "components/viz/client/shared_bitmap_reporter.h"
 #include "components/viz/common/gpu/context_lost_observer.h"
 #include "components/viz/common/gpu/context_provider.h"
 #include "components/viz/common/gpu/raster_context_provider.h"
@@ -26,7 +25,6 @@
 #include "ui/gfx/color_space.h"
 
 namespace gpu {
-class GpuMemoryBufferManager;
 class ClientSharedImageInterface;
 }
 
@@ -37,7 +35,10 @@ struct BeginFrameAck;
 }  // namespace viz
 
 namespace cc {
+
+class LayerContext;
 class LayerTreeFrameSinkClient;
+class LayerTreeHostImpl;
 
 // An interface for submitting CompositorFrames to a display compositor
 // which will compose frames from multiple clients to show on screen to the
@@ -45,10 +46,12 @@ class LayerTreeFrameSinkClient;
 // If a context_provider() is present, frames should be submitted with
 // OpenGL resources (created with the context_provider()). If not, then
 // SharedMemory resources should be used.
-class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
-                                     public viz::ContextLostObserver,
+class CC_EXPORT LayerTreeFrameSink : public viz::ContextLostObserver,
                                      public gpu::GpuChannelLostObserver {
  public:
+  // Constructor for a frame sink local to the GPU process.
+  LayerTreeFrameSink();
+
   // Constructor for GL-based and/or software resources.
   //
   // |compositor_task_runner| is used to post worker context lost callback and
@@ -56,16 +59,14 @@ class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
   // Optional and won't be used unless |worker_context_provider_wrapper| is
   // present.
   //
-  // |gpu_memory_buffer_manager| and |shared_bitmap_manager| must outlive the
-  // LayerTreeFrameSink. |shared_bitmap_manager| is optional (won't be used) if
-  // |context_provider| is present. |gpu_memory_buffer_manager| is optional
+  // |gpu_memory_buffer_manager|  must outlive the
+  // LayerTreeFrameSink. |gpu_memory_buffer_manager| is optional
   // (won't be used) unless |context_provider| is present.
   LayerTreeFrameSink(
       scoped_refptr<viz::RasterContextProvider> context_provider,
       scoped_refptr<RasterContextProviderWrapper>
           worker_context_provider_wrapper,
       scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
-      gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
       scoped_refptr<gpu::ClientSharedImageInterface> shared_image_interface);
   LayerTreeFrameSink(const LayerTreeFrameSink&) = delete;
 
@@ -109,9 +110,7 @@ class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
                ? worker_context_provider_wrapper_->GetContext().get()
                : nullptr;
   }
-  gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager() const {
-    return gpu_memory_buffer_manager_;
-  }
+
   scoped_refptr<gpu::ClientSharedImageInterface> shared_image_interface() const;
 
   // If supported, this sets the viz::LocalSurfaceId the LayerTreeFrameSink will
@@ -139,12 +138,11 @@ class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
   virtual void DidNotProduceFrame(const viz::BeginFrameAck& ack,
                                   FrameSkippedReason reason) = 0;
 
-  // viz::SharedBitmapReporter implementation.
-  void DidAllocateSharedBitmap(base::ReadOnlySharedMemoryRegion region,
-                               const viz::SharedBitmapId& id) override = 0;
-  void DidDeleteSharedBitmap(const viz::SharedBitmapId& id) override = 0;
+  // Creates a new LayerContext through which the client can control layers in
+  // a GPU-side display tree.
+  virtual std::unique_ptr<LayerContext> CreateLayerContext(
+      LayerTreeHostImpl& host_impl);
 
- protected:
   class ContextLostForwarder;
 
   // viz::ContextLostObserver:
@@ -153,12 +151,17 @@ class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
   // gpu::GpuChannelLostObserver override.
   void OnGpuChannelLost() override;
 
+  void GpuChannelLostOnClientThread();
+
+  // Causes gpu crash for testing.
+  void CrashGpuProcessForTesting();
+
+ protected:
   raw_ptr<LayerTreeFrameSinkClient> client_ = nullptr;
 
   scoped_refptr<viz::RasterContextProvider> context_provider_;
   scoped_refptr<RasterContextProviderWrapper> worker_context_provider_wrapper_;
   scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner_;
-  raw_ptr<gpu::GpuMemoryBufferManager> gpu_memory_buffer_manager_;
   scoped_refptr<gpu::ClientSharedImageInterface> shared_image_interface_;
 
   std::unique_ptr<ContextLostForwarder> worker_context_lost_forwarder_;
@@ -166,8 +169,8 @@ class CC_EXPORT LayerTreeFrameSink : public viz::SharedBitmapReporter,
   int64_t source_frame_number_;
 
  private:
-  // Called on the compositor thread or the browser main thread.
-  scoped_refptr<base::SingleThreadTaskRunner> client_task_runner_;
+  // Forward the gpu channel lost task from the IO thread to the client thread.
+  base::OnceCallback<void()> task_gpu_channel_lost_on_client_thread_;
 
   THREAD_CHECKER(thread_checker_);
   base::WeakPtrFactory<LayerTreeFrameSink> weak_ptr_factory_{this};

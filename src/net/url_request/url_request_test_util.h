@@ -32,6 +32,7 @@
 #include "net/cookies/cookie_inclusion_status.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/cookies/cookie_setting_override.h"
+#include "net/cookies/cookie_util.h"
 #include "net/disk_cache/disk_cache.h"
 #include "net/first_party_sets/first_party_set_metadata.h"
 #include "net/http/http_auth_handler_factory.h"
@@ -157,6 +158,7 @@ class TestDelegate : public URLRequest::Delegate {
   bool auth_required_called() const { return auth_required_; }
   bool response_completed() const { return response_completed_; }
   int request_status() const { return request_status_; }
+  std::optional<int> response_code() const { return response_code_; }
 
   // URLRequest::Delegate:
   int OnConnected(URLRequest* request,
@@ -212,6 +214,9 @@ class TestDelegate : public URLRequest::Delegate {
 
   // tracks status of request
   int request_status_ = ERR_IO_PENDING;
+
+  // tracks status of response
+  std::optional<int> response_code_;
 
   // our read buffer
   scoped_refptr<IOBuffer> buf_;
@@ -288,6 +293,11 @@ class TestNetworkDelegate : public NetworkDelegateImpl {
     return cookie_setting_overrides_records_;
   }
 
+  void set_storage_access_status(
+      std::optional<cookie_util::StorageAccessStatus> status) {
+    storage_access_status_ = status;
+  }
+
  protected:
   // NetworkDelegate:
   int OnBeforeURLRequest(URLRequest* request,
@@ -305,6 +315,7 @@ class TestNetworkDelegate : public NetworkDelegateImpl {
       const IPEndPoint& endpoint,
       std::optional<GURL>* preserve_fragment_on_redirect_url) override;
   void OnBeforeRedirect(URLRequest* request, const GURL& new_location) override;
+  void OnBeforeRetry(URLRequest* request) override;
   void OnResponseStarted(URLRequest* request, int net_error) override;
   void OnCompleted(URLRequest* request, bool started, int net_error) override;
   void OnURLRequestDestroyed(URLRequest* request) override;
@@ -325,6 +336,9 @@ class TestNetworkDelegate : public NetworkDelegateImpl {
       const URLRequest& request,
       const GURL& target_url,
       const GURL& referrer_url) const override;
+  std::optional<cookie_util::StorageAccessStatus> OnGetStorageAccessStatus(
+      const URLRequest& request,
+      base::optional_ref<const RedirectInfo> redirect_info) const override;
 
   void InitRequestStatesIfNew(int request_id);
 
@@ -374,6 +388,9 @@ class TestNetworkDelegate : public NetworkDelegateImpl {
   int next_request_id_ = 0;
 
   mutable std::vector<CookieSettingOverrides> cookie_setting_overrides_records_;
+
+  std::optional<cookie_util::StorageAccessStatus> storage_access_status_ =
+      std::nullopt;
 };
 
 // ----------------------------------------------------------------------------

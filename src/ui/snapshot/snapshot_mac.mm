@@ -18,23 +18,6 @@
 #include "ui/gfx/image/image.h"
 #include "ui/snapshot/snapshot_mac.h"
 
-// TODO: Remove when Chromium is built against the macOS 14.4 SDK or newer.
-#if !defined(MAC_OS_VERSION_14_4)
-
-@interface SCShareableContent (NewAPI)
-+ (void)getCurrentProcessShareableContentWithCompletionHandler:
-    (void (^)(SCShareableContent* _Nullable shareableContent,
-              NSError* _Nullable error))completionHandler
-    API_AVAILABLE(macos(14.4));
-@end
-
-@interface SCStreamConfiguration (NewAPI)
-@property(nonatomic, assign) BOOL includeChildWindows API_AVAILABLE(macos(14.2))
-    ;
-@end
-
-#endif  // !defined(MAC_OS_VERSION_14_4)
-
 // The API that allows an app TCC-less access to its own windows is new in macOS
 // 14.4. While this has been tested extensively on 14.4 betas, because this is a
 // new API added in an OS dot release, have a "break in case of emergency" off-
@@ -54,6 +37,7 @@ void GrabViewSnapshotScreenCaptureKitImpl(gfx::NativeView native_view,
                                           GrabSnapshotImageCallback callback)
     API_AVAILABLE(macos(14.4)) {
   NSView* view = native_view.GetNativeNSView();
+  NSInteger window_number = view.window.windowNumber;
   __block GrabSnapshotImageCallback local_callback = std::move(callback);
 
   // Get the view frame relative to the window, and flip it to have an
@@ -83,7 +67,7 @@ void GrabViewSnapshotScreenCaptureKitImpl(gfx::NativeView native_view,
       NSUInteger sc_window_index =
           [sc_windows indexOfObjectPassingTest:^BOOL(
                           SCWindow* obj, NSUInteger idx, BOOL* stop) {
-            return obj.windowID == view.window.windowNumber;
+            return obj.windowID == window_number;
           }];
       if (sc_window_index == NSNotFound) {
         DLOG(ERROR) << "failed to find window";
@@ -172,11 +156,18 @@ gfx::Image GrabViewSnapshotCGWindowListImpl(gfx::NativeView native_view,
 }
 
 bool ShouldForceOldAPIUse() {
-  // The SCK API -[SCShareableContent
-  // getCurrentProcessShareableContentWithCompletionHandler:] does not work
-  // correctly when there are multiple instances of an app with the same bundle
-  // ID. It must not be used in that case, as it can return errors, hang, or
-  // crash. https://crbug.com/333443445, FB13717818
+  // The SCK API +[SCShareableContent
+  // getCurrentProcessShareableContentWithCompletionHandler:] was introduced in
+  // macOS 14.4, but it did not work correctly when there were multiple
+  // instances of an app with the same bundle ID.
+  //
+  // This is fixed in macOS 15.
+  //
+  // https://crbug.com/333443445, FB13717818
+  if (base::mac::MacOSVersion() >= 15'00'00) {
+    return false;
+  }
+
   return [NSRunningApplication
              runningApplicationsWithBundleIdentifier:NSBundle.mainBundle
                                                          .bundleIdentifier]
@@ -197,7 +188,7 @@ void GrabWindowSnapshot(gfx::NativeWindow native_window,
   // tabstrip.
   NSView* view = native_window.GetNativeNSWindow().contentView.superview;
 
-  GrabViewSnapshot(view, source_rect, std::move(callback));
+  GrabViewSnapshot(gfx::NativeView(view), source_rect, std::move(callback));
 }
 
 void GrabViewSnapshot(gfx::NativeView view,

@@ -13,8 +13,10 @@
 #include "ash/wm/overview/overview_delegate.h"
 #include "ash/wm/overview/overview_metrics.h"
 #include "ash/wm/overview/overview_observer.h"
+#include "ash/wm/overview/overview_session_metrics_recorder.h"
 #include "ash/wm/overview/overview_types.h"
-#include "ash/wm/raster_scale/raster_scale_controller.h"
+#include "ash/wm/overview/overview_window_occlusion_calculator.h"
+#include "base/auto_reset.h"
 #include "base/cancelable_callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -148,11 +150,7 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
                          aura::Window* gained_active,
                          aura::Window* lost_active) override {}
 
-  void set_disable_app_id_check_for_saved_desks_for_test(
-      bool disable_app_id_check_for_saved_desks) {
-    disable_app_id_check_for_saved_desks_ =
-        disable_app_id_check_for_saved_desks;
-  }
+  base::AutoReset<bool> SetDisableAppIdCheckForTests();
 
   void set_occlusion_pause_duration_for_start_for_test(
       base::TimeDelta duration) {
@@ -170,7 +168,6 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
   }
 
  private:
-
   // Toggle overview mode. Depending on |type| the enter/exit animation will
   // look different.
   void ToggleOverview(
@@ -223,10 +220,6 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
       occlusion_tracker_pauser_;
   base::CancelableOnceClosure reset_pauser_task_;
 
-  // In order to guarantee relative ordering between occlusion updates and
-  // raster scale updates, we need to pause raster scale updates sometimes.
-  std::optional<ScopedPauseRasterScaleUpdates> raster_scale_pauser_;
-
   std::unique_ptr<OverviewSession> overview_session_;
 
   base::Time last_overview_session_time_;
@@ -256,6 +249,10 @@ class ASH_EXPORT OverviewController : public OverviewDelegate,
   // overview mode as finished its enter animation. Otherwise, we must mark
   // all windows as visible immediately.
   bool windows_have_snapshot_ = false;
+
+  std::optional<OverviewSessionMetricsRecorder> session_metrics_recorder_;
+
+  OverviewWindowOcclusionCalculator overview_window_occlusion_calculator_;
 
   base::WeakPtrFactory<OverviewController> weak_ptr_factory_{this};
 };

@@ -13,28 +13,29 @@ import androidx.preference.Preference;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
 import org.chromium.chrome.browser.safe_browsing.metrics.SettingsAccessPoint;
 import org.chromium.chrome.browser.safe_browsing.metrics.UserAction;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.FragmentSettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 
 /** Fragment containing Safe Browsing settings. */
+@NullMarked
 public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBase
-        implements FragmentSettingsLauncher,
-                RadioButtonGroupSafeBrowsingPreference.OnSafeBrowsingModeDetailsRequested,
+        implements RadioButtonGroupSafeBrowsingPreference.OnSafeBrowsingModeDetailsRequested,
                 Preference.OnPreferenceChangeListener {
     @VisibleForTesting static final String PREF_MANAGED_DISCLAIMER_TEXT = "managed_disclaimer_text";
     @VisibleForTesting static final String PREF_SAFE_BROWSING = "safe_browsing_radio_button_group";
     public static final String ACCESS_POINT = "SafeBrowsingSettingsFragment.AccessPoint";
 
-    // An instance of SettingsLauncher that is used to launch Safe Browsing subsections.
-    private SettingsLauncher mSettingsLauncher;
     private RadioButtonGroupSafeBrowsingPreference mSafeBrowsingPreference;
+
     private @SettingsAccessPoint int mAccessPoint;
 
     /**
@@ -68,8 +69,9 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
         return result;
     }
 
+    @Initializer
     @Override
-    protected void onCreatePreferencesInternal(Bundle bundle, String s) {
+    protected void onCreatePreferencesInternal(@Nullable Bundle bundle, @Nullable String s) {
         mAccessPoint =
                 IntentUtils.safeGetInt(getArguments(), ACCESS_POINT, SettingsAccessPoint.DEFAULT);
 
@@ -98,19 +100,14 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
     public void onSafeBrowsingModeDetailsRequested(@SafeBrowsingState int safeBrowsingState) {
         recordUserActionHistogramForStateDetailsClicked(safeBrowsingState);
         if (safeBrowsingState == SafeBrowsingState.ENHANCED_PROTECTION) {
-            mSettingsLauncher.launchSettingsActivity(
-                    getActivity(), EnhancedProtectionSettingsFragment.class);
+            SettingsNavigationFactory.createSettingsNavigation()
+                    .startSettings(getActivity(), EnhancedProtectionSettingsFragment.class);
         } else if (safeBrowsingState == SafeBrowsingState.STANDARD_PROTECTION) {
-            mSettingsLauncher.launchSettingsActivity(
-                    getActivity(), StandardProtectionSettingsFragment.class);
+            SettingsNavigationFactory.createSettingsNavigation()
+                    .startSettings(getActivity(), StandardProtectionSettingsFragment.class);
         } else {
             assert false : "Should not be reached";
         }
-    }
-
-    @Override
-    public void setSettingsLauncher(SettingsLauncher settingsLauncher) {
-        mSettingsLauncher = settingsLauncher;
     }
 
     private ChromeManagedPreferenceDelegate createManagedPreferenceDelegate() {
@@ -164,19 +161,32 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
         } else {
             getSafeBrowsingBridge().setSafeBrowsingState(newState);
         }
+        // This function is called when the user manually modifies their safe browsing settings via
+        // the security settings page. This action indicates that the user has seen and interacted
+        // with the notification that informed them of the synced settings.
+        //
+        // The notification is displayed when safe browsing settings are synced across devices.
+        // This function prevents the notification from being shown again for settings explicitly
+        // configured locally, ensuring that users are not repeatedly notified about settings
+        // they've deliberately chosen on this device.
+        //
+        // By marking the notification as "shown" locally, we differentiate between settings applied
+        // via sync and those directly configured by the user on this device, thus avoiding
+        // redundant or misleading notifications.
+        getSafeBrowsingBridge().enableSafeBrowsingSettingSetLocallyPref();
         return true;
     }
 
     private void recordUserActionHistogramForNewStateClicked(
             @SafeBrowsingState int safeBrowsingState) {
         switch (safeBrowsingState) {
-            case (SafeBrowsingState.ENHANCED_PROTECTION):
+            case SafeBrowsingState.ENHANCED_PROTECTION:
                 recordUserActionHistogram(UserAction.ENHANCED_PROTECTION_CLICKED);
                 break;
-            case (SafeBrowsingState.STANDARD_PROTECTION):
+            case SafeBrowsingState.STANDARD_PROTECTION:
                 recordUserActionHistogram(UserAction.STANDARD_PROTECTION_CLICKED);
                 break;
-            case (SafeBrowsingState.NO_SAFE_BROWSING):
+            case SafeBrowsingState.NO_SAFE_BROWSING:
                 recordUserActionHistogram(UserAction.DISABLE_SAFE_BROWSING_CLICKED);
                 break;
             default:
@@ -187,10 +197,10 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
     private void recordUserActionHistogramForStateDetailsClicked(
             @SafeBrowsingState int safeBrowsingState) {
         switch (safeBrowsingState) {
-            case (SafeBrowsingState.ENHANCED_PROTECTION):
+            case SafeBrowsingState.ENHANCED_PROTECTION:
                 recordUserActionHistogram(UserAction.ENHANCED_PROTECTION_EXPAND_ARROW_CLICKED);
                 break;
-            case (SafeBrowsingState.STANDARD_PROTECTION):
+            case SafeBrowsingState.STANDARD_PROTECTION:
                 recordUserActionHistogram(UserAction.STANDARD_PROTECTION_EXPAND_ARROW_CLICKED);
                 break;
             default:
@@ -238,7 +248,7 @@ public class SafeBrowsingSettingsFragment extends SafeBrowsingSettingsFragmentBa
         RecordHistogram.recordEnumeratedHistogram(
                 "SafeBrowsing.Settings.UserAction." + metricsSuffix,
                 userAction,
-                UserAction.MAX_VALUE + 1);
+                UserAction.MAX_VALUE);
 
         String userActionSuffix;
         switch (userAction) {

@@ -26,6 +26,21 @@ chromium-metrics-reviews@google.com.
 
 <enums>
 
+<!-- LINT.IfChange(LensOverlayContextMenuOption) -->
+
+<enum name="LensOverlayContextMenuOption">
+  <summary>The context menu option that was shown in the Lens Overlay.</summary>
+  <int value="0" label="Copy text"/>
+  <int value="1" label="Translate text"/>
+  <int value="2" label="Select text in region"/>
+  <int value="3" label="Translate text in region"/>
+  <int value="4" label="Copy as image"/>
+  <int value="5" label="Save as image"/>
+  <int value="6" label="Copy text in region"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/resources/lens/overlay/metrics_utils.ts:ContextMenuOption) -->
+
 <!-- LINT.IfChange(LensOverlayDismissalSource) -->
 
 <enum name="LensOverlayDismissalSource">
@@ -42,9 +57,42 @@ chromium-metrics-reviews@google.com.
   <int value="9" label="Escape key press"/>
   <int value="10" label="Unexpected side panel open"/>
   <int value="11" label="Browser went into fullscreen"/>
+  <int value="12" label="Tab dragged into new window"/>
+  <int value="13" label="Tab closed"/>
+  <int value="14" label="Error: Renderer exited (obsolete after M130)"/>
+  <int value="15" label="Find in page invoked"/>
+  <int value="16" label="Preselection toast exit button"/>
+  <int value="17" label="Side panel entry replaced"/>
+  <int value="18" label="Search bubble close button"/>
+  <int value="19" label="Overlay renderer exited normally"/>
+  <int value="20" label="Error: Overlay renderer exited unexpectedly"/>
+  <int value="21" label="Underlying page renderer exited normally"/>
+  <int value="22" label="Error: Underlying page renderer exited unexpectedly"/>
+  <int value="23" label="Default search engine changed"/>
+  <int value="24" label="Bottom sheet dismissed"/>
+  <int value="25" label="Accessibility escape gesture"/>
+  <int value="26" label="New lens overlay invocation in another tab"/>
+  <int value="27" label="Lens permission declined"/>
+  <int value="28" label="Low memory"/>
+  <int value="29" label="Network issue"/>
+  <int value="30" label="Escape key press on preselection toast"/>
+  <int value="31" label="Search with camera requested"/>
 </enum>
 
-<!-- LINT.ThenChange(//chrome/browser/ui/lens/lens_overlay_dismissal_source.h:LensOverlayDismissalSource) -->
+<!-- LINT.ThenChange(//components/lens/lens_overlay_dismissal_source.h:LensOverlayDismissalSource) -->
+
+<!-- LINT.IfChange(LensOverlayFirstInteractionType) -->
+
+<enum name="LensOverlayFirstInteractionType">
+  <summary>The first interaction type of the Lens Overlay.</summary>
+  <int value="0" label="Permission dialog"/>
+  <int value="1" label="Lens (3-dot) menu"/>
+  <int value="2" label="Region select"/>
+  <int value="3" label="Text select"/>
+  <int value="4" label="Searchbox"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_first_interaction_type.h:LensOverlayFirstInteractionType) -->
 
 <!-- LINT.IfChange(LensOverlayInvocationSource) -->
 
@@ -56,9 +104,75 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Toolbar button"/>
   <int value="4" label="Find in page dialog button"/>
   <int value="5" label="Omnibox button"/>
+  <int value="6" label="LVF Shutter Button"/>
+  <int value="7" label="LVF Gallery"/>
+  <int value="8" label="Context Menu"/>
 </enum>
 
-<!-- LINT.ThenChange(//chrome/browser/ui/lens/lens_overlay_invocation_source.h:LensOverlayInvocationSource) -->
+<!-- LINT.ThenChange(//components/lens/lens_overlay_invocation_source.h:LensOverlayInvocationSource) -->
+
+<!-- LINT.IfChange(LensOverlayNewTabSource) -->
+
+<enum name="LensOverlayNewTabSource">
+  <summary>The source opening a new tab from the lens overlay.</summary>
+  <int value="0" label="WebNavigation"/>
+  <int value="1" label="Omnibox"/>
+  <int value="2" label="ContextMenu"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_new_tab_source.h:LensOverlayNewTabSource) -->
+
+<!-- LINT.IfChange(LensOverlaySidePanelMenuOption) -->
+
+<enum name="LensOverlaySidePanelMenuOption">
+  <summary>
+    Options that may be selected in the lens overlay side panel more options
+    menu.
+  </summary>
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Open in new tab"/>
+  <int value="2" label="My Activity"/>
+  <int value="3" label="Learn more"/>
+  <int value="4" label="Send feedback"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_side_panel_menu_option.h:LensOverlaySidePanelMenuOption) -->
+
+<!-- LINT.IfChange(LensOverlaySpeedbumpMenuSelection) -->
+
+<enum name="LensOverlaySpeedbumpMenuSelection">
+  <summary>The selected item in the lens speedbump menu.</summary>
+  <int value="0" label="SearchYourScreen"/>
+  <int value="1" label="SearchWithCamera"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_metrics.h:LensOverlaySpeedbumpMenuSelection) -->
+
+<!-- LINT.IfChange(LensOverlayUserAction) -->
+
+<enum name="LensOverlayUserAction">
+  <summary>The user interaction with the Lens Overlay</summary>
+  <int value="0" label="Region selection"/>
+  <int value="1" label="Region selection change"/>
+  <int value="2" label="Text selection"/>
+  <int value="3" label="Object click"/>
+  <int value="4" label="Translate text action"/>
+  <int value="5" label="Copy text action"/>
+  <int value="6" label="My Activity action"/>
+  <int value="7" label="Learn more action"/>
+  <int value="8" label="Send feedback action"/>
+  <int value="9" label="Tap region selection"/>
+  <int value="10" label="Translate mode button enable action"/>
+  <int value="11" label="Translate mode button disable action"/>
+  <int value="12" label="Translate source language changed"/>
+  <int value="13" label="Translate target language changed"/>
+  <int value="14" label="Translate text selection"/>
+  <int value="15" label="Copy as image action"/>
+  <int value="16" label="Save as image action"/>
+  <int value="17" label="Math selection"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/lens/core/mojom/lens.mojom:UserAction) -->
 
 <!-- LINT.IfChange(LensPermissionBubbleUserAction) -->
 
@@ -70,14 +184,61 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Esc key pressed"/>
 </enum>
 
-<!-- LINT.ThenChange(//chrome/browser/ui/lens/lens_permission_bubble_controller.h:UserAction) -->
+<!-- LINT.ThenChange(//components/lens/lens_permission_user_action.h:LensPermissionUserAction) -->
 
-<!-- TODO(crbug.com/336793181): `git cl format` deletes the ThenChange above
-     unless this enum is here. Fix the issue and delete this fake enum.  -->
+<!-- LINT.IfChange(LensOverlayMimeType) -->
 
-<enum name="ZZZZZZZ">
-  <int value="0" label="Z"/>
+<!-- The MimeType enum used for UKM metrics. -->
+
+<enum name="MimeType">
+  <summary>
+    The mime type of the document the Lens Overlay is invoked on.
+  </summary>
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Pdf"/>
+  <int value="2" label="Html"/>
+  <int value="3" label="PlainText"/>
+  <int value="4" label="Image"/>
+  <int value="5" label="Video"/>
+  <int value="6" label="Audio"/>
+  <int value="7" label="Json"/>
+  <int value="8" label="AnnotatedPageContent"/>
 </enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_mime_type.h:LensOverlayMimeType) -->
+
+<!-- LINT.IfChange(SheetDimensionState) -->
+
+<enum name="SheetDimensionState">
+  <summary>
+    Indicates the size of the bottom panel. When the panel is closed, value 0
+    &quot;hidden&quot; is used.
+  </summary>
+  <int value="0" label="Hidden"/>
+  <int value="1" label="Large"/>
+  <int value="2" label="Medium"/>
+  <int value="3" label="Peaking"/>
+  <int value="4" label="Consent"/>
+  <int value="5" label="InfoMessage"/>
+</enum>
+
+<!-- LINT.ThenChange(//ios/chrome/browser/lens_overlay/model/lens_overlay_sheet_detent_state.h:SheetDimensionState) -->
+
+<!-- LINT.IfChange(LensOverlaySidePanelResultStatus) -->
+
+<enum name="SidePanelResultStatus">
+  <summary>
+    Indicates the state of the side panel content, including whether results
+    were successfully shown or an error occurred preventing display. If an error
+    is indicated, the enum value further specifies the reason for the error.
+  </summary>
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Result shown"/>
+  <int value="2" label="Error page shown (offline)"/>
+  <int value="3" label="Error page shown (start query response error)"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/lens/lens_overlay_side_panel_result.h:LensOverlaySidePanelResultStatus) -->
 
 </enums>
 

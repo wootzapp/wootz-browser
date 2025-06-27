@@ -5,7 +5,9 @@
 #include "tools/aggregation_service/aggregation_service_tool.h"
 
 #include <functional>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "base/check.h"
@@ -13,7 +15,7 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
-#include "base/json/json_string_value_serializer.h"
+#include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/run_loop.h"
 #include "base/strings/abseil_string_number_conversions.h"
@@ -32,7 +34,7 @@ namespace aggregation_service {
 namespace {
 
 std::optional<content::TestAggregationService::Operation> ConvertToOperation(
-    const std::string& operation_string) {
+    std::string_view operation_string) {
   if (operation_string == "histogram")
     return content::TestAggregationService::Operation::kHistogram;
 
@@ -40,7 +42,7 @@ std::optional<content::TestAggregationService::Operation> ConvertToOperation(
 }
 
 std::optional<content::TestAggregationService::AggregationMode>
-ConvertToAggregationMode(const std::string& aggregation_mode_string) {
+ConvertToAggregationMode(std::string_view aggregation_mode_string) {
   if (aggregation_mode_string == "tee-based")
     return content::TestAggregationService::AggregationMode::kTeeBased;
   if (aggregation_mode_string == "experimental-poplar")
@@ -92,7 +94,7 @@ bool AggregationServiceTool::SetPublicKeys(
 
 bool AggregationServiceTool::SetPublicKeysFromFile(
     const GURL& url,
-    const std::string& json_file_path) {
+    std::string_view json_file_path) {
 #if BUILDFLAG(IS_WIN)
   base::FilePath json_file(base::UTF8ToWide(json_file_path));
 #else
@@ -210,11 +212,10 @@ bool AggregationServiceTool::WriteReportToFile(const base::Value& contents,
     return false;
   }
 
-  std::string contents_json;
-  JSONStringValueSerializer serializer(&contents_json);
-  CHECK(serializer.Serialize(contents));
+  std::optional<std::string> contents_json = base::WriteJson(contents);
+  CHECK(contents_json);
 
-  return base::WriteFile(filename, contents_json);
+  return base::WriteFile(filename, *contents_json);
 }
 
 }  // namespace aggregation_service

@@ -24,7 +24,6 @@
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "device/bluetooth/bluetooth_discovery_filter.h"
@@ -373,6 +372,16 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
     std::optional<bool> require_authentication;
   };
 
+  enum class DiscoveryState {
+    kStarting = 0,
+    kStopping,
+    kDiscovering,
+    kIdle,
+  };
+
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.device.bluetooth
+  enum class PermissionStatus { kUndetermined = 0, kDenied, kAllowed };
+
   // The ErrorCallback is used for methods that can fail in which case it is
   // called, in the success case the callback is simply not called.
   using ErrorCallback = base::OnceClosure;
@@ -402,15 +411,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
   using DiscoverySessionResultCallback =
       base::OnceCallback<void(/*is_error*/ bool,
                               UMABluetoothDiscoverySessionOutcome)>;
-
-  enum class DiscoveryState {
-    kStarting = 0,
-    kStopping,
-    kDiscovering,
-    kIdle,
-  };
-
-  enum class PermissionStatus { kUndetermined = 0, kDenied, kAllowed };
+  using RequestSystemPermissionCallback =
+      base::OnceCallback<void(BluetoothAdapter::PermissionStatus)>;
 
   // Creates a new adapter. Initialize() must be called before the adapter can
   // be used.
@@ -473,6 +475,13 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
 
   // Returns the status of the browser's Bluetooth permission status.
   virtual PermissionStatus GetOsPermissionStatus() const;
+
+  // Request Bluetooth system permission. For platforms that require Bluetooth
+  // system permission for accessing Bluetooth devices, it triggers system
+  // permission prompt. `callback` will be invoked when the system permission is
+  // determined or `this` is destructed.
+  virtual void RequestSystemPermission(
+      RequestSystemPermissionCallback callback);
 
   // Requests a change to the adapter radio power. Setting |powered| to true
   // will turn on the radio and false will turn it off. On success, |callback|
@@ -637,10 +646,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
       CreateAdvertisementCallback callback,
       AdvertisementErrorCallback error_callback) = 0;
 
-#if BUILDFLAG(IS_CHROMEOS)
   // Indicates whether LE extended advertising is supported.
-  virtual bool IsExtendedAdvertisementsAvailable() const = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+  virtual bool IsExtendedAdvertisementsAvailable() const;
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // Sets the interval between two consecutive advertisements. Valid ranges
@@ -782,13 +789,10 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
 
   // Returns a list of all the roles that are supported by the adapter.
   virtual std::vector<BluetoothRole> GetSupportedRoles() = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Set the adapter name to one chosen from the system information. Only Ash
-  // needs to do this.
+  // Set the adapter name to one chosen from the system information.
   virtual void SetStandardChromeOSAdapterName() = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // The timeout in seconds used by RemoveTimedOutDevices.
   static const base::TimeDelta timeoutSec;
@@ -924,6 +928,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapter
 
   // Number of DiscoverySessions with the status of SCANNING.
   int NumScanningDiscoverySessions() const;
+
+  // Clear `devices_` and send device removed event for each one of them.
+  void ClearAllDevices();
 
   // UI thread task runner.
   scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner_;

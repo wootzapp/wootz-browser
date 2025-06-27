@@ -5,17 +5,13 @@
 #include <stdint.h>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
-#include "base/files/file_path.h"
 #include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/history/history_test_utils.h"
-#include "chrome/browser/policy/profile_policy_connector_builder.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -24,15 +20,10 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
-#include "chrome/browser/ui/login/login_handler.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
-#include "chrome/common/chrome_paths.h"
-#include "chrome/common/pref_names.h"
-#include "chrome/common/url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/search_test_utils.h"
@@ -51,10 +42,6 @@
 #include "components/omnibox/browser/autocomplete_result.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
 #include "components/omnibox/browser/omnibox_view.h"
-#include "components/policy/core/browser/browser_policy_connector.h"
-#include "components/policy/core/common/mock_configuration_policy_provider.h"
-#include "components/policy/core/common/policy_map.h"
-#include "components/policy/policy_constants.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -63,7 +50,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/content_features.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/browser_test.h"
@@ -71,7 +58,6 @@
 #include "content/public/test/fenced_frame_test_util.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "content/public/test/test_utils.h"
-#include "extensions/buildflags/buildflags.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "printing/buildflags/buildflags.h"
@@ -89,7 +75,6 @@
 #include "chrome/browser/printing/print_preview_dialog_controller.h"
 #endif
 
-using content::NativeWebKeyboardEvent;
 using content::WebContents;
 using testing::_;
 using testing::Return;
@@ -115,12 +100,12 @@ class CloseObserver : public content::WebContentsObserver {
 
 class PopupBlockerBrowserTest : public InProcessBrowserTest {
  public:
-  PopupBlockerBrowserTest() {}
+  PopupBlockerBrowserTest() = default;
 
   PopupBlockerBrowserTest(const PopupBlockerBrowserTest&) = delete;
   PopupBlockerBrowserTest& operator=(const PopupBlockerBrowserTest&) = delete;
 
-  ~PopupBlockerBrowserTest() override {}
+  ~PopupBlockerBrowserTest() override = default;
 
   // InProcessBrowserTest:
   void SetUpOnMainThread() override {
@@ -233,8 +218,9 @@ class PopupBlockerBrowserTest : public InProcessBrowserTest {
       new_browser = BrowserList::GetInstance()->GetLastActive();
       EXPECT_NE(browser, new_browser);
       web_contents = new_browser->tab_strip_model()->GetActiveWebContents();
-      if (what_to_expect == kExpectNewWindow)
+      if (what_to_expect == kExpectNewWindow) {
         EXPECT_TRUE(new_browser->is_type_normal());
+      }
     } else {
       tab_add.Wait();
       new_browser = browser;
@@ -263,8 +249,7 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest, BlockWebContentsCreation) {
 }
 
 // TODO(crbug.com/40144522): Flaky on Mac ASAN and Chrome OS.
-#if (BUILDFLAG(IS_MAC) && defined(ADDRESS_SANITIZER)) || \
-    BUILDFLAG(IS_CHROMEOS_ASH)
+#if (BUILDFLAG(IS_MAC) && defined(ADDRESS_SANITIZER)) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_BlockWebContentsCreationIncognito \
   DISABLED_BlockWebContentsCreationIncognito
 #else
@@ -513,13 +498,15 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest, ClosableAfterNavigation) {
   // Navigate it elsewhere.
   content::TestNavigationObserver nav_observer(popup);
   popup->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
-      u"location.href = '/empty.html'", base::NullCallback());
+      u"location.href = '/empty.html'", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
   nav_observer.Wait();
 
   // Have it close itself.
   CloseObserver close_observer(popup);
-  popup->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(u"window.close()",
-                                                          base::NullCallback());
+  popup->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+      u"window.close()", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
   close_observer.Wait();
 }
 
@@ -614,8 +601,9 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest, ModalPopUnder) {
       ui_test_utils::WaitForAppModalDialog();
   ASSERT_TRUE(dialog);
 #if !BUILDFLAG(IS_MAC)
-  if (chrome::FindLastActive() != browser())
+  if (chrome::FindLastActive() != browser()) {
     alert_waiter.WaitForActivation();
+  }
 #endif
 
 // Verify that after the dialog is closed, the popup is in front again.
@@ -804,7 +792,7 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest, PopupsDisableBackForwardCache) {
                                           ->tab_strip_model()
                                           ->GetActiveWebContents()
                                           ->GetPrimaryMainFrame());
-  int process_id = rfh->GetProcess()->GetID();
+  int process_id = rfh->GetProcess()->GetDeprecatedID();
   int frame_routing_id = rfh->GetRoutingID();
 
   // Navigate to another page on the same domain. This will trigger a check on
@@ -829,8 +817,8 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest, PopupsDisableBackForwardCache) {
 // Make sure the poput is attributed to the right WebContents when it is
 // triggered from a different WebContents. Regression test for
 // https://crbug.com/1128495
-// Flaky on windows: crbug.com/1422005.
-#if BUILDFLAG(IS_WIN)
+// Flaky on windows and mac: b/40896665.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #define MAYBE_PopupTriggeredFromDifferentWebContents \
   DISABLED_PopupTriggeredFromDifferentWebContents
 #else
@@ -860,8 +848,19 @@ IN_PROC_BROWSER_TEST_F(PopupBlockerBrowserTest,
   // before we perform the checks further down. Since we have no control over
   // that script we just run some more (that we do control) and wait for it to
   // finish.
-  EXPECT_TRUE(
-      content::ExecJs(tab_2, "", content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  //
+  // crbug.com/368578515: The ExecJs script here runs out of the renderer's
+  // default task queue, which has a different task deferral policy with
+  // DeferRendererTasksAfterInput than the queue that runs the loading script
+  // task we're waiting for. This means the ExecJs task might run before the
+  // loading script task, depending on rendering timing. To get around this, use
+  // a lower priority task queue that has the same task deferral policy.
+  EXPECT_TRUE(content::ExecJs(tab_2, R"(
+    (() => {
+      return scheduler.postTask(() => {}, {priority: 'background'});
+    })();
+  )",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
 
   EXPECT_FALSE(content_settings::PageSpecificContentSettings::GetForFrame(
                    tab_1->GetPrimaryMainFrame())

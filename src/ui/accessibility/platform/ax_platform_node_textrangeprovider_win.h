@@ -163,7 +163,6 @@ class COMPONENT_EXPORT(AX_PLATFORM) __declspec(uuid(
                                         const int count,
                                         int* units_moved);
   AXPositionInstance MoveEndpointByFormat(const AXPositionInstance& endpoint,
-                                          const bool is_start_endpoint,
                                           const int count,
                                           int* units_moved);
   AXPositionInstance MoveEndpointByDocument(const AXPositionInstance& endpoint,
@@ -191,7 +190,7 @@ class COMPONENT_EXPORT(AX_PLATFORM) __declspec(uuid(
   static void NormalizeAsUnignoredTextRange(AXPositionInstance& start,
                                             AXPositionInstance& end);
 
-  AXPlatformNodeDelegate* GetRootDelegate(const ui::AXTreeID tree_id);
+  AXPlatformNodeDelegate* GetRootDelegate(const AXTreeID tree_id);
   AXNode* GetSelectionCommonAnchor();
   void RemoveFocusFromPreviousSelectionIfNeeded(
       const AXNodeRange& new_selection);

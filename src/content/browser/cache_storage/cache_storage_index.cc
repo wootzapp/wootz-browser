@@ -7,11 +7,12 @@
 #include <utility>
 
 #include "base/containers/contains.h"
+#include "base/not_fatal_until.h"
 
 namespace content {
 
 CacheStorageIndex::CacheStorageIndex()
-    : doomed_cache_metadata_("",
+    : doomed_cache_metadata_(std::u16string(),
                              CacheStorage::kSizeUnknown,
                              CacheStorage::kSizeUnknown) {
   ClearDoomedCache();
@@ -39,31 +40,39 @@ void CacheStorageIndex::Insert(const CacheMetadata& cache_metadata) {
   storage_padding_ = CacheStorage::kSizeUnknown;
 }
 
-void CacheStorageIndex::Delete(const std::string& cache_name) {
+void CacheStorageIndex::Delete(const std::u16string& cache_name) {
   DCHECK(!has_doomed_cache_);
   auto it = cache_metadata_map_.find(cache_name);
-  DCHECK(it != cache_metadata_map_.end());
+  CHECK(it != cache_metadata_map_.end(), base::NotFatalUntil::M130);
   ordered_cache_metadata_.erase(it->second);
   cache_metadata_map_.erase(it);
   storage_size_ = CacheStorage::kSizeUnknown;
   storage_padding_ = CacheStorage::kSizeUnknown;
 }
 
-bool CacheStorageIndex::SetCacheSize(const std::string& cache_name,
+bool CacheStorageIndex::SetCacheSize(const std::u16string& cache_name,
                                      int64_t size) {
   if (has_doomed_cache_)
     DCHECK_NE(cache_name, doomed_cache_metadata_.name);
+
   auto it = cache_metadata_map_.find(cache_name);
-  DCHECK(it != cache_metadata_map_.end());
-  if (it->second->size == size)
+  if (it == cache_metadata_map_.end()) {
+    // This can happen during initialization. The cache should be added to the
+    // map soon and the size will be set correctly at that point.
     return false;
+  }
+
+  if (it->second->size == size) {
+    return false;
+  }
+
   it->second->size = size;
   storage_size_ = CacheStorage::kSizeUnknown;
   return true;
 }
 
 const CacheStorageIndex::CacheMetadata* CacheStorageIndex::GetMetadata(
-    const std::string& cache_name) const {
+    const std::u16string& cache_name) const {
   const auto& it = cache_metadata_map_.find(cache_name);
   if (it == cache_metadata_map_.end())
     return nullptr;
@@ -71,28 +80,35 @@ const CacheStorageIndex::CacheMetadata* CacheStorageIndex::GetMetadata(
 }
 
 int64_t CacheStorageIndex::GetCacheSizeForTesting(
-    const std::string& cache_name) const {
+    const std::u16string& cache_name) const {
   const auto& it = cache_metadata_map_.find(cache_name);
   if (it == cache_metadata_map_.end())
     return CacheStorage::kSizeUnknown;
   return it->second->size;
 }
 
-bool CacheStorageIndex::SetCachePadding(const std::string& cache_name,
+bool CacheStorageIndex::SetCachePadding(const std::u16string& cache_name,
                                         int64_t padding) {
   DCHECK(!has_doomed_cache_ || cache_name != doomed_cache_metadata_.name)
       << "Setting padding of doomed cache: \"" << cache_name << '"';
   auto it = cache_metadata_map_.find(cache_name);
-  DCHECK(it != cache_metadata_map_.end());
-  if (it->second->padding == padding)
+  if (it == cache_metadata_map_.end()) {
+    // This can happen during initialization. The cache should be added to the
+    // map soon and the padding will be set correctly at that point.
     return false;
+  }
+
+  if (it->second->padding == padding) {
+    return false;
+  }
+
   it->second->padding = padding;
   storage_padding_ = CacheStorage::kSizeUnknown;
   return true;
 }
 
 int64_t CacheStorageIndex::GetCachePaddingForTesting(
-    const std::string& cache_name) const {
+    const std::u16string& cache_name) const {
   const auto& it = cache_metadata_map_.find(cache_name);
   if (it == cache_metadata_map_.end())
     return CacheStorage::kSizeUnknown;
@@ -133,10 +149,10 @@ void CacheStorageIndex::CalculateStoragePadding() {
   storage_padding_ = storage_padding;
 }
 
-void CacheStorageIndex::DoomCache(const std::string& cache_name) {
+void CacheStorageIndex::DoomCache(const std::u16string& cache_name) {
   DCHECK(!has_doomed_cache_);
   auto map_it = cache_metadata_map_.find(cache_name);
-  DCHECK(map_it != cache_metadata_map_.end());
+  CHECK(map_it != cache_metadata_map_.end(), base::NotFatalUntil::M130);
   doomed_cache_metadata_ = std::move(*(map_it->second));
   after_doomed_cache_metadata_ = ordered_cache_metadata_.erase(map_it->second);
   cache_metadata_map_.erase(map_it);

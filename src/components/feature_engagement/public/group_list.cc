@@ -4,6 +4,8 @@
 
 #include "components/feature_engagement/public/group_list.h"
 
+#include <vector>
+
 #include "build/build_config.h"
 #include "components/feature_engagement/public/group_constants.h"
 
@@ -16,13 +18,18 @@ const base::Feature* const kAllGroups[] = {
     &kiOSFullscreenPromosGroup,
     &kiOSDefaultBrowserPromosGroup,
     &kiOSTailoredDefaultBrowserPromosGroup,
+    &kiOSTailoredNonModalDefaultBrowserPromosGroup,
+    &kiOSNonModalSigninPromosGroup,
 #endif  // BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_ANDROID)
+    &kClankDefaultBrowserPromosGroup,
+#endif  // BUILDFLAG(IS_ANDROID)
 };
 }  // namespace
 
 std::vector<const base::Feature*> GetAllGroups() {
-  return std::vector<const base::Feature*>(kAllGroups,
-                                           kAllGroups + std::size(kAllGroups));
+  return std::vector<const base::Feature*>(std::begin(kAllGroups),
+                                           std::end(kAllGroups));
 }
 
 }  // namespace feature_engagement

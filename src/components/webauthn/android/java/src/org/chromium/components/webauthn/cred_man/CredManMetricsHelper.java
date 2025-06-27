@@ -7,12 +7,14 @@ package org.chromium.components.webauthn.cred_man;
 import androidx.annotation.IntDef;
 
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.webauthn.Fido2CredentialRequest.ConditionalUiState;
 
 /**
  * This class is responsible for emitting histograms regarding CredMan usage in
  * Fido2CredentialRequest.
  */
+@NullMarked
 public class CredManMetricsHelper {
     // These values are persisted to logs. Entries should not be renumbered and
     // numeric values should never be reused.
@@ -92,9 +94,13 @@ public class CredManMetricsHelper {
                 CredManPrepareRequestEnum.NUM_ENTRIES);
     }
 
-    public void recordCredmanPrepareRequestDuration(long durationMs) {
+    public void recordCredmanPrepareRequestDuration(long durationMs, boolean credentialsFound) {
         RecordHistogram.recordTimesHistogram(
                 "WebAuthentication.Android.CredManPrepareRequestDuration", durationMs);
+        if (credentialsFound) {
+            RecordHistogram.recordTimesHistogram(
+                    "WebAuthentication.CredentialFetchDuration.CredMan", durationMs);
+        }
     }
 
     public void reportGetCredentialMetrics(

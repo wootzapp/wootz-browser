@@ -4,7 +4,11 @@
 
 package org.chromium.base.test.transit;
 
+import android.util.Pair;
+
 import org.chromium.base.test.transit.ConditionalState.Phase;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,22 +18,29 @@ import java.util.List;
  *
  * <p>Also keeps track of which test is currently running for batched tests.
  */
+@NullMarked
 public class TrafficControl {
-    private static final List<Station> sAllStations = new ArrayList<>();
-    private static String sCurrentTestCase;
+    private static final List<Pair<String, String>> sAllStationNames = new ArrayList<>();
+    private static @Nullable String sCurrentTestCase;
 
-    private static Station sActiveStation;
+    private static @Nullable Station<?> sActiveStation;
 
-    static void notifyCreatedStation(Station station) {
-        sAllStations.add(station);
+    static void notifyCreatedStation(Station<?> station) {
+        sAllStationNames.add(Pair.create(sCurrentTestCase, station.getName()));
     }
 
     static void notifyEntryPointSentinelStationCreated(EntryPointSentinelStation sentinelStation) {
-        assert sActiveStation == null : "EntryPointSentinelStation was created twice";
+        if (sActiveStation != null) {
+            // Happens when test is batched, but the Activity is not kept between tests; Public
+            // Transit's Station/Facility state need to reflect that and start from a new
+            // {@link EntryPointSentinelStation}.
+            sActiveStation.setStateTransitioningFrom();
+            sActiveStation.setStateFinished();
+        }
         sActiveStation = sentinelStation;
     }
 
-    static void notifyActiveStationChanged(Station newActiveStation) {
+    static void notifyActiveStationChanged(Station<?> newActiveStation) {
         assert newActiveStation.getPhase() == Phase.ACTIVE : "New active Station must be ACTIVE";
         if (sActiveStation != null) {
             assert sActiveStation.getPhase() != Phase.ACTIVE
@@ -38,11 +49,11 @@ public class TrafficControl {
         sActiveStation = newActiveStation;
     }
 
-    public static List<Station> getAllStations() {
-        return sAllStations;
+    public static List<Pair<String, String>> getAllStationsNames() {
+        return sAllStationNames;
     }
 
-    public static Station getActiveStation() {
+    public static @Nullable Station<?> getActiveStation() {
         return sActiveStation;
     }
 
@@ -54,7 +65,7 @@ public class TrafficControl {
         sCurrentTestCase = null;
     }
 
-    static String getCurrentTestCase() {
+    static @Nullable String getCurrentTestCase() {
         return sCurrentTestCase;
     }
 }

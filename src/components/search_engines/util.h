@@ -13,13 +13,11 @@
 #include <vector>
 
 #include "components/search_engines/keyword_web_data_service.h"
-#include "components/search_engines/search_engine_choice/search_engine_choice_service.h"
 #include "components/search_engines/template_url_service.h"
 
 class KeywordWebDataService;
 class PrefService;
 class TemplateURL;
-class WDTypedResult;
 
 // Returns the short name of the default search engine, or the empty string if
 // none is set.
@@ -154,12 +152,12 @@ void ApplyActionsFromCurrentData(
 // if the latter is empty and the search engine choice feature is enabled.
 // Gets the value of the corresponding preference based on the search engine
 // choice feature flag.
-const std::string& GetDefaultSearchProviderPrefValue(PrefService& prefs);
+const std::string& GetDefaultSearchProviderGuidFromPrefs(PrefService& prefs);
 
 // Sets the corresponding default search provider preference based on the search
 // engine choice feature flag.
-void SetDefaultSearchProviderPrefValue(PrefService& prefs,
-                                       const std::string& value);
+void SetDefaultSearchProviderGuidToPrefs(PrefService& prefs,
+                                         const std::string& value);
 
 // Processes the results of KeywordWebDataService::GetKeywords, combining it
 // with prepopulated search providers to result in:
@@ -175,10 +173,10 @@ void SetDefaultSearchProviderPrefValue(PrefService& prefs,
 // GUIDs added to it. `default_search_provider` will be used to prevent removing
 // the current user-selected DSE, regardless of changes in prepopulate data.
 void GetSearchProvidersUsingKeywordResult(
-    const WDTypedResult& result,
+    const WDKeywordsResult& result,
     KeywordWebDataService* service,
     PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service,
+    const TemplateURLPrepopulateData::Resolver& template_url_data_resolver,
     TemplateURLService::OwnedTemplateURLVector* template_urls,
     TemplateURL* default_search_provider,
     const SearchTermsData& search_terms_data,
@@ -194,7 +192,7 @@ void GetSearchProvidersUsingKeywordResult(
 void GetSearchProvidersUsingLoadedEngines(
     KeywordWebDataService* service,
     PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service,
+    const TemplateURLPrepopulateData::Resolver& template_url_data_resolver,
     TemplateURLService::OwnedTemplateURLVector* template_urls,
     TemplateURL* default_search_provider,
     const SearchTermsData& search_terms_data,

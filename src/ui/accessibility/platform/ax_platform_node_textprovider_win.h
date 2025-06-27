@@ -27,7 +27,8 @@ class COMPONENT_EXPORT(AX_PLATFORM) __declspec(
   AXPlatformNodeTextProviderWin();
   ~AXPlatformNodeTextProviderWin();
 
-  static AXPlatformNodeTextProviderWin* Create(AXPlatformNodeWin* owner);
+  static Microsoft::WRL::ComPtr<AXPlatformNodeTextProviderWin> Create(
+      AXPlatformNodeWin* owner);
   static void CreateIUnknown(AXPlatformNodeWin* owner, IUnknown** unknown);
 
   //
@@ -59,20 +60,20 @@ class COMPONENT_EXPORT(AX_PLATFORM) __declspec(
 
   // ITextProvider supporting methods.
 
-  static void GetRangeFromChild(ui::AXPlatformNodeWin* ancestor,
-                                ui::AXPlatformNodeWin* descendant,
+  static void GetRangeFromChild(AXPlatformNodeWin* ancestor,
+                                AXPlatformNodeWin* descendant,
                                 ITextRangeProvider** range);
 
   // Create a dengerate text range at the start of the specified node.
-  static void CreateDegenerateRangeAtStart(ui::AXPlatformNodeWin* node,
+  static void CreateDegenerateRangeAtStart(AXPlatformNodeWin* node,
                                            ITextRangeProvider** range);
 
  private:
   friend class AXPlatformNodeTextProviderTest;
-  ui::AXPlatformNodeWin* owner() const;
+  AXPlatformNodeWin* owner() const;
   HRESULT GetTextRangeProviderFromActiveComposition(ITextRangeProvider** range);
 
-  Microsoft::WRL::ComPtr<ui::AXPlatformNodeWin> owner_;
+  Microsoft::WRL::ComPtr<AXPlatformNodeWin> owner_;
 };
 
 }  // namespace ui

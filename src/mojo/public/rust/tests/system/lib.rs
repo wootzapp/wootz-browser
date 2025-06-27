@@ -16,8 +16,6 @@ chromium::import! {
     "//mojo/public/rust/tests:test_util";
 }
 
-mod run_loop;
-
 use mojo::system::shared_buffer::{self, SharedBuffer};
 use mojo::system::trap::{
     ArmResult, Trap, TrapEvent, TriggerCondition, UnsafeTrap, UnsafeTrapEvent,
@@ -178,9 +176,9 @@ fn test() {
     let goodbye = "goodbye".to_string().into_bytes();
     let mut write_buf = producer.begin().expect("error on write begin");
     expect_ge!(write_buf.len(), goodbye.len());
-    std::mem::MaybeUninit::copy_from_slice(&mut write_buf[0..goodbye.len()], &goodbye);
-    // SAFETY: we wrote `goodbye.len()` valid elements to `write_buf`,
-    // so they are initialized.
+    write_buf[0..goodbye.len()].write_copy_of_slice(&goodbye);
+    // SAFETY: `write_copy_of_slice` above wrote `goodbye.len()` valid elements to
+    // `write_buf`, so they are initialized.
     unsafe {
         write_buf.commit(goodbye.len());
     }

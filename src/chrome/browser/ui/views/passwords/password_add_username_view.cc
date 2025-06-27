@@ -10,6 +10,8 @@
 #include "chrome/browser/ui/views/passwords/views_utils.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/editable_combobox/editable_combobox.h"
@@ -104,7 +106,7 @@ PasswordAddUsernameView::PasswordAddUsernameView(
       .SetDefault(
           views::kMarginsKey,
           gfx::Insets::VH(ChromeLayoutProvider::Get()->GetDistanceMetric(
-                              DISTANCE_CONTROL_LIST_VERTICAL),
+                              views::DISTANCE_CONTROL_LIST_VERTICAL),
                           0));
 
   std::unique_ptr<views::Label> body_text = CreateBodyText(margins().width());
@@ -122,7 +124,7 @@ PasswordAddUsernameView::PasswordAddUsernameView(
       CreatePasswordLabelWithEyeIconView(std::move(password_label));
   AddEmptyBorder(password_field.get());
 
-  BuildCredentialRows(root_view, nullptr, std::move(username_dropdown),
+  BuildCredentialRows(root_view, std::move(username_dropdown),
                       std::move(password_field));
 
   SetAcceptCallback(
@@ -138,12 +140,13 @@ PasswordAddUsernameView::PasswordAddUsernameView(
 
   SetShowIcon(true);
   SetFootnoteView(CreateFooterView());
-  SetButtons((ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL));
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kOk) |
+             static_cast<int>(ui::mojom::DialogButton::kCancel));
 
-  SetButtonEnabled(ui::DIALOG_BUTTON_OK, false);
-  SetButtonLabel(ui::DIALOG_BUTTON_OK,
+  SetButtonEnabled(ui::mojom::DialogButton::kOk, false);
+  SetButtonLabel(ui::mojom::DialogButton::kOk,
                  l10n_util::GetStringUTF16(IDS_ADD_USERNAME));
-  SetButtonLabel(ui::DIALOG_BUTTON_CANCEL,
+  SetButtonLabel(ui::mojom::DialogButton::kCancel,
                  l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_CANCEL_BUTTON));
 
   SetTitle(controller_.GetTitle());
@@ -176,8 +179,8 @@ void PasswordAddUsernameView::AddedToWidget() {
 void PasswordAddUsernameView::UpdateUsernameInModel() {
   CHECK_EQ(controller_.state(),
            password_manager::ui::GENERATED_PASSWORD_CONFIRMATION_STATE);
-  std::u16string new_username = username_dropdown_->GetText();
-  base::TrimString(new_username, u" ", &new_username);
+  std::u16string new_username;
+  base::TrimString(username_dropdown_->GetText(), u" ", &new_username);
 
   controller_.OnCredentialEdited(std::move(new_username),
                                  controller_.pending_password().password_value);
@@ -202,6 +205,9 @@ std::unique_ptr<views::View> PasswordAddUsernameView::CreateFooterView() {
 }
 
 void PasswordAddUsernameView::OnUsernameChanged() {
-  SetButtonEnabled(ui::DIALOG_BUTTON_OK,
+  SetButtonEnabled(ui::mojom::DialogButton::kOk,
                    !username_dropdown_->GetText().empty());
 }
+
+BEGIN_METADATA(PasswordAddUsernameView)
+END_METADATA

@@ -13,7 +13,6 @@
 #import "base/memory/raw_ptr.h"
 #import "base/memory/scoped_refptr.h"
 #import "base/test/scoped_feature_list.h"
-#import "base/test/task_environment.h"
 #import "base/time/default_clock.h"
 #import "components/policy/policy_constants.h"
 #import "components/reading_list/core/reading_list_entry.h"
@@ -23,14 +22,16 @@
 #import "ios/chrome/browser/app_launcher/model/fake_app_launcher_abuse_detector.h"
 #import "ios/chrome/browser/policy/model/enterprise_policy_test_helper.h"
 #import "ios/chrome/browser/policy_url_blocking/model/policy_url_blocking_service.h"
+#import "ios/chrome/browser/policy_url_blocking/model/policy_url_blocking_service_factory.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_model_factory.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_test_utils.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/url_util.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/web/common/features.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 #import "testing/platform_test.h"
@@ -158,12 +159,12 @@ class AppLauncherTabHelperTest : public PlatformTest {
  protected:
   void SetUp() override {
     PlatformTest::SetUp();
-    TestChromeBrowserState::Builder builder;
+    TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         ReadingListModelFactory::GetInstance(),
         base::BindRepeating(&BuildReadingListModelWithFakeStorage,
                             std::vector<scoped_refptr<ReadingListEntry>>()));
-    browser_state_ = builder.Build();
+    profile_ = std::move(builder).Build();
     abuse_detector_ = [[FakeAppLauncherAbuseDetector alloc] init];
     AppLauncherTabHelper::CreateForWebState(&web_state_, abuse_detector_,
                                             /*incognito*/ incognito_);
@@ -173,7 +174,7 @@ class AppLauncherTabHelperTest : public PlatformTest {
     navigation_manager_ = navigation_manager.get();
     web_state_.SetNavigationManager(std::move(navigation_manager));
     web_state_.SetCurrentURL(GURL("https://chromium.org"));
-    web_state_.SetBrowserState(browser_state_.get());
+    web_state_.SetBrowserState(profile_.get());
     web_state_.WasShown();
     browser_presentation_provider_ =
         [[FakeAppLauncherTabHelperBrowserPresentationProvider alloc] init];
@@ -223,7 +224,7 @@ class AppLauncherTabHelperTest : public PlatformTest {
     item->SetOriginalRequestURL(pending_url);
 
     ReadingListModel* model =
-        ReadingListModelFactory::GetForBrowserState(browser_state_.get());
+        ReadingListModelFactory::GetForProfile(profile_.get());
     EXPECT_TRUE(model->DeleteAllEntries(FROM_HERE));
     model->AddOrReplaceEntry(pending_url, "unread",
                              reading_list::ADDED_VIA_CURRENT_APP,
@@ -259,8 +260,8 @@ class AppLauncherTabHelperTest : public PlatformTest {
     return entry->IsRead() == expected_read_status;
   }
 
-  base::test::TaskEnvironment task_environment;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  web::WebTaskEnvironment task_environment;
+  std::unique_ptr<TestProfileIOS> profile_;
   web::FakeWebState web_state_;
   bool incognito_ = false;
   raw_ptr<FakeNavigationManager> navigation_manager_ = nullptr;
@@ -706,6 +707,12 @@ TEST_F(AppLauncherTabHelperTest, ShouldAllowRequestWithNonAppUrl) {
                                      /*target_window_is_cross_origin=*/false,
                                      /*is_user_initiated=*/true,
                                      /*user_tapped_recently=*/true));
+  EXPECT_TRUE(TestShouldAllowRequest(@"marketplace-kit://test",
+                                     /*target_frame_is_main=*/false,
+                                     /*target_frame_is_cross_origin=*/false,
+                                     /*target_window_is_cross_origin=*/false,
+                                     /*is_user_initiated=*/true,
+                                     /*user_tapped_recently=*/true));
   EXPECT_EQ(0U, delegate_.GetAppLaunchCount());
 }
 
@@ -980,9 +987,9 @@ class BlockedUrlPolicyAppLauncherTabHelperTest
     ASSERT_TRUE(state_directory_.CreateUniqueTempDir());
     enterprise_policy_helper_ = std::make_unique<EnterprisePolicyTestHelper>(
         state_directory_.GetPath());
-    ASSERT_TRUE(enterprise_policy_helper_->GetBrowserState());
+    ASSERT_TRUE(enterprise_policy_helper_->GetProfile());
 
-    web_state_.SetBrowserState(enterprise_policy_helper_->GetBrowserState());
+    web_state_.SetBrowserState(enterprise_policy_helper_->GetProfile());
 
     policy::PolicyMap policy_map;
     base::Value::List value;
@@ -994,8 +1001,8 @@ class BlockedUrlPolicyAppLauncherTabHelperTest
         policy_map);
 
     policy_blocklist_service_ = static_cast<PolicyBlocklistService*>(
-        PolicyBlocklistServiceFactory::GetForBrowserState(
-            enterprise_policy_helper_->GetBrowserState()));
+        PolicyBlocklistServiceFactory::GetForProfile(
+            enterprise_policy_helper_->GetProfile()));
   }
 
   // Temporary directory to hold preference files.

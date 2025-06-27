@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromecast/media/cma/backend/alsa/scoped_alsa_mixer.h"
 
 #include "base/containers/span.h"
@@ -72,13 +77,13 @@ class ScopedAlsaMixerEventTest : public ::testing::Test {
 
   void ReadByte() {
     char buffer;
-    ASSERT_TRUE(base::ReadFromFD(pipe_fds_[0], base::make_span(&buffer, 1u)));
+    ASSERT_TRUE(base::ReadFromFD(pipe_fds_[0], base::span_from_ref(buffer)));
   }
 
   void WriteByte() {
     constexpr char kByte = '!';
-    ASSERT_TRUE(base::WriteFileDescriptor(
-        pipe_fds_[1], as_bytes(base::make_span(&kByte, 1u))));
+    ASSERT_TRUE(base::WriteFileDescriptor(pipe_fds_[1],
+                                          base::byte_span_from_ref(kByte)));
   }
 
   base::test::TaskEnvironment task_environment_;

@@ -7,20 +7,25 @@
 #include <memory>
 
 #include "build/build_config.h"
+#include "components/performance_manager/decorators/frame_input_state_decorator.h"
 #include "components/performance_manager/decorators/frame_visibility_decorator.h"
+#include "components/performance_manager/decorators/important_frame_decorator.h"
+#include "components/performance_manager/decorators/page_aggregator.h"
 #include "components/performance_manager/decorators/page_load_tracker_decorator.h"
 #include "components/performance_manager/decorators/process_hosted_content_types_aggregator.h"
 #include "components/performance_manager/decorators/process_priority_aggregator.h"
-#include "components/performance_manager/execution_context_priority/execution_context_priority_decorator.h"
+#include "components/performance_manager/freezing/frozen_frame_aggregator.h"
 #include "components/performance_manager/graph/frame_node_impl_describer.h"
 #include "components/performance_manager/graph/page_node_impl_describer.h"
 #include "components/performance_manager/graph/process_node_impl_describer.h"
 #include "components/performance_manager/graph/worker_node_impl_describer.h"
-#include "components/performance_manager/public/decorators/tab_connectedness_decorator.h"
 #include "components/performance_manager/public/decorators/tab_page_decorator.h"
+#include "components/performance_manager/public/execution_context_priority/priority_voting_system.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/metrics/metrics_collector.h"
 #include "components/performance_manager/resource_attribution/query_scheduler.h"
+#include "components/performance_manager/scenarios/input_scenario_observer.h"
+#include "components/performance_manager/scenarios/loading_scenario_observer.h"
 #include "components/performance_manager/v8_memory/v8_context_tracker.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -42,6 +47,9 @@ void GraphFeatures::ConfigureGraph(Graph* graph) const {
   if (flags_.frame_visibility_decorator) {
     Install<FrameVisibilityDecorator>(graph);
   }
+  if (flags_.important_frame_decorator) {
+    Install<ImportantFrameDecorator>(graph);
+  }
   if (flags_.metrics_collector) {
     Install<MetricsCollector>(graph);
   }
@@ -55,12 +63,24 @@ void GraphFeatures::ConfigureGraph(Graph* graph) const {
     Install<PageLoadTrackerDecorator>(graph);
   }
   if (flags_.priority_tracking) {
-    Install<execution_context_priority::ExecutionContextPriorityDecorator>(
-        graph);
+    // The PriorityVotingSystem depends on FrameVisibilityDecorator and
+    // ImportantFrameDecorator and so must be installed after.
+    Install<execution_context_priority::PriorityVotingSystem>(graph);
     Install<ProcessPriorityAggregator>(graph);
   }
   if (flags_.process_hosted_content_types_aggregator) {
     Install<ProcessHostedContentTypesAggregator>(graph);
+  }
+  if (flags_.page_aggregator) {
+    Install<PageAggregator>(graph);
+  }
+  if (flags_.frozen_frame_aggregator) {
+    Install<FrozenFrameAggregator>(graph);
+  }
+  if (flags_.performance_scenarios) {
+    Install<LoadingScenarioObserver>(graph);
+    Install<FrameInputStateDecorator>(graph);
+    Install<InputScenarioObserver>(graph);
   }
   if (flags_.resource_attribution_scheduler) {
     Install<resource_attribution::internal::QueryScheduler>(graph);
@@ -78,12 +98,6 @@ void GraphFeatures::ConfigureGraph(Graph* graph) const {
 
   if (flags_.v8_context_tracker) {
     Install<v8_memory::V8ContextTracker>(graph);
-  }
-
-  // TabConnectednessDecorator depends on TabPageDecorator so it must be
-  // installed after..
-  if (flags_.tab_connectedness_decorator) {
-    Install<TabConnectednessDecorator>(graph);
   }
 }
 

@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "base/memory/discardable_memory.h"
 #include "base/memory/discardable_memory_internal.h"
 #include "base/metrics/field_trial.h"
@@ -61,8 +56,9 @@ TEST_F(DiscardableMemoryBackingFieldTrialTest,
   std::unique_ptr<test::ScopedFeatureList> scoped_feature =
       GetScopedFeatureListForDiscardableMemoryTrialGroup(
           DiscardableMemoryTrialGroup::kEmulatedSharedMemory);
-  if (!DiscardableMemoryBackingFieldTrialIsEnabled())
+  if (!DiscardableMemoryBackingFieldTrialIsEnabled()) {
     return;
+  }
   DiscardableMemoryBacking backing = GetDiscardableMemoryBacking();
   EXPECT_EQ(backing, DiscardableMemoryBacking::kSharedMemory);
 }
@@ -72,8 +68,9 @@ TEST_F(DiscardableMemoryBackingFieldTrialTest,
   std::unique_ptr<test::ScopedFeatureList> scoped_feature =
       GetScopedFeatureListForDiscardableMemoryTrialGroup(
           DiscardableMemoryTrialGroup::kMadvFree);
-  if (!DiscardableMemoryBackingFieldTrialIsEnabled())
+  if (!DiscardableMemoryBackingFieldTrialIsEnabled()) {
     return;
+  }
   DiscardableMemoryBacking backing = GetDiscardableMemoryBacking();
   EXPECT_EQ(backing, DiscardableMemoryBacking::kMadvFree);
 }
@@ -83,8 +80,9 @@ TEST_F(DiscardableMemoryBackingFieldTrialTest, AshmemBackingMatchesTrialGroup) {
   std::unique_ptr<test::ScopedFeatureList> scoped_feature =
       GetScopedFeatureListForDiscardableMemoryTrialGroup(
           DiscardableMemoryTrialGroup::kAshmem);
-  if (!DiscardableMemoryBackingFieldTrialIsEnabled())
+  if (!DiscardableMemoryBackingFieldTrialIsEnabled()) {
     return;
+  }
   DiscardableMemoryBacking backing = GetDiscardableMemoryBacking();
   EXPECT_EQ(backing, DiscardableMemoryBacking::kSharedMemory);
 }

@@ -7,12 +7,13 @@
 
 #include <memory>
 #include <vector>
+
 #include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/password_manager/core/browser/password_store/password_store_backend.h"
 #include "components/password_manager/core/browser/password_store/smart_bubble_stats_store.h"
-#include "components/sync/model/proxy_model_type_controller_delegate.h"
+#include "components/sync/model/proxy_data_type_controller_delegate.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "url/gurl.h"
 
@@ -45,10 +46,6 @@ class MockPasswordStoreBackend : public PasswordStoreBackend {
               (LoginsOrErrorReply callback),
               (override));
   MOCK_METHOD(void,
-              GetAllLoginsForAccountAsync,
-              (std::string, LoginsOrErrorReply callback),
-              (override));
-  MOCK_METHOD(void,
               FillMatchingLoginsAsync,
               (LoginsOrErrorReply callback,
                bool include_psl,
@@ -73,19 +70,11 @@ class MockPasswordStoreBackend : public PasswordStoreBackend {
                PasswordChangesOrErrorReply callback),
               (override));
   MOCK_METHOD(void,
-              RemoveLoginsByURLAndTimeAsync,
-              (const base::Location&,
-               const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-               base::Time delete_begin,
-               base::Time delete_end,
-               base::OnceCallback<void(bool)> sync_completion,
-               PasswordChangesOrErrorReply callback),
-              (override));
-  MOCK_METHOD(void,
               RemoveLoginsCreatedBetweenAsync,
               (const base::Location&,
                base::Time delete_begin,
                base::Time delete_end,
+               base::OnceCallback<void(bool)> sync_completion,
                PasswordChangesOrErrorReply callback),
               (override));
   MOCK_METHOD(void,
@@ -94,7 +83,7 @@ class MockPasswordStoreBackend : public PasswordStoreBackend {
                base::OnceClosure),
               (override));
   MOCK_METHOD(SmartBubbleStatsStore*, GetSmartBubbleStatsStore, (), (override));
-  MOCK_METHOD(std::unique_ptr<syncer::ModelTypeControllerDelegate>,
+  MOCK_METHOD(std::unique_ptr<syncer::DataTypeControllerDelegate>,
               CreateSyncControllerDelegate,
               (),
               (override));

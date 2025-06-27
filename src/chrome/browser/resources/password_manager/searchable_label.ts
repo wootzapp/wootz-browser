@@ -24,7 +24,8 @@ export class SearchableLabelElement extends PolymerElement {
     };
   }
 
-  searchTerm: string;
+  declare title: string;
+  declare searchTerm: string;
 
   static get observers() {
     return ['setSearchedTextToBold_(title, searchTerm)'];
@@ -42,7 +43,7 @@ export class SearchableLabelElement extends PolymerElement {
     const titleText = this.title;
 
     if (!this.searchTerm) {
-      this.textContent = titleText;
+      this.textContent = ` ${titleText} `;
       return;
     }
 

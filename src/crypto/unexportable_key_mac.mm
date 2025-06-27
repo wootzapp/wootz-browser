@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "crypto/unexportable_key.h"
 
 #import <CoreFoundation/CoreFoundation.h>
@@ -22,7 +27,6 @@
 #include "base/apple/scoped_cftyperef.h"
 #include "base/containers/contains.h"
 #include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/memory/scoped_policy.h"
 #include "base/numerics/safe_conversions.h"
@@ -30,7 +34,6 @@
 #include "base/threading/scoped_blocking_call.h"
 #include "crypto/apple_keychain_util.h"
 #include "crypto/apple_keychain_v2.h"
-#include "crypto/features.h"
 #include "crypto/signature_verifier.h"
 #include "crypto/unexportable_key_mac.h"
 #include "third_party/boringssl/src/include/openssl/bn.h"
@@ -55,16 +58,10 @@ constexpr size_t kUncompressedPointLength = 65;
 // that shows this value. Therefore, it is left untranslated.
 constexpr char kAttrLabel[] = "Chromium unexportable key";
 
-// Returns a span of a CFDataRef.
-base::span<const uint8_t> ToSpan(CFDataRef data) {
-  return base::make_span(CFDataGetBytePtr(data),
-                         base::checked_cast<size_t>(CFDataGetLength(data)));
-}
-
 // Copies a CFDataRef into a vector of bytes.
 std::vector<uint8_t> CFDataToVec(CFDataRef data) {
-  base::span<const uint8_t> span = ToSpan(data);
-  return std::vector<uint8_t>(span.begin(), span.end());
+  auto span = base::apple::CFDataToSpan(data);
+  return {span.begin(), span.end()};
 }
 
 std::optional<std::vector<uint8_t>> Convertx963ToDerSpki(
@@ -114,7 +111,8 @@ class UnexportableSigningKeyMac : public UnexportableSigningKey {
         AppleKeychainV2::GetInstance().KeyCopyExternalRepresentation(
             public_key.get(), /*error=*/nil));
     CHECK(x962_bytes);
-    base::span<const uint8_t> x962_span = ToSpan(x962_bytes.get());
+    base::span<const uint8_t> x962_span =
+        base::apple::CFDataToSpan(x962_bytes.get());
     public_key_spki_ = *Convertx963ToDerSpki(x962_span);
   }
 
@@ -155,6 +153,8 @@ class UnexportableSigningKeyMac : public UnexportableSigningKey {
     }
     return CFDataToVec(signature.get());
   }
+
+  bool IsHardwareBacked() const override { return true; }
 
   SecKeyRef GetSecKeyRef() const override { return key_.get(); }
 
@@ -218,11 +218,19 @@ UnexportableKeyProviderMac::GenerateSigningKeySlowly(
   SecAccessControlCreateFlags control_flags = kSecAccessControlPrivateKeyUsage;
   switch (access_control_) {
     case UnexportableKeyProvider::Config::AccessControl::kUserPresence:
+      // kSecAccessControlUserPresence is documented[1] (at the time of
+      // writing) to be "equivalent to specifying kSecAccessControlBiometryAny,
+      // kSecAccessControlOr, and kSecAccessControlDevicePasscode". This is
+      // incorrect because includingkSecAccessControlBiometryAny causes key
+      // creation to fail if biometrics are supported but not enrolled. It also
+      // appears to support Apple Watch confirmation, but this isn't documented
+      // (and kSecAccessControlWatch is deprecated as of macOS 15).
+      //
+      // Reported as FB14040169.
+      //
+      // [1] https://developer.apple.com/documentation/security/
+      //     secaccesscontrolcreateflags/ksecaccesscontroluserpresence
       control_flags |= kSecAccessControlUserPresence;
-      break;
-    case UnexportableKeyProvider::Config::AccessControl::kUserPresenceOrWatch:
-      control_flags |= kSecAccessControlOr | kSecAccessControlBiometryAny |
-                       kSecAccessControlDevicePasscode | kSecAccessControlWatch;
       break;
     case UnexportableKeyProvider::Config::AccessControl::kNone:
       // No additional flag.
@@ -330,9 +338,6 @@ bool UnexportableKeyProviderMac::DeleteSigningKeySlowly(
 
 std::unique_ptr<UnexportableKeyProviderMac> GetUnexportableKeyProviderMac(
     UnexportableKeyProvider::Config config) {
-  if (!base::FeatureList::IsEnabled(crypto::kEnableMacUnexportableKeys)) {
-    return nullptr;
-  }
   CHECK(!config.keychain_access_group.empty())
       << "A keychain access group must be set when using unexportable keys on "
          "macOS";
@@ -345,9 +350,6 @@ std::unique_ptr<UnexportableKeyProviderMac> GetUnexportableKeyProviderMac(
 #if !BUILDFLAG(IS_IOS)
   if (!ExecutableHasKeychainAccessGroupEntitlement(
           config.keychain_access_group)) {
-    LOG(ERROR) << "Unexportable keys unavailable because keychain-access-group "
-                  "entitlement missing or incorrect. Expected value: "
-               << config.keychain_access_group;
     return nullptr;
   }
 #endif  // !BUILDFLAG(IS_IOS)

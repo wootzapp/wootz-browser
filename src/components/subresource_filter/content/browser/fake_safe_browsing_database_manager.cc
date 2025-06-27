@@ -15,8 +15,7 @@
 
 FakeSafeBrowsingDatabaseManager::FakeSafeBrowsingDatabaseManager()
     : safe_browsing::TestSafeBrowsingDatabaseManager(
-          content::GetUIThreadTaskRunner({}),
-          content::GetIOThreadTaskRunner({})) {}
+          content::GetUIThreadTaskRunner({})) {}
 
 void FakeSafeBrowsingDatabaseManager::AddBlocklistedUrl(
     const GURL& url,
@@ -47,7 +46,7 @@ void FakeSafeBrowsingDatabaseManager::SimulateTimeout() {
   simulate_timeout_ = true;
 }
 
-FakeSafeBrowsingDatabaseManager::~FakeSafeBrowsingDatabaseManager() {}
+FakeSafeBrowsingDatabaseManager::~FakeSafeBrowsingDatabaseManager() = default;
 
 bool FakeSafeBrowsingDatabaseManager::CheckUrlForSubresourceFilter(
     const GURL& url,
@@ -100,18 +99,9 @@ void FakeSafeBrowsingDatabaseManager::OnCheckUrlForSubresourceFilterComplete(
   checks_.erase(client);
 }
 
-bool FakeSafeBrowsingDatabaseManager::CheckResourceUrl(const GURL& url,
-                                                       Client* client) {
-  return true;
-}
-
 void FakeSafeBrowsingDatabaseManager::CancelCheck(Client* client) {
   size_t erased = checks_.erase(client);
   CHECK_EQ(erased, 1u);
-}
-bool FakeSafeBrowsingDatabaseManager::CanCheckRequestDestination(
-    network::mojom::RequestDestination /* request_destination */) const {
-  return true;
 }
 
 safe_browsing::ThreatSource

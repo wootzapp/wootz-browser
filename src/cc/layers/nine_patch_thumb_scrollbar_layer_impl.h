@@ -6,6 +6,7 @@
 #define CC_LAYERS_NINE_PATCH_THUMB_SCROLLBAR_LAYER_IMPL_H_
 
 #include <memory>
+#include <vector>
 
 #include "cc/cc_export.h"
 #include "cc/input/scrollbar.h"
@@ -32,13 +33,15 @@ class CC_EXPORT NinePatchThumbScrollbarLayerImpl
   ~NinePatchThumbScrollbarLayerImpl() override;
 
   // LayerImpl implementation.
+  mojom::LayerType GetLayerType() const override;
   std::unique_ptr<LayerImpl> CreateLayerImpl(
       LayerTreeImpl* tree_impl) const override;
   void PushPropertiesTo(LayerImpl* layer) override;
 
   bool WillDraw(DrawMode draw_mode,
                 viz::ClientResourceProvider* resource_provider) override;
-  void AppendQuads(viz::CompositorRenderPass* render_pass,
+  void AppendQuads(const AppendQuadsContext& context,
+                   viz::CompositorRenderPass* render_pass,
                    AppendQuadsData* append_quads_data) override;
 
   void SetThumbThickness(int thumb_thickness);
@@ -53,8 +56,8 @@ class CC_EXPORT NinePatchThumbScrollbarLayerImpl
     thumb_ui_resource_id_ = uid;
   }
 
-  void set_track_ui_resource_id(UIResourceId uid) {
-    track_ui_resource_id_ = uid;
+  void set_track_and_buttons_ui_resource_id(UIResourceId uid) {
+    track_and_buttons_ui_resource_id_ = uid;
   }
 
  protected:
@@ -71,28 +74,27 @@ class CC_EXPORT NinePatchThumbScrollbarLayerImpl
   bool IsThumbResizable() const override;
 
  private:
-  const char* LayerTypeAsString() const override;
-
   void AppendThumbQuads(viz::CompositorRenderPass* render_pass,
                         AppendQuadsData* append_quads_data,
                         viz::SharedQuadState* shared_quad_state);
 
-  void AppendTrackQuads(viz::CompositorRenderPass* render_pass,
-                        AppendQuadsData* append_quads_data,
-                        viz::SharedQuadState* shared_quad_state);
+  void AppendTrackAndButtonsQuads(viz::CompositorRenderPass* render_pass,
+                                  AppendQuadsData* append_quads_data,
+                                  viz::SharedQuadState* shared_quad_state);
 
-  UIResourceId thumb_ui_resource_id_;
-  UIResourceId track_ui_resource_id_;
+  UIResourceId thumb_ui_resource_id_ = 0;
+  UIResourceId track_and_buttons_ui_resource_id_ = 0;
 
-  int thumb_thickness_;
-  int thumb_length_;
-  int track_start_;
-  int track_length_;
+  int thumb_thickness_ = 0;
+  int thumb_length_ = 0;
+  int track_start_ = 0;
+  int track_length_ = 0;
 
   gfx::Size image_bounds_;
   gfx::Rect aperture_;
 
   NinePatchGenerator quad_generator_;
+  std::vector<NinePatchGenerator::Patch> patches_;
 };
 
 }  // namespace cc

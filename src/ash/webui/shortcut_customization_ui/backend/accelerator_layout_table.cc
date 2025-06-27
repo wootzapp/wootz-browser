@@ -3,9 +3,12 @@
 // found in the LICENSE file.
 
 #include "ash/webui/shortcut_customization_ui/backend/accelerator_layout_table.h"
+
 #include <string>
 
+#include "ash/public/cpp/accelerator_actions.h"
 #include "ash/public/cpp/accelerators_util.h"
+#include "ash/public/mojom/accelerator_info.mojom-shared.h"
 #include "ash/public/mojom/accelerator_info.mojom.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "base/check_op.h"
@@ -300,10 +303,10 @@ const NonConfigurableActionsMap& GetNonConfigurableActionsMap() {
                {ui::Accelerator(ui::VKEY_DELETE, ui::EF_NONE)})},
           {NonConfigurableActions::kAmbientGoToBeginningOfLine,
            NonConfigurableAcceleratorDetails(
-               {ui::Accelerator(ui::VKEY_LEFT, ui::EF_COMMAND_DOWN)})},
+               {ui::Accelerator(ui::VKEY_HOME, ui::EF_NONE)})},
           {NonConfigurableActions::kAmbientGoToEndOfLine,
            NonConfigurableAcceleratorDetails(
-               {ui::Accelerator(ui::VKEY_RIGHT, ui::EF_COMMAND_DOWN)})},
+               {ui::Accelerator(ui::VKEY_END, ui::EF_NONE)})},
           {NonConfigurableActions::kBrowserNextPane,
            NonConfigurableAcceleratorDetails(
                {ui::Accelerator(ui::VKEY_BROWSER_BACK,
@@ -325,10 +328,13 @@ const NonConfigurableActionsMap& GetNonConfigurableActionsMap() {
                {ui::Accelerator(ui::VKEY_HOME, ui::EF_ALT_DOWN)})},
           {NonConfigurableActions::kBrowserSelectNextTab,
            NonConfigurableAcceleratorDetails(
-               {ui::Accelerator(ui::VKEY_TAB, ui::EF_CONTROL_DOWN)})},
+               {ui::Accelerator(ui::VKEY_TAB, ui::EF_CONTROL_DOWN),
+                ui::Accelerator(ui::VKEY_NEXT, ui::EF_CONTROL_DOWN)})},
           {NonConfigurableActions::kBrowserSelectPreviousTab,
-           NonConfigurableAcceleratorDetails({ui::Accelerator(
-               ui::VKEY_TAB, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN)})},
+           NonConfigurableAcceleratorDetails(
+               {ui::Accelerator(ui::VKEY_TAB,
+                                ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN),
+                ui::Accelerator(ui::VKEY_PRIOR, ui::EF_CONTROL_DOWN)})},
           {NonConfigurableActions::kAmbientCopy,
            NonConfigurableAcceleratorDetails(
                {ui::Accelerator(ui::VKEY_C, ui::EF_CONTROL_DOWN)})},
@@ -533,18 +539,50 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
             mojom::AcceleratorSubcategory::kGeneralControls,
             /*locked=*/true, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kEnableSelectToSpeak,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kEnableSelectToSpeak,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_ENABLE_SELECT_TO_SPEAK,
+            mojom::AcceleratorCategory::kAccessibility,
+            mojom::AcceleratorSubcategory::kVisibility,
+            /*locked=*/true, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
        {AcceleratorAction::kEnableOrToggleDictation,
         AcceleratorLayoutDetails(
             AcceleratorAction::kEnableOrToggleDictation,
             IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_DICTATION,
-            mojom::AcceleratorCategory::kGeneral,
-            mojom::AcceleratorSubcategory::kGeneralControls,
+            mojom::AcceleratorCategory::kAccessibility,
+            mojom::AcceleratorSubcategory::kVisibility,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
        {AcceleratorAction::kStartAssistant,
         AcceleratorLayoutDetails(
             AcceleratorAction::kStartAssistant,
             IDS_ASH_ACCELERATOR_DESCRIPTION_START_ASSISTANT,
+            mojom::AcceleratorCategory::kGeneral,
+            mojom::AcceleratorSubcategory::kGeneralControls,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kStartSunfishSession,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kStartSunfishSession,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_START_SUNFISH_SESSION,
+            mojom::AcceleratorCategory::kGeneral,
+            mojom::AcceleratorSubcategory::kGeneralControls,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kToggleDoNotDisturb,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kToggleDoNotDisturb,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_DO_NOT_DISTURB,
+            mojom::AcceleratorCategory::kGeneral,
+            mojom::AcceleratorSubcategory::kGeneralControls, /*locked=*/false,
+            mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kToggleCameraAllowed,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kToggleCameraAllowed,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_CAMERA_ENABLED,
             mojom::AcceleratorCategory::kGeneral,
             mojom::AcceleratorSubcategory::kGeneralControls,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
@@ -653,6 +691,14 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
                                  /*locked=*/false,
                                  mojom::AcceleratorLayoutStyle::kDefault,
                                  mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kToggleGeminiApp,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kToggleGeminiApp,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_GEMINI_APP,
+            mojom::AcceleratorCategory::kGeneral,
+            mojom::AcceleratorSubcategory::kApps,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
 
        // Device
        {AcceleratorAction::kVolumeUp,
@@ -743,6 +789,14 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
                                  /*locked=*/false,
                                  mojom::AcceleratorLayoutStyle::kDefault,
                                  mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kResizePipWindow,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kResizePipWindow,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_RESIZE_PIP_WINDOW,
+            mojom::AcceleratorCategory::kDevice,
+            mojom::AcceleratorSubcategory::kMedia,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
        {AcceleratorAction::kKeyboardBacklightToggle,
         AcceleratorLayoutDetails(
             AcceleratorAction::kKeyboardBacklightToggle,
@@ -1371,6 +1425,14 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
             mojom::AcceleratorSubcategory::kTextEditing,
             /*locked=*/true, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kTogglePicker,
+        AcceleratorLayoutDetails(AcceleratorAction::kTogglePicker,
+                                 IDS_ASH_ACCELERATOR_DESCRIPTION_QUICK_INSERT,
+                                 mojom::AcceleratorCategory::kText,
+                                 mojom::AcceleratorSubcategory::kTextEditing,
+                                 /*locked=*/false,
+                                 mojom::AcceleratorLayoutStyle::kDefault,
+                                 mojom::AcceleratorSource::kAsh)},
        {AcceleratorAction::kShowEmojiPicker,
         AcceleratorLayoutDetails(
             AcceleratorAction::kShowEmojiPicker,
@@ -1581,10 +1643,10 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
             mojom::AcceleratorSubcategory::kWindows,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
-       {AcceleratorAction::kToggleSnapGroupWindowsGroupAndUngroup,
+       {AcceleratorAction::kCreateSnapGroup,
         AcceleratorLayoutDetails(
-            AcceleratorAction::kToggleSnapGroupWindowsGroupAndUngroup,
-            IDS_ASH_ACCELERATOR_DESCRIPTION_GROUP_UNGROUP_WINDOWS,
+            AcceleratorAction::kCreateSnapGroup,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_CREATE_SNAP_GROUP,
             mojom::AcceleratorCategory::kWindowsAndDesks,
             mojom::AcceleratorSubcategory::kWindows,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
@@ -1601,6 +1663,38 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
         AcceleratorLayoutDetails(
             AcceleratorAction::kToggleFloating,
             IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_FLOATING,
+            mojom::AcceleratorCategory::kWindowsAndDesks,
+            mojom::AcceleratorSubcategory::kWindows,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kTilingWindowResizeLeft,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kTilingWindowResizeLeft,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TILING_WINDOW_RESIZE_LEFT,
+            mojom::AcceleratorCategory::kWindowsAndDesks,
+            mojom::AcceleratorSubcategory::kWindows,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kTilingWindowResizeRight,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kTilingWindowResizeRight,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TILING_WINDOW_RESIZE_RIGHT,
+            mojom::AcceleratorCategory::kWindowsAndDesks,
+            mojom::AcceleratorSubcategory::kWindows,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kTilingWindowResizeUp,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kTilingWindowResizeUp,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TILING_WINDOW_RESIZE_UP,
+            mojom::AcceleratorCategory::kWindowsAndDesks,
+            mojom::AcceleratorSubcategory::kWindows,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kTilingWindowResizeDown,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kTilingWindowResizeDown,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TILING_WINDOW_RESIZE_DOWN,
             mojom::AcceleratorCategory::kWindowsAndDesks,
             mojom::AcceleratorSubcategory::kWindows,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
@@ -1682,6 +1776,14 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
             mojom::AcceleratorSubcategory::kChromeVox,
             /*locked=*/true, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kToggleMouseKeys,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kToggleMouseKeys,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_TOGGLE_MOUSE_KEYS,
+            mojom::AcceleratorCategory::kAccessibility,
+            mojom::AcceleratorSubcategory::kMouseKeys,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
        {AcceleratorAction::kToggleHighContrast,
         AcceleratorLayoutDetails(
             AcceleratorAction::kToggleHighContrast,
@@ -1720,6 +1822,14 @@ const AcceleratorLayoutMap& GetAcceleratorLayoutMap() {
             IDS_ASH_ACCELERATOR_DESCRIPTION_MAGNIFIER_ZOOM_OUT,
             mojom::AcceleratorCategory::kAccessibility,
             mojom::AcceleratorSubcategory::kVisibility,
+            /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
+            mojom::AcceleratorSource::kAsh)},
+       {AcceleratorAction::kAccessibilityAction,
+        AcceleratorLayoutDetails(
+            AcceleratorAction::kAccessibilityAction,
+            IDS_ASH_ACCELERATOR_DESCRIPTION_OPEN_ACCESSIBILITY_SETTINGS,
+            mojom::AcceleratorCategory::kAccessibility,
+            mojom::AcceleratorSubcategory::kAccessibilityNavigation,
             /*locked=*/false, mojom::AcceleratorLayoutStyle::kDefault,
             mojom::AcceleratorSource::kAsh)},
        {NonConfigurableActions::kAmbientSwitchFocusForwards,

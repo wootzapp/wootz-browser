@@ -4,35 +4,39 @@
 
 #include "chrome/browser/ui/webui/discards/discards_ui.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
 #include "base/check.h"
 #include "base/containers/flat_map.h"
+#include "base/containers/to_vector.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/android_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
+#include "chrome/browser/performance_manager/public/user_tuning/performance_detection_manager.h"
 #include "chrome/browser/performance_manager/public/user_tuning/user_tuning_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/resource_coordinator/lifecycle_unit.h"
-#include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
-#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
-#include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/resource_coordinator/time.h"
 #include "chrome/browser/ui/webui/discards/discards.mojom.h"
 #include "chrome/browser/ui/webui/discards/graph_dump_impl.h"
 #include "chrome/browser/ui/webui/discards/site_data.mojom-forward.h"
 #include "chrome/browser/ui/webui/discards/site_data_provider_impl.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/discards_resources.h"
 #include "chrome/grit/discards_resources_map.h"
 #include "components/favicon_base/favicon_url_parser.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/performance_manager/public/features.h"
+#include "components/performance_manager/public/freezing/freezing.h"
+#include "components/performance_manager/public/graph/graph.h"
+#include "components/performance_manager/public/graph/page_node.h"
 #include "components/performance_manager/public/performance_manager.h"
 #include "components/performance_manager/public/user_tuning/prefs.h"
 #include "components/prefs/pref_service.h"
@@ -49,8 +53,19 @@
 #include "services/network/public/mojom/content_security_policy.mojom.h"
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/resources/grit/ui_resources_map.h"
+#include "ui/webui/webui_util.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+#if !BUILDFLAG(IS_DESKTOP_ANDROID)
+#include "chrome/browser/resource_coordinator/lifecycle_unit.h"
+#include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+#endif  // !BUILDFLAG(IS_DESKTOP_ANDROID)
+
+using performance_manager::PageNode;
+using performance_manager::policies::DiscardEligibilityPolicy;
 
 namespace {
 
@@ -65,18 +80,8 @@ discards::mojom::LifecycleUnitVisibility GetLifecycleUnitVisibility(
       return discards::mojom::LifecycleUnitVisibility::VISIBLE;
   }
 #if defined(COMPILER_MSVC)
-  NOTREACHED_IN_MIGRATION();
-  return discards::mojom::LifecycleUnitVisibility::VISIBLE;
+  NOTREACHED();
 #endif
-}
-
-resource_coordinator::LifecycleUnit* GetLifecycleUnitById(int32_t id) {
-  for (resource_coordinator::LifecycleUnit* lifecycle_unit :
-       g_browser_process->GetTabManager()->GetSortedLifecycleUnits()) {
-    if (lifecycle_unit->GetID() == id)
-      return lifecycle_unit;
-  }
-  return nullptr;
 }
 
 double GetSiteEngagementScore(content::WebContents* contents) {
@@ -85,8 +90,9 @@ double GetSiteEngagementScore(content::WebContents* contents) {
   const int current_entry_index = controller.GetCurrentEntryIndex();
 
   // A WebContents which hasn't navigated yet does not have a NavigationEntry.
-  if (current_entry_index == -1)
+  if (current_entry_index == -1) {
     return 0;
+  }
 
   auto* nav_entry = controller.GetEntryAtIndex(current_entry_index);
   DCHECK(nav_entry);
@@ -96,7 +102,25 @@ double GetSiteEngagementScore(content::WebContents* contents) {
   return engagement_svc->GetDetails(nav_entry->GetURL()).total_score;
 }
 
-class DiscardsDetailsProviderImpl : public discards::mojom::DetailsProvider {
+mojom::LifecycleUnitLoadingState GetLifecycleUnitLoadingState(
+    PageNode::LoadingState loading_state) {
+  switch (loading_state) {
+    case PageNode::LoadingState::kLoadingNotStarted:
+    case PageNode::LoadingState::kLoadingTimedOut:
+      return mojom::LifecycleUnitLoadingState::UNLOADED;
+
+    case PageNode::LoadingState::kLoading:
+      return mojom::LifecycleUnitLoadingState::LOADING;
+
+    case PageNode::LoadingState::kLoadedBusy:
+    case PageNode::LoadingState::kLoadedIdle:
+      return mojom::LifecycleUnitLoadingState::LOADED;
+  }
+}
+
+class DiscardsDetailsProviderImpl
+    : public discards::mojom::DetailsProvider,
+      public performance_manager::GraphOwnedDefaultImpl {
  public:
   // This instance is deleted when the supplied pipe is destroyed.
   explicit DiscardsDetailsProviderImpl(
@@ -107,62 +131,104 @@ class DiscardsDetailsProviderImpl : public discards::mojom::DetailsProvider {
   DiscardsDetailsProviderImpl& operator=(const DiscardsDetailsProviderImpl&) =
       delete;
 
-  ~DiscardsDetailsProviderImpl() override {}
+  ~DiscardsDetailsProviderImpl() override = default;
 
   // discards::mojom::DetailsProvider overrides:
   void GetTabDiscardsInfo(GetTabDiscardsInfoCallback callback) override {
-    resource_coordinator::TabManager* tab_manager =
-        g_browser_process->GetTabManager();
-    const resource_coordinator::LifecycleUnitVector lifecycle_units =
-        tab_manager->GetSortedLifecycleUnits();
-
     std::vector<discards::mojom::TabDiscardsInfoPtr> infos;
-    infos.reserve(lifecycle_units.size());
 
-    const base::TimeTicks now = resource_coordinator::NowTicks();
+    DiscardEligibilityPolicy* eligiblity_policy =
+        DiscardEligibilityPolicy::GetFromGraph(GetOwningGraph());
+    DCHECK(eligiblity_policy);
 
-    // Convert the LifecycleUnits to a vector of TabDiscardsInfos.
-    size_t rank = 1;
-    for (resource_coordinator::LifecycleUnit* lifecycle_unit :
-         lifecycle_units) {
+    std::vector<performance_manager::policies::PageNodeSortProxy> candidates;
+    for (const PageNode* page_node : GetOwningGraph()->GetAllPageNodes()) {
+      if (page_node->GetType() != performance_manager::PageType::kTab) {
+        continue;
+      }
+      performance_manager::policies::CanDiscardResult can_discard_result =
+          eligiblity_policy->CanDiscard(
+              page_node, DiscardEligibilityPolicy::DiscardReason::URGENT);
+      candidates.emplace_back(page_node, can_discard_result,
+                              page_node->IsVisible(), page_node->IsFocused(),
+                              page_node->GetTimeSinceLastVisibilityChange());
+    }
+
+    // Sorts with ascending importance.
+    std::sort(candidates.begin(), candidates.end());
+
+    page_nodes_by_id_.clear();
+
+    int32_t rank = 1;
+    int32_t id = 1;
+    for (auto& candidate : candidates) {
       discards::mojom::TabDiscardsInfoPtr info(
           discards::mojom::TabDiscardsInfo::New());
 
-      resource_coordinator::TabLifecycleUnitExternal*
-          tab_lifecycle_unit_external =
-              lifecycle_unit->AsTabLifecycleUnitExternal();
-      content::WebContents* contents =
-          tab_lifecycle_unit_external->GetWebContents();
+      const PageNode* page_node = candidate.page_node();
+      content::WebContents* contents = page_node->GetWebContents().get();
+      CHECK(contents);
 
       info->tab_url = contents->GetLastCommittedURL().spec();
-      info->title = base::UTF16ToUTF8(lifecycle_unit->GetTitle());
-      info->visibility =
-          GetLifecycleUnitVisibility(lifecycle_unit->GetVisibility());
-      info->loading_state = lifecycle_unit->GetLoadingState();
-      info->state = lifecycle_unit->GetState();
-      resource_coordinator::DecisionDetails discard_details;
-      info->cannot_discard_reasons = discard_details.GetFailureReasonStrings();
-      info->discard_reason = lifecycle_unit->GetDiscardReason();
-      info->discard_count = lifecycle_unit->GetDiscardCount();
+      info->title = base::UTF16ToUTF8(contents->GetTitle());
+      info->visibility = GetLifecycleUnitVisibility(contents->GetVisibility());
+      info->loading_state =
+          GetLifecycleUnitLoadingState(page_node->GetLoadingState());
+
+      info->cannot_discard_reasons =
+          performance_manager::user_tuning::GetCannotDiscardReasonsForPageNode(
+              page_node);
+      info->can_discard = info->cannot_discard_reasons.empty();
+
+#if BUILDFLAG(IS_DESKTOP_ANDROID)
+      info->cannot_freeze_reasons = {"not implemented"};
+      info->can_freeze = discards::mojom::CanFreeze::NO;
+#else
+      // TODO(crbug.com/40160563): Add FreezingPolicy to Android.
+      info->cannot_freeze_reasons = base::ToVector(
+          performance_manager::freezing::GetCannotFreezeReasonsForPageNode(
+              page_node));
+      info->can_freeze = info->cannot_freeze_reasons.empty()
+                             ? discards::mojom::CanFreeze::YES
+                             : discards::mojom::CanFreeze::NO;
+#endif  // BUILDFLAG(IS_DESKTOP_ANDROID)
+
       info->utility_rank = rank++;
-      const base::TimeTicks last_focused_time =
-          lifecycle_unit->GetLastFocusedTime();
-      const base::TimeDelta elapsed =
-          (last_focused_time == base::TimeTicks::Max())
-              ? base::TimeDelta()
-              : (now - last_focused_time);
-      info->last_active_seconds = static_cast<int32_t>(elapsed.InSeconds());
-      info->is_auto_discardable =
-          tab_lifecycle_unit_external->IsAutoDiscardable();
-      info->id = lifecycle_unit->GetID();
+      info->id = id++;
+      page_nodes_by_id_.insert(std::make_pair(info->id, page_node));
+      const auto* live_state_data =
+          performance_manager::PageLiveStateDecorator::Data::FromPageNode(
+              page_node);
+      if (live_state_data) {
+        info->is_auto_discardable = live_state_data->IsAutoDiscardable();
+      }
       info->site_engagement_score = GetSiteEngagementScore(contents);
-      info->state_change_time =
-          lifecycle_unit->GetStateChangeTime() - base::TimeTicks::UnixEpoch();
-      // TODO(crbug.com/41409267): The focus is used to compute the page
-      // lifecycle state. This should be replaced with the actual page lifecycle
-      // state information from Blink, but this depends on implementing the
-      // passive state and plumbing it to the browser.
-      info->has_focus = lifecycle_unit->GetLastFocusedTime().is_max();
+      info->has_focus = page_node->IsFocused();
+
+#if !BUILDFLAG(IS_DESKTOP_ANDROID)
+      auto* lifecycle_unit_external = resource_coordinator::
+          TabLifecycleUnitSource::GetTabLifecycleUnitExternal(contents);
+      // A TabLifecycleUnitExternal object is always a TabLifecycleUnit object.
+      // TabLifecycleUnit will be removed (crbug.com/394889323).
+      resource_coordinator::TabLifecycleUnitSource::TabLifecycleUnit*
+          lifecycle_unit = static_cast<
+              resource_coordinator::TabLifecycleUnitSource::TabLifecycleUnit*>(
+              lifecycle_unit_external);
+      if (lifecycle_unit) {
+        info->state = lifecycle_unit->GetState();
+        info->discard_reason = lifecycle_unit->GetDiscardReason();
+        info->discard_count = lifecycle_unit->GetDiscardCount();
+        const base::TimeTicks last_focused_time =
+            lifecycle_unit->GetLastFocusedTimeTicks();
+        const base::TimeDelta elapsed =
+            (last_focused_time == base::TimeTicks::Max())
+                ? base::TimeDelta()
+                : (resource_coordinator::NowTicks() - last_focused_time);
+        info->last_active_seconds = static_cast<int32_t>(elapsed.InSeconds());
+        info->state_change_time =
+            lifecycle_unit->GetStateChangeTime() - base::TimeTicks::UnixEpoch();
+      }
+#endif  // !BUILDFLAG(IS_DESKTOP_ANDROID)
 
       infos.push_back(std::move(info));
     }
@@ -173,12 +239,12 @@ class DiscardsDetailsProviderImpl : public discards::mojom::DetailsProvider {
   void SetAutoDiscardable(int32_t id,
                           bool is_auto_discardable,
                           SetAutoDiscardableCallback callback) override {
-    auto* lifecycle_unit = GetLifecycleUnitById(id);
-    if (lifecycle_unit) {
-      auto* tab_lifecycle_unit_external =
-          lifecycle_unit->AsTabLifecycleUnitExternal();
-      if (tab_lifecycle_unit_external)
-        tab_lifecycle_unit_external->SetAutoDiscardable(is_auto_discardable);
+    auto it = page_nodes_by_id_.find(id);
+    if (it != page_nodes_by_id_.end()) {
+      content::WebContents* contents = it->second->GetWebContents().get();
+      CHECK(contents);
+      performance_manager::PageLiveStateDecorator::SetIsAutoDiscardable(
+          contents, is_auto_discardable);
     }
     std::move(callback).Run();
   }
@@ -186,40 +252,48 @@ class DiscardsDetailsProviderImpl : public discards::mojom::DetailsProvider {
   void DiscardById(int32_t id,
                    mojom::LifecycleUnitDiscardReason reason,
                    DiscardByIdCallback callback) override {
-    auto* lifecycle_unit = GetLifecycleUnitById(id);
-    if (lifecycle_unit) {
-      // Callback to do the discard with the memory estimate.
-      auto discard_callback = base::BindOnce(
-          [](int32_t id, mojom::LifecycleUnitDiscardReason reason,
-             DiscardByIdCallback post_discard_callback,
-             uint64_t memory_estimate) {
-            // Look up lifecycle_unit by id again, in case it's deleted while
-            // waiting.
-            auto* lifecycle_unit = GetLifecycleUnitById(id);
-            if (lifecycle_unit) {
-              lifecycle_unit->Discard(reason, memory_estimate);
-            }
-            std::move(post_discard_callback).Run();
-          },
-          id, reason, std::move(callback));
+    auto it = page_nodes_by_id_.find(id);
+    if (it != page_nodes_by_id_.end()) {
+      const PageNode* page_node = it->second;
+      performance_manager::user_tuning::DiscardPage(
+          page_node, reason,
+          /*ignore_minimum_time_in_background=*/true);
+    }
+    std::move(callback).Run();
+  }
 
-      performance_manager::user_tuning::
-          GetDiscardedMemoryEstimateForWebContents(
-              lifecycle_unit->AsTabLifecycleUnitExternal()->GetWebContents(),
-              std::move(discard_callback));
+  void FreezeById(int32_t id) override {
+    auto it = page_nodes_by_id_.find(id);
+    if (it != page_nodes_by_id_.end()) {
+      const PageNode* page_node = it->second;
+      content::WebContents* contents = page_node->GetWebContents().get();
+      CHECK(contents);
+      contents->SetPageFrozen(true);
     }
   }
 
   void LoadById(int32_t id) override {
-    auto* lifecycle_unit = GetLifecycleUnitById(id);
-    if (lifecycle_unit)
-      lifecycle_unit->Load();
+    auto it = page_nodes_by_id_.find(id);
+    if (it != page_nodes_by_id_.end()) {
+      const PageNode* page_node = it->second;
+      PageNode::LoadingState loading_state = page_node->GetLoadingState();
+      if (loading_state != PageNode::LoadingState::kLoadingNotStarted &&
+          loading_state != PageNode::LoadingState::kLoadingTimedOut) {
+        return;
+      }
+
+      content::WebContents* contents = page_node->GetWebContents().get();
+      CHECK(contents);
+      contents->GetController().SetNeedsReload();
+      contents->GetController().LoadIfNecessary();
+      contents->Focus();
+    }
   }
 
   void Discard(DiscardCallback callback) override {
-    resource_coordinator::TabManager* tab_manager =
-        g_browser_process->GetTabManager();
-    tab_manager->DiscardTab(mojom::LifecycleUnitDiscardReason::URGENT);
+    performance_manager::user_tuning::DiscardAnyPage(
+        mojom::LifecycleUnitDiscardReason::URGENT,
+        /*ignore_minimum_time_in_background=*/true);
     std::move(callback).Run();
   }
 
@@ -237,8 +311,19 @@ class DiscardsDetailsProviderImpl : public discards::mojom::DetailsProvider {
                                    BatterySaverModeState::kDisabled));
   }
 
+  void RefreshPerformanceTabCpuMeasurements() override {
+#if !BUILDFLAG(IS_DESKTOP_ANDROID)
+    performance_manager::user_tuning::PerformanceDetectionManager::GetInstance()
+        ->ForceTabCpuDataRefresh();
+#endif  // !BUILDFLAG(IS_DESKTOP_ANDROID)
+  }
+
  private:
   mojo::Receiver<discards::mojom::DetailsProvider> receiver_;
+
+  // Mapping from id to page node.
+  base::flat_map<int32_t, raw_ptr<const PageNode, CtnExperimental>>
+      page_nodes_by_id_;
 };
 
 }  // namespace
@@ -249,9 +334,16 @@ DiscardsUI::DiscardsUI(content::WebUI* web_ui)
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       profile, chrome::kChromeUIDiscardsHost);
 
-  webui::SetupWebUIDataSource(
-      source, base::make_span(kDiscardsResources, kDiscardsResourcesSize),
-      IDR_DISCARDS_DISCARDS_HTML);
+  bool demoModeEnabled = false;
+#if !BUILDFLAG(IS_DESKTOP_ANDROID)
+  demoModeEnabled = base::FeatureList::IsEnabled(
+      performance_manager::features::kPerformanceInterventionDemoMode);
+#endif  // !BUILDFLAG(IS_DESKTOP_ANDROID)
+  source->AddBoolean("isPerformanceInterventionDemoModeEnabled",
+                     demoModeEnabled);
+
+  webui::SetupWebUIDataSource(source, kDiscardsResources,
+                              IDR_DISCARDS_DISCARDS_HTML);
 
   content::URLDataSource::Add(
       profile, std::make_unique<FaviconSource>(
@@ -262,21 +354,21 @@ DiscardsUI::DiscardsUI(content::WebUI* web_ui)
 
 WEB_UI_CONTROLLER_TYPE_IMPL(DiscardsUI)
 
-DiscardsUI::~DiscardsUI() {}
+DiscardsUI::~DiscardsUI() = default;
 
 void DiscardsUI::BindInterface(
     mojo::PendingReceiver<discards::mojom::DetailsProvider> receiver) {
-  ui_handler_ =
-      std::make_unique<DiscardsDetailsProviderImpl>(std::move(receiver));
+  performance_manager::PerformanceManager::GetGraph()->PassToGraph(
+      std::make_unique<DiscardsDetailsProviderImpl>(std::move(receiver)));
 }
 
 void DiscardsUI::BindInterface(
     mojo::PendingReceiver<discards::mojom::SiteDataProvider> receiver) {
   if (performance_manager::PerformanceManager::IsAvailable()) {
     // Forward the interface receiver directly to the service.
-    performance_manager::PerformanceManager::CallOnGraph(
-        FROM_HERE, base::BindOnce(&SiteDataProviderImpl::CreateAndBind,
-                                  std::move(receiver), profile_id_));
+    SiteDataProviderImpl::CreateAndBind(
+        std::move(receiver), profile_id_,
+        performance_manager::PerformanceManager::GetGraph());
   }
 }
 
@@ -284,8 +376,8 @@ void DiscardsUI::BindInterface(
     mojo::PendingReceiver<discards::mojom::GraphDump> receiver) {
   if (performance_manager::PerformanceManager::IsAvailable()) {
     // Forward the interface receiver directly to the service.
-    performance_manager::PerformanceManager::CallOnGraph(
-        FROM_HERE, base::BindOnce(&DiscardsGraphDumpImpl::CreateAndBind,
-                                  std::move(receiver)));
+    DiscardsGraphDumpImpl::CreateAndBind(
+        std::move(receiver),
+        performance_manager::PerformanceManager::GetGraph());
   }
 }

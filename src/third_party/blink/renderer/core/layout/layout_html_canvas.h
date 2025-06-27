@@ -57,13 +57,59 @@ class CORE_EXPORT LayoutHTMLCanvas final : public LayoutReplaced {
 
   void WillBeDestroyed() override;
 
+  void Trace(Visitor*) const override;
+
+  LayoutObject* FirstChild() const {
+    NOT_DESTROYED();
+    DCHECK_EQ(Children(), VirtualChildren());
+    return Children()->FirstChild();
+  }
+  LayoutObject* LastChild() const {
+    NOT_DESTROYED();
+    DCHECK_EQ(Children(), VirtualChildren());
+    return Children()->LastChild();
+  }
+
+  // As with LayoutMedia, use firstChild or lastChild instead.
+  void SlowFirstChild() const = delete;
+  void SlowLastChild() const = delete;
+
+  const LayoutObjectChildList* Children() const {
+    NOT_DESTROYED();
+    return &children_;
+  }
+  LayoutObjectChildList* Children() {
+    NOT_DESTROYED();
+    return &children_;
+  }
+
+  void DidInvalidatePaintForPlacedElement(Element* placedElement);
+
  private:
+  LayoutObjectChildList* VirtualChildren() final {
+    NOT_DESTROYED();
+    return Children();
+  }
+  const LayoutObjectChildList* VirtualChildren() const final {
+    NOT_DESTROYED();
+    return Children();
+  }
+  bool CanHaveChildren() const final {
+    NOT_DESTROYED();
+    return RuntimeEnabledFeatures::CanvasPlaceElementEnabled();
+  }
+  bool IsChildAllowed(LayoutObject*, const ComputedStyle&) const final;
+
   void PaintReplaced(const PaintInfo&,
                      const PhysicalOffset& paint_offset) const override;
-  void IntrinsicSizeChanged() override {
+  void NaturalSizeChanged() override {
     NOT_DESTROYED();
     CanvasSizeChanged();
   }
+  PhysicalNaturalSizingInfo GetNaturalDimensions() const override;
+
+  LayoutObjectChildList children_;
+  PhysicalSize natural_size_;
 };
 
 template <>

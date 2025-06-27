@@ -8,6 +8,7 @@
 
 #include "base/trace_event/trace_event.h"
 #include "third_party/blink/renderer/modules/xr/xr_cpu_depth_information.h"
+#include "third_party/blink/renderer/modules/xr/xr_frame.h"
 #include "third_party/blink/renderer/modules/xr/xr_session.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
@@ -17,37 +18,15 @@ namespace {
 constexpr char kInvalidUsageMode[] =
     "Unable to obtain XRCPUDepthInformation in \"gpu-optimized\" usage mode.";
 
-String UsageToString(device::mojom::XRDepthUsage usage) {
-  switch (usage) {
-    case device::mojom::XRDepthUsage::kCPUOptimized:
-      return "cpu-optimized";
-    case device::mojom::XRDepthUsage::kGPUOptimized:
-      return "gpu-optimized";
-  }
-}
-
-String DataFormatToString(device::mojom::XRDepthDataFormat data_format) {
-  switch (data_format) {
-    case device::mojom::XRDepthDataFormat::kLuminanceAlpha:
-      return "luminance-alpha";
-    case device::mojom::XRDepthDataFormat::kFloat32:
-      return "float32";
-  }
-}
-
 }  // namespace
 
 namespace blink {
 
 XRDepthManager::XRDepthManager(
-    base::PassKey<XRSession> pass_key,
-    XRSession* session,
+    base::PassKey<XRViewData> pass_key,
     const device::mojom::blink::XRDepthConfig& depth_configuration)
-    : session_(session),
-      usage_(depth_configuration.depth_usage),
-      data_format_(depth_configuration.depth_data_format),
-      usage_str_(UsageToString(usage_)),
-      data_format_str_(DataFormatToString(data_format_)) {
+    : usage_(depth_configuration.depth_usage),
+      data_format_(depth_configuration.depth_data_format) {
   DVLOG(3) << __func__ << ": usage_=" << usage_
            << ", data_format_=" << data_format_;
 }
@@ -94,6 +73,11 @@ XRCPUDepthInformation* XRDepthManager::GetCpuDepthInformation(
     return nullptr;
   }
 
+  // If we've reached this point, we belong to the same session as the frame.
+  if (!xr_frame->session()->IsDepthActive()) {
+    return nullptr;
+  }
+
   if (!depth_data_) {
     return nullptr;
   }
@@ -116,8 +100,12 @@ XRWebGLDepthInformation* XRDepthManager::GetWebGLDepthInformation(
     return nullptr;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  // If we've reached this point, we belong to the same session as the frame.
+  if (!xr_frame->session()->IsDepthActive()) {
+    return nullptr;
+  }
+
+  NOTREACHED();
 }
 
 void XRDepthManager::EnsureData() {
@@ -128,12 +116,10 @@ void XRDepthManager::EnsureData() {
   }
 
   // Copy the pixel data into ArrayBuffer:
-  data_ = DOMArrayBuffer::Create(depth_data_->pixel_data.data(),
-                                 depth_data_->pixel_data.size());
+  data_ = DOMArrayBuffer::Create(depth_data_->pixel_data);
 }
 
 void XRDepthManager::Trace(Visitor* visitor) const {
-  visitor->Trace(session_);
   visitor->Trace(data_);
 }
 

@@ -58,14 +58,18 @@ content::WebContents* AddSelectedTabWithURL(Browser* browser,
 // the initial position and size and other features of the new window.
 // |window_action| may optionally specify whether the window should be shown or
 // activated.
-void AddWebContents(
+// Returns the WebContents instance where navigation completed.
+// Invariant: If `new_contents` is not nullptr, then the returned instance
+// should always match new_contents.get().
+content::WebContents* AddWebContents(
     Browser* browser,
     content::WebContents* source_contents,
     std::unique_ptr<content::WebContents> new_contents,
     const GURL& target_url,
     WindowOpenDisposition disposition,
     const blink::mojom::WindowFeatures& window_features,
-    NavigateParams::WindowAction window_action = NavigateParams::SHOW_WINDOW);
+    NavigateParams::WindowAction window_action = NavigateParams::SHOW_WINDOW,
+    bool user_gesture = true);
 
 // Closes the specified WebContents in the specified Browser. If
 // |add_to_history| is true, an entry in the historical tab database is created.

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/accessibility/platform/inspect/ax_transform_mac.h"
 
 #include "base/apple/foundation_util.h"
@@ -36,11 +41,9 @@ base::Value AXNSObjectToBaseValue(id value, const AXTreeIndexerMac* indexer) {
   }
 
   // AXCustomContent
-  if (@available(macOS 11.0, *)) {
-    if (AXCustomContent* custom_content =
-            base::apple::ObjCCast<AXCustomContent>(value)) {
-      return base::Value(AXCustomContentToBaseValue(custom_content));
-    }
+  if (AXCustomContent* custom_content =
+          base::apple::ObjCCast<AXCustomContent>(value)) {
+    return base::Value(AXCustomContentToBaseValue(custom_content));
   }
 
   // NSDictionary
@@ -129,7 +132,8 @@ base::Value AXNSObjectToBaseValue(id value, const AXTreeIndexerMac* indexer) {
 }
 
 base::Value AXElementToBaseValue(id node, const AXTreeIndexerMac* indexer) {
-  return base::Value(AXMakeConst(indexer->IndexBy(node)));
+  return base::Value(
+      AXMakeConst(indexer->IndexBy(gfx::NativeViewAccessible(node))));
 }
 
 base::Value AXPositionToBaseValue(
@@ -151,8 +155,9 @@ base::Value AXPositionToBaseValue(
     return AXNilToBaseValue();
   }
 
-  AXPlatformNodeCocoa* cocoa_anchor = static_cast<AXPlatformNodeCocoa*>(
-      platform_node_anchor->GetNativeViewAccessible());
+  AXPlatformNodeCocoa* cocoa_anchor =
+      base::apple::ObjCCast<AXPlatformNodeCocoa>(
+          platform_node_anchor->GetNativeViewAccessible().Get());
   if (!cocoa_anchor) {
     return AXNilToBaseValue();
   }

@@ -41,6 +41,12 @@
 namespace cc {
 namespace {
 
+#define SAMPLE(curve, time)                                                  \
+  curve->GetTransformedValue(time,                                           \
+                             time < base::TimeDelta()                        \
+                                 ? gfx::TimingFunction::LimitDirection::LEFT \
+                                 : gfx::TimingFunction::LimitDirection::RIGHT)
+
 class LayerTreeHostAnimationTest : public LayerTreeTest {
  public:
   LayerTreeHostAnimationTest()
@@ -399,15 +405,15 @@ class LayerTreeHostAnimationTestAddKeyframeModelWithTimingFunction
     const gfx::FloatAnimationCurve* curve =
         gfx::FloatAnimationCurve::ToFloatAnimationCurve(
             keyframe_model->curve());
-    float start_opacity = curve->GetValue(base::TimeDelta());
-    float end_opacity = curve->GetValue(curve->Duration());
+    float start_opacity = SAMPLE(curve, base::TimeDelta());
+    float end_opacity = SAMPLE(curve, curve->Duration());
     float linearly_interpolated_opacity =
         0.25f * end_opacity + 0.75f * start_opacity;
     base::TimeDelta time = curve->Duration() * 0.25f;
     // If the linear timing function associated with this animation was not
     // picked up, then the linearly interpolated opacity would be different
     // because of the default ease timing function.
-    EXPECT_FLOAT_EQ(linearly_interpolated_opacity, curve->GetValue(time));
+    EXPECT_FLOAT_EQ(linearly_interpolated_opacity, SAMPLE(curve, time));
 
     EndTest();
   }
@@ -1672,7 +1678,7 @@ class LayerTreeHostAnimationTestIsAnimating
       case 3:
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -1701,7 +1707,7 @@ class LayerTreeHostAnimationTestIsAnimating
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -1721,7 +1727,7 @@ class LayerTreeHostAnimationTestIsAnimating
         EXPECT_FALSE(child->screen_space_transform_is_animating());
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -1731,7 +1737,9 @@ class LayerTreeHostAnimationTestIsAnimating
 };
 
 // TODO(https://issues.chromium.org/41490442): Flaky on Linux/ASAN/debug.
-#if BUILDFLAG(IS_LINUX) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
+// TODO(crbug.com/364634743): Flaky on Android.
+#if BUILDFLAG(IS_LINUX) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG) || \
+    BUILDFLAG(IS_ANDROID)
 SINGLE_THREAD_TEST_F(LayerTreeHostAnimationTestIsAnimating);
 #else
 SINGLE_AND_MULTI_THREAD_TEST_F(LayerTreeHostAnimationTestIsAnimating);
@@ -2138,82 +2146,6 @@ class LayerTreeHostAnimationTestNotifyAnimationFinished
 
 SINGLE_AND_MULTI_THREAD_TEST_F(
     LayerTreeHostAnimationTestNotifyAnimationFinished);
-
-// Check that transform sync happens correctly at commit when we remove and add
-// a different animation animation to an element.
-class LayerTreeHostAnimationTestChangeAnimation
-    : public LayerTreeHostAnimationTest {
- public:
-  void SetUp() override {
-    scoped_feature_list.InitAndDisableFeature(
-        features::kNoPreserveLastMutation);
-    LayerTreeHostAnimationTest::SetUp();
-  }
-
-  void SetupTree() override {
-    LayerTreeHostAnimationTest::SetupTree();
-    layer_ = Layer::Create();
-    layer_->SetBounds(gfx::Size(4, 4));
-    layer_tree_host()->root_layer()->AddChild(layer_);
-
-    AttachAnimationsToTimeline();
-    layer_element_id_ = layer_->element_id();
-
-    timeline_->DetachAnimation(animation_child_.get());
-    animation_->AttachElement(layer_element_id_);
-
-    gfx::TransformOperations start;
-    start.AppendTranslate(5.f, 5.f, 0.f);
-    gfx::TransformOperations end;
-    end.AppendTranslate(5.f, 5.f, 0.f);
-    AddAnimatedTransformToAnimation(animation_.get(), 1.0, start, end);
-  }
-
-  void BeginTest() override { PostSetNeedsCommitToMainThread(); }
-
-  void CommitCompleteOnThread(LayerTreeHostImpl* host_impl) override {
-    PropertyTrees* property_trees = host_impl->sync_tree()->property_trees();
-    const TransformNode* node =
-        property_trees->transform_tree().Node(host_impl->sync_tree()
-                                                  ->LayerById(layer_->id())
-                                                  ->transform_tree_index());
-    gfx::Transform translate;
-    translate.Translate(5, 5);
-    switch (host_impl->sync_tree()->source_frame_number()) {
-      case 2:
-        EXPECT_TRANSFORM_EQ(node->local, translate);
-        EndTest();
-        break;
-      default:
-        break;
-    }
-  }
-
-  void DidCommit() override { PostSetNeedsCommitToMainThread(); }
-
-  void WillBeginMainFrame() override {
-    if (layer_tree_host()->SourceFrameNumber() == 2) {
-      // Destroy animation.
-      timeline_->DetachAnimation(animation_.get());
-      animation_ = nullptr;
-      timeline_->AttachAnimation(animation_child_.get());
-      animation_child_->AttachElement(layer_element_id_);
-      AddAnimatedTransformToAnimation(animation_child_.get(), 1.0, 10, 10);
-      KeyframeModel* keyframe_model =
-          animation_child_->GetKeyframeModel(TargetProperty::TRANSFORM);
-      keyframe_model->set_start_time(base::TimeTicks::Now() +
-                                     base::Seconds(1000));
-      keyframe_model->set_fill_mode(KeyframeModel::FillMode::NONE);
-    }
-  }
-
- private:
-  scoped_refptr<Layer> layer_;
-  ElementId layer_element_id_;
-  base::test::ScopedFeatureList scoped_feature_list;
-};
-
-SINGLE_AND_MULTI_THREAD_TEST_F(LayerTreeHostAnimationTestChangeAnimation);
 
 // Check that SetTransformIsPotentiallyAnimatingChanged is called
 // if we destroy ElementAnimations.

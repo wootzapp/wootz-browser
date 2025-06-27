@@ -5,6 +5,7 @@
 #include "components/supervised_user/core/common/supervised_user_constants.h"
 
 #include "base/notreached.h"
+#include "base/strings/strcat.h"
 #include "components/supervised_user/core/common/pref_names.h"
 
 namespace supervised_user {
@@ -13,21 +14,10 @@ const int kHistogramFilteringBehaviorSpacing = 100;
 const int kSupervisedUserURLFilteringResultHistogramMax = 800;
 
 namespace {
-
-GURL KidsManagementBaseURL() {
-  return GURL("https://kidsmanagement-pa.googleapis.com/kidsmanagement/v1/");
-}
-
-const char kGetFamilyProfileURL[] = "families/mine?alt=json";
-const char kGetFamilyMembersURL[] = "families/mine/members?alt=json";
-const char kPermissionRequestsURL[] = "people/me/permissionRequests";
-const char kClassifyURLRequestURL[] = "people/me:classifyUrl";
-
 const int kHistogramPageTransitionMaxKnownValue =
     static_cast<int>(ui::PAGE_TRANSITION_KEYWORD_GENERATED);
 const int kHistogramPageTransitionFallbackValue =
     kHistogramFilteringBehaviorSpacing - 1;
-
 }  // namespace
 
 static_assert(kHistogramPageTransitionMaxKnownValue <
@@ -38,14 +28,26 @@ static_assert(FILTERING_BEHAVIOR_MAX * kHistogramFilteringBehaviorSpacing +
                   kSupervisedUserURLFilteringResultHistogramMax,
               "Invalid kSupervisedUserURLFilteringResultHistogramMax value");
 
+std::string WebFilterTypeToDisplayString(WebFilterType web_filter_type) {
+  switch (web_filter_type) {
+    case WebFilterType::kAllowAllSites:
+      return "allow_all_sites";
+    case WebFilterType::kCertainSites:
+      return "allow_certain_sites";
+    case WebFilterType::kTryToBlockMatureSites:
+      return "block_mature_sites";
+    case WebFilterType::kMixed:
+      NOTREACHED();
+  }
+}
+
 int GetHistogramValueForTransitionType(ui::PageTransition transition_type) {
   int value =
       static_cast<int>(ui::PageTransitionStripQualifier(transition_type));
   if (0 <= value && value <= kHistogramPageTransitionMaxKnownValue) {
     return value;
   }
-  NOTREACHED_IN_MIGRATION();
-  return kHistogramPageTransitionFallbackValue;
+  NOTREACHED();
 }
 
 const char kAuthorizationHeader[] = "Bearer";
@@ -88,38 +90,54 @@ const base::FilePath::CharType kSupervisedUserSettingsFilename[] =
 const char kSyncGoogleDashboardURL[] =
     "https://www.google.com/settings/chrome/sync";
 
-GURL KidsManagementGetFamilyProfileURL() {
-  return KidsManagementBaseURL().Resolve(kGetFamilyProfileURL);
-}
-
-GURL KidsManagementGetFamilyMembersURL() {
-  return KidsManagementBaseURL().Resolve(kGetFamilyMembersURL);
-}
-
-GURL KidsManagementPermissionRequestsURL() {
-  return KidsManagementBaseURL().Resolve(kPermissionRequestsURL);
-}
-
-GURL KidsManagementClassifyURLRequestURL() {
-  return KidsManagementBaseURL().Resolve(kClassifyURLRequestURL);
-}
-
 const char kFamilyLinkUserLogSegmentHistogramName[] =
     "FamilyLinkUser.LogSegment";
 
 const char kFamilyLinkUserLogSegmentWebFilterHistogramName[] =
     "FamilyUser.WebFilterType.PerRecord";
 
+extern const char kSitesMayRequestCameraMicLocationHistogramName[] =
+    "SupervisedUsers.SitesMayRequestCameraMicLocation.PerRecord";
+
+const char kSkipParentApprovalToInstallExtensionsHistogramName[] =
+    "SupervisedUsers.SkipParentApprovalToInstallExtensions.PerRecord";
+
 const char kSupervisedUserURLFilteringResultHistogramName[] =
     "ManagedUsers.FilteringResult";
 
 const char kSupervisedUserTopLevelURLFilteringResultHistogramName[] =
     "ManagedUsers.TopLevelFilteringResult";
+const char kSupervisedUserTopLevelURLFilteringResult2HistogramName[] =
+    "ManagedUsers.TopLevelFilteringResult2";
+
+const char kLocalWebApprovalResultHistogramName[] =
+    "FamilyLinkUser.LocalWebApprovalResult";
 
 const char kManagedByParentUiMoreInfoUrl[] =
     "https://familylink.google.com/setting/resource/94";
 
+const char kFamilyManagementUrl[] =
+    "https://myaccount.google.com/family/details";
+
+const char kDefaultEmptyFamilyMemberRole[] = "not_in_family";
+
 // LINT.IfChange
 const char kFamilyMemberRoleFeedbackTag[] = "Family_Member_Role";
 // LINT.ThenChange(//chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/FamilyInfoFeedbackSource.java)
+
+const char kClassifiedEarlierThanContentResponseHistogramName[] =
+    "SupervisedUsers.ClassifyUrlThrottle.EarlierThanContentResponse";
+const char kClassifiedLaterThanContentResponseHistogramName[] =
+    "SupervisedUsers.ClassifyUrlThrottle.LaterThanContentResponse";
+extern const char kClassifyUrlThrottleStatusHistogramName[] =
+    "SupervisedUsers.ClassifyUrlThrottle.Status";
+extern const char kClassifyUrlThrottleFinalStatusHistogramName[] =
+    "SupervisedUsers.ClassifyUrlThrottle.FinalStatus";
+extern const char kClassifyUrlThrottleUseCaseHistogramName[] =
+    "SupervisedUsers.ClassifyUrlThrottle.UseCase";
+
+const char kLocalWebApprovalDurationMillisecondsHistogramName[] =
+    "FamilyLinkUser.LocalWebApprovalCompleteRequestTotalDuration";
+const char kLocalWebApprovalErrorTypeHistogramName[] =
+    "FamilyLinkUser.LocalWebApprovalErrorType";
 }  // namespace supervised_user

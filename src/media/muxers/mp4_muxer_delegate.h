@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/sequence_checker.h"
-#include "base/strings/string_piece.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
 #include "media/base/audio_encoder.h"
@@ -27,20 +26,24 @@ class AudioParameters;
 class Mp4MuxerDelegateFragment;
 enum VideoCodecProfile;
 
+#if BUILDFLAG(USE_PROPRIETARY_CODECS) || \
+    BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+class H26xAnnexBToBitstreamConverter;
+#endif
+
 class Mp4MuxerDelegateInterface {
  public:
   virtual ~Mp4MuxerDelegateInterface() = default;
 
   virtual void AddVideoFrame(
       const Muxer::VideoParameters& params,
-      std::string encoded_data,
+      scoped_refptr<DecoderBuffer> encoded_data,
       std::optional<VideoEncoder::CodecDescription> codec_description,
-      base::TimeTicks timestamp,
-      bool is_key_frame) = 0;
+      base::TimeTicks timestamp) = 0;
 
   virtual void AddAudioFrame(
       const AudioParameters& params,
-      std::string encoded_data,
+      scoped_refptr<DecoderBuffer> encoded_data,
       std::optional<AudioEncoder::CodecDescription> codec_description,
       base::TimeTicks timestamp) = 0;
 
@@ -57,8 +60,10 @@ class MEDIA_EXPORT Mp4MuxerDelegate : public Mp4MuxerDelegateInterface {
  public:
   Mp4MuxerDelegate(
       AudioCodec audio_codec,
-      std::optional<VideoCodecProfile> profile,
-      std::optional<VideoCodecLevel> level,
+      VideoCodec video_codec,
+      std::optional<VideoCodecProfile> video_profile,
+      std::optional<VideoCodecLevel> video_level,
+      bool add_parameter_sets_in_bitstream,
       Muxer::WriteDataCB write_callback,
       size_t audio_sample_count_per_fragment = kAudioFragmentCount);
   ~Mp4MuxerDelegate() override;
@@ -67,14 +72,13 @@ class MEDIA_EXPORT Mp4MuxerDelegate : public Mp4MuxerDelegateInterface {
 
   void AddVideoFrame(
       const Muxer::VideoParameters& params,
-      std::string encoded_data,
+      scoped_refptr<DecoderBuffer> encoded_data,
       std::optional<VideoEncoder::CodecDescription> codec_description,
-      base::TimeTicks timestamp,
-      bool is_key_frame) override;
+      base::TimeTicks timestamp) override;
 
   void AddAudioFrame(
       const AudioParameters& params,
-      std::string encoded_data,
+      scoped_refptr<DecoderBuffer> encoded_data,
       std::optional<AudioEncoder::CodecDescription> codec_description,
       base::TimeTicks timestamp) override;
   // Write to the big endian ISO-BMFF boxes and call `write_callback`.
@@ -92,14 +96,14 @@ class MEDIA_EXPORT Mp4MuxerDelegate : public Mp4MuxerDelegateInterface {
 
   void BuildMovieVideoTrack(
       const Muxer::VideoParameters& params,
-      std::string encoded_data,
+      const DecoderBuffer& encoded_data,
       std::optional<VideoEncoder::CodecDescription> codec_description);
-  void AddDataToVideoFragment(std::string encoded_data, bool is_key_frame);
+  void AddDataToVideoFragment(scoped_refptr<DecoderBuffer> encoded_data);
   void BuildMovieAudioTrack(
       const AudioParameters& params,
-      std::string encoded_data,
+      const DecoderBuffer& encoded_data,
       std::optional<AudioEncoder::CodecDescription> codec_description);
-  void AddDataToAudioFragment(std::string encoded_data);
+  void AddDataToAudioFragment(scoped_refptr<DecoderBuffer> encoded_data);
 
   void AddLastSampleTimestamp(int track_index, base::TimeDelta inverse_of_rate);
   int GetNextTrackIndex();
@@ -114,6 +118,12 @@ class MEDIA_EXPORT Mp4MuxerDelegate : public Mp4MuxerDelegateInterface {
   size_t MaybeFlushMoovBox();
   void MaybeFlushMoofAndMfraBoxes(size_t written_offset);
   size_t GetAudioOnlyFragmentCount() const;
+
+#if BUILDFLAG(USE_PROPRIETARY_CODECS) || \
+    BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+  scoped_refptr<DecoderBuffer> ConvertNALUData(
+      scoped_refptr<DecoderBuffer> encoded_data);
+#endif
 
   std::unique_ptr<Mp4MuxerContext> context_;
   Muxer::WriteDataCB write_callback_;
@@ -158,12 +168,19 @@ class MEDIA_EXPORT Mp4MuxerDelegate : public Mp4MuxerDelegateInterface {
   const std::optional<media::VideoCodecProfile> video_profile_;
   const std::optional<media::VideoCodecLevel> video_level_;
 
+  const bool add_parameter_sets_in_bitstream_ = false;
+
   // 1000 is a count that audio samples in the same fragment
   // when no video frame is added. In Windows, when video frames are present,
   // the audio counts per fragment is much less than it.
   static constexpr uint32_t kAudioFragmentCount = 1000u;
 
   const size_t audio_sample_count_per_fragment_;
+
+#if BUILDFLAG(USE_PROPRIETARY_CODECS) || \
+    BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+  std::unique_ptr<H26xAnnexBToBitstreamConverter> h26x_converter_;
+#endif
 
   Muxer::WriteDataCB write_data_callback_ GUARDED_BY_CONTEXT(sequence_checker_);
   SEQUENCE_CHECKER(sequence_checker_);

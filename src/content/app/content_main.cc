@@ -2,10 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "content/public/app/content_main.h"
 
+#include <memory>
+#include <optional>
+
 #include "base/allocator/partition_alloc_support.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
 #include "base/at_exit.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
@@ -15,11 +22,13 @@
 #include "base/feature_list.h"
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
+#include "base/memory/ptr_util.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/process/launch.h"
 #include "base/process/memory.h"
 #include "base/process/process.h"
 #include "base/process/set_process_title.h"
+#include "base/profiler/sample_metadata.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/condition_variable.h"
@@ -30,18 +39,17 @@
 #include "base/trace_event/trace_config.h"
 #include "base/trace_event/trace_log.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "components/embedder_support/switches.h"
 #include "components/tracing/common/trace_to_console.h"
 #include "components/tracing/common/tracing_switches.h"
 #include "content/app/content_main_runner_impl.h"
-#include "content/common/mojo_core_library_support.h"
 #include "content/public/app/content_main_delegate.h"
 #include "content/public/common/content_switches.h"
 #include "mojo/core/embedder/configuration.h"
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
-#include "mojo/public/cpp/system/dynamic_library_support.h"
+#include "partition_alloc/buildflags.h"
 #include "sandbox/policy/sandbox_type.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/base/ui_base_switches.h"
@@ -74,7 +82,7 @@
 
 #if BUILDFLAG(IS_APPLE)
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
-#include "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim.h"
+#include "partition_alloc/shim/allocator_shim.h"
 #endif
 #endif  // BUILDFLAG(IS_MAC)
 
@@ -164,6 +172,23 @@ void InitTimeTicksAtUnixEpoch() {
   base::TimeTicks::SetSharedUnixEpoch(time_ticks_at_unix_epoch);
 }
 
+// Apply metadata to samples collected by the StackSamplingProfiler when tracing
+// is enabled. This helps distinguish profiles with tracing overhead, e.g. due
+// to background tracing, from those without.
+class TracingEnabledStateObserver
+    : public base::trace_event::TraceLog::EnabledStateObserver {
+ public:
+  void OnTraceLogEnabled() override {
+    apply_sample_metadata_.emplace("TracingEnabled", 1,
+                                   base::SampleMetadataScope::kProcess);
+  }
+
+  void OnTraceLogDisabled() override { apply_sample_metadata_.reset(); }
+
+ private:
+  std::optional<base::ScopedSampleMetadata> apply_sample_metadata_;
+};
+
 }  // namespace
 
 ContentMainParams::ContentMainParams(ContentMainDelegate* delegate)
@@ -176,15 +201,10 @@ ContentMainParams& ContentMainParams::operator=(ContentMainParams&&) = default;
 
 // This function must be marked with NO_STACK_PROTECTOR or it may crash on
 // return, see the --change-stack-guard-on-fork command line flag.
-int NO_STACK_PROTECTOR
-RunContentProcess(ContentMainParams params,
-                  ContentMainRunner* content_main_runner) {
+NO_STACK_PROTECTOR int RunContentProcess(
+    ContentMainParams params,
+    ContentMainRunner* content_main_runner) {
   base::FeatureList::FailOnFeatureAccessWithoutFeatureList();
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Lacros is launched with inherited priority. Revert to normal priority
-  // before spawning more processes.
-  base::PlatformThread::SetCurrentThreadType(base::ThreadType::kDefault);
-#endif
   int exit_code = -1;
 #if BUILDFLAG(IS_MAC)
   base::apple::ScopedNSAutoreleasePool autorelease_pool;
@@ -205,6 +225,7 @@ RunContentProcess(ContentMainParams params,
     allocator_shim::InitializeAllocatorShim();
 #endif
     base::EnableTerminationOnOutOfMemory();
+    logging::RegisterAbslAbortHook();
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     // The various desktop environments set this environment variable that
@@ -286,13 +307,17 @@ RunContentProcess(ContentMainParams params,
 #endif
 
 #if BUILDFLAG(IS_IOS)
-    base::ConditionVariable::InitializeFeatures();
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
     command_line->AppendSwitch(switches::kEnableViewport);
-    command_line->AppendSwitch(switches::kUseMobileUserAgent);
+    command_line->AppendSwitch(embedder_support::kUseMobileUserAgent);
+
+#if BUILDFLAG(IS_IOS_TVOS)
+    // Set tvOS to single-process mode by default.
+    command_line->AppendSwitch(switches::kSingleProcess);
+#endif
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#if (BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)) && !defined(COMPONENT_BUILD)
     base::subtle::EnableFDOwnershipEnforcement(true);
 #endif
 
@@ -318,18 +343,19 @@ RunContentProcess(ContentMainParams params,
     }
 #endif
 
+    base::trace_event::TraceLog::GetInstance()->AddOwnedEnabledStateObserver(
+        base::WrapUnique(new TracingEnabledStateObserver));
+
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             ::switches::kTraceToConsole)) {
       base::trace_event::TraceConfig trace_config =
           tracing::GetConfigForTraceToConsole();
-      base::trace_event::TraceLog::GetInstance()->SetEnabled(
-          trace_config, base::trace_event::TraceLog::RECORDING_MODE);
+      base::trace_event::TraceLog::GetInstance()->SetEnabled(trace_config);
     }
   }
 
   if (IsSubprocess())
     CommonSubprocessInit();
-
   exit_code = content_main_runner->Run();
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
@@ -341,7 +367,7 @@ RunContentProcess(ContentMainParams params,
 
 // This function must be marked with NO_STACK_PROTECTOR or it may crash on
 // return, see the --change-stack-guard-on-fork command line flag.
-int NO_STACK_PROTECTOR ContentMain(ContentMainParams params) {
+NO_STACK_PROTECTOR int ContentMain(ContentMainParams params) {
   auto runner = ContentMainRunner::Create();
   return RunContentProcess(std::move(params), runner.get());
 }

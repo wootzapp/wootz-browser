@@ -5,12 +5,14 @@
 #include "components/autofill/content/browser/scoped_autofill_managers_observation.h"
 
 #include "base/test/gtest_util.h"
+#include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/content/browser/test_autofill_client_injector.h"
 #include "components/autofill/content/browser/test_autofill_driver_injector.h"
 #include "components/autofill/content/browser/test_autofill_manager_injector.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
-#include "components/autofill/core/browser/mock_autofill_manager_observer.h"
-#include "components/autofill/core/browser/test_browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/autofill_driver.h"
+#include "components/autofill/core/browser/foundations/mock_autofill_manager_observer.h"
+#include "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_renderer_host.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -18,6 +20,7 @@
 
 namespace autofill {
 
+using ::testing::_;
 using ::testing::NiceMock;
 using ::testing::Ref;
 
@@ -150,6 +153,20 @@ TEST_F(ScopedAutofillManagersObservationTest, MultipleFrameObservation) {
   EXPECT_CALL(observer, OnBeforeLanguageDetermined(Ref(*manager(child_rfh))));
   manager(child_rfh)->NotifyObservers(
       &AutofillManager::Observer::OnBeforeLanguageDetermined);
+}
+
+TEST_F(ScopedAutofillManagersObservationTest,
+       StateChangedToPendingDeletionNotifiesObserver) {
+  MockAutofillManagerObserver observer;
+  ScopedAutofillManagersObservation observation(&observer);
+  observation.Observe(web_contents());
+  NavigateAndCommit(GURL("https://a.com/"));
+
+  EXPECT_CALL(observer, OnAutofillManagerStateChanged(
+                            Ref(*manager(main_rfh())), _,
+                            AutofillDriver::LifecycleState::kPendingDeletion));
+  ContentAutofillDriverFactory::FromWebContents(web_contents())
+      ->RenderFrameDeleted(main_rfh());
 }
 
 }  // namespace autofill

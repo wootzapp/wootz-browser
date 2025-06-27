@@ -38,6 +38,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/view_class_properties.h"
@@ -51,19 +52,17 @@ StarView::StarView(CommandUpdater* command_updater,
                          icon_label_bubble_delegate,
                          page_action_icon_delegate,
                          "BookmarksStar",
-                         false),
-      browser_(browser) {
-  DCHECK(browser_);
+                         false) {
+  DCHECK(browser);
 
   edit_bookmarks_enabled_.Init(
-      bookmarks::prefs::kEditBookmarksEnabled, browser_->profile()->GetPrefs(),
+      bookmarks::prefs::kEditBookmarksEnabled, browser->profile()->GetPrefs(),
       base::BindRepeating(&StarView::EditBookmarksPrefUpdated,
                           base::Unretained(this)));
   SetID(VIEW_ID_STAR_BUTTON);
   SetProperty(views::kElementIdentifierKey, kBookmarkStarViewElementId);
   SetActive(false);
-  SetAccessibilityProperties(/*role*/ std::nullopt,
-                             l10n_util::GetStringUTF16(IDS_TOOLTIP_STAR));
+  GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_TOOLTIP_STAR));
 }
 
 StarView::~StarView() = default;
@@ -103,18 +102,13 @@ void StarView::OnExecuting(PageActionIconView::ExecuteSource execute_source) {
   UMA_HISTOGRAM_ENUMERATION("Bookmarks.EntryPoint", entry_point);
 }
 
-void StarView::ExecuteCommand(ExecuteSource source) {
-  OnExecuting(source);
-  chrome::BookmarkCurrentTab(browser_);
-}
-
 views::BubbleDialogDelegate* StarView::GetBubble() const {
   return BookmarkBubbleView::bookmark_bubble();
 }
 
 const gfx::VectorIcon& StarView::GetVectorIcon() const {
-    return GetActive() ? omnibox::kStarActiveChromeRefreshIcon
-                       : omnibox::kStarChromeRefreshIcon;
+  return GetActive() ? omnibox::kStarActiveChromeRefreshIcon
+                     : omnibox::kStarChromeRefreshIcon;
 }
 
 std::u16string StarView::GetTextForTooltipAndAccessibleName() const {

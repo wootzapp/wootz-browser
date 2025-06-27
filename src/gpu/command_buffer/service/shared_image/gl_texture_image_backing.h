@@ -24,7 +24,7 @@ class GLTextureImageBacking : public ClearTrackingSharedImageBacking {
                         const gfx::ColorSpace& color_space,
                         GrSurfaceOrigin surface_origin,
                         SkAlphaType alpha_type,
-                        uint32_t usage,
+                        SharedImageUsageSet usage,
                         std::string debug_layer,
                         bool is_passthrough);
   GLTextureImageBacking(const GLTextureImageBacking&) = delete;
@@ -59,6 +59,10 @@ class GLTextureImageBacking : public ClearTrackingSharedImageBacking {
       SharedImageManager* manager,
       MemoryTypeTracker* tracker,
       scoped_refptr<SharedContextState> context_state) override;
+  std::unique_ptr<VideoImageRepresentation> ProduceVideo(
+      SharedImageManager* manager,
+      MemoryTypeTracker* tracker,
+      VideoDevice device) override;
   void Update(std::unique_ptr<gfx::GpuFence> in_fence) override;
   bool UploadFromMemory(const std::vector<SkPixmap>& pixmaps) override;
   bool ReadbackToMemory(const std::vector<SkPixmap>& pixmaps) override;

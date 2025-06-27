@@ -12,9 +12,11 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "net/base/net_export.h"
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 
@@ -27,7 +29,7 @@ class IPEndPoint;
 class ServerSocket;
 class StreamSocket;
 
-class HttpServer {
+class NET_EXPORT HttpServer {
  public:
   // Delegate to handle http/websocket events. Beware that it is not safe to
   // destroy the HttpServer in any of these callbacks.
@@ -128,6 +130,8 @@ class HttpServer {
   // Whether or not Close() has been called during delegate callback processing.
   bool HasClosedConnection(HttpConnection* connection);
 
+  void DestroyClosedConnections();
+
   const std::unique_ptr<ServerSocket> server_socket_;
   std::unique_ptr<StreamSocket> accepted_socket_;
   const raw_ptr<HttpServer::Delegate> delegate_;
@@ -135,9 +139,15 @@ class HttpServer {
   int last_id_ = 0;
   std::map<int, std::unique_ptr<HttpConnection>> id_to_connection_;
 
+  // Vector of connections whose destruction is pending. Connections may have
+  // WebSockets with raw pointers to `this`, so should not out live this, but
+  // also cannot safely be destroyed synchronously, so on connection close, add
+  // a Connection here, and post a task to destroy them.
+  std::vector<std::unique_ptr<HttpConnection>> closed_connections_;
+
   base::WeakPtrFactory<HttpServer> weak_ptr_factory_{this};
 };
 
 }  // namespace net
 
-#endif // NET_SERVER_HTTP_SERVER_H_
+#endif  // NET_SERVER_HTTP_SERVER_H_

@@ -15,10 +15,12 @@
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "components/permissions/permission_request_manager.h"
 #include "content/public/browser/console_message.h"
 #include "content/public/browser/file_select_listener.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -162,10 +164,11 @@ ExternalAppDialog::ExternalAppDialog(const InitParams& params)
   set_center_dialog_title_text(true);
   set_close_dialog_on_escape(false);
   set_dialog_content_url(params.content_url);
-  set_dialog_modal_type(ui::MODAL_TYPE_SYSTEM);
+  set_dialog_modal_type(ui::mojom::ModalType::kSystem);
   set_dialog_title(base::UTF8ToUTF16(params.app_name));
 
-  views::Widget::InitParams widget_params{};
+  views::Widget::InitParams widget_params{
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET};
   widget_params.z_order = ui::ZOrderLevel::kFloatingWindow;
   web_dialog_view_ = new views::WebDialogView(
       params.context, this, std::make_unique<WebContentsHandler>());

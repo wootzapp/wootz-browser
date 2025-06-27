@@ -19,8 +19,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
+import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
@@ -29,11 +32,10 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.browser.sync.SyncTestUtil;
 import org.chromium.components.bookmarks.BookmarkId;
-import org.chromium.components.sync.ModelType;
+import org.chromium.components.sync.DataType;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.sync.protocol.BookmarkSpecifics;
 import org.chromium.components.sync.protocol.SyncEntity;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
@@ -42,6 +44,7 @@ import java.util.List;
 /** Test suite for the bookmarks sync data type. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@Batch(Batch.PER_CLASS)
 public class BookmarksTest {
     @Rule public SyncTestRule mSyncTestRule = new SyncTestRule();
 
@@ -83,7 +86,7 @@ public class BookmarksTest {
 
     @Before
     public void setUp() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mBookmarkModel =
                             BookmarkModel.getForProfile(ProfileManager.getLastUsedRegularProfile());
@@ -91,7 +94,10 @@ public class BookmarksTest {
                     // Without this call to fake that knowledge for testing, it crashes.
                     mBookmarkModel.loadEmptyPartnerBookmarkShimForTesting();
                 });
-        mSyncTestRule.setUpAccountAndEnableSyncForTesting();
+        mSyncTestRule.setUpAccountAndSignInForTesting();
+        // Wait for account bookmarks to be active.
+        CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountMobileFolderId() != null);
+
         // Make sure initial state is clean.
         assertClientBookmarkCount(0);
         assertServerBookmarkCountWithName(0, TITLE);
@@ -181,7 +187,6 @@ public class BookmarksTest {
         Bookmark item0 = clientBookmarks.get(0);
         Bookmark item1 = clientBookmarks.get(1);
         Assert.assertTrue(item0.isFolder() != item1.isFolder());
-        final int bookmarkIndex = item0.isFolder() ? 1 : 0;
         final Bookmark folder = item0.isFolder() ? item0 : item1;
         final Bookmark bookmark = item0.isFolder() ? item1 : item0;
 
@@ -388,22 +393,11 @@ public class BookmarksTest {
         assertClientBookmarkCount(0);
     }
 
-    // Test that bookmarks don't get uploaded if the data type is disabled.
-    @Test
-    @LargeTest
-    @Feature({"Sync"})
-    public void testDisabledNoUploadBookmark() {
-        mSyncTestRule.disableDataType(UserSelectableType.BOOKMARKS);
-        addClientBookmark(TITLE, URL);
-        SyncTestUtil.triggerSyncAndWaitForCompletion();
-        assertServerBookmarkCountWithName(0, TITLE);
-    }
-
     private BookmarkId addClientBookmark(final String title, final GURL url) {
         BookmarkId id =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
-                            BookmarkId parentId = mBookmarkModel.getMobileFolderId();
+                            BookmarkId parentId = mBookmarkModel.getAccountMobileFolderId();
                             return mBookmarkModel.addBookmark(parentId, 0, title, url);
                         });
         Assert.assertNotNull("Failed to create bookmark.", id);
@@ -412,9 +406,9 @@ public class BookmarksTest {
 
     private BookmarkId addClientBookmarkFolder(final String title) {
         BookmarkId id =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
-                            BookmarkId parentId = mBookmarkModel.getMobileFolderId();
+                            BookmarkId parentId = mBookmarkModel.getAccountMobileFolderId();
                             return mBookmarkModel.addFolder(parentId, 0, title);
                         });
         Assert.assertNotNull("Failed to create bookmark folder.", id);
@@ -422,7 +416,7 @@ public class BookmarksTest {
     }
 
     private String getBookmarkBarGuid() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     return mBookmarkModel.getBookmarkGuidByIdForTesting(
                             mBookmarkModel.getDesktopFolderId());
@@ -473,21 +467,21 @@ public class BookmarksTest {
     }
 
     private void deleteClientBookmark(final BookmarkId id) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mBookmarkModel.deleteBookmark(id);
                 });
     }
 
     private void setClientBookmarkTitle(final BookmarkId id, final String title) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mBookmarkModel.setBookmarkTitle(id, title);
                 });
     }
 
     private void moveClientBookmark(final BookmarkId id, final BookmarkId newParentId) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mBookmarkModel.moveBookmark(id, newParentId, 0 /* new index */);
                 });
@@ -523,7 +517,7 @@ public class BookmarksTest {
             List<SyncEntity> entities =
                     mSyncTestRule
                             .getFakeServerHelper()
-                            .getSyncEntitiesByModelType(ModelType.BOOKMARKS);
+                            .getSyncEntitiesByDataType(DataType.BOOKMARKS);
             List<Bookmark> bookmarks = new ArrayList<Bookmark>(entities.size());
             for (SyncEntity entity : entities) {
                 String id = entity.getIdString();
@@ -558,7 +552,7 @@ public class BookmarksTest {
                 "There should be " + count + " remote bookmarks with name " + name + ".",
                 mSyncTestRule
                         .getFakeServerHelper()
-                        .verifyEntityCountByTypeAndName(count, ModelType.BOOKMARKS, name));
+                        .verifyEntityCountByTypeAndName(count, DataType.BOOKMARKS, name));
     }
 
     private void waitForClientBookmarkCount(int n) {
@@ -582,7 +576,7 @@ public class BookmarksTest {
                 () ->
                         mSyncTestRule
                                 .getFakeServerHelper()
-                                .verifyEntityCountByTypeAndName(count, ModelType.BOOKMARKS, name),
+                                .verifyEntityCountByTypeAndName(count, DataType.BOOKMARKS, name),
                 "Expected " + count + " remote bookmarks with name " + name + ".");
     }
 }

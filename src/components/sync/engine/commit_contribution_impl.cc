@@ -12,6 +12,7 @@
 #include "base/logging.h"
 #include "base/uuid.h"
 #include "components/sync/base/data_type_histogram.h"
+#include "components/sync/base/features.h"
 #include "components/sync/base/passphrase_enums.h"
 #include "components/sync/base/time.h"
 #include "components/sync/base/unique_position.h"
@@ -42,7 +43,6 @@ CommitResponseData BuildCommitResponseData(
   response_data.client_tag_hash = commit_request.entity->client_tag_hash;
   response_data.sequence_number = commit_request.sequence_number;
   response_data.specifics_hash = commit_request.specifics_hash;
-  response_data.unsynced_time = commit_request.unsynced_time;
   return response_data;
 }
 
@@ -60,7 +60,7 @@ FailedCommitResponseData BuildFailedCommitResponseData(
 }  // namespace
 
 CommitContributionImpl::CommitContributionImpl(
-    ModelType type,
+    DataType type,
     const sync_pb::DataTypeContext& context,
     CommitRequestDataList commit_requests,
     base::OnceCallback<void(const CommitResponseDataList&,
@@ -129,21 +129,22 @@ void CommitContributionImpl::AddToCommitMessage(
           !sync_entity->specifics().password().has_unencrypted_metadata());
 
     // Record the size of the sync entity being committed.
-    syncer::SyncRecordModelTypeEntitySizeHistogram(
+    syncer::SyncRecordDataTypeEntitySizeHistogram(
         type_, commit_request->entity->is_deleted(),
         sync_entity->specifics().ByteSizeLong(), sync_entity->ByteSizeLong());
 
     if (commit_request->entity->is_deleted()) {
-      RecordEntityChangeMetrics(type_, ModelTypeEntityChange::kLocalDeletion);
+      RecordEntityChangeMetrics(type_, DataTypeEntityChange::kLocalDeletion);
     } else if (commit_request->base_version <= 0) {
-      RecordEntityChangeMetrics(type_, ModelTypeEntityChange::kLocalCreation);
+      RecordEntityChangeMetrics(type_, DataTypeEntityChange::kLocalCreation);
     } else {
-      RecordEntityChangeMetrics(type_, ModelTypeEntityChange::kLocalUpdate);
+      RecordEntityChangeMetrics(type_, DataTypeEntityChange::kLocalUpdate);
     }
   }
 
-  if (!context_.context().empty())
+  if (!context_.context().empty()) {
     commit_message->add_client_contexts()->CopyFrom(context_);
+  }
 }
 
 SyncerError CommitContributionImpl::ProcessCommitResponse(
@@ -156,7 +157,7 @@ SyncerError CommitContributionImpl::ProcessCommitResponse(
   bool has_transient_error_commits = false;
 
   for (size_t i = 0; i < commit_requests_.size(); ++i) {
-    // Fill |success_response_list| or |error_response_list|.
+    // Fill `success_response_list` or `error_response_list`.
     const sync_pb::CommitResponse_EntryResponse& entry_response =
         response.commit().entryresponse(entries_start_index_ + i);
     if (entry_response.response_type() == sync_pb::CommitResponse::SUCCESS) {
@@ -167,7 +168,7 @@ SyncerError CommitContributionImpl::ProcessCommitResponse(
           BuildFailedCommitResponseData(*commit_requests_[i], entry_response));
     }
 
-    // Update |status| and mark the presence of specific errors (e.g.
+    // Update `status` and mark the presence of specific errors (e.g.
     // conflicting commits).
     switch (entry_response.response_type()) {
       case sync_pb::CommitResponse::SUCCESS:
@@ -201,7 +202,7 @@ SyncerError CommitContributionImpl::ProcessCommitResponse(
       .Run(success_response_list, error_response_list);
 
   // Commit was successfully processed. We do not want to call both
-  // |on_commit_response_callback_| and |on_full_commit_failure_callback_|.
+  // `on_commit_response_callback_` and `on_full_commit_failure_callback_`.
   on_full_commit_failure_callback_.Reset();
 
   // Let the scheduler know about the failures.
@@ -229,7 +230,7 @@ size_t CommitContributionImpl::GetNumEntries() const {
 
 // static
 void CommitContributionImpl::PopulateCommitProto(
-    ModelType type,
+    DataType type,
     const CommitRequestData& commit_entity,
     sync_pb::SyncEntity* commit_proto) {
   const EntityData& entity_data = *commit_entity.entity;
@@ -253,6 +254,12 @@ void CommitContributionImpl::PopulateCommitProto(
   commit_proto->set_deleted(entity_data.is_deleted());
   commit_proto->set_name(entity_data.name);
   commit_proto->set_mtime(TimeToProtoTime(entity_data.modification_time));
+  if (entity_data.collaboration_metadata.has_value()) {
+    // Only the collaboration ID is needed for the commit. Other fields are
+    // populated by the server.
+    commit_proto->mutable_collaboration()->set_collaboration_id(
+        entity_data.collaboration_metadata->collaboration_id().value());
+  }
 
   if (entity_data.is_deleted()) {
     if (entity_data.deletion_origin.has_value()) {
@@ -274,6 +281,16 @@ void CommitContributionImpl::PopulateCommitProto(
     }
     commit_proto->set_ctime(TimeToProtoTime(entity_data.creation_time));
     commit_proto->mutable_specifics()->CopyFrom(entity_data.specifics);
+
+    if (type == BOOKMARKS && !entity_data.is_deleted() &&
+        base::FeatureList::IsEnabled(
+            kSyncSimulateBookmarksPingPongForTesting)) {
+      // Clear the unique position in specifics to force a ping-pong effect if
+      // another client is online.
+      commit_proto->mutable_specifics()
+          ->mutable_bookmark()
+          ->clear_unique_position();
+    }
   }
 }
 

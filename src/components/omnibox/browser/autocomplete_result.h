@@ -9,12 +9,14 @@
 
 #include <map>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "base/gtest_prod_util.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/match_compare.h"
+#include "components/omnibox/browser/omnibox_metrics_provider.h"
 #include "components/omnibox/browser/search_suggestion_parser.h"
 #include "components/omnibox/browser/suggestion_group_util.h"
 #include "third_party/omnibox_proto/groups.pb.h"
@@ -39,13 +41,19 @@ class AutocompleteResult {
  public:
   typedef ACMatches::const_iterator const_iterator;
   typedef ACMatches::iterator iterator;
-  using MatchDedupComparator = ACMatchKey<std::string, bool>;
+  using MatchDedupComparator = ACMatchKey<std::string,  // URL
+                                          bool,         // Is Calculator type?
+                                          bool,         // Is Verbatim Match?
+                                          bool>;        // Is Answer card?
 
   // Max number of matches we'll show from the various providers. This limit
   // may be different for zero suggest and non zero suggest. Does not take into
   // account the boost conditionally provided by the
   // omnibox::kDynamicMaxAutocomplete feature.
-  static size_t GetMaxMatches(bool is_zero_suggest = false);
+  static size_t GetMaxMatches(
+      bool is_zero_suggest = false,
+      AutocompleteInput::FeaturedKeywordMode featured_keyword_mode =
+          AutocompleteInput::FeaturedKeywordMode::kFalse);
   // Defaults to GetMaxMatches if omnibox::kDynamicMaxAutocomplete is disabled;
   // otherwise returns the boosted dynamic limit.
   static size_t GetDynamicMaxMatches();
@@ -174,6 +182,9 @@ class AutocompleteResult {
   void AttachPedalsToMatches(const AutocompleteInput& input,
                              const AutocompleteProviderClient& client);
 
+  // Sets a takeover action on all matches to issue a contextual search.
+  void AttachContextualSearchFulfillmentActionToMatches();
+
   // Sets |has_tab_match| in matches whose URL matches an open tab's URL.
   // Also, fixes up the description if not using another UI element to
   // annotate (e.g. tab switch button). |input| can be null; if provided,
@@ -218,11 +229,17 @@ class AutocompleteResult {
   // and relevancies.
   static size_t CalculateNumMatches(
       bool is_zero_suggest,
+      AutocompleteInput::FeaturedKeywordMode featured_keyword_mode,
       const ACMatches& matches,
       const CompareWithDemoteByType<AutocompleteMatch>& comparing_object);
   // Determines how many matches to keep depending on how many URLs would be
-  // shown. CalculateNumMatches defers to CalculateNumMatchesPerUrlCount if the
-  // kDynamicMaxAutocomplete feature is enabled.
+  // shown. Increases the match limit if there are TYPE_UNSCOPED_EXTENSION
+  // suggestions available so they don't replace other match types.
+  // CalculateNumMatches defers to CalculateNumMatchesPerUrlCount if
+  // all of the following are true:
+  // 1) not in zero suggest.
+  // 2) not in exact featured keyword mode.
+  // 3) `kDynamicMaxAutocomplete` feature is enabled.
   static size_t CalculateNumMatchesPerUrlCount(
       const ACMatches& matches,
       const CompareWithDemoteByType<AutocompleteMatch>& comparing_object);
@@ -245,6 +262,49 @@ class AutocompleteResult {
 
   void set_num_zero_prefix_suggestions_shown_in_session(size_t number) {
     session_.num_zero_prefix_suggestions_shown_ = number;
+  }
+
+  const std::vector<int64_t>& gws_event_id_hashes_in_session() const {
+    return session_.gws_event_id_hashes_;
+  }
+
+  void add_gws_event_id_hash_in_session(int64_t gws_event_id_hash) {
+    session_.gws_event_id_hashes_.push_back(gws_event_id_hash);
+  }
+
+  void clear_gws_event_id_hashes_in_session() {
+    session_.gws_event_id_hashes_.clear();
+  }
+
+  std::pair<bool, bool> suggestions_shown_in_session(bool is_zero_suggest) {
+    if (is_zero_suggest) {
+      return {session_.zero_prefix_search_suggestions_shown_in_session_,
+              session_.zero_prefix_url_suggestions_shown_in_session_};
+    } else {
+      return {session_.typed_search_suggestions_shown_in_session_,
+              session_.typed_url_suggestions_shown_in_session_};
+    }
+  }
+
+  void set_suggestions_shown_in_session(bool is_zero_suggest,
+                                        const AutocompleteMatch& match) {
+    bool is_search = OmniboxMetricsProvider::GetClientSummarizedResultType(
+                         match.GetOmniboxEventResultType()) ==
+                     ClientSummarizedResultType::kSearch;
+
+    if (is_zero_suggest) {
+      if (is_search) {
+        session_.zero_prefix_search_suggestions_shown_in_session_ = true;
+      } else {
+        session_.zero_prefix_url_suggestions_shown_in_session_ = true;
+      }
+    } else {
+      if (is_search) {
+        session_.typed_search_suggestions_shown_in_session_ = true;
+      } else {
+        session_.typed_url_suggestions_shown_in_session_ = true;
+      }
+    }
   }
 
   // Clears this result set - i.e., `matches_` and `suggestion_groups_map_`.
@@ -290,7 +350,7 @@ class AutocompleteResult {
   // Returns false if |suggestion_group_id| is not found in
   // |suggestion_groups_map_| or if the suggestion group does not contain the
   // original server provided group ID.
-  bool IsSuggestionGroupHidden(PrefService* prefs,
+  bool IsSuggestionGroupHidden(const PrefService* prefs,
                                omnibox::GroupId suggestion_group_id) const;
 
   // Sets the UI collapsed/expanded state of the |suggestion_group_id| in the
@@ -366,6 +426,9 @@ class AutocompleteResult {
 #endif
 
   struct SessionData {
+    SessionData();
+    ~SessionData();
+
     void Reset();
 
     // Whether zero-prefix suggestions could have been shown in the session.
@@ -373,6 +436,21 @@ class AutocompleteResult {
 
     // The number of zero-prefix suggestions shown in the session.
     size_t num_zero_prefix_suggestions_shown_ = 0u;
+
+    // List of GWS event ID hashes accumulated during the course of the session.
+    std::vector<int64_t> gws_event_id_hashes_;
+
+    // Whether at least one zero-prefix Search/URL suggestion was shown in the
+    // session. This is used in order to ensure that the relevant client-side
+    // metrics logging code emits the proper values.
+    bool zero_prefix_search_suggestions_shown_in_session_ = false;
+    bool zero_prefix_url_suggestions_shown_in_session_ = false;
+
+    // Whether at least one typed Search/URL suggestion was shown in the
+    // session. This is used in order to ensure that the relevant client-side
+    // metrics logging code emits the proper values.
+    bool typed_search_suggestions_shown_in_session_ = false;
+    bool typed_url_suggestions_shown_in_session_ = false;
   };
 
   // Swaps this result set - i.e., `matches_` and `suggestion_groups_map_` -
@@ -413,11 +491,8 @@ class AutocompleteResult {
   void MergeMatchesByProvider(ACMatches* old_matches,
                               const ACMatches& new_matches);
 
-  // This pulls the relevant fields out of a match for comparison with other
-  // matches for the purpose of deduping. It uses the stripped URL, so that we
-  // collapse similar URLs if necessary, and whether the match is a calculator
-  // suggestion, because we don't want to dedupe them against URLs that simply
-  // happen to go to the same destination.
+  // Returns a tuple encompassing all attributes relevant to determining whether
+  // a match should be deduplicated with another match.
   static MatchDedupComparator GetMatchComparisonFields(
       const AutocompleteMatch& match);
 
@@ -470,6 +545,10 @@ class AutocompleteResult {
   // See AutocompleteControllerAndroid for more details.
   mutable base::android::ScopedJavaGlobalRef<jobject> java_result_;
 #endif
+
+  // For LOG debugging.
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const AutocompleteResult& result);
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_RESULT_H_

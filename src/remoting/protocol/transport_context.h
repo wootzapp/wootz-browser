@@ -7,45 +7,34 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "remoting/protocol/ice_config.h"
-#include "remoting/protocol/network_settings.h"
 #include "remoting/protocol/transport.h"
 
-namespace network {
-class SharedURLLoaderFactory;
-}  // namespace network
-
-namespace remoting {
-
-class OAuthTokenGetter;
-
-namespace protocol {
+namespace remoting::protocol {
 
 class PortAllocatorFactory;
-class IceConfigRequest;
+class IceConfigFetcher;
 
 // TransportContext is responsible for storing all parameters required for
 // P2P transport initialization. It's also responsible for fetching STUN and
 // TURN configuration.
 class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
  public:
-  typedef base::OnceCallback<void(const IceConfig& ice_config)>
-      GetIceConfigCallback;
+  using OnIceConfigCallback =
+      base::OnceCallback<void(const IceConfig& ice_config)>;
 
   static scoped_refptr<TransportContext> ForTests(TransportRole role);
 
-  TransportContext(
-      std::unique_ptr<PortAllocatorFactory> port_allocator_factory,
-      rtc::SocketFactory* socket_factory,
-      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-      OAuthTokenGetter* oauth_token_getter,
-      const NetworkSettings& network_settings,
-      TransportRole role);
+  TransportContext(std::unique_ptr<PortAllocatorFactory> port_allocator_factory,
+                   webrtc::SocketFactory* socket_factory,
+                   std::unique_ptr<IceConfigFetcher> ice_config_fetcher,
+                   TransportRole role);
 
   TransportContext(const TransportContext&) = delete;
   TransportContext& operator=(const TransportContext&) = delete;
@@ -61,19 +50,13 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
     ice_config_ = ice_config;
   }
 
-  // Prepares fresh ICE configs. It may be called while connection is being
-  // negotiated to minimize the chance that the following GetIceConfig() will
-  // be blocking.
-  void Prepare();
-
   // Requests fresh STUN and TURN information.
-  void GetIceConfig(GetIceConfigCallback callback);
+  void GetIceConfig(OnIceConfigCallback callback);
 
   PortAllocatorFactory* port_allocator_factory() {
     return port_allocator_factory_.get();
   }
-  rtc::SocketFactory* socket_factory() const { return socket_factory_; }
-  const NetworkSettings& network_settings() const { return network_settings_; }
+  webrtc::SocketFactory* socket_factory() const { return socket_factory_; }
   TransportRole role() const { return role_; }
 
   // Returns the suggested bandwidth cap for TURN relay connections, or 0 if
@@ -86,25 +69,22 @@ class TransportContext : public base::RefCountedThreadSafe<TransportContext> {
   ~TransportContext();
 
   void EnsureFreshIceConfig();
-  void OnIceConfig(const IceConfig& ice_config);
+  void OnIceConfig(std::optional<IceConfig> ice_config);
 
   std::unique_ptr<PortAllocatorFactory> port_allocator_factory_;
-  raw_ptr<rtc::SocketFactory> socket_factory_;
-  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
-  raw_ptr<OAuthTokenGetter> oauth_token_getter_ = nullptr;
-  NetworkSettings network_settings_;
+  raw_ptr<webrtc::SocketFactory> socket_factory_;
   TransportRole role_;
 
   IceConfig ice_config_;
 
   base::Time last_request_completion_time_;
-  std::unique_ptr<IceConfigRequest> ice_config_request_;
+  bool ice_config_request_in_flight_ = false;
+  std::unique_ptr<IceConfigFetcher> ice_config_fetcher_;
 
   // Called once |ice_config_request_| completes.
-  std::list<GetIceConfigCallback> pending_ice_config_callbacks_;
+  std::list<OnIceConfigCallback> pending_ice_config_callbacks_;
 };
 
-}  // namespace protocol
-}  // namespace remoting
+}  // namespace remoting::protocol
 
 #endif  // REMOTING_PROTOCOL_TRANSPORT_CONTEXT_H_

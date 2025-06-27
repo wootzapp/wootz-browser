@@ -12,7 +12,7 @@ import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 import 'chrome://resources/js/search_highlight_utils.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import '../about_page/about_page.js';
 import '../basic_page/basic_page.js';
 import '../search_settings.js';
@@ -101,13 +101,13 @@ export class SettingsMainElement extends SettingsMainElementBase {
     };
   }
 
-  prefs: {[key: string]: any};
-  private showPages_: MainPageVisibility;
-  private inSearchMode_: boolean;
-  private showNoResultsFound_: boolean;
-  private showingSubpage_: boolean;
-  toolbarSpinnerActive: boolean;
-  pageVisibility?: PageVisibility;
+  declare prefs: {[key: string]: any};
+  declare private showPages_: MainPageVisibility;
+  declare private inSearchMode_: boolean;
+  declare private showNoResultsFound_: boolean;
+  declare private showingSubpage_: boolean;
+  declare toolbarSpinnerActive: boolean;
+  declare pageVisibility?: PageVisibility;
 
   /**
    * Updates the hidden state of the about and settings pages based on the

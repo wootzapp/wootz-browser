@@ -197,6 +197,8 @@ scoped_refptr<base::SingleThreadTaskRunner> WorkerSchedulerImpl::GetTaskRunner(
     case TaskType::kWakeLock:
     case TaskType::kStorage:
     case TaskType::kClipboard:
+    case TaskType::kMachineLearning:
+    case TaskType::kInternalAutofill:
       // UnthrottledTaskRunner is generally discouraged in future.
       // TODO(nhiroki): Identify which tasks can be throttled / suspendable and
       // move them into other task runners. See also comments in
@@ -222,7 +224,8 @@ scoped_refptr<base::SingleThreadTaskRunner> WorkerSchedulerImpl::GetTaskRunner(
                  ? unpausable_task_queue_->CreateTaskRunner(type)
                  : pausable_non_vt_task_queue_->CreateTaskRunner(type);
     case TaskType::kMainThreadTaskQueueV8:
-    case TaskType::kMainThreadTaskQueueV8LowPriority:
+    case TaskType::kMainThreadTaskQueueV8UserVisible:
+    case TaskType::kMainThreadTaskQueueV8BestEffort:
     case TaskType::kMainThreadTaskQueueCompositor:
     case TaskType::kMainThreadTaskQueueDefault:
     case TaskType::kMainThreadTaskQueueInput:
@@ -245,11 +248,9 @@ scoped_refptr<base::SingleThreadTaskRunner> WorkerSchedulerImpl::GetTaskRunner(
     case TaskType::kInternalInputBlocking:
     case TaskType::kMainThreadTaskQueueIPCTracking:
     case TaskType::kInternalPostMessageForwarding:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void WorkerSchedulerImpl::OnLifecycleStateChanged(

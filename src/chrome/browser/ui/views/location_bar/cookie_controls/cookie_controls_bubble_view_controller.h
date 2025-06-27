@@ -41,22 +41,36 @@ class CookieControlsBubbleViewController
 
   void SetSubjectUrlNameForTesting(const std::u16string& name);
 
+  void SetIsReloadingState(bool is_reloading_state) {
+    is_reloading_state_ = is_reloading_state;
+  }
+
+  bool IsReloadingState() { return is_reloading_state_; }
+
  private:
   friend class CookieControlsBubbleViewBrowserTest;
 
   void SetCallbacks();
-  void OnUserClosedContentView();
-  void OnToggleButtonPressed(bool new_value);
+  void OnUserTriggeredReloadingAction();
+  void OnToggleButtonPressed(bool toggled_on);
   void OnFeedbackButtonPressed();
 
   void OnFaviconFetched(const favicon_base::FaviconImageResult& result) const;
 
-  void OnReloadingViewTimeout();
+  void OnReloadingUiTimeout();
 
   void SwitchToReloadingView();
+
   void ApplyThirdPartyCookiesAllowedState(CookieControlsEnforcement enforcement,
                                           base::Time expiration);
   void ApplyThirdPartyCookiesBlockedState();
+
+  void FillDescriptionAndToggle(CookieControlsEnforcement enforcement,
+                                base::Time expiration);
+
+  void FillViewForThirdPartyCookies(CookieControlsEnforcement enforcement,
+                                    base::Time expiration);
+
   void CloseBubble();
 
   [[nodiscard]] std::unique_ptr<views::View> InitReloadingView(
@@ -68,6 +82,10 @@ class CookieControlsBubbleViewController
 
   // Whether protections are enabled for the given site.
   bool protections_on_ = true;
+
+  // Whether the page is reloading in the background after UB is toggled.
+  bool is_reloading_state_ = false;
+
   // The most recent status provided by the CookieControlsController, used to
   // determine the user's 3PCD status.
   CookieBlocking3pcdStatus blocking_status_ =
@@ -78,7 +96,7 @@ class CookieControlsBubbleViewController
   // Used for favicon loading tasks.
   base::CancelableTaskTracker cancelable_task_tracker_;
 
-  base::CallbackListSubscription on_user_closed_content_view_callback_;
+  base::CallbackListSubscription on_user_triggered_reloading_action_callback_;
   base::CallbackListSubscription toggle_button_callback_;
   base::CallbackListSubscription feedback_button_callback_;
   base::WeakPtr<content_settings::CookieControlsController> controller_;

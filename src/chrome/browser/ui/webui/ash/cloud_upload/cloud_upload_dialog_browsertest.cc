@@ -2,16 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_dialog_browsertest.h"
+
 #include <unistd.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
 #include <string_view>
 
-#include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_dialog_browsertest.h"
-
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/callback_helpers.h"
@@ -26,7 +28,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
-#include "chrome/browser/ash/file_manager/app_id.h"
 #include "chrome/browser/ash/file_manager/file_manager_test_util.h"
 #include "chrome/browser/ash/file_manager/file_tasks.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
@@ -38,7 +39,6 @@
 #include "chrome/browser/ash/file_system_provider/fake_extension_provider.h"
 #include "chrome/browser/ash/file_system_provider/service.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
-#include "chrome/browser/ash/system_web_apps/types/system_web_app_delegate.h"
 #include "chrome/browser/chromeos/upload_office_to_cloud/upload_office_to_cloud.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser.h"
@@ -47,7 +47,6 @@
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_dialog.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
@@ -58,8 +57,9 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "chromeos/ash/components/file_manager/app_id.h"
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "chromeos/constants/chromeos_features.h"
-#include "chromeos/crosapi/mojom/volume_manager.mojom.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/test/browser_test.h"
@@ -523,7 +523,7 @@ IN_PROC_BROWSER_TEST_F(FileHandlerDialogBrowserTest, OpenFileTaskFromDialog) {
     if (!eval_result.error.empty()) {
       return false;
     }
-    observed_app_ids = eval_result.ExtractList().TakeList();
+    observed_app_ids = eval_result.ExtractList();
     return !observed_app_ids.empty();
   }));
 
@@ -642,7 +642,7 @@ IN_PROC_BROWSER_TEST_F(FileHandlerDialogBrowserTest, DefaultSetForDocsOnly) {
     if (!eval_result.error.empty()) {
       return false;
     }
-    return !eval_result.ExtractList().TakeList().empty();
+    return !eval_result.ExtractList().empty();
   }));
 
   // Check that there is not a default task for doc/x files.
@@ -757,7 +757,7 @@ IN_PROC_BROWSER_TEST_P(CloudUploadDialogHandlerDisabledBrowserTest,
     // Perform the necessary OneDrive & Microsoft365 setup.
     file_manager::test::MountFakeProvidedFileSystemOneDrive(profile());
     file_manager::test::AddFakeWebApp(
-        web_app::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
+        ash::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
         apps::AppServiceProxyFactory::GetForProfile(profile()));
   }
 
@@ -953,7 +953,7 @@ IN_PROC_BROWSER_TEST_P(FileHandlerDialogBrowserTestWithAutomatedFlow,
     // Perform the necessary OneDrive & Microsoft365 setup.
     file_manager::test::MountFakeProvidedFileSystemOneDrive(profile());
     file_manager::test::AddFakeWebApp(
-        web_app::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
+        ash::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
         apps::AppServiceProxyFactory::GetForProfile(profile()));
   }
 
@@ -1113,16 +1113,44 @@ INSTANTIATE_TEST_SUITE_P(
              {kCloudUploadPolicyAllowed, kCloudUploadPolicyAutomated},
              {kCloudUploadPolicyDisallowed, kCloudUploadPolicyAutomated}})));
 
-IN_PROC_BROWSER_TEST_F(FileHandlerDialogBrowserTest,
-                       ShowConnectOneDriveDialog_OpensAndClosesDialog) {
+IN_PROC_BROWSER_TEST_F(
+    FileHandlerDialogBrowserTest,
+    ShowConnectOneDriveDialogWithModalParent_OpensAndClosesDialog) {
   // Watch for the Connect OneDrive dialog URL chrome://cloud-upload.
   content::TestNavigationObserver navigation_observer_dialog(
       (GURL(chrome::kChromeUICloudUploadURL)));
   navigation_observer_dialog.StartWatchingNewWebContents();
 
-  // Launch the Connect OneDrive dialog.
+  // Launch the Connect OneDrive dialog on top of a files app.
   gfx::NativeWindow modal_parent = LaunchFilesAppAndWait(browser()->profile());
   ASSERT_TRUE(ShowConnectOneDriveDialog(modal_parent));
+
+  // Wait for chrome://cloud-upload to open.
+  navigation_observer_dialog.Wait();
+  ASSERT_TRUE(navigation_observer_dialog.last_navigation_succeeded());
+
+  // Check that we have the right DOM element (Connect OneDrive).
+  content::WebContents* web_contents = GetWebContentsFromCloudUploadDialog();
+  WaitUntilElementExists(web_contents, "connect-onedrive");
+
+  // Click the close button and wait for the dialog to close.
+  content::WebContentsDestroyedWatcher watcher(web_contents);
+  EXPECT_TRUE(content::ExecJs(web_contents,
+                              "document.querySelector('connect-onedrive')"
+                              ".$('.cancel-button').click()"));
+  watcher.Wait();
+}
+
+IN_PROC_BROWSER_TEST_F(
+    FileHandlerDialogBrowserTest,
+    ShowConnectOneDriveDialogWithoutModalParent_OpensAndClosesDialog) {
+  // Watch for the Connect OneDrive dialog URL chrome://cloud-upload.
+  content::TestNavigationObserver navigation_observer_dialog(
+      (GURL(chrome::kChromeUICloudUploadURL)));
+  navigation_observer_dialog.StartWatchingNewWebContents();
+
+  // Launch the Connect OneDrive dialog without a modal parent.
+  ASSERT_TRUE(ShowConnectOneDriveDialog(nullptr));
 
   // Wait for chrome://cloud-upload to open.
   navigation_observer_dialog.Wait();
@@ -1238,7 +1266,7 @@ class FixUpFlowBrowserTest : public InProcessBrowserTest {
 
   void AddFakeOfficePWA() {
     file_manager::test::AddFakeWebApp(
-        web_app::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
+        ash::kMicrosoft365AppId, kDocMimeType, kDocFileExtension, "", true,
         apps::AppServiceProxyFactory::GetForProfile(profile()));
   }
 
@@ -1346,6 +1374,158 @@ IN_PROC_BROWSER_TEST_F(FixUpFlowBrowserTest,
       "document.querySelector('cloud-upload').$('office-pwa-install-page')"
       ".querySelector('.action-button')")) {
   }
+}
+
+// Tests that the existing Fixup/Setup dialog is brought to the front when
+// trying to launch a second one for a different file.
+IN_PROC_BROWSER_TEST_F(
+    FixUpFlowBrowserTest,
+    FixUpDialogBroughtToFrontWhenFailingToLaunchADifferentOne) {
+  // Simulate prefs where the setup flow has already run.
+  SetWordFileHandlerToFilesSWA(profile(), kActionIdWebDriveOfficeWord);
+
+  SetUpFiles();
+
+  // ODFS is not mounted, expect that the Fixup flow will need to run.
+  ASSERT_TRUE(ShouldFixUpOffice(profile(), CloudProvider::kOneDrive));
+
+  gfx::NativeWindow modal_parent1 = LaunchFilesAppAndWait(browser()->profile());
+
+  // Launch the setup dialog at chrome://cloud-upload.
+  LaunchCloudUploadDialogAndGetWebContentsForDialog(
+      profile(), files_, CloudProvider::kOneDrive,
+      std::make_unique<CloudOpenMetrics>(CloudProvider::kOneDrive,
+                                         /*file_count=*/1),
+      "cloud-upload");
+
+  gfx::NativeWindow modal_parent2 = LaunchFilesAppAndWait(browser()->profile());
+
+  auto* modal_parent_widget1 =
+      views::Widget::GetWidgetForNativeWindow(modal_parent1);
+  auto* modal_parent_widget2 =
+      views::Widget::GetWidgetForNativeWindow(modal_parent2);
+
+  // The second files app would have launched above the setup dialog that is
+  // modal to the first files app.
+  ASSERT_TRUE(modal_parent_widget2->IsStackedAbove(
+      modal_parent_widget1->GetNativeView()));
+  ASSERT_TRUE(modal_parent_widget2->is_top_level());
+
+  // A second setup dialog cannot be launched at chrome://cloud-upload as there
+  // is already the setup dialog.
+  base::FilePath file =
+      file_manager::util::GetMyFilesFolderForProfile(profile()).AppendASCII(
+          "foo2.doc");
+  std::vector<storage::FileSystemURL> files;
+  files.push_back(FilePathToFileSystemURL(
+      profile(), file_manager::util::GetFileManagerFileSystemContext(profile()),
+      file));
+  ASSERT_FALSE(CloudOpenTask::Execute(
+      profile(), files, file_manager::file_tasks::TaskDescriptor(),
+      CloudProvider::kOneDrive,
+      std::make_unique<CloudOpenMetrics>(CloudProvider::kOneDrive,
+                                         /*file_count=*/1)));
+
+  // The setup dialog would have been brought to the front.
+  ASSERT_TRUE(modal_parent_widget1->IsStackedAbove(
+      modal_parent_widget2->GetNativeView()));
+  ASSERT_TRUE(modal_parent_widget1->is_top_level());
+}
+
+// Tests that the existing Fixup/Setup dialog is brought to the front when
+// trying to launch a second one for the same file.
+IN_PROC_BROWSER_TEST_F(
+    FixUpFlowBrowserTest,
+    FixUpDialogBroughtToFrontWhenFailingToLaunchADuplicateOne) {
+  // Simulate prefs where the setup flow has already run.
+  SetWordFileHandlerToFilesSWA(profile(), kActionIdWebDriveOfficeWord);
+
+  SetUpFiles();
+
+  // ODFS is not mounted, expect that the Fixup flow will need to run.
+  ASSERT_TRUE(ShouldFixUpOffice(profile(), CloudProvider::kOneDrive));
+
+  gfx::NativeWindow modal_parent1 = LaunchFilesAppAndWait(browser()->profile());
+
+  // Launch the setup dialog at chrome://cloud-upload.
+  LaunchCloudUploadDialogAndGetWebContentsForDialog(
+      profile(), files_, CloudProvider::kOneDrive,
+      std::make_unique<CloudOpenMetrics>(CloudProvider::kOneDrive,
+                                         /*file_count=*/1),
+      "cloud-upload");
+
+  gfx::NativeWindow modal_parent2 = LaunchFilesAppAndWait(browser()->profile());
+
+  auto* modal_parent_widget1 =
+      views::Widget::GetWidgetForNativeWindow(modal_parent1);
+  auto* modal_parent_widget2 =
+      views::Widget::GetWidgetForNativeWindow(modal_parent2);
+
+  // The second files app would have launched above the setup dialog that is
+  // modal to the first files app.
+  ASSERT_TRUE(modal_parent_widget2->IsStackedAbove(
+      modal_parent_widget1->GetNativeView()));
+  ASSERT_TRUE(modal_parent_widget2->is_top_level());
+
+  // A duplicate setup dialog cannot be launched at chrome://cloud-upload as
+  // there is already the setup dialog.
+  ASSERT_FALSE(CloudOpenTask::Execute(
+      profile(), files_, file_manager::file_tasks::TaskDescriptor(),
+      CloudProvider::kOneDrive,
+      std::make_unique<CloudOpenMetrics>(CloudProvider::kOneDrive,
+                                         /*file_count=*/1)));
+
+  // The setup dialog would have been brought to the front.
+  ASSERT_TRUE(modal_parent_widget1->IsStackedAbove(
+      modal_parent_widget2->GetNativeView()));
+  ASSERT_TRUE(modal_parent_widget1->is_top_level());
+}
+
+// Tests that the existing Fixup/Setup dialog is brought to the front when
+// trying to launch a second one via `ShowConnectOneDriveDialog()`.
+IN_PROC_BROWSER_TEST_F(
+    FixUpFlowBrowserTest,
+    FixUpDialogBroughtToFrontWhenShowConnectOneDriveDialogFailsToLaunch) {
+  // Simulate prefs where the setup flow has already run.
+  SetWordFileHandlerToFilesSWA(profile(), kActionIdWebDriveOfficeWord);
+
+  SetUpFiles();
+
+  // ODFS is not mounted, expect that the Fixup flow will need to run.
+  ASSERT_TRUE(ShouldFixUpOffice(profile(), CloudProvider::kOneDrive));
+
+  gfx::NativeWindow modal_parent = LaunchFilesAppAndWait(browser()->profile());
+
+  // Launch the setup dialog at chrome://cloud-upload.
+  LaunchCloudUploadDialogAndGetWebContentsForDialog(
+      profile(), files_, CloudProvider::kOneDrive,
+      std::make_unique<CloudOpenMetrics>(CloudProvider::kOneDrive,
+                                         /*file_count=*/1),
+      "cloud-upload");
+
+  // Launch a settings page.
+  ash::LaunchSystemWebAppAsync(profile(), ash::SystemWebAppType::SETTINGS);
+  Browser* files_app = ui_test_utils::WaitForBrowserToOpen();
+  gfx::NativeWindow settings = files_app->window()->GetNativeWindow();
+
+  auto* modal_parent_widget =
+      views::Widget::GetWidgetForNativeWindow(modal_parent);
+  auto* settings_widget = views::Widget::GetWidgetForNativeWindow(settings);
+
+  // The settings would have launched above the setup dialog that is modal to
+  // the first files app.
+  ASSERT_TRUE(
+      settings_widget->IsStackedAbove(modal_parent_widget->GetNativeView()));
+  ASSERT_TRUE(settings_widget->is_top_level());
+
+  // The Connect OneDrive dialog cannot be launched at chrome://cloud-upload as
+  // there is already the setup dialog.
+  ASSERT_FALSE(ShowConnectOneDriveDialog(nullptr));
+
+  // The setup dialog would have been brought to the front.
+  ASSERT_TRUE(
+      modal_parent_widget->IsStackedAbove(settings_widget->GetNativeView()));
+  ASSERT_TRUE(modal_parent_widget->is_top_level());
 }
 
 // Tests that `ShouldFixUpOffice()` returns true when neither ODFS is mounted

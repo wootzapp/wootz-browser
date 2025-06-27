@@ -66,6 +66,9 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) HotspotMetricsHelper
 
  private:
   friend class HotspotMetricsHelperTest;
+  friend class HotspotControllerTest;
+  friend class HotspotControllerConcurrencyApiTest;
+
   FRIEND_TEST_ALL_PREFIXES(HotspotMetricsHelperTest,
                            HotspotAllowStatusHistogram);
   FRIEND_TEST_ALL_PREFIXES(HotspotMetricsHelperTest,
@@ -90,6 +93,18 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) HotspotMetricsHelper
   FRIEND_TEST_ALL_PREFIXES(HotspotControllerTest,
                            EnableTetheringNetworkSetupFailure);
   FRIEND_TEST_ALL_PREFIXES(HotspotControllerTest, DisableTetheringSuccess);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           EnableTetheringSuccess);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           AbortEnableTethering);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           ShillOperationFailureWhileAborting);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           EnableTetheringReadinessCheckFailure);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           EnableTetheringNetworkSetupFailure);
+  FRIEND_TEST_ALL_PREFIXES(HotspotControllerConcurrencyApiTest,
+                           DisableTetheringSuccess);
   FRIEND_TEST_ALL_PREFIXES(HotspotConfigurationHandlerTest,
                            SetAndGetHotspotConfig);
   FRIEND_TEST_ALL_PREFIXES(HotspotCapabilitiesProviderTest,
@@ -201,7 +216,10 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) HotspotMetricsHelper
     kAlreadyFulfilled = 11,
     kAborted = 12,
     kInvalid = 13,
-    kMaxValue = kInvalid,
+    kBusy = 14,
+    kConcurrencyNotSupported = 15,
+    kOperationFailure = 16,
+    kMaxValue = kOperationFailure,
   };
 
   // Represents the upstream status when hotspot is enabled. These values are
@@ -230,7 +248,8 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) HotspotMetricsHelper
     kStartTimeout = 11,
     kUpstreamNotAvailable = 12,
     kUnknownError = 13,
-    kMaxValue = kUnknownError,
+    kResourceBusy = 14,
+    kMaxValue = kResourceBusy,
   };
 
   // HotspotCapabilitiesProvider::Observer:

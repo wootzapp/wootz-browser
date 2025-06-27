@@ -11,7 +11,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/flag_descriptions.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/organization/metrics.h"
 #include "chrome/browser/ui/tabs/organization/request_factory.h"
@@ -21,12 +21,10 @@
 #include "chrome/browser/ui/tabs/organization/tab_sensitivity_cache.h"
 #include "chrome/browser/ui/tabs/organization/trigger_policies.h"
 #include "chrome/browser/ui/webui/tab_search/tab_search_prefs.h"
-#include "components/sync/service/sync_service.h"
-#include "components/sync/service/sync_user_settings.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "base/system/sys_info.h"
-#include "chrome/browser/ash/crosapi/browser_data_migrator.h"
 #include "chrome/browser/ash/ownership/owner_settings_service_ash.h"
 #include "chrome/browser/ash/ownership/owner_settings_service_ash_factory.h"
 #include "chrome/browser/ash/settings/about_flags.h"
@@ -42,8 +40,11 @@ TabOrganizationService::TabOrganizationService(
   trigger_observer_ = std::make_unique<TabOrganizationTriggerObserver>(
       base::BindRepeating(&TabOrganizationService::OnTriggerOccured,
                           base::Unretained(this)),
-      browser_context, MakeTrigger(trigger_backoff_.get()));
+      browser_context,
+      MakeTrigger(trigger_backoff_.get(),
+                  Profile::FromBrowserContext(browser_context)));
 }
+
 TabOrganizationService::~TabOrganizationService() = default;
 
 void TabOrganizationService::OnTriggerOccured(const Browser* browser) {
@@ -81,13 +82,13 @@ TabOrganizationSession* TabOrganizationService::GetSessionForBrowser(
 TabOrganizationSession* TabOrganizationService::CreateSessionForBrowser(
     const Browser* browser,
     const TabOrganizationEntryPoint entrypoint,
-    const content::WebContents* base_session_webcontents) {
+    const tabs::TabInterface* base_session_tab) {
   CHECK(!base::Contains(browser_session_map_, browser));
   CHECK(browser->tab_strip_model()->SupportsTabGroups());
   std::pair<BrowserSessionMap::iterator, bool> pair =
       browser_session_map_.emplace(
           browser, TabOrganizationSession::CreateSessionForBrowser(
-                       browser, entrypoint, base_session_webcontents));
+                       browser, entrypoint, base_session_tab));
   browser->tab_strip_model()->AddObserver(this);
 
   for (TabOrganizationObserver& observer : observers_) {
@@ -100,20 +101,20 @@ TabOrganizationSession* TabOrganizationService::CreateSessionForBrowser(
 TabOrganizationSession* TabOrganizationService::ResetSessionForBrowser(
     const Browser* browser,
     const TabOrganizationEntryPoint entrypoint,
-    const content::WebContents* base_session_webcontents) {
+    const tabs::TabInterface* base_session_tab) {
   browser->tab_strip_model()->RemoveObserver(this);
   if (base::Contains(browser_session_map_, browser)) {
     RemoveBrowserFromSessionMap(browser);
   }
 
-  return CreateSessionForBrowser(browser, entrypoint, base_session_webcontents);
+  return CreateSessionForBrowser(browser, entrypoint, base_session_tab);
 }
 
 void TabOrganizationService::RestartSessionAndShowUI(
     const Browser* browser,
     const TabOrganizationEntryPoint entrypoint,
-    const content::WebContents* base_session_webcontents) {
-  ResetSessionForBrowser(browser, entrypoint, base_session_webcontents);
+    const tabs::TabInterface* base_session_tab) {
+  ResetSessionForBrowser(browser, entrypoint, base_session_tab);
   StartRequestIfNotFRE(browser, entrypoint);
   OnUserInvokedFeature(browser);
 }
@@ -127,29 +128,18 @@ void TabOrganizationService::OnUserInvokedFeature(const Browser* browser) {
 bool TabOrganizationService::CanStartRequest() const {
   CHECK(TabOrganizationUtils::GetInstance()->IsEnabled(profile_));
 
-  const syncer::SyncService* const sync_service =
-      SyncServiceFactory::GetForProfile(profile_);
-  if (!sync_service) {
-    return false;
-  }
-
-  // Sync must be enabled.
-  if (!sync_service->IsSyncFeatureEnabled()) {
-    return false;
-  }
-
-  // Sync must not be paused.
-  if (!sync_service->IsSyncFeatureActive()) {
-    return false;
-  }
-
-  // History Sync must be enabled.
-  if (!sync_service->GetUserSettings()->GetSelectedTypes().Has(
-          syncer::UserSelectableType::kHistory)) {
-    return false;
-  }
-
+// The signin flow is not used on ChromeOS.
+#if !BUILDFLAG(IS_CHROMEOS)
+  const signin::IdentityManager* const identity_manager(
+      IdentityManagerFactory::GetInstance()->GetForProfile(profile_));
+  const auto primary_account_info =
+      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+  const auto extended_account_info =
+      identity_manager->FindExtendedAccountInfo(primary_account_info);
+  return !extended_account_info.IsEmpty();
+#else
   return true;
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 }
 
 void TabOrganizationService::StartRequestIfNotFRE(
@@ -236,12 +226,36 @@ void TabOrganizationService::OnTabGroupChanged(const TabGroupChange& change) {
     // When a tab group is added or removed on the tabstrip, or its contents
     // changes, destroy the session for that browser.
     case TabGroupChange::kCreated:
-    case TabGroupChange::kContentsChanged:
     case TabGroupChange::kClosed: {
       RemoveBrowserFromSessionMap(browser);
       return;
     }
   }
+}
+
+void TabOrganizationService::TabGroupedStateChanged(
+    TabStripModel* tab_strip_model,
+    std::optional<tab_groups::TabGroupId> old_group,
+    std::optional<tab_groups::TabGroupId> new_group,
+    tabs::TabInterface* tab,
+    int index) {
+  CHECK(old_group != new_group);
+  const Browser* browser = GetBrowserForTabStripModel(tab_strip_model);
+
+  if (!browser) {
+    return;
+  }
+
+  TabOrganizationSession* session = GetSessionForBrowser(browser);
+  CHECK(session);
+
+  // Ignore changes when the session has already been accepted, to avoid acting
+  // on changes made by the session itself.
+  if (session->request()->state() == TabOrganizationRequest::State::COMPLETED) {
+    return;
+  }
+
+  RemoveBrowserFromSessionMap(browser);
 }
 
 void TabOrganizationService::AcceptTabOrganization(

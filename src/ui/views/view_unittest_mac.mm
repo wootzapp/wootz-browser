@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ui/views/view.h"
-
 #import <Cocoa/Cocoa.h>
 
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/events/gesture_event_details.h"
 #include "ui/views/test/widget_test.h"
+#include "ui/views/view.h"
 
 // We can't create NSEventTypeSwipe using normal means, and rely on duck typing
 // instead.
@@ -60,7 +59,7 @@ class ThreeFingerSwipeView : public View {
  public:
   // View:
   void OnGestureEvent(ui::GestureEvent* event) override {
-    EXPECT_EQ(ui::ET_GESTURE_SWIPE, event->details().type());
+    EXPECT_EQ(ui::EventType::kGestureSwipe, event->details().type());
 
     if (event->details().swipe_left()) {
       last_swipe_ = SWIPE_LEFT;
@@ -71,7 +70,7 @@ class ThreeFingerSwipeView : public View {
     } else if (event->details().swipe_down()) {
       last_swipe_ = SWIPE_DOWN;
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   }
 

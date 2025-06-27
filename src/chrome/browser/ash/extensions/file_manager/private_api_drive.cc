@@ -41,7 +41,6 @@
 #include "chrome/browser/ash/fileapi/file_system_backend.h"
 #include "chrome/browser/ash/fileapi/recent_drive_source.h"
 #include "chrome/browser/ash/fusebox/fusebox_server.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/chromeos/drivefs/drivefs_native_message_host.h"
 #include "chrome/browser/chromeos/drivefs/drivefs_native_message_host_origins.h"
 #include "chrome/browser/net/system_network_context_manager.h"
@@ -407,11 +406,8 @@ drivefs::mojom::QueryParameters::QuerySource SearchDriveFs(
       Profile::FromBrowserContext(function->browser_context()));
   auto on_response = base::BindOnce(&OnSearchDriveFs, std::move(function),
                                     filter_dirs, std::move(callback));
-  return service->GetDriveFsHost()->PerformSearch(
-      std::move(query),
-      mojo::WrapCallbackWithDefaultInvokeIfNotRun(
-          std::move(on_response), drive::FileError::FILE_ERROR_ABORT,
-          std::optional<std::vector<drivefs::mojom::QueryItemPtr>>()));
+  return service->GetDriveFsHost()->PerformSearch(std::move(query),
+                                                  std::move(on_response));
 }
 
 void UmaEmitSearchOutcome(

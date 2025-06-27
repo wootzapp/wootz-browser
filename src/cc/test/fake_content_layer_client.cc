@@ -64,6 +64,10 @@ FakeContentLayerClient::~FakeContentLayerClient() = default;
 
 scoped_refptr<DisplayItemList>
 FakeContentLayerClient::PaintContentsToDisplayList() {
+  if (display_list_) {
+    return display_list_;
+  }
+
   DCHECK(bounds_set_);
   gfx::Rect paint_bounds(bounds_);
   auto display_list = base::MakeRefCounted<DisplayItemList>();
@@ -93,10 +97,7 @@ FakeContentLayerClient::PaintContentsToDisplayList() {
                                    SkClipOp::kIntersect, false);
     display_list->push<DrawImageOp>(
         it->image, static_cast<float>(it->point.x()),
-        static_cast<float>(it->point.y()),
-        PaintFlags::FilterQualityToSkSamplingOptions(
-            it->flags.getFilterQuality()),
-        &it->flags);
+        static_cast<float>(it->point.y()), it->sampling, &it->flags);
     display_list->push<RestoreOp>();
     display_list->EndPaintOfUnpaired(paint_bounds);
 

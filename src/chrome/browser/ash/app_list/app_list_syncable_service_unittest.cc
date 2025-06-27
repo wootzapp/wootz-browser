@@ -6,16 +6,20 @@
 
 #include <algorithm>
 #include <utility>
+#include <variant>
 
 #include "ash/app_list/model/app_list_item.h"
 #include "ash/constants/ash_features.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "base/containers/to_vector.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "cc/base/math_util.h"
+#include "chrome/browser/apps/app_preload_service/app_preload_service.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/app_list/app_list_client_impl.h"
@@ -27,9 +31,7 @@
 #include "chrome/browser/ash/app_list/test/app_list_syncable_service_test_base.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/test/base/testing_profile.h"
 #include "components/app_constants/constants.h"
 #include "components/crx_file/id_util.h"
 #include "components/sync/protocol/app_list_specifics.pb.h"
@@ -41,6 +43,7 @@
 
 using crx_file::id_util::GenerateId;
 using testing::ElementsAre;
+using testing::ElementsAreArray;
 using ItemTestApi = ChromeAppListItem::TestApi;
 
 namespace app_list {
@@ -129,21 +132,20 @@ syncer::SyncDataList CreateBadAppRemoteData(const std::string& id) {
       CreateAppRemoteData(id == kDefault ? kEmptyPromisePackageId() : id,
                           "item_name", kParentId(), "ordinal", "pinordinal",
                           sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-                          /*is_user_pinned=*/false, /*promise_package_id=*/""));
-  sync_list.push_back(CreateAppRemoteData(
-      id == kDefault ? kEmptyPromisePackageUnsetId() : id, "item_name",
-      kParentId(), "ordinal", "pinordinal",
-      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/false, /*promise_package_id=*/kUnset));
+                          /*promise_package_id=*/""));
+  sync_list.push_back(
+      CreateAppRemoteData(id == kDefault ? kEmptyPromisePackageUnsetId() : id,
+                          "item_name", kParentId(), "ordinal", "pinordinal",
+                          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
+                          /*promise_package_id=*/kUnset));
 
   // All fields empty.
   sync_list.push_back(CreateAppRemoteData(
       "", "", "", "", "", sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      std::nullopt, ""));
-  sync_list.push_back(
-      CreateAppRemoteData(kUnset, kUnset, kUnset, kUnset, kUnset,
-                          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-                          std::nullopt, kUnset));
+      ""));
+  sync_list.push_back(CreateAppRemoteData(
+      kUnset, kUnset, kUnset, kUnset, kUnset,
+      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, kUnset));
 
   return sync_list;
 }
@@ -193,10 +195,7 @@ std::string GetLastPositionString() {
 // list model updater during testing.
 class AppListSyncableServiceTest : public test::AppListSyncableServiceTestBase {
  public:
-  AppListSyncableServiceTest() {
-    feature_list_.InitAndEnableFeature(
-        ash::features::kRemoveStalePolicyPinnedAppsFromShelf);
-  }
+  AppListSyncableServiceTest() = default;
   AppListSyncableServiceTest(const AppListSyncableServiceTest&) = delete;
   AppListSyncableServiceTest& operator=(const AppListSyncableServiceTest&) =
       delete;
@@ -209,7 +208,10 @@ class AppListSyncableServiceTest : public test::AppListSyncableServiceTestBase {
         std::make_unique<AppListModelUpdater::TestApi>(GetModelUpdater());
   }
 
-  void TearDown() override { app_list_syncable_service_.reset(); }
+  void TearDown() override {
+    app_list_syncable_service_.reset();
+    AppListSyncableServiceTestBase::TearDown();
+  }
 
   AppListModelUpdater::TestApi* model_updater_test_api() {
     return model_updater_test_api_.get();
@@ -234,7 +236,6 @@ class AppListSyncableServiceTest : public test::AppListSyncableServiceTestBase {
   }
 
  private:
-  base::test::ScopedFeatureList feature_list_;
   std::unique_ptr<AppListModelUpdater::TestApi> model_updater_test_api_;
 };
 
@@ -602,11 +603,11 @@ TEST_F(AppListSyncableServiceTest, InitialMerge) {
   syncer::SyncDataList sync_list;
   sync_list.push_back(CreateAppRemoteData(
       kItemId1, "item_name1", GenerateId("parent_id1"), "ordinal", "pinordinal",
-      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
       "promise_package_id1"));
   sync_list.push_back(CreateAppRemoteData(
       kItemId2, "item_name2", GenerateId("parent_id2"), "ordinal", "pinordinal",
-      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
       "promise_package_id2"));
 
   app_list_syncable_service()->MergeDataAndStartSyncing(
@@ -640,7 +641,7 @@ class AppListInternalAppSyncableServiceTest
 
   void SetUp() override {
     AppListSyncableServiceTest::SetUp();
-    web_app::test::InstallDummyWebApp(testing_profile(), kOsSettingsUrl,
+    web_app::test::InstallDummyWebApp(profile(), kOsSettingsUrl,
                                       GURL(kOsSettingsUrl));
   }
 
@@ -711,7 +712,7 @@ TEST_F(AppListSyncableServiceTest, InitialMergeAndUpdate) {
   syncer::SyncDataList sync_list;
   sync_list.push_back(CreateAppRemoteData(
       kItemId1, "item_name1", kParentId(), "ordinal", "pinordinal",
-      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+      sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
       "promise_package_id1"));
   sync_list.push_back(CreateAppRemoteData(kItemId2, "item_name2", kParentId(),
                                           "ordinal", "pinordinal"));
@@ -732,13 +733,13 @@ TEST_F(AppListSyncableServiceTest, InitialMergeAndUpdate) {
       CreateAppRemoteData(kItemId1, "item_name1x", GenerateId("parent_id1x"),
                           "ordinalx", "pinordinalx",
                           sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-                          /*is_user_pinned=*/true, "promise_package_id1x")));
+                          "promise_package_id1x")));
   change_list.push_back(syncer::SyncChange(
       FROM_HERE, syncer::SyncChange::ACTION_UPDATE,
       CreateAppRemoteData(kItemId2, "item_name2x", GenerateId("parent_id2x"),
                           "ordinalx", "pinordinalx",
                           sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-                          /*is_user_pinned=*/false, "promise_package_id2")));
+                          "promise_package_id2")));
 
   app_list_syncable_service()->ProcessSyncChanges(base::Location(),
                                                   change_list);
@@ -750,8 +751,6 @@ TEST_F(AppListSyncableServiceTest, InitialMergeAndUpdate) {
   EXPECT_EQ("ordinalx", GetSyncItem(kItemId1)->item_ordinal.ToDebugString());
   EXPECT_EQ("pinordinalx",
             GetSyncItem(kItemId1)->item_pin_ordinal.ToDebugString());
-  EXPECT_TRUE(GetSyncItem(kItemId1)->is_user_pinned.has_value());
-  EXPECT_TRUE(*GetSyncItem(kItemId1)->is_user_pinned);
   EXPECT_FALSE(GetSyncItem(kItemId1)->promise_package_id.empty());
   EXPECT_EQ("promise_package_id1x", GetSyncItem(kItemId1)->promise_package_id);
 
@@ -761,8 +760,6 @@ TEST_F(AppListSyncableServiceTest, InitialMergeAndUpdate) {
   EXPECT_EQ("ordinalx", GetSyncItem(kItemId2)->item_ordinal.ToDebugString());
   EXPECT_EQ("pinordinalx",
             GetSyncItem(kItemId2)->item_pin_ordinal.ToDebugString());
-  EXPECT_TRUE(GetSyncItem(kItemId2)->is_user_pinned.has_value());
-  EXPECT_FALSE(*GetSyncItem(kItemId2)->is_user_pinned);
   EXPECT_FALSE(GetSyncItem(kItemId2)->promise_package_id.empty());
   EXPECT_EQ("promise_package_id2", GetSyncItem(kItemId2)->promise_package_id);
 }
@@ -774,7 +771,7 @@ TEST_F(AppListSyncableServiceTest, InitialMergeAndUpdate_BadData) {
   sync_list.push_back(CreateAppRemoteData(
       kItemId, "item_name", kParentId(), "ordinal", "pinordinal",
       sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/false, "promise_package_id"));
+      "promise_package_id"));
 
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,
@@ -1437,8 +1434,7 @@ TEST_F(AppListSyncableServiceTest, TransferItem) {
                                  syncer::StringOrdinal("position"));
   model_updater->SetItemFolderId(extensions::kWebStoreAppId, "folderid");
   app_list_syncable_service()->SetPinPosition(extensions::kWebStoreAppId,
-                                              syncer::StringOrdinal("pin"),
-                                              /*pinned_by_policy=*/false);
+                                              syncer::StringOrdinal("pin"));
 
   // Before transfer attributes are different in both, app item and in sync.
   EXPECT_TRUE(AreAllAppAtributesNotEqualInAppList(webstore_item, chrome_item));
@@ -3549,8 +3545,8 @@ TEST_F(AppListSyncableServiceTest, PageBreaksAfterSortWithTwoFullPagesInSync) {
                   "Item 5",  "Item 6",  "Item 7",  "Item 8",  "Item 9"}}));
 }
 
-TEST_F(AppListSyncableServiceTest, DefaultPositionOfContainerApp) {
-  // Use youtube as a stand-in for container app - a default app that takes
+TEST_F(AppListSyncableServiceTest, DefaultPositionOfGeminiApp) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3583,8 +3579,8 @@ TEST_F(AppListSyncableServiceTest, DefaultPositionOfContainerApp) {
 }
 
 TEST_F(AppListSyncableServiceTest,
-       DefaultPositionOfContainerAppWithDelayedInitialSync) {
-  // Use youtube as a stand-in for container app - a default app that takes
+       DefaultPositionOfGeminiAppWithDelayedInitialSync) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3626,8 +3622,7 @@ TEST_F(AppListSyncableServiceTest,
             youtube_item->CalculateDefaultPositionIfApplicable());
 }
 
-TEST_F(AppListSyncableServiceTest,
-       PositionOfContainerAppWithNonEmptyLocalState) {
+TEST_F(AppListSyncableServiceTest, PositionOfGeminiAppWithNonEmptyLocalState) {
   // Make sure the local app list state is non-empty, and restart app list
   // syncable service.
   scoped_refptr<extensions::Extension> webstore =
@@ -3637,7 +3632,7 @@ TEST_F(AppListSyncableServiceTest,
 
   RestartSyncableService();
 
-  // Use youtube as a stand-in for container app - a default app that takes
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3680,8 +3675,8 @@ TEST_F(AppListSyncableServiceTest,
             youtube_item->CalculateDefaultPositionIfApplicable());
 }
 
-TEST_F(AppListSyncableServiceTest, PositionOfContainerAppWithNonEmptySyncData) {
-  // Use youtube as a stand-in for container app - a default app that takes
+TEST_F(AppListSyncableServiceTest, PositionOfGeminiAppWithNonEmptySyncData) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3717,8 +3712,8 @@ TEST_F(AppListSyncableServiceTest, PositionOfContainerAppWithNonEmptySyncData) {
             youtube_item->CalculateDefaultPositionIfApplicable());
 }
 
-TEST_F(AppListSyncableServiceTest, RespectContainerAppPositionInSync) {
-  // Use youtube as a stand-in for container app - a default app that takes
+TEST_F(AppListSyncableServiceTest, RespectGeminiAppPositionInSync) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3767,8 +3762,8 @@ TEST_F(AppListSyncableServiceTest, RespectContainerAppPositionInSync) {
 }
 
 TEST_F(AppListSyncableServiceTest,
-       RespectContainerAppPositionInSyncWithDelayedSync) {
-  // Use youtube as a stand-in for container app - a default app that takes
+       RespectGeminiAppPositionInSyncWithDelayedSync) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3807,8 +3802,8 @@ TEST_F(AppListSyncableServiceTest,
 }
 
 TEST_F(AppListSyncableServiceTest,
-       PositionOfContainerAppUpdatedAferNonEmptySyncData) {
-  // Use youtube as a stand-in for container app - a default app that takes
+       PositionOfGeminiAppUpdatedAferNonEmptySyncData) {
+  // Use youtube as a stand-in for the Gemini app - a default app that takes
   // default app position for new users only.
   scoped_refptr<extensions::Extension> youtube =
       MakeApp(kSomeAppName, extension_misc::kYoutubeAppId,
@@ -3851,6 +3846,205 @@ TEST_F(AppListSyncableServiceTest,
 
   EXPECT_NE(youtube_sync_item->item_ordinal,
             youtube_item->CalculateDefaultPositionIfApplicable());
+}
+
+class AppListSyncableServiceAppPreloadTest
+    : public test::AppListSyncableServiceTestBase {
+ public:
+  AppListSyncableServiceAppPreloadTest() {
+    feature_list_.InitAndEnableFeature(
+        apps::kAppPreloadServiceEnableLauncherOrder);
+  }
+  AppListSyncableServiceAppPreloadTest(
+      const AppListSyncableServiceAppPreloadTest&) = delete;
+  AppListSyncableServiceAppPreloadTest& operator=(
+      const AppListSyncableServiceAppPreloadTest&) = delete;
+  ~AppListSyncableServiceAppPreloadTest() override = default;
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(AppListSyncableServiceAppPreloadTest, LauncherOrdering) {
+  const std::map<apps::LauncherItem, syncer::StringOrdinal>& ordinals =
+      app_list_syncable_service()->GetDefaultOrdinalsForTest();
+  auto ordinals_to_string = [&]() {
+    std::vector<std::pair<apps::LauncherItem, syncer::StringOrdinal>> ordered;
+    std::copy(ordinals.begin(), ordinals.end(), std::back_inserter(ordered));
+    std::sort(
+        ordered.begin(), ordered.end(),
+        [](std::pair<apps::LauncherItem, syncer::StringOrdinal> const& lhs,
+           std::pair<apps::LauncherItem, syncer::StringOrdinal> const& rhs) {
+          return lhs.second.LessThan(rhs.second);
+        });
+    std::vector<std::string> result;
+    for (const auto& item : ordered) {
+      std::string first =
+          std::holds_alternative<std::string>(item.first)
+              ? std::get<std::string>(item.first)
+              : std::get<apps::PackageId>(item.first).ToString();
+      result.push_back(first + "=" + item.second.ToDebugString());
+    }
+    return result;
+  };
+
+  // Validate default order.
+  EXPECT_THAT(
+      ordinals_to_string(),
+      ElementsAreArray({
+          "chromeapp:mgndgikekgjfcpckkfioiadnlibdjbkf=n",
+          "chromeapp:cnbgggchhmkkdmeppjobngjoejnihlei=t",
+          "system:file_manager=w",
+          "web:https://mail.google.com/mail/?usp=installed_webapp=x",
+          "web:https://docs.google.com/document/?usp=installed_webapp=y",
+          "web:https://docs.google.com/presentation/?usp=installed_webapp=yn",
+          "web:https://docs.google.com/spreadsheets/?usp=installed_webapp=z",
+          "web:https://drive.google.com/?lfhs=2=zm",
+          "web:https://www.youtube.com/?feature=ytca=zs",
+          "system:camera=zv",
+          "system:settings=zx",
+          "system:help=zy",
+          "system:app_mall=zyn",
+          "system:media=zz",
+          "system:projector=zzm",
+          "system:print_management=zzs",
+          "system:scanning=zzv",
+          "system:shortcut_customization=zzx",
+          "system:terminal=zzy",
+      }));
+  EXPECT_EQ(app_list_syncable_service()->GetOemFolderNameForTest(),
+            "OEM folder");
+
+  // App Preload Server ordering should be merged into defaults.
+  auto p = [](std::string s) { return *apps::PackageId::FromString(s); };
+  auto type_chrome =
+      apps::proto::AppPreloadListResponse_LauncherType_LAUNCHER_TYPE_CHROME;
+  auto type_app =
+      apps::proto::AppPreloadListResponse_LauncherType_LAUNCHER_TYPE_APP;
+  auto type_oem_folder =
+      apps::proto::AppPreloadListResponse_LauncherType_LAUNCHER_TYPE_FOLDER_OEM;
+  auto type_folder =
+      apps::proto::AppPreloadListResponse_LauncherType_LAUNCHER_TYPE_FOLDER;
+  apps::LauncherOrdering ordering;
+  std::string empty_root_folder_name;
+  ordering[empty_root_folder_name] = apps::LauncherItemMap({
+      // app1 should come before chrome.
+      {p("chromeapp:app1"), {type_app, 1}},
+      {p("chromeapp:mgndgikekgjfcpckkfioiadnlibdjbkf"), {type_chrome, 2}},
+      // OEM folder name should get set as 'aps-oem-folder'.
+      // aps-oem-folder, aps-folder, and app2 should come after chrome.
+      {"aps-oem-folder", {type_oem_folder, 3}},
+      {"aps-folder", {type_folder, 4}},
+      {p("chromeapp:app2"), {type_app, 5}},
+      {p("system:settings"), {type_app, 6}},
+      // app3 should come after settings.
+      {p("chromeapp:app3"), {type_app, 7}},
+      // file_manager should remain unchanged before settings.
+      {p("system:file_manager"), {type_app, 8}},
+      // app4 should be after app3, not after file-manager.
+      {p("chromeapp:app4"), {type_app, 9}},
+      {p("system:terminal"), {type_app, 10}},
+      // app4 should come after terminal and be the last item.
+      {p("chromeapp:app5"), {type_app, 11}},
+  });
+  ordering["aps-oem-folder"] = apps::LauncherItemMap({
+      {p("chromeapp:oem1"), {type_app, 1}},
+      {p("chromeapp:oem2"), {type_app, 2}},
+  });
+  ordering["aps-folder"] = apps::LauncherItemMap({
+      {p("chromeapp:folderapp1"), {type_app, 1}},
+      {p("chromeapp:folderapp2"), {type_app, 2}},
+  });
+
+  app_list_syncable_service()->OnGetLauncherOrdering(ordering);
+  EXPECT_THAT(
+      ordinals_to_string(),
+      ElementsAreArray({
+          "chromeapp:app1=h",  // app1 before chrome.
+          "chromeapp:folderapp1=n",
+          "chromeapp:oem1=n",
+          "chromeapp:mgndgikekgjfcpckkfioiadnlibdjbkf=n",
+          "aps-oem-folder=q",
+          "aps-folder=r",
+          "chromeapp:app2=s",
+          "chromeapp:folderapp2=t",
+          "chromeapp:oem2=t",  // folders and app2 after chrome.
+          "chromeapp:cnbgggchhmkkdmeppjobngjoejnihlei=t",
+          "system:file_manager=w",  // file-manager unchanged.
+          "web:https://mail.google.com/mail/?usp=installed_webapp=x",
+          "web:https://docs.google.com/document/?usp=installed_webapp=y",
+          "web:https://docs.google.com/presentation/?usp=installed_webapp=yn",
+          "web:https://docs.google.com/spreadsheets/?usp=installed_webapp=z",
+          "web:https://drive.google.com/?lfhs=2=zm",
+          "web:https://www.youtube.com/?feature=ytca=zs",
+          "system:camera=zv",
+          "system:settings=zx",
+          "chromeapp:app3=zxn",  // app3 after settings.
+          "chromeapp:app4=zxt",  // app4 after settings, not after file_manager.
+          "system:help=zy",
+          "system:app_mall=zyn",
+          "system:media=zz",
+          "system:projector=zzm",
+          "system:print_management=zzs",
+          "system:scanning=zzv",
+          "system:shortcut_customization=zzx",
+          "system:terminal=zzy",
+          "chromeapp:app5=zzyn",  // app5 after terminal, last item.
+      }));
+  EXPECT_EQ(app_list_syncable_service()->GetOemFolderNameForTest(),
+            "aps-oem-folder");
+
+  auto items_to_string = [&]() {
+    std::vector<std::string> result;
+    for (const auto& item : GetModelUpdater()->GetItems()) {
+      result.push_back(
+          base::JoinString({item->id(), item->name(), item->folder_id(),
+                            item->position().ToDebugString()},
+                           "|"));
+    }
+    return result;
+  };
+
+  auto add_item = [&](apps::PackageId package_id) {
+    apps::AppPtr app = std::make_unique<apps::App>(apps::AppType::kChromeApp,
+                                                   package_id.identifier());
+    app->readiness = apps::Readiness::kReady;
+    app->installer_package_id = package_id;
+    std::vector<apps::AppPtr> deltas;
+    deltas.push_back(std::move(app));
+    apps::AppServiceProxyFactory::GetForProfile(profile_.get())
+        ->OnApps(std::move(deltas), apps::AppType::kUnknown,
+                 /*should_notify_initialized=*/false);
+    auto item = std::make_unique<ChromeAppListItem>(
+        profile_.get(), package_id.identifier(), GetModelUpdater());
+    ItemTestApi(item.get()).SetName(package_id.identifier());
+    app_list_syncable_service()->AddItem(std::move(item));
+  };
+
+  // The 3 default test apps should exist at first.
+  EXPECT_THAT(items_to_string(),
+              ElementsAreArray({
+                  "dceacbkfkmllgmjmbhgkpjegnodmildf|Hosted App||n",
+                  "emfkafnhnpcmabnnkckkchdilgeoekbo|Packaged App 1||h",
+                  "jlklkagmeajbjiobondfhiekepofmljl|Packaged App 2||e",
+              }));
+
+  // Positions should be set from APS, folderapp1 should create 'aps-folder',
+  // and oem1 should create 'aps-oem-folder'.
+  add_item(p("chromeapp:app1"));
+  add_item(p("chromeapp:folderapp1"));
+  add_item(p("chromeapp:oem1"));
+  EXPECT_THAT(items_to_string(),
+              ElementsAreArray({
+                  "app1|app1||h",
+                  "dceacbkfkmllgmjmbhgkpjegnodmildf|Hosted App||n",
+                  "ddb1da55-d478-4243-8642-56d3041f0263|aps-oem-folder||q",
+                  "emfkafnhnpcmabnnkckkchdilgeoekbo|Packaged App 1||h",
+                  "folder:aps-folder|aps-folder||r",
+                  "folderapp1|folderapp1|folder:aps-folder|n",
+                  "jlklkagmeajbjiobondfhiekepofmljl|Packaged App 2||e",
+                  "oem1|oem1|ddb1da55-d478-4243-8642-56d3041f0263|n",
+              }));
 }
 
 // Base class for tests of `AppListSyncableService::OnFirstSync()` parameterized

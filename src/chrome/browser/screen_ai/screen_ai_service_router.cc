@@ -5,6 +5,7 @@
 #include "chrome/browser/screen_ai/screen_ai_service_router.h"
 
 #include <utility>
+#include <vector>
 
 #include "base/containers/contains.h"
 #include "base/containers/flat_map.h"
@@ -13,15 +14,19 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/memory/memory_pressure_monitor.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
+#include "base/system/sys_info.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/screen_ai/screen_ai_install_state.h"
-#include "content/public/browser/browser_thread.h"
+#include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/service_process_host.h"
 #include "content/public/browser/service_process_host_passkeys.h"
 #include "mojo/public/mojom/base/file_path.mojom.h"
+#include "services/network/public/mojom/network_change_manager.mojom.h"
 #include "services/screen_ai/public/cpp/utilities.h"
 #include "ui/accessibility/accessibility_features.h"
 
@@ -31,9 +36,28 @@
 
 namespace {
 
-// Maximum time to wait for service initialization.
-// TODO(crbug.com/40947650): Update based on collected metrics.
-constexpr base::TimeDelta kInitializationTimeout = base::Seconds(10);
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// If any value is added, please update `ComponentAvailability` in `enums.xml`.
+enum class ComponentAvailability {
+  kAvailable = 0,
+  kUnavailableWithNetwork = 1,
+  kUnavailableWithoutNetwork = 2,
+
+  kMaxValue = kUnavailableWithoutNetwork,
+};
+
+bool IsModelFileContentReadable(base::File& file) {
+  if (!file.IsValid()) {
+    return false;
+  }
+  int file_size = file.GetLength();
+  if (!file_size) {
+    return false;
+  }
+  std::vector<uint8_t> buffer(file_size);
+  return file.ReadAndCheck(0, base::span(buffer));
+}
 
 // The name of the file that contains the list of files that are downloaded with
 // the component and are required to initialize the library.
@@ -48,7 +72,7 @@ class ComponentFiles {
                           const base::FilePath::CharType* files_list_file_name);
   ComponentFiles(const ComponentFiles&) = delete;
   ComponentFiles& operator=(const ComponentFiles&) = delete;
-  ~ComponentFiles() = default;
+  ~ComponentFiles();
 
   static std::unique_ptr<ComponentFiles> Load(
       const base::FilePath::CharType* files_list_file_name);
@@ -89,15 +113,29 @@ ComponentFiles::ComponentFiles(
     base::FilePath relative_path(relative_file_path);
 #endif
     const base::FilePath full_path = component_folder.Append(relative_path);
-
     model_files_[relative_path] =
         base::File(full_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
-    if (!model_files_[relative_path].IsValid()) {
+    if (!IsModelFileContentReadable(model_files_[relative_path])) {
       VLOG(0) << "Could not open " << full_path;
       model_files_.clear();
       return;
     }
   }
+}
+
+ComponentFiles::~ComponentFiles() {
+  if (model_files_.empty()) {
+    return;
+  }
+
+  // Transfer ownership of the file handles to a thread that may block, and let
+  // them get destroyed there.
+  base::ThreadPool::PostTask(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(
+          [](base::flat_map<base::FilePath, base::File> model_files) {},
+          std::move(model_files_)));
 }
 
 std::unique_ptr<ComponentFiles> ComponentFiles::Load(
@@ -108,19 +146,38 @@ std::unique_ptr<ComponentFiles> ComponentFiles::Load(
       files_list_file_name);
 }
 
-void RecordComponentAvailablity(bool available) {
-  base::UmaHistogramBoolean("Accessibility.ScreenAI.Component.Available",
-                            available);
+void RecordComponentAvailability(bool available) {
+  bool network = !content::GetNetworkConnectionTracker()->IsOffline();
+  base::UmaHistogramEnumeration(
+      "Accessibility.ScreenAI.Component.Available2",
+      available
+          ? ComponentAvailability::kAvailable
+          : (network ? ComponentAvailability::kUnavailableWithNetwork
+                     : ComponentAvailability::kUnavailableWithoutNetwork));
 }
 
 }  // namespace
 
 namespace screen_ai {
 
-ScreenAIServiceRouter::ScreenAIServiceRouter() = default;
+ScreenAIServiceRouter::ScreenAIServiceRouter()
+    : screen_ai_service_shutdown_handler_(this) {}
+
 ScreenAIServiceRouter::~ScreenAIServiceRouter() = default;
 
+// static
+// LINT.IfChange(SuggestedWaitTimeBeforeReAttempt)
+base::TimeDelta ScreenAIServiceRouter::SuggestedWaitTimeBeforeReAttempt(
+    uint32_t reattempt_number) {
+  return base::Minutes(reattempt_number * reattempt_number);
+}
+// LINT.ThenChange(//chrome/browser/ash/app_list/search/local_image_search/image_annotation_worker.cc:SuggestedWaitTimeBeforeReAttempt)
+
 std::optional<bool> ScreenAIServiceRouter::GetServiceState(Service service) {
+  if (GetAndRecordSuspendedState()) {
+    return false;
+  }
+
   switch (service) {
     case Service::kOCR:
       if (ocr_service_.is_bound()) {
@@ -149,7 +206,7 @@ void ScreenAIServiceRouter::GetServiceStateAsync(
   if (service_state) {
     // Either service is already initialized or disabled.
     std::move(callback).Run(*service_state);
-    RecordComponentAvailablity(true);
+    RecordComponentAvailability(true);
     return;
   }
 
@@ -184,8 +241,6 @@ ScreenAIServiceRouter::GetAllPendingStatusServices() {
 void ScreenAIServiceRouter::StateChanged(ScreenAIInstallState::State state) {
   switch (state) {
     case ScreenAIInstallState::State::kNotDownloaded:
-      ABSL_FALLTHROUGH_INTENDED;
-
     case ScreenAIInstallState::State::kDownloading:
       return;
 
@@ -194,7 +249,7 @@ void ScreenAIServiceRouter::StateChanged(ScreenAIInstallState::State state) {
       for (Service service : all_services) {
         CallPendingStatusRequests(service, false);
       }
-      RecordComponentAvailablity(false);
+      RecordComponentAvailability(false);
       break;
     }
 
@@ -203,13 +258,72 @@ void ScreenAIServiceRouter::StateChanged(ScreenAIInstallState::State state) {
       for (Service service : all_services) {
         InitializeServiceIfNeeded(service);
       }
-      RecordComponentAvailablity(true);
+      RecordComponentAvailability(true);
       break;
     }
   }
 
   // No need to observe after library is downloaded or download has failed.
   component_ready_observer_.Reset();
+}
+
+void ScreenAIServiceRouter::ShuttingDownOnIdle() {
+  shutdown_handler_data_.shutdown_message_received = true;
+}
+
+bool ScreenAIServiceRouter::GetAndRecordSuspendedState() {
+  base::UmaHistogramBoolean("Accessibility.ScreenAI.Service.IsSuspended",
+                            shutdown_handler_data_.suspended);
+  return shutdown_handler_data_.suspended;
+}
+
+void ScreenAIServiceRouter::OnScreenAIServiceDisconnected() {
+  screen_ai_service_factory_.reset();
+  std::set<Service> all_services = GetAllPendingStatusServices();
+  for (Service service : all_services) {
+    CallPendingStatusRequests(service, false);
+  }
+
+  screen_ai_service_shutdown_handler_.reset();
+  if (shutdown_handler_data_.shutdown_message_received) {
+    if (shutdown_handler_data_.crash_count) {
+      base::UmaHistogramCounts100(
+          "Accessibility.ScreenAI.Service.CrashCountBeforeResume",
+          shutdown_handler_data_.crash_count);
+    }
+    shutdown_handler_data_.crash_count = 0;
+    RecordMemoryMetrics(false);
+    return;
+  }
+
+  // Crashed!
+  shutdown_handler_data_.crash_count++;
+  shutdown_handler_data_.suspended = true;
+  base::TimeDelta suspense_time =
+      SuggestedWaitTimeBeforeReAttempt(shutdown_handler_data_.crash_count);
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&ScreenAIServiceRouter::ResetSuspend,
+                     weak_ptr_factory_.GetWeakPtr()),
+      suspense_time);
+  VLOG(0) << "Service suspended due to crash for: " << suspense_time;
+  RecordMemoryMetrics(true);
+}
+
+void ScreenAIServiceRouter::RecordMemoryMetrics(bool crashed) {
+  if (!ocr_initialized_) {
+    return;
+  }
+  std::string prefix = "Accessibility.ScreenAI.Service.MemoryBefore.";
+  prefix += crashed ? "Crash." : "Shutdown.";
+  if (memory_stats_before_launch_.pressure_available) {
+    base::UmaHistogramEnumeration(prefix + "Pressure",
+                                  memory_stats_before_launch_.pressure_level);
+  }
+  base::UmaHistogramCounts100000(prefix + "Total",
+                                 memory_stats_before_launch_.total_memory);
+  base::UmaHistogramCounts100000(prefix + "Available",
+                                 memory_stats_before_launch_.available_memory);
 }
 
 void ScreenAIServiceRouter::CallPendingStatusRequests(Service service,
@@ -236,15 +350,6 @@ void ScreenAIServiceRouter::BindScreenAIAnnotator(
   }
 }
 
-void ScreenAIServiceRouter::BindScreenAIAnnotatorClient(
-    mojo::PendingRemote<mojom::ScreenAIAnnotatorClient> remote) {
-  InitializeServiceIfNeeded(Service::kOCR);
-
-  if (ocr_service_.is_bound()) {
-    ocr_service_->BindAnnotatorClient(std::move(remote));
-  }
-}
-
 void ScreenAIServiceRouter::BindMainContentExtractor(
     mojo::PendingReceiver<mojom::Screen2xMainContentExtractor> receiver) {
   InitializeServiceIfNeeded(Service::kMainContentExtraction);
@@ -257,25 +362,45 @@ void ScreenAIServiceRouter::BindMainContentExtractor(
 
 void ScreenAIServiceRouter::LaunchIfNotRunning() {
   ScreenAIInstallState::GetInstance()->SetLastUsageTime();
-  auto* state_instance = ScreenAIInstallState::GetInstance();
-  screen_ai::ScreenAIInstallState::State install_state =
-      state_instance->get_state();
-
   if (screen_ai_service_factory_.is_bound()) {
     return;
   }
 
-  // TODO(crbug.com/41493789): Remove when Reading Mode does not enable OCR
-  // without checking component availability.
-  if (install_state != screen_ai::ScreenAIInstallState::State::kDownloaded) {
+  auto* state_instance = ScreenAIInstallState::GetInstance();
+
+  // To have a smooth user experience, the callers of the service should ensure
+  // that the component is downloaded before promising it to the users and
+  // triggering its launch.
+  // If it is not done, the calling feature will receive no reply when it tries
+  // to use this service. However, they can detect it by using an on-disconnect
+  // handler.
+  if (!state_instance->IsComponentAvailable()) {
+    VLOG(0) << "ScreenAI service launch triggered when component is not "
+               "available.";
+    state_instance->DownloadComponent();
     return;
   }
 
-  // Callers of the service should ensure that the component is downloaded
-  // before promising it to the users and triggering its launch.
-  CHECK(state_instance->IsComponentAvailable())
-      << "ScreenAI service launch triggered when component is not "
-         "available.";
+  if (GetAndRecordSuspendedState()) {
+    VLOG(0) << "ScreenAI service triggered while suspended.";
+    return;
+  }
+
+  // Keep memory stats for metrics after shutdown or crash.
+  memory_stats_before_launch_.total_memory =
+      base::SysInfo::AmountOfPhysicalMemoryMB();
+  memory_stats_before_launch_.available_memory = static_cast<int>(
+      base::SysInfo::AmountOfAvailablePhysicalMemory() / (1024 * 1024));
+
+  const auto* const memory_monitor = base::MemoryPressureMonitor::Get();
+  if (memory_monitor) {
+    memory_stats_before_launch_.pressure_available = true;
+    memory_stats_before_launch_.pressure_level =
+        memory_monitor->GetCurrentPressureLevel();
+  } else {
+    memory_stats_before_launch_.pressure_available = false;
+  }
+  ocr_initialized_ = false;
 
   base::FilePath binary_path = state_instance->get_component_binary_path();
 #if BUILDFLAG(IS_WIN)
@@ -298,6 +423,14 @@ void ScreenAIServiceRouter::LaunchIfNotRunning() {
           .WithExtraCommandLineSwitches(extra_switches)
 #endif  // BUILDFLAG(IS_WIN)
           .Pass());
+
+  shutdown_handler_data_.shutdown_message_received = false;
+  screen_ai_service_factory_->BindShutdownHandler(
+      screen_ai_service_shutdown_handler_.BindNewPipeAndPassRemote());
+
+  screen_ai_service_factory_.set_disconnect_handler(
+      base::BindOnce(&ScreenAIServiceRouter::OnScreenAIServiceDisconnected,
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
 void ScreenAIServiceRouter::InitializeServiceIfNeeded(Service service) {
@@ -308,11 +441,11 @@ void ScreenAIServiceRouter::InitializeServiceIfNeeded(Service service) {
     return;
   }
 
-  int request_id = CreateRequestIdAndSetTimeOut(service);
+  base::TimeTicks request_start_time = base::TimeTicks::Now();
   LaunchIfNotRunning();
 
   if (!screen_ai_service_factory_.is_bound()) {
-    SetLibraryLoadState(request_id, false);
+    SetLibraryLoadState(service, request_start_time, false);
     return;
   }
 
@@ -325,8 +458,9 @@ void ScreenAIServiceRouter::InitializeServiceIfNeeded(Service service) {
                          kMainContentExtractionFilesList),
           base::BindOnce(
               &ScreenAIServiceRouter::InitializeMainContentExtraction,
-              weak_ptr_factory_.GetWeakPtr(), request_id,
+              weak_ptr_factory_.GetWeakPtr(), request_start_time,
               main_content_extraction_service_.BindNewPipeAndPassReceiver()));
+      main_content_extraction_service_.reset_on_disconnect();
       break;
 
     case Service::kOCR:
@@ -335,18 +469,21 @@ void ScreenAIServiceRouter::InitializeServiceIfNeeded(Service service) {
           {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
           base::BindOnce(&ComponentFiles::Load, kOcrFilesList),
           base::BindOnce(&ScreenAIServiceRouter::InitializeOCR,
-                         weak_ptr_factory_.GetWeakPtr(), request_id,
+                         weak_ptr_factory_.GetWeakPtr(), request_start_time,
                          ocr_service_.BindNewPipeAndPassReceiver()));
+      ocr_service_.reset_on_disconnect();
       break;
   }
 }
 
 void ScreenAIServiceRouter::InitializeOCR(
-    int request_id,
+    base::TimeTicks request_start_time,
     mojo::PendingReceiver<mojom::OCRService> receiver,
     std::unique_ptr<ComponentFiles> component_files) {
-  if (component_files->model_files_.empty()) {
-    ScreenAIServiceRouter::SetLibraryLoadState(request_id, false);
+  if (component_files->model_files_.empty() ||
+      !screen_ai_service_factory_.is_bound()) {
+    ScreenAIServiceRouter::SetLibraryLoadState(Service::kOCR,
+                                               request_start_time, false);
     return;
   }
 
@@ -355,15 +492,19 @@ void ScreenAIServiceRouter::InitializeOCR(
       component_files->library_binary_path_,
       std::move(component_files->model_files_), std::move(receiver),
       base::BindOnce(&ScreenAIServiceRouter::SetLibraryLoadState,
-                     weak_ptr_factory_.GetWeakPtr(), request_id));
+                     weak_ptr_factory_.GetWeakPtr(), Service::kOCR,
+                     request_start_time));
+  ocr_initialized_ = true;
 }
 
 void ScreenAIServiceRouter::InitializeMainContentExtraction(
-    int request_id,
+    base::TimeTicks request_start_time,
     mojo::PendingReceiver<mojom::MainContentExtractionService> receiver,
     std::unique_ptr<ComponentFiles> component_files) {
-  if (component_files->model_files_.empty()) {
-    ScreenAIServiceRouter::SetLibraryLoadState(request_id, false);
+  if (component_files->model_files_.empty() ||
+      !screen_ai_service_factory_.is_bound()) {
+    ScreenAIServiceRouter::SetLibraryLoadState(Service::kMainContentExtraction,
+                                               request_start_time, false);
     return;
   }
 
@@ -372,38 +513,15 @@ void ScreenAIServiceRouter::InitializeMainContentExtraction(
       component_files->library_binary_path_,
       std::move(component_files->model_files_), std::move(receiver),
       base::BindOnce(&ScreenAIServiceRouter::SetLibraryLoadState,
-                     weak_ptr_factory_.GetWeakPtr(), request_id));
+                     weak_ptr_factory_.GetWeakPtr(),
+                     Service::kMainContentExtraction, request_start_time));
 }
 
-int ScreenAIServiceRouter::CreateRequestIdAndSetTimeOut(Service service) {
-  int request_id = ++last_request_id_;
-  pending_initialization_requests_[request_id] =
-      std::make_pair(service, base::TimeTicks::Now());
-
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE,
-      base::BindOnce(&ScreenAIServiceRouter::SetLibraryLoadState,
-                     weak_ptr_factory_.GetWeakPtr(), request_id,
-                     /*successful=*/false),
-      kInitializationTimeout);
-
-  return request_id;
-}
-
-void ScreenAIServiceRouter::SetLibraryLoadState(int request_id,
-                                                bool successful) {
-  // Verify that `request_id` is not handled before. This function can be called
-  // by the initialization callback or the timeout task.
-  auto request = pending_initialization_requests_.find(request_id);
-  if (request == pending_initialization_requests_.end()) {
-    return;
-  }
-
-  Service service = request->second.first;
-  base::TimeDelta elapsed_time =
-      base::TimeTicks::Now() - request->second.second;
-  pending_initialization_requests_.erase(request);
-
+void ScreenAIServiceRouter::SetLibraryLoadState(
+    Service service,
+    base::TimeTicks request_start_time,
+    bool successful) {
+  base::TimeDelta elapsed_time = base::TimeTicks::Now() - request_start_time;
   base::UmaHistogramBoolean("Accessibility.ScreenAI.Service.Initialization",
                             successful);
   base::UmaHistogramTimes(
@@ -412,6 +530,18 @@ void ScreenAIServiceRouter::SetLibraryLoadState(int request_id,
       elapsed_time);
 
   CallPendingStatusRequests(service, successful);
+
+  if (successful) {
+    return;
+  }
+  switch (service) {
+    case Service::kOCR:
+      ocr_service_.reset();
+      break;
+    case Service::kMainContentExtraction:
+      main_content_extraction_service_.reset();
+      break;
+  }
 }
 
 bool ScreenAIServiceRouter::IsConnectionBoundForTesting(Service service) {
@@ -421,6 +551,10 @@ bool ScreenAIServiceRouter::IsConnectionBoundForTesting(Service service) {
     case Service::kOCR:
       return ocr_service_.is_bound();
   }
+}
+
+bool ScreenAIServiceRouter::IsProcessRunningForTesting() {
+  return screen_ai_service_factory_.is_bound();
 }
 
 }  // namespace screen_ai

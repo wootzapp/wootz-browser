@@ -26,12 +26,12 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_PROGRAM_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_PROGRAM_H_
 
+#include "third_party/blink/renderer/modules/webgl/webgl_object.h"
 #include "third_party/blink/renderer/modules/webgl/webgl_shader.h"
-#include "third_party/blink/renderer/modules/webgl/webgl_shared_platform_3d_object.h"
 
 namespace blink {
 
-class WebGLProgram final : public WebGLSharedPlatform3DObject {
+class WebGLProgram final : public WebGLObject {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -76,8 +76,6 @@ class WebGLProgram final : public WebGLSharedPlatform3DObject {
   void DeleteObjectImpl(gpu::gles2::GLES2Interface*) override;
 
  private:
-  bool IsProgram() const override { return true; }
-
   void CacheInfoIfNeeded(WebGLRenderingContextBase*);
 
   GLint link_status_;

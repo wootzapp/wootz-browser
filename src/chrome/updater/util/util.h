@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <concepts>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -16,9 +17,11 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/ref_counted.h"
 #include "base/types/cxx23_to_underlying.h"
+#include "base/version.h"
 #include "build/build_config.h"
 #include "chrome/updater/tag.h"
 #include "chrome/updater/updater_scope.h"
+#include "chrome/updater/updater_version.h"
 
 class GURL;
 
@@ -26,12 +29,11 @@ namespace base {
 
 class CommandLine;
 class FilePath;
-class Version;
 
 // Enables insertion of optional `base` types. Must be in the `base` namespace
 // for insertion into gTest expectations to work.
 template <class T>
-inline std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
+inline std::ostream& operator<<(std::ostream& os, std::optional<T> opt) {
   if (!opt.has_value()) {
     return os << "std::nullopt";
   }
@@ -43,6 +45,16 @@ inline std::ostream& operator<<(std::ostream& os, const std::optional<T>& opt) {
 namespace updater {
 
 struct RegistrationRequest;
+
+// Converts an unsigned integral to a signed one. Returns -1 if the value is
+// out of the range of the target type.
+template <std::unsigned_integral T>
+[[nodiscard]] auto ToSignedIntegral(T value) {
+  using Result = std::make_signed_t<T>;
+  return value <= std::numeric_limits<Result>::max()
+             ? static_cast<Result>(value)
+             : -1;
+}
 
 // Inserts an enum value as the underlying type.
 template <typename T>
@@ -67,17 +79,9 @@ std::optional<base::FilePath> GetVersionedInstallDirectory(UpdaterScope scope);
 // Does not create the directory if it does not exist.
 std::optional<base::FilePath> GetInstallDirectory(UpdaterScope scope);
 
-// Returns the base path for discardable caches. Deleting a discardable cache
-// between runs of the updater may impair performance, cause a redownload, etc.,
-// but otherwise not interfere with overall updater function. Cache contents
-// should only be stored in subpaths under this path. Does not create the
-// directory if it does not exist.
-std::optional<base::FilePath> GetCacheBaseDirectory(UpdaterScope scope);
-
-// Returns the path where CRXes cached for delta updates should be stored,
-// common to all versions of the updater. Does not create the directory if it
-// does not exist.
-std::optional<base::FilePath> GetCrxDiffCacheDirectory(UpdaterScope scope);
+// Returns the path where cached CRX files should be stored, common to all
+// versions of the updater. Does not create the directory if it does not exist.
+std::optional<base::FilePath> GetCrxCacheDirectory(UpdaterScope scope);
 
 #if BUILDFLAG(IS_MAC)
 // For example: ~/Library/Google/GoogleUpdater/88.0.4293.0/GoogleUpdater.app
@@ -131,6 +135,8 @@ TagParsingResult GetTagArgs();
 
 std::optional<tagging::AppArgs> GetAppArgs(const std::string& app_id);
 
+std::string GetTagLanguage();
+
 std::string GetDecodedInstallDataFromAppArgs(const std::string& app_id);
 
 std::string GetInstallDataIndexFromAppArgs(const std::string& app_id);
@@ -141,7 +147,8 @@ std::optional<base::FilePath> GetLogFilePath(UpdaterScope scope);
 void InitLogging(UpdaterScope updater_scope);
 
 // Returns HTTP user-agent value.
-std::string GetUpdaterUserAgent();
+std::string GetUpdaterUserAgent(
+    const base::Version& updater_version = base::Version(kUpdaterVersion));
 
 // Returns a new GURL by appending the given query parameter name and the
 // value. Unsafe characters in the name and the value are escaped like
@@ -177,12 +184,16 @@ bool ConfirmFilePermissions(const base::FilePath& root_path,
 // Returns the versioned task name prefix in the following format:
 // "{ProductName}Task{System/User}{UpdaterVersion}".
 // For instance: "ChromiumUpdaterTaskSystem92.0.0.1".
-std::wstring GetTaskNamePrefix(UpdaterScope scope);
+std::wstring GetTaskNamePrefix(
+    UpdaterScope scope,
+    const base::Version& version = base::Version(kUpdaterVersion));
 
 // Returns the versioned task display name in the following format:
 // "{ProductName} Task {System/User} {UpdaterVersion}".
 // For instance: "ChromiumUpdater Task System 92.0.0.1".
-std::wstring GetTaskDisplayName(UpdaterScope scope);
+std::wstring GetTaskDisplayName(
+    UpdaterScope scope,
+    const base::Version& version = base::Version(kUpdaterVersion));
 
 // Parses the command line string in legacy format into `base::CommandLine`.
 // The string must be in format like:
@@ -223,7 +234,7 @@ bool MigrateLegacyUpdaters(
         register_callback);
 
 // Delete everything other than `except` under `except.DirName()`.
-[[nodiscard]] bool DeleteExcept(const std::optional<base::FilePath>& except);
+[[nodiscard]] bool DeleteExcept(std::optional<base::FilePath> except);
 
 // Returns the quotient of dividing two integer numbers (m/n) rounded up.
 template <typename T>
@@ -236,6 +247,11 @@ template <typename T>
 // be computed.
 [[nodiscard]] int GetDownloadProgress(int64_t downloaded_bytes,
                                       int64_t total_bytes);
+
+// Returns the absolute path to the enterprise companion app executable bundled
+// with the updater.
+[[nodiscard]] std::optional<base::FilePath>
+GetBundledEnterpriseCompanionExecutablePath(UpdaterScope scope);
 
 }  // namespace updater
 

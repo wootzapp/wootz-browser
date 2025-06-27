@@ -15,7 +15,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/address_family.h"
 #include "net/base/address_list.h"
 #include "net/base/host_port_pair.h"
@@ -59,7 +58,7 @@ std::unique_ptr<HttpAuthMechanism> CreateAuthSystem(
   if (negotiate_auth_system_factory)
     return negotiate_auth_system_factory.Run(prefs);
 #if BUILDFLAG(IS_ANDROID)
-  return std::make_unique<net::android::HttpAuthNegotiateAndroid>(prefs);
+  return std::make_unique<android::HttpAuthNegotiateAndroid>(prefs);
 #elif BUILDFLAG(IS_WIN)
   return std::make_unique<HttpAuthSSPI>(auth_library,
                                         HttpAuth::AUTH_SCHEME_NEGOTIATE);
@@ -335,9 +334,7 @@ int HttpAuthHandlerNegotiate::DoLoop(int result) {
         rv = DoGenerateAuthTokenComplete(rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state";
-        rv = ERR_FAILED;
-        break;
+        NOTREACHED() << "bad state";
     }
   } while (rv != ERR_IO_PENDING && next_state_ != STATE_NONE);
 

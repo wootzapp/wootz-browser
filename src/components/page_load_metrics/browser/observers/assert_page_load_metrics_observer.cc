@@ -84,6 +84,15 @@ AssertPageLoadMetricsObserver::OnPreviewStart(
 }
 
 PageLoadMetricsObserver::ObservePolicy
+AssertPageLoadMetricsObserver::OnNavigationHandleTimingUpdated(
+    content::NavigationHandle* navigation_handle) {
+  CHECK(started_);
+  CHECK(!committed_);
+
+  return CONTINUE_OBSERVING;
+}
+
+PageLoadMetricsObserver::ObservePolicy
 AssertPageLoadMetricsObserver::OnRedirect(
     content::NavigationHandle* navigation_handle) {
   CHECK(started_);
@@ -278,6 +287,15 @@ void AssertPageLoadMetricsObserver::OnParseStop(
   CHECK(timing.parse_timing->parse_stop.has_value());
 }
 
+void AssertPageLoadMetricsObserver::OnConnectStart(
+    const page_load_metrics::mojom::PageLoadTiming& timing) {}
+void AssertPageLoadMetricsObserver::OnConnectEnd(
+    const page_load_metrics::mojom::PageLoadTiming& timing) {}
+void AssertPageLoadMetricsObserver::OnDomainLookupStart(
+    const page_load_metrics::mojom::PageLoadTiming& timing) {}
+void AssertPageLoadMetricsObserver::OnDomainLookupEnd(
+    const page_load_metrics::mojom::PageLoadTiming& timing) {}
+
 void AssertPageLoadMetricsObserver::OnDomContentLoadedEventStart(
     const page_load_metrics::mojom::PageLoadTiming& timing) {
   CHECK(started_);
@@ -393,7 +411,8 @@ void AssertPageLoadMetricsObserver::OnRenderFrameDeleted(
   CHECK(started_);
 }
 
-void AssertPageLoadMetricsObserver::OnSubFrameDeleted(int frame_tree_node_id) {
+void AssertPageLoadMetricsObserver::OnSubFrameDeleted(
+    content::FrameTreeNodeId frame_tree_node_id) {
   CHECK(started_);
 }
 

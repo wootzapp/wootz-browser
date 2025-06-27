@@ -2,13 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "android_webview/browser/lifecycle/aw_contents_lifecycle_notifier.h"
 
 #include <utility>
 
-#include "android_webview/browser_jni_headers/AwContentsLifecycleNotifier_jni.h"
 #include "base/containers/contains.h"
+#include "base/not_fatal_until.h"
 #include "content/public/browser/browser_thread.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/browser_jni_headers/AwContentsLifecycleNotifier_jni.h"
 
 using base::android::AttachCurrentThread;
 using content::BrowserThread;
@@ -85,7 +93,7 @@ void AwContentsLifecycleNotifier::OnWebViewDestroyed(
     const AwContents* aw_contents) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const auto it = aw_contents_to_data_.find(aw_contents);
-  DCHECK(it != aw_contents_to_data_.end());
+  CHECK(it != aw_contents_to_data_.end(), base::NotFatalUntil::M130);
 
   state_count_[ToIndex(it->second.aw_content_state)]--;
   DCHECK(state_count_[ToIndex(it->second.aw_content_state)] >= 0);

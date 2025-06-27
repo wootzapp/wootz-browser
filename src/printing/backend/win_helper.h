@@ -17,6 +17,7 @@
 #include <xpsprint.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/component_export.h"
@@ -160,7 +161,13 @@ void SetGetDisplayNameFunction(
     std::string (*get_display_name_func)(const std::string& printer_name));
 
 COMPONENT_EXPORT(PRINT_BACKEND)
-bool InitBasicPrinterInfo(HANDLE printer, PrinterBasicInfo* printer_info);
+std::optional<PrinterBasicInfo> GetBasicPrinterInfo(HANDLE printer);
+
+// Helper to read printer info using both Print Spooler API and the registry.
+// Possibly called by `GetBasicPrinterInfo()`.  Exported to support testing.
+COMPONENT_EXPORT(PRINT_BACKEND)
+std::optional<PrinterBasicInfo> GetBasicPrinterInfoMixedMethodForTesting(
+    HANDLE printer);
 
 COMPONENT_EXPORT(PRINT_BACKEND)
 std::vector<std::string> GetDriverInfo(HANDLE printer);

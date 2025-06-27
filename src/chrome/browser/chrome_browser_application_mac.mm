@@ -23,7 +23,9 @@
 #include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/native_event_processor_mac.h"
 #include "content/public/browser/native_event_processor_observer_mac.h"
+#include "content/public/browser/scoped_accessibility_mode.h"
 #include "content/public/common/content_features.h"
+#include "ui/accessibility/ax_mode.h"
 #include "ui/base/cocoa/accessibility_focus_overrider.h"
 
 namespace chrome_browser_application_mac {
@@ -49,16 +51,6 @@ void Terminate() {
 
 void CancelTerminate() {
   [NSApp cancelTerminate:nil];
-}
-
-// A convenience function that activates `mode` if not already active in
-// `state`.
-void AddAccessibilityModeFlagsIfAbsent(
-    content::BrowserAccessibilityState* state,
-    ui::AXMode mode) {
-  if (!state->GetAccessibilityMode().has_mode(mode.flags())) {
-    state->AddAccessibilityModeFlags(mode);
-  }
 }
 
 }  // namespace chrome_browser_application_mac
@@ -145,15 +137,27 @@ std::string DescriptionForNSEvent(NSEvent* event) {
   base::ObserverList<content::NativeEventProcessorObserver>::Unchecked
       _observers;
   BOOL _handlingSendEvent;
+  std::unique_ptr<content::ScopedAccessibilityMode>
+      _scoped_accessibility_mode_voiceover;
+  std::unique_ptr<content::ScopedAccessibilityMode>
+      _scoped_accessibility_mode_general;
 }
 
 + (void)initialize {
   if (self != [BrowserCrApplication class]) {
     return;
   }
-  chrome::InstallObjcExceptionPreprocessor();
+  InstallObjcExceptionPreprocessor();
 
   cocoa_l10n_util::ApplyForcedRTL();
+}
+
+- (void)orderFrontCharacterPalette:sender {
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:@"ChromeWillOrderFrontCharacterPalette"
+                    object:nil];
+
+  [super orderFrontCharacterPalette:sender];
 }
 
 // Initialize NSApplication using the custom subclass.  Check whether NSApp
@@ -200,8 +204,7 @@ std::string DescriptionForNSEvent(NSEvent* event) {
   // BrowserAccessibilityStateImplMac. The context is the browser's
   // global accessibility object, which we must check to ensure we're acting
   // on a notification we set up (vs. NSApplication, say).
-  if (_sonomaAccessibilityRefinementsAreActive &&
-      [keyPath isEqualToString:@"voiceOverEnabled"] &&
+  if ([keyPath isEqualToString:@"voiceOverEnabled"] &&
       context == content::BrowserAccessibilityState::GetInstance()) {
     NSNumber* newValueNumber = [change objectForKey:NSKeyValueChangeNewKey];
 
@@ -212,6 +215,9 @@ std::string DescriptionForNSEvent(NSEvent* event) {
 
     if ([newValueNumber isKindOfClass:[NSNumber class]]) {
       [self voiceOverStateChanged:[newValueNumber boolValue]];
+      content::BrowserAccessibilityState* browser_ax_state =
+          content::BrowserAccessibilityState::GetInstance();
+      browser_ax_state->SetScreenReaderAppActive([newValueNumber boolValue]);
     }
 
     return;
@@ -221,6 +227,34 @@ std::string DescriptionForNSEvent(NSEvent* event) {
                        ofObject:object
                          change:change
                         context:context];
+}
+
+// AppKit menu customization overriding
+
+- (void)_customizeFileMenuIfNeeded {
+  // Whenever the main menu is set or modified, AppKit modifies it before using
+  // it. AppKit calls -[NSApplication _customizeMainMenu], which calls out to a
+  // number of customization methods, including -[NSApplication
+  // _customizeFileMenuIfNeeded].
+  //
+  // -_customizeFileMenuIfNeeded does three things:
+  //   1. it adds the "Close All" menu item as an alternate for "Close Window",
+  //   2. for new-style document apps, it turns "Save" and "Save As..." into
+  //      "Save..." and "Duplicate" respectively,
+  //   3. depending on the "Close windows when quitting an application" system
+  //      setting, it adds either "Quit and Keep Windows" or "Quit and Close All
+  //      Windows" as an alternate for "Quit Chromium".
+  //
+  // While #1 is a nice-to-have, and #2 is irrelevant because Chromium isn't a
+  // new-style document app, #3 is a problem. Chromium has its own session
+  // management, and the menu item alternates that AppKit adds are making
+  // promises that Chromium can't fulfill.
+  //
+  // Therefore, override this method to prevent AppKit from doing these menu
+  // shenanigans. For #1, "Close All" is explicitly added to the File menu in
+  // main_menu_builder.mm, and there is nothing lost by preventing the other
+  // two.
+  return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,13 +452,15 @@ std::string DescriptionForNSEvent(NSEvent* event) {
 // Accessibility Support
 
 - (void)enableScreenReaderCompleteMode:(BOOL)enable {
-  content::BrowserAccessibilityState* accessibility_state =
-      content::BrowserAccessibilityState::GetInstance();
-
   if (enable) {
-    accessibility_state->OnScreenReaderDetected();
+    if (!_scoped_accessibility_mode_voiceover) {
+      _scoped_accessibility_mode_voiceover =
+          content::BrowserAccessibilityState::GetInstance()
+              ->CreateScopedModeForProcess(ui::kAXModeComplete |
+                                           ui::AXMode::kFromPlatform);
+    }
   } else {
-    accessibility_state->OnScreenReaderStopped();
+    _scoped_accessibility_mode_voiceover.reset();
   }
 }
 
@@ -496,22 +532,10 @@ std::string DescriptionForNSEvent(NSEvent* event) {
 
 - (void)accessibilitySetValue:(id)value forAttribute:(NSString*)attribute {
   // This is an undocumented attribute that's set when VoiceOver is turned
-  // on/off.
+  // on/off. We track VoiceOver state changes using KVO, but monitor this
+  // attribute in case other ATs use it to request accessibility activation.
   if ([attribute isEqualToString:@"AXEnhancedUserInterface"]) {
-    if (_sonomaAccessibilityRefinementsAreActive) {
-      // We no longer rely on this signal for VoiceOver state changes, but we
-      // pay attention to it in case other applications use it to request
-      // accessibility activation.
-      [self enableScreenReaderCompleteModeAfterDelay:[value boolValue]];
-    } else {
-      content::BrowserAccessibilityState* accessibility_state =
-          content::BrowserAccessibilityState::GetInstance();
-      if ([value boolValue]) {
-        accessibility_state->OnScreenReaderDetected();
-      } else {
-        accessibility_state->OnScreenReaderStopped();
-      }
-    }
+    [self enableScreenReaderCompleteModeAfterDelay:[value boolValue]];
   }
   return [super accessibilitySetValue:value forAttribute:attribute];
 }
@@ -527,19 +551,15 @@ std::string DescriptionForNSEvent(NSEvent* event) {
   // recommends turning on a11y when an AT accesses the 'accessibilityRole'
   // property. This function is accessed frequently, so we only change the
   // accessibility state when accessibility is already disabled.
-  content::BrowserAccessibilityState* accessibility_state =
-      content::BrowserAccessibilityState::GetInstance();
-
-  if (_sonomaAccessibilityRefinementsAreActive) {
-    if (!_voiceOverEnabled) {
-      chrome_browser_application_mac::AddAccessibilityModeFlagsIfAbsent(
-          accessibility_state, ui::AXMode::kNativeAPIs);
-    }
-  } else {
-    if (!accessibility_state->GetAccessibilityMode().has_mode(
-            ui::kAXModeBasic.flags())) {
-      accessibility_state->AddAccessibilityModeFlags(ui::kAXModeBasic);
-    }
+  if (!_scoped_accessibility_mode_general &&
+      !_scoped_accessibility_mode_voiceover) {
+    ui::AXMode target_mode = _sonomaAccessibilityRefinementsAreActive
+                                 ? ui::AXMode::kNativeAPIs
+                                 : ui::kAXModeBasic;
+    _scoped_accessibility_mode_general =
+        content::BrowserAccessibilityState::GetInstance()
+            ->CreateScopedModeForProcess(target_mode |
+                                         ui::AXMode::kFromPlatform);
   }
 
   return [super accessibilityRole];

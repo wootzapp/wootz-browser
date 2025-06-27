@@ -10,15 +10,6 @@
 #include <tuple>
 #include <utility>
 
-#include "ash/components/arc/app/arc_app_launch_notifier.h"
-#include "ash/components/arc/arc_features.h"
-#include "ash/components/arc/arc_prefs.h"
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/metrics/arc_metrics_constants.h"
-#include "ash/components/arc/metrics/arc_metrics_service.h"
-#include "ash/components/arc/mojom/intent_helper.mojom.h"
-#include "ash/components/arc/session/arc_bridge_service.h"
-#include "ash/components/arc/session/arc_service_manager.h"
 #include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/json/json_writer.h"
@@ -27,7 +18,6 @@
 #include "base/observer_list.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/values.h"
 #include "chrome/browser/apps/app_service/intent_util.h"
 #include "chrome/browser/ash/app_list/app_list_client_impl.h"
@@ -51,9 +41,18 @@
 #include "chrome/browser/ui/ash/shelf/arc_shelf_spinner_item_controller.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "chrome/browser/ui/ash/shelf/shelf_spinner_controller.h"
+#include "chromeos/ash/experiences/arc/app/arc_app_launch_notifier.h"
+#include "chromeos/ash/experiences/arc/arc_features.h"
+#include "chromeos/ash/experiences/arc/arc_prefs.h"
+#include "chromeos/ash/experiences/arc/arc_util.h"
+#include "chromeos/ash/experiences/arc/intent_helper/arc_intent_helper_package.h"
+#include "chromeos/ash/experiences/arc/metrics/arc_metrics_constants.h"
+#include "chromeos/ash/experiences/arc/metrics/arc_metrics_service.h"
+#include "chromeos/ash/experiences/arc/mojom/intent_helper.mojom.h"
+#include "chromeos/ash/experiences/arc/session/arc_bridge_service.h"
+#include "chromeos/ash/experiences/arc/session/arc_service_manager.h"
 #include "components/app_restore/app_restore_utils.h"
 #include "components/app_restore/features.h"
-#include "components/arc/common/intent_helper/arc_intent_helper_package.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/services/app_service/public/cpp/intent_util.h"
@@ -217,10 +216,6 @@ std::string ConstructArcAppShortcutUrl(const std::string& app_id,
   return "appshortcutsearch://" + app_id + "/" + shortcut_id;
 }
 
-bool IsInstantResponseOpenEnabled() {
-  return base::FeatureList::IsEnabled(arc::kInstantResponseWindowOpen);
-}
-
 bool IsArcVmAndSwappedOut(content::BrowserContext* context) {
   return IsArcVmEnabled() &&
          base::FeatureList::IsEnabled(arc::kVmmSwapoutGhostWindow) &&
@@ -228,31 +223,6 @@ bool IsArcVmAndSwappedOut(content::BrowserContext* context) {
 }
 
 }  // namespace
-
-// Package names, kept in sorted order.
-const char kPlayStoreActivity[] = "com.android.vending.AssetBrowserActivity";
-const char kPlayStorePackage[] = "com.android.vending";
-
-// App IDs, kept in sorted order.
-const char kAndroidContactsAppId[] = "kipfkokfekalckplgaikemhghlbkgpfl";
-const char kGmailAppId[] = "hhkfkjpmacfncmbapfohfocpjpdnobjg";
-const char kGoogleCalendarAppId[] = "decaoeahkmjpajbmlbpogjjkjbjokeed";
-const char kGoogleDuoAppId[] = "djkcbcmkefiiphjkonbeknmcgiheajce";
-const char kGoogleMapsAppId[] = "gmhipfhgnoelkiiofcnimehjnpaejiel";
-const char kGooglePhotosAppId[] = "fdbkkojdbojonckghlanfaopfakedeca";
-const char kGoogleTVAppId[] = "kadljooblnjdohjelobhphgeimdbcpbo";
-const char kInfinitePainterAppId[] = "afihfgfghkmdmggakhkgnfhlikhdpima";
-const char kLightRoomAppId[] = "fpegfnbgomakooccabncdaelhfppceni";
-const char kPackageInstallerAppId[] = "jegcgkleafemmaabigncnldhlhnddfkf";
-const char kPlayBooksAppId[] = "cafegjnmmjpfibnlddppihpnkbkgicbg";
-const char kPlayGamesAppId[] = "nplnnjkbeijcggmpdcecpabgbjgeiedc";
-const char kPlayMoviesAppId[] = "dbbihmicnlldbflflckpafphlekmjfnm";
-const char kPlayMusicAppId[] = "ophbaopahelaolbjliokocojjbgfadfn";
-const char kPlayStoreAppId[] = "cnbgggchhmkkdmeppjobngjoejnihlei";
-const char kSettingsAppId[] = "mconboelelhjpkbdhhiijkgcimoangdj";
-const char kYoutubeAppId[] = "aniolghapcdkoolpkffememnhpphmjkl";
-const char kYoutubeMusicAppId[] = "hpdkdmlckojaocbedhffglopeafcgggc";
-const char kYoutubeMusicWebApkAppId[] = "jcmmigapnpnikbmnjknhcoageaeinihi";
 
 bool ShouldShowInLauncher(const std::string& app_id) {
   for (auto* const id : kAppIdsHiddenInLauncher) {
@@ -454,17 +424,6 @@ bool LaunchAppWithIntent(content::BrowserContext* context,
     launch_intent_to_send->extras[kRequestStartTimeParamKey] =
         base::NumberToString(
             (base::TimeTicks::Now() - base::TimeTicks()).InMilliseconds());
-  } else if (IsInstantResponseOpenEnabled() &&
-             !WindowPredictor::GetInstance()->IsAppPendingLaunch(profile,
-                                                                 app_id)) {
-    // For some devices, launch ghost window and app at the same time.
-    if (WindowPredictor::GetInstance()->LaunchArcAppWithGhostWindow(
-            profile, app_id, *app_info, launch_intent_to_send, event_flags,
-            GhostWindowType::kAppLaunch,
-            WindowPredictorUseCase::kInstanceResponse, window_info)) {
-      return true;
-    }
-    VLOG(2) << "Failed to launch ghost window, fallback to launch directly.";
   }
 
   arc::ArcBootPhaseMonitorBridge::RecordFirstAppLaunchDelayUMA(context);

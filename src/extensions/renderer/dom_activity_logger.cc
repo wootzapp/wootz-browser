@@ -48,7 +48,9 @@ void AppendV8Value(v8::Isolate* isolate,
 }  // namespace
 
 DOMActivityLogger::DOMActivityLogger(const ExtensionId& extension_id)
-    : extension_id_(extension_id) {}
+    : extension_id_(extension_id) {
+  DCHECK(!extension_id_.empty());
+}
 
 DOMActivityLogger::~DOMActivityLogger() = default;
 
@@ -99,8 +101,7 @@ void DOMActivityLogger::LogSetter(v8::Isolate* isolate,
 void DOMActivityLogger::LogMethod(v8::Isolate* isolate,
                                   v8::Local<v8::Context> context,
                                   const WebString& api_name,
-                                  int argc,
-                                  const v8::Local<v8::Value>* argv,
+                                  base::span<const v8::Local<v8::Value>> argv,
                                   const WebURL& url,
                                   const WebString& title) {
   auto* renderer_host = GetRendererHost(context);
@@ -109,8 +110,9 @@ void DOMActivityLogger::LogMethod(v8::Isolate* isolate,
   }
   base::Value::List args;
   std::string api_name_utf8 = api_name.Utf8();
-  for (int i = 0; i < argc; ++i)
-    AppendV8Value(isolate, api_name_utf8, argv[i], args);
+  for (const auto& arg : argv) {
+    AppendV8Value(isolate, api_name_utf8, arg, args);
+  }
   renderer_host->AddDOMActionToActivityLog(extension_id_, api_name_utf8,
                                            std::move(args), url, title.Utf16(),
                                            DomActionType::METHOD);
@@ -118,14 +120,14 @@ void DOMActivityLogger::LogMethod(v8::Isolate* isolate,
 
 void DOMActivityLogger::LogEvent(blink::WebLocalFrame& frame,
                                  const WebString& event_name,
-                                 int argc,
-                                 const WebString* argv,
+                                 base::span<const WebString> argv,
                                  const WebURL& url,
                                  const WebString& title) {
   base::Value::List args;
   std::string event_name_utf8 = event_name.Utf8();
-  for (int i = 0; i < argc; ++i)
-    args.Append(argv[i].Utf8());
+  for (const auto& arg : argv) {
+    args.Append(arg.Utf8());
+  }
   ExtensionFrameHelper::Get(content::RenderFrame::FromWebFrame(&frame))
       ->GetRendererHost()
       ->AddDOMActionToActivityLog(extension_id_, event_name_utf8,

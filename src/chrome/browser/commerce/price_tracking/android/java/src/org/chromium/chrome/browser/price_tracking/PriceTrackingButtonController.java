@@ -10,6 +10,7 @@ import android.view.View;
 
 import androidx.appcompat.content.res.AppCompatResources;
 
+import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
@@ -18,11 +19,11 @@ import org.chromium.chrome.browser.bookmarks.PowerBookmarkUtils;
 import org.chromium.chrome.browser.bookmarks.TabBookmarker;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.toolbar.BaseButtonDataProvider;
-import org.chromium.chrome.browser.toolbar.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
+import org.chromium.chrome.browser.toolbar.optional_button.BaseButtonDataProvider;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
-import org.chromium.chrome.browser.user_education.IPHCommandBuilder;
+import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
@@ -45,6 +46,7 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
     private final ObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
     private final ObservableSupplier<Profile> mProfileSupplier;
     private final BottomSheetObserver mBottomSheetObserver;
+    private final Callback<Boolean> mPriceTrackingStateChangedCallback = this::updateButtonIcon;
     private final ButtonSpec mFilledButtonSpec;
     private final ButtonSpec mEmptyButtonSpec;
     private boolean mIsCurrentTabPriceTracked;
@@ -70,7 +72,7 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                 /* iphCommandBuilder= */ null,
                 AdaptiveToolbarButtonVariant.PRICE_TRACKING,
                 /* tooltipTextResId= */ Resources.ID_NULL,
-                /* showHoverHighlight= */ false);
+                /* showBackgroundHighlight= */ false);
         mSnackbarManager = snackbarManager;
         mTabBookmarkerSupplier = tabBookmarkerSupplier;
         mBottomSheetController = bottomSheetController;
@@ -85,8 +87,8 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                 new ButtonSpec(
                         /* drawable= */ AppCompatResources.getDrawable(
                                 context, R.drawable.price_tracking_enabled_filled),
-                        /* clickListener= */ this,
-                        /* longClickListener= */ null,
+                        /* onClickListener= */ this,
+                        /* onLongClickListener= */ null,
                         /* contentDescription= */ context.getString(
                                 R.string.disable_price_tracking_menu_item),
                         /* supportsTinting= */ true,
@@ -94,7 +96,8 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                         /* buttonVariant= */ AdaptiveToolbarButtonVariant.PRICE_TRACKING,
                         /* actionChipLabelResId= */ Resources.ID_NULL,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ false);
 
         mBottomSheetObserver =
                 new EmptyBottomSheetObserver() {
@@ -106,7 +109,7 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                 };
         mBottomSheetController.addObserver(mBottomSheetObserver);
 
-        mPriceTrackingCurrentTabStateSupplier.addObserver(this::updateButtonIcon);
+        mPriceTrackingCurrentTabStateSupplier.addObserver(mPriceTrackingStateChangedCallback);
     }
 
     private void updateButtonIcon(boolean isCurrentTabPriceTracked) {
@@ -124,29 +127,31 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
         super.destroy();
 
         mBottomSheetController.removeObserver(mBottomSheetObserver);
-        mPriceTrackingCurrentTabStateSupplier.removeObserver(this::updateButtonIcon);
+        mPriceTrackingCurrentTabStateSupplier.removeObserver(mPriceTrackingStateChangedCallback);
     }
 
     @Override
     public void onClick(View view) {
         if (mIsCurrentTabPriceTracked) {
+            Profile profile = mProfileSupplier.get();
             PowerBookmarkUtils.setPriceTrackingEnabledWithSnackbars(
                     mBookmarkModelSupplier.get(),
                     mBookmarkModelSupplier.get().getUserBookmarkIdForTab(mActiveTabSupplier.get()),
                     /* enabled= */ false,
                     mSnackbarManager,
                     view.getResources(),
-                    mProfileSupplier.get(),
-                    (success) -> {});
+                    profile,
+                    (success) -> {},
+                    PriceDropNotificationManagerFactory.create(profile));
         } else {
             mTabBookmarkerSupplier.get().startOrModifyPriceTracking(mActiveTabSupplier.get());
         }
     }
 
     @Override
-    protected IPHCommandBuilder getIphCommandBuilder(Tab tab) {
-        IPHCommandBuilder iphCommandBuilder =
-                new IPHCommandBuilder(
+    protected IphCommandBuilder getIphCommandBuilder(Tab tab) {
+        IphCommandBuilder iphCommandBuilder =
+                new IphCommandBuilder(
                         tab.getContext().getResources(),
                         FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_QUIET_VARIANT,
                         /* stringId= */ R.string.iph_price_tracking_menu_item,

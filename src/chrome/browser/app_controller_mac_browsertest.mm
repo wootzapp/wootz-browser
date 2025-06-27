@@ -30,7 +30,10 @@
 #include "base/threading/thread_restrictions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/apps/platform_apps/app_browsertest_util.h"
+#include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
+#include "chrome/browser/bookmarks/bookmark_merged_surface_service_factory.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/bookmarks/bookmark_test_helpers.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/first_run/first_run.h"
@@ -65,7 +68,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_constants.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -74,7 +76,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/account_id/account_id.h"
 #include "components/bookmarks/browser/bookmark_model.h"
-#include "components/bookmarks/test/bookmark_test_helpers.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/signin_switches.h"
@@ -316,7 +317,7 @@ class AppControllerWebAppBrowserTest : public InProcessBrowserTest {
   }
 
   std::string GetAppURL() const {
-    return "http://example.com/";
+    return "https://example.com/";
   }
 
   raw_ptr<const BrowserList> active_browser_list_;
@@ -943,14 +944,7 @@ IN_PROC_BROWSER_TEST_F(AppControllerBrowserTest,
                         ->GetLastCommittedURL());
 }
 
-class AppControllerShortcutsNotAppsBrowserTest : public InProcessBrowserTest {
- protected:
-  AppControllerShortcutsNotAppsBrowserTest() {
-    features_.InitAndEnableFeature(features::kShortcutsNotApps);
-  }
-
-  base::test::ScopedFeatureList features_;
-};
+using AppControllerShortcutsNotAppsBrowserTest = InProcessBrowserTest;
 
 IN_PROC_BROWSER_TEST_F(AppControllerShortcutsNotAppsBrowserTest,
                        OpenChromeWeblocFile) {
@@ -1034,6 +1028,51 @@ IN_PROC_BROWSER_TEST_F(AppControllerShortcutsNotAppsBrowserTest,
                         ->GetActiveWebContents()
                         ->GetLastCommittedURL());
 
+  {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    EXPECT_TRUE(temp_dir.Delete());
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(AppControllerShortcutsNotAppsBrowserTest,
+                       LockedProfileOpensProfilePicker) {
+  // Flag the profile picker as already shown in the past, to avoid additional
+  // feature onboarding logic.
+  g_browser_process->local_state()->SetBoolean(
+      prefs::kBrowserProfilePickerShown, true);
+  signin_util::ScopedForceSigninSetterForTesting signin_setter(true);
+  // The User Manager uses the system profile as its underlying profile. To
+  // minimize flakiness due to the scheduling/descheduling of tasks on the
+  // different threads, pre-initialize the guest profile before it is needed.
+  CreateAndWaitForSystemProfile();
+  AppController* app_controller = AppController.sharedController;
+  // Lock the active profile.
+  Profile* profile = [app_controller lastProfileIfLoaded];
+  ProfileAttributesEntry* entry =
+      g_browser_process->profile_manager()
+          ->GetProfileAttributesStorage()
+          .GetProfileAttributesWithPath(profile->GetPath());
+  ASSERT_NE(entry, nullptr);
+  entry->LockForceSigninProfile(true);
+  EXPECT_TRUE(entry->IsSigninRequired());
+  // Create and open a .crwebloc file
+  GURL simple("https://simple.invalid/");
+  base::ScopedTempDir temp_dir;
+  base::FilePath crwebloc_file;
+  {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+    crwebloc_file = temp_dir.GetPath().AppendASCII("test shortcut.crwebloc");
+    ASSERT_TRUE(shortcuts::ChromeWeblocFile(
+                    simple, *base::SafeBaseName::Create(profile->GetPath()))
+                    .SaveToFile(crwebloc_file));
+  }
+  SendOpenUrlToAppController(net::FilePathToFileURL(crwebloc_file));
+  auto* active_browser_list = BrowserList::GetInstance();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(1u, active_browser_list->size());
+  EXPECT_TRUE(ProfilePicker::IsOpen());
+  ProfilePicker::Hide();
   {
     base::ScopedAllowBlockingForTesting allow_blocking;
     EXPECT_TRUE(temp_dir.Delete());
@@ -1154,24 +1193,24 @@ IN_PROC_BROWSER_TEST_F(AppControllerMainMenuBrowserTest,
 
   // Use the existing profile as profile 1.
   Profile* profile1 = browser()->profile();
-  bookmarks::test::WaitForBookmarkModelToLoad(
-      BookmarkModelFactory::GetForBrowserContext(profile1));
+  WaitForBookmarkMergedSurfaceServiceToLoad(
+      BookmarkMergedSurfaceServiceFactory::GetForProfile(profile1));
 
   // Create profile 2.
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::FilePath path2 = profile_manager->GenerateNextProfileDirectoryPath();
   std::unique_ptr<Profile> profile2 =
-      Profile::CreateProfile(path2, nullptr, Profile::CREATE_MODE_SYNCHRONOUS);
+      Profile::CreateProfile(path2, nullptr, Profile::CreateMode::kSynchronous);
   Profile* profile2_ptr = profile2.get();
   profile_manager->RegisterTestingProfile(std::move(profile2), false);
-  bookmarks::test::WaitForBookmarkModelToLoad(
-      BookmarkModelFactory::GetForBrowserContext(profile2_ptr));
+  WaitForBookmarkMergedSurfaceServiceToLoad(
+      BookmarkMergedSurfaceServiceFactory::GetForProfile(profile2_ptr));
 
   // Switch to profile 1, create bookmark 1 and force the menu to build.
   [app_controller setLastProfile:profile1];
-  [app_controller bookmarkMenuBridge]->GetBookmarkModel()
-      -> AddURL([app_controller bookmarkMenuBridge]->GetBookmarkModel()
-                    -> bookmark_bar_node(),
+  [app_controller bookmarkMenuBridge]->GetBookmarkModelForTesting()
+      -> AddURL([app_controller bookmarkMenuBridge]
+                    ->GetBookmarkModelForTesting() -> bookmark_bar_node(),
                 0, title1, url1);
   NSMenu* profile1_submenu =
       [app_controller bookmarkMenuBridge]->BookmarkMenu();
@@ -1179,9 +1218,9 @@ IN_PROC_BROWSER_TEST_F(AppControllerMainMenuBrowserTest,
 
   // Switch to profile 2, create bookmark 2 and force the menu to build.
   [app_controller setLastProfile:profile2_ptr];
-  [app_controller bookmarkMenuBridge]->GetBookmarkModel()
-      -> AddURL([app_controller bookmarkMenuBridge]->GetBookmarkModel()
-                    -> bookmark_bar_node(),
+  [app_controller bookmarkMenuBridge]->GetBookmarkModelForTesting()
+      -> AddURL([app_controller bookmarkMenuBridge]
+                    ->GetBookmarkModelForTesting() -> bookmark_bar_node(),
                 0, title2, url2);
   NSMenu* profile2_submenu =
       [app_controller bookmarkMenuBridge]->BookmarkMenu();

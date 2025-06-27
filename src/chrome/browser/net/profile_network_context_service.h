@@ -9,12 +9,15 @@
 #include <string>
 #include <utility>
 
+#include "base/callback_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/threading/sequence_bound.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -27,10 +30,15 @@
 #include "components/prefs/pref_member.h"
 #include "content/public/browser/storage_partition.h"
 #include "net/net_buildflags.h"
+#include "net/ssl/client_cert_matcher.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom-forward.h"
 #include "services/network/public/mojom/cert_verifier_service_updater.mojom.h"
 #include "services/network/public/mojom/cookie_manager.mojom-forward.h"
 #include "services/network/public/mojom/network_context.mojom-forward.h"
+
+#if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
+#include "components/server_certificate_database/server_certificate_database.h"  // nogncheck
+#endif
 
 class PrefRegistrySimple;
 class Profile;
@@ -78,11 +86,27 @@ class ProfileNetworkContextService
       cert_verifier::mojom::CertVerifierCreationParams*
           cert_verifier_creation_params);
 
-#if BUILDFLAG(CHROME_CERTIFICATE_POLICIES_SUPPORTED)
   // Update all of the profile_'s CertVerifierServices with certificates from
-  // enterprise policies.
+  // enterprise policies, and any user-added certificates if present.
   void UpdateAdditionalCertificates();
+
+  struct CertificatePoliciesForView {
+    CertificatePoliciesForView();
+    ~CertificatePoliciesForView();
+    CertificatePoliciesForView(CertificatePoliciesForView&&);
+    CertificatePoliciesForView& operator=(CertificatePoliciesForView&& other);
+
+    cert_verifier::mojom::AdditionalCertificatesPtr certificate_policies;
+
+#if !BUILDFLAG(IS_CHROMEOS)
+    bool is_include_system_trust_store_managed;
 #endif
+
+    std::vector<std::vector<uint8_t>> full_distrusted_certs;
+  };
+
+  // Get enterprise certificate policies for viewing by end users.
+  CertificatePoliciesForView GetCertificatePolicyForView();
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
   static void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
@@ -99,11 +123,6 @@ class ProfileNetworkContextService
       const net::HostPortPair& host,
       const scoped_refptr<net::X509Certificate>& certificate);
 
-  // Flushes a cached client certificate preference if |certificate| matches
-  // the cached certificate.
-  void FlushMatchingCachedClientCert(
-      const scoped_refptr<net::X509Certificate>& certificate);
-
   // Flushes all pending proxy configuration changes.
   void FlushProxyConfigMonitorForTesting();
 
@@ -117,6 +136,13 @@ class ProfileNetworkContextService
 
   // Get platform ClientCertStore. May return nullptr.
   std::unique_ptr<net::ClientCertStore> CreateClientCertStore();
+
+#if BUILDFLAG(IS_CHROMEOS)
+  // Returns a factory callback that may be run to get the issuer sources for
+  // client cert pathbuilding. The factory callback may run its result callback
+  // either synchronously or asynchronously.
+  net::ClientCertIssuerSourceGetter GetClientCertIssuerSourceFactory();
+#endif
 
  private:
   FRIEND_TEST_ALL_PREFIXES(ProfileNetworkContextServiceBrowsertest,
@@ -145,27 +171,41 @@ class ProfileNetworkContextService
   // Gets the current CTPolicy from preferences.
   network::mojom::CTPolicyPtr GetCTPolicy();
 
-  // Update the CTPolicy for the given NetworkContexts.
-  void UpdateCTPolicyForContexts(
-      const std::vector<network::mojom::NetworkContext*>& contexts);
-
   // Update the CTPolicy for the all of profiles_'s NetworkContexts.
   void UpdateCTPolicy();
 
   void ScheduleUpdateCTPolicy();
 
-#if BUILDFLAG(CHROME_CERTIFICATE_POLICIES_SUPPORTED)
   void ScheduleUpdateCertificatePolicy();
 
   // Get the current certificate policies from preferences.
   cert_verifier::mojom::AdditionalCertificatesPtr GetCertificatePolicy(
       const base::FilePath& storage_partition_path);
+
+#if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
+  // Like UpdateAdditionalCertificates, but also includes the passed in user
+  // added certificates.
+  void UpdateAdditionalCertificatesWithUserAddedCerts(
+      std::vector<net::ServerCertificateDatabase::CertInformation> cert_infos);
+#endif
+#if BUILDFLAG(IS_CHROMEOS)
+  void CreateClientCertIssuerSources(
+      net::ClientCertIssuerSourceGetterCallback callback);
+  void CreateClientCertIssuerSourcesWithDBCerts(
+      net::ClientCertIssuerSourceGetterCallback callback,
+      std::vector<net::ServerCertificateDatabase::CertInformation>
+          db_cert_infos);
 #endif
 
   bool ShouldSplitAuthCacheByNetworkIsolationKey() const;
   void UpdateSplitAuthCacheByNetworkIsolationKey();
 
   void UpdateCorsNonWildcardRequestHeadersSupport();
+
+#if BUILDFLAG(ENABLE_REPORTING)
+  base::flat_map<std::string, GURL> GetEnterpriseReportingEndpoints() const;
+  void UpdateEnterpriseReportingEndpoints();
+#endif
 
   // Creates parameters for the NetworkContext. Use |in_memory| instead of
   // |profile_->IsOffTheRecord()| because sometimes normal profiles want off the
@@ -208,13 +248,17 @@ class ProfileNetworkContextService
 
   // Used to post schedule CT and Certificate policy updates
   base::OneShotTimer ct_policy_update_timer_;
-#if BUILDFLAG(CHROME_CERTIFICATE_POLICIES_SUPPORTED)
   base::OneShotTimer cert_policy_update_timer_;
+
+#if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
+  base::CallbackListSubscription server_cert_database_observer_;
 #endif
 
   // Used for testing.
   base::RepeatingCallback<std::unique_ptr<net::ClientCertStore>()>
       client_cert_store_factory_;
+
+  base::WeakPtrFactory<ProfileNetworkContextService> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_NET_PROFILE_NETWORK_CONTEXT_SERVICE_H_

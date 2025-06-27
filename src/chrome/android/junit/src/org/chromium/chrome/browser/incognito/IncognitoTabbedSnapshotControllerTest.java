@@ -6,11 +6,14 @@ package org.chromium.chrome.browser.incognito;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import android.app.Activity;
+import android.os.Build;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
@@ -20,17 +23,16 @@ import androidx.test.filters.SmallTest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerChrome;
@@ -47,7 +49,9 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class IncognitoTabbedSnapshotControllerTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Window mWindowMock;
+    @Mock private Activity mActivityMock;
     @Mock private TabModelSelector mTabModelSelectorMock;
     @Mock private TabModel mTabModelMock;
     @Mock private TabModel mIncognitoTabModelMock;
@@ -62,8 +66,6 @@ public class IncognitoTabbedSnapshotControllerTest {
     @Captor
     private ArgumentCaptor<TabModelSelectorObserver> mTabModelSelectorObserverArgumentCaptor;
 
-    @Rule public TestRule mJunitProcessor = new Features.JUnitProcessor();
-
     private IncognitoTabbedSnapshotController mController;
     private WindowManager.LayoutParams mParams;
     private DestroyObserver mDestroyObserver;
@@ -76,7 +78,6 @@ public class IncognitoTabbedSnapshotControllerTest {
 
     @Before
     public void before() {
-        MockitoAnnotations.initMocks(this);
         doReturn(mIncognitoTabModelMock)
                 .when(mTabModelSelectorMock)
                 .getModel(/* incognito= */ true);
@@ -89,10 +90,11 @@ public class IncognitoTabbedSnapshotControllerTest {
 
         mParams = new LayoutParams();
         doReturn(mParams).when(mWindowMock).getAttributes();
+        doReturn(mWindowMock).when(mActivityMock).getWindow();
 
         mController =
                 new IncognitoTabbedSnapshotController(
-                        mWindowMock,
+                        mActivityMock,
                         mLayoutManagerMock,
                         mTabModelSelectorMock,
                         mActivityLifecycleDispatcherMock,
@@ -124,6 +126,9 @@ public class IncognitoTabbedSnapshotControllerTest {
 
         verify(mWindowMock, never()).addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         verify(mWindowMock, never()).clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            verify(mActivityMock, never()).setRecentsScreenshotEnabled(anyBoolean());
+        }
     }
 
     @Test
@@ -139,6 +144,9 @@ public class IncognitoTabbedSnapshotControllerTest {
         mTabModelSelectorObserver.onChange();
 
         verify(mWindowMock, times(1)).addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            verify(mActivityMock, times(1)).setRecentsScreenshotEnabled(false);
+        }
     }
 
     @Test
@@ -153,6 +161,9 @@ public class IncognitoTabbedSnapshotControllerTest {
         mTabModelSelectorObserver.onChange();
 
         verify(mWindowMock, times(1)).clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            verify(mActivityMock, never()).setRecentsScreenshotEnabled(anyBoolean());
+        }
     }
 
     @Test
@@ -168,6 +179,9 @@ public class IncognitoTabbedSnapshotControllerTest {
         mTabModelSelectorObserver.onChange();
 
         verify(mWindowMock, times(1)).clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            verify(mActivityMock, never()).setRecentsScreenshotEnabled(anyBoolean());
+        }
     }
 
     @Test
@@ -183,6 +197,9 @@ public class IncognitoTabbedSnapshotControllerTest {
         mTabModelSelectorObserver.onChange();
 
         verify(mWindowMock, times(1)).clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            verify(mActivityMock, times(1)).setRecentsScreenshotEnabled(true);
+        }
     }
 
     @Test

@@ -13,6 +13,8 @@
 #include <utility>
 
 #include "base/check.h"
+#include "ui/base/metadata/base_type_conversion.h"
+#include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/views_export.h"
 
@@ -138,6 +140,9 @@ class VIEWS_EXPORT SizeBounds {
   // specified amounts.
   void Enlarge(int width, int height);
 
+  // Shrink the SizeBounds by the given `insets`.
+  SizeBounds Inset(const gfx::Insets& inset) const;
+
   std::string ToString() const;
 
  private:
@@ -176,5 +181,8 @@ void PrintTo(const SizeBounds& size_bounds, ::std::ostream* os);
 void PrintTo(LayoutOrientation layout_orientation, ::std::ostream* os);
 
 }  // namespace views
+
+EXPORT_ENUM_CONVERTERS(views::LayoutAlignment, VIEWS_EXPORT)
+EXPORT_ENUM_CONVERTERS(views::LayoutOrientation, VIEWS_EXPORT)
 
 #endif  // UI_VIEWS_LAYOUT_LAYOUT_TYPES_H_

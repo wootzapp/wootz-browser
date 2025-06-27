@@ -35,8 +35,7 @@ class MockStarboardApiWrapper : public StarboardApiWrapper {
               WriteSample,
               (void* player,
                StarboardMediaType type,
-               StarboardSampleInfo* sample_infos,
-               int sample_infos_count),
+               base::span<const StarboardSampleInfo> sample_infos),
               (override));
   MOCK_METHOD(void,
               WriteEndOfStream,
@@ -91,6 +90,10 @@ class MockStarboardApiWrapper : public StarboardApiWrapper {
               (void* drm_system),
               (override));
   MOCK_METHOD(void, DrmDestroySystem, (void* drm_system), (override));
+  MOCK_METHOD(StarboardMediaSupportType,
+              CanPlayMimeAndKeySystem,
+              (const char* mime, const char* key_system),
+              (override));
 };
 
 }  // namespace media

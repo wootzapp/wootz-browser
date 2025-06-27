@@ -39,7 +39,7 @@ bool ReadMessage(int fd, std::string* message) {
 
   int result;
   uint32_t encoded_size;
-  const size_t message_header_size = sizeof(uint32_t);
+  constexpr size_t message_header_size = sizeof(uint32_t);
   // The file containing the metrics does not leave the device so the writer and
   // the reader will always have the same endianness.
   result = HANDLE_EINTR(read(fd, &encoded_size, message_header_size));
@@ -80,7 +80,7 @@ bool ReadMessage(int fd, std::string* message) {
 
   message_size -= message_header_size;  // The message size includes itself.
   char buffer[SerializationUtils::kMessageMaxLength];
-  if (!base::ReadFromFD(fd, base::make_span(buffer, message_size))) {
+  if (!base::ReadFromFD(fd, base::span(buffer).first(message_size))) {
     DPLOG(ERROR) << "reading metrics message body";
     return false;
   }
@@ -171,11 +171,6 @@ void ReadAndTruncateOrDeleteMetricsFromFile(
 }
 
 }  // namespace
-
-// This value is used as a max value in a histogram,
-// Platform.ExternalMetrics.SamplesRead. If it changes, the histogram will need
-// to be renamed.
-const int SerializationUtils::kMaxMessagesPerRead = 100000;
 
 std::unique_ptr<MetricSample> SerializationUtils::ParseSample(
     const std::string& sample) {
@@ -268,9 +263,8 @@ bool SerializationUtils::WriteMetricToFile(const MetricSample& sample,
   // The file containing the metrics samples will only be read by programs on
   // the same device so we do not check endianness.
   uint32_t encoded_size = base::checked_cast<uint32_t>(size);
-  if (!base::WriteFileDescriptor(
-          file_descriptor.get(),
-          base::as_bytes(base::make_span(&encoded_size, 1u)))) {
+  if (!base::WriteFileDescriptor(file_descriptor.get(),
+                                 base::byte_span_from_ref(encoded_size))) {
     DPLOG(ERROR) << "error writing message length: " << filename;
     std::ignore = flock(file_descriptor.get(), LOCK_UN);
     return false;

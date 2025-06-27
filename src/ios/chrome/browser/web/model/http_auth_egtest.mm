@@ -21,15 +21,16 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "url/gurl.h"
 
-using base::test::ios::WaitUntilConditionOrTimeout;
 using base::test::ios::kWaitForPageLoadTimeout;
+using base::test::ios::WaitUntilConditionOrTimeout;
 
 namespace {
 
 // Returns matcher for HTTP Authentication dialog.
 id<GREYMatcher> HttpAuthDialog() {
   NSString* title = l10n_util::GetNSStringWithFixup(IDS_LOGIN_DIALOG_TITLE);
-  return chrome_test_util::StaticTextWithAccessibilityLabel(title);
+  return grey_allOf(chrome_test_util::StaticTextWithAccessibilityLabel(title),
+                    grey_ancestor(grey_kindOfClass(UIButton.class)), nil);
 }
 
 // Returns matcher for Username text field.
@@ -169,7 +170,14 @@ void WaitForHttpAuthDialog() {
     [ChromeEarlGrey loadURL:URL waitForCompletion:NO];
     WaitForHttpAuthDialog();
 
-    [[EarlGrey selectElementWithMatcher:chrome_test_util::CancelButton()]
+    id<GREYMatcher> cancelButtonMatcher = grey_allOf(
+        chrome_test_util::CancelButton(),
+        grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)), nil);
+    // Wait for element to become enabled because auth dialog buttons are
+    // initially disabled. See crbug.com/341353783
+    [ChromeEarlGrey waitForUIElementToAppearWithMatcher:cancelButtonMatcher];
+
+    [[EarlGrey selectElementWithMatcher:cancelButtonMatcher]
         performAction:grey_tap()];
 
   }  // EG synchronization disabled block.

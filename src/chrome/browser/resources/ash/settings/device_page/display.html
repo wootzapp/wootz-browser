@@ -1,5 +1,13 @@
 <style include="cr-shared-style settings-shared md-select iron-flex
   iron-flex-alignment">
+  #arrangement-section {
+    border-top: none;
+  }
+
+  #arrangement-section-main {
+    padding: 0 var(--cr-section-padding);
+  }
+
   .indented {
     align-self: stretch;
     margin-inline-start: var(--cr-section-indent-padding);
@@ -39,9 +47,9 @@
   }
 
   #mirrorDisplayToggleButton {
-    display: flex;
     align-self: stretch;
-    margin-bottom: 20px;
+    border-top: none;
+    display: flex;
   }
 
   #brightnessSliderWrapper {
@@ -65,62 +73,40 @@
   </cr-toggle>
 </div>
 
-<!-- Night Light Settings -->
-<template is="dom-if"
-    if="[[isRevampWayfindingEnabled_]]" restamp>
-  <settings-display-night-light prefs="{{prefs}}"
-    is-internal-display="[[selectedDisplay.isInternal]]">
-  </settings-display-night-light>
-  <div class="hr"></div>
-</template>
-
 <!-- Arrangement section -->
 <template is="dom-if"
     if="[[shouldShowArrangementSection(displays)]]" restamp>
-  <div class="settings-box first layout vertical self-stretch underbar"
-      id="arrangement-section">
-    <h2 class="layout self-start">
-      $i18n{displayArrangementTitle}
-    </h2>
-    <div class="secondary layout self-start"
-        hidden="[[isMirrored(displays)]]">
-      $i18n{displayArrangementText}
+  <div class="underbar" id="arrangement-section">
+    <div class="layout vertical self-stretch" id="arrangement-section-main">
+      <h2 class="layout self-start">
+        $i18n{displayArrangementTitle}
+      </h2>
+      <div class="secondary layout self-start"
+          hidden="[[isMirrored(displays)]]">
+        $i18n{displayArrangementText}
+      </div>
+      <display-layout id="displayLayout"
+          selected-display="[[selectedDisplay]]"
+          on-select-display="onSelectDisplay_"
+          deep-link-focus-id$="[[Setting.kDisplayArrangement]]">
+      </display-layout>
     </div>
-    <display-layout id="displayLayout"
-        selected-display="[[selectedDisplay]]"
-        on-select-display="onSelectDisplay_"
-        deep-link-focus-id$="[[Setting.kDisplayArrangement]]">
-    </display-layout>
 
     <template is="dom-if"
         if="[[showMirror(unifiedDesktopMode_, displays)]]" restamp>
       <!-- Mirror display toggle button -->
-      <template is="dom-if" if="[[isRevampWayfindingEnabled_]]">
-        <div id="mirrorDisplayToggleButton" class="text-area">
-          <div id="mirrorDisplayToggleLabel" class="start">
-            [[getDisplayMirrorText_(displays)]]
-          </div>
-          <cr-toggle id="mirrorDisplayToggle"
-              checked="[[isMirrored(displays)]]"
-              on-click="onMirroredClick_"
-              aria-label="[[getDisplayMirrorText_(displays)]]"
-              deep-link-focus-id$="[[Setting.kDisplayMirroring]]">
-          </cr-toggle>
+      <div id="mirrorDisplayToggleButton" class="settings-box"
+          on-click="onMirroredClick_" actionable-row>
+        <div id="mirrorDisplayToggleLabel" class="start">
+          [[getDisplayMirrorText_(displays)]]
         </div>
-      </template>
-
-      <!-- Mirror display checkbox -->
-      <template is="dom-if" if="[[!isRevampWayfindingEnabled_]]">
-        <div class="secondary self-start">
-          <cr-checkbox id="displayMirrorCheckbox"
-              checked="[[isMirrored(displays)]]"
-              on-click="onMirroredClick_"
-              aria-label="[[getDisplayMirrorText_(displays)]]"
-              deep-link-focus-id$="[[Setting.kDisplayMirroring]]">
-            <div class="text-area">[[getDisplayMirrorText_(displays)]]</div>
-          </cr-checkbox>
-        </div>
-      </template>
+        <cr-toggle id="mirrorDisplayToggle"
+            checked="[[isMirrored(displays)]]"
+            on-change="onMirroredClick_"
+            aria-label="[[getDisplayMirrorText_(displays)]]"
+            deep-link-focus-id$="[[Setting.kDisplayMirroring]]">
+        </cr-toggle>
+      </div>
     </template>
 
   </div>
@@ -193,7 +179,8 @@
         <cr-toggle id="autoBrightnessToggle"
             checked="[[isAmbientLightSensorEnabled_]]"
             on-change="onAutoBrightnessToggleChange_"
-            aria-labelledby="autoBrightnessToggleLabel">
+            aria-labelledby="autoBrightnessToggleLabel"
+            aria-describedby="autoBrightnessToggleSubtitle">
         </cr-toggle>
       </div>
     </template>
@@ -369,13 +356,46 @@
       hidden$="[[!showTouchCalibrationSetting_(selectedDisplay)]]" embedded
       deep-link-focus-id$="[[Setting.kTouchscreenCalibration]]">
   </cr-link-row>
+
+
+  <template is="dom-if"
+      if="[[showExcludeInMirror_(unifiedDesktopMode_,
+      excludeDisplayInMirrorModeEnabled_,
+      prefs.settings.display.allow_exclude_display_in_mirror_mode.value,
+      displays, selectedDisplay)]]" restamp>
+    <div id="excludeDisplayToggleRow"
+        class="settings-box indented hr two-line">
+      <div class="start text-area">
+        <div id="excludeDisplayInMirrorLabel" class="start">
+          $i18n{displayExcludeInMirrorModeLabel}
+        </div>
+        <div id="excludeDisplayInMirrorSublabel" class="secondary self-start"
+            aria-hidden="true">
+          $i18n{displayExcludeInMirrorModeSublabel}
+        </div>
+      </div>
+      <cr-toggle id="excludeDisplayToggle"
+          checked="[[shouldExcludeInMirror_(selectedDisplay)]]"
+          on-change="onExcludeInMirrorClick_"
+          aria-label="$i18n{displayExcludeInMirrorModeLabel}">
+      </cr-toggle>
+    </div>
+  </template>
 </div>
 
 <!-- Night Light Settings -->
-<template is="dom-if"
-    if="[[!isRevampWayfindingEnabled_]]" restamp>
-  <div class="hr"></div>
-  <settings-display-night-light prefs="{{prefs}}"
+<div class="hr"></div>
+<settings-display-night-light prefs="{{prefs}}"
     is-internal-display="[[selectedDisplay.isInternal]]">
-  </settings-display-night-light>
+</settings-display-night-light>
+
+<!-- Touchscreen Mapping Experience -->
+<template is="dom-if" if="[[showTouchRemappingExperience_()]]" restamp>
+  <div class="settings-box continuation start layout vertical">
+    <cr-link-row class="hr" id="touchMapping"
+      label="$i18n{displayTouchMappingTitle}"
+      sub-label="$i18n{displayTouchMappingText}"
+      on-click="onTouchMappingClick_" embedded>
+    </cr-link-row>
+  </div>
 </template>

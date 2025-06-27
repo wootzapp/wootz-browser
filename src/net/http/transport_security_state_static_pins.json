@@ -31,7 +31,7 @@
 // the 'static_spki_hashes' and 'bad_static_spki_hashes' fields in 'pinsets'
 // refer to, and the timestamp at which the pins list was last updated.
 //
-// Last updated: 2024-05-18 13:01 UTC
+// Last updated: 2025-04-25 12:54 UTC
 //
 {
   "pinsets": [
@@ -58,20 +58,6 @@
         "GlobalSignExtendedValidationCA_SHA256_G2"
       ],
       "report_uri": "http://clients3.google.com/cert_upload_json"
-    },
-    {
-      "name": "tor",
-      "static_spki_hashes": [
-        "RapidSSL",
-        "DigiCertEVRoot",
-        "Tor1",
-        "Tor2",
-        "Tor3",
-        "LetsEncryptAuthorityPrimary_X1_X3",
-        "LetsEncryptAuthorityBackup_X2_X4",
-        "R3LetsEncrypt",
-        "R4LetsEncrypt"
-      ]
     },
     {
       "name": "facebook",
@@ -127,6 +113,11 @@
     },
     {
       "name": "mail.google.com",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
+      "name": "partner.android.com",
       "include_subdomains": true,
       "pins": "google"
     },
@@ -197,6 +188,11 @@
     },
     {
       "name": "contributor.google.com",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
+      "name": "crossmediapanel.com",
       "include_subdomains": true,
       "pins": "google"
     },
@@ -287,6 +283,11 @@
     },
     {
       "name": "meet.google.com",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
+      "name": "mfg-inspector.com",
       "include_subdomains": true,
       "pins": "google"
     },
@@ -716,6 +717,11 @@
       "pins": "google"
     },
     {
+      "name": "google.al",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
       "name": "google.am",
       "include_subdomains": true,
       "pins": "google"
@@ -776,6 +782,11 @@
       "pins": "google"
     },
     {
+      "name": "google.bt",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
       "name": "google.by",
       "include_subdomains": true,
       "pins": "google"
@@ -787,6 +798,11 @@
     },
     {
       "name": "google.cat",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
+      "name": "google.eus",
       "include_subdomains": true,
       "pins": "google"
     },
@@ -1091,6 +1107,11 @@
       "pins": "google"
     },
     {
+      "name": "google.com.mm",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
       "name": "google.com.mt",
       "include_subdomains": true,
       "pins": "google"
@@ -1147,6 +1168,11 @@
     },
     {
       "name": "google.com.pe",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
+      "name": "google.com.pg",
       "include_subdomains": true,
       "pins": "google"
     },
@@ -1721,6 +1747,11 @@
       "pins": "google"
     },
     {
+      "name": "google.sr",
+      "include_subdomains": true,
+      "pins": "google"
+    },
+    {
       "name": "google.st",
       "include_subdomains": true,
       "pins": "google"
@@ -1959,31 +1990,6 @@
       "name": "www.messenger.com",
       "include_subdomains": true,
       "pins": "facebook"
-    },
-    {
-      "name": "torproject.org",
-      "include_subdomains": false,
-      "pins": "tor"
-    },
-    {
-      "name": "blog.torproject.org",
-      "include_subdomains": true,
-      "pins": "tor"
-    },
-    {
-      "name": "check.torproject.org",
-      "include_subdomains": true,
-      "pins": "tor"
-    },
-    {
-      "name": "www.torproject.org",
-      "include_subdomains": true,
-      "pins": "tor"
-    },
-    {
-      "name": "dist.torproject.org",
-      "include_subdomains": true,
-      "pins": "tor"
     }
   ]
 }

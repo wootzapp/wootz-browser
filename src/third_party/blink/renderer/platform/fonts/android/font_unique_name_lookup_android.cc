@@ -186,7 +186,7 @@ bool FontUniqueNameLookupAndroid::RequestedNameInQueryableFonts(
     queryable_fonts_ = std::move(retrieved_fonts);
   }
   return queryable_fonts_ && queryable_fonts_->Contains(String::FromUTF8(
-                                 IcuFoldCase(font_unique_name.Utf8()).c_str()));
+                                 IcuFoldCase(font_unique_name.Utf8())));
 }
 
 sk_sp<SkTypeface>
@@ -203,7 +203,7 @@ FontUniqueNameLookupAndroid::MatchUniqueNameFromDownloadableFonts(
 
   base::File font_file;
   String case_folded_unique_font_name =
-      String::FromUTF8(IcuFoldCase(font_unique_name.Utf8()).c_str());
+      String::FromUTF8(IcuFoldCase(font_unique_name.Utf8()));
 
   base::ElapsedTimer elapsed_timer;
 
@@ -256,8 +256,7 @@ void FontUniqueNameLookupAndroid::FontsPrefetched(
     // the AndroidFontLookup service. We can directly set |queryable_fonts_|
     // here from the map keys since |queryable_fonts_| is used to check which
     // fonts can be fetched from the AndroidFontLookup service.
-    queryable_fonts_ = Vector<String>();
-    CopyKeysToVector(prefetched_font_map_, *queryable_fonts_);
+    queryable_fonts_.emplace(prefetched_font_map_.Keys());
   }
 }
 

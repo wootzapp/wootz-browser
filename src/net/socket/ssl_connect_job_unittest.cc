@@ -56,6 +56,7 @@
 #include "net/test/test_data_directory.h"
 #include "net/test/test_with_task_environment.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "net/url_request/static_http_user_agent_settings.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/boringssl/src/include/openssl/ssl.h"
 #include "url/gurl.h"
@@ -202,6 +203,7 @@ class SSLConnectJobTest : public WithTaskEnvironment, public testing::Test {
     session_context.http_auth_handler_factory =
         http_auth_handler_factory_.get();
     session_context.http_server_properties = &http_server_properties_;
+    session_context.http_user_agent_settings = &http_user_agent_settings_;
     session_context.quic_context = &quic_context_;
     return std::make_unique<HttpNetworkSession>(HttpNetworkSessionParams(),
                                                 session_context);
@@ -216,6 +218,8 @@ class SSLConnectJobTest : public WithTaskEnvironment, public testing::Test {
   const std::unique_ptr<ProxyResolutionService> proxy_resolution_service_;
   const std::unique_ptr<TestSSLConfigService> ssl_config_service_;
   const std::unique_ptr<HttpAuthHandlerFactory> http_auth_handler_factory_;
+  const StaticHttpUserAgentSettings http_user_agent_settings_ = {"*",
+                                                                 "test-ua"};
   HttpServerProperties http_server_properties_;
   QuicContext quic_context_;
   const std::unique_ptr<HttpNetworkSession> session_;
@@ -554,7 +558,7 @@ TEST_F(SSLConnectJobTest, DirectWithNPN) {
   StaticSocketDataProvider data;
   socket_factory_.AddSocketDataProvider(&data);
   SSLSocketDataProvider ssl(ASYNC, OK);
-  ssl.next_proto = kProtoHTTP11;
+  ssl.next_proto = NextProto::kProtoHTTP11;
   socket_factory_.AddSSLSocketDataProvider(&ssl);
 
   TestConnectJobDelegate test_delegate;
@@ -570,7 +574,7 @@ TEST_F(SSLConnectJobTest, DirectGotHTTP2) {
   StaticSocketDataProvider data;
   socket_factory_.AddSocketDataProvider(&data);
   SSLSocketDataProvider ssl(ASYNC, OK);
-  ssl.next_proto = kProtoHTTP2;
+  ssl.next_proto = NextProto::kProtoHTTP2;
   socket_factory_.AddSSLSocketDataProvider(&ssl);
 
   TestConnectJobDelegate test_delegate;
@@ -579,7 +583,8 @@ TEST_F(SSLConnectJobTest, DirectGotHTTP2) {
 
   test_delegate.StartJobExpectingResult(ssl_connect_job.get(), OK,
                                         false /* expect_sync_result */);
-  EXPECT_EQ(kProtoHTTP2, test_delegate.socket()->GetNegotiatedProtocol());
+  EXPECT_EQ(NextProto::kProtoHTTP2,
+            test_delegate.socket()->GetNegotiatedProtocol());
   CheckConnectTimesSet(ssl_connect_job->connect_timing());
 }
 
@@ -786,11 +791,13 @@ TEST_F(SSLConnectJobTest, HttpProxyAuthChallenge) {
       MockWrite(ASYNC, 0,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
-                "Proxy-Connection: keep-alive\r\n\r\n"),
+                "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n\r\n"),
       MockWrite(ASYNC, 5,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
                 "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n"
                 "Proxy-Authorization: Basic Zm9vOmJhcg==\r\n\r\n"),
   };
   MockRead reads[] = {
@@ -842,6 +849,7 @@ TEST_F(SSLConnectJobTest, HttpProxyAuthWithCachedCredentials) {
                   "CONNECT host:80 HTTP/1.1\r\n"
                   "Host: host:80\r\n"
                   "Proxy-Connection: keep-alive\r\n"
+                  "User-Agent: test-ua\r\n"
                   "Proxy-Authorization: Basic Zm9vOmJhcg==\r\n\r\n"),
     };
     MockRead reads[] = {
@@ -901,11 +909,13 @@ TEST_F(SSLConnectJobTest, HttpProxyAuthHasEstablishedConnection) {
       MockWrite(ASYNC, 0,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
-                "Proxy-Connection: keep-alive\r\n\r\n"),
+                "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n\r\n"),
       MockWrite(ASYNC, 3,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
                 "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n"
                 "Proxy-Authorization: Basic Zm9vOmJhcg==\r\n\r\n"),
   };
   MockRead reads[] = {
@@ -985,7 +995,8 @@ TEST_F(SSLConnectJobTest,
       MockWrite(ASYNC, 0,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
-                "Proxy-Connection: keep-alive\r\n\r\n"),
+                "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n\r\n"),
   };
   MockRead reads1[] = {
       // Pause reading.
@@ -1004,6 +1015,7 @@ TEST_F(SSLConnectJobTest,
                 "CONNECT host:80 HTTP/1.1\r\n"
                 "Host: host:80\r\n"
                 "Proxy-Connection: keep-alive\r\n"
+                "User-Agent: test-ua\r\n"
                 "Proxy-Authorization: Basic Zm9vOmJhcg==\r\n\r\n"),
   };
   MockRead reads2[] = {
@@ -1557,6 +1569,100 @@ TEST_F(SSLConnectJobTest, LegacyCryptoThenECHRecovery) {
 
   histogram_tester.ExpectUniqueSample("Net.SSL.ECHResult",
                                       2 /* kSuccessRetry */, 1);
+}
+
+TEST_F(SSLConnectJobTest,
+       OnDestinationDnsAliasesResolved_IsInvokedIfDirectAndAliases_Ok) {
+  std::vector<std::string> aliases({"alias1", "alias2", kHostHttps.host()});
+  std::set<std::string> aliases_set(aliases.begin(), aliases.end());
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(
+      kHostHttps.host(), "2.2.2.2", std::move(aliases));
+
+  for (IoMode io_mode : {SYNCHRONOUS, ASYNC}) {
+    SCOPED_TRACE(io_mode);
+    host_resolver_.set_synchronous_mode(io_mode == SYNCHRONOUS);
+    StaticSocketDataProvider data;
+    data.set_connect_data(MockConnect(io_mode, OK));
+    socket_factory_.AddSocketDataProvider(&data);
+    SSLSocketDataProvider ssl(io_mode, OK);
+    socket_factory_.AddSSLSocketDataProvider(&ssl);
+
+    TestConnectJobDelegate test_delegate;
+    std::unique_ptr<ConnectJob> ssl_connect_job =
+        CreateConnectJob(&test_delegate, ProxyChain::Direct(), MEDIUM);
+
+    test_delegate.StartJobExpectingResult(ssl_connect_job.get(), OK,
+                                          io_mode == SYNCHRONOUS);
+
+    EXPECT_TRUE(test_delegate.on_dns_aliases_resolved_called());
+    EXPECT_EQ(test_delegate.dns_aliases(), aliases_set);
+  }
+}
+
+TEST_F(SSLConnectJobTest,
+       OnDestinationDnsAliasesResolved_IsInvokedIfDirectAndAliases_Error) {
+  std::vector<std::string> aliases({"alias1", "alias2", kHostHttps.host()});
+  std::set<std::string> aliases_set(aliases.begin(), aliases.end());
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(
+      kHostHttps.host(), "2.2.2.2", std::move(aliases));
+
+  for (IoMode io_mode : {SYNCHRONOUS, ASYNC}) {
+    SCOPED_TRACE(io_mode);
+    host_resolver_.set_synchronous_mode(io_mode == SYNCHRONOUS);
+    StaticSocketDataProvider data;
+    data.set_connect_data(MockConnect(io_mode, OK));
+    socket_factory_.AddSocketDataProvider(&data);
+    SSLSocketDataProvider ssl(io_mode, OK);
+    socket_factory_.AddSSLSocketDataProvider(&ssl);
+
+    TestConnectJobDelegate test_delegate;
+    test_delegate.set_error_for_on_destination_dns_aliases_resolved(
+        ERR_PROXY_REQUIRED);
+    std::unique_ptr<ConnectJob> ssl_connect_job =
+        CreateConnectJob(&test_delegate, ProxyChain::Direct(), MEDIUM);
+
+    test_delegate.StartJobExpectingResult(
+        ssl_connect_job.get(), ERR_PROXY_REQUIRED, io_mode == SYNCHRONOUS);
+
+    EXPECT_TRUE(test_delegate.on_dns_aliases_resolved_called());
+    EXPECT_EQ(test_delegate.dns_aliases(), aliases_set);
+  }
+}
+
+TEST_F(SSLConnectJobTest, OnDestinationDnsAliasesResolved_NotInvokedForProxy) {
+  std::set<std::string> aliases = {"proxy.example.com",
+                                   kHttpProxyServer.GetHost()};
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(
+      kHttpProxyServer.GetHost(), "2.2.2.2", std::move(aliases));
+  const uint8_t kSOCKS5Request[] = {0x05, 0x01, 0x00, 0x03, 0x09, 's',
+                                    'o',  'c',  'k',  's',  'h',  'o',
+                                    's',  't',  0x01, 0xBB};
+
+  MockWrite writes[] = {
+      MockWrite(SYNCHRONOUS, kSOCKS5GreetRequest, kSOCKS5GreetRequestLength),
+      MockWrite(SYNCHRONOUS, reinterpret_cast<const char*>(kSOCKS5Request),
+                std::size(kSOCKS5Request)),
+  };
+
+  MockRead reads[] = {
+      MockRead(SYNCHRONOUS, kSOCKS5GreetResponse, kSOCKS5GreetResponseLength),
+      MockRead(SYNCHRONOUS, kSOCKS5OkResponse, kSOCKS5OkResponseLength),
+  };
+
+  host_resolver_.set_synchronous_mode(true);
+  StaticSocketDataProvider data(reads, writes);
+  data.set_connect_data(MockConnect(SYNCHRONOUS, OK));
+  socket_factory_.AddSocketDataProvider(&data);
+  SSLSocketDataProvider ssl(SYNCHRONOUS, OK);
+  socket_factory_.AddSSLSocketDataProvider(&ssl);
+
+  TestConnectJobDelegate test_delegate;
+  std::unique_ptr<ConnectJob> ssl_connect_job = CreateConnectJob(
+      &test_delegate, PacResultElementToProxyChain("SOCKS5 foo:333"));
+  test_delegate.StartJobExpectingResult(ssl_connect_job.get(), OK,
+                                        /*expect_sync_result=*/true);
+  EXPECT_TRUE(test_delegate.socket()->GetDnsAliases().empty());
+  EXPECT_FALSE(test_delegate.on_dns_aliases_resolved_called());
 }
 
 }  // namespace

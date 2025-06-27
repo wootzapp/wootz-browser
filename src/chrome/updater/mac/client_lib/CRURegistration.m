@@ -2,26 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "CRURegistration requires ARC support. Compile with `-fobjc-arc.`"
+#endif
+
 #import "CRURegistration.h"
 
 #import <Foundation/Foundation.h>
 #import <dispatch/dispatch.h>
+#include <unistd.h>
 
 #import "CRURegistration-Private.h"
+
+#pragma mark - Constants
 
 NSString* const CRURegistrationErrorDomain = @"org.chromium.CRURegistration";
 NSString* const CRUReturnCodeErrorDomain = @"org.chromium.CRUReturnCode";
 NSString* const CRURegistrationInternalErrorDomain =
     @"org.chromium.CRURegistrationInternal";
 
-typedef NS_ERROR_ENUM(CRURegistrationInternalErrorDomain,
-                      CRURegistrationInternalError){
-    CRURegistrationInternalErrorTaskAlreadyLaunched = 1,
-};
-
 // Keys that may be present in NSError `userInfo` dictionaries.
 NSString* const CRUErrnoKey = @"org.chromium.CRUErrno";
 NSString* const CRUStdStreamNameKey = @"org.chromium.CRUStdStreamName";
+NSString* const CRUStderrKey = @"org.chromium.CRUStderr";
+NSString* const CRUStdoutKey = @"org.chromium.CRUStdout";
+NSString* const CRUReturnCodeKey = @"org.chromium.CRUReturnCode";
+
+#pragma mark - CRUAsyncTaskRunner
 
 @implementation CRUAsyncTaskRunner {
   // These fields are written once during init and never again.
@@ -103,7 +110,10 @@ NSString* const CRUStdStreamNameKey = @"org.chromium.CRUStdStreamName";
                                         userInfo:nil];
     }
     dispatch_async(self->_parentQueue, ^{
-      reply([self->_taskStdoutData copy], [self->_taskStderrData copy],
+      reply([[NSString alloc] initWithData:self->_taskStdoutData
+                                  encoding:NSUTF8StringEncoding],
+            [[NSString alloc] initWithData:self->_taskStderrData
+                                  encoding:NSUTF8StringEncoding],
             returnCodeError);
     });
   });
@@ -179,33 +189,493 @@ NSString* const CRUStdStreamNameKey = @"org.chromium.CRUStdStreamName";
       });
 }
 
+@end  // CRUAsyncTaskRunner
+
+#pragma mark - CRURegistrationWorkItem
+
+@implementation CRURegistrationWorkItem
+
+@synthesize binPathCallback = _binPathCallback;
+@synthesize args = _args;
+@synthesize onDone = _onDone;
+@synthesize resultCallback = _resultCallback;
+
 @end
+
+#pragma mark - CRURegistration
+
 @implementation CRURegistration {
   // Immutable fields.
   NSString* _appId;
+  NSString* _existenceCheckerPath;
 
   dispatch_queue_t _privateQueue;
   dispatch_queue_t _parentQueue;
+
+  NSMutableArray<CRURegistrationWorkItem*>* _pendingWork;
+  CRUAsyncTaskRunner* _currentWork;
 }
 
 - (instancetype)initWithAppId:(NSString*)appId
+         existenceCheckerPath:(NSString*)xcPath
                   targetQueue:(dispatch_queue_t)targetQueue {
   if (self = [super init]) {
     _appId = appId;
+    _existenceCheckerPath = xcPath;
     _parentQueue = targetQueue;
     _privateQueue = dispatch_queue_create_with_target(
         "CRURegistration", DISPATCH_QUEUE_SERIAL, targetQueue);
+    _pendingWork = [NSMutableArray array];
   }
   return self;
 }
 
-- (instancetype)initWithAppId:(NSString*)appId qos:(dispatch_qos_class_t)qos {
+- (instancetype)initWithAppId:(NSString*)appId
+         existenceCheckerPath:(NSString*)xcPath
+                          qos:(dispatch_qos_class_t)qos {
   return [self initWithAppId:appId
+        existenceCheckerPath:xcPath
                  targetQueue:dispatch_get_global_queue(qos, 0)];
 }
 
-- (instancetype)initWithAppId:(NSString*)appId {
-  return [self initWithAppId:appId qos:QOS_CLASS_UTILITY];
+- (instancetype)initWithAppId:(NSString*)appId
+         existenceCheckerPath:(NSString*)xcPath {
+  return [self initWithAppId:appId
+        existenceCheckerPath:xcPath
+                         qos:QOS_CLASS_UTILITY];
+}
+
+/**
+ * newKSAdminItem constructs a CRURegistrationWorkItem that will invoke ksadmin.
+ */
+- (CRURegistrationWorkItem*)newKSAdminItem {
+  CRURegistrationWorkItem* ret = [[CRURegistrationWorkItem alloc] init];
+  ret.binPathCallback = ^{
+    return [self syncFindBestKSAdmin];
+  };
+  return ret;
+}
+
+- (void)fetchTagWithReply:(void (^)(NSString* _Nullable,
+                                    NSError* _Nullable))reply {
+  if (!reply) {
+    return;
+  }
+  CRURegistrationWorkItem* fetchTagItem = [self newKSAdminItem];
+  fetchTagItem.args = @[
+    @"--print-tag",
+    @"--productid",
+    _appId,
+    @"--xcpath",
+    _existenceCheckerPath,
+  ];
+  fetchTagItem.resultCallback =
+      ^(NSString* gotStdout, NSString* gotStderr, NSError* gotFailure) {
+        if (gotFailure) {
+          NSError* finalError = [self wrapError:gotFailure
+                                     withStdout:gotStdout
+                                      andStderr:gotStderr];
+          dispatch_async(self->_parentQueue, ^{
+            reply(nil, finalError);
+          });
+          return;
+        }
+        if (gotStdout.length) {
+          // Trim off the trailing newline.
+          NSString* tag = [gotStdout substringToIndex:gotStdout.length - 1];
+          dispatch_async(self->_parentQueue, ^{
+            reply(tag, nil);
+          });
+          return;
+        }
+        // Empty stdout implies "no tag".
+        dispatch_async(self->_parentQueue, ^{
+          reply(@"", nil);
+        });
+      };
+  [self addWorkItems:@[ fetchTagItem ]];
+}
+
+- (void)registerVersion:(NSString*)version
+                  reply:(void (^_Nullable)(NSError*))reply {
+  NSAssert(version, @"nil version provided to registerVersion for app %@.",
+           _appId);
+  if (!version) {
+    if (reply) {
+      NSString* localAppId = _appId;
+      dispatch_async(_parentQueue, ^{
+        reply([NSError
+            errorWithDomain:CRURegistrationErrorDomain
+                       code:CRURegistrationErrorInvalidArgument
+                   userInfo:@{
+                     NSDebugDescriptionErrorKey :
+                         [NSString stringWithFormat:
+                                       @"CRURegistration's registerVersion for "
+                                       @"app %@ was called with nil version.",
+                                       localAppId],
+                   }]);
+      });
+    }
+    return;
+  }
+
+  CRURegistrationWorkItem* registerItem = [self newKSAdminItem];
+  registerItem.args = @[
+    @"--register",
+    @"--productid",
+    _appId,
+    @"--version",
+    version,
+    @"--xcpath",
+    _existenceCheckerPath,
+  ];
+  registerItem.resultCallback =
+      ^(NSString* gotStdout, NSString* gotStderr, NSError* gotFailure) {
+          if (reply) {
+            dispatch_async(self->_parentQueue, ^{
+              reply([self wrapError:gotFailure
+                         withStdout:gotStdout
+                          andStderr:gotStderr]);
+            });
+          }
+      };
+
+  [self addWorkItems:@[ registerItem ]];
+}
+
+- (void)installUpdaterWithReply:(void (^)(NSError* _Nullable))reply {
+  // Build the "unzip and install" task chain on the private queue since
+  // creating the temp dir is a synchronous file operation, which we need to
+  // keep away from the calling thread since CRURegistration promises to do
+  // all the expensive stuff asynchronously.
+  dispatch_async(_privateQueue, ^{
+    NSString* tempDir = [self syncNewTempDir];
+    CRURegistrationWorkItem* unzipItem =
+        [self workItemUnzippingInstallerToPath:tempDir];
+    if (!unzipItem) {
+      // We can't find anything to install. Fail immediately; we cannot create
+      // the installation task.
+      if (reply) {
+        dispatch_async(self->_parentQueue, ^{
+          NSString* expectedFilename =
+              [CRUArchiveBasename stringByAppendingString:@".zip"];
+          reply([NSError
+              errorWithDomain:CRURegistrationErrorDomain
+                         code:CRURegistrationErrorUpdaterArchiveNotFound
+                     userInfo:@{NSFilePathErrorKey : expectedFilename}]);
+        });
+      }
+      return;
+    }
+    CRURegistrationWorkItem* installItem =
+        [self workItemInstallingFromDirectory:tempDir];
+    unzipItem.onDone = ^CRURegistrationWorkItem*(
+        CRURegistrationWorkItem* me, NSString* ignored, NSString* ignored2,
+        NSError* error) {
+      if (error) {
+        me.resultCallback =
+            ^(NSString* gotStdout, NSString* gotStderr, NSError* gotFailure) {
+              if (reply) {
+                dispatch_async(self->_parentQueue, ^{
+                  reply([self wrapError:gotFailure
+                             withStdout:gotStdout
+                              andStderr:gotStderr]);
+                });
+              }
+            };
+        return nil;
+      }
+      return installItem;
+    };
+    installItem.resultCallback =
+        ^(NSString* gotStdout, NSString* gotStderr, NSError* gotFailure) {
+          dispatch_async(self->_privateQueue, ^{
+            // Temp dir cleanup is best effort; we can't do anything useful with
+            // the error here anyway.
+            [[NSFileManager defaultManager] removeItemAtPath:tempDir error:nil];
+          });
+          if (reply) {
+            dispatch_async(self->_parentQueue, ^{
+              reply([self wrapError:gotFailure
+                         withStdout:gotStdout
+                          andStderr:gotStderr]);
+            });
+          }
+        };
+    // Don't re-dispatch to _privateQueue to avoid potentially reordering
+    // this "install" request behind another operation that might have been
+    // enqueued before we got around to running this setup work.
+    [self->_pendingWork addObject:unzipItem];
+    [self syncMaybeStartMoreWork];
+  });
+}
+
+- (void)markActiveWithReply:(void (^)(NSError* _Nullable))reply {
+  // "Mark active" doesn't use an external program, so it may run concurrently
+  // with out-of-process tasks. It still uses _privateQueue so the SSD/HDD
+  // access runs with the intended priority.
+  dispatch_async(_privateQueue, ^{
+    NSError* error;
+    BOOL success = [self syncWriteActiveFileWithError:&error];
+    if (!reply) {
+      return;
+    }
+    dispatch_async(self->_parentQueue, ^{
+      reply(success
+                ? nil
+                : [NSError errorWithDomain:CRURegistrationErrorDomain
+                                      code:CRURegistrationErrorFilesystem
+                                  userInfo:@{NSUnderlyingErrorKey : error}]);
+    });
+  });
+}
+
+#pragma mark - CRURegistration private methods
+
+- (void)syncMaybeStartMoreWork {
+  if (_currentWork || !_pendingWork.count) {
+    return;
+  }
+
+  CRURegistrationWorkItem* nextItem = _pendingWork.firstObject;
+  // NSMutableArray is actually a deque, so the obvious approach is performant.
+  [_pendingWork removeObjectAtIndex:0];
+
+  NSURL* taskURL = nextItem.binPathCallback();
+  if (!taskURL) {
+    NSError* error = [NSError errorWithDomain:CRURegistrationErrorDomain
+                                         code:CRURegistrationErrorHelperNotFound
+                                     userInfo:nil];
+    if (nextItem.onDone) {
+      CRURegistrationWorkItem* preempt =
+          nextItem.onDone(nextItem, nil, nil, error);
+      if (preempt) {
+        [_pendingWork insertObject:preempt atIndex:0];
+      }
+    }
+    self->_currentWork = nil;
+    dispatch_async(_parentQueue, ^{
+      nextItem.resultCallback(nil, nil, error);
+    });
+    [self syncMaybeStartMoreWork];
+    return;
+  }
+
+  NSTask* task = [[NSTask alloc] init];
+  task.executableURL = taskURL;
+  task.arguments = nextItem.args;
+
+  _currentWork = [[CRUAsyncTaskRunner alloc] initWithTask:task
+                                              targetQueue:_privateQueue];
+  [_currentWork
+      launchWithReply:^(NSString* taskOut, NSString* taskErr, NSError* error) {
+        if (nextItem.onDone) {
+          CRURegistrationWorkItem* preempt =
+              nextItem.onDone(nextItem, taskOut, taskErr, error);
+          if (preempt) {
+            [self->_pendingWork insertObject:preempt atIndex:0];
+          }
+        }
+        self->_currentWork = nil;
+        if (nextItem.resultCallback) {
+          dispatch_async(self->_parentQueue, ^{
+            nextItem.resultCallback(taskOut, taskErr, error);
+          });
+        }
+        [self syncMaybeStartMoreWork];
+      }];
+}
+
+- (NSString*)installerPathInDirectory:(NSString*)directory {
+  NSString* helperPathInBundle =
+      [NSString stringWithFormat:@"%1$@.app/Contents/MacOS/%1$@",
+                                 CRUInstallerAppBasename];
+  return [directory stringByAppendingPathComponent:helperPathInBundle];
+}
+
+/**
+ * Writes an empty file to the path the updater uses as a "product was active"
+ * sentinel for the provided app ID. Stomps on any file already at this path.
+ * Does not validate the app ID; app IDs are assumed not to be under user
+ * control, so a malicious string here could theoretically be some kind of
+ * weird directory traversal attack.
+ */
+- (BOOL)syncWriteActiveFileWithError:(NSError**)error {
+  NSFileManager* fm = [NSFileManager defaultManager];
+  NSURL* library = [fm URLForDirectory:NSLibraryDirectory
+                              inDomain:NSUserDomainMask
+                     appropriateForURL:nil
+                                create:NO
+                                 error:error];
+  if (!library) {
+    return NO;
+  }
+  NSString* activesPathUnderLibrary =
+      [NSString stringWithFormat:@"%s/%s/Actives", CRU_COMPANY_SHORTNAME_STRING,
+                                 CRU_KEYSTONE_NAME];
+  NSURL* activesPath =
+      [library URLByAppendingPathComponent:activesPathUnderLibrary
+                               isDirectory:YES];
+  if (![fm createDirectoryAtURL:activesPath
+          withIntermediateDirectories:YES
+                           attributes:nil
+                                error:error]) {
+    return NO;
+  }
+  NSURL* target = [activesPath URLByAppendingPathComponent:_appId
+                                               isDirectory:NO];
+  return [@"" writeToFile:target.path
+               atomically:NO
+                 encoding:NSUTF8StringEncoding
+                    error:error];
+}
+
+/**
+ * syncNewTempDir uses mkdtemp to create a unique temp directory named after
+ * the updater. It's marked as "sync" only because it performs synchronous
+ * file I/O so should be kept off the caller's thread, which might be the
+ * application's main thread.
+ */
+- (NSString*)syncNewTempDir {
+  NSString* templateSuffix =
+      [NSString stringWithFormat:@"%@_UpdaterInstaller_XXXXXX", _appId];
+  NSString* template =
+      [NSTemporaryDirectory() stringByAppendingPathComponent:templateSuffix];
+  char* pathTemplateCString = strdup([template fileSystemRepresentation]);
+  if (!pathTemplateCString) {
+    return nil;
+  }
+  char* out = mkdtemp(pathTemplateCString);
+  NSString* result = out ? [NSString stringWithUTF8String:out] : nil;
+  free(pathTemplateCString);
+  return result;
+}
+
+- (NSString*)syncInstallerArchivePath {
+  return [NSBundle.mainBundle pathForResource:CRUArchiveBasename ofType:@"zip"];
+}
+
+- (CRURegistrationWorkItem*)workItemUnzippingInstallerToPath:(NSString*)path {
+  NSString* archivePath = [self syncInstallerArchivePath];
+  if (!archivePath) {
+    return nil;
+  }
+  CRURegistrationWorkItem* unzipItem = [[CRURegistrationWorkItem alloc] init];
+  unzipItem.binPathCallback = ^{
+    return [NSURL fileURLWithPath:@"/usr/bin/tar" isDirectory:NO];
+  };
+  unzipItem.args = @[
+    @"-x",
+    @"-f",
+    [self syncInstallerArchivePath],
+    @"-C",
+    path,
+    @"--no-same-owner",
+  ];
+  return unzipItem;
+}
+
+- (CRURegistrationWorkItem*)workItemInstallingFromDirectory:(NSString*)path {
+  CRURegistrationWorkItem* installItem = [[CRURegistrationWorkItem alloc] init];
+  installItem.binPathCallback = ^{
+    return [NSURL fileURLWithPath:[self installerPathInDirectory:path]
+                      isDirectory:NO];
+  };
+  installItem.args = @[ @"--install" ];
+  return installItem;
+}
+@end
+
+#pragma mark - CRURegistration (VisibleForTesting)
+
+@implementation CRURegistration (VisibleForTesting)
+
+- (void)addWorkItems:(NSArray<CRURegistrationWorkItem*>*)items {
+  dispatch_async(_privateQueue, ^{
+    [self->_pendingWork addObjectsFromArray:items];
+    [self syncMaybeStartMoreWork];
+  });
+}
+
+- (NSURL*)syncFindBestKSAdmin {
+  NSFileManager* fm = [NSFileManager defaultManager];
+  NSArray<NSURL*>* libraries =
+      [fm URLsForDirectory:NSLibraryDirectory
+                 inDomains:NSUserDomainMask | NSLocalDomainMask];
+  NSString* ksadminPathUnderLibrary =
+      [NSString stringWithFormat:@"%s/%s/%s.bundle/Contents/Helpers/ksadmin",
+                                 CRU_COMPANY_SHORTNAME_STRING,
+                                 CRU_KEYSTONE_NAME, CRU_KEYSTONE_NAME];
+  // URLsForDirectory returns paths in ascending order of domain mask values.
+  // To match Keystone's behavior, we prefer local domain (machine install) over
+  // user domain; local domain has the higher numerical value, so we test
+  // these in reverse order.
+  for (NSURL* library in libraries.reverseObjectEnumerator) {
+    NSURL* candidate =
+        [library URLByAppendingPathComponent:ksadminPathUnderLibrary
+                                 isDirectory:NO];
+    if ([fm isExecutableFileAtPath:candidate.path]) {
+      return candidate;
+    }
+  }
+  return nil;
+}
+
+- (NSError*)wrapError:(NSError*)error
+           withStdout:(NSString*)gotStdout
+            andStderr:(NSString*)gotStderr {
+  if (!error) {
+    return nil;
+  }
+
+  // Check for errors already ready for user presentation.
+  if ([error.domain isEqual:CRURegistrationErrorDomain] ||
+      [error.domain isEqual:CRURegistrationInternalErrorDomain]) {
+    return error;
+  }
+
+  // We're going to need to wrap this error. Start with common error info.
+  NSMutableDictionary* userInfo = [NSMutableDictionary
+      dictionaryWithDictionary:@{NSUnderlyingErrorKey : error}];
+  if (gotStdout) {
+    userInfo[CRUStdoutKey] = gotStdout;
+  }
+  if (gotStderr) {
+    userInfo[CRUStderrKey] = gotStderr;
+  }
+  id maybeFilePath = error.userInfo[NSFilePathErrorKey];
+  if (maybeFilePath) {
+    userInfo[NSFilePathErrorKey] = maybeFilePath;
+  }
+  id maybeURL = error.userInfo[NSURLErrorKey];
+  if (maybeURL) {
+    userInfo[NSURLErrorKey] = maybeURL;
+  }
+
+  // Check for helper task failure.
+  if ([error.domain isEqual:CRUReturnCodeErrorDomain]) {
+    userInfo[CRUReturnCodeKey] = @(error.code);
+    return [NSError errorWithDomain:CRURegistrationErrorDomain
+                               code:CRURegistrationErrorTaskFailed
+                           userInfo:userInfo];
+  }
+
+  // Check for errors reported by NSTask if it cannot find the task, or the file
+  // specified is not executable. NSTask returns the same error code for both.
+  // This NSTask behavior was determined experimentally -- Apple does not
+  // document the errors that NSTask can emit -- so promoting this to a
+  // HelperNotFound error should be considered "best-efort".
+  if ([error.domain isEqual:NSCocoaErrorDomain] &&
+      error.code == NSFileNoSuchFileError) {
+    return [NSError errorWithDomain:CRURegistrationErrorDomain
+                               code:CRURegistrationErrorHelperNotFound
+                           userInfo:userInfo];
+  }
+
+  // Unrecognized error.
+  return [NSError errorWithDomain:CRURegistrationInternalErrorDomain
+                             code:CRURegistrationInternalErrorUnrecognized
+                         userInfo:userInfo];
 }
 
 @end

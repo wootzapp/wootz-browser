@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/v4l2/v4l2_vp9_helpers.h"
 
 #include <vector>
@@ -10,8 +15,8 @@
 #include "base/files/memory_mapped_file.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/test_data_util.h"
-#include "media/filters/ivf_parser.h"
-#include "media/filters/vp9_parser.h"
+#include "media/parsers/ivf_parser.h"
+#include "media/parsers/vp9_parser.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -89,7 +94,7 @@ TEST(V4L2VP9HelpersTest, ParseAppendedSuperFrameIndex) {
     IvfFrameHeader ivf_frame_header;
     const uint8_t* ivf_payload;
     ASSERT_TRUE(ivf_parser.ParseNextFrame(&ivf_frame_header, &ivf_payload));
-    buffers[i] = base::make_span(ivf_payload, ivf_frame_header.frame_size);
+    buffers[i] = base::span(ivf_payload, ivf_frame_header.frame_size);
   }
 
   std::vector<uint32_t> frame_sizes;
@@ -106,21 +111,21 @@ TEST(V4L2VP9HelpersTest, ParseAppendedSuperFrameIndex) {
     AppendSideData(*decoder_buffer, frame_sizes);
 
     AppendVP9SuperFrameIndex(decoder_buffer);
-
     Vp9Parser vp9_parser(/*parsing_compressed_header=*/false);
-    vp9_parser.SetStream(decoder_buffer->data(), decoder_buffer->size(),
+    auto decoder_buffer_span = base::span(*decoder_buffer);
+    vp9_parser.SetStream(decoder_buffer_span.data(), decoder_buffer_span.size(),
                          /*stream_config=*/nullptr);
 
     // Parse the merged buffer with the created superframe index.
     for (size_t j = 0; j <= i; j++) {
-      Vp9FrameHeader frame_header{};
+      Vp9FrameHeader frame_header;
       gfx::Size allocate_size;
       std::unique_ptr<DecryptConfig> frame_decrypt_config;
       EXPECT_EQ(vp9_parser.ParseNextFrame(&frame_header, &allocate_size,
                                           &frame_decrypt_config),
                 Vp9Parser::Result::kOk);
 
-      EXPECT_EQ(frame_header.frame_size, buffers[j].size());
+      EXPECT_EQ(frame_header.data.size(), buffers[j].size());
       // show_frame is 1 if and only if the frame is in the top spatial layer.
       EXPECT_EQ(frame_header.show_frame, j == i);
     }

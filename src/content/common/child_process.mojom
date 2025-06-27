@@ -13,7 +13,7 @@ import "services/tracing/public/mojom/system_tracing_service.mojom";
 
 // Information about how logging should be configured.
 // Corresponds to logging::LoggingSettings.
-[EnableIf=is_chromeos_ash]
+[EnableIf=is_chromeos]
 struct LoggingSettings {
   uint32 logging_dest;
   handle<platform> log_file_descriptor;
@@ -108,7 +108,7 @@ interface ChildProcess {
   // Reinitializes the child process's logging with the given settings. This
   // is needed on Chrome OS, which switches to a log file in the user's home
   // directory once they log in.
-  [EnableIf=is_chromeos_ash]
+  [EnableIf=is_chromeos]
   ReinitializeLogging(LoggingSettings settings);
 
   // Notifies a child process of current memory pressure level.
@@ -122,4 +122,9 @@ interface ChildProcess {
   // See https://crbug.com/1393283 for details.
   [EnableIf=is_android]
   OnMemoryPressure(mojo_base.mojom.MemoryPressureLevel memory_pressure_level);
+
+  // Asks the child process to modify its internal settings to bias towards
+  // energy efficiency because the embedder is in battery saver mode. The
+  // default is `false`.
+  SetBatterySaverMode(bool battery_saver_mode_enabled);
 };

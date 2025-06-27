@@ -39,26 +39,22 @@ class PasswordManagerNavigationThrottleTest
     ChromeRenderViewHostTestHarness::SetUp();
     content::RenderFrameHostTester::For(main_rfh())
         ->InitializeRenderFrameIfNeeded();
-    subframe_ = content::RenderFrameHostTester::For(main_rfh())
-                    ->AppendChild("subframe");
   }
-
-  content::RenderFrameHost* subframe() const { return subframe_; }
 
   std::unique_ptr<PasswordManagerNavigationThrottle> CreateNavigationThrottle(
       NavigationThrottleOptions opts) {
     content::MockNavigationHandle handle(
         opts.url, opts.rfh ? opts.rfh.get() : main_rfh());
     handle.set_page_transition(opts.page_transition);
-    if (opts.initiator_origin)
+    if (opts.initiator_origin) {
       handle.set_initiator_origin(*opts.initiator_origin);
+    }
     return PasswordManagerNavigationThrottle::MaybeCreateThrottleFor(&handle);
   }
 
  private:
   variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
       variations::VariationsIdsProvider::Mode::kUseSignedInState};
-  raw_ptr<content::RenderFrameHost, DanglingUntriaged> subframe_ = nullptr;
 };
 
 TEST_F(PasswordManagerNavigationThrottleTest,

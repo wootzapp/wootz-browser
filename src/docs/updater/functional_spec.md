@@ -55,9 +55,39 @@ detect and properly represent any overinstallations of an application, which are
 done by users or third-party software on macOS (and don't otherwise interact
 with the updater).
 
+##### Install ID
+The tag may carry a unique identifier called an "install ID" or "iid". The
+install ID is transmitted back to the server as part of the install event
+associated with running the installer, and as part of the first update check
+for the app that reports activity. It is then deleted from the client. It is not
+sent as part of update event reports, nor as part of non-active update checks,
+nor as part of active update checks after the first.
+
+If a user runs an installer when the software is already installed, the install
+ID for the software will be updated to match, and the new value will be
+transmitted during the install event and the next active update check.
+
+The install ID is meant to enable the app distributor to correlate each
+installer's download with the outcome of running that particular installer, and
+whether or not the installed software is eventually actively used at least once.
+
 #### Elevation (Windows)
 The metainstaller parses its tag and re-launches itself at high integrity if
-installing an application with `needsadmin=true` or `needsadmin=prefers`.
+it is being run at medium integrity with UAC on and installing an application
+with `needsadmin=true` or `needsadmin=prefers`.
+
+More information is in the
+[design document](design_doc.md#elevation)
+.
+
+#### De-elevation (Windows)
+The metainstaller parses its tag and re-launches itself at medium integrity if
+it is being run at high integrity with UAC on and installing an application with
+`needsadmin=false`.
+
+More information is in the
+[design document](design_doc.md#de_elevation)
+.
 
 #### Localization
 Metainstaller localization presents the metainstaller UI with the user's
@@ -463,6 +493,14 @@ at least `kMaxServerStartsBeforeFirstReg` wakes. This feature is used to expose
 the COM API to a process that will install applications via that API.
 
 ### Installer User Interface
+During the initialization of the installer, the user is shown a splash screen UI
+briefly before a full-fledged UI is shown. Installer initialization involves
+unzipping and unpacking the installer files.
+
+The splash screen logo can be customized by editing
+[logo.bmp](https://source.chromium.org/chromium/chromium/src/+/main:chrome/updater/win/installer/logo.bmp)
+.
+
 During installation, the user is presented with a UI that displays the progress
 of the download and installation. The user may close the dialog, which cancels
 the installation. A cancelled installation still results in an event ping to
@@ -482,6 +520,20 @@ If the installation fails, the updater shows an error message with a "Help"
 button. Clicking the help button opens a web page in the user's default browser.
 The page is opened with a query string:
 `?product={AppId}&errorcode={ErrorCode}`.
+
+### Periodic detection of over-installed apps
+
+The updater periodically checks if application versions persisted to the system
+match its built-in `pv` value. If different, the updater sends an installation
+ping for the application indicating the actually installed version and updates
+the internal `pv` value to match.
+
+The application's version persisted to the system is determined via:
+
+* The plist file and key indicated by the `pv_path` and `pv_key` in the app's
+  updater registration on MacOS.
+* The `pv` registry key as described by the "App Registration" section on
+  Windows.
 
 ## Updates
 There is no limit for the number of retries to update an application if the
@@ -560,18 +612,21 @@ The application installer API varies by platform.
 For Windows, for backward compatibility, the following installer results are
 read and written from the registry:
 
+While installing:
 * `InstallerProgress` : The installer writes a percentage value (0-100) while
 installing so that the updater can provide feedback to the user on the progress.
-* `InstallerError` : Installer error, or 0 for success.
-* `InstallerExtraCode1` : Optional extra code.
-* `InstallerResult` : Specifies the result type and how to determine success or
-failure:
+
+After the install completes:
+* `InstallerResult` : NOTE: If this value is not written, all the other
+`InstallerXXX` values documented below will be ignored. `InstallerResult`
+specifies the result type and how to determine success or failure:
   *   0 - SUCCESS
       The installer succeeded, unconditionally.
       - if a launch command was provided via the installer API, the command will
         be launched and the updater UI will exit silently. Otherwise, the
         updater will show an install success dialog.
-
+  *   4, and the installer exits with a zero exit code - SUCCESS
+      Same as `0 - SUCCESS` above.
   *   All the error installer results below are treated the same.
       - if an installer error was not provided via the installer API or the exit
         code, generic error `kErrorApplicationInstallerFailed` will be reported.
@@ -581,29 +636,34 @@ failure:
       *   1 - FAILED\_CUSTOM\_ERROR
       *   2 - FAILED\_MSI\_ERROR
       *   3 - FAILED\_SYSTEM\_ERROR
-      *   4 - FAILED\_EXIT\_CODE (default)
-
-  *   If an installer result is not explicitly reported by the installer, the
-      installer API values are internally set based on whether the exit code
-      from the installer process is a success or an error:
-      - If the exit code is a success, the installer result is set to success.
-        If a launch command was provided via the installer API, the command will
-        be launched and the updater UI will exit silently. Otherwise, the
-        updater will show an install success dialog.
-      - If the exit code is a failure, the installer result is set to
-        `kExitCode`, the installer error is set to
-        `kErrorApplicationInstallerFailed`, and the installer extra code is set
-        to the exit code.
-      - If a text description is reported via the installer API, it will be
-        used.
+      *   4 - FAILED\_EXIT\_CODE, where the installer exits with a non-zero exit
+              code.
+* `InstallerError` : Installer error, or 0 for success.
+* `InstallerExtraCode1` : Optional extra code.
 * `InstallerResultUIString` : A string to be displayed to the user, if
-`InstallerResult` is FAILED*.
+`InstallerResult` is a `FAILED_XXX` value.
 * `InstallerSuccessLaunchCmdLine` : On success, the installer writes a command
 line to be launched by the updater. The command line will be launched at medium
 integrity on Vista with UAC on, even if the application being installed is a
 machine application. Since this is a command line, the application path should
 be properly enclosed. For example:
 `"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" /foo`
+
+If `InstallerResult` is not explicitly written by the installer to the registry,
+the other installer API values such as `InstallerError`, `InstallerExtraCode1`,
+`InstallerResultUIString`, and `InstallerSuccessLaunchCmdLine` are not read from
+the registry, but are instead internally set based on whether the exit code from
+the installer process is a success or an error:
+  - If the exit code is a success, the installer result is set to success.
+    If a launch command was provided via the installer API, the command will
+    be launched and the updater UI will exit silently. Otherwise, the
+    updater will show an install success dialog.
+  - If the exit code is a failure, the installer result is set to
+    `kExitCode`, the installer error is set to
+    `kErrorApplicationInstallerFailed`, and the installer extra code is set
+    to the exit code.
+  - If a text description is reported via the installer API, it will be
+    used.
 
 On an update or install, the InstallerXXX values are renamed to LastInstallerXXX
 values. The LastInstallerXXX values remain around until the next update or
@@ -617,6 +677,12 @@ BELOW_NORMAL_PRIORITY_CLASS if the update flow is a background flow.
 #### Updater UI behavior
 
 The updater UI does the following:
+*   The title of the UI is derived from the `bundlename` if specified, or
+    otherwise the `appname` from the metainstaller `tag`. For instance, if no
+    `bundlename` is specified, and the `appname` is "Sample App", the title of
+    the UI will be "Sample App Installer". If no `bundlename` or `appname` is
+    specified, the UI title will be a generic `Chromium Installer` for
+    unbranded, or `Google Installer` for branded.
 *   on successful installs that do not specify an installer API launch command:
     *   Displays a "Thank you for installing" message that the user must click
         to close.
@@ -736,7 +802,7 @@ treating "x64" the same as "x86_64".
 For more information, see the
 [protocol document](protocol_3_1.md#update-checks-body-update-check-response-objects-update-check-response-3).
 
-### MSI installers (work in progress)
+### MSI installers
 
 MSI installers package an offline/standalone installer, and can be built using
 [msi_from_standalone.py](https://source.chromium.org/chromium/chromium/src/+/main:chrome/updater/win/signing/msi_from_standalone.py)
@@ -758,13 +824,14 @@ python3 chrome/updater/win/signing/msi_from_standalone.py
     --appid {8237E44A-0054-442C-B6B6-EA0509993955}
     --product_custom_params "&brand=GCEA"
     --product_uninstaller_additional_args=--force-uninstall
-    --product_installer_data "%7B%22dis%22%3A%7B%22msi%22%3Atrue%7D%7D"
+    --product_installer_data "%7B%22distribution%22%3A%7B%22msi%22%3Atrue%7D%7D"
     --standalone_installer_path ChromeBetaOfflineSetup.exe
     --custom_action_dll_path out/Default/msi_custom_action.dll
     --msi_base_name GoogleChromeBetaStandaloneEnterprise
     --enterprise_installer_dir chrome/updater/win/signing
     --company_name "Google"
     --company_full_name "Google LLC"
+    --architecture x64
     --output_dir out/Default
 ```
 
@@ -776,7 +843,7 @@ metainstaller with the following parameters:
       appname=GoogleChromeBeta&needsAdmin=True&brand=GCEA
 --installsource=enterprisemsi
 --appargs=appguid={8237E44A-0054-442C-B6B6-EA0509993955}&
-          installerdata=%7B%22dis%22%3A%7B%22msi%22%3Atrue%7D%7D
+          installerdata=%7B%22distribution%22%3A%7B%22msi%22%3Atrue%7D%7D
 ```
 
 This MSI can be tagged using `tag.exe` as follows:
@@ -799,7 +866,7 @@ the following parameters:
       appname=Google%20Chrome%20Beta&needsAdmin=True&brand=GGLL
 --installsource enterprisemsi
 --appargs=appguid={8237E44A-0054-442C-B6B6-EA0509993955}&
-          installerdata=%7B%22dis%22%3A%7B%22msi%22%3Atrue%7D%7D
+          installerdata=%7B%22distribution%22%3A%7B%22msi%22%3Atrue%7D%7D
 ```
 
 ### Enterprise Enrollment
@@ -852,9 +919,9 @@ The `EnrollmentMandatory` `REG_DWORD` value is also read from
 #### macOS
 The enrollment token is searched in the order:
 
-* Managed Preference value with key `CloudManagementEnrollmentToken` in domain
+* Managed Preferences value with key `CloudManagementEnrollmentToken` in domain
  `{MAC_BROWSER_BUNDLE_IDENTIFIER}`.
-* Managed Preference value with key `EnrollmentToken` in domain
+* Managed Preferences value with key `EnrollmentToken` in domain
  `{MAC_BROWSER_BUNDLE_IDENTIFIER}`.
 * File
  `/Library/{COMPANY_SHORTNAME}/{BROWSER_NAME}/CloudManagementEnrollmentToken`.
@@ -900,6 +967,12 @@ Note the device must have a valid DM token for the downloaded CBCM policies to
 be effective.
 
 ### Enterprise Policies
+Some updater behavior can be controlled by enterprise policies. Policies are
+only respected on devices that are "domain-joined", enrolled in Chrome
+Enterprise Core, or (on macOS) managed by MDM. A device is "domain-joined" if
+it is on Windows and enrolled in an Active Directory domain or Azure Active
+Directory domain, or it is on macOS and joined to a domain via MCX.
+
 Enterprise policies can prevent the installation of applications:
 
 * A per-application setting may specify whether an application is installable.
@@ -915,13 +988,15 @@ Enterprise policies can control the updates of applications:
 * If no per-application setting specifies otherwise, the default update
   policy is used.
 * If the default update policy is unset, the application may be updated.
-* Updates are always enabled for the updater itself and can't be disabled by
-  policy..
+* Updates and qualification are always enabled for the updater itself and can't
+  be disabled by policy.
+* If the update check period is set to zero, the updater is qualified without
+  an update check.
 
 Refer to chrome/updater/protos/omaha\_settings.proto for more details.
 
-Policies may be set by platform-specific means (group policy on Windows, managed
-preferences on macOS), or by communication with the device management server.
+Policies may be set by platform-specific means (Group Policy on Windows, Managed
+Preferences on macOS), or by communication with the device management server.
 
 For device management, the enterprise policies for Google applications are
 downloaded from the device management server periodically and stored at a fixed
@@ -938,17 +1013,17 @@ The policy searching order:
 * Policy dictionary defined in
  [External constants](#external-constants-overrides)(testing overrides)
 * Group Policy
-* Device Management policy
+* Device Management policy (cloud policy)
 * Policy from default value provider
 >**_NOTE:_** If the global policy `CloudPolicyOverridesPlatformPolicy` is set
-to a non-zero DWORD value, then the search order of `Group policy` and
+to a non-zero DWORD value, then the search order of `Group Policy` and
 `Device Management policy` is reversed.
 
 
 ##### macOS
 * Policy dictionary defined in
  [External constants](#external-constants-overrides)(testing overrides)
-* Device management policy
+* Device management policy (cloud policy)
 * Policy from Managed Preferences
 * Policy from default value provider
 
@@ -961,6 +1036,15 @@ Chrome the ability to query the updater enterprise policies.
 A client can `CoCreateInstance` the `PolicyStatusUserClass` or the
 `PolicyStatusSystemClass` to get the corresponding policy status object and
 query it via the `IPolicyStatus4` methods.
+
+#### Enterprise policies ADM/ADMX files (Windows, Google-branded builds only)
+
+ADM/ADMX files for enterprise policies are generated with each build in
+`GoogleUpdateAdmx.zip` and `GoogleCloudManagementAdmx.zip` for enterprise
+customers.
+
+These ADM/ADMX files are generated using the scripts in
+[chrome/updater/enterprise/win/google/](https://source.chromium.org/chromium/chromium/src/+/main:chrome/updater/enterprise/win/google/).
 
 #### Deploying enterprise applications via updater policy
 For each application that needs to be deployed via the updater, the policy for
@@ -975,7 +1059,7 @@ The updater fetches all machine level app CBCM policies and caches them in the
 file system.  The cached policy files are global readable for other apps to
 consume. Location of the policy cache folder:
 
-* **Windows**: `%PROGRAMFILESX86%\{COMPANY_SHORTNAME}\Policies`
+* **Windows**: `%PROGRAMFILES(X86)%\{COMPANY_SHORTNAME}\Policies`
 * **macOS**: `/Library/{COMPANY_SHORTNAME}/GoogleSoftwareUpdate/DeviceManagement`
 * **Linux**: `/opt/{COMPANY_SHORTNAME}/{PRODUCT_FULLNAME}/DeviceManagement`
 
@@ -1289,6 +1373,14 @@ POSIX platforms, they will additionally lchown the existence checker path
 registered by the application to be owned by the root user. User-scope updaters
 use this as a signal that the application is managed by a system-scope updater.
 
+#### Windows
+
+Application installers are expected to register with the updater by setting
+[HKCU or HKLM]\SOFTWARE\{Company}\Update\Clients\{AppID} → pv to the installed
+version of the application. If pv is present and valid in the app's Clients
+key it will be used by the updater as the source of truth for the registered
+version.
+
 For backwards compatibility with third party software, on Windows, after a
 successful registration and on each update, the updater will set
 [HKCU or HKLM]\SOFTWARE\{Company}\Update\ClientState\{AppID} → pv to the
@@ -1414,12 +1506,19 @@ If a user installs an app using an online installer, the updater will transition
 out of eula-required mode and begin normal operation.
 
 On Windows, applications can signal the updater that the user has accepted Terms
-of Service by writing `HKCU\SOFTWARE\{Company}\Update\ClientState\{AppID}` →
-`usagestats` (DWORD): `1`. The updater will then transition out of eula-required
-mode and begin normal operation the next time it runs periodic tasks.
+of Service by writing
+`HKLM\SOFTWARE\{Company}\Update\ClientStateMedium\{AppID}` → `eulaaccepted`
+(DWORD): `1`. The updater will then transition out of eula-required mode and
+begin normal operation the next time it runs periodic tasks.
 
 Once operating normally, the updater only returns to eula-required mode when
 it is uninstalled and then reinstalled with `--eularequired`.
+
+### Windows: checking if EULA has already been accepted
+*   Applications can check if the EULA has already been accepted by checking
+    whether the value `eulaaccepted` does not exist at
+    `HKCU|HKLM\SOFTWARE\{Company}\Update`, or if it does exist, that it has a
+    value of `(DWORD): 1`.
 
 ### Usage Stats Acceptance
 The updater may upload its crash reports and send usage stats if and only if
@@ -1446,7 +1545,13 @@ any piece of software it manages is permitted to send usage stats.
 ### Telemetry
 When the updater installs an application (an installer is run) it sends an
 event with `"eventtype": 2` indicating the outcome of installation. The updater
-does not send such a ping for its own installation.
+does not send such a ping for its own successful installation, but if the
+updater installation fails, then the updater sends an error event with
+`"eventtype": 2`. For example:
+`"event":[{"errorcode":75075,"eventresult":0,"eventtype":2,`.
+
+Or for metainstaller errors in the 73000-73500 range:
+`"event":[{"errorcode":73118,"eventresult":0,"eventtype":2,`.
 
 When the updater updates an application (including itself) it sends an
 event with `"eventtype": 3` indicating the outcome of update operation.
@@ -1466,8 +1571,22 @@ in the order they are returned in the update response.
 
 The integrity of the payload is verified.
 
-There is no download cache. Payloads are re-downloaded for applications which
-fail to install.
+Downloads are cached in the `crx_cache` subdirectory of the program's install
+location. The cache contains at most one item per app ID, in a file named
+`A_F` where A is the app ID and F is the
+[differential update fingerprint](protocol_4.md#differential-updates) of the
+download.
+
+### Install location
+On Windows for system-scope updaters, the install location for both 32-bit and
+64-bit updaters is `%PROGRAMFILES(X86)%\{COMPANY_SHORTNAME}\{PRODUCT_FULLNAME}`.
+In addition to this, there is a legacy install location at
+`%PROGRAMFILES(X86)%\{COMPANY_SHORTNAME}\Update`.
+
+On Windows for user-scope updaters, the install location is
+`%LOCALAPPDATA%\{COMPANY_SHORTNAME}\{PRODUCT_FULLNAME}`. In addition to this,
+there is a legacy install location at
+`%LOCALAPPDATA%\{COMPANY_SHORTNAME}\Update`.
 
 ### Logging
 All updater logs are written to `{UPDATER_DATA_DIR}\updater.log`.
@@ -1483,11 +1602,15 @@ On macOS for user-scope updaters, `{UPDATER_DATA_DIR}` is
 `~/Library/Application Support/{COMPANY_SHORTNAME}/{PRODUCT_FULLNAME}`.
 
 On Windows for system-scope updaters, `{UPDATER_DATA_DIR}` is
-`%PROGRAMFILES%\{COMPANY_SHORTNAME}\{PRODUCT_FULLNAME}`. (A 32-bit updater uses
-use `%PROGRAMFILESX86%` if appropriate instead.)
+`%PROGRAMFILES(X86)%\{COMPANY_SHORTNAME}\{PRODUCT_FULLNAME}`.
 
 On Windows for user-scope updaters, `{UPDATER_DATA_DIR}` is
 `%LOCALAPPDATA%\{COMPANY_SHORTNAME}\{PRODUCT_FULLNAME}`.
+
+On Windows, when the updater uninstalls itself, and there are no other versions
+of the updater in existence for the scope, the updater saves a copy of the final
+log file to `Windows\SystemTemp\updater.log` for system installs, and
+`%TMP%\updater.log` for user installs.
 
 ## Network
 
@@ -1568,11 +1691,20 @@ Example `{command format}`: `c:\path-to\echo.exe %1 %2 %3 StaticParam4`
 As shown above, `{command format}` needs to be the complete path to an
 executable followed by optional parameters.
 
-If "AutoRunOnOSUpgrade" is non-zero, the command is invoked when the updater
-detects an OS upgrade. In this case, `command format` can optionally contain a
-single substitutible parameter, which is filled in with the OS versions in the
-format `{Previous OS Version}-{Current OS Version}`. It is ok to have a static
-command line as well if the OS versions information is not required.
+If "AutoRunOnOSUpgrade" is set to `1`, the corresponding command is invoked when
+the updater detects an OS upgrade. In this case, `command format` can optionally
+contain a single substitutible parameter `%1`, which is filled in with the OS
+versions in the format `{Previous OS Version}-{Current OS Version}`.
+
+For example, if the `{command format}` for an `AutoRunOnOSUpgrade` command is:
+`c:\path-to\echo.exe %1 StaticParam`
+
+then on an OS upgrade from OS version `9.0.22631.0.0` to OS version
+`10.0.22631.0.0`, the `AutoRunOnOSUpgrade` will be run as follows:
+`c:\path-to\echo.exe 9.0.22631.0.0-10.0.22631.0.0 StaticParam`
+
+It is ok to have a static command line with no `%1` for an `AutoRunOnOSUpgrade`
+command if the OS versions information is not required.
 
 #### Usage
 Once registered, commands may be invoked using the `execute` method in the

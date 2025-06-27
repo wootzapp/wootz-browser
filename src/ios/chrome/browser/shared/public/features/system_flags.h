@@ -5,10 +5,10 @@
 #ifndef IOS_CHROME_BROWSER_SHARED_PUBLIC_FEATURES_SYSTEM_FLAGS_H_
 #define IOS_CHROME_BROWSER_SHARED_PUBLIC_FEATURES_SYSTEM_FLAGS_H_
 
+#import <Foundation/Foundation.h>
+
 #import <optional>
 #import <string>
-
-#import <Foundation/Foundation.h>
 
 enum class UpdateChromeSafetyCheckState;
 enum class PasswordSafetyCheckState;
@@ -22,6 +22,11 @@ namespace experimental_flags {
 
 // Whether the First Run UI will always be displayed.
 bool AlwaysDisplayFirstRun();
+
+// Whether the First Run UI will never be displayed. Useful when running
+// automated testing on the "chrome" build target which otherwise cannot skip
+// the FRE using tests_hook::DisableDefaultFirstRun
+bool NeverDisplayFirstRun();
 
 // Whether the Upgrade Promo UI will always be displayed.
 bool AlwaysDisplayUpgradePromo();
@@ -130,7 +135,15 @@ std::optional<int> GetFirstRunRecency();
 // switches, but the former takes precedence.
 std::string GetSegmentForForcedDeviceSwitcherExperience();
 
-// Whether a phone backup/restore state should be simulated.
+// Returns the selected shopper segment the user wants to simulate as a string.
+// The string should either be nil, "ShoppingUser", or "Other". The value could
+// be set both from Experimental Settings and command line switches, but the
+// former takes precedence.
+std::string GetSegmentForForcedShopperExperience();
+
+// Whether a phone backup/restore state should be simulated due to experimental
+// settings. Uses `tests_hook::SimulatePostDeviceRestore()` to check whether
+// this feature should be enabled for EG tests.
 bool SimulatePostDeviceRestore();
 
 // In production, the history sync opt-in isn't shown if it was declined too
@@ -138,9 +151,39 @@ bool SimulatePostDeviceRestore();
 // limits are suppressed for simpler testing.
 bool ShouldIgnoreHistorySyncDeclineLimits();
 
-// Whether the developer-mode Switch Profile UI will be be displayed, returns
-// the number of test profiles that should be created.
-std::optional<int> DisplaySwitchProfile();
+// Returns the inactivity threshold to be used for displaying Safety Check
+// notifications, overriding the default value stored in the code or any value
+// set by Finch.
+//
+// Returns `std::nullopt` if no override is specified.
+std::optional<int> GetForcedInactivityThresholdForSafetyCheckNotifications();
+
+// Returns the forced state of the Tips (Magic Stack) module.
+std::optional<int> GetForcedTipsMagicStackState();
+
+// Whether the Lens Shop state for Tips (Magic Stack) should display a product
+// image.
+bool ShouldDisplayLensShopTipWithImage();
+
+// Whether Inactive Tabs should be in Demo mode, where tabs are
+// considered inactive after a minute.
+bool ShouldUseInactiveTabsDemoThreshold();
+
+// Whether Inactive Tabs should be in Automated Testing mode, where
+// tabs are immediately considered inactive.
+bool ShouldUseInactiveTabsTestThreshold();
+
+// Whether the first party incognito experience should be simulated.
+bool ShouldOpenInIncognitoOverride();
+
+// Whether the a delay should be added to the asynchronous startup.
+bool ShouldDelayAsyncStartup();
+
+// Whether to always show the first party incognito experience UI.
+bool AlwaysShowTheFirstPartyIncognitoUI();
+
+// Enables the AI menu, which is a tool for debugging LLM queries.
+bool EnableAIPrototypingMenu();
 
 }  // namespace experimental_flags
 

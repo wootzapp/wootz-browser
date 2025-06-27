@@ -5,26 +5,57 @@
 #ifndef CHROME_BROWSER_ASH_INPUT_METHOD_INPUT_METHODS_BY_LANGUAGE_H_
 #define CHROME_BROWSER_ASH_INPUT_METHOD_INPUT_METHODS_BY_LANGUAGE_H_
 
-#include <string>
-#include <vector>
+#include <string_view>
+
+#include "base/containers/span.h"
 
 namespace ash::input_method {
 
-enum LanguageCategory {
+enum class LanguageCategory {
+  kAfrikaans,
+  kDanish,
+  kDutch,
+  kFinnish,
   kEnglish,
   kFrench,
   kGerman,
+  kItalian,
   kJapanese,
+  kNorwegian,
+  kPolish,
+  kPortugese,
+  kSpanish,
+  kSwedish,
   kOther,
 };
 
-const std::vector<std::string>& EnglishInputMethods();
+base::span<const std::string_view> AfrikaansInputMethods();
 
-const std::vector<std::string>& FrenchInputMethods();
+base::span<const std::string_view> DanishInputMethods();
 
-const std::vector<std::string>& GermanInputMethods();
+base::span<const std::string_view> DutchInputMethods();
 
-const std::vector<std::string>& JapaneseInputMethods();
+base::span<const std::string_view> FinnishInputMethods();
+
+base::span<const std::string_view> EnglishInputMethods();
+
+base::span<const std::string_view> FrenchInputMethods();
+
+base::span<const std::string_view> GermanInputMethods();
+
+base::span<const std::string_view> ItalianInputMethods();
+
+base::span<const std::string_view> JapaneseInputMethods();
+
+base::span<const std::string_view> NorwegianInputMethods();
+
+base::span<const std::string_view> PolishInputMethods();
+
+base::span<const std::string_view> PortugeseInputMethods();
+
+base::span<const std::string_view> SpanishInputMethods();
+
+base::span<const std::string_view> SwedishInputMethods();
 
 LanguageCategory InputMethodToLanguageCategory(std::string_view input_method);
 

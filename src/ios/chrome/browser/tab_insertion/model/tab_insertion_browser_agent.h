@@ -61,11 +61,14 @@ struct Params {
   // Note: Currently only applies to web states not instant-loaded.
   std::u16string placeholder_title;
 
+  // Whether the inserted tab is pinned tab.
+  bool insert_pinned = false;
+
   // Whether the inserted tab is in a group.
   bool insert_in_group = false;
 
   // The tab group where the tab should be inserted (if null and
-  // `insert_in_group` the tab is inserted in a new tab group).
+  // `insert_in_group` is true, the tab is inserted in a new tab group).
   base::WeakPtr<const TabGroup> tab_group;
 };
 
@@ -90,7 +93,6 @@ class TabInsertionBrowserAgent
 
  private:
   friend class BrowserUserData<TabInsertionBrowserAgent>;
-  BROWSER_USER_DATA_KEY_DECL();
 
   explicit TabInsertionBrowserAgent(Browser* browser);
 

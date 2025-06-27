@@ -19,6 +19,7 @@
 <translation id="115443833402798225">អាន់ម៉ាទាហានគុល</translation>
 <translation id="1155759005174418845">កាតាឡាន</translation>
 <translation id="1168100932582989117">ម៉ាស៊ីនមេ​ឈ្មោះ Google</translation>
+<translation id="1170788066030116158">កាលបរិច្ឆេទ​ថត</translation>
 <translation id="1172970565351728681">នៅសល់​ប្រហែល <ph name="REMAINING_TIME" /> ទៀត</translation>
 <translation id="1173894706177603556">ប្តូរឈ្មោះ</translation>
 <translation id="1173916544412572294">បណ្ដាញ <ph name="NETWORK_INDEX" /> នៃ <ph name="NETWORK_COUNT" />, <ph name="PHONE_NAME" />, <ph name="CONNECTION_STATUS" />, កម្លាំង​រលកសញ្ញា <ph name="SIGNAL_STRENGTH" />%, ថ្មទូរសព្ទ <ph name="BATTERY_STATUS" />%, ព័ត៌មាន​លម្អិត</translation>
@@ -72,6 +73,7 @@
 <translation id="1577977504532381335">ពិនិត្យមើលគោលការណ៍អ្នកគ្រប់គ្រង</translation>
 <translation id="158849752021629804">ត្រូវការបណ្តាញនៅតាមផ្ទះ</translation>
 <translation id="1589128298353575783"><ph name="NUMBER_OF_PB" /> PB</translation>
+<translation id="1601786938618212857">Zip</translation>
 <translation id="1620510694547887537">កាមេរ៉ា</translation>
 <translation id="162175252992296058">ភាសាព័រទុយហ្កាល់​ដែលប្រើ​ក្ដារចុច​អាមេរិកអន្តរជាតិ</translation>
 <translation id="1629521517399325891">មិនអាចប្រើ​វិញ្ញាបនបត្រ​អ្នកប្រើប្រាស់​សម្រាប់​ការផ្ទៀងផ្ទាត់​បណ្ដាញបានទេ។</translation>
@@ -105,6 +107,7 @@
 <translation id="1810764548349082891">ការមើលជាមុនមិនអាចប្រើបានទេ</translation>
 <translation id="1812302367230252929">ការសរសេរ​តាមសូរសព្ទ​ជាភាសា​អំហារិក</translation>
 <translation id="1813278315230285598">សេវាកម្ម</translation>
+<translation id="181434555916624618">ឥឡូវនេះ លទ្ធផល​ដែលមាន​មនុស្ស​នឹងមិន​បង្ហាញទេ។ សូមសាកល្បងប្រើសារតម្រុយផ្សេង។</translation>
 <translation id="1829129547161959350">ភីនខ្វីន</translation>
 <translation id="183183971458492120">កំពុង​ផ្ទុក​ព័ត៌មាន...</translation>
 <translation id="1832073788765803750">កាតាកាណា​ពាក់កណ្ដាល​ទទឹង</translation>
@@ -135,7 +138,6 @@
 <translation id="2084809735218147718">កំពុងបង្ហាញ​កាយវិការ​អរគុណ</translation>
 <translation id="2088690981887365033">បណ្ដាញ VPN</translation>
 <translation id="209653272837065803">មិនមាន​ទំហំផ្ទុក​គ្រប់គ្រាន់ ដើម្បី​បន្តធ្វើ​សមកាលកម្ម​ឯកសារទេ</translation>
-<translation id="2111134541987263231">បើក <ph name="BEGIN_BOLD" />អនុញ្ញាតនៅក្នុងមុខងារឯកជន<ph name="END_BOLD" /></translation>
 <translation id="2114191879048183086">ធាតុ <ph name="NUMBER_OF_ITEMS" /> នឹង​ត្រូ​វបាន​លុប ហើយ​អ្នកនឹង​មិន​អាច​ស្ដារ​ធាតុ​ទាំងនេះ​បាន​ទេ។</translation>
 <translation id="2122305276694332719">ការតភ្ជាប់ទៅបណ្ដាញដែលបានលាក់ដោយស្វ័យប្រវត្តិ​​អាចឱ្យអ្នកដទៃ​អាចមើលឃើញការកំណត់បណ្ដាញមួយចំនួន​ និងឧបករណ៍​របស់អ្នក ដូច្នេះយើង​សូមណែនាំមិន​ឱ្យធ្វើការតភ្ជាប់​ទេ។</translation>
 <translation id="2125607626296734455">ភាសា​ខ្មែរ</translation>
@@ -166,7 +168,6 @@
 <translation id="2304820083631266885">ភព</translation>
 <translation id="2305020378527873881"><ph name="VOLUME_NAME" /> ត្រូវបាន​ដកចេញ។</translation>
 <translation id="2307462900900812319">តំឡើងបណ្តាញ</translation>
-<translation id="2312704192806647271">{COUNT,plural, =1{មិន​អាច​កំណត់​ទីតាំង​កម្មវិធី​ដែលមាន​លេខម្គាល់ <ph name="BEGIN_LIST" /><ph name="END_LIST" /> បាន​ទេ។ សូមទាក់ទងទៅ​អ្នកគ្រប់គ្រង​របស់អ្នក។}other{មិន​អាច​កំណត់​ទីតាំង​កម្មវិធី​ដែលមាន​លេខម្គាល់ <ph name="BEGIN_LIST" /><ph name="END_LIST" /> បាន​ទេ។ សូមទាក់ទងទៅ​អ្នកគ្រប់គ្រង​របស់អ្នក។}}</translation>
 <translation id="2325650632570794183">ប្រភេទឯកសារនេះមិនត្រូវបានគាំទ្រទេ។ សូមទៅកាន់ Chrome Web Store ដើម្បិស្វែងរកកម្មវិធីដែលអាចបើកប្រភេទឯកសារនេះបាន។</translation>
 <translation id="2326539130272988168">ភាសា​ប៊ុលហ្ការី</translation>
 <translation id="233822363739146957">មិនមាន​ទំហំផ្ទុក​គ្រប់គ្រាន់ ដើម្បី​ធ្វើសម​កាលកម្ម​ឯកសារ​ទាំងអស់​របស់អ្នកទេ</translation>
@@ -238,7 +239,6 @@
 <translation id="290843123675549676">ភាសា​ម៉ារ៉ាទី</translation>
 <translation id="2923240520113693977">ភាសាអេស្តូនី</translation>
 <translation id="2938685643439809023">ភាសាមុងហ្គោលី</translation>
-<translation id="293972288692056847">{COUNT,plural, =1{រកមិនឃើញកម្មវិធីបន្ថែម​ទេ}other{រកមិនឃើញកម្មវិធីបន្ថែម​ទេ}}</translation>
 <translation id="2943503720238418293">ប្រើ​ឈ្មោះ​ខ្លី​ជាងនេះ</translation>
 <translation id="2949781154072577687">កំពុងសម្អាត <ph name="DRIVE_NAME" />...</translation>
 <translation id="2951236788251446349">ខ្ញែសមុទ្រ</translation>
@@ -295,7 +295,6 @@
 <translation id="3356580349448036450">រួចរាល់</translation>
 <translation id="3358452157379365236">ហ្គីតា</translation>
 <translation id="3368922792935385530">បានភ្ជាប់</translation>
-<translation id="3372635229069101468">ចុច<ph name="BEGIN_BOLD" />ព័ត៌មានលម្អិត<ph name="END_BOLD" /></translation>
 <translation id="3382143449143186018">ភាសានេប៉ាល់​ដែលប្រើ​ក្ដារចុច InScript</translation>
 <translation id="338691029516748599">បណ្ដាញ <ph name="NETWORK_INDEX" /> នៃ <ph name="NETWORK_COUNT" />, <ph name="NETWORK_NAME" />, <ph name="SECURITY_STATUS" />, កម្លាំងរលកសញ្ញា <ph name="SIGNAL_STRENGTH" />%, គ្រប់គ្រងដោយអ្នកគ្រប់គ្រងរបស់អ្នក, ភ្ជាប់</translation>
 <translation id="3408072735282270043">បើកដំណើរការ, <ph name="NETWORK_NAME" /></translation>
@@ -337,6 +336,7 @@
 <translation id="3689865792480713551">បោះបង់ <ph name="ACTIVITY_DESCRIPTION" /> ។</translation>
 <translation id="3690128548376345212">បណ្ដាញ <ph name="NETWORK_INDEX" /> នៃ <ph name="NETWORK_COUNT" />, <ph name="NETWORK_NAME" />, បានបិទដំណើរការ, <ph name="CONNECTION_STATUS" />, កម្លាំងរលកសញ្ញា <ph name="SIGNAL_STRENGTH" />%, ព័ត៌មានលម្អិត</translation>
 <translation id="3691184985318546178">ភាសាស៊ីនហាឡា</translation>
+<translation id="3702842351052426940">កម្រងព័ត៌មាន eSIM ឬស៊ីមកាតរបស់អ្នកអាចត្រូវបានបិទដំណើរការ។ សូមសាកល្បងប្ដូរស៊ីមកាតរបស់អ្នក ឬប្ដូរកម្រងព័ត៌មាន eSIM។</translation>
 <translation id="3722341589402358578">មានបញ្ហា​បាន​កើត​ឡើង។ ធាតុមួយចំនួន​អាចនឹងមិនត្រូវបាន​ដាក់​ក្នុងធុងសំរាម​ទេ។</translation>
 <translation id="3726463242007121105">ឧបករណ៍នេះមិនអាចបើកទេ ពីព្រោះប្រព័ន្ធឯកសាររបស់វាមិនត្រូវបានគាំទ្រទេ។</translation>
 <translation id="3727148787322499904">ការផ្លាស់​ប្តូរការ​កំណត់នេះ​នឹង​ប៉ះពាល់​ដល់​បណ្តាញ​ដែល​បានចែករំលែក​ទាំងអស់</translation>
@@ -356,6 +356,7 @@
 <translation id="3822559385185038546">ប្រូកស៊ី​នេះ​ត្រូវបាន​អនុវត្ត​ដោយ​អ្នកគ្រប់គ្រង​របស់​អ្នក</translation>
 <translation id="3830674330436234648">គ្មានការចាក់ដែលអាចប្រើបានទេ</translation>
 <translation id="383652340667548381">ភាសាស៊ែប</translation>
+<translation id="3839045880592694915">ម៉ូដឹមរបស់អ្នកមិនត្រូវបានអនុញ្ញាតឱ្យភ្ជាប់ដោយក្រុមហ៊ុន​សេវាទូរសព្ទរបស់អ្នកទេ។ សូមទាក់ទងទៅក្រុមហ៊ុន​សេវាទូរសព្ទរបស់អ្នក ដើម្បីទទួលបានព័ត៌មានលម្អិតបន្ថែម។</translation>
 <translation id="385051799172605136">ថយក្រោយ</translation>
 <translation id="3855472144336161447">German Neo 2</translation>
 <translation id="3858860766373142691">ឈ្មោះ</translation>
@@ -375,15 +376,14 @@
 <translation id="3999574733850440202">ឯកសារ Microsoft ដែលទើបបើកថ្មីៗបានផ្លាស់ទីទៅ OneDrive</translation>
 <translation id="4002066346123236978">ចំណងជើង</translation>
 <translation id="4017788180641807848">ភាសា​អង់គ្លេស (សហរដ្ឋអាមេរិក) ដែលប្រើ​ក្ដារចុច Workman</translation>
-<translation id="4019998208269143058">ខ្ទាស់ទៅឯកសាររហ័ស</translation>
 <translation id="4040753847560036377">PUK មិនត្រឹមត្រូវទេ</translation>
 <translation id="4057991113334098539">កំពុង​បើក​ដំណើរការ...</translation>
 <translation id="4092890906744441904">ភាសា​អៀរឡង់</translation>
+<translation id="4101601646343868113">ចូលគណនីបណ្ដាញ​ទូរសព្ទ​ចល័តរបស់អ្នក ហើយបញ្ជាក់ថាគម្រោងទិន្នន័យទូរសព្ទចល័តរបស់អ្នកកំពុងដំណើរការ</translation>
 <translation id="4124731372776320263">កំពុង​ធ្វើសម​កាលកម្ម​ឯកសារ​ថាស 1</translation>
 <translation id="4124935795427217608">សេះមាន​ស្នែង</translation>
 <translation id="4131235941541910880">ផ្លាស់ទី​ធាតុ​ដែល​អ្នក​មិនត្រូវការ​ទៅក្នុង​ធុង​សំរាម</translation>
 <translation id="4134804435730168042">បណ្ដាញទី <ph name="NETWORK_INDEX" /> នៃ <ph name="NETWORK_COUNT" />, <ph name="NETWORK_NAME" />, <ph name="NETWORK_PROVIDER_NAME" />, បើក​ដំណើរការ​បន្ទាប់ពី​រៀបចំ​ឧបករណ៍</translation>
-<translation id="41501027364808384">{COUNT,plural, =1{បើកកម្មវិធីបន្ថែម​ខាងក្រោមនៅក្នុងមុខងារឯកជន៖}other{បើកកម្មវិធីបន្ថែម​ខាងក្រោមនៅក្នុងមុខងារឯកជន៖}}</translation>
 <translation id="4153015322587141338">ចុច​កណ្ដុរ​ខាងស្ដាំ​លើ​ឯកសារ រួច​ជ្រើសរើស "<ph name="PIN_COMMAND" />" ដើម្បីចូលប្រើប្រាស់​ឯកសារ​របស់អ្នក​នៅក្នុង​ធ្នើ​របាន​រហ័ស។</translation>
 <translation id="4157569377477607576">គោលការណ៍អ្នកគ្រប់គ្រងមិនណែនាំឱ្យ៖</translation>
 <translation id="4159731583141908892">បានផ្លាស់ទី <ph name="FILE_NAME" />។</translation>
@@ -391,7 +391,6 @@
 <translation id="4179621117429069925">ធាតុ​​នេះ​ស្ថិត​នៅ​ក្នុង​ធុង​សំរាម​របស់​អ្នក</translation>
 <translation id="4186579485882418952">បើកឯកសារគ្មានអ៊ីនធឺណិត</translation>
 <translation id="4193154014135846272">ឯកសារ Google</translation>
-<translation id="4197674956721858839">ការជ្រើសរើសការបង្រួម</translation>
 <translation id="4202378258276439759">ភាសាអេស្ប៉ាញ (អាមេរិក​ឡាទីន)</translation>
 <translation id="4202977638116331303">ភាសា​ហ្សកហ្ស៊ី</translation>
 <translation id="421017592316736757">អ្នកត្រូវមានអ៊ីនធឺណិតដើម្បីចូលប្រើឯកសារនេះ។</translation>
@@ -419,6 +418,7 @@
 <translation id="4387004326333427325">វិញ្ញាបនប័ត្រសម្គាល់អត្តសញ្ញាណបានបដិសេធពីចម្ងាយ</translation>
 <translation id="4394214039309501350">តំណ​ខាង​ក្រៅ</translation>
 <translation id="4394980935660306080">ដើម​សប្ដាហ៍​នេះ</translation>
+<translation id="4397435965699247285">មិនអាច​ប្រើ OneDrive បានទេ ពេលគ្មាន​អ៊ីនធឺណិត</translation>
 <translation id="4398096759193130964">ស្ដារធាតុ ឬអូសធាតុទាំងនេះទៅក្នុងថតថ្មីនៅក្រៅធុងសំរាម</translation>
 <translation id="4401287888955153199">ដកទាំងអស់</translation>
 <translation id="4410695710508688828">ការស្រង់​ប្រតិបត្តិការ​មិនបានសម្រេចទេ។ <ph name="ERROR_MESSAGE" /></translation>
@@ -481,9 +481,7 @@
 <translation id="4801956050125744859">រក្សាទាំងពីរ</translation>
 <translation id="4804827417948292437">ផ្លែបឺរ</translation>
 <translation id="4805966553127040832">កំពុងស្ដារធាតុ <ph name="COUNT" /></translation>
-<translation id="4816695657735045067">{COUNT,plural, =1{ដើម្បីប្រើមុខងារឯកជន ស្ថាប័នរបស់អ្នកតម្រូវឱ្យប្រើកម្មវិធីបន្ថែម}other{ដើម្បីប្រើមុខងារឯកជន ស្ថាប័នរបស់អ្នកតម្រូវឱ្យប្រើកម្មវិធីបន្ថែម​មួយចំនួន}}</translation>
 <translation id="4826849268470072925">ភាសាតាមិល ITRANS</translation>
-<translation id="482932175346970750">វាយបញ្ចូល <ph name="BEGIN_BOLD" />chrome://extensions<ph name="END_BOLD" /> ទៅក្នុងកម្មវិធីរុករកតាមអ៊ីនធឺណិតរបស់អ្នក</translation>
 <translation id="4843566743023903107">Chromebase</translation>
 <translation id="4850886885716139402">មើល</translation>
 <translation id="485316830061041779">ភាសាអាល្លឺម៉ង់</translation>
@@ -556,7 +554,6 @@
     នៅលើឯកសារជាមួយអ្នកដ៏ទៃនៅក្នុងកន្លែងតែមួយ។<ph name="MARKUP_9" /></translation>
 <translation id="5275973617553375938">ឯកសារដែលបានសង្គ្រោះពី Google Drive</translation>
 <translation id="5278111733643988471">ដើម្បី​ស្ដារ​ធាតុ​នេះ សូម​អូស​ធាតុ​ទៅ​ថត​ថ្មី​នៅក្រៅ​ធុង​សំរាម។ ថត​ដើម "<ph name="PARENT_FOLDER_NAME" />" សម្រាប់​ធាតុ​នេះ​ត្រូវ​បាន​លុប។</translation>
-<translation id="5283101102242354279">បើកកម្មវិធីបន្ថែម​នៅក្នុងមុខងារឯកជន៖</translation>
 <translation id="5288441970121584418">ប៊ឺហ្គឺ</translation>
 <translation id="5293615890992542006">ការផ្លាស់ទី​ឯកសារ​នេះ​ត្រូវបាន​ទប់ស្កាត់​ដោយ​គោលការណ៍​របស់អ្នកគ្រប់គ្រង</translation>
 <translation id="5305688511332277257">គ្មានអ្វីត្រូវបានតំឡើងទេ</translation>
@@ -603,6 +600,7 @@
 <translation id="5625294776298156701">ភាសាតាមិល​ដែលប្រើ​ក្ដារចុច Tamil99</translation>
 <translation id="5633226425545095130">ការផ្លាស់ទីធាតុនេះនឹងចែករំលែកវាជាមួយអ្នកគ្រប់គ្នាដែលអាចមើលឃើញថតរួម '<ph name="DESTINATION_NAME" />'។</translation>
 <translation id="5649768706273821470">ស្តាប់</translation>
+<translation id="5650895901941743674">ពិនិត្យមើលការកំណត់រចនាសម្ព័ន្ធ APN របស់អ្នក</translation>
 <translation id="5669691691057771421">បញ្ចូលកូដ PIN ថ្មី</translation>
 <translation id="5678784840044122290">កម្មវិធី Linux នឹង​មាននៅក្នុង​ស្ថានីយ​​របស់អ្នក​ ហើយវា​ក៏​អាច​បង្ហាញរូបតំណាង​នៅក្នុង​កម្មវិធី​ចាប់ផ្ដើម​របស់អ្នក​ផងដែរ។</translation>
 <translation id="5686799162999241776"><ph name="BEGIN_BOLD" />មិនអាច​ផ្ដាច់ចេញ​ពីបណ្ណសារ ឬ​ថាស​និម្មិត​បានទេ<ph name="END_BOLD" />
@@ -682,6 +680,7 @@
 <translation id="6267547857941397424">បណ្ដាញ <ph name="NETWORK_INDEX" /> នៃ <ph name="NETWORK_COUNT" />, <ph name="PHONE_NAME" />, កម្លាំង​រលកសញ្ញា <ph name="SIGNAL_STRENGTH" />%, ថ្មទូរសព្ទ <ph name="BATTERY_STATUS" />%, ភ្ជាប់</translation>
 <translation id="6269630227984243955">ភាសា​ម៉ាឡេ</translation>
 <translation id="6271903698064569429">មិន​អាច​បង្ហោះ​ឯកសារ​បាន​ទេ ដោយសារ "<ph name="SHARED_DRIVE_NAME" />" មិនមាន​ទំហំ​ផ្ទុកគ្រប់គ្រាន់។</translation>
+<translation id="6279140785485544797">គម្រោងទិន្នន័យទូរសព្ទចល័តរបស់អ្នកប្រហែលជាផុតកំណត់ហើយ។ សូមទាក់ទងទៅក្រុមហ៊ុន​សេវាទូរសព្ទរបស់អ្នក ដើម្បីទទួលបានជំនួយ។</translation>
 <translation id="6287852322318138013">ជ្រើសរើសកម្មវិធីដើម្បីបើកឯកសារនេះ</translation>
 <translation id="6295542640242147836">ចាក់សោស៊ីម</translation>
 <translation id="6296410173147755564">PUK មិនត្រឹមត្រូវទេ</translation>
@@ -691,7 +690,6 @@
 <translation id="6320212353742551423">បណ្ណសារ <ph name="ARCHIVE_TYPE" /></translation>
 <translation id="6321303798550928047">បក់​ដៃ</translation>
 <translation id="6327785803543103246">ការស្វែងរកប្រូកស៊ីបណ្តាញដោយស្វ័យប្រវត្តិ</translation>
-<translation id="6337014272874260727">ដកខ្ទាស់ចេញពីឯកសាររហ័ស</translation>
 <translation id="6339145975392024142">អាមេរិក​អន្តរជាតិ (PC)</translation>
 <translation id="6356685157277930264">វិនដូមតិកែលម្អ​របស់ឯកសារ</translation>
 <translation id="6358884629796491903">នាគ</translation>
@@ -737,6 +735,7 @@
 <translation id="6750737795876287924">បញ្ជីបច្ចុប្បន្ន</translation>
 <translation id="6751256176799620176">បានជ្រើសថតឯកសារ 1</translation>
 <translation id="6755827872271341378">ឧបករណ៍ ChromeOS Flex</translation>
+<translation id="6777029074498310250">ចូល​ទៅកាន់ <ph name="LINK_BEGIN" />onedrive.live.com<ph name="LINK_END" /> ដើម្បី​ទទួលបាន​ព័ត៌មាន​បន្ថែម</translation>
 <translation id="6790428901817661496">លេង</translation>
 <translation id="6794539005637808366">ស្ដារធាតុ ឬអូសធាតុនេះទៅថតថ្មីនៅក្រៅធុងសំរាម</translation>
 <translation id="6795884519221689054">ខ្លាឃ្មុំ​ផេនដា</translation>
@@ -790,6 +789,7 @@
 <translation id="7086590977277044826">ភាសាតាមិល​ដែលប្រើ​ក្ដារចុច InScript</translation>
 <translation id="7088615885725309056">ចាស់ជាង</translation>
 <translation id="7103992300314999525">ភាសា​ម៉ាសេដូនី</translation>
+<translation id="7104338189998813914">មានបញ្ហា​ក្នុងការ​ចូលប្រើ​គណនី OneDrive របស់អ្នក</translation>
 <translation id="7106346894903675391">ទិញឧបករណ៍ផ្ទុកទិន្នន័យបន្ថែម...</translation>
 <translation id="7126604456862387217">'&lt;b&gt;<ph name="SEARCH_STRING" />&lt;/b&gt;' - &lt;em&gt;ស្វែងរក Drive&lt;/em&gt;</translation>
 <translation id="7135561821015524160">សូរសព្ទ​ជាភាសាកាន់ណាដា</translation>
@@ -807,7 +807,6 @@
 <translation id="7238643356913091553"><ph name="NETWORK_NAME" />, ព័ត៌មាន​លម្អិត</translation>
 <translation id="7246947237293279874">ប្រូកស៊ី FTP</translation>
 <translation id="7248671827512403053">កម្មវិធី</translation>
-<translation id="7252604552361840748">ស្វែងរកកម្មវិធីបន្ថែម​ខាងលើ</translation>
 <translation id="7256405249507348194">កំហុសឆ្គងដែលមិនបានសម្គាល់៖ <ph name="DESC" /></translation>
 <translation id="7268659760406822741">មានសេវាកម្ម</translation>
 <translation id="7291818353625820805">ចង់ឱ្យ​គ្រាប់ចុច​ចុច​ឡើងវិញ​ឬ? សូមបិទ​សញ្ញា​សម្គាល់​សំឡេង​នៅក្នុងការកំណត់​ក្ដារចុច</translation>
@@ -1008,6 +1007,7 @@
 <translation id="8600173386174225982">បញ្ជីឯកសារ​បានប្ដូរទៅទិដ្ឋភាព​រូបភាពតូចៗ។</translation>
 <translation id="8601932370724196034">ឯកសារ​រូបភាព Crostini</translation>
 <translation id="8609695766746872526">ភាសា​អ៊ីស្លង់</translation>
+<translation id="8630384863424041081">បញ្ចូលកូដ PIN នៃស៊ីមកាតរបស់អ្នក ឬកូដ PIN លំនាំដើមដែលផ្ដល់ដោយក្រុមហ៊ុន​សេវាទូរសព្ទរបស់អ្នក។ ទាក់ទងទៅក្រុមហ៊ុន​សេវាទូរសព្ទរបស់អ្នក ដើម្បីទទួលបានជំនួយ។</translation>
 <translation id="863903787380594467">កូដ PIN មិនត្រឹមត្រូវទេ។ អ្នកអាចព្យាយាមបាន <ph name="RETRIES" /> ដងទៀត។</translation>
 <translation id="8639391553632924850"><ph name="INPUT_LABEL" /> - រន្ធ</translation>
 <translation id="8656407365183407932">ចាំបាច់ត្រូវលុប​ឯកសារ​គ្មានអ៊ីនធឺណិត​របស់អ្នក</translation>

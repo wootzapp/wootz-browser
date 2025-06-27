@@ -22,7 +22,6 @@
 #include "base/types/expected.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/net_internals_resources.h"
 #include "chrome/grit/net_internals_resources_map.h"
@@ -44,14 +43,14 @@
 #include "net/base/schemeful_site.h"
 #include "net/dns/public/host_resolver_results.h"
 #include "net/dns/public/resolve_error_info.h"
-#include "net/extras/shared_dictionary/shared_dictionary_isolation_key.h"
 #include "net/extras/shared_dictionary/shared_dictionary_usage_info.h"
+#include "net/shared_dictionary/shared_dictionary_isolation_key.h"
 #include "services/network/public/cpp/request_destination.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
 #include "services/network/public/mojom/host_resolver.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "ui/resources/grit/webui_resources.h"
+#include "ui/webui/webui_util.h"
 #include "url/origin.h"
 #include "url/scheme_host_port.h"
 
@@ -62,10 +61,8 @@ namespace {
 void CreateAndAddNetInternalsHTMLSource(Profile* profile) {
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       profile, chrome::kChromeUINetInternalsHost);
-  webui::SetupWebUIDataSource(
-      source,
-      base::make_span(kNetInternalsResources, kNetInternalsResourcesSize),
-      IDR_NET_INTERNALS_INDEX_HTML);
+  webui::SetupWebUIDataSource(source, kNetInternalsResources,
+                              IDR_NET_INTERNALS_INDEX_HTML);
   webui::EnableTrustedTypesCSP(source);
 }
 
@@ -155,10 +152,10 @@ class NetInternalsResolveHostClient : public network::mojom::ResolveHostClient {
                              endpoint_results_with_metadata, this);
   }
   void OnTextResults(const std::vector<std::string>& text_results) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void OnHostnameResults(const std::vector<net::HostPortPair>& hosts) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
  private:
@@ -521,8 +518,7 @@ void NetInternalsMessageHandler::OnGetSharedDictionaryInfoDone(
     dict.Set("expiration", base::NumberToString(item->expiration.InSeconds()));
     dict.Set("last_used_time", base::TimeFormatHTTP(item->last_used_time));
     dict.Set("size", base::NumberToString(item->size));
-    dict.Set("hash", base::ToLowerASCII(base::HexEncode(
-                         item->hash.data, sizeof(item->hash.data))));
+    dict.Set("hash", base::ToLowerASCII(base::HexEncode(item->hash)));
     dict_list.Append(std::move(dict));
   }
   AllowJavascript();
@@ -556,7 +552,6 @@ NetInternalsMessageHandler::GetNetworkContext() {
 }
 
 }  // namespace
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //

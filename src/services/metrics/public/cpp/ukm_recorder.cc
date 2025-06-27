@@ -55,15 +55,16 @@ ukm::SourceId UkmRecorder::GetSourceIdForWebIdentityFromScope(
 
 // static
 ukm::SourceId UkmRecorder::GetSourceIdForRedirectUrl(
-    base::PassKey<DIPSNavigationHandle>,
+    base::PassKey<content::BtmNavigationHandle>,
     const GURL& redirect_url) {
   return UkmRecorder::GetSourceIdFromScopeImpl(redirect_url,
                                                SourceIdType::REDIRECT_ID);
 }
 
 // static
-ukm::SourceId UkmRecorder::GetSourceIdForDipsSite(base::PassKey<DIPSService>,
-                                                  const std::string& site) {
+ukm::SourceId UkmRecorder::GetSourceIdForDipsSite(
+    base::PassKey<content::BtmServiceImpl>,
+    const std::string& site) {
   // Use REDIRECT_ID because DIPS sites are bounce trackers that redirected the
   // user (see go/dips). This method is used for background reporting of such
   // sites, so there's no RenderFrameHost to get a SourceId from, or even a full
@@ -85,6 +86,18 @@ ukm::SourceId UkmRecorder::GetSourceIdForChromeOSWebsiteURL(
 ukm::SourceId UkmRecorder::GetSourceIdForExtensionUrl(
     base::PassKey<extensions::ExtensionMessagePort>,
     const GURL& extension_url) {
+  // UkmRecorderImpl will verify the extension URL (and the corresponding
+  // extension) prior to emitting the record.
+  return UkmRecorder::GetSourceIdFromScopeImpl(extension_url,
+                                               SourceIdType::EXTENSION_ID);
+}
+
+// static
+ukm::SourceId UkmRecorder::GetSourceIdForExtensionUrl(
+    base::PassKey<extensions::ManifestV2ExperimentManager>,
+    const GURL& extension_url) {
+  // UkmRecorderImpl will verify the extension URL (and the corresponding
+  // extension) prior to emitting the record.
   return UkmRecorder::GetSourceIdFromScopeImpl(extension_url,
                                                SourceIdType::EXTENSION_ID);
 }

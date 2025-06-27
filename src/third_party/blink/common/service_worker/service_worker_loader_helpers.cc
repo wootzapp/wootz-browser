@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/feature_list.h"
 #include "base/strings/stringprintf.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/http/http_util.h"
@@ -21,7 +20,6 @@
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/loader/resource_type_util.h"
 #include "ui/base/page_transition_types.h"
 
@@ -84,6 +82,23 @@ void SaveResponseHeaders(const mojom::FetchAPIResponse& response,
   // headers.
   if (out_head->content_length == -1)
     out_head->content_length = out_head->headers->GetContentLength();
+
+  // Populate |out_head|'s encoded data length by checking the response source.
+  // If the response is not from network, we store 0 since no data is
+  // transferred over network.
+  // This aligns with the behavior of when SW does not intercept, and the
+  // response is from HTTP cache. In non-SW paths, |encoded_data_length| is
+  // updated inside |URLLoader::BuildResponseHead()| using
+  // |net::URLRequest::GetTotalReceivedBytes()|. This method returns total
+  // amount of data received from network after SSL decoding and proxy handling,
+  // and returns 0 when no data is received from network.
+  if (out_head->encoded_data_length == -1) {
+    out_head->encoded_data_length =
+        response.response_source ==
+                network::mojom::FetchResponseSource::kNetwork
+            ? out_head->headers->GetContentLength()
+            : 0;
+  }
 }
 
 }  // namespace
@@ -177,11 +192,10 @@ int ServiceWorkerLoaderHelpers::ReadBlobResponseBody(
 // static
 bool ServiceWorkerLoaderHelpers::IsMainRequestDestination(
     network::mojom::RequestDestination destination) {
-  // When PlzDedicatedWorker is enabled, a dedicated worker script is considered
-  // to be a main resource.
-  if (destination == network::mojom::RequestDestination::kWorker)
-    return base::FeatureList::IsEnabled(features::kPlzDedicatedWorker);
   return IsRequestDestinationFrame(destination) ||
+         // A dedicated worker or shared worker script is considered to be a
+         // main resource.
+         destination == network::mojom::RequestDestination::kWorker ||
          destination == network::mojom::RequestDestination::kSharedWorker;
 }
 
@@ -199,8 +213,7 @@ const char* ServiceWorkerLoaderHelpers::FetchResponseSourceToSuffix(
     case network::mojom::FetchResponseSource::kCacheStorage:
       return "CacheStorage";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "Unknown";
+  NOTREACHED();
 }
 
 }  // namespace blink

@@ -26,6 +26,7 @@
 #include "content/browser/download/save_types.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/download_manager_delegate.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/save_page_type.h"
 #include "content/public/common/referrer.h"
 #include "net/base/isolation_info.h"
@@ -154,12 +155,12 @@ class CONTENT_EXPORT SavePackage final
   FRIEND_TEST_ALL_PREFIXES(SavePackageBrowserTest, DownloadItemDestroyed);
 
   // Map from SaveItem::id() (aka save_item_id) into a SaveItem.
-  using SaveItemIdMap = std::
-      unordered_map<SaveItemId, std::unique_ptr<SaveItem>, SaveItemId::Hasher>;
+  using SaveItemIdMap =
+      std::unordered_map<SaveItemId, std::unique_ptr<SaveItem>>;
 
   using FileNameSet = std::set<base::FilePath::StringType,
-                               bool (*)(base::FilePath::StringPieceType,
-                                        base::FilePath::StringPieceType)>;
+                               bool (*)(base::FilePath::StringViewType,
+                                        base::FilePath::StringViewType)>;
 
   using FileNameCountMap =
       std::unordered_map<base::FilePath::StringType, uint32_t>;
@@ -259,8 +260,8 @@ class CONTENT_EXPORT SavePackage final
 
   // Helper for finding or creating a SaveItem with the given parameters.
   SaveItem* CreatePendingSaveItem(
-      int container_frame_tree_node_id,
-      int save_item_frame_tree_node_id,
+      FrameTreeNodeId container_frame_tree_node_id,
+      FrameTreeNodeId save_item_frame_tree_node_id,
       const GURL& url,
       const Referrer& referrer,
       SaveFileCreateInfo::SaveFileSource save_source);
@@ -268,19 +269,19 @@ class CONTENT_EXPORT SavePackage final
   // Helper for finding a SaveItem with the given url, or falling back to
   // creating a SaveItem with the given parameters.
   void CreatePendingSaveItemDeduplicatingByUrl(
-      int container_frame_tree_node_id,
-      int save_item_frame_tree_node_id,
+      FrameTreeNodeId container_frame_tree_node_id,
+      FrameTreeNodeId save_item_frame_tree_node_id,
       const GURL& url,
       const Referrer& referrer,
       SaveFileCreateInfo::SaveFileSource save_source);
 
   // Helper to enqueue a savable resource reported by GetSavableResourceLinks.
-  void EnqueueSavableResource(int container_frame_tree_node_id,
+  void EnqueueSavableResource(FrameTreeNodeId container_frame_tree_node_id,
                               const GURL& url,
                               const Referrer& referrer);
   // Helper to enqueue a subframe reported by GetSavableResourceLinks.
-  void EnqueueFrame(int container_frame_tree_node_id,
-                    int frame_tree_node_id,
+  void EnqueueFrame(FrameTreeNodeId container_frame_tree_node_id,
+                    FrameTreeNodeId frame_tree_node_id,
                     const GURL& frame_original_url);
 
   // Helper tracking how many |number_of_frames_pending_response_| we have
@@ -371,20 +372,22 @@ class CONTENT_EXPORT SavePackage final
   // and also to find SaveItems to associate with a containing frame.
   // Note that |url_to_save_item_| does NOT own SaveItems - they
   // remain owned by waiting_item_queue_, in_progress_items_, etc.
-  std::map<GURL, SaveItem*> url_to_save_item_;
+  std::map<GURL, raw_ptr<SaveItem, CtnExperimental>> url_to_save_item_;
 
   // Map used to route responses from a given a subframe (i.e.
   // GetSerializedHtmlWithLocalLinksResponse) to the right SaveItem.
   // Note that |frame_tree_node_id_to_save_item_| does NOT own SaveItems - they
   // remain owned by waiting_item_queue_, in_progress_items_, etc.
-  std::unordered_map<int, SaveItem*> frame_tree_node_id_to_save_item_;
+  std::unordered_map<FrameTreeNodeId, raw_ptr<SaveItem, CtnExperimental>>
+      frame_tree_node_id_to_save_item_;
 
   // Used to limit which local paths get exposed to which frames
   // (i.e. to prevent information disclosure to oop frames).
   // Note that |frame_tree_node_id_to_contained_save_items_| does NOT own
   // SaveItems - they remain owned by waiting_item_queue_, in_progress_items_,
   // etc.
-  std::unordered_map<int, std::vector<raw_ptr<SaveItem, VectorExperimental>>>
+  std::unordered_map<FrameTreeNodeId,
+                     std::vector<raw_ptr<SaveItem, VectorExperimental>>>
       frame_tree_node_id_to_contained_save_items_;
 
   // Number of frames that we still need to get a response from.
@@ -465,6 +468,10 @@ class CONTENT_EXPORT SavePackage final
   // UKM IDs for reporting.
   ukm::SourceId ukm_source_id_;
   uint64_t ukm_download_id_;
+
+  // Display name of the main file. If this is empty, the name will be
+  // inferred from `saved_main_file_path_`.
+  base::FilePath saved_main_file_display_name_;
 
   base::WeakPtrFactory<SavePackage> weak_ptr_factory_{this};
 };

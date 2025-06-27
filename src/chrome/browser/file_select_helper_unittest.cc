@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/file_select_helper.h"
 
 #include <stddef.h>
@@ -17,12 +22,15 @@
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
+#include "base/test/bind.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/file_select_listener.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/models/dialog_model.h"
+#include "ui/base/test/test_dialog_model_host.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 
 using blink::mojom::FileChooserParams;
@@ -67,7 +75,8 @@ void PrepareContentAnalysisCompletionCallbackArgs(
     for (auto& path : paths) {
       orig_files->push_back(blink::mojom::FileChooserFileInfo::NewNativeFile(
           blink::mojom::NativeFileInfo::New(path,
-                                            path.BaseName().AsUTF16Unsafe())));
+                                            path.BaseName().AsUTF16Unsafe(),
+                                            std::vector<std::u16string>())));
     }
   }
 
@@ -80,7 +89,7 @@ void PrepareContentAnalysisCompletionCallbackArgs(
 
 class FileSelectHelperTest : public testing::Test {
  public:
-  FileSelectHelperTest() {}
+  FileSelectHelperTest() = default;
 
   FileSelectHelperTest(const FileSelectHelperTest&) = delete;
   FileSelectHelperTest& operator=(const FileSelectHelperTest&) = delete;
@@ -92,8 +101,34 @@ class FileSelectHelperTest : public testing::Test {
     ASSERT_TRUE(base::PathExists(data_dir_));
   }
 
+  std::unique_ptr<ui::TestDialogModelHost> CreateDialogHost(
+      scoped_refptr<FileSelectHelper> file_select_helper) {
+    base::FilePath dir(FILE_PATH_LITERAL("dir"));
+    base::FilePath file1(FILE_PATH_LITERAL("file1"));
+    base::FilePath file2(FILE_PATH_LITERAL("file2"));
+    std::vector<blink::mojom::FileChooserFileInfoPtr> selected_files;
+    std::vector<std::u16string> base_subdirs;
+    selected_files.push_back(blink::mojom::FileChooserFileInfo::NewNativeFile(
+        blink::mojom::NativeFileInfo::New(file1, u"file1", base_subdirs)));
+    selected_files.push_back(blink::mojom::FileChooserFileInfo::NewNativeFile(
+        blink::mojom::NativeFileInfo::New(file2, u"file2", base_subdirs)));
+
+    auto model = file_select_helper->CreateConfirmationDialog(
+        u"dir", std::move(selected_files),
+        base::BindLambdaForTesting(
+            [&](std::vector<blink::mojom::FileChooserFileInfoPtr>
+                    selected_files) {
+              ++callback_count_;
+              selected_files_ = std::move(selected_files);
+            }));
+    return std::make_unique<ui::TestDialogModelHost>(std::move(model));
+  }
+
   // The path to input data used in tests.
   base::FilePath data_dir_;
+
+  std::vector<blink::mojom::FileChooserFileInfoPtr> selected_files_;
+  int callback_count_ = 0;
 };
 
 TEST_F(FileSelectHelperTest, IsAcceptTypeValid) {
@@ -184,7 +219,6 @@ TEST_F(FileSelectHelperTest, LastSelectedDirectory) {
       new FileSelectHelper(&profile);
 
   const int index = 0;
-  void* params = nullptr;
 
   const base::FilePath dir_path_1 = data_dir_.AppendASCII("dir1");
   const base::FilePath dir_path_2 = data_dir_.AppendASCII("dir2");
@@ -208,23 +242,20 @@ TEST_F(FileSelectHelperTest, LastSelectedDirectory) {
     file_select_helper->dialog_mode_ = mode;
 
     file_select_helper->AddRef();  // Normally called by RunFileChooser().
-    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_1), index,
-                                     params);
+    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_1), index);
     EXPECT_EQ(dir_path_1, profile.last_selected_directory());
 
     file_select_helper->AddRef();  // Normally called by RunFileChooser().
-    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_2), index,
-                                     params);
+    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_2), index);
     EXPECT_EQ(dir_path_1, profile.last_selected_directory());
 
     file_select_helper->AddRef();  // Normally called by RunFileChooser().
-    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_3), index,
-                                     params);
+    file_select_helper->FileSelected(ui::SelectedFileInfo(file_path_3), index);
     EXPECT_EQ(dir_path_2, profile.last_selected_directory());
 
     file_select_helper->AddRef();  // Normally called by RunFileChooser().
     file_select_helper->MultiFilesSelected(
-        ui::FilePathListToSelectedFileInfoList(files), params);
+        ui::FilePathListToSelectedFileInfoList(files));
     EXPECT_EQ(dir_path_1, profile.last_selected_directory());
   }
 
@@ -232,18 +263,16 @@ TEST_F(FileSelectHelperTest, LastSelectedDirectory) {
   file_select_helper->dialog_mode_ = FileChooserParams::Mode::kUploadFolder;
 
   file_select_helper->AddRef();  // Normally called by RunFileChooser().
-  file_select_helper->FileSelected(ui::SelectedFileInfo(dir_path_1), index,
-                                   params);
+  file_select_helper->FileSelected(ui::SelectedFileInfo(dir_path_1), index);
   EXPECT_EQ(dir_path_1, profile.last_selected_directory());
 
   file_select_helper->AddRef();  // Normally called by RunFileChooser().
-  file_select_helper->FileSelected(ui::SelectedFileInfo(dir_path_2), index,
-                                   params);
+  file_select_helper->FileSelected(ui::SelectedFileInfo(dir_path_2), index);
   EXPECT_EQ(dir_path_2, profile.last_selected_directory());
 
   file_select_helper->AddRef();  // Normally called by RunFileChooser().
   file_select_helper->MultiFilesSelected(
-      ui::FilePathListToSelectedFileInfoList(dirs), params);
+      ui::FilePathListToSelectedFileInfoList(dirs));
   EXPECT_EQ(dir_path_1, profile.last_selected_directory());
 }
 
@@ -542,6 +571,7 @@ TEST_F(FileSelectHelperTest,
   // Files should be cleared.
   EXPECT_EQ(0u, files.size());
 }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
 TEST_F(FileSelectHelperTest, GetFileTypesFromAcceptType) {
   content::BrowserTaskEnvironment task_environment;
@@ -607,4 +637,31 @@ TEST_F(FileSelectHelperTest, MultipleFileExtensionsForMime) {
 }
 #endif
 
-#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+TEST_F(FileSelectHelperTest, ConfirmationDialog) {
+  content::BrowserTaskEnvironment task_environment;
+  TestingProfile profile;
+  scoped_refptr<FileSelectHelper> file_select_helper =
+      new FileSelectHelper(&profile);
+
+  // Cancel should be initially focused.
+  auto host = CreateDialogHost(file_select_helper);
+  EXPECT_EQ(host->GetInitiallyFocusedField(),
+            host->GetId(ui::TestDialogModelHost::ButtonId::kCancel));
+
+  // Accept should run callback with all files.
+  ui::TestDialogModelHost::Accept(std::move(host));
+  EXPECT_EQ(callback_count_, 1);
+  EXPECT_EQ(selected_files_.size(), 2u);
+
+  // Cancel should run callback with no files.
+  host = CreateDialogHost(file_select_helper);
+  ui::TestDialogModelHost::Cancel(std::move(host));
+  EXPECT_EQ(callback_count_, 2);
+  EXPECT_EQ(selected_files_.size(), 0u);
+
+  // Closing should invokes cancel.
+  host = CreateDialogHost(file_select_helper);
+  ui::TestDialogModelHost::Close(std::move(host));
+  EXPECT_EQ(callback_count_, 3);
+  EXPECT_EQ(selected_files_.size(), 0u);
+}

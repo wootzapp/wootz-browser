@@ -6,14 +6,18 @@
 
 #import <sstream>
 
+#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
+#import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_xcui_actions.h"
 #import "ios/testing/earl_grey/app_launch_manager.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/element_selector.h"
 #import "net/test/embedded_test_server/embedded_test_server.h"
+
+using chrome_test_util::WebStateScrollViewMatcher;
 
 namespace {
 
@@ -38,6 +42,7 @@ std::string FindInPageTestContent() {
       << "</p>";
   oss << "  <p dir=\"RTL\">" << kFindInPageTestRTLText << "</p>";
   oss << "  <div>";
+  oss << "<div style=\"height: 2000px; background-color: lightgray;\"/>";
   oss << "</div>";
   return oss.str();
 }
@@ -74,14 +79,6 @@ FindInPageTestCrossOriginFramePageHttpResponse(
       FindInPageTestContent() + "<iframe src=\"" + sourceURL.spec() +
       "\"></iframe></body></html>");
   return std::move(http_response);
-}
-
-// Long presses on `element_id` to trigger context menu.
-void LongPressElement(const char* element_id) {
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
-      performAction:chrome_test_util::LongPressElementForContextMenu(
-                        [ElementSelector selectorWithElementID:element_id],
-                        true /* menu should appear */)];
 }
 
 }  // namespace
@@ -171,6 +168,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate openFindInPageWithOverflowMenu];
     [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
                         [self.delegate findInPageInputField]];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -212,6 +210,7 @@ id<GREYMatcher> PasteButton() {
 
     [self.delegate clearFindInPageText];
     [self.delegate assertResultStringIsEmptyOrZero];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -238,6 +237,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate advanceToNextResult];
     // Tests that the second match can be navigated to.
     [self.delegate assertResultStringIsResult:2 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -273,6 +273,7 @@ id<GREYMatcher> PasteButton() {
     // Tests non-ASCII characters.
     [self.delegate replaceFindInPageText:@(kFindInPageTestNonASCIIText)];
     [self.delegate assertResultStringIsResult:1 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -287,7 +288,9 @@ id<GREYMatcher> PasteButton() {
     [ChromeEarlGrey loadURL:destinationURL];
 
     // Select and copy text on the web page.
-    LongPressElement(kFindInPageTestShortTextID);
+    [ChromeEarlGreyUI
+        longPressElementOnWebView:
+            [ElementSelector selectorWithElementID:kFindInPageTestShortTextID]];
 
     [[EarlGrey
         selectElementWithMatcher:
@@ -306,6 +309,7 @@ id<GREYMatcher> PasteButton() {
 
     // Tests that the number of results is updated accordingly.
     [self.delegate assertResultStringIsResult:1 outOfTotal:1];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -330,6 +334,7 @@ id<GREYMatcher> PasteButton() {
     // field.
     [self.delegate clearFindInPageText];
     [self.delegate assertResultStringIsEmptyOrZero];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -352,6 +357,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate replaceFindInPageText:@(queryWithNoMatches)];
     // Test the result label shows no results.
     [self.delegate assertResultStringIsEmptyOrZero];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -386,6 +392,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate
         replaceFindInPageText:@(kFindInPageTestWithSpanishAccentText)];
     [self.delegate assertResultStringIsEmptyOrZero];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -417,6 +424,7 @@ id<GREYMatcher> PasteButton() {
         assertWithMatcher:[self matcherForText:queryPersistence
                                                    ? @(kFindInPageTestShortText)
                                                    : @""]];
+    [self.delegate closeFindInPageWithDoneButton];
 
     // Open the same URL in a different non-Incognito tab.
     [ChromeEarlGrey openNewTab];
@@ -428,6 +436,7 @@ id<GREYMatcher> PasteButton() {
         assertWithMatcher:[self matcherForText:queryPersistence
                                                    ? @(kFindInPageTestShortText)
                                                    : @""]];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -445,6 +454,7 @@ id<GREYMatcher> PasteButton() {
     // Open FIP and type short query.
     [self.delegate openFindInPageWithOverflowMenu];
     [self.delegate replaceFindInPageText:@(kFindInPageTestShortText)];
+    [self.delegate closeFindInPageWithDoneButton];
 
     // Load same URL in a new Incognito tab.
     [ChromeEarlGrey openNewIncognitoTab];
@@ -454,6 +464,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate openFindInPageWithOverflowMenu];
     [[EarlGrey selectElementWithMatcher:[self.delegate findInPageInputField]]
         assertWithMatcher:[self matcherForText:@""]];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -495,6 +506,7 @@ id<GREYMatcher> PasteButton() {
     [[EarlGrey selectElementWithMatcher:[self.delegate findInPageInputField]]
         assertWithMatcher:[self matcherForText:@(kFindInPageTestShortText)]];
     [self.delegate assertResultStringIsResult:2 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -528,6 +540,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate assertResultStringIsResult:4 outOfTotal:4];
     [self.delegate advanceToPreviousResult];
     [self.delegate assertResultStringIsResult:3 outOfTotal:4];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -547,8 +560,7 @@ id<GREYMatcher> PasteButton() {
 
     // Tap Done button and test the keyboard is dismissed as a result.
     [self.delegate closeFindInPageWithDoneButton];
-    GREYAssertFalse([EarlGrey isKeyboardShownWithError:nil],
-                    @"Keyboard Should be Hidden");
+    [ChromeEarlGrey waitForKeyboardToDisappear];
 
     // Open FIP and type short query again.
     [self.delegate openFindInPageWithOverflowMenu];
@@ -559,8 +571,7 @@ id<GREYMatcher> PasteButton() {
     [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
         performAction:chrome_test_util::TapWebElementWithId(
                           kFindInPageTestShortTextID)];
-    GREYAssertFalse([EarlGrey isKeyboardShownWithError:nil],
-                    @"Keyboard Should be Hidden");
+    [ChromeEarlGrey waitForKeyboardToDisappear];
   }
 }
 
@@ -580,6 +591,7 @@ id<GREYMatcher> PasteButton() {
 
     // Test the number of results is as expected.
     [self.delegate assertResultStringIsResult:1 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -611,6 +623,7 @@ id<GREYMatcher> PasteButton() {
                                   uppercaseString]];
     // Test the number of results is as expected.
     [self.delegate assertResultStringIsResult:1 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -629,6 +642,7 @@ id<GREYMatcher> PasteButton() {
     // Open FIP and type short query.
     [self.delegate openFindInPageWithOverflowMenu];
     [self.delegate replaceFindInPageText:@(kFindInPageTestShortText)];
+    [self.delegate closeFindInPageWithDoneButton];
 
     // Open a new normal tab and load the same URL.
     [ChromeEarlGrey openNewTab];
@@ -638,6 +652,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate openFindInPageWithOverflowMenu];
     [[EarlGrey selectElementWithMatcher:[self.delegate findInPageInputField]]
         assertWithMatcher:[self matcherForText:@""]];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -667,6 +682,7 @@ id<GREYMatcher> PasteButton() {
         assertWithMatcher:[self matcherForText:queryPersistence
                                                    ? @(kFindInPageTestShortText)
                                                    : @""]];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -684,6 +700,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate openFindInPageWithOverflowMenu];
     [self.delegate pasteTextToFindInPage:@(kFindInPageTestRTLText)];
     [self.delegate assertResultStringIsResult:1 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -703,6 +720,7 @@ id<GREYMatcher> PasteButton() {
     [self.delegate openFindInPageWithOverflowMenu];
     [self.delegate replaceFindInPageText:@(kFindInPageTestShortText)];
     [self.delegate assertResultStringIsResult:1 outOfTotal:2];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -723,6 +741,7 @@ id<GREYMatcher> PasteButton() {
 
     // Test accessibility.
     [ChromeEarlGrey verifyAccessibilityForCurrentScreen];
+    [self.delegate closeFindInPageWithDoneButton];
   }
 }
 
@@ -769,6 +788,73 @@ id<GREYMatcher> PasteButton() {
     // Test that the Done button does close Find in Page.
     [self.delegate closeFindInPageWithDoneButton];
     [[EarlGrey selectElementWithMatcher:[self.delegate findInPageInputField]]
+        assertWithMatcher:grey_notVisible()];
+  }
+}
+
+// Tests that FIP exit fullscreen when done.
+- (void)helperTestFindInPageExitFullscreen {
+  if (@available(iOS 16.1.1, *)) {
+    [self setUpTestServersForWebPageTest];
+
+    // Load test page.
+    GURL destinationURL = self.testServer->GetURL(kFindInPageComplexPDFTestURL);
+    [ChromeEarlGrey loadURL:destinationURL];
+
+    // Ensure the toolbars are not in fullscreen mode by checking if share
+    // button is visible.
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::TabShareButton()]
+        assertWithMatcher:grey_sufficientlyVisible()];
+
+    // Open FIP with Overflow menu and check it is visible and the share button
+    // is not visible.
+    [self.delegate openFindInPageWithOverflowMenu];
+    [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                        [self.delegate findInPageInputField]];
+
+    [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:
+                        chrome_test_util::TabShareButton()];
+
+    // Close find in page with Done button and ensure the share button is
+    // visible again.
+    [self.delegate closeFindInPageWithDoneButton];
+    [[EarlGrey selectElementWithMatcher:[self.delegate findInPageInputField]]
+        assertWithMatcher:grey_notVisible()];
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::TabShareButton()]
+        assertWithMatcher:grey_sufficientlyVisible()];
+  }
+}
+
+// Tests that FIP works properly with bottom omnibox.
+- (void)helperTestFindInPageWithBottomOmnibox {
+  if (@available(iOS 16.1.1, *)) {
+    // Set bottom Omnibox.
+    [ChromeEarlGrey setBoolValue:YES forLocalStatePref:prefs::kBottomOmnibox];
+
+    // Load test page.
+    [self setUpTestServersForWebPageTest];
+    GURL destinationURL = self.testServer->GetURL(kFindInPageTestURL);
+    [ChromeEarlGrey loadURL:destinationURL];
+
+    [ChromeEarlGreyUI waitForToolbarVisible:YES];
+
+    // Open FIP with Overflow menu and check it is visible and the share button
+    // is not visible.
+    [self.delegate openFindInPageWithOverflowMenu];
+    [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                        [self.delegate findInPageInputField]];
+
+    // Hide keyboard.
+    [ChromeEarlGrey simulatePhysicalKeyboardEvent:@"\n" flags:0];
+
+    // Scroll up and down the page.
+    [[EarlGrey selectElementWithMatcher:WebStateScrollViewMatcher()]
+        performAction:grey_scrollInDirection(kGREYDirectionDown, 150)];
+    [[EarlGrey selectElementWithMatcher:WebStateScrollViewMatcher()]
+        performAction:grey_scrollInDirection(kGREYDirectionUp, 150)];
+
+    // Ensure that the bottom Omnibox is not visible.
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxAtBottom()]
         assertWithMatcher:grey_notVisible()];
   }
 }

@@ -4,10 +4,10 @@
 
 #include "chrome/browser/ui/views/extensions/extensions_menu_site_permissions_page_view.h"
 
+#include <algorithm>
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/extensions/permissions/site_permissions_helper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -27,6 +27,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/button/button.h"
@@ -67,7 +68,7 @@ std::vector<views::RadioButton*> GetSiteAccessButtons(views::View* page) {
   std::vector<views::RadioButton*> site_access_buttons;
   site_access_buttons.reserve(buttons.size());
 
-  base::ranges::transform(
+  std::ranges::transform(
       buttons, std::back_inserter(site_access_buttons),
       [](views::View* button) {
         return views::AsViewClass<views::RadioButton>(button);
@@ -99,7 +100,7 @@ std::u16string GetSiteAccessRadioButtonText(
       return l10n_util::GetStringUTF16(
           IDS_EXTENSIONS_MENU_SITE_PERMISSIONS_PAGE_SITE_ACCESS_ON_ALL_SITES_TEXT);
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -117,7 +118,7 @@ std::u16string GetSiteAccessRadioButtonDescription(
       return l10n_util::GetStringUTF16(
           IDS_EXTENSIONS_MENU_SITE_PERMISSIONS_PAGE_SITE_ACCESS_ON_ALL_SITES_DESCRIPTION);
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -150,9 +151,9 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
   // TODO(crbug.com/40879945): Same stretch specification as
   // ExtensionsMenuMainPageView. Move to a shared file.
   views::FlexSpecification stretch_specification =
-      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
-                               views::MaximumFlexSizeRule::kUnbounded,
-                               /*adjust_height_for_width =*/true)
+      views::FlexSpecification(views::LayoutOrientation::kHorizontal,
+                               views::MinimumFlexSizeRule::kScaleToZero,
+                               views::MaximumFlexSizeRule::kUnbounded)
           .WithWeight(1);
 
   views::LayoutProvider* layout_provider = views::LayoutProvider::Get();
@@ -174,10 +175,10 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
   // This value must be the same as the `HoverButton` vertical margin.
   const int hover_button_vertical_spacing =
       chrome_layout_provider->GetDistanceMetric(
-          DISTANCE_CONTROL_LIST_VERTICAL) /
+          views::DISTANCE_CONTROL_LIST_VERTICAL) /
       2;
 
-  // Views that need confirgutation after construction (e.g access size after a
+  // Views that need configuration after construction (e.g access size after a
   // separate view is constructed).
   views::Label* toggle_label;
 
@@ -210,7 +211,7 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
                 views::Builder<views::RadioButton>()
                     .SetText(GetSiteAccessRadioButtonText(site_access))
                     .SetLabelStyle(views::style::STYLE_BODY_3)
-                    .SetEnabledTextColorIds(kColorExtensionsMenuText)
+                    .SetEnabledTextColors(kColorExtensionsMenuText)
                     .SetGroup(kSiteAccessButtonsId)
                     // To align the radio button icon under the header back
                     // button we add the back button border to the
@@ -230,7 +231,7 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
                 views::Builder<views::Label>()
                     .SetText(GetSiteAccessRadioButtonDescription(site_access))
                     .SetTextStyle(views::style::STYLE_BODY_5)
-                    .SetEnabledColorId(kColorExtensionsMenuSecondaryText)
+                    .SetEnabledColor(kColorExtensionsMenuSecondaryText)
                     .SetHorizontalAlignment(gfx::ALIGN_LEFT)
                     .SetMultiLine(true)
                     .SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(
@@ -243,17 +244,14 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
       .SetLayoutManager(std::make_unique<views::BoxLayout>(
           views::BoxLayout::Orientation::kVertical))
       .AddChildren(
-          // Subheader.
+          // Header.
           views::Builder<views::FlexLayoutView>()
-              .SetCrossAxisAlignment(views::LayoutAlignment::kStart)
               // Add top dialog margins, since its the first element, and
               // horizontal dialog margins. Vertical margins will be handled
               // in between the contents.
               .SetInteriorMargin(gfx::Insets::TLBR(dialog_insets.top(),
                                                    dialog_insets.left(), 0,
                                                    dialog_insets.right()))
-              .SetProperty(views::kBoxLayoutFlexKey,
-                           views::BoxLayoutFlexSpecification())
               .AddChildren(
                   // Back button.
                   views::Builder<views::ImageButton>(
@@ -285,11 +283,17 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
                           views::Builder<views::Label>()
                               .CopyAddressTo(&extension_name_)
                               .SetTextStyle(views::style::STYLE_HEADLINE_4)
-                              .SetEnabledColorId(
+                              .SetEnabledColor(
                                   kColorExtensionsMenuSecondaryText)
                               .SetProperty(views::kMarginsKey,
                                            gfx::Insets::TLBR(
-                                               0, horizontal_spacing, 0, 0)))),
+                                               0, horizontal_spacing, 0, 0))),
+                  // Close button.
+                  views::Builder<views::Button>(
+                      views::BubbleFrameView::CreateCloseButton(
+                          base::BindRepeating(
+                              &ExtensionsMenuHandler::CloseBubble,
+                              base::Unretained(menu_handler))))),
           create_separator_builder(/*full_width=*/true,
                                    /*is_bottom_hover_button=*/false),
           // Content.
@@ -305,7 +309,7 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
                       .SetText(l10n_util::GetStringUTF16(
                           IDS_EXTENSIONS_MENU_SITE_PERMISSIONS_PAGE_SITE_ACCESS_LABEL))
                       .SetTextStyle(views::style::STYLE_BODY_3_EMPHASIS)
-                      .SetEnabledColorId(kColorExtensionsMenuText)
+                      .SetEnabledColor(kColorExtensionsMenuText)
                       .SetHorizontalAlignment(gfx::ALIGN_LEFT),
                   create_radio_button_builder(
                       PermissionsManager::UserSiteAccess::kOnClick),
@@ -327,7 +331,7 @@ ExtensionsMenuSitePermissionsPageView::ExtensionsMenuSitePermissionsPageView(
                               .SetText(l10n_util::GetStringUTF16(
                                   IDS_EXTENSIONS_MENU_SITE_PERMISSIONS_PAGE_SHOW_REQUESTS_LABEL))
                               .SetTextStyle(views::style::STYLE_BODY_3_EMPHASIS)
-                              .SetEnabledColorId(kColorExtensionsMenuText)
+                              .SetEnabledColor(kColorExtensionsMenuText)
                               .SetProperty(views::kFlexBehaviorKey,
                                            stretch_specification)
                               .SetHorizontalAlignment(gfx::ALIGN_LEFT),
@@ -427,7 +431,7 @@ void ExtensionsMenuSitePermissionsPageView::Update(
 void ExtensionsMenuSitePermissionsPageView::UpdateShowRequestsToggle(
     bool is_on) {
   show_requests_toggle_->SetIsOn(is_on);
-  show_requests_toggle_->SetAccessibleName(
+  show_requests_toggle_->GetViewAccessibility().SetName(
       GetShowRequestsToggleAccessibleName(is_on));
 }
 

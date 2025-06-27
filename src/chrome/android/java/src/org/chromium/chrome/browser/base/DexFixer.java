@@ -15,15 +15,16 @@ import androidx.annotation.WorkerThread;
 
 import dalvik.system.DexFile;
 
+import org.chromium.base.BuildInfo;
+import org.chromium.base.BundleUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.base.compat.ApiHelperForM;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.build.BuildConfig;
-import org.chromium.build.NativeLibraries;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.DeferredStartupHandler;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -33,6 +34,7 @@ import java.io.IOException;
 
 /** Performs work-arounds for Android bugs which result in invalid or unreadable dex. */
 @RequiresApi(Build.VERSION_CODES.O)
+@NullMarked
 public class DexFixer {
     private static final String TAG = "DexFixer";
     private static boolean sHasIsolatedSplits;
@@ -79,14 +81,15 @@ public class DexFixer {
         if (reason > DexFixerReason.NOT_NEEDED) {
             Log.w(TAG, "Triggering dex compile. Reason=%d", reason);
             try {
-                String cmd = "/system/bin/cmd package compile -r shared ";
-                if (reason == DexFixerReason.NOT_READABLE && BuildConfig.ISOLATED_SPLITS_ENABLED) {
+                StringBuilder cmdBuilder =
+                        new StringBuilder("/system/bin/cmd package compile -r shared ");
+                if (reason == DexFixerReason.NOT_READABLE && BundleUtils.isBundle()) {
                     // Isolated processes need only access the base split.
                     String apkBaseName = new File(appInfo.sourceDir).getName();
-                    cmd += String.format("--split %s ", apkBaseName);
+                    cmdBuilder.append("--split ").append(apkBaseName).append(" ");
                 }
-                cmd += ContextUtils.getApplicationContext().getPackageName();
-                runtime.exec(cmd);
+                cmdBuilder.append(ContextUtils.getApplicationContext().getPackageName());
+                runtime.exec(cmdBuilder.toString());
             } catch (IOException e) {
                 // Don't crash.
             }
@@ -115,13 +118,7 @@ public class DexFixer {
 
     private static String odexPathFromApkPath(String apkPath) {
         // Based on https://cs.android.com/search?q=OatFileAssistant::DexLocationToOdexNames
-        boolean is64Bit = ApiHelperForM.isProcess64Bit();
-        String isaName;
-        if (NativeLibraries.sCpuFamily == NativeLibraries.CPU_FAMILY_ARM) {
-            isaName = is64Bit ? "arm64" : "arm";
-        } else {
-            isaName = is64Bit ? "x86_64" : "x86";
-        }
+        String isaName = BuildInfo.getArch();
         // E.g. /data/app/org.chromium.chrome-qtmmjyN79ucfPKm0ZVZMHg==/base.apk
         File apkFile = new File(apkPath);
         String baseName = apkFile.getName();

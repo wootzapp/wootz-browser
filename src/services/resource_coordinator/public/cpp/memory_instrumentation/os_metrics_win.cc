@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/os_metrics.h"
 
 #include <tchar.h>
@@ -10,6 +15,7 @@
 #include <psapi.h>
 
 #include "base/numerics/safe_conversions.h"
+#include "base/process/process.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/win/pe_image.h"
@@ -34,26 +40,22 @@ std::string MakeDebugID(const GUID& guid, DWORD age) {
 }  // namespace
 
 // static
-bool OSMetrics::FillOSMemoryDump(base::ProcessId pid,
+bool OSMetrics::FillOSMemoryDump(base::ProcessHandle handle,
                                  mojom::RawOSMemDump* dump) {
-  // Creating process metrics for child processes in mac or windows requires
-  // additional information like ProcessHandle or port provider.
-  DCHECK_EQ(base::kNullProcessId, pid);
-
-  PROCESS_MEMORY_COUNTERS_EX pmc;
-  if (::GetProcessMemoryInfo(::GetCurrentProcess(),
-                             reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc),
-                             sizeof(pmc))) {
-    dump->platform_private_footprint->private_bytes = pmc.PrivateUsage;
-    dump->resident_set_kb =
-        base::saturated_cast<uint32_t>(pmc.WorkingSetSize / 1024);
+  auto info = GetMemoryInfo(handle);
+  if (!info.has_value()) {
+    return false;
   }
+
+  dump->platform_private_footprint->private_bytes = info->private_bytes;
+  dump->resident_set_kb =
+      base::saturated_cast<uint32_t>(info->resident_set_bytes / 1024);
   return true;
 }
 
 // static
 std::vector<mojom::VmRegionPtr> OSMetrics::GetProcessMemoryMaps(
-    base::ProcessId pid) {
+    base::ProcessHandle handle) {
   std::vector<mojom::VmRegionPtr> maps;
   std::vector<HMODULE> modules;
   if (!base::win::GetLoadedModulesSnapshot(::GetCurrentProcess(), &modules))

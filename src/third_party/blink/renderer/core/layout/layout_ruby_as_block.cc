@@ -6,14 +6,11 @@
 
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
-#include "third_party/blink/renderer/core/layout/layout_ruby.h"
-#include "third_party/blink/renderer/core/layout/layout_ruby_column.h"
-#include "third_party/blink/renderer/core/layout/ruby_container.h"
 
 namespace blink {
 
 LayoutRubyAsBlock::LayoutRubyAsBlock(Element* element)
-    : LayoutNGBlockFlow(element) {
+    : LayoutBlockFlow(element) {
   UseCounter::Count(GetDocument(), WebFeature::kRenderRuby);
 }
 
@@ -25,17 +22,13 @@ void LayoutRubyAsBlock::AddChild(LayoutObject* child,
 
   LayoutObject* inline_ruby = FirstChild();
   if (!inline_ruby) {
-    if (RuntimeEnabledFeatures::RubyLineBreakableEnabled()) {
-      inline_ruby = MakeGarbageCollected<LayoutInline>(nullptr);
-    } else {
-      inline_ruby = MakeGarbageCollected<LayoutRuby>(nullptr);
-    }
+    inline_ruby = MakeGarbageCollected<LayoutInline>(nullptr);
     inline_ruby->SetDocumentForAnonymous(&GetDocument());
     ComputedStyleBuilder new_style_builder =
         GetDocument().GetStyleResolver().CreateAnonymousStyleBuilderWithDisplay(
             StyleRef(), EDisplay::kRuby);
     inline_ruby->SetStyle(new_style_builder.TakeStyle());
-    LayoutNGBlockFlow::AddChild(inline_ruby);
+    LayoutBlockFlow::AddChild(inline_ruby);
   } else if (before_child == inline_ruby) {
     inline_ruby->AddChild(child, inline_ruby->SlowFirstChild());
     return;
@@ -46,7 +39,7 @@ void LayoutRubyAsBlock::AddChild(LayoutObject* child,
 void LayoutRubyAsBlock::StyleDidChange(StyleDifference diff,
                                        const ComputedStyle* old_style) {
   NOT_DESTROYED();
-  LayoutNGBlockFlow::StyleDidChange(diff, old_style);
+  LayoutBlockFlow::StyleDidChange(diff, old_style);
   PropagateStyleToAnonymousChildren();
 
   // Because LayoutInline::AnonymousHasStylePropagationOverride() returns
@@ -63,7 +56,7 @@ void LayoutRubyAsBlock::StyleDidChange(StyleDifference diff,
 
 void LayoutRubyAsBlock::RemoveLeftoverAnonymousBlock(LayoutBlock*) {
   NOT_DESTROYED();
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 }  // namespace blink

@@ -6,24 +6,30 @@
 load("//lib/branches.star", "branches")
 load("//lib/builder_config.star", "builder_config")
 load("//lib/builder_health_indicators.star", "health_spec")
-load("//lib/builders.star", "free_space", "os", "sheriff_rotations", "siso")
+load("//lib/builders.star", "free_space", "gardener_rotations", "os", "siso")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 load("//lib/gn_args.star", "gn_args")
+load("//lib/targets.star", "targets")
 
 ci.defaults.set(
     executable = ci.DEFAULT_EXECUTABLE,
     builder_group = "chromium.fuchsia",
+    builder_config_settings = builder_config.ci_settings(
+        retry_failed_shards = True,
+    ),
     pool = ci.DEFAULT_POOL,
     cores = 8,
     os = os.LINUX_DEFAULT,
-    sheriff_rotations = sheriff_rotations.CHROMIUM,
+    gardener_rotations = gardener_rotations.CHROMIUM,
     tree_closing = True,
+    tree_closing_notifiers = ci.DEFAULT_TREE_CLOSING_NOTIFIERS,
     main_console_view = "main",
     cq_mirrors_console_view = "mirrors",
     execution_timeout = ci.DEFAULT_EXECUTION_TIMEOUT,
     health_spec = health_spec.DEFAULT,
     notifies = ["cr-fuchsia"],
+    reclient_enabled = False,
     service_account = ci.DEFAULT_SERVICE_ACCOUNT,
     shadow_service_account = ci.DEFAULT_SHADOW_SERVICE_ACCOUNT,
     siso_enabled = True,
@@ -39,14 +45,24 @@ consoles.console_view(
     },
 )
 
+targets.builder_defaults.set(
+    mixins = ["chromium-tester-service-account"],
+)
+
+targets.settings_defaults.set(
+    browser_config = targets.browser_config.WEB_ENGINE_SHELL,
+    os_type = targets.os_type.FUCHSIA,
+)
+
 ci.builder(
     name = "Deterministic Fuchsia (dbg)",
     executable = "recipe:swarming/deterministic_build",
     gn_args = gn_args.config(
         configs = [
             "debug_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia_smart_display",
+            "x64",
         ],
     ),
     # Runs two builds, which can cause the builder to run out of disk space
@@ -60,7 +76,7 @@ ci.builder(
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
             console_view = "sheriff.fuchsia",
-            category = "gardener|ci|x64",
+            category = "ci|x64",
             short_name = "det",
         ),
     ],
@@ -94,11 +110,46 @@ ci.builder(
     gn_args = gn_args.config(
         configs = [
             "release_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia",
             "arm64_host",
             "cast_receiver_size_optimized",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "fuchsia_arm64_tests",
+            "gtests_once",
+        ],
+        additional_compile_targets = [
+            "all",
+            "cast_test_lists",
+        ],
+        mixins = [
+            "arm64",
+            "docker",
+            "linux-jammy-or-focal",
+        ],
+        per_test_modifications = {
+            "context_lost_validating_tests": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+            "expected_color_pixel_validating_test": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+            "gpu_process_launch_tests": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+            "hardware_accelerated_feature_tests": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+            "pixel_skia_gold_validating_test": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+            "screenshot_sync_validating_tests": targets.remove(
+                reason = "crbug.com/42050042, crbug.com/42050537 this test does not work on swiftshader on arm64",
+            ),
+        },
     ),
     console_view_entry = [
         consoles.console_view_entry(
@@ -108,7 +159,7 @@ ci.builder(
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
             console_view = "sheriff.fuchsia",
-            category = "gardener|ci|arm64",
+            category = "ci|arm64",
             short_name = "cast",
         ),
     ],
@@ -140,10 +191,56 @@ ci.builder(
     gn_args = gn_args.config(
         configs = [
             "debug_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia",
             "cast_receiver_size_optimized",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            # Passthrough is used since these emulators use SwiftShader, which
+            # forces use of the passthrough decoder even if validating is
+            # specified.
+            "fuchsia_standard_passthrough_tests",
+        ],
+        additional_compile_targets = [
+            "all",
+            "cast_test_lists",
+        ],
+        mixins = [
+            "isolate_profile_data",
+            "linux-jammy",
+            targets.mixin(
+                swarming = targets.swarming(
+                    dimensions = {
+                        "kvm": "1",
+                    },
+                ),
+            ),
+        ],
+        per_test_modifications = {
+            "blink_web_tests": [
+                targets.mixin(
+                    swarming = targets.swarming(
+                        shards = 1,
+                    ),
+                ),
+            ],
+            "blink_wpt_tests": [
+                targets.mixin(
+                    swarming = targets.swarming(
+                        shards = 1,
+                    ),
+                ),
+            ],
+            "chrome_wpt_tests": targets.remove(
+                reason = "Wptrunner does not work on Fuchsia",
+            ),
+            "headless_shell_wpt_tests": targets.remove(
+                reason = "Wptrunner does not work on Fuchsia",
+            ),
+        },
     ),
     free_space = free_space.high,
     console_view_entry = [
@@ -154,7 +251,7 @@ ci.builder(
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
             console_view = "sheriff.fuchsia",
-            category = "gardener|ci|x64",
+            category = "ci|x64",
             short_name = "cast-dbg",
         ),
     ],
@@ -185,10 +282,65 @@ ci.builder(
     gn_args = gn_args.config(
         configs = [
             "release_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia",
             "cast_receiver_size_optimized",
+            "x64",
         ],
+    ),
+    # Do not forget to update
+    # infra/config/subprojects/chromium/ci/chromium.clang.star when adding or
+    # removing targets.
+    targets = targets.bundle(
+        targets = [
+            # Passthrough is used since these emulators use SwiftShader, which
+            # forces use of the passthrough decoder even if validating is
+            # specified.
+            "fuchsia_standard_passthrough_tests",
+        ],
+        additional_compile_targets = [
+            "all",
+            "cast_test_lists",
+        ],
+        mixins = [
+            "fuchsia-large-device-spec",
+            "isolate_profile_data",
+            "linux-jammy",
+            targets.mixin(
+                swarming = targets.swarming(
+                    dimensions = {
+                        "kvm": "1",
+                    },
+                ),
+            ),
+        ],
+        per_test_modifications = {
+            "blink_web_tests": [
+                targets.mixin(
+                    swarming = targets.swarming(
+                        shards = 1,
+                    ),
+                ),
+            ],
+            "blink_wpt_tests": [
+                targets.mixin(
+                    swarming = targets.swarming(
+                        shards = 1,
+                    ),
+                ),
+            ],
+            "chrome_wpt_tests": targets.remove(
+                reason = "Wptrunner does not work on Fuchsia",
+            ),
+            "headless_shell_wpt_tests": targets.remove(
+                reason = "Wptrunner does not work on Fuchsia",
+            ),
+            "content_browsertests": [
+                # Temporarily only run this on CI due to resource requirements.
+                # TODO(crbug.com/40872145): Remove this once resources are available.
+                "ci_only",
+            ],
+        },
     ),
     console_view_entry = [
         consoles.console_view_entry(
@@ -198,7 +350,7 @@ ci.builder(
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
             console_view = "sheriff.fuchsia",
-            category = "gardener|ci|x64",
+            category = "ci|x64",
             short_name = "cast",
         ),
     ],

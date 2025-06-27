@@ -9,8 +9,10 @@ import android.view.ViewGroup;
 
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.compositor.CompositorViewHolder;
+import org.chromium.chrome.browser.compositor.layouts.phone.NewTabAnimationLayout;
 import org.chromium.chrome.browser.compositor.layouts.phone.SimpleAnimationLayout;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab.Tab;
@@ -20,63 +22,69 @@ import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
-import org.chromium.chrome.features.start_surface.StartSurface;
+import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
-
-import java.util.concurrent.Callable;
 
 /**
  * {@link LayoutManagerChromePhone} is the specialization of {@link LayoutManagerChrome} for the
  * phone.
  */
 public class LayoutManagerChromePhone extends LayoutManagerChrome {
-    // Layouts
-    private SimpleAnimationLayout mSimpleAnimationLayout;
+    // TODO(crbug.com/40282469): Rename SimpleAnimationLayout to NewTabAnimationLayout once it is
+    // rolled out.
+    private final ObservableSupplier<CompositorViewHolder> mCompositorViewHolderSupplier;
+    private final ToolbarManager mToolbarManager;
+    private final ObservableSupplier<Boolean> mScrimVisibilitySupplier;
+    private final ViewGroup mContentView;
+    private Layout mSimpleAnimationLayout;
 
     /**
      * Creates an instance of a {@link LayoutManagerChromePhone}.
      *
      * @param host A {@link LayoutManagerHost} instance.
      * @param contentContainer A {@link ViewGroup} for Android views to be bound to.
-     * @param startSurfaceSupplier Supplier for an interface to talk to the Grid Tab Switcher when
-     *     Start surface refactor is disabled. Used to create overviewLayout if it has value,
-     *     otherwise will use the accessibility overview layout.
-     * @param tabSwitcherSupplier Supplier for an interface to talk to the Grid Tab Switcher when
-     *     Start surface refactor is enabled. Used to create overviewLayout if it has value,
-     *     otherwise will use the accessibility overview layout.
+     * @param tabSwitcherSupplier Supplier for an interface to talk to the Grid Tab Switcher. Used
+     *     to create overviewLayout if it has value, otherwise will use the accessibility overview
+     *     layout.
      * @param tabModelSelectorSupplier Supplier for an interface to talk to the Tab Model Selector.
-     * @param browserControlsStateProvider The {@link BrowserControlsStateProvider} for top
-     *     controls.
      * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
      * @param topUiThemeColorProvider {@link ThemeColorProvider} for top UI.
-     * @param delayedTabSwitcherCallable Callable to create GTS view if Start Surface refactor and
-     *     DeferCreateTabSwitcherLayout are enabled.
      * @param hubLayoutDependencyHolder The dependency holder for creating {@link HubLayout}.
+     * @param compositorViewHolderSupplier Supplier of the {@link CompositorViewHolder} instance.
+     * @param contentView The base content view.
+     * @param toolbarManager The {@link ToolbarManager} instance.
+     * @param scrimVisibilitySupplier Supplier for the Scrim visibility.
      */
     public LayoutManagerChromePhone(
             LayoutManagerHost host,
             ViewGroup contentContainer,
-            Supplier<StartSurface> startSurfaceSupplier,
             Supplier<TabSwitcher> tabSwitcherSupplier,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
-            BrowserControlsStateProvider browserControlsStateProvider,
             ObservableSupplier<TabContentManager> tabContentManagerSupplier,
             Supplier<TopUiThemeColorProvider> topUiThemeColorProvider,
-            Callable<ViewGroup> delayedTabSwitcherCallable,
-            HubLayoutDependencyHolder hubLayoutDependencyHolder) {
+            HubLayoutDependencyHolder hubLayoutDependencyHolder,
+            ObservableSupplier<CompositorViewHolder> compositorViewHolderSupplier,
+            ViewGroup contentView,
+            ToolbarManager toolbarManager,
+            ObservableSupplier<Boolean> scrimVisibilitySupplier) {
         super(
                 host,
                 contentContainer,
-                startSurfaceSupplier,
                 tabSwitcherSupplier,
                 tabModelSelectorSupplier,
-                browserControlsStateProvider,
                 tabContentManagerSupplier,
                 topUiThemeColorProvider,
-                null,
-                null,
-                delayedTabSwitcherCallable,
                 hubLayoutDependencyHolder);
+        mCompositorViewHolderSupplier = compositorViewHolderSupplier;
+        mContentView = contentView;
+        mToolbarManager = toolbarManager;
+        mScrimVisibilitySupplier = scrimVisibilitySupplier;
+    }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        mSimpleAnimationLayout.destroy();
     }
 
     @Override
@@ -85,14 +93,38 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             TabCreatorManager creator,
             ControlContainer controlContainer,
             DynamicResourceLoader dynamicResourceLoader,
-            TopUiThemeColorProvider topUiColorProvider) {
+            TopUiThemeColorProvider topUiColorProvider,
+            ObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
 
-        // Build Layouts
-        mSimpleAnimationLayout = new SimpleAnimationLayout(context, this, renderHost);
+        if (ChromeFeatureList.sShowNewTabAnimations.isEnabled()) {
+            // TODO(crbug.com/40282469): Change from getContentContainer() as it is z-indexed behind
+            // the NTP.
+            mSimpleAnimationLayout =
+                    new NewTabAnimationLayout(
+                            context,
+                            this,
+                            renderHost,
+                            this,
+                            getContentContainer(),
+                            mCompositorViewHolderSupplier,
+                            mContentView,
+                            mToolbarManager,
+                            getBrowserControlsManager(),
+                            mScrimVisibilitySupplier);
+        } else {
+            mSimpleAnimationLayout =
+                    new SimpleAnimationLayout(context, this, renderHost, getContentContainer());
+        }
 
-        super.init(selector, creator, controlContainer, dynamicResourceLoader, topUiColorProvider);
+        super.init(
+                selector,
+                creator,
+                controlContainer,
+                dynamicResourceLoader,
+                topUiColorProvider,
+                bottomControlsOffsetSupplier);
 
         // Initialize Layouts
         TabContentManager tabContentManager = mTabContentManagerSupplier.get();
@@ -110,19 +142,9 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
     }
 
     @Override
-    public void onTabsAllClosing(boolean incognito) {
-        if (getActiveLayout() == mStaticLayout && !incognito) {
-            showLayout(LayoutType.TAB_SWITCHER, /* animate= */ false);
-        }
-        super.onTabsAllClosing(incognito);
-    }
-
-    @Override
     protected void tabClosed(int id, int nextId, boolean incognito, boolean tabRemoved) {
         boolean showOverview = nextId == Tab.INVALID_TAB_ID;
-        if (getActiveLayoutType() != LayoutType.TAB_SWITCHER
-                && getActiveLayoutType() != LayoutType.START_SURFACE
-                && showOverview) {
+        if (getActiveLayoutType() != LayoutType.TAB_SWITCHER && showOverview) {
             // Since there will be no 'next' tab to display, switch to
             // overview mode when the animation is finished.
             if (getActiveLayoutType() == LayoutType.SIMPLE_ANIMATION) {
@@ -141,12 +163,11 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                 && overlaysHandleTabCreating()
                 && getActiveLayout().handlesTabCreating()) {
             // If the current layout in the foreground, let it handle the tab creation animation.
-            // This check allows us to switch from the StackLayout to the SimpleAnimationLayout
+            // This check allows us to switch from the HubLayout to the SimpleAnimationLayout
             // smoothly.
             getActiveLayout().onTabCreating(sourceId);
         } else if (animationsEnabled()) {
-            if (!isLayoutVisible(LayoutType.TAB_SWITCHER)
-                    && !isLayoutVisible(LayoutType.START_SURFACE)) {
+            if (!isLayoutVisible(LayoutType.TAB_SWITCHER)) {
                 if (getActiveLayout() != null && getActiveLayout().isStartingToHide()) {
                     setNextLayout(mSimpleAnimationLayout, true);
                     // The method Layout#doneHiding() will automatically show the next layout.

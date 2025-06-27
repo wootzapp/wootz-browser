@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_POLICY_MESSAGING_LAYER_STORAGE_SELECTOR_STORAGE_SELECTOR_H_
 #define CHROME_BROWSER_POLICY_MESSAGING_LAYER_STORAGE_SELECTOR_STORAGE_SELECTOR_H_
 
-#include "base/component_export.h"
 #include "base/memory/scoped_refptr.h"
 #include "build/build_config.h"
 #include "components/reporting/storage/storage_module_interface.h"
@@ -28,16 +27,14 @@ namespace reporting {
 
 // This static class facilitates `ReportingClient` ability to select underlying
 // storage for encrypted reporting pipeline report client.  It is built into
-// Chrome and configured differently depending on whether Chrome is intended for
-// ChromeOS/LaCros or not and whether it is Ash Chrome: it can store event
-// locally or in Missive Daemon. It can also be built into other daemons; in
-// that case it always connects to Missive Daemon.
+// Chrome and configured differently depending on the platform: it can store
+// event locally or in Missive Daemon. It can also be built into other daemons;
+// in that case it always connects to Missive Daemon.
 // This class is never instantiated; it serves as a front for the client
 // configuration settings according to the build.
-class COMPONENT_EXPORT(STORAGE_SELECTOR) StorageSelector {
+class StorageSelector {
  public:
   static bool is_use_missive();
-  static bool is_uploader_required();
 
 #if BUILDFLAG(IS_CHROMEOS)
   static void CreateMissiveStorageModule(

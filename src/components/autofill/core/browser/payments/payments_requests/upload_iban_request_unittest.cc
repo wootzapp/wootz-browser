@@ -9,28 +9,25 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill::payments {
-
 namespace {
 
 constexpr char kAppLocale[] = "pt-BR";
-constexpr int kBillableServiceNumber = 12345678;
 constexpr int64_t kBillingCustomerNumber = 111222333;
 constexpr char16_t kContextToken[] = u"somecontexttoken";
 constexpr char16_t kValue[] = u"CH5604835012345678009";
+constexpr char kEncodedRiskData[] = "wjhJLga67gowLp3vIbJ4W";
 constexpr char16_t kNickname[] = u"My IBAN";
-
-}  // namespace
 
 class UploadIbanRequestTest : public testing::Test {
  public:
   void SetUp() override {
-    PaymentsNetworkInterface::UploadIbanRequestDetails request_details;
+    UploadIbanRequestDetails request_details;
     request_details.app_locale = kAppLocale;
-    request_details.billable_service_number = kBillableServiceNumber;
     request_details.billing_customer_number = kBillingCustomerNumber;
     request_details.context_token = kContextToken;
     request_details.value = kValue;
     request_details.nickname = kNickname;
+    request_details.risk_data = kEncodedRiskData;
     request_ = std::make_unique<UploadIbanRequest>(
         request_details, /*full_sync_enabled=*/true, base::DoNothing());
   }
@@ -43,7 +40,7 @@ class UploadIbanRequestTest : public testing::Test {
 
 TEST_F(UploadIbanRequestTest, GetRequestContent) {
   EXPECT_EQ(GetRequest().GetRequestUrlPath(),
-            "payments/apis-secure/chromepaymentsservice/saveiban"
+            "payments/apis-secure/chromepaymentsservice/createpaymentinstrument"
             "?s7e_suffix=chromewallet");
   ASSERT_TRUE(!GetRequest().GetRequestContent().empty());
   EXPECT_NE(GetRequest().GetRequestContent().find("language_code"),
@@ -52,8 +49,8 @@ TEST_F(UploadIbanRequestTest, GetRequestContent) {
             std::string::npos);
   EXPECT_NE(GetRequest().GetRequestContent().find("billable_service"),
             std::string::npos);
-  EXPECT_NE(GetRequest().GetRequestContent().find(
-                base::NumberToString(kBillableServiceNumber)),
+  EXPECT_NE(GetRequest().GetRequestContent().find(base::NumberToString(
+                kUploadPaymentMethodBillableServiceNumber)),
             std::string::npos);
   EXPECT_NE(GetRequest().GetRequestContent().find("customer_context"),
             std::string::npos);
@@ -75,6 +72,9 @@ TEST_F(UploadIbanRequestTest, GetRequestContent) {
             std::string::npos);
   EXPECT_NE(GetRequest().GetRequestContent().find("nickname"),
             std::string::npos);
+  EXPECT_NE(GetRequest().GetRequestContent().find("risk_data_encoded"),
+            std::string::npos);
 }
 
+}  // namespace
 }  // namespace autofill::payments

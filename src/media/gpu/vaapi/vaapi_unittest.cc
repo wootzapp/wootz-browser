@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This has to be included first.
 // See http://code.google.com/p/googletest/issues/detail?id=371
 #include <drm_fourcc.h>
@@ -33,7 +38,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_suite.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "media/base/media_switches.h"
 #include "media/base/platform_features.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
@@ -163,9 +167,7 @@ const std::string VARTFormatToString(unsigned int va_rt_format) {
     case VA_RT_FORMAT_YUV420_10:
       return "VA_RT_FORMAT_YUV420_10";
   }
-  NOTREACHED_IN_MIGRATION()
-      << "Unknown VA_RT_FORMAT 0x" << std::hex << va_rt_format;
-  return "Unknown VA_RT_FORMAT";
+  NOTREACHED() << "Unknown VA_RT_FORMAT 0x" << std::hex << va_rt_format;
 }
 
 #define TOSTR(enumCase) \
@@ -182,8 +184,7 @@ const char* VAProfileToString(VAProfile profile) {
     TOSTR(VAProfileMPEG4AdvancedSimple);
     TOSTR(VAProfileMPEG4Main);
     case VAProfileH264Baseline:
-      NOTREACHED_IN_MIGRATION() << "VAProfileH264Baseline is deprecated";
-      return "Deprecated VAProfileH264Baseline";
+      NOTREACHED() << "VAProfileH264Baseline is deprecated";
     TOSTR(VAProfileH264Main);
     TOSTR(VAProfileH264High);
     TOSTR(VAProfileVC1Simple);
@@ -218,6 +219,10 @@ const char* VAProfileToString(VAProfile profile) {
 #endif
 #if VA_MAJOR_VERSION >= 2 || VA_MINOR_VERSION >= 18
     TOSTR(VAProfileH264High10);
+#endif
+#if VA_MAJOR_VERSION >= 2 || VA_MINOR_VERSION >= 22
+    TOSTR(VAProfileVVCMain10);
+    TOSTR(VAProfileVVCMultilayerMain10);
 #endif
   }
   // clang-format on
@@ -413,7 +418,7 @@ TEST_F(VaapiTest, VbrAndCbrResolutionsMatch) {
 }
 
 #if BUILDFLAG(USE_CHROMEOS_PROTECTED_MEDIA)
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // Verifies that VAProfileProtected is indeed supported by the command line
 // vainfo utility.
 TEST_F(VaapiTest, VaapiProfileProtected) {
@@ -431,7 +436,7 @@ TEST_F(VaapiTest, VaapiProfileProtected) {
     EXPECT_EQ(impl, VAImplementation::kMesaGallium);
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 #endif  // BUILDFLAG(USE_CHROMEOS_PROTECTED_MEDIA)
 
 // Verifies that if JPEG decoding and encoding are supported by VaapiWrapper,
@@ -516,8 +521,8 @@ TEST_F(VaapiTest, TooManyDecoderInstances) {
 // Verifies that VaapiWrapper::Create...() fails when an EncryptionScheme is
 // specified for a non-protected CodecMode.
 TEST_F(VaapiTest, EncryptionSchemeNeedsCodecMode) {
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-  GTEST_SKIP() << "This test only applies to Chrome Ash builds.";
+#if !BUILDFLAG(IS_CHROMEOS)
+  GTEST_SKIP() << "This test only applies to ChromeOS builds.";
 #else
   std::map<VAProfile, std::vector<VAEntrypoint>> configurations =
       VaapiWrapper::GetSupportedConfigurationsForCodecModeForTesting(
@@ -661,11 +666,7 @@ TEST_F(VaapiTest, CheckSupportedSVCScalabilityModes) {
   const auto scalability_modes_vp8 = VaapiWrapper::GetSupportedScalabilityModes(
       VP8PROFILE_ANY, VAProfileVP8Version0_3);
 #if BUILDFLAG(IS_CHROMEOS)
-  if (base::FeatureList::IsEnabled(kVaapiVp8TemporalLayerHWEncoding)) {
-    EXPECT_EQ(scalability_modes_vp8, kSupportedTemporalSVC);
-  } else {
-    EXPECT_EQ(scalability_modes_vp8, kSupportedL1T1);
-  }
+  EXPECT_EQ(scalability_modes_vp8, kSupportedTemporalSVC);
 #else
   EXPECT_EQ(scalability_modes_vp8, kSupportedL1T1);
 #endif
@@ -674,11 +675,7 @@ TEST_F(VaapiTest, CheckSupportedSVCScalabilityModes) {
       VaapiWrapper::GetSupportedScalabilityModes(
           H264PROFILE_BASELINE, VAProfileH264ConstrainedBaseline);
 #if BUILDFLAG(IS_CHROMEOS)
-  if (base::FeatureList::IsEnabled(kVaapiH264TemporalLayerHWEncoding)) {
-    EXPECT_EQ(scalability_modes_h264_baseline, kSupportedTemporalSVC);
-  } else {
-    EXPECT_EQ(scalability_modes_h264_baseline, kSupportedL1T1);
-  }
+  EXPECT_EQ(scalability_modes_h264_baseline, kSupportedTemporalSVC);
 #else
   EXPECT_EQ(scalability_modes_h264_baseline, kSupportedL1T1);
 #endif

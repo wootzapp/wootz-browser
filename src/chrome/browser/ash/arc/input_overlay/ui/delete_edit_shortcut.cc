@@ -18,6 +18,7 @@
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/geometry/insets.h"
@@ -45,13 +46,14 @@ DeleteEditShortcut::DeleteEditShortcut(DisplayOverlayController* controller,
                                       // TODO(b/329895423): Add shadow.
                                       views::BubbleBorder::NO_SHADOW),
       controller_(controller) {
+  set_background_color(cros_tokens::kCrosSysSystemBaseElevatedOpaque);
   set_margins(gfx::Insets(12));
   set_corner_radius(20);
   set_close_on_deactivate(false);
   set_focus_traversable_from_anchor_view(true);
   set_internal_name(kDeleteEditShortcut);
   set_parent_window(anchor_view->GetWidget()->GetNativeWindow());
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetEnableArrowKeyTraversal(true);
 
   // BubbleDialogDelegate::GetAccessibleWindowRole() is a final method which
@@ -143,7 +145,7 @@ DeleteEditShortcut::CreateNonClientFrameView(views::Widget* widget) {
   // Create the customized bubble border.
   auto bubble_border =
       std::make_unique<views::BubbleBorder>(arrow(), GetShadow());
-  bubble_border->SetColor(color());
+  bubble_border->SetColor(background_color());
   if (GetParams().round_corners) {
     bubble_border->SetCornerRadius(GetCornerRadius());
   }
@@ -158,14 +160,6 @@ DeleteEditShortcut::CreateNonClientFrameView(views::Widget* widget) {
     frame_view->SetBubbleBorder(std::move(bubble_border));
   }
   return frame;
-}
-
-void DeleteEditShortcut::OnThemeChanged() {
-  views::BubbleDialogDelegateView::OnThemeChanged();
-  if (auto* color_provider = GetColorProvider()) {
-    set_color(color_provider->GetColor(
-        cros_tokens::kCrosSysSystemBaseElevatedOpaque));
-  }
 }
 
 void DeleteEditShortcut::OnMouseExited(const ui::MouseEvent& event) {

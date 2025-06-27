@@ -4,6 +4,8 @@
 
 package org.chromium.components.webapps;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -12,8 +14,10 @@ import android.os.Build;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -24,6 +28,7 @@ import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
@@ -39,6 +44,7 @@ import org.chromium.ui.modelutil.PropertyModel;
  * data is not yet fetched, and accepting the dialog is disabled until all data is available and in
  * its place on the screen.
  */
+@NullMarked
 public class AddToHomescreenDialogView
         implements View.OnClickListener, ModalDialogProperties.Controller {
     private PropertyModel mDialogModel;
@@ -75,7 +81,6 @@ public class AddToHomescreenDialogView
     public AddToHomescreenDialogView(
             Context context,
             ModalDialogManager modalDialogManager,
-            AppBannerManager.InstallStringPair installStrings,
             AddToHomescreenViewDelegate delegate) {
         assert delegate != null;
 
@@ -87,6 +92,16 @@ public class AddToHomescreenDialogView
         mIconView = (ImageView) mParentView.findViewById(R.id.icon);
 
         mShortcutTitleInput = mParentView.findViewById(R.id.shortcut_name);
+        mShortcutTitleInput.setOnEditorActionListener(
+                (TextView v, int actionId, KeyEvent event) -> {
+                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                        if (!mDialogModel.get(ModalDialogProperties.POSITIVE_BUTTON_DISABLED)) {
+                            onClick(mDialogModel, ModalDialogProperties.ButtonType.POSITIVE);
+                        }
+                        return true;
+                    }
+                    return false;
+                });
 
         mAppLayout = (LinearLayout) mParentView.findViewById(R.id.app_info);
         mAppNameView = (TextView) mAppLayout.findViewById(R.id.app_name);
@@ -94,9 +109,6 @@ public class AddToHomescreenDialogView
         mAppOriginView = (TextView) mAppLayout.findViewById(R.id.origin);
         mAppRatingBar = (RatingBar) mAppLayout.findViewById(R.id.control_rating);
         mPlayLogoView = (ImageView) mParentView.findViewById(R.id.play_logo);
-
-        mAppNameView.setOnClickListener(this);
-        mIconView.setOnClickListener(this);
 
         mParentView.addOnLayoutChangeListener(
                 new View.OnLayoutChangeListener() {
@@ -168,11 +180,8 @@ public class AddToHomescreenDialogView
         mDialogModel =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
                         .with(ModalDialogProperties.CONTROLLER, this)
-                        .with(ModalDialogProperties.TITLE, resources, installStrings.titleTextId)
-                        .with(
-                                ModalDialogProperties.POSITIVE_BUTTON_TEXT,
-                                resources,
-                                installStrings.buttonTextId)
+                        .with(ModalDialogProperties.TITLE, mAddTitleText)
+                        .with(ModalDialogProperties.POSITIVE_BUTTON_TEXT, mAddButtonText)
                         .with(ModalDialogProperties.POSITIVE_BUTTON_DISABLED, true)
                         .with(
                                 ModalDialogProperties.NEGATIVE_BUTTON_TEXT,
@@ -227,6 +236,9 @@ public class AddToHomescreenDialogView
                 mAppNameView.setVisibility(View.VISIBLE);
                 mAppRatingBar.setVisibility(View.VISIBLE);
                 mPlayLogoView.setVisibility(View.VISIBLE);
+
+                mAppNameView.setOnClickListener(this);
+                mIconView.setOnClickListener(this);
                 break;
             case AppType.SHORTCUT:
                 mShortcutTitleInput.setVisibility(View.VISIBLE);
@@ -347,7 +359,7 @@ public class AddToHomescreenDialogView
                 return mAppNameView;
             default:
                 assert false;
-                return null;
+                return assumeNonNull(null);
         }
     }
 

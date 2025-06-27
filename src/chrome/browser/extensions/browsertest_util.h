@@ -39,6 +39,9 @@ Browser* LaunchAppBrowser(Profile* profile, const Extension* app);
 // Adds a tab to |browser| and returns the newly added WebContents.
 content::WebContents* AddTab(Browser* browser, const GURL& url);
 
+// Returns the number of WindowControllers with the Profile `profile`.
+size_t GetWindowControllerCountInProfile(Profile* profile);
+
 // Returns whether the given `web_contents` has the associated
 // `changed_title`. If the web contents has neither `changed_title`
 // nor `original_title `, adds a failure to the test (for an unexpected
@@ -57,7 +60,7 @@ class BlockedActionWaiter : public ExtensionActionRunner::TestObserver {
   explicit BlockedActionWaiter(ExtensionActionRunner* runner);
   BlockedActionWaiter(const BlockedActionWaiter&) = delete;
   BlockedActionWaiter& operator=(const BlockedActionWaiter&) = delete;
-  ~BlockedActionWaiter();
+  ~BlockedActionWaiter() override;
 
   // Wait for the blocked action until the observer is called with the blocked
   // action being added.
@@ -67,7 +70,9 @@ class BlockedActionWaiter : public ExtensionActionRunner::TestObserver {
   // ExtensionActionRunner::TestObserver:
   void OnBlockedActionAdded() override;
 
-  const raw_ptr<ExtensionActionRunner> runner_;
+  base::ScopedObservation<ExtensionActionRunner,
+                          ExtensionActionRunner::TestObserver>
+      action_runner_observation_{this};
   base::RunLoop run_loop_;
 };
 

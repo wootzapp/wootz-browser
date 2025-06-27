@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <array>
 #include <memory>
 #include <set>
@@ -24,6 +25,7 @@
 #include "cc/input/hit_test_opaqueness.h"
 #include "cc/input/scroll_snap_data.h"
 #include "cc/layers/layer_collections.h"
+#include "cc/layers/scroll_hit_test_rect.h"
 #include "cc/layers/touch_action_region.h"
 #include "cc/paint/element_id.h"
 #include "cc/paint/filter_operations.h"
@@ -31,6 +33,7 @@
 #include "cc/paint/paint_record.h"
 #include "cc/trees/effect_node.h"
 #include "cc/trees/property_tree.h"
+#include "cc/trees/property_tree_layer_tree_delegate.h"
 #include "cc/trees/target_property.h"
 #include "components/viz/common/surfaces/region_capture_bounds.h"
 #include "components/viz/common/surfaces/subtree_capture_id.h"
@@ -41,6 +44,7 @@
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/gfx/geometry/rrect_f.h"
 
 namespace viz {
 class CopyOutputRequest;
@@ -92,6 +96,9 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   enum LayerIdLabels {
     INVALID_ID = -1,
   };
+
+  // Get a unique layer id.
+  static int GetNextLayerId();
 
   // Factory to create a new Layer, with a unique id.
   static scoped_refptr<Layer> Create();
@@ -369,9 +376,12 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   }
 
   // For layer tree mode only.
-  void SetBackdropFilterBounds(const gfx::RRectF& backdrop_filter_bounds);
+  void SetBackdropFilterBounds(const SkPath& backdrop_filter_bounds);
+  void SetBackdropFilterBounds(const gfx::RRectF& backdrop_filter_bounds) {
+    SetBackdropFilterBounds(SkPath::RRect(SkRRect(backdrop_filter_bounds)));
+  }
   void ClearBackdropFilterBounds();
-  std::optional<gfx::RRectF> backdrop_filter_bounds() const {
+  std::optional<SkPath> backdrop_filter_bounds() const {
     return layer_tree_inputs() ? layer_tree_inputs()->backdrop_filter_bounds
                                : std::nullopt;
   }
@@ -474,15 +484,29 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   virtual bool IsScrollbarLayerForTesting() const;
 
   // For layer list mode only.
-  // Set or get an area of this layer within which initiating a scroll can not
-  // be done from the compositor thread. Within this area, if the user attempts
-  // to start a scroll, the events must be sent to the main thread and processed
+  // Set or get an area of this layer within which a scroll hit-test can not be
+  // done from the compositor thread. Within this area, if the user attempts to
+  // start a scroll, the events must be sent to the main thread and processed
   // there.
-  void SetNonFastScrollableRegion(const Region& non_fast_scrollable_region);
-  const Region& non_fast_scrollable_region() const {
+  void SetMainThreadScrollHitTestRegion(
+      const Region& main_thread_scroll_hit_test_region);
+  const Region& main_thread_scroll_hit_test_region() const {
     if (const auto& rare_inputs = inputs_.Read(*this).rare_inputs)
-      return rare_inputs->non_fast_scrollable_region;
+      return rare_inputs->main_thread_scroll_hit_test_region;
     return Region::Empty();
+  }
+
+  // For layer list mode only.
+  // A scroll in any of the rects but not in non_fast_scrollable_region can
+  // start on the compositor thread. The scroll node is determined by checking
+  // non_composited_scroll_hit_test_rects in reversed order.
+  void SetNonCompositedScrollHitTestRects(std::vector<ScrollHitTestRect> rects);
+  const std::vector<ScrollHitTestRect>* non_composited_scroll_hit_test_rects()
+      const {
+    if (const auto& rare_inputs = inputs_.Read(*this).rare_inputs) {
+      return &rare_inputs->non_composited_scroll_hit_test_rects;
+    }
+    return nullptr;
   }
 
   // Set or get the set of touch actions allowed across each point of this
@@ -711,9 +735,9 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // that state as well. The |layer| passed in will be of the type created by
   // CreateLayerImpl(), so can be safely down-casted if the subclass uses a
   // different type for the compositor thread.
-  virtual void PushPropertiesTo(LayerImpl* layer,
-                                const CommitState& commit_state,
-                                const ThreadUnsafeCommitState& unsafe_state);
+  void PushPropertiesTo(LayerImpl* layer,
+                        const CommitState& commit_state,
+                        const ThreadUnsafeCommitState& unsafe_state);
 
   // Internal method to be overridden by Layer subclasses that need to do work
   // during a main frame. The method should compute any state that will need to
@@ -746,7 +770,12 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // compositor thread during the next commit. The PushPropertiesTo() method
   // will be called for this layer during the next commit only if this method
   // was called before it.
-  void SetNeedsPushProperties();
+  void SetNeedsPushProperties(uint8_t changed_props = kChangedGeneralProperty);
+
+  // Clear cached properties
+  void ClearChangedPushPropertiesForTesting() {
+    changed_properties_.Write(*this) = 0u;
+  }
 
   // Internal to property tree construction. A generation number for the
   // property trees, to verify the layer's indices are pointers into the trees
@@ -823,6 +852,15 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
     return GetBitFlag(kShouldCheckBackfaceVisibilityFlagMask);
   }
 
+  // Sets the filter quality to use when rendering ImageBitmaps, canvases, or
+  // videos. Defaults to PaintFlags::FilterQuality::kLow.
+  void SetFilterQuality(PaintFlags::FilterQuality filter_quality);
+
+  // Set the limitation for brightness of HDR content. Defaults to "high",
+  // which imposes no limit.
+  void SetDynamicRangeLimit(
+      PaintFlags::DynamicRangeLimitMixture dynamic_range_limit);
+
   // For debugging, containing information about the associated DOM, etc.
   std::string DebugName() const;
 
@@ -835,7 +873,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // in PropertyTreeManager when handling scroll offsets.
   void SetNeedsCommit();
 
-  void SetDebugName(const std::string& name);
+  void SetDebugName(std::string name);
 
   // If the content of this layer is provided by a cached or live render
   // surface, returns the ID of that resource.
@@ -847,6 +885,13 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
   Layer();
   ~Layer() override;
+
+  // This is implementation helper for PushPropertiesTo().
+  virtual void PushDirtyPropertiesTo(
+      LayerImpl* layer,
+      uint8_t dirty_flag,
+      const CommitState& commit_state,
+      const ThreadUnsafeCommitState& unsafe_state);
 
   // These SetNeeds functions are in order of severity of update:
 
@@ -886,10 +931,17 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
         &ignore_set_needs_commit_for_test_.Write(*this), true);
   }
 
+  enum : uint8_t {
+    kChangedPropertyTreeIndex = 1 << 0,
+    kChangedGeneralProperty = 1 << 1,
+    kChangedAllProperties = kChangedPropertyTreeIndex | kChangedGeneralProperty,
+  };
+
  private:
   friend class base::RefCounted<Layer>;
   friend class LayerTreeHostCommon;
   friend class LayerTreeHost;
+  friend class PropertyTreeLayerTreeDelegate;
 
   // For layer tree mode only.
   struct LayerTreeInputs;
@@ -968,9 +1020,16 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // generally speaking in <10% of use cases. When adding new values to this
   // struct, consider the memory implications versus simply adding to Inputs.
   struct RareInputs {
+    RareInputs();
+    ~RareInputs();
+
     viz::RegionCaptureBounds capture_bounds;
-    Region non_fast_scrollable_region;
+    Region main_thread_scroll_hit_test_region;
+    std::vector<ScrollHitTestRect> non_composited_scroll_hit_test_rects;
     Region wheel_event_region;
+    PaintFlags::FilterQuality filter_quality = PaintFlags::FilterQuality::kLow;
+    PaintFlags::DynamicRangeLimitMixture dynamic_range_limit{
+        PaintFlags::DynamicRangeLimit::kHigh};
   };
 
   RareInputs& EnsureRareInputs() {
@@ -1054,7 +1113,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
     FilterOperations filters;
     FilterOperations backdrop_filters;
-    std::optional<gfx::RRectF> backdrop_filter_bounds;
+    std::optional<SkPath> backdrop_filter_bounds;
     float backdrop_filter_quality = 1.0f;
 
     int mirror_count = 0;
@@ -1097,11 +1156,13 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // SetLayerTreeHost() uses a custom protected sequence check, and then uses
   // const_cast to do the assignment.
   const raw_ptr<LayerTreeHost> layer_tree_host_;
-
-  ProtectedSequenceReadable<Inputs> inputs_;
   ProtectedSequenceReadable<std::unique_ptr<LayerTreeInputs>>
       layer_tree_inputs_;
 
+  // Keep pointers together to reduce alignment padding on 64bit
+  ProtectedSequenceWritable<std::unique_ptr<LayerDebugInfo>> debug_info_;
+
+  ProtectedSequenceReadable<Inputs> inputs_;
   ProtectedSequenceWritable<gfx::Rect> update_rect_;
 
   const int layer_id_;
@@ -1119,6 +1180,11 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   // will be handled implicitly after the update completes. Not a bitfield
   // because it's used in base::AutoReset.
   ProtectedSequenceReadable<bool> ignore_set_needs_commit_for_test_;
+  ProtectedSequenceWritable<bool> subtree_property_changed_;
+
+#if DCHECK_IS_ON()
+  bool allow_remove_for_readd_ = false;
+#endif
 
   enum : uint8_t {
     kDrawsContentFlagMask = 1 << 0,
@@ -1131,8 +1197,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
     kSubtreeHasCopyRequestFlagMask = 1 << 7
   };
   ProtectedSequenceReadable<uint8_t> bitflags_;
-
-  ProtectedSequenceWritable<bool> subtree_property_changed_;
+  ProtectedSequenceWritable<uint8_t> changed_properties_;
 
 #if DCHECK_IS_ON()
   class AllowRemoveForReadd {
@@ -1160,7 +1225,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
     raw_ptr<Layer> layer_;
   };
 
-  bool allow_remove_for_readd_ = false;
 #else
   class AllowRemoveForReadd {
    public:
@@ -1170,8 +1234,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
     AllowRemoveForReadd& operator=(const AllowRemoveForReadd&) = delete;
   };
 #endif
-
-  ProtectedSequenceWritable<std::unique_ptr<LayerDebugInfo>> debug_info_;
 
   static constexpr gfx::Transform kIdentityTransform{};
   static constexpr gfx::RoundedCornersF kNoRoundedCornersF{};

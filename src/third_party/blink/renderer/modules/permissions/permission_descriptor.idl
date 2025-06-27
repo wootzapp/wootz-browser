@@ -26,7 +26,6 @@ enum PermissionName {
     "display-capture",
 
     // Non-standard:
-    "accessibility-events",
     "clipboard-read",
     "clipboard-write",
     "payment-handler",
@@ -41,6 +40,9 @@ enum PermissionName {
     "speaker-selection",
     "keyboard-lock",
     "pointer-lock",
+    "fullscreen",
+    "web-app-installation",
+    "local-network-access",
 };
 
 // The PermissionDescriptor dictionary is a base to describe permissions. Some

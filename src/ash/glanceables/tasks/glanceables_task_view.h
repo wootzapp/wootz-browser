@@ -6,31 +6,31 @@
 #define ASH_GLANCEABLES_TASKS_GLANCEABLES_TASK_VIEW_H_
 
 #include <string>
+#include <string_view>
 
 #include "ash/api/tasks/tasks_client.h"
+#include "ash/api/tasks/tasks_types.h"
 #include "ash/ash_export.h"
-#include "ash/glanceables/common/glanceables_error_message_view.h"
 #include "ash/glanceables/tasks/glanceables_tasks_error_type.h"
+#include "ash/style/error_message_toast.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_multi_source_observation.h"
+#include "google_apis/common/api_error_codes.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/flex_layout_view.h"
 #include "ui/views/view_observer.h"
 
 namespace views {
 class ImageButton;
+class ImageView;
 class LabelButton;
 }  // namespace views
 
 namespace ash {
 
 class SystemTextfield;
-
-namespace api {
-struct Task;
-}  // namespace api
 
 // `GlanceablesTaskView` uses `views::FlexLayout` to show tasks metadata within
 // the `GlanceablesTasksView`.
@@ -59,9 +59,9 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
       const std::string& task_id,
       const std::string& title,
       api::TasksClient::OnTaskSavedCallback callback)>;
-  using ShowErrorMessageCallback = base::RepeatingCallback<void(
-      GlanceablesTasksErrorType,
-      GlanceablesErrorMessageView::ButtonActionType)>;
+  using ShowErrorMessageCallback =
+      base::RepeatingCallback<void(GlanceablesTasksErrorType,
+                                   ErrorMessageToast::ButtonActionType)>;
   using StateChangeObserverCallback =
       base::RepeatingCallback<void(bool view_expanding)>;
   // Modes of `tasks_title_view_` (simple label or text field).
@@ -86,6 +86,7 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
 
   const views::ImageButton* GetCheckButtonForTest() const;
   bool GetCompletedForTest() const;
+  void SetCheckedForTest(bool checked);
 
   // Updates `tasks_title_view_` according to `state`.
   void UpdateTaskTitleViewForState(TaskTitleViewState state);
@@ -97,14 +98,18 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
   class CheckButton;
   class TaskTitleButton;
 
+  // Adds additional content (assigned task privacy notice if available + edit
+  // in browser button) when the view is in edit mode.
+  void AddExtraContentForEditState();
+
   // Updates the margins of views in `contents_view_`.
   void UpdateContentsMargins(TaskTitleViewState state);
 
-  // Updates the edit in browser button visibility, animating the button
-  // opacity. When hiding the button, the button is hidden immediately, but copy
-  // of its layer is created, and animated in its place.
-  void AnimateEditInBrowserButtonVisibility(bool visible);
-  void OnEditInBrowserVisibilityAnimationCompleted();
+  // Updates the `extra_content_for_edit_state_` visibility animating its
+  // opacity. When hiding the container, the container is hidden immediately,
+  // but copy of its layer is created, and animated in its place.
+  void AnimateExtraContentForEditStateVisibility(bool visible);
+  void OnExtraContentForEditStateVisibilityAnimationCompleted();
 
   // Handles press events on `check_button_`.
   void CheckButtonPressed();
@@ -114,11 +119,11 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
 
   // Handles finished editing event from the text field, updates `task_title_`
   // and propagates new `title` to the server.
-  void OnFinishedEditing(const std::u16string& title);
+  void OnFinishedEditing(std::u16string_view title);
 
   // Handles completion of running `save_callback_` callback.
   // `task` - newly created or updated task.
-  void OnSaved(const api::Task* task);
+  void OnSaved(google_apis::ApiErrorCode http_error, const api::Task* task);
 
   // Owned by views hierarchy.
   raw_ptr<CheckButton> check_button_ = nullptr;
@@ -127,6 +132,8 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
   raw_ptr<TaskTitleButton> task_title_button_ = nullptr;
   raw_ptr<SystemTextfield> task_title_textfield_ = nullptr;
   raw_ptr<views::FlexLayoutView> tasks_details_view_ = nullptr;
+  raw_ptr<views::ImageView> origin_surface_type_icon_ = nullptr;
+  raw_ptr<views::View> extra_content_for_edit_state_ = nullptr;
   raw_ptr<views::LabelButton> edit_in_browser_button_ = nullptr;
 
   // ID for the task represented by this view.
@@ -134,6 +141,9 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
 
   // Title of the task.
   std::u16string task_title_;
+
+  // The type of surface a task originates from.
+  api::Task::OriginSurfaceType origin_surface_type_;
 
   // Cached to reset the value of `task_title_` when the new title failed to
   // commit after editing.
@@ -157,11 +167,12 @@ class ASH_EXPORT GlanceablesTaskView : public views::FlexLayoutView,
   // between editing and viewing state.
   StateChangeObserverCallback state_change_observer_;
 
-  // Copy of edit in browser button layer used for the button visibility
-  // animation when hiding the button. The button view gets hidden immediately,
-  // and the layer is faded out in its place. Deleted when the fade out
-  // animation completes.
-  std::unique_ptr<ui::Layer> animating_edit_in_browser_layer_;
+  // Copy of `extra_content_for_edit_state_` (assigned task privacy notice if
+  // available + edit in browser button) layer used for the visibility animation
+  // when hiding the container. The container gets hidden immediately, and the
+  // layer is faded out in its place. Deleted when the fade out animation
+  // completes.
+  std::unique_ptr<ui::Layer> animating_extra_content_for_edit_state_layer_;
 
   base::ScopedMultiSourceObservation<views::View, GlanceablesTaskView>
       edit_exit_observer_{this};

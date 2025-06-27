@@ -181,7 +181,7 @@ void PpapiCommandBufferProxy::ForceLostContext(gpu::error::ContextLostReason) {
 }
 
 void PpapiCommandBufferProxy::SetLock(base::Lock*) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::EnsureWorkVisible() {
@@ -216,44 +216,42 @@ uint64_t PpapiCommandBufferProxy::GenerateFenceSyncRelease() {
 }
 
 bool PpapiCommandBufferProxy::IsFenceSyncReleased(uint64_t release) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::SignalSyncToken(const gpu::SyncToken& sync_token,
                                               base::OnceClosure callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 // Pepper plugin does not expose or call WaitSyncTokenCHROMIUM.
 void PpapiCommandBufferProxy::WaitSyncToken(const gpu::SyncToken& sync_token) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool PpapiCommandBufferProxy::CanWaitUnverifiedSyncToken(
     const gpu::SyncToken& sync_token) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::SignalQuery(uint32_t query,
                                           base::OnceClosure callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::CancelAllQueries() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::CreateGpuFence(uint32_t gpu_fence_id,
                                              ClientGpuFence source) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::GetGpuFence(
     uint32_t gpu_fence_id,
     base::OnceCallback<void(std::unique_ptr<gfx::GpuFence>)> callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PpapiCommandBufferProxy::SetGpuControlClient(gpu::GpuControlClient*) {
@@ -303,7 +301,7 @@ void PpapiCommandBufferProxy::TryUpdateState() {
     shared_state()->Read(&last_state_);
 }
 
-gpu::CommandBufferSharedState* PpapiCommandBufferProxy::shared_state() const {
+gpu::CommandBufferSharedState* PpapiCommandBufferProxy::shared_state() {
   return reinterpret_cast<gpu::CommandBufferSharedState*>(
       shared_state_mapping_.memory());
 }
@@ -316,7 +314,7 @@ void PpapiCommandBufferProxy::FlushInternal() {
 
   IPC::Message* message = new PpapiHostMsg_PPBGraphics3D_AsyncFlush(
       ppapi::API_ID_PPB_GRAPHICS_3D, flush_info_->resource,
-      flush_info_->put_offset);
+      flush_info_->put_offset, pending_fence_sync_release_);
 
   // Do not let a synchronous flush hold up this message. If this handler is
   // deferred until after the synchronous flush completes, it will overwrite the

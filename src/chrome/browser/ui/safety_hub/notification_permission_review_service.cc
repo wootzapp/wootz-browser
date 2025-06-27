@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/safety_hub/notification_permission_review_service.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
@@ -13,7 +14,6 @@
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/ranges/algorithm.h"
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/safety_hub/safety_hub_service.h"
@@ -23,42 +23,13 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/permissions/notifications_engagement_service.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/site_engagement/content/site_engagement_service.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace {
 
 constexpr char kExcludedKey[] = "exempted";
-constexpr char kDisplayedKey[] = "display_count";
-// The daily average is calculated over the past this many days.
-constexpr int kDays = 7;
-
-int ExtractNotificationCount(ContentSettingPatternSource item,
-                             std::string date) {
-  if (!item.setting_value.is_dict()) {
-    return 0;
-  }
-
-  base::Value::Dict* bucket = item.setting_value.GetDict().FindDict(date);
-  if (!bucket) {
-    return 0;
-  }
-  return bucket->FindInt(kDisplayedKey).value_or(0);
-}
-
-int GetDailyAverageNotificationCount(ContentSettingPatternSource item) {
-  // Calculate daily average count for the past week.
-  base::Time date = base::Time::Now();
-  int notification_count_total = 0;
-
-  for (int day = 0; day < kDays; ++day) {
-    notification_count_total += ExtractNotificationCount(
-        item, permissions::NotificationsEngagementService::GetBucketLabel(
-                  date - base::Days(day)));
-  }
-
-  return std::ceil(notification_count_total / kDays);
-}
 
 std::set<std::pair<ContentSettingsPattern, ContentSettingsPattern>>
 GetIgnoredPatternPairs(scoped_refptr<HostContentSettingsMap> hcsm) {
@@ -74,20 +45,6 @@ GetIgnoredPatternPairs(scoped_refptr<HostContentSettingsMap> hcsm) {
       result.insert(
           {std::move(item.primary_pattern), std::move(item.secondary_pattern)});
     }
-  }
-
-  return result;
-}
-
-std::map<std::pair<ContentSettingsPattern, ContentSettingsPattern>, int>
-GetNotificationCountMapPerPatternPair(
-    scoped_refptr<HostContentSettingsMap> hcsm) {
-  std::map<std::pair<ContentSettingsPattern, ContentSettingsPattern>, int>
-      result;
-  for (auto& item : hcsm->GetSettingsForOneType(
-           ContentSettingsType::NOTIFICATION_INTERACTIONS)) {
-    result[std::pair{item.primary_pattern, item.secondary_pattern}] =
-        GetDailyAverageNotificationCount(item);
   }
 
   return result;
@@ -114,52 +71,55 @@ NotificationPermissionsReviewService::NotificationPermissionsResult::
         default;
 
 void NotificationPermissionsReviewService::NotificationPermissionsResult::
-    AddNotificationPermission(ContentSettingsPattern origin,
-                              int notification_count) {
-  notification_permissions_.emplace_back(origin, notification_count);
+    AddNotificationPermission(
+        const NotificationPermissions& notification_permission) {
+  notification_permissions_.push_back(std::move(notification_permission));
 }
 
 base::Value::List NotificationPermissionsReviewService::
     NotificationPermissionsResult::GetSortedListValueForUI() {
   base::Value::List result;
 
+// Setting up the list for UI is done on the Android side.
+#if !BUILDFLAG(IS_ANDROID)
+  const auto sorted_notification_permissions =
+      GetSortedNotificationPermissions();
+
+  // Each entry is a dictionary with origin as key and notification count as
+  // value.
+  for (const auto& notification_permission : sorted_notification_permissions) {
+    base::Value::Dict permission;
+    permission.Set(kSafetyHubOriginKey,
+                   notification_permission.primary_pattern.ToString());
+    std::string notification_info_string = l10n_util::GetPluralStringFUTF8(
+        IDS_SETTINGS_SAFETY_CHECK_REVIEW_NOTIFICATION_PERMISSIONS_COUNT_LABEL,
+        notification_permission.notification_count);
+    permission.Set(kSafetyHubNotificationInfoString, notification_info_string);
+    result.Append(std::move(permission));
+  }
+#endif
+  return result;
+}
+
+std::vector<NotificationPermissions> NotificationPermissionsReviewService::
+    NotificationPermissionsResult::GetSortedNotificationPermissions() {
   // Sort notification permissions by their priority for surfacing to the user.
   auto notification_permission_ordering = [](const auto& left,
                                              const auto& right) {
-    return left.second > right.second;
+    return left.notification_count > right.notification_count;
   };
   std::sort(notification_permissions_.begin(), notification_permissions_.end(),
             notification_permission_ordering);
 
-  // Each entry is a dictionary with origin as key and notification count as
-  // value.
-  for (const auto& notification_permission : notification_permissions_) {
-    base::Value::Dict permission;
-    permission.Set(kSafetyHubOriginKey,
-                   notification_permission.first.ToString());
-    std::string notification_info_string = l10n_util::GetPluralStringFUTF8(
-        IDS_SETTINGS_SAFETY_CHECK_REVIEW_NOTIFICATION_PERMISSIONS_COUNT_LABEL,
-        notification_permission.second);
-    permission.Set(kSafetyHubNotificationInfoString, notification_info_string);
-    result.Append(std::move(permission));
-  }
-  return result;
-}
-
-std::vector<std::pair<ContentSettingsPattern, int>>
-NotificationPermissionsReviewService::NotificationPermissionsResult::
-    GetNotificationPermissions() const {
-  std::vector<std::pair<ContentSettingsPattern, int>> result(
-      notification_permissions_);
+  std::vector<NotificationPermissions> result(notification_permissions_);
   return result;
 }
 
 std::set<ContentSettingsPattern> NotificationPermissionsReviewService::
     NotificationPermissionsResult::GetOrigins() const {
   std::set<ContentSettingsPattern> origins;
-  for (std::pair<ContentSettingsPattern, int> permission :
-       notification_permissions_) {
-    origins.insert(permission.first);
+  for (NotificationPermissions permission : notification_permissions_) {
+    origins.insert(permission.primary_pattern);
   }
   return origins;
 }
@@ -174,10 +134,10 @@ base::Value::Dict NotificationPermissionsReviewService::
     NotificationPermissionsResult::ToDictValue() const {
   base::Value::Dict result = BaseToDictValue();
   base::Value::List notification_permissions;
-  for (std::pair<ContentSettingsPattern, int> permission :
-       notification_permissions_) {
+  for (NotificationPermissions permission : notification_permissions_) {
     base::Value::Dict permission_dict;
-    permission_dict.Set(kSafetyHubOriginKey, permission.first.ToString());
+    permission_dict.Set(kSafetyHubOriginKey,
+                        permission.primary_pattern.ToString());
     notification_permissions.Append(std::move(permission_dict));
   }
   result.Set(kSafetyHubNotificationPermissionsResultKey,
@@ -201,7 +161,7 @@ bool NotificationPermissionsReviewService::NotificationPermissionsResult::
         *notification_permission.FindString(kSafetyHubOriginKey)));
   }
   std::set<ContentSettingsPattern> new_origins = GetOrigins();
-  return !base::ranges::includes(old_origins, new_origins);
+  return !std::ranges::includes(old_origins, new_origins);
 }
 
 std::u16string NotificationPermissionsReviewService::
@@ -225,17 +185,23 @@ NotificationPermissionsReviewService::NotificationPermissionsReviewService(
     : engagement_service_(engagement_service), hcsm_(hcsm) {
   content_settings_observation_.Observe(hcsm);
 
+#if BUILDFLAG(IS_ANDROID)
   if (!base::FeatureList::IsEnabled(features::kSafetyHub)) {
     return;
   }
+#endif  // BUILDFLAG(IS_ANDROID)
 
-  // TODO(crbug.com/40267370): Because there is only an UI thread for this
-  // service, calling both |StartRepeatedUpdates()| and
-  // |InitializeLatestResult()| will result in the result being calculated twice
-  // when the service starts. When redesigning SafetyHubService, that should be
-  // avoided.
-  StartRepeatedUpdates();
-  InitializeLatestResult();
+  // Disruptive notification revocation overlaps with the notification review
+  // module. Disable this module when the disruptive revocation is running.
+  if (!IsDisruptiveNotificationRevocationEnabled()) {
+    // TODO(crbug.com/40267370): Because there is only a UI thread for this
+    // service, calling both |StartRepeatedUpdates()| and
+    // |InitializeLatestResult()| will result in the result being calculated
+    // twice when the service starts. When redesigning SafetyHubService, that
+    // should be avoided.
+    StartRepeatedUpdates();
+    InitializeLatestResult();
+  }
 }
 
 NotificationPermissionsReviewService::~NotificationPermissionsReviewService() =
@@ -308,7 +274,8 @@ NotificationPermissionsReviewService::UpdateOnUIThread(
 
   // Get daily average notification count of pattern pairs.
   std::map<std::pair<ContentSettingsPattern, ContentSettingsPattern>, int>
-      notification_count_map = GetNotificationCountMapPerPatternPair(hcsm_);
+      notification_count_map = permissions::NotificationsEngagementService::
+          GetNotificationCountMapPerPatternPair(hcsm_.get());
 
   // Get the permissions with notification counts that needs to be reviewed.
   // This list is filtered based on notification count and site engagement
@@ -317,6 +284,11 @@ NotificationPermissionsReviewService::UpdateOnUIThread(
   for (auto& item :
        hcsm_->GetSettingsForOneType(ContentSettingsType::NOTIFICATIONS)) {
     std::pair pair(item.primary_pattern, item.secondary_pattern);
+
+    // Invalid primary pattern should not be in the review list.
+    if (!item.primary_pattern.IsValid()) {
+      continue;
+    }
 
     // Blocklisted permissions should not be in the review list.
     if (base::Contains(ignored_patterns_set, pair)) {
@@ -334,31 +306,50 @@ NotificationPermissionsReviewService::UpdateOnUIThread(
       continue;
     }
 
-    int notification_count = notification_count_map[pair];
-
     // Converting primary pattern to GURL should always be valid, since
     // Notification Permission Review list only contains single origins.
     GURL url = GURL(item.primary_pattern.ToString());
     DCHECK(url.is_valid());
+
+    int notification_count = notification_count_map[pair];
     if (!ShouldAddToNotificationPermissionReviewList(url, notification_count)) {
       continue;
     }
 
-    result->AddNotificationPermission(item.primary_pattern, notification_count);
+    NotificationPermissions notification_permission(
+        item.primary_pattern, item.secondary_pattern, notification_count);
+
+    result->AddNotificationPermission(notification_permission);
   }
 
   return result;
 }
 
-base::Value::List NotificationPermissionsReviewService::
-    PopulateNotificationPermissionReviewData() {
+std::unique_ptr<NotificationPermissionsReviewService::Result>
+NotificationPermissionsReviewService::GetNotificationPermissions() {
+  if (IsDisruptiveNotificationRevocationEnabled()) {
+    return std::make_unique<NotificationPermissionsResult>();
+  }
   // Return the cached result, which is kept in sync with the values on disk
   // (i.e. HCSM), when available. Otherwise, re-calculate the result.
-  std::unique_ptr<SafetyHubService::Result> cached_result =
-      GetCachedResult().value_or(
-          UpdateOnUIThread(std::make_unique<NotificationPermissionsResult>()));
-  return (static_cast<NotificationPermissionsResult*>(cached_result.get()))
+  return GetCachedResult().value_or(
+      UpdateOnUIThread(std::make_unique<NotificationPermissionsResult>()));
+}
+
+base::Value::List NotificationPermissionsReviewService::
+    PopulateNotificationPermissionReviewData() {
+  return (static_cast<NotificationPermissionsResult*>(
+              GetNotificationPermissions().get()))
       ->GetSortedListValueForUI();
+}
+
+void NotificationPermissionsReviewService::SetNotificationPermissionsForOrigin(
+    std::string origin,
+    ContentSetting setting) {
+  hcsm_->SetContentSettingCustomScope(
+      ContentSettingsPattern::FromString(origin),
+      ContentSettingsPattern::Wildcard(), ContentSettingsType::NOTIFICATIONS,
+      setting);
 }
 
 base::TimeDelta
@@ -413,4 +404,12 @@ bool NotificationPermissionsReviewService::
       notification_count > min_engagement_notification_limit;
 
   return is_minimal_engagement || is_low_engagement;
+}
+
+bool NotificationPermissionsReviewService::
+    IsDisruptiveNotificationRevocationEnabled() {
+  return base::FeatureList::IsEnabled(
+             safe_browsing::kSafetyHubDisruptiveNotificationRevocation) &&
+         !safe_browsing::kSafetyHubDisruptiveNotificationRevocationShadowRun
+              .Get();
 }

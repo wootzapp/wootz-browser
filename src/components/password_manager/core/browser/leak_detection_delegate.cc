@@ -4,7 +4,9 @@
 
 #include "components/password_manager/core/browser/leak_detection_delegate.h"
 
+#include "base/barrier_callback.h"
 #include "build/build_config.h"
+#include "components/affiliations/core/browser/affiliation_service.h"
 #include "components/autofill/core/common/save_password_progress_logger.h"
 #include "components/password_manager/core/browser/browser_save_password_progress_logger.h"
 #include "components/password_manager/core/browser/form_parsing/form_data_parser.h"
@@ -12,13 +14,14 @@
 #include "components/password_manager/core/browser/leak_detection/leak_detection_check_factory_impl.h"
 #include "components/password_manager/core/browser/leak_detection_delegate_helper.h"
 #include "components/password_manager/core/browser/leak_detection_dialog_utils.h"
+#include "components/password_manager/core/browser/password_change_service_interface.h"
 #include "components/password_manager/core/browser/password_feature_manager.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
-#include "components/password_manager/core/browser/password_store/split_stores_and_local_upm.h"
 #include "components/password_manager/core/browser/password_sync_util.h"
+#include "components/password_manager/core/browser/split_stores_and_local_upm.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -34,9 +37,15 @@ std::unique_ptr<autofill::SavePasswordProgressLogger> GetLogger(
     PasswordManagerClient* client) {
   if (client && password_manager_util::IsLoggingActive(client)) {
     return std::make_unique<BrowserSavePasswordProgressLogger>(
-        client->GetLogManager());
+        client->GetCurrentLogManager());
   }
   return nullptr;
+}
+
+LeakedPasswordDetails MergeResponses(
+    std::vector<std::optional<LeakedPasswordDetails>> details) {
+  CHECK_EQ(2u, details.size());
+  return details[0] ? std::move(*details[0]) : std::move(*details[1]);
 }
 
 }  // namespace
@@ -50,16 +59,18 @@ LeakDetectionDelegate::~LeakDetectionDelegate() = default;
 void LeakDetectionDelegate::StartLeakCheck(LeakDetectionInitiator initiator,
                                            const PasswordForm& credentials,
                                            const GURL& form_url) {
-  if (client_->IsOffTheRecord())
+  if (client_->IsOffTheRecord()) {
     return;
+  }
 
   if (!LeakDetectionCheck::CanStartLeakCheck(*client_->GetPrefs(), form_url,
                                              GetLogger(client_))) {
     return;
   }
 
-  if (credentials.username_value.empty())
+  if (credentials.username_value.empty()) {
     return;
+  }
 
   DCHECK(!credentials.password_value.empty());
 
@@ -81,26 +92,54 @@ void LeakDetectionDelegate::OnLeakDetectionDone(bool is_leaked,
                                                 std::u16string password) {
   leak_check_.reset();
   if (password_manager_util::IsLoggingActive(client_)) {
-    BrowserSavePasswordProgressLogger logger(client_->GetLogManager());
+    BrowserSavePasswordProgressLogger logger(client_->GetCurrentLogManager());
     logger.LogBoolean(Logger::STRING_LEAK_DETECTION_FINISHED, is_leaked);
   }
 
-  if (is_leaked) {
-    // Query the helper to asynchronously determine the `CredentialLeakType`.
-    helper_ = std::make_unique<LeakDetectionDelegateHelper>(
-        client_->GetProfilePasswordStore(), client_->GetAccountPasswordStore(),
-        base::BindOnce(&LeakDetectionDelegate::OnShowLeakDetectionNotification,
-                       base::Unretained(this)));
-    helper_->ProcessLeakedPassword(std::move(url), std::move(username),
-                                   std::move(password));
+  if (!is_leaked) {
+    if (base::FeatureList::IsEnabled(features::kMarkAllCredentialsAsLeaked)) {
+      auto leak_details =
+          PrepareLeakDetails(PasswordForm::Store::kNotSet, IsReused(false), url,
+                             std::move(username), std::move(password), {});
+      client_->GetAffiliationService()->PrefetchChangePasswordURL(
+          url, base::BindOnce(
+                   &LeakDetectionDelegate::NotifyUserCredentialsWereLeaked,
+                   weak_ptr_factory_.GetWeakPtr(), std::move(leak_details)));
+    }
+    return;
   }
+
+  // Query the helper to asynchronously determine the `CredentialLeakType`.
+  auto notify_callback =
+      base::BindOnce(&LeakDetectionDelegate::NotifyUserCredentialsWereLeaked,
+                     weak_ptr_factory_.GetWeakPtr());
+  auto barrier_callback =
+      base::BarrierCallback<std::optional<LeakedPasswordDetails>>(
+          /*num_callbacks=*/2,
+          base::BindOnce(&MergeResponses).Then(std::move(notify_callback)));
+
+  if (base::FeatureList::IsEnabled(features::kImprovedPasswordChangeService)) {
+    client_->GetAffiliationService()->PrefetchChangePasswordURL(
+        url, base::BindOnce(barrier_callback, std::nullopt));
+  } else {
+    barrier_callback.Run(std::nullopt);
+  }
+
+  helper_ = std::make_unique<LeakDetectionDelegateHelper>(
+      client_->GetProfilePasswordStore(), client_->GetAccountPasswordStore(),
+      base::BindOnce(&LeakDetectionDelegate::PrepareLeakDetails,
+                     base::Unretained(this))
+          .Then(barrier_callback));
+  helper_->ProcessLeakedPassword(std::move(url), std::move(username),
+                                 std::move(password));
 }
 
-void LeakDetectionDelegate::OnShowLeakDetectionNotification(
+LeakedPasswordDetails LeakDetectionDelegate::PrepareLeakDetails(
     PasswordForm::Store in_stores,
     IsReused is_reused,
     GURL url,
     std::u16string username,
+    std::u16string password,
     std::vector<GURL> all_urls_with_leaked_credentials) {
   std::vector<std::pair<GURL, std::u16string>> identities;
   for (const auto& u : all_urls_with_leaked_credentials) {
@@ -108,9 +147,6 @@ void LeakDetectionDelegate::OnShowLeakDetectionNotification(
   }
   client_->MaybeReportEnterprisePasswordBreachEvent(identities);
 
-  DCHECK(is_leaked_timer_);
-  base::UmaHistogramTimes("PasswordManager.LeakDetection.NotifyIsLeakedTime",
-                          std::exchange(is_leaked_timer_, nullptr)->Elapsed());
   helper_.reset();
 
   const bool in_account_store =
@@ -143,9 +179,25 @@ void LeakDetectionDelegate::OnShowLeakDetectionNotification(
 
   CredentialLeakType leak_type =
       CreateLeakType(IsSaved(in_stores != PasswordForm::Store::kNotSet),
-                     is_reused, is_syncing);
-  client_->NotifyUserCredentialsWereLeaked(leak_type, url, username,
-                                           in_account_store);
+                     is_reused, is_syncing, HasChangePasswordUrl(false));
+  return LeakedPasswordDetails(leak_type, std::move(url), std::move(username),
+                               std::move(password), in_account_store);
+}
+
+void LeakDetectionDelegate::NotifyUserCredentialsWereLeaked(
+    LeakedPasswordDetails details) {
+  CHECK(is_leaked_timer_);
+  base::UmaHistogramTimes("PasswordManager.LeakDetection.NotifyIsLeakedTime",
+                          std::exchange(is_leaked_timer_, nullptr)->Elapsed());
+
+  HasChangePasswordUrl has_change_url(
+      client_->GetPasswordChangeService() &&
+      client_->GetPasswordChangeService()->IsPasswordChangeSupported(
+          details.origin));
+  if (has_change_url) {
+    details.leak_type |= CredentialLeakFlags::kHasChangePasswordUrl;
+  }
+  client_->NotifyUserCredentialsWereLeaked(std::move(details));
 }
 
 void LeakDetectionDelegate::OnError(LeakDetectionError error) {
@@ -153,7 +205,7 @@ void LeakDetectionDelegate::OnError(LeakDetectionError error) {
 
   base::UmaHistogramEnumeration("PasswordManager.LeakDetection.Error", error);
   if (password_manager_util::IsLoggingActive(client_)) {
-    BrowserSavePasswordProgressLogger logger(client_->GetLogManager());
+    BrowserSavePasswordProgressLogger logger(client_->GetCurrentLogManager());
     switch (error) {
       case LeakDetectionError::kNotSignIn:
         logger.LogMessage(Logger::STRING_LEAK_DETECTION_SIGNED_OUT_ERROR);

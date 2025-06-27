@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_view_views.h"
@@ -24,13 +25,20 @@ namespace autofill {
 
 class PopupViewViewsTestApi {
  public:
+  using A11yAnnouncer =
+      base::RepeatingCallback<void(const std::u16string&, bool)>;
+
   explicit PopupViewViewsTestApi(PopupViewViews* view) : view_(*view) {}
+
+  void SetA11yAnnouncer(A11yAnnouncer announcer) {
+    view_->a11y_announcer_ = announcer;
+  }
 
   bool CanShowDropdownInBounds(const gfx::Rect& bounds) const&& {
     return view_->CanShowDropdownInBounds(bounds);
   }
 
-  bool HandleKeyPressEvent(const content::NativeWebKeyboardEvent& event) && {
+  bool HandleKeyPressEvent(const input::NativeWebKeyboardEvent& event) && {
     return view_->HandleKeyPressEvent(event);
   }
 

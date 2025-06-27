@@ -13,10 +13,14 @@
 #include "base/scoped_observation.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/ash/growth/mock_ui_performer_observer.h"
+#include "chromeos/ash/components/growth/campaigns_logger.h"
+#include "chromeos/ash/grit/ash_resources.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/resource/resource_bundle.h"
 #include "ui/message_center/message_center.h"
 #include "url/gurl.h"
 
@@ -26,9 +30,13 @@ constexpr char kShowNotificationParamTemplate[] = R"(
     {
       "title": "%s",
       "message": "%s",
-      "icon": {
-        "builtInIcon": 0
-      }
+      "sourceIcon": {
+        "builtInVectorIcon": 0
+      },
+      "image": {
+        "builtInImage": 2
+      },
+      "shouldLogCrOSEvents": true
     }
 )";
 constexpr char kTestTitle[] = "test title";
@@ -98,6 +106,7 @@ class ShowNotificationActionPerformerTest : public ash::AshTestBase {
       action_failed_run_loop_.QuitClosure();
 
   std::unique_ptr<ShowNotificationActionPerformer> action_;
+  growth::CampaignsLogger logger_;
   base::ScopedObservation<UiActionPerformer, UiActionPerformer::Observer>
       scoped_observation_{&mock_observer_};
 };
@@ -107,12 +116,14 @@ TEST_F(ShowNotificationActionPerformerTest, TestValidParams) {
                                                kTestTitle, kTestMessage);
   auto value = base::JSONReader::Read(valid_params);
   ASSERT_TRUE(value.has_value());
-  EXPECT_CALL(mock_observer_,
-              OnReadyToLogImpression(testing::Eq(kTestCampaignId)))
+  EXPECT_CALL(mock_observer_, OnReadyToLogImpression(
+                                  testing::Eq(kTestCampaignId),
+                                  testing::Eq(std::nullopt), testing::Eq(true)))
       .Times(1);
 
   action().Run(
-      /*campaign_id=*/kTestCampaignId, &value->GetDict(),
+      /*campaign_id=*/kTestCampaignId, /*group_id=*/std::nullopt,
+      &value->GetDict(),
       base::BindOnce(&ShowNotificationActionPerformerTest::
                          RunShowNotificationActionPerformerCallback,
                      base::Unretained(this)));
@@ -127,18 +138,74 @@ TEST_F(ShowNotificationActionPerformerTest, TestValidParams) {
   EXPECT_EQ(notification->title(), base::UTF8ToUTF16(std::string(kTestTitle)));
   EXPECT_EQ(notification->message(),
             base::UTF8ToUTF16(std::string(kTestMessage)));
+  EXPECT_STREQ(chromeos::kRedeemIcon.name,
+               notification->vector_small_image().name);
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  const auto& expected_image =
+      ui::ResourceBundle::GetSharedInstance().GetImageNamed(
+          IDR_GROWTH_FRAMEWORK_SPARK_REBUY_PNG);
+  EXPECT_EQ(expected_image, notification->rich_notification_data().image);
+#else
+  EXPECT_EQ(gfx::Image(), notification->rich_notification_data().image);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+}
+
+TEST_F(ShowNotificationActionPerformerTest, TestUnrecognizedImage) {
+  auto* valid_params = R"(
+    {
+      "title": "test title",
+      "message": "test message",
+      "sourceIcon": {
+        "builtInVectorIcon": 0
+      },
+      "image": {
+        "builtInImage": 20000
+      }
+    }
+)";
+  auto value = base::JSONReader::Read(valid_params);
+  ASSERT_TRUE(value.has_value());
+  EXPECT_CALL(
+      mock_observer_,
+      OnReadyToLogImpression(testing::Eq(kTestCampaignId),
+                             testing::Eq(std::nullopt), testing::Eq(false)))
+      .Times(1);
+
+  action().Run(
+      /*campaign_id=*/kTestCampaignId, /*group_id=*/std::nullopt,
+      &value->GetDict(),
+      base::BindOnce(&ShowNotificationActionPerformerTest::
+                         RunShowNotificationActionPerformerCallback,
+                     base::Unretained(this)));
+
+  EXPECT_TRUE(VerifyActionResult(/*success=*/true));
+
+  const auto notification_id =
+      base::StringPrintf(kNotificationIdTemplate, kTestCampaignId);
+  message_center::Notification* notification =
+      message_center_->FindVisibleNotificationById(notification_id);
+  EXPECT_TRUE(notification);
+  EXPECT_EQ(notification->title(), base::UTF8ToUTF16(std::string(kTestTitle)));
+  EXPECT_EQ(notification->message(),
+            base::UTF8ToUTF16(std::string(kTestMessage)));
+  EXPECT_STREQ(chromeos::kRedeemIcon.name,
+               notification->vector_small_image().name);
+  EXPECT_EQ(gfx::Image(), notification->rich_notification_data().image);
 }
 
 TEST_F(ShowNotificationActionPerformerTest, TestInvalidParams) {
   auto* const invalid_params = "{}";
   auto value = base::JSONReader::Read(invalid_params);
   ASSERT_TRUE(value.has_value());
-  EXPECT_CALL(mock_observer_,
-              OnReadyToLogImpression(testing::Eq(kTestCampaignId)))
+  EXPECT_CALL(mock_observer_, OnReadyToLogImpression(
+                                  testing::Eq(kTestCampaignId),
+                                  testing::Eq(std::nullopt), testing::Eq(true)))
       .Times(0);
 
   action().Run(
-      /*campaign_id=*/kTestCampaignId, &value->GetDict(),
+      /*campaign_id=*/kTestCampaignId, /*group_id=*/std::nullopt,
+      &value->GetDict(),
       base::BindOnce(&ShowNotificationActionPerformerTest::
                          RunShowNotificationActionPerformerCallback,
                      base::Unretained(this)));

@@ -37,7 +37,6 @@
 #include "third_party/blink/renderer/core/editing/testing/editing_test_base.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -639,7 +638,7 @@ TEST_F(TextIteratorTest, EndingConditionWithDisplayNone) {
       "<div style='display: none'><span>hello</span>world</div>Lorem ipsum "
       "dolor sit amet.");
   Position start(&GetDocument(), 0);
-  Position end(GetDocument().QuerySelector(AtomicString("span")), 0);
+  Position end(QuerySelector("span"), 0);
   TextIterator iter(start, end);
   EXPECT_TRUE(iter.AtEnd());
 }
@@ -665,7 +664,7 @@ TEST_F(TextIteratorTest, EndingConditionWithDisplayNoneInShadowTree) {
 
 TEST_F(TextIteratorTest, PreserveLeadingSpace) {
   SetBodyContent("<div style='width: 2em;'><b><i>foo</i></b> bar</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Position start(div->firstChild()->firstChild()->firstChild(), 0);
   Position end(div->lastChild(), 4);
   EXPECT_EQ("foo bar",
@@ -676,7 +675,7 @@ TEST_F(TextIteratorTest, PreserveLeadingSpace) {
 // emit alt text, this tests for that bug
 TEST_F(TextIteratorTest, PreserveLeadingSpaceWithoutEmittingAltText) {
   SetBodyContent("<div style='width: 2em;'><b><i>foo</i></b> bar</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Position start(div->firstChild()->firstChild()->firstChild(), 0);
   Position end(div->lastChild(), 4);
   EXPECT_EQ("foo bar", PlainText(EphemeralRange(start, end)));
@@ -685,7 +684,7 @@ TEST_F(TextIteratorTest, PreserveLeadingSpaceWithoutEmittingAltText) {
 TEST_F(TextIteratorTest, PreserveOnlyLeadingSpace) {
   SetBodyContent(
       "<div style='width: 2em;'><b><i id='foo'>foo </i></b> bar</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Position start(
       GetDocument().getElementById(AtomicString("foo"))->firstChild(), 0);
   Position end(div->lastChild(), 4);
@@ -696,7 +695,7 @@ TEST_F(TextIteratorTest, PreserveOnlyLeadingSpace) {
 TEST_F(TextIteratorTest, StartAtFirstLetter) {
   SetBodyContent("<style>div:first-letter {color:red;}</style><div>Axyz</div>");
 
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
   Position start(text, 0);
   Position end(text, 4);
@@ -723,7 +722,7 @@ TEST_F(TextIteratorTest, StartInMultiCharFirstLetterWithCollapsedSpace) {
   SetBodyContent(
       "<style>div:first-letter {color:red;}</style><div>  (A)  xyz</div>");
 
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
   Position start(text, 3);
   Position end(text, 10);
@@ -757,7 +756,7 @@ TEST_F(TextIteratorTest, StartAndEndInMultiCharFirstLetterWithCollapsedSpace) {
   SetBodyContent(
       "<style>div:first-letter {color:red;}</style><div>  (A)  xyz</div>");
 
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
   Position start(text, 3);
   Position end(text, 4);
@@ -776,7 +775,7 @@ TEST_F(TextIteratorTest, StartAndEndInMultiCharFirstLetterWithCollapsedSpace) {
 TEST_F(TextIteratorTest, StartAtRemainingText) {
   SetBodyContent("<style>div:first-letter {color:red;}</style><div>Axyz</div>");
 
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
   Position start(text, 1);
   Position end(text, 4);
@@ -795,7 +794,7 @@ TEST_F(TextIteratorTest, StartAtRemainingText) {
 TEST_F(TextIteratorTest, StartAtFirstLetterInPre) {
   SetBodyContent("<style>pre:first-letter {color:red;}</style><pre>Axyz</pre>");
 
-  Element* pre = GetDocument().QuerySelector(AtomicString("pre"));
+  Element* pre = QuerySelector("pre");
   Node* text = pre->firstChild();
   Position start(text, 0);
   Position end(text, 4);
@@ -822,7 +821,7 @@ TEST_F(TextIteratorTest, StartInMultiCharFirstLetterInPre) {
   SetBodyContent(
       "<style>pre:first-letter {color:red;}</style><pre>(A)xyz</pre>");
 
-  Element* pre = GetDocument().QuerySelector(AtomicString("pre"));
+  Element* pre = QuerySelector("pre");
   Node* text = pre->firstChild();
   Position start(text, 1);
   Position end(text, 6);
@@ -849,7 +848,7 @@ TEST_F(TextIteratorTest, StartAndEndInMultiCharFirstLetterInPre) {
   SetBodyContent(
       "<style>pre:first-letter {color:red;}</style><pre>(A)xyz</pre>");
 
-  Element* pre = GetDocument().QuerySelector(AtomicString("pre"));
+  Element* pre = QuerySelector("pre");
   Node* text = pre->firstChild();
   Position start(text, 1);
   Position end(text, 2);
@@ -876,7 +875,7 @@ TEST_F(TextIteratorTest, FirstLetterAndRemainingAreDifferentBlocks) {
 TEST_F(TextIteratorTest, StartAtRemainingTextInPre) {
   SetBodyContent("<style>pre:first-letter {color:red;}</style><pre>Axyz</pre>");
 
-  Element* pre = GetDocument().QuerySelector(AtomicString("pre"));
+  Element* pre = QuerySelector("pre");
   Node* text = pre->firstChild();
   Position start(text, 1);
   Position end(text, 4);
@@ -1109,6 +1108,57 @@ TEST_F(TextIteratorTest, RangeLengthWithSoftLineWrap) {
       "#sample { width: 3ch; }");
   EXPECT_EQ(3, TestRangeLength("<div id=sample>^<input>  A|</div>"));
   EXPECT_EQ(2, TestRangeLength("<div id=sample><input>^  A|</div>"));
+}
+
+// http://crbug.com/41350470
+TEST_F(TextIteratorTest, BasicIterationWithoutLayoutBetweenTextNode) {
+  static const char* input1 =
+      "<p>Line1<!-- A Comment --></p><p>Line2</p><p>Line3</p>";
+  SetBodyContent(input1);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+
+  static const char* input2 =
+      "<p>Line1</p><p>Line2<span hidden>b</span></p><p>Line3</p>";
+  SetBodyContent(input2);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+
+  static const char* input3 =
+      "<p>Line1<span style='display: none;'>hidden "
+      "content</span></p><p>Line2</p><p>Line3</p>";
+  SetBodyContent(input3);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+
+  static const char* input4 =
+      "<p>Line1</p><p>Line2<meta charset='UTF-8'></p><p>Line3</p>";
+  SetBodyContent(input4);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+
+  static const char* input5 =
+      "<p>Line1<style>body{ font-family: Arial, sans-serif; "
+      "}</style></p><p>Line2</p><p>Line3</p>";
+  SetBodyContent(input5);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+
+  static const char* input6 =
+      "<p>Line1</p><p>Line2<base "
+      "href='http://crbug.com/41350470'></p><p>Line3</p>";
+  SetBodyContent(input6);
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<DOMTree>());
+  EXPECT_EQ("[Line1][\n][\n][Line2][\n][\n][Line3]", Iterate<FlatTree>());
+}
+
+TEST_F(TextIteratorTest, BasicIterationWithButtonInInlineElement) {
+  static const char* body_content =
+      "<div><span>test<div style='display: inline-flex;'><button> "
+      "</button></div>;</span></div>";
+  SetBodyContent(body_content);
+  EXPECT_EQ("[test][][;]", Iterate<DOMTree>());
+  EXPECT_EQ("[test][][;]", Iterate<FlatTree>());
 }
 
 }  // namespace text_iterator_test

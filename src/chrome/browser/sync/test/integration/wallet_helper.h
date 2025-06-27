@@ -15,23 +15,23 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/sync/test/integration/multi_client_status_change_checker.h"
-#include "components/autofill/core/browser/payments_data_manager.h"
+#include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
-struct AutofillMetadata;
 class AutofillWebDataService;
 class CreditCard;
 struct CreditCardCloudTokenData;
 struct PaymentsCustomerData;
+struct PaymentsMetadata;
+class PaymentsDataManager;
 class PersonalDataManager;
 struct ServerCvc;
 }  // namespace autofill
 
 namespace sync_pb {
+class DataTypeState;
 class SyncEntity;
-class ModelType;
-class ModelTypeState;
 }  // namespace sync_pb
 
 namespace wallet_helper {
@@ -42,7 +42,12 @@ inline constexpr char kDefaultBillingAddressID[] = "billing address entity ID";
 inline constexpr char kDefaultCreditCardCloudTokenDataID[] =
     "cloud token data ID";
 
-// Used to access the personal data manager within a particular sync profile.
+// Used to access the `PaymentsDataManager` for a particular sync profile.
+[[nodiscard]] autofill::PaymentsDataManager* GetPaymentsDataManager(int index);
+
+// Used to access the `PersonalDataManager` for a particular sync profile.
+// Prefer using `GetPaymentsDataManager` instead - Wallet should not need to
+// know address-related information.
 [[nodiscard]] autofill::PersonalDataManager* GetPersonalDataManager(int index);
 
 // Used to access the web data service within a particular sync profile.
@@ -78,11 +83,11 @@ void UpdateServerCardCredentialData(int profile,
 void UpdateServerCardMetadata(int profile,
                               const autofill::CreditCard& credit_card);
 
-std::vector<autofill::AutofillMetadata> GetServerCardsMetadata(int profile);
+std::vector<autofill::PaymentsMetadata> GetServerCardsMetadata(int profile);
 
 // Function supports AUTOFILL_WALLET_DATA and AUTOFILL_WALLET_OFFER.
-sync_pb::ModelTypeState GetWalletModelTypeState(syncer::ModelType type,
-                                                int profile);
+sync_pb::DataTypeState GetWalletDataTypeState(syncer::DataType type,
+                                              int profile);
 
 sync_pb::SyncEntity CreateDefaultSyncWalletCard();
 
@@ -118,7 +123,7 @@ void ExpectDefaultCreditCardValues(const autofill::CreditCard& card);
 void ExpectDefaultWalletCredentialValues(const autofill::CreditCard& card);
 
 // Load current data from the database of profile |profile|.
-std::vector<autofill::CreditCard*> GetServerCreditCards(int profile);
+std::vector<const autofill::CreditCard*> GetServerCreditCards(int profile);
 
 }  // namespace wallet_helper
 
@@ -171,7 +176,7 @@ class FullUpdateTypeProgressMarkerChecker : public StatusChangeChecker,
   FullUpdateTypeProgressMarkerChecker(
       base::Time min_required_progress_marker_timestamp,
       syncer::SyncService* service,
-      syncer::ModelType model_type);
+      syncer::DataType data_type);
   ~FullUpdateTypeProgressMarkerChecker() override;
 
   FullUpdateTypeProgressMarkerChecker(
@@ -188,7 +193,7 @@ class FullUpdateTypeProgressMarkerChecker : public StatusChangeChecker,
  private:
   const base::Time min_required_progress_marker_timestamp_;
   const raw_ptr<const syncer::SyncService> service_;
-  const syncer::ModelType model_type_;
+  const syncer::DataType data_type_;
 
   base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
       scoped_observation_{this};

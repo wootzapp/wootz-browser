@@ -6,11 +6,11 @@
 
 #include <string>
 
-#include "base/strings/string_piece.h"
+#include "base/feature_list.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "build/branding_buildflags.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
 #include "chrome/common/extensions/api/pdf_viewer_private.h"
@@ -26,20 +26,11 @@
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
 #include "extensions/common/api/mime_handler_private.h"
 #include "pdf/buildflags.h"
-#include "services/screen_ai/buildflags/buildflags.h"
+#include "pdf/pdf_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "url/gurl.h"
-
-#if BUILDFLAG(ENABLE_PDF_INK2)
-#include "base/feature_list.h"
-#include "pdf/pdf_features.h"
-#endif  // BUILDFLAG(ENABLE_PDF_INK2)
-
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-#include "ui/accessibility/accessibility_features.h"
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 namespace pdf_extension_util {
 
@@ -109,6 +100,7 @@ void AddPdfViewerStrings(base::Value::Dict* dict) {
       {"rotationStateLabel90", IDS_PDF_ROTATION_STATE_LABEL_90},
       {"rotationStateLabel180", IDS_PDF_ROTATION_STATE_LABEL_180},
       {"rotationStateLabel270", IDS_PDF_ROTATION_STATE_LABEL_270},
+      {"searchifyInProgress", IDS_PDF_SEARCHIFY_IN_PROGRESS},
       {"thumbnailPageAriaLabel", IDS_PDF_THUMBNAIL_PAGE_ARIA_LABEL},
       {"tooltipAttachments", IDS_PDF_TOOLTIP_ATTACHMENTS},
       {"tooltipDocumentOutline", IDS_PDF_TOOLTIP_DOCUMENT_OUTLINE},
@@ -118,10 +110,7 @@ void AddPdfViewerStrings(base::Value::Dict* dict) {
       {"tooltipRotateCCW", IDS_PDF_TOOLTIP_ROTATE_CCW},
       {"tooltipThumbnails", IDS_PDF_TOOLTIP_THUMBNAILS},
       {"zoomTextInputAriaLabel", IDS_PDF_ZOOM_TEXT_INPUT_ARIA_LABEL},
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-      {"pdfOcrShowToggle", IDS_CONTENT_CONTEXT_PDF_OCR_MENU_OPTION},
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(ENABLE_PDF_INK2)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(ENABLE_PDF_INK2)
       {"tooltipAnnotate", IDS_PDF_ANNOTATION_ANNOTATE},
       {"annotationDocumentTooLarge", IDS_PDF_ANNOTATION_DOCUMENT_TOO_LARGE},
       {"annotationDocumentProtected", IDS_PDF_ANNOTATION_DOCUMENT_PROTECTED},
@@ -174,16 +163,46 @@ void AddPdfViewerStrings(base::Value::Dict* dict) {
       {"annotationSize12", IDS_PDF_ANNOTATION_SIZE12},
       {"annotationSize16", IDS_PDF_ANNOTATION_SIZE16},
       {"annotationSize20", IDS_PDF_ANNOTATION_SIZE20},
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(ENABLE_PDF_INK2)
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(ENABLE_PDF_INK2)
+#if BUILDFLAG(ENABLE_PDF_INK2)
+      {"ink2Draw", IDS_PDF_INK2_DRAW},
+      {"ink2Tool", IDS_PDF_INK2_ANNOTATION_TOOL},
+      {"ink2Size", IDS_PDF_INK2_ANNOTATION_SIZE},
+      {"ink2Color", IDS_PDF_INK2_ANNOTATION_COLOR},
+      {"ink2BrushSizeExtraThin", IDS_PDF_INK2_ANNOTATION_SIZE_EXTRA_THIN},
+      {"ink2BrushSizeThin", IDS_PDF_INK2_ANNOTATION_SIZE_THIN},
+      {"ink2BrushSizeMedium", IDS_PDF_INK2_ANNOTATION_SIZE_MEDIUM},
+      {"ink2BrushSizeThick", IDS_PDF_INK2_ANNOTATION_SIZE_THICK},
+      {"ink2BrushSizeExtraThick", IDS_PDF_INK2_ANNOTATION_SIZE_EXTRA_THICK},
+      {"ink2BrushColorLightRed", IDS_PDF_INK2_ANNOTATION_COLOR_LIGHT_RED},
+      {"ink2BrushColorLightYellow", IDS_PDF_INK2_ANNOTATION_COLOR_LIGHT_YELLOW},
+      {"ink2BrushColorDarkGrey1", IDS_PDF_INK2_ANNOTATION_COLOR_DARK_GREY_1},
+      {"ink2BrushColorDarkGrey2", IDS_PDF_INK2_ANNOTATION_COLOR_DARK_GREY_2},
+      {"ink2BrushColorRed1", IDS_PDF_INK2_ANNOTATION_COLOR_RED_1},
+      {"ink2BrushColorYellow1", IDS_PDF_INK2_ANNOTATION_COLOR_YELLOW_1},
+      {"ink2BrushColorGreen1", IDS_PDF_INK2_ANNOTATION_COLOR_GREEN_1},
+      {"ink2BrushColorBlue1", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_1},
+      {"ink2BrushColorTan1", IDS_PDF_INK2_ANNOTATION_COLOR_TAN_1},
+      {"ink2BrushColorRed2", IDS_PDF_INK2_ANNOTATION_COLOR_RED_2},
+      {"ink2BrushColorYellow2", IDS_PDF_INK2_ANNOTATION_COLOR_YELLOW_2},
+      {"ink2BrushColorGreen2", IDS_PDF_INK2_ANNOTATION_COLOR_GREEN_2},
+      {"ink2BrushColorBlue2", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_2},
+      {"ink2BrushColorTan2", IDS_PDF_INK2_ANNOTATION_COLOR_TAN_2},
+      {"ink2BrushColorRed3", IDS_PDF_INK2_ANNOTATION_COLOR_RED_3},
+      {"ink2BrushColorYellow3", IDS_PDF_INK2_ANNOTATION_COLOR_YELLOW_3},
+      {"ink2BrushColorGreen3", IDS_PDF_INK2_ANNOTATION_COLOR_GREEN_3},
+      {"ink2BrushColorBlue3", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_3},
+      {"ink2BrushColorTan3", IDS_PDF_INK2_ANNOTATION_COLOR_TAN_3},
+#endif  // BUILDFLAG(ENABLE_PDF_INK2)
   };
   for (const auto& resource : kPdfResources)
     dict->Set(resource.name, l10n_util::GetStringUTF16(resource.id));
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(ENABLE_PDF_INK2)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(ENABLE_PDF_INK2)
   std::u16string edit_string = l10n_util::GetStringUTF16(IDS_EDIT);
   std::erase(edit_string, '&');
   dict->Set("editButton", edit_string);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(ENABLE_PDF_INK2)
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(ENABLE_PDF_INK2)
 
   webui::SetLoadTimeDataDefaults(g_browser_process->GetApplicationLocale(),
                                  dict);
@@ -199,7 +218,7 @@ std::string GetManifest() {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
   std::string manifest_contents(
-      ui::ResourceBundle::GetSharedInstance().GetRawDataResource(
+      ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_PDF_MANIFEST));
   DCHECK(manifest_contents.find(kNameTag) != std::string::npos);
   base::ReplaceFirstSubstringAfterOffset(&manifest_contents, 0, kNameTag,
@@ -228,24 +247,30 @@ void AddAdditionalData(bool enable_printing,
   // above instead.
   bool printing_enabled = true;
   bool annotations_enabled = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   printing_enabled = enable_printing;
   annotations_enabled = enable_annotations;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 #if BUILDFLAG(ENABLE_PDF_INK2)
   bool use_ink2 = base::FeatureList::IsEnabled(chrome_pdf::features::kPdfInk2);
   if (use_ink2) {
     annotations_enabled = enable_annotations;
   }
   dict->Set("pdfInk2Enabled", use_ink2);
+  bool text_annotations_enabled =
+      use_ink2 && chrome_pdf::features::kPdfInk2TextAnnotations.Get();
+  dict->Set("pdfTextAnnotationsEnabled", text_annotations_enabled);
 #endif  // BUILDFLAG(ENABLE_PDF_INK2)
   dict->Set("printingEnabled", printing_enabled);
   dict->Set("pdfAnnotationsEnabled", annotations_enabled);
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  // TODO(crbug.com/40912114): Re-enable it when integrating PDF OCR with
-  // Select-to-Speak. Consider adding a feature flag.
-  dict->Set("pdfOcrEnabled", false);
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+  dict->Set("PdfGetSaveDataInBlocks",
+            base::FeatureList::IsEnabled(
+                chrome_pdf::features::kPdfGetSaveDataInBlocks));
+  dict->Set("pdfUseShowSaveFilePicker",
+            base::FeatureList::IsEnabled(
+                chrome_pdf::features::kPdfUseShowSaveFilePicker));
+  dict->Set("pdfSearchifySaveEnabled",
+            chrome_pdf::features::IsPdfSearchifySaveEnabled());
 }
 
 bool MaybeDispatchSaveEvent(content::RenderFrameHost* embedder_host) {
@@ -277,6 +302,21 @@ bool MaybeDispatchSaveEvent(content::RenderFrameHost* embedder_host) {
   event_router->DispatchEventToExtension(extension_misc::kPdfExtensionId,
                                          std::move(event));
   return true;
+}
+
+void DispatchShouldUpdateViewportEvent(content::RenderFrameHost* embedder_host,
+                                       const GURL& new_pdf_url) {
+  base::Value::List args;
+  args.Append(new_pdf_url.spec());
+
+  content::BrowserContext* context = embedder_host->GetBrowserContext();
+  auto event = std::make_unique<extensions::Event>(
+      extensions::events::PDF_VIEWER_PRIVATE_ON_SHOULD_UPDATE_VIEWPORT,
+      extensions::api::pdf_viewer_private::OnShouldUpdateViewport::kEventName,
+      std::move(args), context);
+  extensions::EventRouter* event_router = extensions::EventRouter::Get(context);
+  event_router->DispatchEventToExtension(extension_misc::kPdfExtensionId,
+                                         std::move(event));
 }
 
 }  // namespace pdf_extension_util

@@ -20,20 +20,18 @@
 namespace update_client {
 
 class Configurator;
-class PersistedData;
 struct UpdateContext;
 
 class UpdateChecker {
  public:
-  using UpdateCheckCallback = base::OnceCallback<void(
-      const std::optional<ProtocolParser::Results>& results,
-      ErrorCategory error_category,
-      int error,
-      int retry_after_sec)>;
+  using UpdateCheckCallback =
+      base::OnceCallback<void(std::optional<ProtocolParser::Results> results,
+                              ErrorCategory error_category,
+                              int error,
+                              int retry_after_sec)>;
 
   using Factory = base::RepeatingCallback<std::unique_ptr<UpdateChecker>(
-      scoped_refptr<Configurator> config,
-      PersistedData* persistent)>;
+      scoped_refptr<Configurator> config)>;
 
   UpdateChecker(const UpdateChecker&) = delete;
   UpdateChecker& operator=(const UpdateChecker&) = delete;
@@ -50,8 +48,7 @@ class UpdateChecker {
       UpdateCheckCallback update_check_callback) = 0;
 
   static std::unique_ptr<UpdateChecker> Create(
-      scoped_refptr<Configurator> config,
-      PersistedData* persistent);
+      scoped_refptr<Configurator> config);
 
  protected:
   UpdateChecker() = default;

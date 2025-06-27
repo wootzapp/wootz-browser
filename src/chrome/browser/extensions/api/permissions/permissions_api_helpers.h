@@ -19,7 +19,7 @@ namespace api {
 namespace permissions {
 struct Permissions;
 }
-}
+}  // namespace api
 
 namespace permissions_api_helpers {
 

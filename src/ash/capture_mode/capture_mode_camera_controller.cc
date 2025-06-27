@@ -30,13 +30,13 @@
 #include "ash/wm/window_state.h"
 #include "ash/wm/wm_event.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/contains.h"
-#include "base/debug/crash_logging.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "media/capture/video/video_capture_device_descriptor.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
@@ -109,7 +109,7 @@ bool DidDevicesChange(
   for (const auto& incoming_camera : incoming_list) {
     const auto& device_id = incoming_camera.descriptor.device_id;
     const auto iter =
-        base::ranges::find(current_list, device_id, &CameraInfo::device_id);
+        std::ranges::find(current_list, device_id, &CameraInfo::device_id);
     if (iter == current_list.end())
       return true;
 
@@ -172,13 +172,15 @@ bool ShouldCameraActLikeAMirror(const CameraInfo& camera_info) {
 // nullptr if no such item exists.
 const CameraInfo* GetCameraInfoById(const CameraId& id,
                                     const CameraInfoList& list) {
-  const auto iter = base::ranges::find(list, id, &CameraInfo::camera_id);
+  const auto iter = std::ranges::find(list, id, &CameraInfo::camera_id);
   return iter == list.end() ? nullptr : &(*iter);
 }
 
 // Returns the widget init params needed to create the camera preview widget.
 views::Widget::InitParams CreateWidgetParams(const gfx::Rect& bounds) {
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.parent =
       CaptureModeController::Get()->GetOnCaptureSurfaceWidgetParentWindow();
   params.bounds = bounds;
@@ -366,8 +368,9 @@ CameraId::CameraId(std::string model_id_or_display_name, int number)
 }
 
 bool CameraId::operator<(const CameraId& rhs) const {
-  const int result = std::strcmp(model_id_or_display_name_.c_str(),
-                                 rhs.model_id_or_display_name_.c_str());
+  const int result =
+      UNSAFE_TODO(std::strcmp(model_id_or_display_name_.c_str(),
+                              rhs.model_id_or_display_name_.c_str()));
   return result != 0 ? result : (number_ < rhs.number_);
 }
 
@@ -493,23 +496,6 @@ void CaptureModeCameraController::SetSelectedCamera(CameraId camera_id,
 
 void CaptureModeCameraController::SetShouldShowPreview(bool value) {
   should_show_preview_ = value;
-
-  // TODO(http://b/290363225): Remove this if no more crashes after the fix.
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "selected_cam_valid",
-                        selected_camera_.is_valid());
-  SCOPED_CRASH_KEY_STRING256("SelfieCam", "selected_camera_",
-                             selected_camera_.ToString());
-  SCOPED_CRASH_KEY_STRING256("SelfieCam", "selected_cam_display_name",
-                             GetDisplayNameOfSelectedCamera());
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "should_show_preview_",
-                        should_show_preview_);
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "is_shutting_down_", is_shutting_down_);
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "camera_preview_widget_",
-                        !!camera_preview_widget_);
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "camera_preview_view_",
-                        !!camera_preview_view_);
-  SCOPED_CRASH_KEY_BOOL("SelfieCam", "IsCameraDisabledByPolicy",
-                        IsCameraDisabledByPolicy());
 
   RefreshCameraPreview();
 }
@@ -787,6 +773,7 @@ void CaptureModeCameraController::GetCameraDevices() {
 
 void CaptureModeCameraController::OnCameraDevicesReceived(
     RequestId request_id,
+    video_capture::mojom::VideoSourceProvider::GetSourceInfosResult,
     const std::vector<media::VideoCaptureDeviceInfo>& devices) {
   if (request_id < most_recent_request_id_) {
     // Ignore any out-dated requests replies, since a reply from a more recent

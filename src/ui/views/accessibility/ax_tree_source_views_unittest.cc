@@ -12,7 +12,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/accessibility/ax_tree_data.h"
-#include "ui/accessibility/platform/ax_unique_id.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -23,7 +22,6 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/test/widget_test.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget.h"
 
 namespace views {
@@ -50,23 +48,24 @@ class AXTreeSourceViewsTest : public ViewsTestBase {
   void SetUp() override {
     ViewsTestBase::SetUp();
     widget_ = std::make_unique<Widget>();
-    Widget::InitParams params(Widget::InitParams::TYPE_WINDOW_FRAMELESS);
+    Widget::InitParams params(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                              Widget::InitParams::TYPE_WINDOW_FRAMELESS);
     params.bounds = gfx::Rect(11, 22, 333, 444);
     params.context = GetContext();
     widget_->Init(std::move(params));
     widget_->SetContentsView(std::make_unique<View>());
 
-    label1_ = new Label(u"Label 1");
+    label1_ = widget_->GetContentsView()->AddChildView(
+        std::make_unique<Label>(u"Label 1"));
     label1_->SetBounds(1, 1, 111, 111);
-    widget_->GetContentsView()->AddChildView(label1_.get());
 
-    label2_ = new Label(u"Label 2");
+    label2_ = widget_->GetContentsView()->AddChildView(
+        std::make_unique<Label>(u"Label 2"));
     label2_->SetBounds(2, 2, 222, 222);
-    widget_->GetContentsView()->AddChildView(label2_.get());
 
-    textfield_ = new Textfield();
+    textfield_ =
+        widget_->GetContentsView()->AddChildView(std::make_unique<Textfield>());
     textfield_->SetBounds(222, 2, 20, 200);
-    widget_->GetContentsView()->AddChildView(textfield_.get());
   }
 
   void TearDown() override {
@@ -77,7 +76,7 @@ class AXTreeSourceViewsTest : public ViewsTestBase {
     ViewsTestBase::TearDown();
   }
 
-  UniqueWidgetPtr widget_;
+  std::unique_ptr<Widget> widget_;
   raw_ptr<Label, AcrossTasksDanglingUntriaged> label1_ = nullptr;
   raw_ptr<Label, AcrossTasksDanglingUntriaged> label2_ = nullptr;
   raw_ptr<Textfield, AcrossTasksDanglingUntriaged> textfield_ = nullptr;
@@ -149,9 +148,9 @@ TEST_F(AXTreeSourceViewsTest, GetTreeDataWithFocus) {
 }
 
 TEST_F(AXTreeSourceViewsTest, IgnoredView) {
-  View* ignored_view = new View();
+  View* ignored_view =
+      widget_->GetContentsView()->AddChildView(std::make_unique<View>());
   ignored_view->GetViewAccessibility().SetIsIgnored(true);
-  widget_->GetContentsView()->AddChildView(ignored_view);
 
   AXAuraObjCache cache;
   TestAXTreeSourceViews tree(cache.GetOrCreate(widget_.get())->GetUniqueId(),
@@ -161,7 +160,7 @@ TEST_F(AXTreeSourceViewsTest, IgnoredView) {
 
 TEST_F(AXTreeSourceViewsTest, ViewWithChildTreeHasNoChildren) {
   View* contents_view = widget_->GetContentsView();
-  contents_view->GetViewAccessibility().OverrideChildTreeID(
+  contents_view->GetViewAccessibility().SetChildTreeID(
       ui::AXTreeID::CreateNewAXTreeID());
 
   AXAuraObjCache cache;
@@ -205,7 +204,7 @@ TEST_F(AXTreeSourceViewsDesktopWidgetTest, FocusedChildWindowDestroyed) {
   test::WidgetDestroyedWaiter waiter(widget_.get());
 
   // Close the widget to destroy the child.
-  widget_.reset();
+  widget_->CloseNow();
 
   // Wait for the async widget close.
   waiter.Wait();

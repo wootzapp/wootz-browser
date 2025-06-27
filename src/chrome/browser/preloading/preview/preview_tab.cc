@@ -10,7 +10,7 @@
 #include "chrome/browser/page_load_metrics/page_load_metrics_initialize.h"
 #include "chrome/browser/preloading/preview/preview_manager.h"
 #include "chrome/browser/preloading/preview/preview_zoom_controller.h"
-#include "chrome/browser/ssl/security_state_tab_helper.h"
+#include "chrome/browser/ssl/chrome_security_state_tab_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
 #include "components/zoom/zoom_controller.h"
 #include "content/public/browser/browser_context.h"
@@ -44,10 +44,10 @@ std::unique_ptr<views::Widget> CreateWidget(content::WebContents& parent,
                                             views::WidgetObserver* observer) {
   // TODO(b:292184832): Create with own buttons
 
-  views::Widget::InitParams params;
-  params.type = views::Widget::InitParams::TYPE_WINDOW;
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_WINDOW);
   params.shadow_type = views::Widget::InitParams::ShadowType::kDrop;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   const gfx::Rect& rect = parent.GetViewBounds();
   params.bounds =
       gfx::Rect(rect.x() + rect.width() / 2, rect.y() + rect.height() / 2,
@@ -119,8 +119,8 @@ void PreviewTab::AttachTabHelpersForInit() {
   // TODO(b:291867757): Audit TabHelpers and determine when
   // (initiation/promotion) we should attach each of them.
   zoom::ZoomController::CreateForWebContents(web_contents);
-  SecurityStateTabHelper::CreateForWebContents(web_contents);
-  chrome::InitializePageLoadMetricsForWebContents(web_contents);
+  ChromeSecurityStateTabHelper::CreateForWebContents(web_contents);
+  InitializePageLoadMetricsForWebContents(web_contents);
 }
 
 bool PreviewTab::AuditWebInputEvent(const blink::WebInputEvent& event) {
@@ -142,7 +142,8 @@ bool PreviewTab::AuditWebInputEvent(const blink::WebInputEvent& event) {
 }
 
 content::PreloadingEligibility PreviewTab::IsPrerender2Supported(
-    content::WebContents& web_contents) {
+    content::WebContents& web_contents,
+    content::PreloadingTriggerType trigger_type) {
   return content::PreloadingEligibility::kPreloadingDisabled;
 }
 
@@ -255,7 +256,7 @@ bool PreviewTab::AcceleratorPressed(const ui::Accelerator& accelerator) {
       preview_zoom_controller_->Zoom(content::PAGE_ZOOM_IN);
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   return true;

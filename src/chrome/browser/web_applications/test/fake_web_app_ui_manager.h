@@ -17,6 +17,8 @@
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/webapps/common/web_app_id.h"
 
+class Browser;
+
 namespace base {
 class FilePath;
 }  // namespace base
@@ -54,18 +56,18 @@ class FakeWebAppUiManager : public WebAppUiManager {
   bool CanAddAppToQuickLaunchBar() const override;
   void AddAppToQuickLaunchBar(const webapps::AppId& app_id) override;
   bool IsAppInQuickLaunchBar(const webapps::AppId& app_id) const override;
-  bool IsInAppWindow(content::WebContents* web_contents) const override;
-  const webapps::AppId* GetAppIdForWindow(
-      const content::WebContents* web_contents) const override;
-  void NotifyOnAssociatedAppChanged(
-      content::WebContents* web_contents,
-      const std::optional<webapps::AppId>& previous_app_id,
-      const std::optional<webapps::AppId>& new_app_id) const override {}
-  bool CanReparentAppTabToWindow(const webapps::AppId& app_id,
-                                 bool shortcut_created) const override;
-  void ReparentAppTabToWindow(content::WebContents* contents,
-                              const webapps::AppId& app_id,
-                              bool shortcut_created) override;
+  bool CanReparentAppTabToWindow(
+      const webapps::AppId& app_id,
+      bool shortcut_created,
+      content::WebContents* web_contents) const override;
+  Browser* ReparentAppTabToWindow(content::WebContents* contents,
+                                  const webapps::AppId& app_id,
+                                  bool shortcut_created) override;
+  Browser* ReparentAppTabToWindow(
+      content::WebContents* contents,
+      const webapps::AppId& app_id,
+      base::OnceCallback<void(content::WebContents*)> completion_callback)
+      override;
   void ShowWebAppFileLaunchDialog(
       const std::vector<base::FilePath>& file_paths,
       const webapps::AppId& app_id,
@@ -108,7 +110,9 @@ class FakeWebAppUiManager : public WebAppUiManager {
   content::WebContents* CreateNewTab() override;
   bool IsWebContentsActiveTabInBrowser(
       content::WebContents* web_contents) override;
-  void TriggerInstallDialog(content::WebContents* web_contents) override;
+  void TriggerInstallDialog(content::WebContents* web_contents,
+                            webapps::WebappInstallSource source,
+                            InstallCallback callback) override;
 
   void PresentUserUninstallDialog(
       const webapps::AppId& app_id,
@@ -137,7 +141,7 @@ class FakeWebAppUiManager : public WebAppUiManager {
       const std::string& launch_name) override;
 
   void MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
-      content::WebContents* web_contents,
+      Browser* browser,
       Profile* profile,
       const std::string& app_id) override;
 

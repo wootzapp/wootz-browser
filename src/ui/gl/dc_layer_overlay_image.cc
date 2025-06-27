@@ -9,40 +9,24 @@
 #include <d3d11.h>
 #include <dcomp.h>
 
-#include "base/notreached.h"
-
 namespace gl {
-
-const char* DCLayerOverlayTypeToString(DCLayerOverlayType overlay_type) {
-  switch (overlay_type) {
-    case DCLayerOverlayType::kNV12Texture:
-      return "NV12Texture";
-    case DCLayerOverlayType::kNV12Pixmap:
-      return "NV12Pixmap";
-    case DCLayerOverlayType::kDCompVisualContent:
-      return "DCompVisualContent";
-    case DCLayerOverlayType::kDCompSurfaceProxy:
-      return "DCompSurfaceProxy";
-  }
-
-  NOTREACHED_NORETURN();
-}
 
 DCLayerOverlayImage::DCLayerOverlayImage(
     const gfx::Size& size,
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> nv12_texture,
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> d3d11_video_texture,
     size_t array_slice)
-    : type_(DCLayerOverlayType::kNV12Texture),
+    : type_(DCLayerOverlayType::kD3D11Texture),
       size_(size),
-      nv12_texture_(std::move(nv12_texture)),
+      d3d11_video_texture_(std::move(d3d11_video_texture)),
       texture_array_slice_(array_slice) {}
 
-DCLayerOverlayImage::DCLayerOverlayImage(const gfx::Size& size,
-                                         const uint8_t* nv12_pixmap,
-                                         size_t pixmap_stride)
-    : type_(DCLayerOverlayType::kNV12Pixmap),
+DCLayerOverlayImage::DCLayerOverlayImage(
+    const gfx::Size& size,
+    base::span<const uint8_t> shm_video_pixmap,
+    size_t pixmap_stride)
+    : type_(DCLayerOverlayType::kShMemPixmap),
       size_(size),
-      nv12_pixmap_(nv12_pixmap),
+      shm_video_pixmap_(shm_video_pixmap),
       pixmap_stride_(pixmap_stride) {}
 
 DCLayerOverlayImage::DCLayerOverlayImage(

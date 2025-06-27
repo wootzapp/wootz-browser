@@ -21,7 +21,6 @@ namespace blink {
 #if !BUILDFLAG(TARGET_OS_IS_ANDROID)
 class DocumentPictureInPictureOptions;
 #endif  // !BUILDFLAG(TARGET_OS_IS_ANDROID)
-class ExceptionState;
 class HTMLVideoElement;
 class PictureInPictureWindow;
 class ScriptState;
@@ -69,8 +68,7 @@ class MODULES_EXPORT PictureInPictureControllerImpl
   void CreateDocumentPictureInPictureWindow(ScriptState*,
                                             LocalDOMWindow&,
                                             DocumentPictureInPictureOptions*,
-                                            ScriptPromiseResolver<DOMWindow>*,
-                                            ExceptionState&);
+                                            ScriptPromiseResolver<DOMWindow>*);
 #endif  // !BUILDFLAG(TARGET_OS_IS_ANDROID)
 
   // Implementation of PictureInPictureController.
@@ -81,6 +79,9 @@ class MODULES_EXPORT PictureInPictureControllerImpl
                             ScriptPromiseResolver<IDLUndefined>*) override;
   bool IsPictureInPictureElement(const Element*) const override;
   void OnPictureInPictureStateChange() override;
+  void OnMediaPositionStateChanged(
+      const media_session::mojom::blink::MediaPositionPtr& media_position)
+      override;
   Element* PictureInPictureElement() const override;
   Element* PictureInPictureElement(TreeScope&) const override;
   bool PictureInPictureEnabled() const override;
@@ -88,6 +89,9 @@ class MODULES_EXPORT PictureInPictureControllerImpl
                           bool report_failure) const override;
 #if !BUILDFLAG(TARGET_OS_IS_ANDROID)
   LocalDOMWindow* GetDocumentPictureInPictureWindow() const override;
+  LocalDOMWindow* GetDocumentPictureInPictureOwner() const override;
+
+  void SetDocumentPictureInPictureOwner(LocalDOMWindow* owner);
 #endif  // !BUILDFLAG(TARGET_OS_IS_ANDROID)
 
   // Implementation of PictureInPictureSessionObserver.
@@ -162,12 +166,23 @@ class MODULES_EXPORT PictureInPictureControllerImpl
 
   // Called by DocumentPictureInPictureObserver.
   void OnDocumentPictureInPictureContextDestroyed();
+  void OnOwnedDocumentPictureInPictureWindowContextDestroyed();
+  void OnDocumentPictureInPictureOwnerWindowContextDestroyed();
 
   // The Document Picture-in-Picture window, if any. It shouldn't be confused
   // with `picture_in_picture_session_`, which is for video-only PiP.
   Member<LocalDOMWindow> document_picture_in_picture_window_;
 
-  // Nullable observer for Document Picture in Picture.
+  // The window that opened this document picture-in-picture window. Only set on
+  // PictureInPictureControllerImpls that are owned by a document
+  // picture-in-picture window.
+  Member<LocalDOMWindow> document_picture_in_picture_owner_;
+
+  // Observes for destruction for either our owned
+  // `document_picture_in_picture_window_` (if this controller's Document has
+  // opened a document picture-in-picture window) or our owner
+  // `document_picture_in_picture_owner_` (if this controller's Document is
+  // attached to a document picture-in-picture window).
   Member<DocumentPictureInPictureObserver> document_pip_context_observer_;
 
   // Used to force |CreateDocumentPictureInPictureWindow()| to be asynchronous.

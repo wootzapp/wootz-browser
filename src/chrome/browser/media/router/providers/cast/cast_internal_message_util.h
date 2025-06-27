@@ -14,7 +14,7 @@
 
 namespace media_router {
 
-using cast::channel::CastMessage;
+using openscreen::cast::proto::CastMessage;
 
 class MediaSinkInternal;
 
@@ -139,6 +139,8 @@ class CastInternalMessage {
   const std::string namespace_or_v2_type_;
   const base::Value message_body_;
 };
+
+std::string CastInternalMessageTypeToString(CastInternalMessage::Type type);
 
 // Represents a Cast session on a Cast device. Cast sessions are derived from
 // RECEIVER_STATUS messages sent by Cast devices.

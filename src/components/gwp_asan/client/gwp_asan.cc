@@ -12,7 +12,6 @@
 #include <string_view>
 
 #include "base/allocator/partition_alloc_support.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
 #include "base/containers/flat_set.h"
 #include "base/debug/crash_logging.h"
 #include "base/feature_list.h"
@@ -20,6 +19,7 @@
 #include "base/functional/function_ref.h"
 #include "base/logging.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/no_destructor.h"
 #include "base/numerics/safe_math.h"
 #include "base/rand_util.h"
 #include "base/strings/strcat.h"
@@ -31,6 +31,7 @@
 #include "components/gwp_asan/client/lightweight_detector/poison_metadata_recorder.h"
 #include "components/gwp_asan/client/sampling_helpers.h"
 #include "components/gwp_asan/common/crash_key_name.h"
+#include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include "components/gwp_asan/client/lightweight_detector/malloc_shims.h"
@@ -241,29 +242,30 @@ size_t AllocationSamplingFrequency(const base::Feature& feature,
 // reasons. When both features are enabled, we prefer GWP-ASan to
 // compensate for its lower sampling rate.
 bool IsMutuallyExclusiveFeatureAllowed(const base::Feature& feature) {
-  static auto disabled_features = []() {
-    constexpr double kGwpAsanPickProbability = 0.9;
+  static base::NoDestructor<base::flat_set<const base::Feature*>>
+      disabled_features([]() {
+        constexpr double kGwpAsanPickProbability = 0.9;
 
-    base::flat_set<const base::Feature*> disabled_features;
+        base::flat_set<const base::Feature*> disabled_features;
 
-    bool gwp_asan_enabled =
-        base::FeatureList::IsEnabled(internal::kGwpAsanMalloc) ||
-        base::FeatureList::IsEnabled(internal::kGwpAsanPartitionAlloc);
-    bool lud_enabled =
-        base::FeatureList::IsEnabled(internal::kLightweightUafDetector);
-    if (gwp_asan_enabled && lud_enabled) {
-      if (base::RandDouble() <= kGwpAsanPickProbability) {
-        disabled_features.emplace(&internal::kLightweightUafDetector);
-      } else {
-        disabled_features.emplace(&internal::kGwpAsanMalloc);
-        disabled_features.emplace(&internal::kGwpAsanPartitionAlloc);
-      }
-    }
+        bool gwp_asan_enabled =
+            base::FeatureList::IsEnabled(internal::kGwpAsanMalloc) ||
+            base::FeatureList::IsEnabled(internal::kGwpAsanPartitionAlloc);
+        bool lud_enabled =
+            base::FeatureList::IsEnabled(internal::kLightweightUafDetector);
+        if (gwp_asan_enabled && lud_enabled) {
+          if (base::RandDouble() <= kGwpAsanPickProbability) {
+            disabled_features.emplace(&internal::kLightweightUafDetector);
+          } else {
+            disabled_features.emplace(&internal::kGwpAsanMalloc);
+            disabled_features.emplace(&internal::kGwpAsanPartitionAlloc);
+          }
+        }
 
-    return disabled_features;
-  }();
+        return disabled_features;
+      }());
 
-  return disabled_features.find(&feature) == disabled_features.end();
+  return disabled_features->find(&feature) == disabled_features->end();
 }
 
 }  // namespace
@@ -546,7 +548,7 @@ void MaybeEnableLightweightDetector(bool boost_sampling,
 }
 
 void MaybeEnableExtremeLightweightDetector(bool boost_sampling,
-                                           const char* process_type) {
+                                           std::string_view process_type) {
 #if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   if (!base::FeatureList::IsEnabled(internal::kExtremeLightweightUAFDetector)) {
     return;
@@ -557,8 +559,13 @@ void MaybeEnableExtremeLightweightDetector(bool boost_sampling,
     case kAllProcesses:
       break;
     case kBrowserProcessOnly:
-      if (*process_type != '\0') {
+      if (!process_type.empty()) {
         return;  // Non-empty process_type means a non-browser process.
+      }
+      break;
+    case kNonRendererProcesses:
+      if (process_type == "renderer") {
+        return;
       }
       break;
   }
@@ -566,12 +573,24 @@ void MaybeEnableExtremeLightweightDetector(bool boost_sampling,
   [[maybe_unused]] static bool init_once = [&]() -> bool {
     size_t sampling_frequency = static_cast<size_t>(
         internal::kExtremeLightweightUAFDetectorSamplingFrequency.Get());
-    size_t quarantine_capacity_in_bytes = static_cast<size_t>(
-        internal::kExtremeLightweightUAFDetectorQuarantineCapacityInBytes
+    size_t quarantine_capacity_for_small_objects_in_bytes = static_cast<size_t>(
+        internal::
+            kExtremeLightweightUAFDetectorQuarantineCapacityForSmallObjectsInBytes
+                .Get());
+    size_t quarantine_capacity_for_large_objects_in_bytes = static_cast<size_t>(
+        internal::
+            kExtremeLightweightUAFDetectorQuarantineCapacityForLargeObjectsInBytes
+                .Get());
+    size_t object_size_threshold_in_bytes = static_cast<size_t>(
+        internal::kExtremeLightweightUAFDetectorObjectSizeThresholdInBytes
             .Get());
     internal::InstallExtremeLightweightDetectorHooks(
         {.sampling_frequency = sampling_frequency,
-         .quarantine_capacity_in_bytes = quarantine_capacity_in_bytes});
+         .quarantine_capacity_for_small_objects_in_bytes =
+             quarantine_capacity_for_small_objects_in_bytes,
+         .quarantine_capacity_for_large_objects_in_bytes =
+             quarantine_capacity_for_large_objects_in_bytes,
+         .object_size_threshold_in_bytes = object_size_threshold_in_bytes});
     return true;
   }();
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)

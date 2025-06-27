@@ -9,18 +9,18 @@
 
 namespace blink {
 
-WebGLSampler::WebGLSampler(WebGL2RenderingContextBase* ctx)
-    : WebGLSharedPlatform3DObject(ctx) {
+WebGLSampler::WebGLSampler(WebGL2RenderingContextBase* ctx) : WebGLObject(ctx) {
   GLuint sampler;
-  ctx->ContextGL()->GenSamplers(1, &sampler);
-  SetObject(sampler);
+  if (!ctx->isContextLost()) {
+    ctx->ContextGL()->GenSamplers(1, &sampler);
+    SetObject(sampler);
+  }
 }
 
 WebGLSampler::~WebGLSampler() = default;
 
 void WebGLSampler::DeleteObjectImpl(gpu::gles2::GLES2Interface* gl) {
-  gl->DeleteSamplers(1, &object_);
-  object_ = 0;
+  gl->DeleteSamplers(1, &Object());
 }
 
 }  // namespace blink

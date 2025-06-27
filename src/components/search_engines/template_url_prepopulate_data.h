@@ -11,16 +11,11 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/containers/span.h"
 #include "build/build_config.h"
 
 class PrefService;
-class TemplateURLService;
 struct TemplateURLData;
-
-namespace search_engines {
-class SearchEngineChoiceService;
-}
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -37,10 +32,14 @@ extern const int kMaxPrepopulatedEngineID;
 //
 // Note: If this is increased, please also increase the declared variant count
 // for the `Search.ChoiceScreenShowedEngineAt.Index{Index}` histogram.
+// TODO(crbug.com/408932087): Investigate moving it to the file that actually
+// populates these, `//c/regional_capabilities/r*c*_util.cc`.
 inline constexpr size_t kMaxEeaPrepopulatedEngines = 8;
 
 // The maximum number of prepopulated search engines that can be returned in
 // in the rest of the world by `GetPrepopulatedEngines()`.
+// TODO(crbug.com/408932087): Investigate deduping it with the constant
+// `kTopSearchEnginesThreshold` in `//c/regional_capabilities/r*c*_util.cc`.
 inline constexpr size_t kMaxRowPrepopulatedEngines = 5;
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
@@ -50,42 +49,33 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // file then it returns the version specified there.
 int GetDataVersion(PrefService* prefs);
 
-// Returns the prepopulated URLs for the current country.
-// `search_engine_choice_service` is used for obtaining the country code and
-// shouldn't be null outside of tests.
-// If |default_search_provider_index| is non-null, it is set to the index of the
-// default search provider within the returned vector.
-// `include_current_default` should be true and `template_url_service` should be
-// non-null if we want the current default search engine to be present at the
-// top of the returned list if it's not already there.
-// If `was_current_default_inserted` is provided, it will be updated to reflect
-// whether `include_current_default` had an effect on the output.
+// Resolves the prepopulated Template URLs to use, resolving priority between
+// regional data and profile-specific data.
 std::vector<std::unique_ptr<TemplateURLData>> GetPrepopulatedEngines(
-    PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service,
-    size_t* default_search_provider_index,
-    bool include_current_default = false,
-    TemplateURLService* template_url_service = nullptr,
-    bool* was_current_default_inserted = nullptr);
+    PrefService& prefs,
+    std::vector<const TemplateURLPrepopulateData::PrepopulatedEngine*>
+        regional_prepopulated_engines);
 
-// Returns the prepopulated search engine with the given |prepopulated_id|
-// from the profile country's known prepopulated search engines, or `nullptr`
-// if it's not known there.
-// `search_engine_choice_service` is used for obtaining the country code and
-// shouldn't be null outside of tests.
+// Returns the prepopulated search engine with the given `prepopulated_id`
+// or `nullptr` if it's not known there.
+// See `GetPrepopulatedEngines()` for more about how we get prepopulated
+// template URLs.
 std::unique_ptr<TemplateURLData> GetPrepopulatedEngine(
-    PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service,
+    PrefService& prefs,
+    std::vector<const TemplateURLPrepopulateData::PrepopulatedEngine*>
+        regional_prepopulated_engines,
     int prepopulated_id);
 
-// Returns the prepopulated search engine with the given |prepopulated_id|
+// Returns the prepopulated search engine with the given `prepopulated_id`
 // from the full list of known prepopulated search engines, or `nullptr` if
 // it's not known there.
-// `search_engine_choice_service` is used for obtaining the country code and
-// shouldn't be null outside of tests.
+// The region-specific list is used to ensure we prioritise returning a search
+// engine relevant for the given country, for cases where the `prepopulated_id`
+// could be associated with multiple country-specific variants.
 std::unique_ptr<TemplateURLData> GetPrepopulatedEngineFromFullList(
-    PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service,
+    PrefService& prefs,
+    std::vector<const TemplateURLPrepopulateData::PrepopulatedEngine*>
+        regional_prepopulated_engines,
     int prepopulated_id);
 
 #if BUILDFLAG(IS_ANDROID)
@@ -100,30 +90,22 @@ std::vector<std::unique_ptr<TemplateURLData>> GetLocalPrepopulatedEngines(
 // Removes prepopulated engines and their version stored in user prefs.
 void ClearPrepopulatedEnginesInPrefs(PrefService* prefs);
 
-// Returns the default search provider specified by the prepopulate data, which
-// may be NULL.
-// If |prefs| is NULL, any search provider overrides from the preferences are
-// not used.
-// `search_engine_choice_service` is used for obtaining the country code and
-// shouldn't be null outside of tests.
-std::unique_ptr<TemplateURLData> GetPrepopulatedDefaultSearch(
-    PrefService* prefs,
-    search_engines::SearchEngineChoiceService* search_engine_choice_service);
+// Returns the fallback default search provider, currently hardcoded to be
+// Google, or whichever one is the first of the list if Google is not in the
+// list of prepopulated search engines.
+// Search provider overrides are read from `prefs`.
+// The region-specific list is used to ensure we prioritise returning a search
+// engine relevant for the given country, for cases where the `prepopulated_id`
+// could be associated with multiple country-specific variants.
+// May return `nullptr` if for some reason there are no prepopulated search
+// engines available.
+std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
+    PrefService& prefs,
+    std::vector<const TemplateURLPrepopulateData::PrepopulatedEngine*>
+        regional_prepopulated_engines);
 
 // Returns all prepopulated engines for all locales.
-std::vector<const PrepopulatedEngine*> GetAllPrepopulatedEngines();
-
-// Returns all the prepopulated engines that are used in the EEA region.
-std::vector<std::unique_ptr<TemplateURLData>>
-GetAllEeaRegionPrepopulatedEngines();
-
-// Returns the set of search engines that is used when the country is unknown.
-std::vector<std::unique_ptr<TemplateURLData>> GetDefaultPrepopulatedEngines();
-
-// Test Utilities -------------------------------------------------------------
-
-const std::vector<raw_ptr<const PrepopulatedEngine>>
-GetPrepopulationSetFromCountryIDForTesting(int country_id);
+const base::span<const PrepopulatedEngine* const> GetAllPrepopulatedEngines();
 
 }  // namespace TemplateURLPrepopulateData
 

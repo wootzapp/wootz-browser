@@ -20,18 +20,20 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionAndAuxButton;
 import org.chromium.components.policy.test.annotations.Policies;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /** Tests for {@link PreloadPagesSettingsFragment}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -48,7 +50,7 @@ public class PreloadPagesSettingsFragmentTest {
     public SettingsActivityTestRule<PreloadPagesSettingsFragment> mTestRule =
             new SettingsActivityTestRule<>(PreloadPagesSettingsFragment.class);
 
-    @Mock private SettingsLauncher mSettingsLauncher;
+    @Mock private SettingsNavigation mSettingsNavigation;
 
     @Mock private HelpAndFeedbackLauncher mHelpAndFeedbackLauncher;
 
@@ -61,7 +63,7 @@ public class PreloadPagesSettingsFragmentTest {
         MockitoAnnotations.initMocks(this);
     }
 
-    private void launchSettingsActivity() {
+    private void startSettings() {
         mTestRule.startSettingsActivity();
         mPreloadPagesSettingsFragment = mTestRule.getFragment();
         mPreloadPagesPreference =
@@ -80,8 +82,8 @@ public class PreloadPagesSettingsFragmentTest {
     @SmallTest
     @Feature({"PreloadPages"})
     public void testOnStartup() {
-        launchSettingsActivity();
-        TestThreadUtils.runOnUiThreadBlocking(
+        startSettings();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     @PreloadPagesState
                     int currentState =
@@ -112,8 +114,8 @@ public class PreloadPagesSettingsFragmentTest {
     @SmallTest
     @Feature({"PreloadPages"})
     public void testCheckRadioButtons() {
-        launchSettingsActivity();
-        TestThreadUtils.runOnUiThreadBlocking(
+        startSettings();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertFalse(mManagedDisclaimerText.isVisible());
                     // Click the Extended Preloading button.
@@ -176,13 +178,13 @@ public class PreloadPagesSettingsFragmentTest {
     @SmallTest
     @Feature({"PreloadPages"})
     public void testExtendedPreloadingAuxButtonClicked() {
-        launchSettingsActivity();
-        TestThreadUtils.runOnUiThreadBlocking(
+        startSettings();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mPreloadPagesSettingsFragment.setSettingsLauncher(mSettingsLauncher);
+                    SettingsNavigationFactory.setInstanceForTesting(mSettingsNavigation);
                     getExtendedPreloadingButton().getAuxButtonForTests().performClick();
-                    Mockito.verify(mSettingsLauncher)
-                            .launchSettingsActivity(
+                    Mockito.verify(mSettingsNavigation)
+                            .startSettings(
                                     mPreloadPagesSettingsFragment.getContext(),
                                     ExtendedPreloadingSettingsFragment.class);
                 });
@@ -192,13 +194,13 @@ public class PreloadPagesSettingsFragmentTest {
     @SmallTest
     @Feature({"PreloadPages"})
     public void testStandardPreloadingAuxButtonClicked() {
-        launchSettingsActivity();
-        TestThreadUtils.runOnUiThreadBlocking(
+        startSettings();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mPreloadPagesSettingsFragment.setSettingsLauncher(mSettingsLauncher);
+                    SettingsNavigationFactory.setInstanceForTesting(mSettingsNavigation);
                     getStandardPreloadingButton().getAuxButtonForTests().performClick();
-                    Mockito.verify(mSettingsLauncher)
-                            .launchSettingsActivity(
+                    Mockito.verify(mSettingsNavigation)
+                            .startSettings(
                                     mPreloadPagesSettingsFragment.getContext(),
                                     StandardPreloadingSettingsFragment.class);
                 });
@@ -213,12 +215,12 @@ public class PreloadPagesSettingsFragmentTest {
                 string = "2" /* NetworkPredictionOptions::kDisabled */)
     })
     public void testPreloadingManaged() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
                 });
-        launchSettingsActivity();
-        TestThreadUtils.runOnUiThreadBlocking(
+        startSettings();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertTrue(
                             PreloadPagesSettingsBridge.isNetworkPredictionManaged(
@@ -240,10 +242,10 @@ public class PreloadPagesSettingsFragmentTest {
     @SmallTest
     @Feature({"PreloadPages"})
     public void testHelpButtonClicked() {
-        launchSettingsActivity();
-        mPreloadPagesSettingsFragment.setHelpAndFeedbackLauncher(mHelpAndFeedbackLauncher);
+        startSettings();
+        HelpAndFeedbackLauncherFactory.setInstanceForTesting(mHelpAndFeedbackLauncher);
         onView(withId(R.id.menu_id_targeted_help)).perform(click());
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Mockito.verify(mHelpAndFeedbackLauncher)
                             .show(

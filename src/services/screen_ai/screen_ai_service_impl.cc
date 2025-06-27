@@ -4,26 +4,36 @@
 
 #include "services/screen_ai/screen_ai_service_impl.h"
 
+#include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "base/check.h"
+#include "base/check_is_test.h"
+#include "base/compiler_specific.h"
+#include "base/cpu.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/process/process.h"
+#include "base/strings/stringprintf.h"
+#include "base/system/sys_info.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
-#include "services/metrics/public/cpp/ukm_builders.h"
-#include "services/metrics/public/cpp/ukm_recorder.h"
+#include "base/threading/sequence_bound.h"
+#include "components/crash/core/common/crash_key.h"
 #include "services/screen_ai/buildflags/buildflags.h"
+#include "services/screen_ai/proto/chrome_screen_ai.pb.h"
 #include "services/screen_ai/proto/main_content_extractor_proto_convertor.h"
 #include "services/screen_ai/proto/visual_annotator_proto_convertor.h"
+#include "services/screen_ai/public/cpp/metrics.h"
 #include "services/screen_ai/public/cpp/utilities.h"
-#include "services/screen_ai/screen_ai_ax_tree_serializer.h"
 #include "ui/accessibility/accessibility_features.h"
+#include "ui/accessibility/ax_node.h"
+#include "ui/accessibility/ax_tree.h"
 #include "ui/accessibility/ax_tree_id.h"
 #include "ui/gfx/geometry/rect_f.h"
 
@@ -37,8 +47,82 @@ namespace screen_ai {
 
 namespace {
 
+// Maximum image dimension that OCR service processes. Images with width or
+// height larger than this threshold are downsampled before processing.
+// TODO(crbug.com/413318481): Get this threshold from the library.
+constexpr int kMaxOcrDimension = 2048;
+
+// How often it would be checked that the service is idle and can be shutdown.
+constexpr base::TimeDelta kIdleCheckingDelay = base::Seconds(3);
+
+// How long to wait for a request to the library be responded, before assuming
+// that the library is not responsive.
+constexpr base::TimeDelta kMaxWaitForResponseTime = base::Seconds(10);
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// See `screen_ai_service.mojom` for more info.
+// LINT.IfChange(OcrClientType)
+enum class OcrClientTypeForMetrics {
+  kTest = 0,
+  kPdfViewer = 1,
+  kLocalSearch = 2,
+  kCameraApp = 3,
+  kNotUsed = 4,  // Can be used for a new client.
+  kMediaApp = 5,
+  kScreenshotTextDetection,
+  kMaxValue = kScreenshotTextDetection
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:OcrClientType)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// See `screen_ai_service.mojom` for more info.
+// LINT.IfChange(MainContentExtractionClientType)
+enum class MainContentExtractionClientTypeForMetrics {
+  kTest = 0,
+  kReadingMode = 1,
+  kMainNode = 2,
+  kMahi = 3,
+  kMaxValue = kMahi
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:MainContentExtractionClientType)
+
+OcrClientTypeForMetrics GetClientType(mojom::OcrClientType client_type) {
+  switch (client_type) {
+    case mojom::OcrClientType::kTest:
+      CHECK_IS_TEST();
+      return OcrClientTypeForMetrics::kTest;
+    case mojom::OcrClientType::kPdfViewer:
+      return OcrClientTypeForMetrics::kPdfViewer;
+    case mojom::OcrClientType::kLocalSearch:
+      return OcrClientTypeForMetrics::kLocalSearch;
+    case mojom::OcrClientType::kCameraApp:
+      return OcrClientTypeForMetrics::kCameraApp;
+    case mojom::OcrClientType::kMediaApp:
+      return OcrClientTypeForMetrics::kMediaApp;
+    case mojom::OcrClientType::kScreenshotTextDetection:
+      return OcrClientTypeForMetrics::kScreenshotTextDetection;
+  }
+}
+
+MainContentExtractionClientTypeForMetrics GetClientType(
+    mojom::MceClientType client_type) {
+  switch (client_type) {
+    case mojom::MceClientType::kTest:
+      CHECK_IS_TEST();
+      return MainContentExtractionClientTypeForMetrics::kTest;
+    case mojom::MceClientType::kReadingMode:
+      return MainContentExtractionClientTypeForMetrics::kReadingMode;
+    case mojom::MceClientType::kMainNode:
+      return MainContentExtractionClientTypeForMetrics::kMainNode;
+    case mojom::MceClientType::kMahi:
+      return MainContentExtractionClientTypeForMetrics::kMahi;
+  }
+}
+
 ui::AXTreeUpdate ConvertVisualAnnotationToTreeUpdate(
-    const std::optional<chrome_screen_ai::VisualAnnotation>& annotation_proto,
+    std::optional<chrome_screen_ai::VisualAnnotation>& annotation_proto,
     const gfx::Rect& image_rect) {
   if (!annotation_proto) {
     VLOG(0) << "Screen AI library could not process snapshot or no OCR data.";
@@ -57,88 +141,137 @@ ui::AXNodeID ComputeMainNode(
   return main->id();
 }
 
+#if !BUILDFLAG(USE_FAKE_SCREEN_AI)
+void SetCPUInstructionSetCrashKey() {
+#if defined(ARCH_CPU_X86_FAMILY)
+  base::CPU();
+  // Report cpu micro architecture in case of crash.
+  static crash_reporter::CrashKeyString<3> cpu_info("intel_micro_architecture");
+  cpu_info.Set(
+      base::StringPrintf("%i", base::CPU().GetIntelMicroArchitecture()));
+#endif
+}
+#endif
+
+// Return a maximum 11 character string with the signature of available and
+// total memory, both in MB and capped to 99999.
+std::string GetMemoryStatusForCrashKey() {
+  int total_memory = base::SysInfo::AmountOfPhysicalMemoryMB();
+  int available_memory = static_cast<int>(
+      base::SysInfo::AmountOfAvailablePhysicalMemory() / (1024 * 1024));
+
+  // Cap the number of digits for crash report.
+  total_memory = std::min(total_memory, 99999);
+  available_memory = std::min(available_memory, 99999);
+  return base::StringPrintf("%i,%i", available_memory, total_memory);
+}
+
+class HangTimer : public base::OneShotTimer {
+ public:
+  explicit HangTimer(bool is_ocr) : is_ocr_(is_ocr) {}
+
+  void StartTimer() {
+    Start(FROM_HERE, kMaxWaitForResponseTime,
+          base::BindOnce(
+              [](bool request_is_ocr) {
+                base::UmaHistogramBoolean(
+                    "Accessibility.ScreenAI.Service.NotReponsive.IsOCR",
+                    request_is_ocr);
+                base::Process::TerminateCurrentProcessImmediately(0);
+              },
+              is_ocr_));
+  }
+
+ private:
+  bool is_ocr_;
+};
+
 }  // namespace
 
 // The library accepts simple pointers to model data retrieval functions, hence
 // callback functions with linked object are not safe to pass.
-// Since library initialization functions are called in a single thread process,
-// we choose the active model data instance before calling the library
-// initializer and release it when initialization is completed.
-PreloadedModelData* g_active_model_data_instance = nullptr;
+// This global variable keeps the pointer the only instance of this class.
+ModelDataHolder* g_model_data_holder_instance = nullptr;
 
-// Keeps the content of model files, and replies to calls for copying them.
-class PreloadedModelData {
+// Keeps the handles of model files, and replies to calls for copying their
+// content.
+class ModelDataHolder {
  public:
-  PreloadedModelData(const PreloadedModelData&) = delete;
-  PreloadedModelData& operator=(const PreloadedModelData&) = delete;
-  ~PreloadedModelData() { CHECK_NE(g_active_model_data_instance, this); }
+  ModelDataHolder() {
+    CHECK(!g_model_data_holder_instance);
+    g_model_data_holder_instance = this;
+  }
 
-  static std::unique_ptr<PreloadedModelData> Create(
-      base::flat_map<base::FilePath, base::File> model_files) {
-    return base::WrapUnique<PreloadedModelData>(
-        new PreloadedModelData(std::move(model_files)));
+  ModelDataHolder(const ModelDataHolder&) = delete;
+  ModelDataHolder& operator=(const ModelDataHolder&) = delete;
+
+  ~ModelDataHolder() {
+    CHECK_EQ(g_model_data_holder_instance, this);
+    g_model_data_holder_instance = nullptr;
   }
 
   // Returns 0 if file is not found.
   static uint32_t GetDataSize(const char* relative_file_path) {
-    CHECK(g_active_model_data_instance);
-    return base::Contains(g_active_model_data_instance->data_,
-                          relative_file_path)
-               ? g_active_model_data_instance->data_[relative_file_path].size()
-               : 0;
+    CHECK(g_model_data_holder_instance);
+    base::File* model_file =
+        g_model_data_holder_instance->GetModelFile(relative_file_path);
+    return model_file ? model_file->GetLength() : 0;
   }
 
-  // Assumes that `buffer` has enough size.
+  // Copies content of the file in `relative_file_path` to `buffer`. Expects
+  // that `buffer_size` would be enough for the entire file content.
   static void CopyData(const char* relative_file_path,
                        uint32_t buffer_size,
                        char* buffer) {
-    CHECK(g_active_model_data_instance);
-    CHECK(base::Contains(g_active_model_data_instance->data_,
-                         relative_file_path));
-    const std::vector<char>& data =
-        g_active_model_data_instance->data_[relative_file_path];
-    CHECK_GE(buffer_size, data.size());
-    memcpy(buffer, data.data(), data.size());
+    CHECK(g_model_data_holder_instance);
+    base::File* model_file =
+        g_model_data_holder_instance->GetModelFile(relative_file_path);
+    CHECK(model_file);
+
+    int64_t length = model_file->GetLength();
+    CHECK_GE(buffer_size, length);
+    CHECK_EQ(UNSAFE_TODO(model_file->Read(0, buffer, length)), length);
   }
 
-  void SetAsActive(bool assign) {
-    if (assign) {
-      g_active_model_data_instance = this;
-    } else {
-      g_active_model_data_instance = nullptr;
+  void AddModelFiles(base::flat_map<base::FilePath, base::File> model_files) {
+    for (auto& model_file : model_files) {
+      model_files_[model_file.first.MaybeAsASCII()] =
+          std::move(model_file.second);
     }
+  }
+
+  // Returns the file handle for `relative_file_path` if it exists.
+  base::File* GetModelFile(const char* relative_file_path) {
+    if (!base::Contains(model_files_, relative_file_path)) {
+      return nullptr;
+    }
+    return &model_files_[relative_file_path];
   }
 
  private:
-  explicit PreloadedModelData(
-      base::flat_map<base::FilePath, base::File> model_files) {
-    for (auto& model_file : model_files) {
-      std::vector<char> buffer;
-      int64_t length = model_file.second.GetLength();
-      if (length < 0) {
-        VLOG(0) << "Could not query Screen AI model file's length: "
-                << model_file.first;
-        continue;
-      }
-
-      buffer.resize(length);
-      if (model_file.second.Read(0, buffer.data(), length) != length) {
-        VLOG(0) << "Could not read Screen AI model file's content: "
-                << model_file.first;
-        continue;
-      }
-      data_[model_file.first.MaybeAsASCII()] = std::move(buffer);
-    }
-  }
-
-  std::map<std::string, std::vector<char>> data_;
+  std::map<std::string, base::File> model_files_;
 };
 
 ScreenAIService::ScreenAIService(
     mojo::PendingReceiver<mojom::ScreenAIServiceFactory> receiver)
     : factory_receiver_(this, std::move(receiver)),
       ocr_receiver_(this),
-      main_content_extraction_receiver_(this) {}
+      main_content_extraction_receiver_(this) {
+  screen2x_main_content_extractors_.set_disconnect_handler(
+      base::BindRepeating(&ScreenAIService::MceReceiverDisconnected,
+                          weak_ptr_factory_.GetWeakPtr()));
+  screen_ai_annotators_.set_disconnect_handler(
+      base::BindRepeating(&ScreenAIService::OcrReceiverDisconnected,
+                          weak_ptr_factory_.GetWeakPtr()));
+  model_data_holder_ = std::make_unique<ModelDataHolder>();
+  idle_checking_timer_ = std::make_unique<base::RepeatingTimer>();
+  idle_checking_timer_->Start(FROM_HERE, kIdleCheckingDelay, this,
+                              &ScreenAIService::ShutDownIfNoClients);
+
+  background_task_runner_ = base::ThreadPool::CreateSequencedTaskRunner(
+      {base::TaskPriority::BEST_EFFORT,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN});
+}
 
 ScreenAIService::~ScreenAIService() = default;
 
@@ -149,6 +282,9 @@ void ScreenAIService::LoadLibrary(const base::FilePath& library_path) {
   library_ = std::make_unique<ScreenAILibraryWrapperFake>();
 #else
   library_ = std::make_unique<ScreenAILibraryWrapperImpl>();
+
+  // TODO(crbug.com/381256355): Remove when the library is SSE3 compatible.
+  SetCPUInstructionSetCrashKey();
 #endif
 
   bool load_sucessful = library_->Load(library_path);
@@ -166,7 +302,7 @@ void ScreenAIService::LoadLibrary(const base::FilePath& library_path) {
   VLOG(2) << "Screen AI library version: " << version_major << "."
           << version_minor;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   library_->SetLogger();
 #endif
 
@@ -174,8 +310,8 @@ void ScreenAIService::LoadLibrary(const base::FilePath& library_path) {
     library_->EnableDebugMode();
   }
 
-  library_->SetFileContentFunctions(&PreloadedModelData::GetDataSize,
-                                    &PreloadedModelData::CopyData);
+  library_->SetFileContentFunctions(&ModelDataHolder::GetDataSize,
+                                    &ModelDataHolder::CopyData);
 }
 
 void ScreenAIService::InitializeMainContentExtraction(
@@ -193,27 +329,9 @@ void ScreenAIService::InitializeMainContentExtraction(
     base::Process::TerminateCurrentProcessImmediately(-1);
   }
 
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&PreloadedModelData::Create, std::move(model_files)),
-      base::BindOnce(&ScreenAIService::InitializeMainContentExtractionInternal,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(main_content_extractor_service_receiver),
-                     std::move(callback)));
-}
+  model_data_holder_->AddModelFiles(std::move(model_files));
 
-void ScreenAIService::InitializeMainContentExtractionInternal(
-    mojo::PendingReceiver<mojom::MainContentExtractionService>
-        main_content_extractor_service_receiver,
-    InitializeMainContentExtractionCallback callback,
-    std::unique_ptr<PreloadedModelData> model_data) {
-  // `model_data` contains the content of the model files and its accessors are
-  // passed to the library. It should be kept in memory until after library
-  // initialization.
-  model_data->SetAsActive(true);
   bool init_successful = library_->InitMainContentExtraction();
-  model_data->SetAsActive(false);
   base::UmaHistogramBoolean(
       "Accessibility.ScreenAI.MainContentExtraction.Initialized",
       init_successful);
@@ -229,6 +347,7 @@ void ScreenAIService::InitializeMainContentExtractionInternal(
       std::move(main_content_extractor_service_receiver));
 
   std::move(callback).Run(true);
+  mce_last_used_ = base::TimeTicks::Now();
 }
 
 void ScreenAIService::InitializeOCR(
@@ -236,6 +355,9 @@ void ScreenAIService::InitializeOCR(
     base::flat_map<base::FilePath, base::File> model_files,
     mojo::PendingReceiver<mojom::OCRService> ocr_service_receiver,
     InitializeOCRCallback callback) {
+  static crash_reporter::CrashKeyString<12> memory_ocr_init(
+      "screen_ai_mem_ocr_init");
+  memory_ocr_init.Set(GetMemoryStatusForCrashKey());
   if (!library_) {
     LoadLibrary(library_path);
   }
@@ -244,36 +366,12 @@ void ScreenAIService::InitializeOCR(
     std::move(callback).Run(false);
     base::Process::TerminateCurrentProcessImmediately(-1);
   }
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&PreloadedModelData::Create, std::move(model_files)),
-      base::BindOnce(&ScreenAIService::InitializeOCRInternal,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::move(ocr_service_receiver), std::move(callback)));
-}
 
-void ScreenAIService::InitializeOCRInternal(
-    mojo::PendingReceiver<mojom::OCRService> ocr_service_receiver,
-    InitializeOCRCallback callback,
-    std::unique_ptr<PreloadedModelData> model_data) {
-  // `model_data` contains the content of the model files and its accessors are
-  // passed to the library. It should be kept in memory until after library
-  // initialization.
-  model_data->SetAsActive(true);
+  model_data_holder_->AddModelFiles(std::move(model_files));
+
   bool init_successful = library_->InitOCR();
-  model_data->SetAsActive(false);
-
   base::UmaHistogramBoolean("Accessibility.ScreenAI.OCR.Initialized",
                             init_successful);
-
-  // TODO(crbug.com/40911117): Add a separate initialization interface for
-  // layout extraction.
-  if (features::IsLayoutExtractionEnabled()) {
-    if (!library_->InitLayoutExtraction()) {
-      VLOG(0) << "Could not initialize layout extraction.";
-    }
-  }
 
   if (!init_successful) {
     std::move(callback).Run(false);
@@ -286,6 +384,14 @@ void ScreenAIService::InitializeOCRInternal(
   ocr_receiver_.Bind(std::move(ocr_service_receiver));
 
   std::move(callback).Run(true);
+  ocr_last_used_ = base::TimeTicks::Now();
+}
+
+void ScreenAIService::BindShutdownHandler(
+    mojo::PendingRemote<mojom::ScreenAIServiceShutdownHandler>
+        shutdown_handler) {
+  DCHECK(!screen_ai_shutdown_handler_.is_bound());
+  screen_ai_shutdown_handler_.Bind(std::move(shutdown_handler));
 }
 
 void ScreenAIService::BindAnnotator(
@@ -293,102 +399,122 @@ void ScreenAIService::BindAnnotator(
   screen_ai_annotators_.Add(this, std::move(annotator));
 }
 
-void ScreenAIService::BindAnnotatorClient(
-    mojo::PendingRemote<mojom::ScreenAIAnnotatorClient> annotator_client) {
-  DCHECK(!screen_ai_annotator_client_.is_bound());
-  screen_ai_annotator_client_.Bind(std::move(annotator_client));
-}
-
 void ScreenAIService::BindMainContentExtractor(
     mojo::PendingReceiver<mojom::Screen2xMainContentExtractor>
         main_content_extractor) {
-  screen_2x_main_content_extractors_.Add(this,
-                                         std::move(main_content_extractor));
-}
-
-void ScreenAIService::ExtractSemanticLayout(
-    const SkBitmap& image,
-    const ui::AXTreeID& parent_tree_id,
-    ExtractSemanticLayoutCallback callback) {
-  DCHECK(screen_ai_annotator_client_.is_bound());
-
-  std::optional<chrome_screen_ai::VisualAnnotation> annotation_proto =
-      library_->ExtractLayout(image);
-
-  // The original caller is always replied to, and an AXTreeIDUnknown is sent to
-  // tell it that the annotation function was not successful. However the client
-  // is only contacted for successful runs and when we have an update.
-  if (!annotation_proto) {
-    VLOG(0) << "Layout Extraction failed. ";
-    std::move(callback).Run(ui::AXTreeIDUnknown());
-    return;
-  }
-
-  ui::AXTreeUpdate update = ConvertVisualAnnotationToTreeUpdate(
-      annotation_proto, gfx::Rect(image.width(), image.height()));
-  VLOG(1) << "Layout Extraction returned " << update.nodes.size() << " nodes.";
-
-  // Convert `update` to a properly serialized `AXTreeUpdate`.
-  ScreenAIAXTreeSerializer serializer(parent_tree_id, std::move(update.nodes));
-  update = serializer.Serialize();
-
-  // `ScreenAIAXTreeSerializer` should have assigned a new tree ID to `update`.
-  // Thereby, it should never be an unknown tree ID, otherwise there has been an
-  // unexpected serialization bug.
-  DCHECK_NE(update.tree_data.tree_id, ui::AXTreeIDUnknown())
-      << "Invalid serialization.\n"
-      << update.ToString();
-  std::move(callback).Run(update.tree_data.tree_id);
-  screen_ai_annotator_client_->HandleAXTreeUpdate(update);
+  screen2x_main_content_extractors_.Add(this,
+                                        std::move(main_content_extractor));
 }
 
 std::optional<chrome_screen_ai::VisualAnnotation>
-ScreenAIService::PerformOcrAndRecordMetrics(const SkBitmap& image,
-                                            bool a11y_tree_request) {
-  base::TimeTicks start_time = base::TimeTicks::Now();
+ScreenAIService::PerformOcrAndRecordMetrics(const SkBitmap& image) {
+  static crash_reporter::CrashKeyString<12> memory_perform_ocr(
+      "screen_ai_mem_ocr_perform");
+  memory_perform_ocr.Set(GetMemoryStatusForCrashKey());
+
+  CHECK(base::Contains(ocr_client_types_,
+                       screen_ai_annotators_.current_receiver()));
+  OcrClientTypeForMetrics client_type = GetClientType(
+      ocr_client_types_.find(screen_ai_annotators_.current_receiver())->second);
+  base::UmaHistogramEnumeration("Accessibility.ScreenAI.OCR.ClientType",
+                                client_type);
+
+  ocr_last_used_ = base::TimeTicks::Now();
+  base::SequenceBound<HangTimer> hang_timer(background_task_runner_,
+                                            /*is_ocr=*/true);
+  hang_timer.AsyncCall(&HangTimer::StartTimer);
   auto result = library_->PerformOcr(image);
-  base::TimeDelta elapsed_time = base::TimeTicks::Now() - start_time;
+  hang_timer.AsyncCall(&base::OneShotTimer::Stop);
+  base::TimeDelta elapsed_time = base::TimeTicks::Now() - ocr_last_used_;
+
   int lines_count = result ? result->lines_size() : 0;
-  unsigned image_size = image.width() * image.height();
   VLOG(1) << "OCR returned " << lines_count << " lines in " << elapsed_time;
 
+  if (!result) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.OCR.Failed.ClientType", client_type);
+  }
+
+  if (image.width() > kMaxOcrDimension || image.height() > kMaxOcrDimension) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.OCR.Downsampled.ClientType", client_type);
+  }
+
+  base::UmaHistogramBoolean("Accessibility.ScreenAI.OCR.Successful",
+                            result.has_value());
   base::UmaHistogramCounts100("Accessibility.ScreenAI.OCR.LinesCount",
                               lines_count);
   base::UmaHistogramCounts10M("Accessibility.ScreenAI.OCR.ImageSize10M",
-                              image_size);
-  if (image_size < 500 * 500) {
-    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.Small",
-                            elapsed_time);
-  } else if (image_size < 1000 * 1000) {
-    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.Medium",
-                            elapsed_time);
-  } else if (image_size < 2000 * 2000) {
-    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.Large",
+                              image.width() * image.height());
+  if (image.width() < kMaxOcrDimension && image.height() < kMaxOcrDimension) {
+    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.NotDownsampled",
                             elapsed_time);
   } else {
-    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.XLarge",
+    base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Latency.Downsampled",
                             elapsed_time);
   }
 
-  // If needed to extend to more clients, an identifier can be passed from the
-  // client to introduce itself and these metrics can be collected based on it.
-  if (a11y_tree_request) {
+  // MediaApp provides OCR for ChromeOS PDF viewer.
+  if (client_type == OcrClientTypeForMetrics::kPdfViewer ||
+      client_type == OcrClientTypeForMetrics::kMediaApp) {
     base::UmaHistogramCounts100("Accessibility.ScreenAI.OCR.LinesCount.PDF",
                                 lines_count);
     base::UmaHistogramTimes("Accessibility.ScreenAI.OCR.Time.PDF",
                             elapsed_time);
-    base::UmaHistogramCounts10M("Accessibility.ScreenAI.OCR.ImageSize.PDF",
-                                image.width() * image.height());
+    base::UmaHistogramCounts10M(
+        lines_count ? "Accessibility.ScreenAI.OCR.ImageSize.PDF.WithText"
+                    : "Accessibility.ScreenAI.OCR.ImageSize.PDF.NoText",
+        image.width() * image.height());
+
+    if (result.has_value()) {
+      std::optional<uint64_t> most_detected_language =
+          GetMostDetectedLanguageInOcrData(*result);
+      if (most_detected_language.has_value()) {
+        base::UmaHistogramSparse(
+            "Accessibility.ScreenAI.OCR.MostDetectedLanguage.PDF",
+            most_detected_language.value());
+      }
+    }
   }
 
   return result;
+}
+
+void ScreenAIService::SetClientType(mojom::OcrClientType client_type) {
+  ocr_client_types_[screen_ai_annotators_.current_receiver()] = client_type;
+}
+
+void ScreenAIService::SetClientType(mojom::MceClientType client_type) {
+  mce_client_types_[screen2x_main_content_extractors_.current_receiver()] =
+      client_type;
+}
+
+void ScreenAIService::OcrReceiverDisconnected() {
+  auto entry = ocr_client_types_.find(screen_ai_annotators_.current_receiver());
+  if (entry != ocr_client_types_.end()) {
+    ocr_client_types_.erase(entry);
+  }
+  // Modify last used time to ensure the service does not shutdown while a
+  // client is disconnecting.
+  ocr_last_used_ = base::TimeTicks::Now();
+}
+
+void ScreenAIService::MceReceiverDisconnected() {
+  auto entry = mce_client_types_.find(
+      screen2x_main_content_extractors_.current_receiver());
+  if (entry != mce_client_types_.end()) {
+    mce_client_types_.erase(entry);
+  }
+  // Modify last used time to ensure the service does not shutdown while a
+  // client is disconnecting.
+  mce_last_used_ = base::TimeTicks::Now();
 }
 
 void ScreenAIService::PerformOcrAndReturnAnnotation(
     const SkBitmap& image,
     PerformOcrAndReturnAnnotationCallback callback) {
   std::optional<chrome_screen_ai::VisualAnnotation> annotation_proto =
-      PerformOcrAndRecordMetrics(image, /*a11y_tree_request=*/false);
+      PerformOcrAndRecordMetrics(image);
 
   if (annotation_proto) {
     std::move(callback).Run(ConvertProtoToVisualAnnotation(*annotation_proto));
@@ -402,7 +528,7 @@ void ScreenAIService::PerformOcrAndReturnAXTreeUpdate(
     const SkBitmap& image,
     PerformOcrAndReturnAXTreeUpdateCallback callback) {
   std::optional<chrome_screen_ai::VisualAnnotation> annotation_proto =
-      PerformOcrAndRecordMetrics(image, /*a11y_tree_request=*/true);
+      PerformOcrAndRecordMetrics(image);
   ui::AXTreeUpdate update = ConvertVisualAnnotationToTreeUpdate(
       annotation_proto, gfx::Rect(image.width(), image.height()));
 
@@ -412,14 +538,11 @@ void ScreenAIService::PerformOcrAndReturnAXTreeUpdate(
 }
 
 void ScreenAIService::ExtractMainContent(const ui::AXTreeUpdate& snapshot,
-                                         ukm::SourceId ukm_source_id,
                                          ExtractMainContentCallback callback) {
-  base::TimeTicks start_time = base::TimeTicks::Now();
   ui::AXTree tree;
   std::optional<std::vector<int32_t>> content_node_ids;
-  bool success = ExtractMainContentInternal(snapshot, tree, content_node_ids);
-  base::TimeDelta elapsed_time = base::TimeTicks::Now() - start_time;
-  RecordMetrics(ukm_source_id, ukm::UkmRecorder::Get(), elapsed_time, success);
+  bool success = ExtractMainContentInternalAndRecordMetrics(snapshot, tree,
+                                                            content_node_ids);
 
   if (success) {
     std::move(callback).Run(*content_node_ids);
@@ -432,7 +555,8 @@ void ScreenAIService::ExtractMainNode(const ui::AXTreeUpdate& snapshot,
                                       ExtractMainNodeCallback callback) {
   ui::AXTree tree;
   std::optional<std::vector<int32_t>> content_node_ids;
-  bool success = ExtractMainContentInternal(snapshot, tree, content_node_ids);
+  bool success = ExtractMainContentInternalAndRecordMetrics(snapshot, tree,
+                                                            content_node_ids);
 
   if (success) {
     ui::AXNodeID main_node_id = ComputeMainNode(&tree, *content_node_ids);
@@ -442,24 +566,95 @@ void ScreenAIService::ExtractMainNode(const ui::AXTreeUpdate& snapshot,
   }
 }
 
-bool ScreenAIService::ExtractMainContentInternal(
+void ScreenAIService::IdentifyMainNode(const ui::AXTreeUpdate& snapshot,
+                                       IdentifyMainNodeCallback callback) {
+  ui::AXTree tree;
+  std::optional<std::vector<int32_t>> content_node_ids;
+  bool success = ExtractMainContentInternalAndRecordMetrics(snapshot, tree,
+                                                            content_node_ids);
+
+  if (success) {
+    ui::AXNodeID main_node_id = ComputeMainNode(&tree, *content_node_ids);
+    std::move(callback).Run(tree.GetAXTreeID(), main_node_id);
+  } else {
+    std::move(callback).Run(ui::AXTreeIDUnknown(), ui::kInvalidAXNodeID);
+  }
+}
+
+bool ScreenAIService::ExtractMainContentInternalAndRecordMetrics(
     const ui::AXTreeUpdate& snapshot,
     ui::AXTree& tree,
     std::optional<std::vector<int32_t>>& content_node_ids) {
+  CHECK(base::Contains(mce_client_types_,
+                       screen2x_main_content_extractors_.current_receiver()));
+  mce_last_used_ = base::TimeTicks::Now();
+  MainContentExtractionClientTypeForMetrics client_type = GetClientType(
+      mce_client_types_[screen2x_main_content_extractors_.current_receiver()]);
+
+  static crash_reporter::CrashKeyString<2> cpu_info(
+      "main_content_extraction_client");
+  cpu_info.Set(base::StringPrintf("%i", static_cast<int>(client_type)));
+
   // Early return if input is empty.
   if (snapshot.nodes.empty()) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.MainContentExtraction.Error.SnapshotEmpty",
+        client_type);
     return false;
   }
 
   // Deserialize the snapshot and reserialize it to a view hierarchy proto.
-  CHECK(tree.Unserialize(snapshot));
-  std::string serialized_snapshot = SnapshotToViewHierarchy(&tree);
-  content_node_ids = library_->ExtractMainContent(serialized_snapshot);
+  if (!tree.Unserialize(snapshot)) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.MainContentExtraction.Error."
+        "SnapshotUnserialize",
+        client_type);
+    return false;
+  }
 
-  if (content_node_ids.has_value() && content_node_ids->size() > 0) {
+  std::optional<ViewHierarchyAndTreeSize> converted_snapshot =
+      SnapshotToViewHierarchy(tree);
+  if (!converted_snapshot) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.MainContentExtraction.Error.SnapshotProto",
+        client_type);
+    return false;
+  }
+
+  base::TimeTicks start_time = base::TimeTicks::Now();
+  base::SequenceBound<HangTimer> hang_timer(background_task_runner_,
+                                            /*is_ocr=*/false);
+  hang_timer.AsyncCall(&HangTimer::StartTimer);
+  content_node_ids =
+      library_->ExtractMainContent(converted_snapshot->serialized_proto);
+  hang_timer.AsyncCall(&HangTimer::Stop);
+  base::TimeDelta elapsed_time = base::TimeTicks::Now() - start_time;
+
+  bool successful =
+      content_node_ids.has_value() && content_node_ids->size() > 0;
+  base::UmaHistogramBoolean(
+      "Accessibility.ScreenAI.MainContentExtraction.Successful2", successful);
+
+  if (!content_node_ids.has_value()) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.MainContentExtraction.Error.ResultNull",
+        client_type);
+  } else if (content_node_ids->empty()) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ScreenAI.MainContentExtraction.Error.ResultEmpty",
+        client_type);
+  }
+
+  if (successful) {
+    base::UmaHistogramTimes(
+        "Accessibility.ScreenAI.MainContentExtraction.Latency.Success",
+        elapsed_time);
     VLOG(2) << "Screen2x returned " << content_node_ids->size() << " node ids.";
     return true;
   } else {
+    base::UmaHistogramTimes(
+        "Accessibility.ScreenAI.MainContentExtraction.Latency.Failure",
+        elapsed_time);
     VLOG(0) << "Screen2x returned no results.";
     return false;
   }
@@ -471,29 +666,19 @@ ui::AXNodeID ScreenAIService::ComputeMainNodeForTesting(
   return ComputeMainNode(tree, content_node_ids);
 }
 
-// static
-void ScreenAIService::RecordMetrics(ukm::SourceId ukm_source_id,
-                                    ukm::UkmRecorder* ukm_recorder,
-                                    base::TimeDelta elapsed_time,
-                                    bool success) {
-  if (success) {
-    base::UmaHistogramTimes(
-        "Accessibility.ScreenAI.Screen2xDistillationTime.Success",
-        elapsed_time);
-    if (ukm_source_id != ukm::kInvalidSourceId) {
-      ukm::builders::Accessibility_ScreenAI(ukm_source_id)
-          .SetScreen2xDistillationTime_Success(elapsed_time.InMilliseconds())
-          .Record(ukm_recorder);
-    }
-  } else {
-    base::UmaHistogramTimes(
-        "Accessibility.ScreenAI.Screen2xDistillationTime.Failure",
-        elapsed_time);
-    if (ukm_source_id != ukm::kInvalidSourceId) {
-      ukm::builders::Accessibility_ScreenAI(ukm_source_id)
-          .SetScreen2xDistillationTime_Failure(elapsed_time.InMilliseconds())
-          .Record(ukm_recorder);
-    }
+void ScreenAIService::ShutDownIfNoClients() {
+  const base::TimeTicks kIdlenessThreshold =
+      base::TimeTicks::Now() - kIdleCheckingDelay;
+  bool ocr_not_needed =
+      !screen_ai_annotators_.size() || ocr_last_used_ < kIdlenessThreshold;
+  bool main_content_extractioncan_not_needed =
+      !screen2x_main_content_extractors_.size() ||
+      mce_last_used_ < kIdlenessThreshold;
+
+  if (ocr_not_needed && main_content_extractioncan_not_needed) {
+    screen_ai_shutdown_handler_->ShuttingDownOnIdle();
+    VLOG(2) << "Shutting down since no client or idle.";
+    base::Process::TerminateCurrentProcessImmediately(0);
   }
 }
 

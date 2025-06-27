@@ -9,7 +9,7 @@
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/test_future.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "content/public/test/browser_task_environment.h"
 #include "crypto/scoped_test_nss_db.h"
 #include "net/cert/nss_cert_database.h"
@@ -24,11 +24,11 @@
 #if BUILDFLAG(IS_CHROMEOS)
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/certificate_provider/certificate_provider.h"
+#include "chromeos/ash/components/kcer/extra_instances.h"
 #include "chromeos/ash/components/network/policy_certificate_provider.h"
-#include "chromeos/components/kcer/extra_instances.h"
 #include "chromeos/components/onc/certificate_scope.h"
 #include "chromeos/constants/chromeos_features.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif
 
 namespace {
 
@@ -68,7 +68,7 @@ CertificateManagerModel::CertInfo* GetCertInfoFromOrgGroupingMap(
 
 class CertificateManagerModelTest : public testing::Test {
  public:
-  CertificateManagerModelTest() {}
+  CertificateManagerModelTest() = default;
 
   CertificateManagerModelTest(const CertificateManagerModelTest&) = delete;
   CertificateManagerModelTest& operator=(const CertificateManagerModelTest&) =
@@ -236,8 +236,7 @@ class FakePolicyCertificateProvider : public ash::PolicyCertificateProvider {
   net::CertificateList GetAllAuthorityCertificates(
       const chromeos::onc::CertificateScope& scope) const override {
     // This function is not called by CertificateManagerModel.
-    NOTREACHED_IN_MIGRATION();
-    return net::CertificateList();
+    NOTREACHED();
   }
 
   net::CertificateList GetWebTrustedCertificates(
@@ -259,8 +258,7 @@ class FakePolicyCertificateProvider : public ash::PolicyCertificateProvider {
   const std::set<std::string>& GetExtensionIdsWithPolicyCertificates()
       const override {
     // This function is not called by CertificateManagerModel.
-    NOTREACHED_IN_MIGRATION();
-    return kNoExtensions;
+    NOTREACHED();
   }
 
   void SetPolicyProvidedCertificates(

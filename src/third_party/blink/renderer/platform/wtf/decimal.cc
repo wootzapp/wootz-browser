@@ -28,6 +28,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/wtf/decimal.h"
 
 #include <algorithm>
@@ -409,8 +414,7 @@ Decimal Decimal::operator*(const Decimal& rhs) const {
       return lhs.IsZero() ? Nan() : Infinity(result_sign);
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return Nan();
+  NOTREACHED();
 }
 
 Decimal Decimal::operator/(const Decimal& rhs) const {
@@ -611,8 +615,7 @@ Decimal Decimal::CompareTo(const Decimal& rhs) const {
       return Zero(kPositive);
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return Nan();
+      NOTREACHED();
   }
 }
 
@@ -813,8 +816,7 @@ Decimal Decimal::FromString(const String& str) {
         return Nan();
 
       default:
-        NOTREACHED_IN_MIGRATION();
-        return Nan();
+        NOTREACHED();
     }
   }
 
@@ -906,8 +908,7 @@ String Decimal::ToString() const {
       break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 
   StringBuilder builder;

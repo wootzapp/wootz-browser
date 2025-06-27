@@ -4,13 +4,15 @@
 
 #include "net/cert/coalescing_cert_verifier.h"
 
+#include <algorithm>
+
 #include "base/containers/linked_list.h"
 #include "base/containers/unique_ptr_adapters.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "net/base/net_errors.h"
@@ -470,8 +472,8 @@ void CoalescingCertVerifier::RemoveJob(Job* job) {
 
   // Otherwise, it MUST have been a job from a previous generation.
   auto inflight_it =
-      base::ranges::find_if(inflight_jobs_, base::MatchesUniquePtr(job));
-  DCHECK(inflight_it != inflight_jobs_.end());
+      std::ranges::find_if(inflight_jobs_, base::MatchesUniquePtr(job));
+  CHECK(inflight_it != inflight_jobs_.end(), base::NotFatalUntil::M130);
   inflight_jobs_.erase(inflight_it);
   return;
 }

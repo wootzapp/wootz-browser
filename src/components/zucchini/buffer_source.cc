@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/zucchini/buffer_source.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "components/zucchini/algorithm.h"
 
 namespace zucchini {
@@ -30,7 +36,7 @@ bool BufferSource::CheckNextBytes(std::initializer_list<uint8_t> bytes) const {
   if (Remaining() < bytes.size()) {
     return false;
   }
-  return base::ranges::mismatch(bytes, *this).first == bytes.end();
+  return std::ranges::mismatch(bytes, *this).in1 == bytes.end();
 }
 
 bool BufferSource::ConsumeBytes(std::initializer_list<uint8_t> bytes) {

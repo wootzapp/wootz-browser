@@ -11,6 +11,7 @@
  */
 
 import '//resources/cr_elements/cr_shared_style.css.js';
+import '//resources/cr_elements/cr_collapse/cr_collapse.js';
 import '../controls/settings_dropdown_menu.js';
 import '../controls/settings_toggle_button.js';
 import '../settings_shared.css.js';
@@ -47,11 +48,6 @@ export class SettingsLiveTranslateElement extends
 
   static get properties() {
     return {
-      prefs: {
-        type: Object,
-        notify: true,
-      },
-
       /**
        * Read-only reference to the languages model provided by the
        * 'settings-languages' instance.
@@ -80,11 +76,11 @@ export class SettingsLiveTranslateElement extends
     };
   }
 
-  languages: LanguagesModel;
-  languageHelper: LanguageHelper;
-  private enableLiveTranslateSubtitle_: string;
-  private languageOptions_: DropdownMenuOptionList;
-  private translatableLanguages_: DropdownMenuOptionList;
+  declare languages: LanguagesModel;
+  declare languageHelper: LanguageHelper;
+  declare private enableLiveTranslateSubtitle_: string;
+  declare private languageOptions_: DropdownMenuOptionList;
+  declare private translatableLanguages_: DropdownMenuOptionList;
 
   override ready() {
     super.ready();

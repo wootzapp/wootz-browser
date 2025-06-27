@@ -16,6 +16,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Browser;
 import android.util.SparseArray;
 import android.view.Gravity;
@@ -27,6 +28,7 @@ import android.view.ViewGroup.LayoutParams;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
+import android.webkit.DownloadListener;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -44,16 +46,28 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.ActivityResultRegistry;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.annotation.RequiresApi;
 import androidx.fragment.app.Fragment;
 import androidx.webkit.WebViewClientCompat;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Log;
 import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.StrictModeContext;
+import org.chromium.base.task.AsyncTask;
+import org.chromium.net.ChromiumNetworkAdapter;
+import org.chromium.net.NetworkTrafficAnnotationTag;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -71,9 +85,6 @@ public class WebViewBrowserFragment extends Fragment {
     private static final String RESOURCE_GEO = "RESOURCE_GEO";
     // Our imaginary WebKit permission to request when loading a file:// URL.
     private static final String RESOURCE_FILE_URL = "RESOURCE_FILE_URL";
-    // Our imaginary WebKit permissions to request when loading a file:// URL on T+.
-    private static final String RESOURCE_IMAGES_URL = "RESOURCE_IMAGES_URL";
-    private static final String RESOURCE_VIDEO_URL = "RESOURCE_VIDEO_URL";
     // WebKit permissions with no corresponding Android permission can always be granted.
     private static final String NO_ANDROID_PERMISSION = "NO_ANDROID_PERMISSION";
 
@@ -90,10 +101,6 @@ public class WebViewBrowserFragment extends Fragment {
         sPermissions = new HashMap<>();
         sPermissions.put(RESOURCE_GEO, Manifest.permission.ACCESS_FINE_LOCATION);
         sPermissions.put(RESOURCE_FILE_URL, Manifest.permission.READ_EXTERNAL_STORAGE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            sPermissions.put(RESOURCE_IMAGES_URL, Manifest.permission.READ_MEDIA_IMAGES);
-            sPermissions.put(RESOURCE_VIDEO_URL, Manifest.permission.READ_MEDIA_VIDEO);
-        }
         sPermissions.put(
                 PermissionRequest.RESOURCE_AUDIO_CAPTURE, Manifest.permission.RECORD_AUDIO);
         sPermissions.put(PermissionRequest.RESOURCE_MIDI_SYSEX, NO_ANDROID_PERMISSION);
@@ -201,6 +208,94 @@ public class WebViewBrowserFragment extends Fragment {
         }
     }
 
+    /** Background Async Task to download file */
+    static class DownloadFileFromURL extends AsyncTask<String> {
+        private String mFileUrl;
+        private String mNameOfFile;
+        private static final String DEFAULT_FILE_NAME = "default-filename";
+        private static final int BUFFER_SIZE = 8 * 1024; // 8 KB
+
+        private String extractFilename(String url) {
+            String[] arrOfStr = url.split("/");
+            int len = arrOfStr.length;
+            return len == 0 ? "" : arrOfStr[len - 1];
+        }
+
+        public DownloadFileFromURL(String fUrl) {
+            mFileUrl = fUrl;
+            mNameOfFile = extractFilename(fUrl);
+            if ("".equals(mNameOfFile)) {
+                mNameOfFile = DEFAULT_FILE_NAME;
+            }
+            Log.i(TAG, "filename: " + mNameOfFile);
+        }
+
+        @Override
+        protected void onPostExecute(String result) {}
+
+        /** Downloading file in background thread */
+        @Override
+        protected String doInBackground() {
+            try {
+                NetworkTrafficAnnotationTag annotation =
+                        NetworkTrafficAnnotationTag.createComplete(
+                                "android_webview_shell",
+                                """
+                    semantics {
+                      sender: "WebViewBrowserFragment (Android)"
+                      description:
+                        "Downloads files as specified by the shell browser."
+                      trigger: "User interations within the browser, causing a download"
+                      data: "No additional data."
+                      destination: LOCAL
+                      internal {
+                        contacts {
+                          email: "avvall@chromium.org"
+                        }
+                      }
+                      user_data {
+                        type: NONE
+                      }
+                      last_reviewed: "2024-07-25"
+                    }
+                    policy {
+                      cookies_allowed: NO
+                      setting: "This feature can not be disabled."
+                      policy_exception_justification: "Not implemented."
+                    }""");
+                URL url = new URL(mFileUrl);
+                URLConnection connection = ChromiumNetworkAdapter.openConnection(url, annotation);
+                connection.connect();
+
+                // download the file
+                InputStream input =
+                        new BufferedInputStream(ChromiumNetworkAdapter.openStream(url, annotation));
+
+                File path =
+                        Environment.getExternalStoragePublicDirectory(
+                                Environment.DIRECTORY_DOWNLOADS);
+                File file = new File(path, mNameOfFile);
+                // Make sure the Downloads directory exists.
+                path.mkdirs();
+                OutputStream output = new FileOutputStream(file);
+
+                int count;
+                byte[] data = new byte[BUFFER_SIZE];
+                while ((count = input.read(data)) != -1) {
+                    output.write(data, 0, count);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Error: " + e.getMessage());
+            }
+
+            return null;
+        }
+    }
+
     @Override
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -263,30 +358,40 @@ public class WebViewBrowserFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        ViewGroup viewGroup = (ViewGroup) (mWebView.getParent());
+        ViewGroup viewGroup = (ViewGroup) mWebView.getParent();
         viewGroup.removeView(mWebView);
         mWebView.destroy();
         mWebView = null;
     }
 
     @Override
+    @OptIn(markerClass = WebViewCompat.ExperimentalSaveState.class)
     public void onSaveInstanceState(Bundle savedInstanceState) {
         super.onSaveInstanceState(savedInstanceState);
-        // Deliberately don't catch TransactionTooLargeException here.
-        mWebView.saveState(savedInstanceState);
 
-        // TODO(timav): Remove this hack after http://crbug.com/626202 is fixed.
-        // Drop the saved state of it is too long since Android N and above
-        // can't handle large states without a crash.
-        byte[] webViewState = savedInstanceState.getByteArray(SAVE_RESTORE_STATE_KEY);
-        if (webViewState != null && webViewState.length > MAX_STATE_LENGTH) {
-            savedInstanceState.remove(SAVE_RESTORE_STATE_KEY);
-            String message =
-                    String.format(
-                            Locale.US,
-                            "Can't save state: %dkb is too long",
-                            webViewState.length / 1024);
-            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SAVE_STATE)) {
+            WebViewCompat.saveState(
+                    mWebView,
+                    savedInstanceState,
+                    MAX_STATE_LENGTH,
+                    /* includeForwardState= */ true);
+        } else {
+            // Deliberately don't catch TransactionTooLargeException here.
+            mWebView.saveState(savedInstanceState);
+
+            // TODO(timav): Remove this hack after http://crbug.com/626202 is fixed.
+            // Drop the saved state of it is too long since Android N and above
+            // can't handle large states without a crash.
+            byte[] webViewState = savedInstanceState.getByteArray(SAVE_RESTORE_STATE_KEY);
+            if (webViewState != null && webViewState.length > MAX_STATE_LENGTH) {
+                savedInstanceState.remove(SAVE_RESTORE_STATE_KEY);
+                String message =
+                        String.format(
+                                Locale.US,
+                                "Can't save state: %dkb is too long",
+                                webViewState.length / 1024);
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -432,6 +537,25 @@ public class WebViewBrowserFragment extends Fragment {
                         mMultiFileSelector.setFileChooserParams(fileChooserParams);
                         mFileContents.launch(null);
                         return true;
+                    }
+                });
+
+        webview.setDownloadListener(
+                new DownloadListener() {
+                    @Override
+                    public void onDownloadStart(
+                            String url,
+                            String userAgent,
+                            String contentDisposition,
+                            String mimeType,
+                            long contentLength) {
+                        Log.i(TAG, "url: " + url);
+                        Log.i(TAG, "useragent: " + userAgent);
+                        Log.i(TAG, "contentDisposition: " + contentDisposition);
+                        Log.i(TAG, "mimeType: " + mimeType);
+                        Log.i(TAG, "contentLength: " + contentLength);
+                        new DownloadFileFromURL(url)
+                                .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
                     }
                 });
 

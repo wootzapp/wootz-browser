@@ -1,7 +1,8 @@
 Name: libxml
 URL: http://xmlsoft.org
-Version: f506ec66547ef9bac97a2bf306d368ecea8c0c9e
-CPEPrefix: cpe:/a:xmlsoft:libxml2:2.12.5
+Version: 2.14.2
+Revision: 0e145ae4881c2a05ae00128a3bd90d76d4dadc4b
+CPEPrefix: cpe:/a:xmlsoft:libxml2:2.14.2
 License: MIT
 License File: src/Copyright
 Security Critical: yes
@@ -17,6 +18,8 @@ Modifications:
   in chromium's copy of maldoca. See https://github.com/google/maldoca/issues/87
 - remove-getentropy.patch: Removes calls to getentropy() and BCrypt because they
   aren't implemented or don't work on several platforms.
+- counted_by.patch: Work around __counted_by__ supported in a cronet toolchain
+  with a pre-release clang.
 - Add helper classes in the chromium/ subdirectory.
 - Delete various unused files, see chromium/roll.py
 - Disable various unused libxml features:

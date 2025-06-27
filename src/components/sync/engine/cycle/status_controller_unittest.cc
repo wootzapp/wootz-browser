@@ -12,7 +12,7 @@ class StatusControllerTest : public testing::Test {};
 
 // This test is useful, as simple as it sounds, due to the copy-paste prone
 // nature of status_controller.cc (we have had bugs in the past where a set_foo
-// method was actually setting |bar_| instead!).
+// method was actually setting `bar_` instead!).
 TEST_F(StatusControllerTest, ReadYourWrites) {
   StatusController status;
 
@@ -24,8 +24,9 @@ TEST_F(StatusControllerTest, ReadYourWrites) {
   EXPECT_EQ(status.model_neutral_state().commit_result.type(),
             SyncerError::Type::kHttpError);
 
-  for (int i = 0; i < 14; i++)
+  for (int i = 0; i < 14; i++) {
     status.increment_num_successful_commits();
+  }
   EXPECT_EQ(14, status.model_neutral_state().num_successful_commits);
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ import './active_runtime_info_table.js';
 import './device_info_table.js';
 import './runtime_changelog_table.js';
 import './session_info_table.js';
+import './session_statistics_table.js';
 
 import {assert} from 'chrome://resources/js/assert.js';
 import {getRequiredElement} from 'chrome://resources/js/util.js';
@@ -14,10 +15,11 @@ import type {ActiveRuntimeInfoTableElement} from './active_runtime_info_table.js
 import {BrowserProxy} from './browser_proxy.js';
 import type {RuntimeInfo, SessionRejectedRecord, SessionRequestedRecord, SessionStartedRecord, SessionStoppedRecord} from './webxr_internals.mojom-webui.js';
 import type {XRDeviceId} from './xr_device.mojom-webui.js';
+import type {XrFrameStatistics, XrLogMessage} from './xr_session.mojom-webui.js';
 
 let browserProxy: BrowserProxy;
 
-async function bootstrap() {
+function bootstrap() {
   browserProxy = BrowserProxy.getInstance();
   assert(browserProxy);
 
@@ -25,12 +27,15 @@ async function bootstrap() {
   renderDeviceInfoContent();
   renderSessionInfoContent();
   renderRuntimeInfoContent();
+  renderSessionStatisticsContent();
 }
 
-async function setupSidebarButtonListeners() {
+function setupSidebarButtonListeners() {
   const deviceInfoButton = getRequiredElement('device-info-button');
   const sessionInfoButton = getRequiredElement('session-info-button');
   const runtimeInfoButton = getRequiredElement('runtime-info-button');
+  const sessionStatisticsButton =
+      getRequiredElement('session-statistics-button');
 
   deviceInfoButton.addEventListener('click', () => {
     switchSidebar('device-info');
@@ -42,6 +47,10 @@ async function setupSidebarButtonListeners() {
 
   runtimeInfoButton.addEventListener('click', () => {
     switchSidebar('runtime-info');
+  });
+
+  sessionStatisticsButton.addEventListener('click', () => {
+    switchSidebar('session-statistics');
   });
 }
 
@@ -72,7 +81,7 @@ async function renderDeviceInfoContent() {
   deviceInfoContent.appendChild(table);
 }
 
-async function renderSessionInfoContent() {
+function renderSessionInfoContent() {
   const sessionInfoContent = getRequiredElement('session-info-content');
   assert(sessionInfoContent);
 
@@ -107,7 +116,7 @@ async function renderActiveRuntimesTable(
   runtimeInfoTable.recreateActiveRuntimesTable(activeRuntimes);
 }
 
-async function renderRuntimeInfoContent() {
+function renderRuntimeInfoContent() {
   const runtimeInfoContent = getRequiredElement('runtime-info-content');
   assert(runtimeInfoContent);
 
@@ -132,6 +141,28 @@ async function renderRuntimeInfoContent() {
 
   runtimeInfoContent.appendChild(activeRuntimeTable);
   runtimeInfoContent.appendChild(runtimeChangelogTable);
+}
+
+function renderSessionStatisticsContent() {
+  const sessionStatisticsContent =
+      getRequiredElement('session-statistics-content');
+  assert(sessionStatisticsContent);
+
+  const table = document.createElement('session-statistics-table');
+
+  browserProxy.getBrowserCallback().logConsoleMessages.addListener(
+      (xrLogMessage: XrLogMessage) => {
+        table.addConsoleMessageRow(xrLogMessage);
+      });
+
+  sessionStatisticsContent.appendChild(table);
+
+  browserProxy.getBrowserCallback().logFrameData.addListener(
+      (xrSessionStatistics: XrFrameStatistics) => {
+        table.addXrSessionStatisticsRow(xrSessionStatistics);
+      });
+
+  sessionStatisticsContent.appendChild(table);
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);

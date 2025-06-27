@@ -7,8 +7,8 @@
 
 #include <memory>
 
+#include "base/component_export.h"
 #include "base/time/time.h"
-#include "ui/gfx/gfx_export.h"
 #include "ui/gfx/gpu_fence_handle.h"
 
 namespace gfx {
@@ -28,7 +28,10 @@ enum class SwapResult {
   // SWAP_SKIPPED.
   SWAP_SKIPPED,
   SWAP_NAK_RECREATE_BUFFERS,
-  SWAP_RESULT_LAST = SWAP_NAK_RECREATE_BUFFERS,
+  // This swap result identifies cases when flipping non-simple overlay planes
+  // fails.
+  SWAP_NON_SIMPLE_OVERLAYS_FAILED,
+  SWAP_RESULT_LAST = SWAP_NON_SIMPLE_OVERLAYS_FAILED,
 };
 
 struct SwapTimings {
@@ -74,7 +77,7 @@ struct SwapResponse {
 };
 
 // Sent as part of finishing a swap.
-struct GFX_EXPORT SwapCompletionResult {
+struct COMPONENT_EXPORT(GFX) SwapCompletionResult {
   explicit SwapCompletionResult(gfx::SwapResult swap_result);
   SwapCompletionResult(gfx::SwapResult swap_result,
                        gfx::GpuFenceHandle release_fence);

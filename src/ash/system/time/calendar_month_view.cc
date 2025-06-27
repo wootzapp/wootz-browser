@@ -20,6 +20,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "chromeos/ash/components/settings/timezone_settings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -30,6 +31,7 @@
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets_f.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/layout/table_layout.h"
@@ -66,7 +68,7 @@ constexpr float kEventsPresentRoundedRadius = 1.f;
 // The gap padding between the date and the indicator.
 constexpr int kGapBetweenDateAndIndicator = 1;
 
-// For GlanceablesV2: the insets within the date cell.
+// The insets within the date cell.
 constexpr int kDateCellVerticalPaddingGlanceables = 10;
 constexpr auto kDateCellInsetsGlanceables =
     gfx::Insets::VH(kDateCellVerticalPaddingGlanceables, 16);
@@ -115,9 +117,10 @@ CalendarDateCellView::CalendarDateCellView(
       time_difference_(time_difference),
       calendar_view_controller_(calendar_view_controller) {
   SetHorizontalAlignment(gfx::ALIGN_CENTER);
-  SetBorder(views::CreateEmptyBorder(calendar_utils::IsForGlanceablesV2()
-                                         ? kDateCellInsetsGlanceables
-                                         : calendar_utils::kDateCellInsets));
+  SetBorder(views::CreateEmptyBorder(
+      features::AreAnyGlanceablesTimeManagementViewsEnabled()
+          ? kDateCellInsetsGlanceables
+          : calendar_utils::kDateCellInsets));
   label()->SetElideBehavior(gfx::NO_ELIDE);
   label()->SetSubpixelRenderingEnabled(false);
   if (is_today_) {
@@ -148,8 +151,8 @@ void CalendarDateCellView::OnThemeChanged() {
   views::View::OnThemeChanged();
 
   // Gray-out the date that is not in the current month.
-  SetEnabledTextColorIds(grayed_out_ ? cros_tokens::kCrosSysOnSurfaceVariant
-                                     : cros_tokens::kCrosSysOnSurface);
+  SetEnabledTextColors(grayed_out_ ? cros_tokens::kCrosSysOnSurfaceVariant
+                                   : cros_tokens::kCrosSysOnSurface);
 }
 
 // Draws the background for this date. Note that this includes not only the
@@ -172,7 +175,8 @@ void CalendarDateCellView::OnPaintBackground(gfx::Canvas* canvas) {
   highlight_border.setStyle(cc::PaintFlags::kStroke_Style);
   highlight_border.setStrokeWidth(kBorderLineThickness);
 
-  const bool is_for_glanceables = calendar_utils::IsForGlanceablesV2();
+  const bool is_for_glanceables =
+      features::AreAnyGlanceablesTimeManagementViewsEnabled();
   if (is_today_) {
     gfx::RectF background_rect(local_bounds);
 
@@ -237,7 +241,7 @@ void CalendarDateCellView::OnSelectedDateUpdated() {
     is_selected_ = is_selected;
     SchedulePaint();
     if (!is_selected_) {
-      SetAccessibleName(tool_tip_);
+      GetViewAccessibility().SetName(tool_tip_);
       return;
     }
     // Sets accessible label. E.g. Calendar, week of July 16th 2021, [selected
@@ -248,7 +252,7 @@ void CalendarDateCellView::OnSelectedDateUpdated() {
     base::Time first_day_of_week =
         date_ - base::Days(date_exploded.day_of_week);
 
-    SetAccessibleName(l10n_util::GetStringFUTF16(
+    GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
         IDS_ASH_CALENDAR_SELECTED_DATE_CELL_ACCESSIBLE_DESCRIPTION,
         calendar_utils::GetMonthDayYear(first_day_of_week),
         calendar_utils::GetDayOfMonth(date_)));
@@ -294,7 +298,7 @@ void CalendarDateCellView::SetTooltipAndAccessibleName() {
     }
   }
   SetTooltipText(tool_tip_);
-  SetAccessibleName(tool_tip_);
+  GetViewAccessibility().SetName(tool_tip_);
 }
 
 void CalendarDateCellView::UpdateFetchStatus(bool is_fetched) {
@@ -336,7 +340,7 @@ void CalendarDateCellView::UpdateFetchStatus(bool is_fetched) {
 }
 
 void CalendarDateCellView::SetFirstOnFocusedAccessibilityLabel() {
-  SetAccessibleName(l10n_util::GetStringFUTF16(
+  GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
       IDS_ASH_CALENDAR_DATE_CELL_ON_FOCUS_ACCESSIBLE_DESCRIPTION, tool_tip_));
 }
 
@@ -346,9 +350,8 @@ void CalendarDateCellView::PaintButtonContents(gfx::Canvas* canvas) {
     return;
   }
 
-  SetEnabledTextColorIds(is_today_
-                             ? cros_tokens::kCrosSysSystemOnPrimaryContainer
-                             : cros_tokens::kCrosSysOnSurface);
+  SetEnabledTextColors(is_today_ ? cros_tokens::kCrosSysSystemOnPrimaryContainer
+                                 : cros_tokens::kCrosSysOnSurface);
   MaybeDrawEventsIndicator(canvas);
 }
 
@@ -369,9 +372,10 @@ void CalendarDateCellView::OnDateCellActivated(const ui::Event& event) {
 gfx::Point CalendarDateCellView::GetEventsPresentIndicatorCenterPosition() {
   const gfx::Rect content = GetContentsBounds();
   const int horizontal_padding = calendar_utils::kDateHorizontalPadding;
-  const int vertical_padding = calendar_utils::IsForGlanceablesV2()
-                                   ? kDateCellVerticalPaddingGlanceables
-                                   : calendar_utils::kDateVerticalPadding;
+  const int vertical_padding =
+      features::AreAnyGlanceablesTimeManagementViewsEnabled()
+          ? kDateCellVerticalPaddingGlanceables
+          : calendar_utils::kDateVerticalPadding;
   return gfx::Point(
       (content.width() + horizontal_padding * 2) / 2,
       content.height() + vertical_padding + kGapBetweenDateAndIndicator);
@@ -471,7 +475,7 @@ CalendarMonthView::CalendarMonthView(
                   current_date_exploded);
     ++safe_index;
     if (safe_index == calendar_utils::kDateInOneWeek) {
-      DUMP_WILL_BE_NOTREACHED_NORETURN()
+      DUMP_WILL_BE_NOTREACHED()
           << "Should not render more than 7 days as the grayed out cells.";
       break;
     }
@@ -510,9 +514,7 @@ CalendarMonthView::CalendarMonthView(
 
     ++safe_index;
     if (safe_index == 32) {
-      NOTREACHED_IN_MIGRATION()
-          << "Should not render more than 31 days in a month.";
-      break;
+      NOTREACHED() << "Should not render more than 31 days in a month.";
     }
   }
 
@@ -531,26 +533,17 @@ CalendarMonthView::CalendarMonthView(
     UpdateIsFetchedAndRepaint(updated_has_fetched_data);
   }
 
-  if (calendar_utils::GetDayOfWeekInt(current_date) == 1) {
+  // Adds the remaining days from the next month to complete the last row.
+  auto gray_out_days = 8 - calendar_utils::GetDayOfWeekInt(current_date);
+
+  // If the last row is already complete (all days are from the next month), no
+  // action is needed.
+  if (gray_out_days == 7) {
     return;
   }
 
-  // Adds the first several days from the next month if the last day is not the
-  // end day of this week. The end date of the last row should be 6 day's away
-  // from the first day of this week. Adds `kDurationForAdjustingDST` hours to
-  // cover the case 25 hours in a day due to daylight saving.
-  base::Time end_of_the_last_row_local =
-      calendar_utils::GetFirstDayOfWeekLocalMidnight(current_date) +
-      base::Days(6) + calendar_utils::kDurationForAdjustingDST +
-      time_difference;
-  base::Time::Exploded end_of_row_exploded =
-      calendar_utils::GetExplodedUTC(end_of_the_last_row_local);
-
-  safe_index = 0;
-  // Gray-out dates in the last row, which are from the next month.
-  while (current_date_exploded.day_of_month <=
-         end_of_row_exploded.day_of_month) {
-    // Next column is generated.
+  // Add the remaining days from the next month as grayed-out cells.
+  for (int rendered_days = 0; rendered_days < gray_out_days; rendered_days++) {
     AddDateCellToLayout(current_date, column,
                         /*is_in_current_month=*/false,
                         /*row_index=*/row_number,
@@ -558,57 +551,6 @@ CalendarMonthView::CalendarMonthView(
                         should_fetch_calendar_data);
     MoveToNextDay(column, current_date, current_date_local,
                   current_date_exploded);
-
-    ++safe_index;
-    if (safe_index == calendar_utils::kDateInOneWeek) {
-      // "CMV" stands for `CalendarMonthView`, the printed log should be like:
-      // CMV-locale  ru
-      // CMV-timezone America/Los_Angeles
-      // CMV-now_date_local 13 марта 2024 г.
-      // CMV-now_time_local 18:04
-      // CMV-week_header ПВСЧПСВ
-      // CMV-last_day_of_last_row  20240303
-      // CMV-last_day_of_last_row  500
-      // CMV-first_day_of_month 20240201
-      // CMV-first_day_of_month_time 1704
-      SCOPED_CRASH_KEY_STRING32("CMV", "locale",
-                                base::i18n::GetConfiguredLocale());
-      SCOPED_CRASH_KEY_STRING32(
-          "CMV", "time_zone",
-          base::UTF16ToUTF8(
-              system::TimezoneSettings::GetInstance()->GetCurrentTimezoneID()));
-      SCOPED_CRASH_KEY_STRING32(
-          "CMV", "now_date_local",
-          base::UTF16ToUTF8(
-              calendar_utils::GetMonthDayYear(base::Time::Now())));
-      SCOPED_CRASH_KEY_STRING32(
-          "CMV", "now_time_local",
-          base::UTF16ToUTF8(
-              calendar_utils::GetTwentyFourHourClockTime(base::Time::Now())));
-      std::u16string week = u"";
-      for (const std::u16string& day :
-           DateHelper::GetInstance()->week_titles()) {
-        week += day;
-      }
-      SCOPED_CRASH_KEY_STRING32("CMV", "week_header", base::UTF16ToUTF8(week));
-      SCOPED_CRASH_KEY_NUMBER("CMV", "last_day_of_last_row",
-                              10000 * end_of_row_exploded.year +
-                                  100 * end_of_row_exploded.month +
-                                  end_of_row_exploded.day_of_month);
-      SCOPED_CRASH_KEY_NUMBER(
-          "CMV", "last_day_of_last_row_time",
-          100 * end_of_row_exploded.hour + end_of_row_exploded.minute);
-      SCOPED_CRASH_KEY_NUMBER("CMV", "first_day_of_month",
-                              10000 * first_day_of_month_exploded.year +
-                                  100 * first_day_of_month_exploded.month +
-                                  first_day_of_month_exploded.day_of_month);
-      SCOPED_CRASH_KEY_NUMBER("CMV", "first_day_of_month_time",
-                              100 * first_day_of_month_exploded.hour +
-                                  first_day_of_month_exploded.minute);
-      NOTREACHED_IN_MIGRATION()
-          << "Should not render more than 7 days as the gray out cells.";
-      break;
-    }
   }
 }
 

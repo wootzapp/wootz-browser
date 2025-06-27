@@ -15,6 +15,7 @@
 #include "chrome/browser/web_applications/web_app_icon_operations.h"
 #include "chrome/browser/web_applications/web_app_install_finalizer.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "components/services/app_service/public/cpp/file_handler.h"
 #include "components/webapps/common/web_app_id.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
@@ -68,13 +69,11 @@ void PopulateFileHandlerInfoFromManifest(
 // Will sanitise the manifest fields to be suitable for installation to prevent
 // sites from using arbitrarily large amounts of disk space.
 void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
-                                  const GURL& manifest_url,
                                   WebAppInstallInfo* web_app_info);
 
 // Same as above, but returns a fresh WebAppInstallInfo.
 WebAppInstallInfo CreateWebAppInfoFromManifest(
-    const blink::mojom::Manifest& manifest,
-    const GURL& manifest_url);
+    const blink::mojom::Manifest& manifest);
 
 // Populate non-product icons in WebAppInstallInfo using the IconsMap. This
 // currently covers shortcut item icons and file handler icons. It ignores
@@ -133,6 +132,9 @@ void SetWebAppProductIconFields(const WebAppInstallInfo& web_app_info,
                                 WebApp& web_app);
 
 // Update |web_app_info| using |install_params|.
+// TODO(crbug.com/354981650): Remove this method after moving fields that modify
+// the web app definition from WebAppInstallParams, and remove install-config
+// information from WebAppInstallInfo.
 void ApplyParamsToWebAppInstallInfo(const WebAppInstallParams& install_params,
                                     WebAppInstallInfo& web_app_info);
 
@@ -143,6 +145,8 @@ void ApplyParamsToFinalizeOptions(
 
 // Returns whether the home tab icons exist.
 bool HomeTabIconsExistInTabStrip(const WebAppInstallInfo& web_app_info);
+
+bool IsSyncEnabledForApps(Profile* profile);
 
 }  // namespace web_app
 

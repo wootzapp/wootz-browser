@@ -7,27 +7,22 @@
 #include <string_view>
 #include <utility>
 
+#include "base/auto_reset.h"
 #include "base/check.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/task/task_features.h"
 #include "base/task/thread_pool/task_tracker.h"
-#include "base/task/thread_pool/thread_group_worker_delegate.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "base/win/com_init_check_hook.h"
 #include "base/win/scoped_winrt_initializer.h"
 #endif
 
-namespace base {
-namespace internal {
+namespace base::internal {
 
 namespace {
-
-constexpr size_t kMaxNumberOfWorkers = 256;
 
 // In a background thread group:
 // - Blocking calls take more time than in a foreground thread group.
@@ -55,7 +50,7 @@ constexpr TimeDelta kBackgroundMayBlockThreshold = Seconds(10);
 constexpr TimeDelta kBackgroundBlockedWorkersPoll = Seconds(12);
 
 // ThreadGroup that owns the current thread, if any.
-ABSL_CONST_INIT thread_local const ThreadGroup* current_thread_group = nullptr;
+constinit thread_local const ThreadGroup* current_thread_group = nullptr;
 
 }  // namespace
 
@@ -85,28 +80,12 @@ ThreadGroup::BaseScopedCommandsExecutor::~BaseScopedCommandsExecutor() {
   Flush();
 }
 
-void ThreadGroup::BaseScopedCommandsExecutor::FlushWorkerCreation(
-    CheckedLock* held_lock) {
-  // This function crucially only wakes up workers, rather than also signaling
-  // them, and therefore, does not call FlushImpl(). FlushImpl() requires not
-  // holding any locks on the calling thread, while a TaskSource Transaction
-  // lock can be held while calling this function.
-  CheckedAutoUnlock auto_unlock(*held_lock);
-  if (workers_to_start_.empty()) {
-    return;
-  }
-
-  Flush();
-  workers_to_start_.clear();
-  must_schedule_adjust_max_tasks_ = false;
-}
-
 void ThreadGroup::BaseScopedCommandsExecutor::Flush() {
   // Start workers. Happens after wake ups (implemented by children and thus
   // called on their destructor, i.e. before this) to prevent the case where a
   // worker enters its main function, is descheduled because it wasn't woken up
   // yet, and is woken up immediately after.
-  for (auto worker : workers_to_start_) {
+  for (auto& worker : workers_to_start_) {
     worker->Start(outer_->after_start().service_thread_task_runner,
                   outer_->after_start().worker_thread_observer);
     if (outer_->worker_started_for_testing_) {
@@ -155,7 +134,7 @@ ThreadGroup::ThreadGroup(std::string_view histogram_label,
   DCHECK(!thread_group_label_.empty());
 }
 
-void ThreadGroup::StartImpl(
+void ThreadGroup::StartImplLockRequired(
     size_t max_tasks,
     size_t max_best_effort_tasks,
     TimeDelta suggested_reclaim_time,
@@ -172,7 +151,6 @@ void ThreadGroup::StartImpl(
     worker_started_for_testing_->declare_only_used_while_idle();
   }
 
-  in_start().no_worker_reclaim = FeatureList::IsEnabled(kNoWorkerThreadReclaim);
   in_start().may_block_threshold =
       may_block_threshold ? may_block_threshold.value()
                           : (thread_type_hint_ != ThreadType::kBackground
@@ -182,11 +160,9 @@ void ThreadGroup::StartImpl(
       thread_type_hint_ != ThreadType::kBackground
           ? kForegroundBlockedWorkersPoll
           : kBackgroundBlockedWorkersPoll;
-  in_start().max_num_workers_created = base::kMaxNumWorkersCreated.Get();
-
-  CheckedAutoLock auto_lock(lock_);
 
   max_tasks_ = max_tasks;
+  baseline_max_tasks_ = max_tasks;
   DCHECK_GE(max_tasks_, 1U);
   in_start().initial_max_tasks = std::min(max_tasks_, kMaxNumberOfWorkers);
   max_best_effort_tasks_ = max_best_effort_tasks;
@@ -214,6 +190,17 @@ void ThreadGroup::UnbindFromCurrentThread() {
 
 bool ThreadGroup::IsBoundToCurrentThread() const {
   return current_thread_group == this;
+}
+
+void ThreadGroup::SetMaxTasks(size_t max_tasks) {
+  CheckedAutoLock auto_lock(lock_);
+  size_t extra_tasks = max_tasks_ - baseline_max_tasks_;
+  baseline_max_tasks_ = std::min(max_tasks, after_start().initial_max_tasks);
+  max_tasks_ = baseline_max_tasks_ + extra_tasks;
+}
+
+void ThreadGroup::ResetMaxTasks() {
+  SetMaxTasks(after_start().initial_max_tasks);
 }
 
 size_t
@@ -384,7 +371,6 @@ void ThreadGroup::PushTaskSourceAndWakeUpWorkersImpl(
 }
 
 void ThreadGroup::EnqueueAllTaskSources(PriorityQueue* new_priority_queue) {
-  std::unique_ptr<BaseScopedCommandsExecutor> executor = GetExecutor();
   CheckedAutoLock lock(lock_);
   while (!new_priority_queue->IsEmpty()) {
     TaskSourceSortKey top_sort_key = new_priority_queue->PeekSortKey();
@@ -424,8 +410,9 @@ void ThreadGroup::HandoffNonUserBlockingTaskSourcesToOtherThreadGroup(
 bool ThreadGroup::ShouldYield(TaskSourceSortKey sort_key) {
   DCHECK(TS_UNCHECKED_READ(max_allowed_sort_key_).is_lock_free());
 
-  if (!task_tracker_->CanRunPriority(sort_key.priority()))
+  if (!task_tracker_->CanRunPriority(sort_key.priority())) {
     return true;
+  }
   // It is safe to read |max_allowed_sort_key_| without a lock since this
   // variable is atomic, keeping in mind that threads may not immediately see
   // the new value when it is updated.
@@ -463,13 +450,10 @@ ThreadGroup::GetScopedWindowsThreadEnvironment(WorkerEnvironment environment) {
   std::unique_ptr<win::ScopedWindowsThreadEnvironment> scoped_environment;
   if (environment == WorkerEnvironment::COM_MTA) {
     scoped_environment = std::make_unique<win::ScopedWinrtInitializer>();
-
-    // TODO(crbug.com/40076080): rollback the change or replace it with a CHECK
-    // before closing the bug.
-    DUMP_WILL_BE_CHECK(scoped_environment->Succeeded());
   }
-
-  DCHECK(!scoped_environment || scoped_environment->Succeeded());
+  // Continuing execution with an uninitialized apartment may lead to broken
+  // program invariants later on.
+  CHECK(!scoped_environment || scoped_environment->Succeeded());
   return scoped_environment;
 }
 #endif
@@ -585,63 +569,6 @@ void ThreadGroup::MaybeScheduleAdjustMaxTasksLockRequired(
   }
 }
 
-void ThreadGroup::ScheduleAdjustMaxTasks() {
-  // |adjust_max_tasks_posted_| can't change before the task posted below runs.
-  // Skip check on NaCl to avoid unsafe reference acquisition warning.
-#if !BUILDFLAG(IS_NACL)
-  DCHECK(TS_UNCHECKED_READ(adjust_max_tasks_posted_));
-#endif
-
-  after_start().service_thread_task_runner->PostDelayedTask(
-      FROM_HERE, BindOnce(&ThreadGroup::AdjustMaxTasks, Unretained(this)),
-      after_start().blocked_workers_poll_period);
-}
-
-void ThreadGroup::AdjustMaxTasks() {
-  DCHECK(
-      after_start().service_thread_task_runner->RunsTasksInCurrentSequence());
-
-  std::unique_ptr<BaseScopedCommandsExecutor> executor = GetExecutor();
-  CheckedAutoLock auto_lock(lock_);
-  DCHECK(adjust_max_tasks_posted_);
-  adjust_max_tasks_posted_ = false;
-
-  // Increment max tasks for each worker that has been within a MAY_BLOCK
-  // ScopedBlockingCall for more than may_block_threshold.
-  for (scoped_refptr<WorkerThread> worker : workers_) {
-    // The delegates of workers inside a ThreadGroup should be
-    // WaitableEventWorkerDelegates.
-    ThreadGroupWorkerDelegate* delegate = GetWorkerDelegate(worker.get());
-    AnnotateAcquiredLockAlias annotate(lock_, delegate->lock());
-    delegate->MaybeIncrementMaxTasksLockRequired();
-  }
-
-  // Wake up workers according to the updated |max_tasks_|. This will also
-  // reschedule AdjustMaxTasks() if necessary.
-  EnsureEnoughWorkersLockRequired(executor.get());
-}
-
-void ThreadGroup::OnShutDownStartedImpl(BaseScopedCommandsExecutor* executor) {
-  CheckedAutoLock auto_lock(lock_);
-
-  // Don't do anything if the thread group isn't started.
-  if (max_tasks_ == 0 || UNLIKELY(join_for_testing_started_)) {
-    return;
-  }
-
-  // Start a MAY_BLOCK scope on each worker that is already running a task.
-  for (scoped_refptr<WorkerThread>& worker : workers_) {
-    // The delegates of workers inside a ThreadGroup should be
-    // WorkerThreadDelegateImpls.
-    ThreadGroupWorkerDelegate* delegate = GetWorkerDelegate(worker.get());
-    AnnotateAcquiredLockAlias annotate(lock_, delegate->lock());
-    delegate->OnShutdownStartedLockRequired(executor);
-  }
-  EnsureEnoughWorkersLockRequired(executor);
-
-  shutdown_started_ = true;
-}
-
 bool ThreadGroup::ShouldPeriodicallyAdjustMaxTasksLockRequired() {
   // AdjustMaxTasks() should be scheduled to periodically adjust |max_tasks_|
   // and |max_best_effort_tasks_| when (1) the concurrency limits are not large
@@ -730,5 +657,4 @@ void ThreadGroup::IncrementMaxBestEffortTasksLockRequired() {
 ThreadGroup::InitializedInStart::InitializedInStart() = default;
 ThreadGroup::InitializedInStart::~InitializedInStart() = default;
 
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

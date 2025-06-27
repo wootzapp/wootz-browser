@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "base/feature_list.h"
@@ -18,7 +19,6 @@
 #include "net/base/backoff_entry.h"
 #include "net/base/request_priority.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace supervised_user {
 
@@ -32,6 +32,19 @@ net::NetworkTrafficAnnotationTag CreatePermissionRequestTag();
 }  // namespace annotations
 
 struct AccessTokenConfig {
+  enum class CredentialsRequirement {
+    // This endpoint requires user credentials. If an access token cannot be
+    // obtained, the request will be failed (with no request sent to the
+    // server).
+    kStrict,
+
+    // End user credentials are preferred, but not required, for this endpoint.
+    // If an access token cannot be obtained, the request will be sent to the
+    // server with no credentials.
+    kBestEffort
+  };
+  CredentialsRequirement credentials_requirement;
+
   // Must be set in actual configs. See
   // signin::PrimaryAccountAccessTokenFetcher::Mode docs.
   std::optional<signin::PrimaryAccountAccessTokenFetcher::Mode> mode;
@@ -65,7 +78,7 @@ struct FetcherConfig {
   // See the service specification at
   // google3/google/internal/kids/chrome/v1/kidschromemanagement.proto for
   // examples.
-  absl::variant<std::string_view, PathTemplate> service_path;
+  std::variant<std::string_view, PathTemplate> service_path;
 
   // HTTP method used to communicate with the service.
   const Method method = Method::kUndefined;
@@ -103,19 +116,20 @@ struct FetcherConfig {
   // ServicePath({"a", "b", "c"}) -> /path/ab/with/template/c
   // ServicePath({"a", "b", "c", "d"}) -> /path/ab/with/template/cd
   std::string ServicePath(const PathArgs& args) const;
+
+  // Creates backoff entry based on the exact policy from this config.
+  std::unique_ptr<net::BackoffEntry> BackoffEntry() const;
 };
 
-constexpr FetcherConfig kClassifyUrlConfig = {
+inline constexpr FetcherConfig kClassifyUrlConfig = {
     .service_path = "/kidsmanagement/v1/people/me:classifyUrl",
     .method = FetcherConfig::Method::kPost,
     .histogram_basename = "FamilyLinkUser.ClassifyUrlRequest",
     .traffic_annotation = annotations::ClassifyUrlTag,
     .access_token_config =
         {
-            // Fail the fetch right away when access token is not immediately
-            // available.
-            // TODO(b/301931929): consider using `kWaitUntilAvailable` to
-            // improve reliability.
+            .credentials_requirement =
+                AccessTokenConfig::CredentialsRequirement::kStrict,
             .mode = signin::PrimaryAccountAccessTokenFetcher::Mode::kImmediate,
             // TODO(b/284523446): Refer to GaiaConstants rather than literal.
             .oauth2_scope = "https://www.googleapis.com/auth/kid.permission",
@@ -123,22 +137,43 @@ constexpr FetcherConfig kClassifyUrlConfig = {
     .request_priority = net::IDLE,
 };
 
-constexpr FetcherConfig kClassifyUrlConfigWaitUntilAccessTokenAvailable = {
+inline constexpr FetcherConfig kClassifyUrlConfigWaitUntilAccessTokenAvailable =
+    {
+        .service_path = "/kidsmanagement/v1/people/me:classifyUrl",
+        .method = FetcherConfig::Method::kPost,
+        .histogram_basename = "FamilyLinkUser.ClassifyUrlRequest",
+        .traffic_annotation = annotations::ClassifyUrlTag,
+        .access_token_config =
+            {
+                .credentials_requirement =
+                    AccessTokenConfig::CredentialsRequirement::kStrict,
+                .mode = signin::PrimaryAccountAccessTokenFetcher::Mode::
+                    kWaitUntilAvailable,
+                // TODO(b/284523446): Refer to GaiaConstants rather than
+                // literal.
+                .oauth2_scope =
+                    "https://www.googleapis.com/auth/kid.permission",
+            },
+        .request_priority = net::IDLE,
+};
+
+inline constexpr FetcherConfig kClassifyUrlConfigBestEffort = {
     .service_path = "/kidsmanagement/v1/people/me:classifyUrl",
     .method = FetcherConfig::Method::kPost,
     .histogram_basename = "FamilyLinkUser.ClassifyUrlRequest",
     .traffic_annotation = annotations::ClassifyUrlTag,
     .access_token_config =
         {
-            .mode = signin::PrimaryAccountAccessTokenFetcher::Mode::
-                kWaitUntilAvailable,
+            .credentials_requirement =
+                AccessTokenConfig::CredentialsRequirement::kBestEffort,
+            .mode = signin::PrimaryAccountAccessTokenFetcher::Mode::kImmediate,
             // TODO(b/284523446): Refer to GaiaConstants rather than literal.
             .oauth2_scope = "https://www.googleapis.com/auth/kid.permission",
         },
     .request_priority = net::IDLE,
 };
 
-constexpr FetcherConfig kListFamilyMembersConfig{
+inline constexpr FetcherConfig kListFamilyMembersConfig{
     .service_path = "/kidsmanagement/v1/families/mine/members",
     .method = FetcherConfig::Method::kGet,
     .histogram_basename = "Signin.ListFamilyMembersRequest",
@@ -171,6 +206,8 @@ constexpr FetcherConfig kListFamilyMembersConfig{
             .always_use_initial_delay = false,
         },
     .access_token_config{
+        .credentials_requirement =
+            AccessTokenConfig::CredentialsRequirement::kStrict,
         // Wait for the token to be issued. This fetch is asynchronous and not
         // latency sensitive.
         .mode =
@@ -182,12 +219,14 @@ constexpr FetcherConfig kListFamilyMembersConfig{
     .request_priority = net::IDLE,
 };
 
-constexpr FetcherConfig kCreatePermissionRequestConfig = {
+inline constexpr FetcherConfig kCreatePermissionRequestConfig = {
     .service_path = "/kidsmanagement/v1/people/me/permissionRequests",
     .method = FetcherConfig::Method::kPost,
     .histogram_basename = "FamilyLinkUser.CreatePermissionRequest",
     .traffic_annotation = annotations::CreatePermissionRequestTag,
     .access_token_config{
+        .credentials_requirement =
+            AccessTokenConfig::CredentialsRequirement::kStrict,
         // Fail the fetch right away when access token is not immediately
         // available.
         .mode = signin::PrimaryAccountAccessTokenFetcher::Mode::kImmediate,

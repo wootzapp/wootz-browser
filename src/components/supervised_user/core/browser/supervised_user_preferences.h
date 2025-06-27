@@ -15,6 +15,12 @@
 // family.
 namespace supervised_user {
 
+// Indicates how supervised user controls should handle the Google Search.
+enum class GoogleSafeSearchStateStatus : bool {
+  kDisabled = false,
+  kEnforced = true,
+};
+
 // Register preferences that describe parental controls.
 void RegisterFamilyPrefs(PrefService& pref_service,
                          const kidsmanagement::ListMembersResponse& response);
@@ -24,26 +30,32 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 void EnableParentalControls(PrefService& pref_service);
 void DisableParentalControls(PrefService& pref_service);
 
+#if BUILDFLAG(IS_CHROMEOS)
 bool IsChildAccountStatusKnown(const PrefService& pref_service);
+#endif
 
 // Returns true if the safe sites preference is enabled and user is supervised.
 bool IsSafeSitesEnabled(const PrefService& pref_service);
 
 // Returns true if both the primary account is a child account subject to
 // parental controls and the platform supports Family Link supervision features.
+// TODO(b/342097235): prefs::kSupervisedUserID is being deprecated. Supervision
+// status via AccountCapabilities can be obtained with
+// `IsPrimaryAccountSubjectToParentalControls`.
 bool IsSubjectToParentalControls(const PrefService& pref_service);
 
-// Returns true if the extensions permissions parental control is enabled
-// for supervised users.
-// Returns false if the user is not supervised.
-bool AreExtensionsPermissionsEnabled(const PrefService& pref_service);
+// Google safe search behavior manipulation
+bool IsGoogleSafeSearchEnforced(const PrefService& pref_service);
+void SetGoogleSafeSearch(PrefService& pref_service,
+                         GoogleSafeSearchStateStatus status);
 
-// Returns true if the extension handling mode for skipping parent approval is
-// enabled and the parent has authorized installing extensions without their
-// approval.
-// Returns false if the user is not supervised.
-bool SupervisedUserCanSkipExtensionParentApprovals(
-    const PrefService& pref_service);
+// A set of modifiers of supervision state without associated account.
+// Changes are written to user prefs.
+void EnableBrowserContentFilters(PrefService& pref_service);
+void DisableBrowserContentFilters(PrefService& pref_service);
+void EnableSearchContentFilters(PrefService& pref_service);
+void DisableSearchContentFilters(PrefService& pref_service);
+
 }  // namespace supervised_user
 
 #endif  // COMPONENTS_SUPERVISED_USER_CORE_BROWSER_SUPERVISED_USER_PREFERENCES_H_

@@ -25,15 +25,10 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import org.chromium.base.FeatureList;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
-
-import java.util.Collections;
-import java.util.Map;
 
 /** Tests for {@link MessageContainer}. */
 @RunWith(BaseJUnit4ClassRunner.class)
@@ -50,14 +45,7 @@ public class MessageContainerTest {
 
     @BeforeClass
     public static void setupSuite() {
-        sActivityTestRule.launchActivity(null);
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    sActivity = sActivityTestRule.getActivity();
-                });
-        FeatureList.setTestFeatures(
-                Collections.singletonMap(
-                        MessageFeatureList.MESSAGES_FOR_ANDROID_STACKING_ANIMATION, false));
+        sActivity = sActivityTestRule.launchActivity(null);
     }
 
     @Test
@@ -88,8 +76,6 @@ public class MessageContainerTest {
     @Test
     @SmallTest
     public void testCustomA11yActions() {
-        FeatureList.setTestFeatures(
-                Map.of(MessageFeatureList.MESSAGES_FOR_ANDROID_STACKING_ANIMATION, true));
         MessageContainer container = new MessageContainer(sActivity, null);
         container.setA11yDelegate(mA11yDelegate);
         AccessibilityDelegateCompat delegate = ViewCompat.getAccessibilityDelegate(container);

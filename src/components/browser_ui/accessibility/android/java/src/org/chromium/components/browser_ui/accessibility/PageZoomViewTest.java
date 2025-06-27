@@ -30,43 +30,29 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.content.browser.HostZoomMapImpl;
 import org.chromium.content.browser.HostZoomMapImplJni;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.ContentFeatureList;
-import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.content_public.browser.test.mock.MockWebContents;
 import org.chromium.ui.test.util.BlankUiTestActivity;
-import org.chromium.ui.test.util.DisableAnimationsTestRule;
 
 /** Unit tests for the PageZoom view and view binder. */
 @RunWith(BaseJUnit4ClassRunner.class)
-@EnableFeatures({ContentFeatureList.ACCESSIBILITY_PAGE_ZOOM})
-@DisableFeatures({
-    ContentFeatureList.SMART_ZOOM,
-    ContentFeatureList.ACCESSIBILITY_PAGE_ZOOM_ENHANCEMENTS
-})
+@DisableFeatures({ContentFeatureList.ACCESSIBILITY_PAGE_ZOOM_V2, ContentFeatureList.SMART_ZOOM})
 @Batch(Batch.PER_CLASS)
 public class PageZoomViewTest {
-    @ClassRule
-    public static DisableAnimationsTestRule sDisableAnimationsRule =
-            new DisableAnimationsTestRule();
-
     @ClassRule
     public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
             new BaseActivityTestRule<>(BlankUiTestActivity.class);
@@ -75,14 +61,12 @@ public class PageZoomViewTest {
     private static ViewGroup sContentView;
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
     @Mock private PageZoomCoordinatorDelegate mDelegate;
     @Mock private HostZoomMapImpl.Natives mHostZoomMapJniMock;
     @Mock private PageZoomMetrics.Natives mPageZoomMetricsJniMock;
     @Mock private BrowserContextHandle mBrowserContextHandle;
-    @Mock private WebContents mWebContents;
+    @Mock private MockWebContents mWebContents;
 
     private PageZoomCoordinator mCoordinator;
     private View mPageZoomView;
@@ -90,7 +74,7 @@ public class PageZoomViewTest {
     @BeforeClass
     public static void setupSuite() {
         sActivityTestRule.launchActivity(null);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sActivity = sActivityTestRule.getActivity();
                     sContentView = new FrameLayout(sActivity);
@@ -106,10 +90,8 @@ public class PageZoomViewTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-
-        mJniMocker.mock(HostZoomMapImplJni.TEST_HOOKS, mHostZoomMapJniMock);
-        mJniMocker.mock(PageZoomMetricsJni.TEST_HOOKS, mPageZoomMetricsJniMock);
+        HostZoomMapImplJni.setInstanceForTesting(mHostZoomMapJniMock);
+        PageZoomMetricsJni.setInstanceForTesting(mPageZoomMetricsJniMock);
         when(mHostZoomMapJniMock.getDefaultZoomLevel(any())).thenReturn(0.0);
         when(mHostZoomMapJniMock.getZoomLevel(any())).thenReturn(0.0);
 
@@ -126,7 +108,7 @@ public class PageZoomViewTest {
                     }
                 };
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sContentView.removeAllViews();
                     mPageZoomView =
@@ -160,13 +142,11 @@ public class PageZoomViewTest {
         assertEquals(
                 View.VISIBLE,
                 mPageZoomView.findViewById(R.id.page_zoom_increase_zoom_button).getVisibility());
-
-        // The 'Reset' button and divider should not be visible by default.
         assertEquals(
-                View.GONE,
+                View.VISIBLE,
                 mPageZoomView.findViewById(R.id.page_zoom_reset_divider).getVisibility());
         assertEquals(
-                View.GONE,
+                View.VISIBLE,
                 mPageZoomView.findViewById(R.id.page_zoom_reset_zoom_button).getVisibility());
     }
 
@@ -213,7 +193,7 @@ public class PageZoomViewTest {
                 40, ((SeekBar) mPageZoomView.findViewById(R.id.page_zoom_slider)).getProgress());
         assertViewState("90", true, true);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCoordinator.hide();
                 });
@@ -243,7 +223,7 @@ public class PageZoomViewTest {
                 60, ((SeekBar) mPageZoomView.findViewById(R.id.page_zoom_slider)).getProgress());
         assertViewState("110", true, true);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCoordinator.hide();
                 });
@@ -253,7 +233,6 @@ public class PageZoomViewTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({ContentFeatureList.ACCESSIBILITY_PAGE_ZOOM_ENHANCEMENTS})
     public void testResetButton() {
         assertEquals(
                 50, ((SeekBar) mPageZoomView.findViewById(R.id.page_zoom_slider)).getProgress());

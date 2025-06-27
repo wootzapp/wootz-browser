@@ -9,6 +9,8 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
+#include "components/permissions/features.h"
+#include "components/permissions/permission_hats_trigger_helper.h"
 #include "components/permissions/permission_request_enums.h"
 #include "components/permissions/permission_uma_util.h"
 #include "components/permissions/permissions_client.h"
@@ -67,26 +69,19 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       std::optional<base::TimeDelta> prompt_display_duration,
       bool is_post_prompt,
       const GURL& gurl,
-      base::OnceCallback<void()> hats_shown_callback_) override;
+      std::optional<
+          permissions::feature_params::PermissionElementPromptPosition>
+          pepc_prompt_position,
+      ContentSetting initial_permission_status,
+      base::OnceCallback<void()> hats_shown_callback,
+      std::optional<
+          permissions::PermissionHatsTriggerHelper::PreviewParametersForHats>
+          preview_parameters) override;
 
 #if !BUILDFLAG(IS_ANDROID)
   permissions::PermissionIgnoredReason DetermineIgnoreReason(
       content::WebContents* web_contents) override;
 #endif
-
-// #define CanBypassEmbeddingOriginCheck                                    
-//   WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
-//                                      const GURL& embedding_origin,       
-//                                      ContentSettingsType type) override; 
-//   bool CanBypassEmbeddingOriginCheck
-
-// #define MaybeCreateMessageUI                                        
-//   MaybeCreateMessageUI_ChromiumImpl(                                
-//       content::WebContents* web_contents, ContentSettingsType type, 
-//       base::WeakPtr<permissions::PermissionPromptAndroid> prompt);  
-//   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI
-// #undef MaybeCreateMessageUI
-// #undef CanBypassEmbeddingOriginCheck
 
   void OnPromptResolved(
       permissions::RequestType request_type,
@@ -97,7 +92,14 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       permissions::PermissionRequestGestureType gesture_type,
       std::optional<QuietUiReason> quiet_ui_reason,
       base::TimeDelta prompt_display_duration,
-      content::WebContents* web_contents) override;
+      std::optional<
+          permissions::feature_params::PermissionElementPromptPosition>
+          pepc_prompt_position,
+      ContentSetting initial_permission_status,
+      content::WebContents* web_contents,
+      std::optional<
+          permissions::PermissionHatsTriggerHelper::PreviewParametersForHats>
+          preview_parameters) override;
   std::optional<bool> HadThreeConsecutiveNotificationPermissionDenies(
       content::BrowserContext* browser_context) override;
   std::optional<bool> HasPreviouslyAutoRevokedPermission(
@@ -106,10 +108,14 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       ContentSettingsType permission) override;
   std::optional<url::Origin> GetAutoApprovalOrigin(
       content::BrowserContext* browser_context) override;
+  std::optional<permissions::PermissionAction> GetAutoApprovalStatus(
+      content::BrowserContext* browser_context,
+      const GURL& origin) override;
       // Wootz patch
-  bool WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
-                                     const GURL& embedding_origin,       
-                                     ContentSettingsType type) override; 
+      bool WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
+        const GURL& embedding_origin,       
+        ContentSettingsType type) override;
+
   bool CanBypassEmbeddingOriginCheck(const GURL& requesting_origin,
                                      const GURL& embedding_origin) override;
   std::optional<GURL> OverrideCanonicalOrigin(
@@ -130,8 +136,9 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       base::WeakPtr<permissions::PermissionPromptAndroid> prompt) override;
       // Wootz patch 
   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI_ChromiumImpl(                                
-      content::WebContents* web_contents, ContentSettingsType type,
-      base::WeakPtr<permissions::PermissionPromptAndroid> prompt);  
+    content::WebContents* web_contents, ContentSettingsType type,
+    base::WeakPtr<permissions::PermissionPromptAndroid> prompt); 
+    
   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI(
       content::WebContents* web_contents,
       ContentSettingsType type,
@@ -146,6 +153,7 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
   int MapToJavaDrawableId(int resource_id) override;
   favicon::FaviconService* GetFaviconService(
       content::BrowserContext* browser_context) override;
+  const std::u16string GetClientApplicationName() const override;
 #else
   std::unique_ptr<permissions::PermissionPrompt> CreatePrompt(
       content::WebContents* web_contents,
@@ -154,6 +162,18 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
 
   bool HasDevicePermission(ContentSettingsType type) const override;
   bool CanRequestDevicePermission(ContentSettingsType type) const override;
+  bool IsPermissionBlockedByDevicePolicy(
+      content::WebContents* web_contents,
+      ContentSetting setting,
+      const content_settings::SettingInfo& info,
+      ContentSettingsType type) const override;
+  bool IsPermissionAllowedByDevicePolicy(
+      content::WebContents* web_contents,
+      ContentSetting setting,
+      const content_settings::SettingInfo& info,
+      ContentSettingsType type) const override;
+  bool IsSystemDenied(ContentSettingsType type) const override;
+  bool CanPromptSystemPermission(ContentSettingsType type) const override;
 
  private:
   friend base::NoDestructor<ChromePermissionsClient>;

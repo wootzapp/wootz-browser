@@ -6,6 +6,8 @@
 
 #include <utility>
 
+#include "base/containers/span.h"
+#include "base/containers/to_vector.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -95,15 +97,23 @@ class BrowserSideSender
     std::move(requested_script_closure_).Run();
   }
 
+  // Send |data| with null terminator.
   void PushDataPipe(const std::string& data,
                     const mojo::DataPipeProducerHandle& handle) {
-    // Send |data| with null terminator.
     ASSERT_TRUE(handle.is_valid());
-    size_t written_bytes = data.size() + 1;
-    MojoResult rv = handle.WriteData(data.c_str(), &written_bytes,
-                                     MOJO_WRITE_DATA_FLAG_NONE);
+
+    size_t actually_written_bytes = 0;
+    MojoResult rv =
+        handle.WriteData(base::as_byte_span(data), MOJO_WRITE_DATA_FLAG_NONE,
+                         actually_written_bytes);
     ASSERT_EQ(MOJO_RESULT_OK, rv);
-    ASSERT_EQ(data.size() + 1, written_bytes);
+    ASSERT_EQ(data.size(), actually_written_bytes);
+
+    char nul_char = '\0';
+    rv = handle.WriteData(base::byte_span_from_ref(nul_char),
+                          MOJO_WRITE_DATA_FLAG_NONE, actually_written_bytes);
+    ASSERT_EQ(MOJO_RESULT_OK, rv);
+    ASSERT_EQ(1u, actually_written_bytes);
   }
 
   base::OnceClosure requested_script_closure_;
@@ -153,7 +163,8 @@ class ServiceWorkerInstalledScriptsManagerTest : public testing::Test {
           installed_scripts_info) {
     auto installed_scripts_manager_params =
         std::make_unique<WebServiceWorkerInstalledScriptsManagerParams>(
-            std::move(installed_scripts_info->installed_urls),
+            base::ToVector(std::move(installed_scripts_info->installed_urls),
+                           ToWebURL),
             std::move(installed_scripts_info->manager_receiver),
             std::move(installed_scripts_info->manager_host_remote));
     installed_scripts_manager_ =

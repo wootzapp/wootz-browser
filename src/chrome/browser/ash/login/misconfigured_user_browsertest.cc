@@ -6,7 +6,6 @@
 #include <optional>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/login_screen_test_api.h"
 #include "base/run_loop.h"
 #include "base/test/test_future.h"
@@ -19,10 +18,10 @@
 #include "chrome/browser/ash/login/test/cryptohome_mixin.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/ash/settings/stub_cros_settings_provider.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/oobe_ui.h"
 #include "chrome/browser/ui/webui/ash/login/user_creation_screen_handler.h"
@@ -48,7 +47,7 @@ namespace {
 
 constexpr char kMisconfiguredUserPref[] = "incomplete_login_user_account";
 constexpr char kMisconfiguredUserPrefV2[] = "incomplete_login_user_account_v2";
-constexpr char kNewUserGaiaId[] = "1234";
+constexpr GaiaId::Literal kNewUserGaiaId("1234");
 constexpr char kNewUserPassword[] = "password";
 constexpr char kNewUserEmail[] = "new-user@gmail.com";
 
@@ -91,33 +90,6 @@ class FakeAuthSessionAuthenticator : public AuthSessionAuthenticator {
   base::OnceClosure on_record_auth_factor_added_;
 };
 
-class FakeAuthenticatorBuilder : public AuthenticatorBuilder {
- public:
-  FakeAuthenticatorBuilder(base::OnceClosure on_record_auth_factor_added,
-                           bool new_user_can_become_owner)
-      : new_user_can_become_owner_(new_user_can_become_owner),
-        on_record_auth_factor_added_(std::move(on_record_auth_factor_added)) {}
-
-  FakeAuthenticatorBuilder(const FakeAuthenticatorBuilder&) = delete;
-  FakeAuthenticatorBuilder& operator=(const FakeAuthenticatorBuilder&) = delete;
-
-  ~FakeAuthenticatorBuilder() override = default;
-
-  // Makes UserSessionManager initialize a fake AuthSessionAuthenticator.
-  // Also passes a callback to the fake that's called when attempting to record
-  // the addition of an auth factor.
-  scoped_refptr<Authenticator> Create(AuthStatusConsumer* consumer) override {
-    return new FakeAuthSessionAuthenticator(
-        consumer, std::make_unique<ChromeSafeModeDelegate>(),
-        /*user_recorder=*/base::DoNothing(), g_browser_process->local_state(),
-        new_user_can_become_owner_, std::move(on_record_auth_factor_added_));
-  }
-
- private:
-  bool new_user_can_become_owner_;
-  base::OnceClosure on_record_auth_factor_added_;
-};
-
 }  // namespace
 
 class MisconfiguredOwnerUserTest : public LoginManagerTest {
@@ -127,23 +99,14 @@ class MisconfiguredOwnerUserTest : public LoginManagerTest {
 
   void SetUpOnMainThread() override {
     add_auth_factor_waiter_ = std::make_unique<base::test::TestFuture<void>>();
-    if (ash::features::AreLocalPasswordsEnabledForConsumers()) {
-      auto test_api =
-          auth::AuthFactorConfig::TestApi(auth::GetAuthFactorConfigForTesting(
-              quick_unlock::QuickUnlockFactory::GetDelegate(),
-              g_browser_process->local_state()));
-      test_api.SetAddKnowledgeFactorCallback(
-          add_auth_factor_waiter_->GetCallback());
-      test_api.SetSkipUserIntegrityNotification(true);
-    } else {
-      auto user_session_manager_test_api =
-          std::make_unique<test::UserSessionManagerTestApi>(
-              UserSessionManager::GetInstance());
-      user_session_manager_test_api->InjectAuthenticatorBuilder(
-          std::make_unique<FakeAuthenticatorBuilder>(
-              add_auth_factor_waiter_->GetCallback(),
-              new_user_can_become_owner_));
-    }
+    auto test_api =
+        auth::AuthFactorConfig::TestApi(auth::GetAuthFactorConfigForTesting(
+            quick_unlock::QuickUnlockFactory::GetDelegate(),
+            g_browser_process->local_state()));
+    test_api.SetAddKnowledgeFactorCallback(
+        add_auth_factor_waiter_->GetCallback());
+    test_api.SetSkipUserIntegrityNotification(true);
+
     LoginManagerTest::SetUpOnMainThread();
   }
 
@@ -211,7 +174,8 @@ class MisconfiguredUserTest : public MisconfiguredOwnerUserTest {
 IN_PROC_BROWSER_TEST_F(
     MisconfiguredUserTest,
     PRE_MisconfiguredUserSuccessfullyRemovedFromUserManager) {
-  user_manager::UserList users = user_manager::UserManager::Get()->GetUsers();
+  user_manager::UserList users =
+      user_manager::UserManager::Get()->GetPersistedUsers();
 
   auto result =
       std::find_if(begin(users), end(users), [this](user_manager::User* user) {
@@ -228,7 +192,8 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(MisconfiguredUserTest,
                        MisconfiguredUserSuccessfullyRemovedFromUserManager) {
-  user_manager::UserList users = user_manager::UserManager::Get()->GetUsers();
+  user_manager::UserList users =
+      user_manager::UserManager::Get()->GetPersistedUsers();
 
   auto result =
       std::find_if(begin(users), end(users), [this](user_manager::User* user) {

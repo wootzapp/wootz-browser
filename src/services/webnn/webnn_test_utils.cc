@@ -4,21 +4,32 @@
 
 #include "services/webnn/webnn_test_utils.h"
 
+#include <limits.h>
+
 #include "base/check_is_test.h"
+#include "base/test/test_future.h"
+#include "base/unguessable_token.h"
+#include "services/webnn/public/cpp/context_properties.h"
+#include "services/webnn/public/cpp/supported_tensors.h"
+#include "services/webnn/webnn_context_impl.h"
+#include "third_party/blink/public/common/tokens/tokens.h"
 
 namespace webnn {
 
-GraphInfoBuilder::GraphInfoBuilder() {
-  graph_info_ = mojom::GraphInfo::New();
-}
+GraphInfoBuilder::GraphInfoBuilder(
+    mojo::AssociatedRemote<mojom::WebNNGraphBuilder>& graph_builder_remote)
+    : graph_info_(mojom::GraphInfo::New()),
+      graph_builder_remote_(graph_builder_remote) {}
+
 GraphInfoBuilder::~GraphInfoBuilder() = default;
 
 uint64_t GraphInfoBuilder::BuildOperand(const std::vector<uint32_t>& dimensions,
-                                        mojom::Operand::DataType type,
+                                        OperandDataType type,
                                         mojom::Operand::Kind kind) {
   mojom::OperandPtr operand = mojom::Operand::New();
-  operand->data_type = type;
-  operand->dimensions = dimensions;
+
+  operand->descriptor =
+      OperandDescriptor::UnsafeCreateForTesting(type, dimensions);
   operand->kind = kind;
 
   CHECK(graph_info_->id_to_operand_map.find(operand_id_) ==
@@ -29,13 +40,13 @@ uint64_t GraphInfoBuilder::BuildOperand(const std::vector<uint32_t>& dimensions,
 
 uint64_t GraphInfoBuilder::BuildIntermediateOperand(
     const std::vector<uint32_t>& dimensions,
-    mojom::Operand::DataType type) {
+    OperandDataType type) {
   return BuildOperand(dimensions, type, mojom::Operand::Kind::kOutput);
 }
 
 uint64_t GraphInfoBuilder::BuildInput(const std::string& name,
                                       const std::vector<uint32_t>& dimensions,
-                                      mojom::Operand::DataType type) {
+                                      OperandDataType type) {
   uint64_t operand_id =
       BuildOperand(dimensions, type, mojom::Operand::Kind::kInput);
   graph_info_->id_to_operand_map[operand_id]->name = name;
@@ -45,12 +56,15 @@ uint64_t GraphInfoBuilder::BuildInput(const std::string& name,
 
 uint64_t GraphInfoBuilder::BuildConstant(
     const std::vector<uint32_t>& dimensions,
-    mojom::Operand::DataType type,
-    base::span<const uint8_t> values) {
+    OperandDataType type,
+    base::span<const uint8_t> values,
+    blink::WebNNPendingConstantToken handle) {
   uint64_t operand_id =
       BuildOperand(dimensions, type, mojom::Operand::Kind::kConstant);
-  graph_info_->constant_id_to_buffer_map[operand_id] =
-      mojo_base::BigBuffer(values);
+
+  graph_builder_remote_->get()->CreatePendingConstant(
+      handle, type, mojo_base::BigBuffer(values));
+  graph_info_->constant_operand_ids_to_handles[operand_id] = std::move(handle);
   return operand_id;
 }
 
@@ -61,7 +75,7 @@ void GraphInfoBuilder::AddOutput(const std::string& name, uint64_t operand_id) {
 
 uint64_t GraphInfoBuilder::BuildOutput(const std::string& name,
                                        const std::vector<uint32_t>& dimensions,
-                                       mojom::Operand::DataType type) {
+                                       OperandDataType type) {
   uint64_t operand_id = BuildOperand(dimensions, type);
   AddOutput(name, operand_id);
   return operand_id;
@@ -70,16 +84,14 @@ uint64_t GraphInfoBuilder::BuildOutput(const std::string& name,
 void GraphInfoBuilder::BuildArgMinMax(mojom::ArgMinMax::Kind kind,
                                       uint64_t input_operand_id,
                                       uint64_t output_operand_id,
-                                      std::vector<uint32_t> axes,
-                                      bool keep_dimensions,
-                                      bool select_last_index) {
+                                      uint32_t axis,
+                                      bool keep_dimensions) {
   mojom::ArgMinMaxPtr arg_min_max = mojom::ArgMinMax::New();
   arg_min_max->kind = kind;
   arg_min_max->input_operand_id = input_operand_id;
   arg_min_max->output_operand_id = output_operand_id;
-  arg_min_max->axes = axes;
+  arg_min_max->axis = axis;
   arg_min_max->keep_dimensions = keep_dimensions;
-  arg_min_max->select_last_index = select_last_index;
   graph_info_->operations.push_back(
       mojom::Operation::NewArgMinMax(std::move(arg_min_max)));
 }
@@ -189,6 +201,38 @@ void GraphInfoBuilder::BuildConcat(std::vector<uint64_t> input_operand_ids,
       mojom::Operation::NewConcat(std::move(concat)));
 }
 
+void GraphInfoBuilder::BuildCumulativeSum(uint64_t input_operand_id,
+                                          uint64_t output_operand_id,
+                                          uint32_t axis,
+                                          std::optional<bool> exclusive,
+                                          std::optional<bool> reversed) {
+  mojom::CumulativeSumPtr cumulative_sum = mojom::CumulativeSum::New();
+  cumulative_sum->input_operand_id = input_operand_id;
+  cumulative_sum->output_operand_id = output_operand_id;
+  cumulative_sum->axis = axis;
+  if (exclusive.has_value()) {
+    cumulative_sum->exclusive = exclusive.value();
+  }
+  if (reversed.has_value()) {
+    cumulative_sum->reversed = reversed.value();
+  }
+  graph_info_->operations.push_back(
+      mojom::Operation::NewCumulativeSum(std::move(cumulative_sum)));
+}
+
+void GraphInfoBuilder::BuildDequantizeLinear(uint64_t input_operand_id,
+                                             uint64_t scale_operand_id,
+                                             uint64_t zero_point_operand_id,
+                                             uint64_t output_operand_id) {
+  mojom::DequantizeLinearPtr dequantize_linear = mojom::DequantizeLinear::New();
+  dequantize_linear->input_operand_id = input_operand_id;
+  dequantize_linear->scale_operand_id = scale_operand_id;
+  dequantize_linear->zero_point_operand_id = zero_point_operand_id;
+  dequantize_linear->output_operand_id = output_operand_id;
+  graph_info_->operations.push_back(
+      mojom::Operation::NewDequantizeLinear(std::move(dequantize_linear)));
+}
+
 void GraphInfoBuilder::BuildElementWiseBinary(
     mojom::ElementWiseBinary::Kind kind,
     uint64_t lhs_operand,
@@ -206,7 +250,7 @@ void GraphInfoBuilder::BuildElementWiseBinary(
 void GraphInfoBuilder::BuildExpand(uint64_t input_operand_id,
                                    uint64_t output_operand_id) {
   graph_info_->operations.push_back(mojom::Operation::NewExpand(
-      mojom::Expand::New(input_operand_id, output_operand_id)));
+      mojom::Expand::New(input_operand_id, output_operand_id, "")));
 }
 
 void GraphInfoBuilder::BuildMatmul(uint64_t a_operand_id,
@@ -244,9 +288,32 @@ void GraphInfoBuilder::BuildGather(uint64_t input_operand_id,
       mojom::Operation::NewGather(std::move(gather)));
 }
 
+void GraphInfoBuilder::BuildGatherElements(uint64_t input_operand_id,
+                                           uint64_t indices_operand_id,
+                                           uint64_t output_operand_id,
+                                           uint32_t axis) {
+  auto gather_elements = mojom::GatherElements::New();
+  gather_elements->input_operand_id = input_operand_id;
+  gather_elements->output_operand_id = output_operand_id;
+  gather_elements->indices_operand_id = indices_operand_id;
+  gather_elements->axis = axis;
+  graph_info_->operations.push_back(
+      mojom::Operation::NewGatherElements(std::move(gather_elements)));
+}
+
+void GraphInfoBuilder::BuildGatherND(uint64_t input_operand_id,
+                                     uint64_t indices_operand_id,
+                                     uint64_t output_operand_id) {
+  auto gather_nd = mojom::GatherND::New(input_operand_id, indices_operand_id,
+                                        output_operand_id, "");
+  graph_info_->operations.push_back(
+      mojom::Operation::NewGatherNd(std::move(gather_nd)));
+}
+
 void GraphInfoBuilder::BuildGelu(uint64_t input_operand_id,
                                  uint64_t output_operand_id) {
-  mojom::GeluPtr gelu = mojom::Gelu::New(input_operand_id, output_operand_id);
+  mojom::GeluPtr gelu =
+      mojom::Gelu::New(input_operand_id, output_operand_id, "");
   graph_info_->operations.push_back(mojom::Operation::NewGelu(std::move(gelu)));
 }
 
@@ -287,6 +354,19 @@ void GraphInfoBuilder::BuildPrelu(uint64_t input_operand_id,
       mojom::Operation::NewPrelu(std::move(prelu)));
 }
 
+void GraphInfoBuilder::BuildQuantizeLinear(uint64_t input_operand_id,
+                                           uint64_t scale_operand_id,
+                                           uint64_t zero_point_operand_id,
+                                           uint64_t output_operand_id) {
+  mojom::QuantizeLinearPtr quantize_linear = mojom::QuantizeLinear::New();
+  quantize_linear->input_operand_id = input_operand_id;
+  quantize_linear->scale_operand_id = scale_operand_id;
+  quantize_linear->zero_point_operand_id = zero_point_operand_id;
+  quantize_linear->output_operand_id = output_operand_id;
+  graph_info_->operations.push_back(
+      mojom::Operation::NewQuantizeLinear(std::move(quantize_linear)));
+}
+
 void GraphInfoBuilder::BuildReduce(mojom::Reduce::Kind kind,
                                    uint64_t input_operand_id,
                                    uint64_t output_operand_id,
@@ -319,6 +399,40 @@ void GraphInfoBuilder::BuildReshape(uint64_t input_operand_id,
       mojom::Operation::NewReshape(std::move(reshape)));
 }
 
+void GraphInfoBuilder::BuildReverse(uint64_t input_operand_id,
+                                    uint64_t output_operand_id,
+                                    std::vector<uint32_t> axes) {
+  auto reverse = mojom::Reverse::New();
+  reverse->input_operand_id = input_operand_id;
+  reverse->output_operand_id = output_operand_id;
+  reverse->axes = std::move(axes);
+  graph_info_->operations.push_back(
+      mojom::Operation::NewReverse(std::move(reverse)));
+}
+
+void GraphInfoBuilder::BuildScatterElements(uint64_t input_operand_id,
+                                            uint64_t indices_operand_id,
+                                            uint64_t updates_operand_id,
+                                            uint64_t output_operand_id,
+                                            uint32_t axis) {
+  mojom::ScatterElementsPtr scatter_elements = mojom::ScatterElements::New(
+      input_operand_id, indices_operand_id, updates_operand_id,
+      output_operand_id, axis, "");
+  graph_info_->operations.push_back(
+      mojom::Operation::NewScatterElements(std::move(scatter_elements)));
+}
+
+void GraphInfoBuilder::BuildScatterND(uint64_t input_operand_id,
+                                      uint64_t indices_operand_id,
+                                      uint64_t updates_operand_id,
+                                      uint64_t output_operand_id) {
+  mojom::ScatterNDPtr scatter_nd =
+      mojom::ScatterND::New(input_operand_id, indices_operand_id,
+                            updates_operand_id, output_operand_id, "");
+  graph_info_->operations.push_back(
+      mojom::Operation::NewScatterNd(std::move(scatter_nd)));
+}
+
 void GraphInfoBuilder::BuildSigmoid(uint64_t input_operand_id,
                                     uint64_t output_operand_id) {
   mojom::SigmoidPtr sigmoid = mojom::Sigmoid::New();
@@ -329,17 +443,17 @@ void GraphInfoBuilder::BuildSigmoid(uint64_t input_operand_id,
 }
 
 void GraphInfoBuilder::BuildSoftmax(uint64_t input_operand_id,
-                                    uint64_t output_operand_id) {
-  mojom::SoftmaxPtr softmax = mojom::Softmax::New();
-  softmax->input_operand_id = input_operand_id;
-  softmax->output_operand_id = output_operand_id;
+                                    uint64_t output_operand_id,
+                                    uint32_t axis) {
+  mojom::SoftmaxPtr softmax =
+      mojom::Softmax::New(input_operand_id, output_operand_id, axis, "");
   graph_info_->operations.push_back(
       mojom::Operation::NewSoftmax(std::move(softmax)));
 }
 
 void GraphInfoBuilder::BuildSoftplus(uint64_t input_operand_id,
                                      uint64_t output_operand_id) {
-  auto softplus = mojom::Softplus::New(input_operand_id, output_operand_id);
+  auto softplus = mojom::Softplus::New(input_operand_id, output_operand_id, "");
   graph_info_->operations.push_back(
       mojom::Operation::NewSoftplus(std::move(softplus)));
 }
@@ -361,6 +475,16 @@ void GraphInfoBuilder::BuildTanh(uint64_t input_operand_id,
   graph_info_->operations.push_back(mojom::Operation::NewTanh(std::move(tanh)));
 }
 
+void GraphInfoBuilder::BuildTile(uint64_t input_operand_id,
+                                 uint64_t output_operand_id,
+                                 std::vector<uint32_t> repetitions) {
+  mojom::TilePtr tile = mojom::Tile::New();
+  tile->input_operand_id = input_operand_id;
+  tile->output_operand_id = output_operand_id;
+  tile->repetitions = std::move(repetitions);
+  graph_info_->operations.push_back(mojom::Operation::NewTile(std::move(tile)));
+}
+
 void GraphInfoBuilder::BuildTranspose(uint64_t input_operand_id,
                                       uint64_t output_operand_id,
                                       std::vector<uint32_t> permutation) {
@@ -377,7 +501,7 @@ void GraphInfoBuilder::BuildTriangular(uint64_t input_operand_id,
                                        bool upper,
                                        int32_t diagonal) {
   mojom::TriangularPtr triangular = mojom::Triangular::New(
-      input_operand_id, output_operand_id, upper, diagonal);
+      input_operand_id, output_operand_id, upper, diagonal, "");
   graph_info_->operations.push_back(
       mojom::Operation::NewTriangular(std::move(triangular)));
 }
@@ -397,41 +521,195 @@ void GraphInfoBuilder::BuildWhere(uint64_t condition_operand_id,
 
 void GraphInfoBuilder::BuildSlice(uint64_t input_operand_id,
                                   uint64_t output_operand_id,
-                                  std::vector<uint32_t> starts,
-                                  std::vector<uint32_t> sizes) {
-  CHECK(starts.size() == sizes.size());
+                                  base::span<const uint32_t> starts,
+                                  base::span<const uint32_t> sizes,
+                                  base::span<const uint32_t> strides) {
+  CHECK_EQ(starts.size(), sizes.size());
+  CHECK_EQ(starts.size(), strides.size());
   mojom::SlicePtr slice = mojom::Slice::New();
   slice->input_operand_id = input_operand_id;
   slice->output_operand_id = output_operand_id;
-  for (uint32_t i = 0; i < starts.size(); ++i) {
-    mojom::StartAndSizePtr start_and_size = mojom::StartAndSize::New();
-    start_and_size->start = starts[i];
-    start_and_size->size = sizes[i];
-    slice->starts_and_sizes.push_back(std::move(start_and_size));
+  for (size_t i = 0; i < starts.size(); ++i) {
+    slice->ranges.emplace_back(starts[i], sizes[i], strides[i]);
   }
-
   graph_info_->operations.push_back(
       mojom::Operation::NewSlice(std::move(slice)));
 }
 
 mojom::GraphInfoPtr GraphInfoBuilder::CloneGraphInfo() const {
-  CHECK_IS_TEST();
+  return CloneGraphInfoForTesting(*graph_info_);
+}
+
+mojom::GraphInfoPtr GraphInfoBuilder::TakeGraphInfo() {
+  return std::move(graph_info_);
+}
+
+[[nodiscard]] bool GraphInfoBuilder::IsValidGraphForTesting(
+    const ContextProperties& context_properties) {
+  base::test::TestFuture<bool> future;
+  graph_builder_remote_->get()->IsValidGraphForTesting(
+      context_properties, CloneGraphInfo(), future.GetCallback());
+  return future.Take();
+}
+
+mojom::GraphInfoPtr CloneGraphInfoForTesting(
+    const mojom::GraphInfo& graph_info) {
   mojom::GraphInfoPtr cloned_graph_info = mojom::GraphInfo::New();
-  for (auto& [operand_id, operand_info] : graph_info_->id_to_operand_map) {
+  for (auto& [operand_id, operand_info] : graph_info.id_to_operand_map) {
     cloned_graph_info->id_to_operand_map[operand_id] = operand_info.Clone();
   }
-  cloned_graph_info->input_operands = graph_info_->input_operands;
-  cloned_graph_info->output_operands = graph_info_->output_operands;
-  cloned_graph_info->operations.reserve(graph_info_->operations.size());
-  for (auto& operation : graph_info_->operations) {
+  cloned_graph_info->input_operands = graph_info.input_operands;
+  cloned_graph_info->output_operands = graph_info.output_operands;
+  cloned_graph_info->operations.reserve(graph_info.operations.size());
+  for (auto& operation : graph_info.operations) {
     cloned_graph_info->operations.push_back(operation.Clone());
   }
-  for (auto& [constant_id, constant_buffer] :
-       graph_info_->constant_id_to_buffer_map) {
-    cloned_graph_info->constant_id_to_buffer_map[constant_id] =
-        constant_buffer.Clone();
+  for (auto& [constant_id, constant_handle] :
+       graph_info.constant_operand_ids_to_handles) {
+    cloned_graph_info->constant_operand_ids_to_handles[constant_id] =
+        constant_handle;
   }
   return cloned_graph_info;
+}
+
+ContextProperties GetContextPropertiesForTesting() {
+  static constexpr SupportedRanks kMaxRank = SupportedRanks::UpTo(8);
+  return WebNNContextImpl::IntersectWithBaseProperties(ContextProperties(
+      InputOperandLayout::kNchw, Resample2DAxes::kAny,
+      BatchNormalizationAxis::kAny,
+      /*tensor_byte_length_limit=*/INT_MAX,
+      {/*input=*/SupportedDataTypes::All(),
+       /*constant=*/SupportedDataTypes::All(),
+       /*arg_min_max_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*arg_min_max_output=*/
+       {OperandDataType::kInt32, OperandDataType::kInt64},
+       /*batch_normalization_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*batch_normalization_mean=*/{SupportedDataTypes::All(), kMaxRank},
+       /*cast_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*clamp_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*concat_inputs=*/{SupportedDataTypes::All(), kMaxRank},
+       /*conv2d_input=*/{DataTypeConstraint::kFloat16To32, kMaxRank},
+       /*conv2d_bias=*/{DataTypeConstraint::kFloat16To32, kMaxRank},
+       /*conv_transpose2d_input=*/{DataTypeConstraint::kFloat16To32, kMaxRank},
+       /*conv_transpose2d_bias=*/{DataTypeConstraint::kFloat16To32, kMaxRank},
+       /*cumulative_sum_input=*/{DataTypeConstraint::kFloat16To32, kMaxRank},
+       /*dequantize_linear_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*dequantize_linear_scale=*/{SupportedDataTypes::All(), kMaxRank},
+       /*dequantize_linear_zero_point=*/{SupportedDataTypes::All(), kMaxRank},
+       /*add_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*sub_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*mul_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*div_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*max_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*min_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*pow_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*equal_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*greater_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*greater_or_equal_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lesser_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lesser_or_equal_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*not_equal_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*logical_and_input=*/{DataTypeConstraint::kUint8, kMaxRank},
+       /*logical_or_input=*/{DataTypeConstraint::kUint8, kMaxRank},
+       /*logical_xor_input=*/{DataTypeConstraint::kUint8, kMaxRank},
+       /*logical_not_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*logical_output=*/SupportedDataTypes::All(),
+       /*abs_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*ceil_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*cos_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*erf_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*exp_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*floor_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*identity_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*log_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*neg_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*reciprocal_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*sign_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*sin_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*sqrt_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*tan_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*elu_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*expand_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_indices=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_elements_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_elements_indices=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_nd_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gather_nd_indices=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gelu_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gemm_a=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gemm_c=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gru_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gru_bias=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gru_cell_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*gru_cell_bias=*/{SupportedDataTypes::All(), kMaxRank},
+       /*hard_sigmoid_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*hard_swish_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*instance_normalization_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*instance_normalization_scale=*/{SupportedDataTypes::All(), kMaxRank},
+       /*layer_normalization_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*leaky_relu_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*linear_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lstm_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lstm_bias=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lstm_cell_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*lstm_cell_bias=*/{SupportedDataTypes::All(), kMaxRank},
+       /*matmul_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*pad_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*average_pool2d_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*l2_pool2d_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*max_pool2d_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*prelu_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*quantize_linear_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*quantize_linear_zero_point=*/{SupportedDataTypes::All(), kMaxRank},
+       /*reduce_l1_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*reduce_l2_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*reduce_log_sum_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_log_sum_exp_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_max_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_mean_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_min_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_product_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_sum_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reduce_sum_square_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*relu_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*resample2d_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*reshape_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*reverse_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*scatter_elements_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*scatter_elements_indices=*/{SupportedDataTypes::All(), kMaxRank},
+       /*scatter_nd_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*scatter_nd_indices=*/{SupportedDataTypes::All(), kMaxRank},
+       /*scatter_nd_updates=*/{SupportedDataTypes::All(), kMaxRank},
+       /*sigmoid_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*slice_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*softmax_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*softplus_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*softsign_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*split_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*tanh_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*tile_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*transpose_input=*/{SupportedDataTypes::All(), kMaxRank},
+       /*triangular_input=*/
+       {SupportedDataTypes::All(), kMaxRank},
+       /*where_condition=*/{SupportedDataTypes::All(), kMaxRank},
+       /*where_value=*/{SupportedDataTypes::All(), kMaxRank}}));
 }
 
 }  // namespace webnn

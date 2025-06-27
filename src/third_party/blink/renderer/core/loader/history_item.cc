@@ -25,13 +25,13 @@
 
 #include "third_party/blink/renderer/core/loader/history_item.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/public/common/page_state/page_state.h"
 #include "third_party/blink/public/common/page_state/page_state_serialization.h"
 #include "third_party/blink/public/platform/web_http_body.h"
@@ -180,29 +180,28 @@ void HistoryItem::SetReferrerPolicy(network::mojom::ReferrerPolicy policy) {
   referrer_policy_ = policy;
 }
 
+HistoryItem::ViewState& HistoryItem::GetOrCreateViewState() {
+  if (!view_state_) {
+    view_state_ = ViewState();
+  }
+  return *view_state_;
+}
+
 void HistoryItem::SetVisualViewportScrollOffset(const ScrollOffset& offset) {
-  if (!view_state_)
-    view_state_ = std::make_optional<ViewState>();
-  view_state_->visual_viewport_scroll_offset_ = offset;
+  GetOrCreateViewState().visual_viewport_scroll_offset_ = offset;
 }
 
 void HistoryItem::SetScrollOffset(const ScrollOffset& offset) {
-  if (!view_state_)
-    view_state_ = std::make_optional<ViewState>();
-  view_state_->scroll_offset_ = offset;
+  GetOrCreateViewState().scroll_offset_ = offset;
 }
 
 void HistoryItem::SetPageScaleFactor(float scale_factor) {
-  if (!view_state_)
-    view_state_ = std::make_optional<ViewState>();
-  view_state_->page_scale_factor_ = scale_factor;
+  GetOrCreateViewState().page_scale_factor_ = scale_factor;
 }
 
 void HistoryItem::SetScrollAnchorData(
     const ScrollAnchorData& scroll_anchor_data) {
-  if (!view_state_)
-    view_state_ = std::make_optional<ViewState>();
-  view_state_->scroll_anchor_data_ = scroll_anchor_data;
+  GetOrCreateViewState().scroll_anchor_data_ = scroll_anchor_data;
 }
 
 void HistoryItem::SetDocumentState(const Vector<String>& state) {
@@ -364,8 +363,8 @@ HistoryItem::GetReferencedFilePathsForSerialization() const {
 
   std::vector<std::optional<std::u16string>> result;
   result.reserve(file_paths.size());
-  base::ranges::transform(file_paths, std::back_inserter(result),
-                          WebString::ToOptionalString16);
+  std::ranges::transform(file_paths, std::back_inserter(result),
+                         WebString::ToOptionalString16);
   return result;
 }
 

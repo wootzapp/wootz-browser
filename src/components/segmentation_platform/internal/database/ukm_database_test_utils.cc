@@ -4,8 +4,6 @@
 
 #include "components/segmentation_platform/internal/database/ukm_database_test_utils.h"
 
-#include <string_view>
-
 #include "base/strings/string_number_conversions.h"
 #include "components/segmentation_platform/internal/database/ukm_types.h"
 #include "sql/database.h"
@@ -30,11 +28,13 @@ UkmMetricsTable::MetricsRow GetMetricsRowWithQuery(sql::Statement& statement) {
   row.url_id = UrlId::FromUnsafeValue(statement.ColumnInt64(3));
   row.event_id = MetricsRowEventId::FromUnsafeValue(statement.ColumnInt64(4));
   uint64_t event_hash = 0;
-  if (base::HexStringToUInt64(statement.ColumnString(5), &event_hash))
+  if (base::HexStringToUInt64(statement.ColumnStringView(5), &event_hash)) {
     row.event_hash = UkmEventHash::FromUnsafeValue(event_hash);
+  }
   uint64_t metric_hash = 0;
-  if (base::HexStringToUInt64(statement.ColumnString(6), &metric_hash))
+  if (base::HexStringToUInt64(statement.ColumnStringView(6), &metric_hash)) {
     row.metric_hash = UkmMetricHash::FromUnsafeValue(metric_hash);
+  }
   row.metric_value = statement.ColumnInt64(7);
   return row;
 }
@@ -47,7 +47,7 @@ UmaMetricEntry GetUmaMetricsRowWithQuery(sql::Statement& statement) {
   row.time = statement.ColumnTime(1);
   row.type = static_cast<proto::SignalType>(statement.ColumnInt64(3));
   uint64_t metric_hash = 0;
-  if (base::HexStringToUInt64(statement.ColumnString(4), &metric_hash)) {
+  if (base::HexStringToUInt64(statement.ColumnStringView(4), &metric_hash)) {
     row.name_hash = metric_hash;
   }
   row.value = statement.ColumnInt64(5);
@@ -61,9 +61,9 @@ bool operator==(const UrlMatcher& row1, const UrlMatcher& row2) {
 }
 
 std::vector<UkmMetricsTable::MetricsRow> GetMetricsRowWithQuery(
-    std::string_view query,
+    base::cstring_view query,
     sql::Database& db) {
-  sql::Statement statement(db.GetUniqueStatement(query.data()));
+  sql::Statement statement(db.GetUniqueStatement(query));
   std::vector<UkmMetricsTable::MetricsRow> rows;
   while (statement.Step()) {
     rows.emplace_back(GetMetricsRowWithQuery(statement));
@@ -105,15 +105,15 @@ void AssertUrlsInTable(sql::Database& db, const std::vector<UrlMatcher>& urls) {
   while (statement.Step()) {
     actual_rows.emplace_back(
         UrlMatcher{.url_id = static_cast<UrlId>(statement.ColumnInt64(0)),
-                   .url = GURL(statement.ColumnString(1))});
+                   .url = GURL(statement.ColumnStringView(1))});
   }
 
   EXPECT_THAT(actual_rows, UnorderedElementsAreArray(urls));
 }
 
-std::vector<UmaMetricEntry> GetUmaMetricsRowWithQuery(std::string_view query,
+std::vector<UmaMetricEntry> GetUmaMetricsRowWithQuery(base::cstring_view query,
                                                       sql::Database& db) {
-  sql::Statement statement(db.GetUniqueStatement(query.data()));
+  sql::Statement statement(db.GetUniqueStatement(query));
   std::vector<UmaMetricEntry> rows;
   while (statement.Step()) {
     rows.emplace_back(GetUmaMetricsRowWithQuery(statement));

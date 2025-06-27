@@ -14,7 +14,6 @@
 
 #include "base/containers/circular_deque.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 
 namespace {
 
@@ -28,12 +27,12 @@ std::string Escape(std::string_view id) {
   size_t after_last_quot = 0;
   size_t next_quot = id.find('"');
   while (next_quot != std::string_view::npos) {
-    result.append(id.data() + after_last_quot, next_quot - after_last_quot);
+    result.append(id.substr(after_last_quot, next_quot - after_last_quot));
     result.append("\"");
     after_last_quot = next_quot + 1;
     next_quot = id.find('"', after_last_quot);
   }
-  result.append(id.data() + after_last_quot, id.size() - after_last_quot);
+  result.append(id.substr(after_last_quot, id.size() - after_last_quot));
   result.append("\"");
   return result;
 }
@@ -89,8 +88,7 @@ bool DependencyGraph::GetDestructionOrder(
 
 bool DependencyGraph::BuildConstructionOrder() {
   // Step 1: Build a set of nodes with no incoming edges.
-  base::circular_deque<DependencyNode*> queue(all_nodes_.begin(),
-                                              all_nodes_.end());
+  base::circular_deque<DependencyNode*> queue(base::from_range, all_nodes_);
   for (const auto& pair : edges_)
     base::Erase(queue, pair.second);
 
@@ -111,7 +109,7 @@ bool DependencyGraph::BuildConstructionOrder() {
       it++;
       edges.erase(temp);
 
-      bool has_incoming_edges = base::ranges::any_of(
+      bool has_incoming_edges = std::ranges::any_of(
           edges, [dest](const auto& edge) { return edge.second == dest; });
 
       if (!has_incoming_edges)
@@ -136,8 +134,7 @@ std::string DependencyGraph::DumpAsGraphviz(
   std::string escaped_toplevel_name = Escape(toplevel_name);
 
   // Make a copy of all nodes.
-  base::circular_deque<DependencyNode*> nodes(all_nodes_.begin(),
-                                              all_nodes_.end());
+  base::circular_deque<DependencyNode*> nodes(base::from_range, all_nodes_);
 
   // State all dependencies and remove |second| so we don't generate an
   // implicit dependency on the top level node.

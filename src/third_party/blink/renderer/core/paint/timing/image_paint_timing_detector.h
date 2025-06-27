@@ -11,16 +11,19 @@
 
 #include <optional>
 
+#include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/time/time.h"
 #include "third_party/blink/public/common/performance/largest_contentful_paint_type.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/dom/dom_node_ids.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/core/paint/timing/lcp_objects.h"
 #include "third_party/blink/renderer/core/paint/timing/media_record_id.h"
+#include "third_party/blink/renderer/core/paint/timing/paint_timing_callback_manager.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing_visualizer.h"
+#include "third_party/blink/renderer/core/timing/performance_entry.h"
 #include "third_party/blink/renderer/platform/allow_discouraged_type.h"
+#include "third_party/blink/renderer/platform/graphics/dom_node_id.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -37,7 +40,10 @@ class PropertyTreeStateOrAlias;
 class TracedValue;
 class Image;
 class PaintTimingCallbackManager;
-class StyleFetchedImage;
+class StyleImage;
+struct DOMPaintTimingInfo;
+
+static constexpr double kMinimumEntropyForLCP = 0.05;
 
 // TODO(crbug/960502): we should limit the access of these properties.
 // TODO(yoav): Rename all mentions of "image" to "media"
@@ -48,13 +54,11 @@ class ImageRecord : public GarbageCollected<ImageRecord> {
               uint64_t new_recorded_size,
               const gfx::Rect& frame_visual_rect,
               const gfx::RectF& root_visual_rect,
-              bool is_loaded_after_mouseover_input,
               MediaRecordIdHash hash)
       : node_id(new_node_id),
         media_timing(new_media_timing),
         hash(hash),
-        recorded_size(new_recorded_size),
-        is_loaded_after_mouseover(is_loaded_after_mouseover_input) {
+        recorded_size(new_recorded_size) {
     if (PaintTimingVisualizer::IsTracingEnabled()) {
       lcp_rect_info_ = std::make_unique<LCPRectInfo>(
           frame_visual_rect, gfx::ToRoundedRect(root_visual_rect));
@@ -85,6 +89,7 @@ class ImageRecord : public GarbageCollected<ImageRecord> {
   base::TimeTicks paint_time = base::TimeTicks();
   base::TimeTicks load_time = base::TimeTicks();
   base::TimeTicks first_animated_frame_time = base::TimeTicks();
+  DOMPaintTimingInfo paint_timing_info;
   bool loaded = false;
   // An animated frame is queued for paint timing.
   bool queue_animated_paint = false;
@@ -95,8 +100,6 @@ class ImageRecord : public GarbageCollected<ImageRecord> {
   // Images that come from origin-dirty styles should have some limitations on
   // what they report.
   bool origin_clean = true;
-
-  bool is_loaded_after_mouseover = false;
 };
 
 // |ImageRecordsManager| is the manager of all of the images that Largest
@@ -139,8 +142,7 @@ class CORE_EXPORT ImageRecordsManager {
                                           const uint64_t& visual_size,
                                           const gfx::Rect& frame_visual_rect,
                                           const gfx::RectF& root_visual_rect,
-                                          double bpp,
-                                          bool is_loaded_after_mouseover);
+                                          double bpp);
   bool IsRecordedImage(MediaRecordIdHash record_id_hash) const {
     return recorded_images_.Contains(record_id_hash);
   }
@@ -164,7 +166,7 @@ class CORE_EXPORT ImageRecordsManager {
                                    unsigned current_frame_index);
   void OnImageLoaded(MediaRecordIdHash,
                      unsigned current_frame_index,
-                     const StyleFetchedImage*);
+                     const StyleImage*);
 
   // Receives a candidate image painted under opacity 0 but without nested
   // opacity. May update |largest_ignored_image_| if the new candidate has a
@@ -172,12 +174,12 @@ class CORE_EXPORT ImageRecordsManager {
   void MaybeUpdateLargestIgnoredImage(const MediaRecordId&,
                                       const uint64_t& visual_size,
                                       const gfx::Rect& frame_visual_rect,
-                                      const gfx::RectF& root_visual_rect,
-                                      bool is_loaded_after_mouseover);
+                                      const gfx::RectF& root_visual_rect);
   void ReportLargestIgnoredImage(unsigned current_frame_index);
 
   void AssignPaintTimeToRegisteredQueuedRecords(
       const base::TimeTicks&,
+      const DOMPaintTimingInfo&,
       unsigned last_queued_frame_index);
 
   void AddPendingImage(ImageRecord* record);
@@ -189,7 +191,6 @@ class CORE_EXPORT ImageRecordsManager {
                                  const uint64_t& visual_size,
                                  const gfx::Rect& frame_visual_rect,
                                  const gfx::RectF& root_visual_rect,
-                                 bool is_loaded_after_mouseover,
                                  MediaRecordIdHash hash);
   inline void QueueToMeasurePaintTime(ImageRecord* record,
                                       unsigned current_frame_index) {
@@ -263,7 +264,7 @@ class CORE_EXPORT ImageRecordsManager {
 class CORE_EXPORT ImagePaintTimingDetector final
     : public GarbageCollected<ImagePaintTimingDetector> {
  public:
-  ImagePaintTimingDetector(LocalFrameView*, PaintTimingCallbackManager*);
+  explicit ImagePaintTimingDetector(LocalFrameView*);
   // Record an image paint. This method covers both img and background image. In
   // the case of a normal img, the last parameter will be nullptr. This
   // parameter is needed only for the purposes of plumbing the correct loadTime
@@ -274,11 +275,9 @@ class CORE_EXPORT ImagePaintTimingDetector final
                    const gfx::Size& intrinsic_size,
                    const MediaTiming&,
                    const PropertyTreeStateOrAlias& current_paint_properties,
-                   const StyleFetchedImage*,
-                   const gfx::Rect& image_border,
-                   const bool is_loaded_after_mouseover);
+                   const StyleImage*,
+                   const gfx::Rect& image_border);
   void NotifyImageFinished(const LayoutObject&, const MediaTiming*);
-  void OnPaintFinished();
   void NotifyImageRemoved(const LayoutObject&, const MediaTiming*);
   // After the method being called, the detector stops to recording new entries.
   // We manually clean up the |images_queued_for_paint_time_| since those may be
@@ -290,8 +289,12 @@ class CORE_EXPORT ImagePaintTimingDetector final
   void ResetCallbackManager(PaintTimingCallbackManager* manager) {
     callback_manager_ = manager;
   }
+
   void ReportPresentationTime(unsigned last_queued_frame_index,
                               base::TimeTicks);
+  std::optional<base::OnceCallback<void(const base::TimeTicks&,
+                                        const DOMPaintTimingInfo&)>>
+  TakePaintTimingCallback();
 
   // Return the image LCP candidate and whether the candidate has changed.
   std::pair<ImageRecord*, bool> UpdateMetricsCandidate();

@@ -54,6 +54,24 @@ class UserScriptManager : public ExtensionRegistryObserver {
   void SetUserScriptSourceEnabledForExtensions(UserScript::Source source,
                                                bool enabled);
 
+  // Returns true if the extension is allowed to use the userScripts API.
+  // TODO(crbug.com/390138269): Test this behavior once this preference is
+  // controlling user script injection.
+  bool AreUserScriptsAllowed(const Extension& extension,
+                             content::BrowserContext* browser_context) const;
+
+  // Returns whether the extension has permission to run user scripts or can
+  // request permission to do so.
+  static bool IsUserScriptsAPIPermissionAvailable(const Extension& extension);
+
+  bool IsUserScriptPrefEnabledForTesting(
+      const ExtensionId& extension_id) const {
+    return IsUserScriptPrefEnabled(extension_id);
+  }
+
+  // Set extension preference for userScripts API being allowed.
+  void SetUserScriptPrefEnabled(const ExtensionId& extension_id, bool enabled);
+
  private:
   // ExtensionRegistryObserver implementation.
   void OnExtensionWillBeInstalled(content::BrowserContext* browser_context,
@@ -82,6 +100,9 @@ class UserScriptManager : public ExtensionRegistryObserver {
   // Creates a EmbedderUserScriptLoader object.
   EmbedderUserScriptLoader* CreateEmbedderUserScriptLoader(
       const mojom::HostID& host_id);
+
+  // Get extension preference for userScripts API being allowed.
+  bool IsUserScriptPrefEnabled(const ExtensionId& extension_id) const;
 
   // A map of ExtensionUserScriptLoader for each extension host, with one loader
   // per extension. Currently, each loader is lazily initialized and contains

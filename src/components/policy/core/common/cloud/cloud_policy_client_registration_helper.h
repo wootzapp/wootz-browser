@@ -65,12 +65,19 @@ class POLICY_EXPORT CloudPolicyClientRegistrationHelper
   // `oauth_token` and `id_token` pair is received and extracted from a valid
   // OIDC authentication redirection response. The `oauth_token` is from a 3P
   // IdP, different from a refresh_token or access_token from GAIA. `client_id`
-  // is randomized if an empty string is provided. `callback` is invoked when
+  // is randomized if an empty string is provided. `state` contains details
+  // relevant for OIDC profile enrollment. `callback` is invoked when
   // the registration is complete.
-  void StartRegistrationWithOidcTokens(const std::string& oauth_token,
-                                       const std::string& id_token,
-                                       const std::string& client_id,
-                                       base::OnceClosure callback);
+  // Slightly different from other methods, the callback is invoked inside the
+  // policy client rather than in this class.
+  void StartRegistrationWithOidcTokens(
+      const std::string& oauth_token,
+      const std::string& id_token,
+      const std::string& client_id,
+      const std::string& state,
+      const base::TimeDelta& timeout_duration,
+      bool is_token_encrypted,
+      CloudPolicyClient::ResultCallback callback);
 
  private:
   class IdentityManagerHelper;
@@ -82,7 +89,6 @@ class POLICY_EXPORT CloudPolicyClientRegistrationHelper
   void OnGetUserInfoFailure(const GoogleServiceAuthError& error) override;
 
   // CloudPolicyClient::Observer implementation:
-  void OnPolicyFetched(CloudPolicyClient* client) override;
   void OnRegistrationStateChanged(CloudPolicyClient* client) override;
   void OnClientError(CloudPolicyClient* client) override;
 

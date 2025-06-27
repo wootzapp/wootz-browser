@@ -9,7 +9,6 @@
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
 #include "base/functional/bind.h"
-#include "components/favicon/android/jni_headers/LargeIconBridge_jni.h"
 #include "components/favicon/content/large_icon_service_getter.h"
 #include "components/favicon/core/large_icon_service.h"
 #include "components/favicon_base/fallback_icon_style.h"
@@ -22,6 +21,9 @@
 #include "ui/gfx/codec/png_codec.h"
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/favicon/android/jni_headers/LargeIconBridge_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::JavaParamRef;
@@ -36,12 +38,12 @@ namespace {
 void OnLargeIconAvailable(const JavaRef<jobject>& j_callback,
                           const favicon_base::LargeIconResult& result) {
   // Convert the result to a Java Bitmap.
-  SkBitmap bitmap;
   ScopedJavaLocalRef<jobject> j_bitmap;
   if (result.bitmap.is_valid()) {
-    if (gfx::PNGCodec::Decode(result.bitmap.bitmap_data->front(),
-                              result.bitmap.bitmap_data->size(), &bitmap))
+    SkBitmap bitmap = gfx::PNGCodec::Decode(*result.bitmap.bitmap_data);
+    if (!bitmap.isNull()) {
       j_bitmap = gfx::ConvertToJavaBitmap(bitmap);
+    }
   }
 
   favicon_base::FallbackIconStyle fallback;

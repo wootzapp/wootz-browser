@@ -8,6 +8,7 @@
 #include "base/feature_list.h"
 #include "base/notreached.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/traced_value.h"
 #include "components/download/public/common/download_create_info.h"
 #include "components/download/public/common/download_item.h"
@@ -15,6 +16,7 @@
 #include "content/browser/devtools/browser_devtools_agent_host.h"
 #include "content/browser/devtools/dedicated_worker_devtools_agent_host.h"
 #include "content/browser/devtools/devtools_issue_storage.h"
+#include "content/browser/devtools/devtools_preload_storage.h"
 #include "content/browser/devtools/protocol/audits.h"
 #include "content/browser/devtools/protocol/audits_handler.h"
 #include "content/browser/devtools/protocol/browser_handler.h"
@@ -45,6 +47,8 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/browser/web_package/signed_exchange_envelope.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/cookie_insight_list_data.h"
+#include "content/public/browser/cookie_insight_list_handler.h"
 #include "devtools_agent_host_impl.h"
 #include "devtools_instrumentation.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -52,6 +56,7 @@
 #include "net/base/load_flags.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_inclusion_status.h"
+#include "net/filter/source_stream_type.h"
 #include "net/http/http_request_headers.h"
 #include "net/quic/web_transport_error.h"
 #include "net/ssl/ssl_info.h"
@@ -94,7 +99,7 @@ void DispatchToAgents(FrameTreeNode* frame_tree_node,
 }
 
 template <typename Handler, typename... MethodArgs, typename... Args>
-void DispatchToAgents(int frame_tree_node_id,
+void DispatchToAgents(FrameTreeNodeId frame_tree_node_id,
                       void (Handler::*method)(MethodArgs...),
                       Args&&... args) {
   FrameTreeNode* ftn = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
@@ -200,7 +205,7 @@ BuildAttributionReportingIssueViolationType(
     case blink::mojom::AttributionReportingIssueType::
         kNavigationRegistrationWithoutTransientUserActivation:
       // This issue is not reported from the browser.
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     case blink::mojom::AttributionReportingIssueType::kInvalidInfoHeader:
       return AttributionReportingIssueTypeEnum::InvalidInfoHeader;
     case blink::mojom::AttributionReportingIssueType::kNoRegisterSourceHeader:
@@ -212,6 +217,10 @@ BuildAttributionReportingIssueViolationType(
     case blink::mojom::AttributionReportingIssueType::
         kNoRegisterOsTriggerHeader:
       return AttributionReportingIssueTypeEnum::NoRegisterOsTriggerHeader;
+    case blink::mojom::AttributionReportingIssueType::
+        kNavigationRegistrationUniqueScopeAlreadySet:
+      return AttributionReportingIssueTypeEnum::
+          NavigationRegistrationUniqueScopeAlreadySet;
   }
 }
 
@@ -221,11 +230,12 @@ BuildAttributionReportingIssue(
   protocol::String violation_type = BuildAttributionReportingIssueViolationType(
       issue_details->violation_type);
 
-  CHECK(issue_details->request->url.has_value());
   auto request = protocol::Audits::AffectedRequest::Create()
-                     .SetRequestId(issue_details->request->request_id)
-                     .SetUrl(issue_details->request->url.value())
+                     .SetUrl(issue_details->request->url)
                      .Build();
+  if (issue_details->request->request_id.has_value()) {
+    request->SetRequestId(issue_details->request->request_id.value());
+  }
   auto attribution_reporting_issue_details =
       protocol::Audits::AttributionReportingIssueDetails::Create()
           .SetViolationType(violation_type)
@@ -260,122 +270,143 @@ FederatedAuthRequestResultToProtocol(
     case FederatedAuthRequestResult::kShouldEmbargo: {
       return FederatedAuthRequestIssueReasonEnum::ShouldEmbargo;
     }
-    case FederatedAuthRequestResult::kErrorDisabledInSettings: {
+    case FederatedAuthRequestResult::kDisabledInSettings: {
       return FederatedAuthRequestIssueReasonEnum::DisabledInSettings;
     }
-    case FederatedAuthRequestResult::kErrorTooManyRequests: {
+    case FederatedAuthRequestResult::kDisabledInFlags: {
+      return FederatedAuthRequestIssueReasonEnum::DisabledInFlags;
+    }
+    case FederatedAuthRequestResult::kIdpNotPotentiallyTrustworthy: {
+      return FederatedAuthRequestIssueReasonEnum::IdpNotPotentiallyTrustworthy;
+    }
+    case FederatedAuthRequestResult::kTooManyRequests: {
       return FederatedAuthRequestIssueReasonEnum::TooManyRequests;
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownHttpNotFound: {
+    case FederatedAuthRequestResult::kWellKnownHttpNotFound: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownHttpNotFound;
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownNoResponse: {
+    case FederatedAuthRequestResult::kWellKnownNoResponse: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownNoResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownInvalidResponse: {
+    case FederatedAuthRequestResult::kWellKnownInvalidResponse: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownInvalidResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownListEmpty: {
+    case FederatedAuthRequestResult::kWellKnownListEmpty: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownListEmpty;
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingWellKnownInvalidContentType: {
+    case FederatedAuthRequestResult::kWellKnownInvalidContentType: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownInvalidContentType;
     }
-    case FederatedAuthRequestResult::kErrorConfigNotInWellKnown: {
+    case FederatedAuthRequestResult::kConfigNotInWellKnown: {
       return FederatedAuthRequestIssueReasonEnum::ConfigNotInWellKnown;
     }
-    case FederatedAuthRequestResult::kErrorWellKnownTooBig: {
+    case FederatedAuthRequestResult::kWellKnownTooBig: {
       return FederatedAuthRequestIssueReasonEnum::WellKnownTooBig;
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigHttpNotFound: {
+    case FederatedAuthRequestResult::kConfigHttpNotFound: {
       return FederatedAuthRequestIssueReasonEnum::ConfigHttpNotFound;
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigNoResponse: {
+    case FederatedAuthRequestResult::kConfigNoResponse: {
       return FederatedAuthRequestIssueReasonEnum::ConfigNoResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigInvalidResponse: {
+    case FederatedAuthRequestResult::kConfigInvalidResponse: {
       return FederatedAuthRequestIssueReasonEnum::ConfigInvalidResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigInvalidContentType: {
+    case FederatedAuthRequestResult::kConfigInvalidContentType: {
       return FederatedAuthRequestIssueReasonEnum::ConfigInvalidContentType;
     }
-    case FederatedAuthRequestResult::kErrorFetchingClientMetadataHttpNotFound: {
+    case FederatedAuthRequestResult::kClientMetadataHttpNotFound: {
       return FederatedAuthRequestIssueReasonEnum::ClientMetadataHttpNotFound;
     }
-    case FederatedAuthRequestResult::kErrorFetchingClientMetadataNoResponse: {
+    case FederatedAuthRequestResult::kClientMetadataNoResponse: {
       return FederatedAuthRequestIssueReasonEnum::ClientMetadataNoResponse;
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingClientMetadataInvalidResponse: {
+    case FederatedAuthRequestResult::kClientMetadataInvalidResponse: {
       return FederatedAuthRequestIssueReasonEnum::ClientMetadataInvalidResponse;
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingClientMetadataInvalidContentType: {
+    case FederatedAuthRequestResult::kClientMetadataInvalidContentType: {
       return FederatedAuthRequestIssueReasonEnum::
           ClientMetadataInvalidContentType;
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsHttpNotFound: {
+    case FederatedAuthRequestResult::kAccountsHttpNotFound: {
       return FederatedAuthRequestIssueReasonEnum::AccountsHttpNotFound;
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsNoResponse: {
+    case FederatedAuthRequestResult::kAccountsNoResponse: {
       return FederatedAuthRequestIssueReasonEnum::AccountsNoResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsInvalidResponse: {
+    case FederatedAuthRequestResult::kAccountsInvalidResponse: {
       return FederatedAuthRequestIssueReasonEnum::AccountsInvalidResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsListEmpty: {
+    case FederatedAuthRequestResult::kAccountsListEmpty: {
       return FederatedAuthRequestIssueReasonEnum::AccountsListEmpty;
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsInvalidContentType: {
+    case FederatedAuthRequestResult::kAccountsInvalidContentType: {
       return FederatedAuthRequestIssueReasonEnum::AccountsInvalidContentType;
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenHttpNotFound: {
+    case FederatedAuthRequestResult::kIdTokenHttpNotFound: {
       return FederatedAuthRequestIssueReasonEnum::IdTokenHttpNotFound;
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenNoResponse: {
+    case FederatedAuthRequestResult::kIdTokenNoResponse: {
       return FederatedAuthRequestIssueReasonEnum::IdTokenNoResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenInvalidResponse: {
+    case FederatedAuthRequestResult::kIdTokenInvalidResponse: {
       return FederatedAuthRequestIssueReasonEnum::IdTokenInvalidResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenIdpErrorResponse: {
+    case FederatedAuthRequestResult::kIdTokenIdpErrorResponse: {
       return FederatedAuthRequestIssueReasonEnum::IdTokenIdpErrorResponse;
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingIdTokenCrossSiteIdpErrorResponse: {
+    case FederatedAuthRequestResult::kIdTokenCrossSiteIdpErrorResponse: {
       return FederatedAuthRequestIssueReasonEnum::
           IdTokenCrossSiteIdpErrorResponse;
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenInvalidContentType: {
+    case FederatedAuthRequestResult::kIdTokenInvalidContentType: {
       return FederatedAuthRequestIssueReasonEnum::IdTokenInvalidContentType;
     }
-    case FederatedAuthRequestResult::kErrorCanceled: {
+    case FederatedAuthRequestResult::kCanceled: {
       return FederatedAuthRequestIssueReasonEnum::Canceled;
     }
-    case FederatedAuthRequestResult::kErrorRpPageNotVisible:
+    case FederatedAuthRequestResult::kRpPageNotVisible:
       return FederatedAuthRequestIssueReasonEnum::RpPageNotVisible;
     case FederatedAuthRequestResult::kError: {
       return FederatedAuthRequestIssueReasonEnum::ErrorIdToken;
     }
-    case FederatedAuthRequestResult::kErrorSilentMediationFailure: {
+    case FederatedAuthRequestResult::kSilentMediationFailure: {
       return FederatedAuthRequestIssueReasonEnum::SilentMediationFailure;
     }
-    case FederatedAuthRequestResult::kErrorThirdPartyCookiesBlocked: {
+    case FederatedAuthRequestResult::kThirdPartyCookiesBlocked: {
       return FederatedAuthRequestIssueReasonEnum::ThirdPartyCookiesBlocked;
     }
-    case FederatedAuthRequestResult::kErrorNotSignedInWithIdp: {
+    case FederatedAuthRequestResult::kNotSignedInWithIdp: {
       return FederatedAuthRequestIssueReasonEnum::NotSignedInWithIdp;
     }
-    case FederatedAuthRequestResult::kErrorMissingTransientUserActivation: {
+    case FederatedAuthRequestResult::kMissingTransientUserActivation: {
       return FederatedAuthRequestIssueReasonEnum::
           MissingTransientUserActivation;
     }
-    case FederatedAuthRequestResult::kErrorReplacedByButtonMode: {
-      return FederatedAuthRequestIssueReasonEnum::ReplacedByButtonMode;
+    case FederatedAuthRequestResult::kReplacedByActiveMode: {
+      return FederatedAuthRequestIssueReasonEnum::ReplacedByActiveMode;
+    }
+    case FederatedAuthRequestResult::kInvalidFieldsSpecified: {
+      return FederatedAuthRequestIssueReasonEnum::InvalidFieldsSpecified;
+    }
+    case FederatedAuthRequestResult::kRelyingPartyOriginIsOpaque: {
+      return FederatedAuthRequestIssueReasonEnum::RelyingPartyOriginIsOpaque;
+    }
+    case FederatedAuthRequestResult::kTypeNotMatching: {
+      return FederatedAuthRequestIssueReasonEnum::TypeNotMatching;
+    }
+    case FederatedAuthRequestResult::kUiDismissedNoEmbargo: {
+      return FederatedAuthRequestIssueReasonEnum::UiDismissedNoEmbargo;
+    }
+    case FederatedAuthRequestResult::kCorsError: {
+      return FederatedAuthRequestIssueReasonEnum::CorsError;
+    }
+    case FederatedAuthRequestResult::kSuppressedBySegmentationPlatform: {
+      return FederatedAuthRequestIssueReasonEnum::
+          SuppressedBySegmentationPlatform;
     }
     case FederatedAuthRequestResult::kSuccess: {
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     }
   }
 }
@@ -445,7 +476,7 @@ FederatedAuthUserInfoRequestResultToProtocol(
     }
     case FederatedAuthUserInfoRequestResult::kSuccess:
     case FederatedAuthUserInfoRequestResult::kUnhandledRequest: {
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     }
   }
 }
@@ -541,27 +572,38 @@ std::unique_ptr<protocol::Audits::InspectorIssue> BuildBounceTrackingIssue(
   return issue;
 }
 
-std::unique_ptr<protocol::Audits::InspectorIssue>
-BuildCookieDeprecationMetadataIssue(
-    const blink::mojom::CookieDeprecationMetadataIssueDetailsPtr&
-        issue_details) {
-  auto metadata_issue_details =
-      protocol::Audits::CookieDeprecationMetadataIssueDetails::Create()
-          .SetAllowedSites(std::make_unique<protocol::Array<protocol::String>>(
-              issue_details->allowed_sites))
-          .SetOptOutPercentage(issue_details->opt_out_percentage)
-          .SetIsOptOutTopLevel(issue_details->is_opt_out_top_level)
+std::unique_ptr<protocol::Audits::InspectorIssue> BuildPartitioningBlobURLIssue(
+    const blink::mojom::PartitioningBlobURLIssueDetailsPtr& issue_details) {
+  protocol::String partitioning_blob_url_info_string;
+  switch (issue_details->partitioning_blob_url_info) {
+    case blink::mojom::PartitioningBlobURLInfo::kBlockedCrossPartitionFetching:
+      partitioning_blob_url_info_string = protocol::Audits::
+          PartitioningBlobURLInfoEnum::BlockedCrossPartitionFetching;
+      break;
+    case blink::mojom::PartitioningBlobURLInfo::kEnforceNoopenerForNavigation:
+      partitioning_blob_url_info_string = protocol::Audits::
+          PartitioningBlobURLInfoEnum::EnforceNoopenerForNavigation;
+      break;
+    default:
+      partitioning_blob_url_info_string = "Unknown";
+      break;
+  }
+
+  auto partitioning_blob_url_issue_details =
+      protocol::Audits::PartitioningBlobURLIssueDetails::Create()
+          .SetUrl(issue_details->url.spec())
+          .SetPartitioningBlobURLInfo(partitioning_blob_url_info_string)
           .Build();
 
   auto protocol_issue_details =
       protocol::Audits::InspectorIssueDetails::Create()
-          .SetCookieDeprecationMetadataIssueDetails(
-              std::move(metadata_issue_details))
+          .SetPartitioningBlobURLIssueDetails(
+              std::move(partitioning_blob_url_issue_details))
           .Build();
 
   auto issue = protocol::Audits::InspectorIssue::Create()
                    .SetCode(protocol::Audits::InspectorIssueCodeEnum::
-                                CookieDeprecationMetadataIssue)
+                                PartitioningBlobURLIssue)
                    .SetDetails(std::move(protocol_issue_details))
                    .Build();
 
@@ -700,6 +742,103 @@ void OnFrameTreeNodeDestroyed(FrameTreeNode& frame_tree_node) {
   }
 }
 
+void DidUpdatePolicyContainerHost(FrameTreeNode* ftn) {
+  if (!ftn) {
+    return;
+  }
+
+  DispatchToAgents(ftn,
+                   &protocol::NetworkHandler::OnPolicyContainerHostUpdated);
+}
+
+void DidUpdateSpeculationCandidates(
+    RenderFrameHost& rfh,
+    const std::vector<blink::mojom::SpeculationCandidatePtr>& candidates) {
+  if (auto* storage = DevToolsPreloadStorage::GetForCurrentDocument(&rfh)) {
+    storage->SpeculationCandidatesUpdated(candidates);
+  }
+}
+
+void DidUpdatePrefetchStatus(
+    FrameTreeNode* ftn,
+    const base::UnguessableToken& initiator_devtools_navigation_token,
+    const GURL& prefetch_url,
+    const base::UnguessableToken& preload_pipeline_id,
+    PreloadingTriggeringOutcome status,
+    PrefetchStatus prefetch_status,
+    const std::string& request_id) {
+  if (!ftn) {
+    return;
+  }
+
+  // See a comment in `PreloadingDecider::ctor()`.
+  auto* devtools_preload_storage =
+      DevToolsPreloadStorage::GetForCurrentDocument(ftn->current_frame_host());
+  if (!devtools_preload_storage) {
+    return;
+  }
+
+  // We update DevToolsPreloadStorage, even if there are no active DevTools
+  // sessions, to persist the latest status update.
+  devtools_preload_storage->UpdatePrefetchStatus(
+      prefetch_url, preload_pipeline_id, status, prefetch_status, request_id);
+
+  std::string initiating_frame_id =
+      ftn->current_frame_host()->devtools_frame_token().ToString();
+  DispatchToAgents(ftn, &protocol::PreloadHandler::DidUpdatePrefetchStatus,
+                   initiator_devtools_navigation_token, initiating_frame_id,
+                   prefetch_url, preload_pipeline_id, status, prefetch_status,
+                   request_id);
+}
+
+void OnPrefetchRequestWillBeSent(
+    FrameTreeNode& ftn,
+    const std::string& request_id,
+    const GURL& initiator,
+    const network::ResourceRequest& request,
+    std::optional<std::pair<const GURL&,
+                            const network::mojom::URLResponseHeadDevToolsInfo&>>
+        redirect_info) {
+  auto timestamp = base::TimeTicks::Now();
+  std::string frame_token =
+      ftn.current_frame_host()->devtools_frame_token().ToString();
+  DispatchToAgents(&ftn, &protocol::NetworkHandler::PrefetchRequestWillBeSent,
+                   request_id, request, initiator, frame_token, timestamp,
+                   redirect_info);
+}
+
+void OnPrefetchResponseReceived(FrameTreeNode* frame_tree_node,
+                                const std::string& request_id,
+                                const GURL& url,
+                                const network::mojom::URLResponseHead& head) {
+  std::string frame_token =
+      frame_tree_node->current_frame_host()->devtools_frame_token().ToString();
+
+  network::mojom::URLResponseHeadDevToolsInfoPtr head_info =
+      network::ExtractDevToolsInfo(head);
+  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::ResponseReceived,
+                   request_id, request_id, url,
+                   protocol::Network::ResourceTypeEnum::Prefetch, *head_info,
+                   frame_token);
+}
+
+void OnPrefetchRequestComplete(
+    FrameTreeNode* frame_tree_node,
+    const std::string& request_id,
+    const network::URLLoaderCompletionStatus& status) {
+  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::LoadingComplete,
+                   request_id, protocol::Network::ResourceTypeEnum::Prefetch,
+                   status);
+}
+
+void OnPrefetchBodyDataReceived(FrameTreeNode* frame_tree_node,
+                                const std::string& request_id,
+                                const std::string& body,
+                                bool is_base64_encoded) {
+  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::BodyDataReceived,
+                   request_id, body, is_base64_encoded);
+}
+
 bool IsPrerenderAllowed(FrameTree& frame_tree) {
   FrameTreeNode* ftn = frame_tree.root();
 
@@ -731,29 +870,12 @@ void DidActivatePrerender(const NavigationRequest& nav_request,
   UpdateChildFrameTrees(ftn, /* update_target_info= */ true);
 }
 
-void DidUpdatePrefetchStatus(
-    FrameTreeNode* ftn,
-    const base::UnguessableToken& initiator_devtools_navigation_token,
-    const GURL& prefetch_url,
-    PreloadingTriggeringOutcome status,
-    PrefetchStatus prefetch_status,
-    const std::string& request_id) {
-  if (!ftn) {
-    return;
-  }
-
-  std::string initiating_frame_id =
-      ftn->current_frame_host()->devtools_frame_token().ToString();
-  DispatchToAgents(ftn, &protocol::PreloadHandler::DidUpdatePrefetchStatus,
-                   initiator_devtools_navigation_token, initiating_frame_id,
-                   prefetch_url, status, prefetch_status, request_id);
-}
-
 void DidUpdatePrerenderStatus(
-    int initiator_frame_tree_node_id,
+    FrameTreeNodeId initiator_frame_tree_node_id,
     const base::UnguessableToken& initiator_devtools_navigation_token,
     const GURL& prerender_url,
     std::optional<blink::mojom::SpeculationTargetHint> target_hint,
+    const base::UnguessableToken& preload_pipeline_id,
     PreloadingTriggeringOutcome status,
     std::optional<PrerenderFinalStatus> prerender_status,
     std::optional<std::string> disallowed_mojo_interface,
@@ -764,9 +886,22 @@ void DidUpdatePrerenderStatus(
     return;
   }
 
+  // See a comment in `PreloadingDecider::ctor()`.
+  auto* devtools_preload_storage =
+      DevToolsPreloadStorage::GetForCurrentDocument(ftn->current_frame_host());
+  if (!devtools_preload_storage) {
+    return;
+  }
+
+  // We update DevToolsPreloadStorage, even if there are no active DevTools
+  // sessions, to persist the latest status update.
+  devtools_preload_storage->UpdatePrerenderStatus(
+      prerender_url, target_hint, preload_pipeline_id, status, prerender_status,
+      disallowed_mojo_interface, mismatched_headers);
+
   DispatchToAgents(ftn, &protocol::PreloadHandler::DidUpdatePrerenderStatus,
                    initiator_devtools_navigation_token, prerender_url,
-                   target_hint, status, prerender_status,
+                   target_hint, preload_pipeline_id, status, prerender_status,
                    disallowed_mojo_interface, mismatched_headers);
 }
 
@@ -774,6 +909,9 @@ namespace {
 
 protocol::String BuildBlockedByResponseReason(
     network::mojom::BlockedByResponseReason reason) {
+  // TODO(crbug.com/336752983):
+  // Add specific error messages when a subresource load was blocked due to
+  // Document-Isolation-Policy (Dip).
   switch (reason) {
     case network::mojom::BlockedByResponseReason::
         kCoepFrameResourceNeedsCoepHeader:
@@ -787,10 +925,17 @@ protocol::String BuildBlockedByResponseReason(
       return protocol::Audits::BlockedByResponseReasonEnum::CorpNotSameOrigin;
     case network::mojom::BlockedByResponseReason::
         kCorpNotSameOriginAfterDefaultedToSameOriginByCoep:
+    case network::mojom::BlockedByResponseReason::
+        kCorpNotSameOriginAfterDefaultedToSameOriginByDip:
+    case network::mojom::BlockedByResponseReason::
+        kCorpNotSameOriginAfterDefaultedToSameOriginByCoepAndDip:
       return protocol::Audits::BlockedByResponseReasonEnum::
           CorpNotSameOriginAfterDefaultedToSameOriginByCoep;
     case network::mojom::BlockedByResponseReason::kCorpNotSameSite:
       return protocol::Audits::BlockedByResponseReasonEnum::CorpNotSameSite;
+    case network::mojom::BlockedByResponseReason::kSRIMessageSignatureMismatch:
+      return protocol::Audits::BlockedByResponseReasonEnum::
+          SRIMessageSignatureMismatch;
   }
 }
 
@@ -980,11 +1125,12 @@ void OnSignedExchangeCertificateRequestSent(
   auto timestamp = base::TimeTicks::Now();
   network::mojom::URLRequestDevToolsInfoPtr request_info =
       network::ExtractDevToolsInfo(request);
-  DispatchToAgents(
-      frame_tree_node, &protocol::NetworkHandler::RequestSent,
-      request_id.ToString(), loader_id.ToString(), request.headers,
-      *request_info, protocol::Network::Initiator::TypeEnum::SignedExchange,
-      signed_exchange_url, /*initiator_devtools_request_id=*/"", timestamp);
+  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::RequestSent,
+                   request_id.ToString(), loader_id.ToString(), request.headers,
+                   *request_info,
+                   protocol::Network::Initiator::TypeEnum::SignedExchange,
+                   signed_exchange_url, /*initiator_devtools_request_id=*/"",
+                   /*frame_token=*/std::nullopt, timestamp);
 
   auto value = std::make_unique<base::trace_event::TracedValue>();
   value->SetString("requestId", request_id.ToString());
@@ -1005,7 +1151,7 @@ void OnSignedExchangeCertificateResponseReceived(
   DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::ResponseReceived,
                    request_id.ToString(), loader_id.ToString(), url,
                    protocol::Network::ResourceTypeEnum::Other, *head_info,
-                   protocol::Maybe<std::string>());
+                   std::nullopt);
 }
 
 void OnSignedExchangeCertificateRequestCompleted(
@@ -1164,6 +1310,41 @@ DevToolsAgentHostImpl* GetDevToolsAgentHostForNetworkOverrides(
   return RenderFrameDevToolsAgentHost::GetFor(frame_tree_node);
 }
 
+void ApplyNetworkRequestOverrides(
+    DevToolsAgentHostImpl* agent_host,
+    net::HttpRequestHeaders* headers,
+    bool* disable_cache,
+    bool* network_instrumentation_enabled,
+    bool* skip_service_worker,
+    std::optional<std::vector<net::SourceStreamType>>*
+        devtools_accepted_stream_types,
+    bool* devtools_user_agent_overridden,
+    bool* devtools_accept_language_overridden) {
+  for (auto* network : protocol::NetworkHandler::ForAgentHost(agent_host)) {
+    if (!network->enabled()) {
+      continue;
+    }
+    if (network_instrumentation_enabled) {
+      *network_instrumentation_enabled = true;
+    }
+    network->ApplyOverrides(headers, skip_service_worker, disable_cache,
+                            devtools_accepted_stream_types);
+  }
+
+  for (auto* emulation : protocol::EmulationHandler::ForAgentHost(agent_host)) {
+    bool ua_overridden = false;
+    bool accept_language_overridden = false;
+    emulation->ApplyOverrides(headers, &ua_overridden,
+                              &accept_language_overridden);
+    if (devtools_user_agent_overridden) {
+      *devtools_user_agent_overridden |= ua_overridden;
+    }
+    if (devtools_accept_language_overridden) {
+      *devtools_accept_language_overridden |= accept_language_overridden;
+    }
+  }
+}
+
 }  // namespace
 
 void ApplyAuctionNetworkRequestOverrides(
@@ -1176,24 +1357,10 @@ void ApplyAuctionNetworkRequestOverrides(
   if (!agent_host) {
     return;
   }
-
-  for (auto* network : protocol::NetworkHandler::ForAgentHost(agent_host)) {
-    if (!network->enabled()) {
-      continue;
-    }
-    *network_instrumentation_enabled = true;
-    network->ApplyOverrides(&request->headers, &request->skip_service_worker,
-                            &disable_cache,
-                            &request->devtools_accepted_stream_types);
-  }
-
-  for (auto* emulation : protocol::EmulationHandler::ForAgentHost(agent_host)) {
-    bool ua_overridden = false;
-    bool accept_language_overridden = false;
-    emulation->ApplyOverrides(&request->headers, &ua_overridden,
-                              &accept_language_overridden);
-  }
-
+  ApplyNetworkRequestOverrides(
+      agent_host, &request->headers, &disable_cache,
+      network_instrumentation_enabled, &request->skip_service_worker,
+      &request->devtools_accepted_stream_types, nullptr, nullptr);
   if (disable_cache) {
     request->load_flags = net::LOAD_BYPASS_CACHE;
   }
@@ -1203,7 +1370,7 @@ void ApplyNetworkRequestOverrides(
     FrameTreeNode* frame_tree_node,
     blink::mojom::BeginNavigationParams* begin_params,
     bool* report_raw_headers,
-    std::optional<std::vector<net::SourceStream::SourceType>>*
+    std::optional<std::vector<net::SourceStreamType>>*
         devtools_accepted_stream_types,
     bool* devtools_user_agent_overridden,
     bool* devtools_accept_language_overridden) {
@@ -1217,24 +1384,10 @@ void ApplyNetworkRequestOverrides(
   }
   net::HttpRequestHeaders headers;
   headers.AddHeadersFromString(begin_params->headers);
-  for (auto* network : protocol::NetworkHandler::ForAgentHost(agent_host)) {
-    if (!network->enabled()) {
-      continue;
-    }
-    *report_raw_headers = true;
-    network->ApplyOverrides(&headers, &begin_params->skip_service_worker,
-                            &disable_cache, devtools_accepted_stream_types);
-  }
-
-  for (auto* emulation : protocol::EmulationHandler::ForAgentHost(agent_host)) {
-    bool ua_overridden = false;
-    bool accept_language_overridden = false;
-    emulation->ApplyOverrides(&headers, &ua_overridden,
-                              &accept_language_overridden);
-    *devtools_user_agent_overridden |= ua_overridden;
-    *devtools_accept_language_overridden |= accept_language_overridden;
-  }
-
+  ApplyNetworkRequestOverrides(
+      agent_host, &headers, &disable_cache, report_raw_headers,
+      &begin_params->skip_service_worker, devtools_accepted_stream_types,
+      devtools_user_agent_overridden, devtools_accept_language_overridden);
   if (disable_cache) {
     begin_params->load_flags &=
         ~(net::LOAD_VALIDATE_CACHE | net::LOAD_SKIP_CACHE_VALIDATION |
@@ -1260,6 +1413,33 @@ bool ApplyUserAgentMetadataOverrides(
   }
 
   return result;
+}
+
+bool ApplyNetworkCookieControlsOverrides(
+    RenderFrameHostImpl& rfh,
+    net::CookieSettingOverrides& overrides) {
+  FrameTreeNode* ftn = rfh.frame_tree_node();
+  if (!ftn) {
+    return false;
+  }
+  DevToolsAgentHostImpl* agent_host =
+      GetDevToolsAgentHostForNetworkOverrides(ftn);
+
+  return ApplyNetworkCookieControlsOverrides(agent_host, overrides);
+}
+
+bool ApplyNetworkCookieControlsOverrides(
+    DevToolsAgentHostImpl* agent_host,
+    net::CookieSettingOverrides& overrides) {
+  if (!agent_host) {
+    return false;
+  }
+  for (auto* network : protocol::NetworkHandler::ForAgentHost(agent_host)) {
+    if (network->enabled()) {
+      network->ApplyCookieControlsOverrides(overrides);
+    }
+  }
+  return !overrides.empty();
 }
 
 namespace {
@@ -1362,7 +1542,8 @@ WillCreateURLLoaderFactoryParams WillCreateURLLoaderFactoryParams::ForFrame(
     RenderFrameHostImpl* rfh) {
   return WillCreateURLLoaderFactoryParams(
       RenderFrameDevToolsAgentHost::GetFor(rfh), rfh->GetDevToolsFrameToken(),
-      rfh->GetProcess()->GetID(), rfh->GetProcess()->GetStoragePartition());
+      rfh->GetProcess()->GetDeprecatedID(),
+      rfh->GetProcess()->GetStoragePartition());
 }
 
 WillCreateURLLoaderFactoryParams
@@ -1370,10 +1551,10 @@ WillCreateURLLoaderFactoryParams::ForServiceWorker(RenderProcessHost& rph,
                                                    int routing_id) {
   ServiceWorkerDevToolsAgentHost* agent_host =
       ServiceWorkerDevToolsManager::GetInstance()
-          ->GetDevToolsAgentHostForWorker(rph.GetID(), routing_id);
+          ->GetDevToolsAgentHostForWorker(rph.GetDeprecatedID(), routing_id);
   CHECK(agent_host);
   return WillCreateURLLoaderFactoryParams(
-      agent_host, agent_host->devtools_worker_token(), rph.GetID(),
+      agent_host, agent_host->devtools_worker_token(), rph.GetDeprecatedID(),
       rph.GetStoragePartition());
 }
 
@@ -1407,68 +1588,24 @@ WillCreateURLLoaderFactoryParams::ForSharedWorker(SharedWorkerHost* host) {
   RenderProcessHost* rph = agent_host->GetProcessHost();
   CHECK(rph);
   return WillCreateURLLoaderFactoryParams(
-      agent_host, agent_host->devtools_worker_token(), rph->GetID(),
+      agent_host, agent_host->devtools_worker_token(), rph->GetDeprecatedID(),
       rph->GetStoragePartition());
 }
 
 WillCreateURLLoaderFactoryParams
 WillCreateURLLoaderFactoryParams::ForWorkerMainScript(
     DevToolsAgentHostImpl* agent_host,
-    const base::UnguessableToken& worker_token) {
-  RenderProcessHost* rph = agent_host->GetProcessHost();
-  CHECK(rph);
-  return WillCreateURLLoaderFactoryParams(
-      agent_host, worker_token, rph->GetID(), rph->GetStoragePartition());
-}
-
-void OnPrefetchRequestWillBeSent(
-    FrameTreeNode* frame_tree_node,
-    const std::string& request_id,
-    const GURL& initiator,
-    const network::ResourceRequest& request,
-    std::optional<std::pair<const GURL&,
-                            const network::mojom::URLResponseHeadDevToolsInfo&>>
-        redirect_info) {
-  auto timestamp = base::TimeTicks::Now();
-  std::string frame_token =
-      frame_tree_node->current_frame_host()->devtools_frame_token().ToString();
-  DispatchToAgents(
-      frame_tree_node, &protocol::NetworkHandler::PrefetchRequestWillBeSent,
-      request_id, request, initiator, frame_token, timestamp, redirect_info);
-}
-
-void OnPrefetchResponseReceived(FrameTreeNode* frame_tree_node,
-                                const std::string& request_id,
-                                const GURL& url,
-                                const network::mojom::URLResponseHead& head) {
-  std::string frame_token =
-      frame_tree_node->current_frame_host()->devtools_frame_token().ToString();
-
-  network::mojom::URLResponseHeadDevToolsInfoPtr head_info =
-      network::ExtractDevToolsInfo(head);
-  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::ResponseReceived,
-                   request_id, request_id, url,
-                   protocol::Network::ResourceTypeEnum::Prefetch, *head_info,
-                   frame_token);
-}
-void OnPrefetchRequestComplete(
-    FrameTreeNode* frame_tree_node,
-    const std::string& request_id,
-    const network::URLLoaderCompletionStatus& status) {
-  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::LoadingComplete,
-                   request_id, protocol::Network::ResourceTypeEnum::Prefetch,
-                   status);
-}
-void OnPrefetchBodyDataReceived(FrameTreeNode* frame_tree_node,
-                                const std::string& request_id,
-                                const std::string& body,
-                                bool is_base64_encoded) {
-  DispatchToAgents(frame_tree_node, &protocol::NetworkHandler::BodyDataReceived,
-                   request_id, body, is_base64_encoded);
+    const base::UnguessableToken& worker_token,
+    RenderFrameHostImpl& ancestor_render_frame_host) {
+  // Use the ancestor frame's interceptor to align with the interception
+  // behavior in the renderer that reuses the same url loader factory from
+  // the ancestor frame for the worker.
+  return WillCreateURLLoaderFactoryParams::ForFrame(
+      &ancestor_render_frame_host);
 }
 
 void OnAuctionWorkletNetworkRequestWillBeSent(
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     const network::ResourceRequest& request,
     base::TimeTicks timestamp) {
   if (request.devtools_request_id->empty()) {
@@ -1484,7 +1621,7 @@ void OnAuctionWorkletNetworkRequestWillBeSent(
   }
   // if we cannot get the loader_id from the parent, use an empty string.
   std::string loader_id = "";
-  if (frame_tree_node_id != FrameTreeNode::kFrameTreeNodeInvalidId) {
+  if (frame_tree_node_id) {
     FrameTreeNode* ftn = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
 
     if (ftn == nullptr) {
@@ -1503,12 +1640,13 @@ void OnAuctionWorkletNetworkRequestWillBeSent(
         /*loader_id=*/loader_id, request.headers, *request_info,
         /*initiator_type=*/protocol::Network::Initiator::TypeEnum::Other,
         initiator_url,
-        /*initiator_devtools_request_id=*/"", timestamp);
+        /*initiator_devtools_request_id=*/"", /*frame_token=*/std::nullopt,
+        timestamp);
   }
 }
 
 void OnAuctionWorkletNetworkResponseReceived(
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     const std::string& request_id,
     const std::string& loader_id,
     const GURL& request_url,
@@ -1523,7 +1661,7 @@ void OnAuctionWorkletNetworkResponseReceived(
 }
 
 void OnAuctionWorkletNetworkRequestComplete(
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     const std::string& request_id,
     const network::URLLoaderCompletionStatus& status) {
   DispatchToAgents(frame_tree_node_id,
@@ -1532,7 +1670,7 @@ void OnAuctionWorkletNetworkRequestComplete(
                    status);
 }
 
-bool NeedInterestGroupAuctionEvents(int frame_tree_node_id) {
+bool NeedInterestGroupAuctionEvents(FrameTreeNodeId frame_tree_node_id) {
   FrameTreeNode* ftn = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
   if (!ftn) {
     return false;
@@ -1550,7 +1688,7 @@ bool NeedInterestGroupAuctionEvents(int frame_tree_node_id) {
 }
 
 void OnInterestGroupAuctionEventOccurred(
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     base::Time event_time,
     InterestGroupAuctionEventType type,
     const std::string& unique_auction_id,
@@ -1563,7 +1701,7 @@ void OnInterestGroupAuctionEventOccurred(
 }
 
 void OnInterestGroupAuctionNetworkRequestCreated(
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     content::InterestGroupAuctionFetchType type,
     const std::string& request_id,
     const std::vector<std::string>& devtools_auction_ids) {
@@ -1635,6 +1773,9 @@ bool HandleCertificateError(WebContents* web_contents,
                             int cert_error,
                             const GURL& request_url,
                             CertErrorCallback callback) {
+  if (!DevToolsAgentHost::HasFor(web_contents)) {
+    return false;
+  }
   scoped_refptr<DevToolsAgentHost> agent_host =
       DevToolsAgentHost::GetOrCreateFor(web_contents).get();
   if (NotifyCertificateError(agent_host.get(), cert_error, request_url,
@@ -1686,42 +1827,56 @@ std::unique_ptr<protocol::Array<protocol::String>> BuildExclusionReasons(
   auto exclusion_reasons =
       std::make_unique<protocol::Array<protocol::String>>();
   if (status.HasExclusionReason(
-          net::CookieInclusionStatus::
+          net::CookieInclusionStatus::ExclusionReason::
               EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX)) {
     exclusion_reasons->push_back(protocol::Audits::CookieExclusionReasonEnum::
                                      ExcludeSameSiteUnspecifiedTreatedAsLax);
   }
-  if (status.HasExclusionReason(
-          net::CookieInclusionStatus::EXCLUDE_SAMESITE_NONE_INSECURE)) {
+  if (status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_SAMESITE_NONE_INSECURE)) {
     exclusion_reasons->push_back(protocol::Audits::CookieExclusionReasonEnum::
                                      ExcludeSameSiteNoneInsecure);
   }
   if (status.HasExclusionReason(
-          net::CookieInclusionStatus::EXCLUDE_SAMESITE_LAX)) {
+          net::CookieInclusionStatus::ExclusionReason::EXCLUDE_SAMESITE_LAX)) {
     exclusion_reasons->push_back(
         protocol::Audits::CookieExclusionReasonEnum::ExcludeSameSiteLax);
   }
-  if (status.HasExclusionReason(
-          net::CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT)) {
+  if (status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_SAMESITE_STRICT)) {
     exclusion_reasons->push_back(
         protocol::Audits::CookieExclusionReasonEnum::ExcludeSameSiteStrict);
   }
-  if (status.HasExclusionReason(
-          net::CookieInclusionStatus::EXCLUDE_DOMAIN_NON_ASCII)) {
+  if (status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_DOMAIN_NON_ASCII)) {
     exclusion_reasons->push_back(
         protocol::Audits::CookieExclusionReasonEnum::ExcludeDomainNonASCII);
   }
   if (status.HasExclusionReason(
-          net::CookieInclusionStatus::
+          net::CookieInclusionStatus::ExclusionReason::
               EXCLUDE_THIRD_PARTY_BLOCKED_WITHIN_FIRST_PARTY_SET)) {
     exclusion_reasons->push_back(
         protocol::Audits::CookieExclusionReasonEnum::
             ExcludeThirdPartyCookieBlockedInFirstPartySet);
   }
-  if (status.HasExclusionReason(
-          net::CookieInclusionStatus::EXCLUDE_THIRD_PARTY_PHASEOUT)) {
+  if (status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_THIRD_PARTY_PHASEOUT)) {
     exclusion_reasons->push_back(
         protocol::Audits::CookieExclusionReasonEnum::ExcludeThirdPartyPhaseout);
+  }
+
+  if (base::FeatureList::IsEnabled(net::features::kEnablePortBoundCookies) &&
+      status.HasExclusionReason(
+          net::CookieInclusionStatus::ExclusionReason::EXCLUDE_PORT_MISMATCH)) {
+    exclusion_reasons->push_back(
+        protocol::Audits::CookieExclusionReasonEnum::ExcludePortMismatch);
+  }
+
+  if (base::FeatureList::IsEnabled(net::features::kEnableSchemeBoundCookies) &&
+      status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_SCHEME_MISMATCH)) {
+    exclusion_reasons->push_back(
+        protocol::Audits::CookieExclusionReasonEnum::ExcludeSchemeMismatch);
   }
 
   return exclusion_reasons;
@@ -1730,65 +1885,75 @@ std::unique_ptr<protocol::Array<protocol::String>> BuildExclusionReasons(
 std::unique_ptr<protocol::Array<protocol::String>> BuildWarningReasons(
     net::CookieInclusionStatus status) {
   auto warning_reasons = std::make_unique<protocol::Array<protocol::String>>();
-  if (status.HasWarningReason(
-          net::CookieInclusionStatus::WARN_ATTRIBUTE_VALUE_EXCEEDS_MAX_SIZE)) {
+  if (status.HasWarningReason(net::CookieInclusionStatus::WarningReason::
+                                  WARN_ATTRIBUTE_VALUE_EXCEEDS_MAX_SIZE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnAttributeValueExceedsMaxSize);
   }
   if (status.HasWarningReason(
-          net::CookieInclusionStatus::
+          net::CookieInclusionStatus::WarningReason::
               WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteUnspecifiedCrossSiteContext);
   }
-  if (status.HasWarningReason(
-          net::CookieInclusionStatus::WARN_SAMESITE_NONE_INSECURE)) {
+  if (status.HasWarningReason(net::CookieInclusionStatus::WarningReason::
+                                  WARN_SAMESITE_NONE_INSECURE)) {
     warning_reasons->push_back(
         protocol::Audits::CookieWarningReasonEnum::WarnSameSiteNoneInsecure);
   }
-  if (status.HasWarningReason(net::CookieInclusionStatus::
+  if (status.HasWarningReason(net::CookieInclusionStatus::WarningReason::
                                   WARN_SAMESITE_UNSPECIFIED_LAX_ALLOW_UNSAFE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteUnspecifiedLaxAllowUnsafe);
   }
 
   // There can only be one of the following warnings.
-  if (status.HasWarningReason(net::CookieInclusionStatus::
+  if (status.HasWarningReason(net::CookieInclusionStatus::WarningReason::
                                   WARN_STRICT_LAX_DOWNGRADE_STRICT_SAMESITE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteStrictLaxDowngradeStrict);
   } else if (status.HasWarningReason(
-                 net::CookieInclusionStatus::
+                 net::CookieInclusionStatus::WarningReason::
                      WARN_STRICT_CROSS_DOWNGRADE_STRICT_SAMESITE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteStrictCrossDowngradeStrict);
   } else if (status.HasWarningReason(
-                 net::CookieInclusionStatus::
+                 net::CookieInclusionStatus::WarningReason::
                      WARN_STRICT_CROSS_DOWNGRADE_LAX_SAMESITE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteStrictCrossDowngradeLax);
   } else if (status.HasWarningReason(
-                 net::CookieInclusionStatus::
+                 net::CookieInclusionStatus::WarningReason::
                      WARN_LAX_CROSS_DOWNGRADE_STRICT_SAMESITE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteLaxCrossDowngradeStrict);
   } else if (status.HasWarningReason(
-                 net::CookieInclusionStatus::
+                 net::CookieInclusionStatus::WarningReason::
                      WARN_LAX_CROSS_DOWNGRADE_LAX_SAMESITE)) {
     warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
                                    WarnSameSiteLaxCrossDowngradeLax);
   }
 
   if (status.HasWarningReason(
-          net::CookieInclusionStatus::WARN_DOMAIN_NON_ASCII)) {
+          net::CookieInclusionStatus::WarningReason::WARN_DOMAIN_NON_ASCII)) {
     warning_reasons->push_back(
         protocol::Audits::CookieWarningReasonEnum::WarnDomainNonASCII);
   }
 
-  if (status.HasWarningReason(
-          net::CookieInclusionStatus::WARN_THIRD_PARTY_PHASEOUT)) {
+  if (status.HasWarningReason(net::CookieInclusionStatus::WarningReason::
+                                  WARN_THIRD_PARTY_PHASEOUT)) {
     warning_reasons->push_back(
         protocol::Audits::CookieWarningReasonEnum::WarnThirdPartyPhaseout);
+  }
+
+  if (status.exemption_reason() ==
+      net::CookieInclusionStatus::ExemptionReason::k3PCDMetadata) {
+    warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
+                                   WarnDeprecationTrialMetadata);
+  } else if (status.exemption_reason() ==
+             net::CookieInclusionStatus::ExemptionReason::k3PCDHeuristics) {
+    warning_reasons->push_back(protocol::Audits::CookieWarningReasonEnum::
+                                   WarnThirdPartyCookieHeuristic);
   }
 
   // This warning only affects cookies when the corresponding feature is
@@ -1796,7 +1961,7 @@ std::unique_ptr<protocol::Array<protocol::String>> BuildWarningReasons(
   if (base::FeatureList::IsEnabled(
           net::features::kCookieSameSiteConsidersRedirectChain) &&
       status.HasWarningReason(
-          net::CookieInclusionStatus::
+          net::CookieInclusionStatus::WarningReason::
               WARN_CROSS_SITE_REDIRECT_DOWNGRADE_CHANGES_INCLUSION)) {
     warning_reasons->push_back(
         protocol::Audits::CookieWarningReasonEnum::
@@ -1812,6 +1977,62 @@ protocol::String BuildCookieOperation(blink::mojom::CookieOperation operation) {
       return protocol::Audits::CookieOperationEnum::ReadCookie;
     case blink::mojom::CookieOperation::kSetCookie:
       return protocol::Audits::CookieOperationEnum::SetCookie;
+  }
+}
+
+std::unique_ptr<protocol::Audits::InspectorIssue>
+BuildCookieDeprecationMetadataIssue(
+    const blink::mojom::CookieDeprecationMetadataIssueDetailsPtr&
+        issue_details) {
+  auto metadata_issue_details =
+      protocol::Audits::CookieDeprecationMetadataIssueDetails::Create()
+          .SetAllowedSites(std::make_unique<protocol::Array<protocol::String>>(
+              issue_details->allowed_sites))
+          .SetOptOutPercentage(issue_details->opt_out_percentage)
+          .SetIsOptOutTopLevel(issue_details->is_opt_out_top_level)
+          .SetOperation(BuildCookieOperation(issue_details->operation))
+          .Build();
+
+  auto protocol_issue_details =
+      protocol::Audits::InspectorIssueDetails::Create()
+          .SetCookieDeprecationMetadataIssueDetails(
+              std::move(metadata_issue_details))
+          .Build();
+
+  auto issue = protocol::Audits::InspectorIssue::Create()
+                   .SetCode(protocol::Audits::InspectorIssueCodeEnum::
+                                CookieDeprecationMetadataIssue)
+                   .SetDetails(std::move(protocol_issue_details))
+                   .Build();
+
+  return issue;
+}
+
+std::unique_ptr<protocol::Audits::CookieIssueInsight> BuildCookieIssueInsight(
+    std::string_view cookie_domain,
+    const net::CookieInclusionStatus& status) {
+  std::optional<CookieIssueInsight> insight =
+      CookieInsightListHandler::GetInstance().GetInsight(cookie_domain, status);
+  if (!insight.has_value()) {
+    return nullptr;
+  }
+
+  switch (insight->type) {
+    case InsightType::kGitHubResource:
+      return protocol::Audits::CookieIssueInsight::Create()
+          .SetType(protocol::Audits::InsightTypeEnum::GitHubResource)
+          .SetTableEntryUrl(insight->domain_info.entry_url)
+          .Build();
+    case InsightType::kGracePeriod:
+      return protocol::Audits::CookieIssueInsight::Create()
+          .SetType(protocol::Audits::InsightTypeEnum::GracePeriod)
+          .Build();
+    case InsightType::kHeuristics:
+      return protocol::Audits::CookieIssueInsight::Create()
+          .SetType(protocol::Audits::InsightTypeEnum::Heuristics)
+          .Build();
+    default:
+      NOTREACHED();
   }
 }
 
@@ -1861,6 +2082,9 @@ void ReportCookieIssue(
                                .SetDomain(cookie.Domain())
                                .Build();
     cookie_issue_details->SetCookie(std::move(affected_cookie));
+
+    cookie_issue_details->SetInsight(BuildCookieIssueInsight(
+        cookie.DomainWithoutDot(), excluded_cookie->access_result.status));
   } else {
     CHECK(excluded_cookie->cookie_or_line->is_cookie_string());
     cookie_issue_details->SetRawCookieLine(
@@ -1932,6 +2156,10 @@ void BuildAndReportBrowserInitiatedIssue(
              blink::mojom::InspectorIssueCode::kBounceTrackingIssue) {
     issue =
         BuildBounceTrackingIssue(info->details->bounce_tracking_issue_details);
+  } else if (info->code ==
+             blink::mojom::InspectorIssueCode::kPartitioningBlobURLIssue) {
+    issue = BuildPartitioningBlobURLIssue(
+        info->details->partitioning_blob_url_issue_details);
   } else if (info->code == blink::mojom::InspectorIssueCode::
                                kCookieDeprecationMetadataIssue) {
     issue = BuildCookieDeprecationMetadataIssue(
@@ -1945,7 +2173,7 @@ void BuildAndReportBrowserInitiatedIssue(
     issue = BuildAttributionReportingIssue(
         info->details->attribution_reporting_issue_details);
   } else {
-    NOTREACHED_IN_MIGRATION() << "Unsupported type of browser-initiated issue";
+    NOTREACHED() << "Unsupported type of browser-initiated issue";
   }
   ReportBrowserInitiatedIssue(frame, issue.get());
 }
@@ -2101,12 +2329,13 @@ void OnServiceWorkerMainScriptRequestWillBeSent(
   MaybeAssignResourceRequestId(agent_host, request_id, request);
   for (auto* network_handler :
        protocol::NetworkHandler::ForAgentHost(agent_host)) {
-    network_handler->RequestSent(
-        request_id,
-        /*loader_id=*/"", request.headers, *request_info,
-        protocol::Network::Initiator::TypeEnum::Other,
-        requesting_frame->GetLastCommittedURL(),
-        /*initiator_devtools_request_id=*/"", timestamp);
+    network_handler->RequestSent(request_id,
+                                 /*loader_id=*/"", request.headers,
+                                 *request_info,
+                                 protocol::Network::Initiator::TypeEnum::Other,
+                                 requesting_frame->GetLastCommittedURL(),
+                                 /*initiator_devtools_request_id=*/"",
+                                 /*frame_token=*/std::nullopt, timestamp);
   }
 }
 
@@ -2128,21 +2357,11 @@ void OnWorkerMainScriptLoadingFailed(
                    protocol::Network::ResourceTypeEnum::Other, status);
 }
 
-void OnWorkerMainScriptLoadingFinished(
-    FrameTreeNode* ftn,
-    const base::UnguessableToken& worker_token,
-    const network::URLLoaderCompletionStatus& status) {
-  DCHECK(ftn);
-  DispatchToAgents(ftn, &protocol::NetworkHandler::LoadingComplete,
-                   worker_token.ToString(),
-                   protocol::Network::ResourceTypeEnum::Other, status);
-}
-
 void OnWorkerMainScriptRequestWillBeSent(
-    FrameTreeNode* ftn,
+    RenderFrameHostImpl& ancestor_frame_host,
     const base::UnguessableToken& worker_token,
     network::ResourceRequest& request) {
-  DCHECK(ftn);
+  FrameTreeNode* ftn = ancestor_frame_host.frame_tree_node();
 
   auto timestamp = base::TimeTicks::Now();
   network::mojom::URLRequestDevToolsInfoPtr request_info =
@@ -2153,11 +2372,27 @@ void OnWorkerMainScriptRequestWillBeSent(
     return;
   }
   MaybeAssignResourceRequestId(owner_host, worker_token.ToString(), request);
+
+  // Note: we apply overrides from the owner frame to match the behavior in the
+  // renderer.
+  bool disable_cache = false;
+  ApplyNetworkRequestOverrides(owner_host, &request.headers, &disable_cache,
+                               nullptr, &request.skip_service_worker,
+                               &request.devtools_accepted_stream_types, nullptr,
+                               nullptr);
+  if (disable_cache) {
+    request.load_flags &=
+        ~(net::LOAD_VALIDATE_CACHE | net::LOAD_SKIP_CACHE_VALIDATION |
+          net::LOAD_ONLY_FROM_CACHE | net::LOAD_DISABLE_CACHE);
+    request.load_flags |= net::LOAD_BYPASS_CACHE;
+  }
+
   DispatchToAgents(
       ftn, &protocol::NetworkHandler::RequestSent, worker_token.ToString(),
       /*loader_id=*/"", request.headers, *request_info,
       protocol::Network::Initiator::TypeEnum::Other, ftn->current_url(),
-      /*initiator_devtools_request_id*/ "", timestamp);
+      /*initiator_devtools_request_id*/ "",
+      ancestor_frame_host.devtools_frame_token(), timestamp);
 }
 
 void LogWorkletMessage(RenderFrameHostImpl& frame_host,
@@ -2218,10 +2453,6 @@ void ApplyNetworkContextParamsOverrides(
 protocol::Audits::GenericIssueErrorType GenericIssueErrorTypeToProtocol(
     blink::mojom::GenericIssueErrorType error_type) {
   switch (error_type) {
-    case blink::mojom::GenericIssueErrorType::
-        kCrossOriginPortalPostMessageError:
-      return protocol::Audits::GenericIssueErrorTypeEnum::
-          CrossOriginPortalPostMessageError;
     case blink::mojom::GenericIssueErrorType::kFormLabelForNameError:
       return protocol::Audits::GenericIssueErrorTypeEnum::FormLabelForNameError;
     case blink::mojom::GenericIssueErrorType::kFormDuplicateIdForInputError:
@@ -2321,10 +2552,11 @@ void DidCloseFedCmDialog(RenderFrameHost& render_frame_host) {
   DispatchToAgents(ftn, &protocol::FedCmHandler::DidCloseDialog);
 }
 
-void OnFencedFrameReportRequestSent(int initiator_frame_tree_node_id,
-                                    const std::string& devtools_request_id,
-                                    network::ResourceRequest& request,
-                                    const std::string& event_data) {
+void OnFencedFrameReportRequestSent(
+    FrameTreeNodeId initiator_frame_tree_node_id,
+    const std::string& devtools_request_id,
+    network::ResourceRequest& request,
+    const std::string& event_data) {
   DispatchToAgents(initiator_frame_tree_node_id,
                    &protocol::NetworkHandler::FencedFrameReportRequestSent,
                    /*request_id=*/devtools_request_id, request, event_data,
@@ -2332,7 +2564,7 @@ void OnFencedFrameReportRequestSent(int initiator_frame_tree_node_id,
 }
 
 void OnFencedFrameReportResponseReceived(
-    int initiator_frame_tree_node_id,
+    FrameTreeNodeId initiator_frame_tree_node_id,
     const std::string& devtools_request_id,
     const GURL& final_url,
     scoped_refptr<net::HttpResponseHeaders> headers) {
@@ -2345,7 +2577,7 @@ void OnFencedFrameReportResponseReceived(
                    /*request_id=*/devtools_request_id,
                    /*loader_id=*/devtools_request_id, final_url,
                    protocol::Network::ResourceTypeEnum::Other, *response_info,
-                   /*frame_id=*/protocol::Maybe<std::string>());
+                   /*frame_id=*/std::nullopt);
 
   DispatchToAgents(initiator_frame_tree_node_id,
                    &protocol::NetworkHandler::LoadingComplete,
@@ -2357,6 +2589,14 @@ void OnFencedFrameReportResponseReceived(
 void DidChangeFrameLoadingState(FrameTreeNode& ftn) {
   DispatchToAgents(&ftn, &protocol::PageHandler::DidChangeFrameLoadingState,
                    ftn);
+}
+
+void DidStartNavigating(FrameTreeNode& ftn,
+                        const GURL& url,
+                        const base::UnguessableToken& loader_id,
+                        const blink::mojom::NavigationType& navigation_type) {
+  DispatchToAgents(&ftn, &protocol::PageHandler::DidStartNavigating, ftn, url,
+                   loader_id, navigation_type);
 }
 
 }  // namespace devtools_instrumentation

@@ -23,8 +23,8 @@ import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwGeolocationPermissions;
 import org.chromium.android_webview.AwSettings;
 import org.chromium.android_webview.test.AwActivityTestRule.TestDependencyFactory;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Feature;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentUrlConstants;
 import org.chromium.device.geolocation.LocationProviderOverrider;
 import org.chromium.device.geolocation.MockLocationProvider;
@@ -59,32 +59,34 @@ public class GeolocationTest extends AwParameterizedTest {
     private TestDependencyFactory mOverriddenFactory;
 
     private static final String RAW_HTML =
-            "<!DOCTYPE html>\n"
-                    + "<html>\n"
-                    + "  <head>\n"
-                    + "    <title>Geolocation</title>\n"
-                    + "    <script>\n"
-                    + "      var positionCount = 0;\n"
-                    + "      function gotPos(position) {\n"
-                    + "        positionCount++;\n"
-                    + "      }\n"
-                    + "      function errorCallback(error){"
-                    + "        window.document.title = 'deny';"
-                    + "        console.log('navigator.getCurrentPosition error: ', error);"
-                    + "      }"
-                    + "      function initiate_getCurrentPosition() {\n"
-                    + "        navigator.geolocation.getCurrentPosition(\n"
-                    + "            gotPos, errorCallback, { });\n"
-                    + "      }\n"
-                    + "      function initiate_watchPosition() {\n"
-                    + "        navigator.geolocation.watchPosition(\n"
-                    + "            gotPos, errorCallback, { });\n"
-                    + "      }\n"
-                    + "    </script>\n"
-                    + "  </head>\n"
-                    + "  <body>\n"
-                    + "  </body>\n"
-                    + "</html>";
+            """
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Geolocation</title>
+            <script>
+              var positionCount = 0;
+              function gotPos(position) {
+                positionCount++;
+              }
+              function errorCallback(error) {
+                window.document.title = 'deny';
+                console.log('navigator.getCurrentPosition error: ', error);
+              }
+              function initiate_getCurrentPosition() {
+                navigator.geolocation.getCurrentPosition(
+                    gotPos, errorCallback, { });
+              }
+              function initiate_watchPosition() {
+                navigator.geolocation.watchPosition(
+                    gotPos, errorCallback, { });
+              }
+            </script>
+          </head>
+          <body>
+          </body>
+        </html>
+        """;
 
     private static class GrantPermisionAwContentClient extends TestAwContentsClient {
         @Override
@@ -125,7 +127,7 @@ public class GeolocationTest extends AwParameterizedTest {
         mOverriddenFactory = null;
     }
 
-    private int getPositionCountFromJS() {
+    private int getPositionCountFromJs() {
         int result = -1;
         try {
             result =
@@ -133,7 +135,7 @@ public class GeolocationTest extends AwParameterizedTest {
                             mActivityTestRule.executeJavaScriptAndWaitForResult(
                                     mAwContents, mContentsClient, "positionCount"));
         } catch (Exception e) {
-            Assert.fail("Unable to get positionCount");
+            throw new AssertionError("Unable to get positionCount", e);
         }
         return result;
     }
@@ -155,7 +157,7 @@ public class GeolocationTest extends AwParameterizedTest {
         public AwSettings createAwSettings(Context context, boolean supportLegacyQuirks) {
             return new AwSettings(
                     context,
-                    /* isAccessFromFileURLsGrantedByDefault= */ false,
+                    /* isAccessFromFileUrlsGrantedByDefault= */ false,
                     supportLegacyQuirks,
                     /* allowEmptyDocumentPersistence= */ false,
                     mAllow,
@@ -178,18 +180,18 @@ public class GeolocationTest extends AwParameterizedTest {
                 "https://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "initiate_getCurrentPosition();", null));
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() == 1);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() == 1);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "initiate_getCurrentPosition();", null));
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() == 2);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() == 2);
     }
 
     /** Ensure that a call to navigator.watchPosition works in WebView. */
@@ -207,10 +209,10 @@ public class GeolocationTest extends AwParameterizedTest {
                 "https://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mAwContents.evaluateJavaScriptForTests("initiate_watchPosition();", null));
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() > 1);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() > 1);
     }
 
     @Test
@@ -228,10 +230,10 @@ public class GeolocationTest extends AwParameterizedTest {
                 "https://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mAwContents.evaluateJavaScriptForTests("initiate_watchPosition();", null));
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() > 1);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() > 1);
 
         ensureGeolocationRunning(true);
 
@@ -243,15 +245,15 @@ public class GeolocationTest extends AwParameterizedTest {
             mActivityTestRule.executeJavaScriptAndWaitForResult(
                     mAwContents, mContentsClient, "positionCount = 0");
         } catch (Exception e) {
-            Assert.fail("Unable to clear positionCount");
+            throw new AssertionError("Unable to clear positionCount", e);
         }
-        Assert.assertEquals(0, getPositionCountFromJS());
+        Assert.assertEquals(0, getPositionCountFromJs());
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> mAwContents.onResume());
 
         ensureGeolocationRunning(true);
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() > 1);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() > 1);
     }
 
     @Test
@@ -271,10 +273,10 @@ public class GeolocationTest extends AwParameterizedTest {
                 "https://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mAwContents.evaluateJavaScriptForTests("initiate_watchPosition();", null));
 
-        Assert.assertEquals(0, getPositionCountFromJS());
+        Assert.assertEquals(0, getPositionCountFromJs());
 
         ensureGeolocationRunning(false);
 
@@ -282,7 +284,7 @@ public class GeolocationTest extends AwParameterizedTest {
 
         ensureGeolocationRunning(true);
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() > 1);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() > 1);
     }
 
     @Test
@@ -320,7 +322,7 @@ public class GeolocationTest extends AwParameterizedTest {
                 "https://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "initiate_getCurrentPosition();", null));
@@ -350,7 +352,7 @@ public class GeolocationTest extends AwParameterizedTest {
                 "http://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "initiate_getCurrentPosition();", null));
@@ -379,11 +381,11 @@ public class GeolocationTest extends AwParameterizedTest {
                 "http://google.com/",
                 ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "initiate_getCurrentPosition();", null));
 
-        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJS() > 0);
+        AwActivityTestRule.pollInstrumentationThread(() -> getPositionCountFromJs() > 0);
     }
 }

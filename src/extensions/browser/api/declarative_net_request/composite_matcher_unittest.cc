@@ -4,12 +4,15 @@
 
 #include "extensions/browser/api/declarative_net_request/composite_matcher.h"
 
+#include <array>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/memory/raw_ref.h"
 #include "base/strings/stringprintf.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/version_info/channel.h"
 #include "extensions/browser/api/declarative_net_request/constants.h"
 #include "extensions/browser/api/declarative_net_request/file_backed_ruleset_source.h"
 #include "extensions/browser/api/declarative_net_request/request_action.h"
@@ -19,6 +22,8 @@
 #include "extensions/common/api/declarative_net_request.h"
 #include "extensions/common/api/declarative_net_request/constants.h"
 #include "extensions/common/api/declarative_net_request/test_utils.h"
+#include "extensions/common/extension_features.h"
+#include "extensions/common/features/feature_channel.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "net/http/http_request_headers.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -46,18 +51,20 @@ TestRule CreateModifyHeadersRule(
   rule.id = id;
   rule.priority = priority;
 
-  if (url_filter)
+  if (url_filter) {
     rule.condition->url_filter = url_filter;
-  else if (regex_filter) {
+  } else if (regex_filter) {
     rule.condition->url_filter.reset();
     rule.condition->regex_filter = regex_filter;
   }
 
   rule.action->type = std::string("modifyHeaders");
-  if (request_headers_list)
+  if (request_headers_list) {
     rule.action->request_headers = std::move(request_headers_list);
-  if (response_headers_list)
+  }
+  if (response_headers_list) {
     rule.action->response_headers = std::move(response_headers_list);
+  }
   return rule;
 }
 
@@ -375,7 +382,7 @@ TEST_F(CompositeMatcherTest, GetModifyHeadersActions_Priority) {
   google_params.url = &google_url;
 
   // Reset the max allow rule priority cache since a new request is being made.
-  google_params.allow_rule_max_priority.clear();
+  google_params.max_priority_allow_action.clear();
 
   // Call GetBeforeRequestAction first to ensure that test and production code
   // paths are consistent.
@@ -525,12 +532,13 @@ TEST_F(CompositeMatcherTest, HostPermissionsAlwaysRequired) {
       std::move(matchers), /*extension_id=*/"",
       HostPermissionsAlwaysRequired::kTrue);
 
-  struct TestCases {
+  struct TestCase {
     const char* url;
     const PageAccess access;
     const bool expected_notify_withheld;
     std::optional<int> expected_matched_rule_id;
-  } cases[] = {
+  };
+  const auto cases = std::to_array<TestCase>({
       {"https://example.com", PageAccess::kAllowed, false, block_rule.id},
       {"https://example.com", PageAccess::kWithheld, true, std::nullopt},
       {"https://foo.com", PageAccess::kAllowed, false, allow_rule.id},
@@ -541,7 +549,7 @@ TEST_F(CompositeMatcherTest, HostPermissionsAlwaysRequired) {
       {"http://upgrade.com", PageAccess::kWithheld, true, std::nullopt},
       {"http://nomatch.com", PageAccess::kAllowed, false, std::nullopt},
       {"http://nomatch.com", PageAccess::kWithheld, false, std::nullopt},
-  };
+  });
 
   for (size_t i = 0; i < std::size(cases); i++) {
     SCOPED_TRACE(base::StringPrintf("Testing case %zu", i));
@@ -555,8 +563,9 @@ TEST_F(CompositeMatcherTest, HostPermissionsAlwaysRequired) {
     EXPECT_EQ(cases[i].expected_notify_withheld, info.notify_request_withheld);
 
     std::optional<int> rule_matched_id;
-    if (info.action)
+    if (info.action) {
       rule_matched_id = info.action->rule_id;
+    }
 
     EXPECT_EQ(cases[i].expected_matched_rule_id, rule_matched_id);
   }
@@ -717,6 +726,120 @@ TEST_F(CompositeMatcherTest, RulePlacement) {
     matchers.push_back(std::move(block_matcher));
     matchers.push_back(std::move(redirect_matcher));
     test_matchers(std::move(matchers));
+  }
+}
+
+class CompositeMatcherResponseHeadersTest : public CompositeMatcherTest {
+ public:
+  CompositeMatcherResponseHeadersTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        extensions_features::kDeclarativeNetRequestResponseHeaderMatching);
+  }
+
+ private:
+  // TODO(crbug.com/40727004): Once feature is launched to stable and feature
+  // flag can be removed, replace usages of this test class with just
+  // DeclarativeNetRequestBrowserTest.
+  base::test::ScopedFeatureList scoped_feature_list_;
+  ScopedCurrentChannel current_channel_override_{version_info::Channel::DEV};
+};
+
+// Test that an allow rule matched in OnBeforeRequest can be returned when
+// matching rules in OnHeadersReceived if said rule outprioritizes all rules
+// with response header conditions.
+TEST_F(CompositeMatcherResponseHeadersTest, AllowRuleMatchedAcrossStages) {
+  // TODO(kelvinjiang): A lot of e2e DNR tests for response header rules test
+  // the matching logic for the onHeadersReceived stage, so a header condition
+  // that functionally matches on almost any header is used. Put this into
+  // test_utils.
+  std::vector<TestHeaderCondition> blank_header_condition =
+      std::vector<TestHeaderCondition>(
+          {TestHeaderCondition("nonsense-header", {}, {})});
+
+  int rule_id = kMinValidID;
+
+  // Add 3 rules:
+  // - OnBeforeRequest allow (pri = 3)
+  // - OnHeadersReceived block (pri = 2)
+  // - OnHeadersReceived allow (pri = 1)
+  TestRule before_request_allow = CreateGenericRule(rule_id++);
+  before_request_allow.action->type = "allow";
+  before_request_allow.condition->url_filter = "example.test2";
+  before_request_allow.priority = 3;
+
+  TestRule headers_received_block = CreateGenericRule(rule_id++);
+  headers_received_block.condition->url_filter = "example.test";
+  headers_received_block.condition->excluded_response_headers =
+      blank_header_condition;
+  headers_received_block.priority = 2;
+
+  TestRule headers_received_allow = CreateGenericRule(rule_id++);
+  headers_received_allow.action->type = "allow";
+  headers_received_allow.condition->url_filter = "example.test";
+  headers_received_allow.condition->excluded_response_headers =
+      blank_header_condition;
+
+  std::unique_ptr<RulesetMatcher> matcher;
+  ASSERT_TRUE(CreateVerifiedMatcher(
+      {before_request_allow, headers_received_block, headers_received_allow},
+      CreateTemporarySource(), &matcher));
+  CompositeMatcher::MatcherList matchers;
+  matchers.push_back(std::move(matcher));
+  auto composite_matcher = std::make_unique<CompositeMatcher>(
+      std::move(matchers), /*extension_id=*/"",
+      HostPermissionsAlwaysRequired::kTrue);
+
+  struct {
+    std::string url;
+    std::optional<int> expected_matched_before_request_id;
+    std::optional<int> expected_matched_headers_received_id;
+  } test_cases[] = {
+      // No rules are matched in OnBeforeRequest, but `headers_received_block`
+      // is matched in OnHeadersReceived.
+      {"https://example.test", std::nullopt, headers_received_block.id},
+
+      // `before_request_allow` is matched in OnBeforeRequest, and that match is
+      // carried over in `OnHeadersReceived` where it outprioritizes rules with
+      // header conditions, so it should be matched again.
+      {"https://example.test2", before_request_allow.id,
+       before_request_allow.id},
+  };
+
+  for (const auto& test_case : test_cases) {
+    SCOPED_TRACE(base::StringPrintf("Testing %s", test_case.url.c_str()));
+
+    // Navigate to the given URL.
+    GURL url(test_case.url);
+    auto base_headers = base::MakeRefCounted<net::HttpResponseHeaders>(
+        net::HttpUtil::AssembleRawHeaders("HTTP/1.0 200 OK\r\n"));
+    RequestParams params =
+        CreateRequestWithResponseHeaders(url, base_headers.get());
+
+    // Match rules in the OnBeforeRequest phase and verify the matched rule ID
+    // if any.
+    ActionInfo before_request_info = composite_matcher->GetAction(
+        params, RulesetMatchingStage::kOnBeforeRequest, PageAccess::kAllowed);
+
+    std::optional<int> before_request_rule_id;
+    if (before_request_info.action) {
+      before_request_rule_id = before_request_info.action->rule_id;
+    }
+    EXPECT_EQ(test_case.expected_matched_before_request_id,
+              before_request_rule_id);
+
+    // Reusing `params`, simulate a request matching flow by continuing to match
+    // rules in the OnHeadersReceived phase, and verify the matched rule ID if
+    // any.
+    ActionInfo headers_received_info = composite_matcher->GetAction(
+        params, RulesetMatchingStage::kOnHeadersReceived, PageAccess::kAllowed);
+
+    std::optional<int> headers_received_rule_id;
+    if (headers_received_info.action) {
+      headers_received_rule_id = headers_received_info.action->rule_id;
+    }
+
+    EXPECT_EQ(test_case.expected_matched_headers_received_id,
+              headers_received_rule_id);
   }
 }
 

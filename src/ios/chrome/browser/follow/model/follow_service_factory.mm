@@ -4,21 +4,18 @@
 
 #import "ios/chrome/browser/follow/model/follow_service_factory.h"
 
-#import "base/no_destructor.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service_factory.h"
 #import "ios/chrome/browser/follow/model/follow_configuration.h"
 #import "ios/chrome/browser/follow/model/follow_service.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/public/provider/chrome/browser/follow/follow_api.h"
 
 // static
-FollowService* FollowServiceFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<FollowService*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true));
+FollowService* FollowServiceFactory::GetForProfile(ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<FollowService>(profile,
+                                                              /*create=*/true);
 }
 
 // static
@@ -28,9 +25,7 @@ FollowServiceFactory* FollowServiceFactory::GetInstance() {
 }
 
 FollowServiceFactory::FollowServiceFactory()
-    : BrowserStateKeyedServiceFactory(
-          "FollowService",
-          BrowserStateDependencyManager::GetInstance()) {
+    : ProfileKeyedServiceFactoryIOS("FollowService") {
   DependsOn(DiscoverFeedServiceFactory::GetInstance());
 }
 
@@ -38,12 +33,11 @@ FollowServiceFactory::~FollowServiceFactory() = default;
 
 std::unique_ptr<KeyedService> FollowServiceFactory::BuildServiceInstanceFor(
     web::BrowserState* context) const {
-  ChromeBrowserState* browser_state =
-      ChromeBrowserState::FromBrowserState(context);
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(context);
 
   FollowConfiguration* configuration = [[FollowConfiguration alloc] init];
   configuration.feedService =
-      DiscoverFeedServiceFactory::GetForBrowserState(browser_state);
+      DiscoverFeedServiceFactory::GetForProfile(profile);
 
   return ios::provider::CreateFollowService(configuration);
 }

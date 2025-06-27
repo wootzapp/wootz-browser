@@ -10,17 +10,25 @@ import android.webkit.ServiceWorkerController;
 import android.webkit.WebStorage;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
 
 import org.chromium.android_webview.AwBrowserContext;
 import org.chromium.android_webview.common.Lifetime;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.TraceEvent;
+
+import java.util.concurrent.Executor;
 
 /**
- * An abstraction of {@link AwBrowserContext}, this class reflects
- * the state needed for the multi-profile public API.
+ * An abstraction of {@link AwBrowserContext}, this class reflects the state needed for the
+ * multi-profile public API.
  */
 @Lifetime.Profile
 public class Profile {
+
+    @NonNull private final AwBrowserContext mBrowserContext;
+
     @NonNull private final String mName;
 
     @NonNull private final CookieManager mCookieManager;
@@ -32,23 +40,29 @@ public class Profile {
     @NonNull private final ServiceWorkerController mServiceWorkerController;
 
     public Profile(@NonNull final AwBrowserContext browserContext) {
-        assert ThreadUtils.runningOnUiThread();
-        WebViewChromiumFactoryProvider factory = WebViewChromiumFactoryProvider.getSingleton();
-        mName = browserContext.getName();
+        String traceArgs = String.format("{name: \"%s\"}", browserContext.getName());
+        try (TraceEvent event = TraceEvent.scoped("WebView.Profile.constructor", traceArgs)) {
+            ThreadUtils.checkUiThread();
+            mBrowserContext = browserContext;
+            mName = browserContext.getName();
 
-        if (browserContext.isDefaultAwBrowserContext()) {
-            mCookieManager = factory.getCookieManager();
-            mWebStorage = factory.getWebStorage();
-            mGeolocationPermissions = factory.getGeolocationPermissions();
-            mServiceWorkerController = factory.getServiceWorkerController();
-        } else {
-            mCookieManager = new CookieManagerAdapter(browserContext.getCookieManager());
-            mWebStorage = new WebStorageAdapter(factory, browserContext.getQuotaManagerBridge());
-            mGeolocationPermissions =
-                    new GeolocationPermissionsAdapter(
-                            factory, browserContext.getGeolocationPermissions());
-            mServiceWorkerController =
-                    new ServiceWorkerControllerAdapter(browserContext.getServiceWorkerController());
+            WebViewChromiumFactoryProvider factory = WebViewChromiumFactoryProvider.getSingleton();
+            if (browserContext.isDefaultAwBrowserContext()) {
+                mCookieManager = factory.getCookieManager();
+                mWebStorage = factory.getWebStorage();
+                mGeolocationPermissions = factory.getGeolocationPermissions();
+                mServiceWorkerController = factory.getServiceWorkerController();
+            } else {
+                mCookieManager = new CookieManagerAdapter(browserContext.getCookieManager());
+                mWebStorage =
+                        new WebStorageAdapter(factory, browserContext.getQuotaManagerBridge());
+                mGeolocationPermissions =
+                        new GeolocationPermissionsAdapter(
+                                factory, browserContext.getGeolocationPermissions());
+                mServiceWorkerController =
+                        new ServiceWorkerControllerAdapter(
+                                browserContext.getServiceWorkerController());
+            }
         }
     }
 
@@ -59,7 +73,11 @@ public class Profile {
 
     @NonNull
     public CookieManager getCookieManager() {
-        return mCookieManager;
+        String traceArgs = String.format("{name: \"%s\"}", mName);
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.Profile.GET_COOKIE_MANAGER", traceArgs)) {
+            return mCookieManager;
+        }
     }
 
     @NonNull
@@ -75,5 +93,51 @@ public class Profile {
     @NonNull
     public ServiceWorkerController getServiceWorkerController() {
         return mServiceWorkerController;
+    }
+
+    @UiThread
+    public int prefetchUrl(
+            String url,
+            @Nullable PrefetchParams params,
+            Executor callbackExecutor,
+            PrefetchOperationCallback resultCallback) {
+        try (TraceEvent event = TraceEvent.scoped("WebView.Profile.Prefetch.PRE_START")) {
+            if (url == null) {
+                throw new IllegalArgumentException("URL cannot be null for prefetch.");
+            }
+
+            if (resultCallback == null) {
+                throw new IllegalArgumentException("Callback cannot be null for prefetch.");
+            }
+            return mBrowserContext
+                    .getPrefetchManager()
+                    .startPrefetchRequest(
+                            url,
+                            params == null ? null : params.toAwPrefetchParams(),
+                            new ProfileWebViewPrefetchCallback(callbackExecutor, resultCallback),
+                            callbackExecutor);
+        }
+    }
+
+    @UiThread
+    public void clearPrefetch(String url, PrefetchOperationCallback resultCallback) {
+        // TODO(334016945): do the actual implementation
+    }
+
+    @UiThread
+    public void cancelPrefetch(int prefetchKey) {
+        // TODO(334016945): do the actual implementation
+    }
+
+    @UiThread
+    public void setSpeculativeLoadingConfig(SpeculativeLoadingConfig speculativeLoadingConfig) {
+        mBrowserContext
+                .getPrefetchManager()
+                .updatePrefetchConfiguration(
+                        speculativeLoadingConfig.prefetchTTLSeconds,
+                        speculativeLoadingConfig.maxPrefetches);
+        if (speculativeLoadingConfig.maxPrerenders > 0) {
+            mBrowserContext.setMaxPrerenders(speculativeLoadingConfig.maxPrerenders);
+        }
     }
 }

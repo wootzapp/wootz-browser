@@ -26,10 +26,9 @@ import androidx.core.widget.ImageViewCompat;
 import com.google.android.material.tabs.TabLayout;
 
 import org.chromium.chrome.browser.feed.FeedFeatures;
-import org.chromium.chrome.browser.feed.FeedUma;
 import org.chromium.chrome.browser.feed.R;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.user_education.IPHCommandBuilder;
+import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.browser_ui.widget.highlight.PulseDrawable;
@@ -40,20 +39,19 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
 import org.chromium.ui.listmenu.ListMenuButton;
-import org.chromium.ui.listmenu.ListMenuButtonDelegate;
+import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.widget.RectProvider;
 import org.chromium.ui.widget.ViewRectProvider;
 
 /**
- * View for the header of the personalized feed that has a context menu to
- * manage the feed.
+ * View for the header of the personalized feed that has a context menu to manage the feed.
  *
- * This view can be inflated from one of two layouts, hence many @Nullables.
+ * <p>This view can be inflated from one of two layouts, hence many @Nullables.
  */
 public class SectionHeaderView extends LinearLayout {
     /** OnTabSelectedListener that delegates calls to the SectionHeadSelectedListener. */
-    private class SectionHeaderTabListener implements TabLayout.OnTabSelectedListener {
+    private static class SectionHeaderTabListener implements TabLayout.OnTabSelectedListener {
         private @Nullable OnSectionHeaderSelectedListener mListener;
 
         @Override
@@ -104,7 +102,7 @@ public class SectionHeaderView extends LinearLayout {
     }
 
     /** Holds additional state for a tab. */
-    private class TabState {
+    private static class TabState {
         // Whether the tab has unread content.
         public boolean hasUnreadContent;
         // Null when unread indicator isn't shown.
@@ -115,8 +113,6 @@ public class SectionHeaderView extends LinearLayout {
         public String text = "";
         public boolean shouldAnimateIndicator;
     }
-
-    private final boolean mIsSurfacePolishEnabled;
 
     // Views in the header layout that are set during inflate.
     private @Nullable ImageView mLeadingStatusIndicator;
@@ -132,12 +128,13 @@ public class SectionHeaderView extends LinearLayout {
     private @Px int mToolbarHeight;
     private @Px int mTouchSize;
     private boolean mIsTablet;
+    private final boolean mIsNewTabPageCustomizationEnabled;
 
     public SectionHeaderView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mTouchSize = getResources().getDimensionPixelSize(R.dimen.feed_v2_header_menu_touch_size);
-        mIsSurfacePolishEnabled = ChromeFeatureList.sSurfacePolish.isEnabled();
         mIsTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(getContext());
+        mIsNewTabPageCustomizationEnabled = ChromeFeatureList.sNewTabPageCustomization.isEnabled();
     }
 
     public void setToolbarHeight(@Px int toolbarHeight) {
@@ -194,7 +191,15 @@ public class SectionHeaderView extends LinearLayout {
         super.onFinishInflate();
 
         mTitleView = findViewById(R.id.header_title);
+
         mMenuView = findViewById(R.id.header_menu);
+        if (mIsNewTabPageCustomizationEnabled) {
+            // When NTP Customization is turned on, the section header menu is no longer visible.
+            // It's relocated to the NTP Customization Discover Feed bottom sheet.
+            mMenuView.setVisibility(View.INVISIBLE);
+            mMenuView = null;
+        }
+
         mLeadingStatusIndicator = findViewById(R.id.section_status_indicator);
         mTabLayout = findViewById(R.id.tab_list_view);
         mContent = findViewById(R.id.main_content);
@@ -202,69 +207,51 @@ public class SectionHeaderView extends LinearLayout {
         if (mTabLayout != null) {
             mTabListener = new SectionHeaderTabListener();
             mTabLayout.addOnTabSelectedListener(mTabListener);
-            if (mIsSurfacePolishEnabled) {
+            if (mIsTablet) {
                 // Sets the default width for the header.
                 updateTabLayoutHeaderWidth(false);
-                mTabLayout.setTabGravity(TabLayout.GRAVITY_FILL);
-                mTabLayout.setBackgroundResource(
-                        ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)
-                                ? R.drawable.header_title_section_tab_background
-                                : R.drawable.header_title_section_tab_background_polished);
+            }
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)) {
+                mTabLayout.setBackgroundResource(R.drawable.header_title_section_tab_background);
             }
         }
 
-        if (mIsSurfacePolishEnabled) {
-            // Add 20dp padding at each sides for the SectionHeaderView.
-            int lateralPadding =
-                    getResources().getDimensionPixelSize(R.dimen.feed_header_menu_end_margin);
-            mContent.setPadding(lateralPadding, 0, 0, 0);
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)) {
             MarginLayoutParams contentMarginLayoutParams =
                     (MarginLayoutParams) mContent.getLayoutParams();
             contentMarginLayoutParams.topMargin =
                     getResources()
-                            .getDimensionPixelSize(
-                                    ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)
-                                            ? R.dimen.feed_containment_feed_header_top_margin
-                                            : R.dimen.feed_header_top_margin);
+                            .getDimensionPixelSize(R.dimen.feed_containment_feed_header_top_margin);
+        }
 
-            MarginLayoutParams marginLayoutParams =
-                    (MarginLayoutParams) mMenuView.getLayoutParams();
-            marginLayoutParams.width =
-                    getResources().getDimensionPixelSize(R.dimen.feed_header_menu_width_polished);
+        if (mLeadingStatusIndicator != null) {
+            MarginLayoutParams indicatorViewMarginLayoutParams =
+                    (MarginLayoutParams) mLeadingStatusIndicator.getLayoutParams();
             int tabLayoutLateralMargin =
                     getResources()
                             .getDimensionPixelSize(R.dimen.feed_header_tab_layout_lateral_margin);
-            marginLayoutParams.setMarginStart(
-                    marginLayoutParams.getMarginStart() + tabLayoutLateralMargin);
-
-            MarginLayoutParams titleViewMarginLayoutParams =
-                    (MarginLayoutParams) mTitleView.getLayoutParams();
-            titleViewMarginLayoutParams.setMarginStart(
-                    getResources()
-                            .getDimensionPixelSize(R.dimen.feed_header_title_view_margin_start));
-
-            if (mLeadingStatusIndicator != null) {
-                MarginLayoutParams indicatorViewMarginLayoutParams =
-                        (MarginLayoutParams) mLeadingStatusIndicator.getLayoutParams();
-                indicatorViewMarginLayoutParams.setMarginEnd(
-                        indicatorViewMarginLayoutParams.getMarginEnd() + tabLayoutLateralMargin);
-            }
+            indicatorViewMarginLayoutParams.setMarginEnd(
+                    indicatorViewMarginLayoutParams.getMarginEnd() + tabLayoutLateralMargin);
         }
 
-        // #getHitRect() will not be valid until the first layout pass completes. Additionally, if
-        // the header's enabled state changes, |mMenuView| will move slightly sideways, and the
-        // touch target needs to be adjusted. This is a bit chatty during animations, but it should
-        // also be fairly cheap.
-        mMenuView.addOnLayoutChangeListener(
-                (View v,
-                        int left,
-                        int top,
-                        int right,
-                        int bottom,
-                        int oldLeft,
-                        int oldTop,
-                        int oldRight,
-                        int oldBottom) -> adjustTouchDelegate(mMenuView));
+        if (!mIsNewTabPageCustomizationEnabled) {
+            // #getHitRect() will not be valid until the first layout pass completes. Additionally,
+            // if
+            // the header's enabled state changes, |mMenuView| will move slightly sideways, and the
+            // touch target needs to be adjusted. This is a bit chatty during animations, but it
+            // should
+            // also be fairly cheap.
+            mMenuView.addOnLayoutChangeListener(
+                    (View v,
+                            int left,
+                            int top,
+                            int right,
+                            int bottom,
+                            int oldLeft,
+                            int oldTop,
+                            int oldRight,
+                            int oldBottom) -> adjustTouchDelegate(mMenuView));
+        }
 
         // Ensures that the whole header doesn't get focused for a11y.
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -277,32 +264,32 @@ public class SectionHeaderView extends LinearLayout {
 
     /** Adds a blank tab. */
     void addTab() {
-        if (mTabLayout != null) {
-            TabLayout.Tab tab = mTabLayout.newTab();
-            tab.setCustomView(R.layout.new_tab_page_section_tab);
-            tab.setTag(new TabState());
-            mTabLayout.addTab(tab);
-            tab.view.setClipToPadding(false);
-            tab.view.setClipChildren(false);
-            if (mIsSurfacePolishEnabled) {
-                tab.view.setForeground(
-                        ResourcesCompat.getDrawable(
-                                getResources(),
-                                R.drawable.header_title_tab_selected_ripple,
-                                getContext().getTheme()));
+        if (mTabLayout == null) {
+            return;
+        }
 
-                tab.view.setBackground(
-                        ResourcesCompat.getDrawable(
-                                getResources(),
-                                R.drawable.header_title_tab_selected_background_polished,
-                                getContext().getTheme()));
-            } else {
-                tab.view.setBackground(
-                        ResourcesCompat.getDrawable(
-                                getResources(),
-                                R.drawable.header_title_tab_selected_background,
-                                getContext().getTheme()));
-            }
+        TabLayout.Tab tab = mTabLayout.newTab();
+        tab.setCustomView(R.layout.new_tab_page_section_tab);
+        tab.setTag(new TabState());
+        mTabLayout.addTab(tab);
+        tab.view.setClipToPadding(false);
+        tab.view.setClipChildren(false);
+        tab.view.setForeground(
+                ResourcesCompat.getDrawable(
+                        getResources(),
+                        R.drawable.header_title_tab_selected_ripple,
+                        getContext().getTheme()));
+
+        tab.view.setBackground(
+                ResourcesCompat.getDrawable(
+                        getResources(),
+                        R.drawable.header_title_tab_selected_background,
+                        getContext().getTheme()));
+        if (mTabLayout.getTabCount() > 1) {
+            int startLateralPadding =
+                    getResources()
+                            .getDimensionPixelSize(R.dimen.multi_feed_header_menu_start_margin);
+            mContent.setPadding(startLateralPadding, 0, 0, 0);
         }
     }
 
@@ -529,8 +516,8 @@ public class SectionHeaderView extends LinearLayout {
                         return Math.min(bounds.width(), bounds.height()) / 1.5f;
                     }
                 });
-        helper.requestShowIPH(
-                new IPHCommandBuilder(
+        helper.requestShowIph(
+                new IphCommandBuilder(
                                 mMenuView.getContext().getResources(),
                                 FeatureConstants.FEED_HEADER_MENU_FEATURE,
                                 R.string.ntp_feed_menu_iph,
@@ -563,8 +550,8 @@ public class SectionHeaderView extends LinearLayout {
         // TODO(crbug.com/40914294): Request IPH after parent set or something.
         if (getParent() == null) return;
 
-        helper.requestShowIPH(
-                new IPHCommandBuilder(
+        helper.requestShowIph(
+                new IphCommandBuilder(
                                 getContext().getResources(),
                                 FeatureConstants.WEB_FEED_AWARENESS_FEATURE,
                                 R.string.web_feed_awareness,
@@ -590,8 +577,6 @@ public class SectionHeaderView extends LinearLayout {
     }
 
     private void displayMenu(ModelList listItems, ListMenu.Delegate listMenuDelegate) {
-        FeedUma.recordFeedControlsAction(FeedUma.CONTROLS_ACTION_CLICKED_FEED_HEADER_MENU);
-
         if (listItems == null) {
             assert false : "No list items model to display the menu";
             return;
@@ -606,8 +591,8 @@ public class SectionHeaderView extends LinearLayout {
                 BrowserUiListMenuUtils.getBasicListMenu(
                         mMenuView.getContext(), listItems, listMenuDelegate);
 
-        ListMenuButtonDelegate delegate =
-                new ListMenuButtonDelegate() {
+        ListMenuDelegate delegate =
+                new ListMenuDelegate() {
                     @Override
                     public ListMenu getListMenu() {
                         return listMenu;
@@ -695,7 +680,6 @@ public class SectionHeaderView extends LinearLayout {
     void updateTabLayoutHeaderWidth(boolean isNarrowWindowOnTablet) {
         if (mTabLayout == null) return;
 
-        assert mIsSurfacePolishEnabled;
         MarginLayoutParams layoutParams = (MarginLayoutParams) mTabLayout.getLayoutParams();
         if (!mIsTablet || isNarrowWindowOnTablet) {
             layoutParams.width = LayoutParams.MATCH_PARENT;

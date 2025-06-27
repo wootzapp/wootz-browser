@@ -8,7 +8,8 @@
 
 #include "components/web_package/signed_web_bundles/ecdsa_p256_sha256_signature.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/strings/stringprintf.h"
 #include "base/types/expected.h"
 #include "components/web_package/signed_web_bundles/ecdsa_p256_public_key.h"
@@ -34,8 +35,15 @@ EcdsaP256SHA256Signature::~EcdsaP256SHA256Signature() = default;
 
 EcdsaP256SHA256Signature::EcdsaP256SHA256Signature(
     const EcdsaP256SHA256Signature&) = default;
+
+EcdsaP256SHA256Signature::EcdsaP256SHA256Signature(EcdsaP256SHA256Signature&&) =
+    default;
+
 EcdsaP256SHA256Signature& EcdsaP256SHA256Signature::operator=(
     const EcdsaP256SHA256Signature&) = default;
+
+EcdsaP256SHA256Signature& EcdsaP256SHA256Signature::operator=(
+    EcdsaP256SHA256Signature&&) = default;
 
 EcdsaP256SHA256Signature::EcdsaP256SHA256Signature(
     mojo::DefaultConstruct::Tag) {}

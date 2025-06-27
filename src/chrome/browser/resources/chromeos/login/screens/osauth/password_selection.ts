@@ -11,13 +11,13 @@ import '../../components/dialogs/oobe_loading_dialog.js';
 import '../../components/buttons/oobe_back_button.js';
 import '../../components/buttons/oobe_next_button.js';
 
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {LoginScreenBehavior, LoginScreenBehaviorInterface} from '../../components/behaviors/login_screen_behavior.js';
-import {MultiStepBehavior, MultiStepBehaviorInterface} from '../../components/behaviors/multi_step_behavior.js';
-import {OobeDialogHostBehavior, OobeDialogHostBehaviorInterface} from '../../components/behaviors/oobe_dialog_host_behavior.js';
-import {OobeI18nMixin, OobeI18nMixinInterface} from '../../components/mixins/oobe_i18n_mixin.js';
+import {LoginScreenMixin} from '../../components/mixins/login_screen_mixin.js';
+import {MultiStepMixin} from '../../components/mixins/multi_step_mixin.js';
+import {OobeDialogHostMixin} from '../../components/mixins/oobe_dialog_host_mixin.js';
+import {OobeI18nMixin} from '../../components/mixins/oobe_i18n_mixin.js';
 
 import {getTemplate} from './password_selection.html.js';
 
@@ -37,17 +37,8 @@ enum PasswordSelectionState {
   PROGRESS = 'progress',
 }
 
-const PasswordSelectionBase = mixinBehaviors(
-                                         [
-                                           OobeDialogHostBehavior,
-                                           LoginScreenBehavior,
-                                           MultiStepBehavior,
-                                         ],
-                                         OobeI18nMixin(PolymerElement)) as {
-  new (): PolymerElement & OobeDialogHostBehaviorInterface &
-      OobeI18nMixinInterface & LoginScreenBehaviorInterface &
-      MultiStepBehaviorInterface,
-};
+const PasswordSelectionBase = OobeDialogHostMixin(
+    LoginScreenMixin(MultiStepMixin(OobeI18nMixin(PolymerElement))));
 
 export class PasswordSelection extends PasswordSelectionBase {
   static get is() {
@@ -76,11 +67,18 @@ export class PasswordSelection extends PasswordSelectionBase {
         type: Object,
         value: PasswordType,
       },
+
+      // Only visible when the user chose to skip PIN as a main factor setup.
+      backButtonVisible: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
   private selectedPasswordType: string;
   private passwordTypeEnum: PasswordType;
+  private backButtonVisible: boolean;
 
   override ready(): void {
     super.ready();
@@ -91,6 +89,7 @@ export class PasswordSelection extends PasswordSelectionBase {
     return [
       'showProgress',
       'showPasswordChoice',
+      'showBackButton',
     ];
   }
 
@@ -105,7 +104,13 @@ export class PasswordSelection extends PasswordSelectionBase {
 
   // Invoked just before being shown. Contains all the data for the screen.
   override onBeforeShow(): void {
+    super.onBeforeShow();
     this.selectedPasswordType = PasswordType.LOCAL_PASSWORD;
+  }
+
+  override onBeforeHide(): void {
+    super.onBeforeHide();
+    this.backButtonVisible = false;
   }
 
   showProgress(): void {
@@ -114,6 +119,10 @@ export class PasswordSelection extends PasswordSelectionBase {
 
   showPasswordChoice(): void {
     this.setUIStep(PasswordSelectionState.SELECTION);
+  }
+
+  showBackButton(): void {
+    this.backButtonVisible = true;
   }
 
   private onBackClicked(): void {

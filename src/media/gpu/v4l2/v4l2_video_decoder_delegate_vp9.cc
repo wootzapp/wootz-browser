@@ -2,16 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/v4l2/v4l2_video_decoder_delegate_vp9.h"
 
 #include <linux/v4l2-controls.h>
 
 #include "base/logging.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/numerics/safe_math.h"
-#include "media/filters/vp9_parser.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/v4l2/v4l2_decode_surface.h"
 #include "media/gpu/v4l2/v4l2_decode_surface_handler.h"
+#include "media/parsers/vp9_parser.h"
 
 namespace media {
 
@@ -32,7 +38,7 @@ class V4L2VP9Picture : public VP9Picture {
   ~V4L2VP9Picture() override = default;
 
   scoped_refptr<VP9Picture> CreateDuplicate() override {
-    return new V4L2VP9Picture(dec_surface_);
+    return base::MakeRefCounted<V4L2VP9Picture>(dec_surface_);
   }
 
   scoped_refptr<V4L2DecodeSurface> dec_surface_;
@@ -164,7 +170,7 @@ scoped_refptr<VP9Picture> V4L2VideoDecoderDelegateVP9::CreateVP9Picture() {
   if (!dec_surface)
     return nullptr;
 
-  return new V4L2VP9Picture(std::move(dec_surface));
+  return base::MakeRefCounted<V4L2VP9Picture>(std::move(dec_surface));
 }
 
 scoped_refptr<VP9Picture> V4L2VideoDecoderDelegateVP9::CreateVP9PictureSecure(
@@ -175,7 +181,7 @@ scoped_refptr<VP9Picture> V4L2VideoDecoderDelegateVP9::CreateVP9PictureSecure(
     return nullptr;
   }
 
-  return new V4L2VP9Picture(std::move(dec_surface));
+  return base::MakeRefCounted<V4L2VP9Picture>(std::move(dec_surface));
 }
 
 DecodeStatus V4L2VideoDecoderDelegateVP9::SubmitDecode(
@@ -272,7 +278,7 @@ DecodeStatus V4L2VideoDecoderDelegateVP9::SubmitDecode(
           v4l2_frame_params.alt_frame_ts = ref_surface->GetReferenceID();
           break;
         default:
-          NOTREACHED_IN_MIGRATION() << "Invalid reference frame index";
+          NOTREACHED() << "Invalid reference frame index";
       }
     }
   }
@@ -324,8 +330,8 @@ DecodeStatus V4L2VideoDecoderDelegateVP9::SubmitDecode(
   // Copy the frame data into the V4L2 buffer.
   if (!surface_handler_->SubmitSlice(
           dec_surface.get(),
-          dec_surface->secure_handle() ? nullptr : frame_hdr->data,
-          frame_hdr->frame_size)) {
+          dec_surface->secure_handle() ? nullptr : frame_hdr->data.data(),
+          frame_hdr->data.size())) {
     return DecodeStatus::kFail;
   }
 

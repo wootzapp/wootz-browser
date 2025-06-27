@@ -6,19 +6,17 @@
 #define IOS_CHROME_BROWSER_CONTENT_NOTIFICATION_MODEL_CONTENT_NOTIFICATION_SERVICE_FACTORY_H_
 
 #import "base/no_destructor.h"
-#import "components/keyed_service/ios/browser_state_keyed_service_factory.h"
+#import "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
-class ChromeBrowserState;
 class ContentNotificationService;
+class ProfileIOS;
 
 // Singleton that owns ContentNotificationService and associates with
-// ChromeBrowserState.
+// profiles.
 class ContentNotificationServiceFactory final
-    : public BrowserStateKeyedServiceFactory {
+    : public ProfileKeyedServiceFactoryIOS {
  public:
-  static ContentNotificationService* GetForBrowserState(
-      ChromeBrowserState* browser_state);
-
+  static ContentNotificationService* GetForProfile(ProfileIOS* profile);
   static ContentNotificationServiceFactory* GetInstance();
 
  private:

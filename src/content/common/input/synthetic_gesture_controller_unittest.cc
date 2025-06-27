@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/common/input/synthetic_gesture_controller.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 #include <utility>
 
@@ -70,13 +76,10 @@ WebTouchPoint::State ToWebTouchPointState(
       return WebTouchPoint::State::kStateStationary;
     case SyntheticPointerActionParams::PointerActionType::LEAVE:
     case SyntheticPointerActionParams::PointerActionType::NOT_INITIALIZED:
-      NOTREACHED_IN_MIGRATION()
+      NOTREACHED()
           << "Invalid SyntheticPointerActionParams::PointerActionType.";
-      return WebTouchPoint::State::kStateUndefined;
   }
-  NOTREACHED_IN_MIGRATION()
-      << "Invalid SyntheticPointerActionParams::PointerActionType.";
-  return WebTouchPoint::State::kStateUndefined;
+  NOTREACHED() << "Invalid SyntheticPointerActionParams::PointerActionType.";
 }
 
 WebInputEvent::Type ToWebMouseEventType(
@@ -93,13 +96,10 @@ WebInputEvent::Type ToWebMouseEventType(
     case SyntheticPointerActionParams::PointerActionType::CANCEL:
     case SyntheticPointerActionParams::PointerActionType::IDLE:
     case SyntheticPointerActionParams::PointerActionType::NOT_INITIALIZED:
-      NOTREACHED_IN_MIGRATION()
+      NOTREACHED()
           << "Invalid SyntheticPointerActionParams::PointerActionType.";
-      return WebInputEvent::Type::kUndefined;
   }
-  NOTREACHED_IN_MIGRATION()
-      << "Invalid SyntheticPointerActionParams::PointerActionType.";
-  return WebInputEvent::Type::kUndefined;
+  NOTREACHED() << "Invalid SyntheticPointerActionParams::PointerActionType.";
 }
 
 WebInputEvent::Type WebTouchPointStateToEventType(
@@ -442,8 +442,7 @@ class MockSyntheticTouchscreenPinchTouchTarget
       case ZOOM_DIRECTION_UNKNOWN:
         return 1.0f;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return 0.0f;
+        NOTREACHED();
     }
   }
 
@@ -709,9 +708,9 @@ class MockSyntheticPointerTouchActionTarget
   }
 
  private:
-  gfx::PointF positions_[kTouchPointersLength];
-  int indexes_[kTouchPointersLength];
-  WebTouchPoint::State states_[kTouchPointersLength];
+  std::array<gfx::PointF, kTouchPointersLength> positions_;
+  std::array<int, kTouchPointersLength> indexes_;
+  std::array<WebTouchPoint::State, kTouchPointersLength> states_;
 };
 
 class MockSyntheticPointerMouseActionTarget

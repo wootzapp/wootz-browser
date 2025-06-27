@@ -11,6 +11,7 @@
 
 #include "base/containers/flat_map.h"
 #include "base/memory/weak_ptr.h"
+#include "base/types/pass_key.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "components/viz/common/quads/compositor_frame.h"
 #include "components/viz/common/quads/compositor_frame_transition_directive.h"
@@ -18,6 +19,7 @@
 #include "components/viz/common/resources/release_callback.h"
 #include "components/viz/service/viz_service_export.h"
 #include "gpu/command_buffer/client/client_shared_image.h"
+#include "ui/gfx/display_color_spaces.h"
 
 namespace gpu {
 class SharedImageInterface;
@@ -53,9 +55,6 @@ class VIZ_SERVICE_EXPORT SurfaceSavedFrame {
     // Texture representation.
     gpu::Mailbox mailbox;
 
-    // Software bitmap representation.
-    SkBitmap bitmap;
-
     // Software image representation.
     scoped_refptr<gpu::ClientSharedImage> shared_image;
 
@@ -82,11 +81,11 @@ class VIZ_SERVICE_EXPORT SurfaceSavedFrame {
   };
 
   static std::unique_ptr<SurfaceSavedFrame> CreateForTesting(
-      CompositorFrameTransitionDirective directive);
+      CompositorFrameTransitionDirective directive,
+      gpu::SharedImageInterface* shared_image_interface);
 
   SurfaceSavedFrame(CompositorFrameTransitionDirective directive,
-                    gpu::SharedImageInterface* shared_image_interface,
-                    CopyFinishedCallback finished_callback);
+                    gpu::SharedImageInterface* shared_image_interface);
   ~SurfaceSavedFrame();
 
   // Returns true iff the frame is valid and complete.
@@ -96,30 +95,36 @@ class VIZ_SERVICE_EXPORT SurfaceSavedFrame {
 
   // Appends copy output requests to the needed render passes in the active
   // frame.
-  void RequestCopyOfOutput(Surface* surface);
+  void RequestCopyOfOutput(Surface* surface,
+                           CopyFinishedCallback finished_callback);
 
-  [[nodiscard]] std::optional<FrameResult> TakeResult();
+  [[nodiscard]] FrameResult TakeResult();
 
   // For testing functionality that ensures that we have a valid frame.
   void CompleteSavedFrameForTesting();
 
-  base::flat_set<ViewTransitionElementResourceId> GetEmptyResourceIds() const;
+  base::flat_set<ViewTransitionElementResourceId> GetEmptyResourceIds(
+      const CompositorRenderPassList& render_pass_list) const;
 
  private:
-  explicit SurfaceSavedFrame(CompositorFrameTransitionDirective directive);
+  explicit SurfaceSavedFrame(base::PassKey<SurfaceSavedFrame>,
+                             CompositorFrameTransitionDirective directive,
+                             gpu::SharedImageInterface* shared_image_interface);
 
   std::unique_ptr<CopyOutputRequest> CreateCopyRequestIfNeeded(
       const CompositorRenderPass& render_pass,
-      const CompositorRenderPassList& render_pass_list,
-      bool is_software);
+      bool is_software,
+      gfx::ContentColorUsage content_color_usage);
 
   void NotifyCopyOfOutputComplete(size_t shared_index,
-                                  const RenderPassDrawData& info,
-                                  bool is_software,
                                   std::unique_ptr<CopyOutputResult> result);
 
-  size_t ExpectedResultCount() const;
-  void InitFrameResult();
+  // The `directive_finished_callback_` is dispatched asynchronously since the
+  // callback can access *and* delete this object.
+  void DispatchCopyDoneCallback();
+
+  size_t ExpectedResultCount(
+      const CompositorRenderPassList& render_pass_list) const;
 
   // Collects metadata to create a copy of the source CompositorFrame for shared
   // element snapshots.
@@ -155,6 +160,9 @@ class VIZ_SERVICE_EXPORT SurfaceSavedFrame {
   // Store the blit images while the copy output request is ongoing.
   base::flat_map<size_t, scoped_refptr<gpu::ClientSharedImage>>
       blit_shared_images_;
+
+  // Stored draw data for the shared index.
+  base::flat_map<size_t, RenderPassDrawData> draw_data_;
 
   std::optional<FrameResult> frame_result_;
 

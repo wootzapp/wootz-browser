@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/history/core/browser/history_types.h"
 
+#include <algorithm>
 #include <limits>
 
 #include "base/check.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "components/history/core/browser/page_usage_data.h"
@@ -136,8 +141,7 @@ void QueryResults::DeleteRange(size_t begin, size_t end) {
   for (const auto& url : urls_modified) {
     auto found = url_to_results_.find(url);
     if (found == url_to_results_.end()) {
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     }
 
     // Need a signed loop type since we do -- which may take us to -1.
@@ -322,6 +326,8 @@ HistoryAddPageArgs::HistoryAddPageArgs()
                          SOURCE_BROWSED,
                          false,
                          true,
+                         false,
+                         std::nullopt,
                          std::nullopt,
                          std::nullopt,
                          std::nullopt,
@@ -342,8 +348,10 @@ HistoryAddPageArgs::HistoryAddPageArgs(
     VisitSource source,
     bool did_replace_entry,
     bool consider_for_ntp_most_visited,
+    bool is_ephemeral,
     std::optional<std::u16string> title,
     std::optional<GURL> top_level_url,
+    std::optional<GURL> frame_url,
     std::optional<Opener> opener,
     std::optional<int64_t> bookmark_id,
     std::optional<std::string> app_id,
@@ -360,8 +368,10 @@ HistoryAddPageArgs::HistoryAddPageArgs(
       visit_source(source),
       did_replace_entry(did_replace_entry),
       consider_for_ntp_most_visited(consider_for_ntp_most_visited),
+      is_ephemeral(is_ephemeral),
       title(title),
       top_level_url(top_level_url),
+      frame_url(frame_url),
       opener(opener),
       bookmark_id(bookmark_id),
       app_id(app_id),
@@ -637,7 +647,7 @@ Cluster& Cluster::operator=(Cluster&&) = default;
 Cluster::~Cluster() = default;
 
 const ClusterVisit& Cluster::GetMostRecentVisit() const {
-  return *base::ranges::max_element(
+  return *std::ranges::max_element(
       visits, [](auto time1, auto time2) { return time1 < time2; },
       [](const auto& cluster_visit) {
         return cluster_visit.annotated_visit.visit_row.visit_time;

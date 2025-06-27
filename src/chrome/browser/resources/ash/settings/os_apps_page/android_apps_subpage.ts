@@ -13,19 +13,20 @@ import 'chrome://resources/ash/common/cr_elements/cr_link_row/cr_link_row.js';
 import '../settings_shared.css.js';
 
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
-import {CrDialogElement} from 'chrome://resources/ash/common/cr_elements/cr_dialog/cr_dialog.js';
+import type {CrDialogElement} from 'chrome://resources/ash/common/cr_elements/cr_dialog/cr_dialog.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {castExists} from '../assert_extras.js';
 import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
-import {isRevampWayfindingEnabled} from '../common/load_time_booleans.js';
-import {RouteObserverMixin} from '../common/route_observer_mixin.js';
+import {RouteOriginMixin} from '../common/route_origin_mixin.js';
 import {Setting} from '../mojom-webui/setting.mojom-webui.js';
-import {Route, Router, routes} from '../router.js';
+import type {Route} from '../router.js';
+import {Router, routes} from '../router.js';
 
-import {AndroidAppsBrowserProxyImpl, AndroidAppsInfo} from './android_apps_browser_proxy.js';
+import type {AndroidAppsInfo} from './android_apps_browser_proxy.js';
+import {AndroidAppsBrowserProxyImpl} from './android_apps_browser_proxy.js';
 import {getTemplate} from './android_apps_subpage.html.js';
 
 export interface SettingsAndroidAppsSubpageElement {
@@ -37,7 +38,7 @@ export interface SettingsAndroidAppsSubpageElement {
 const GOOGLE_PLAY_STORE_URL = 'https://play.google.com/store/';
 
 const SettingsAndroidAppsSubpageElementBase =
-    DeepLinkingMixin(RouteObserverMixin(PrefsMixin(I18nMixin(PolymerElement))));
+    DeepLinkingMixin(RouteOriginMixin(PrefsMixin(I18nMixin(PolymerElement))));
 
 export class SettingsAndroidAppsSubpageElement extends
     SettingsAndroidAppsSubpageElementBase {
@@ -62,7 +63,7 @@ export class SettingsAndroidAppsSubpageElement extends
       },
 
       dialogBody_: {
-        type: TrustedHTML,
+        type: Object,
         value(this: SettingsAndroidAppsSubpageElement): TrustedHTML {
           return this.i18nAdvanced(
               'androidAppsDisableDialogMessage',
@@ -72,37 +73,41 @@ export class SettingsAndroidAppsSubpageElement extends
 
       /** Whether Arc VM manage usb subpage should be shown. */
       isArcVmManageUsbAvailable: Boolean,
-
-      /**
-       * Used by DeepLinkingMixin to focus this page's deep links.
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set<Setting>([
-          Setting.kManageAndroidPreferences,
-          Setting.kRemovePlayStore,
-        ]),
-      },
-
-      isRevampWayfindingEnabled_: {
-        type: Boolean,
-        value() {
-          return isRevampWayfindingEnabled();
-        },
-        readOnly: true,
-      },
     };
   }
 
   androidAppsInfo: AndroidAppsInfo;
   isArcVmManageUsbAvailable: boolean;
+
+  // DeepLinkingMixin override
+  override supportedSettingIds = new Set<Setting>([
+    Setting.kManageAndroidPreferences,
+    Setting.kRemovePlayStore,
+  ]);
+
   private dialogBody_: string;
   private playStoreEnabled_: boolean;
-  private isRevampWayfindingEnabled_: boolean;
 
-  override currentRouteChanged(route: Route): void {
+  constructor() {
+    super();
+
+    /** RouteOriginMixin override */
+    this.route = routes.ANDROID_APPS_DETAILS;
+  }
+
+  override ready(): void {
+    super.ready();
+
+    this.addFocusConfig(
+        routes.ANDROID_APPS_DETAILS_ARC_VM_SHARED_USB_DEVICES,
+        '#manageArcvmShareUsbDevices');
+  }
+
+  override currentRouteChanged(newRoute: Route, oldRoute?: Route): void {
+    super.currentRouteChanged(newRoute, oldRoute);
+
     // Does not apply to this page.
-    if (route !== routes.ANDROID_APPS_DETAILS) {
+    if (newRoute !== this.route) {
       return;
     }
 
@@ -163,12 +168,6 @@ export class SettingsAndroidAppsSubpageElement extends
   private onSharedUsbDevicesClick_(): void {
     Router.getInstance().navigateTo(
         routes.ANDROID_APPS_DETAILS_ARC_VM_SHARED_USB_DEVICES);
-  }
-
-  private getGuestOsSharedUsbDevicesSublabel_(): string|null {
-    return this.isRevampWayfindingEnabled_ ?
-        this.i18n('guestOsSharedUsbDevicesDescription') :
-        null;
   }
 
   private onOpenGooglePlayClick_(): void {

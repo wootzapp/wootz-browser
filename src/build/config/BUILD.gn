@@ -46,8 +46,10 @@ if (is_android) {
 # build flags.
 config("feature_flags") {
   defines = []
+  rustflags = []
   if (dcheck_always_on) {
     defines += [ "DCHECK_ALWAYS_ON=1" ]
+    rustflags += [ "-Cdebug-assertions" ]
   }
   if (use_udev) {
     # TODO(brettw) should probably be "=1".
@@ -89,7 +91,7 @@ config("feature_flags") {
   if (is_msan) {
     defines += [ "MEMORY_SANITIZER" ]
   }
-  if (is_ubsan || is_ubsan_vptr || is_ubsan_security) {
+  if (is_ubsan_any) {
     defines += [ "UNDEFINED_SANITIZER" ]
   }
   if (is_official_build) {
@@ -228,13 +230,7 @@ group(_toolchain_marker_name) {
   # Can be used as an assert_no_deps target (assert_no_deps ignores toolchains).
 }
 
-group("common_deps") {
-  visibility = [
-    ":executable_deps",
-    ":loadable_module_deps",
-    ":shared_library_deps",
-  ]
-
+group("common_deps_without_libcxx") {
   # WARNING: This group is a dependency of **every executable and shared
   # library**.  Please be careful adding new dependencies here.
   public_deps = [ ":$_toolchain_marker_name" ]
@@ -243,8 +239,8 @@ group("common_deps") {
     public_deps += [ "//build/config/sanitizers:deps" ]
   }
 
-  if (use_custom_libcxx) {
-    public_deps += [ "//buildtools/third_party/libc++" ]
+  if (use_libfuzzer) {
+    public_deps += [ "//build/config/sanitizers:dlclose_shim" ]
   }
 
   if (use_afl) {
@@ -264,10 +260,49 @@ group("common_deps") {
   }
 
   if (is_win) {
+    if (build_with_chromium && is_component_build) {
+      # To enable allocator_shim for the windows component built chrome,
+      # need to make all shared libraries and also executable(i.e.chrome.exe)
+      # depend on PartitionAlloc.
+      public_deps += [ "//base/allocator/partition_allocator/src/partition_alloc:win_component_build_adapter" ]
+    }
+
     # The CRT runtime is dynamically linked in component builds and needs to
     # be present on bots that run exes or load DLLs. This also includes
     # debugging DLLs in all builds.
     data_deps = [ "//build/win:runtime_libs" ]
+
+    if (host_os == "win") {
+      # In order to ensure the ACLing is applied to every binary loaded in an
+      # app container sandbox, run the ACL step before any binary is built. We
+      # do this because the tool is subject to race conditions if a binary is
+      # placed in the out folder while it is running.
+      public_deps +=
+          [ "//build/config/win:maybe_set_appcontainer_acls($host_toolchain)" ]
+    }
+  }
+}
+
+group("common_deps") {
+  visibility = [
+    ":executable_deps",
+    ":loadable_module_deps",
+    ":shared_library_deps",
+  ]
+
+  # WARNING: This group is a dependency of **every executable and shared
+  # library**.  Please be careful adding new dependencies here.
+  public_deps = [ ":common_deps_without_libcxx" ]
+
+  if (use_custom_libcxx) {
+    public_deps += [ "//buildtools/third_party/libc++" ]
+  }
+
+  if (use_llvm_libatomic) {
+    # Certain C/C++ atomic operations require the separately built "libatomic"
+    # support library, which is not shipped with compiler-rt by default. See
+    # crbug.com/402171653 for context.
+    public_deps += [ "//third_party/compiler-rt:atomic" ]
   }
 }
 
@@ -278,7 +313,6 @@ group("executable_deps") {
     if (export_libcxxabi_from_executables) {
       public_deps += [ "//buildtools/third_party/libc++abi" ]
     }
-    public_configs = [ "//build/config/sanitizers:link_executable" ]
   }
 }
 
@@ -286,8 +320,6 @@ group("executable_deps") {
 group("loadable_module_deps") {
   if (!toolchain_for_rust_host_build_tools) {
     public_deps = [ ":common_deps" ]
-
-    public_configs = [ "//build/config/sanitizers:link_shared_library" ]
   }
 }
 
@@ -295,8 +327,6 @@ group("loadable_module_deps") {
 group("shared_library_deps") {
   if (!toolchain_for_rust_host_build_tools) {
     public_deps = [ ":common_deps" ]
-
-    public_configs = [ "//build/config/sanitizers:link_shared_library" ]
   }
 }
 

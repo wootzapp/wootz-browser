@@ -54,10 +54,14 @@ swarming.task_triggerers(
 # "project:<project that defines the bucket>"), so we enumerate projects
 # (besides "project:chromium" itself) that are allowed to use Chromium CI pools
 # in their Buildbucket configs (which are currently only per-milestone Chromium
-# projects).
+# projects and GPU-related projects which share builder and testing capacity
+# with Chromium).
 swarming.pool_realm(
     name = "pools/ci",
-    projects = [details.project for details in ACTIVE_MILESTONES.values()],
+    user_projects = ["dawn"] + [details.project for details in ACTIVE_MILESTONES.values()],
+    owner_groups = [
+        "mdb/chrome-infra-eng",
+    ],
 )
 
 swarming.task_triggerers(
@@ -79,7 +83,10 @@ swarming.task_triggerers(
 # The tasks here are also triggered via Buildbucket. See comment above.
 swarming.pool_realm(
     name = "pools/try",
-    projects = [details.project for details in ACTIVE_MILESTONES.values()],
+    user_projects = ["dawn"] + [details.project for details in ACTIVE_MILESTONES.values()],
+    owner_groups = [
+        "mdb/chrome-infra-eng",
+    ],
 )
 
 # LED users that can trigger try builds via LED.
@@ -108,7 +115,7 @@ swarming.task_triggerers(
 # CI and Try builder (not only Chromium ones!) and also directly by users.
 swarming.pool_realm(
     name = "pools/tests",
-    groups = [
+    user_groups = [
         # Various Chromium CI and Try LUCI builders that trigger isolated tests.
         "project-chromium-ci-task-accounts",
         "project-chromium-findit-task-accounts",
@@ -126,18 +133,23 @@ swarming.pool_realm(
         "project-webrtc-ci-task-accounts",
         "project-webrtc-try-task-accounts",
 
-        # ... and Angle.
+        # ... and Angle and Dawn.
         "project-angle-ci-task-accounts",
         "project-angle-try-task-accounts",
+        "project-dawn-ci-task-accounts",
+        "project-dawn-try-task-accounts",
 
         # Used by Pinpoint to trigger bisect jobs on machines in the Chrome-GPU pool.
         "service-account-chromeperf",
     ],
-    users = [
+    user_users = [
         # Skia uses this pool directly.
         "skia-external-ct-skps@skia-swarming-bots.iam.gserviceaccount.com",
         # TODO(borenet): Remove the below after we're fully switched to Kitchen.
         "chromium-swarm-bots@skia-swarming-bots.iam.gserviceaccount.com",
+    ],
+    owner_groups = [
+        "mdb/chrome-infra-eng",
     ],
 )
 
@@ -149,26 +161,4 @@ swarming.task_triggerers(
     builder_realm = "try",
     pool_realm = "pools/tests",
     groups = ["project-chromium-tryjob-access"],
-)
-
-# A separate realm for mac-arm64 bots, since they have different permissions.
-swarming.pool_realm(
-    name = "pools/tests-mac-arm64",
-    groups = [
-        # Allow CI builders (mac*-arm64-rel-tests) to trigger tests.
-        "project-chromium-ci-task-accounts",
-        # V8 *CI* is using these Macs, too.
-        "project-v8-ci-task-accounts",
-    ],
-)
-
-# Users that can trigger mac-arm64 tasks.
-swarming.task_triggerers(
-    builder_realm = "try",
-    pool_realm = "pools/tests-mac-arm64",
-    groups = [
-        # Allowlist of people working on the mac-arm64 project. Contact
-        # srinivassista@ for access.
-        "project-chromium-mac-arm64-tests-access",
-    ],
 )

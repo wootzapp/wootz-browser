@@ -12,6 +12,7 @@
 
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
+#include "base/notimplemented.h"
 #include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
@@ -31,6 +32,7 @@
 #include "net/dns/context_host_resolver.h"
 #include "net/dns/host_resolver.h"
 #include "net/dns/host_resolver_manager.h"
+#include "net/dns/stale_host_resolver.h"
 #include "net/http/http_auth_handler_factory.h"
 #include "net/http/http_cache.h"
 #include "net/http/http_network_layer.h"
@@ -45,6 +47,7 @@
 #include "net/proxy_resolution/configured_proxy_resolution_service.h"
 #include "net/quic/quic_context.h"
 #include "net/quic/quic_session_pool.h"
+#include "net/shared_dictionary/shared_dictionary_network_transaction_factory.h"
 #include "net/socket/network_binding_client_socket_factory.h"
 #include "net/ssl/ssl_config_service_defaults.h"
 #include "net/url_request/static_http_user_agent_settings.h"
@@ -60,11 +63,12 @@
 #endif  // BUILDFLAG(ENABLE_REPORTING)
 
 #if BUILDFLAG(IS_ANDROID)
-#include "base/android/build_info.h"
+#include "base/android/android_info.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
-#include "net/device_bound_sessions/device_bound_session_service.h"
+#include "net/device_bound_sessions/session_service.h"
+#include "net/device_bound_sessions/session_store.h"
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 
 namespace net {
@@ -180,6 +184,11 @@ void URLRequestContextBuilder::set_persistent_reporting_and_nel_store(
   persistent_reporting_and_nel_store_ =
       std::move(persistent_reporting_and_nel_store);
 }
+
+void URLRequestContextBuilder::set_enterprise_reporting_endpoints(
+    const base::flat_map<std::string, GURL>& enterprise_reporting_endpoints) {
+  enterprise_reporting_endpoints_ = enterprise_reporting_endpoints;
+}
 #endif  // BUILDFLAG(ENABLE_REPORTING)
 
 void URLRequestContextBuilder::SetCookieStore(
@@ -239,17 +248,18 @@ void URLRequestContextBuilder::SetHttpServerProperties(
   http_server_properties_ = std::move(http_server_properties);
 }
 
-void URLRequestContextBuilder::SetCreateHttpTransactionFactoryCallback(
-    CreateHttpTransactionFactoryCallback
-        create_http_network_transaction_factory) {
-  http_transaction_factory_.reset();
-  create_http_network_transaction_factory_ =
-      std::move(create_http_network_transaction_factory);
+void URLRequestContextBuilder::SetWrapHttpNetworkLayerCallback(
+    WrapHttpNetworkLayerCallback wrap_http_network_layer_callback) {
+  // Can't set both a wrapper callback and a factory directly for testing.
+  CHECK(!http_transaction_factory_for_testing_);
+  wrap_http_network_layer_callback_ =
+      std::move(wrap_http_network_layer_callback);
 }
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 void URLRequestContextBuilder::set_device_bound_session_service(
-    std::unique_ptr<DeviceBoundSessionService> device_bound_session_service) {
+    std::unique_ptr<device_bound_sessions::SessionService>
+        device_bound_session_service) {
   device_bound_session_service_ = std::move(device_bound_session_service);
 }
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
@@ -259,13 +269,6 @@ void URLRequestContextBuilder::BindToNetwork(
     std::optional<HostResolver::ManagerOptions> options) {
 #if BUILDFLAG(IS_ANDROID)
   DCHECK(NetworkChangeNotifier::AreNetworkHandlesSupported());
-  // DNS lookups for this context will need to target `network`. NDK to do that
-  // has been introduced in Android Marshmallow
-  // (https://developer.android.com/ndk/reference/group/networking#android_getaddrinfofornetwork)
-  // This is also checked later on in the codepath (at lookup time), but
-  // failing here should be preferred to return a more intuitive crash path.
-  CHECK(base::android::BuildInfo::GetInstance()->sdk_int() >=
-        base::android::SDK_VERSION_MARSHMALLOW);
   bound_network_ = network;
   manager_options_ = options.value_or(manager_options_);
 #else
@@ -353,21 +356,21 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
     if (host_resolver_factory_) {
       host_resolver_ = host_resolver_factory_->CreateResolver(
           host_resolver_manager_, host_mapping_rules_,
-          true /* enable_caching */);
+          true /* enable_caching */, stale_dns_enabled_);
     } else {
-      host_resolver_ = HostResolver::CreateResolver(host_resolver_manager_,
-                                                    host_mapping_rules_,
-                                                    true /* enable_caching */);
+      host_resolver_ = HostResolver::CreateResolver(
+          host_resolver_manager_, host_mapping_rules_,
+          true /* enable_caching */, stale_dns_enabled_);
     }
   } else {
     if (host_resolver_factory_) {
       host_resolver_ = host_resolver_factory_->CreateStandaloneResolver(
           context->net_log(), HostResolver::ManagerOptions(),
-          host_mapping_rules_, true /* enable_caching */);
+          host_mapping_rules_, true /* enable_caching */, stale_dns_enabled_);
     } else {
       host_resolver_ = HostResolver::CreateStandaloneResolver(
           context->net_log(), HostResolver::ManagerOptions(),
-          host_mapping_rules_, true /* enable_caching */);
+          host_mapping_rules_, true /* enable_caching */, stale_dns_enabled_);
     }
   }
   host_resolver_->SetRequestContext(context.get());
@@ -476,7 +479,8 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
   } else if (reporting_policy_) {
     context->set_reporting_service(
         ReportingService::Create(*reporting_policy_, context.get(),
-                                 persistent_reporting_and_nel_store_.get()));
+                                 persistent_reporting_and_nel_store_.get(),
+                                 enterprise_reporting_endpoints_));
   }
 
   if (network_error_logging_enabled_) {
@@ -505,8 +509,13 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
   if (has_device_bound_session_service_) {
+    if (!device_bound_sessions_file_path_.empty()) {
+      context->set_device_bound_session_store(
+          device_bound_sessions::SessionStore::Create(
+              device_bound_sessions_file_path_));
+    }
     context->set_device_bound_session_service(
-        DeviceBoundSessionService::Create(context.get()));
+        device_bound_sessions::SessionService::Create(context.get()));
   } else {
     if (device_bound_session_service_) {
       context->set_device_bound_session_service(
@@ -527,15 +536,26 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
       http_network_session_params_, network_session_context));
 
   std::unique_ptr<HttpTransactionFactory> http_transaction_factory;
-  if (http_transaction_factory_) {
-    http_transaction_factory = std::move(http_transaction_factory_);
-  } else if (!create_http_network_transaction_factory_.is_null()) {
-    http_transaction_factory =
-        std::move(create_http_network_transaction_factory_)
-            .Run(context->http_network_session());
+  if (http_transaction_factory_for_testing_) {
+    // Use the factory provided for testing, bypassing default creation and
+    // wrapping.
+    http_transaction_factory = std::move(http_transaction_factory_for_testing_);
   } else {
-    http_transaction_factory =
+    // Create the default network layer.
+    auto network_layer =
         std::make_unique<HttpNetworkLayer>(context->http_network_session());
+    // If a wrapper callback exists, use it; otherwise, use the default layer.
+    http_transaction_factory =
+        wrap_http_network_layer_callback_
+            ? std::move(wrap_http_network_layer_callback_)
+                  .Run(std::move(network_layer))
+            : std::move(network_layer);
+  }
+
+  if (enable_shared_dictionary_) {
+    http_transaction_factory =
+        std::make_unique<SharedDictionaryNetworkTransactionFactory>(
+            std::move(http_transaction_factory), enable_shared_zstd_);
   }
 
   if (http_cache_enabled_) {
@@ -555,8 +575,7 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
           backend_type = CACHE_BACKEND_SIMPLE;
           break;
         case HttpCacheParams::IN_MEMORY:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
       }
       http_cache_backend = std::make_unique<HttpCache::DefaultBackend>(
           DISK_CACHE, backend_type, http_cache_params_.file_operations_factory,

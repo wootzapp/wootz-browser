@@ -27,6 +27,7 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -56,11 +57,11 @@ class LocaleItemView : public views::Button {
 
     TriView* tri_view = TrayPopupUtils::CreateDefaultRowView(
         /*use_wide_layout=*/false);
-    AddChildView(tri_view);
+    AddChildViewRaw(tri_view);
     SetLayoutManager(std::make_unique<views::FillLayout>());
 
     views::Label* iso_code_label = TrayPopupUtils::CreateDefaultLabel();
-    iso_code_label->SetEnabledColorId(
+    iso_code_label->SetEnabledColor(
         static_cast<ui::ColorId>(cros_tokens::kCrosSysOnSurface));
     iso_code_label->SetAutoColorReadabilityEnabled(false);
     iso_code_label->SetText(base::i18n::ToUpper(
@@ -73,7 +74,7 @@ class LocaleItemView : public views::Button {
 
     auto* display_name_view = TrayPopupUtils::CreateDefaultLabel();
     display_name_view->SetText(display_name);
-    display_name_view->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+    display_name_view->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
     TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosButton2,
                                           *display_name_view);
     display_name_view->SetHorizontalAlignment(gfx::ALIGN_LEFT);
@@ -88,7 +89,12 @@ class LocaleItemView : public views::Button {
           kMenuIconSize));
       tri_view->AddView(TriView::Container::END, checked_image);
     }
-    SetAccessibleName(display_name_view->GetText());
+    GetViewAccessibility().SetName(
+        std::u16string(display_name_view->GetText()));
+    GetViewAccessibility().SetRole(ax::mojom::Role::kCheckBox);
+    GetViewAccessibility().SetCheckedState(
+        checked_ ? ax::mojom::CheckedState::kTrue
+                 : ax::mojom::CheckedState::kFalse);
   }
   LocaleItemView(const LocaleItemView&) = delete;
   LocaleItemView& operator=(const LocaleItemView&) = delete;
@@ -102,13 +108,6 @@ class LocaleItemView : public views::Button {
   void OnFocus() override {
     views::Button::OnFocus();
     ScrollViewToVisible();
-  }
-
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
-    views::Button::GetAccessibleNodeData(node_data);
-    node_data->role = ax::mojom::Role::kCheckBox;
-    node_data->SetCheckedState(checked_ ? ax::mojom::CheckedState::kTrue
-                                        : ax::mojom::CheckedState::kFalse);
   }
 
  private:
@@ -145,7 +144,7 @@ void LocaleDetailedView::CreateItems() {
         Shell::Get()->system_tray_model()->locale()->current_locale_iso_code();
     auto* item =
         new LocaleItemView(this, entry.iso_code, entry.display_name, checked);
-    container->AddChildView(item);
+    container->AddChildViewRaw(item);
     item->SetID(id);
     id_to_locale_[id] = entry.iso_code;
     ++id;

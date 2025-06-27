@@ -30,6 +30,7 @@ include_rules = [
   "+chrome/browser/web_applications/externally_managed_app_manager.h",
   "+chrome/browser/web_applications/test",
   "+chrome/browser/web_applications/web_app_constants.h",
+  "+chrome/browser/web_applications/web_app_management_type.h",
   "+chrome/browser/web_applications/web_app_helpers.h",
   "+chrome/browser/web_applications/web_app_install_info.h",
   "+chrome/browser/web_applications/web_app_provider.h",
@@ -37,5 +38,6 @@ include_rules = [
   "+chrome/browser/web_applications/web_app_registry_update.h",
   "+chrome/browser/web_applications/web_app_ui_manager.h",
   "+chrome/common/chrome_paths.h",
+  "+chrome/common/pref_names.h",
   "+chrome/test/base",
 ]

@@ -30,6 +30,10 @@ id<FormSuggestionProvider> PasswordTabHelper::GetSuggestionProvider() {
   return controller_.suggestionProvider;
 }
 
+SharedPasswordController* PasswordTabHelper::GetSharedPasswordController() {
+  return controller_.sharedPasswordController;
+}
+
 password_manager::PasswordManager* PasswordTabHelper::GetPasswordManager() {
   return controller_.passwordManager;
 }
@@ -67,8 +71,7 @@ void PasswordTabHelper::ShouldAllowRequest(
     id<SettingsCommands> settings_command_handler =
         HandlerForProtocol(controller_.dispatcher, SettingsCommands);
 
-    [settings_command_handler showSavedPasswordsSettingsFromViewController:nil
-                                                          showCancelButton:NO];
+    [settings_command_handler showSavedPasswordsSettingsFromViewController:nil];
     std::move(callback).Run(
         web::WebStatePolicyDecider::PolicyDecision::Cancel());
     UMA_HISTOGRAM_ENUMERATION(
@@ -82,5 +85,3 @@ void PasswordTabHelper::ShouldAllowRequest(
 }
 
 void PasswordTabHelper::WebStateDestroyed() {}
-
-WEB_STATE_USER_DATA_KEY_IMPL(PasswordTabHelper)

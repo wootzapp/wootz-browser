@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/autofill/autofill_context_menu_manager.h"
 
-#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,14 +11,15 @@
 #include "ash/constants/ash_switches.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/strings/strcat.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/metrics/user_action_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/autofill/autofill_uitest_util.h"
-#include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/password_manager/account_password_store_factory.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
+#include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate_factory.h"
 #include "chrome/browser/password_manager/password_manager_uitest_util.h"
 #include "chrome/browser/password_manager/passwords_navigation_observer.h"
 #include "chrome/browser/password_manager/profile_password_store_factory.h"
@@ -27,187 +27,148 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/signin/signin_browser_test_base.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/content/browser/test_autofill_client_injector.h"
 #include "components/autofill/content/browser/test_autofill_driver_injector.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
-#include "components/autofill/core/browser/address_data_manager.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/metrics/address_save_metrics.h"
-#include "components/autofill/core/browser/metrics/manual_fallback_metrics.h"
-#include "components/autofill/core/browser/payments_data_manager.h"
-#include "components/autofill/core/browser/personal_data_manager_test_utils.h"
-#include "components/autofill/core/browser/test_autofill_manager_waiter.h"
-#include "components/autofill/core/browser/test_personal_data_manager.h"
-#include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_prefs.h"
-#include "components/autofill/core/common/password_generation_util.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/common/form_data.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/keyed_service/core/service_access_type.h"
+#include "components/password_manager/content/browser/content_password_manager_driver.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/manage_passwords_referrer.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
+#include "components/plus_addresses/blocked_facets.pb.h"
 #include "components/plus_addresses/features.h"
+#include "components/plus_addresses/grit/plus_addresses_strings.h"
+#include "components/plus_addresses/plus_address_blocklist_data.h"
 #include "components/plus_addresses/plus_address_service.h"
 #include "components/plus_addresses/plus_address_test_utils.h"
 #include "components/plus_addresses/plus_address_types.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/test/test_sync_service.h"
-#include "components/sync/test/test_sync_user_settings.h"
 #include "components/user_manager/user_names.h"
-#include "components/variations/service/variations_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/menu_model.h"
+#include "ui/menus/simple_menu_model.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
 namespace autofill {
-
 namespace {
 
-using ::testing::_;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::Not;
 
-ACTION_P(QuitMessageLoop, loop) {
-  loop->Quit();
-}
-
-// Checks if the context menu model contains any entries with address/payments
-// manual fallback labels or command id. `arg` must be of type
-// ui::SimpleMenuModel.
-MATCHER(ContainsAnyAddressAndPaymentsFallbackEntries, "") {
-  const auto kForbiddenLabels = base::MakeFlatSet<std::u16string>(
-      std::array{IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE,
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS,
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PAYMENTS,
-                 IDS_PLUS_ADDRESS_FALLBACK_LABEL_CONTEXT_MENU},
-      /*comp=*/{},
-      /*proj=*/[](auto id) { return l10n_util::GetStringUTF16(id); });
-  const auto kForbiddenCommands =
-      base::flat_set<int>{IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS,
-                          IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PAYMENTS,
-                          IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PLUS_ADDRESS};
-
+// Checks if the context menu model contains any entries with plus address
+// manual fallback labels or command ids. `arg` must be of type
+// `ui::SimpleMenuModel`.
+MATCHER(ContainsAnyPlusAddressFallbackEntries, "") {
   for (size_t i = 0; i < arg->GetItemCount(); i++) {
-    if (base::Contains(kForbiddenCommands, arg->GetCommandIdAt(i)) ||
-        base::Contains(kForbiddenLabels, arg->GetLabelAt(i))) {
+    if (arg->GetCommandIdAt(i) ==
+            IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PLUS_ADDRESS ||
+        arg->GetLabelAt(i) ==
+            l10n_util::GetStringUTF16(
+                IDS_PLUS_ADDRESS_FALLBACK_LABEL_CONTEXT_MENU)) {
       return true;
     }
   }
   return false;
 }
 
-// Checks if the context menu model contains the address manual fallback
-// entries with correct UI strings. `arg` must be of type ui::SimpleMenuModel.
-MATCHER(OnlyAddressFallbackAdded, "") {
-  EXPECT_EQ(arg->GetItemCount(), 3u);
-  return arg->GetTypeAt(0) == ui::MenuModel::ItemType::TYPE_TITLE &&
-         arg->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE) &&
-         arg->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS) &&
-         arg->GetTypeAt(2) == ui::MenuModel::ItemType::TYPE_SEPARATOR;
-}
-
 // Checks if the context menu model contains the plus address manual fallback
-// entries with correct UI strings. `arg` must be of type ui::SimpleMenuModel.
-MATCHER(OnlyPlusAddressFallbackAdded, "") {
-  EXPECT_EQ(arg->GetItemCount(), 3u);
-  return arg->GetTypeAt(0) == ui::MenuModel::ItemType::TYPE_TITLE &&
-         arg->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE) &&
-         arg->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16(
-                 IDS_PLUS_ADDRESS_FALLBACK_LABEL_CONTEXT_MENU) &&
-         arg->GetTypeAt(2) == ui::MenuModel::ItemType::TYPE_SEPARATOR;
-}
+// entries with correct UI strings. `arg` must be of type `ui::SimpleMenuModel`.
+MATCHER(PlusAddressFallbackAdded, "") {
+  // There can be more than 2 entries, if other manual fallbacks are present
+  // too.
+  EXPECT_GE(arg->GetItemCount(), 2u);
+  EXPECT_EQ(arg->GetTypeAt(arg->GetItemCount() - 1),
+            ui::MenuModel::ItemType::TYPE_SEPARATOR);
 
-// Checks if the context menu model contains the address and payments manual
-// fallback entries with correct UI strings. `arg` must be of type
-// ui::SimpleMenuModel.
-MATCHER(AddressAndPaymentsFallbacksAdded, "") {
-  EXPECT_EQ(arg->GetItemCount(), 4u);
-  return arg->GetTypeAt(0) == ui::MenuModel::ItemType::TYPE_TITLE &&
-         arg->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE) &&
-         arg->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS) &&
-         arg->GetLabelAt(2) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PAYMENTS) &&
-         arg->GetTypeAt(3) == ui::MenuModel::ItemType::TYPE_SEPARATOR;
-}
-
-// Checks if the context menu model contains the passwords manual fallback
-// entries with correct UI strings when the user is syncing. `arg` must be
-// of type ui::SimpleMenuModel, `has_passwords_saved` must be bool.
-// `has_passwords_saved` is true if the user has any account or profile
-// passwords stored.
-MATCHER_P(OnlyPasswordsSyncingFallbackAdded, has_passwords_saved, "") {
-  EXPECT_EQ(arg->GetItemCount(), 3u);
-  if (arg->GetTypeAt(1) != ui::MenuModel::ItemType::TYPE_SUBMENU) {
-    return false;
+  for (size_t i = 0; i < arg->GetItemCount(); i++) {
+    if (arg->GetLabelAt(i) ==
+        l10n_util::GetStringUTF16(
+            IDS_PLUS_ADDRESS_FALLBACK_LABEL_CONTEXT_MENU)) {
+      return true;
+    }
   }
-  ui::MenuModel* submenu = arg->GetSubmenuModelAt(1);
-  EXPECT_EQ(submenu->GetItemCount(), 2u);
-
-  return arg->GetTypeAt(0) == ui::MenuModel::ItemType::TYPE_TITLE &&
-         arg->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE) &&
-         arg->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS) &&
-         arg->GetTypeAt(2) == ui::MenuModel::ItemType::TYPE_SEPARATOR &&
-         submenu->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 has_passwords_saved
-                     ? IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD
-                     : IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_IMPORT_PASSWORDS) &&
-         submenu->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SUGGEST_PASSWORD);
+  return false;
 }
 
 // Checks if the context menu model contains the passwords manual fallback
-// entries with correct UI strings when the user is not syncing. `arg` must be
-// of type ui::SimpleMenuModel, `has_passwords_saved` must be bool.
-// `has_passwords_saved` is true if the user has any account or profile
-// passwords stored.
-MATCHER_P(OnlyPasswordsNotSyncingFallbackAdded, has_passwords_saved, "") {
-  EXPECT_EQ(arg->GetItemCount(), 3u);
-  return arg->GetTypeAt(0) == ui::MenuModel::ItemType::TYPE_TITLE &&
-         arg->GetLabelAt(0) ==
-             l10n_util::GetStringUTF16(
-                 IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_TITLE) &&
-         arg->GetTypeAt(1) == ui::MenuModel::ItemType::TYPE_COMMAND &&
-         arg->GetLabelAt(1) ==
-             l10n_util::GetStringUTF16((
-                 has_passwords_saved
-                     ? IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS
-                     : IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_IMPORT_PASSWORDS)) &&
-         arg->GetTypeAt(2) == ui::MenuModel::ItemType::TYPE_SEPARATOR;
+// entries with correct UI strings. `arg` must be of type `ui::SimpleMenuModel`,
+// `has_passwords_saved`, `is_password_generation_enabled_for_current_field`,
+// `is_passkey_from_another_device_available` must be bool.
+//
+// `has_passwords_saved` is true if the user has any account or
+// profile passwords stored.
+//
+// `is_password_generation_enabled_for_current_field` is true if the password
+// generation feature is enabled for this user (note that some non-syncing users
+// can also generate passwords, in special conditions) and for the current
+// field.
+//
+// `is_passkey_from_another_device_available` is true iff the focused field
+// supports WebAuthn conditional UI.
+MATCHER_P3(OnlyPasswordsFallbackAdded,
+           has_passwords_saved,
+           is_password_generation_enabled_for_current_field,
+           is_passkey_from_another_device_available,
+           "") {
+  const bool add_select_password_option = has_passwords_saved;
+  const bool add_import_passwords_option = !has_passwords_saved;
+
+  size_t current_context_menu_position = 0;
+  if (add_select_password_option) {
+    EXPECT_EQ(
+        arg->GetLabelAt(current_context_menu_position),
+        l10n_util::GetStringUTF16(
+            IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD));
+    ++current_context_menu_position;
+  }
+  if (is_password_generation_enabled_for_current_field) {
+    EXPECT_EQ(
+        arg->GetLabelAt(current_context_menu_position),
+        l10n_util::GetStringUTF16(
+            IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SUGGEST_PASSWORD));
+    ++current_context_menu_position;
+  }
+  if (is_passkey_from_another_device_available) {
+    EXPECT_EQ(
+        arg->GetLabelAt(current_context_menu_position),
+        l10n_util::GetStringUTF16(
+            IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_USE_PASSKEY_FROM_ANOTHER_DEVICE));
+    ++current_context_menu_position;
+  }
+  if (add_import_passwords_option) {
+    EXPECT_EQ(
+        arg->GetLabelAt(current_context_menu_position),
+        l10n_util::GetStringUTF16(
+            IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_IMPORT_PASSWORDS));
+    ++current_context_menu_position;
+  }
+
+  EXPECT_EQ(arg->GetTypeAt(current_context_menu_position),
+            ui::MenuModel::ItemType::TYPE_SEPARATOR);
+  ++current_context_menu_position;
+  return arg->GetItemCount() == current_context_menu_position;
 }
 
 // Generates a ContextMenuParams for the Autofill context menu options.
@@ -238,8 +199,6 @@ class MockAutofillDriver : public ContentAutofillDriver {
               (override));
 };
 
-}  // namespace
-
 // TODO(crbug.com/40286010): Simplify test setup.
 class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
  public:
@@ -253,7 +212,6 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     ASSERT_TRUE(
         ui_test_utils::NavigateToURL(browser(), GURL("http://test.com")));
-    personal_data_ = PersonalDataManagerFactory::GetForProfile(profile());
 
     menu_model_ = std::make_unique<ui::SimpleMenuModel>(nullptr);
     render_view_context_menu_ = std::make_unique<TestRenderViewContextMenu>(
@@ -261,34 +219,9 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
     render_view_context_menu_->Init();
     autofill_context_menu_manager_ =
         std::make_unique<AutofillContextMenuManager>(
-            personal_data_, render_view_context_menu_.get(), menu_model_.get());
+            render_view_context_menu_.get(), menu_model_.get());
     autofill_context_menu_manager()->set_params_for_testing(
         CreateContextMenuParams());
-  }
-
-  void AddAutofillProfile(const autofill::AutofillProfile& profile) {
-    size_t profile_count =
-        personal_data_->address_data_manager().GetProfiles().size();
-    PersonalDataChangedWaiter waiter(*personal_data_);
-    personal_data_->address_data_manager().AddProfile(profile);
-    std::move(waiter).Wait();
-    EXPECT_EQ(profile_count + 1,
-              personal_data_->address_data_manager().GetProfiles().size());
-  }
-
-  void AddCreditCard(const autofill::CreditCard& card) {
-    if (card.record_type() != autofill::CreditCard::RecordType::kLocalCard) {
-      personal_data_->payments_data_manager().AddServerCreditCardForTest(
-          std::make_unique<autofill::CreditCard>(card));
-      return;
-    }
-    size_t card_count =
-        personal_data_->payments_data_manager().GetCreditCards().size();
-    PersonalDataChangedWaiter waiter(*personal_data_);
-    personal_data_->payments_data_manager().AddCreditCard(card);
-    std::move(waiter).Wait();
-    EXPECT_EQ(card_count + 1,
-              personal_data_->payments_data_manager().GetCreditCards().size());
   }
 
   content::RenderFrameHost* main_rfh() {
@@ -301,10 +234,18 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
 
   virtual Profile* profile() { return browser()->profile(); }
 
+  ChromePasswordManagerClient* password_manager_client() {
+    return ChromePasswordManagerClient::FromWebContents(web_contents());
+  }
+
+  password_manager::ContentPasswordManagerDriver* password_manager_driver() {
+    return password_manager::ContentPasswordManagerDriver::
+        GetForRenderFrameHost(main_rfh());
+  }
+
   void TearDownOnMainThread() override {
     autofill_context_menu_manager_.reset();
     render_view_context_menu_.reset();
-    personal_data_ = nullptr;
   }
 
  protected:
@@ -331,8 +272,8 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
   void SetHostFramesOfFormAndFields(FormData& form) {
     LocalFrameToken frame_token =
         LocalFrameToken(main_rfh()->GetFrameToken().value());
-    form.host_frame = frame_token;
-    for (FormFieldData& field : form.fields) {
+    form.set_host_frame(frame_token);
+    for (FormFieldData& field : test_api(form).fields()) {
       field.set_host_frame(frame_token);
     }
   }
@@ -341,11 +282,12 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
   // `driver()`'s manager.
   void AttachForm(FormData& form) {
     SetHostFramesOfFormAndFields(form);
-    TestAutofillManagerWaiter waiter(autofill_manager(),
-                                     {AutofillManagerEvent::kFormsSeen});
+    TestAutofillManagerSingleEventWaiter wait_for_forms_seen(
+        autofill_manager(), &AutofillManager::Observer::OnAfterFormsSeen,
+        ElementsAre(form.global_id()), IsEmpty());
     autofill_manager().OnFormsSeen(/*updated_forms=*/{form},
                                    /*removed_forms=*/{});
-    ASSERT_TRUE(waiter.Wait());
+    ASSERT_TRUE(std::move(wait_for_forms_seen).Wait());
   }
 
   // Creates a form with classifiable fields and registers it with the manager.
@@ -355,23 +297,11 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
     return form;
   }
 
-  // Creates a form where every field has unrecognized autocomplete attribute
-  // and registers it with the manager.
-  FormData CreateAndAttachAutocompleteUnrecognizedForm() {
-    FormData form = test::CreateTestAddressFormData();
-    for (FormFieldData& field : form.fields) {
-      field.set_parsed_autocomplete(AutocompleteParsingResult{
-          .field_type = HtmlFieldType::kUnrecognized});
-    }
-    AttachForm(form);
-    return form;
-  }
-
   // Creates a form with unclassifiable fields and registers it with the
   // manager.
   FormData CreateAndAttachUnclassifiedForm() {
     FormData form = test::CreateTestAddressFormData();
-    for (FormFieldData& field : form.fields) {
+    for (FormFieldData& field : test_api(form).fields()) {
       field.set_label(u"unclassifiable");
       field.set_name(u"unclassifiable");
     }
@@ -381,23 +311,38 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
 
   // Creates a form with a password field and registers it with the
   // manager.
-  FormData CreateAndAttachPasswordForm() {
+  FormData CreateAndAttachPasswordForm(bool is_webauthn = false) {
     FormData form;
-    form.renderer_id = test::MakeFormRendererId();
-    form.name = u"MyForm";
-    form.url = GURL("https://myform.com/form.html");
-    form.action = GURL("https://myform.com/submit.html");
-    form.fields.push_back(test::CreateTestFormField(
-        "Password", "password", "", FormControlType::kInputPassword));
+    form.set_renderer_id(test::MakeFormRendererId());
+    form.set_name(u"MyForm");
+    form.set_url(GURL("https://myform.com/"));
+    form.set_action(GURL("https://myform.com/submit.html"));
+    form.set_fields({test::CreateTestFormField(
+        /*label=*/"Password", /*name=*/"password", /*value=*/"",
+        /*type=*/FormControlType::kInputPassword,
+        is_webauthn ? /*autocomplete=*/"webauthn" : "")});
+    password_manager::PasswordFormManager::
+        set_wait_for_server_predictions_for_filling(false);
+    OverrideLastCommittedOrigin(main_rfh(), url::Origin::Create(form.url()));
     AttachForm(form);
+    password_manager::PasswordManagerInterface* password_manager =
+        password_manager_driver()->GetPasswordManager();
+    password_manager->OnPasswordFormsParsed(password_manager_driver(), {form});
+    // First parsing is done for filling case. Password forms are only parsed
+    // when filling is enabled.
+    if (password_manager_client()->IsFillingEnabled(GURL(form.url()))) {
+      // Wait until `form` gets parsed.
+      EXPECT_TRUE(base::test::RunUntil([&]() {
+        return password_manager->GetPasswordFormCache()->GetPasswordForm(
+            password_manager_driver(), form.renderer_id());
+      }));
+    }
+
     return form;
   }
 
-  PrefService& pref_service() { return *profile()->GetPrefs(); }
-
  protected:
   test::AutofillBrowserTestEnvironment autofill_test_environment_;
-  raw_ptr<PersonalDataManager> personal_data_ = nullptr;
   TestAutofillClientInjector<TestContentAutofillClient>
       autofill_client_injector_;
   TestAutofillDriverInjector<MockAutofillDriver> autofill_driver_injector_;
@@ -406,426 +351,7 @@ class BaseAutofillContextMenuManagerTest : public InProcessBrowserTest {
   std::unique_ptr<AutofillContextMenuManager> autofill_context_menu_manager_;
 };
 
-class AutocompleteUnrecognizedFieldsTest
-    : public BaseAutofillContextMenuManagerTest {
- public:
-  AutocompleteUnrecognizedFieldsTest() {
-    feature_.InitAndDisableFeature(
-        features::kAutofillForUnclassifiedFieldsAvailable);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_;
-};
-
-// Tests that when triggering the context menu on an unclassified field, the
-// fallback entry is not part of the menu.
-IN_PROC_BROWSER_TEST_F(AutocompleteUnrecognizedFieldsTest,
-                       UnclassifiedFormShown_FallbackOptionsNotPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that when triggering the context menu on an ac=unrecognized field, the
-// fallback entry is not part of the menu if the user has no AutofillProfiles
-// stored.
-IN_PROC_BROWSER_TEST_F(
-    AutocompleteUnrecognizedFieldsTest,
-    AutocompleteUnrecognizedFormShown_NoAutofillProfiles_FallbackOptionsNotPresent) {
-  FormData form = CreateAndAttachAutocompleteUnrecognizedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that when triggering the context menu on an ac=unrecognized field, the
-// fallback entry is not part of the menu if there's no suitable AutofillProfile
-// data to fill in.
-IN_PROC_BROWSER_TEST_F(
-    AutocompleteUnrecognizedFieldsTest,
-    AutocompleteUnrecognizedFormShown_NoSuitableData_FallbackOptionsNotPresent) {
-  AutofillProfile profile(i18n_model_definition::kLegacyHierarchyCountryCode);
-  profile.SetRawInfo(COMPANY_NAME, u"company");
-  AddAutofillProfile(profile);
-  FormData form = CreateAndAttachAutocompleteUnrecognizedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that when triggering the context menu on a classified field that
-// has a profile, the fallback entry is not part of the menu if Autofill is
-// disabled.
-IN_PROC_BROWSER_TEST_F(
-    AutocompleteUnrecognizedFieldsTest,
-    AutocompleteUnrecognizedFormShown_AutofillDisabled_FallbackOptionsNotPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  pref_service().SetBoolean(prefs::kAutofillProfileEnabled, false);
-  FormData form = CreateAndAttachClassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that when triggering the context menu on a classified field, the
-// fallback entry is part of the menu.
-IN_PROC_BROWSER_TEST_F(AutocompleteUnrecognizedFieldsTest,
-                       ClassifiedFormShown_FallbackOptionsNotPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachClassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when triggering the context menu on an ac=unrecognized field, the
-// fallback entry is part of the menu.
-IN_PROC_BROWSER_TEST_F(
-    AutocompleteUnrecognizedFieldsTest,
-    AutocompleteUnrecognizedFormShown_FallbackOptionsPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachAutocompleteUnrecognizedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when the fallback entry for ac=unrecognized fields is selected,
-// suggestions are triggered with suggestion trigger source
-// `kManualFallbackAddress`.
-IN_PROC_BROWSER_TEST_F(AutocompleteUnrecognizedFieldsTest,
-                       AutocompleteUnrecognizedFallback_TriggerSuggestions) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachAutocompleteUnrecognizedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  // Expect that when the entry is selected, suggestions are triggered from that
-  // field.
-  EXPECT_CALL(
-      *driver(),
-      RendererShouldTriggerSuggestions(
-          FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form.fields[0].renderer_id()},
-          AutofillSuggestionTriggerSource::kManualFallbackAddress));
-  autofill_context_menu_manager()->ExecuteCommand(
-      IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS);
-}
-
-class UnclassifiedFieldsTest : public BaseAutofillContextMenuManagerTest {
- private:
-  base::test::ScopedFeatureList feature_{
-      features::kAutofillForUnclassifiedFieldsAvailable};
-};
-
-// Tests that when triggering the context menu on an unclassified form the
-// address manual fallback is added even if the user has no profile stored.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       NoUserData_AddressManualFallbackPresent) {
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when triggering the context menu on an unclassified form, address
-// manual fallback entries are not added when Autofill is disabled, even if the
-// user has address data stored.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       HasAddressData_AddressManualFallbackAdded) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when triggering the context menu on an unclassified form, address
-// manual fallback entries are not added when Autofill is disabled, even if user
-// has address data stored.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       AutofillDisabled_FallbackOptionsNotPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  pref_service().SetBoolean(prefs::kAutofillProfileEnabled, false);
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that when triggering the context menu on an unclassified form the
-// address manual fallback is not added in incognito mode.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       NoUserData_IncognitoMode_FallbackOptionsNotPresent) {
-  autofill_client()->set_is_off_the_record(true);
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
-}
-
-// Tests that even in incognito mode, when triggering the context menu on an
-// unclassified form, address manual fallback entries are added when the user
-// has address data stored.
-IN_PROC_BROWSER_TEST_F(
-    UnclassifiedFieldsTest,
-    HasAddressData_IncognitoMode_AddressManualFallbackAdded) {
-  autofill_client()->set_is_off_the_record(true);
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when triggering the context menu on an unclassified form, payments
-// manual fallback entries are added when the user has credit card data stored.
-// Note that the address manual fallback option is always present, unless the
-// user is in incognito mode.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       HasCreditCardData_PaymentsManualFallbackAdded) {
-  AddCreditCard(test::GetCreditCard());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), AddressAndPaymentsFallbacksAdded());
-}
-
-// Tests that when triggering the context menu on an unclassified form, payments
-// manual fallback entries are NOT added if Autofill for payments is disabled.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       PaymentsDisabled_PaymentsManualFallbackNotAdded) {
-  AddCreditCard(test::GetCreditCard());
-  pref_service().SetBoolean(prefs::kAutofillCreditCardEnabled, false);
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), OnlyAddressFallbackAdded());
-}
-
-// Tests that when triggering the context menu on an unclassified form, the
-// fallback entry is part of the menu.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       UnclassifiedFormShown_ManualFallbacksPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  AddCreditCard(test::GetCreditCard());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), AddressAndPaymentsFallbacksAdded());
-}
-
-// Tests that when triggering the context menu on an autocomplete unrecognized
-// field, the fallback entry is part of the menu.
-IN_PROC_BROWSER_TEST_F(
-    UnclassifiedFieldsTest,
-    AutocompleteUnrecognizedFieldShown_ManualFallbacksPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  AddCreditCard(test::GetCreditCard());
-  FormData form = CreateAndAttachAutocompleteUnrecognizedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), AddressAndPaymentsFallbacksAdded());
-}
-
-// Tests that when triggering the context menu on a classified form, the
-// fallback entry is part of the menu.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       ClassifiedFormShown_ManualFallbacksPresent) {
-  AddAutofillProfile(test::GetFullProfile());
-  AddCreditCard(test::GetCreditCard());
-  FormData form = CreateAndAttachClassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  EXPECT_THAT(menu_model(), AddressAndPaymentsFallbacksAdded());
-}
-
-// Tests that when the address manual fallback entry for the unclassified fields
-// is selected, suggestions are triggered.
-IN_PROC_BROWSER_TEST_F(
-    UnclassifiedFieldsTest,
-    UnclassifiedFormShown_AddressFallbackTriggersSuggestion) {
-  AddAutofillProfile(test::GetFullProfile());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  // Expect that when the entry is selected, suggestions are triggered.
-  EXPECT_CALL(
-      *driver(),
-      RendererShouldTriggerSuggestions(
-          FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form.fields[0].renderer_id()},
-          AutofillSuggestionTriggerSource::kManualFallbackAddress));
-  autofill_context_menu_manager()->ExecuteCommand(
-      IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS);
-}
-
-class AddNewAddressBubbleTest : public UnclassifiedFieldsTest {
- public:
-  void SetUpOnMainThread() override {
-    UnclassifiedFieldsTest::SetUpOnMainThread();
-
-    autofill_client()->GetPersonalDataManager()->SetAutofillProfileEnabled(
-        true);
-
-    form_ = CreateAndAttachUnclassifiedForm();
-    autofill_context_menu_manager()->set_params_for_testing(
-        CreateContextMenuParams(form_.renderer_id,
-                                form_.fields[0].renderer_id()));
-    autofill_context_menu_manager()->AppendItems();
-
-    ASSERT_EQ(AddressBubblesController::FromWebContents(web_contents()),
-              nullptr);
-
-    autofill_context_menu_manager()->ExecuteCommand(
-        IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS);
-
-    ASSERT_NE(bubble_controller(), nullptr);
-  }
-
- protected:
-  AddressBubblesController* bubble_controller() {
-    return AddressBubblesController::FromWebContents(web_contents());
-  }
-  const FormData& form() { return form_; }
-
- private:
-  FormData form_;
-};
-
-// Tests that when the address manual fallback entry is selected and there are
-// no saved profiles, the "Add new address" bubble is triggered.
-IN_PROC_BROWSER_TEST_F(
-    AddNewAddressBubbleTest,
-    UnclassifiedFormShown_AddressFallbackTriggersAddNewAddressBubble) {
-  // Expect that when the entry is selected, the "add new address" bubble is
-  // triggered.
-  EXPECT_EQ(
-      bubble_controller()->GetPageActionIconTootip(),
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_ADD_NEW_ADDRESS_PROMPT_TITLE));
-}
-
-// Tests that the "Autofill.ManualFallback.AddNewAddressPromptShown" metric is
-// sent when the user accepts the prompt and saves an address via the editor and
-// the manual fallback suggestions are triggered.
-IN_PROC_BROWSER_TEST_F(AddNewAddressBubbleTest,
-                       UnclassifiedFormShown_AddAddressSave) {
-  EXPECT_CALL(
-      *driver(),
-      RendererShouldTriggerSuggestions(
-          FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form().fields[0].renderer_id()},
-          AutofillSuggestionTriggerSource::kManualFallbackAddress));
-
-  PersonalDataChangedWaiter waiter(*personal_data_);
-  base::HistogramTester histogram_tester;
-
-  // Imitate the user's decision.
-  bubble_controller()->OnUserDecision(
-      AutofillClient::AddressPromptUserDecision::kEditAccepted,
-      test::GetFullProfile());
-
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ManualFallback.AddNewAddressPromptShown",
-      autofill_metrics::AutofillAddNewAddressPromptOutcome::kSaved,
-      /*expected_bucket_count=*/1);
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.AddedNewAddress",
-      autofill_metrics::AutofillManuallyAddedAddressSurface::kContextMenuPrompt,
-      /*expected_bucket_count=*/1);
-
-  // Make sure the PDM's async work is done and the callbacks are called.
-  std::move(waiter).Wait();
-}
-
-// Tests that the "Autofill.ManualFallback.AddNewAddressPromptShown" metric is
-// sent when the user declines the prompt.
-IN_PROC_BROWSER_TEST_F(AddNewAddressBubbleTest,
-                       UnclassifiedFormShown_AddAddressMetricsAreSentOnCancel) {
-  base::HistogramTester histogram_tester;
-
-  // Imitate the user's decision.
-  bubble_controller()->OnUserDecision(
-      AutofillClient::AddressPromptUserDecision::kDeclined, std::nullopt);
-
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ManualFallback.AddNewAddressPromptShown",
-      autofill_metrics::AutofillAddNewAddressPromptOutcome::kCanceled,
-      /*expected_bucket_count=*/1);
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.AddedNewAddress",
-      autofill_metrics::AutofillManuallyAddedAddressSurface::kContextMenuPrompt,
-      /*expected_bucket_count=*/0);
-}
-
-// Tests that when the payments manual fallback entry for the unclassified
-// fields is selected, suggestions are triggered with correct field global id
-// and suggestions trigger source.
-IN_PROC_BROWSER_TEST_F(UnclassifiedFieldsTest,
-                       UnclassifiedFormShown_PaymentsFallbackTriggersFallback) {
-  AddCreditCard(test::GetCreditCard());
-  FormData form = CreateAndAttachUnclassifiedForm();
-  autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
-  autofill_context_menu_manager()->AppendItems();
-
-  // Expect that when the entry is selected, suggestions are triggered from that
-  // field.
-  EXPECT_CALL(
-      *driver(),
-      RendererShouldTriggerSuggestions(
-          FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form.fields[0].renderer_id()},
-          AutofillSuggestionTriggerSource::kManualFallbackPayments));
-  autofill_context_menu_manager()->ExecuteCommand(
-      IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PAYMENTS);
-}
-
-class PasswordsFallbackTest : public BaseAutofillContextMenuManagerTest {
+class PasswordsFallbackTestBase : public BaseAutofillContextMenuManagerTest {
  public:
   void SetUpInProcessBrowserTestFixture() override {
     BaseAutofillContextMenuManagerTest::SetUpInProcessBrowserTestFixture();
@@ -850,61 +376,150 @@ class PasswordsFallbackTest : public BaseAutofillContextMenuManagerTest {
 
   void SetUpOnMainThread() override {
     BaseAutofillContextMenuManagerTest::SetUpOnMainThread();
+    // Make sure address fallback is not shown, so that it doesn't interfere
+    // with tests which check for the presence of password fallback.
+    // Address fallbacks are not shown when no profile exists and the user is in
+    // incognito mode.
+    autofill_client()->set_is_off_the_record(true);
+
     form_ = CreateAndAttachPasswordForm();
     autofill_context_menu_manager()->set_params_for_testing(
-        CreateContextMenuParams(form_.renderer_id,
-                                form_.fields[0].renderer_id(),
+        CreateContextMenuParams(form_.renderer_id(),
+                                form_.fields()[0].renderer_id(),
                                 blink::mojom::FormControlType::kInputPassword));
   }
 
+  // This method is used in order to enable/disable password generation. Syncing
+  // users are one category of users who have password generation enabled.
   void UpdateSyncStatus(bool sync_enabled) {
     SyncServiceFactory::GetForProfile(profile())
         ->GetUserSettings()
         ->SetSelectedType(syncer::UserSelectableType::kPasswords, sync_enabled);
   }
 
-  FormData& form() { return form_; }
+  const FormData& form() { return form_; }
+
+ protected:
+  FormData form_;
 
  private:
-  base::test::ScopedFeatureList feature_{
-      password_manager::features::kPasswordManualFallbackAvailable};
   base::CallbackListSubscription subscription_;
-  FormData form_;
 };
 
-IN_PROC_BROWSER_TEST_F(
-    PasswordsFallbackTest,
-    SyncingUser_NoPasswordsSaved_ManualFallbackAddedWithGeneratePasswordOptionAndImportPasswordsOption) {
+class PasswordManualFallbackTest : public PasswordsFallbackTestBase,
+                                   public testing::WithParamInterface<bool> {
+ public:
+  PasswordManualFallbackTest() {
+    if (GetParam()) {
+      feature_list_.InitWithFeatures(
+          {password_manager::features::kPasswordManualFallbackAvailable,
+           password_manager::features::
+               kWebAuthnUsePasskeyFromAnotherDeviceInContextMenu},
+          {});
+    } else {
+      feature_list_.InitWithFeatures(
+          {password_manager::features::kPasswordManualFallbackAvailable},
+          {password_manager::features::
+               kWebAuthnUsePasskeyFromAnotherDeviceInContextMenu});
+    }
+  }
+
+  void SetUpOnMainThread() override {
+    PasswordsFallbackTestBase::SetUpOnMainThread();
+
+    form_ = CreateAndAttachPasswordForm(/*is_webauthn=*/GetParam());
+    autofill_context_menu_manager()->set_params_for_testing(
+        CreateContextMenuParams(form_.renderer_id(),
+                                form_.fields()[0].renderer_id(),
+                                blink::mojom::FormControlType::kInputPassword));
+
+    webauthn_delegate()->OnCredentialsReceived(
+        {}, ChromeWebAuthnCredentialsDelegate::SecurityKeyOrHybridFlowAvailable(
+                true));
+  }
+
+  ChromeWebAuthnCredentialsDelegate* webauthn_delegate() {
+    return ChromeWebAuthnCredentialsDelegateFactory::GetFactory(
+               content::WebContents::FromRenderFrameHost(main_rfh()))
+        ->GetDelegateForFrame(main_rfh());
+    ;
+  }
+
+ private:
+  raw_ptr<ChromeWebAuthnCredentialsDelegate> webauthn_delegate_;
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_P(
+    PasswordManualFallbackTest,
+    PasswordGenerationEnabled_NoPasswordsSaved_ManualFallbackAddedWithGeneratePasswordOptionAndImportPasswordsOption) {
   UpdateSyncStatus(/*sync_enabled=*/true);
   autofill_context_menu_manager()->AppendItems();
   EXPECT_THAT(menu_model(),
-              OnlyPasswordsSyncingFallbackAdded(/*has_passwords_saved=*/false));
+              OnlyPasswordsFallbackAdded(false, true, GetParam()));
 }
 
-IN_PROC_BROWSER_TEST_F(
-    PasswordsFallbackTest,
-    NotSyncingUser_NoPasswordsSaved_ManualFallbackAddedWithImportPasswordsOption) {
+IN_PROC_BROWSER_TEST_P(
+    PasswordManualFallbackTest,
+    PasswordGenerationDisabled_NoPasswordsSaved_ManualFallbackAddedWithImportPasswordsOption) {
   UpdateSyncStatus(/*sync_enabled=*/false);
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(), OnlyPasswordsNotSyncingFallbackAdded(
-                                /*has_passwords_saved=*/false));
+  EXPECT_THAT(menu_model(),
+              OnlyPasswordsFallbackAdded(false, false, GetParam()));
 }
 
-IN_PROC_BROWSER_TEST_F(PasswordsFallbackTest,
+IN_PROC_BROWSER_TEST_P(
+    PasswordManualFallbackTest,
+    PasswordGenerationDisabled_NoPasswordsSaved_SecurityKeyOrHybridFlowNotAvailable_ManualFallbackDoesntHavePasskeyEntry) {
+  UpdateSyncStatus(/*sync_enabled=*/false);
+  webauthn_delegate()->OnCredentialsReceived(
+      {}, ChromeWebAuthnCredentialsDelegate::SecurityKeyOrHybridFlowAvailable(
+              false));
+  autofill_context_menu_manager()->AppendItems();
+  EXPECT_THAT(menu_model(),
+              OnlyPasswordsFallbackAdded(
+                  /*has_passwords_saved=*/false,
+                  /*is_password_generation_enabled_for_current_field=*/false,
+                  /*is_passkey_from_another_device_available=*/false));
+}
+
+IN_PROC_BROWSER_TEST_P(
+    PasswordManualFallbackTest,
+    PasswordGenerationEnabled_NonPasswordField_NoPasswordsSaved_ManualFallbackAddedWithImportPasswordsOptionAndWithoutGeneratePasswordOption) {
+  UpdateSyncStatus(/*sync_enabled=*/true);
+
+  FormData form = CreateAndAttachUnclassifiedForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id(),
+                              blink::mojom::FormControlType::kInputText));
+
+  autofill_context_menu_manager()->AppendItems();
+  EXPECT_THAT(menu_model(), OnlyPasswordsFallbackAdded(false, false, false));
+}
+
+IN_PROC_BROWSER_TEST_P(PasswordManualFallbackTest,
                        SelectPasswordTriggersSuggestions) {
+  // Faking the pref value so that the context menu believes the user has
+  // passwords saved.
+  password_manager_client()->GetPrefs()->SetBoolean(
+      password_manager::prefs::
+          kAutofillableCredentialsProfileStoreLoginDatabase,
+      true);
+  autofill_context_menu_manager()->AppendItems();
+
   EXPECT_CALL(
       *driver(),
       RendererShouldTriggerSuggestions(
           FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form().fields[0].renderer_id()},
+                        form().fields()[0].renderer_id()},
           AutofillSuggestionTriggerSource::kManualFallbackPasswords));
-
   autofill_context_menu_manager()->ExecuteCommand(
       IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD);
 }
 
-IN_PROC_BROWSER_TEST_F(
-    PasswordsFallbackTest,
+IN_PROC_BROWSER_TEST_P(
+    PasswordManualFallbackTest,
     ImportPasswordsTriggersOpeningPaswordManagerTabAndRecordsMetrics) {
   base::HistogramTester histogram_tester;
   ASSERT_NE(web_contents()->GetLastCommittedURL(),
@@ -922,6 +537,10 @@ IN_PROC_BROWSER_TEST_F(
       password_manager::ManagePasswordsReferrer::kPasswordContextMenu,
       /*expected_bucket_count=*/1);
 }
+
+INSTANTIATE_TEST_SUITE_P(PasswordsManualFallbackTest,
+                         PasswordManualFallbackTest,
+                         testing::Bool());
 
 class PasswordsFallbackWithUIInteractionsTest
     : public BaseAutofillContextMenuManagerTest {
@@ -942,18 +561,18 @@ class PasswordsFallbackWithUIInteractionsTest
     // The next lines perform the same set up as the parent class
     // `BaseAutofillContextMenuManagerTest()`, with the exception that a
     // password form is created and attached.
-    personal_data_ = PersonalDataManagerFactory::GetForProfile(profile());
     menu_model_ = std::make_unique<ui::SimpleMenuModel>(nullptr);
     render_view_context_menu_ = std::make_unique<TestRenderViewContextMenu>(
         *main_rfh(), content::ContextMenuParams());
     render_view_context_menu_->Init();
     autofill_context_menu_manager_ =
         std::make_unique<AutofillContextMenuManager>(
-            personal_data_, render_view_context_menu_.get(), menu_model_.get());
+            render_view_context_menu_.get(), menu_model_.get());
 
     FormData form = CreateAndAttachPasswordForm();
     autofill_context_menu_manager()->set_params_for_testing(
-        CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id(),
+        CreateContextMenuParams(form.renderer_id(),
+                                form.fields()[0].renderer_id(),
                                 blink::mojom::FormControlType::kInputPassword));
   }
 
@@ -990,8 +609,11 @@ IN_PROC_BROWSER_TEST_F(
       /*expected_bucket_count=*/1);
 
   // Hide the password generation popup to avoid the test crashing.
-  ChromePasswordManagerClient::FromWebContents(web_contents())
-      ->PasswordGenerationRejectedByTyping();
+  auto* client = ChromePasswordManagerClient::FromWebContents(web_contents());
+  client->SetCurrentTargetFrameForTesting(
+      web_contents()->GetPrimaryMainFrame());
+  client->PasswordGenerationRejectedByTyping();
+  client->SetCurrentTargetFrameForTesting(nullptr);
 }
 
 enum class PasswordDatabaseEntryType {
@@ -1009,7 +631,7 @@ enum class PasswordDatabaseEntryType {
 // if and only if they have at least one normal credential in the password
 // database.
 class PasswordsFallbackWithPasswordDatabaseEntriesTest
-    : public PasswordsFallbackTest,
+    : public PasswordsFallbackTestBase,
       public testing::WithParamInterface<
           std::tuple<bool, PasswordDatabaseEntryType>> {
  public:
@@ -1034,7 +656,7 @@ class PasswordsFallbackWithPasswordDatabaseEntriesTest
         break;
       case PasswordDatabaseEntryType::kFederated:
         password_form.federation_origin =
-            url::Origin::Create(GURL("http://test.com"));
+            url::SchemeHostPort(GURL("http://test.com"));
         break;
       case PasswordDatabaseEntryType::kUsernameOnly:
         password_form.scheme =
@@ -1064,10 +686,6 @@ class PasswordsFallbackWithPasswordDatabaseEntriesTest
     })) << "Adding the login timed out.";
   }
 
-  ChromePasswordManagerClient* password_manager_client() {
-    return ChromePasswordManagerClient::FromWebContents(web_contents());
-  }
-
   // If false, then use account store.
   bool use_profile_store() { return std::get<0>(GetParam()); }
 
@@ -1086,26 +704,59 @@ class PasswordsFallbackWithPasswordDatabaseEntriesTest
 
 IN_PROC_BROWSER_TEST_P(
     PasswordsFallbackWithPasswordDatabaseEntriesTest,
-    SyncingUser_HasPasswordDatabaseEntries_ManualFallbackAddedWithGeneratePasswordOption) {
+    PasswordGenerationEnabled_HasPasswordDatabaseEntries_TriggeredOnContenteditable_NoEntriesAdded) {
   UpdateSyncStatus(/*sync_enabled=*/true);
   AddPasswordToStore();
 
+  FormData form = CreateAndAttachPasswordForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id(),
+                              blink::mojom::FormControlType::kTextArea));
+
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(),
-              OnlyPasswordsSyncingFallbackAdded(
-                  /*has_passwords_saved=*/has_autofillable_credentials()));
+  // Password manual fallback entry should not be added if the context menu was
+  // triggered on a text area.
+  EXPECT_THAT(menu_model()->GetItemCount(), ::testing::Eq(0));
 }
 
 IN_PROC_BROWSER_TEST_P(
     PasswordsFallbackWithPasswordDatabaseEntriesTest,
-    NotSyncingUser_HasPasswordDatabaseEntries_ManualFallbackAddedWithoutGeneratePasswordOption) {
+    PasswordGenerationEnabled_HasPasswordDatabaseEntries_ManualFallbackAddedWithGeneratePasswordOption) {
+  UpdateSyncStatus(/*sync_enabled=*/true);
+  AddPasswordToStore();
+
+  autofill_context_menu_manager()->AppendItems();
+  EXPECT_THAT(menu_model(), OnlyPasswordsFallbackAdded(
+                                has_autofillable_credentials(), true, false));
+}
+
+IN_PROC_BROWSER_TEST_P(
+    PasswordsFallbackWithPasswordDatabaseEntriesTest,
+    PasswordGenerationDisabled_HasPasswordDatabaseEntries_ManualFallbackAddedWithoutGeneratePasswordOption) {
   UpdateSyncStatus(/*sync_enabled=*/false);
   AddPasswordToStore();
 
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(),
-              OnlyPasswordsNotSyncingFallbackAdded(
-                  /*has_passwords_saved=*/has_autofillable_credentials()));
+  EXPECT_THAT(menu_model(), OnlyPasswordsFallbackAdded(
+                                has_autofillable_credentials(), false, false));
+}
+
+IN_PROC_BROWSER_TEST_P(
+    PasswordsFallbackWithPasswordDatabaseEntriesTest,
+    PasswordGenerationEnabled_NonPasswordField_HasPasswordDatabaseEntries_ManualFallbackAddedWithoutGeneratePasswordOption) {
+  UpdateSyncStatus(/*sync_enabled=*/true);
+  AddPasswordToStore();
+
+  FormData form = CreateAndAttachUnclassifiedForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id(),
+                              blink::mojom::FormControlType::kInputText));
+
+  autofill_context_menu_manager()->AppendItems();
+  EXPECT_THAT(menu_model(), OnlyPasswordsFallbackAdded(
+                                has_autofillable_credentials(), false, false));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1118,9 +769,9 @@ INSTANTIATE_TEST_SUITE_P(
                         PasswordDatabaseEntryType::kFederated,
                         PasswordDatabaseEntryType::kUsernameOnly)));
 
-class PasswordsFallbackWithGuestProfileTest : public PasswordsFallbackTest {
+class PasswordsFallbackWithGuestProfileTest : public PasswordsFallbackTestBase {
  public:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(ash::switches::kGuestSession);
     command_line->AppendSwitchASCII(ash::switches::kLoginUser,
@@ -1133,7 +784,7 @@ class PasswordsFallbackWithGuestProfileTest : public PasswordsFallbackTest {
     guest_browser_ = CreateGuestBrowser();
     ASSERT_TRUE(
         ui_test_utils::NavigateToURL(guest_browser_, GURL("http://test.com")));
-    PasswordsFallbackTest::SetUpOnMainThread();
+    PasswordsFallbackTestBase::SetUpOnMainThread();
   }
 
   content::WebContents* web_contents() const override {
@@ -1145,7 +796,7 @@ class PasswordsFallbackWithGuestProfileTest : public PasswordsFallbackTest {
   void TearDownOnMainThread() override {
     // Release raw_ptr's so they don't become dangling.
     guest_browser_ = nullptr;
-    PasswordsFallbackTest::TearDownOnMainThread();
+    PasswordsFallbackTestBase::TearDownOnMainThread();
   }
 #endif
 
@@ -1163,173 +814,121 @@ IN_PROC_BROWSER_TEST_F(PasswordsFallbackWithGuestProfileTest,
   EXPECT_EQ(menu_model()->GetItemCount(), 0u);
 }
 
-// Test parameter data for asserting metrics emission when triggering Autofill
-// via manual fallback.
-struct ManualFallbackMetricsTestParams {
-  // Fallback option displayed in the context menu (address, payments etc).
-  const AutofillSuggestionTriggerSource manual_fallback_option;
-  // Whether the option above was accepted by the user.
+// Test parameter data for asserting metrics emission when triggering Passwords
+// manual fallback.
+struct SelectPasswordFallbackMetricsTestParams {
+  // Whether the context menu option was accepted by the user.
   const bool option_accepted;
-  // Whether the field where manual fallback was used is classified or not. If
-  // false, an address field with ac=unrecognized in used.
+  // Whether the field where manual fallback was used is classified or not.
   const bool is_field_unclassified;
   const std::string test_name;
 };
 
-// Test fixture that covers metrics emitted when Autofill is triggered via the
+// Test fixture that covers metrics emitted when Passwords are triggered via the
 // context menu.
-class ManualFallbackMetricsTest
+class SelectPasswordFallbackMetricsTest
     : public BaseAutofillContextMenuManagerTest,
-      public ::testing::WithParamInterface<ManualFallbackMetricsTestParams> {
+      public ::testing::WithParamInterface<
+          SelectPasswordFallbackMetricsTestParams> {
  public:
-  // Returns the expected metric that should be emitted depending on the
-  // option displayed in the context menu and whether the user accepted it.
-  std::string GetExplicitlyTriggeredMetricName() const {
-    const ManualFallbackMetricsTestParams& params = GetParam();
-    std::string classified_or_unclassified_field_metric_name_substr =
-        params.is_field_unclassified
-            ? "NotClassifiedAsTargetFilling"
-            : "ClassifiedFieldAutocompleteUnrecognized";
-    return "Autofill.ManualFallback.ExplicitlyTriggered." +
-           classified_or_unclassified_field_metric_name_substr +
-           GetFillingProductBucketName();
+  void SetUpOnMainThread() override {
+    BaseAutofillContextMenuManagerTest::SetUpOnMainThread();
+    // Faking the pref value so that the context menu believes the user has
+    // passwords saved.
+    password_manager_client()->GetPrefs()->SetBoolean(
+        password_manager::prefs::
+            kAutofillableCredentialsProfileStoreLoginDatabase,
+        true);
   }
 
-  // Similar to the method above, but for the total bucket.
-  std::string GetExpectedTotalMetricName() const {
-    const ManualFallbackMetricsTestParams& params = GetParam();
-    if (params.is_field_unclassified) {
-      return "Autofill.ManualFallback.ExplicitlyTriggered."
-             "NotClassifiedAsTargetFilling.Total";
-    }
-    return "Autofill.ManualFallback.ExplicitlyTriggered.Total" +
-           GetFillingProductBucketName();
+  // Returns the expected metric that should be emitted depending on the
+  // field classification.
+  std::string GetExplicitlyTriggeredMetricName() const {
+    std::string_view classified_or_unclassified_field_metric_name_substr =
+        GetParam().is_field_unclassified ? "NotClassifiedAsTargetFilling"
+                                         : "ClassifiedAsTargetFilling";
+    return base::StrCat({"Autofill.ManualFallback.ExplicitlyTriggered.",
+                         classified_or_unclassified_field_metric_name_substr,
+                         ".Password"});
   }
 
  private:
-  // Returns the expected bucket (Address or CreditCard) depending on the
-  // fallback option being tested.
-  std::string GetFillingProductBucketName() const {
-    return GetParam().manual_fallback_option ==
-                   AutofillSuggestionTriggerSource::kManualFallbackAddress
-               ? ".Address"
-               : ".CreditCard";
-  }
   base::test::ScopedFeatureList feature_{
-      features::kAutofillForUnclassifiedFieldsAvailable};
+      password_manager::features::kPasswordManualFallbackAvailable};
 };
 
-IN_PROC_BROWSER_TEST_P(ManualFallbackMetricsTest,
+IN_PROC_BROWSER_TEST_P(SelectPasswordFallbackMetricsTest,
                        EmitExplicitlyTriggeredMetric) {
-  const ManualFallbackMetricsTestParams& params = GetParam();
-  const bool is_address_manual_fallback =
-      params.manual_fallback_option ==
-      AutofillSuggestionTriggerSource::kManualFallbackAddress;
-  if (is_address_manual_fallback) {
-    AddAutofillProfile(test::GetFullProfile());
-  } else {
-    // When testing credit cards, make sure address fallback is not shown.
-    // This makes this test simpler since we will not have to handle the
-    // metrics also being emitted when the address manual fallback is shown,
-    // therefore also making the test more self contained.
-    // Address fallbacks are not shown when no profile exists and the user is in
-    // incognito mode.
-    autofill_client()->set_is_off_the_record(true);
-    AddCreditCard(test::GetCreditCard());
-  }
+  const SelectPasswordFallbackMetricsTestParams& params = GetParam();
   FormData form = params.is_field_unclassified
                       ? CreateAndAttachUnclassifiedForm()
-                      : CreateAndAttachAutocompleteUnrecognizedForm();
+                      : CreateAndAttachPasswordForm();
+
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
   if (params.option_accepted) {
     autofill_context_menu_manager()->ExecuteCommand(
-        is_address_manual_fallback
-            ? IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_ADDRESS
-            : IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PAYMENTS);
+        IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD);
   }
-  // Expect that when the autofill_manager() is destroyed, the explicitly
-  // triggered metric is emitted correctly.
+
   base::HistogramTester histogram_tester;
-  autofill_manager().Reset();
+  // Trigger navigation so that metrics are emitted. On navigation, the
+  // `PasswordAutofillManager` destroys the passwords metrics recorder. The
+  // destructors of the metrics recorder emit metrics.
+  ASSERT_TRUE(
+      ui_test_utils::NavigateToURL(browser(), GURL("http://navigation.com")));
 
   histogram_tester.ExpectUniqueSample(GetExplicitlyTriggeredMetricName(),
-                                      params.option_accepted, 1);
-  histogram_tester.ExpectUniqueSample(GetExpectedTotalMetricName(),
                                       params.option_accepted, 1);
 }
 
 INSTANTIATE_TEST_SUITE_P(
     BaseAutofillContextMenuManagerTest,
-    ManualFallbackMetricsTest,
-    ::testing::ValuesIn(std::vector<ManualFallbackMetricsTestParams>(
+    SelectPasswordFallbackMetricsTest,
+    ::testing::ValuesIn(std::vector<SelectPasswordFallbackMetricsTestParams>(
         {{
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackAddress,
              .option_accepted = true,
              .is_field_unclassified = true,
-             .test_name = "UnclassifiedField_Address_Accepted",
+             .test_name = "UnclassifiedField_Passwords_Accepted",
          },
          {
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackAddress,
              .option_accepted = false,
              .is_field_unclassified = true,
-             .test_name = "UnclassifiedField_Address_NotAccepted",
+             .test_name = "UnclassifiedField_Passwords_NotAccepted",
          },
-
          {
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackPayments,
              .option_accepted = true,
-             .is_field_unclassified = true,
-             .test_name = "UnclassifiedField_Payments_Accepted",
-         },
-         {
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackPayments,
-             .option_accepted = false,
-             .is_field_unclassified = true,
-             .test_name = "UnclassifiedField_Payments_NotAccepted",
-         },
-         {
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackAddress,
-             .option_accepted = true,
-             // This effectively means testing manual fallback on
-             // ac=unrecognized fields.
              .is_field_unclassified = false,
-             .test_name = "ClassifiedField_Address_NotAccepted",
+             .test_name = "ClassifiedField_Passwords_Accepted",
          },
          {
-             .manual_fallback_option =
-                 AutofillSuggestionTriggerSource::kManualFallbackAddress,
              .option_accepted = false,
-             // This effectively means testing manual fallback on
-             // ac=unrecognized fields.
              .is_field_unclassified = false,
-             .test_name = "ClassifiedField_Address_Accepted",
+             .test_name = "ClassifiedField_Passwords_NotAccepted",
          }})),
-    [](const ::testing::TestParamInfo<ManualFallbackMetricsTest::ParamType>&
-           info) { return info.param.test_name; });
+    [](const ::testing::TestParamInfo<
+        SelectPasswordFallbackMetricsTest::ParamType>& info) {
+      return info.param.test_name;
+    });
 
 class PlusAddressContextMenuManagerTest
     : public SigninBrowserTestBaseT<BaseAutofillContextMenuManagerTest> {
  public:
-  static constexpr char kExcludedDomainEtldPlus1[] = "muh.mah";
+  static constexpr char kExcludedDomainRegex[] = "muh\\.mah$";
   static constexpr char kExcludedDomainUrl[] = "https://muh.mah";
+  static constexpr char kUserActionPlusAddressesFallbackSelected[] =
+      "PlusAddresses.ManualFallbackDesktopContextManualFallbackSelected";
 
   PlusAddressContextMenuManagerTest() {
-    // TODO(b/327562692): Create and use a `PlusAddressTestEnvironment`.
+    // TODO(crbug.com/327562692): Create and use a `PlusAddressTestEnvironment`.
     feature_list_.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {{plus_addresses::features::kPlusAddressesEnabled,
           {{plus_addresses::features::kEnterprisePlusAddressServerUrl.name,
-            "https://foo.bar"},
-           {plus_addresses::features::kPlusAddressExcludedSites.name,
-            kExcludedDomainEtldPlus1}}},
+            "https://foo.bar"}}},
          {plus_addresses::features::kPlusAddressFallbackFromContextMenu, {}}},
         /*disabled_features=*/{});
   }
@@ -1346,6 +945,8 @@ class PlusAddressContextMenuManagerTest
         web_contents()->GetBrowserContext());
   }
 
+  base::UserActionTester user_action_tester_;
+
  private:
   base::test::ScopedFeatureList feature_list_;
 };
@@ -1354,20 +955,59 @@ class PlusAddressContextMenuManagerTest
 IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest, UnclassifiedForm) {
   FormData form = CreateAndAttachUnclassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
-  EXPECT_THAT(menu_model(), OnlyPlusAddressFallbackAdded());
+  EXPECT_THAT(menu_model(), PlusAddressFallbackAdded());
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
 }
 
 // Tests that Plus Address fallbacks are added to classified forms.
 IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest, ClassifiedForm) {
   FormData form = CreateAndAttachClassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
-  EXPECT_THAT(menu_model(), OnlyPlusAddressFallbackAdded());
+  EXPECT_THAT(menu_model(), PlusAddressFallbackAdded());
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
+}
+
+// Tests that Plus Address fallbacks are added when the context menu is
+// triggered on a text area.
+IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest,
+                       TriggeredOnTextArea_ClassifiedForm) {
+  FormData form = CreateAndAttachClassifiedForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id(),
+                              blink::mojom::FormControlType::kTextArea));
+  autofill_context_menu_manager()->AppendItems();
+
+  EXPECT_THAT(menu_model(), PlusAddressFallbackAdded());
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
+}
+
+// Tests that no Plus Address fallbacks are shown on password fields.
+IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest, PasswordForm) {
+  FormData form = CreateAndAttachPasswordForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id(),
+                              blink::mojom::FormControlType::kInputPassword));
+  autofill_context_menu_manager()->AppendItems();
+  EXPECT_THAT(menu_model(), Not(ContainsAnyPlusAddressFallbackEntries()));
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
 }
 
 // Tests that Plus Address fallbacks are not added in incognito mode if the user
@@ -1377,11 +1017,14 @@ IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest,
   autofill_client()->set_is_off_the_record(true);
   FormData form = CreateAndAttachClassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
+  EXPECT_THAT(menu_model(), Not(ContainsAnyPlusAddressFallbackEntries()));
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
 }
 
 // Tests that Plus Address fallbacks are added in incognito mode if the user
@@ -1396,37 +1039,59 @@ IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest,
 
   FormData form = CreateAndAttachClassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
-  EXPECT_THAT(menu_model(), OnlyPlusAddressFallbackAdded());
+  EXPECT_THAT(menu_model(), PlusAddressFallbackAdded());
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
 }
 
 // Tests that no Plus Address fallbacks are added on excluded domains.
 IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest, ExcludedDomain) {
+  plus_addresses::CompactPlusAddressBlockedFacets blocked_facets;
+  blocked_facets.set_exclusion_pattern(kExcludedDomainRegex);
+  plus_addresses::PlusAddressBlocklistData::GetInstance()
+      .PopulateDataFromComponent(blocked_facets.SerializeAsString());
+
   FormData form = CreateAndAttachClassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
 
   // No entries are added on excluded domains.
   autofill_client()->set_last_committed_primary_main_frame_url(
       GURL(kExcludedDomainUrl));
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
+  EXPECT_THAT(menu_model(), Not(ContainsAnyPlusAddressFallbackEntries()));
 
   // That is also true for subdirectories on the domain.
   autofill_client()->set_last_committed_primary_main_frame_url(
       GURL(kExcludedDomainUrl).Resolve("sub/index.html"));
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(),
-              Not(ContainsAnyAddressAndPaymentsFallbackEntries()));
+  EXPECT_THAT(menu_model(), Not(ContainsAnyPlusAddressFallbackEntries()));
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
+}
+
+// Tests that Plus Address fallbacks are added on non-excluded domains.
+IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest, NonExcludedDomain) {
+  FormData form = CreateAndAttachClassifiedForm();
+  autofill_context_menu_manager()->set_params_for_testing(
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
 
   // On non-excluded sites, the expected context menu entries are added.
   autofill_client()->set_last_committed_primary_main_frame_url(
       GURL("https://non-excluded-site.com"));
   autofill_context_menu_manager()->AppendItems();
-  EXPECT_THAT(menu_model(), OnlyPlusAddressFallbackAdded());
+  EXPECT_THAT(menu_model(), PlusAddressFallbackAdded());
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            0);
 }
 
 // Tests that selecting the Plus Address manual fallback entry results in
@@ -1435,18 +1100,23 @@ IN_PROC_BROWSER_TEST_F(PlusAddressContextMenuManagerTest,
                        ActionTriggersSuggestions) {
   FormData form = CreateAndAttachUnclassifiedForm();
   autofill_context_menu_manager()->set_params_for_testing(
-      CreateContextMenuParams(form.renderer_id, form.fields[0].renderer_id()));
+      CreateContextMenuParams(form.renderer_id(),
+                              form.fields()[0].renderer_id()));
   autofill_context_menu_manager()->AppendItems();
 
   EXPECT_CALL(
       *driver(),
       RendererShouldTriggerSuggestions(
           FieldGlobalId{LocalFrameToken(main_rfh()->GetFrameToken().value()),
-                        form.fields[0].renderer_id()},
+                        form.fields()[0].renderer_id()},
           AutofillSuggestionTriggerSource::kManualFallbackPlusAddresses));
 
   autofill_context_menu_manager()->ExecuteCommand(
       IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PLUS_ADDRESS);
+  EXPECT_EQ(user_action_tester_.GetActionCount(
+                kUserActionPlusAddressesFallbackSelected),
+            1);
 }
 
+}  // namespace
 }  // namespace autofill

@@ -13,6 +13,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
@@ -24,9 +25,9 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetector;
 import org.chromium.chrome.browser.paint_preview.services.PaintPreviewTabServiceFactory;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.concurrent.ExecutionException;
 
@@ -64,7 +65,7 @@ public class StartupPaintPreviewHelperTest {
         // Verify no capture exists for this tab and no paint preview is showing.
         assertHasCaptureForTab(tab, false);
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         Assert.assertFalse("No preview should be showing.", tabbedPaintPreview.isShowing());
         Assert.assertFalse("No preview should be attached.", tabbedPaintPreview.isAttached());
 
@@ -76,13 +77,16 @@ public class StartupPaintPreviewHelperTest {
         Assert.assertFalse("No preview should be attached.", tabbedPaintPreview.isAttached());
 
         // Closing the tab should delete its captured paint preview.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityTestRule
                                 .getActivity()
                                 .getTabModelSelector()
                                 .getCurrentModel()
-                                .closeTab(tab));
+                                .getTabRemover()
+                                .closeTabs(
+                                        TabClosureParams.closeTab(tab).allowUndo(false).build(),
+                                        /* allowDialog= */ false));
         assertHasCaptureForTab(tab, false);
     }
 
@@ -114,7 +118,7 @@ public class StartupPaintPreviewHelperTest {
         // Verify no capture exists for this tab and no paint preview is showing.
         assertHasCaptureForTab(tab, false);
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         Assert.assertFalse("No preview should be showing.", tabbedPaintPreview.isShowing());
         Assert.assertFalse("No preview should be attached.", tabbedPaintPreview.isAttached());
 
@@ -124,7 +128,7 @@ public class StartupPaintPreviewHelperTest {
 
         // Emulate browser cold start. Paint preview should be shown on startup.
         pretendColdStartBeforeForegrounded();
-        TestThreadUtils.runOnUiThreadBlocking(activity::finish);
+        ThreadUtils.runOnUiThreadBlocking(activity::finish);
         CriteriaHelper.pollUiThread(activity::isDestroyed, "Activity didn't get destroyed.");
 
         mActivityTestRule.startMainActivityFromLauncher();
@@ -134,20 +138,23 @@ public class StartupPaintPreviewHelperTest {
                 "Tab state never initialized.");
         final Tab previewTab = newActivity.getActivityTab();
         tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(previewTab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(previewTab));
 
         // Paint Preview might be showed and get removed before we can assert it's showing. Instead
         // assert that it was shown for this tab at least once.
         TabbedPaintPreviewTest.assertWasEverShown(tabbedPaintPreview, true);
 
         // Closing the tab should delete its captured paint preview.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityTestRule
                                 .getActivity()
                                 .getTabModelSelector()
                                 .getCurrentModel()
-                                .closeTab(previewTab));
+                                .getTabRemover()
+                                .closeTabs(
+                                        TabClosureParams.closeTab(tab).allowUndo(false).build(),
+                                        /* allowDialog= */ false));
         assertHasCaptureForTab(previewTab, false);
     }
 

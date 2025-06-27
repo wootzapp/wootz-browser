@@ -49,6 +49,7 @@
 namespace app_list {
 namespace {
 
+
 void ClearNonZeroStateResults(ResultsMap& results) {
   for (auto it = results.begin(); it != results.end();) {
     if (!ash::IsZeroStateResultType(it->first)) {
@@ -71,7 +72,8 @@ SearchController::SearchController(
       model_updater_(model_updater),
       list_controller_(list_controller),
       notifier_(notifier),
-      federated_service_controller_(federated_service_controller) {}
+      federated_service_controller_(federated_service_controller) {
+}
 
 SearchController::~SearchController() = default;
 

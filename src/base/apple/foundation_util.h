@@ -14,6 +14,8 @@
 
 #include "base/apple/scoped_cftyperef.h"
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/logging.h"
 #include "build/build_config.h"
 
@@ -196,11 +198,13 @@ CF_CAST_DECL(SecPolicy);
 #if defined(__OBJC__)
 
 // ObjCCast<>() and ObjCCastStrict<>() cast a basic id to a more specific
-// (NSObject-derived) type. The compatibility of the passed object is found by
-// checking if it's a kind of the requested type identifier. If the supplied
-// object is not compatible with the requested return type, ObjCCast<>() returns
-// nil and ObjCCastStrict<>() will CHECK. Providing a nil pointer to either
-// variant results in nil being returned without triggering any CHECK.
+// (NSObject-derived) class type. The compatibility of the passed object is
+// found by checking if it's a kind of the requested class type identifier. If
+// the supplied object is not compatible with the class of the requested return
+// type, ObjCCast<>() returns nil and ObjCCastStrict<>() will CHECK. Providing a
+// nil pointer to either variant results in nil being returned without
+// triggering any CHECK. Any protocol specified in the requested return type are
+// ignored.
 //
 // The strict variant is useful when retrieving a value from a collection which
 // only has values of a specific type, e.g. an NSArray of NSStrings. The
@@ -273,11 +277,23 @@ BASE_EXPORT FilePath NSURLToFilePath(NSURL* url);
 
 #endif  // __OBJC__
 
-// Converts a non-null |path| to a CFURLRef. |path| must not be empty.
-//
-// This function only uses manually-owned resources, so it does not depend on an
-// NSAutoreleasePool being set up on the current thread.
+// CoreFoundation versions of the above calls. These only uses manually-owned
+// resources, so they do not depend on an NSAutoreleasePool being set up on the
+// current thread.
+
+// Converts |path| to a CFURLRef. Returns nil if |path| is empty.
 BASE_EXPORT ScopedCFTypeRef<CFURLRef> FilePathToCFURL(const FilePath& path);
+
+// Converts |path| to a CFStringRef. Returns nil if |path| is empty.
+BASE_EXPORT ScopedCFTypeRef<CFStringRef> FilePathToCFString(
+    const FilePath& path);
+
+// Converts |str| to a FilePath. Returns an empty path if |str| is nil.
+BASE_EXPORT FilePath CFStringToFilePath(CFStringRef str);
+
+// Converts |url| to a FilePath. Returns an empty path if |url| is nil or if
+// |url| is not of scheme "file".
+BASE_EXPORT FilePath CFURLToFilePath(CFURLRef url);
 
 #if defined(__OBJC__)
 // Converts |range| to an NSRange, returning the new range in |range_out|.
@@ -285,7 +301,41 @@ BASE_EXPORT ScopedCFTypeRef<CFURLRef> FilePathToCFURL(const FilePath& path);
 // could not be converted to NSUIntegers.
 [[nodiscard]] BASE_EXPORT bool CFRangeToNSRange(CFRange range,
                                                 NSRange* range_out);
+
+// Returns an immutable `base::span<const uint8_t>` pointing to the memory owned
+// by `data`. Returns an empty span if `data` is nil or empty.
+//
+// The resulting span will be valid until the top-most autorelease pool is
+// popped. Ensure that the span does not outlive that autorelease pool.
+inline span<const uint8_t> NSDataToSpan(NSData* data) {
+  // SAFETY: `NSData` guarantees that `bytes` is exactly `length` in size.
+  return UNSAFE_BUFFERS(
+      span(static_cast<const uint8_t*>(data.bytes), size_t{data.length}));
+}
+
+// Returns a mutable `base::span<uint8_t>` pointing to the memory owned by
+// `data`. Returns an empty span if `data` is nil or empty.
+//
+// The resulting span will be valid until the top-most autorelease pool is
+// popped. Ensure that the span does not outlive that autorelease pool.
+inline span<uint8_t> NSMutableDataToSpan(NSMutableData* data) {
+  // SAFETY: `NSMutableData` guarantees that `mutableBytes` is exactly `length`
+  // in size.
+  return UNSAFE_BUFFERS(
+      span(static_cast<uint8_t*>(data.mutableBytes), size_t{data.length}));
+}
+
 #endif  // defined(__OBJC__)
+
+// Returns an immutable `base::span<const uint8_t>` pointing to the memory
+// owned by `data`. `data` must outlive the returned span.
+// Returns an empty span if `data` is null or empty.
+BASE_EXPORT span<const uint8_t> CFDataToSpan(CFDataRef data);
+
+// Returns a mutable `base::span<uint8_t>` pointing to the memory
+// owned by `data`. `data` must outlive the returned span.
+// Returns an empty span if `data` is null or empty.
+BASE_EXPORT span<uint8_t> CFMutableDataToSpan(CFMutableDataRef data);
 
 }  // namespace base::apple
 

@@ -23,13 +23,17 @@ file://third_party/blink/SECURITY_OWNERS
 file://tools/traffic_annotation/summary/TRAFFIC_ANNOTATION_OWNERS
 file://tools/metrics/ukm/PRIVACY_OWNERS
 file://base/metrics/METRICS_OWNERS
+file://chrome/browser/ui/hats/HATS_PRIVACY_OWNERS
 
 # Blink API owners are responsible for decisions about what APIs Blink should
 # expose to the open web.
 file://third_party/blink/API_OWNERS
 
-# third_party/blink/web_tests/VirtualTestSuites need special care.
+# third_party/blink/web_tests/VirtualTestSuites needs special care.
 file://third_party/blink/web_tests/VIRTUAL_OWNERS
+
+# third_party/blink/web_tests/TestLists/content_shell.filter needs special care.
+file://third_party/blink/web_tests/HEADLESS_OWNERS
 
 # Extension related files.
 file://chrome/browser/extensions/component_extensions_allowlist/EXTENSION_ALLOWLIST_OWNERS
@@ -48,8 +52,10 @@ file://ui/android/java/res/LAYOUT_OWNERS
 # https://sites.google.com/a/chromium.org/dev/developers/how-tos/enterprise/adding-new-policies
 file://components/policy/ENTERPRISE_POLICY_OWNERS
 
-# This restriction is in place due to the complicated compliance regulations
-# around this code.
+# This restriction is in place due to the policies and compliance regulations around this code.
+file://components/regional_capabilities/COMPLIANCE_OWNERS
+file://components/search_engines/COMPLIANCE_OWNERS
+file://components/search_engines/search_engine_choice/COMPLIANCE_OWNERS
 file://chrome/android/java/src/org/chromium/chrome/browser/searchwidget/COMPLIANCE_OWNERS
 
 # Notification channels appear in system UI and are persisted forever by
@@ -80,3 +86,16 @@ file://ash/system/OWNERS
 # New WebUI additions should be reviewed by WebUI PLATFORM_OWNERS to ensure
 # they follow the guidance at https://www.chromium.org/developers/webui
 file://ui/webui/PLATFORM_OWNERS
+
+# Core Views framework needs reviews from direct owners. Limits leakage of +1
+# from higher folder owners.
+file://ui/views/VIEWS_OWNERS
+
+# ChromeOS dependencies reviews
+file://chrome/browser/ash/REFACTORING_OWNERS
+
+# Crashpad
+file://third_party/crashpad/crashpad/OWNERS
+
+# Cronet
+file://components/cronet/CRONET_OWNERS

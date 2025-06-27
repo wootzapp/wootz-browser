@@ -90,8 +90,9 @@ MimeHandlerViewAttachHelper* MimeHandlerViewAttachHelper::Get(
   auto& map = *GetProcessIdToHelperMap();
   if (!base::Contains(map, render_process_id)) {
     auto* process_host = content::RenderProcessHost::FromID(render_process_id);
-    if (!process_host)
+    if (!process_host) {
       return nullptr;
+    }
     map[render_process_id] = base::WrapUnique<MimeHandlerViewAttachHelper>(
         new MimeHandlerViewAttachHelper(process_host));
   }
@@ -127,7 +128,7 @@ std::string MimeHandlerViewAttachHelper::CreateTemplateMimeHandlerPage(
 
 // static
 std::string MimeHandlerViewAttachHelper::OverrideBodyForInterceptedResponse(
-    int32_t navigating_frame_tree_node_id,
+    content::FrameTreeNodeId navigating_frame_tree_node_id,
     const GURL& resource_url,
     const std::string& mime_type,
     const std::string& stream_id,
@@ -144,10 +145,11 @@ std::string MimeHandlerViewAttachHelper::OverrideBodyForInterceptedResponse(
 
 void MimeHandlerViewAttachHelper::RenderProcessHostDestroyed(
     content::RenderProcessHost* render_process_host) {
-  if (render_process_host != render_process_host_)
+  if (render_process_host != render_process_host_) {
     return;
+  }
   render_process_host->RemoveObserver(this);
-  GetProcessIdToHelperMap()->erase(render_process_host_->GetID());
+  GetProcessIdToHelperMap()->erase(render_process_host_->GetDeprecatedID());
 }
 
 void MimeHandlerViewAttachHelper::AttachToOuterWebContents(
@@ -165,7 +167,7 @@ void MimeHandlerViewAttachHelper::AttachToOuterWebContents(
 
 // static
 void MimeHandlerViewAttachHelper::CreateFullPageMimeHandlerView(
-    int32_t frame_tree_node_id,
+    content::FrameTreeNodeId frame_tree_node_id,
     const GURL& resource_url,
     const std::string& stream_id,
     const std::string& token) {
@@ -197,8 +199,9 @@ void MimeHandlerViewAttachHelper::ResumeAttachOrDestroy(
 
   DCHECK(!plugin_render_frame_host ||
          (plugin_render_frame_host->GetProcess() == render_process_host_));
-  if (!guest_view)
+  if (!guest_view) {
     return;
+  }
   if (!plugin_render_frame_host) {
     auto* embedder_frame = guest_view->GetEmbedderFrame();
     if (embedder_frame && embedder_frame->IsRenderFrameLive()) {

@@ -7,8 +7,6 @@
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/payments/payments_network_interface.h"
 
 namespace autofill {
 namespace payments {
@@ -19,9 +17,8 @@ const char kSelectChallengeOptionRequestPath[] =
 }  // namespace
 
 SelectChallengeOptionRequest::SelectChallengeOptionRequest(
-    PaymentsNetworkInterface::SelectChallengeOptionRequestDetails
-        request_details,
-    base::OnceCallback<void(AutofillClient::PaymentsRpcResult,
+    SelectChallengeOptionRequestDetails request_details,
+    base::OnceCallback<void(payments::PaymentsAutofillClient::PaymentsRpcResult,
                             const std::string&)> callback)
     : request_details_(request_details), callback_(std::move(callback)) {}
 
@@ -84,7 +81,7 @@ std::string SelectChallengeOptionRequest::GetRequestContent() {
 
   std::string request_content;
   base::JSONWriter::Write(request_dict, &request_content);
-  VLOG(3) << "selectchallengeoption request body: " << request_content;
+  DVLOG(3) << "selectchallengeoption request body: " << request_content;
   return request_content;
 }
 
@@ -101,7 +98,7 @@ bool SelectChallengeOptionRequest::IsResponseComplete() {
 }
 
 void SelectChallengeOptionRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    payments::PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result, updated_context_token_);
 }
 

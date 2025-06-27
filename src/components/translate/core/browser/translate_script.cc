@@ -9,7 +9,6 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/strings/escape.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
@@ -51,7 +50,7 @@ const char TranslateScript::kJavascriptLoaderCallbackQueryValue[] =
 TranslateScript::TranslateScript()
     : expiration_delay_(base::Days(kExpirationDelayDays)) {}
 
-TranslateScript::~TranslateScript() {}
+TranslateScript::~TranslateScript() = default;
 
 void TranslateScript::Request(RequestCallback callback, bool is_incognito) {
   script_fetch_start_time_ = base::Time::Now().InMillisecondsFSinceUnixEpoch();

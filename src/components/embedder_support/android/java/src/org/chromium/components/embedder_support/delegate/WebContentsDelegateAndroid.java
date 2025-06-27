@@ -13,12 +13,15 @@ import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
 import org.chromium.blink.mojom.DisplayMode;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.ResourceRequestBody;
 import org.chromium.url.GURL;
 
 /** Java peer of the native class of the same name. */
 @JNINamespace("web_contents_delegate_android")
+@NullMarked
 public class WebContentsDelegateAndroid {
     // Equivalent of WebCore::WebConsoleMessage::LevelTip.
     public static final int LOG_LEVEL_TIP = 0;
@@ -30,9 +33,8 @@ public class WebContentsDelegateAndroid {
     public static final int LOG_LEVEL_ERROR = 3;
 
     /**
-     * @param url
-     * @param disposition         The new tab disposition, defined in
-     *                            //ui/base/mojo/window_open_disposition.mojom.
+     * @param disposition The new tab disposition, defined in
+     *     //ui/base/mojo/window_open_disposition.mojom.
      * @param isRendererInitiated Whether or not the renderer initiated this action.
      */
     @CalledByNative
@@ -50,7 +52,7 @@ public class WebContentsDelegateAndroid {
     public void closeContents() {}
 
     @CalledByNative
-    public void loadingStateChanged(boolean shouldShowLoadingUI) {}
+    public void loadingStateChanged(boolean shouldShowLoadingUi) {}
 
     @CalledByNative
     public void navigationStateChanged(int flags) {}
@@ -202,6 +204,9 @@ public class WebContentsDelegateAndroid {
     }
 
     @CalledByNative
+    public void didBackForwardTransitionAnimationChange() {}
+
+    @CalledByNative
     private boolean maybeCopyContentAreaAsBitmap(long nativeCallback) {
         return maybeCopyContentAreaAsBitmap(
                 (bitmap) -> {
@@ -211,6 +216,36 @@ public class WebContentsDelegateAndroid {
     }
 
     /**
+     * Used to fetch the color info to compose the fallback UX for the navigation transitions when
+     * no valid screenshots are available.
+     *
+     * @return The rounded rectangle's color.
+     */
+    @CalledByNative
+    public int getBackForwardTransitionFallbackUXFaviconBackgroundColor() {
+        return 0;
+    }
+
+    /**
+     * Used to fetch the color info to compose the fallback UX for the navigation transitions when
+     * no valid screenshots are available.
+     *
+     * @return The fallback UX's background color.
+     */
+    @CalledByNative
+    public int getBackForwardTransitionFallbackUXPageBackgroundColor() {
+        return 0;
+    }
+
+    /**
+     * Request the delegate to change the zoom level of the current tab.
+     *
+     * @param zoomIn Whether to zoom in or out.
+     */
+    @CalledByNative
+    public void contentsZoomChange(boolean zoomIn) {}
+
+    /**
      * Capture current visible native view as a bitmap.
      *
      * @param callback Executed asynchronously with the captured screenshot if this returns true.
@@ -218,8 +253,28 @@ public class WebContentsDelegateAndroid {
      *     returns.
      * @return True if a native view such as an NTP is presenting.
      */
-    public boolean maybeCopyContentAreaAsBitmap(Callback<Bitmap> callback) {
+    public boolean maybeCopyContentAreaAsBitmap(Callback<@Nullable Bitmap> callback) {
         return false;
+    }
+
+    /**
+     * Synchronous version of {@link #maybeCopyContentAreaAsBitmap(long)}
+     *
+     * @return Null if there is no native view corresponding to the currently committed navigation
+     *     entry or capture fails; otherwise, a bitmap object.
+     */
+    @CalledByNative
+    public @Nullable Bitmap maybeCopyContentAreaAsBitmapSync() {
+        return null;
+    }
+
+    /**
+     * @return Null if the embedder fails to provide a privileged internal icon; otherwise, a bitmap
+     *     object for the icon.
+     */
+    @CalledByNative
+    public @Nullable Bitmap getBackForwardTransitionFallbackUXInternalPageIcon() {
+        return null;
     }
 
     /**
@@ -240,6 +295,6 @@ public class WebContentsDelegateAndroid {
 
     @NativeMethods
     public interface Natives {
-        void maybeCopyContentAreaAsBitmapOutcome(long callbackPtr, Bitmap bitmap);
+        void maybeCopyContentAreaAsBitmapOutcome(long callbackPtr, @Nullable Bitmap bitmap);
     }
 }

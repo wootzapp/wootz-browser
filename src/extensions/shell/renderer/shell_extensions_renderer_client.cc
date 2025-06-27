@@ -16,12 +16,6 @@ ShellExtensionsRendererClient::ShellExtensionsRendererClient() = default;
 
 ShellExtensionsRendererClient::~ShellExtensionsRendererClient() = default;
 
-void ShellExtensionsRendererClient::RenderThreadStarted() {
-  dispatcher_ = std::make_unique<Dispatcher>(std::move(api_providers_));
-
-  dispatcher_->OnRenderThreadStarted(content::RenderThread::Get());
-}
-
 bool ShellExtensionsRendererClient::IsIncognitoProcess() const {
   // app_shell doesn't support off-the-record contexts.
   return false;
@@ -32,16 +26,6 @@ int ShellExtensionsRendererClient::GetLowestIsolatedWorldId() const {
   // extensions, so we always return 1. Note that 0 is reserved for the global
   // world.
   return 1;
-}
-
-Dispatcher* ShellExtensionsRendererClient::GetDispatcher() {
-  return dispatcher_.get();
-}
-
-bool ShellExtensionsRendererClient::ExtensionAPIEnabledForServiceWorkerScript(
-    const GURL& scope,
-    const GURL& script_url) const {
-  return false;
 }
 
 }  // namespace extensions

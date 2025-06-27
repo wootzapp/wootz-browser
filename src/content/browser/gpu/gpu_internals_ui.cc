@@ -44,6 +44,7 @@
 #include "gpu/config/gpu_feature_type.h"
 #include "gpu/config/gpu_info.h"
 #include "gpu/config/gpu_lists_version.h"
+#include "gpu/config/gpu_preferences.h"
 #include "gpu/config/gpu_util.h"
 #include "gpu/ipc/common/gpu_memory_buffer_support.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
@@ -81,7 +82,7 @@ void CreateAndAddGpuHTMLSource(BrowserContext* browser_context) {
       "trusted-types static-types;");
 
   source->UseStringsJs();
-  source->AddResourcePaths(base::make_span(kGpuResources, kGpuResourcesSize));
+  source->AddResourcePaths(kGpuResources);
   source->AddResourcePath("", IDR_GPU_GPU_INTERNALS_HTML);
 }
 
@@ -118,13 +119,15 @@ std::string GPUDeviceToString(const gpu::GPUInfo::GPUDevice& gpu) {
 base::Value::List GetBasicGpuInfo(const gpu::GPUInfo& gpu_info,
                                   const gpu::GpuFeatureInfo& gpu_feature_info,
                                   const gfx::GpuExtraInfo& gpu_extra_info) {
-  const gpu::GPUInfo::GPUDevice& active_gpu = gpu_info.active_gpu();
   base::Value::List basic_info;
   basic_info.Append(display::BuildGpuInfoEntry(
       "Initialization time",
       base::NumberToString(gpu_info.initialization_time.InMilliseconds())));
   basic_info.Append(display::BuildGpuInfoEntry(
       "In-process GPU", base::Value(gpu_info.in_process_gpu)));
+  basic_info.Append(display::BuildGpuInfoEntry(
+      "Skia Backend",
+      gpu::SkiaBackendTypeToString(gpu_info.skia_backend_type)));
   basic_info.Append(display::BuildGpuInfoEntry(
       "Passthrough Command Decoder",
       base::Value(gpu_info.passthrough_cmd_decoder)));
@@ -136,6 +139,11 @@ base::Value::List GetBasicGpuInfo(const gpu::GPUInfo& gpu_info,
     basic_info.Append(display::BuildGpuInfoEntry(
         base::StringPrintf("GPU%d", static_cast<int>(i + 1)),
         GPUDeviceToString(gpu_info.secondary_gpus[i])));
+  }
+  for (size_t i = 0; i < gpu_info.npus.size(); ++i) {
+    basic_info.Append(display::BuildGpuInfoEntry(
+        base::StringPrintf("NPU%d", static_cast<int>(i)),
+        GPUDeviceToString(gpu_info.npus[i])));
   }
   basic_info.Append(
       display::BuildGpuInfoEntry("Optimus", base::Value(gpu_info.optimus)));
@@ -165,6 +173,9 @@ base::Value::List GetBasicGpuInfo(const gpu::GPUInfo& gpu_info,
       "RGB10A2 overlay support",
       gpu::OverlaySupportToString(
           gpu_info.overlay_info.rgb10a2_overlay_support)));
+  basic_info.Append(display::BuildGpuInfoEntry(
+      "P010 overlay support",
+      gpu::OverlaySupportToString(gpu_info.overlay_info.p010_overlay_support)));
 
   std::vector<gfx::PhysicalDisplaySize> display_sizes =
       gfx::GetPhysicalSizeForDisplays();
@@ -194,9 +205,6 @@ base::Value::List GetBasicGpuInfo(const gpu::GPUInfo& gpu_info,
       gpu::VulkanVersionToString(gpu_info.vulkan_version)));
 #endif
 
-  basic_info.Append(display::BuildGpuInfoEntry(
-      "GPU CUDA compute capability major version",
-      base::Value(active_gpu.cuda_compute_capability_major)));
   basic_info.Append(display::BuildGpuInfoEntry("Pixel shader version",
                                                gpu_info.pixel_shader_version));
   basic_info.Append(display::BuildGpuInfoEntry("Vertex shader version",
@@ -377,7 +385,10 @@ base::Value::List GetDisplayInfo() {
       for (size_t i = 0; i < names.size(); ++i) {
         display_info.Append(display::BuildGpuInfoEntry(
             base::StringPrintf("Color space (%s)", names[i].c_str()),
-            color_spaces[i].ToString()));
+            color_spaces[i]
+                .GetWithSdrWhiteLevel(
+                    display_color_spaces.GetSDRMaxLuminanceNits())
+                .ToString()));
         display_info.Append(display::BuildGpuInfoEntry(
             base::StringPrintf("Buffer format (%s)", names[i].c_str()),
             gfx::BufferFormatToString(buffer_formats[i])));
@@ -433,8 +444,7 @@ const char* D3dFeatureLevelToString(D3D_FEATURE_LEVEL level) {
     case D3D_FEATURE_LEVEL_12_2:
       return "12_2";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
@@ -447,8 +457,7 @@ const char* HasDiscreteGpuToString(gpu::HasDiscreteGpu has_discrete_gpu) {
     case gpu::HasDiscreteGpu::kYes:
       return "yes";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -607,8 +616,7 @@ const char* GetProfileName(gpu::VideoCodecProfile profile) {
     case gpu::VVCPROFILE_MAIN16_444_STILL_PICTURE:
       return "vvc profile main16 444 stillpicture";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 base::Value::List GetVideoAcceleratorsInfo() {
@@ -661,10 +669,7 @@ base::Value GetANGLEFeatures() {
     base::Value::Dict angle_feature;
     angle_feature.Set("name", feature.name);
     angle_feature.Set("category", feature.category);
-    angle_feature.Set("description", feature.description);
-    angle_feature.Set("bug", feature.bug);
     angle_feature.Set("status", feature.status);
-    angle_feature.Set("condition", feature.condition);
     angle_features_list.Append(std::move(angle_feature));
   }
 

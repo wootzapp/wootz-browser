@@ -9,7 +9,7 @@ import './advanced_settings_item.js';
 import './print_preview_search_box.js';
 import './print_preview_shared.css.js';
 import './print_preview_vars.css.js';
-import '../strings.m.js';
+import '/strings.m.js';
 
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
@@ -60,9 +60,9 @@ export class PrintPreviewAdvancedSettingsDialogElement extends
     };
   }
 
-  destination: Destination;
-  private searchQuery_: RegExp|null;
-  private hasMatching_: boolean;
+  declare destination: Destination;
+  declare private searchQuery_: RegExp|null;
+  declare private hasMatching_: boolean;
   private highlights_: HTMLElement[] = [];
   private bubbles_: Map<HTMLElement, number> = new Map();
   private metrics_: MetricsContext = MetricsContext.printSettingsUi();
@@ -70,7 +70,7 @@ export class PrintPreviewAdvancedSettingsDialogElement extends
   override ready() {
     super.ready();
 
-    this.addEventListener('keydown', e => this.onKeydown_(e as KeyboardEvent));
+    this.addEventListener('keydown', e => this.onKeydown_(e));
   }
 
   override connectedCallback() {
@@ -122,7 +122,7 @@ export class PrintPreviewAdvancedSettingsDialogElement extends
     this.highlights_ = [];
     this.bubbles_.clear();
 
-    const listItems = this.shadowRoot!.querySelectorAll(
+    const listItems = this.shadowRoot.querySelectorAll(
         'print-preview-advanced-settings-item');
     let hasMatch = false;
     listItems.forEach(item => {

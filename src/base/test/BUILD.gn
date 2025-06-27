@@ -3,10 +3,10 @@
 # found in the LICENSE file.
 
 import("//build/compiled_action.gni")
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 import("//build/config/nacl/config.gni")
 import("//build/config/ui.gni")
+import("//build/rust/rust_static_library.gni")
 import("//build_overrides/build.gni")
 import("//third_party/protobuf/proto_library.gni")
 
@@ -38,6 +38,17 @@ static_library("test_config") {
   ]
 }
 
+rust_static_library("test_rust_logger_consumer") {
+  allow_unsafe = true  # Unsafe needed for FFI
+  testonly = true
+  deps = [ "//third_party/rust/log/v0_4:lib" ]
+  sources = [ "logging/test_rust_logger_consumer.rs" ]
+
+  crate_root = "logging/test_rust_logger_consumer.rs"
+
+  cxx_bindings = [ "logging/test_rust_logger_consumer.rs" ]
+}
+
 static_library("test_support") {
   testonly = true
   sources = [
@@ -62,6 +73,8 @@ static_library("test_support") {
     "gmock_move_support.h",
     "gtest_links.cc",
     "gtest_links.h",
+    "gtest_sub_test_results.cc",
+    "gtest_sub_test_results.h",
     "gtest_tags.cc",
     "gtest_tags.h",
     "gtest_util.cc",
@@ -72,10 +85,14 @@ static_library("test_support") {
     "gtest_xml_util.h",
     "icu_test_util.cc",
     "icu_test_util.h",
+    "insecure_random_generator.cc",
+    "insecure_random_generator.h",
     "launcher/test_result.cc",
     "launcher/test_result.h",
     "launcher/test_results_tracker.h",
     "launcher/unit_test_launcher.h",
+    "metrics/action_suffix_reader.cc",
+    "metrics/action_suffix_reader.h",
     "metrics/histogram_enum_reader.cc",
     "metrics/histogram_enum_reader.h",
     "metrics/histogram_tester.cc",
@@ -91,6 +108,7 @@ static_library("test_support") {
     "mock_entropy_provider.h",
     "mock_log.cc",
     "mock_log.h",
+    "move_only_int.cc",
     "move_only_int.h",
     "multiprocess_test.h",
     "null_task_runner.cc",
@@ -158,6 +176,8 @@ static_library("test_support") {
     "test_simple_task_runner.h",
     "test_suite.cc",
     "test_suite.h",
+    "test_suite_helper.cc",
+    "test_suite_helper.h",
     "test_waitable_event.cc",
     "test_waitable_event.h",
     "thread_test_helper.cc",
@@ -172,6 +192,7 @@ static_library("test_support") {
 
   public_deps = [
     ":test_config",
+    ":test_rust_logger_consumer",
     "//base",
     "//base:base_static",
     "//base:i18n",
@@ -182,14 +203,18 @@ static_library("test_support") {
 
   deps = [
     ":proto_test_support",
-    "//build:chromeos_buildflags",
+    "//testing/libfuzzer:fuzztest_init_support",
     "//third_party/google_benchmark",
     "//third_party/icu:icuuc",
     "//third_party/libxml:libxml_utils",
     "//third_party/libxml:xml_reader",
   ]
 
-  if (enable_base_tracing) {
+  # Cronet doesn't need the Perfetto test support stuff. This dependency is
+  # problematic for Cronet because of targets like
+  #   //third_party/perfetto/src/trace_processor/perfetto_sql/stdlib:stdlib_generated_file
+  # that would require special support in gn2bp (AOSP Cronet).
+  if (enable_base_tracing && !is_cronet_build) {
     public_deps += [ "//third_party/perfetto:perfetto_test_support" ]
     public_deps += [ ":test_trace_processor" ]
     sources += [
@@ -249,6 +274,8 @@ static_library("test_support") {
 
   if (is_android) {
     sources += [
+      "android/content_uri_test_utils.cc",
+      "android/content_uri_test_utils.h",
       "android/java_handler_thread_helpers.cc",
       "android/java_handler_thread_helpers.h",
       "android/url_utils.cc",
@@ -364,6 +391,7 @@ proto_library("test_proto_descriptor") {
   generate_cc = false
   generate_python = false
   generate_descriptor = "test_proto.descriptor"
+  generator_visibility = [ "//base:base_test_proto_bundle_data" ]
 }
 
 config("base_test_implementation") {
@@ -439,6 +467,18 @@ shared_library("test_shared_library") {
   deps = [ ":native_library_test_utils" ]
 }
 
+if (is_ios) {
+  ios_framework_bundle("test_shared_library_ios") {
+    testonly = true
+    output_name = "test_shared_library_ios"
+    info_plist = "ios/native-library-Info.plist"
+
+    sources = [ "test_shared_library.cc" ]
+
+    deps = [ ":native_library_test_utils" ]
+  }
+}
+
 if (is_fuchsia || is_linux || is_chromeos) {
   shared_library("malloc_wrapper") {
     testonly = true
@@ -472,8 +512,13 @@ if (is_android) {
   android_library("test_support_java") {
     testonly = true
 
+    mergeable_android_manifests =
+        [ "android/java/AndroidManifest_file_provider.xml" ]
+
     deps = [
+      ":file_provider_resources",
       "//base:base_java",
+      "//base:content_uri_utils_java",
       "//base:process_launcher_java",
       "//testing/android/native_test:native_main_runner_java",
       "//third_party/android_deps:com_google_code_findbugs_jsr305_java",
@@ -483,6 +528,7 @@ if (is_android) {
     srcjar_deps = [ ":test_support_java_aidl" ]
     sources = [
       "android/java/src/org/chromium/base/GarbageCollectionTestUtils.java",
+      "android/java/src/org/chromium/base/InMemoryContentProvider.java",
       "android/java/src/org/chromium/base/MainReturnCodeResult.java",
       "android/java/src/org/chromium/base/MultiprocessTestClientLauncher.java",
       "android/java/src/org/chromium/base/MultiprocessTestClientService.java",
@@ -497,6 +543,7 @@ if (is_android) {
       "android/java/src/org/chromium/base/MultiprocessTestClientService8.java",
       "android/java/src/org/chromium/base/MultiprocessTestClientService9.java",
       "android/java/src/org/chromium/base/MultiprocessTestClientServiceDelegate.java",
+      "android/java/src/org/chromium/base/TestDocumentsProvider.java",
     ]
   }
 
@@ -510,6 +557,11 @@ if (is_android) {
       "android/java/src/org/chromium/base/ITestCallback.aidl",
       "android/java/src/org/chromium/base/ITestController.aidl",
     ]
+  }
+
+  android_resources("file_provider_resources") {
+    testonly = true
+    sources = [ "android/java/res/xml/file_paths_file_provider.xml" ]
   }
 }
 
@@ -537,6 +589,7 @@ if (enable_base_tracing) {
   perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
     descriptor_name = "chrome_track_event.descriptor"
     descriptor_target = "//base/tracing/protos:chrome_track_event"
+    namespace = "base::testing"
   }
 
   import("//base/tracing/stdlib/chrome/perfetto_sql_files.gni")
@@ -638,6 +691,7 @@ if (is_android) {
       "//third_party/android_deps:guava_android_java",
       "//third_party/androidx:androidx_annotation_annotation_java",
       "//third_party/androidx:androidx_core_core_java",
+      "//third_party/androidx:androidx_fragment_fragment_java",
       "//third_party/androidx:androidx_test_monitor_java",
       "//third_party/hamcrest:hamcrest_java",
       "//third_party/junit",
@@ -645,24 +699,33 @@ if (is_android) {
 
     sources = [
       "android/javatests/src/org/chromium/base/test/transit/ActivityElement.java",
+      "android/javatests/src/org/chromium/base/test/transit/BaseElements.java",
       "android/javatests/src/org/chromium/base/test/transit/BatchedPublicTransitRule.java",
       "android/javatests/src/org/chromium/base/test/transit/CallbackCondition.java",
+      "android/javatests/src/org/chromium/base/test/transit/CarryOn.java",
       "android/javatests/src/org/chromium/base/test/transit/Condition.java",
       "android/javatests/src/org/chromium/base/test/transit/ConditionChecker.java",
       "android/javatests/src/org/chromium/base/test/transit/ConditionStatus.java",
+      "android/javatests/src/org/chromium/base/test/transit/ConditionStatusWithResult.java",
       "android/javatests/src/org/chromium/base/test/transit/ConditionWaiter.java",
+      "android/javatests/src/org/chromium/base/test/transit/ConditionWithResult.java",
       "android/javatests/src/org/chromium/base/test/transit/ConditionalState.java",
-      "android/javatests/src/org/chromium/base/test/transit/ElementInState.java",
+      "android/javatests/src/org/chromium/base/test/transit/DisplayedPortion.java",
+      "android/javatests/src/org/chromium/base/test/transit/Element.java",
+      "android/javatests/src/org/chromium/base/test/transit/ElementFactory.java",
       "android/javatests/src/org/chromium/base/test/transit/Elements.java",
       "android/javatests/src/org/chromium/base/test/transit/EntryPointSentinelStation.java",
       "android/javatests/src/org/chromium/base/test/transit/Facility.java",
       "android/javatests/src/org/chromium/base/test/transit/FacilityCheckIn.java",
       "android/javatests/src/org/chromium/base/test/transit/FacilityCheckOut.java",
+      "android/javatests/src/org/chromium/base/test/transit/FacilitySwap.java",
+      "android/javatests/src/org/chromium/base/test/transit/FragmentElement.java",
       "android/javatests/src/org/chromium/base/test/transit/InstrumentationThreadCondition.java",
-      "android/javatests/src/org/chromium/base/test/transit/ItemOnScreenFacility.java",
       "android/javatests/src/org/chromium/base/test/transit/LogicalElement.java",
+      "android/javatests/src/org/chromium/base/test/transit/MoreViewConditions.java",
       "android/javatests/src/org/chromium/base/test/transit/PublicTransitConfig.java",
       "android/javatests/src/org/chromium/base/test/transit/ScrollableFacility.java",
+      "android/javatests/src/org/chromium/base/test/transit/SimpleConditions.java",
       "android/javatests/src/org/chromium/base/test/transit/Station.java",
       "android/javatests/src/org/chromium/base/test/transit/StatusStore.java",
       "android/javatests/src/org/chromium/base/test/transit/TrafficControl.java",
@@ -673,7 +736,23 @@ if (is_android) {
       "android/javatests/src/org/chromium/base/test/transit/UiThreadCondition.java",
       "android/javatests/src/org/chromium/base/test/transit/ViewConditions.java",
       "android/javatests/src/org/chromium/base/test/transit/ViewElement.java",
-      "android/javatests/src/org/chromium/base/test/transit/ViewElementInState.java",
+      "android/javatests/src/org/chromium/base/test/transit/ViewElementMatchesCondition.java",
+      "android/javatests/src/org/chromium/base/test/transit/ViewSpec.java",
+    ]
+  }
+
+  robolectric_library("public_transit_robolectric_tests_java") {
+    deps = [
+      ":public_transit_java",
+      "//base:base_java_test_support",
+      "//base:base_junit_test_support",
+      "//base:callback_java",
+      "//base:log_java",
+      "//third_party/junit",
+    ]
+
+    sources = [
+      "android/javatests/src/org/chromium/base/test/transit/TripUnitTest.java",
     ]
   }
 }

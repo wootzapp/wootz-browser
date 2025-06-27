@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller_impl.h"
+
 #include <memory>
 
 #include "base/test/metrics/histogram_tester.h"
-#include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller_impl.h"
 #include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_view.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -34,15 +35,6 @@ class TestAutofillProgressDialogView : public AutofillProgressDialogView {
 
 class AutofillProgressDialogControllerImplTest : public testing::Test {
  public:
-  void ShowDialog() {
-    controller_ = std::make_unique<AutofillProgressDialogControllerImpl>(
-        AutofillProgressDialogType::kAndroidFIDOProgressDialog,
-        base::DoNothing());
-    controller_->ShowDialog(base::BindOnce(
-        &AutofillProgressDialogControllerImplTest::CreateDialogView,
-        base::Unretained(this)));
-  }
-
   base::WeakPtr<AutofillProgressDialogView> CreateDialogView() {
     if (!view_) {
       view_ = std::make_unique<TestAutofillProgressDialogView>();
@@ -58,33 +50,5 @@ class AutofillProgressDialogControllerImplTest : public testing::Test {
   std::unique_ptr<AutofillProgressDialogView> view_;
   std::unique_ptr<AutofillProgressDialogControllerImpl> controller_;
 };
-
-TEST_F(AutofillProgressDialogControllerImplTest,
-       ShowDialogNotCancelledByUserTest) {
-  base::HistogramTester histogram_tester;
-
-  ShowDialog();
-
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ProgressDialog.AndroidFIDO.Shown", true, 1);
-
-  controller()->OnDismissed(/*is_canceled_by_user=*/false);
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ProgressDialog.AndroidFIDO.Result", false, 1);
-}
-
-TEST_F(AutofillProgressDialogControllerImplTest,
-       ShowDialogAndCancelledByUserTest) {
-  base::HistogramTester histogram_tester;
-
-  ShowDialog();
-
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ProgressDialog.AndroidFIDO.Shown", true, 1);
-
-  controller()->OnDismissed(/*is_canceled_by_user=*/true);
-  histogram_tester.ExpectUniqueSample(
-      "Autofill.ProgressDialog.AndroidFIDO.Result", true, 1);
-}
 
 }  // namespace autofill

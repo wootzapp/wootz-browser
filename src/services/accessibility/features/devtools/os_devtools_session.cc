@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/accessibility/features/devtools/os_devtools_session.h"
 
 #include <string_view>
@@ -74,6 +79,8 @@ class OSDevToolsSession::IOSession : public blink::mojom::DevToolsSession {
         base::BindOnce(v8_thread_dispatch_, call_id, method,
                        std::vector<uint8_t>(message.begin(), message.end())));
   }
+
+  void UnpauseAndTerminate() override { NOTREACHED(); }
 
  private:
   IOSession(const scoped_refptr<DebugCommandQueue> debug_command_queue,
@@ -195,6 +202,10 @@ void OSDevToolsSession::DispatchProtocolCommand(
   }
 }
 
+void OSDevToolsSession::UnpauseAndTerminate() {
+  NOTREACHED();
+}
+
 void OSDevToolsSession::sendResponse(
     int call_id,
     std::unique_ptr<v8_inspector::StringBuffer> message) {
@@ -285,7 +296,7 @@ blink::mojom::DevToolsMessagePtr OSDevToolsSession::FinalizeMessage(
     message_to_send = std::move(json);
   }
   auto mojo_msg = blink::mojom::DevToolsMessage::New();
-  mojo_msg->data = std::move(message_to_send);
+  mojo_msg->data = {message_to_send};
   return mojo_msg;
 }
 

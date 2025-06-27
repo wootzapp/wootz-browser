@@ -26,17 +26,24 @@ AccountInvestigator* AccountInvestigatorFactory::GetForProfile(
 }
 
 AccountInvestigatorFactory::AccountInvestigatorFactory()
-    : ProfileKeyedServiceFactory("AccountInvestigator") {
+    : ProfileKeyedServiceFactory(
+          "AccountInvestigator",
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              .WithAshInternals(ProfileSelection::kNone)
+              .Build()) {
   DependsOn(IdentityManagerFactory::GetInstance());
 }
 
 AccountInvestigatorFactory::~AccountInvestigatorFactory() = default;
 
-KeyedService* AccountInvestigatorFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+AccountInvestigatorFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile(Profile::FromBrowserContext(context));
-  AccountInvestigator* investigator = new AccountInvestigator(
-      profile->GetPrefs(), IdentityManagerFactory::GetForProfile(profile));
+  std::unique_ptr<AccountInvestigator> investigator =
+      std::make_unique<AccountInvestigator>(
+          profile->GetPrefs(), IdentityManagerFactory::GetForProfile(profile));
   investigator->Initialize();
   return investigator;
 }

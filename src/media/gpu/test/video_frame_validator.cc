@@ -2,9 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "media/gpu/test/video_frame_validator.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
 
-#include <sys/mman.h>
+#include "media/gpu/test/video_frame_validator.h"
 
 #include <string_view>
 
@@ -18,6 +21,7 @@
 #include "base/strings/string_util.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
+#include "gpu/command_buffer/client/test_shared_image_interface.h"
 #include "media/base/video_frame.h"
 #include "media/gpu/buildflags.h"
 #include "media/gpu/macros.h"
@@ -30,17 +34,17 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/gpu_memory_buffer.h"
 
-#if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-#include "media/gpu/chromeos/chromeos_compressed_gpu_memory_buffer_video_frame_utils.h"
-#endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#include <sys/mman.h>
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
 
-namespace media {
-namespace test {
+namespace media::test {
 
 VideoFrameValidator::VideoFrameValidator(
     std::unique_ptr<VideoFrameProcessor> corrupt_frame_processor,
     CropHelper crop_helper)
     : corrupt_frame_processor_(std::move(corrupt_frame_processor)),
+      test_sii_(base::MakeRefCounted<gpu::TestSharedImageInterface>()),
       crop_helper_(crop_helper),
       num_frames_validating_(0),
       frame_validator_thread_("FrameValidatorThread"),
@@ -154,50 +158,27 @@ void VideoFrameValidator::ProcessVideoFrameTask(
   scoped_refptr<const VideoFrame> frame = video_frame;
   // If this is a DMABuf-backed memory frame we need to map it before accessing.
 #if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-  const uint64_t modifier = frame->layout().modifier();
-  const bool is_intel_media_compressed_buffer =
-      IsIntelMediaCompressedModifier(modifier);
-  EXPECT_TRUE(!is_intel_media_compressed_buffer ||
-              (frame->format() == PIXEL_FORMAT_NV12 ||
-               frame->format() == PIXEL_FORMAT_P016LE));
-
-  if (!is_intel_media_compressed_buffer) {
-    if (frame->storage_type() == VideoFrame::STORAGE_GPU_MEMORY_BUFFER) {
-      // TODO(andrescj): This is a workaround. ClientNativePixmapFactoryDmabuf
-      // creates ClientNativePixmapOpaque for SCANOUT_VDA_WRITE buffers which
-      // does not allow us to map GpuMemoryBuffers easily for testing.
-      // Therefore, we extract the dma-buf FDs. Alternatively, we could consider
-      // creating our own ClientNativePixmapFactory for testing.
-      //
-      // Note: this workaround is not needed for Intel media compressed
-      // VideoFrames because we can tell the VideoFrameMapperFactory to expect
-      // them, and it will be able to return a VideoFrameMapper that can handle
-      // them as they are.
-      frame = CreateDmabufVideoFrame(frame.get());
-      if (!frame) {
-        LOG(ERROR) << "Failed to create Dmabuf-backed VideoFrame from "
-                   << "GpuMemoryBuffer-based VideoFrame";
-        return;
-      }
+  if (frame->storage_type() == VideoFrame::STORAGE_GPU_MEMORY_BUFFER) {
+    // TODO(andrescj): This is a workaround. ClientNativePixmapFactoryDmabuf
+    // creates ClientNativePixmapOpaque for SCANOUT_VDA_WRITE buffers which
+    // does not allow us to map GpuMemoryBuffers easily for testing.
+    // Therefore, we extract the dma-buf FDs. Alternatively, we could consider
+    // creating our own ClientNativePixmapFactory for testing.
+    frame = CreateDmabufVideoFrame(frame.get());
+    if (!frame) {
+      LOG(ERROR) << "Failed to create Dmabuf-backed VideoFrame from "
+                 << "GpuMemoryBuffer-based VideoFrame";
+      return;
     }
   }
 
-  if (frame->storage_type() == VideoFrame::STORAGE_DMABUFS ||
-      is_intel_media_compressed_buffer) {
+  if (frame->storage_type() == VideoFrame::STORAGE_DMABUFS) {
     // Create VideoFrameMapper if not yet created. The decoder's output pixel
     // format is not known yet when creating the VideoFrameValidator. We can
     // only create the VideoFrameMapper upon receiving the first video frame.
     if (!video_frame_mapper_) {
-      // TODO(b/286091514): here, we're assuming that we don't switch from
-      // regular buffers to Intel-media-compressed buffers. If that were to
-      // happen, it's possible that the cached |video_frame_mapper_| won't
-      // support the latter. Therefore, we might need to recreate
-      // |video_frame_mapper_| in that scenario.
       video_frame_mapper_ = VideoFrameMapperFactory::CreateMapper(
-          frame->format(),
-          frame
-              ->storage_type(), /*must_support_intel_media_compressed_buffers=*/
-          is_intel_media_compressed_buffer);
+          frame->format(), frame->storage_type());
       ASSERT_TRUE(video_frame_mapper_) << "Failed to create VideoFrameMapper";
     }
 
@@ -234,7 +215,8 @@ scoped_refptr<VideoFrame> VideoFrameValidator::CloneAndCropFrame(
     scoped_refptr<const VideoFrame> frame) const {
   const auto crop = crop_helper_.Run(*frame);
   const auto& visible = frame->visible_rect();
-  auto cloned_frame = CloneVideoFrame(frame.get(), frame->layout());
+  auto cloned_frame =
+      CloneVideoFrame(frame.get(), frame->layout(), test_sii_.get());
   // Ensures that the crop is within the previous visible rectangle.
   if (!visible.Contains(crop)) {
     LOG(ERROR) << "Crop " << crop.ToString()
@@ -672,5 +654,4 @@ LogLikelihoodRatioVideoFrameValidator::Validate(
   return nullptr;
 }
 
-}  // namespace test
-}  // namespace media
+}  // namespace media::test

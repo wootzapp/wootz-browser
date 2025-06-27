@@ -8,7 +8,6 @@
 #include <optional>
 #include <string>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_root.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
@@ -31,6 +30,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/tracing_controller.h"
+#include "partition_alloc/partition_root.h"
 
 namespace heap_profiling {
 
@@ -472,19 +472,19 @@ bool TestDriver::RunTest(const Options& options) {
     wait_for_ui_thread_.Wait();
   }
 
-  std::optional<base::Value> dump_json =
-      base::JSONReader::Read(serialized_trace_);
-  if (!dump_json || !dump_json->is_dict()) {
+  std::optional<base::Value::Dict> dump_json =
+      base::JSONReader::ReadDict(serialized_trace_);
+  if (!dump_json) {
     LOG(ERROR) << "Failed to deserialize trace.";
     return false;
   }
 
-  if (!ValidateBrowserAllocations(dump_json->GetDict())) {
+  if (!ValidateBrowserAllocations(*dump_json)) {
     LOG(ERROR) << "Failed to validate browser allocations";
     return false;
   }
 
-  if (!ValidateRendererAllocations(dump_json->GetDict())) {
+  if (!ValidateRendererAllocations(*dump_json)) {
     LOG(ERROR) << "Failed to validate renderer allocations";
     return false;
   }

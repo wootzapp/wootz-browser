@@ -32,7 +32,6 @@
 #include "media/base/video_frame_layout.h"
 #include "media/base/video_util.h"
 #include "media/gpu/buffer_validation.h"
-#include "media/gpu/chromeos/chromeos_compressed_gpu_memory_buffer_video_frame_utils.h"
 #include "media/gpu/macros.h"
 #include "ui/gfx/buffer_format_util.h"
 #include "ui/gfx/buffer_types.h"
@@ -46,6 +45,7 @@
 #include "ui/gfx/linux/native_pixmap_dmabuf.h"
 #include "ui/gfx/native_pixmap.h"
 #include "ui/gfx/switches.h"
+#include "ui/ozone/public/ozone_switches.h"
 
 namespace media {
 
@@ -185,24 +185,41 @@ class GbmDeviceWrapper {
     return gbm_device_->CreateBufferFromHandle(fourcc_format, size,
                                                std::move(handle));
   }
-  std::vector<uint64_t> intel_media_compressed_modifiers_;
 
  private:
   GbmDeviceWrapper() {
-    // If the Intel media compression feature flag is enabled, we can have
-    // the list of known Intel media compression modifiers ready for minigbm
-    // to try allocating a corresponding buffer later in the video decoding
-    // path.
-    const bool is_intel_media_compression_enabled =
-#if BUILDFLAG(IS_CHROMEOS)
-        base::FeatureList::IsEnabled(features::kEnableIntelMediaCompression);
-#elif BUILDFLAG(IS_LINUX)
-        false;
+    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+            switches::kRenderNodeOverride)) {
+      const base::FilePath dev_path(
+          base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
+              switches::kRenderNodeOverride));
+#if BUILDFLAG(IS_LINUX) && BUILDFLAG(USE_V4L2_CODEC)
+      const bool is_render_node = base::Contains(dev_path.value(), "render");
+
+      // TODO(b/313513760): don't guard base::File::FLAG_WRITE behind
+      // BUILDFLAG(IS_LINUX) && BUILDFLAG(USE_V4L2_CODEC) once the hardware
+      // video decoding sandbox allows R+W access to the render nodes.
+      // base::File::FLAG_WRITE is needed on Linux for gbm_create_device().
+      const uint32_t kDrmNodeFileFlags =
+          base::File::FLAG_OPEN | base::File::FLAG_READ |
+          (is_render_node ? base::File::FLAG_WRITE : 0);
+#else
+      const uint32_t kDrmNodeFileFlags =
+          base::File::FLAG_OPEN | base::File::FLAG_READ;
 #endif
-    if (is_intel_media_compression_enabled) {
-      intel_media_compressed_modifiers_ = GetIntelMediaCompressedModifiers();
-      CHECK(!intel_media_compressed_modifiers_.empty());
+      base::File drm_node_file(dev_path, kDrmNodeFileFlags);
+      if (drm_node_file.IsValid()) {
+        // GbmDevice expects its owner to keep |drm_node_file| open during the
+        // former's lifetime. We give it away here since GbmDeviceWrapper is a
+        // singleton that fully owns |gbm_device|.
+        gbm_device_ = ui::CreateGbmDevice(drm_node_file.GetPlatformFile());
+        if (gbm_device_) {
+          drm_node_file.TakePlatformFile();
+        }
+      }
+      return;
     }
+
     constexpr char kRenderNodeFilePrefix[] = "/dev/dri/renderD";
     constexpr int kMinRenderNodeNum = 128;
 
@@ -247,26 +264,8 @@ class GbmDeviceWrapper {
                                                  gfx::BufferUsage buffer_usage)
       EXCLUSIVE_LOCKS_REQUIRED(lock_) {
     uint32_t flags = ui::BufferUsageToGbmFlags(buffer_usage);
-    std::unique_ptr<ui::GbmBuffer> buffer;
-    // Currently, Intel media compression is expected to be supported only for
-    // NV12/P010 clear content hardware decoding.
-    const bool is_media_compressed_supported_format =
-        fourcc_format == DRM_FORMAT_NV12 || fourcc_format == DRM_FORMAT_P010;
-    // We ask minigbm to try allocating a buffer with the known Intel media
-    // compression modifiers. If that fails, we fallback to the usual
-    // allocation path in which we let minigbm choose the best modifier.
-    if (!intel_media_compressed_modifiers_.empty() &&
-        is_media_compressed_supported_format &&
-        buffer_usage == gfx::BufferUsage::SCANOUT_VDA_WRITE) {
-      // Currently, Intel media compression is expected to be supported only for
-      // NV12/P010 clear content hardware decoding.
-      buffer = gbm_device_->CreateBufferWithModifiers(
-          fourcc_format, size, flags, intel_media_compressed_modifiers_);
-      if (buffer)
-        return buffer;
-    }
-
-    buffer = gbm_device_->CreateBuffer(fourcc_format, size, flags);
+    std::unique_ptr<ui::GbmBuffer> buffer =
+        gbm_device_->CreateBuffer(fourcc_format, size, flags);
     if (buffer)
       return buffer;
 
@@ -304,6 +303,70 @@ gfx::GpuMemoryBufferHandle AllocateGpuMemoryBufferHandle(
     return gmb_handle;
   return GbmDeviceWrapper::Get()->CreateGpuMemoryBuffer(
       *buffer_format, coded_size, buffer_usage);
+}
+
+UniqueTrackingTokenHelper::UniqueTrackingTokenHelper() {
+  Initialize();
+}
+
+UniqueTrackingTokenHelper::~UniqueTrackingTokenHelper() = default;
+
+void UniqueTrackingTokenHelper::ClearTokens() {
+  tokens_.clear();
+  Initialize();
+}
+
+void UniqueTrackingTokenHelper::Initialize() {
+  // This should only be run with an empty token list.
+  CHECK_EQ(0u, tokens_.size());
+
+  // Insert an empty tracking token. This guarantees that all returned tokens
+  // will be non-empty.
+  tokens_.insert(base::UnguessableToken());
+}
+
+void UniqueTrackingTokenHelper::ClearToken(
+    const base::UnguessableToken& token) {
+  // Only non-empty tokens are stored.
+  CHECK(!token.is_empty());
+  auto iter = tokens_.find(token);
+  CHECK(iter != tokens_.end());
+  tokens_.erase(iter);
+}
+
+base::UnguessableToken UniqueTrackingTokenHelper::GenerateToken() {
+  CHECK(tokens_.size() < kMaxNumberOfTokens);
+
+  // Capping the number of insertion attempts is done to avoid an unbounded
+  // while loop. The expected collision frequency is very low since
+  // base::UnguessableToken is a 128-bit number. If we can't find a unique token
+  // in 1024 attempts, then something is likely wrong.
+  constexpr int kMaxAttempts = 1024;
+  for (int attempt_count = 0; attempt_count < kMaxAttempts; ++attempt_count) {
+    // Generate an UnguessableToken and attempt to insert it into |tokens_|.
+    auto res = tokens_.insert(base::UnguessableToken::Create());
+    if (res.second) {
+      // Success
+      return *res.first;
+    }
+  }
+  LOG(FATAL) << "Unable to generate a unique UnguessableToken. Aborting.";
+}
+
+void UniqueTrackingTokenHelper::SetUniqueTrackingToken(
+    VideoFrameMetadata& metadata) {
+  CHECK(tokens_.size() < kMaxNumberOfTokens);
+
+  if (metadata.tracking_token.has_value()) {
+    if (auto res = tokens_.insert(*metadata.tracking_token);
+        true == res.second) {
+      // We were able to insert the tracking token into |tokens_|. There is
+      // nothing left to do.
+      return;
+    }
+  }
+  // Otherwise, it needs to be generated.
+  metadata.tracking_token = GenerateToken();
 }
 
 gfx::GpuMemoryBufferId GetNextGpuMemoryBufferId() {
@@ -344,18 +407,6 @@ scoped_refptr<VideoFrame> CreateVideoFrameFromGpuMemoryBufferHandle(
 
   auto buffer_format = VideoPixelFormatToGfxBufferFormat(pixel_format);
   DCHECK(buffer_format);
-  const uint64_t modifier = gmb_handle.native_pixmap_handle.modifier;
-  const bool is_intel_media_compressed_buffer =
-      IsIntelMediaCompressedModifier(modifier);
-  const bool is_intel_media_compression_enabled =
-#if BUILDFLAG(IS_CHROMEOS)
-      base::FeatureList::IsEnabled(features::kEnableIntelMediaCompression);
-#elif BUILDFLAG(IS_LINUX)
-      false;
-#endif
-
-  CHECK(!is_intel_media_compressed_buffer ||
-        is_intel_media_compression_enabled);
   gpu::GpuMemoryBufferSupport support;
   std::unique_ptr<gfx::GpuMemoryBuffer> gpu_memory_buffer =
       support.CreateGpuMemoryBufferImplFromHandle(
@@ -364,33 +415,22 @@ scoped_refptr<VideoFrame> CreateVideoFrameFromGpuMemoryBufferHandle(
   if (!gpu_memory_buffer)
     return nullptr;
 
-  scoped_refptr<VideoFrame> frame;
-  if (is_intel_media_compressed_buffer) {
-    CHECK(pixel_format == PIXEL_FORMAT_NV12 ||
-          pixel_format == PIXEL_FORMAT_P016LE);
-    frame = WrapChromeOSCompressedGpuMemoryBufferAsVideoFrame(
-        visible_rect, natural_size, std::move(gpu_memory_buffer), timestamp);
-  } else {
-    // The empty shared image array is ok because this VideoFrame is not
-    // rendered.
-    scoped_refptr<gpu::ClientSharedImage>
-        empty_shared_images[VideoFrame::kMaxPlanes];
-    frame = VideoFrame::WrapExternalGpuMemoryBuffer(
-        visible_rect, natural_size, std::move(gpu_memory_buffer),
-        empty_shared_images, gpu::SyncToken(), /*texture_target=*/0,
-        base::NullCallback(), timestamp);
-  }
-
+  // It is not necessary to pass a SharedImage because this VideoFrame is not
+  // rendered.
+  scoped_refptr<VideoFrame> frame = VideoFrame::WrapExternalGpuMemoryBuffer(
+      visible_rect, natural_size, std::move(gpu_memory_buffer), timestamp);
   if (!frame)
     return nullptr;
 
   // We only support importing non-DISJOINT multi-planar GbmBuffer right now.
   // TODO(crbug.com/40201271): Add DISJOINT support.
   frame->metadata().is_webgpu_compatible = supports_zero_copy_webgpu_import;
+  frame->metadata().tracking_token = base::UnguessableToken::Create();
 
   return frame;
 }
 
+// TODO(crbug.com/381896729): Mark CreatePlatformVideoFrame as test only.
 scoped_refptr<VideoFrame> CreatePlatformVideoFrame(
     VideoPixelFormat pixel_format,
     const gfx::Size& coded_size,
@@ -423,6 +463,8 @@ scoped_refptr<VideoFrame> CreatePlatformVideoFrame(
       *layout, visible_rect, natural_size, std::move(dmabuf_fds), timestamp);
   if (!frame)
     return nullptr;
+
+  frame->metadata().tracking_token = base::UnguessableToken::Create();
 
   return frame;
 }
@@ -483,8 +525,8 @@ gfx::GpuMemoryBufferHandle CreateGpuMemoryBufferHandle(
       }
     } break;
     default:
-      NOTREACHED_IN_MIGRATION()
-          << "Unsupported storage type: " << video_frame->storage_type();
+      NOTREACHED() << "Unsupported storage type: "
+                   << video_frame->storage_type();
   }
   CHECK_EQ(handle.type, gfx::NATIVE_PIXMAP);
   if (video_frame->format() == PIXEL_FORMAT_MJPEG)
@@ -526,17 +568,6 @@ scoped_refptr<gfx::NativePixmapDmaBuf> CreateNativePixmapDmaBuf(
 
   DCHECK(native_pixmap->AreDmaBufFdsValid());
   return native_pixmap;
-}
-
-gfx::GenericSharedMemoryId GetSharedMemoryId(const VideoFrame& frame) {
-  if (auto* gmb = frame.GetGpuMemoryBuffer()) {
-    return gmb->GetId();
-  }
-  if (frame.HasDmaBufs()) {
-    return gfx::GenericSharedMemoryId(frame.GetDmabufFd(0));
-  }
-  NOTREACHED_IN_MIGRATION() << "The frame is not backed by shared memory";
-  return gfx::GenericSharedMemoryId();  // Invalid
 }
 
 bool CanImportGpuMemoryBufferHandle(

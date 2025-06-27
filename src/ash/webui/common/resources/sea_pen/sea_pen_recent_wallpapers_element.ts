@@ -9,22 +9,22 @@
 
 import 'chrome://resources/ash/common/personalization/common.css.js';
 import 'chrome://resources/ash/common/personalization/wallpaper.css.js';
-import 'chrome://resources/ash/common/sea_pen/sea_pen.css.js';
-import 'chrome://resources/ash/common/sea_pen/sea_pen_icons.html.js';
+import './sea_pen.css.js';
+import './sea_pen_icons.html.js';
 import 'chrome://resources/ash/common/cr_elements/cr_action_menu/cr_action_menu.js';
 import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
 
 import {AnchorAlignment} from 'chrome://resources/ash/common/cr_elements/cr_action_menu/cr_action_menu.js';
-import {WallpaperGridItemSelectedEvent} from 'chrome://resources/ash/common/personalization/wallpaper_grid_item_element.js';
+import type {WallpaperGridItemSelectedEvent} from 'chrome://resources/ash/common/personalization/wallpaper_grid_item_element.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {mojoString16ToString} from 'chrome://resources/js/mojo_type_util.js';
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 import {afterNextRender} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {SeaPenImageId} from './constants.js';
-import {isSeaPenUINextEnabled} from './load_time_booleans.js';
-import {RecentSeaPenThumbnailData, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
-import {deleteRecentSeaPenImage, fetchRecentSeaPenData, searchSeaPenThumbnails, selectRecentSeaPenImage} from './sea_pen_controller.js';
+import type {SeaPenImageId} from './constants.js';
+import {isSeaPenTextInputEnabled} from './load_time_booleans.js';
+import type {RecentSeaPenThumbnailData, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
+import {deleteRecentSeaPenImage, fetchRecentSeaPenData, getSeaPenThumbnails, selectRecentSeaPenImage} from './sea_pen_controller.js';
 import {getSeaPenProvider} from './sea_pen_interface_provider.js';
 import {logRecentImageActionMenuItemClick, RecentImageActionMenuItem} from './sea_pen_metrics_logger.js';
 import {getTemplate} from './sea_pen_recent_wallpapers_element.html.js';
@@ -85,10 +85,10 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
 
       pendingSelected_: Object,
 
-      isSeaPenUINextEnabled_: {
+      isSeaPenTextInputEnabled_: {
         type: Boolean,
         value() {
-          return isSeaPenUINextEnabled();
+          return isSeaPenTextInputEnabled();
         },
       },
     };
@@ -102,7 +102,7 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
   private currentShowWallpaperInfoDialog_: number|null;
   private currentSelected_: SeaPenImageId|null;
   private pendingSelected_: SeaPenImageId|SeaPenThumbnail|null;
-  private isSeaPenUINextEnabled_: boolean;
+  private isSeaPenTextInputEnabled_: boolean;
 
   static get observers() {
     return ['onRecentImageLoaded_(recentImageData_, recentImageDataLoading_)'];
@@ -271,7 +271,12 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
 
     if (pendingSelected !== null) {
       // User just clicked on a recent image.
-      return id === pendingSelected;
+      if (isSeaPenImageId(pendingSelected)) {
+        return id === pendingSelected;
+      } else {
+        // |pendingSelected| is a SeaPenThumbnail.
+        return id === pendingSelected.id;
+      }
     }
 
     return id === currentSelected;
@@ -303,18 +308,17 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
       const index = parseInt(id, 10);
       const menuElement =
           this.shadowRoot!.querySelectorAll('cr-action-menu')[index];
-      menuElement!.showAtPosition(config);
+      menuElement.showAtPosition(config);
       // focus on the top menu item first.
-      const menuItems = menuElement!.querySelectorAll<HTMLElement>(
+      const menuItems = menuElement.querySelectorAll<HTMLElement>(
           '.dropdown-item:not([hidden]):not(.more-like-this-option)');
-      menuItems![0].focus();
+      menuItems[0].focus();
     }
   }
 
   private onClickCreateMore_(event: Event&{
     model: {index: number, image: SeaPenImageId},
   }) {
-    logRecentImageActionMenuItemClick(RecentImageActionMenuItem.CREATE_MORE);
     assert(
         isSeaPenImageId(event.model.image),
         'selected Sea Pen image is a positive number');
@@ -331,9 +335,12 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
 
     const templateId =
         seaPenQuery.textQuery ? 'Query' : seaPenQuery.templateQuery?.id;
+    // Log metrics for 'Create More' button click.
+    logRecentImageActionMenuItemClick(
+        !!seaPenQuery.textQuery, RecentImageActionMenuItem.CREATE_MORE);
     // Route to the results page and search thumbnails for the Sea Pen query.
     SeaPenRouterElement.instance().selectSeaPenTemplate(templateId);
-    searchSeaPenThumbnails(seaPenQuery, getSeaPenProvider(), this.getStore());
+    getSeaPenThumbnails(seaPenQuery, getSeaPenProvider(), this.getStore());
   }
 
   private async onClickDeleteWallpaper_(event: Event&{
@@ -350,7 +357,12 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
 
     await deleteRecentSeaPenImage(
         event.model.image, getSeaPenProvider(), this.getStore());
-    logRecentImageActionMenuItemClick(RecentImageActionMenuItem.DELETE);
+
+    // Log metrics for 'Delete' button click.
+    const isTextQuery =
+        !!this.recentImageData_[event.model.image]?.imageInfo?.query?.textQuery;
+    logRecentImageActionMenuItemClick(
+        isTextQuery, RecentImageActionMenuItem.DELETE);
     this.closeAllActionMenus_();
 
     // If the deleted image is the last image or the only image in recent
@@ -366,24 +378,26 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
           this.shadowRoot!.querySelectorAll<HTMLElement>(
               '.recent-image-container:not([hidden])');
       const recentImage =
-          recentImageContainers![index].querySelector<HTMLElement>(
+          recentImageContainers[index].querySelector<HTMLElement>(
               '.sea-pen-image');
       recentImage!.setAttribute('tabindex', '0');
       recentImage!.focus();
       const menuIconButton =
-          recentImageContainers![index].querySelector<HTMLElement>(
+          recentImageContainers[index].querySelector<HTMLElement>(
               '.menu-icon-button');
       menuIconButton!.setAttribute('tabindex', '0');
     });
   }
 
-  private onClickWallpaperInfo_(e: Event) {
-    const eventTarget = e.currentTarget as HTMLElement;
-    const id = eventTarget.dataset['id'];
-    if (id !== undefined) {
-      this.currentShowWallpaperInfoDialog_ = parseInt(id, 10);
-    }
-    logRecentImageActionMenuItemClick(RecentImageActionMenuItem.ABOUT);
+  private onClickWallpaperInfo_(event: Event&{
+    model: {index: number, image: SeaPenImageId},
+  }) {
+    this.currentShowWallpaperInfoDialog_ = event.model.index;
+    // Log metrics for 'About' button click.
+    const isTextQuery =
+        !!this.recentImageData_[event.model.image]?.imageInfo?.query?.textQuery;
+    logRecentImageActionMenuItemClick(
+        isTextQuery, RecentImageActionMenuItem.ABOUT);
     this.closeAllActionMenus_();
   }
 
@@ -398,7 +412,7 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
       recentImage: SeaPenImageId,
       recentImageData: Record<SeaPenImageId, RecentSeaPenThumbnailData|null>,
       recentImageDataLoading: Record<SeaPenImageId, boolean>): boolean {
-    if (!this.isSeaPenUINextEnabled_ || !recentImage ||
+    if (!this.isSeaPenTextInputEnabled_ || !recentImage ||
         this.isRecentImageLoading_(recentImage, recentImageDataLoading)) {
       return false;
     }
@@ -434,7 +448,7 @@ export class SeaPenRecentWallpapersElement extends WithSeaPenStore {
       const menuButtons =
           this.shadowRoot!.querySelectorAll<HTMLElement>('.menu-icon-button');
       if (menuId !== null && menuButtons.length > menuId + 1) {
-        menuButtons[menuId]!.focus();
+        menuButtons[menuId].focus();
       }
     });
   }

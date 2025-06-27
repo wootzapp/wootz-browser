@@ -6,7 +6,8 @@ package org.chromium.chrome.browser.incognito;
 
 import static org.junit.Assert.assertEquals;
 
-import androidx.test.core.app.ApplicationProvider;
+import android.os.Build;
+
 import androidx.test.filters.LargeTest;
 
 import org.hamcrest.Matchers;
@@ -14,9 +15,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations.UseMethodParameter;
 import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
 import org.chromium.base.test.params.ParameterizedRunner;
@@ -24,8 +25,8 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.Features.JUnitProcessor;
 import org.chromium.chrome.browser.customtabs.IncognitoCustomTabActivityTestRule;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -34,9 +35,9 @@ import org.chromium.chrome.browser.incognito.IncognitoDataTestUtils.TestParams;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLoadIfNeededCaller;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
 import java.util.Arrays;
@@ -65,11 +66,9 @@ public class IncognitoStorageLeakageTest {
     private String mSiteDataTestPage;
     private EmbeddedTestServer mTestServer;
 
-    @Rule public TestRule mProcessor = new JUnitProcessor();
-
     @Rule
-    public ChromeTabbedActivityTestRule mChromeActivityTestRule =
-            new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mChromeActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule
     public IncognitoCustomTabActivityTestRule mCustomTabActivityTestRule =
@@ -77,15 +76,13 @@ public class IncognitoStorageLeakageTest {
 
     @Before
     public void setUp() throws TimeoutException {
-        mTestServer =
-                EmbeddedTestServer.createAndStartServer(
-                        ApplicationProvider.getApplicationContext());
+        mTestServer = mChromeActivityTestRule.getTestServer();
         mSiteDataTestPage = mTestServer.getURL(SITE_DATA_HTML_PATH);
     }
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> IncognitoDataTestUtils.closeTabs(mChromeActivityTestRule));
     }
 
@@ -132,6 +129,7 @@ public class IncognitoStorageLeakageTest {
     @Test
     @LargeTest
     @UseMethodParameter(TestParams.AllTypesToAllTypes.class)
+    @DisableIf.Build(sdk_equals = Build.VERSION_CODES.S_V2, message = "crbug.com/41484832")
     public void testStorageDoesNotLeakFromActivityToActivity(
             String activityType1, String activityType2)
             throws ExecutionException, TimeoutException {
@@ -159,8 +157,7 @@ public class IncognitoStorageLeakageTest {
             // Due to which tab1 could potentially be marked as frozen and invoking
             // getWebContents on it may return null. Please see the javadoc for
             // TabImpl#getWebContents.
-            TestThreadUtils.runOnUiThreadBlocking(
-                    () -> tab1.loadIfNeeded(TabLoadIfNeededCaller.OTHER));
+            ThreadUtils.runOnUiThreadBlocking(() -> tab1.loadIfNeeded(TabLoadIfNeededCaller.OTHER));
             CriteriaHelper.pollUiThread(
                     () -> Criteria.checkThat(tab1.getWebContents(), Matchers.notNullValue()));
             // Set the storage in tab1
@@ -174,8 +171,7 @@ public class IncognitoStorageLeakageTest {
                     JavaScriptUtils.runJavascriptWithAsyncResult(
                             tab1.getWebContents(), "has" + type + "Async()"));
 
-            TestThreadUtils.runOnUiThreadBlocking(
-                    () -> tab2.loadIfNeeded(TabLoadIfNeededCaller.OTHER));
+            ThreadUtils.runOnUiThreadBlocking(() -> tab2.loadIfNeeded(TabLoadIfNeededCaller.OTHER));
             CriteriaHelper.pollUiThread(
                     () -> Criteria.checkThat(tab2.getWebContents(), Matchers.notNullValue()));
             // Access the storage from tab2

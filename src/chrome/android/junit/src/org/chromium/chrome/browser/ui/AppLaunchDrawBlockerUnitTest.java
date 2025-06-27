@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.ui;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -28,7 +27,6 @@ import androidx.test.filters.SmallTest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -40,15 +38,10 @@ import org.robolectric.annotation.LooperMode;
 import org.robolectric.annotation.LooperMode.Mode;
 import org.robolectric.shadows.ShadowSystemClock;
 
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.IntentHandler;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.InflationObserver;
 import org.chromium.chrome.browser.lifecycle.LifecycleObserver;
@@ -71,8 +64,6 @@ import java.util.List;
 @LooperMode(Mode.PAUSED)
 public class AppLaunchDrawBlockerUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
     @Mock private ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
     @Mock private View mView;
@@ -106,7 +97,7 @@ public class AppLaunchDrawBlockerUnitTest {
     @Before
     public void setUp() {
         when(mView.getViewTreeObserver()).thenReturn(mViewTreeObserver);
-        mJniMocker.mock(TemplateUrlServiceFactoryJni.TEST_HOOKS, mTemplateUrlServiceFactory);
+        TemplateUrlServiceFactoryJni.setInstanceForTesting(mTemplateUrlServiceFactory);
         TemplateUrlServiceFactory.setInstanceForTesting(mTemplateUrlService);
 
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);
@@ -128,7 +119,6 @@ public class AppLaunchDrawBlockerUnitTest {
                         mIntentSupplier,
                         mShouldIgnoreIntentSupplier,
                         mIsTabletSupplier,
-                        mShouldShowTabSwitcherOnStartSupplier,
                         mProfileSupplier,
                         mIncognitoRestoreAppLaunchDrawBlockerFactoryMock);
         validateConstructorAndCaptureObservers();
@@ -166,7 +156,7 @@ public class AppLaunchDrawBlockerUnitTest {
                 "Draw is not blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
 
         SystemClock.setCurrentTimeMillis(INITIAL_TIME + 10);
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
 
         assertTrue(
                 "Draw is still blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
@@ -189,7 +179,7 @@ public class AppLaunchDrawBlockerUnitTest {
                 "Draw is not blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
 
         SystemClock.setCurrentTimeMillis(INITIAL_TIME + 20);
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
 
         assertTrue(
                 "Draw is still blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
@@ -208,7 +198,7 @@ public class AppLaunchDrawBlockerUnitTest {
         mInflationObserver.onPostInflationStartup();
         verify(mViewTreeObserver, never())
                 .addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        mAppLaunchDrawBlocker.onActiveTabAvailable(false);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -225,7 +215,7 @@ public class AppLaunchDrawBlockerUnitTest {
         mInflationObserver.onPostInflationStartup();
         verify(mViewTreeObserver, never())
                 .addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        mAppLaunchDrawBlocker.onActiveTabAvailable(false);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -246,7 +236,7 @@ public class AppLaunchDrawBlockerUnitTest {
                 "Draw is not blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
 
         SystemClock.setCurrentTimeMillis(INITIAL_TIME + 16);
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
 
         assertTrue(
                 "Draw is still blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
@@ -265,7 +255,7 @@ public class AppLaunchDrawBlockerUnitTest {
         mInflationObserver.onPostInflationStartup();
         verify(mViewTreeObserver, never())
                 .addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -280,34 +270,10 @@ public class AppLaunchDrawBlockerUnitTest {
         mInflationObserver.onPostInflationStartup();
         verify(mViewTreeObserver, never())
                 .addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
-    public void testLastTabNtp_phone_searchEngineHasLogo_noIntent_tabSwitcherOnStart() {
-        ChromeSharedPreferences.getInstance()
-                .writeInt(
-                        ChromePreferenceKeys.APP_LAUNCH_LAST_KNOWN_ACTIVE_TAB_STATE,
-                        ActiveTabState.NTP);
-        setSearchEngineHasLogo(true);
-        when(mShouldShowTabSwitcherOnStartSupplier.get()).thenReturn(true);
-
-        mInflationObserver.onPostInflationStartup();
-        verify(mViewTreeObserver).addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        assertFalse(
-                "Draw is not blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
-
-        SystemClock.setCurrentTimeMillis(INITIAL_TIME + 10);
-        mAppLaunchDrawBlocker.onOverviewPageAvailable();
-
-        assertTrue(
-                "Draw is still blocked.", mOnPreDrawListenerArgumentCaptor.getValue().onPreDraw());
-        verify(mViewTreeObserver)
-                .removeOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.getValue());
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.FOCUS_OMNIBOX_IN_INCOGNITO_TAB_INTENTS})
     public void testLastTabNtp_phone_searchEngineHasLogo_withIntent_incognito() {
         ChromeSharedPreferences.getInstance()
                 .writeInt(
@@ -323,7 +289,7 @@ public class AppLaunchDrawBlockerUnitTest {
         mInflationObserver.onPostInflationStartup();
         verify(mViewTreeObserver, never())
                 .addOnPreDrawListener(mOnPreDrawListenerArgumentCaptor.capture());
-        mAppLaunchDrawBlocker.onActiveTabAvailable(false);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -337,7 +303,7 @@ public class AppLaunchDrawBlockerUnitTest {
         setSearchEngineHasLogo(true);
 
         mInflationObserver.onPostInflationStartup();
-        mAppLaunchDrawBlocker.onActiveTabAvailable(false);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -351,7 +317,7 @@ public class AppLaunchDrawBlockerUnitTest {
         setSearchEngineHasLogo(true);
 
         mInflationObserver.onPostInflationStartup();
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
     }
 
     @Test
@@ -385,7 +351,7 @@ public class AppLaunchDrawBlockerUnitTest {
         // No longer need to block draw.
         SystemClock.setCurrentTimeMillis(INITIAL_TIME + 10);
         mAppLaunchDrawBlocker.onIncognitoRestoreUnblockConditionsFired();
-        mAppLaunchDrawBlocker.onActiveTabAvailable(true);
+        mAppLaunchDrawBlocker.onActiveTabAvailable();
 
         for (OnPreDrawListener listener : mOnPreDrawListenerArgumentCaptor.getAllValues()) {
             assertTrue("Listener shouldn't be blocking the draw any longer.", listener.onPreDraw());
@@ -393,11 +359,6 @@ public class AppLaunchDrawBlockerUnitTest {
         }
 
         verify(mIncognitoRestoreAppLaunchDrawBlockerMock, times(1)).shouldBlockDraw();
-        assertEquals(
-                "Duration not recorded.",
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "Android.AppLaunch.DurationDrawWasBlocked.OnIncognitoReauth", 10));
     }
 
     private void validateConstructorAndCaptureObservers() {

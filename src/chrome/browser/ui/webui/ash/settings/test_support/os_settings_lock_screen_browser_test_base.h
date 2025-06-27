@@ -29,9 +29,13 @@ class OSSettingsLockScreenBrowserTestBase
  public:
   // The password of the user that is set up by this fixture.
   static constexpr char kPassword[] = "the-password";
+  static constexpr char kPin[] = "596789";
+  static constexpr char kPinStubSalt[] = "pin-salt";
 
   explicit OSSettingsLockScreenBrowserTestBase(
-      ash::AshAuthFactor password_type = ash::AshAuthFactor::kGaiaPassword);
+      ash::AshAuthFactor auth_factor_type,
+      LoggedInUserMixin::LogInType login_type =
+          LoggedInUserMixin::LogInType::kConsumer);
   ~OSSettingsLockScreenBrowserTestBase() override;
 
   void SetUpOnMainThread() override;
@@ -53,19 +57,25 @@ class OSSettingsLockScreenBrowserTestBase
   // The account ID of the user set up by this fixture.
   const AccountId& GetAccountId();
 
+  void Authenticate();
+
  protected:
+  mojo::Remote<mojom::LockScreenSettings> lock_screen_settings_remote_;
   std::unique_ptr<LoggedInUserMixin> logged_in_user_mixin_;
   raw_ptr<CryptohomeMixin> cryptohome_{nullptr};
   OSSettingsBrowserTestMixin os_settings_mixin_{&mixin_host_};
 
  private:
+  void AuthenticateUsingPassword();
+  void AuthenticateUsingPin();
+
   // Opens the os settings page and saves the test api remote in
   // `os_settings_driver_remote_`. Returns an async waiter to the remote.
   mojom::OSSettingsDriverAsyncWaiter OpenOSSettings(
       const std::string& relative_url = "");
 
   mojo::Remote<mojom::OSSettingsDriver> os_settings_driver_remote_;
-  mojo::Remote<mojom::LockScreenSettings> lock_screen_settings_remote_;
+  ash::AshAuthFactor auth_factor_type_;
 };
 
 }  // namespace ash::settings

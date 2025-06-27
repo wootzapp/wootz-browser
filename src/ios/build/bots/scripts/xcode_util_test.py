@@ -25,6 +25,10 @@ _XCODEBUILD_VERSION_OUTPUT_15 = b"""Xcode 15.0
 Build version 15A5209g
 """
 
+_XCODEBUILD_VERSION_OUTPUT_16 = b"""Xcode 16.0
+Build version 16A5171c
+"""
+
 ADD_SIMULATOR_RUNTIME_OUTPUT = 'ramdomid (iOS 15.0)'
 
 RUNTIME_15_0 = {
@@ -60,6 +64,7 @@ class XcodeUtilTest(test_runner_test.TestCase):
     self.assertTrue(xcode_util.using_xcode_11_or_higher())
     self.assertFalse(xcode_util.using_xcode_13_or_higher())
     self.assertFalse(xcode_util.using_xcode_15_or_higher())
+    self.assertFalse(xcode_util.using_xcode_16_or_higher())
 
   @mock.patch(
       'subprocess.check_output', return_value=_XCODEBUILD_VERSION_OUTPUT_13)
@@ -68,14 +73,25 @@ class XcodeUtilTest(test_runner_test.TestCase):
     self.assertTrue(xcode_util.using_xcode_11_or_higher())
     self.assertTrue(xcode_util.using_xcode_13_or_higher())
     self.assertFalse(xcode_util.using_xcode_15_or_higher())
+    self.assertFalse(xcode_util.using_xcode_16_or_higher())
 
   @mock.patch(
       'subprocess.check_output', return_value=_XCODEBUILD_VERSION_OUTPUT_15)
   def test_using_xcode_15(self, _):
-    """Tests xcode_util.using_xcode_13_or_higher"""
+    """Tests xcode_util.using_xcode_15_or_higher"""
     self.assertTrue(xcode_util.using_xcode_11_or_higher())
     self.assertTrue(xcode_util.using_xcode_13_or_higher())
     self.assertTrue(xcode_util.using_xcode_15_or_higher())
+    self.assertFalse(xcode_util.using_xcode_16_or_higher())
+
+  @mock.patch(
+      'subprocess.check_output', return_value=_XCODEBUILD_VERSION_OUTPUT_16)
+  def test_using_xcode_16(self, _):
+    """Tests xcode_util.using_xcode_16_or_higher"""
+    self.assertTrue(xcode_util.using_xcode_11_or_higher())
+    self.assertTrue(xcode_util.using_xcode_13_or_higher())
+    self.assertTrue(xcode_util.using_xcode_15_or_higher())
+    self.assertTrue(xcode_util.using_xcode_16_or_higher())
 
 
 class InstallTest(XcodeUtilTest):
@@ -292,7 +308,8 @@ class InstallTest(XcodeUtilTest):
     self.assertFalse(mock_add_simulator_runtime.called)
     self.assertFalse(mock_override_default_iphonesim_runtime.called)
 
-  def test_install_runtime_dmg_with_non_builtin_runtime(self):
+  @mock.patch('xcode_util.using_xcode_16_or_higher', return_value=False)
+  def test_install_runtime_dmg_with_non_builtin_runtime(self, _):
     with mock.patch('xcode_util.is_runtime_builtin', return_value=False):
       with mock.patch(
           'iossim_util.delete_least_recently_used_simulator_runtimes'
@@ -331,7 +348,8 @@ class InstallTest(XcodeUtilTest):
     mock_override_default_iphonesim_runtime.assert_called_once_with(
         ADD_SIMULATOR_RUNTIME_OUTPUT, '15.0')
 
-  def test_install_runtime_dmg_already_exists(self):
+  @mock.patch('xcode_util.using_xcode_16_or_higher', return_value=False)
+  def test_install_runtime_dmg_already_exists(self, _):
     with mock.patch('xcode_util.is_runtime_builtin', return_value=False):
       with mock.patch(
           'iossim_util.delete_least_recently_used_simulator_runtimes'
@@ -352,9 +370,46 @@ class InstallTest(XcodeUtilTest):
                     ios_version='15.0',
                     xcode_build_version='15a123')
 
-    mock_delete_least_recently_used_simulator_runtimes.assert_called_once_with()
+    mock_delete_least_recently_used_simulator_runtimes.assert_not_called()
     mock_get_simulator_runtime_info_by_build.assert_called_once_with('20C52')
     mock__install_runtime_dmg.assert_not_called()
+
+  @mock.patch('xcode_util.is_local_run', return_value=True)
+  @mock.patch('xcode_util.version', return_value=('', 'TestXcodeVersion'))
+  @mock.patch(
+      'iossim_util.get_simulator_runtime_info_by_build', return_value=object())
+  @mock.patch('xcode_util.get_latest_runtime_build_cipd', return_value=object())
+  @mock.patch('xcode_util.install')
+  def test_local_run(self, mock_install, mock_get_latest_runtime_build_cipd, _1,
+                     _2, _3):
+    ios_version = '14.4'
+    install_success, is_legacy_xcode = xcode_util.install_xcode(
+        self.mac_toolchain, self.xcode_build_version, self.xcode_app_path, '',
+        ios_version)
+    self.assertTrue(install_success)
+    self.assertFalse(is_legacy_xcode)
+    mock_get_latest_runtime_build_cipd.assert_called_once_with(
+        self.xcode_build_version, ios_version)
+    self.assertFalse(mock_install.called)
+
+  @mock.patch('xcode_util.is_local_run', return_value=True)
+  @mock.patch('xcode_util.version', return_value=('', 'TestXcodeVersion'))
+  @mock.patch(
+      'iossim_util.get_simulator_runtime_info_by_build', return_value=object())
+  @mock.patch('xcode_util.get_latest_runtime_build_cipd', return_value=None)
+  @mock.patch('xcode_util.install')
+  def test_local_run_no_cipd_runtime(self, mock_install,
+                                     mock_get_latest_runtime_build_cipd, _1, _2,
+                                     _3):
+    ios_version = '14.4'
+    install_success, is_legacy_xcode = xcode_util.install_xcode(
+        self.mac_toolchain, self.xcode_build_version, self.xcode_app_path, '',
+        ios_version)
+    self.assertTrue(install_success)
+    self.assertFalse(is_legacy_xcode)
+    mock_get_latest_runtime_build_cipd.assert_called_once_with(
+        self.xcode_build_version, ios_version)
+    self.assertFalse(mock_install.called)
 
 
 class HelperFunctionTests(XcodeUtilTest):

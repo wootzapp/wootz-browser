@@ -2,18 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/test/video_encoder/video_encoder_test_environment.h"
 
+#include <algorithm>
+#include <array>
 #include <iterator>
 #include <utility>
 
 #include "base/containers/flat_set.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/pattern.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
 #include "gpu/ipc/service/gpu_memory_buffer_factory.h"
 #include "media/base/bitrate.h"
 #include "media/base/media_switches.h"
@@ -67,13 +72,14 @@ uint32_t GetDefaultTargetBitrate(const VideoCodec codec,
                                  bool validation) {
   // For how these values are decided, see
   // https://docs.google.com/document/d/1Mlu-2mMOqswWaaivIWhn00dYkoTwKcjLrxxBXcWycug
-  constexpr struct {
+  struct BitrateTable {
     int area;
     // bitrate[0]: for speed and quality performance
     // bitrate[1]: for validation.
     // The three values are for H264/VP8, VP9 and AV1, respectively.
     double bitrate[2][3];
-  } kBitrateTable[] = {
+  };
+  constexpr auto kBitrateTable = std::to_array<BitrateTable>({
       {0, {{77.5, 65.0, 60.0}, {100.0, 100.0, 100.0}}},
       {240 * 160, {{77.5, 65.0, 60.0}, {115.0, 100.0, 100.0}}},
       {320 * 240, {{165.0, 105.0, 105.0}, {230.0, 180.0, 180.0}}},
@@ -81,7 +87,7 @@ uint32_t GetDefaultTargetBitrate(const VideoCodec codec,
       {640 * 480, {{550.0, 355.0, 342.5}, {690.0, 520, 520}}},
       {1280 * 720, {{1700.0, 990.0, 800.0}, {2500.0, 1500, 1200}}},
       {1920 * 1080, {{2480.0, 2060.0, 1500.0}, {4000.0, 3350.0, 2500.0}}},
-  };
+  });
   size_t codec_index = 0;
   switch (codec) {
     case VideoCodec::kH264:
@@ -122,11 +128,12 @@ uint32_t GetDefaultTargetBitrate(const VideoCodec codec,
   return bitrate_in_30fps_in_kbps * framerate_multiplier * 1000;
 }
 
-constexpr int kSpatialLayersResolutionScaleDenom[][3] = {
-    {1, 0, 0},  // For one spatial layer.
-    {2, 1, 0},  // For two spatial layers.
-    {4, 2, 1},  // For three spatial layers.
-};
+constexpr auto kSpatialLayersResolutionScaleDenom =
+    std::to_array<std::array<int, 3>>({
+        {1, 0, 0},  // For one spatial layer.
+        {2, 1, 0},  // For two spatial layers.
+        {4, 2, 1},  // For three spatial layers.
+    });
 
 VideoBitrateAllocation CreateBitrateAllocation(
     const VideoCodec codec,
@@ -236,8 +243,8 @@ VideoEncoderTestEnvironment* VideoEncoderTestEnvironment::Create(
     return nullptr;
   }
 
-  const auto* codec_it = base::ranges::find(kCodecParamToProfile, codec,
-                                            &CodecParamToProfile::codec);
+  const auto* codec_it = std::ranges::find(kCodecParamToProfile, codec,
+                                           &CodecParamToProfile::codec);
   if (codec_it == std::end(kCodecParamToProfile)) {
     LOG(ERROR) << "Unknown codec: " << codec;
     return nullptr;
@@ -247,8 +254,8 @@ VideoEncoderTestEnvironment* VideoEncoderTestEnvironment::Create(
   size_t num_temporal_layers = 1u;
   size_t num_spatial_layers = 1u;
   auto inter_layer_pred_mode = SVCInterLayerPredMode::kOff;
-  const auto* svc_it = base::ranges::find(kSVCModeParamToSVCConfig, svc_mode,
-                                          &SVCConfig::svc_mode);
+  const auto* svc_it = std::ranges::find(kSVCModeParamToSVCConfig, svc_mode,
+                                         &SVCConfig::svc_mode);
   if (svc_it == std::end(kSVCModeParamToSVCConfig)) {
     LOG(ERROR) << "Unsupported svc_mode: " << svc_mode;
     return nullptr;
@@ -274,24 +281,12 @@ VideoEncoderTestEnvironment* VideoEncoderTestEnvironment::Create(
       num_spatial_layers, num_temporal_layers, is_vbr,
       test_type == TestType::kValidation);
 
-  // TODO(b/182008564) Add checks to make sure no features are duplicated, and
-  // there is no intersection between the enabled and disabled set.
+  // TODO(b/182008564) Add checks to make sure no features are duplicated.
   std::vector<base::test::FeatureRef> combined_enabled_features(
       enabled_features);
-  std::vector<base::test::FeatureRef> combined_disabled_features(
-      disabled_features);
-#if BUILDFLAG(USE_VAAPI)
-  // TODO(crbug.com/41380519): remove once enabled by default.
-  combined_enabled_features.push_back(media::kVaapiLowPowerEncoderGen9x);
-
-  // Disable this feature so that the encoder test can test a resolution
-  // which is denied for the sake of performance. See crbug.com/1008491.
-  combined_disabled_features.push_back(
-      media::kVaapiEnforceVideoMinMaxResolution);
-#endif
 
 #if BUILDFLAG(IS_LINUX) && BUILDFLAG(USE_VAAPI)
-  combined_enabled_features.push_back(media::kVaapiVideoEncodeLinux);
+  combined_enabled_features.push_back(media::kAcceleratedVideoEncodeLinux);
 #endif
 
 #if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
@@ -302,8 +297,7 @@ VideoEncoderTestEnvironment* VideoEncoderTestEnvironment::Create(
       test_type, std::move(video), output_folder, video_path.BaseName(),
       profile, inter_layer_pred_mode, num_spatial_layers, num_temporal_layers,
       content_type, bitrate_allocation, save_output_bitstream, reverse,
-      frame_output_config, combined_enabled_features,
-      combined_disabled_features);
+      frame_output_config, combined_enabled_features, disabled_features);
 }
 
 VideoEncoderTestEnvironment::VideoEncoderTestEnvironment(
@@ -397,18 +391,18 @@ base::FilePath VideoEncoderTestEnvironment::OutputFilePath(
     bool svc_enable,
     int spatial_idx,
     int temporal_idx) const {
-  base::FilePath::StringPieceType extension = codec == VideoCodec::kH264
-                                                  ? FILE_PATH_LITERAL("h264")
-                                                  : FILE_PATH_LITERAL("ivf");
+  base::FilePath::StringViewType extension = codec == VideoCodec::kH264
+                                                 ? FILE_PATH_LITERAL("h264")
+                                                 : FILE_PATH_LITERAL("ivf");
   auto output_bitstream_filepath =
       OutputFolder()
           .Append(GetTestOutputFilePath())
           .Append(output_bitstream_file_base_name_.ReplaceExtension(extension));
   if (svc_enable) {
+    auto file_name_suffix =
+        base::StringPrintf(".SL%d.TL%d", spatial_idx, temporal_idx);
     output_bitstream_filepath =
-        output_bitstream_filepath.InsertBeforeExtensionASCII(
-            FILE_PATH_LITERAL(".SL") + base::NumberToString(spatial_idx) +
-            FILE_PATH_LITERAL(".TL") + base::NumberToString(temporal_idx));
+        output_bitstream_filepath.InsertBeforeExtensionASCII(file_name_suffix);
   }
 
   return output_bitstream_filepath;

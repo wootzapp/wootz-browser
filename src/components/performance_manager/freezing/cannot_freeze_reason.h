@@ -5,32 +5,44 @@
 #ifndef COMPONENTS_PERFORMANCE_MANAGER_FREEZING_CANNOT_FREEZE_REASON_H_
 #define COMPONENTS_PERFORMANCE_MANAGER_FREEZING_CANNOT_FREEZE_REASON_H_
 
+#include "base/containers/enum_set.h"
+
 namespace performance_manager {
 
 // List of reasons not to freeze a browsing instance.
 //
 // The reasons to not freeze a browsing instance overlap with the reasons to not
-// discard a tab (PageDiscardingHelper::CanDiscard). We could look into ways to
-// share logic.
+// discard a tab (DiscardEligibilityPolicy::CanDiscard). We could look into ways
+// to share logic.
 enum class CannotFreezeReason {
   kVisible = 0,
+  kMin = kVisible,  // Lower bound for EnumSet.
+  kRecentlyVisible,
   kAudible,
   kRecentlyAudible,
+  kFreezingOriginTrialOptOut,
   kHoldingWebLock,
   kHoldingIndexedDBLock,
+  kHoldingBlockingIndexedDBLock,
   kConnectedToUsbDevice,
   kConnectedToBluetoothDevice,
+  kConnectedToHidDevice,
+  kConnectedToSerialPort,
   kCapturingVideo,
   kCapturingAudio,
   kBeingMirrored,
   kCapturingWindow,
   kCapturingDisplay,
+  kWebRTC,
   kLoading,
-  // TODO(crbug.com/325954772): Remove this when frames on the same page can be
-  // frozen independently
-  // (go/page-freezing-on-energy-saver-design#bookmark=id.3v3a6fkt5esr)
-  kManyBrowsingInstances,
+  kNotificationPermission,
+  kOptedOut,
+  kMax = kOptedOut,  // Upper bound for EnumSet.
 };
+
+using CannotFreezeReasonSet = base::EnumSet<CannotFreezeReason,
+                                            CannotFreezeReason::kMin,
+                                            CannotFreezeReason::kMax>;
 
 const char* CannotFreezeReasonToString(CannotFreezeReason reason);
 

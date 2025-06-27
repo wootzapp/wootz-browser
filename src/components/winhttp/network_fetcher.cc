@@ -6,12 +6,14 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
-#include "base/check.h"
 #include "base/check_op.h"
+#include "base/containers/span.h"
 #include "base/files/file.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -21,7 +23,6 @@
 #include "base/numerics/safe_math.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions_win.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -201,7 +202,7 @@ base::OnceClosure NetworkFetcher::DownloadToFile(
 
 HRESULT NetworkFetcher::BeginFetch(
     const std::string& data,
-    base::flat_map<std::string, std::string> additional_headers) {
+    const base::flat_map<std::string, std::string>& additional_headers) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!url_.SchemeIsHTTPOrHTTPS()) {
@@ -213,59 +214,80 @@ HRESULT NetworkFetcher::BeginFetch(
     return HRESULTFromLastError();
   }
 
-  std::optional<ScopedWinHttpProxyInfo> winhttp_proxy_info =
-      proxy_configuration_->GetProxyForUrl(session_handle_->handle(), url_);
-
-  request_handle_ = OpenRequest();
-  if (!request_handle_.get()) {
-    return HRESULTFromLastError();
-  }
-
-  SetProxyForRequest(request_handle_.get(), winhttp_proxy_info);
-
-  const auto winhttp_callback = ::WinHttpSetStatusCallback(
-      request_handle_.get(), &NetworkFetcher::WinHttpStatusCallback,
-      WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS, 0);
-  if (winhttp_callback == WINHTTP_INVALID_STATUS_CALLBACK) {
-    return HRESULTFromLastError();
-  }
-
-  auto hr =
-      SetOption(request_handle_.get(), WINHTTP_OPTION_CONTEXT_VALUE, context());
-  if (FAILED(hr)) {
-    return hr;
-  }
-
-  // The reference is released when the request handle is closed.
-  self_ = this;
-
-  // Disables both saving and sending cookies.
-  hr = SetOption(request_handle_.get(), WINHTTP_OPTION_DISABLE_FEATURE,
-                 WINHTTP_DISABLE_COOKIES);
-  if (FAILED(hr)) {
-    return hr;
-  }
-
-  if (!content_type_.empty()) {
-    additional_headers.insert({"Content-Type", content_type_});
-  }
-
-  for (const auto& header : additional_headers) {
-    const auto raw_header = base::SysUTF8ToWide(
-        base::StrCat({header.first, ": ", header.second, "\r\n"}));
-    if (!::WinHttpAddRequestHeaders(
-            request_handle_.get(), raw_header.c_str(), raw_header.size(),
-            WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
-      PLOG(ERROR) << "Failed to set the request header: " << raw_header;
-    }
-  }
-
-  hr = SendRequest(data);
-  if (FAILED(hr)) {
-    return hr;
-  }
-
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, kTaskTraits,
+      base::BindOnce(&NetworkFetcher::GetProxyForUrl, this),
+      base::BindOnce(&NetworkFetcher::ContinueFetch, this, data,
+                     additional_headers));
   return S_OK;
+}
+
+std::optional<ScopedWinHttpProxyInfo> NetworkFetcher::GetProxyForUrl() {
+  return proxy_configuration_->GetProxyForUrl(session_handle_->handle(), url_);
+}
+
+void NetworkFetcher::ContinueFetch(
+    const std::string& data,
+    base::flat_map<std::string, std::string> additional_headers,
+    std::optional<ScopedWinHttpProxyInfo> winhttp_proxy_info) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  net_error_ = [&] {
+    request_handle_ = OpenRequest();
+    if (!request_handle_.get()) {
+      return HRESULTFromLastError();
+    }
+
+    SetProxyForRequest(request_handle_.get(), std::move(winhttp_proxy_info));
+
+    const auto winhttp_callback = ::WinHttpSetStatusCallback(
+        request_handle_.get(), &NetworkFetcher::WinHttpStatusCallback,
+        WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS, 0);
+    if (winhttp_callback == WINHTTP_INVALID_STATUS_CALLBACK) {
+      return HRESULTFromLastError();
+    }
+
+    auto hr = SetOption(request_handle_.get(), WINHTTP_OPTION_CONTEXT_VALUE,
+                        context());
+    if (FAILED(hr)) {
+      return hr;
+    }
+
+    // The reference is released when the request handle is closed.
+    self_ = this;
+
+    // Disables both saving and sending cookies.
+    hr = SetOption(request_handle_.get(), WINHTTP_OPTION_DISABLE_FEATURE,
+                   WINHTTP_DISABLE_COOKIES);
+    if (FAILED(hr)) {
+      return hr;
+    }
+
+    if (!content_type_.empty()) {
+      additional_headers.insert({"Content-Type", content_type_});
+    }
+
+    for (const auto& [name, value] : additional_headers) {
+      const std::wstring raw_header =
+          base::SysUTF8ToWide(base::StrCat({name, ": ", value, "\r\n"}));
+      if (!::WinHttpAddRequestHeaders(
+              request_handle_.get(), raw_header.c_str(), raw_header.size(),
+              WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
+        PLOG(ERROR) << "Failed to set the request header: " << raw_header;
+      }
+    }
+
+    hr = SendRequest(data);
+    if (FAILED(hr)) {
+      return hr;
+    }
+
+    return S_OK;
+  }();
+
+  if (FAILED(net_error_)) {
+    CompleteFetch();
+  }
 }
 
 ScopedHInternet NetworkFetcher::Connect() {
@@ -432,8 +454,7 @@ bool NetworkFetcher::WriteDataToFileBlocking() {
     }
   }
 
-  if (file_.WriteAtCurrentPos(&read_buffer_.front(), read_buffer_.size()) ==
-      -1) {
+  if (!file_.WriteAtCurrentPosAndCheck(base::as_byte_span(read_buffer_))) {
     net_error_ = HRESULTFromLastError();
     file_.Close();
     base::DeleteFile(file_path_);
@@ -489,7 +510,7 @@ void __stdcall NetworkFetcher::WinHttpStatusCallback(HINTERNET handle,
   CHECK(handle);
   CHECK(context);
 
-  base::StringPiece status_string;
+  std::string_view status_string;
   std::wstring info_string;
   switch (status) {
     case WINHTTP_CALLBACK_STATUS_HANDLE_CREATED:

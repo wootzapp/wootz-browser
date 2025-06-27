@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 
@@ -17,7 +16,6 @@ import androidx.annotation.StyleRes;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.widget.TextViewCompat;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorAction.ButtonType;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorAction.IconPosition;
@@ -29,13 +27,11 @@ import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import java.util.List;
 
 /**
- * Holds the {@code mActionView} and {@link ListItem} for an item in the {@link
- * TabListEditorMenu}.
+ * Holds the {@code mActionView} and {@link ListItem} for an item in the {@link TabListEditorMenu}.
  */
 public class TabListEditorMenuItem {
     private final Context mContext;
 
-    private int mMenuId;
     private final ListItem mListItem;
     private @Nullable Button mActionView;
     private boolean mShowText;
@@ -97,7 +93,7 @@ public class TabListEditorMenuItem {
                     mContext.getResources()
                             .getQuantityString(titleResourceId, itemCount, itemCount);
         } else {
-            title = mContext.getResources().getString(titleResourceId);
+            title = mContext.getString(titleResourceId);
         }
         mListItem.model.set(TabListEditorActionProperties.TITLE, title);
         if (mActionView != null) {
@@ -158,7 +154,7 @@ public class TabListEditorMenuItem {
 
     public void setTextAppearance(@StyleRes int textAppearanceId) {
         if (mActionView != null) {
-            ApiCompatibilityUtils.setTextAppearance(mActionView, textAppearanceId);
+            mActionView.setTextAppearance(textAppearanceId);
         }
     }
 
@@ -221,17 +217,5 @@ public class TabListEditorMenuItem {
     /** Updates the {@link TabListEditorAction} with the currently selected tabs. */
     public void onSelectionStateChange(List<Integer> tabIds) {
         mOnSelectionStateChange.onResult(tabIds);
-    }
-
-    private static int getShowAsAction(@ShowMode int showMode) {
-        switch (showMode) {
-            case ShowMode.MENU_ONLY:
-                return MenuItem.SHOW_AS_ACTION_NEVER;
-            case ShowMode.IF_ROOM:
-                return MenuItem.SHOW_AS_ACTION_IF_ROOM;
-            default:
-                assert false;
-                return MenuItem.SHOW_AS_ACTION_NEVER;
-        }
     }
 }

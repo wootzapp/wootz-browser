@@ -10,9 +10,11 @@
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/search/background/ntp_background_service.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/search/ntp_features.h"
+#include "components/themes/ntp_background_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 
@@ -37,6 +39,9 @@ NtpBackgroundServiceFactory::NtpBackgroundServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {}
 
 NtpBackgroundServiceFactory::~NtpBackgroundServiceFactory() = default;
@@ -47,7 +52,7 @@ NtpBackgroundServiceFactory::BuildServiceInstanceForBrowserContext(
   // TODO(crbug.com/41431683): Background service URLs should be
   // configurable server-side, so they can be changed mid-release.
 
-  auto url_loader_factory = context->GetDefaultStoragePartition()
-                                ->GetURLLoaderFactoryForBrowserProcess();
-  return std::make_unique<NtpBackgroundService>(url_loader_factory);
+  return std::make_unique<NtpBackgroundService>(
+      g_browser_process->GetFeatures()->application_locale_storage(),
+      Profile::FromBrowserContext(context)->GetURLLoaderFactory());
 }

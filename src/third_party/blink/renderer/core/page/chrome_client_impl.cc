@@ -138,8 +138,7 @@ const char* UIElementTypeToString(ChromeClient::UIElementType ui_element_type) {
     case ChromeClient::UIElementType::kPopup:
       return "popup";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 const char* DismissalTypeToString(Document::PageDismissalType dismissal_type) {
@@ -153,10 +152,9 @@ const char* DismissalTypeToString(Document::PageDismissalType dismissal_type) {
     case Document::kUnloadDismissal:
       return "unload";
     case Document::kNoDismissal:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 String TruncateDialogMessage(const String& message) {
@@ -171,6 +169,21 @@ String TruncateDialogMessage(const String& message) {
 bool DisplayModeIsBorderless(LocalFrame& frame) {
   FrameWidget* widget = frame.GetWidgetForLocalRoot();
   return widget->DisplayMode() == mojom::blink::DisplayMode::kBorderless;
+}
+
+gfx::Rect AdjustWindowRectForMinimum(const gfx::Rect& pending_rect,
+                                     int minimum_size) {
+  gfx::Rect window = pending_rect;
+
+  // Let size 0 pass through, since that indicates default size, not minimum
+  // size.
+  if (window.width()) {
+    window.set_width(std::max(minimum_size, window.width()));
+  }
+  if (window.height()) {
+    window.set_height(std::max(minimum_size, window.height()));
+  }
+  return window;
 }
 
 }  // namespace
@@ -229,7 +242,7 @@ void ChromeClientImpl::SetWindowRect(const gfx::Rect& requested_rect,
   // Permission state is not readily available, so adjusted bounds are clamped
   // to the same-screen, to retain legacy behavior of synchronous pending values
   // and to avoid exposing other screen details to frames without permission.
-  // TODO(crbug.com/897300): Use permission state for better sync estimates or
+  // TODO(crbug.com/40092782): Use permission state for better sync estimates or
   // store unadjusted pending window rects if that will not break many sites.
   web_view_->MainFrameViewWidget()->SetWindowRect(rect_adjusted_for_minimum,
                                                   adjusted_rect);
@@ -346,34 +359,34 @@ Page* ChromeClientImpl::CreateWindowDelegate(
   if (!web_frame)
     return nullptr;
 
+  // These are the bounds we expect for the new window if it's placed on the
+  // same screen as the opener. In the event that the actual geometry is not
+  // returned synchronously from the browser, we apply this to the widget so it
+  // will have sane geometry until the UpdateScreenRects() message arrives.
+  // Permission state is not readily available, so bounds are clamped to the
+  // same-screen, to retain legacy behavior of synchronous pending values and to
+  // avoid exposing other screen details to frames without permission.
+  // TODO(crbug.com/40092782): Use permission state for better sync estimates or
+  // store unadjusted pending window rects if that will not break many sites.
+  gfx::Rect bounds(features.x, features.y, features.width, features.height);
+  const gfx::Rect requested_screen_rect =
+      AdjustWindowRectForDisplay(bounds, *frame, /*minimum_size*/ 0);
+
   NotifyPopupOpeningObservers();
   const AtomicString& frame_name =
       !EqualIgnoringASCIICase(name, "_blank") ? name : g_empty_atom;
   WebViewImpl* new_view =
       static_cast<WebViewImpl*>(web_frame->Client()->CreateNewWindow(
           WrappedResourceRequest(r.GetResourceRequest()), features, frame_name,
+          requested_screen_rect,
           static_cast<WebNavigationPolicy>(r.GetNavigationPolicy()),
           sandbox_flags, session_storage_namespace_id, consumed_user_gesture,
           r.Impression(), r.GetPictureInPictureWindowOptions(),
           r.GetRequestorBaseURL()));
-  if (!new_view)
+  if (!new_view) {
     return nullptr;
+  }
   return new_view->GetPage();
-}
-
-void ChromeClientImpl::DidOverscroll(
-    const gfx::Vector2dF& overscroll_delta,
-    const gfx::Vector2dF& accumulated_overscroll,
-    const gfx::PointF& position_in_viewport,
-    const gfx::Vector2dF& velocity_in_viewport) {
-  DCHECK(web_view_);
-  if (!web_view_->does_composite())
-    return;
-  // TODO(darin): Change caller to pass LocalFrame.
-  DCHECK(web_view_->MainFrameImpl());
-  web_view_->MainFrameImpl()->FrameWidgetImpl()->DidOverscroll(
-      overscroll_delta, accumulated_overscroll, position_in_viewport,
-      velocity_in_viewport);
 }
 
 void ChromeClientImpl::InjectScrollbarGestureScroll(
@@ -561,7 +574,8 @@ void ChromeClientImpl::InvalidateContainer() {
 }
 
 void ChromeClientImpl::ScheduleAnimation(const LocalFrameView* frame_view,
-                                         base::TimeDelta delay) {
+                                         base::TimeDelta delay,
+                                         bool urgent) {
   LocalFrame& frame = frame_view->GetFrame();
   // If the frame is still being created, it might not yet have a WebWidget.
   // TODO(dcheng): Is this the right thing to do? Is there a way to avoid having
@@ -570,7 +584,7 @@ void ChromeClientImpl::ScheduleAnimation(const LocalFrameView* frame_view,
   // WebFrameWidget needs to be initialized before initializing the core frame?
   FrameWidget* widget = frame.GetWidgetForLocalRoot();
   if (widget) {
-    widget->RequestAnimationAfterDelay(delay);
+    widget->RequestAnimationAfterDelay(delay, urgent);
   }
 }
 
@@ -775,11 +789,11 @@ ColorChooser* ChromeClientImpl::OpenColorChooser(
         frame, this, chooser_client);
   } else {
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-    NOTREACHED_IN_MIGRATION()
-        << "Page popups should be enabled on all but Android or iOS";
-#endif
+    NOTREACHED() << "Page popups should be enabled on all but Android or iOS";
+#else
     controller =
         MakeGarbageCollected<ColorChooserUIController>(frame, chooser_client);
+#endif
   }
   controller->OpenUI();
   return controller;
@@ -1058,7 +1072,7 @@ viz::FrameSinkId ChromeClientImpl::GetFrameSinkId(LocalFrame* frame) {
 }
 
 void ChromeClientImpl::RequestDecode(LocalFrame* frame,
-                                     const PaintImage& image,
+                                     const cc::DrawImage& image,
                                      base::OnceCallback<void(bool)> callback) {
   FrameWidget* widget = frame->GetWidgetForLocalRoot();
   widget->RequestDecode(image, std::move(callback));
@@ -1069,8 +1083,7 @@ void ChromeClientImpl::NotifyPresentationTime(LocalFrame& frame,
   FrameWidget* widget = frame.GetWidgetForLocalRoot();
   if (!widget)
     return;
-  widget->NotifyPresentationTimeInBlink(
-      ConvertToBaseOnceCallback(std::move(callback)));
+  widget->NotifyPresentationTime(std::move(callback));
 }
 
 void ChromeClientImpl::RequestBeginMainFrameNotExpected(LocalFrame& frame,
@@ -1171,6 +1184,19 @@ void ChromeClientImpl::StopDeferringCommits(
   WebLocalFrameImpl::FromFrame(main_frame)
       ->FrameWidgetImpl()
       ->StopDeferringCommits(trigger);
+}
+
+void ChromeClientImpl::SetShouldThrottleFrameRate(bool flag,
+                                                  LocalFrame& main_frame) {
+  DCHECK(main_frame.IsLocalRoot());
+  WebLocalFrameImpl* web_frame = WebLocalFrameImpl::FromFrame(main_frame);
+  WebFrameWidgetImpl* widget = web_frame->LocalRootFrameWidget();
+  // The widget can be null for web frames that are being replaced.
+  if (!widget) {
+    return;
+  }
+
+  widget->SetShouldThrottleFrameRate(flag);
 }
 
 void ChromeClientImpl::SetHasScrollEventHandlers(LocalFrame* frame,
@@ -1278,8 +1304,9 @@ void ChromeClientImpl::HandleKeyboardEventOnTextField(
 void ChromeClientImpl::DidChangeValueInTextField(
     HTMLFormControlElement& element) {
   Document& doc = element.GetDocument();
-  if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame()))
-    fill_client->TextFieldDidChange(WebFormControlElement(&element));
+  if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame())) {
+    fill_client->TextFieldValueChanged(WebFormControlElement(&element));
+  }
 
   // Value changes caused by |document.execCommand| calls should not be
   // interpreted as a user action. See https://crbug.com/764760.
@@ -1290,6 +1317,14 @@ void ChromeClientImpl::DidChangeValueInTextField(
     // The resource coordinator is not available in some tests.
     if (auto* rc = doc.GetResourceCoordinator())
       rc->SetHadFormInteraction();
+  }
+}
+
+void ChromeClientImpl::DidClearValueInTextField(
+    HTMLFormControlElement& element) {
+  Document& doc = element.GetDocument();
+  if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame())) {
+    fill_client->TextFieldCleared(WebFormControlElement(&element));
   }
 }
 
@@ -1336,16 +1371,16 @@ void ChromeClientImpl::TextFieldDataListChanged(HTMLInputElement& input) {
 void ChromeClientImpl::DidChangeSelectionInSelectControl(
     HTMLFormControlElement& element) {
   Document& doc = element.GetDocument();
-  if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame()))
-    fill_client->SelectControlDidChange(WebFormControlElement(&element));
+  if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame())) {
+    fill_client->SelectControlSelectionChanged(WebFormControlElement(&element));
+  }
 }
 
-void ChromeClientImpl::SelectOrSelectListFieldOptionsChanged(
+void ChromeClientImpl::SelectFieldOptionsChanged(
     HTMLFormControlElement& element) {
   Document& doc = element.GetDocument();
   if (auto* fill_client = AutofillClientFromFrame(doc.GetFrame())) {
-    fill_client->SelectOrSelectListFieldOptionsChanged(
-        WebFormControlElement(&element));
+    fill_client->SelectFieldOptionsChanged(WebFormControlElement(&element));
   }
 }
 
@@ -1372,6 +1407,12 @@ gfx::Transform ChromeClientImpl::GetDeviceEmulationTransform() const {
 void ChromeClientImpl::DidUpdateBrowserControls() const {
   DCHECK(web_view_);
   web_view_->DidUpdateBrowserControls();
+}
+
+void ChromeClientImpl::DidUpdateMaxSafeAreaInsets(
+    const gfx::InsetsF& max_safe_area_insets) const {
+  DCHECK(web_view_);
+  web_view_->DidUpdateMaxSafeAreaInsets(max_safe_area_insets);
 }
 
 void ChromeClientImpl::RegisterPopupOpeningObserver(
@@ -1422,9 +1463,12 @@ void ChromeClientImpl::DocumentDetached(Document& document) {
   }
 }
 
-double ChromeClientImpl::UserZoomFactor() const {
+double ChromeClientImpl::UserZoomFactor(LocalFrame* frame) const {
   DCHECK(web_view_);
-  return PageZoomLevelToZoomFactor(web_view_->ZoomLevel());
+  return ZoomLevelToZoomFactor(
+      WebLocalFrameImpl::FromFrame(frame->LocalFrameRoot())
+          ->FrameWidgetImpl()
+          ->GetZoomLevel());
 }
 
 void ChromeClientImpl::SetDelegatedInkMetadata(
@@ -1449,22 +1493,6 @@ void ChromeClientImpl::PasswordFieldReset(HTMLInputElement& element) {
 float ChromeClientImpl::ZoomFactorForViewportLayout() {
   DCHECK(web_view_);
   return web_view_->ZoomFactorForViewportLayout();
-}
-
-gfx::Rect ChromeClientImpl::AdjustWindowRectForMinimum(
-    const gfx::Rect& pending_rect,
-    int minimum_size) {
-  gfx::Rect window = pending_rect;
-
-  // Let size 0 pass through, since that indicates default size, not minimum
-  // size.
-  if (window.width()) {
-    window.set_width(std::max(minimum_size, window.width()));
-  }
-  if (window.height()) {
-    window.set_height(std::max(minimum_size, window.height()));
-  }
-  return window;
 }
 
 gfx::Rect ChromeClientImpl::AdjustWindowRectForDisplay(
@@ -1507,6 +1535,10 @@ gfx::Rect ChromeClientImpl::AdjustWindowRectForDisplay(
   }
 
   return window;
+}
+
+void ChromeClientImpl::OnFirstContentfulPaint() {
+  web_view_->OnFirstContentfulPaint();
 }
 
 }  // namespace blink

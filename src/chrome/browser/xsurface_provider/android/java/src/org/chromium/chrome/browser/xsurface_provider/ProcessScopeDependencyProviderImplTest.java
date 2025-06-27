@@ -8,14 +8,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -24,7 +21,6 @@ import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 /** Tests for ProcessScopeDependencyProviderImpl. */
 @RunWith(BaseRobolectricTestRunner.class)
 public final class ProcessScopeDependencyProviderImplTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
 
     ProcessScopeDependencyProviderImpl mProvider;
     boolean mMetricsReportingEnabled;
@@ -37,12 +33,6 @@ public final class ProcessScopeDependencyProviderImplTest {
                 }
 
                 // Boilerplate.
-                @Override
-                public void addObserver(Observer observer) {}
-
-                @Override
-                public void removeObserver(Observer observer) {}
-
                 @Override
                 public void setUsageAndCrashReporting(boolean enabled) {}
 

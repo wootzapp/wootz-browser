@@ -186,7 +186,7 @@ void CellularESimProfileHandler::OnRequestInstalledProfilesResult(
   if (status != HermesResponseStatus::kSuccess) {
     inhibit_lock_.reset();
   } else {
-    hermes_metrics::LogRequestPendingProfilesLatency(call_latency);
+    hermes_metrics::LogRefreshInstalledProfilesLatency(call_latency);
     has_completed_successful_profile_refresh_ = true;
     OnHermesPropertiesUpdated();
   }
@@ -252,7 +252,8 @@ void CellularESimProfileHandler::PerformRequestAvailableProfiles(
   NET_LOG(EVENT) << "Finished requesting available profiles";
 
   CellularNetworkMetricsLogger::LogSmdsScanProfileCount(
-      info->profile_paths.size());
+      info->profile_paths.size(),
+      CellularNetworkMetricsLogger::SmdsScanMethod::kViaUser);
 
   std::unique_ptr<CellularESimProfileWaiter> waiter =
       std::make_unique<CellularESimProfileWaiter>();

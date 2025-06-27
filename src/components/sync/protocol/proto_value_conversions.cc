@@ -23,7 +23,6 @@
 #include "components/sync/protocol/autofill_specifics.pb.h"
 #include "components/sync/protocol/bookmark_specifics.pb.h"
 #include "components/sync/protocol/collaboration_group_specifics.pb.h"
-#include "components/sync/protocol/compare_specifics.pb.h"
 #include "components/sync/protocol/contact_info_specifics.pb.h"
 #include "components/sync/protocol/cookie_specifics.pb.h"
 #include "components/sync/protocol/data_type_progress_marker.pb.h"
@@ -38,11 +37,13 @@
 #include "components/sync/protocol/os_priority_preference_specifics.pb.h"
 #include "components/sync/protocol/password_sharing_invitation_specifics.pb.h"
 #include "components/sync/protocol/password_specifics.pb.h"
+#include "components/sync/protocol/plus_address_setting_specifics.pb.h"
 #include "components/sync/protocol/plus_address_specifics.pb.h"
 #include "components/sync/protocol/preference_specifics.pb.h"
 #include "components/sync/protocol/printer_specifics.pb.h"
 #include "components/sync/protocol/printers_authorization_server_specifics.pb.h"
 #include "components/sync/protocol/priority_preference_specifics.pb.h"
+#include "components/sync/protocol/product_comparison_specifics.pb.h"
 #include "components/sync/protocol/proto_visitors.h"
 #include "components/sync/protocol/reading_list_specifics.pb.h"
 #include "components/sync/protocol/saved_tab_group_specifics.pb.h"
@@ -81,8 +82,8 @@ namespace {
 //    void Visit(const P& parent_proto,
 //               const char* field_name, const F& field);
 //
-//    By default Visit() serializes |field| and sets it to |value_| under
-//    |field_name| name. Default implementation is accessible via VisitImpl().
+//    By default Visit() serializes `field` and sets it to `value_` under
+//    `field_name` name. Default implementation is accessible via VisitImpl().
 //
 //    For example here is how you would serialize only GreenProto::content
 //    for all GreenProto fields:
@@ -113,7 +114,7 @@ namespace {
 //    base::Value ToValue(const P& proto) const;
 //
 //    By default ToValue() creates new instance of ToValueVisitor, calls
-//    VisitProtoFields(visitor, |proto|) and returns visitor's |value_|.
+//    VisitProtoFields(visitor, `proto`) and returns visitor's `value_`.
 //    Default implementation is accessible via ToValueDictImpl().
 //
 //    For example let's say you want to clobber a sensitive field:
@@ -143,7 +144,7 @@ class ToValueVisitor {
                   const char* field_name,
                   const std::string& field) {
     value_->Set(field_name,
-                base::Base64Encode(base::as_bytes(base::make_span(field))));
+                base::Base64Encode(base::as_bytes(base::span(field))));
   }
 
   template <class P>
@@ -154,7 +155,7 @@ class ToValueVisitor {
     if (!repeated_field.empty()) {
       base::Value::List list;
       for (const auto& field : repeated_field) {
-        list.Append(base::Base64Encode(base::as_bytes(base::make_span(field))));
+        list.Append(base::Base64Encode(base::as_byte_span(field)));
       }
       value_->Set(field_name, std::move(list));
     }
@@ -347,17 +348,18 @@ IMPLEMENT_PROTO_TO_VALUE(BankAccountDetails)
 IMPLEMENT_PROTO_TO_VALUE(BookmarkSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ClientConfigParams)
 IMPLEMENT_PROTO_TO_VALUE(CollaborationGroupSpecifics)
-IMPLEMENT_PROTO_TO_VALUE(CompareSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ContactInfoSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(CookieSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(CrossUserSharingPublicKey)
 IMPLEMENT_PROTO_TO_VALUE(DebugEventInfo)
 IMPLEMENT_PROTO_TO_VALUE(DebugInfo)
+IMPLEMENT_PROTO_TO_VALUE(DeviceDetails)
 IMPLEMENT_PROTO_TO_VALUE(DeviceInfoSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(DictionarySpecifics)
 IMPLEMENT_PROTO_TO_VALUE(EncryptedData)
 IMPLEMENT_PROTO_TO_VALUE(EntityMetadata)
 IMPLEMENT_PROTO_TO_VALUE(EntitySpecifics)
+IMPLEMENT_PROTO_TO_VALUE(EwalletDetails)
 IMPLEMENT_PROTO_TO_VALUE(ExtensionSettingSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ExtensionSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(GlobalIdDirective)
@@ -377,6 +379,7 @@ IMPLEMENT_PROTO_TO_VALUE(PasswordSpecificsData_Notes)
 IMPLEMENT_PROTO_TO_VALUE(PasswordSpecificsData_Notes_Note)
 IMPLEMENT_PROTO_TO_VALUE(PaymentInstrument)
 IMPLEMENT_PROTO_TO_VALUE(PaymentsCustomerData)
+IMPLEMENT_PROTO_TO_VALUE(PlusAddressSettingSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PlusAddressSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PowerBookmarkSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PreferenceSpecifics)
@@ -384,10 +387,12 @@ IMPLEMENT_PROTO_TO_VALUE(PrinterPPDReference)
 IMPLEMENT_PROTO_TO_VALUE(PrinterSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PrintersAuthorizationServerSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(PriorityPreferenceSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(ProductComparisonSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(ReadingListSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SavedTabGroupSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SearchEngineSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SecurityEventSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(SendTabToSelfPush)
 IMPLEMENT_PROTO_TO_VALUE(SendTabToSelfSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(SessionHeader)
 IMPLEMENT_PROTO_TO_VALUE(SessionSpecifics)
@@ -399,6 +404,7 @@ IMPLEMENT_PROTO_TO_VALUE(TabNavigation)
 IMPLEMENT_PROTO_TO_VALUE(ThemeSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(TimeRangeDirective)
 IMPLEMENT_PROTO_TO_VALUE(TypedUrlSpecifics)
+IMPLEMENT_PROTO_TO_VALUE(UnencryptedSharingMessage)
 IMPLEMENT_PROTO_TO_VALUE(UrlDirective)
 IMPLEMENT_PROTO_TO_VALUE(UserConsentSpecifics)
 IMPLEMENT_PROTO_TO_VALUE(UserEventSpecifics)

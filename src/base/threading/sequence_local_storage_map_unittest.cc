@@ -9,11 +9,10 @@
 
 #include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace base {
-namespace internal {
+namespace base::internal {
 
 namespace {
 
@@ -21,7 +20,7 @@ constexpr int kSlotId = 1;
 
 class TRIVIAL_ABI SetOnDestroy {
  public:
-  SetOnDestroy(bool* was_destroyed_ptr)
+  explicit SetOnDestroy(bool* was_destroyed_ptr)
       : was_destroyed_ptr_(was_destroyed_ptr) {
     DCHECK(was_destroyed_ptr_);
     DCHECK(!(*was_destroyed_ptr_));
@@ -236,5 +235,4 @@ TEST(SequenceLocalStorageMapTest, DestructorCalledOnSetOverwriteInline) {
   DestructorCalledOnSetOverwriteInline<SetOnDestroy>();
 }
 
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

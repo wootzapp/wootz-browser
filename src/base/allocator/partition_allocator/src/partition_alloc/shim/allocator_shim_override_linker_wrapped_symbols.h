@@ -15,15 +15,21 @@
 // -wrap linker flags (e.g., libchrome.so) will be rewritten to the
 // linker as references to __wrap_malloc, __wrap_free, which are defined here.
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
+#include <stdlib.h>
+
 #include <algorithm>
 #include <cstring>
 
 #include "partition_alloc/shim/allocator_shim_internals.h"
 
 extern "C" {
+
+SHIM_ALWAYS_EXPORT void* __wrap_aligned_alloc(size_t alignment, size_t size) {
+  return ShimMemalign(alignment, size, nullptr);
+}
 
 SHIM_ALWAYS_EXPORT void* __wrap_calloc(size_t n, size_t size) {
   return ShimCalloc(n, size, nullptr);
@@ -63,7 +69,7 @@ SHIM_ALWAYS_EXPORT size_t __wrap_malloc_usable_size(void* address) {
   return ShimGetSizeEstimate(address, nullptr);
 }
 
-const size_t kPathMaxSize = 8192;
+inline constexpr size_t kPathMaxSize = 8192;
 static_assert(kPathMaxSize >= PATH_MAX, "");
 
 extern char* __wrap_strdup(const char* str);
@@ -119,7 +125,7 @@ SHIM_ALWAYS_EXPORT char* __wrap_getcwd(char* buffer, size_t size) {
   if (!size) {
     size = kPathMaxSize;
   }
-  char local_buffer[size];
+  char local_buffer[kPathMaxSize];
   if (!__real_getcwd(local_buffer, size)) {
     return nullptr;
   }

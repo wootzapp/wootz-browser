@@ -13,11 +13,7 @@
 set -e  # makes the script quit on any command failure
 set -u  # unset variables are quit-worthy errors
 
-PLATFORMS="linux,android,ash,cros,win"
-if [ "$1" != "" ]
-then
-  PLATFORMS="$1"
-fi
+PLATFORMS="${1:-linux,android,chromeos,win,mac}"
 
 COMPILE_DIRS=.
 EDIT_DIRS=.
@@ -73,6 +69,7 @@ EOF
     linux)
         cat <<EOF
 target_os = "linux"
+clang_use_chrome_plugins = false
 dcheck_always_on = true
 is_chrome_branded = true
 is_debug = false
@@ -83,24 +80,13 @@ force_enable_raw_ptr_exclusion = true
 EOF
         ;;
 
-    cros)
+    chromeos)
         cat <<EOF
 target_os = "chromeos"
-chromeos_is_browser_only = true
+clang_use_chrome_plugins = false
+chromeos_is_browser_only = false
 dcheck_always_on = true
 is_chrome_branded = true
-is_debug = false
-is_official_build = true
-use_remoteexec = false
-chrome_pgo_phase = 0
-force_enable_raw_ptr_exclusion = true
-EOF
-        ;;
-
-    ash)
-        cat <<EOF
-target_os = "chromeos"
-dcheck_always_on = true
 is_debug = false
 is_official_build = true
 use_remoteexec = false
@@ -112,6 +98,7 @@ EOF
     mac)
         cat <<EOF
 target_os = "mac"
+clang_use_chrome_plugins = false
 dcheck_always_on = true
 is_chrome_branded = true
 is_debug = false
@@ -120,6 +107,10 @@ use_remoteexec = false
 chrome_pgo_phase = 0
 symbol_level = 1
 force_enable_raw_ptr_exclusion = true
+# crbug/1396061
+enable_dsyms = false
+# Can't exec Xcode `strip` binary
+enable_stripping = false
 EOF
         ;;
 

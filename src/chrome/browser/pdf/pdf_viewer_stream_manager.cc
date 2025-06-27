@@ -14,9 +14,13 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/supports_user_data.h"
+#include "components/crash/core/common/crash_key.h"
 #include "components/pdf/browser/pdf_frame_util.h"
 #include "components/pdf/common/pdf_util.h"
+#include "components/zoom/zoom_controller.h"
 #include "content/public/browser/global_routing_id.h"
+#include "content/public/browser/host_zoom_map.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
@@ -24,6 +28,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
 #include "extensions/common/api/mime_handler.mojom.h"
+#include "extensions/common/constants.h"
 #include "extensions/common/mojom/guest_view.mojom.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
@@ -38,14 +43,14 @@ PdfViewerStreamManager::Factory* g_factory = nullptr;
 
 // Creates a claimed `EmbedderHostInfo` from the `embedder_host`.
 PdfViewerStreamManager::EmbedderHostInfo GetEmbedderHostInfo(
-    content::RenderFrameHost* embedder_host) {
+    const content::RenderFrameHost* embedder_host) {
   return {embedder_host->GetFrameTreeNodeId(), embedder_host->GetGlobalId()};
 }
 
 // Creates a new unclaimed `EmbedderHostInfo` for the given frame tree node ID
 // (without the `content::GlobalRenderFrameHostId`).
 PdfViewerStreamManager::EmbedderHostInfo GetUnclaimedEmbedderHostInfo(
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id) {
   return {frame_tree_node_id, content::GlobalRenderFrameHostId()};
 }
 
@@ -72,6 +77,60 @@ GetMimeHandlerViewContainerManager(content::RenderFrameHost* container_host) {
   container_host->GetRemoteAssociatedInterfaces()->GetInterface(
       &container_manager);
   return container_manager;
+}
+
+// Debugging data for crbug.com/391459596.
+// TODO(crbug.com/391459596): Remove once fixed.
+struct PdfNavigationDebugData : public base::SupportsUserData::Data {
+  bool did_start_navigation = false;
+  bool did_start_navigation_with_parent = false;
+};
+
+static int g_debug_manager_instances = 0;
+static int g_debug_ongoing_content_navigations = 0;
+
+// Manager crash keys.
+static crash_reporter::CrashKeyString<32> crash_key_manager_instances(
+    "pdf-manager-instances");
+static crash_reporter::CrashKeyString<32> crash_key_stream_count(
+    "pdf-stream-count");
+static crash_reporter::CrashKeyString<32> crash_key_ongoing_content_navigations(
+    "pdf-ongoing-content-navigations");
+
+// PDF content navigation-specific crash keys.
+static crash_reporter::CrashKeyString<6> crash_key_did_start_navigation(
+    "pdf-did-start-navigation");
+static crash_reporter::CrashKeyString<6>
+    crash_key_did_start_navigation_with_parent(
+        "pdf-did-start-navigation-with-parent");
+
+void SetManagerCrashKeys(size_t stream_count) {
+  crash_key_manager_instances.Set(base::ToString(g_debug_manager_instances));
+  crash_key_stream_count.Set(base::ToString(stream_count));
+  crash_key_ongoing_content_navigations.Set(
+      base::ToString(g_debug_ongoing_content_navigations));
+}
+
+void SetContentNavigationCrashKeys(
+    const content::NavigationHandle* navigation_handle,
+    const void* key) {
+  auto* data = navigation_handle->GetUserData(key);
+  if (!data) {
+    // Can be nullptr in tests.
+    return;
+  }
+
+  auto* debug_data = static_cast<PdfNavigationDebugData*>(data);
+
+  crash_key_did_start_navigation.Set(
+      base::ToString(debug_data->did_start_navigation));
+  crash_key_did_start_navigation_with_parent.Set(
+      base::ToString(debug_data->did_start_navigation_with_parent));
+}
+
+void ClearContentNavigationCrashKeys() {
+  crash_key_did_start_navigation.Clear();
+  crash_key_did_start_navigation_with_parent.Clear();
 }
 
 }  // namespace
@@ -110,9 +169,13 @@ bool PdfViewerStreamManager::StreamInfo::DidPdfContentNavigate() const {
 
 PdfViewerStreamManager::PdfViewerStreamManager(content::WebContents* contents)
     : content::WebContentsObserver(contents),
-      content::WebContentsUserData<PdfViewerStreamManager>(*contents) {}
+      content::WebContentsUserData<PdfViewerStreamManager>(*contents) {
+  ++g_debug_manager_instances;
+}
 
-PdfViewerStreamManager::~PdfViewerStreamManager() = default;
+PdfViewerStreamManager::~PdfViewerStreamManager() {
+  --g_debug_manager_instances;
+}
 
 // static
 void PdfViewerStreamManager::Create(content::WebContents* contents) {
@@ -145,7 +208,7 @@ void PdfViewerStreamManager::SetFactoryForTesting(Factory* factory) {
 }
 
 void PdfViewerStreamManager::AddStreamContainer(
-    int frame_tree_node_id,
+    content::FrameTreeNodeId frame_tree_node_id,
     const std::string& internal_id,
     std::unique_ptr<extensions::StreamContainer> stream_container) {
   CHECK(stream_container);
@@ -182,10 +245,10 @@ PdfViewerStreamManager::GetStreamContainer(
 }
 
 bool PdfViewerStreamManager::IsPdfExtensionHost(
-    content::RenderFrameHost* render_frame_host) {
+    const content::RenderFrameHost* render_frame_host) const {
   // The PDF extension host should always have a parent host (the embedder
   // host).
-  content::RenderFrameHost* parent_host = render_frame_host->GetParent();
+  const content::RenderFrameHost* parent_host = render_frame_host->GetParent();
   if (!parent_host) {
     return false;
   }
@@ -195,28 +258,21 @@ bool PdfViewerStreamManager::IsPdfExtensionHost(
 }
 
 bool PdfViewerStreamManager::IsPdfExtensionFrameTreeNodeId(
-    content::RenderFrameHost* embedder_host,
-    int frame_tree_node_id) {
-  auto* stream_info = GetClaimedStreamInfo(embedder_host);
-  if (!stream_info) {
-    return false;
-  }
-
-  return frame_tree_node_id == stream_info->extension_host_frame_tree_node_id();
+    const content::RenderFrameHost* embedder_host,
+    content::FrameTreeNodeId frame_tree_node_id) const {
+  const auto* stream_info = GetClaimedStreamInfo(embedder_host);
+  return stream_info &&
+         frame_tree_node_id == stream_info->extension_host_frame_tree_node_id();
 }
 
 bool PdfViewerStreamManager::DidPdfExtensionFinishNavigation(
-    content::RenderFrameHost* embedder_host) {
-  auto* stream_info = GetClaimedStreamInfo(embedder_host);
-  if (!stream_info) {
-    return false;
-  }
-
-  return stream_info->did_extension_finish_navigation();
+    const content::RenderFrameHost* embedder_host) const {
+  const auto* stream_info = GetClaimedStreamInfo(embedder_host);
+  return stream_info && stream_info->did_extension_finish_navigation();
 }
 
 bool PdfViewerStreamManager::IsPdfContentHost(
-    content::RenderFrameHost* render_frame_host) {
+    const content::RenderFrameHost* render_frame_host) const {
   // The PDF content host should always have a parent host.
   content::RenderFrameHost* parent_host = render_frame_host->GetParent();
   if (!parent_host) {
@@ -237,34 +293,23 @@ bool PdfViewerStreamManager::IsPdfContentHost(
 }
 
 bool PdfViewerStreamManager::IsPdfContentFrameTreeNodeId(
-    content::RenderFrameHost* embedder_host,
-    int frame_tree_node_id) {
-  auto* stream_info = GetClaimedStreamInfo(embedder_host);
-  if (!stream_info) {
-    return false;
-  }
-
-  return frame_tree_node_id == stream_info->content_host_frame_tree_node_id();
+    const content::RenderFrameHost* embedder_host,
+    content::FrameTreeNodeId frame_tree_node_id) const {
+  const auto* stream_info = GetClaimedStreamInfo(embedder_host);
+  return stream_info &&
+         frame_tree_node_id == stream_info->content_host_frame_tree_node_id();
 }
 
 bool PdfViewerStreamManager::DidPdfContentNavigate(
-    content::RenderFrameHost* embedder_host) {
-  auto* stream_info = GetClaimedStreamInfo(embedder_host);
-  if (!stream_info) {
-    return false;
-  }
-
-  return stream_info->DidPdfContentNavigate();
+    const content::RenderFrameHost* embedder_host) const {
+  const auto* stream_info = GetClaimedStreamInfo(embedder_host);
+  return stream_info && stream_info->DidPdfContentNavigate();
 }
 
 bool PdfViewerStreamManager::PluginCanSave(
-    content::RenderFrameHost* embedder_host) {
+    const content::RenderFrameHost* embedder_host) const {
   auto* stream_info = GetClaimedStreamInfo(embedder_host);
-  if (!stream_info) {
-    return false;
-  }
-
-  return stream_info->plugin_can_save();
+  return stream_info && stream_info->plugin_can_save();
 }
 
 void PdfViewerStreamManager::SetPluginCanSave(
@@ -278,7 +323,8 @@ void PdfViewerStreamManager::SetPluginCanSave(
   stream_info->set_plugin_can_save(plugin_can_save);
 }
 
-void PdfViewerStreamManager::DeleteUnclaimedStreamInfo(int frame_tree_node_id) {
+void PdfViewerStreamManager::DeleteUnclaimedStreamInfo(
+    content::FrameTreeNodeId frame_tree_node_id) {
   CHECK(stream_infos_.erase(GetUnclaimedEmbedderHostInfo(frame_tree_node_id)));
 
   if (stream_infos_.empty()) {
@@ -307,7 +353,8 @@ void PdfViewerStreamManager::RenderFrameDeleted(
 
   // If `render_frame_host` is an unrelated host (there isn't an unclaimed
   // stream), ignore.
-  int frame_tree_node_id = render_frame_host->GetFrameTreeNodeId();
+  content::FrameTreeNodeId frame_tree_node_id =
+      render_frame_host->GetFrameTreeNodeId();
   if (!ContainsUnclaimedStreamInfo(frame_tree_node_id)) {
     return;
   }
@@ -345,7 +392,8 @@ void PdfViewerStreamManager::RenderFrameHostChanged(
   // DO NOT add code past this point. `this` may have been deleted.
 }
 
-void PdfViewerStreamManager::FrameDeleted(int frame_tree_node_id) {
+void PdfViewerStreamManager::FrameDeleted(
+    content::FrameTreeNodeId frame_tree_node_id) {
   // If a PDF host is deleted, delete the associated `StreamInfo`.
   for (auto iter = stream_infos_.begin(); iter != stream_infos_.end();) {
     StreamInfo* stream_info = iter->second.get();
@@ -388,12 +436,26 @@ void PdfViewerStreamManager::DidStartNavigation(
   // `ChromePdfStreamDelegate::ShouldAllowPdfFrameNavigation()` can properly
   // check that the navigation is allowed.
   if (navigation_handle->IsPdf()) {
+    ++g_debug_ongoing_content_navigations;
+    auto debug_data = std::make_unique<PdfNavigationDebugData>();
+    debug_data->did_start_navigation = true;
+    debug_data->did_start_navigation_with_parent =
+        navigation_handle->GetParentFrame();
+    navigation_handle->SetUserData(UserDataKey(), std::move(debug_data));
+    SetManagerCrashKeys(stream_infos_.size());
+    SetContentNavigationCrashKeys(navigation_handle, UserDataKey());
+
     SetStreamContentHostFrameTreeNodeId(navigation_handle);
   }
 }
 
 void PdfViewerStreamManager::ReadyToCommitNavigation(
     content::NavigationHandle* navigation_handle) {
+  if (navigation_handle->IsPdf()) {
+    SetManagerCrashKeys(stream_infos_.size());
+    SetContentNavigationCrashKeys(navigation_handle, UserDataKey());
+  }
+
   // Maybe register a PDF subresource override in the PDF content host.
   if (MaybeRegisterPdfSubresourceOverride(navigation_handle)) {
     return;
@@ -421,6 +483,12 @@ void PdfViewerStreamManager::ReadyToCommitNavigation(
 
 void PdfViewerStreamManager::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
+  if (navigation_handle->IsPdf()) {
+    --g_debug_ongoing_content_navigations;
+    SetManagerCrashKeys(stream_infos_.size());
+    ClearContentNavigationCrashKeys();
+  }
+
   // Maybe set up postMessage support after the PDF content host finishes
   // navigating.
   if (MaybeSetUpPostMessage(navigation_handle)) {
@@ -448,6 +516,24 @@ void PdfViewerStreamManager::DidFinishNavigation(
     if (stream_info->extension_host_frame_tree_node_id() ==
         navigation_handle->GetFrameTreeNodeId()) {
       stream_info->SetDidExtensionFinishNavigation();
+      if (navigation_handle->HasCommitted() &&
+          !navigation_handle->IsErrorPage()) {
+        // Setup zoom level for the PDF extension. Zoom level 0 corresponds
+        // to zoom factor of 1, or 100%. This is done so the PDF viewer UI
+        // does not change if the page zoom does. This is analogous to page
+        // zoom not affecting the browser UI.
+        const GURL pdf_extension_url = stream_info->stream()->handler_url();
+        CHECK_EQ(pdf_extension_url, navigation_handle->GetURL());
+        CHECK_EQ(extensions::kExtensionScheme, pdf_extension_url.scheme());
+        content::HostZoomMap::Get(
+            navigation_handle->GetRenderFrameHost()->GetSiteInstance())
+            ->SetZoomLevelForHostAndScheme(pdf_extension_url.scheme(),
+                                           pdf_extension_url.host(), 0);
+        // Set ZoomController on the extension host.
+        zoom::ZoomController::CreateForWebContentsAndRenderFrameHost(
+            web_contents(),
+            navigation_handle->GetRenderFrameHost()->GetGlobalId());
+      }
     }
     return;
   }
@@ -469,16 +555,10 @@ void PdfViewerStreamManager::DidFinishNavigation(
   // `about_blank_host`'s FrameTreeNode will be reused for the extension
   // `content::RenderFrameHost`, so it is safe to set it in `stream_info` to
   // identify both hosts.
-  int extension_host_frame_tree_node_id =
+  content::FrameTreeNodeId extension_host_frame_tree_node_id =
       about_blank_host->GetFrameTreeNodeId();
   stream_info->set_extension_host_frame_tree_node_id(
       extension_host_frame_tree_node_id);
-
-  ReportPDFLoadStatus(embedder_host->IsInPrimaryMainFrame()
-                          ? PDFLoadStatus::kLoadedFullPagePdfWithPdfium
-                          : PDFLoadStatus::kLoadedEmbeddedPdfWithPdfium);
-  // TODO(b:289010799): Call `RecordPDFOpenedWithA11yFeatureWithPdfOcr`in
-  // pdf_ocr_util.cc after figuring out how to fix the build dependency issue.
 
   NavigateToPdfExtensionUrl(extension_host_frame_tree_node_id, stream_info,
                             embedder_host->GetSiteInstance(),
@@ -492,7 +572,7 @@ void PdfViewerStreamManager::ClaimStreamInfoForTesting(
 
 void PdfViewerStreamManager::SetExtensionFrameTreeNodeIdForTesting(
     content::RenderFrameHost* embedder_host,
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id) {
   auto* stream_info = GetClaimedStreamInfo(embedder_host);
   CHECK(stream_info);
 
@@ -501,7 +581,7 @@ void PdfViewerStreamManager::SetExtensionFrameTreeNodeIdForTesting(
 
 void PdfViewerStreamManager::SetContentFrameTreeNodeIdForTesting(
     content::RenderFrameHost* embedder_host,
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id) {
   auto* stream_info = GetClaimedStreamInfo(embedder_host);
   CHECK(stream_info);
 
@@ -509,7 +589,7 @@ void PdfViewerStreamManager::SetContentFrameTreeNodeIdForTesting(
 }
 
 void PdfViewerStreamManager::NavigateToPdfExtensionUrl(
-    int extension_host_frame_tree_node_id,
+    content::FrameTreeNodeId extension_host_frame_tree_node_id,
     StreamInfo* stream_info,
     content::SiteInstance* source_site_instance,
     content::GlobalRenderFrameHostId global_id) {
@@ -524,13 +604,16 @@ void PdfViewerStreamManager::NavigateToPdfExtensionUrl(
 
 PdfViewerStreamManager::StreamInfo*
 PdfViewerStreamManager::GetClaimedStreamInfo(
-    content::RenderFrameHost* embedder_host) {
+    const content::RenderFrameHost* embedder_host) {
   auto iter = stream_infos_.find(GetEmbedderHostInfo(embedder_host));
-  if (iter == stream_infos_.end()) {
-    return nullptr;
-  }
+  return iter != stream_infos_.end() ? iter->second.get() : nullptr;
+}
 
-  return iter->second.get();
+const PdfViewerStreamManager::StreamInfo*
+PdfViewerStreamManager::GetClaimedStreamInfo(
+    const content::RenderFrameHost* embedder_host) const {
+  auto iter = stream_infos_.find(GetEmbedderHostInfo(embedder_host));
+  return iter != stream_infos_.end() ? iter->second.get() : nullptr;
 }
 
 PdfViewerStreamManager::StreamInfo*
@@ -550,7 +633,7 @@ PdfViewerStreamManager::GetClaimedStreamInfoFromPdfContentNavigation(
 }
 
 bool PdfViewerStreamManager::ContainsUnclaimedStreamInfo(
-    int frame_tree_node_id) const {
+    content::FrameTreeNodeId frame_tree_node_id) const {
   return base::Contains(stream_infos_,
                         GetUnclaimedEmbedderHostInfo(frame_tree_node_id));
 }
@@ -661,11 +744,20 @@ bool PdfViewerStreamManager::MaybeRegisterPdfSubresourceOverride(
 
 bool PdfViewerStreamManager::MaybeSetUpPostMessage(
     content::NavigationHandle* navigation_handle) {
-  // Only set up postMessage if `navigation_handle` is for the PDF content
-  // frame.
+  // Only set up postMessage if `navigation_handle` is for a PDF content frame.
   auto* claimed_stream_info =
       GetClaimedStreamInfoFromPdfContentNavigation(navigation_handle);
   if (!claimed_stream_info) {
+    return false;
+  }
+
+  // If the user reloads the PDF URL before the PDF content frame finishes
+  // loading, the initial PDF content frame navigation might reach
+  // `MaybeSetUpPostMessage()` during the new PDF load and incorrectly set up
+  // the stream info. Only continue PDF setup if the PDF content navigation is
+  // for the new PDF load.
+  if (navigation_handle->GetFrameTreeNodeId() !=
+      claimed_stream_info->content_host_frame_tree_node_id()) {
     return false;
   }
 
@@ -706,6 +798,14 @@ bool PdfViewerStreamManager::MaybeSetUpPostMessage(
                              claimed_stream_info->stream()->original_url());
   claimed_stream_info->set_mime_handler_view_container_manager(
       std::move(container_manager));
+
+  // Now that postMessage is set up, the PDF viewer has finished loading, so
+  // update metrics.
+  ReportPDFLoadStatus(embedder_host->IsInPrimaryMainFrame()
+                          ? PDFLoadStatus::kLoadedFullPagePdfWithPdfium
+                          : PDFLoadStatus::kLoadedEmbeddedPdfWithPdfium);
+  // TODO(b:289010799): Call `RecordPDFOpenedWithA11yFeatureWithPdfOcr`in
+  // pdf_ocr_util.cc after figuring out how to fix the build dependency issue.
 
   return true;
 }

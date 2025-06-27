@@ -9,7 +9,7 @@ import("//tools/grit/repack.gni")
 
 mojom("mojo_bindings") {
   testonly = true
-  sources = [ "mojo_test.mojom" ]
+  sources = [ "mojo_test.test-mojom" ]
 }
 
 repack("packed_resources") {
@@ -17,12 +17,12 @@ repack("packed_resources") {
   sources = [
     "$root_gen_dir/ios/web/ios_web_resources.pak",
     "$root_gen_dir/ios/web/test/test_resources.pak",
-    "$root_gen_dir/ui/resources/webui_resources.pak",
+    "$root_gen_dir/ui/webui/resources/webui_resources.pak",
   ]
   deps = [
     ":resources",
     "//ios/web:resources",
-    "//ui/resources",
+    "//ui/webui/resources",
   ]
   output = "$target_gen_dir/resources.pak"
   copy_data_to_bundle = true
@@ -31,7 +31,7 @@ repack("packed_resources") {
 grit("resources") {
   source = "test_resources.grd"
 
-  inputs = [ "${root_gen_dir}/ios/web/test/mojo_test.mojom.js" ]
+  inputs = [ "${root_gen_dir}/ios/web/test/mojo_test.test-mojom.js" ]
   deps = [ ":mojo_bindings_js" ]
   outputs = [
     "grit/test_resources.h",
@@ -54,7 +54,6 @@ source_set("test_support") {
     "//base/test:test_support",
     "//components/crash/core/common",
     "//ios/testing:verify_custom_webkit",
-    "//ios/web",
     "//ios/web:threads",
     "//ios/web/common:uikit",
     "//ios/web/common:web_view_creation_util",
@@ -67,6 +66,7 @@ source_set("test_support") {
     "//ios/web/test/fakes",
     "//ios/web/web_state:web_state_impl_header",
     "//ios/web/web_state/ui:web_controller_header",
+    "//ios/web/web_state/ui:wk_web_view_configuration_provider_header",
     "//net",
     "//third_party/ocmock",
     "//ui/base",

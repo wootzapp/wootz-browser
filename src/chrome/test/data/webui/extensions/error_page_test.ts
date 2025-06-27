@@ -7,13 +7,15 @@ import 'chrome://extensions/extensions.js';
 
 import type {ErrorPageDelegate, ExtensionsErrorPageElement} from 'chrome://extensions/extensions.js';
 import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {isChildVisible} from 'chrome://webui-test/test_util.js';
+import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {isChildVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {ClickMock, createExtensionInfo} from './test_util.js';
+import {createExtensionInfo, MockItemDelegate} from './test_util.js';
 
-class MockErrorPageDelegate extends ClickMock implements ErrorPageDelegate {
+// The delegate in the error page is an intersection type of
+// ItemDelegate&ErrorPageDelegate and MockItemDelegate extends ClickMock.
+class MockErrorPageDelegate extends MockItemDelegate implements
+    ErrorPageDelegate {
   requestFileSourceArgs: chrome.developerPrivate.RequestFileSourceProperties|
       undefined;
   requestFileSourceResolver:
@@ -80,17 +82,19 @@ suite('ExtensionErrorPageTest', function() {
     errorPage.delegate = mockDelegate;
     errorPage.data = extensionData;
     document.body.appendChild(errorPage);
+
+    // The toast manager is needed for reloading, see item_mixin.ts.
+    const toastManager = document.createElement('cr-toast-manager');
+    document.body.appendChild(toastManager);
   });
 
-  test('Layout', function() {
-    flush();
-
+  test('Layout', async () => {
     const testIsVisible = isChildVisible.bind(null, errorPage);
     assertTrue(testIsVisible('#closeButton'));
     assertTrue(testIsVisible('#heading'));
     assertTrue(testIsVisible('#errorsList'));
 
-    let errorElements = errorPage.shadowRoot!.querySelectorAll('.error-item');
+    let errorElements = errorPage.shadowRoot.querySelectorAll('.error-item');
     assertEquals(1, errorElements.length);
     let error = errorElements[0]!;
     assertEquals(
@@ -107,9 +111,13 @@ suite('ExtensionErrorPageTest', function() {
           manifestKey: 'permissions',
         },
         manifestErrorBase);
-    errorPage.set('data.manifestErrors', [manifestError]);
-    flush();
-    errorElements = errorPage.shadowRoot!.querySelectorAll('.error-item');
+    const newData = structuredClone(errorPage.data);
+    assertTrue(!!newData);
+    newData.manifestErrors = [manifestError];
+    errorPage.data = newData;
+    await microtasksFinished();
+
+    errorElements = errorPage.shadowRoot.querySelectorAll('.error-item');
     assertEquals(2, errorElements.length);
     error = errorElements[0]!;
     assertEquals(
@@ -124,9 +132,7 @@ suite('ExtensionErrorPageTest', function() {
   });
 
   test(
-      'CodeSection', function(done) {
-        flush();
-
+      'CodeSection', async () => {
         assertTrue(!!mockDelegate.requestFileSourceArgs);
         const args = mockDelegate.requestFileSourceArgs;
         assertEquals(extensionId, args.extensionId);
@@ -142,17 +148,15 @@ suite('ExtensionErrorPageTest', function() {
           title: '',
         };
         mockDelegate.requestFileSourceResolver.resolve(code);
-        mockDelegate.requestFileSourceResolver.promise.then(function() {
-          flush();
-          assertEquals(
-              code,
-              errorPage.shadowRoot!.querySelector(
-                                       'extensions-code-section')!.code);
-          done();
-        });
+        await mockDelegate.requestFileSourceResolver.promise;
+        await microtasksFinished();
+        assertEquals(
+            code,
+            errorPage.shadowRoot.querySelector(
+                                    'extensions-code-section')!.code);
       });
 
-  test('ErrorSelection', function() {
+  test('ErrorSelection', async () => {
     const nextRuntimeError = Object.assign(
         {
           source: 'chrome-extension://' + extensionId + '/other_source.html',
@@ -163,22 +167,31 @@ suite('ExtensionErrorPageTest', function() {
           renderViewId: 222,
           canInspect: true,
           contextUrl: 'http://test.com',
-          stackTrace: [{url: 'url', lineNumber: 123, columnNumber: 321}],
+          stackTrace: [{
+            url: 'url',
+            lineNumber: 123,
+            columnNumber: 321,
+            functionName: 'foo',
+          }],
         },
         runtimeErrorBase);
     // Add a new runtime error to the end.
-    errorPage.push('data.runtimeErrors', nextRuntimeError);
-    flush();
+    const dataWithNextError = structuredClone(errorPage.data);
+    assertTrue(!!dataWithNextError);
+    dataWithNextError.runtimeErrors.push(nextRuntimeError);
+    errorPage.data = dataWithNextError;
+    await microtasksFinished();
 
-    const errorElements = errorPage.shadowRoot!.querySelectorAll<HTMLElement>(
+    const errorElements = errorPage.shadowRoot.querySelectorAll<HTMLElement>(
         '.error-item .start');
-    const crCollapses = errorPage.shadowRoot!.querySelectorAll('cr-collapse');
+    const crCollapses = errorPage.shadowRoot.querySelectorAll('cr-collapse');
     assertEquals(2, errorElements.length);
     assertEquals(2, crCollapses.length);
 
     // The first error should be focused by default, and we should have
     // requested the source for it.
-    assertEquals(extensionData.runtimeErrors[0], errorPage.getSelectedError());
+    assertDeepEquals(
+        extensionData.runtimeErrors[0], errorPage.getSelectedError());
     assertTrue(!!mockDelegate.requestFileSourceArgs);
     let args = mockDelegate.requestFileSourceArgs;
     assertEquals('source.html', args.pathSuffix);
@@ -191,6 +204,7 @@ suite('ExtensionErrorPageTest', function() {
     // Tap the second error. It should now be selected and we should request
     // the source for it.
     errorElements[1]!.click();
+    await microtasksFinished();
     assertEquals(nextRuntimeError, errorPage.getSelectedError());
     assertTrue(!!mockDelegate.requestFileSourceArgs);
     args = mockDelegate.requestFileSourceArgs;
@@ -211,18 +225,76 @@ suite('ExtensionErrorPageTest', function() {
   // Tests that the element can still be shown with an invalid URL. Regression
   // test for crbug.com/1257170, as without the fix, this test would simply
   // crash when the page tries and fails to create a URL object.
-  test('InvalidUrl', function() {
+  test('InvalidUrl', async () => {
     const newRuntimeError = Object.assign(
         {
+          contextUrl: 'Unknown',
+          message: 'message',
+          renderProcessId: 0,
+          renderViewId: 0,
+          canInspect: false,
+          id: 1,
+          stackTrace: [],
           severity: chrome.developerPrivate.ErrorLevel.ERROR,
           source: 'invalid_url',
         },
         runtimeErrorBase);
     // Replace the runtime error URL with something malformed, and check that
     // the error is still displayed and opened.
-    errorPage.set('data.runtimeErrors', [newRuntimeError]);
-    flush();
+    const dataWithError = structuredClone(errorPage.data);
+    assertTrue(!!dataWithError);
+    dataWithError.runtimeErrors = [newRuntimeError];
+    errorPage.data = dataWithError;
+    await microtasksFinished();
 
-    assertEquals(extensionData.runtimeErrors[0], errorPage.getSelectedError());
+    // Check the element is still displayed and opened.
+    const errorElements = errorPage.shadowRoot.querySelectorAll<HTMLElement>(
+        '.error-item .start');
+    const crCollapses = errorPage.shadowRoot.querySelectorAll('cr-collapse');
+    assertEquals(1, errorElements.length);
+    assertEquals(
+        'message',
+        errorElements[0]!.querySelector<HTMLElement>(
+                             '.error-message')!.textContent!.trim());
+    assertEquals('cr:error', errorElements[0]!.querySelector('cr-icon')!.icon);
+    assertEquals(1, crCollapses.length);
+    assertTrue(crCollapses[0]!.opened);
+    assertEquals(
+        'Unknown',
+        crCollapses[0]!.querySelector<HTMLElement>(
+                           '.context-url')!.textContent!.trim());
+    const error = errorPage.getSelectedError();
+    assertTrue(!!error);
+    assertEquals(1, error.id);
+  });
+
+  // Test that the reload button is only shown for unpacked extensions in dev
+  // mode, and that it can be clicked.
+  test('ReloadItem', async function() {
+    const isVisible = isChildVisible.bind(null, errorPage);
+    assertFalse(isVisible('#dev-reload-button'));
+
+    errorPage.inDevMode = true;
+    const locationData = structuredClone(errorPage.data);
+    assertTrue(!!locationData);
+    locationData.location = chrome.developerPrivate.Location.UNPACKED;
+    errorPage.data = locationData;
+    await microtasksFinished();
+
+    assertTrue(isVisible('#dev-reload-button'));
+
+    await mockDelegate.testClickingCalls(
+        errorPage.shadowRoot.querySelector('#dev-reload-button')!, 'reloadItem',
+        [errorPage.data.id], Promise.resolve());
+
+    // Disable the extension. The button should now be hidden.
+    const disabledExtensionData = structuredClone(errorPage.data);
+    assertTrue(!!disabledExtensionData);
+    disabledExtensionData.state =
+        chrome.developerPrivate.ExtensionState.DISABLED;
+    errorPage.data = disabledExtensionData;
+
+    await microtasksFinished();
+    assertFalse(isVisible('#dev-reload-button'));
   });
 });

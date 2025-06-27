@@ -19,10 +19,6 @@
 #include "services/network/public/cpp/network_connection_tracker.h"
 #include "services/network/public/mojom/network_change_manager.mojom.h"
 
-namespace base {
-class Time;
-}  // namespace base
-
 namespace content {
 
 // This class consolidates logic regarding when to schedule the browser to send
@@ -52,12 +48,6 @@ class CONTENT_EXPORT ReportSchedulerTimer
     virtual void OnReportingTimeReached(base::Time now,
                                         base::Time timer_desired_run_time) = 0;
 
-    // Called when the connection changes from online to offline. When this
-    // happens the timer is paused which means `OnReportingTimeReached` will not
-    // be called until it gets resumed. Before resuming the timer,
-    // `AdjustOfflineReportTimes` will be called.
-    virtual void OnReportingPaused() {}
-
     // Called when the connection changes from offline to online. May also be
     // called on a connection change if there are no stored reports, see
     // `OnConnectionChanged()`. Running the callback will call `MaybeSet()` with
@@ -68,6 +58,11 @@ class CONTENT_EXPORT ReportSchedulerTimer
   };
 
   explicit ReportSchedulerTimer(std::unique_ptr<Delegate> delegate);
+
+  // Initiates the timer with navigation properties, firing report sends only
+  // if there's a recent enough navigation to support the send.
+  ReportSchedulerTimer(std::unique_ptr<Delegate> delegate,
+                       base::TimeDelta navigation_window);
 
   ReportSchedulerTimer(const ReportSchedulerTimer&) = delete;
   ReportSchedulerTimer& operator=(const ReportSchedulerTimer&) = delete;
@@ -82,6 +77,10 @@ class CONTENT_EXPORT ReportSchedulerTimer
   // timer is already set to fire earlier.
   void MaybeSet(std::optional<base::Time> reporting_time);
 
+  // Updates `last_navigation_time_` and notifies delegate if any report was
+  // pending.
+  void OnNewNavigation();
+
  private:
   void OnTimerFired();
   void Refresh(base::Time now) VALID_CONTEXT_REQUIRED(sequence_checker_);
@@ -95,6 +94,10 @@ class CONTENT_EXPORT ReportSchedulerTimer
   void OnConnectionChanged(network::mojom::ConnectionType) final;
 
   bool IsOffline() const VALID_CONTEXT_REQUIRED(sequence_checker_);
+
+  bool IsNavigationFeatureEnabled() const {
+    return navigation_window_.has_value();
+  }
 
   // Fires whenever a reporting time is reached for a report. Must be updated
   // whenever the next report time changes.
@@ -111,6 +114,12 @@ class CONTENT_EXPORT ReportSchedulerTimer
       network::NetworkConnectionTracker,
       network::NetworkConnectionTracker::NetworkConnectionObserver>
       obs_ GUARDED_BY_CONTEXT(sequence_checker_){this};
+
+  std::optional<base::Time> last_navigation_time_;
+
+  std::optional<base::TimeDelta> navigation_window_;
+
+  bool standby_mode_ = false;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

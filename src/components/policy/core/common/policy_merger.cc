@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/policy/core/common/policy_merger.h"
 
 #include <array>
@@ -9,7 +14,6 @@
 #include <set>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/features.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/policy/policy_constants.h"
@@ -21,13 +25,13 @@ namespace {
 
 #if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
 constexpr const char* kDictionaryPoliciesToMerge[] = {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     key::kExtensionSettings,       key::kDeviceLoginScreenPowerManagement,
     key::kKeyPermissions,          key::kPowerManagementIdleSettings,
     key::kScreenBrightnessPercent, key::kScreenLockDelays,
 #else
     key::kExtensionSettings,
-#endif  //  BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  //  BUILDFLAG(IS_CHROMEOS)
 };
 #endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
 

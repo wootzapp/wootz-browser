@@ -8,8 +8,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 
 import static org.hamcrest.Matchers.equalTo;
 
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlockingNoException;
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 import static org.chromium.ui.modaldialog.DialogDismissalCause.ACTIVITY_DESTROYED;
 
 import android.os.Handler;
@@ -77,14 +76,11 @@ public class LoadingModalDialogIntegrationTest {
 
     @BeforeClass
     public static void setupSuite() {
-        sActivityTestRule.launchActivity(null);
-        sActivity = runOnUiThreadBlockingNoException(() -> sActivityTestRule.getActivity());
-        Looper.prepare();
+        sActivity = sActivityTestRule.launchActivity(null);
     }
 
     @Before
     public void setupTest() throws Exception {
-        ObservableSupplierImpl.setIgnoreThreadChecksForTesting(true);
         mObserver = new TestDialogManagerObserver();
         runOnUiThreadBlocking(() -> sActivity.getModalDialogManager().addObserver(mObserver));
     }
@@ -98,7 +94,7 @@ public class LoadingModalDialogIntegrationTest {
     @MediumTest
     public void testShownAndDismissed() throws TimeoutException {
         LoadingModalDialogCoordinator coordinator =
-                runOnUiThreadBlockingNoException(
+                runOnUiThreadBlocking(
                         () ->
                                 LoadingModalDialogCoordinator.create(
                                         getDialogManager(),
@@ -108,10 +104,10 @@ public class LoadingModalDialogIntegrationTest {
         coordinator.disableTimeoutForTesting();
 
         runOnUiThreadBlocking(coordinator::show);
-        mObserver.getDialogAddedCallbackHelper().waitForFirst();
+        mObserver.getDialogAddedCallbackHelper().waitForOnly();
 
         runOnUiThreadBlocking(coordinator::dismiss);
-        mObserver.getDialogDismissedCallbackHelper().waitForFirst();
+        mObserver.getDialogDismissedCallbackHelper().waitForOnly();
 
         assertThat(coordinator.getState(), equalTo(State.FINISHED));
     }
@@ -120,7 +116,7 @@ public class LoadingModalDialogIntegrationTest {
     @MediumTest
     public void testShownAndCancelled() throws TimeoutException, ExecutionException {
         LoadingModalDialogCoordinator coordinator =
-                runOnUiThreadBlockingNoException(
+                runOnUiThreadBlocking(
                         () ->
                                 LoadingModalDialogCoordinator.create(
                                         getDialogManager(),
@@ -130,11 +126,11 @@ public class LoadingModalDialogIntegrationTest {
         coordinator.disableTimeoutForTesting();
 
         runOnUiThreadBlocking(coordinator::show);
-        mObserver.getDialogAddedCallbackHelper().waitForFirst();
+        mObserver.getDialogAddedCallbackHelper().waitForOnly();
 
         View cancelButton = coordinator.getButtonsView().findViewById(R.id.cancel_loading_modal);
         runOnUiThreadBlocking(cancelButton::performClick);
-        mObserver.getDialogDismissedCallbackHelper().waitForFirst();
+        mObserver.getDialogDismissedCallbackHelper().waitForOnly();
         assertThat(coordinator.getState(), equalTo(State.CANCELLED));
     }
 
@@ -142,7 +138,7 @@ public class LoadingModalDialogIntegrationTest {
     @MediumTest
     public void testShownAndDestroyed() throws TimeoutException {
         LoadingModalDialogCoordinator coordinator =
-                runOnUiThreadBlockingNoException(
+                runOnUiThreadBlocking(
                         () ->
                                 LoadingModalDialogCoordinator.create(
                                         getDialogManager(),
@@ -152,11 +148,11 @@ public class LoadingModalDialogIntegrationTest {
         coordinator.disableTimeoutForTesting();
 
         runOnUiThreadBlocking(coordinator::show);
-        mObserver.getDialogAddedCallbackHelper().waitForFirst();
+        mObserver.getDialogAddedCallbackHelper().waitForOnly();
 
         runOnUiThreadBlocking(
                 () -> sActivity.getModalDialogManager().dismissAllDialogs(ACTIVITY_DESTROYED));
-        mObserver.getDialogDismissedCallbackHelper().waitForFirst();
+        mObserver.getDialogDismissedCallbackHelper().waitForOnly();
         assertThat(coordinator.getState(), equalTo(State.CANCELLED));
     }
 

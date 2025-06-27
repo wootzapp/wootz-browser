@@ -29,12 +29,14 @@ constexpr int32_t kPauseBeginFrameThreshold = 5;
 
 FrameSinkHolder::FrameSinkHolder(
     std::unique_ptr<cc::LayerTreeFrameSink> frame_sink,
-    const GetCompositorFrameCallback get_compositor_frame_callback,
-    const OnFirstFrameRequestedCallback on_first_frame_requested_callback)
+    GetCompositorFrameCallback get_compositor_frame_callback,
+    OnFirstFrameRequestedCallback on_first_frame_requested_callback,
+    OnFrameSinkLost on_frame_sink_lost_callback)
     : frame_sink_(std::move(frame_sink)),
       get_compositor_frame_callback_(std::move(get_compositor_frame_callback)),
       on_first_frame_requested_callback_(
-          std::move(on_first_frame_requested_callback)) {
+          std::move(on_first_frame_requested_callback)),
+      on_frame_sink_lost_callback_(std::move(on_frame_sink_lost_callback)) {
   frame_sink_->BindToClient(this);
 }
 
@@ -48,6 +50,11 @@ FrameSinkHolder::~FrameSinkHolder() {
 bool FrameSinkHolder::DeleteWhenLastResourceHasBeenReclaimed(
     std::unique_ptr<FrameSinkHolder> frame_sink_holder,
     aura::Window* host_window) {
+  // Delete immediately if LayerTreeFrameSink was already lost.
+  if (frame_sink_holder->is_frame_sink_lost_) {
+    return true;
+  }
+
   UiResourceManager& resource_manager = frame_sink_holder->resource_manager();
   if (frame_sink_holder->last_frame_size_in_pixels_.IsEmpty()) {
     // Delete sink holder immediately if no frame has been submitted.
@@ -110,6 +117,17 @@ void FrameSinkHolder::SetRootWindowForDeletion(aura::Window* root_window) {
   root_window_observation_.Observe(root_window);
 }
 
+void FrameSinkHolder::SetAutoUpdateMode(bool mode) {
+  if (auto_update_ == mode) {
+    return;
+  }
+
+  auto_update_ = mode;
+  if (auto_update_) {
+    ObserveBeginFrameSource(/*start=*/true);
+  }
+}
+
 void FrameSinkHolder::SubmitCompositorFrame(bool synchronous_draw) {
   // We cannot request to submit a frame via `SubmitCompositorFrame()` if we are
   // in auto_update mode.
@@ -132,7 +150,7 @@ void FrameSinkHolder::SubmitCompositorFrame(bool synchronous_draw) {
   // compositor asks for the first frame therefore we fall to asynchronous
   // drawing till signaled.
   if (!synchronous_draw || pending_compositor_frame_ack_ ||
-      !first_frame_requested_) {
+      !first_frame_requested()) {
     pending_compositor_frame_ = true;
     return;
   }
@@ -175,9 +193,8 @@ bool FrameSinkHolder::OnBeginFrameDerivedImpl(const viz::BeginFrameArgs& args) {
     return false;
   }
 
-  if (!first_frame_requested_) {
-    first_frame_requested_ = true;
-    on_first_frame_requested_callback_.Run();
+  if (!first_frame_requested()) {
+    std::move(on_first_frame_requested_callback_).Run();
   }
 
   viz::BeginFrameAck current_begin_frame_ack(args, false);
@@ -220,6 +237,7 @@ void FrameSinkHolder::ObserveBeginFrameSource(bool start) {
   }
 
   if (begin_frame_source_) {
+    consecutive_begin_frames_produced_no_frame_count_ = 0;
     if (start) {
       begin_frame_observation_.Observe(begin_frame_source_);
     } else {
@@ -231,7 +249,6 @@ void FrameSinkHolder::ObserveBeginFrameSource(bool start) {
 void FrameSinkHolder::MaybeStopObservingBeingFrameSource() {
   if (!auto_update_ && consecutive_begin_frames_produced_no_frame_count_ >=
                            kPauseBeginFrameThreshold) {
-    consecutive_begin_frames_produced_no_frame_count_ = 0;
     ObserveBeginFrameSource(/*start=*/false);
   }
 }
@@ -278,8 +295,12 @@ void FrameSinkHolder::DidPresentCompositorFrame(
 
 void FrameSinkHolder::DidLoseLayerTreeFrameSink() {
   resource_manager().LostExportedResources();
+  is_frame_sink_lost_ = true;
+
   if (WaitingToScheduleDelete()) {
     ScheduleDelete();
+  } else {
+    std::move(on_frame_sink_lost_callback_).Run();
   }
 }
 

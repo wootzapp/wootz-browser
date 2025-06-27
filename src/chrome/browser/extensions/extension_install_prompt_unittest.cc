@@ -16,7 +16,6 @@
 #include "base/test/test_future.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
-#include "chrome/browser/extensions/extension_service_test_with_install.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
@@ -39,16 +38,22 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/skia_util.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/extensions/extension_service_test_with_install.h"
+#endif
+
 namespace extensions {
 
 namespace {
 
+#if !BUILDFLAG(IS_ANDROID)
 void SetImage(gfx::Image* image_out,
               base::OnceClosure quit_closure,
               const gfx::Image& image_in) {
   *image_out = image_in;
   std::move(quit_closure).Run();
 }
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 class ExtensionInstallPromptUnitTest : public testing::Test {
  public:
@@ -59,7 +64,7 @@ class ExtensionInstallPromptUnitTest : public testing::Test {
   ExtensionInstallPromptUnitTest& operator=(
       const ExtensionInstallPromptUnitTest&) = delete;
 
-  ~ExtensionInstallPromptUnitTest() override {}
+  ~ExtensionInstallPromptUnitTest() override = default;
 
   // testing::Test:
   void SetUp() override { profile_ = std::make_unique<TestingProfile>(); }
@@ -113,37 +118,9 @@ TEST_F(ExtensionInstallPromptUnitTest, PromptShowsPermissionWarnings) {
   EXPECT_EQ(1u, install_prompt->GetPermissionCount());
 }
 
-TEST_F(ExtensionInstallPromptUnitTest,
-       DelegatedPromptShowsOptionalPermissions) {
-  scoped_refptr<const Extension> extension =
-      ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
-                           .Set("name", "foo")
-                           .Set("version", "1.0")
-                           .Set("manifest_version", 2)
-                           .Set("description", "Random Ext")
-                           .Set("permissions",
-                                base::Value::List().Append("clipboardRead"))
-                           .Set("optional_permissions",
-                                base::Value::List().Append("tabs")))
-          .Build();
-
-  content::TestWebContentsFactory factory;
-  ExtensionInstallPrompt prompt(factory.CreateWebContents(profile()));
-  ShowDialogTestFuture show_dialog_future;
-
-  std::unique_ptr<ExtensionInstallPrompt::Prompt> sub_prompt(
-      new ExtensionInstallPrompt::Prompt(
-          ExtensionInstallPrompt::DELEGATED_PERMISSIONS_PROMPT));
-  sub_prompt->set_delegated_username("Username");
-  prompt.ShowDialog(ExtensionInstallPrompt::DoneCallback(), extension.get(),
-                    nullptr, std::move(sub_prompt),
-                    show_dialog_future.GetRepeatingCallback());
-
-  auto [params, done_callback, install_prompt] = show_dialog_future.Take();
-  ASSERT_TRUE(install_prompt.get());
-  EXPECT_EQ(2u, install_prompt->GetPermissionCount());
-}
+// TODO(crbug.com/397973212): Enable these tests when
+// ExtensionServiceTestWithInstall is supported on Android.
+#if !BUILDFLAG(IS_ANDROID)
 
 using ExtensionInstallPromptTestWithService = ExtensionServiceTestWithInstall;
 
@@ -220,7 +197,7 @@ class ExtensionInstallPromptTestWithholdingAllowed
 TEST_F(ExtensionInstallPromptTestWithholdingAllowed,
        PromptShouldShowWithholdingUI) {
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("test").AddPermission("<all_urls>").Build();
+      ExtensionBuilder("test").AddHostPermission("<all_urls>").Build();
   content::TestWebContentsFactory factory;
   ExtensionInstallPrompt prompt(factory.CreateWebContents(profile()));
   ShowDialogTestFuture show_dialog_future;
@@ -235,7 +212,7 @@ TEST_F(ExtensionInstallPromptTestWithholdingAllowed,
 TEST_F(ExtensionInstallPromptTestWithholdingAllowed,
        DoesntShowForNoHostsRequested) {
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("no_host").AddPermission("tabs").Build();
+      ExtensionBuilder("no_host").AddAPIPermission("tabs").Build();
   content::TestWebContentsFactory factory;
   ExtensionInstallPrompt prompt(factory.CreateWebContents(profile()));
   ShowDialogTestFuture show_dialog_future;
@@ -251,7 +228,7 @@ TEST_F(ExtensionInstallPromptTestWithholdingAllowed,
        DoesntShowForWithholdingNotAllowed) {
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("all_hosts")
-          .AddPermission("<all_urls>")
+          .AddHostPermission("<all_urls>")
           .SetLocation(mojom::ManifestLocation::kExternalPolicy)
           .Build();
   content::TestWebContentsFactory factory;
@@ -264,5 +241,5 @@ TEST_F(ExtensionInstallPromptTestWithholdingAllowed,
   auto [params, done_callback, install_prompt] = show_dialog_future.Take();
   EXPECT_EQ(install_prompt->ShouldWithheldPermissionsOnDialogAccept(), false);
 }
-
+#endif  // !BUILDFLAG(IS_ANDROID)
 }  // namespace extensions

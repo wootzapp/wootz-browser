@@ -2,20 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/v4l2/test/vp9_decoder.h"
 
 #include <linux/v4l2-controls.h>
 #include <linux/videodev2.h>
-
 #include <sys/ioctl.h>
 
 #include "base/bits.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "media/filters/ivf_parser.h"
-#include "media/filters/vp9_parser.h"
+#include "base/notreached.h"
 #include "media/gpu/macros.h"
+#include "media/parsers/ivf_parser.h"
+#include "media/parsers/vp9_parser.h"
 
 namespace media {
 
@@ -384,7 +389,7 @@ void Vp9Decoder::SetupFrameParams(
         v4l2_frame_params->alt_frame_ts = reference_id;
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "Invalid reference frame index";
+        NOTREACHED() << "Invalid reference frame index";
     }
   }
 
@@ -409,7 +414,8 @@ void Vp9Decoder::CopyFrameData(const Vp9FrameHeader& frame_hdr,
 
   scoped_refptr<MmappedBuffer> buffer = queue->GetBuffer(0);
 
-  buffer->mmapped_planes()[0].CopyIn(frame_hdr.data, frame_hdr.frame_size);
+  buffer->mmapped_planes()[0].CopyIn(frame_hdr.data.data(),
+                                     frame_hdr.data.size());
 }
 
 VideoDecoder::Result Vp9Decoder::DecodeNextFrame(const int frame_number,
@@ -418,7 +424,7 @@ VideoDecoder::Result Vp9Decoder::DecodeNextFrame(const int frame_number,
                                                  std::vector<uint8_t>& v_plane,
                                                  gfx::Size& size,
                                                  BitDepth& bit_depth) {
-  Vp9FrameHeader frame_hdr{};
+  Vp9FrameHeader frame_hdr;
 
   Vp9Parser::Result parser_res = ReadNextFrame(frame_hdr, size);
   switch (parser_res) {

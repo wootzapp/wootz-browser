@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "projector_soda_installation_controller.h"
+
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/locale_update_controller.h"
@@ -10,16 +11,18 @@
 #include "ash/public/cpp/projector/projector_new_screencast_precondition.h"
 #include "ash/public/cpp/test/mock_projector_client.h"
 #include "ash/webui/projector_app/test/mock_app_client.h"
+#include "base/check_deref.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/browser_process.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/speech/speech_recognition_recognizer_client_impl.h"
 #include "chrome/test/base/chrome_ash_test_base.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/prefs/pref_service.h"
 #include "components/soda/constants.h"
 #include "components/soda/soda_installer.h"
@@ -31,7 +34,10 @@ namespace ash {
 namespace {
 
 inline void SetLocale(const std::string& locale) {
-  g_browser_process->SetApplicationLocale(locale);
+  TestingBrowserProcess::GetGlobal()
+      ->GetFeatures()
+      ->application_locale_storage()
+      ->Set(locale);
   LocaleUpdateController::Get()->OnLocaleChanged();
 }
 
@@ -72,10 +78,12 @@ const char kNonEnglishLocale[] = "fr";
 class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
  public:
   ProjectorSodaInstallationControllerTest() {
+    // TODO: dorianbrandon - Remove finch flag from disabled list.
     scoped_feature_list_.InitWithFeatures(
         {features::kOnDeviceSpeechRecognition},
         {features::kInternalServerSideSpeechRecognition,
-         features::kForceEnableServerSideSpeechRecognitionForDev});
+         features::kForceEnableServerSideSpeechRecognition,
+         features::kInternalServerSideSpeechRecognitionUSMModelFinch});
   }
   ProjectorSodaInstallationControllerTest(
       const ProjectorSodaInstallationControllerTest&) = delete;
@@ -87,7 +95,9 @@ class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
   void SetUp() override {
     ChromeAshTestBase::SetUp();
 
-    ASSERT_TRUE(testing_profile_manager_.SetUp());
+    testing_profile_manager_ = std::make_unique<TestingProfileManager>(
+        TestingBrowserProcess::GetGlobal());
+    ASSERT_TRUE(testing_profile_manager_->SetUp());
     testing_profile_ = ProfileManager::GetPrimaryUserProfile();
 
     soda_installer_ = std::make_unique<MockSodaInstaller>();
@@ -104,7 +114,10 @@ class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
               availability.on_device_availability =
                   SpeechRecognitionRecognizerClientImpl::
                       GetOnDeviceSpeechRecognitionAvailability(
-                          g_browser_process->GetApplicationLocale());
+                          TestingBrowserProcess::GetGlobal()
+                              ->GetFeatures()
+                              ->application_locale_storage()
+                              ->Get());
               return availability;
             }));
 
@@ -115,6 +128,9 @@ class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
 
     soda_installation_controller_ =
         std::make_unique<ProjectorSodaInstallationController>(
+            TestingBrowserProcess::GetGlobal()
+                ->GetFeatures()
+                ->application_locale_storage(),
             mock_app_client_.get(), &projector_controller());
   }
 
@@ -125,6 +141,14 @@ class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
     soda_installer_.reset();
 
     ChromeAshTestBase::TearDown();
+    // ProfileManager is destroyed in OnHelperWillBeDestroyed()
+    // invoked in ChromeAshTestBase::TearDown().
+    EXPECT_FALSE(testing_profile_manager_.get());
+  }
+
+  void OnHelperWillBeDestroyed() override {
+    ChromeAshTestBase::OnHelperWillBeDestroyed();
+    testing_profile_manager_.reset();
   }
 
   MockAppClient& app_client() { return *mock_app_client_; }
@@ -144,8 +168,7 @@ class ProjectorSodaInstallationControllerTest : public ChromeAshTestBase {
  private:
   raw_ptr<Profile, DanglingUntriaged> testing_profile_ = nullptr;
 
-  TestingProfileManager testing_profile_manager_{
-      TestingBrowserProcess::GetGlobal()};
+  std::unique_ptr<TestingProfileManager> testing_profile_manager_;
 
   std::unique_ptr<MockSodaInstaller> soda_installer_;
   std::unique_ptr<MockProjectorClient> mock_client_;
@@ -178,7 +201,9 @@ TEST_F(ProjectorSodaInstallationControllerTest, InstallSoda) {
       prefs::kProjectorCreationFlowEnabled, true);
 
   // Test case where SODA is already installed.
-  soda_installation_controller()->InstallSoda(kEnglishLocale);
+  soda_installation_controller()->InstallSoda(
+      CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state()),
+      kEnglishLocale);
 
   EXPECT_CALL(app_client(), OnSodaInstalled());
   speech::SodaInstaller::GetInstance()->NotifySodaInstalledForTesting();

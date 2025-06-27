@@ -13,7 +13,6 @@ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
 import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../settings_shared.css.js';
 import '/shared/settings/controls/extension_controlled_indicator.js';
 import '../controls/settings_toggle_button.js';
@@ -28,6 +27,7 @@ import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_
 import type {CrToggleElement} from 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
+import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -72,7 +72,12 @@ export class SettingsAutofillSectionElement extends
 
   static get properties() {
     return {
-      accountInfo_: Object,
+      prefs: Object,
+
+      accountInfo_: {
+        type: Object,
+        value: null,
+      },
 
       /** An array of saved addresses. */
       addresses: Array,
@@ -82,15 +87,21 @@ export class SettingsAutofillSectionElement extends
 
       showAddressDialog_: Boolean,
       showAddressRemoveConfirmationDialog_: Boolean,
+
+      isPlusAddressEnabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('plusAddressEnabled'),
+      },
     };
   }
 
-  prefs: {[key: string]: any};
-  addresses: chrome.autofillPrivate.AddressEntry[];
-  activeAddress: chrome.autofillPrivate.AddressEntry|null;
-  private accountInfo_: chrome.autofillPrivate.AccountInfo|null = null;
-  private showAddressDialog_: boolean;
-  private showAddressRemoveConfirmationDialog_: boolean;
+  declare prefs: {[key: string]: any};
+  declare addresses: chrome.autofillPrivate.AddressEntry[];
+  declare activeAddress: chrome.autofillPrivate.AddressEntry|null;
+  declare private accountInfo_: chrome.autofillPrivate.AccountInfo|null;
+  declare private showAddressDialog_: boolean;
+  declare private showAddressRemoveConfirmationDialog_: boolean;
+  declare private isPlusAddressEnabled_: boolean;
   private autofillManager_: AutofillManagerProxy =
       AutofillManagerImpl.getInstance();
   private setPersonalDataListener_: PersonalDataChangedListener|null = null;
@@ -118,7 +129,8 @@ export class SettingsAutofillSectionElement extends
           this.accountInfo_ = accountInfo || null;
         };
     const setPersonalDataListener: PersonalDataChangedListener =
-        (addressList, _cardList, _ibans, accountInfo?) => {
+        (addressList, _cardList, _ibans, _payOverTimeIssuerList,
+         accountInfo?) => {
           this.addresses = addressList;
           this.accountInfo_ = accountInfo || null;
         };
@@ -198,7 +210,7 @@ export class SettingsAutofillSectionElement extends
         focusWithoutInk(this.$.addAddress);
       } else {
         const lastIndex = this.addresses.length - 1;
-        if (this.activeAddress!.guid === this.addresses[lastIndex]!.guid) {
+        if (this.activeAddress!.guid === this.addresses[lastIndex].guid) {
           focusWithoutInk(this.$.addressList.querySelectorAll<HTMLElement>(
               '.address-menu')[lastIndex - 1]);
         }
@@ -242,8 +254,8 @@ export class SettingsAutofillSectionElement extends
   private isCloudOffVisible_(
       address: chrome.autofillPrivate.AddressEntry,
       accountInfo: chrome.autofillPrivate.AccountInfo|null): boolean {
-    if (address.metadata?.source ===
-        chrome.autofillPrivate.AddressSource.ACCOUNT) {
+    if (address.metadata?.recordType ===
+        chrome.autofillPrivate.AddressRecordType.ACCOUNT) {
       return false;
     }
 
@@ -252,11 +264,6 @@ export class SettingsAutofillSectionElement extends
     }
 
     if (accountInfo.isSyncEnabledForAutofillProfiles) {
-      return false;
-    }
-
-    if (!loadTimeData.getBoolean(
-            'syncEnableContactInfoDataTypeInTransportMode')) {
       return false;
     }
 
@@ -290,6 +297,13 @@ export class SettingsAutofillSectionElement extends
         this.accountInfo_ && this.accountInfo_.isAutofillSyncToggleAvailable);
     this.autofillManager_.setAutofillSyncToggleEnabled(
         this.$.autofillSyncToggle.checked);
+  }
+
+  private onPlusAddressClick_() {
+    chrome.metricsPrivate.recordUserAction(
+        'Settings.ManageOptionOnSettingsSelected');
+    OpenWindowProxyImpl.getInstance().openUrl(
+        loadTimeData.getString('plusAddressManagementUrl'));
   }
 }
 

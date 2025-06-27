@@ -8,7 +8,6 @@ source_set("certificates") {
   sources = [
     "common.cc",
     "common.h",
-    "constants.cc",
     "constants.h",
     "nearby_share_certificate_manager.cc",
     "nearby_share_certificate_manager.h",
@@ -26,13 +25,17 @@ source_set("certificates") {
     "nearby_share_private_certificate.h",
   ]
 
+  public_deps = [
+    "//third_party/nearby:encrypted_metadata_proto",
+    "//third_party/nearby:rpc_resources_proto",
+  ]
+
   deps = [
     "//base",
     "//chrome/browser/nearby_sharing/client",
     "//chrome/browser/nearby_sharing/common",
     "//chrome/browser/nearby_sharing/contacts",
     "//chrome/browser/nearby_sharing/local_device_data",
-    "//chrome/browser/nearby_sharing/logging",
     "//chromeos/ash/components/nearby/common/client",
     "//chromeos/ash/components/nearby/common/proto",
     "//chromeos/ash/components/nearby/common/scheduling",
@@ -43,8 +46,6 @@ source_set("certificates") {
     "//crypto",
     "//device/bluetooth",
     "//third_party/nearby:certificate_rpc_proto",
-    "//third_party/nearby:encrypted_metadata_proto",
-    "//third_party/nearby:rpc_resources_proto",
   ]
 }
 
@@ -93,7 +94,6 @@ source_set("unit_tests") {
     "//base/test:test_support",
     "//chrome/browser/nearby_sharing/client:test_support",
     "//chrome/browser/nearby_sharing/common",
-    "//chrome/browser/nearby_sharing/common:test_support",
     "//chrome/browser/nearby_sharing/contacts:test_support",
     "//chrome/browser/nearby_sharing/local_device_data:test_support",
     "//chromeos/ash/components/nearby/common/client",

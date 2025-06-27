@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This binary takes a list of domain names in ASCII or unicode, passes them
 // through the IDN decoding algorithm and prints out the result. The list can be
 // passed as a text file or via stdin. In both cases, the output is printed as
@@ -63,9 +68,8 @@ std::string SpoofCheckResultToString(IDNSpoofChecker::Result result) {
     case IDNSpoofChecker::Result::kDangerousPattern:
       return "kDangerousPattern";
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   };
-  return std::string();
 }
 
 // Returns the spoof check result as a string. |ascii_domain| must contain

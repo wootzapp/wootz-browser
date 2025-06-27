@@ -19,6 +19,7 @@
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/switches.h"
 #include "third_party/skia/include/core/SkRegion.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 
 namespace app_current_window_internal =
     extensions::api::app_current_window_internal;
@@ -55,8 +56,6 @@ const char kRequiresFramelessWindow[] =
 
 const char kAlwaysOnTopPermission[] =
     "The \"app.window.alwaysOnTop\" permission is required.";
-
-const char kInvalidParameters[] = "Invalid parameters.";
 
 const int kUnboundedSize = SizeConstraints::kUnboundedSize;
 
@@ -205,8 +204,7 @@ AppCurrentWindowInternalSetBoundsFunction::Run() {
 
   bounds::BoundsType bounds_type = bounds::GetBoundsType(params->bounds_type);
   if (bounds_type == bounds::INVALID_TYPE) {
-    NOTREACHED_IN_MIGRATION();
-    return RespondNow(Error(kInvalidParameters));
+    NOTREACHED();
   }
 
   // Start with the current bounds, and change any values that are specified in
@@ -214,6 +212,8 @@ AppCurrentWindowInternalSetBoundsFunction::Run() {
   gfx::Rect original_window_bounds = window()->GetBaseWindow()->GetBounds();
   gfx::Rect window_bounds = original_window_bounds;
   gfx::Insets frame_insets = window()->GetBaseWindow()->GetFrameInsets();
+  gfx::RoundedCornersF window_radii =
+      window()->GetBaseWindow()->GetWindowRadii();
   const Bounds& bounds_spec = params->bounds;
 
   switch (bounds_type) {
@@ -242,17 +242,18 @@ AppCurrentWindowInternalSetBoundsFunction::Run() {
       break;
     }
     case bounds::INVALID_TYPE:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   if (original_window_bounds != window_bounds) {
     if (original_window_bounds.size() != window_bounds.size()) {
       SizeConstraints constraints(
-          SizeConstraints::AddFrameToConstraints(
-              window()->GetBaseWindow()->GetContentMinimumSize(), frame_insets),
-          SizeConstraints::AddFrameToConstraints(
-              window()->GetBaseWindow()->GetContentMaximumSize(),
-              frame_insets));
+          SizeConstraints::AddWindowToConstraints(
+              window()->GetBaseWindow()->GetContentMinimumSize(), frame_insets,
+              window_radii),
+          SizeConstraints::AddWindowToConstraints(
+              window()->GetBaseWindow()->GetContentMaximumSize(), frame_insets,
+              window_radii));
 
       window_bounds.set_size(constraints.ClampSize(window_bounds.size()));
     }
@@ -272,8 +273,7 @@ AppCurrentWindowInternalSetSizeConstraintsFunction::Run() {
   bounds::BoundsType bounds_type = bounds::GetBoundsType(params->bounds_type);
   if (bounds_type != bounds::INNER_BOUNDS &&
       bounds_type != bounds::OUTER_BOUNDS) {
-    NOTREACHED_IN_MIGRATION();
-    return RespondNow(Error(kInvalidParameters));
+    NOTREACHED();
   }
 
   gfx::Size original_min_size =

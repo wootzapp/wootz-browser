@@ -4,19 +4,21 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {CellularNetworksListElement, NetworkAlwaysOnVpnElement, NetworkListElement, SettingsInternetSubpageElement} from 'chrome://os-settings/lazy_load.js';
-import {Router, routes, settingMojom, SettingsToggleButtonElement} from 'chrome://os-settings/os_settings.js';
+import type {CellularNetworksListElement, NetworkAlwaysOnVpnElement, NetworkListElement, SettingsInternetSubpageElement} from 'chrome://os-settings/lazy_load.js';
+import type {SettingsToggleButtonElement} from 'chrome://os-settings/os_settings.js';
+import {Router, routes, settingMojom} from 'chrome://os-settings/os_settings.js';
 import {setESimManagerRemoteForTesting} from 'chrome://resources/ash/common/cellular_setup/mojo_interface_provider.js';
 import {MojoInterfaceProviderImpl} from 'chrome://resources/ash/common/network/mojo_interface_provider.js';
 import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {getDeepActiveElement} from 'chrome://resources/js/util.js';
-import {ESimManagerRemote} from 'chrome://resources/mojo/chromeos/ash/services/cellular_setup/public/mojom/esim_manager.mojom-webui.js';
-import {AlwaysOnVpnMode, InhibitReason, NetworkStateProperties, NetworkTypeStateProperties, ProxyMode, SIMInfo, SuppressionType, VpnType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import type {ESimManagerRemote} from 'chrome://resources/mojo/chromeos/ash/services/cellular_setup/public/mojom/esim_manager.mojom-webui.js';
+import type {NetworkStateProperties, NetworkTypeStateProperties, SIMInfo} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import {AlwaysOnVpnMode, InhibitReason, ProxyMode, SuppressionType, VpnType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {ConnectionStateType, DeviceStateType, NetworkType, OncSource, PortalState} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
 import {assertEquals, assertFalse, assertNull, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {FakeESimManagerRemote} from 'chrome://webui-test/chromeos/cellular_setup/fake_esim_manager_remote.js';
 import {FakeNetworkConfig} from 'chrome://webui-test/chromeos/fake_network_config_mojom.js';
-import {FakeESimManagerRemote} from 'chrome://webui-test/cr_components/chromeos/cellular_setup/fake_esim_manager_remote.js';
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 
 suite('<settings-internet-subpage>', () => {
@@ -64,17 +66,18 @@ suite('<settings-internet-subpage>', () => {
       type,
       deviceState,
       inhibitReason: inhibitReason || InhibitReason.MIN_VALUE,
-      simInfos: simInfos || undefined,
-      ipv4Address: undefined,
-      ipv6Address: undefined,
-      imei: undefined,
-      macAddress: undefined,
+      simInfos: simInfos || null,
+      ipv4Address: null,
+      ipv6Address: null,
+      imei: null,
+      macAddress: null,
       scanning: false,
-      simLockStatus: undefined,
+      simLockStatus: null,
       simAbsent: false,
       managedNetworkAvailable: false,
-      serial: undefined,
+      serial: null,
       isCarrierLocked: false,
+      isFlashing: false,
     };
   }
 
@@ -417,8 +420,8 @@ suite('<settings-internet-subpage>', () => {
           typeState: typeStateDefaultProps,
           connectable: true,
           connectRequested: false,
-          errorState: undefined,
-          portalProbeUrl: undefined,
+          errorState: null,
+          portalProbeUrl: null,
           priority: 0,
           prohibitedByPolicy: false,
           portalState: PortalState.kUnknown,
@@ -537,21 +540,51 @@ suite('<settings-internet-subpage>', () => {
         await initSubpage();
         initVpn();
 
-        internetSubpage.isAddingBuiltInVpnProhibited = true;
+        internetSubpage.isBuiltInVpnManagementBlocked = true;
         await flushTasks();
 
         const addBuiltInVpnButton =
             internetSubpage.shadowRoot!.querySelector<HTMLButtonElement>(
                 '#addBuiltInVpnButton');
 
-        assertTrue(!!addBuiltInVpnButton);
-        assertTrue(addBuiltInVpnButton.disabled);
+        assertTrue(
+            !!addBuiltInVpnButton, 'add built in vpn button falsely hidden');
+        assertTrue(
+            addBuiltInVpnButton.disabled,
+            'add built in vpn button falsely enabled');
 
-        internetSubpage.isAddingBuiltInVpnProhibited = false;
+        internetSubpage.isBuiltInVpnManagementBlocked = false;
         await flushTasks();
 
-        assertTrue(!!addBuiltInVpnButton);
-        assertFalse(addBuiltInVpnButton.disabled);
+        assertTrue(
+            !!addBuiltInVpnButton, 'add built in vpn button falsely hidden');
+        assertFalse(
+            addBuiltInVpnButton.disabled,
+            'add built in vpn button falsely disabled');
+      });
+
+      test('Disable built-in VPN list subpage buttons', async () => {
+        createSubpage();
+        await initSubpage();
+        initVpn();
+
+        internetSubpage.isBuiltInVpnManagementBlocked = true;
+        await flushTasks();
+
+        let allNetworkLists =
+            internetSubpage.shadowRoot!.querySelectorAll<NetworkListElement>(
+                'network-list');
+
+        assertTrue(allNetworkLists[0]!.isBuiltInVpnManagementBlocked);
+
+        internetSubpage.isBuiltInVpnManagementBlocked = false;
+        await flushTasks();
+
+        allNetworkLists =
+            internetSubpage.shadowRoot!.querySelectorAll<NetworkListElement>(
+                'network-list');
+
+        assertFalse(allNetworkLists[0]!.isBuiltInVpnManagementBlocked);
       });
 
       test(
@@ -725,17 +758,18 @@ suite('<settings-internet-subpage>', () => {
             type: NetworkType.kTether,
             deviceState: DeviceStateType.kEnabled,
             scanning: false,
-            ipv4Address: undefined,
-            ipv6Address: undefined,
-            imei: undefined,
-            macAddress: undefined,
-            simLockStatus: undefined,
-            simInfos: undefined,
+            ipv4Address: null,
+            ipv6Address: null,
+            imei: null,
+            macAddress: null,
+            simLockStatus: null,
+            simInfos: null,
             inhibitReason: InhibitReason.kNotInhibited,
             simAbsent: false,
             managedNetworkAvailable: false,
-            serial: undefined,
+            serial: null,
             isCarrierLocked: false,
+            isFlashing: false,
           });
           assertFalse(mojoApi.getIsDeviceScanning(NetworkType.kTether));
 
@@ -757,7 +791,7 @@ suite('<settings-internet-subpage>', () => {
         });
       });
 
-      test('Instant Hotspot page initiates tether scanning', async () => {
+      test('Instant Hotspot page initiates tether scanning', () => {
         loadTimeData.overrideValues({
           'isInstantHotspotRebrandEnabled': true,
         });
@@ -774,17 +808,18 @@ suite('<settings-internet-subpage>', () => {
           type: NetworkType.kTether,
           deviceState: DeviceStateType.kEnabled,
           scanning: false,
-          ipv4Address: undefined,
-          ipv6Address: undefined,
-          imei: undefined,
-          macAddress: undefined,
-          simLockStatus: undefined,
-          simInfos: undefined,
+          ipv4Address: null,
+          ipv6Address: null,
+          imei: null,
+          macAddress: null,
+          simLockStatus: null,
+          simInfos: null,
           inhibitReason: InhibitReason.kNotInhibited,
           simAbsent: false,
           managedNetworkAvailable: false,
-          serial: undefined,
+          serial: null,
           isCarrierLocked: false,
+          isFlashing: false,
         });
         assertFalse(mojoApi.getIsDeviceScanning(NetworkType.kTether));
 
@@ -794,7 +829,7 @@ suite('<settings-internet-subpage>', () => {
       });
 
       [false, true].forEach(isInstantHotspotRebrandEnabled => {
-        test('Cellular page does not initiate tether scanning', async () => {
+        test('Cellular page does not initiate tether scanning', () => {
           loadTimeData.overrideValues({
             'isInstantHotspotRebrandEnabled': isInstantHotspotRebrandEnabled,
           });
@@ -812,17 +847,18 @@ suite('<settings-internet-subpage>', () => {
             type: NetworkType.kTether,
             deviceState: DeviceStateType.kEnabled,
             scanning: false,
-            ipv4Address: undefined,
-            ipv6Address: undefined,
-            imei: undefined,
-            macAddress: undefined,
-            simLockStatus: undefined,
-            simInfos: undefined,
+            ipv4Address: null,
+            ipv6Address: null,
+            imei: null,
+            macAddress: null,
+            simLockStatus: null,
+            simInfos: null,
             inhibitReason: InhibitReason.kNotInhibited,
             simAbsent: false,
             managedNetworkAvailable: false,
-            serial: undefined,
+            serial: null,
             isCarrierLocked: false,
+            isFlashing: false,
           });
           assertFalse(mojoApi.getIsDeviceScanning(NetworkType.kTether));
 

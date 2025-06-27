@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/enterprise/platform_auth/cloud_ap_provider_win.h"
 
 #include <objbase.h>
@@ -391,6 +396,10 @@ CloudApProviderWin::CloudApProviderWin() = default;
 
 CloudApProviderWin::~CloudApProviderWin() = default;
 
+bool CloudApProviderWin::SupportsOriginFiltering() {
+  return true;
+}
+
 void CloudApProviderWin::FetchOrigins(FetchOriginsCallback on_fetch_complete) {
   // The strategy is as follows:
   // 1. See if the ProofOfPossessionCookieInfoManager can be instantiated. If
@@ -418,7 +427,8 @@ void CloudApProviderWin::FetchOrigins(FetchOriginsCallback on_fetch_complete) {
 void CloudApProviderWin::GetData(
     const GURL& url,
     PlatformAuthProviderManager::GetDataCallback callback) {
-  get_data_subscription_ = on_get_data_callback_list_.Add(std::move(callback));
+  get_data_subscriptions_.push_back(
+      on_get_data_callback_list_.Add(std::move(callback)));
   if (!base::ThreadPool::CreateCOMSTATaskRunner(
            {base::TaskPriority::USER_BLOCKING,
             base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN, base::MayBlock()})

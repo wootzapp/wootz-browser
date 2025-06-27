@@ -20,13 +20,13 @@
 #include "base/containers/flat_map.h"
 #include "base/json/values_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/account_id/account_id.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/known_user.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/events/ash/keyboard_capability.h"
 #include "ui/events/ash/mojom/extended_fkeys_modifier.mojom-shared.h"
 #include "ui/events/ash/mojom/extended_fkeys_modifier.mojom.h"
 #include "ui/events/ash/mojom/modifier_key.mojom-shared.h"
@@ -63,12 +63,14 @@ static constexpr auto kKeyboardModifierMappings =
           ::prefs::kLanguageRemapCapsLockKeyTo}});
 
 static constexpr auto kMetaKeyMapping =
-    base::MakeFixedFlatMap<mojom::MetaKey, const char*>(
-        {{mojom::MetaKey::kSearch, ::prefs::kLanguageRemapSearchKeyTo},
-         {mojom::MetaKey::kLauncher, ::prefs::kLanguageRemapSearchKeyTo},
-         {mojom::MetaKey::kExternalMeta,
+    base::MakeFixedFlatMap<ui::mojom::MetaKey, const char*>(
+        {{ui::mojom::MetaKey::kSearch, ::prefs::kLanguageRemapSearchKeyTo},
+         {ui::mojom::MetaKey::kLauncher, ::prefs::kLanguageRemapSearchKeyTo},
+         {ui::mojom::MetaKey::kLauncherRefresh,
+          ::prefs::kLanguageRemapSearchKeyTo},
+         {ui::mojom::MetaKey::kExternalMeta,
           ::prefs::kLanguageRemapExternalMetaKeyTo},
-         {mojom::MetaKey::kCommand,
+         {ui::mojom::MetaKey::kCommand,
           ::prefs::kLanguageRemapExternalCommandKeyTo}});
 
 bool GetDefaultTopRowAreFKeysValue(
@@ -92,9 +94,17 @@ bool IsAppleKeyboardDefaultModifierRemapping(ui::mojom::ModifierKey from,
           to == ui::mojom::ModifierKey::kMeta);
 }
 
+bool ShouldAddSixPackKeyProperties(const mojom::Keyboard& keyboard) {
+  return features::IsAltClickAndSixPackCustomizationEnabled() &&
+         !base::Contains(keyboard.modifier_keys,
+                         ui::mojom::ModifierKey::kFunction);
+}
+
 bool ShouldAddExtendedFkeyProperties(const mojom::Keyboard& keyboard) {
   return ::features::AreF11AndF12ShortcutsEnabled() &&
-         IsChromeOSKeyboard(keyboard);
+         IsChromeOSKeyboard(keyboard) &&
+         !base::Contains(keyboard.modifier_keys,
+                         ui::mojom::ModifierKey::kFunction);
 }
 
 const char* GetDefaultKeyboardPref(const mojom::Keyboard& keyboard) {
@@ -214,7 +224,11 @@ GetModifierRemappings(PrefService* prefs, const mojom::Keyboard& keyboard) {
       continue;
     }
     auto it = kKeyboardModifierMappings.find(modifier_key);
-    DCHECK(it != kKeyboardModifierMappings.end());
+    // Skip modifiers which do not have old pref equivalents.
+    if (it == kKeyboardModifierMappings.end()) {
+      continue;
+    }
+
     const auto pref_modifier_key =
         static_cast<ui::mojom::ModifierKey>(prefs->GetInteger(it->second));
     if (modifier_key != pref_modifier_key) {
@@ -242,7 +256,10 @@ GetModifierRemappingsKnownUser(const user_manager::KnownUser& known_user,
       continue;
     }
     auto it = kKeyboardModifierMappings.find(modifier_key);
-    DCHECK(it != kKeyboardModifierMappings.end());
+    // Skip modifiers which do not have old pref equivalents.
+    if (it == kKeyboardModifierMappings.end()) {
+      continue;
+    }
     const auto pref_modifier_key = static_cast<ui::mojom::ModifierKey>(
         known_user.FindIntPath(account_id, it->second)
             .value_or(static_cast<int>(modifier_key)));
@@ -282,7 +299,7 @@ mojom::KeyboardSettingsPtr GetKeyboardSettingsFromGlobalPrefs(
 
   settings->modifier_remappings = GetModifierRemappings(prefs, keyboard);
 
-  if (features::IsAltClickAndSixPackCustomizationEnabled()) {
+  if (ShouldAddSixPackKeyProperties(keyboard)) {
     settings->six_pack_key_remappings = GetSixPackKeyRemappings(prefs);
   }
 
@@ -367,7 +384,7 @@ RetrieveModifierRemappings(const mojom::Keyboard& keyboard,
     modifier_remappings[from_key] = to_key;
   }
 
-  if (keyboard.meta_key == mojom::MetaKey::kCommand) {
+  if (keyboard.meta_key == ui::mojom::MetaKey::kCommand) {
     if (!modifier_remappings_dict.contains(base::NumberToString(
             static_cast<int>(ui::mojom::ModifierKey::kMeta)))) {
       modifier_remappings[ui::mojom::ModifierKey::kMeta] =
@@ -422,7 +439,7 @@ mojom::KeyboardSettingsPtr RetrieveKeyboardSettings(
         RetrieveModifierRemappings(keyboard, /*modifier_remappings_dict=*/{});
   }
 
-  if (features::IsAltClickAndSixPackCustomizationEnabled()) {
+  if (ShouldAddSixPackKeyProperties(keyboard)) {
     settings->six_pack_key_remappings =
         RetrieveSixPackRemappings(pref_service, settings_dict);
   }
@@ -441,8 +458,20 @@ mojom::KeyboardSettingsPtr GetDefaultKeyboardSettings(
                                     default_settings_dict);
   }
 
+  base::Value::Dict settings_dict;
+  if (Shell::Get()->keyboard_capability()->HasQuickInsertKeyForOobe(
+          keyboard.id)) {
+    base::Value::Dict modifier_remappings_dict;
+    modifier_remappings_dict.Set(
+        base::NumberToString(
+            static_cast<int>(ui::mojom::ModifierKey::kAssistant)),
+        static_cast<int>(ui::mojom::ModifierKey::kCapsLock));
+    settings_dict.Set(prefs::kKeyboardSettingModifierRemappings,
+                      std::move(modifier_remappings_dict));
+  }
+
   return RetrieveKeyboardSettings(pref_service, keyboard_policies, keyboard,
-                                  /*settings_dict=*/{});
+                                  std::move(settings_dict));
 }
 
 base::Value::Dict ConvertModifierRemappingsToDict(
@@ -453,7 +482,7 @@ base::Value::Dict ConvertModifierRemappingsToDict(
   base::Value::Dict modifier_remappings;
   for (const auto& [from, to] : keyboard.settings->modifier_remappings) {
     // Avoid saving modifier remappings that are default for apple keyboards.
-    if (keyboard.meta_key == mojom::MetaKey::kCommand &&
+    if (keyboard.meta_key == ui::mojom::MetaKey::kCommand &&
         IsAppleKeyboardDefaultModifierRemapping(from, to)) {
       continue;
     }
@@ -465,7 +494,7 @@ base::Value::Dict ConvertModifierRemappingsToDict(
   // Since Apple keyboards default remaps Meta -> Control and Control -> Meta,
   // this must be taken in to account when saving prefs so we store them when
   // they are non-default.
-  if (keyboard.meta_key == mojom::MetaKey::kCommand) {
+  if (keyboard.meta_key == ui::mojom::MetaKey::kCommand) {
     if (!keyboard.settings->modifier_remappings.contains(
             ui::mojom::ModifierKey::kMeta)) {
       modifier_remappings.Set(
@@ -532,7 +561,7 @@ base::Value::Dict ConvertSettingsToDict(
     }
   }
 
-  if (features::IsAltClickAndSixPackCustomizationEnabled()) {
+  if (ShouldAddSixPackKeyProperties(keyboard)) {
     base::Value::Dict six_pack_key_remappings;
     six_pack_key_remappings.Set(
         prefs::kSixPackKeyPageUp,
@@ -617,7 +646,7 @@ void UpdateKeyboardSettingsImpl(
     existing_settings_dict->Merge(std::move(settings_dict));
     existing_settings_dict->Set(prefs::kKeyboardSettingModifierRemappings,
                                 std::move(*modifier_remappings_dict));
-    if (features::IsAltClickAndSixPackCustomizationEnabled()) {
+    if (ShouldAddSixPackKeyProperties(keyboard)) {
       // 6-pack key remappings need to overwrite what was previously stored.
       auto six_pack_key_remappings_dict =
           settings_dict.Extract(prefs::kKeyboardSettingSixPackKeyRemappings);
@@ -679,15 +708,11 @@ void InitializeSettingsUpdateMetricInfo(
                         std::move(updated_metric_info));
 }
 
-}  // namespace
-
-KeyboardPrefHandlerImpl::KeyboardPrefHandlerImpl() = default;
-KeyboardPrefHandlerImpl::~KeyboardPrefHandlerImpl() = default;
-
-void KeyboardPrefHandlerImpl::InitializeKeyboardSettings(
+void InitializeKeyboardSettingsImpl(
     PrefService* pref_service,
     const mojom::KeyboardPolicies& keyboard_policies,
-    mojom::Keyboard* keyboard) {
+    mojom::Keyboard* keyboard,
+    bool force_initialize_to_default_settings) {
   if (!pref_service) {
     keyboard->settings =
         GetDefaultKeyboardSettings(pref_service, keyboard_policies, *keyboard);
@@ -704,6 +729,12 @@ void KeyboardPrefHandlerImpl::InitializeKeyboardSettings(
     const auto& devices_dict =
         pref_service->GetDict(prefs::kKeyboardDeviceSettingsDictPref);
     settings_dict = devices_dict.FindDict(keyboard->device_key);
+  }
+
+  // Do not lookup settings dict if we are force refreshing back to default
+  // settings.
+  if (force_initialize_to_default_settings) {
+    settings_dict = nullptr;
   }
 
   ForceKeyboardSettingPersistence force_persistence;
@@ -795,6 +826,20 @@ void KeyboardPrefHandlerImpl::InitializeKeyboardSettings(
   }
 }
 
+}  // namespace
+
+KeyboardPrefHandlerImpl::KeyboardPrefHandlerImpl() = default;
+KeyboardPrefHandlerImpl::~KeyboardPrefHandlerImpl() = default;
+
+void KeyboardPrefHandlerImpl::InitializeKeyboardSettings(
+    PrefService* pref_service,
+    const mojom::KeyboardPolicies& keyboard_policies,
+    mojom::Keyboard* keyboard) {
+  InitializeKeyboardSettingsImpl(
+      pref_service, keyboard_policies, keyboard,
+      /*force_initialize_to_default_settings=*/false);
+}
+
 void KeyboardPrefHandlerImpl::InitializeLoginScreenKeyboardSettings(
     PrefService* local_state,
     const AccountId& account_id,
@@ -818,7 +863,7 @@ void KeyboardPrefHandlerImpl::InitializeLoginScreenKeyboardSettings(
         local_state, account_id, keyboard_policies, *keyboard);
   }
 
-  if (features::IsAltClickAndSixPackCustomizationEnabled()) {
+  if (ShouldAddSixPackKeyProperties(*keyboard)) {
     keyboard->settings->six_pack_key_remappings = mojom::SixPackKeyInfo::New();
   }
 }
@@ -894,6 +939,14 @@ void KeyboardPrefHandlerImpl::UpdateDefaultSplitModifierKeyboardSettings(
       /*existing_settings_dict=*/nullptr);
   pref_service->SetDict(prefs::kKeyboardDefaultSplitModifierSettings,
                         std::move(settings_dict));
+}
+
+void KeyboardPrefHandlerImpl::ForceInitializeWithDefaultSettings(
+    PrefService* pref_service,
+    const mojom::KeyboardPolicies& keyboard_policies,
+    mojom::Keyboard* keyboard) {
+  InitializeKeyboardSettingsImpl(pref_service, keyboard_policies, keyboard,
+                                 /*force_initialize_to_default_settings=*/true);
 }
 
 }  // namespace ash

@@ -8,17 +8,15 @@
 #include <memory>
 #include <utility>
 
-#include "base/base64.h"
 #include "base/check_op.h"
 #include "base/containers/contains.h"
 #include "base/strings/string_number_conversions.h"
 #include "extensions/browser/extension_icon_image.h"
 #include "extensions/browser/extension_icon_placeholder.h"
 #include "extensions/common/constants.h"
-#include "extensions/common/extension_icon_set.h"
+#include "extensions/common/icons/extension_icon_set.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
 #include "extensions/grit/extensions_browser_resources.h"
-#include "skia/public/mojom/bitmap.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkPaint.h"
@@ -61,7 +59,7 @@ struct IconRepresentationInfo {
   // Size as a string that will be used to retrieve a representation value from
   // SetIcon function arguments.
   const char* size_string;
-  // Scale factor for which the represantion should be used.
+  // Scale factor for which the representation should be used.
   ui::ResourceScaleFactor scale;
 };
 
@@ -73,9 +71,11 @@ bool HasValue(const std::map<int, T>& map, int tab_id) {
 }  // namespace
 
 // static
+// LINT.IfChange(ActionIconSize)
 extension_misc::ExtensionIcons ExtensionAction::ActionIconSize() {
   return extension_misc::EXTENSION_ICON_BITTY;
 }
+// LINT.ThenChange(/extensions/browser/icon_util.cc:ActionIconSize)
 
 // static
 gfx::Image ExtensionAction::FallbackIcon() {
@@ -119,42 +119,6 @@ void ExtensionAction::SetIcon(int tab_id, const gfx::Image& image) {
   SetValue(&icon_, tab_id, image);
 }
 
-ExtensionAction::IconParseResult ExtensionAction::ParseIconFromCanvasDictionary(
-    const base::Value::Dict& dict,
-    gfx::ImageSkia* icon) {
-  for (const auto item : dict) {
-    std::string byte_string;
-    const void* bytes = nullptr;
-    size_t num_bytes = 0;
-    if (item.second.is_blob()) {
-      bytes = item.second.GetBlob().data();
-      num_bytes = item.second.GetBlob().size();
-    } else if (item.second.is_string()) {
-      if (!base::Base64Decode(item.second.GetString(), &byte_string))
-        return IconParseResult::kDecodeFailure;
-      bytes = byte_string.c_str();
-      num_bytes = byte_string.length();
-    } else {
-      continue;
-    }
-    SkBitmap bitmap;
-    if (!skia::mojom::InlineBitmap::Deserialize(bytes, num_bytes, &bitmap)) {
-      return IconParseResult::kUnpickleFailure;
-    }
-    // A well-behaved renderer will never send a null bitmap to us here.
-    CHECK(!bitmap.isNull());
-
-    // Chrome helpfully scales the provided icon(s), but let's not go overboard.
-    const int kActionIconMaxSize = 10 * ActionIconSize();
-    if (bitmap.drawsNothing() || bitmap.width() > kActionIconMaxSize)
-      continue;
-
-    float scale = static_cast<float>(bitmap.width()) / ActionIconSize();
-    icon->AddRepresentation(gfx::ImageSkiaRep(bitmap, scale));
-  }
-  return IconParseResult::kSuccess;
-}
-
 gfx::Image ExtensionAction::GetExplicitlySetIcon(int tab_id) const {
   return GetValue(icon_, tab_id);
 }
@@ -162,8 +126,9 @@ gfx::Image ExtensionAction::GetExplicitlySetIcon(int tab_id) const {
 bool ExtensionAction::SetIsVisible(int tab_id, bool new_visibility) {
   const bool old_visibility = GetValue(is_visible_, tab_id);
 
-  if (old_visibility == new_visibility)
+  if (old_visibility == new_visibility) {
     return false;
+  }
 
   SetValue(&is_visible_, tab_id, new_visibility);
 
@@ -178,8 +143,9 @@ void ExtensionAction::DeclarativeShow(int tab_id) {
 void ExtensionAction::UndoDeclarativeShow(int tab_id) {
   int& show_count = declarative_show_count_[tab_id];
   DCHECK_GT(show_count, 0);
-  if (--show_count == 0)
+  if (--show_count == 0) {
     declarative_show_count_.erase(tab_id);
+  }
 }
 
 void ExtensionAction::DeclarativeSetIcon(int tab_id,
@@ -232,8 +198,9 @@ void ExtensionAction::SetDefaultIconImage(
 gfx::Image ExtensionAction::GetDefaultIconImage() const {
   // If we have a default icon, it should be loaded before trying to use it.
   DCHECK(!default_icon_image_ == !default_icon_);
-  if (default_icon_image_)
+  if (default_icon_image_) {
     return default_icon_image_->image();
+  }
 
   return GetPlaceholderIconImage();
 }
@@ -314,8 +281,9 @@ void ExtensionAction::Populate(const Extension& extension,
   } else {
     // Fall back to the product icons if no action icon exists.
     const ExtensionIconSet& product_icons = IconsInfo::GetIcons(&extension);
-    if (!product_icons.empty())
+    if (!product_icons.empty()) {
       default_icon_ = std::make_unique<ExtensionIconSet>(product_icons);
+    }
   }
 }
 
@@ -323,12 +291,14 @@ void ExtensionAction::Populate(const Extension& extension,
 int ExtensionAction::GetIconWidth(int tab_id) const {
   // If icon has been set, return its width.
   gfx::Image icon = GetValue(icon_, tab_id);
-  if (!icon.IsEmpty())
+  if (!icon.IsEmpty()) {
     return icon.Width();
+  }
   // If there is a default icon, the icon width will be set depending on our
   // action type.
-  if (default_icon_)
+  if (default_icon_) {
     return ActionIconSize();
+  }
 
   // If no icon has been set and there is no default icon, we need favicon
   // width.
@@ -341,8 +311,9 @@ bool ExtensionAction::GetIsVisibleInternal(int tab_id,
     return *tab_is_visible;
   }
 
-  if (include_declarative && base::Contains(declarative_show_count_, tab_id))
+  if (include_declarative && base::Contains(declarative_show_count_, tab_id)) {
     return true;
+  }
 
   if (const bool* default_is_visible =
           base::FindOrNull(is_visible_, kDefaultTabId)) {

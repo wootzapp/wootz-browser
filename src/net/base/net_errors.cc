@@ -48,7 +48,7 @@ std::string ErrorToShortString(int error) {
   default:
     // TODO(crbug.com/40909121): Figure out why this is firing, fix and upgrade
     // this to be fatal.
-    DUMP_WILL_BE_NOTREACHED_NORETURN() << error;
+    DUMP_WILL_BE_NOTREACHED() << error;
     error_string = "<unknown>";
   }
   return std::string("ERR_") + error_string;
@@ -117,8 +117,7 @@ Error FileErrorToNetError(base::File::Error file_error) {
     case base::File::FILE_ERROR_SECURITY:
       return ERR_ACCESS_DENIED;
     case base::File::FILE_ERROR_MAX:
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
+      NOTREACHED();
     case base::File::FILE_ERROR_NOT_A_DIRECTORY:
     case base::File::FILE_ERROR_NOT_A_FILE:
     case base::File::FILE_ERROR_NOT_EMPTY:
@@ -128,8 +127,7 @@ Error FileErrorToNetError(base::File::Error file_error) {
     case base::File::FILE_ERROR_FAILED:
       return ERR_FAILED;
   }
-  NOTREACHED_IN_MIGRATION();
-  return ERR_FAILED;
+  NOTREACHED();
 }
 
 }  // namespace net

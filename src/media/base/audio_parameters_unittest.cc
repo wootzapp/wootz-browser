@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/strings/string_number_conversions.h"
 #include "media/base/channel_layout.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -97,7 +99,7 @@ TEST(AudioParameters, GetBytesPerBuffer) {
 }
 
 TEST(AudioParameters, Compare) {
-  AudioParameters values[] = {
+  auto values = std::to_array<AudioParameters>({
       AudioParameters(AudioParameters::AUDIO_PCM_LINEAR,
                       ChannelLayoutConfig::Mono(), 1000, 100),
       AudioParameters(AudioParameters::AUDIO_PCM_LINEAR,
@@ -133,7 +135,7 @@ TEST(AudioParameters, Compare) {
                       ChannelLayoutConfig::Stereo(), 2000, 100),
       AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
                       ChannelLayoutConfig::Stereo(), 2000, 200),
-  };
+  });
 
   for (size_t i = 0; i < std::size(values); ++i) {
     for (size_t j = 0; j < std::size(values); ++j) {

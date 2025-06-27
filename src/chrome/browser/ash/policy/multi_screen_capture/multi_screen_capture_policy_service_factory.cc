@@ -10,9 +10,7 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-#error This file should only be included on Ash ChromeOS.
-#endif
+static_assert(BUILDFLAG(IS_CHROMEOS), "For ChromeOS only");
 
 namespace policy {
 
@@ -30,8 +28,14 @@ MultiScreenCapturePolicyServiceFactory::GetInstance() {
 }
 
 MultiScreenCapturePolicyServiceFactory::MultiScreenCapturePolicyServiceFactory()
-    : ProfileKeyedServiceFactory("MultiScreenCapturePolicyServiceFactory",
-                                 ProfileSelections::BuildForRegularProfile()) {}
+    : ProfileKeyedServiceFactory(
+          "MultiScreenCapturePolicyServiceFactory",
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
+              .Build()) {}
 
 MultiScreenCapturePolicyServiceFactory::
     ~MultiScreenCapturePolicyServiceFactory() = default;

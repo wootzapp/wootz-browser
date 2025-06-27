@@ -11,6 +11,8 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+#include "chrome/browser/picture_in_picture/scoped_picture_in_picture_occlusion_observation.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -42,6 +44,8 @@ std::u16string AppendProfileNameToTitleIfNeeded(Profile* profile,
 
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(CreateDesktopShortcutDelegate,
                                       kCreateShortcutDialogOkButtonId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(CreateDesktopShortcutDelegate,
+                                      kCreateShortcutDialogTitleFieldId);
 
 CreateDesktopShortcutDelegate::CreateDesktopShortcutDelegate(
     content::WebContents* web_contents,
@@ -51,12 +55,17 @@ CreateDesktopShortcutDelegate::CreateDesktopShortcutDelegate(
 
 CreateDesktopShortcutDelegate::~CreateDesktopShortcutDelegate() = default;
 
+void CreateDesktopShortcutDelegate::StartObservingForPictureInPictureOcclusion(
+    views::Widget* dialog_widget) {
+  occlusion_observation_.Observe(dialog_widget);
+}
+
 void CreateDesktopShortcutDelegate::OnAccept() {
   if (final_callback_) {
     base::RecordAction(
         base::UserMetricsAction("CreateDesktopShortcutDialogAccepted"));
     CHECK(!text_field_data_.empty());
-    std::move(final_callback_).Run(/*is_accepted=*/true, text_field_data_);
+    std::move(final_callback_).Run(text_field_data_);
   }
 }
 
@@ -64,7 +73,7 @@ void CreateDesktopShortcutDelegate::OnClose() {
   if (final_callback_) {
     base::RecordAction(
         base::UserMetricsAction("CreateDesktopShortcutDialogCancelled"));
-    std::move(final_callback_).Run(/*is_accepted=*/false, text_field_data_);
+    std::move(final_callback_).Run(std::nullopt);
   }
 }
 
@@ -91,6 +100,14 @@ void CreateDesktopShortcutDelegate::WebContentsDestroyed() {
 
 void CreateDesktopShortcutDelegate::PrimaryPageChanged(content::Page& page) {
   CloseDialogAsIgnored();
+}
+
+void CreateDesktopShortcutDelegate::OnOcclusionStateChanged(bool occluded) {
+  // If a picture-in-picture window is occluding the dialog, force it to close
+  // to prevent spoofing.
+  if (occluded) {
+    PictureInPictureWindowManager::GetInstance()->ExitPictureInPicture();
+  }
 }
 
 void CreateDesktopShortcutDelegate::CloseDialogAsIgnored() {

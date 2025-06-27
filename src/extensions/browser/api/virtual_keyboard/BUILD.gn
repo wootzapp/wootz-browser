@@ -19,11 +19,12 @@ source_set("virtual_keyboard") {
   deps = [
     "//build:chromeos_buildflags",
     "//extensions/browser/api/virtual_keyboard_private",
+    "//extensions/browser/api/virtual_keyboard_private:virtual_keyboard_delegate",
     "//extensions/common",
     "//extensions/common/api",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//ui/base/ime/ash" ]
   }
 

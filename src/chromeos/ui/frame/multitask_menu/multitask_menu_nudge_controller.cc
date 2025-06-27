@@ -4,12 +4,16 @@
 
 #include "chromeos/ui/frame/multitask_menu/multitask_menu_nudge_controller.h"
 
+#include "ash/constants/ash_pref_names.h"
+#include "ash/constants/ash_switches.h"
 #include "ash/constants/notifier_catalogs.h"
+#include "base/command_line.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "chromeos/ui/base/nudge_util.h"
 #include "components/prefs/pref_registry_simple.h"
+#include "components/user_manager/user_manager.h"
 #include "ui/aura/client/screen_position_client.h"
 #include "ui/aura/window.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -23,13 +27,6 @@
 #include "ui/views/highlight_border.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/widget/widget.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_pref_names.h"
-#include "ash/constants/ash_switches.h"
-#include "base/command_line.h"
-#include "components/user_manager/user_manager.h"
-#endif
 
 namespace chromeos {
 
@@ -68,16 +65,13 @@ base::Time GetTime() {
 }
 
 std::unique_ptr<views::Widget> CreateWidget(aura::Window* window) {
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   params.name = "MultitaskNudgeWidget";
   params.accept_events = false;
   params.parent = window->parent();
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // This widget must not set `use_accelerated_widget_override` b/c this
-  // widget's window will be reparented to `window`.
-  params.use_accelerated_widget_override = false;
-#endif
 
   auto widget = std::make_unique<views::Widget>(std::move(params));
   const int message_id = display::Screen::GetScreen()->InTabletMode()
@@ -104,8 +98,8 @@ std::unique_ptr<views::Widget> CreateWidget(aura::Window* window) {
           .Build();
   const float corner_radius =
       contents_view->GetPreferredSize({}).height() / 2.0f;
-  contents_view->SetBackground(views::CreateThemedRoundedRectBackground(
-      ui::kColorSysSurface3, corner_radius));
+  contents_view->SetBackground(
+      views::CreateRoundedRectBackground(ui::kColorSysSurface3, corner_radius));
   contents_view->SetBorder(std::make_unique<views::HighlightBorder>(
       corner_radius, views::HighlightBorder::Type::kHighlightBorderOnShadow));
 
@@ -125,14 +119,13 @@ MultitaskMenuNudgeController::Delegate::Delegate() {
   g_delegate_instance = this;
 }
 
-bool MultitaskMenuNudgeController::Delegate::IsUserNew() const {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  return user_manager::UserManager::IsInitialized()
-             ? user_manager::UserManager::Get()->IsCurrentUserNew()
-             : false;
-#else
-  return false;
-#endif
+bool MultitaskMenuNudgeController::Delegate::IsUserNewOrGuest() const {
+  if (!user_manager::UserManager::IsInitialized()) {
+    return false;
+  }
+
+  return user_manager::UserManager::Get()->IsCurrentUserNew() ||
+         user_manager::UserManager::Get()->IsLoggedInAsGuest();
 }
 
 MultitaskMenuNudgeController::MultitaskMenuNudgeController() = default;
@@ -141,7 +134,6 @@ MultitaskMenuNudgeController::~MultitaskMenuNudgeController() {
   DismissNudge();
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 // static
 void MultitaskMenuNudgeController::RegisterProfilePrefs(
     PrefRegistrySimple* registry) {
@@ -154,7 +146,6 @@ void MultitaskMenuNudgeController::RegisterProfilePrefs(
   registry->RegisterTimePref(ash::prefs::kMultitaskMenuNudgeTabletLastShown,
                              base::Time());
 }
-#endif
 
 void MultitaskMenuNudgeController::MaybeShowNudge(aura::Window* window) {
   MaybeShowNudge(window, /*anchor_view=*/nullptr);
@@ -163,7 +154,7 @@ void MultitaskMenuNudgeController::MaybeShowNudge(aura::Window* window) {
 void MultitaskMenuNudgeController::MaybeShowNudge(aura::Window* window,
                                                   views::View* anchor_view) {
   // Delegate could be null if the associated window was created during OOBE.
-  if (!g_delegate_instance || g_delegate_instance->IsUserNew()) {
+  if (!g_delegate_instance || g_delegate_instance->IsUserNewOrGuest()) {
     return;
   }
 
@@ -171,12 +162,10 @@ void MultitaskMenuNudgeController::MaybeShowNudge(aura::Window* window,
     return;
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           ash::switches::kAshNoNudges)) {
     return;
   }
-#endif
 
   // If the window is not visible, do not show the nudge.
   if (!window->IsVisible()) {
@@ -496,18 +485,11 @@ void MultitaskMenuNudgeController::UpdateWidgetAndPulse() {
       anchor_bounds_in_screen.CenterPoint().x() - size.width() / 2,
       anchor_bounds_in_screen.bottom() + kNudgeDistanceFromAnchor, size.width(),
       size.height());
-  bool adjust_to_fit = false;
   const display::Display display =
       display::Screen::GetScreen()->GetDisplayNearestView(window_);
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Lacros always needs adjustment since the child cannot go outside the
-  // parents bounds currently. See https://crbug.com/1416919.
-  adjust_to_fit = true;
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
   // If the nudge is going to be offscreen, make sure it is within the window
   // bounds.
-  adjust_to_fit = !display.work_area().Contains(bounds_in_screen);
-#endif
+  bool adjust_to_fit = !display.work_area().Contains(bounds_in_screen);
   if (adjust_to_fit) {
     // The nudge should be within the window bounds.
     bounds_in_screen.AdjustToFit(window_->GetBoundsInScreen());

@@ -35,9 +35,11 @@
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "base/types/optional_ref.h"
 #include "base/types/pass_key.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
+#include "cc/input/browser_controls_offset_tag_modifications.h"
 #include "cc/input/event_listener_properties.h"
 #include "cc/input/overscroll_behavior.h"
 #include "cc/trees/layer_tree_host.h"
@@ -60,18 +62,21 @@
 #include "third_party/blink/public/web/web_meaningful_layout.h"
 #include "third_party/blink/renderer/core/clipboard/data_object.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/core/editing/forward.h"
 #include "third_party/blink/renderer/core/exported/web_page_popup_impl.h"
 #include "third_party/blink/renderer/core/frame/animation_frame_timing_monitor.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/core/page/drag_controller.h"
 #include "third_party/blink/renderer/core/page/event_with_hit_test_results.h"
 #include "third_party/blink/renderer/core/page/viewport_description.h"
+#include "third_party/blink/renderer/platform/allow_discouraged_type.h"
 #include "third_party/blink/renderer/platform/graphics/apply_viewport_changes.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_associated_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
+#include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver_set.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_wrapper_mode.h"
 #include "third_party/blink/renderer/platform/text/text_direction.h"
@@ -80,7 +85,8 @@
 #include "third_party/blink/renderer/platform/widget/widget_base_client.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-shared.h"
-#include "ui/base/ui_base_types.h"
+#include "ui/base/mojom/menu_source_type.mojom-blink-forward.h"
+#include "ui/base/mojom/window_show_state.mojom-blink-forward.h"
 #include "ui/gfx/ca_layer_result.h"
 
 namespace gfx {
@@ -154,7 +160,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   virtual void Trace(Visitor*) const;
 
   // Shutdown the widget.
-  void Close();
+  void Close(DetachReason detach_reason);
 
   // Returns the WebFrame that this widget is attached to. It will be a local
   // root since only local roots have a widget attached.
@@ -169,12 +175,8 @@ class CORE_EXPORT WebFrameWidgetImpl
   // If this widget is for the top most main frame. This is different than
   // |ForMainFrame| because |ForMainFrame| could return true but this method
   // returns false. If this widget is a MainFrame widget embedded in another
-  // widget, for example embedding a portal.
+  // widget, for example embedding a <webview>.
   bool ForTopMostMainFrame() const;
-
-  // Adjusts whether the widget is nested or not. This is called during portal
-  // transitions.
-  void SetIsNestedMainFrameWidget(bool is_nested);
 
   // Returns true if this widget is for a local root that is a child frame,
   // false otherwise.
@@ -220,58 +222,56 @@ class CORE_EXPORT WebFrameWidgetImpl
       const WebCoalescedInputEvent&,
       WidgetBaseInputHandler::HandledEventCallback);
 
+  // Overrides `browser_controls_params.top_controls_height` of the properties
+  // passed to `UpdateVisualProperties()`. Passing `std::nullopt` disables the
+  // override.
+  void SetBrowserControlsTopHeightOverride(std::optional<float> height);
+
   // FrameWidget overrides.
   cc::AnimationHost* AnimationHost() const final;
   cc::AnimationTimeline* ScrollAnimationTimeline() const final;
   void SetOverscrollBehavior(
       const cc::OverscrollBehavior& overscroll_behavior) final;
-  void RequestAnimationAfterDelay(const base::TimeDelta&) final;
+  void RequestAnimationAfterDelay(const base::TimeDelta&, bool urgent) final;
   void SetRootLayer(scoped_refptr<cc::Layer>) override;
-  void RequestDecode(const cc::PaintImage&,
+  void RequestDecode(const cc::DrawImage&,
                      base::OnceCallback<void(bool)>) override;
-  void NotifyPresentationTimeInBlink(
-      base::OnceCallback<void(const viz::FrameTimingDetails&)>
-          presentation_callback) final;
   void RequestBeginMainFrameNotExpected(bool request) final;
   int GetLayerTreeId() final;
   const cc::LayerTreeSettings* GetLayerTreeSettings() final;
-  void UpdateBrowserControlsState(cc::BrowserControlsState constraints,
-                                  cc::BrowserControlsState current,
-                                  bool animate) final;
+  void UpdateBrowserControlsState(
+      cc::BrowserControlsState constraints,
+      cc::BrowserControlsState current,
+      bool animate,
+      base::optional_ref<const cc::BrowserControlsOffsetTagModifications>
+          offset_tag_modifications) final;
   void SetEventListenerProperties(cc::EventListenerClass,
                                   cc::EventListenerProperties) final;
   cc::EventListenerProperties EventListenerProperties(
       cc::EventListenerClass) const final;
   mojom::blink::DisplayMode DisplayMode() const override;
-  ui::WindowShowState WindowShowState() const override;
+  ui::mojom::blink::WindowShowState WindowShowState() const override;
   bool Resizable() const override;
-  const WebVector<gfx::Rect>& ViewportSegments() const override;
+  const std::vector<gfx::Rect>& ViewportSegments() const override;
   void SetDelegatedInkMetadata(
       std::unique_ptr<gfx::DelegatedInkMetadata> metadata) final;
-  void DidOverscroll(const gfx::Vector2dF& overscroll_delta,
-                     const gfx::Vector2dF& accumulated_overscroll,
-                     const gfx::PointF& position,
-                     const gfx::Vector2dF& velocity) override;
   void InjectScrollbarGestureScroll(const gfx::Vector2dF& delta,
                                     ui::ScrollGranularity granularity,
                                     cc::ElementId scrollable_area_element_id,
                                     WebInputEvent::Type injected_type) override;
   void DidChangeCursor(const ui::Cursor&) override;
-#if BUILDFLAG(IS_ANDROID)
-  void PassImeRenderWidgetHost(
-      mojo::PendingRemote<mojom::blink::ImeRenderWidgetHost>) override;
-#endif
   void GetCompositionCharacterBoundsInWindow(
       Vector<gfx::Rect>* bounds_in_dips) override;
-  // Return the last calculated line bounds.
-  Vector<gfx::Rect>& GetVisibleLineBoundsOnScreen() override;
-  void UpdateLineBounds() override;
-  void UpdateCursorAnchorInfo() override;
+  // Return the last calculated cursor anchor info.
+  mojom::blink::InputCursorAnchorInfoPtr& GetLastCursorAnchorInfoForTesting();
+  bool HasImeRenderWidgetHost() const override {
+    return !!ime_render_widget_host_;
+  }
+  void UpdateCursorAnchorInfo(bool update_requested) override;
   gfx::Range CompositionRange() override;
   WebTextInputInfo TextInputInfo() override;
   ui::mojom::VirtualKeyboardVisibilityRequest
   GetLastVirtualKeyboardVisibilityRequest() override;
-  bool ShouldSuppressKeyboardForFocusedElement() override;
   void GetEditContextBoundsInWindow(
       std::optional<gfx::Rect>* control_bounds,
       std::optional<gfx::Rect>* selection_bounds) override;
@@ -301,7 +301,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   void SetEditCommandsForNextKeyEvent(
       Vector<mojom::blink::EditCommandPtr> edit_commands) override;
   Vector<ui::mojom::blink::ImeTextSpanInfoPtr> GetImeTextSpansInfo(
-      const WebVector<ui::ImeTextSpan>& ime_text_spans) override;
+      const std::vector<ui::ImeTextSpan>& ime_text_spans) override;
   void RequestMouseLock(
       bool has_transient_user_activation,
       bool request_unadjusted_movement,
@@ -310,7 +310,6 @@ class CORE_EXPORT WebFrameWidgetImpl
   gfx::RectF BlinkSpaceToDIPs(const gfx::RectF& rect) override;
   gfx::Rect BlinkSpaceToEnclosedDIPs(const gfx::Rect& rect) override;
   gfx::Size BlinkSpaceToFlooredDIPs(const gfx::Size& size) override;
-  gfx::RectF DIPsToBlinkSpace(const gfx::RectF& rect) override;
   gfx::PointF DIPsToBlinkSpace(const gfx::PointF& point) override;
   gfx::Point DIPsToRoundedBlinkSpace(const gfx::Point& point) override;
   float DIPsToBlinkSpace(float scalar) override;
@@ -341,12 +340,13 @@ class CORE_EXPORT WebFrameWidgetImpl
   bool GetMayThrottleIfUndrawnFramesForTesting();
 
   // AnimationFrameTimingMonitor::Client overrides
-  void ReportLongAnimationFrameTiming(AnimationFrameTimingInfo* info) override;
   bool ShouldReportLongAnimationFrameTiming() const override;
   void ReportLongTaskTiming(base::TimeTicks start_time,
                             base::TimeTicks end,
                             ExecutionContext* task_context) override;
   bool RequestedMainFramePending() override;
+  AnimationFrameTimingInfo* RecordRenderingUpdateEndTime(
+      base::TimeTicks) override;
   ukm::UkmRecorder* MainFrameUkmRecorder() override;
   ukm::SourceId MainFrameUkmSourceId() override;
 
@@ -389,6 +389,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   void SetDeviceScaleFactorForTesting(float factor) override;
   FrameWidgetTestHelper* GetFrameWidgetTestHelperForTesting() override;
   void PrepareForFinalLifecyclUpdateForTesting() override;
+  void ApplyLocalSurfaceIdUpdate(const viz::LocalSurfaceId& id) override;
 
   // Called when a drag-n-drop operation should begin.
   virtual void StartDragging(LocalFrame* source_frame,
@@ -419,6 +420,7 @@ class CORE_EXPORT WebFrameWidgetImpl
       const cc::LayerTreeSettings* settings,
       WebFrameWidget& previous_widget) override;
   void SetCompositorVisible(bool visible) override;
+  void WarmUpCompositor() override;
   gfx::Size Size() override;
   void Resize(const gfx::Size& size_with_dsf) override;
   void SetCursor(const ui::Cursor& cursor) override;
@@ -426,6 +428,8 @@ class CORE_EXPORT WebFrameWidgetImpl
   void SetHandlingInputEvent(bool handling) override;
   void ProcessInputEventSynchronouslyForTesting(
       const WebCoalescedInputEvent&) override;
+  void DispatchNonBlockingEventForTesting(
+      std::unique_ptr<WebCoalescedInputEvent> event) override;
   WebInputEventResult DispatchBufferedTouchEvents() override;
   WebInputEventResult HandleInputEvent(const WebCoalescedInputEvent&) override;
   void UpdateTextInputState() override;
@@ -447,17 +451,17 @@ class CORE_EXPORT WebFrameWidgetImpl
   gfx::Rect ViewRect() override;
   void SetScreenRects(const gfx::Rect& widget_screen_rect,
                       const gfx::Rect& window_screen_rect) override;
-  gfx::Size VisibleViewportSizeInDIPs() override;
+  gfx::Size VisibleViewportSize() override;
   bool IsHidden() const override;
   WebString GetLastToolTipTextForTesting() const override;
   float GetEmulatorScale() override;
 
   // WidgetBaseClient overrides:
   void OnCommitRequested() override;
-  void BeginMainFrame(base::TimeTicks last_frame_time) override;
+  void BeginMainFrame(const viz::BeginFrameArgs& args) override;
   void UpdateLifecycle(WebLifecycleUpdate requested_update,
                        DocumentUpdateReason reason) override;
-  void ShowContextMenu(ui::mojom::MenuSourceType source_type,
+  void ShowContextMenu(ui::mojom::blink::MenuSourceType source_type,
                        const gfx::Point& location) override;
   void BindInputTargetClient(
       mojo::PendingReceiver<viz::mojom::blink::InputTargetClient> receiver)
@@ -471,7 +475,15 @@ class CORE_EXPORT WebFrameWidgetImpl
                          const gfx::PointF& screen_point,
                          ui::mojom::blink::DragOperation,
                          base::OnceClosure callback) override;
-  void OnStartStylusWriting(OnStartStylusWritingCallback callback) override;
+  void OnStartStylusWriting(
+#if BUILDFLAG(IS_WIN)
+      const gfx::Rect& focus_widget_rect_in_dips,
+#endif  // BUILDFLAG(IS_WIN)
+      OnStartStylusWritingCallback callback) override;
+#if BUILDFLAG(IS_ANDROID)
+  void PassImeRenderWidgetHost(
+      mojo::PendingRemote<mojom::blink::ImeRenderWidgetHost>) override;
+#endif
   void NotifyClearedDisplayedGraphics() override;
 
   // mojom::blink::FrameWidgetInputHandler overrides:
@@ -484,7 +496,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   void SetDisplayMode(mojom::blink::DisplayMode);
 
   // Sets the window show state.
-  void SetWindowShowState(ui::WindowShowState);
+  void SetWindowShowState(ui::mojom::blink::WindowShowState);
 
   void SetResizable(bool);
 
@@ -501,7 +513,9 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Called when the FrameView for this Widget's local root is created.
   void DidCreateLocalRootView();
 
-  void SetZoomLevel(double zoom_level);
+  double GetZoomLevel() override;
+  void SetZoomLevel(double zoom_level) override;
+  double GetCSSZoomFactor() const override;
 
   // Called when the View has auto resized.
   virtual void DidAutoResize(const gfx::Size& size);
@@ -546,6 +560,8 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Immediately stop deferring commits.
   void StopDeferringCommits(cc::PaintHoldingCommitTrigger);
 
+  void SetShouldThrottleFrameRate(bool flag);
+
   // Pause all rendering (main and compositor thread) in the compositor.
   [[nodiscard]] std::unique_ptr<cc::ScopedPauseRendering> PauseRendering();
 
@@ -575,6 +591,8 @@ class CORE_EXPORT WebFrameWidgetImpl
   // content (only clip it).
   void SetBrowserControlsParams(cc::BrowserControlsParams params);
 
+  void SetMaxSafeAreaInsets(const gfx::InsetsF& max_safe_area_insets);
+
   // This function provides zooming for find in page results when browsing with
   // page autosize.
   void ZoomToFindInPageRect(const gfx::Rect& rect_in_root_frame);
@@ -588,7 +606,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Sets the device color space for testing.
   void SetDeviceColorSpaceForTesting(const gfx::ColorSpace& color_space);
 
-  // Converts from DIPs to Blink coordinate space (ie. Viewport/Physical
+  // Converts from DIPs to Blink coordinate space (ie. Viewport/Device
   // pixels).
   gfx::Size DIPsToCeiledBlinkSpace(const gfx::Size& size);
 
@@ -657,8 +675,8 @@ class CORE_EXPORT WebFrameWidgetImpl
       bool enabled,
       const blink::DeviceEmulationParams& params);
   void SetScreenInfoAndSize(const display::ScreenInfos& screen_infos,
-                            const gfx::Size& widget_size,
-                            const gfx::Size& visible_viewport_size);
+                            const gfx::Size& widget_size_in_dips,
+                            const gfx::Size& visible_viewport_size_in_dips);
 
   // Update the surface allocation information, compositor viewport rect and
   // screen info on the widget.
@@ -695,15 +713,27 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Return if there is a pending scale animation.
   bool HasPendingPageScaleAnimation();
 
-  // Set the source URL for the compositor.
-  void SetSourceURLForCompositor(ukm::SourceId source_id, const KURL& url);
+  // Set the source URL (if the compositor is rendering the primary main frame).
+  // Also propagates the history sequence number (equivalent to a
+  // `PropagateHistorySequenceNumberToCompositor()` call).
+  void UpdateNavigationStateForCompositor(ukm::SourceId source_id,
+                                          const KURL& url);
+
+  // Propagates the HistoryItem's ItemSequenceNumber to the compositor. This is
+  // used as part of a RenderFrameMetadata which is sent to the browser when the
+  // compositor submits a frame.
+  void PropagateHistorySequenceNumberToCompositor();
 
   // Ask compositor to create the shared memory for smoothness ukm region.
   base::ReadOnlySharedMemoryRegion CreateSharedMemoryForSmoothnessUkm();
 
+  // Ask compositor to create the shared memory for dropped frames ukm region.
+  base::ReadOnlySharedMemoryRegion CreateSharedMemoryForDroppedFramesUkm();
+#if BUILDFLAG(IS_ANDROID)
   // Calculate and cache the most up to date line bounding boxes in the document
   // coordinate space.
   Vector<gfx::Rect> CalculateVisibleLineBoundsOnScreen();
+#endif  // BUILDFLAG(IS_ANDROID)
 
   // Returns true if this widget corresponds to a frame which is being replaced.
   // The compositor for the widget has been detached and passed to the new
@@ -721,9 +751,11 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Request a new `viz::LocalSurfaceId` on the compositor thread.
   void RequestNewLocalSurfaceId();
 
+  void OnDevToolsSessionConnectionChanged(bool attached);
+
  protected:
   // WidgetBaseClient overrides:
-  void ScheduleAnimation() override;
+  void ScheduleAnimation(bool urgent) override;
   void DidBeginMainFrame() override;
   std::unique_ptr<cc::LayerTreeFrameSink> AllocateNewLayerTreeFrameSink()
       override;
@@ -761,7 +793,6 @@ class CORE_EXPORT WebFrameWidgetImpl
       cc::ActiveFrameSequenceTrackers trackers) override;
   std::unique_ptr<cc::BeginMainFrameMetrics> GetBeginMainFrameMetrics()
       override;
-  std::unique_ptr<cc::WebVitalMetrics> GetWebVitalMetrics() override;
   void BeginUpdateLayers() override;
   void EndUpdateLayers() override;
   void DidCommitAndDrawCompositorFrame() override;
@@ -891,6 +922,16 @@ class CORE_EXPORT WebFrameWidgetImpl
   void WaitForPageScaleAnimationForTesting(
       WaitForPageScaleAnimationForTestingCallback callback) override;
   void MoveCaret(const gfx::Point& point_in_dips) override;
+
+#if BUILDFLAG(IS_IOS)
+  void StartAutoscrollForSelectionToPoint(
+      const gfx::PointF& point_in_dips) override;
+  void StopAutoscroll() override;
+
+  void RectForEditFieldChars(const gfx::Range& range,
+                             RectForEditFieldCharsCallback callback) override;
+#endif  // BUILDFLAG(IS_IOS)
+
   void SelectAroundCaret(mojom::blink::SelectionGranularity granularity,
                          bool should_show_handle,
                          bool should_show_context_menu,
@@ -906,6 +947,8 @@ class CORE_EXPORT WebFrameWidgetImpl
                                        const WebMouseWheelEvent&) override;
   WebInputEventResult HandleCharEvent(const WebKeyboardEvent&) override;
 
+  void SetZoomInternal(double zoom_level, double css_zoom_factor);
+
   WebInputEventResult HandleCapturedMouseEvent(const WebCoalescedInputEvent&);
   void MouseContextMenu(const WebMouseEvent&);
   void CancelDrag();
@@ -917,10 +960,15 @@ class CORE_EXPORT WebFrameWidgetImpl
 
   void SendOverscrollEventFromImplSide(const gfx::Vector2dF& overscroll_delta,
                                        cc::ElementId scroll_latched_element_id);
-  void SendEndOfScrollEvents(bool affects_outer_viewport,
-                             bool affects_inner_viewport,
-                             cc::ElementId scroll_latched_element_id);
-  void SendSnapChangingEventIfNeeded(
+  // TODO(crbug.com/372627916): This function is not used when
+  // MultipleImplOnlyScrollAnimations is enabled. It should be considered
+  // deprecated and should be deleted when the MultipleImplOnlyScrollAnimations
+  // code path is the only existing code path.
+  void SendEndOfScrollEventsDeprecated(bool affects_outer_viewport,
+                                       bool affects_inner_viewport,
+                                       cc::ElementId scroll_latched_element_id);
+  void SendEndOfScrollEvents(const cc::CompositorCommitData& commit_data);
+  void SendScrollSnapChangingEventIfNeeded(
       const cc::CompositorCommitData& commit_data);
   void RecordManipulationTypeCounts(cc::ManipulationInfo info);
 
@@ -1006,8 +1054,6 @@ class CORE_EXPORT WebFrameWidgetImpl
   bool DidChangeFullscreenState(
       const VisualProperties& visual_properties) const;
 
-  void NotifyZoomLevelChanged(LocalFrame* root);
-
   // Satisfy the render blocking condition for cross-document view transitions.
   void NotifyViewTransitionRenderingHasBegun();
 
@@ -1017,10 +1063,21 @@ class CORE_EXPORT WebFrameWidgetImpl
   // Triggers onmove event for window.
   void EnqueueMoveEvent();
 
-  // Stores the current composition line bounds. These bounds are rectangles
-  // which surround each line of text in a currently focused input or textarea
-  // element.
-  Vector<gfx::Rect> input_visible_line_bounds_;
+  // Let latched scroller know to unpin its selected scroll-marker.
+  void NotifyLatchedScrollMarkerGroup(
+      const cc::CompositorCommitData& commit_data);
+
+#if BUILDFLAG(IS_WIN)
+  // Computes a contiguous range of character bounds within proximity of
+  // `pivot_position` to enable gesture support for StylusHandwritingWin.
+  mojom::blink::ProximateCharacterRangeBoundsPtr
+  ComputeProximateCharacterBounds(
+      const PositionWithAffinity& pivot_position) const;
+#endif  // BUILDFLAG(IS_WIN)
+
+  // Stores the last cursor anchor info calculated for the currently focused
+  // editable element.
+  mojom::blink::InputCursorAnchorInfoPtr last_cursor_anchor_info_;
 
   // A copy of the web drop data object we received from the browser.
   Member<DataObject> current_drag_data_;
@@ -1062,8 +1119,8 @@ class CORE_EXPORT WebFrameWidgetImpl
   std::optional<gfx::Size> size_;
 
   // The amount the top-most widget has been resized by the virtual keyboard,
-  // in physical pixels.
-  int virtual_keyboard_resize_height_physical_px_ = 0;
+  // in device pixels.
+  int virtual_keyboard_resize_height_device_px_ = 0;
 
   static bool ignore_input_events_;
 
@@ -1075,10 +1132,11 @@ class CORE_EXPORT WebFrameWidgetImpl
   Member<WebLocalFrameImpl> local_root_;
 
   mojom::blink::DisplayMode display_mode_;
-  ui::WindowShowState window_show_state_;
+  ui::mojom::blink::WindowShowState window_show_state_;
   bool resizable_;
 
-  WebVector<gfx::Rect> viewport_segments_;
+  std::vector<gfx::Rect> viewport_segments_
+      ALLOW_DISCOURAGED_TYPE("Will be passed to FrameVisualProperties");
 
   // This is owned by the LayerTreeHostImpl, and should only be used on the
   // compositor thread, so we keep the TaskRunner where you post tasks to
@@ -1100,14 +1158,12 @@ class CORE_EXPORT WebFrameWidgetImpl
   // WebFrameWidgetImpl is not tied to ExecutionContext
   HeapMojoAssociatedReceiver<mojom::blink::FrameWidget, WebFrameWidgetImpl>
       receiver_{this, nullptr};
-  HeapMojoReceiver<viz::mojom::blink::InputTargetClient, WebFrameWidgetImpl>
-      input_target_receiver_{this, nullptr};
+  HeapMojoReceiverSet<viz::mojom::blink::InputTargetClient, WebFrameWidgetImpl>
+      input_target_receivers_;
 
-#if BUILDFLAG(IS_ANDROID)
   // WebFrameWidgetImpl is not tied to ExecutionContext
   HeapMojoRemote<mojom::blink::ImeRenderWidgetHost> ime_render_widget_host_{
       nullptr};
-#endif
 
   // Different consumers in the browser process makes different assumptions, so
   // must always send the first IPC regardless of value.
@@ -1175,6 +1231,11 @@ class CORE_EXPORT WebFrameWidgetImpl
   // frame widgets.
   float device_scale_factor_for_testing_ = 0;
 
+  // When device_scale_factor_for_testing_ is set (i.e. nonzero), this
+  // stores the device scale factor before the testing override was set.
+  // Otherwise it is set to zero.
+  float non_testing_device_scale_factor_ = 0;
+
   // This struct contains data that is only valid for main frame widgets.
   // You should use `main_data()` to access it.
   struct MainFrameData {
@@ -1187,8 +1248,8 @@ class CORE_EXPORT WebFrameWidgetImpl
     // Last background color sent to the browser. Only set for main frames.
     std::optional<SkColor> last_background_color;
     // This bit is used to tell if this is a nested widget (an "inner web
-    // contents") like a <webview> or <portal> widget. If false, the widget is
-    // the top level widget.
+    // contents") like a <webview>. If false, the widget is the top level
+    // widget.
     bool is_for_nested_main_frame = false;
   } main_frame_data_;
 
@@ -1208,7 +1269,7 @@ class CORE_EXPORT WebFrameWidgetImpl
   // all embedded scenarios).
   const bool is_for_child_local_root_;
 
-  // Whether this widget is for a portal, guest view, or top level frame.
+  // Whether this widget is for a guest view, or top level frame.
   // These may have a page scale node, so it is important to plumb this
   // information through to avoid breaking assumptions.
   const bool is_for_scalable_page_;
@@ -1223,6 +1284,13 @@ class CORE_EXPORT WebFrameWidgetImpl
 
   base::WeakPtrFactory<mojom::blink::FrameWidgetInputHandler>
       input_handler_weak_ptr_factory_{this};
+
+  double zoom_level_ = 0;
+  double css_zoom_factor_ = 1;
+
+  std::optional<float> browser_controls_top_height_override_;
+
+  bool throttling_frame_rate_ = false;
 };
 
 }  // namespace blink

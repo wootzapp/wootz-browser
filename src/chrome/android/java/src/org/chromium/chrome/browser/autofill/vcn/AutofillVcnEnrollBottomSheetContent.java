@@ -4,10 +4,13 @@
 
 package org.chromium.chrome.browser.autofill.vcn;
 
+import android.content.Context;
 import android.view.View;
 import android.widget.ScrollView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
@@ -70,23 +73,23 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
     }
 
     @Override
-    public int getSheetContentDescriptionStringId() {
-        return R.string.autofill_virtual_card_enroll_content_description;
+    public @NonNull String getSheetContentDescription(Context context) {
+        return context.getString(R.string.autofill_virtual_card_enroll_content_description);
     }
 
     @Override
-    public int getSheetHalfHeightAccessibilityStringId() {
+    public @StringRes int getSheetHalfHeightAccessibilityStringId() {
         assert false : "Half height is disabled for virtual card enrollment bottom sheet";
         return R.string.autofill_virtual_card_enroll_content_description;
     }
 
     @Override
-    public int getSheetFullHeightAccessibilityStringId() {
+    public @StringRes int getSheetFullHeightAccessibilityStringId() {
         return R.string.autofill_virtual_card_enroll_full_height_content_description;
     }
 
     @Override
-    public int getSheetClosedAccessibilityStringId() {
+    public @StringRes int getSheetClosedAccessibilityStringId() {
         return R.string.autofill_virtual_card_enroll_closed_description;
     }
 

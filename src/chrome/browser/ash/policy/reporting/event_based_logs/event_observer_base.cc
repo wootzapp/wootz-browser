@@ -9,9 +9,12 @@
 #include <string>
 #include <utility>
 
+#include "base/check_is_test.h"
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
 #include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/notreached.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -51,6 +54,14 @@ std::optional<base::Time> GetLastUploadTimeOf(const PrefService& local_state,
 
 namespace policy {
 
+// LINT.IfChange
+const char kEventLogUploadTypeOsUpdateFailureHistogram[] =
+    "Enterprise.EventBasedLogUpload.OSUpdateFailureTriggered";
+const char kEventLogUploadTypeFatalCrashHistogram[] =
+    "Enterprise.EventBasedLogUpload.FatalCrashTriggered";
+const char kEventLogUploadAllHistogram[] = "Enterprise.EventBasedLogUpload.All";
+// LINT.ThenChange(//tools/metrics/histograms/metadata/enterprise/histograms.xml)
+
 EventObserverBase::EventObserverBase() = default;
 EventObserverBase::~EventObserverBase() = default;
 
@@ -58,20 +69,32 @@ std::string EventObserverBase::GetEventName() const {
   return ash::reporting::TriggerEventType_Name(GetEventType());
 }
 
+void EventObserverBase::SetLogUploaderForTesting(
+    std::unique_ptr<EventBasedLogUploader> log_uploader) {
+  CHECK_IS_TEST();
+  log_uploader_ = std::move(log_uploader);
+}
+
 void EventObserverBase::TriggerLogUpload(
     std::optional<std::string> upload_id,
     base::OnceCallback<void(EventBasedUploadStatus)> on_upload_triggered,
     base::TimeDelta upload_wait_period) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!IsUploadWaitPeriodFinished(upload_wait_period)) {
+  if (!on_log_upload_triggered_.is_null() ||
+      !IsUploadWaitPeriodFinished(upload_wait_period)) {
     LOG(WARNING) << "Event based log upload is dropped because upload "
-                    "wait period isn't finished for event type: "
+                    "wait period isn't finished or already ongoing upload "
+                    "exists for event type: "
                  << GetEventName();
+    EmitMetrics(EventBasedUploadStatus::kDeclined);
     std::move(on_upload_triggered).Run(EventBasedUploadStatus::kDeclined);
     return;
   }
   on_log_upload_triggered_ = std::move(on_upload_triggered);
-  log_uploader_ = std::make_unique<EventBasedLogUploader>();
+  // `log_uploader_` could already be set for testing.
+  if (!log_uploader_) {
+    log_uploader_ = std::make_unique<EventBasedLogUploaderImpl>();
+  }
   log_uploader_->UploadEventBasedLogs(
       GetDataCollectorTypes(), GetEventType(), upload_id,
       base::BindOnce(&EventObserverBase::OnLogUploaderDone,
@@ -80,18 +103,19 @@ void EventObserverBase::TriggerLogUpload(
 
 void EventObserverBase::OnLogUploaderDone(reporting::Status status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  log_uploader_.reset();
   if (!status.ok()) {
     LOG(ERROR)
         << GetEventName()
         << " event based log upload failed on reporting pipeline with error: "
         << status.error_message();
+    EmitMetrics(EventBasedUploadStatus::kFailure);
     std::move(on_log_upload_triggered_).Run(EventBasedUploadStatus::kFailure);
     return;
   }
   VLOG(0) << GetEventName()
           << " event based log upload completed successfully.";
   RecordUploadTime(base::Time::NowFromSystemTime());
+  EmitMetrics(EventBasedUploadStatus::kSuccess);
   std::move(on_log_upload_triggered_).Run(EventBasedUploadStatus::kSuccess);
 }
 
@@ -118,6 +142,31 @@ void EventObserverBase::RecordUploadTime(base::Time timestamp) {
   ::prefs::ScopedDictionaryPrefUpdate last_upload_times_update(
       g_browser_process->local_state(), prefs::kEventBasedLogLastUploadTimes);
   last_upload_times_update->Set(GetEventName(), base::TimeToValue(timestamp));
+}
+
+void EventObserverBase::EmitMetrics(EventBasedUploadStatus result_status) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  // Emit the status into the parent histogram to track the overall activity of
+  // the feature.
+  base::UmaHistogramEnumeration(kEventLogUploadAllHistogram, result_status);
+
+  switch (GetEventType()) {
+    case ash::reporting::TriggerEventType::OS_UPDATE_FAILED:
+      base::UmaHistogramEnumeration(kEventLogUploadTypeOsUpdateFailureHistogram,
+                                    result_status);
+      break;
+    case ash::reporting::TriggerEventType::FATAL_CRASH:
+      base::UmaHistogramEnumeration(kEventLogUploadTypeFatalCrashHistogram,
+                                    result_status);
+      break;
+    case ash::reporting::TriggerEventType::TRIGGER_EVENT_TYPE_UNSPECIFIED:
+      // This case shouldn't happen except testing so we don't emit anything.
+      break;
+    default:
+      // All possible values must be handled above.
+      NOTREACHED();
+  }
 }
 
 }  // namespace policy

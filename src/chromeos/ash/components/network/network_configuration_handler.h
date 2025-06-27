@@ -24,13 +24,16 @@
 #include "chromeos/ash/components/network/network_handler_callbacks.h"
 #include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/ash/components/network/network_state_handler_observer.h"
-#include "chromeos/dbus/common/dbus_method_call_status.h"
+#include "chromeos/dbus/common/dbus_callback.h"
 
 namespace dbus {
 class ObjectPath;
 }
 
 namespace ash {
+
+inline constexpr char kTemporaryServiceConfiguredButNotUsable[] =
+    "Temporary service configured but not usable";
 
 // The NetworkConfigurationHandler class is used to create and configure
 // networks in ChromeOS. It mostly calls through to the Shill service API, and

@@ -9,7 +9,6 @@
 
 #include "base/check.h"
 #include "base/containers/contains.h"
-#include "base/debug/dump_without_crashing.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
@@ -162,8 +161,7 @@ void FilesystemImpl::OpenFile(const base::FilePath& path,
       flags |= base::File::FLAG_OPEN_TRUNCATED;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 
   switch (read_access) {
@@ -173,8 +171,7 @@ void FilesystemImpl::OpenFile(const base::FilePath& path,
       flags |= base::File::FLAG_READ;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   switch (write_access) {
@@ -187,8 +184,7 @@ void FilesystemImpl::OpenFile(const base::FilePath& path,
       flags |= base::File::FLAG_APPEND;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   if (client_type_ == ClientType::kUntrusted) {
@@ -240,7 +236,8 @@ void FilesystemImpl::RenameFile(const base::FilePath& old_path,
 
 void FilesystemImpl::LockFile(const base::FilePath& path,
                               LockFileCallback callback) {
-  ASSIGN_OR_RETURN(base::File result, LockFileLocal(MakeAbsolute(path)),
+  ASSIGN_OR_RETURN(base::File result,
+                   LockFileLocal(MakeAbsolute(path), nullptr),
                    [&](base::File::Error error) {
                      std::move(callback).Run(error, mojo::NullRemote());
                    });
@@ -252,16 +249,10 @@ void FilesystemImpl::LockFile(const base::FilePath& path,
   std::move(callback).Run(base::File::FILE_OK, std::move(lock));
 }
 
-void FilesystemImpl::SetOpenedFileLength(base::File file,
-                                         uint64_t length,
-                                         SetOpenedFileLengthCallback callback) {
-  bool success = file.SetLength(length);
-  std::move(callback).Run(success, std::move(file));
-}
-
 // static
 base::FileErrorOr<base::File> FilesystemImpl::LockFileLocal(
-    const base::FilePath& path) {
+    const base::FilePath& path,
+    bool* same_process_failure) {
   DCHECK(path.IsAbsolute());
   base::File file(path, base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
                             base::File::FLAG_WRITE);
@@ -269,9 +260,9 @@ base::FileErrorOr<base::File> FilesystemImpl::LockFileLocal(
     return base::unexpected(file.error_details());
 
   if (!GetLockTable().AddLock(path)) {
-    // TODO(crbug.com/340398745): resolve this mystery and remove this line, or
-    // even replace it with a CHECK.
-    base::debug::DumpWithoutCrashing();
+    if (same_process_failure) {
+      *same_process_failure = true;
+    }
     return base::unexpected(base::File::FILE_ERROR_IN_USE);
   }
 

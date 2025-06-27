@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 
 import("//build/buildflag_header.gni")
-import("//build/config/chromeos/ui_mode.gni")
 import("//components/signin/features.gni")
 import("//third_party/protobuf/proto_library.gni")
 
@@ -43,8 +42,6 @@ static_library("base") {
     "multilogin_parameters.h",
     "persistent_repeating_timer.cc",
     "persistent_repeating_timer.h",
-    "session_binding_utils.cc",
-    "session_binding_utils.h",
     "signin_client.cc",
     "signin_client.h",
     "signin_metrics.cc",
@@ -55,7 +52,6 @@ static_library("base") {
     "wait_for_network_callback_helper.h",
   ]
   deps = [
-    "//build:chromeos_buildflags",
     "//components/prefs",
     "//third_party/boringssl",
     "//third_party/icu:icui18n",
@@ -76,11 +72,8 @@ static_library("base") {
     deps += [ "//components/signin/public/android:jni_headers" ]
   }
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps += [ "//components/user_manager" ]
-    public_deps += [ "//components/account_manager_core" ]
-  }
-  if (is_chromeos_lacros) {
     public_deps += [ "//components/account_manager_core" ]
   }
 
@@ -89,6 +82,8 @@ static_library("base") {
       "bound_session_oauth_multilogin_delegate.h",
       "hybrid_encryption_key.cc",
       "hybrid_encryption_key.h",
+      "session_binding_utils.cc",
+      "session_binding_utils.h",
     ]
     public_deps += [ ":hybrid_encryption_key_proto" ]
   }
@@ -108,15 +103,21 @@ static_library("test_support") {
   sources = [
     "list_accounts_test_utils.cc",
     "list_accounts_test_utils.h",
-    "session_binding_test_utils.cc",
-    "session_binding_test_utils.h",
     "test_signin_client.cc",
     "test_signin_client.h",
   ]
 
+  if (enable_bound_session_credentials) {
+    sources += [
+      "hybrid_encryption_key_test_utils.cc",
+      "hybrid_encryption_key_test_utils.h",
+      "session_binding_test_utils.cc",
+      "session_binding_test_utils.h",
+    ]
+  }
+
   deps = [
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/prefs",
 
     # TODO(b/309104936): Remove this unwanted dependency.
@@ -140,20 +141,22 @@ source_set("unit_tests") {
     "device_id_helper_unittest.cc",
     "gaia_id_hash_unittest.cc",
     "persistent_repeating_timer_unittest.cc",
-    "session_binding_utils_unittest.cc",
     "signin_metrics_unittest.cc",
     "signin_prefs_unittest.cc",
   ]
 
   if (enable_bound_session_credentials) {
-    sources += [ "hybrid_encryption_key_unittest.cc" ]
+    sources += [
+      "hybrid_encryption_key_unittest.cc",
+      "session_binding_utils_unittest.cc",
+    ]
   }
 
   deps = [
     ":base",
+    ":test_support",
     "//base",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/prefs:test_support",
     "//components/sync_preferences:test_support",
     "//testing/gtest",
@@ -176,7 +179,6 @@ component("signin_switches") {
   deps = [
     ":signin_buildflags",
     "//base",
-    "//build:chromeos_buildflags",
     "//components/prefs",
   ]
 }

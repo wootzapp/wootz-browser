@@ -171,6 +171,9 @@ class FilesPolicyNotificationManager
     // requires a user justification that should be used when displaying the
     // dialog.
     FilesPolicyDialog::Info dialog_info;
+
+    // A potentially saved justification for bypassing a warning.
+    std::optional<std::u16string> user_justification;
   };
 
   // Holds needed information for each tracked file task.
@@ -331,13 +334,13 @@ class FilesPolicyNotificationManager
   bool HasWarning(file_manager::io_task::IOTaskId task_id) const;
 
   // Returns whether non IO task is being tracked.
-  bool HasNonIOTask(const std::string notification_id) const;
+  bool HasNonIOTask(const std::string& notification_id) const;
 
   // Returns whether non IO task has any blocked file.
-  bool HasBlockedFiles(const std::string notification_id) const;
+  bool HasBlockedFiles(const std::string& notification_id) const;
 
   // Returns whether non IO task has a warning.
-  bool HasWarning(const std::string notification_id) const;
+  bool HasWarning(const std::string& notification_id) const;
 
   // Called when the user clicks on one of the warning dialog's buttons.
   // Resumes/cancels the task with `task_id` based on the value of

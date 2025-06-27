@@ -26,6 +26,9 @@ class CONTENT_EXPORT PressureServiceForFrame
   // PressureServiceBase override.
   bool CanCallAddClient() const override;
   bool ShouldDeliverUpdate() const override;
+  std::optional<base::UnguessableToken> GetTokenFor(
+      device::mojom::PressureSource) const override;
+  RenderFrameHost* GetRenderFrameHost() const override;
 
  private:
   explicit PressureServiceForFrame(RenderFrameHost* render_frame_host);

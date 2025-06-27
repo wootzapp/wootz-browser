@@ -37,9 +37,6 @@ class CaptureModeMenuToggleButton : public views::View {
 
   Switch* toggle_button() { return toggle_button_; }
 
-  // views::View
-  void OnThemeChanged() override;
-
  private:
   raw_ptr<views::ImageView> icon_view_;
   raw_ptr<views::Label> label_view_;
@@ -50,4 +47,4 @@ class CaptureModeMenuToggleButton : public views::View {
 
 }  // namespace ash
 
-#endif  // ASH_CAPTURE_MODE_CAPTURE_MODE_CAMERA_PREVIEW_VIEW_H_
+#endif  // ASH_CAPTURE_MODE_CAPTURE_MODE_MENU_TOGGLE_BUTTON_H_

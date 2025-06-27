@@ -7,9 +7,12 @@
 
 use crate::group::Group;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-
+use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::Path,
+};
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -39,6 +42,12 @@ impl BuildConfig {
         let all: Option<&Vec<String>> = Some(entry_getter(&self.all_config));
         let per: Option<&Vec<String>> = self.per_crate_config.get(package_name).map(entry_getter);
         all.into_iter().chain(per).flatten().map(String::as_str).collect()
+    }
+
+    pub fn from_path(path: &Path) -> Result<Self> {
+        let context = || format!("Error reading `gnrt_config.toml` from `{}`", path.display());
+        let file_content = std::fs::read_to_string(path).with_context(context)?;
+        toml::de::from_str(&file_content).with_context(context)
     }
 }
 
@@ -85,7 +94,7 @@ pub struct ResolveConfig {
     /// sparingly; it does not affect Cargo's dependency resolution, so the
     /// output can easily be incorrect. This is primarily intended to work
     /// around bugs in `cargo metadata` output.
-    pub remove_crates: Vec<String>,
+    pub remove_crates: HashSet<String>,
 }
 
 /// Customizes GN output for a crate.
@@ -107,12 +116,14 @@ pub struct CrateConfig {
     /// If true, the build script should not be built or used.
     #[serde(default)]
     pub remove_build_rs: bool,
-    /// Include rs and input files under these relative paths as part of the
-    /// crate. The roots may each be a single file or a directory.
+    /// Include rs and input files under these paths relative to the crate's
+    /// root source file as part of the crate. The roots may each be a single
+    /// file or a directory.
     #[serde(default)]
     pub extra_src_roots: Vec<std::path::PathBuf>,
-    /// Include input files under these relative paths as part of the crate.
-    /// The roots may each be a single file or a directory.
+    /// Include input files under these paths relative to the crate's root
+    /// source file as part of the crate. The roots may each be a single file or
+    /// a directory.
     #[serde(default)]
     pub extra_input_roots: Vec<std::path::PathBuf>,
     /// Include rs and input files under these relative paths as part of the
@@ -147,6 +158,18 @@ pub struct CrateConfig {
     pub license: Option<String>,
     #[serde(default)]
     pub license_files: Vec<String>,
+    /// Include `.lib` files under these paths relative to the crate's root
+    /// source file as part of the crate. They will be available for #[link]
+    /// directives in the crate. The roots may each be a single file or a
+    /// directory.
+    ///
+    /// These paths are the only ones searched for lib files, unlike
+    /// `extra_src_roots`. Nothing is searched if this is empty.
+    #[serde(default)]
+    pub native_libs_roots: Vec<std::path::PathBuf>,
+    /// Whether the crate is permitted to have no license files.
+    #[serde(default)]
+    pub no_license_file_tracked_in_crbug_369075726: bool,
 }
 
 #[cfg(test)]

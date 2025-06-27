@@ -16,6 +16,14 @@ namespace autofill {
 
 namespace password_generation {
 
+// Minimal length of the generated password.
+inline constexpr int kMinimumPasswordLength = 9;
+
+// Minimum password length that allows to label the password as strong in the
+// UI. Must stay in sync with LENGTH_SUFFICIENT_FOR_STRONG_LABEL in
+// TouchToFillPasswordGenerationView.java
+inline constexpr int kLengthSufficientForStrongLabel = 12;
+
 // Enumerates various events related to the password generation process.
 // Do not remove items from this enum as they are used for UMA stats logging.
 enum PasswordGenerationEvent {
@@ -156,8 +164,8 @@ struct PasswordGenerationUIData {
   // The form associated with the password field.
   FormData form_data;
 
-  // Whether the password input field is empty.
-  bool input_field_empty = false;
+  // Whether the password generation was rejected by the user.
+  bool generation_rejected = false;
 };
 
 void LogPasswordGenerationEvent(PasswordGenerationEvent event);

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/common/android/gin_java_bridge_value.h"
 
 #include "base/containers/span.h"
@@ -138,7 +143,7 @@ GinJavaBridgeValue::GinJavaBridgeValue(const base::Value* value)
 std::unique_ptr<base::Value> GinJavaBridgeValue::SerializeToBinaryValue() {
   const auto* data = static_cast<const uint8_t*>(pickle_.data());
   return base::Value::ToUniquePtrValue(
-      base::Value(base::make_span(data, pickle_.size())));
+      base::Value(base::span(data, pickle_.size())));
 }
 
 }  // namespace content

@@ -6,6 +6,7 @@
 
 #include <fuchsia/web/cpp/fidl.h>
 #include <lib/fit/function.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -19,6 +20,7 @@
 #include "base/fuchsia/process_context.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/not_fatal_until.h"
 #include "base/process/process.h"
 #include "base/strings/strcat.h"
 #include "base/time/time.h"
@@ -239,6 +241,11 @@ void CastRunner::Start(
   }
 }
 
+void CastRunner::handle_unknown_method(uint64_t ordinal,
+                                       bool method_has_response) {
+  LOG(ERROR) << "Unknown method called on CastRunner. Ordinal: " << ordinal;
+}
+
 void CastRunner::DeletePersistentData(DeletePersistentDataCallback callback) {
   if (data_reset_in_progress_) {
     // Repeated requests to DeletePersistentData are not supported.
@@ -455,7 +462,7 @@ WebContentRunner* CastRunner::CreateIsolatedRunner(
 
 void CastRunner::OnIsolatedContextEmpty(WebContentRunner* context) {
   auto it = isolated_contexts_.find(context);
-  DCHECK(it != isolated_contexts_.end());
+  CHECK(it != isolated_contexts_.end(), base::NotFatalUntil::M130);
   isolated_contexts_.erase(it);
 }
 

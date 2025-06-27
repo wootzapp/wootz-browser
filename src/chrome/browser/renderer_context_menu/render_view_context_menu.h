@@ -10,13 +10,14 @@
 #include <string>
 #include <vector>
 
+#include "base/containers/fixed_flat_set.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/autofill/autofill_context_menu_manager.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "components/compose/buildflags.h"
@@ -28,17 +29,16 @@
 #include "components/renderer_context_menu/render_view_context_menu_proxy.h"
 #include "components/search_engines/template_url.h"
 #include "components/supervised_user/core/browser/supervised_user_url_filter.h"
-#include "components/supervised_user/core/browser/supervised_user_utils.h"
 #include "content/public/browser/context_menu_params.h"
 #include "extensions/buildflags/buildflags.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
 #include "ppapi/buildflags/buildflags.h"
 #include "printing/buildflags/buildflags.h"
-#include "services/screen_ai/buildflags/buildflags.h"
 #include "third_party/blink/public/mojom/frame/frame.mojom-forward.h"
 #include "ui/base/interaction/element_identifier.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/vector2d.h"
+#include "ui/menus/simple_menu_model.h"
 
 #if BUILDFLAG(ENABLE_COMPOSE)
 #include "chrome/browser/compose/chrome_compose_client.h"
@@ -62,19 +62,17 @@ class Profile;
 class ReadWriteCardObserver;
 class SpellingMenuObserver;
 class SpellingOptionsSubMenuObserver;
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-class PdfOcrMenuObserver;
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+class ToastController;
 
 namespace content {
 class RenderFrameHost;
 class WebContents;
-}
+}  // namespace content
 
 namespace extensions {
 class Extension;
 class MenuItem;
-}
+}  // namespace extensions
 
 namespace gfx {
 class Point;
@@ -84,19 +82,17 @@ namespace blink {
 namespace mojom {
 class MediaPlayerAction;
 }
-}
+}  // namespace blink
 
 namespace ui {
 class DataTransferEndpoint;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 namespace ash {
 class SystemWebAppDelegate;
 }
-#endif
 
-#if BUILDFLAG(IS_CHROMEOS)
 namespace chromeos::clipboard_history {
 class ClipboardHistorySubmenuModel;
 }  // namespace chromeos::clipboard_history
@@ -112,8 +108,11 @@ class RenderViewContextMenu
  public:
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kExitFullscreenMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kComposeMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kGlicCloseMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kGlicReloadMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kRegionSearchItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSearchForImageItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSearchForVideoFrameItem);
 
   using ExecutePluginActionCallback =
       base::OnceCallback<void(content::RenderFrameHost*,
@@ -138,7 +137,6 @@ class RenderViewContextMenu
   void ExecuteCommand(int command_id, int event_flags) override;
   void AddSpellCheckServiceItem(bool is_checked) override;
   void AddAccessibilityLabelsServiceItem(bool is_checked) override;
-  void AddPdfOcrMenuItem() override;
 
   // Registers a one-time callback that will be called the next time a context
   // menu is shown.
@@ -157,6 +155,9 @@ class RenderViewContextMenu
   }
 #endif
 
+  void AddObserverForTesting(RenderViewContextMenuObserver* observer);
+  void RemoveObserverForTesting(RenderViewContextMenuObserver* observer);
+
  protected:
   Profile* GetProfile() const;
 
@@ -164,11 +165,12 @@ class RenderViewContextMenu
   // override.
   virtual Browser* GetBrowser() const;
 
+  // May return nullptr if the WebContents does not have an associated
+  // BrowserWindowInterface (e.g. in isolated WebUI, or in tests).
+  ToastController* GetToastController() const;
+
   // Returns the correct IDC for the Search by Image context menu string
   int GetSearchForImageIdc() const;
-
-  // Returns the correct IDC for the Translate Image context menu string
-  int GetTranslateImageIdc() const;
 
   // Returns the correct IDC for the Region Search context menu string
   int GetRegionSearchIdc() const;
@@ -212,11 +214,9 @@ class RenderViewContextMenu
 #endif
 
   // RenderViewContextMenuBase:
-  // If called in Ash when Lacros is the only browser, this open the URL in
-  // Lacros. In that case, only the |url| and some values of |disposition| are
-  // respected - other parameters are ignored. The |initiator| parameter is the
-  // origin that supplied the URL being navigated to; it may be an opaque origin
-  // with no precursor if the URL came from the browser itself or the user.
+  // The |initiator| parameter is the origin that supplied the URL being
+  // navigated to; it may be an opaque origin with no precursor if the URL came
+  // from the browser itself or the user.
   void OpenURLWithExtraHeaders(const GURL& url,
                                const GURL& referring_url,
                                const url::Origin& initiator,
@@ -239,6 +239,10 @@ class RenderViewContextMenu
   static bool MenuItemMatchesParams(const content::ContextMenuParams& params,
                                     const extensions::MenuItem* item);
 #endif
+
+  // Returns true if the command id is gated by fenced frame untrusted network
+  // status.
+  static bool IsCommandGatedByFencedFrameUntrustedNetworkStatus(int id);
 
   // Formats a URL to be written to the clipboard and returns the formatted
   // string. Used by WriteURLToClipboard(), but kept in a separate function so
@@ -274,6 +278,7 @@ class RenderViewContextMenu
       bool is_full_page_translation) const;
 
   bool IsInProgressiveWebApp() const;
+  bool IsLinkToIsolatedWebApp() const;
 
   void AppendDeveloperItems();
   void AppendDevtoolsForUnpackedExtensions();
@@ -297,6 +302,7 @@ class RenderViewContextMenu
   void AppendTranslateItem();
   void AppendMediaRouterItem();
   void AppendReadingModeItem();
+  void AppendGlicItems();
   void AppendRotationItems();
   void AppendSpellingAndSearchSuggestionItems();
   void AppendOtherEditableItems();
@@ -305,10 +311,6 @@ class RenderViewContextMenu
   // Returns true if the items were appended. This might not happen in all
   // cases, e.g. these are only appended if a screen reader is enabled.
   bool AppendAccessibilityLabelsItems();
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  void AppendPdfOcrItems();
-  void AppendLayoutExtractionItem();
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
   void AppendSearchProvider();
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   void AppendAllExtensionItems();
@@ -335,7 +337,12 @@ class RenderViewContextMenu
       bool notify_if_restricted) const;
 
   // Helper function for checking policies.
-  bool IsSaveAsItemAllowedByPolicy() const;
+  bool IsSaveAsItemAllowedByPolicy(const GURL& item_url) const;
+
+  // Helper function for checking fenced frame tree untrusted network access
+  // status. For context menu commands that are gated on fenced frame untrusted
+  // network status, this check should be applied.
+  bool IsUntrustedNetworkDisabled() const;
 
   // Command enabled query functions.
   bool IsReloadEnabled() const;
@@ -351,14 +358,12 @@ class RenderViewContextMenu
   bool IsPrintPreviewEnabled() const;
   bool IsQRCodeGeneratorEnabled() const;
   bool IsRouteMediaEnabled() const;
-  bool IsOpenLinkOTREnabled() const;
   bool IsOpenLinkAllowedByDlp(const GURL& link_url) const;
   bool IsRegionSearchEnabled() const;
   bool IsAddANoteEnabled() const;
+  bool IsVideoFrameItemEnabled(int id) const;
 
   // Command execution functions.
-  void ExecSearchWebInCompanionSidePanel(const GURL& url);
-  void ExecSearchWebInSidePanel(const GURL& url);
   void ExecOpenWebApp();
   void ExecOpenLinkPreview();
   void ExecProtocolHandler(int event_flags, int handler_index);
@@ -370,17 +375,17 @@ class RenderViewContextMenu
   void ExecExitFullscreen();
   void ExecCopyLinkText();
   void ExecCopyImageAt();
-  void ExecSearchLensForImage(bool is_image_translate);
+  void ExecSearchLensForImage(int event_flags);
   void ExecAddANote();
   void ExecRegionSearch(int event_flags,
                         bool is_google_default_search_provider);
-  void ExecSearchWebForImage(bool is_image_translate);
+  void ExecSearchWebForImage();
   void ExecLoadImage();
   void ExecLoop();
   void ExecControls();
   void ExecSaveVideoFrameAs();
   void ExecCopyVideoFrame();
-  void ExecSearchForVideoFrame();
+  void ExecSearchForVideoFrame(int event_flags, bool is_lens_query);
   void ExecLiveCaption();
   void ExecRotateCW();
   void ExecRotateCCW();
@@ -397,12 +402,12 @@ class RenderViewContextMenu
   void ExecOpenCompose();
 #endif
   void ExecOpenInReadAnything();
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  void ExecRunLayoutExtraction();
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
   void MediaPlayerAction(const blink::mojom::MediaPlayerAction& action);
-  void SearchForVideoFrame(const gfx::ImageSkia& image);
+  void SearchForVideoFrame(int event_flags,
+                           bool is_lens_query,
+                           const SkBitmap& bitmap,
+                           const gfx::Rect& region_bounds);
   void PluginActionAt(const gfx::Point& location,
                       blink::mojom::PluginActionType plugin_action);
 
@@ -430,22 +435,21 @@ class RenderViewContextMenu
   // Does not execute "Save link as" if the URL is blocked by the URL filter.
   void CheckSupervisedUserURLFilterAndSaveLinkAs();
   void OnSupervisedUserURLFilterChecked(
-      supervised_user::FilteringBehavior filtering_behavior,
-      supervised_user::FilteringBehaviorReason reason,
-      bool uncertain);
+      supervised_user::SupervisedUserURLFilter::Result result);
 
   // Opens the Lens overlay to search a region defined by the given bounds of
   // the view and the image to be searched. Tab bounds and view bounds are
   // relative to the screen and in DP, while image bounds are relative to the
   // view and in physical pixels. The device scale factor is supplied to scale
   // the image bounds properly.
-  void OpenLensOverlayWithBounds(
+  void OpenLensOverlayWithPreselectedRegion(
       mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame>
           chrome_render_frame,
       const gfx::Rect& tab_bounds,
       const gfx::Rect& view_bounds,
       float device_scale_factor,
-      const gfx::Rect& image_bounds);
+      const SkBitmap& region_bytes,
+      const gfx::Rect& region_bitmap);
 
 #if BUILDFLAG(IS_CHROMEOS)
   // Shows the standalone clipboard history menu. `event_flags` describes the
@@ -488,12 +492,6 @@ class RenderViewContextMenu
       accessibility_labels_menu_observer_;
   ui::SimpleMenuModel accessibility_labels_submenu_model_;
 
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  // An observer that handles PDF OCR items.
-  std::unique_ptr<PdfOcrMenuObserver> pdf_ocr_submenu_model_observer_;
-  std::unique_ptr<ui::SimpleMenuModel> pdf_ocr_submenu_model_;
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-
 #if !BUILDFLAG(IS_MAC)
   // An observer that handles the submenu for showing spelling options. This
   // submenu lets users select the spelling language, for example.
@@ -532,10 +530,10 @@ class RenderViewContextMenu
   std::unique_ptr<ClickToCallContextMenuObserver>
       click_to_call_context_menu_observer_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // The system app (if any) associated with the WebContents we're in.
   raw_ptr<const ash::SystemWebAppDelegate> system_app_ = nullptr;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // A one-time callback that will be called the next time a plugin action is
   // executed from a given render frame.
@@ -554,6 +552,45 @@ class RenderViewContextMenu
 
   // Responsible for handling autofill related context menu items.
   autofill::AutofillContextMenuManager autofill_context_menu_manager_;
+
+  // Fenced frame can disable its untrusted network in exchange for access to
+  // unpartitioned cross-site data. To prevent cross-site data from leaking out
+  // of fenced frame, context menu commands should be gated on untrusted network
+  // status if:
+  // 1. It can be executed within a fenced frame.
+  // 2. It can transfer information out of fenced frame. Network request is the
+  // primary concern.
+  //
+  // See:
+  // https://github.com/WICG/fenced-frame/blob/master/explainer/fenced_frames_with_local_unpartitioned_data_access.md#revoking-network-access
+
+  // Note: Add `NO_IFTTT=<reason>` in the CL description if the linter is not
+  // applicable. For example, if a new command that is not gated on fenced frame
+  // network status is added, the following look up table does not require any
+  // change.
+  //
+  // LINT.IfChange(CommandsGatedOnFencedFrameUntrustedNetworkStatus)
+  static constexpr auto kFencedFrameUntrustedNetworkStatusGatedCommands =
+      base::MakeFixedFlatSet<int>(
+          {// For opening a link.
+           IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
+           IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
+           IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD,
+           IDC_OPEN_LINK_IN_PROFILE_FIRST, IDC_OPEN_LINK_IN_PROFILE_LAST,
+
+           // Open link commands that appear in certain scenarios.
+           IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP,
+           IDC_CONTENT_CONTEXT_OPENLINKINPROFILE, IDC_CONTENT_CONTEXT_GOTOURL,
+           IDC_CONTENT_CONTEXT_OPENLINKWITH, IDC_CONTENT_CONTEXT_OPENAVNEWTAB,
+           IDC_CONTENT_CONTEXT_OPENIMAGENEWTAB,
+
+           // Link preview feature.
+           IDC_CONTENT_CONTEXT_OPENLINKPREVIEW,
+
+           // Image loading commands.
+           IDC_CONTENT_CONTEXT_LOAD_IMAGE,
+           IDC_CONTENT_CONTEXT_OPEN_ORIGINAL_IMAGE_NEW_TAB});
+  // LINT.ThenChange(//chrome/app/chrome_command_ids.h:ChromeCommandIds)
 
   base::WeakPtrFactory<RenderViewContextMenu> weak_pointer_factory_{this};
 };

@@ -48,6 +48,7 @@ namespace {
 
 scoped_refptr<FontPalette> RetrieveFontPaletteFromStyleEngine(
     scoped_refptr<const FontPalette> request_palette,
+    const Document& document,
     StyleEngine& style_engine,
     const AtomicString& family_name) {
   AtomicString requested_palette_values =
@@ -62,7 +63,7 @@ scoped_refptr<FontPalette> RetrieveFontPaletteFromStyleEngine(
     new_request_palette->SetBasePalette(
         font_palette_values->GetBasePaletteIndex());
     Vector<FontPalette::FontPaletteOverride> override_colors =
-        font_palette_values->GetOverrideColorsAsVector();
+        font_palette_values->GetOverrideColorsAsVector(document);
     if (override_colors.size()) {
       new_request_palette->SetColorOverrides(std::move(override_colors));
     }
@@ -73,23 +74,24 @@ scoped_refptr<FontPalette> RetrieveFontPaletteFromStyleEngine(
 
 scoped_refptr<const FontPalette> ResolveInterpolableFontPalette(
     scoped_refptr<const FontPalette> font_palette,
+    const Document& document,
     StyleEngine& style_engine,
     const AtomicString& family_name) {
   if (!font_palette->IsInterpolablePalette()) {
     if (font_palette->IsCustomPalette()) {
       scoped_refptr<FontPalette> retrieved_palette =
-          RetrieveFontPaletteFromStyleEngine(font_palette, style_engine,
-                                             family_name);
+          RetrieveFontPaletteFromStyleEngine(font_palette, document,
+                                             style_engine, family_name);
       return retrieved_palette ? retrieved_palette : FontPalette::Create();
     } else {
       return font_palette;
     }
   }
   scoped_refptr<const FontPalette> start_palette =
-      ResolveInterpolableFontPalette(font_palette->GetStart(), style_engine,
-                                     family_name);
+      ResolveInterpolableFontPalette(font_palette->GetStart(), document,
+                                     style_engine, family_name);
   scoped_refptr<const FontPalette> end_palette = ResolveInterpolableFontPalette(
-      font_palette->GetEnd(), style_engine, family_name);
+      font_palette->GetEnd(), document, style_engine, family_name);
 
   // If two endpoints of the interpolation are equal, we can simplify the tree
   if (*start_palette.get() == *end_palette.get()) {
@@ -174,18 +176,18 @@ const FontData* CSSFontSelector::GetFontData(
   if (request_palette && request_palette->IsCustomPalette()) {
     scoped_refptr<FontPalette> new_request_palette =
         RetrieveFontPaletteFromStyleEngine(
-            request_palette, document.GetStyleEngine(), family_name);
+            request_palette, document, document.GetStyleEngine(), family_name);
     if (new_request_palette) {
-      request_description.SetFontPalette(new_request_palette);
+      request_description.SetFontPalette(std::move(new_request_palette));
     }
   }
 
-  if (RuntimeEnabledFeatures::FontPaletteAnimationEnabled() &&
-      request_palette && request_palette->IsInterpolablePalette()) {
+  if (request_palette && request_palette->IsInterpolablePalette()) {
     scoped_refptr<const FontPalette> computed_interpolable_palette =
-        ResolveInterpolableFontPalette(request_palette,
+        ResolveInterpolableFontPalette(request_palette, document,
                                        document.GetStyleEngine(), family_name);
-    request_description.SetFontPalette(computed_interpolable_palette);
+    request_description.SetFontPalette(
+        std::move(computed_interpolable_palette));
   }
 
   if (request_description.GetFontVariantAlternates()) {
@@ -200,22 +202,22 @@ const FontData* CSSFontSelector::GetFontData(
     scoped_refptr<FontVariantAlternates> new_alternates = nullptr;
     if (feature_values_storage) {
       new_alternates = request_description.GetFontVariantAlternates()->Resolve(
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveStylistic(alias);
           },
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveStyleset(alias);
           },
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveCharacterVariant(alias);
           },
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveSwash(alias);
           },
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveOrnaments(alias);
           },
-          [feature_values_storage](AtomicString alias) {
+          [feature_values_storage](const AtomicString& alias) {
             return feature_values_storage->ResolveAnnotation(alias);
           });
     } else {
@@ -223,13 +225,15 @@ const FontData* CSSFontSelector::GetFontData(
       // it still needs a resolve call to convert historical-forms state (which
       // is not looked-up against StyleRuleFontFeatureValues) to an internal
       // feature.
-      auto no_lookup = [](AtomicString) -> Vector<uint32_t> { return {}; };
+      auto no_lookup = [](const AtomicString&) -> Vector<uint32_t> {
+        return {};
+      };
       new_alternates = request_description.GetFontVariantAlternates()->Resolve(
           no_lookup, no_lookup, no_lookup, no_lookup, no_lookup, no_lookup);
     }
 
     if (new_alternates) {
-      request_description.SetFontVariantAlternates(new_alternates);
+      request_description.SetFontVariantAlternates(std::move(new_alternates));
     }
   }
 
@@ -248,10 +252,6 @@ const FontData* CSSFontSelector::GetFontData(
     return nullptr;
   }
 
-  ReportFontFamilyLookupByGenericFamily(
-      family_name, request_description.GetScript(),
-      request_description.GenericFamily(), settings_family_name);
-
   const SimpleFontData* font_data =
       FontCache::Get().GetFontData(request_description, settings_family_name);
   if (font_data && request_description.HasSizeAdjust()) {
@@ -265,9 +265,6 @@ const FontData* CSSFontSelector::GetFontData(
                                                settings_family_name);
     }
   }
-
-  ReportFontLookupByUniqueOrFamilyName(settings_family_name,
-                                       request_description, font_data);
 
   return font_data;
 }

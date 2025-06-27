@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "ash/ash_element_identifiers.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/session/test_session_controller_client.h"
 #include "ash/test/ash_test_helper.h"
 #include "ash/user_education/user_education_class_properties.h"
@@ -28,16 +29,15 @@
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/browser/user_education/user_education_service_factory.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/user_education/common/help_bubble_params.h"
-#include "components/user_education/common/tutorial_description.h"
-#include "components/user_education/common/tutorial_registry.h"
-#include "components/user_education/common/tutorial_service.h"
+#include "components/user_education/common/help_bubble/help_bubble_params.h"
+#include "components/user_education/common/tutorial/tutorial_description.h"
+#include "components/user_education/common/tutorial/tutorial_registry.h"
+#include "components/user_education/common/tutorial/tutorial_service.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -107,49 +107,14 @@ class ChromeUserEducationDelegateTest : public BrowserWithTestWindowTest {
 
 // Tests -----------------------------------------------------------------------
 
-// Verifies `CreateHelpBubble()` is working as intended.
-TEST_F(ChromeUserEducationDelegateTest, CreateHelpBubble) {
-  // Create and show a `widget`.
-  views::Widget widget;
-  views::Widget::InitParams params;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
-  params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
-  widget.Init(std::move(params));
-  widget.SetContentsView(std::make_unique<views::View>());
-  widget.CenterWindow(gfx::Size(100, 100));
-  widget.Show();
-
-  // Cache `element_context` for the widget.
-  const ui::ElementContext element_context =
-      views::ElementTrackerViews::GetContextForWidget(&widget);
-
-  // Verify that a help bubble is *not* created for the specified `kElementId`
-  // and `element_context` pair since no tracked element matching that pair has
-  // been registered with the element tracker framework.
-  EXPECT_FALSE(delegate()->CreateHelpBubble(
-      account_id(), ash::HelpBubbleId::kTest,
-      user_education::HelpBubbleParams(), kElementId, element_context));
-
-  // Register the `widget`s contents `view` with the element tracker framework.
-  views::View* const view = widget.GetContentsView();
-  view->SetProperty(ash::kHelpBubbleContextKey, ash::HelpBubbleContext::kAsh);
-  view->SetProperty(views::kElementIdentifierKey, kElementId);
-
-  // Verify that a help bubble *is* created for the specified `kElementId` and
-  // `element_context` pair.
-  EXPECT_TRUE(delegate()->CreateHelpBubble(
-      account_id(), ash::HelpBubbleId::kTest,
-      user_education::HelpBubbleParams(), kElementId, element_context));
-}
-
 // Verifies that `GetElementIdentifierForAppId()` is working as intended.
 TEST_F(ChromeUserEducationDelegateTest, GetElementIdentifierForAppId) {
   using AppIdWithElementIdentifier =
       std::pair<const char*, std::optional<ui::ElementIdentifier>>;
 
   const std::array<AppIdWithElementIdentifier, 4u> kAppIdsWithElementIds = {
-      {{web_app::kHelpAppId, ash::kExploreAppElementId},
-       {web_app::kOsSettingsAppId, ash::kSettingsAppElementId},
+      {{ash::kHelpAppId, ash::kExploreAppElementId},
+       {ash::kOsSettingsAppId, ash::kSettingsAppElementId},
        {"unknown", std::nullopt},
        {"", std::nullopt}}};
 
@@ -303,30 +268,31 @@ class ChromeUserEducationDelegateNewUserTest
  private:
   // ChromeUserEducationDelegateTest:
   TestingProfile::TestingFactories GetTestingFactories() override {
-    return {{app_list::AppListSyncableServiceFactory::GetInstance(),
-             base::BindLambdaForTesting([&](content::BrowserContext* context)
-                                            -> std::unique_ptr<KeyedService> {
-               auto app_list_syncable_service =
-                   std::make_unique<NiceMock<MockAppListSyncableService>>(
-                       Profile::FromBrowserContext(context));
+    return {TestingProfile::TestingFactory{
+        app_list::AppListSyncableServiceFactory::GetInstance(),
+        base::BindLambdaForTesting([&](content::BrowserContext* context)
+                                       -> std::unique_ptr<KeyedService> {
+          auto app_list_syncable_service =
+              std::make_unique<NiceMock<MockAppListSyncableService>>(
+                  Profile::FromBrowserContext(context));
 
-               // Mock `app_list::AppListSyncableService::OnFirstSync()` so that
-               // it runs callbacks to inform them if the first app list sync in
-               // the session was the first sync ever across all ChromeOS
-               // devices and sessions for the given user, based on test
-               // parameterization. Callbacks should only run once signaled that
-               // the first app list sync in the session has been completed.
-               ON_CALL(*app_list_syncable_service, OnFirstSync)
-                   .WillByDefault(Invoke(
-                       [&](base::OnceCallback<void(bool was_first_sync_ever)>
-                               callback) {
-                         on_first_sync_.Post(
-                             FROM_HERE, base::BindOnce(std::move(callback),
+          // Mock `app_list::AppListSyncableService::OnFirstSync()` so that
+          // it runs callbacks to inform them if the first app list sync in
+          // the session was the first sync ever across all ChromeOS
+          // devices and sessions for the given user, based on test
+          // parameterization. Callbacks should only run once signaled that
+          // the first app list sync in the session has been completed.
+          ON_CALL(*app_list_syncable_service, OnFirstSync)
+              .WillByDefault(
+                  Invoke([&](base::OnceCallback<void(bool was_first_sync_ever)>
+                                 callback) {
+                    on_first_sync_.Post(FROM_HERE,
+                                        base::BindOnce(std::move(callback),
                                                        was_first_sync_ever()));
-                       }));
+                  }));
 
-               return app_list_syncable_service;
-             })}};
+          return app_list_syncable_service;
+        })}};
   }
 
   // The event to signal when the first app list sync in the session has been

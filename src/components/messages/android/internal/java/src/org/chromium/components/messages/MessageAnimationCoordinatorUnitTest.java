@@ -39,7 +39,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.Callback;
-import org.chromium.base.FeatureList;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -101,109 +101,10 @@ public class MessageAnimationCoordinatorUnitTest {
 
     @Before
     public void setUp() {
-        var testValues = new FeatureList.TestValues();
-        testValues.addFeatureFlagOverride(
-                MessageFeatureList.MESSAGES_ANDROID_EXTRA_HISTOGRAMS, true);
-        FeatureList.setTestValues(testValues);
+        FeatureOverrides.enable(MessageFeatureList.MESSAGES_ANDROID_EXTRA_HISTOGRAMS);
         mAnimationCoordinator = new MessageAnimationCoordinator(mContainer, Animator::start);
         mAnimationCoordinator.setMessageQueueDelegate(mQueueDelegate);
         when(mContainer.isIsInitializingLayout()).thenReturn(false);
-    }
-
-    @Test
-    @SmallTest
-    public void testDoNothing_withoutStacking() {
-        MessageState m1 = buildMessageState();
-
-        // Initial setup
-        mAnimationCoordinator.updateWithoutStacking(m1, false, () -> {});
-
-        // Again with same candidates.
-        mAnimationCoordinator.updateWithoutStacking(m1, false, () -> {});
-
-        verify(m1.handler, never()).hide(anyInt(), anyInt(), anyBoolean());
-        verify(m1.handler).show(anyInt(), anyInt());
-    }
-
-    @Test
-    @SmallTest
-    public void testShowMessages_withoutStacking() throws TimeoutException {
-        // Initial values should be null.
-        var currentMessage = mAnimationCoordinator.getCurrentDisplayedMessage();
-        Assert.assertNull(currentMessage);
-
-        MessageState m1 = buildMessageState();
-        MessageState m2 = buildMessageState();
-        CallbackHelper callbackHelper = new CallbackHelper();
-        var animator = ValueAnimator.ofInt(0, 1);
-        animator.setDuration(100);
-        doReturn(animator).when(m1.handler).show(Position.INVISIBLE, Position.FRONT);
-        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        mAnimationCoordinator.updateWithoutStacking(m1, false, callbackHelper::notifyCalled);
-
-        verify(m1.handler).show(Position.INVISIBLE, Position.FRONT);
-        verify(m1.handler, never()).hide(anyInt(), anyInt(), anyBoolean());
-
-        verify(mContainer).runAfterInitialMessageLayout(captor.capture());
-        Assert.assertEquals(
-                "Callback should only be triggered when animation is finished.",
-                0,
-                callbackHelper.getCallCount());
-        captor.getValue().run();
-
-        shadowOf(getMainLooper()).idle();
-        callbackHelper.waitForCallback(0);
-        currentMessage = mAnimationCoordinator.getCurrentDisplayedMessage();
-        Assert.assertEquals(m1, currentMessage);
-    }
-
-    @Test
-    @SmallTest
-    public void testHideMessage_withoutStacking() {
-        MessageState m1 = buildMessageState();
-        MessageState m2 = buildMessageState();
-        mAnimationCoordinator.updateWithoutStacking(m1, false, () -> {});
-
-        verify(m1.handler).show(Position.INVISIBLE, Position.FRONT);
-        verify(m2.handler, never()).show(Position.INVISIBLE, Position.FRONT);
-
-        mAnimationCoordinator.updateWithoutStacking(
-                m2,
-                false,
-                () -> {
-                    mAnimationCoordinator.updateWithoutStacking(m2, false, () -> {});
-                });
-        verify(m1.handler).hide(Position.FRONT, Position.INVISIBLE, true);
-        verify(m2.handler).show(Position.INVISIBLE, Position.FRONT);
-
-        var currentMessage = mAnimationCoordinator.getCurrentDisplayedMessage();
-        Assert.assertEquals(m2, currentMessage);
-    }
-
-    /** The child animator is finished but the parent animator has not triggered the callback yet. */
-    @Test
-    @SmallTest
-    public void testSuspendBeforeHideCallbackIsTriggered_withoutStacking() {
-        MessageState m1 = buildMessageState();
-        setMessageIdentifier(m1, 1);
-        mAnimationCoordinator.updateWithoutStacking(m1, false, () -> {});
-
-        verify(m1.handler).show(Position.INVISIBLE, Position.FRONT);
-        verify(m1.handler, never()).hide(anyInt(), anyInt(), anyBoolean());
-        var currentMessage = mAnimationCoordinator.getCurrentDisplayedMessage();
-        Assert.assertEquals(m1, currentMessage);
-
-        var animator = ValueAnimator.ofInt(0, 1);
-        animator.setDuration(100000);
-        doReturn(animator).when(m1.handler).hide(anyInt(), anyInt(), anyBoolean());
-        mAnimationCoordinator.updateWithoutStacking(null, false, () -> {});
-
-        var hidingAnimatorSet = mAnimationCoordinator.getAnimatorSetForTesting();
-        Assert.assertTrue(hidingAnimatorSet.isStarted());
-        mAnimationCoordinator.updateWithoutStacking(null, true, () -> {});
-        // The animation should be ended and the callback should be triggered.
-        Assert.assertFalse(hidingAnimatorSet.isRunning());
-        Assert.assertNull(mAnimationCoordinator.getCurrentDisplayedMessage());
     }
 
     // Test incoming candidates are same with current displayed ones.
@@ -222,7 +123,7 @@ public class MessageAnimationCoordinatorUnitTest {
         runnableCaptor.getValue().run();
         verify(mQueueDelegate).onAnimationStart();
         shadowOf(getMainLooper()).idle();
-        callbackHelper.waitForFirst();
+        callbackHelper.waitForOnly();
         verify(mQueueDelegate).onAnimationEnd();
 
         // Again with same candidates.
@@ -635,7 +536,6 @@ public class MessageAnimationCoordinatorUnitTest {
                                 MessagesMetrics.StackingAnimationType.SHOW_ALL)
                         .expectIntRecord("Android.Messages.Stacking.InsertAtFront", 1)
                         .expectIntRecord("Android.Messages.Stacking.InsertAtBack", 2)
-                        .expectIntRecord("Android.Messages.Stacking.BlockedByBrowserControl", 1)
                         .build();
         MessageState m1 = buildMessageState();
         setMessageIdentifier(m1, 1);
@@ -709,10 +609,6 @@ public class MessageAnimationCoordinatorUnitTest {
                             Arrays.asList(m1, m2), false, () -> {});
                 });
 
-        var blockedByBrowserControl =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.Messages.Stacking.BlockedByBrowserControl", 1);
-
         // M1 is waiting to be shown.
         currentMessages = mAnimationCoordinator.getCurrentDisplayedMessages();
         Assert.assertArrayEquals(new MessageState[] {null, null}, currentMessages.toArray());
@@ -725,7 +621,6 @@ public class MessageAnimationCoordinatorUnitTest {
         // Nothing happens, as message queue is not ready yet.
         currentMessages = mAnimationCoordinator.getCurrentDisplayedMessages();
         Assert.assertArrayEquals(new MessageState[] {null, null}, currentMessages.toArray());
-        blockedByBrowserControl.assertExpected("Messages should be blocked by browser control.");
 
         var histogramWatcher =
                 HistogramWatcher.newBuilder()
@@ -823,9 +718,6 @@ public class MessageAnimationCoordinatorUnitTest {
         MessageState m2 = buildMessageState();
         setMessageIdentifier(m2, 2);
         doReturn(false).when(mContainer).runAfterInitialMessageLayout(any());
-        var histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.Messages.Stacking.BlockedByContainerNotInitialized", 1);
 
         mAnimationCoordinator.updateWithStacking(Arrays.asList(m1, null), false, () -> {});
 
@@ -842,7 +734,6 @@ public class MessageAnimationCoordinatorUnitTest {
 
         var currentMessages = mAnimationCoordinator.getCurrentDisplayedMessages();
         Assert.assertArrayEquals(new MessageState[] {m1, null}, currentMessages.toArray());
-        histogramWatcher.assertExpected();
     }
 
     @Test

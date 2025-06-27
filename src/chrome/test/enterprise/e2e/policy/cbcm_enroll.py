@@ -7,6 +7,8 @@ from absl import app
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from test_util import create_chrome_webdriver
 from test_util import getElementFromShadowRoot
@@ -16,30 +18,18 @@ def main(argv):
   options = webdriver.ChromeOptions()
   os.environ["CHROME_LOG_FILE"] = r"C:\temp\chrome_log.txt"
 
-  # This flag tells Chrome to send heartbeat events on start up.
-  options.add_argument(
-      "--enable-features=EncryptedReportingManualTestHeartbeatEvent,EncryptedReportingPipeline"
-  )
-
   driver = create_chrome_webdriver(chrome_options=options)
-
-  # Give some time for browser to enroll and to send heartbeat events.
-  time.sleep(25)
+  driver.implicitly_wait(10)
 
   try:
-    # Print CHROME_LOG_FILE
-    print("PRINTING CHROME LOG FILE....")
-    with open(os.environ["CHROME_LOG_FILE"]) as file:
-      content = file.read()
-      print(content)
-    print("DONE PRINTING CHROME LOG FILE.")
-
     # Verify Policy status legend in chrome://policy page
     policy_url = "chrome://policy"
     driver.get(policy_url)
-    driver.find_element(By.ID, 'reload-policies').click
-    # Give the page 2 seconds to render the legend
-    time.sleep(2)
+    # Give the page 10 seconds for enrollment and legend rending
+    time.sleep(10)
+    driver.find_element(By.ID, 'reload-policies').click()
+    # Wait for rerender
+    time.sleep(10)
     status_box = driver.find_element(By.CSS_SELECTOR, "status-box")
     el = getElementFromShadowRoot(driver, status_box, ".status-box-fields")
 
@@ -50,6 +40,13 @@ def main(argv):
     device_id = el.find_element(By.CLASS_NAME,
                                 'machine-enrollment-device-id').text
     print("DEVICE_ID=" + device_id.strip())
+
+    driver.find_element(By.ID, 'more-actions-button').click()
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.element_to_be_clickable((By.ID, 'upload-report'))).click()
+    wait.until(
+        EC.visibility_of_element_located(
+            (By.XPATH, '//*[text()="Data sent to admin console"]')))
   except Exception as error:
     print(error)
   finally:

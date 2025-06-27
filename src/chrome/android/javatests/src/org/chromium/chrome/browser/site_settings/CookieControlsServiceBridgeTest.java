@@ -14,6 +14,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -30,13 +31,14 @@ import org.chromium.components.content_settings.CookieControlsMode;
 import org.chromium.components.content_settings.PrefNames;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
 /** Integration tests for CookieControlsServiceBridge. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(CookieControlsBridgeTest.COOKIE_CONTROLS_BATCH_NAME)
+// TODO(crbug.com/370008370): Remove once AlwaysBlock3pcsIncognito launched.
+@DisableFeatures({ChromeFeatureList.ALWAYS_BLOCK_3PCS_INCOGNITO})
 public class CookieControlsServiceBridgeTest {
     private class TestCallbackHandler
             implements CookieControlsServiceBridge.CookieControlsServiceObserver {
@@ -47,7 +49,7 @@ public class CookieControlsServiceBridgeTest {
         }
 
         @Override
-        public void sendCookieControlsUIChanges(
+        public void sendCookieControlsUiChanges(
                 boolean checked, @CookieControlsEnforcement int enforcement) {
             mChecked = checked;
             mEnforcement = enforcement;
@@ -79,7 +81,7 @@ public class CookieControlsServiceBridgeTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     PrefService prefService =
                             UserPrefs.get(ProfileManager.getLastUsedRegularProfile());
@@ -88,7 +90,7 @@ public class CookieControlsServiceBridgeTest {
     }
 
     private void setCookieControlsMode(@CookieControlsMode int mode) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     PrefService prefService =
                             UserPrefs.get(ProfileManager.getLastUsedRegularProfile());
@@ -107,10 +109,10 @@ public class CookieControlsServiceBridgeTest {
 
         int currentCallCount = mCallbackHelper.getCallCount();
         // Create cookie settings bridge and wait for desired callbacks.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCookieControlsServiceBridge =
-                            new CookieControlsServiceBridge(mCallbackHandler);
+                            new CookieControlsServiceBridge(tab.getProfile(), mCallbackHandler);
                     mCookieControlsServiceBridge.updateServiceIfNecessary();
                 });
         // Initial callback after the bridge is created.
@@ -157,19 +159,19 @@ public class CookieControlsServiceBridgeTest {
         mChecked = false;
         int currentCallCount = mCallbackHelper.getCallCount();
         // Create cookie controls service bridge and wait for desired callbacks.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCookieControlsServiceBridge =
-                            new CookieControlsServiceBridge(mCallbackHandler);
+                            new CookieControlsServiceBridge(tab.getProfile(), mCallbackHandler);
                     mCookieControlsServiceBridge.updateServiceIfNecessary();
 
                     mCookieControlsServiceBridge.handleCookieControlsToggleChanged(true);
 
                     Assert.assertEquals(
                             "CookieControlsMode should be incognito_only",
+                            CookieControlsMode.INCOGNITO_ONLY,
                             UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
-                                    .getInteger(PrefNames.COOKIE_CONTROLS_MODE),
-                            CookieControlsMode.INCOGNITO_ONLY);
+                                    .getInteger(PrefNames.COOKIE_CONTROLS_MODE));
                 });
         // One initial callback after creation, then another after the toggle change.
         mCallbackHelper.waitForCallback(currentCallCount, 2);

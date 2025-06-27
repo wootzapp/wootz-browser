@@ -302,8 +302,9 @@ class SequenceBound {
   // Resets `this` to null. If `this` is not currently null, posts destruction
   // of the managed `T` to `impl_task_runner_`.
   void Reset() {
-    if (is_null())
+    if (is_null()) {
       return;
+    }
 
     storage_.Destruct(*impl_task_runner_);
     impl_task_runner_ = nullptr;
@@ -313,8 +314,9 @@ class SequenceBound {
   // of the managed `T` to `impl_task_runner_`. Blocks until the destructor has
   // run.
   void SynchronouslyResetForTest() {
-    if (is_null())
+    if (is_null()) {
       return;
+    }
 
     scoped_refptr<SequencedTaskRunner> task_runner = impl_task_runner_;
     Reset();
@@ -579,7 +581,9 @@ class SequenceBound {
     ~AsyncCallWithBoundArgsBuilderDefault() {
       // Must use Then() since the method's return type is not void.
       // Should be optimized out if the code is bug-free.
-      CHECK(!this->sequence_bound_);
+      CHECK(!this->sequence_bound_)
+          << "Then() not invoked for a method that returns a non-void type; "
+          << "make sure to invoke Then() or use base::IgnoreResult()";
     }
 
     template <template <typename> class CallbackType, typename ThenArg>

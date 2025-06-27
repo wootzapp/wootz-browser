@@ -29,13 +29,15 @@ export enum ContentSettingsTypes {
   FEDERATED_IDENTITY_API = 'federated-identity-api',
   FILE_SYSTEM_WRITE = 'file-system-write',
   GEOLOCATION = 'location',
+  HAND_TRACKING = 'hand-tracking',
   HID_DEVICES = 'hid-devices',
   IDLE_DETECTION = 'idle-detection',
   IMAGES = 'images',
   JAVASCRIPT = 'javascript',
-  JAVASCRIPT_JIT = 'javascript-jit',
+  JAVASCRIPT_OPTIMIZER = 'javascript-optimizer',
   KEYBOARD_LOCK = 'keyboard-lock',
   LOCAL_FONTS = 'local-fonts',
+  LOCAL_NETWORK_ACCESS = 'local-network-access',
   MIC = 'media-stream-mic',  // AKA Microphone.
   MIDI_DEVICES = 'midi-sysex',
   MIXEDSCRIPT = 'mixed-script',
@@ -49,11 +51,14 @@ export enum ContentSettingsTypes {
   PROTOCOL_HANDLERS = 'register-protocol-handler',
   SENSORS = 'sensors',
   SERIAL_PORTS = 'serial-ports',
+  SMART_CARD_READERS = 'smart-card-readers',
   SOUND = 'sound',
   STORAGE_ACCESS = 'storage-access',
   TRACKING_PROTECTION = 'tracking-protection',
+  TOP_LEVEL_STORAGE_ACCESS = 'top-level-storage-access',
   USB_DEVICES = 'usb-devices',
   VR = 'vr',
+  WEB_APP_INSTALLATION = 'web-app-installation',
   WINDOW_MANAGEMENT = 'window-management',
   ZOOM_LEVELS = 'zoom-levels',
   WEB_PRINTING = 'web-printing',
@@ -91,6 +96,9 @@ export enum ChooserType {
   HID_DEVICES = 'hid-devices-data',
   BLUETOOTH_DEVICES = 'bluetooth-devices-data',
   PRIVATE_NETWORK_DEVICES = 'private-network-devices-data',
+  // <if expr="is_chromeos">
+  SMART_CARD_READERS_DEVICES = 'smart-card-readers-data',
+  // </if>
 }
 
 /**
@@ -102,6 +110,7 @@ export enum CookieControlsMode {
   OFF = 0,
   BLOCK_THIRD_PARTY = 1,
   INCOGNITO_ONLY = 2,
+  LIMITED = 3,
 }
 
 /**

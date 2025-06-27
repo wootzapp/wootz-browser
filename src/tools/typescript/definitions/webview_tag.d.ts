@@ -256,6 +256,7 @@ declare global {
         // Manually added to match the webview_tag.js Closure externs file.
         onBeforeRequest: webRequest.WebRequestOptionallySynchronousEvent;
         onBeforeSendHeaders: webRequest.WebRequestOptionallySynchronousEvent;
+        onCompleted: webRequest.WebRequestBaseEvent<(details: object) => void>;
         onSendHeaders: webRequest.WebRequestBaseEvent<(obj: any) => void>;
       }
 
@@ -264,13 +265,18 @@ declare global {
         request: WebRequestEventInterface;
         back(callback?: (success: boolean) => void): void;
         reload(): void;
+        stop(): void;
         addContentScripts(contentScriptList: ContentScriptDetails[]): void;
         removeContentScripts(scriptNameList?: string[]): void;
+        clearData(options: ClearDataOptions, types: ClearDataTypeSet, callback?:
+            (results: any[]) => void): void;
         executeScript(
             details: InjectDetails, callback?: (results: any[]) => void): void;
         insertCSS(details: InjectDetails,
             callback?: (results: any[]) => void): void;
         terminate(): void;
+        getUserAgent(): string;
+        setUserAgentOverride(userAgent: string): void;
       }
 
       export enum ZoomMode {

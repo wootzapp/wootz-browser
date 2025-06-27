@@ -61,6 +61,9 @@ class COMPONENT_EXPORT(EVDEV) InputControllerEvdev : public InputController {
                          const base::TimeDelta& interval) override;
   void GetAutoRepeatRate(base::TimeDelta* delay,
                          base::TimeDelta* interval) override;
+  void SetSlowKeysEnabled(bool enabled) override;
+  bool IsSlowKeysEnabled() const override;
+  void SetSlowKeysDelay(base::TimeDelta delay) override;
   void SetCurrentLayoutByName(const std::string& layout_name,
                               base::OnceCallback<void(bool)> callback) override;
   void SetKeyboardKeyBitsMapping(
@@ -130,6 +133,7 @@ class COMPONENT_EXPORT(EVDEV) InputControllerEvdev : public InputController {
   void BlockModifiersOnDevices(std::vector<int> device_ids) override;
   bool AreInputDevicesEnabled() const override;
   std::unique_ptr<ScopedDisableInputDevices> DisableInputDevices() override;
+  void DisableKeyboardImposterCheck() override;
 
   // Notifies the controller to delete any data for the given `device_id`.
   void OnInputDeviceRemoved(int device_id);

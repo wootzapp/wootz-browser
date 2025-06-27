@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "device/bluetooth/dbus/fake_bluetooth_gatt_characteristic_client.h"
 
 #include <memory>
@@ -208,7 +213,7 @@ void FakeBluetoothGattCharacteristicClient::ReadValue(
 
 void FakeBluetoothGattCharacteristicClient::WriteValue(
     const dbus::ObjectPath& object_path,
-    const std::vector<uint8_t>& value,
+    base::span<const uint8_t> value,
     std::string_view type_option,
     base::OnceClosure callback,
     ErrorCallback error_callback) {
@@ -284,7 +289,7 @@ void FakeBluetoothGattCharacteristicClient::WriteValue(
 
 void FakeBluetoothGattCharacteristicClient::PrepareWriteValue(
     const dbus::ObjectPath& object_path,
-    const std::vector<uint8_t>& value,
+    base::span<const uint8_t> value,
     base::OnceClosure callback,
     ErrorCallback error_callback) {
   if (!authenticated_) {

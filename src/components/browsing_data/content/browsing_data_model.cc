@@ -6,6 +6,7 @@
 
 #include <set>
 #include <string>
+#include <variant>
 
 #include "base/barrier_closure.h"
 #include "base/check.h"
@@ -16,6 +17,7 @@
 #include "base/functional/callback.h"
 #include "base/functional/overloaded.h"
 #include "base/memory/weak_ptr.h"
+#include "base/not_fatal_until.h"
 #include "components/attribution_reporting/features.h"
 #include "components/browsing_data/content/browsing_data_quota_helper.h"
 #include "components/browsing_data/content/shared_worker_info.h"
@@ -40,7 +42,6 @@
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/trust_tokens.mojom.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/interest_group/interest_group.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
@@ -101,9 +102,7 @@ BrowsingDataModel::DataOwner GetDataOwner::GetOwningOriginOrHost<url::Origin>(
     return GetOwnerBasedOnScheme(data_key);
   }
 
-  NOTREACHED_IN_MIGRATION()
-      << "Unexpected StorageType: " << static_cast<int>(storage_type_);
-  return "";
+  NOTREACHED() << "Unexpected StorageType: " << static_cast<int>(storage_type_);
 }
 
 template <>
@@ -120,9 +119,8 @@ GetDataOwner::GetOwningOriginOrHost<blink::StorageKey>(
     case BrowsingDataModel::StorageType::kCdmStorage:
       return GetOwnerBasedOnScheme(data_key.origin());
     default:
-      NOTREACHED_IN_MIGRATION()
-          << "Unexpected StorageType: " << static_cast<int>(storage_type_);
-      return "";
+      NOTREACHED() << "Unexpected StorageType: "
+                   << static_cast<int>(storage_type_);
   }
 }
 
@@ -192,6 +190,13 @@ GetDataOwner::GetOwningOriginOrHost<webid::FederatedIdentityDataModel::DataKey>(
   return GetOwnerBasedOnScheme(data_key.relying_party_embedder());
 }
 
+template <>
+BrowsingDataModel::DataOwner
+GetDataOwner::GetOwningOriginOrHost<net::device_bound_sessions::SessionKey>(
+    const net::device_bound_sessions::SessionKey& data_key) const {
+  return GetOwnerBasedOnScheme(url::Origin::Create(data_key.site.GetURL()));
+}
+
 // Helper which allows the lifetime management of a deletion action to occur
 // separately from the BrowsingDataModel itself.
 struct StorageRemoverHelper {
@@ -210,7 +215,7 @@ struct StorageRemoverHelper {
       base::OnceClosure completed);
 
  private:
-  // Visitor struct to hold information used for deletion. absl::visit doesn't
+  // Visitor struct to hold information used for deletion. std::visit doesn't
   // support multiple arguments elegantly.
   struct Visitor {
     raw_ptr<StorageRemoverHelper> helper;
@@ -262,17 +267,13 @@ void StorageRemoverHelper::Visitor::operator()<blink::StorageKey>(
                storage::SharedStorageDatabase::OperationResult result) {
               std::move(complete_callback).Run();
             },
-            helper->GetCompleteCallback()));
+            helper->GetCompleteCallback()),
+        storage::SharedStorageDatabase::DataClearSource::kUI);
   }
 
   if (types.Has(BrowsingDataModel::StorageType::kQuotaStorage)) {
-    const blink::mojom::StorageType quota_types[] = {
-        blink::mojom::StorageType::kTemporary,
-        blink::mojom::StorageType::kSyncable};
-    for (auto type : quota_types) {
-      helper->quota_helper_->DeleteStorageKeyData(
-          storage_key, type, helper->GetCompleteCallback());
-    }
+    helper->quota_helper_->DeleteStorageKeyData(storage_key,
+                                                helper->GetCompleteCallback());
   }
 
   if (types.Has(BrowsingDataModel::StorageType::kLocalStorage)) {
@@ -351,7 +352,7 @@ void StorageRemoverHelper::Visitor::operator()<
         ->ClearSharedDictionaryCacheForIsolationKey(
             isolation_key, helper->GetCompleteCallback());
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -373,7 +374,7 @@ void StorageRemoverHelper::Visitor::operator()<net::CanonicalCookie>(
                               bool deleted) { std::move(callback).Run(); },
                            helper->GetCompleteCallback()));
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -383,6 +384,15 @@ void StorageRemoverHelper::Visitor::operator()<
     const webid::FederatedIdentityDataModel::DataKey& data_key) {
   // Storage removal handled by RemoveDataKey in
   // ChromeBrowsingDataModelDelegate.
+}
+
+template <>
+void StorageRemoverHelper::Visitor::operator()<
+    net::device_bound_sessions::SessionKey>(
+    const net::device_bound_sessions::SessionKey& data_key) {
+  CHECK(types.Has(BrowsingDataModel::StorageType::kDeviceBoundSession));
+  helper->storage_partition_->GetDeviceBoundSessionManager()->DeleteSession(
+      data_key);
 }
 
 void StorageRemoverHelper::RemoveDataKeyEntries(
@@ -400,7 +410,7 @@ void StorageRemoverHelper::RemoveDataKeyEntries(
   // synchronous or asynchronous.
   auto sync_completion = GetCompleteCallback();
   for (const auto& [key, details] : data_key_entries) {
-    absl::visit(Visitor{this, details.storage_types}, key);
+    std::visit(Visitor{this, details.storage_types}, key);
     if (delegate_) {
       delegate_->RemoveDataKey(key, details.storage_types,
                                GetCompleteCallback());
@@ -505,7 +515,7 @@ void OnQuotaStorageLoaded(
   for (const auto& entry : quota_info) {
     model->AddBrowsingData(entry.storage_key,
                            BrowsingDataModel::StorageType::kQuotaStorage,
-                           entry.syncable_usage + entry.temporary_usage);
+                           entry.usage);
   }
   std::move(loaded_callback).Run();
 }
@@ -569,12 +579,24 @@ void OnCdmStorageLoaded(BrowsingDataModel* model,
 }
 #endif  // BUILDFLAG(ENABLE_LIBRARY_CDMS)
 
+void OnDeviceBoundSessionsLoaded(
+    BrowsingDataModel* model,
+    base::OnceClosure loaded_callback,
+    const std::vector<net::device_bound_sessions::SessionKey>& sessions) {
+  for (const auto& session_key : sessions) {
+    model->AddBrowsingData(session_key,
+                           BrowsingDataModel::StorageType::kDeviceBoundSession,
+                           kSmallAmountOfDataInBytes);
+  }
+  std::move(loaded_callback).Run();
+}
+
 // If `data_key` represents a non-1P partition, returns the site on which it
 // is partitioned, std::nullopt otherwise.
 std::optional<net::SchemefulSite> GetThirdPartyPartitioningSite(
     const BrowsingDataModel::DataKey& data_key) {
   std::optional<net::SchemefulSite> top_level_site = std::nullopt;
-  absl::visit(
+  std::visit(
       base::Overloaded{
           [&](const url::Origin&) {},
           [&](const content::InterestGroupManager::InterestGroupDataKey) {},
@@ -613,7 +635,7 @@ std::optional<net::SchemefulSite> GetThirdPartyPartitioningSite(
                   net::SchemefulSite(data_key.relying_party_embedder());
             }
           },
-      },
+          [&](const net::device_bound_sessions::SessionKey& session_key) {}},
       data_key);
 
   return top_level_site;
@@ -638,7 +660,7 @@ BrowsingDataModel::BrowsingDataEntryView::~BrowsingDataEntryView() = default;
 
 // static
 const std::string BrowsingDataModel::GetHost(const DataOwner& data_owner) {
-  return absl::visit(
+  return std::visit(
       base::Overloaded{
           [&](const std::string& host) { return host; },
           [&](const url::Origin& origin) { return origin.host(); }},
@@ -647,7 +669,7 @@ const std::string BrowsingDataModel::GetHost(const DataOwner& data_owner) {
 
 const url::Origin BrowsingDataModel::GetOriginForDataKey(
     const BrowsingDataModel::DataKey& data_key) {
-  return absl::visit(
+  return std::visit(
       base::Overloaded{
           [](const url::Origin& origin) { return origin; },
           [](const content::InterestGroupManager::InterestGroupDataKey
@@ -681,19 +703,21 @@ const url::Origin BrowsingDataModel::GetOriginForDataKey(
           [](const webid::FederatedIdentityDataModel::DataKey& data_key) {
             return data_key.relying_party_embedder();
           },
-      },
+          [](const net::device_bound_sessions::SessionKey& session_key) {
+            return url::Origin::Create(session_key.site.GetURL());
+          }},
       data_key);
 }
 
 bool BrowsingDataModel::BrowsingDataEntryView::Matches(
     const url::Origin& origin) const {
-  return absl::visit(base::Overloaded{[&](const std::string& entry_host) {
-                                        return entry_host == origin.host();
-                                      },
-                                      [&](const url::Origin& entry_origin) {
-                                        return entry_origin == origin;
-                                      }},
-                     *data_owner);
+  return std::visit(base::Overloaded{[&](const std::string& entry_host) {
+                                       return entry_host == origin.host();
+                                     },
+                                     [&](const url::Origin& entry_origin) {
+                                       return entry_origin == origin;
+                                     }},
+                    *data_owner);
 }
 
 std::optional<net::SchemefulSite>
@@ -735,7 +759,8 @@ bool BrowsingDataModel::Iterator::operator!=(const Iterator& other) const {
 BrowsingDataModel::BrowsingDataEntryView
 BrowsingDataModel::Iterator::operator*() const {
   DCHECK(outer_iterator_ != outer_end_iterator_);
-  DCHECK(inner_iterator_ != outer_iterator_->second.end());
+  CHECK(inner_iterator_ != outer_iterator_->second.end(),
+        base::NotFatalUntil::M130);
   return BrowsingDataEntryView(outer_iterator_->first, inner_iterator_->first,
                                inner_iterator_->second);
 }
@@ -843,7 +868,7 @@ void BrowsingDataModel::AddBrowsingData(const DataKey& data_key,
                                         uint64_t cookie_count,
                                         bool blocked_third_party) {
   DataOwner data_owner =
-      absl::visit(GetDataOwner(delegate_.get(), storage_type), data_key);
+      std::visit(GetDataOwner(delegate_.get(), storage_type), data_key);
 
   // Find the existing entry if it exists, constructing any missing components.
   auto& entry = browsing_data_entries_[data_owner][data_key];
@@ -942,9 +967,10 @@ bool BrowsingDataModel::IsStorageTypeCookieLike(
     case BrowsingDataModel::StorageType::kSharedWorker:
     case BrowsingDataModel::StorageType::kCookie:
     case BrowsingDataModel::StorageType::kCdmStorage:
+    case BrowsingDataModel::StorageType::kDeviceBoundSession:
       return true;
     case BrowsingDataModel::StorageType::kExtendedDelegateRange:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -969,21 +995,15 @@ bool BrowsingDataModel::IsBlockedByThirdPartyCookieBlocking(
 void BrowsingDataModel::PopulateFromDisk(base::OnceClosure finished_callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   bool is_shared_storage_enabled =
-      base::FeatureList::IsEnabled(blink::features::kSharedStorageAPI);
+      base::FeatureList::IsEnabled(network::features::kSharedStorageAPI);
   bool is_shared_dictionary_enabled = base::FeatureList::IsEnabled(
       network::features::kCompressionDictionaryTransportBackend);
   bool is_interest_group_enabled =
-      base::FeatureList::IsEnabled(blink::features::kAdInterestGroupAPI);
+      base::FeatureList::IsEnabled(network::features::kInterestGroupStorage);
   bool is_attribution_reporting_enabled = base::FeatureList::IsEnabled(
       attribution_reporting::features::kConversionMeasurement);
   bool is_private_aggregation_enabled =
       base::FeatureList::IsEnabled(blink::features::kPrivateAggregationApi);
-#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
-  bool is_cdm_storage_database_enabled =
-      base::FeatureList::IsEnabled(features::kCdmStorageDatabase);
-  bool is_cdm_migration_enabled =
-      base::FeatureList::IsEnabled(features::kCdmStorageDatabaseMigration);
-#endif  // BUILDFLAG(ENABLE_LIBRARY_CDMS)
 
   base::RepeatingClosure completion =
       base::BindRepeating([](const base::OnceClosure&) {},
@@ -1022,8 +1042,12 @@ void BrowsingDataModel::PopulateFromDisk(base::OnceClosure finished_callback) {
 
   // Interest Groups
   if (is_interest_group_enabled) {
-    storage_partition_->GetInterestGroupManager()->GetAllInterestGroupDataKeys(
-        base::BindOnce(&OnInterestGroupsLoaded, this, completion));
+    content::InterestGroupManager* manager =
+        storage_partition_->GetInterestGroupManager();
+    if (manager) {
+      manager->GetAllInterestGroupDataKeys(
+          base::BindOnce(&OnInterestGroupsLoaded, this, completion));
+    }
   }
 
   // Attribution Reporting
@@ -1039,12 +1063,18 @@ void BrowsingDataModel::PopulateFromDisk(base::OnceClosure finished_callback) {
   }
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
-  if (is_cdm_storage_database_enabled && !is_cdm_migration_enabled) {
-    storage_partition_->GetCdmStorageDataModel()->GetUsagePerAllStorageKeys(
-        base::BindOnce(&OnCdmStorageLoaded, this, completion),
-        base::Time::Min(), base::Time::Max());
-  }
+  storage_partition_->GetCdmStorageDataModel()->GetUsagePerAllStorageKeys(
+      base::BindOnce(&OnCdmStorageLoaded, this, completion), base::Time::Min(),
+      base::Time::Max());
 #endif  // BUILDFLAG(ENABLE_LIBRARY_CDMS)
+
+  // Device Bound Sessions
+  if (network::mojom::DeviceBoundSessionManager* device_bound_session_manager =
+          storage_partition_->GetDeviceBoundSessionManager();
+      device_bound_session_manager) {
+    device_bound_session_manager->GetAllSessions(
+        base::BindOnce(&OnDeviceBoundSessionsLoaded, this, completion));
+  }
 
   // Data loaded from non-components storage types via the delegate.
   if (delegate_) {

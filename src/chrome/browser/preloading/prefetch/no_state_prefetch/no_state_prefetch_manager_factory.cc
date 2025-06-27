@@ -43,11 +43,14 @@ NoStatePrefetchManagerFactory::NoStatePrefetchManagerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (extensions::ExtensionsBrowserClient::Get())
-    DependsOn(
-        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+if (extensions::ExtensionsBrowserClient::Get())
+  DependsOn(
+      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   // NoStatePrefetchService has an indirect dependency on the
   // RulesRegistryService through extensions::TabHelper::WebContentsDestroyed.
   DependsOn(extensions::RulesRegistryService::GetFactoryInstance());

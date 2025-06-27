@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // A class to emulate GLES2 over command buffers.
 
 #include "gpu/command_buffer/client/gles2_implementation.h"
@@ -15,6 +20,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <memory>
 #include <set>
@@ -22,8 +28,10 @@
 #include <string>
 
 #include "base/atomic_sequence_num.h"
+#include "base/atomicops.h"
 #include "base/bits.h"
 #include "base/compiler_specific.h"
+#include "base/containers/heap_array.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
@@ -83,8 +91,7 @@
 //
 // If it was up to us we'd just always write to the destination but the OpenGL
 // spec defines the behavior of OpenGL functions, not us. :-(
-#if defined(__native_client__) || defined(GLES2_CONFORMANCE_TESTS) || \
-    BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#if defined(__native_client__) || BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
 #define GPU_CLIENT_VALIDATE_DESTINATION_INITALIZATION_ASSERT(v)
 #define GPU_CLIENT_DCHECK(v)
 #elif defined(GPU_DCHECK)
@@ -167,15 +174,15 @@ GLES2Implementation::GLStaticState::~GLStaticState() = default;
 
 GLES2Implementation::DeferErrorCallbacks::DeferErrorCallbacks(
     GLES2Implementation* gles2_implementation)
-    : gles2_implementation_(gles2_implementation) {
-  DCHECK_EQ(false, gles2_implementation_->deferring_error_callbacks_);
-  gles2_implementation_->deferring_error_callbacks_ = true;
+    : gles2_implementation_(*gles2_implementation) {
+  DCHECK_EQ(false, gles2_implementation_.deferring_error_callbacks_);
+  gles2_implementation_.deferring_error_callbacks_ = true;
 }
 
 GLES2Implementation::DeferErrorCallbacks::~DeferErrorCallbacks() {
-  DCHECK_EQ(true, gles2_implementation_->deferring_error_callbacks_);
-  gles2_implementation_->deferring_error_callbacks_ = false;
-  gles2_implementation_->CallDeferredErrorCallbacks();
+  DCHECK_EQ(true, gles2_implementation_.deferring_error_callbacks_);
+  gles2_implementation_.deferring_error_callbacks_ = false;
+  gles2_implementation_.CallDeferredErrorCallbacks();
 }
 
 GLES2Implementation::DeferredErrorCallback::DeferredErrorCallback(
@@ -286,7 +293,7 @@ gpu::ContextResult GLES2Implementation::Initialize(
   util_.set_num_shader_binary_formats(
       gl_capabilities_.num_shader_binary_formats);
 
-  texture_units_ = std::make_unique<TextureUnit[]>(
+  texture_units_ = base::HeapArray<internal::TextureUnit>::WithSize(
       gl_capabilities_.max_combined_texture_image_units);
 
   buffer_tracker_ = std::make_unique<BufferTracker>(mapped_memory_.get());
@@ -322,6 +329,9 @@ gpu::ContextResult GLES2Implementation::Initialize(
 }
 
 GLES2Implementation::~GLES2Implementation() {
+  // Assure no DeferErrorCallbacks instances are loose in the wild.
+  CHECK(!deferring_error_callbacks_);
+
   // Make sure the queries are finished otherwise we'll delete the
   // shared memory (mapped_memory_) which will free the memory used
   // by the queries. The GPU process when validating that memory is still
@@ -468,7 +478,7 @@ void GLES2Implementation::OnGpuControlReturnData(
     } break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -619,7 +629,7 @@ GLenum GLES2Implementation::GetGLError() {
 #if defined(GL_CLIENT_FAIL_GL_ERRORS)
 void GLES2Implementation::FailGLError(GLenum error) {
   if (error != GL_NO_ERROR) {
-    NOTREACHED_IN_MIGRATION() << "Error";
+    NOTREACHED() << "Error";
   }
 }
 // NOTE: Calling GetGLError overwrites data in the result buffer.
@@ -801,7 +811,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       *params = gl_capabilities_.max_texture_image_units;
       return true;
     case GL_MAX_TEXTURE_SIZE:
-      *params = capabilities_.max_texture_size;
+      *params = gl_capabilities_.max_texture_size;
       return true;
     case GL_MAX_VARYING_VECTORS:
       *params = gl_capabilities_.max_varying_vectors;
@@ -855,7 +865,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       *params = bound_pixel_unpack_transfer_buffer_id_;
       return true;
     case GL_READ_FRAMEBUFFER_BINDING:
-      if (capabilities_.major_version >= 3 ||
+      if (gl_capabilities_.major_version >= 3 ||
           IsChromiumFramebufferMultisampleAvailable()) {
         *params = bound_read_framebuffer_;
         return true;
@@ -959,7 +969,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       break;
   }
 
-  if (capabilities_.major_version < 3) {
+  if (gl_capabilities_.major_version < 3) {
     return false;
   }
 
@@ -972,7 +982,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       *params = bound_copy_write_buffer_;
       return true;
     case GL_MAJOR_VERSION:
-      *params = capabilities_.major_version;
+      *params = gl_capabilities_.major_version;
       return true;
     case GL_MAX_3D_TEXTURE_SIZE:
       *params = gl_capabilities_.max_3d_texture_size;
@@ -1058,7 +1068,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       *params = gl_capabilities_.min_program_texel_offset;
       return true;
     case GL_MINOR_VERSION:
-      *params = capabilities_.minor_version;
+      *params = gl_capabilities_.minor_version;
       return true;
     case GL_NUM_EXTENSIONS:
       UpdateCachedExtensionsIfNeeded();
@@ -1141,7 +1151,7 @@ bool GLES2Implementation::GetHelper(GLenum pname, GLint* params) {
       break;
   }
 
-  if (capabilities_.minor_version < 1) {
+  if (gl_capabilities_.minor_version < 1) {
     return false;
   }
 
@@ -1586,27 +1596,6 @@ GLuint GLES2Implementation::GetLastFlushIdCHROMIUM() {
   GPU_CLIENT_SINGLE_THREAD_CHECK();
   GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glGetLastFlushIdCHROMIUM()");
   return flush_id_;
-}
-
-void GLES2Implementation::SwapBuffers(uint64_t swap_id, GLbitfield flags) {
-  GPU_CLIENT_SINGLE_THREAD_CHECK();
-  GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glSwapBuffers()");
-  // TODO(piman): Strictly speaking we'd want to insert the token after the
-  // swap, but the state update with the updated token might not have happened
-  // by the time the SwapBuffer callback gets called, forcing us to synchronize
-  // with the GPU process more than needed. So instead, make it happen before.
-  // All it means is that we could be slightly looser on the kMaxSwapBuffers
-  // semantics if the client doesn't use the callback mechanism, and by chance
-  // the scheduler yields between the InsertToken and the SwapBuffers.
-  swap_buffers_tokens_.push(helper_->InsertToken());
-  helper_->SwapBuffers(swap_id, flags);
-  helper_->CommandBufferHelper::Flush();
-  // Wait if we added too many swap buffers. Add 1 to kMaxSwapBuffers to
-  // compensate for TODO above.
-  if (swap_buffers_tokens_.size() > kMaxSwapBuffers + 1) {
-    helper_->WaitForToken(swap_buffers_tokens_.front());
-    swap_buffers_tokens_.pop();
-  }
 }
 
 void GLES2Implementation::BindAttribLocation(GLuint program,
@@ -2263,7 +2252,7 @@ void GLES2Implementation::PixelStorei(GLenum pname, GLint param) {
     case GL_PACK_SKIP_ROWS:
     case GL_UNPACK_IMAGE_HEIGHT:
     case GL_UNPACK_SKIP_IMAGES:
-      if (capabilities_.major_version < 3) {
+      if (gl_capabilities_.major_version < 3) {
         SetGLError(GL_INVALID_ENUM, "glPixelStorei", "invalid pname");
         return;
       }
@@ -2305,7 +2294,7 @@ void GLES2Implementation::PixelStorei(GLenum pname, GLint param) {
       break;
     case GL_UNPACK_ROW_LENGTH:
       unpack_row_length_ = param;
-      if (capabilities_.major_version < 3) {
+      if (gl_capabilities_.major_version < 3) {
         // In ES2 with EXT_unpack_subimage, it's handled on the client side
         // and there is no need to send it to the service side.
         return;
@@ -2324,8 +2313,7 @@ void GLES2Implementation::PixelStorei(GLenum pname, GLint param) {
       unpack_skip_images_ = param;
       return;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   helper_->PixelStorei(pname, param);
   CheckGLError();
@@ -4709,10 +4697,18 @@ void GLES2Implementation::WritePixelsYUVINTERNAL(
   // pixels_offset_plane4: stores source pixels for plane 4
 
   const int kMaxPlanes = 4;
-  GLuint src_sizes[kMaxPlanes] = {src_size_plane1, src_size_plane2,
-                                  src_size_plane3, src_size_plane4};
-  const void* src_pixels[kMaxPlanes] = {src_pixels_plane1, src_pixels_plane2,
-                                        src_pixels_plane3, src_pixels_plane4};
+  std::array<GLuint, kMaxPlanes> src_sizes = {
+      src_size_plane1,
+      src_size_plane2,
+      src_size_plane3,
+      src_size_plane4,
+  };
+  std::array<const void*, kMaxPlanes> src_pixels = {
+      src_pixels_plane1,
+      src_pixels_plane2,
+      src_pixels_plane3,
+      src_pixels_plane4,
+  };
 
   GLuint total_size =
       base::bits::AlignUp(sizeof(gpu::Mailbox), sizeof(uint64_t));
@@ -4742,7 +4738,7 @@ void GLES2Implementation::WritePixelsYUVINTERNAL(
   GLuint mailbox_offset = 0;
   memcpy(static_cast<uint8_t*>(address), mailbox, sizeof(gpu::Mailbox));
 
-  GLuint pixel_offsets[kMaxPlanes] = {};
+  std::array<GLuint, kMaxPlanes> pixel_offsets = {};
   // Calculate first plane offset based on mailbox.
   pixel_offsets[0] =
       mailbox_offset + static_cast<GLuint>(base::bits::AlignUp(
@@ -4844,7 +4840,7 @@ GLboolean GLES2Implementation::ReadbackARGBImagePixelsINTERNAL(
          sizeof(gpu::Mailbox));
 
   helper_->ReadbackARGBImagePixelsINTERNAL(
-      plane_index, src_x, src_y, dst_width, dst_height, dst_row_bytes,
+      src_x, src_y, plane_index, dst_width, dst_height, dst_row_bytes,
       dst_sk_color_type, dst_sk_alpha_type, shm_id, shm_offset,
       color_space_offset, pixels_offset, mailbox_offset);
 
@@ -4854,8 +4850,13 @@ GLboolean GLES2Implementation::ReadbackARGBImagePixelsINTERNAL(
   if (!*readback_result) {
     return GL_FALSE;
   }
-  memcpy(pixels, static_cast<uint8_t*>(shm_address) + pixels_offset, dst_size);
-  return GL_FALSE;
+  // We need to use `RelaxedAtomicWriteMemcpy` because we might be writing into
+  // memory observed by JS at the same time.
+  auto dst = base::span(static_cast<uint8_t*>(pixels), dst_size);
+  auto src =
+      base::span(static_cast<uint8_t*>(shm_address) + pixels_offset, dst_size);
+  base::subtle::RelaxedAtomicWriteMemcpy(dst, src);
+  return GL_TRUE;
 }
 
 void GLES2Implementation::ReadPixels(GLint xoffset,
@@ -5305,7 +5306,7 @@ void GLES2Implementation::BindFramebufferHelper(GLenum target,
       break;
     case GL_READ_FRAMEBUFFER:
 #if EXPENSIVE_DCHECKS_ARE_ON()
-      DCHECK(capabilities_.major_version >= 3 ||
+      DCHECK(gl_capabilities_.major_version >= 3 ||
              IsChromiumFramebufferMultisampleAvailable());
 #endif
       if (bound_read_framebuffer_ != framebuffer) {
@@ -5315,7 +5316,7 @@ void GLES2Implementation::BindFramebufferHelper(GLenum target,
       break;
     case GL_DRAW_FRAMEBUFFER:
 #if EXPENSIVE_DCHECKS_ARE_ON()
-      DCHECK(capabilities_.major_version >= 3 ||
+      DCHECK(gl_capabilities_.major_version >= 3 ||
              IsChromiumFramebufferMultisampleAvailable());
 #endif
       if (bound_framebuffer_ != framebuffer) {
@@ -5372,7 +5373,7 @@ void GLES2Implementation::BindSamplerHelper(GLuint unit, GLuint sampler) {
 void GLES2Implementation::BindTextureHelper(GLenum target, GLuint texture) {
   // TODO(gman): See note #1 above.
   bool changed = false;
-  TextureUnit& unit = texture_units_[active_texture_unit_];
+  internal::TextureUnit& unit = texture_units_[active_texture_unit_];
   switch (target) {
     case GL_TEXTURE_2D:
       if (unit.bound_texture_2d != texture) {
@@ -5569,7 +5570,7 @@ void GLES2Implementation::UnbindTexturesHelper(GLsizei n,
   for (GLsizei ii = 0; ii < n; ++ii) {
     for (GLint tt = 0; tt < gl_capabilities_.max_combined_texture_image_units;
          ++tt) {
-      TextureUnit& unit = texture_units_[tt];
+      internal::TextureUnit& unit = texture_units_[tt];
       if (textures[ii] == unit.bound_texture_2d) {
         unit.bound_texture_2d = 0;
       }
@@ -6188,40 +6189,6 @@ void GLES2Implementation::UnmapTexSubImage2DCHROMIUM(const void* mem) {
   CheckGLError();
 }
 
-void GLES2Implementation::ResizeCHROMIUM(GLuint width,
-                                         GLuint height,
-                                         float scale_factor,
-                                         GLcolorSpace gl_color_space,
-                                         GLboolean alpha) {
-  GPU_CLIENT_SINGLE_THREAD_CHECK();
-  GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glResizeCHROMIUM(" << width << ", "
-                     << height << ", " << scale_factor << ", " << alpha << ")");
-  // Including gfx::ColorSpace would bring Skia and a lot of other code into
-  // NaCl's IRT, so just leave the color space unspecified.
-#if !defined(__native_client__) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
-  if (gl_color_space) {
-    gfx::ColorSpace gfx_color_space =
-        *reinterpret_cast<const gfx::ColorSpace*>(gl_color_space);
-    base::Pickle color_space_data;
-    IPC::ParamTraits<gfx::ColorSpace>::Write(&color_space_data,
-                                             gfx_color_space);
-    ScopedTransferBufferPtr buffer(color_space_data.size(), helper_,
-                                   transfer_buffer_);
-    if (!buffer.valid() || buffer.size() < color_space_data.size()) {
-      SetGLError(GL_OUT_OF_MEMORY, "GLES2::ResizeCHROMIUM", "out of memory");
-      return;
-    }
-    memcpy(buffer.address(), color_space_data.data(), color_space_data.size());
-    helper_->ResizeCHROMIUM(width, height, scale_factor, alpha, buffer.shm_id(),
-                            buffer.offset(), color_space_data.size());
-    CheckGLError();
-    return;
-  }
-#endif
-  helper_->ResizeCHROMIUM(width, height, scale_factor, alpha, 0, 0, 0);
-  CheckGLError();
-}
-
 const GLchar* GLES2Implementation::GetRequestableExtensionsCHROMIUM() {
   GPU_CLIENT_SINGLE_THREAD_CHECK();
   GPU_CLIENT_LOG("[" << GetLogPrefix()
@@ -6261,15 +6228,13 @@ void GLES2Implementation::RequestExtensionCHROMIUM(const char* extension) {
     const char* extension;
     raw_ptr<ExtensionStatus> status;
   };
-  const ExtensionCheck checks[] = {
+  const auto checks = std::to_array<ExtensionCheck>({
       {
           "GL_CHROMIUM_framebuffer_multisample",
           &chromium_framebuffer_multisample_,
       },
-  };
-  const size_t kNumChecks = sizeof(checks) / sizeof(checks[0]);
-  for (size_t ii = 0; ii < kNumChecks; ++ii) {
-    const ExtensionCheck& check = checks[ii];
+  });
+  for (const ExtensionCheck& check : checks) {
     if (*check.status == kUnavailableExtensionStatus &&
         !strcmp(extension, check.extension)) {
       *check.status = kUnknownExtensionStatus;
@@ -6489,19 +6454,16 @@ void GLES2Implementation::BeginQueryEXT(GLenum target, GLuint id) {
       break;
     case GL_READBACK_SHADOW_COPIES_UPDATED_CHROMIUM:
     case GL_COMMANDS_COMPLETED_CHROMIUM:
-      if (!capabilities_.sync_query) {
+      if (!gl_capabilities_.sync_query) {
         SetGLError(GL_INVALID_OPERATION, "glBeginQueryEXT",
                    "not enabled for commands completed queries");
         return;
       }
       break;
     case GL_SAMPLES_PASSED_ARB:
-      if (!gl_capabilities_.occlusion_query) {
-        SetGLError(GL_INVALID_OPERATION, "glBeginQueryEXT",
-                   "not enabled for occlusion queries");
-        return;
-      }
-      break;
+      SetGLError(GL_INVALID_OPERATION, "glBeginQueryEXT",
+                 "not enabled for occlusion queries");
+      return;
     case GL_ANY_SAMPLES_PASSED:
     case GL_ANY_SAMPLES_PASSED_CONSERVATIVE:
       if (!gl_capabilities_.occlusion_query_boolean) {
@@ -6518,8 +6480,9 @@ void GLES2Implementation::BeginQueryEXT(GLenum target, GLuint id) {
       }
       break;
     case GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN:
-      if (capabilities_.major_version >= 3)
+      if (gl_capabilities_.major_version >= 3) {
         break;
+      }
       [[fallthrough]];
     default:
       SetGLError(GL_INVALID_ENUM, "glBeginQueryEXT", "unknown query target");
@@ -7094,49 +7057,43 @@ bool GLES2Implementation::ThreadsafeDiscardableTextureIsDeletedForTracing(
 }
 
 void* GLES2Implementation::MapTransferCacheEntry(uint32_t serialized_size) {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void GLES2Implementation::UnmapAndCreateTransferCacheEntry(uint32_t type,
                                                            uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool GLES2Implementation::ThreadsafeLockTransferCacheEntry(uint32_t type,
                                                            uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void GLES2Implementation::UnlockTransferCacheEntries(
     const std::vector<std::pair<uint32_t, uint32_t>>& entries) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void GLES2Implementation::DeleteTransferCacheEntry(uint32_t type, uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 unsigned int GLES2Implementation::GetTransferBufferFreeSize() const {
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 bool GLES2Implementation::IsJpegDecodeAccelerationSupported() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool GLES2Implementation::IsWebPDecodeAccelerationSupported() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool GLES2Implementation::CanDecodeWithHardwareAcceleration(
     const cc::ImageHeaderMetadata* image_metadata) const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool GLES2Implementation::ValidateSize(const char* func, GLsizeiptr size) {

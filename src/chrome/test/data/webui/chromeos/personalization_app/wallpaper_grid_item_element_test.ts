@@ -5,8 +5,7 @@
 import 'chrome://personalization/strings.m.js';
 
 import {WallpaperGridItemElement} from 'chrome://personalization/js/personalization_app.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 
@@ -53,8 +52,7 @@ suite('WallpaperGridItemElementTest', function() {
 
     // Initialize |wallpaperGridItemElement|.
     wallpaperGridItemElement = initElement(WallpaperGridItemElement, {src});
-    const images =
-        wallpaperGridItemElement!.shadowRoot!.querySelectorAll('img');
+    const images = wallpaperGridItemElement.shadowRoot!.querySelectorAll('img');
     assertEquals(1, images.length, 'only one image is shown');
     const img = images[0];
     assertTrue(img!.hasAttribute('hidden'), 'image should be hidden at first');
@@ -119,8 +117,7 @@ suite('WallpaperGridItemElementTest', function() {
         wallpaperGridItemElement.hasAttribute('placeholder'),
         'placeholder attribute removed when first image finished loading');
 
-    const images =
-        wallpaperGridItemElement!.shadowRoot!.querySelectorAll('img');
+    const images = wallpaperGridItemElement.shadowRoot!.querySelectorAll('img');
     assertEquals(1, images.length, 'only one image is shown');
     const img = images[0];
 
@@ -164,8 +161,7 @@ suite('WallpaperGridItemElementTest', function() {
     wallpaperGridItemElement = initElement(WallpaperGridItemElement, {src});
     await waitAfterNextRender(wallpaperGridItemElement);
 
-    const images =
-        wallpaperGridItemElement!.shadowRoot!.querySelectorAll('img');
+    const images = wallpaperGridItemElement.shadowRoot!.querySelectorAll('img');
     assertEquals(2, images.length, 'only first two images displayed');
 
     images.forEach((img, index) => {
@@ -310,7 +306,6 @@ suite('WallpaperGridItemElementTest', function() {
   });
 
   test('shows an info icon for infoText', async () => {
-    loadTimeData.overrideValues({isPersonalizationJellyEnabled: true});
 
     wallpaperGridItemElement = initElement(
         WallpaperGridItemElement,
@@ -324,8 +319,6 @@ suite('WallpaperGridItemElementTest', function() {
   });
 
   test('no info icon if infoText is empty string', async () => {
-    loadTimeData.overrideValues({isPersonalizationJellyEnabled: true});
-
     wallpaperGridItemElement = initElement(
         WallpaperGridItemElement,
         {infoText: '', src: {url: createSvgDataUrl('test')}});
@@ -347,7 +340,6 @@ suite('WallpaperGridItemElementTest', function() {
   });
 
   test('no info icon if placeholder', async () => {
-    loadTimeData.overrideValues({isPersonalizationJellyEnabled: true});
     wallpaperGridItemElement =
         initElement(WallpaperGridItemElement, {infoText: 'some text'});
     await waitAfterNextRender(wallpaperGridItemElement);

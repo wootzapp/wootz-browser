@@ -15,15 +15,15 @@
 #include "build/build_config.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sharing/shared_clipboard/remote_copy_handle_message_result.h"
 #include "chrome/browser/sharing/shared_clipboard/remote_copy_message_handler.h"
-#include "chrome/browser/sharing/sharing_constants.h"
-#include "chrome/browser/sharing/sharing_fcm_handler.h"
-#include "chrome/browser/sharing/sharing_service.h"
 #include "chrome/browser/sharing/sharing_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "components/sharing_message/shared_clipboard/remote_copy_handle_message_result.h"
+#include "components/sharing_message/sharing_constants.h"
+#include "components/sharing_message/sharing_fcm_handler.h"
+#include "components/sharing_message/sharing_service.h"
 #include "content/public/test/browser_test.h"
 #include "net/http/http_status_code.h"
 #include "ui/base/clipboard/clipboard.h"
@@ -77,7 +77,7 @@ class RemoteCopyBrowserTest : public InProcessBrowserTest {
         SharingServiceFactory::GetForBrowserContext(browser()->profile());
     auto* remote_copy_handler = static_cast<RemoteCopyMessageHandler*>(
         sharing_service_->GetSharingHandlerForTesting(
-            chrome_browser_sharing::SharingMessage::kRemoteCopyMessage));
+            components_sharing_message::SharingMessage::kRemoteCopyMessage));
     ASSERT_TRUE(remote_copy_handler);
     remote_copy_handler->set_allowed_origin_for_testing(server_->base_url());
   }
@@ -90,7 +90,7 @@ class RemoteCopyBrowserTest : public InProcessBrowserTest {
   gcm::IncomingMessage CreateMessage(const std::string& device_name,
                                      std::optional<std::string> text,
                                      std::optional<GURL> image_url) {
-    chrome_browser_sharing::SharingMessage sharing_message;
+    components_sharing_message::SharingMessage sharing_message;
     sharing_message.set_sender_guid(
         base::Uuid::GenerateRandomV4().AsLowercaseString());
     sharing_message.set_sender_device_name(device_name);
@@ -141,10 +141,10 @@ class RemoteCopyBrowserTest : public InProcessBrowserTest {
   }
 
   SkBitmap ReadClipboardImage() {
-    SkBitmap bitmap;
     std::vector<uint8_t> png_data =
         ui::clipboard_test_util::ReadPng(ui::Clipboard::GetForCurrentThread());
-    gfx::PNGCodec::Decode(png_data.data(), png_data.size(), &bitmap);
+    SkBitmap bitmap = gfx::PNGCodec::Decode(png_data);
+    CHECK(!bitmap.isNull());
     return bitmap;
   }
 
@@ -173,9 +173,10 @@ IN_PROC_BROWSER_TEST_F(RemoteCopyBrowserTest, Text) {
   std::vector<std::u16string> types = GetAvailableClipboardTypes();
   size_t expected_size = 1u;
   ASSERT_EQ(expected_size, types.size());
-  ASSERT_EQ(ui::kMimeTypeText, base::UTF16ToASCII(types[0]));
-  if (expected_size == 2u)
-    ASSERT_EQ(ui::kMimeTypeTextUtf8, base::UTF16ToASCII(types[1]));
+  ASSERT_EQ(ui::kMimeTypePlainText, base::UTF16ToASCII(types[0]));
+  if (expected_size == 2u) {
+    ASSERT_EQ(ui::kMimeTypeUtf8PlainText, base::UTF16ToASCII(types[1]));
+  }
   ASSERT_EQ(kText, ReadClipboardText());
   message_center::Notification notification = GetNotification();
   ASSERT_EQ(l10n_util::GetStringFUTF16(
@@ -195,7 +196,7 @@ IN_PROC_BROWSER_TEST_F(RemoteCopyBrowserTest, ImageUrl) {
   // The image is in the clipboard and a notification is shown.
   std::vector<std::u16string> types = GetAvailableClipboardTypes();
   ASSERT_EQ(1u, types.size());
-  ASSERT_EQ(ui::kMimeTypePNG, base::UTF16ToASCII(types[0]));
+  ASSERT_EQ(ui::kMimeTypePng, base::UTF16ToASCII(types[0]));
   SkBitmap bitmap = ReadClipboardImage();
   ASSERT_FALSE(bitmap.drawsNothing());
   ASSERT_EQ(2560, bitmap.width());
@@ -219,9 +220,10 @@ IN_PROC_BROWSER_TEST_F(RemoteCopyBrowserTest, TextThenImageUrl) {
   std::vector<std::u16string> types = GetAvailableClipboardTypes();
   size_t expected_size = 1u;
   ASSERT_EQ(expected_size, types.size());
-  ASSERT_EQ(ui::kMimeTypeText, base::UTF16ToASCII(types[0]));
-  if (expected_size == 2u)
-    ASSERT_EQ(ui::kMimeTypeTextUtf8, base::UTF16ToASCII(types[1]));
+  ASSERT_EQ(ui::kMimeTypePlainText, base::UTF16ToASCII(types[0]));
+  if (expected_size == 2u) {
+    ASSERT_EQ(ui::kMimeTypeUtf8PlainText, base::UTF16ToASCII(types[1]));
+  }
   ASSERT_EQ(kText, ReadClipboardText());
 
   // Send a message with an image url.
@@ -230,6 +232,6 @@ IN_PROC_BROWSER_TEST_F(RemoteCopyBrowserTest, TextThenImageUrl) {
   // The image is in the clipboard and the text has been cleared.
   types = GetAvailableClipboardTypes();
   ASSERT_EQ(1u, types.size());
-  ASSERT_EQ(ui::kMimeTypePNG, base::UTF16ToASCII(types[0]));
+  ASSERT_EQ(ui::kMimeTypePng, base::UTF16ToASCII(types[0]));
   ASSERT_EQ(std::string(), ReadClipboardText());
 }

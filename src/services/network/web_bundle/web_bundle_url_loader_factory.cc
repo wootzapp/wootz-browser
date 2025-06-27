@@ -4,12 +4,12 @@
 
 #include "services/network/web_bundle/web_bundle_url_loader_factory.h"
 
+#include <algorithm>
 #include <optional>
 
 #include "base/functional/callback.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
@@ -331,16 +331,13 @@ class WebBundleURLLoaderFactory::URLLoader : public mojom::URLLoader {
       const net::HttpRequestHeaders& modified_headers,
       const net::HttpRequestHeaders& modified_cors_exempt_headers,
       const std::optional<GURL>& new_url) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {
     // Not supported (do nothing).
   }
-
-  void PauseReadingBodyFromNet() override {}
-  void ResumeReadingBodyFromNet() override {}
 
   void OnMojoDisconnect() { deleteThis(); }
 
@@ -441,7 +438,8 @@ class WebBundleURLLoaderFactory::BundleDataSource
     }
     uint64_t out_len = buffer_.GetAvailableLength(offset, length);
     std::vector<uint8_t> output(base::checked_cast<size_t>(out_len));
-    buffer_.ReadData(offset, out_len, output.data());
+    uint64_t read_len = buffer_.ReadData(offset, output);
+    output.resize(base::checked_cast<size_t>(read_len));
     std::move(callback).Run(std::move(output));
   }
 
@@ -456,9 +454,9 @@ class WebBundleURLLoaderFactory::BundleDataSource
   }
 
   // Implements mojo::DataPipeDrainer::Client.
-  void OnDataAvailable(const void* data, size_t num_bytes) override {
+  void OnDataAvailable(base::span<const uint8_t> data) override {
     DCHECK(!finished_loading_);
-    if (!web_bundle_memory_quota_consumer_->AllocateMemory(num_bytes)) {
+    if (!web_bundle_memory_quota_consumer_->AllocateMemory(data.size())) {
       AbortPendingReads();
       if (memory_quota_exceeded_closure_) {
         // Defer calling |memory_quota_exceeded_closure_| to avoid the
@@ -468,7 +466,7 @@ class WebBundleURLLoaderFactory::BundleDataSource
       }
       return;
     }
-    buffer_.Append(reinterpret_cast<const uint8_t*>(data), num_bytes);
+    buffer_.Append(data);
     ProcessPendingReads();
   }
 
@@ -476,7 +474,7 @@ class WebBundleURLLoaderFactory::BundleDataSource
     DCHECK(!finished_loading_);
     base::UmaHistogramCustomCounts(
         "SubresourceWebBundles.ReceivedSize",
-        base::saturated_cast<base::Histogram::Sample>(buffer_.size()), 1,
+        base::saturated_cast<base::Histogram::Sample32>(buffer_.size()), 1,
         50000000, 50);
     DCHECK(data_completed_closure_);
     // Defer calling |data_completed_closure_| not to run
@@ -747,7 +745,7 @@ void WebBundleURLLoaderFactory::OnMetadataParsed(
     return;
   }
 
-  if (!base::ranges::all_of(metadata->requests, [this](const auto& entry) {
+  if (!std::ranges::all_of(metadata->requests, [this](const auto& entry) {
         return IsAllowedExchangeUrl(entry.first);
       })) {
     std::string error_message = "Exchange URL is not valid.";
@@ -885,12 +883,17 @@ void WebBundleURLLoaderFactory::SendResponseToLoader(
   loader->SetBodyLength(payload_length);
 
   // Enforce the Cross-Origin-Resource-Policy (CORP) header.
+  //
+  // TODO(crbug.com/333708501)
+  // Implement support for Document-Isolation-Policy in Web Bundles if needed,
+  // by passing a Document-Isolation-Policy at creation time and using it in the
+  // call below.
   if (std::optional<mojom::BlockedByResponseReason> blocked_reason =
           CrossOriginResourcePolicy::IsBlocked(
               loader->url(), loader->url(), loader->request_initiator(),
               *response_head, loader->request_mode(),
               loader->request_destination(), cross_origin_embedder_policy_,
-              coep_reporter_)) {
+              coep_reporter_, DocumentIsolationPolicy(), nullptr)) {
     loader->CompleteBlockedResponse(net::ERR_BLOCKED_BY_RESPONSE,
                                     blocked_reason);
     return;
@@ -900,21 +903,24 @@ void WebBundleURLLoaderFactory::SendResponseToLoader(
   // to read auction-only signals for ad auctions; only the browser process
   // is allowed to read those, and only the browser process can issue trusted
   // requests.
-  std::string auction_only;
   // TODO(crbug.com/40269364): Remove old names once API users have migrated to
   // new names.
-  if (!loader->is_trusted() && response_head->headers &&
-      (response_head->headers->GetNormalizedHeader("Ad-Auction-Only",
-                                                   &auction_only) ||
-       response_head->headers->GetNormalizedHeader("X-FLEDGE-Auction-Only",
-                                                   &auction_only)) &&
-      base::EqualsCaseInsensitiveASCII(auction_only, "true")) {
-    loader->CompleteBlockedResponse(net::ERR_BLOCKED_BY_RESPONSE,
-                                    /*reason=*/std::nullopt);
-    return;
+  if (!loader->is_trusted() && response_head->headers) {
+    std::optional<std::string> auction_only =
+        response_head->headers->GetNormalizedHeader("Ad-Auction-Only");
+    if (!auction_only) {
+      auction_only =
+          response_head->headers->GetNormalizedHeader("X-FLEDGE-Auction-Only");
+    }
+    if (auction_only &&
+        base::EqualsCaseInsensitiveASCII(*auction_only, "true")) {
+      loader->CompleteBlockedResponse(net::ERR_BLOCKED_BY_RESPONSE,
+                                      /*reason=*/std::nullopt);
+      return;
+    }
   }
 
-  auto orb_analyzer = orb::ResponseAnalyzer::Create(orb_state_);
+  auto orb_analyzer = orb::ResponseAnalyzer::Create(&orb_state_);
   auto decision = orb_analyzer->Init(
       loader->url(), loader->request_initiator(), loader->request_mode(),
       loader->request_destination(), *response_head);

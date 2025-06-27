@@ -6,6 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_POSITION_TRY_DESCRIPTORS_H_
 
 #include "third_party/blink/renderer/core/css/style_rule_css_style_declaration.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -57,7 +58,7 @@ class CORE_EXPORT CSSPositionTryDescriptors
   String alignSelf() { return Get(CSSPropertyID::kAlignSelf); }
   String justifySelf() { return Get(CSSPropertyID::kJustifySelf); }
   String positionAnchor() { return Get(CSSPropertyID::kPositionAnchor); }
-  String insetArea() { return Get(CSSPropertyID::kInsetArea); }
+  String positionArea() { return Get(CSSPropertyID::kPositionArea); }
 
   void setMargin(const ExecutionContext* execution_context,
                  const String& value,
@@ -264,12 +265,12 @@ class CORE_EXPORT CSSPositionTryDescriptors
     Set(execution_context, CSSPropertyID::kPositionAnchor, value,
         exception_state);
   }
-  void setInsetArea(const ExecutionContext* execution_context,
-                    const String& value,
-                    ExceptionState& exception_state) {
-    Set(execution_context, CSSPropertyID::kInsetArea, value, exception_state);
+  void setPositionArea(const ExecutionContext* execution_context,
+                       const String& value,
+                       ExceptionState& exception_state) {
+    Set(execution_context, CSSPropertyID::kPositionArea, value,
+        exception_state);
   }
-
   void Trace(Visitor*) const override;
 
  private:

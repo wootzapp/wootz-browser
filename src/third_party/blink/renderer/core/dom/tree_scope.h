@@ -43,6 +43,7 @@ namespace blink {
 class Animation;
 class ContainerNode;
 class CSSStyleSheet;
+class CustomElementRegistry;
 class DOMSelection;
 class Document;
 class Element;
@@ -75,7 +76,7 @@ class CORE_EXPORT TreeScope : public GarbageCollectedMixin {
   Element* activeElement() const;
   StyleSheetList* styleSheets() { return &StyleSheets(); }
   V8ObservableArrayCSSStyleSheet* adoptedStyleSheets() {
-    return AdoptedStyleSheets();
+    return &EnsureAdoptedStyleSheets();
   }
   DOMSelection* getSelection() { return GetSelection(); }
   HeapVector<Member<Animation>> getAnimations();
@@ -143,9 +144,11 @@ class CORE_EXPORT TreeScope : public GarbageCollectedMixin {
 
   ContainerNode& RootNode() const { return *root_node_; }
 
-  IdTargetObserverRegistry& GetIdTargetObserverRegistry() const {
-    return *id_target_observer_registry_.Get();
+  IdTargetObserverRegistry* GetIdTargetObserverRegistry() const {
+    return id_target_observer_registry_ ? id_target_observer_registry_.Get()
+                                        : nullptr;
   }
+  IdTargetObserverRegistry& EnsureIdTargetObserverRegistry();
 
   RadioButtonGroupScope& GetRadioButtonGroupScope() {
     return radio_button_group_scope_;
@@ -174,6 +177,7 @@ class CORE_EXPORT TreeScope : public GarbageCollectedMixin {
   V8ObservableArrayCSSStyleSheet* AdoptedStyleSheets() const {
     return adopted_style_sheets_.Get();
   }
+  V8ObservableArrayCSSStyleSheet& EnsureAdoptedStyleSheets();
   bool HasAdoptedStyleSheets() const;
   void SetAdoptedStyleSheetsForTesting(HeapVector<Member<CSSStyleSheet>>&);
   void ClearAdoptedStyleSheets();
@@ -199,30 +203,27 @@ class CORE_EXPORT TreeScope : public GarbageCollectedMixin {
                          const CreateElementFlags,
                          const AtomicString& is);
 
+  virtual CustomElementRegistry* customElementRegistry() const = 0;
+
  protected:
-  explicit TreeScope(ContainerNode&,
-                     Document&,
-                     V8ObservableArrayCSSStyleSheet::SetAlgorithmCallback,
-                     V8ObservableArrayCSSStyleSheet::DeleteAlgorithmCallback);
-  explicit TreeScope(Document&,
-                     V8ObservableArrayCSSStyleSheet::SetAlgorithmCallback,
-                     V8ObservableArrayCSSStyleSheet::DeleteAlgorithmCallback);
+  TreeScope(ContainerNode&, Document&);
+  explicit TreeScope(Document&);
   virtual ~TreeScope();
 
   void SetDocument(Document& document) { document_ = &document; }
   void SetParentTreeScope(TreeScope&);
 
-  virtual void OnAdoptedStyleSheetSet(ScriptState*,
-                                      V8ObservableArrayCSSStyleSheet&,
-                                      uint32_t,
-                                      Member<CSSStyleSheet>&,
-                                      ExceptionState&);
-  virtual void OnAdoptedStyleSheetDelete(ScriptState*,
-                                         V8ObservableArrayCSSStyleSheet&,
-                                         uint32_t,
-                                         ExceptionState&);
-
  private:
+  static void OnAdoptedStyleSheetSet(GarbageCollectedMixin*,
+                                     ScriptState*,
+                                     V8ObservableArrayCSSStyleSheet&,
+                                     uint32_t,
+                                     Member<CSSStyleSheet>&);
+  static void OnAdoptedStyleSheetDelete(GarbageCollectedMixin*,
+                                        ScriptState*,
+                                        V8ObservableArrayCSSStyleSheet&,
+                                        uint32_t);
+
   Element* HitTestPointInternal(Node*, HitTestPointType) const;
   Element* FindAnchorWithName(const String& name);
 

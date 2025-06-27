@@ -11,6 +11,7 @@
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
+#include "base/version_info/channel.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "net/http/http_util.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
@@ -107,6 +108,38 @@ class EndpointFetcherTest : public testing::Test {
     status.decoded_body_length = response_data.size();
     test_url_loader_factory_.AddResponse(request_url, std::move(head),
                                          response_data, status);
+  }
+
+  EndpointFetcher GetAPIKeyEndpointFetcherWithRequestParams(
+      const std::optional<EndpointFetcher::RequestParams> request_params) {
+    scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
+        base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
+            test_url_loader_factory());
+    if (request_params.has_value()) {
+      return EndpointFetcher(loader_factory, GURL("https://example.com"), "",
+                             base::Milliseconds(3000), "", {}, {},
+                             version_info::Channel::CANARY,
+                             request_params.value());
+    }
+    return EndpointFetcher(loader_factory, GURL("https://example.com"), "",
+                           base::Milliseconds(3000), "", {}, {},
+                           version_info::Channel::CANARY,
+                           EndpointFetcher::RequestParams::Builder(
+                               HttpMethod::kGet, TRAFFIC_ANNOTATION_FOR_TESTS)
+                               .Build());
+  }
+
+  network::mojom::CredentialsMode GetCredentialsMode(
+      EndpointFetcher& endpoint_fetcher) {
+    return endpoint_fetcher.GetCredentialsMode();
+  }
+
+  int GetMaxRetries(EndpointFetcher& endpoint_fetcher) {
+    return endpoint_fetcher.GetMaxRetries();
+  }
+
+  bool GetSetSiteForCookies(EndpointFetcher& endpoint_fetcher) {
+    return endpoint_fetcher.GetSetSiteForCookies();
   }
 
  private:
@@ -264,4 +297,61 @@ TEST_F(EndpointFetcherTest, FetchNonJsonResponse) {
       });
   endpoint_fetcher()->Fetch(endpoint_fetcher_callback().Get());
   run_loop.Run();
+}
+
+TEST_F(EndpointFetcherTest, TestCredentialsModeUnspecified) {
+  EndpointFetcher fetcher =
+      GetAPIKeyEndpointFetcherWithRequestParams(std::nullopt);
+  EXPECT_EQ(network::mojom::CredentialsMode::kOmit,
+            GetCredentialsMode(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestOmitCredentialsMode) {
+  EndpointFetcher fetcher = GetAPIKeyEndpointFetcherWithRequestParams(
+      EndpointFetcher::RequestParams::Builder(HttpMethod::kUndefined,
+                                              TRAFFIC_ANNOTATION_FOR_TESTS)
+          .SetCredentialsMode(CredentialsMode::kOmit)
+          .Build());
+  EXPECT_EQ(network::mojom::CredentialsMode::kOmit,
+            GetCredentialsMode(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestIncludeCredentialsMode) {
+  EndpointFetcher fetcher = GetAPIKeyEndpointFetcherWithRequestParams(
+      EndpointFetcher::RequestParams::Builder(HttpMethod::kUndefined,
+                                              TRAFFIC_ANNOTATION_FOR_TESTS)
+          .SetCredentialsMode(CredentialsMode::kInclude)
+          .Build());
+  EXPECT_EQ(network::mojom::CredentialsMode::kInclude,
+            GetCredentialsMode(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestMaxRetriesUnspecified) {
+  EndpointFetcher fetcher =
+      GetAPIKeyEndpointFetcherWithRequestParams(std::nullopt);
+  EXPECT_EQ(3 /*=kNumRetries*/, GetMaxRetries(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestMaxRetries) {
+  EndpointFetcher fetcher = GetAPIKeyEndpointFetcherWithRequestParams(
+      EndpointFetcher::RequestParams::Builder(HttpMethod::kUndefined,
+                                              TRAFFIC_ANNOTATION_FOR_TESTS)
+          .SetMaxRetries(42)
+          .Build());
+  EXPECT_EQ(42, GetMaxRetries(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestSetSiteForCookiesUnspecified) {
+  EndpointFetcher fetcher =
+      GetAPIKeyEndpointFetcherWithRequestParams(std::nullopt);
+  EXPECT_FALSE(GetSetSiteForCookies(fetcher));
+}
+
+TEST_F(EndpointFetcherTest, TestSetSiteForCookies) {
+  EndpointFetcher fetcher = GetAPIKeyEndpointFetcherWithRequestParams(
+      EndpointFetcher::RequestParams::Builder(HttpMethod::kUndefined,
+                                              TRAFFIC_ANNOTATION_FOR_TESTS)
+          .SetSetSiteForCookies(true)
+          .Build());
+  EXPECT_TRUE(GetSetSiteForCookies(fetcher));
 }

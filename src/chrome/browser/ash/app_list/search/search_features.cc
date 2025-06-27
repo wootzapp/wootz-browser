@@ -11,33 +11,13 @@
 
 namespace search_features {
 
-BASE_FEATURE(kLauncherGameSearch,
-             "LauncherGameSearch",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kLauncherKeywordExtractionScoring,
              "LauncherKeywordExtractionScoring",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kLauncherQueryFederatedAnalyticsPHH,
-             "LauncherQueryFederatedAnalyticsPHH",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kLauncherFuzzyMatchAcrossProviders,
-             "LauncherFuzzyMatchAcrossProviders",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kLauncherFuzzyMatchForOmnibox,
-             "LauncherFuzzyMatchForOmnibox",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(kLauncherImageSearch,
              "LauncherImageSearch",
-#if BUILDFLAG(ENABLE_MERGE_REQUEST)
-             base::FEATURE_ENABLED_BY_DEFAULT);
-#else   //  BUILDFLAG(ENABLE_MERGE_REQUEST)
              base::FEATURE_DISABLED_BY_DEFAULT);
-#endif  // !BUILDFLAG(ENABLE_MERGE_REQUEST)
 
 BASE_FEATURE(kLauncherLocalImageSearchConfidence,
              "LauncherLocalImageSearchConfidence",
@@ -57,14 +37,14 @@ BASE_FEATURE(kICASupportedByHardware,
 
 BASE_FEATURE(kLauncherImageSearchOcr,
              "LauncherImageSearchOcr",
-#if BUILDFLAG(ENABLE_MERGE_REQUEST)
-             base::FEATURE_ENABLED_BY_DEFAULT);
-#else   //  BUILDFLAG(ENABLE_MERGE_REQUEST)
              base::FEATURE_DISABLED_BY_DEFAULT);
-#endif  // !BUILDFLAG(ENABLE_MERGE_REQUEST)
 
 BASE_FEATURE(kLauncherImageSearchIndexingLimit,
              "LauncherImageSearchIndexingLimit",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kLauncherImageSearchDebug,
+             "kLauncherImageSearchDebug",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLauncherSystemInfoAnswerCards,
@@ -73,13 +53,16 @@ BASE_FEATURE(kLauncherSystemInfoAnswerCards,
 
 BASE_FEATURE(kLauncherSearchFileScan,
              "kLauncherSearchFileScan",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kLauncherKeyShortcutInBestMatch,
+             "LauncherKeyShortcutInBestMatch",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // TODO(b/330386392): kLauncherGameSearch can be removed because if there's no
 // payload, there will be no result.
 bool IsLauncherGameSearchEnabled() {
-  return base::FeatureList::IsEnabled(kLauncherGameSearch) ||
-         chromeos::features::IsCloudGamingDeviceEnabled() ||
+  return chromeos::features::IsCloudGamingDeviceEnabled() ||
          chromeos::features::IsAlmanacLauncherPayloadEnabled();
 }
 
@@ -87,25 +70,13 @@ bool IsLauncherKeywordExtractionScoringEnabled() {
   return base::FeatureList::IsEnabled(kLauncherKeywordExtractionScoring);
 }
 
-bool IsLauncherQueryFederatedAnalyticsPHHEnabled() {
-  return base::FeatureList::IsEnabled(kLauncherQueryFederatedAnalyticsPHH);
-}
-
-bool IsLauncherFuzzyMatchAcrossProvidersEnabled() {
-  return base::FeatureList::IsEnabled(kLauncherFuzzyMatchAcrossProviders);
-}
-
-bool IsLauncherFuzzyMatchForOmniboxEnabled() {
-  return base::FeatureList::IsEnabled(kLauncherFuzzyMatchForOmnibox);
-}
-
-// Only enable image search for ICA supported devices.
 bool IsLauncherImageSearchEnabled() {
   return base::FeatureList::IsEnabled(
              ash::features::kFeatureManagementLocalImageSearch) &&
          base::FeatureList::IsEnabled(kLauncherImageSearch);
 }
 
+// Only enable ica image search for ICA supported devices.
 bool IsLauncherImageSearchIcaEnabled() {
   return base::FeatureList::IsEnabled(kLauncherImageSearchIca) &&
          base::FeatureList::IsEnabled(kICASupportedByHardware);
@@ -119,12 +90,20 @@ bool IsLauncherImageSearchIndexingLimitEnabled() {
   return base::FeatureList::IsEnabled(kLauncherImageSearchIndexingLimit);
 }
 
+bool IsLauncherImageSearchDebugEnabled() {
+  return base::FeatureList::IsEnabled(kLauncherImageSearchDebug);
+}
+
 bool IsLauncherSystemInfoAnswerCardsEnabled() {
   return base::FeatureList::IsEnabled(kLauncherSystemInfoAnswerCards);
 }
 
 bool IsLauncherSearchFileScanEnabled() {
   return base::FeatureList::IsEnabled(kLauncherSearchFileScan);
+}
+
+bool IskLauncherKeyShortcutInBestMatchEnabled() {
+  return base::FeatureList::IsEnabled(kLauncherKeyShortcutInBestMatch);
 }
 
 }  // namespace search_features

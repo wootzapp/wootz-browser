@@ -11,20 +11,31 @@ import("//build/toolchain/toolchain.gni")
 import("//build_overrides/build.gni")
 
 if (is_ios) {
-  import("//build/config/ios/ios_sdk.gni")
+  import("//build/config/apple/mobile_config.gni")
+}
+
+declare_args() {
+  # Allow building official with ASAN enabled to help with
+  # debugging https://crbug.com/371135823.
+  ios_allow_asan_for_official_to_debug_371135823 = false
 }
 
 # libfuzzer can't cope with shared objects being unloaded, which sometimes
 # occurs for large fuzzers that involve our graphics stack. Shim out dlclose
-# so that this doesn't occur. At the moment we've only implemented this on Linux
-# since that's the only platform we use these large fuzzers - in the future
-# we could choose to do the same on Windows.
-use_dlcloseshim = use_libfuzzer && is_linux
+# so that this doesn't occur.
+#
+# dlclose() is defined by POSIX, making `is_posix` a tempting condition to use.
+# However the linker does not necessarily support `-wrap` on all POSIX
+# platforms, hence the restriction to Linux and ChromeOS. We might eventually
+# want to disable shared library unloading on all platforms, but we have not
+# noticed a need for it as the known-affected large fuzzers only run on Linux.
+use_dlcloseshim = use_libfuzzer && (is_linux || is_chromeos)
 
 # Contains the dependencies needed for sanitizers to link into executables and
 # shared_libraries.
 group("deps") {
   deps = []
+  data = []
   if (using_sanitizer) {
     public_configs = [
       # Even when a target removes default_sanitizer_flags, it may be depending
@@ -38,13 +49,12 @@ group("deps") {
       } else {
         exe = ""
       }
-      data = [
+      data += [
         "//tools/valgrind/asan/",
         "$clang_base_path/bin/llvm-symbolizer${exe}",
       ]
     }
-    if (is_asan || is_lsan || is_msan || is_tsan || is_ubsan || is_ubsan_vptr ||
-        is_ubsan_security) {
+    if (is_asan || is_lsan || is_msan || is_tsan || is_ubsan_any) {
       public_configs += [ ":sanitizer_options_link_helper" ]
       deps += [ ":options_sources" ]
     }
@@ -56,7 +66,7 @@ group("deps") {
   if (fail_on_san_warnings) {
     data += [ "//tools/memory/sanitizer/escalate_sanitizer_warnings.py" ]
   }
-  if (is_asan || is_ubsan || is_ubsan_vptr || is_ubsan_security) {
+  if (is_asan || is_ubsan_any) {
     if (is_win || is_apple) {
       data_deps = [ ":copy_sanitizer_runtime" ]
     }
@@ -70,41 +80,14 @@ group("deps") {
     # .o files which depend on them.
     deps += [ "//third_party/fuzztest:centipede_weak_sancov_stubs" ]
   }
-  if (use_dlcloseshim) {
-    deps += [ ":dlclose_shim" ]
-  }
 }
 
 assert(!(is_win && is_asan && current_cpu == "x86"),
        "ASan is only supported in 64-bit builds on Windows.")
 
-if ((is_apple || is_win) &&
-    (is_asan || is_ubsan || is_ubsan_vptr || is_ubsan_security)) {
-  if (is_mac || (is_ios && target_environment == "catalyst")) {
-    if (is_asan) {
-      _clang_rt_dso_path = "darwin/libclang_rt.asan_osx_dynamic.dylib"
-    } else {
-      assert(is_ubsan || is_ubsan_vptr || is_ubsan_security)
-      _clang_rt_dso_path = "darwin/libclang_rt.ubsan_osx_dynamic.dylib"
-    }
-  } else if (is_ios) {
-    if (is_asan) {
-      _clang_rt_dso_path = "darwin/libclang_rt.asan_iossim_dynamic.dylib"
-    } else {
-      assert(is_ubsan || is_ubsan_vptr || is_ubsan_security)
-      _clang_rt_dso_path = "darwin/libclang_rt.ubsan_iossim_dynamic.dylib"
-    }
-  } else if (is_win && current_cpu == "x64") {
-    if (is_asan) {
-      _clang_rt_dso_path = "windows/clang_rt.asan_dynamic-x86_64.dll"
-    } else {
-      assert(is_ubsan || is_ubsan_vptr || is_ubsan_security)
-      _clang_rt_dso_path = "windows/clang_rt.ubsan_dynamic-x86_64.dll"
-    }
-  }
-
+if ((is_apple || is_win) && (is_asan || is_ubsan_any)) {
   _clang_rt_dso_full_path =
-      "$clang_base_path/lib/clang/$clang_version/lib/$_clang_rt_dso_path"
+      "$clang_base_path/lib/clang/$clang_version/lib/$clang_rt_dso_path"
 
   if (!is_ios) {
     copy("copy_sanitizer_runtime") {
@@ -115,7 +98,7 @@ if ((is_apple || is_win) &&
     # On iOS, the runtime library need to be code signed (adhoc signature)
     # starting with Xcode 8, so use an action instead of a copy on iOS.
     action("copy_sanitizer_runtime") {
-      script = "//build/config/ios/codesign.py"
+      script = "//build/config/apple/codesign.py"
       sources = [ _clang_rt_dso_full_path ]
       outputs = [ "$root_out_dir/" + get_path_info(sources[0], "file") ]
       args = [
@@ -184,6 +167,10 @@ if (use_dlcloseshim) {
   source_set("dlclose_shim") {
     sources = [ "//build/sanitizers/dlcloseshim.c" ]
   }
+} else {
+  group("dlclose_shim") {
+    deps = []
+  }
 }
 
 # Applies linker flags necessary when either :deps or :default_sanitizer_flags
@@ -241,6 +228,13 @@ config("default_sanitizer_ldflags") {
       } else {
         ldflags += [ "-fsanitize-coverage=$sanitizer_coverage_flags" ]
       }
+      if (is_mac && use_centipede) {
+        # OS X linking doesn't allow undefined symbols at link time
+        # and in a component build, component shared objects will
+        # need to use this symbol to report control flow coverage
+        # to the main binary
+        ldflags += [ "-Wl,-undefined,dynamic_lookup" ]
+      }
     }
 
     if (is_cfi && current_toolchain == default_toolchain) {
@@ -265,15 +259,20 @@ config("default_sanitizer_ldflags") {
     # Windows directly calls link.exe instead of the compiler driver when
     # linking.  Hence, pass the runtime libraries instead of -fsanitize=address
     # or -fsanitize=fuzzer.
-    if (is_asan && is_component_build) {
-      # In the static-library build, ASan libraries are different for
-      # executables and dlls, see link_executable and link_shared_library below.
-      # This here handles only the component build.
+    ldflags = []
+    if (is_asan) {
       assert(current_cpu == "x64", "WinASan unsupported architecture")
-      libs = [
-        "clang_rt.asan_dynamic-x86_64.lib",
-        "clang_rt.asan_dynamic_runtime_thunk-x86_64.lib",
-      ]
+      _clang_lib_dir = "$clang_base_path/lib/clang/$clang_version/lib/windows"
+      libs = [ "$_clang_lib_dir/clang_rt.asan_dynamic-x86_64.lib" ]
+      if (is_component_build) {
+        ldflags +=
+            [ "-wholearchive:clang_rt.asan_dynamic_runtime_thunk-x86_64.lib" ]
+        libs += [ "$_clang_lib_dir/clang_rt.asan_dynamic_runtime_thunk-x86_64.lib" ]
+      } else {
+        ldflags +=
+            [ "-wholearchive:clang_rt.asan_static_runtime_thunk-x86_64.lib" ]
+        libs += [ "$_clang_lib_dir/clang_rt.asan_static_runtime_thunk-x86_64.lib" ]
+      }
     }
     if (use_libfuzzer) {
       assert(current_cpu == "x64", "LibFuzzer unsupported architecture")
@@ -282,7 +281,7 @@ config("default_sanitizer_ldflags") {
 
       # Incremental linking causes padding that messes up SanitizerCoverage.
       # Don't do it.
-      ldflags = [ "/INCREMENTAL:NO" ]
+      ldflags += [ "/INCREMENTAL:NO" ]
     }
   }
   if (use_dlcloseshim) {
@@ -296,10 +295,12 @@ config("common_sanitizer_flags") {
   if (using_sanitizer) {
     assert(is_clang, "sanitizers only supported with clang")
 
-    # Allow non-default toolchains to enable sanitizers in toolchain_args even
-    # in official builds.
-    assert(current_toolchain != default_toolchain || !is_official_build,
-           "sanitizers not supported in official builds")
+    if (!is_ios || !ios_allow_asan_for_official_to_debug_371135823) {
+      # Allow non-default toolchains to enable sanitizers in toolchain_args even
+      # in official builds.
+      assert(current_toolchain != default_toolchain || !is_official_build,
+             "sanitizers not supported in official builds")
+    }
 
     cflags += [
       # Column info in debug data confuses Visual Studio's debugger, so don't
@@ -314,8 +315,10 @@ config("common_sanitizer_flags") {
 
 config("asan_flags") {
   cflags = []
+  rustflags = []
   if (is_asan) {
     cflags += [ "-fsanitize=address" ]
+    rustflags += [ "-Zsanitizer=address" ]
     if (!is_win && !is_apple && !is_fuchsia) {
       # TODO(crbug.com/1459233, crbug.com/1462248): This causes asan
       # odr-violation errors in rust code, and link failures for cros/asan.
@@ -330,20 +333,6 @@ config("asan_flags") {
       }
       cflags += [ "-fsanitize-ignorelist=$asan_win_blocklist_path" ]
     }
-  }
-}
-
-config("link_executable") {
-  if (is_asan && is_win && !is_component_build) {
-    assert(current_cpu == "x64", "WinASan unsupported architecture")
-    ldflags = [ "-wholearchive:clang_rt.asan-x86_64.lib" ]
-  }
-}
-
-config("link_shared_library") {
-  if (is_asan && is_win && !is_component_build) {
-    assert(current_cpu == "x64", "WinASan unsupported architecture")
-    libs = [ "clang_rt.asan_dll_thunk-x86_64.lib" ]
   }
 }
 
@@ -460,7 +449,15 @@ config("coverage_flags") {
   if (use_centipede) {
     # Centipede intercepts calls such as memcmp and memcpy in order to improve
     # its testcase generation.
-    cflags += [ "-fno-builtin" ]
+    #
+    # We explicitly list the intercepted calls instead of opting out of all
+    # builtins to work around a miscompile (crbug.com/380508212).
+    cflags += [
+      "-fno-builtin-memcmp",
+      "-fno-builtin-pthread_create",
+      "-fno-builtin-strcmp",
+      "-fno-builtin-strncmp",
+    ]
   }
 }
 
@@ -489,10 +486,12 @@ config("msan_flags") {
       "-fsanitize=memory",
       "-fsanitize-memory-track-origins=$msan_track_origins",
       "-fsanitize-ignorelist=$msan_ignorelist_path",
-
-      # TODO(crbug.com/40222690): evaluate and possibly enable
-      "-fno-sanitize-memory-use-after-dtor",
     ]
+
+    if (!msan_check_use_after_dtor) {
+      # TODO(crbug.com/40222690): evaluate and possibly enable
+      cflags += [ "-fno-sanitize-memory-use-after-dtor" ]
+    }
 
     if (!msan_eager_checks) {
       cflags += [ "-fno-sanitize-memory-param-retval" ]
@@ -536,9 +535,10 @@ config("ubsan_flags") {
       "-fsanitize=null",
       "-fsanitize=nonnull-attribute",
       "-fsanitize=object-size",
+      "-fsanitize=pointer-overflow",
       "-fsanitize=return",
       "-fsanitize=returns-nonnull-attribute",
-      "-fsanitize=shift-exponent",
+      "-fsanitize=shift",
       "-fsanitize=signed-integer-overflow",
       "-fsanitize=unreachable",
       "-fsanitize=vla-bound",
@@ -585,6 +585,7 @@ config("ubsan_vptr_flags") {
 config("fuzzing_build_mode") {
   if (use_fuzzing_engine) {
     defines = [ "FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION" ]
+    rustflags = [ "--cfg=FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION" ]
   }
 }
 

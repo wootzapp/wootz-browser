@@ -4,14 +4,16 @@
 
 package org.chromium.support_lib_boundary;
 
-import android.app.PendingIntent;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
+import org.jspecify.annotations.NullMarked;
+
 import java.lang.reflect.InvocationHandler;
 
 /** Boundary interface for WebViewClientCompat. */
+@NullMarked
 public interface WebViewClientBoundaryInterface extends FeatureFlagHolderBoundaryInterface {
     void onPageCommitVisible(WebView view, String url);
 
@@ -30,9 +32,4 @@ public interface WebViewClientBoundaryInterface extends FeatureFlagHolderBoundar
             /* SafeBrowsingResponse */ InvocationHandler callback);
 
     boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request);
-
-    boolean onWebAuthnIntent(
-            WebView view,
-            PendingIntent intent,
-            /* WebAuthnCallbackBoundaryInterface */ InvocationHandler callback);
 }

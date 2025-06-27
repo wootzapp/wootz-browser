@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/modules/payments/payment_response.h"
 
 #include <memory>
@@ -13,6 +18,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_object_builder.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_payment_complete.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_payment_validation_errors.h"
 #include "third_party/blink/renderer/modules/credentialmanagement/public_key_credential.h"
 #include "third_party/blink/renderer/modules/payments/payment_address.h"
@@ -20,7 +26,6 @@
 #include "third_party/blink/renderer/modules/payments/payment_test_helper.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 
 namespace blink {
@@ -32,7 +37,7 @@ class MockPaymentStateResolver final
  public:
   MockPaymentStateResolver() {
     ON_CALL(*this, Complete(testing::_, testing::_, testing::_))
-        .WillByDefault(testing::ReturnPointee(&dummy_promise_));
+        .WillByDefault(testing::Return(dummy_promise_));
   }
 
   MockPaymentStateResolver(const MockPaymentStateResolver&) = delete;
@@ -55,7 +60,7 @@ class MockPaymentStateResolver final
   }
 
  private:
-  ScriptPromise<IDLUndefined> dummy_promise_;
+  MemberScriptPromise<IDLUndefined> dummy_promise_;
 };
 
 TEST(PaymentResponseTest, DataCopiedOver) {
@@ -83,15 +88,11 @@ TEST(PaymentResponseTest, DataCopiedOver) {
   EXPECT_EQ("0123", output->payerPhone());
   EXPECT_EQ("id", output->requestId());
 
-  ScriptValue details = output->details(scope.GetScriptState());
-
-  ASSERT_FALSE(scope.GetExceptionState().HadException());
-  ASSERT_TRUE(details.V8Value()->IsObject());
+  ScriptObject details = output->details();
 
   ScriptValue transaction_id(
       scope.GetIsolate(),
-      details.V8Value()
-          .As<v8::Object>()
+      details.V8Object()
           ->Get(scope.GetContext(),
                 V8String(scope.GetIsolate(), "transactionId"))
           .ToLocalChecked());
@@ -162,8 +163,7 @@ TEST(PaymentResponseTest, PaymentResponseDetailsContainsSpcExtensionsPRF) {
       scope.GetScriptState(), std::move(input), /*shipping_address=*/nullptr,
       complete_callback, "request_id");
 
-  v8::Local<v8::Object> details =
-      output->details(scope.GetScriptState()).V8Value().As<v8::Object>();
+  v8::Local<v8::Object> details = output->details().V8Object();
   v8::Local<v8::Object> prf =
       GetClientExtensionResults(scope, details)
           ->Get(scope.GetContext(), V8String(scope.GetIsolate(), "prf"))
@@ -192,13 +192,11 @@ TEST(PaymentResponseTest,
       scope.GetScriptState(), std::move(input), nullptr, complete_callback,
       "id");
 
-  ScriptValue details = output->details(scope.GetScriptState());
-  ASSERT_TRUE(details.V8Value()->IsObject());
+  ScriptObject details = output->details();
 
   String stringified_details = ToBlinkString<String>(
       scope.GetIsolate(),
-      v8::JSON::Stringify(scope.GetContext(),
-                          details.V8Value().As<v8::Object>())
+      v8::JSON::Stringify(scope.GetContext(), details.V8Object())
           .ToLocalChecked(),
       kDoNotExternalize);
 
@@ -217,8 +215,7 @@ TEST(PaymentResponseTest, PaymentResponseDetailsRetrunsTheSameObject) {
   PaymentResponse* output = MakeGarbageCollected<PaymentResponse>(
       scope.GetScriptState(), std::move(input), nullptr, complete_callback,
       "id");
-  EXPECT_EQ(output->details(scope.GetScriptState()),
-            output->details(scope.GetScriptState()));
+  EXPECT_EQ(output->details(), output->details());
 }
 
 TEST(PaymentResponseTest, CompleteCalledWithSuccess) {
@@ -238,7 +235,8 @@ TEST(PaymentResponseTest, CompleteCalledWithSuccess) {
               Complete(scope.GetScriptState(), PaymentStateResolver::kSuccess,
                        testing::_));
 
-  output->complete(scope.GetScriptState(), "success",
+  output->complete(scope.GetScriptState(),
+                   V8PaymentComplete(V8PaymentComplete::Enum::kSuccess),
                    scope.GetExceptionState());
 }
 
@@ -259,7 +257,9 @@ TEST(PaymentResponseTest, CompleteCalledWithFailure) {
               Complete(scope.GetScriptState(), PaymentStateResolver::kFail,
                        testing::_));
 
-  output->complete(scope.GetScriptState(), "fail", scope.GetExceptionState());
+  output->complete(scope.GetScriptState(),
+                   V8PaymentComplete(V8PaymentComplete::Enum::kFail),
+                   scope.GetExceptionState());
 }
 
 TEST(PaymentResponseTest, JSONSerializerTest) {

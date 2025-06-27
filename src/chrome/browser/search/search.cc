@@ -143,15 +143,14 @@ bool IsNTPOrRelatedURLHelper(const GURL& url, Profile* profile) {
 }
 
 bool IsURLAllowedForSupervisedUser(const GURL& url, Profile& profile) {
-  if (!supervised_user::IsSubjectToParentalControls(*profile.GetPrefs())) {
+  if (!profile.IsChild()) {
     return true;
   }
   supervised_user::SupervisedUserService* supervised_user_service =
       SupervisedUserServiceFactory::GetForProfile(&profile);
   supervised_user::SupervisedUserURLFilter* url_filter =
       supervised_user_service->GetURLFilter();
-  if (url_filter->GetFilteringBehaviorForURL(url) ==
-      supervised_user::FilteringBehavior::kBlock) {
+  if (url_filter->GetFilteringBehavior(url).IsBlocked()) {
     return false;
   }
   return true;
@@ -229,7 +228,7 @@ bool IsRenderedInInstantProcess(content::WebContents* contents,
     return false;
   }
 
-  return instant_service->IsInstantProcess(process_host->GetID());
+  return instant_service->IsInstantProcess(process_host->GetDeprecatedID());
 #endif
 }
 

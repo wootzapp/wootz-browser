@@ -57,10 +57,6 @@ inline constexpr char kGroupIdToggledOnHistogram[] =
 // Alphabetical list of preference names specific to the omnibox component.
 // Keep alphabetized, and document each.
 
-// A client-side toggle for document (Drive) suggestions.
-// Also gated by a feature and server-side Admin Panel controls.
-inline constexpr char kDocumentSuggestEnabled[] = "documentsuggest.enabled";
-
 // Enum specifying the active behavior for the intranet redirect detector.
 // The browser pref kDNSInterceptionChecksEnabled also impacts the redirector.
 // Values are defined in omnibox::IntranetRedirectorBehavior.
@@ -77,6 +73,10 @@ inline constexpr char kKeywordSpaceTriggeringEnabled[] =
 inline constexpr char kSuggestionGroupVisibility[] =
     "omnibox.suggestionGroupVisibility";
 
+// Boolean that specifies whether to show the LensOverlay entry point.
+inline constexpr char kShowGoogleLensShortcut[] =
+    "omnibox.show_google_lens_shortcut";
+
 // Boolean that specifies whether to always show full URLs in the omnibox.
 inline constexpr char kPreventUrlElisionsInOmnibox[] =
     "omnibox.prevent_url_elisions";
@@ -90,11 +90,31 @@ inline constexpr char kZeroSuggestCachedResults[] = "zerosuggest.cachedresults";
 inline constexpr char kZeroSuggestCachedResultsWithURL[] =
     "zerosuggest.cachedresults_with_url";
 
-// Boolean that specifies whether to show the "Type @gemini to Chat with Gemini"
-// IPH suggestion at the bottom of the Omnibox in ZPS. This is true until a
-// user deletes (presses the X button on) the suggestion.
-inline constexpr char kShowGeminiIPH[] = "omnibox.show_gemini_iph";
+// Booleans that specify whether various IPH suggestions have been dismissed.
+inline constexpr char kDismissedGeminiIph[] = "omnibox.dismissed_gemini_iph";
+inline constexpr char kDismissedFeaturedEnterpriseSiteSearchIphPrefName[] =
+    "omnibox.dismissed_featured_enterprise_search_iph";
+inline constexpr char kDismissedHistoryEmbeddingsSettingsPromo[] =
+    "omnibox.dismissed_history_embeddings_settings_promo";
+inline constexpr char kDismissedHistoryScopePromo[] =
+    "omnibox.dismissed_history_scope_promo";
+inline constexpr char kDismissedHistoryEmbeddingsScopePromo[] =
+    "omnibox.dismissed_history_embeddings_scope_promo";
 
+// How many times the various IPH suggestions were shown.
+inline constexpr char kShownCountGeminiIph[] = "omnibox.shown_count_gemini_iph";
+inline constexpr char kShownCountFeaturedEnterpriseSiteSearchIph[] =
+    "omnibox.shown_count_featured_enterprise_search_iph";
+inline constexpr char kShownCountHistoryEmbeddingsSettingsPromo[] =
+    "omnibox.shown_count_history_embeddings_settings_promo";
+inline constexpr char kShownCountHistoryScopePromo[] =
+    "omnibox.shown_count_history_scope_promo";
+inline constexpr char kShownCountHistoryEmbeddingsScopePromo[] =
+    "omnibox.shown_count_history_embeddings_scope_promo";
+inline constexpr char kFocusedSrpWebCount[] = "omnibox.focused_srp_web_count";
+
+// Many of the prefs defined above are registered locally where they're used.
+// New prefs should be added here and ordered the same as they're defined above.
 void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
 // Returns the stored visibility preference for |suggestion_group_id|.
@@ -105,7 +125,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 // instead, which passes the server-provided group ID to this method and takes
 // the server-provided hint on default visibility of the group into account.
 SuggestionGroupVisibility GetUserPreferenceForSuggestionGroupVisibility(
-    PrefService* prefs,
+    const PrefService* prefs,
     int suggestion_group_id);
 
 // Sets the stored visibility preference for |suggestion_group_id| to

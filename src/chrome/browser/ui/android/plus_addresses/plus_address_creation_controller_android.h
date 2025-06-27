@@ -8,17 +8,21 @@
 #include <memory>
 #include <optional>
 
-#include "base/time/default_clock.h"
 #include "chrome/browser/ui/android/plus_addresses/plus_address_creation_view_android.h"
 #include "chrome/browser/ui/plus_addresses/plus_address_creation_controller.h"
-#include "components/plus_addresses/plus_address_metrics.h"
-#include "components/plus_addresses/plus_address_service.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/common/plus_address_survey_type.h"
+#include "components/plus_addresses/metrics/plus_address_metrics.h"
+#include "components/plus_addresses/plus_address_hats_utils.h"
 #include "components/plus_addresses/plus_address_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "url/origin.h"
 
 namespace plus_addresses {
+
+class PlusAddressService;
+class PlusAddressSettingService;
 
 // A (hopefully) temporary Android-specific implementation of
 // `PlusAddressCreationController`. The hope is to converge this back to a
@@ -33,7 +37,9 @@ class PlusAddressCreationControllerAndroid
 
   // PlusAddressCreationController implementation:
   void OfferCreation(const url::Origin& main_frame_origin,
+                     bool is_manual_fallback,
                      PlusAddressCallback callback) override;
+  void TryAgainToReservePlusAddress() override;
   void OnRefreshClicked() override;
   void OnConfirmed() override;
   void OnCanceled() override;
@@ -47,9 +53,6 @@ class PlusAddressCreationControllerAndroid
 
   // Validate storage and clearing of `plus_profile_`.
   std::optional<PlusProfile> get_plus_profile_for_testing();
-
-  // For setting custom `clock_` during test.
-  void SetClockForTesting(base::Clock* clock) { clock_ = clock; }
 
  private:
   // WebContentsUserData:
@@ -65,26 +68,42 @@ class PlusAddressCreationControllerAndroid
   // and closes the dialog. Otherwise shows an error message on the dialog.
   void OnPlusAddressConfirmed(const PlusProfileOrError& maybe_plus_profile);
 
+  // Records the modal outcome and the time between `modal_shown_time_` and now
+  // as modal shown duration and clear `modal_shown_time_`.
+  void RecordModalShownOutcome(
+      metrics::PlusAddressModalCompletionStatus status,
+      const std::optional<PlusAddressCreationErrorStateInfo>&
+          modal_error_state_info,
+      bool was_notice_shown);
+
+  // Returns whether the onboarding screen with the notice should be shown.
+  bool ShouldShowNotice() const;
+
+  // Shows an applicable user perception survey.
+  void TriggerUserPerceptionSurvey(hats::SurveyType survey_type);
+
+  PlusAddressService* GetPlusAddressService();
+  PlusAddressSettingService* GetPlusAddressSettingService();
+
   base::WeakPtr<PlusAddressCreationControllerAndroid> GetWeakPtr();
 
   std::unique_ptr<PlusAddressCreationViewAndroid> view_;
   url::Origin relevant_origin_;
+  bool is_manual_fallback_ = false;
   PlusAddressCallback callback_;
   bool suppress_ui_for_testing_ = false;
   // This is set by OnPlusAddressReserved and cleared when it's confirmed or
   // when the dialog is closed or cancelled.
   std::optional<PlusProfile> plus_profile_;
 
-  // Record the time between `modal_shown_time_` and now as modal shown duration
-  // and clear `modal_shown_time_`.
-  void RecordModalShownDuration(
-      const PlusAddressMetrics::PlusAddressModalCompletionStatus status);
-
-  raw_ptr<base::Clock> clock_ = base::DefaultClock::GetInstance();
   // This is set on `OfferCreation`.
-  std::optional<base::Time> modal_shown_time_;
-  std::optional<PlusAddressMetrics::PlusAddressModalCompletionStatus>
-      modal_error_status_;
+  std::optional<base::TimeTicks> modal_shown_time_;
+  std::optional<metrics::PlusAddressModalCompletionStatus> modal_error_status_;
+  // Stores the error state info for failed creation requests.
+  std::optional<PlusAddressCreationErrorStateInfo> modal_error_state_info_;
+  // The number of responses from calls to reserve a plus address that a user
+  // has made. This equals 1 + number of refreshes.
+  int reserve_response_count_ = 0;
 
   base::WeakPtrFactory<PlusAddressCreationControllerAndroid> weak_ptr_factory_{
       this};

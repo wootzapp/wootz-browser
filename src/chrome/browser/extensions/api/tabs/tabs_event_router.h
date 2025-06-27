@@ -13,16 +13,16 @@
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/api/tabs/tabs_api.h"
-#include "chrome/browser/resource_coordinator/tab_lifecycle_observer.h"
-#include "chrome/browser/resource_coordinator/tab_manager.h"
-#include "chrome/browser/ui/android/tab_model/tab_model_observer.h"
-#include "chrome/browser/ui/android/tab_model/tab_model_list_observer.h"
+#include "chrome/browser/resource_coordinator/lifecycle_unit_observer.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_tab_strip_tracker.h"
 #include "chrome/browser/ui/browser_tab_strip_tracker_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_observer.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list_observer.h"
 #include "components/favicon/core/favicon_driver.h"
 #include "components/favicon/core/favicon_driver_observer.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/zoom/zoom_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/event_router.h"
@@ -32,6 +32,10 @@ class WebContents;
 }
 
 class TabAndroid;
+
+namespace resource_coordinator {
+class TabLifecycleUnitSource;
+}
 
 namespace extensions {
 
@@ -46,7 +50,8 @@ class TabsEventRouter : public TabStripModelObserver,
                         public BrowserListObserver,
                         public favicon::FaviconDriverObserver,
                         public zoom::ZoomObserver,
-                        public resource_coordinator::TabLifecycleObserver {
+                        public resource_coordinator::LifecycleUnitObserver,
+                        public performance_manager::PageLiveStateObserver {
  public:
   explicit TabsEventRouter(Profile* profile);
 
@@ -74,10 +79,13 @@ class TabsEventRouter : public TabStripModelObserver,
   void TabPinnedStateChanged(TabStripModel* tab_strip_model,
                              content::WebContents* contents,
                              int index) override;
-  void TabGroupedStateChanged(std::optional<tab_groups::TabGroupId> group,
-                              content::WebContents* contents,
+  void TabGroupedStateChanged(TabStripModel* tab_strip_model,
+                              std::optional<tab_groups::TabGroupId> old_group,
+                              std::optional<tab_groups::TabGroupId> new_group,
+                              tabs::TabInterface* tab,
                               int index) override;
 */
+  void OnTabGroupChanged(const TabGroupChange& change) override;
   // ZoomObserver:
   void OnZoomControllerDestroyed(
       zoom::ZoomController* zoom_controller) override;
@@ -91,12 +99,15 @@ class TabsEventRouter : public TabStripModelObserver,
                         bool icon_url_changed,
                         const gfx::Image& image) override;
 
-  // resource_coordinator::TabLifecycleObserver:
-  void OnDiscardedStateChange(content::WebContents* contents,
-                              ::mojom::LifecycleUnitDiscardReason reason,
-                              bool is_discarded) override;
-  void OnAutoDiscardableStateChange(content::WebContents* contents,
-                                    bool is_auto_discardable) override;
+  // resource_coordinator::LifecycleUnitObserver:
+  void OnLifecycleUnitStateChanged(
+      resource_coordinator::LifecycleUnit* lifecycle_unit,
+      ::mojom::LifecycleUnitState previous_state,
+      ::mojom::LifecycleUnitStateChangeReason reason) override;
+
+  // performance_manager::PageLiveStateObserver:
+  void OnIsAutoDiscardableChanged(
+      const performance_manager::PageNode* page_node) override;
 
   //TabModelListObserver
   void RegisterTabObserver();
@@ -162,9 +173,8 @@ class TabsEventRouter : public TabStripModelObserver,
 
   // Packages |changed_property_names| as a tab updated event for the tab
   // |contents| and dispatches the event to the extension.
-  void DispatchTabUpdatedEvent(
-      content::WebContents* contents,
-      const std::set<std::string> changed_property_names);
+  void DispatchTabUpdatedEvent(content::WebContents* contents,
+                               std::set<std::string> changed_property_names);
 
   // Register ourselves to receive the various notifications we are interested
   // in for a tab. Also create tab entry to observe web contents notifications.
@@ -249,6 +259,9 @@ class TabsEventRouter : public TabStripModelObserver,
 //   base::ScopedObservation<resource_coordinator::TabManager,
 //                           resource_coordinator::TabLifecycleObserver>
 //       tab_manager_scoped_observation_{this};
+  base::ScopedObservation<resource_coordinator::TabLifecycleUnitSource,
+                          resource_coordinator::LifecycleUnitObserver>
+      tab_source_scoped_observation_{this};
 };
 
 }  // namespace extensions

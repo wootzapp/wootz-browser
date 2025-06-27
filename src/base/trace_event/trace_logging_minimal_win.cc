@@ -52,8 +52,9 @@ uint16_t TlmProvider::AppendNameToMetadata(
 }
 
 void TlmProvider::Unregister() noexcept {
-  if (reg_handle_ == 0)
+  if (reg_handle_ == 0) {
     return;
+  }
 
   ULONG status = EventUnregister(reg_handle_);
   LOG_IF(ERROR, status != ERROR_SUCCESS) << "Provider unregistration failure";
@@ -76,8 +77,9 @@ ULONG TlmProvider::Register(const char* provider_name,
   // Append the provider name starting at offset 2 (skip MetadataSize).
   provider_metadata_size_ = AppendNameToMetadata(
       provider_metadata_, kMaxProviderMetadataSize, 2, provider_name);
-  if (provider_metadata_size_ > kMaxProviderMetadataSize)
+  if (provider_metadata_size_ > kMaxProviderMetadataSize) {
     return ERROR_BUFFER_OVERFLOW;
+  }
 
   // Fill in MetadataSize field at offset 0.
   *reinterpret_cast<uint16_t*>(provider_metadata_) = provider_metadata_size_;
@@ -85,8 +87,9 @@ ULONG TlmProvider::Register(const char* provider_name,
   on_updated_callback_ = std::move(on_updated_callback);
   ULONG status =
       EventRegister(&provider_guid, StaticEnableCallback, this, &reg_handle_);
-  if (status != ERROR_SUCCESS)
+  if (status != ERROR_SUCCESS) {
     return status;
+  }
 
   // Best-effort, ignore failure.
   return ::EventSetInformation(reg_handle_, EventProviderSetTraits,
@@ -118,8 +121,9 @@ void TlmProvider::StaticEnableCallback(const GUID* source_id,
                                        ULONGLONG match_all_keyword,
                                        PEVENT_FILTER_DESCRIPTOR filter_data,
                                        PVOID callback_context) {
-  if (!callback_context)
+  if (!callback_context) {
     return;
+  }
 
   TlmProvider* provider = static_cast<TlmProvider*>(callback_context);
   switch (is_enabled) {
@@ -163,7 +167,7 @@ char TlmProvider::EventAddField(char* metadata,
                                 uint16_t* metadata_index,
                                 uint8_t in_type,
                                 uint8_t out_type,
-                                const char* field_name) const noexcept {
+                                std::string_view field_name) const noexcept {
   DCHECK_LT(in_type, 0x80);
   DCHECK_LT(out_type, 0x80);
 
@@ -173,13 +177,15 @@ char TlmProvider::EventAddField(char* metadata,
   //     BYTE OutType; // Only present if high bit set in InType.
   //     ( + optional extension data not used here)
 
-  if (*metadata_index >= kMaxEventMetadataSize)
+  if (*metadata_index >= kMaxEventMetadataSize) {
     return 0;
+  }
 
   *metadata_index = AppendNameToMetadata(metadata, kMaxEventMetadataSize,
                                          *metadata_index, field_name);
-  if (*metadata_index >= kMaxEventMetadataSize)
+  if (*metadata_index >= kMaxEventMetadataSize) {
     return 0;
+  }
 
   if (out_type == 0) {
     // 1-byte encoding: inType + TlgOutNULL.
@@ -237,8 +243,8 @@ bool TlmProvider::KeywordEnabled(uint64_t keyword) const noexcept {
 }
 
 TlmInt64Field::TlmInt64Field(const char* name, const int64_t value) noexcept
-    : TlmFieldBase(name), value_(value) {
-  DCHECK_NE(Name(), nullptr);
+    : TlmFieldWithConstants(name), value_(value) {
+  DCHECK_NE(Name().data(), nullptr);
 }
 int64_t TlmInt64Field::Value() const noexcept {
   return value_;
@@ -249,8 +255,8 @@ void TlmInt64Field::FillEventDescriptor(
 }
 
 TlmUInt64Field::TlmUInt64Field(const char* name, const uint64_t value) noexcept
-    : TlmFieldBase(name), value_(value) {
-  DCHECK_NE(Name(), nullptr);
+    : TlmFieldWithConstants(name), value_(value) {
+  DCHECK_NE(Name().data(), nullptr);
 }
 uint64_t TlmUInt64Field::Value() const noexcept {
   return value_;
@@ -262,8 +268,8 @@ void TlmUInt64Field::FillEventDescriptor(
 
 TlmMbcsStringField::TlmMbcsStringField(const char* name,
                                        const char* value) noexcept
-    : TlmFieldBase(name), value_(value) {
-  DCHECK_NE(Name(), nullptr);
+    : TlmFieldWithConstants(name), value_(value) {
+  DCHECK_NE(Name().data(), nullptr);
   DCHECK_NE(value_, nullptr);
 }
 
@@ -279,8 +285,8 @@ void TlmMbcsStringField::FillEventDescriptor(
 
 TlmUtf8StringField::TlmUtf8StringField(const char* name,
                                        const char* value) noexcept
-    : TlmFieldBase(name), value_(value) {
-  DCHECK_NE(Name(), nullptr);
+    : TlmFieldWithConstants(name), value_(value) {
+  DCHECK_NE(Name().data(), nullptr);
   DCHECK_NE(value_, nullptr);
 }
 
@@ -293,3 +299,11 @@ void TlmUtf8StringField::FillEventDescriptor(
   EventDataDescCreate(&descriptors[0], value_,
                       base::checked_cast<ULONG>(strlen(value_) + 1));
 }
+
+TlmFieldBase::TlmFieldBase(const char* name) noexcept : name_(name) {}
+TlmFieldBase::TlmFieldBase(std::string_view name) noexcept : name_(name) {}
+
+TlmFieldBase::~TlmFieldBase() = default;
+
+TlmFieldBase::TlmFieldBase(TlmFieldBase&&) noexcept = default;
+TlmFieldBase& TlmFieldBase::operator=(TlmFieldBase&&) noexcept = default;

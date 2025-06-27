@@ -52,6 +52,7 @@ class HttpResponseHeaders;
 
 namespace download {
 class DownloadFile;
+class DownloadItemRenameHandler;
 
 // One DownloadItem per download. This is the model class that stores all the
 // state for a download.
@@ -163,7 +164,7 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
 
   using ReceivedSlices = std::vector<DownloadItem::ReceivedSlice>;
 
-  ~DownloadItem() override {}
+  ~DownloadItem() override = default;
 
   // Observation ---------------------------------------------------------------
 
@@ -179,15 +180,12 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // Called when the user has validated the download of an insecure file.
   virtual void ValidateInsecureDownload() = 0;
 
-  // Called to acquire a dangerous download. If |delete_file_afterward| is true,
-  // invokes |callback| on the UI thread with the path to the downloaded file,
-  // and removes the DownloadItem from views and history if appropriate.
-  // Otherwise, makes a temp copy of the download file, and invokes |callback|
-  // with the path to the temp copy. The caller is responsible for cleanup.
-  // Note: It is important for |callback| to be valid since the downloaded file
-  // will not be cleaned up if the callback fails.
-  virtual void StealDangerousDownload(bool delete_file_afterward,
-                                      AcquireFileCallback callback) = 0;
+  // Called to acquire a dangerous download. Mmakes a temp copy of the
+  // download file, and invokes |callback| with the path to the temp
+  // copy. The caller is responsible for cleanup.  Note: It is important
+  // for |callback| to be valid since the downloaded file will not be
+  // cleaned up if the callback fails.
+  virtual void CopyDownload(AcquireFileCallback callback) = 0;
 
   // Pause a download.  Will have no effect if the download is already
   // paused.
@@ -239,6 +237,9 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // Get the current state of the download. See DownloadState for descriptions
   // of each download state.
   virtual DownloadState GetState() const = 0;
+
+  virtual void SetStateForTesting(DownloadState state);
+  virtual void SetDownloadUrlForTesting(GURL url);
 
   // Returns the most recent interrupt reason for this download. Returns
   // |DOWNLOAD_INTERRUPT_REASON_NONE| if there is no previous interrupt reason.
@@ -439,6 +440,10 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // Gets the pointer to the DownloadFile owned by this object.
   virtual DownloadFile* GetDownloadFile() = 0;
 
+  // Gets a handler to perform the rename for a download item. Returns nullptr
+  // if no special rename handling is required.
+  virtual DownloadItemRenameHandler* GetRenameHandler() = 0;
+
 #if BUILDFLAG(IS_ANDROID)
   // Gets whether the download is triggered from external app.
   virtual bool IsFromExternalApp() = 0;
@@ -481,6 +486,9 @@ class COMPONENTS_DOWNLOAD_EXPORT DownloadItem : public base::SupportsUserData {
   // Return the slices that have been received so far, ordered by their offset.
   // This is only used when parallel downloading is enabled.
   virtual const std::vector<ReceivedSlice>& GetReceivedSlices() const = 0;
+
+  // Total number of bytes that have been uploaded to the cloud.
+  virtual int64_t GetUploadedBytes() const = 0;
 
   // Time the download was first started. This timestamp is always valid and
   // doesn't change.

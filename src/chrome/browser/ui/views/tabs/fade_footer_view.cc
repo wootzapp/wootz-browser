@@ -50,7 +50,7 @@ FooterRow<T>::FooterRow(bool is_fade_out_view)
   footer_label_ = views::View::AddChildView(std::make_unique<views::Label>(
       std::u16string(), views::style::CONTEXT_DIALOG_BODY_TEXT));
   icon_->SetBackground(
-      views::CreateThemedSolidBackground(ui::kColorBubbleFooterBackground));
+      views::CreateSolidBackground(ui::kColorBubbleFooterBackground));
   footer_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   footer_label_->SetMultiLine(true);
   footer_label_->SetProperty(
@@ -59,8 +59,8 @@ FooterRow<T>::FooterRow(bool is_fade_out_view)
                                views::MinimumFlexSizeRule::kScaleToZero,
                                views::MaximumFlexSizeRule::kUnbounded, true));
 
-    footer_label_->SetEnabledColorId(kColorTabHoverCardSecondaryText);
-    footer_label_->SetTextStyle(views::style::STYLE_BODY_4);
+  footer_label_->SetEnabledColor(kColorTabHoverCardSecondaryText);
+  footer_label_->SetTextStyle(views::style::STYLE_BODY_4);
 
   // Vertically align the icon to the top line of the label
   const int offset = (footer_label_->GetLineHeight() -
@@ -91,13 +91,6 @@ gfx::Size FooterRow<T>::GetMinimumSize() const {
 }
 
 template <typename T>
-int FooterRow<T>::GetHeightForWidth(int width) const {
-  return footer_label_->GetText().empty()
-             ? 0
-             : views::View::GetHeightForWidth(width);
-}
-
-template <typename T>
 void FooterRow<T>::SetFade(double percent) {
   CHECK(is_fade_out_view_);
   percent = std::min(1.0, percent);
@@ -118,8 +111,14 @@ using FooterRow_PerformanceRowData = FooterRow<PerformanceRowData>;
 BEGIN_TEMPLATE_METADATA(FooterRow_PerformanceRowData, FooterRow)
 END_METADATA
 
+using FooterRow_CollaborationMessagingRowData =
+    FooterRow<CollaborationMessagingRowData>;
+BEGIN_TEMPLATE_METADATA(FooterRow_CollaborationMessagingRowData, FooterRow)
+END_METADATA
+
 template class FooterRow<AlertFooterRowData>;
 template class FooterRow<PerformanceRowData>;
+template class FooterRow<CollaborationMessagingRowData>;
 
 // FadeAlertFooterRow
 // -----------------------------------------------------------------------
@@ -137,13 +136,14 @@ void FadeAlertFooterRow::SetData(const AlertFooterRowData& data) {
       row_text = l10n_util::GetStringUTF16(IDS_HOVERCARD_INACTIVE_TAB);
     }
     SetContent(ui::ImageModel::FromVectorIcon(
-                   kMemorySaverIcon, kColorHoverCardTabAlertAudioPlayingIcon,
+                   kPerformanceSpeedometerIcon,
+                   kColorHoverCardTabAlertAudioPlayingIcon,
                    GetLayoutConstant(TAB_ALERT_INDICATOR_ICON_WIDTH)),
                row_text);
   } else if (alert_state.has_value()) {
     SetContent(AlertIndicatorButton::GetTabAlertIndicatorImageForHoverCard(
                    alert_state.value()),
-               chrome::GetTabAlertStateText(alert_state.value()));
+               GetTabAlertStateText(alert_state.value()));
   } else {
     SetContent(ui::ImageModel(), std::u16string());
   }
@@ -166,7 +166,7 @@ void FadePerformanceFooterRow::SetData(const PerformanceRowData& data) {
         formatted_memory_usage);
 
     const ui::ImageModel icon_image_model = ui::ImageModel::FromVectorIcon(
-        kMemorySaverIcon, kColorHoverCardTabAlertAudioPlayingIcon,
+        kPerformanceSpeedometerIcon, kColorHoverCardTabAlertAudioPlayingIcon,
         GetLayoutConstant(TAB_ALERT_INDICATOR_ICON_WIDTH));
     SetContent(icon_image_model, row_text);
   } else {
@@ -177,6 +177,32 @@ void FadePerformanceFooterRow::SetData(const PerformanceRowData& data) {
 }
 
 BEGIN_METADATA(FadePerformanceFooterRow)
+END_METADATA
+
+// FadeCollaborationMessagingFooterRow
+// -----------------------------------------------------------------------
+
+void FadeCollaborationMessagingFooterRow::SetData(
+    const CollaborationMessagingRowData& data) {
+  data_ = data;
+
+  if (!data_.should_show_collaboration_messaging) {
+    // Empty section if collaboration messaging should be hidden.
+    SetContent(ui::ImageModel(), std::u16string());
+    return;
+  }
+
+  SetContent(data_.avatar, data_.text);
+}
+
+CollaborationMessagingRowData::CollaborationMessagingRowData() = default;
+CollaborationMessagingRowData::~CollaborationMessagingRowData() = default;
+CollaborationMessagingRowData::CollaborationMessagingRowData(
+    const CollaborationMessagingRowData& other) = default;
+CollaborationMessagingRowData& CollaborationMessagingRowData::operator=(
+    const CollaborationMessagingRowData& other) = default;
+
+BEGIN_METADATA(FadeCollaborationMessagingFooterRow)
 END_METADATA
 
 // FooterView
@@ -201,6 +227,13 @@ FooterView::FooterView() {
       std::make_unique<FadePerformanceFooterRow>(/* is_fade_out_view =*/false),
       std::make_unique<FadePerformanceFooterRow>(/* is_fade_out_view =*/true)));
 
+  collaboration_messaging_row_ =
+      AddChildView(std::make_unique<CollaborationMessagingFadeView>(
+          std::make_unique<FadeCollaborationMessagingFooterRow>(
+              /* is_fade_out_view =*/false),
+          std::make_unique<FadeCollaborationMessagingFooterRow>(
+              /* is_fade_out_view =*/true)));
+
   alert_row_->SetProperty(
       views::kFlexBehaviorKey,
       views::FlexSpecification(views::LayoutOrientation::kHorizontal,
@@ -213,8 +246,13 @@ FooterView::FooterView() {
                                views::MinimumFlexSizeRule::kScaleToMinimum,
                                views::MaximumFlexSizeRule::kUnbounded, true));
 
-  SetBackground(
-      views::CreateThemedSolidBackground(ui::kColorBubbleFooterBackground));
+  collaboration_messaging_row_->SetProperty(
+      views::kFlexBehaviorKey,
+      views::FlexSpecification(views::LayoutOrientation::kHorizontal,
+                               views::MinimumFlexSizeRule::kScaleToMinimum,
+                               views::MaximumFlexSizeRule::kUnbounded, true));
+
+  SetBackground(views::CreateSolidBackground(ui::kColorBubbleFooterBackground));
 }
 
 void FooterView::SetAlertData(const AlertFooterRowData& data) {
@@ -227,14 +265,23 @@ void FooterView::SetPerformanceData(const PerformanceRowData& data) {
   UpdateVisibility();
 }
 
+void FooterView::SetCollaborationMessagingData(
+    const CollaborationMessagingRowData& data) {
+  collaboration_messaging_row_->SetData(data);
+  UpdateVisibility();
+}
+
 void FooterView::SetFade(double percent) {
   alert_row_->SetFade(percent);
   performance_row_->SetFade(percent);
+  collaboration_messaging_row_->SetFade(percent);
 }
 
 void FooterView::UpdateVisibility() {
   SetVisible(performance_row_->CalculatePreferredSize({}).height() > 0 ||
-             alert_row_->CalculatePreferredSize({}).height() > 0);
+             alert_row_->CalculatePreferredSize({}).height() > 0 ||
+             collaboration_messaging_row_->CalculatePreferredSize({}).height() >
+                 0);
 }
 
 using FadeWrapper_View_PerformanceRowData =
@@ -247,6 +294,13 @@ using FadeWrapper_View_AlertFooterRowData =
     FadeWrapper<views::View, AlertFooterRowData>;
 
 BEGIN_TEMPLATE_METADATA(FadeWrapper_View_AlertFooterRowData, FadeWrapper)
+END_METADATA
+
+using FadeWrapper_View_CollaborationMessagingRowData =
+    FadeWrapper<views::View, CollaborationMessagingRowData>;
+
+BEGIN_TEMPLATE_METADATA(FadeWrapper_View_CollaborationMessagingRowData,
+                        FadeWrapper)
 END_METADATA
 
 using FadeView_FadeAlertFooterRow_FadeAlertFooterRow_AlertFooterRowData =
@@ -264,6 +318,16 @@ using FadeView_FadePerformanceFooterRow_FadePerformanceFooterRow_PerformanceRowD
 
 BEGIN_TEMPLATE_METADATA(
     FadeView_FadePerformanceFooterRow_FadePerformanceFooterRow_PerformanceRowData,
+    FadeView)
+END_METADATA
+
+using FadeView_FadeCollaborationMessagingFooterRow_FadeCollaborationMessagingFooterRow_CollaborationMessagingRowData =
+    FadeView<FadeCollaborationMessagingFooterRow,
+             FadeCollaborationMessagingFooterRow,
+             CollaborationMessagingRowData>;
+
+BEGIN_TEMPLATE_METADATA(
+    FadeView_FadeCollaborationMessagingFooterRow_FadeCollaborationMessagingFooterRow_CollaborationMessagingRowData,
     FadeView)
 END_METADATA
 

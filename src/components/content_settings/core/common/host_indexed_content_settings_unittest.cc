@@ -32,7 +32,7 @@ ContentSettingPatternSource CreateSetting(
   return ContentSettingPatternSource(
       ContentSettingsPattern::FromString(primary_pattern),
       ContentSettingsPattern::FromString(secondary_pattern),
-      base::Value(setting), source, false /* incognito */, metadata);
+      base::Value(setting), source, false /* incognito */, std::move(metadata));
 }
 
 ContentSettingsForOneType ToVector(const HostIndexedContentSettings& index) {
@@ -42,7 +42,7 @@ ContentSettingsForOneType ToVector(const HostIndexedContentSettings& index) {
     source.primary_pattern = entry.first.primary_pattern;
     source.secondary_pattern = entry.first.secondary_pattern;
     source.setting_value = entry.second.value.Clone();
-    source.metadata = entry.second.metadata;
+    source.metadata = entry.second.metadata.Clone();
     source.source = index.source();
     v.push_back(std::move(source));
   }
@@ -319,42 +319,6 @@ class FindContentSettingTest : public testing::Test {
  public:
   FindContentSettingTest() = default;
 };
-
-TEST_F(FindContentSettingTest, MatchInMultiItemVector) {
-  ContentSettingsForOneType matching_vector = {
-      CreateSetting("https://www.example.com:*/*", "*", CONTENT_SETTING_BLOCK),
-      CreateSetting("*://www.example.com:123/*", "[*.]example.com",
-                    CONTENT_SETTING_ALLOW),
-      CreateSetting("[*.]example.com", "[*.]example.com",
-                    CONTENT_SETTING_ALLOW)};
-  EXPECT_EQ(FindContentSetting(GURL("https://www.example.com/"),
-                               GURL("http://toplevel.com"), matching_vector)
-                ->GetContentSetting(),
-            CONTENT_SETTING_BLOCK);
-}
-
-TEST_F(FindContentSettingTest, MatchInSingleItemVector) {
-  ContentSettingsForOneType single_item_vector = {
-      CreateSetting("https://www.example.com:*/*", "*", CONTENT_SETTING_ALLOW)};
-  EXPECT_EQ(FindContentSetting(GURL("https://www.example.com/"),
-                               GURL("http://toplevel.com"), single_item_vector)
-                ->GetContentSetting(),
-            CONTENT_SETTING_ALLOW);
-}
-
-TEST_F(FindContentSettingTest, NoMatchInSingleItemVector) {
-  ContentSettingsForOneType not_matching_vector = {
-      CreateSetting("https://www.example.com:*/*", "[*.]example.com",
-                    CONTENT_SETTING_ALLOW),
-      CreateSetting("*://www.example.com:123/*", "[*.]example.com",
-                    CONTENT_SETTING_ALLOW),
-      CreateSetting("[*.]example.com", "[*.]example.com",
-                    CONTENT_SETTING_ALLOW)};
-  EXPECT_EQ(
-      FindContentSetting(GURL("https://www.example.com/"),
-                         GURL("http://toplevel.com"), not_matching_vector),
-      nullptr);
-}
 
 TEST_F(FindContentSettingTest, VectorOfIndices) {
   auto setting1 =

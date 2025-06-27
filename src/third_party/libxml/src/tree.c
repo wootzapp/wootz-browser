@@ -38,22 +38,28 @@
 #ifdef LIBXML_HTML_ENABLED
 #include <libxml/HTMLtree.h>
 #endif
-#ifdef LIBXML_DEBUG_ENABLED
-#include <libxml/debugXML.h>
-#endif
 
 #include "private/buf.h"
 #include "private/entities.h"
 #include "private/error.h"
+#include "private/memory.h"
 #include "private/tree.h"
 
-int __xmlRegisterCallbacks = 0;
+/*
+ * Internal variable indicating whether a callback has been registered
+ * for node creation/destruction. This avoids looking up thread-local
+ * data if no callback was ever registered.
+ */
+int xmlRegisterCallbacks = 0;
 
 /************************************************************************
  *									*
  *		Forward declarations					*
  *									*
  ************************************************************************/
+
+static xmlNodePtr
+xmlNewEntityRef(xmlDocPtr doc, xmlChar *name);
 
 static xmlNsPtr
 xmlNewReconciledNs(xmlNodePtr tree, xmlNsPtr ns);
@@ -96,7 +102,6 @@ static int xmlCompressMode = 0;
  ************************************************************************/
 #include <libxml/hash.h>
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlGetEntityFromDtd:
  * @dtd:  A pointer to the DTD to search
@@ -139,7 +144,6 @@ xmlGetParameterEntityFromDtd(const xmlDtd *dtd, const xmlChar *name) {
     }
     return(NULL);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /************************************************************************
  *									*
@@ -170,11 +174,17 @@ xmlBuildQName(const xmlChar *ncname, const xmlChar *prefix,
     if (ncname == NULL) return(NULL);
     if (prefix == NULL) return((xmlChar *) ncname);
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    /* Make allocation more likely */
+    if (len > 8)
+        len = 8;
+#endif
+
     lenn = strlen((char *) ncname);
     lenp = strlen((char *) prefix);
 
     if ((memory == NULL) || (len < lenn + lenp + 2)) {
-	ret = (xmlChar *) xmlMallocAtomic(lenn + lenp + 2);
+	ret = xmlMalloc(lenn + lenp + 2);
 	if (ret == NULL)
 	    return(NULL);
     } else {
@@ -226,7 +236,7 @@ xmlSplitQName2(const xmlChar *name, xmlChar **prefix) {
     while ((name[len] != 0) && (name[len] != ':'))
 	len++;
 
-    if (name[len] == 0)
+    if ((name[len] == 0) || (name[len+1] == 0))
 	return(NULL);
 
     *prefix = xmlStrndup(name, len);
@@ -274,7 +284,7 @@ xmlSplitQName3(const xmlChar *name, int *len) {
     while ((name[l] != 0) && (name[l] != ':'))
 	l++;
 
-    if (name[l] == 0)
+    if ((name[l] == 0) || (name[l+1] == 0))
 	return(NULL);
 
     *len = l;
@@ -409,7 +419,6 @@ try_complex:
     return(0);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlValidateQName:
  * @value: the value to check
@@ -648,48 +657,12 @@ try_complex:
 	return(1);
     return(0);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /************************************************************************
  *									*
  *		Allocation and deallocation of basic structures		*
  *									*
  ************************************************************************/
-
-/**
- * xmlSetBufferAllocationScheme:
- * @scheme:  allocation method to use
- *
- * Set the buffer allocation method.  Types are
- * XML_BUFFER_ALLOC_EXACT - use exact sizes, keeps memory usage down
- * XML_BUFFER_ALLOC_DOUBLEIT - double buffer when extra needed,
- *                             improves performance
- */
-void
-xmlSetBufferAllocationScheme(xmlBufferAllocationScheme scheme) {
-    if ((scheme == XML_BUFFER_ALLOC_EXACT) ||
-        (scheme == XML_BUFFER_ALLOC_DOUBLEIT) ||
-        (scheme == XML_BUFFER_ALLOC_HYBRID))
-	xmlBufferAllocScheme = scheme;
-}
-
-/**
- * xmlGetBufferAllocationScheme:
- *
- * Types are
- * XML_BUFFER_ALLOC_EXACT - use exact sizes, keeps memory usage down
- * XML_BUFFER_ALLOC_DOUBLEIT - double buffer when extra needed,
- *                             improves performance
- * XML_BUFFER_ALLOC_HYBRID - use exact sizes on small strings to keep memory usage tight
- *                            in normal usage, and doubleit on large strings to avoid
- *                            pathological performance.
- *
- * Returns the current allocation scheme
- */
-xmlBufferAllocationScheme
-xmlGetBufferAllocationScheme(void) {
-    return(xmlBufferAllocScheme);
-}
 
 /**
  * xmlNewNs:
@@ -873,7 +846,7 @@ xmlNewDtd(xmlDocPtr doc, const xmlChar *name,
 	doc->extSubset = cur;
     cur->doc = doc;
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
     return(cur);
 
@@ -996,7 +969,7 @@ xmlCreateIntSubset(xmlDocPtr doc, const xmlChar *name,
 	}
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
     return(cur);
 
@@ -1032,7 +1005,7 @@ xmlFreeDtd(xmlDtdPtr cur) {
     }
     if (cur->doc != NULL) dict = cur->doc->dict;
 
-    if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
 	xmlDeregisterNodeDefaultValue((xmlNodePtr)cur);
 
     if (cur->children != NULL) {
@@ -1113,7 +1086,7 @@ xmlNewDoc(const xmlChar *version) {
      */
     cur->charset = XML_CHAR_ENCODING_UTF8;
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
     return(cur);
 }
@@ -1133,9 +1106,9 @@ xmlFreeDoc(xmlDocPtr cur) {
 	return;
     }
 
-    if (cur != NULL) dict = cur->dict;
+    dict = cur->dict;
 
-    if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
 	xmlDeregisterNodeDefaultValue((xmlNodePtr)cur);
 
     /*
@@ -1204,15 +1177,14 @@ xmlNodeParseContentInternal(const xmlDoc *doc, xmlNodePtr parent,
     else
         remaining = len;
 
-    if (value == NULL)
+    if ((value == NULL) || (value[0] == 0))
         goto done;
 
     cur = value;
 
-    buf = xmlBufCreateSize(64);
+    buf = xmlBufCreate(50);
     if (buf == NULL)
         return(-1);
-    xmlBufSetAllocationScheme(buf, XML_BUFFER_ALLOC_DOUBLEIT);
 
     q = cur;
     while ((remaining > 0) && (*cur != 0)) {
@@ -1339,7 +1311,8 @@ xmlNodeParseContentInternal(const xmlDoc *doc, xmlNodePtr parent,
 			/*
 			 * Create a new REFERENCE_REF node
 			 */
-			node = xmlNewCharRef((xmlDocPtr) doc, val);
+			node = xmlNewEntityRef((xmlDocPtr) doc, val);
+                        val = NULL;
 			if (node == NULL)
 			    goto out;
                         node->parent = parent;
@@ -1469,8 +1442,8 @@ xmlNodeParseContent(xmlNodePtr node, const xmlChar *content, int len) {
  *
  * See xmlStringGetNodeList.
  *
- * Returns a pointer to the first child or NULL if a memory
- * allocation failed.
+ * Returns a pointer to the first child or NULL if the value if empty
+ * or a memory allocation failed.
  */
 xmlNodePtr
 xmlStringLenGetNodeList(const xmlDoc *doc, const xmlChar *value, int len) {
@@ -1496,8 +1469,8 @@ xmlStringLenGetNodeList(const xmlDoc *doc, const xmlChar *value, int len) {
  * undeclared entities will be ignored silently with unspecified
  * results.
  *
- * Returns a pointer to the first child or NULL if a memory
- * allocation failed.
+ * Returns a pointer to the first child or NULL if the value if empty
+ * or a memory allocation failed.
  */
 xmlNodePtr
 xmlStringGetNodeList(const xmlDoc *doc, const xmlChar *value) {
@@ -1532,7 +1505,7 @@ xmlNodeListGetStringInternal(xmlDocPtr doc, const xmlNode *node, int escMode) {
         return(xmlStrdup(node->content));
     }
 
-    buf = xmlBufCreateSize(64);
+    buf = xmlBufCreate(50);
     if (buf == NULL)
         return(NULL);
 
@@ -1546,11 +1519,11 @@ xmlNodeListGetStringInternal(xmlDocPtr doc, const xmlNode *node, int escMode) {
                     xmlChar *encoded;
 
                     if (escMode == 1)
-                        encoded = xmlEncodeEntitiesReentrant(doc,
-                                                             node->content);
+                        encoded = xmlEncodeEntitiesInternal(doc, node->content,
+                                                            0);
                     else if (escMode == 2)
-                        encoded = xmlEncodeAttributeEntities(doc,
-                                                             node->content);
+                        encoded = xmlEncodeEntitiesInternal(doc, node->content,
+                                                            XML_ESCAPE_ATTR);
                     else
                         encoded = xmlEncodeSpecialChars(doc, node->content);
                     if (encoded == NULL)
@@ -1584,11 +1557,11 @@ error:
 /**
  * xmlNodeListGetString:
  * @doc:  a document (optional)
- * @list:  a node list of attribute children (optional)
+ * @list:  a node list of attribute children
  * @inLine:  whether entity references are substituted
  *
  * Serializes attribute children (text and entity reference nodes)
- * into a string. An empty list produces an empty string.
+ * into a string.
  *
  * If @inLine is true, entity references will be substituted.
  * Otherwise, entity references will be kept and special characters
@@ -1602,11 +1575,14 @@ xmlNodeListGetString(xmlDocPtr doc, const xmlNode *list, int inLine)
 {
     int escMode;
 
+    /* backward compatibility */
+    if (list == NULL)
+        return(NULL);
+
     if (inLine) {
         escMode = 0;
     } else {
-        if ((list != NULL) &&
-            (list->parent != NULL) &&
+        if ((list->parent != NULL) &&
             (list->parent->type == XML_ATTRIBUTE_NODE))
             escMode = 2;
         else
@@ -1616,15 +1592,14 @@ xmlNodeListGetString(xmlDocPtr doc, const xmlNode *list, int inLine)
     return(xmlNodeListGetStringInternal(doc, list, escMode));
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNodeListGetRawString:
  * @doc:  a document (optional)
- * @list:  a node list of attribute children (optional)
+ * @list:  a node list of attribute children
  * @inLine:  whether entity references are substituted
  *
  * Serializes attribute children (text and entity reference nodes)
- * into a string. An empty list produces an empty string.
+ * into a string.
  *
  * If @inLine is true, entity references will be substituted.
  * Otherwise, entity references will be kept and special characters
@@ -1636,9 +1611,13 @@ xmlChar *
 xmlNodeListGetRawString(const xmlDoc *doc, const xmlNode *list, int inLine)
 {
     int escMode = inLine ? 0 : 3;
+
+    /* backward compatibility */
+    if (list == NULL)
+        return(NULL);
+
     return(xmlNodeListGetStringInternal((xmlDocPtr) doc, list, escMode));
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 static xmlAttrPtr
 xmlNewPropInternal(xmlNodePtr node, xmlNsPtr ns,
@@ -1729,7 +1708,7 @@ xmlNewPropInternal(xmlNodePtr node, xmlNsPtr ns,
         }
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
         xmlRegisterNodeDefaultValue((xmlNodePtr) cur);
     return (cur);
 
@@ -1738,8 +1717,6 @@ error:
     return(NULL);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_HTML_ENABLED) || \
-    defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlNewProp:
  * @node:  the parent node (optional)
@@ -1766,7 +1743,6 @@ xmlNewProp(xmlNodePtr node, const xmlChar *name, const xmlChar *value) {
 
 	return xmlNewPropInternal(node, NULL, name, value, 0);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlNewNsProp:
@@ -1867,7 +1843,7 @@ xmlNewDocProp(xmlDocPtr doc, const xmlChar *name, const xmlChar *value) {
             goto error;
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
     return(cur);
 
@@ -1906,7 +1882,7 @@ xmlFreeProp(xmlAttrPtr cur) {
 
     if (cur->doc != NULL) dict = cur->doc->dict;
 
-    if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
 	xmlDeregisterNodeDefaultValue((xmlNodePtr)cur);
 
     /* Check for ID removal -> leading to invalid references ! */
@@ -2002,7 +1978,7 @@ xmlNewDocPI(xmlDocPtr doc, const xmlChar *name, const xmlChar *content) {
             goto error;
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
     return(cur);
 
@@ -2089,7 +2065,7 @@ xmlNewElem(xmlDocPtr doc, xmlNsPtr ns, const xmlChar *name,
         }
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)cur);
 
     return(cur);
@@ -2153,7 +2129,6 @@ xmlNewDocNode(xmlDocPtr doc, xmlNsPtr ns,
 
 /**
  * xmlNewDocNodeEatName:
- * xmlNewDocNode:
  * @doc:  the target document
  * @ns:  namespace (optional)
  * @name:  the node name
@@ -2189,7 +2164,6 @@ xmlNewDocNodeEatName(xmlDocPtr doc, xmlNsPtr ns,
     return(cur);
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNewDocRawNode:
  * @doc:  the target document
@@ -2253,11 +2227,10 @@ xmlNewDocFragment(xmlDocPtr doc) {
 
     cur->doc = doc;
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlNewText:
@@ -2290,7 +2263,7 @@ xmlNewText(const xmlChar *content) {
             goto error;
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 
@@ -2299,7 +2272,6 @@ error:
     return(NULL);
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNewTextChild:
  * @parent:  the parent node
@@ -2361,7 +2333,42 @@ xmlNewTextChild(xmlNodePtr parent, xmlNsPtr ns,
 
     return(cur);
 }
-#endif /* LIBXML_TREE_ENABLED */
+
+/**
+ * xmlNewEntityRef:
+ * @doc: the target document (optional)
+ * @name:  the entity name
+ *
+ * Create an empty entity reference node. This function doesn't attempt
+ * to look up the entity in @doc.
+ *
+ * @name is consumed.
+ *
+ * Returns a pointer to the new node object or NULL if arguments are
+ * invalid or a memory allocation failed.
+ */
+static xmlNodePtr
+xmlNewEntityRef(xmlDocPtr doc, xmlChar *name) {
+    xmlNodePtr cur;
+
+    /*
+     * Allocate a new node and fill the fields.
+     */
+    cur = (xmlNodePtr) xmlMalloc(sizeof(xmlNode));
+    if (cur == NULL) {
+        xmlFree(name);
+	return(NULL);
+    }
+    memset(cur, 0, sizeof(xmlNode));
+    cur->type = XML_ENTITY_REF_NODE;
+    cur->doc = doc;
+    cur->name = name;
+
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+	xmlRegisterNodeDefaultValue(cur);
+
+    return(cur);
+}
 
 /**
  * xmlNewCharRef:
@@ -2381,41 +2388,25 @@ xmlNewTextChild(xmlNodePtr parent, xmlNsPtr ns,
  */
 xmlNodePtr
 xmlNewCharRef(xmlDocPtr doc, const xmlChar *name) {
-    xmlNodePtr cur;
+    xmlChar *copy;
 
     if (name == NULL)
         return(NULL);
 
-    /*
-     * Allocate a new node and fill the fields.
-     */
-    cur = (xmlNodePtr) xmlMalloc(sizeof(xmlNode));
-    if (cur == NULL)
-	return(NULL);
-    memset(cur, 0, sizeof(xmlNode));
-    cur->type = XML_ENTITY_REF_NODE;
-
-    cur->doc = doc;
     if (name[0] == '&') {
         int len;
         name++;
 	len = xmlStrlen(name);
 	if (name[len - 1] == ';')
-	    cur->name = xmlStrndup(name, len - 1);
+	    copy = xmlStrndup(name, len - 1);
 	else
-	    cur->name = xmlStrndup(name, len);
+	    copy = xmlStrndup(name, len);
     } else
-	cur->name = xmlStrdup(name);
-    if (cur->name == NULL)
-        goto error;
+	copy = xmlStrdup(name);
+    if (copy == NULL)
+        return(NULL);
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
-	xmlRegisterNodeDefaultValue(cur);
-    return(cur);
-
-error:
-    xmlFreeNode(cur);
-    return(NULL);
+    return(xmlNewEntityRef(doc, copy));
 }
 
 /**
@@ -2474,7 +2465,7 @@ xmlNewReference(const xmlDoc *doc, const xmlChar *name) {
 	cur->last = (xmlNodePtr) ent;
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 
@@ -2534,7 +2525,7 @@ xmlNewTextLen(const xmlChar *content, int len) {
         }
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 }
@@ -2590,7 +2581,7 @@ xmlNewComment(const xmlChar *content) {
             goto error;
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 
@@ -2632,7 +2623,7 @@ xmlNewCDataBlock(xmlDocPtr doc, const xmlChar *content, int len) {
         }
     }
 
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue(cur);
     return(cur);
 }
@@ -2891,7 +2882,6 @@ xmlSetListDoc(xmlNodePtr list, xmlDocPtr doc) {
     return(ret);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlNewChild:
  * @parent:  the parent node
@@ -2955,7 +2945,6 @@ xmlNewChild(xmlNodePtr parent, xmlNsPtr ns,
 
     return(cur);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 static void
 xmlTextSetContent(xmlNodePtr text, xmlChar *content) {
@@ -3148,8 +3137,6 @@ xmlAddNextSibling(xmlNodePtr prev, xmlNodePtr cur) {
     return(xmlInsertNode(prev->doc, cur, prev->parent, prev, prev->next, 0));
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_HTML_ENABLED) || \
-    defined(LIBXML_SCHEMAS_ENABLED) || defined(LIBXML_XINCLUDE_ENABLED)
 /**
  * xmlAddPrevSibling:
  * @next:  the target node
@@ -3180,7 +3167,6 @@ xmlAddPrevSibling(xmlNodePtr next, xmlNodePtr cur) {
 
     return(xmlInsertNode(next->doc, cur, next->parent, next->prev, next, 0));
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlAddSibling:
@@ -3317,7 +3303,7 @@ xmlAddChildList(xmlNodePtr parent, xmlNodePtr cur) {
  *
  * If @cur is an attribute node, it is appended to the attributes of
  * @parent. If the attribute list contains an attribute with a name
- * matching @elem, the old attribute is destroyed.
+ * matching @cur, the old attribute is destroyed.
  *
  * General notes:
  *
@@ -3344,7 +3330,7 @@ xmlAddChildList(xmlNodePtr parent, xmlNodePtr cur) {
  *
  * Moving DTDs between documents isn't supported.
  *
- * Returns @elem or a sibling if @elem was merged. Returns NULL
+ * Returns @cur or a sibling if @cur was merged. Returns NULL
  * if arguments are invalid or a memory allocation failed.
  */
 xmlNodePtr
@@ -3399,7 +3385,6 @@ xmlGetLastChild(const xmlNode *parent) {
     return(parent->last);
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /*
  * 5 interfaces from DOM ElementTraversal
  */
@@ -3584,8 +3569,6 @@ xmlNextElementSibling(xmlNodePtr node) {
     return(NULL);
 }
 
-#endif /* LIBXML_TREE_ENABLED */
-
 /**
  * xmlFreeNodeList:
  * @cur:  the first node in the list
@@ -3628,7 +3611,7 @@ xmlFreeNodeList(xmlNodePtr cur) {
             cur->prev = NULL;
             cur->next = NULL;
         } else {
-	    if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+	    if ((xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
 		xmlDeregisterNodeDefaultValue(cur);
 
 	    if (((cur->type == XML_ELEMENT_NODE) ||
@@ -3702,17 +3685,16 @@ xmlFreeNode(xmlNodePtr cur) {
 	xmlFreeProp((xmlAttrPtr) cur);
 	return;
     }
+    if (cur->type == XML_ENTITY_DECL) {
+        xmlFreeEntity((xmlEntityPtr) cur);
+        return;
+    }
 
-    if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
 	xmlDeregisterNodeDefaultValue(cur);
 
     if (cur->doc != NULL) dict = cur->doc->dict;
 
-    if (cur->type == XML_ENTITY_DECL) {
-        xmlEntityPtr ent = (xmlEntityPtr) cur;
-	DICT_FREE(ent->SystemID);
-	DICT_FREE(ent->ExternalID);
-    }
     if ((cur->children != NULL) &&
 	(cur->type != XML_ENTITY_REF_NODE))
 	xmlFreeNodeList(cur->children);
@@ -3811,7 +3793,6 @@ xmlUnlinkNode(xmlNodePtr cur) {
     xmlUnlinkNodeInternal(cur);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_WRITER_ENABLED)
 /**
  * xmlReplaceNode:
  * @old:  the old node
@@ -3840,9 +3821,6 @@ xmlReplaceNode(xmlNodePtr old, xmlNodePtr cur) {
     if ((cur == NULL) || (cur->type == XML_NAMESPACE_DECL)) {
         /* Don't call xmlUnlinkNodeInternal to handle DTDs. */
 	xmlUnlinkNode(old);
-	return(old);
-    }
-    if (cur == old) {
 	return(old);
     }
     if ((old->type==XML_ATTRIBUTE_NODE) && (cur->type!=XML_ATTRIBUTE_NODE)) {
@@ -3876,7 +3854,6 @@ xmlReplaceNode(xmlNodePtr old, xmlNodePtr cur) {
     old->parent = NULL;
     return(old);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /************************************************************************
  *									*
@@ -4034,7 +4011,6 @@ xmlCopyPropInternal(xmlDocPtr doc, xmlNodePtr target, xmlAttrPtr cur) {
      */
     if ((target != NULL) && (cur != NULL) &&
 	(target->doc != NULL) && (cur->doc != NULL) &&
-	(cur->doc->ids != NULL) &&
         (cur->parent != NULL) &&
         (cur->children != NULL)) {
         int res = xmlIsID(cur->doc, cur->parent, cur);
@@ -4135,6 +4111,17 @@ xmlCopyPropList(xmlNodePtr target, xmlAttrPtr cur) {
  * namespace info, but don't recurse on children.
  */
 
+/**
+ * xmlStaticCopyNode:
+ * @node:  source node
+ * @doc:  target document
+ * @parent:  target parent
+ * @extended:  flags
+ *
+ * Copy a node.
+ *
+ * Returns the copy or NULL if a memory allocation failed.
+ */
 xmlNodePtr
 xmlStaticCopyNode(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent,
                   int extended) {
@@ -4159,9 +4146,7 @@ xmlStaticCopyNode(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent,
 
         case XML_DOCUMENT_NODE:
         case XML_HTML_DOCUMENT_NODE:
-#ifdef LIBXML_TREE_ENABLED
 	    return((xmlNodePtr) xmlCopyDoc((xmlDocPtr) node, extended));
-#endif /* LIBXML_TREE_ENABLED */
         default:
             return(NULL);
     }
@@ -4312,7 +4297,7 @@ xmlStaticCopyNode(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent,
     }
 
 out:
-    if ((__xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
+    if ((xmlRegisterCallbacks) && (xmlRegisterNodeDefaultValue))
 	xmlRegisterNodeDefaultValue((xmlNodePtr)ret);
     return(ret);
 
@@ -4343,7 +4328,6 @@ xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {
     while (node != NULL) {
         xmlNodePtr next = node->next;
 
-#ifdef LIBXML_TREE_ENABLED
 	if (node->type == XML_DTD_NODE ) {
 	    if (doc == NULL) {
 		node = next;
@@ -4381,7 +4365,6 @@ xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {
                 q->prev = NULL;
 	    }
 	} else
-#endif /* LIBXML_TREE_ENABLED */
 	    q = xmlStaticCopyNode(node, doc, parent, 1);
 	if (q == NULL) goto error;
 	if (ret == NULL) {
@@ -4481,7 +4464,6 @@ xmlNodePtr xmlCopyNodeList(xmlNodePtr node) {
     return(ret);
 }
 
-#if defined(LIBXML_TREE_ENABLED)
 /**
  * xmlCopyDtd:
  * @dtd:  the DTD
@@ -4587,9 +4569,7 @@ error:
     xmlFreeDtd(ret);
     return(NULL);
 }
-#endif
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlCopyDoc:
  * @doc:  the document
@@ -4631,7 +4611,6 @@ xmlCopyDoc(xmlDocPtr doc, int recursive) {
 
     ret->last = NULL;
     ret->children = NULL;
-#ifdef LIBXML_TREE_ENABLED
     if (doc->intSubset != NULL) {
         ret->intSubset = xmlCopyDtd(doc->intSubset);
 	if (ret->intSubset == NULL)
@@ -4639,7 +4618,6 @@ xmlCopyDoc(xmlDocPtr doc, int recursive) {
         /* Can't fail on DTD */
 	xmlSetTreeDoc((xmlNodePtr)ret->intSubset, ret);
     }
-#endif
     if (doc->oldNs != NULL) {
         ret->oldNs = xmlCopyNamespaceList(doc->oldNs);
         if (ret->oldNs == NULL)
@@ -4666,7 +4644,6 @@ error:
     xmlFreeDoc(ret);
     return(NULL);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /************************************************************************
  *									*
@@ -4700,7 +4677,7 @@ xmlGetLineNoInternal(const xmlNode *node, int depth)
 	(node->type == XML_PI_NODE)) {
 	if (node->line == 65535) {
 	    if ((node->type == XML_TEXT_NODE) && (node->psvi != NULL))
-	        result = (long) (ptrdiff_t) node->psvi;
+	        result = XML_PTR_TO_INT(node->psvi);
 	    else if ((node->type == XML_ELEMENT_NODE) &&
 	             (node->children != NULL))
 	        result = xmlGetLineNoInternal(node->children, depth + 1);
@@ -4710,7 +4687,7 @@ xmlGetLineNoInternal(const xmlNode *node, int depth)
 	        result = xmlGetLineNoInternal(node->prev, depth + 1);
 	}
 	if ((result == -1) || (result == 65535))
-	    result = (long) node->line;
+	    result = node->line;
     } else if ((node->prev != NULL) &&
              ((node->prev->type == XML_ELEMENT_NODE) ||
 	      (node->prev->type == XML_TEXT_NODE) ||
@@ -4740,7 +4717,6 @@ xmlGetLineNo(const xmlNode *node)
     return(xmlGetLineNoInternal(node, 0));
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_DEBUG_ENABLED)
 /**
  * xmlGetNodePath:
  * @node: a node
@@ -4754,8 +4730,8 @@ xmlChar *
 xmlGetNodePath(const xmlNode *node)
 {
     const xmlNode *cur, *tmp, *next;
-    xmlChar *buffer = NULL, *temp;
-    size_t buf_len;
+    xmlChar *buffer = NULL;
+    size_t buf_len, len;
     xmlChar *buf;
     const char *sep;
     const char *name;
@@ -4766,10 +4742,10 @@ xmlGetNodePath(const xmlNode *node)
         return (NULL);
 
     buf_len = 500;
-    buffer = (xmlChar *) xmlMallocAtomic(buf_len);
+    buffer = xmlMalloc(buf_len);
     if (buffer == NULL)
         return (NULL);
-    buf = (xmlChar *) xmlMallocAtomic(buf_len);
+    buf = xmlMalloc(buf_len);
     if (buf == NULL) {
         xmlFree(buffer);
         return (NULL);
@@ -4952,23 +4928,36 @@ xmlGetNodePath(const xmlNode *node)
         /*
          * Make sure there is enough room
          */
-        if (xmlStrlen(buffer) + sizeof(nametemp) + 20 > buf_len) {
-            buf_len =
-                2 * buf_len + xmlStrlen(buffer) + sizeof(nametemp) + 20;
-            temp = (xmlChar *) xmlRealloc(buffer, buf_len);
+        len = strlen((const char *) buffer);
+        if (buf_len - len < sizeof(nametemp) + 20) {
+            xmlChar *temp;
+            int newSize;
+
+            if ((buf_len > SIZE_MAX / 2) ||
+                (2 * buf_len > SIZE_MAX - len - sizeof(nametemp) - 20)) {
+                xmlFree(buf);
+                xmlFree(buffer);
+                return (NULL);
+            }
+            newSize = 2 * buf_len + len + sizeof(nametemp) + 20;
+
+            temp = xmlRealloc(buffer, newSize);
             if (temp == NULL) {
                 xmlFree(buf);
                 xmlFree(buffer);
                 return (NULL);
             }
             buffer = temp;
-            temp = (xmlChar *) xmlRealloc(buf, buf_len);
+
+            temp = xmlRealloc(buf, newSize);
             if (temp == NULL) {
                 xmlFree(buf);
                 xmlFree(buffer);
                 return (NULL);
             }
             buf = temp;
+
+            buf_len = newSize;
         }
         if (occur == 0)
             snprintf((char *) buf, buf_len, "%s%s%s",
@@ -4982,7 +4971,6 @@ xmlGetNodePath(const xmlNode *node)
     xmlFree(buf);
     return (buffer);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlDocGetRootElement:
@@ -5007,7 +4995,6 @@ xmlDocGetRootElement(const xmlDoc *doc) {
     return(ret);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_WRITER_ENABLED)
 /**
  * xmlDocSetRootElement:
  * @doc:  the document
@@ -5053,9 +5040,7 @@ xmlDocSetRootElement(xmlDocPtr doc, xmlNodePtr root) {
     }
     return(old);
 }
-#endif
 
-#if defined(LIBXML_TREE_ENABLED)
 /**
  * xmlNodeSetLang:
  * @cur:  the node being changed
@@ -5085,7 +5070,6 @@ xmlNodeSetLang(xmlNodePtr cur, const xmlChar *lang) {
 
     return(0);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlNodeGetLang:
@@ -5120,7 +5104,6 @@ xmlNodeGetLang(const xmlNode *cur) {
 }
 
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNodeSetSpacePreserve:
  * @cur:  the node being changed
@@ -5157,7 +5140,6 @@ xmlNodeSetSpacePreserve(xmlNodePtr cur, int val) {
 
     return(0);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlNodeGetSpacePreserve:
@@ -5200,7 +5182,6 @@ xmlNodeGetSpacePreserve(const xmlNode *cur) {
     return(-1);
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNodeSetName:
  * @cur:  the node being changed
@@ -5246,9 +5227,7 @@ xmlNodeSetName(xmlNodePtr cur, const xmlChar *name) {
         ((dict == NULL) || (!xmlDictOwns(dict, oldName))))
         xmlFree((xmlChar *) oldName);
 }
-#endif
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_XINCLUDE_ENABLED)
 /**
  * xmlNodeSetBase:
  * @cur:  the node being changed
@@ -5303,10 +5282,9 @@ xmlNodeSetBase(xmlNodePtr cur, const xmlChar* uri) {
 
     return(0);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
- * xmlNodeGetBase:
+ * xmlNodeGetBaseSafe:
  * @doc:  the document the node pertains to
  * @cur:  the node being checked
  * @baseOut:  pointer to base
@@ -5319,6 +5297,8 @@ xmlNodeSetBase(xmlNodePtr cur, const xmlChar* uri) {
  * 5.1.2. Base URI from the Encapsulating Entity
  * However it does not return the document base (5.1.3), use
  * doc->URL in this case
+ *
+ * Available since 2.13.0.
  *
  * Return 0 in case of success, 1 if a URI or argument is invalid, -1 if a
  * memory allocation failed.
@@ -5459,13 +5439,13 @@ int
 xmlNodeBufGetContent(xmlBufferPtr buffer, const xmlNode *cur)
 {
     xmlBufPtr buf;
-    int ret;
+    int ret1, ret2;
 
     if ((cur == NULL) || (buffer == NULL)) return(-1);
     buf = xmlBufFromBuffer(buffer);
-    ret = xmlBufGetNodeContent(buf, cur);
-    buffer = xmlBufBackToBuffer(buf);
-    if ((ret < 0) || (buffer == NULL))
+    ret1 = xmlBufGetNodeContent(buf, cur);
+    ret2 = xmlBufBackToBuffer(buf, buffer);
+    if ((ret1 < 0) || (ret2 < 0))
         return(-1);
     return(0);
 }
@@ -5481,6 +5461,16 @@ xmlBufGetEntityRefContent(xmlBufPtr buf, const xmlNode *ref) {
         ent = xmlGetDocEntity(ref->doc, ref->name);
         if (ent == NULL)
             return;
+    }
+
+    /*
+     * The parser should always expand predefined entities but it's
+     * possible to create references to predefined entities using
+     * the tree API.
+     */
+    if (ent->etype == XML_INTERNAL_PREDEFINED_ENTITY) {
+        xmlBufCat(buf, ent->content);
+        return;
     }
 
     if (ent->flags & XML_ENT_EXPANDING)
@@ -5637,10 +5627,9 @@ xmlNodeGetContent(const xmlNode *cur)
             return(NULL);
     }
 
-    buf = xmlBufCreateSize(64);
+    buf = xmlBufCreate(50);
     if (buf == NULL)
         return (NULL);
-    xmlBufSetAllocationScheme(buf, XML_BUFFER_ALLOC_DOUBLEIT);
     xmlBufGetNodeContent(buf, cur);
     ret = xmlBufDetach(buf);
     xmlBufFree(buf);
@@ -5715,7 +5704,6 @@ xmlNodeSetContent(xmlNodePtr cur, const xmlChar *content) {
     return(xmlNodeSetContentInternal(cur, content, -1));
 }
 
-#ifdef LIBXML_TREE_ENABLED
 /**
  * xmlNodeSetContentLen:
  * @cur:  the node being modified
@@ -5730,7 +5718,6 @@ int
 xmlNodeSetContentLen(xmlNodePtr cur, const xmlChar *content, int len) {
     return(xmlNodeSetContentInternal(cur, content, len));
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 /**
  * xmlNodeAddContentLen:
@@ -5803,15 +5790,21 @@ xmlNodeAddContent(xmlNodePtr cur, const xmlChar *content) {
  * @first:  the first text node
  * @second:  the second text node being merged
  *
- * Merge the second text node into the first. The second node is
- * unlinked and freed.
+ * Merge the second text node into the first. If @first is NULL,
+ * @second is returned. Otherwise, the second node is unlinked and
+ * freed.
  *
  * Returns the first text node augmented or NULL in case of error.
  */
 xmlNodePtr
 xmlTextMerge(xmlNodePtr first, xmlNodePtr second) {
-    if ((first == NULL) || (first->type != XML_TEXT_NODE) ||
-        (second == NULL) || (second->type != XML_TEXT_NODE) ||
+    if (first == NULL)
+        return(second);
+    if (second == NULL)
+        return(first);
+
+    if ((first->type != XML_TEXT_NODE) ||
+        (second->type != XML_TEXT_NODE) ||
         (first == second) ||
         (first->name != second->name))
 	return(NULL);
@@ -5824,7 +5817,6 @@ xmlTextMerge(xmlNodePtr first, xmlNodePtr second) {
     return(first);
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_XPATH_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlGetNsListSafe:
  * @doc:  the document
@@ -5834,6 +5826,8 @@ xmlTextMerge(xmlNodePtr first, xmlNodePtr second) {
  * Find all in-scope namespaces of a node. @out returns a NULL
  * terminated array of namespace pointers that must be freed by
  * the caller.
+ *
+ * Available since 2.13.0.
  *
  * Returns 0 on success, 1 if no namespaces were found, -1 if a
  * memory allocation failed.
@@ -5866,16 +5860,26 @@ xmlGetNsListSafe(const xmlDoc *doc ATTRIBUTE_UNUSED, const xmlNode *node,
                 if (i >= nbns) {
                     if (nbns >= maxns) {
                         xmlNsPtr *tmp;
+                        int newSize;
 
-                        maxns = maxns ? maxns * 2 : 10;
-                        tmp = (xmlNsPtr *) xmlRealloc(namespaces,
-                                                      (maxns + 1) *
-                                                      sizeof(xmlNsPtr));
+                        newSize = xmlGrowCapacity(maxns, sizeof(tmp[0]),
+                                                  10, XML_MAX_ITEMS);
+                        if (newSize < 0) {
+                            xmlFree(namespaces);
+                            return(-1);
+                        }
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+                        if (newSize < 2)
+                            newSize = 2;
+#endif
+                        tmp = xmlRealloc(namespaces,
+                                         (newSize + 1) * sizeof(tmp[0]));
                         if (tmp == NULL) {
                             xmlFree(namespaces);
                             return(-1);
                         }
                         namespaces = tmp;
+                        maxns = newSize;
                     }
                     namespaces[nbns++] = cur;
                     namespaces[nbns] = NULL;
@@ -5912,7 +5916,6 @@ xmlGetNsList(const xmlDoc *doc, const xmlNode *node)
     xmlGetNsListSafe(doc, node, &ret);
     return(ret);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 static xmlNsPtr
 xmlNewXmlNs(void) {
@@ -5960,6 +5963,17 @@ xmlTreeEnsureXMLDecl(xmlDocPtr doc)
     return(ns);
 }
 
+/**
+ * xmlSearchNsSafe:
+ * @node:  a node
+ * @prefix:  a namespace prefix
+ * @out:  pointer to resulting namespace
+ *
+ * Search a namespace with @prefix in scope of @node.
+ *
+ * Returns 0 on success, -1 if a memory allocation failed, 1 on
+ * other errors.
+ */
 int
 xmlSearchNsSafe(xmlNodePtr node, const xmlChar *prefix,
                 xmlNsPtr *out) {
@@ -6101,6 +6115,17 @@ xmlNsInScope(xmlDocPtr doc ATTRIBUTE_UNUSED, xmlNodePtr node,
     return (1);
 }
 
+/**
+ * xmlSearchNsByHrefSafe:
+ * @node:  a node
+ * @href:  a namespace URI
+ * @out:  pointer to resulting namespace
+ *
+ * Search a namespace matching @URI in scope of @node.
+ *
+ * Returns 0 on success, -1 if a memory allocation failed, 1 on
+ * other errors.
+ */
 int
 xmlSearchNsByHrefSafe(xmlNodePtr node, const xmlChar *href,
                       xmlNsPtr *out) {
@@ -6270,12 +6295,28 @@ xmlNewReconciledNs(xmlNodePtr tree, xmlNsPtr ns) {
     return(def);
 }
 
-#ifdef LIBXML_TREE_ENABLED
-
 typedef struct {
     xmlNsPtr oldNs;
     xmlNsPtr newNs;
 } xmlNsCache;
+
+static int
+xmlGrowNsCache(xmlNsCache **cache, int *capacity) {
+    xmlNsCache *tmp;
+    int newSize;
+
+    newSize = xmlGrowCapacity(*capacity, sizeof(tmp[0]),
+                              10, XML_MAX_ITEMS);
+    if (newSize < 0)
+        return(-1);
+    tmp = xmlRealloc(*cache, newSize * sizeof(tmp[0]));
+    if (tmp == NULL)
+        return(-1);
+    *cache = tmp;
+    *capacity = newSize;
+
+    return(0);
+}
 
 /**
  * xmlReconciliateNs:
@@ -6327,19 +6368,10 @@ xmlReconciliateNs(xmlDocPtr doc, xmlNodePtr tree) {
 		    /*
 		     * check if we need to grow the cache buffers.
 		     */
-		    if (sizeCache <= nbCache) {
-                        xmlNsCache *tmp;
-                        size_t newSize = sizeCache ? sizeCache * 2 : 10;
-
-			tmp = xmlRealloc(cache, newSize * sizeof(tmp[0]));
-		        if (tmp == NULL) {
-                            ret = -1;
-			} else {
-                            cache = tmp;
-                            sizeCache = newSize;
-                        }
-		    }
-		    if (nbCache < sizeCache) {
+		    if ((sizeCache <= nbCache) &&
+                        (xmlGrowNsCache(&cache, &sizeCache) < 0)) {
+                        ret = -1;
+		    } else {
                         cache[nbCache].newNs = n;
                         cache[nbCache++].oldNs = node->ns;
                     }
@@ -6371,21 +6403,10 @@ xmlReconciliateNs(xmlDocPtr doc, xmlNodePtr tree) {
 			    /*
 			     * check if we need to grow the cache buffers.
 			     */
-			    if (sizeCache <= nbCache) {
-                                xmlNsCache *tmp;
-                                size_t newSize = sizeCache ?
-                                        sizeCache * 2 : 10;
-
-                                tmp = xmlRealloc(cache,
-                                        newSize * sizeof(tmp[0]));
-                                if (tmp == NULL) {
-                                    ret = -1;
-                                } else {
-                                    cache = tmp;
-                                    sizeCache = newSize;
-                                }
-			    }
-			    if (nbCache < sizeCache) {
+                            if ((sizeCache <= nbCache) &&
+                                (xmlGrowNsCache(&cache, &sizeCache) < 0)) {
+                                ret = -1;
+                            } else {
                                 cache[nbCache].newNs = n;
                                 cache[nbCache++].oldNs = attr->ns;
 			    }
@@ -6430,7 +6451,6 @@ xmlReconciliateNs(xmlDocPtr doc, xmlNodePtr tree) {
 	xmlFree(cache);
     return(ret);
 }
-#endif /* LIBXML_TREE_ENABLED */
 
 static xmlAttrPtr
 xmlGetPropNodeInternal(const xmlNode *node, const xmlChar *name,
@@ -6472,7 +6492,6 @@ xmlGetPropNodeInternal(const xmlNode *node, const xmlChar *name,
 	}
     }
 
-#ifdef LIBXML_TREE_ENABLED
     if (! useDTD)
 	return(NULL);
     /*
@@ -6559,7 +6578,7 @@ xmlGetPropNodeInternal(const xmlNode *node, const xmlChar *name,
 	if ((attrDecl != NULL) && (attrDecl->defaultValue != NULL))
 	    return((xmlAttrPtr) attrDecl);
     }
-#endif /* LIBXML_TREE_ENABLED */
+
     return(NULL);
 }
 
@@ -6661,6 +6680,8 @@ xmlHasNsProp(const xmlNode *node, const xmlChar *name, const xmlChar *nameSpace)
  * This attribute has to be anchored in the namespace specified.
  * This does the entity substitution. The returned value must be
  * freed by the caller.
+ *
+ * Available since 2.13.0.
  *
  * Returns 0 on success, 1 if no attribute was found, -1 if a
  * memory allocation failed.
@@ -6770,7 +6791,6 @@ xmlGetNsProp(const xmlNode *node, const xmlChar *name, const xmlChar *nameSpace)
     return(xmlGetPropNodeValueInternal(prop));
 }
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED)
 /**
  * xmlUnsetProp:
  * @node:  the node
@@ -6813,9 +6833,7 @@ xmlUnsetNsProp(xmlNodePtr node, xmlNsPtr ns, const xmlChar *name) {
     xmlFreeProp(prop);
     return(0);
 }
-#endif
 
-#if defined(LIBXML_TREE_ENABLED) || defined(LIBXML_XINCLUDE_ENABLED) || defined(LIBXML_SCHEMAS_ENABLED) || defined(LIBXML_HTML_ENABLED)
 /**
  * xmlSetProp:
  * @node:  the node
@@ -6929,8 +6947,6 @@ xmlSetNsProp(xmlNodePtr node, xmlNsPtr ns, const xmlChar *name,
     return(xmlNewPropInternal(node, ns, name, value, 0));
 }
 
-#endif /* LIBXML_TREE_ENABLED */
-
 /**
  * xmlNodeIsText:
  * @node:  the node
@@ -7000,650 +7016,6 @@ xmlTextConcat(xmlNodePtr node, const xmlChar *content, int len) {
     return(xmlTextAddContent(node, content, len));
 }
 
-/************************************************************************
- *									*
- *			Output : to a FILE or in memory			*
- *									*
- ************************************************************************/
-
-/**
- * xmlBufferCreate:
- *
- * routine to create an XML buffer.
- * returns the new structure.
- */
-xmlBufferPtr
-xmlBufferCreate(void) {
-    xmlBufferPtr ret;
-
-    ret = (xmlBufferPtr) xmlMalloc(sizeof(xmlBuffer));
-    if (ret == NULL)
-        return(NULL);
-    ret->use = 0;
-    ret->size = xmlDefaultBufferSize;
-    ret->alloc = xmlBufferAllocScheme;
-    ret->content = (xmlChar *) xmlMallocAtomic(ret->size);
-    if (ret->content == NULL) {
-	xmlFree(ret);
-        return(NULL);
-    }
-    ret->content[0] = 0;
-    ret->contentIO = NULL;
-    return(ret);
-}
-
-/**
- * xmlBufferCreateSize:
- * @size: initial size of buffer
- *
- * routine to create an XML buffer.
- * returns the new structure.
- */
-xmlBufferPtr
-xmlBufferCreateSize(size_t size) {
-    xmlBufferPtr ret;
-
-    if (size >= UINT_MAX)
-        return(NULL);
-    ret = (xmlBufferPtr) xmlMalloc(sizeof(xmlBuffer));
-    if (ret == NULL)
-        return(NULL);
-    ret->use = 0;
-    ret->alloc = xmlBufferAllocScheme;
-    ret->size = (size ? size + 1 : 0);         /* +1 for ending null */
-    if (ret->size){
-        ret->content = (xmlChar *) xmlMallocAtomic(ret->size);
-        if (ret->content == NULL) {
-            xmlFree(ret);
-            return(NULL);
-        }
-        ret->content[0] = 0;
-    } else
-	ret->content = NULL;
-    ret->contentIO = NULL;
-    return(ret);
-}
-
-/**
- * xmlBufferDetach:
- * @buf:  the buffer
- *
- * Remove the string contained in a buffer and gie it back to the
- * caller. The buffer is reset to an empty content.
- * This doesn't work with immutable buffers as they can't be reset.
- *
- * Returns the previous string contained by the buffer.
- */
-xmlChar *
-xmlBufferDetach(xmlBufferPtr buf) {
-    xmlChar *ret;
-
-    if (buf == NULL)
-        return(NULL);
-
-    ret = buf->content;
-    buf->content = NULL;
-    buf->size = 0;
-    buf->use = 0;
-
-    return ret;
-}
-
-
-/**
- * xmlBufferCreateStatic:
- * @mem: the memory area
- * @size:  the size in byte
- *
- * Returns an XML buffer initialized with bytes.
- */
-xmlBufferPtr
-xmlBufferCreateStatic(void *mem, size_t size) {
-    xmlBufferPtr buf = xmlBufferCreateSize(size);
-
-    xmlBufferAdd(buf, mem, size);
-    return(buf);
-}
-
-/**
- * xmlBufferSetAllocationScheme:
- * @buf:  the buffer to tune
- * @scheme:  allocation scheme to use
- *
- * Sets the allocation scheme for this buffer
- */
-void
-xmlBufferSetAllocationScheme(xmlBufferPtr buf,
-                             xmlBufferAllocationScheme scheme) {
-    if (buf == NULL) {
-        return;
-    }
-    if (buf->alloc == XML_BUFFER_ALLOC_IO) return;
-    if ((scheme == XML_BUFFER_ALLOC_DOUBLEIT) ||
-        (scheme == XML_BUFFER_ALLOC_EXACT) ||
-        (scheme == XML_BUFFER_ALLOC_HYBRID))
-	buf->alloc = scheme;
-}
-
-/**
- * xmlBufferFree:
- * @buf:  the buffer to free
- *
- * Frees an XML buffer. It frees both the content and the structure which
- * encapsulate it.
- */
-void
-xmlBufferFree(xmlBufferPtr buf) {
-    if (buf == NULL) {
-	return;
-    }
-
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) &&
-        (buf->contentIO != NULL)) {
-        xmlFree(buf->contentIO);
-    } else if (buf->content != NULL) {
-        xmlFree(buf->content);
-    }
-    xmlFree(buf);
-}
-
-/**
- * xmlBufferEmpty:
- * @buf:  the buffer
- *
- * empty a buffer.
- */
-void
-xmlBufferEmpty(xmlBufferPtr buf) {
-    if (buf == NULL) return;
-    if (buf->content == NULL) return;
-    buf->use = 0;
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-        size_t start_buf = buf->content - buf->contentIO;
-
-	buf->size += start_buf;
-        buf->content = buf->contentIO;
-        buf->content[0] = 0;
-    } else {
-        buf->content[0] = 0;
-    }
-}
-
-/**
- * xmlBufferShrink:
- * @buf:  the buffer to dump
- * @len:  the number of xmlChar to remove
- *
- * Remove the beginning of an XML buffer.
- *
- * Returns the number of #xmlChar removed, or -1 in case of failure.
- */
-int
-xmlBufferShrink(xmlBufferPtr buf, unsigned int len) {
-    if (buf == NULL) return(-1);
-    if (len == 0) return(0);
-    if (len > buf->use) return(-1);
-
-    buf->use -= len;
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-	/*
-	 * we just move the content pointer, but also make sure
-	 * the perceived buffer size has shrunk accordingly
-	 */
-        buf->content += len;
-	buf->size -= len;
-
-        /*
-	 * sometimes though it maybe be better to really shrink
-	 * on IO buffers
-	 */
-	if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-	    size_t start_buf = buf->content - buf->contentIO;
-	    if (start_buf >= buf->size) {
-		memmove(buf->contentIO, &buf->content[0], buf->use);
-		buf->content = buf->contentIO;
-		buf->content[buf->use] = 0;
-		buf->size += start_buf;
-	    }
-	}
-    } else {
-	memmove(buf->content, &buf->content[len], buf->use);
-	buf->content[buf->use] = 0;
-    }
-    return(len);
-}
-
-/**
- * xmlBufferGrow:
- * @buf:  the buffer
- * @len:  the minimum free size to allocate
- *
- * Grow the available space of an XML buffer.
- *
- * Returns the new available space or -1 in case of error
- */
-int
-xmlBufferGrow(xmlBufferPtr buf, unsigned int len) {
-    unsigned int size;
-    xmlChar *newbuf;
-
-    if (buf == NULL) return(-1);
-
-    if (len < buf->size - buf->use)
-        return(0);
-    if (len >= UINT_MAX - buf->use)
-        return(-1);
-
-    if (buf->size > (size_t) len) {
-        size = buf->size > UINT_MAX / 2 ? UINT_MAX : buf->size * 2;
-    } else {
-        size = buf->use + len;
-        size = size > UINT_MAX - 100 ? UINT_MAX : size + 100;
-    }
-
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-        size_t start_buf = buf->content - buf->contentIO;
-
-	newbuf = (xmlChar *) xmlRealloc(buf->contentIO, start_buf + size);
-	if (newbuf == NULL)
-	    return(-1);
-	buf->contentIO = newbuf;
-	buf->content = newbuf + start_buf;
-    } else {
-	newbuf = (xmlChar *) xmlRealloc(buf->content, size);
-	if (newbuf == NULL)
-	    return(-1);
-	buf->content = newbuf;
-    }
-    buf->size = size;
-    return(buf->size - buf->use - 1);
-}
-
-/**
- * xmlBufferDump:
- * @file:  the file output
- * @buf:  the buffer to dump
- *
- * Dumps an XML buffer to  a FILE *.
- * Returns the number of #xmlChar written
- */
-int
-xmlBufferDump(FILE *file, xmlBufferPtr buf) {
-    size_t ret;
-
-    if (buf == NULL) {
-	return(0);
-    }
-    if (buf->content == NULL) {
-	return(0);
-    }
-    if (file == NULL)
-	file = stdout;
-    ret = fwrite(buf->content, 1, buf->use, file);
-    return(ret > INT_MAX ? INT_MAX : ret);
-}
-
-/**
- * xmlBufferContent:
- * @buf:  the buffer
- *
- * Function to extract the content of a buffer
- *
- * Returns the internal content
- */
-
-const xmlChar *
-xmlBufferContent(const xmlBuffer *buf)
-{
-    if(!buf)
-        return NULL;
-
-    return buf->content;
-}
-
-/**
- * xmlBufferLength:
- * @buf:  the buffer
- *
- * Function to get the length of a buffer
- *
- * Returns the length of data in the internal content
- */
-
-int
-xmlBufferLength(const xmlBuffer *buf)
-{
-    if(!buf)
-        return 0;
-
-    return buf->use;
-}
-
-/**
- * xmlBufferResize:
- * @buf:  the buffer to resize
- * @size:  the desired size
- *
- * Resize a buffer to accommodate minimum size of @size.
- *
- * Returns  0 in case of problems, 1 otherwise
- */
-int
-xmlBufferResize(xmlBufferPtr buf, unsigned int size)
-{
-    unsigned int newSize;
-    xmlChar* rebuf = NULL;
-    size_t start_buf;
-
-    if (buf == NULL)
-        return(0);
-
-    /* Don't resize if we don't have to */
-    if (size < buf->size)
-        return 1;
-
-    if (size > UINT_MAX - 10)
-        return 0;
-
-    /* figure out new size */
-    switch (buf->alloc){
-	case XML_BUFFER_ALLOC_IO:
-	case XML_BUFFER_ALLOC_DOUBLEIT:
-	    /*take care of empty case*/
-            if (buf->size == 0)
-                newSize = (size > UINT_MAX - 10 ? UINT_MAX : size + 10);
-            else
-                newSize = buf->size;
-	    while (size > newSize) {
-	        if (newSize > UINT_MAX / 2)
-	            return 0;
-	        newSize *= 2;
-	    }
-	    break;
-	case XML_BUFFER_ALLOC_EXACT:
-	    newSize = (size > UINT_MAX - 10 ? UINT_MAX : size + 10);
-	    break;
-        case XML_BUFFER_ALLOC_HYBRID:
-            if (buf->use < BASE_BUFFER_SIZE)
-                newSize = size;
-            else {
-                newSize = buf->size;
-                while (size > newSize) {
-                    if (newSize > UINT_MAX / 2)
-                        return 0;
-                    newSize *= 2;
-                }
-            }
-            break;
-
-	default:
-	    newSize = (size > UINT_MAX - 10 ? UINT_MAX : size + 10);
-	    break;
-    }
-
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-        start_buf = buf->content - buf->contentIO;
-
-        if (start_buf > newSize) {
-	    /* move data back to start */
-	    memmove(buf->contentIO, buf->content, buf->use);
-	    buf->content = buf->contentIO;
-	    buf->content[buf->use] = 0;
-	    buf->size += start_buf;
-	} else {
-	    rebuf = (xmlChar *) xmlRealloc(buf->contentIO, start_buf + newSize);
-	    if (rebuf == NULL)
-		return 0;
-	    buf->contentIO = rebuf;
-	    buf->content = rebuf + start_buf;
-	}
-    } else {
-	if (buf->content == NULL) {
-	    rebuf = (xmlChar *) xmlMallocAtomic(newSize);
-	    buf->use = 0;
-	    rebuf[buf->use] = 0;
-	} else if (buf->size - buf->use < 100) {
-	    rebuf = (xmlChar *) xmlRealloc(buf->content, newSize);
-        } else {
-	    /*
-	     * if we are reallocating a buffer far from being full, it's
-	     * better to make a new allocation and copy only the used range
-	     * and free the old one.
-	     */
-	    rebuf = (xmlChar *) xmlMallocAtomic(newSize);
-	    if (rebuf != NULL) {
-		memcpy(rebuf, buf->content, buf->use);
-		xmlFree(buf->content);
-		rebuf[buf->use] = 0;
-	    }
-	}
-	if (rebuf == NULL)
-	    return 0;
-	buf->content = rebuf;
-    }
-    buf->size = newSize;
-
-    return 1;
-}
-
-/**
- * xmlBufferAdd:
- * @buf:  the buffer to dump
- * @str:  the #xmlChar string
- * @len:  the number of #xmlChar to add
- *
- * Add a string range to an XML buffer. if len == -1, the length of
- * str is recomputed.
- *
- * Returns 0 successful, a positive error code number otherwise
- *         and -1 in case of internal or API error.
- */
-int
-xmlBufferAdd(xmlBufferPtr buf, const xmlChar *str, int len) {
-    unsigned int needSize;
-
-    if ((str == NULL) || (buf == NULL)) {
-	return -1;
-    }
-    if (len < -1) {
-	return -1;
-    }
-    if (len == 0) return 0;
-
-    if (len < 0)
-        len = xmlStrlen(str);
-
-    if (len < 0) return -1;
-    if (len == 0) return 0;
-
-    /* Note that both buf->size and buf->use can be zero here. */
-    if ((unsigned) len >= buf->size - buf->use) {
-        if ((unsigned) len >= UINT_MAX - buf->use)
-            return XML_ERR_NO_MEMORY;
-        needSize = buf->use + len + 1;
-        if (!xmlBufferResize(buf, needSize))
-            return XML_ERR_NO_MEMORY;
-    }
-
-    memmove(&buf->content[buf->use], str, len);
-    buf->use += len;
-    buf->content[buf->use] = 0;
-    return 0;
-}
-
-/**
- * xmlBufferAddHead:
- * @buf:  the buffer
- * @str:  the #xmlChar string
- * @len:  the number of #xmlChar to add
- *
- * Add a string range to the beginning of an XML buffer.
- * if len == -1, the length of @str is recomputed.
- *
- * Returns 0 successful, a positive error code number otherwise
- *         and -1 in case of internal or API error.
- */
-int
-xmlBufferAddHead(xmlBufferPtr buf, const xmlChar *str, int len) {
-    unsigned int needSize;
-
-    if (buf == NULL)
-        return(-1);
-    if (str == NULL) {
-	return -1;
-    }
-    if (len < -1) {
-	return -1;
-    }
-    if (len == 0) return 0;
-
-    if (len < 0)
-        len = xmlStrlen(str);
-
-    if (len <= 0) return -1;
-
-    if ((buf->alloc == XML_BUFFER_ALLOC_IO) && (buf->contentIO != NULL)) {
-        size_t start_buf = buf->content - buf->contentIO;
-
-	if (start_buf > (unsigned int) len) {
-	    /*
-	     * We can add it in the space previously shrunk
-	     */
-	    buf->content -= len;
-            memmove(&buf->content[0], str, len);
-	    buf->use += len;
-	    buf->size += len;
-            buf->content[buf->use] = 0;
-	    return(0);
-	}
-    }
-    /* Note that both buf->size and buf->use can be zero here. */
-    if ((unsigned) len >= buf->size - buf->use) {
-        if ((unsigned) len >= UINT_MAX - buf->use)
-            return(-1);
-        needSize = buf->use + len + 1;
-        if (!xmlBufferResize(buf, needSize))
-            return(-1);
-    }
-
-    memmove(&buf->content[len], &buf->content[0], buf->use);
-    memmove(&buf->content[0], str, len);
-    buf->use += len;
-    buf->content[buf->use] = 0;
-    return 0;
-}
-
-/**
- * xmlBufferCat:
- * @buf:  the buffer to add to
- * @str:  the #xmlChar string
- *
- * Append a zero terminated string to an XML buffer.
- *
- * Returns 0 successful, a positive error code number otherwise
- *         and -1 in case of internal or API error.
- */
-int
-xmlBufferCat(xmlBufferPtr buf, const xmlChar *str) {
-    if (buf == NULL)
-        return(-1);
-    if (str == NULL) return -1;
-    return xmlBufferAdd(buf, str, -1);
-}
-
-/**
- * xmlBufferCCat:
- * @buf:  the buffer to dump
- * @str:  the C char string
- *
- * Append a zero terminated C string to an XML buffer.
- *
- * Returns 0 successful, a positive error code number otherwise
- *         and -1 in case of internal or API error.
- */
-int
-xmlBufferCCat(xmlBufferPtr buf, const char *str) {
-    return xmlBufferCat(buf, (const xmlChar *) str);
-}
-
-/**
- * xmlBufferWriteCHAR:
- * @buf:  the XML buffer
- * @string:  the string to add
- *
- * routine which manages and grows an output buffer. This one adds
- * xmlChars at the end of the buffer.
- */
-void
-xmlBufferWriteCHAR(xmlBufferPtr buf, const xmlChar *string) {
-    if (buf == NULL)
-        return;
-    xmlBufferCat(buf, string);
-}
-
-/**
- * xmlBufferWriteChar:
- * @buf:  the XML buffer output
- * @string:  the string to add
- *
- * routine which manage and grows an output buffer. This one add
- * C chars at the end of the array.
- */
-void
-xmlBufferWriteChar(xmlBufferPtr buf, const char *string) {
-    if (buf == NULL)
-        return;
-    xmlBufferCCat(buf, string);
-}
-
-
-/**
- * xmlBufferWriteQuotedString:
- * @buf:  the XML buffer output
- * @string:  the string to add
- *
- * routine which manage and grows an output buffer. This one writes
- * a quoted or double quoted #xmlChar string, checking first if it holds
- * quote or double-quotes internally
- */
-void
-xmlBufferWriteQuotedString(xmlBufferPtr buf, const xmlChar *string) {
-    const xmlChar *cur, *base;
-    if (buf == NULL)
-        return;
-    if (xmlStrchr(string, '\"')) {
-        if (xmlStrchr(string, '\'')) {
-	    xmlBufferCCat(buf, "\"");
-            base = cur = string;
-            while(*cur != 0){
-                if(*cur == '"'){
-                    if (base != cur)
-                        xmlBufferAdd(buf, base, cur - base);
-                    xmlBufferAdd(buf, BAD_CAST "&quot;", 6);
-                    cur++;
-                    base = cur;
-                }
-                else {
-                    cur++;
-                }
-            }
-            if (base != cur)
-                xmlBufferAdd(buf, base, cur - base);
-	    xmlBufferCCat(buf, "\"");
-	}
-        else{
-	    xmlBufferCCat(buf, "\'");
-            xmlBufferCat(buf, string);
-	    xmlBufferCCat(buf, "\'");
-        }
-    } else {
-        xmlBufferCCat(buf, "\"");
-        xmlBufferCat(buf, string);
-        xmlBufferCCat(buf, "\"");
-    }
-}
-
-
 /**
  * xmlGetDocCompressMode:
  * @doc:  the document
@@ -7676,6 +7048,8 @@ xmlSetDocCompressMode (xmlDocPtr doc, int mode) {
 /**
  * xmlGetCompressMode:
  *
+ * DEPRECATED: Use xmlGetDocCompressMode
+ *
  * get the default compression mode used, ZLIB based.
  * Returns 0 (uncompressed) to 9 (max compression)
  */
@@ -7688,6 +7062,8 @@ xmlGetCompressMode(void)
 /**
  * xmlSetCompressMode:
  * @mode:  the compression ratio
+ *
+ * DEPRECATED: Use xmlSetDocCompressMode
  *
  * set the default compression mode used, ZLIB based
  * Correct values: 0 (uncompressed) to 9 (max compression)
@@ -8037,9 +7413,11 @@ xmlDOMWrapNSNormAddNsMapItem2(xmlNsPtr **list, int *size, int *number,
 {
     if (*number >= *size) {
         xmlNsPtr *tmp;
-        size_t newSize;
+        int newSize;
 
-        newSize = *size ? *size * 2 : 3;
+        newSize = xmlGrowCapacity(*size, 2 * sizeof(tmp[0]), 3, XML_MAX_ITEMS);
+        if (newSize < 0)
+            return(-1);
         tmp = xmlRealloc(*list, newSize * 2 * sizeof(tmp[0]));
         if (tmp == NULL)
             return(-1);
@@ -9201,9 +8579,6 @@ xmlDOMWrapCloneNode(xmlDOMWrapCtxtPtr ctxt,
     *resNode = NULL;
 
     cur = node;
-    if ((cur != NULL) && (cur->type == XML_NAMESPACE_DECL))
-        return(-1);
-
     while (cur != NULL) {
 	if (cur->doc != sourceDoc) {
 	    /*
@@ -9257,8 +8632,7 @@ xmlDOMWrapCloneNode(xmlDOMWrapCtxtPtr ctxt,
 		/*
 		* Attributes (xmlAttr).
 		*/
-                /* Use xmlRealloc to avoid -Warray-bounds warning */
-		clone = (xmlNodePtr) xmlRealloc(NULL, sizeof(xmlAttr));
+		clone = xmlMalloc(sizeof(xmlAttr));
 		if (clone == NULL)
 		    goto internal_error;
 		memset(clone, 0, sizeof(xmlAttr));
@@ -9870,6 +9244,8 @@ xmlIsXHTML(const xmlChar *systemID, const xmlChar *publicID) {
  * xmlRegisterNodeDefault:
  * @func: function pointer to the new RegisterNodeFunc
  *
+ * DEPRECATED: don't use
+ *
  * Registers a callback for node creation
  *
  * Returns the old value of the registration function
@@ -9879,7 +9255,7 @@ xmlRegisterNodeDefault(xmlRegisterNodeFunc func)
 {
     xmlRegisterNodeFunc old = xmlRegisterNodeDefaultValue;
 
-    __xmlRegisterCallbacks = 1;
+    xmlRegisterCallbacks = 1;
     xmlRegisterNodeDefaultValue = func;
     return(old);
 }
@@ -9887,6 +9263,8 @@ xmlRegisterNodeDefault(xmlRegisterNodeFunc func)
 /**
  * xmlDeregisterNodeDefault:
  * @func: function pointer to the new DeregisterNodeFunc
+ *
+ * DEPRECATED: don't use
  *
  * Registers a callback for node destruction
  *
@@ -9897,7 +9275,7 @@ xmlDeregisterNodeDefault(xmlDeregisterNodeFunc func)
 {
     xmlDeregisterNodeFunc old = xmlDeregisterNodeDefaultValue;
 
-    __xmlRegisterCallbacks = 1;
+    xmlRegisterCallbacks = 1;
     xmlDeregisterNodeDefaultValue = func;
     return(old);
 }

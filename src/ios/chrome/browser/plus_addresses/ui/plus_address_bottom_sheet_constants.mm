@@ -4,20 +4,40 @@
 
 #import "ios/chrome/browser/plus_addresses/ui/plus_address_bottom_sheet_constants.h"
 
-NSString* const kPlusAddressModalDescriptionAccessibilityIdentifier =
-    @"plusAddressModalDescriptionAXID";
+NSString* const kPlusAddressSheetDescriptionAccessibilityIdentifier =
+    @"PlusAddressSheetDescriptionAXID";
 
-NSString* const kPlusAddressModalErrorMessageAccessibilityIdentifier =
-    @"plusAddressModalErrorMessageAXID";
+NSString* const kPlusAddressSheetNoticeMessageAccessibilityIdentifier =
+    @"PlusAddressSheetNoticeMessageAXID";
 
-const CGFloat kPrimaryAddressBottomMargin = 20;
+NSString* const kPlusAddressLabelAccessibilityIdentifier =
+    @"PlusAddressLabelAccessibilityIdentifierAXID";
 
-const CGFloat kBeforeImageTopMargin = 10;
+NSString* const kPlusAddressRefreshButtonAccessibilityIdentifier =
+    @"PlusAddressRefreshButtonAccessibilityIdentifierAXID";
 
-const CGFloat kAfterImageMargin = 0;
+const CGFloat kPlusAddressSheetPrimaryAddressBottomMargin = 20;
 
-const CGFloat kImageSize = 32;
+const CGFloat kPlusAddressSheetBeforeImageTopMargin = 10;
 
-const CGFloat kBrandedImageWidth = 40;
+const CGFloat kPlusAddressSheetAfterImageMargin = 0;
 
-const CGFloat kScrollViewBottomInsets = 26;
+const CGFloat kPlusAddressSheetTableViewCellCornerRadius = 10;
+
+const CGFloat kPlusAddressSheetTableViewCellHeight = 64;
+
+const CGFloat kPlusAddressSheetCellImageSize = 16;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewSize = 64;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewCornerRadius = 13;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewShadowRadius = 6;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewShadowOpacity = 0.1;
+
+const CGFloat kPlusAddressSheetBrandingIconSize = 32;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewBottomPadding = 18;
+
+const CGFloat kPlusAddressSheetBrandingIconContainerViewTopPadding = 33;

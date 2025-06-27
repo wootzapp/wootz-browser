@@ -4,11 +4,12 @@
 
 #include "device/vr/openxr/openxr_extension_helper.h"
 
+#include <algorithm>
 #include <memory>
 
+#include "base/compiler_specific.h"
 #include "base/containers/contains.h"
 #include "base/dcheck_is_on.h"
-#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
 #include "device/vr/openxr/openxr_extension_handler_factories.h"
 #include "device/vr/openxr/openxr_extension_handler_factory.h"
@@ -85,10 +86,11 @@ OpenXrExtensionEnumeration::~OpenXrExtensionEnumeration() = default;
 
 bool OpenXrExtensionEnumeration::ExtensionSupported(
     const char* extension_name) const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       extension_properties_,
       [&extension_name](const XrExtensionProperties& properties) {
-        return strcmp(properties.extensionName, extension_name) == 0;
+        return UNSAFE_TODO(strcmp(properties.extensionName, extension_name)) ==
+               0;
       });
 }
 
@@ -139,6 +141,12 @@ OpenXrExtensionHelper::OpenXrExtensionHelper(
   OPENXR_LOAD_FN(xrCreateLightEstimatorANDROID);
   OPENXR_LOAD_FN(xrDestroyLightEstimatorANDROID);
   OPENXR_LOAD_FN(xrGetLightEstimateANDROID);
+
+  OPENXR_LOAD_FN(xrCreateDepthSwapchainANDROID);
+  OPENXR_LOAD_FN(xrDestroyDepthSwapchainANDROID);
+  OPENXR_LOAD_FN(xrEnumerateDepthSwapchainImagesANDROID);
+  OPENXR_LOAD_FN(xrEnumerateDepthResolutionsANDROID);
+  OPENXR_LOAD_FN(xrAcquireDepthSwapchainImagesANDROID);
 #endif
 }
 
@@ -147,11 +155,12 @@ bool OpenXrExtensionHelper::IsFeatureSupported(
   const auto* extension_enum = ExtensionEnumeration();
   switch (feature) {
     case device::mojom::XRSessionFeature::ANCHORS:
+    case device::mojom::XRSessionFeature::DEPTH:
     case device::mojom::XRSessionFeature::HAND_INPUT:
     case device::mojom::XRSessionFeature::HIT_TEST:
     case device::mojom::XRSessionFeature::LIGHT_ESTIMATION:
     case device::mojom::XRSessionFeature::REF_SPACE_UNBOUNDED:
-      return base::ranges::any_of(
+      return std::ranges::any_of(
           GetExtensionHandlerFactories(),
           [feature, &extension_enum](const auto* extension_handler_factory) {
             return base::Contains(
@@ -181,6 +190,25 @@ std::unique_ptr<OpenXrAnchorManager> OpenXrExtensionHelper::CreateAnchorManager(
       [this, session,
        base_space](const OpenXrExtensionHandlerFactory& factory) {
         return factory.CreateAnchorManager(*this, session, base_space);
+      });
+}
+
+std::unique_ptr<OpenXrDepthSensor> OpenXrExtensionHelper::CreateDepthSensor(
+    XrSession session,
+    XrSpace base_space,
+    const mojom::XRDepthOptions& depth_options) const {
+  return CreateExtensionHandler<OpenXrDepthSensor>(
+      ExtensionEnumeration(),
+      [this, session, base_space,
+       depth_options](const OpenXrExtensionHandlerFactory& factory)
+          -> std::unique_ptr<OpenXrDepthSensor> {
+        auto sensor = factory.CreateDepthSensor(*this, session, base_space,
+                                                depth_options);
+        if (sensor && XR_SUCCEEDED(sensor->Initialize())) {
+          return sensor;
+        }
+
+        return nullptr;
       });
 }
 

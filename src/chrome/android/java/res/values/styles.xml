@@ -25,13 +25,13 @@ found in the LICENSE file.
         <item name="android:windowContentOverlay">@null</item>
 
         <!-- Navigation Transitions, requires API level 21 -->
-        <item name="android:windowAllowEnterTransitionOverlap" tools:targetApi="21">false</item>
-        <item name="android:windowAllowReturnTransitionOverlap" tools:targetApi="21">true</item>
-        <item name="android:windowContentTransitions" tools:targetApi="21">true</item>
-        <item name="android:windowEnterTransition" tools:targetApi="21">@transition/fade</item>
-        <item name="android:windowExitTransition" tools:targetApi="21">@null</item>
-        <item name="android:windowSharedElementEnterTransition" tools:targetApi="21">@transition/move_image</item>
-        <item name="android:windowSharedElementExitTransition" tools:targetApi="21">@transition/move_image</item>
+        <item name="android:windowAllowEnterTransitionOverlap">false</item>
+        <item name="android:windowAllowReturnTransitionOverlap">true</item>
+        <item name="android:windowContentTransitions">true</item>
+        <item name="android:windowEnterTransition">@transition/fade</item>
+        <item name="android:windowExitTransition">@null</item>
+        <item name="android:windowSharedElementEnterTransition">@transition/move_image</item>
+        <item name="android:windowSharedElementExitTransition">@transition/move_image</item>
     </style>
 
     <style name="Theme.Chromium" parent="Base.Theme.Chromium" />
@@ -124,14 +124,10 @@ found in the LICENSE file.
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 
-    <!-- Extend base theme rather than Theme.Chromium.WithWindowAnimation to avoid values-v27
-         navigation bar colors from being applied -->
-    <style name="Theme.Chromium.SearchActivity" parent="Base.Theme.Chromium.WithWindowAnimation" />
+    <style name="Theme.Chromium.SearchActivity" parent="Theme.Chromium.WithWindowAnimation" />
 
     <!-- Web app themes -->
-    <!-- Extend base theme rather than Theme.Chromium.WithWindowAnimation to avoid values-v27
-        navigation bar colors from being applied -->
-    <style name="Theme.Chromium.Webapp" parent="Base.Theme.Chromium.WithWindowAnimation">
+    <style name="Theme.Chromium.Webapp" parent="Theme.Chromium.WithWindowAnimation">
         <item name="android:windowBackground">@null</item>
         <item name="android:windowDisablePreview">true</item>
     </style>
@@ -342,13 +338,22 @@ found in the LICENSE file.
     The background is translucent since the parent activity content should be
     visible when the bottom sheet or the non-full-screen history sync opt-in
     dialog is shown on tablet. -->
-    <style name="Theme.Chromium.SigninAndHistoryOptInActivity"
+    <style name="Base.Theme.Chromium.SigninAndHistorySyncActivity"
         parent="Theme.Chromium.Activity.Fullscreen">
-        <item name="android:windowBackground">@color/default_scrim_color</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowEnterAnimation">@null</item>
-        <item name="android:windowExitAnimation">@null</item>
-        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:navigationBarColor">@macro/bottom_system_nav_color</item>
+        <item name="android:windowAnimationStyle">@style/SigninAndHistorySyncActivityAnimation</item>
+    </style>
+    <style name="Theme.Chromium.SigninAndHistorySyncActivity"
+        parent="Base.Theme.Chromium.SigninAndHistorySyncActivity" />
+
+    <!-- TODO(crbug.com/345176436): This animation style is used to set the
+         enter animation for the history sync dialog. This animation should be
+         configured using ModalDialogProperties instead. -->
+    <style name="SigninAndHistorySyncActivityAnimation" parent="@android:style/Animation.Dialog">
+      <item name="android:windowExitAnimation">@null</item>
+      <item name="android:windowEnterAnimation">@anim/slide_in_up</item>
     </style>
 
     <!-- Trusted Web Activities -->
@@ -363,7 +368,7 @@ found in the LICENSE file.
     <!-- First Run and Bookmark/recent-tabs dialogs.
         TODO(crbug.com/41374924): Remove textAppearance when all TextViews have text style
         explicitly specified. -->
-    <style name="Base.V17.Theme.Chromium.DialogWhenLarge"
+    <style name="Base.Theme.Chromium.DialogWhenLarge"
         parent="Theme.BrowserUI.DialogWhenLarge.DayNight">
         <item name="android:windowBackground">@drawable/bg_white_dialog</item>
         <item name="android:textAppearance">@style/TextAppearance.TextMedium.Primary</item>
@@ -378,9 +383,8 @@ found in the LICENSE file.
         <item name="windowNoTitle">true</item>
         <item name="windowActionBar">false</item>
     </style>
-    <style name="Base.Theme.Chromium.DialogWhenLarge"
-        parent="Base.V17.Theme.Chromium.DialogWhenLarge" />
-    <style name="Theme.Chromium.DialogWhenLarge" parent="Base.Theme.Chromium.DialogWhenLarge" />
+    <style name="Base.V27.Theme.Chromium.DialogWhenLarge" parent="Base.Theme.Chromium.DialogWhenLarge" />
+    <style name="Theme.Chromium.DialogWhenLarge" parent="Base.V27.Theme.Chromium.DialogWhenLarge" />
     <style name="DimmingDialog" parent="Base.Theme.Chromium.DialogWhenLarge">
         <item name="android:windowLightNavigationBar" tools:targetApi="28">false</item>
     </style>
@@ -476,6 +480,18 @@ found in the LICENSE file.
         </item>
     </style>
 
+    <style name="TextAppearance.DistilledPagePrefTextSizeSmall">
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="TextAppearance.DistilledPagePrefTextSizeMedium">
+        <item name="android:textSize">17sp</item>
+    </style>
+
+    <style name="TextAppearance.DistilledPagePrefTextSizeLarge">
+        <item name="android:textSize">20sp</item>
+    </style>
+
     <!-- Button bar styles -->
     <style name="ButtonBarTopSpacerLight">
         <item name="android:layout_width">0dp</item>
@@ -538,12 +554,17 @@ found in the LICENSE file.
         <item name="android:textSize">@dimen/text_size_small</item>
     </style>
     <style name="TextAppearance.AutofillCardInstructionsText">
-        <item name="android:textColor">@color/explanation_text_color</item>
+        <item name="android:textColor">@macro/default_text_color_secondary</item>
         <item name="android:textSize">@dimen/text_size_large</item>
     </style>
     <style name="TextAppearance.AutofillCardCheckBoxText">
         <item name="android:textColor">@color/explanation_text_color</item>
         <item name="android:textSize">@dimen/text_size_medium</item>
+    </style>
+
+    <!-- Autofill IBAN -->
+    <style name="ShapeAppearance.App.MediumComponent" parent="ShapeAppearance.MaterialComponents.MediumComponent">
+        <item name="cornerSize">@dimen/card_rounded_corner_radius</item>
     </style>
 
     <!-- Tab Layout -->
@@ -562,12 +583,6 @@ found in the LICENSE file.
     </style>
 
     <!-- Misc styles -->
-    <style name="TabBarShadow">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">@dimen/action_bar_shadow_height</item>
-        <item name="android:src">@drawable/modern_toolbar_shadow</item>
-        <item name="android:scaleType">fitXY</item>
-    </style>
     <style name="TabBarLineShadow">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>
@@ -588,7 +603,7 @@ found in the LICENSE file.
     </style>
 
     <!-- Misc text appearance styles -->
-    <style name="TextAppearance.SearchEngineRecentTitle" parent="TextAppearance.RobotoMediumStyle">
+    <style name="TextAppearance.SearchEngineRecentTitle" parent="TextAppearance.MediumStyle">
         <item name="android:textColor">@macro/default_text_color_link</item>
     </style>
     <!-- TODO(crbug.com/40691622): Replace with a standard text appearance. -->
@@ -605,19 +620,14 @@ found in the LICENSE file.
         <item name="android:textSize">@dimen/location_bar_url_text_size</item>
     </style>
 
-    <style name="TextAppearance.SearchBoxText.NewTabPage">
-        <item name="android:textSize">@dimen/location_bar_url_text_size</item>
-        <item name="android:textColorHint">@macro/search_box_hint</item>
-    </style>
-    <style name="TextAppearance_SearchBoxText_NewTabPage_SurfacePolish">
-        <item name="android:textSize">@dimen/location_bar_url_text_size_polish</item>
-        <item name="android:textColorHint">@macro/search_box_hint_polish</item>
+
+    <style name="TextAppearance.FakeSearchBoxText">
+        <item name="android:textSize">@dimen/ntp_fake_search_box_text_size</item>
+        <item name="android:textColorHint">@macro/ntp_search_box_hint</item>
     </style>
 
-    <!-- Launcher widgets can't use theme attributes, so this should use the baseline colors for
-         android:textColorHint -->
     <style name="TextAppearance.SearchBoxText.Widget">
-        <item name="android:textColorHint">@color/search_box_hint_baseline</item>
+        <item name="android:textColorHint">@macro/default_text_color_secondary</item>
     </style>
 
     <!-- Bookmarks -->
@@ -642,6 +652,19 @@ found in the LICENSE file.
     <style name="TextAppearance.IncognitoNewTabLearnMoreLinkModern">
         <item name="android:textColor">@color/default_text_color_link_light</item>
         <item name="android:textSize">@dimen/text_size_medium</item>
+    </style>
+
+    <style name="IncognitoTextViewWithClickableSpans">
+        <item name="leading">@dimen/text_size_medium_leading</item>
+        <item name="spanBackgroundStrokeColor">@color/default_text_color_link_light</item>
+    </style>
+
+    <style name="IncognitoNewTabLearnMoreLinkModernTextView" parent="IncognitoTextViewWithClickableSpans">
+        <item name="android:textAppearance">@style/TextAppearance.IncognitoNewTabLearnMoreLinkModern</item>
+    </style>
+
+    <style name="IncognitoNewTabTextView" parent="IncognitoTextViewWithClickableSpans">
+        <item name="android:textAppearance">@style/TextAppearance.TextMedium.Secondary.Baseline.Light</item>
     </style>
 
     <!-- Picker Dialog animations -->
@@ -704,10 +727,11 @@ found in the LICENSE file.
     </style>
 
      <!-- Bookmark styles -->
-    <style name="TextAppearance.ShoppingPriceDropText" parent="TextAppearance.TextMedium.Secondary">
-        <item name="android:textColor">@color/price_drop_annotation_text_green</item>
+    <style name="TextAppearance.SpecialFolderChildCount" parent="TextAppearance.TextLarge.Primary.OnAccent1Container" tools:ignore="SpUsage">
+        <!-- The same as the regular style, but using dp instead of sp. -->
+        <item name="android:textSize">16dp</item>
     </style>
-    <style name="TextAppearance.FolderChildCount" parent="TextAppearance.TextLarge.Primary.OnAccent1Container" tools:ignore="SpUsage">
+        <style name="TextAppearance.RegularFolderChildCount" parent="TextAppearance.TextLarge.Primary" tools:ignore="SpUsage">
         <!-- The same as the regular style, but using dp instead of sp. -->
         <item name="android:textSize">16dp</item>
     </style>
@@ -725,4 +749,6 @@ found in the LICENSE file.
     <style name="ModernToolbarPopupTheme">
         <item name="android:listChoiceIndicatorSingle">@drawable/checkmark_selection_drawable</item>
     </style>
+
+    <style name="Theme.Chromium.Widget" parent="Theme.BrowserUI.DayNight" />
 </resources>

@@ -4,6 +4,7 @@
 
 #include "components/safe_browsing/content/browser/base_blocking_page.h"
 
+#include <cstddef>
 #include <memory>
 
 #include "base/feature_list.h"
@@ -12,8 +13,8 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "components/safe_browsing/content/browser/async_check_tracker.h"
+#include "components/safe_browsing/content/browser/content_unsafe_resource_util.h"
 #include "components/safe_browsing/content/browser/safe_browsing_controller_client.h"
-#include "components/safe_browsing/content/browser/unsafe_resource_util.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/safe_browsing/core/common/utils.h"
@@ -63,23 +64,22 @@ BaseBlockingPage::BaseBlockingPage(
       threat_details_proceed_delay_ms_(kThreatDetailsProceedDelayMilliSeconds),
       sb_error_ui_(std::make_unique<SafeBrowsingLoudErrorUI>(
           unsafe_resources_[0].url,
-          main_frame_url_,
           GetInterstitialReason(unsafe_resources_),
           display_options,
           ui_manager->app_locale(),
           base::Time::NowFromSystemTime(),
           controller(),
           /* created_prior_to_navigation */
-          IsMainPageLoadPending(unsafe_resources))) {}
+          IsMainPageResourceLoadPending(unsafe_resources))) {}
 
-BaseBlockingPage::~BaseBlockingPage() {}
+BaseBlockingPage::~BaseBlockingPage() = default;
 
 // static
 const security_interstitials::BaseSafeBrowsingErrorUI::SBErrorDisplayOptions
 BaseBlockingPage::CreateDefaultDisplayOptions(
     const UnsafeResourceList& unsafe_resources) {
   return BaseSafeBrowsingErrorUI::SBErrorDisplayOptions(
-      IsMainPageLoadPending(unsafe_resources), IsSubresource(unsafe_resources),
+      IsMainPageResourceLoadPending(unsafe_resources),
       false,                 // kSafeBrowsingExtendedReportingOptInAllowed
       false,                 // is_off_the_record
       false,                 // is_extended_reporting
@@ -94,25 +94,12 @@ BaseBlockingPage::CreateDefaultDisplayOptions(
 }
 
 // static
-bool BaseBlockingPage::IsMainPageLoadPending(
+bool BaseBlockingPage::IsMainPageResourceLoadPending(
     const UnsafeResourceList& unsafe_resources) {
   // If there is more than one unsafe resource, the main page load must not be
   // pending. Otherwise, check if the one resource is.
   return unsafe_resources.size() == 1 &&
-         AsyncCheckTracker::IsMainPageLoadPending(unsafe_resources[0]);
-}
-
-// static
-bool BaseBlockingPage::IsSubresource(
-    const UnsafeResourceList& unsafe_resources) {
-  // As long as there is one resource that is from subresource, the page is
-  // considered unsafe due to a subresource.
-  for (auto unsafe_resource : unsafe_resources) {
-    if (unsafe_resource.is_subresource) {
-      return true;
-    }
-  }
-  return false;
+         AsyncCheckTracker::IsMainPageResourceLoadPending(unsafe_resources[0]);
 }
 
 void BaseBlockingPage::SetThreatDetailsProceedDelayForTesting(int64_t delay) {
@@ -163,19 +150,17 @@ BaseBlockingPage::UnsafeResourceMap* BaseBlockingPage::GetUnsafeResourcesMap() {
 std::string BaseBlockingPage::GetMetricPrefix(
     const UnsafeResourceList& unsafe_resources,
     BaseSafeBrowsingErrorUI::SBInterstitialReason interstitial_reason) {
-  bool primary_subresource = unsafe_resources[0].is_subresource;
   switch (interstitial_reason) {
     case BaseSafeBrowsingErrorUI::SB_REASON_MALWARE:
-      return primary_subresource ? "malware_subresource" : "malware";
+      return "malware";
     case BaseSafeBrowsingErrorUI::SB_REASON_HARMFUL:
-      return primary_subresource ? "harmful_subresource" : "harmful";
+      return "harmful";
     case BaseSafeBrowsingErrorUI::SB_REASON_BILLING:
-      return primary_subresource ? "billing_subresource" : "billing";
+      return "billing";
     case BaseSafeBrowsingErrorUI::SB_REASON_PHISHING:
-      return primary_subresource ? "phishing_subresource" : "phishing";
+      return "phishing";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "unkown_metric_prefix";
+  NOTREACHED();
 }
 
 // static
@@ -251,6 +236,19 @@ BaseBlockingPage::GetReportingInfo(
       GetMetricPrefix(unsafe_resources, interstitial_reason);
   CHECK_GE(unsafe_resources.size(), 1u);
   reporting_info.extra_suffix = GetExtraMetricsSuffix(unsafe_resources[0]);
+  // When the subtype expands to more threat_source and the CHECK below is hit,
+  // define new histograms in xml file to represent the change.
+  if (unsafe_resources[0].threat_source ==
+      ThreatSource::CLIENT_SIDE_DETECTION) {
+    reporting_info.extra_extra_suffix =
+        GetExtraExtraMetricsSuffix(unsafe_resources[0]);
+  }
+
+  if (unsafe_resources[0].threat_subtype !=
+      safe_browsing::ThreatSubtype::UNKNOWN) {
+    CHECK_EQ(unsafe_resources[0].threat_source,
+             ThreatSource::CLIENT_SIDE_DETECTION);
+  }
   reporting_info.blocked_page_shown_timestamp = blocked_page_shown_timestamp;
   return reporting_info;
 }

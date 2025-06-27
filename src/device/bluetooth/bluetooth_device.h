@@ -23,7 +23,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "device/bluetooth/bluetooth_common.h"
@@ -94,7 +93,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused. This enum should be kept in sync
   // with the BluetoothDeviceConnectErrorCode enum in
-  // src/tools/metrics/histograms/enums.xml.
+  // src/tools/metrics/histograms/metadata/bluetooth/enums.xml.
   enum ConnectErrorCode {
     ERROR_AUTH_CANCELED = 0,
     ERROR_AUTH_FAILED = 1,
@@ -111,6 +110,12 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
     ERROR_DOES_NOT_EXIST = 12,
     ERROR_INVALID_ARGS = 13,
     ERROR_NON_AUTH_TIMEOUT = 14,
+    ERROR_NO_MEMORY = 15,
+    ERROR_JNI_ENVIRONMENT = 16,
+    ERROR_JNI_THREAD_ATTACH = 17,
+    ERROR_WAKELOCK = 18,
+    ERROR_UNEXPECTED_STATE = 19,
+    ERROR_SOCKET = 20,
     NUM_CONNECT_ERROR_CODES,  // Keep as last enum.
   };
 
@@ -264,7 +269,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // and metrics logging,
   virtual uint32_t GetBluetoothClass() const = 0;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
   // Returns the transport type of the device. Some devices only support one
   // of BR/EDR or LE, and some support both.
   virtual BluetoothTransport GetType() const = 0;
@@ -648,6 +653,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // it hasn't been called yet.
   virtual base::Time GetLastUpdateTime() const;
 
+  // Update last_update_time_ so that the device appears as expired.
+  void SetAsExpiredForTesting();
+
 #if BUILDFLAG(IS_APPLE)
   // Returns true if this device is a Low Energy device.
   virtual bool IsLowEnergyDevice() = 0;
@@ -721,8 +729,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   FRIEND_TEST_ALL_PREFIXES(BluetoothTest,
                            BluetoothGattConnection_DisconnectGatt_Cleanup);
   FRIEND_TEST_ALL_PREFIXES(BluetoothTest, GetName_NullName);
-  FRIEND_TEST_ALL_PREFIXES(BluetoothTest, RemoveOutdatedDevices);
-  FRIEND_TEST_ALL_PREFIXES(BluetoothTest, RemoveOutdatedDeviceGattConnect);
 
   FRIEND_TEST_ALL_PREFIXES(
       BluetoothTestWinrt,
@@ -807,9 +813,6 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDevice {
   // at creation & deletion.
   void AddGattConnection(BluetoothGattConnection*);
   void RemoveGattConnection(BluetoothGattConnection*);
-
-  // Update last_update_time_ so that the device appears as expired.
-  void SetAsExpiredForTesting();
 
   // Raw pointer to adapter owning this device object. Subclasses use platform
   // specific pointers via adapter_.

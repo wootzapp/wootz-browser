@@ -14,13 +14,15 @@ namespace {
 
 // This function never produces fractional values.
 // LayoutUnit(int) produces fractional values if the argument is greater
-// than kIntMaxForLayoutUnit or smaller than kIntMinForLayoutUnit.
+// than LayoutUnit::kIntMax or smaller than LayoutUnit::kIntMin.
 // FrameSetLayoutAlgorithm always requires integers.
 LayoutUnit IntLayoutUnit(double value) {
-  if (value >= kIntMaxForLayoutUnit)
-    return LayoutUnit(kIntMaxForLayoutUnit);
-  if (value <= kIntMinForLayoutUnit)
-    return LayoutUnit(kIntMinForLayoutUnit);
+  if (value >= LayoutUnit::kIntMax) {
+    return LayoutUnit(LayoutUnit::kIntMax);
+  }
+  if (value <= LayoutUnit::kIntMin) {
+    return LayoutUnit(LayoutUnit::kIntMin);
+  }
   return LayoutUnit(floor(value));
 }
 
@@ -124,7 +126,7 @@ Vector<LayoutUnit> FrameSetLayoutAlgorithm::LayoutAxis(
   for (auto i : fixed_indices) {
     sizes[i] =
         IntLayoutUnit(grid[i].Value() * effective_zoom).ClampNegativeToZero();
-    DCHECK(IsIntegerValue(sizes[i]));
+    DCHECK(sizes[i].IsInteger());
     total_fixed += sizes[i].ToInt();
   }
 
@@ -132,7 +134,7 @@ Vector<LayoutUnit> FrameSetLayoutAlgorithm::LayoutAxis(
   for (auto i : percent_indices) {
     sizes[i] = IntLayoutUnit(grid[i].Value() * available_length / 100.0)
                    .ClampNegativeToZero();
-    DCHECK(IsIntegerValue(sizes[i])) << sizes[i];
+    DCHECK(sizes[i].IsInteger()) << sizes[i];
     total_percent += sizes[i].ToInt();
   }
 
@@ -321,8 +323,8 @@ void FrameSetLayoutAlgorithm::LayoutChild(const LayoutInputNode& child,
   const LayoutResult* result =
       To<BlockNode>(child).Layout(space_builder.ToConstraintSpace());
   container_builder_.AddResult(
-      *result, position.ConvertToLogical(container_direction, frameset_size,
-                                         child_size));
+      *result, WritingModeConverter(container_direction, frameset_size)
+                   .ToLogical(position, child_size));
 }
 
 }  // namespace blink

@@ -39,9 +39,14 @@ chromium-metrics-reviews@google.com.
   <int value="9" label="Disk error"/>
 </enum>
 
-<enum name="BooleanContainsMacros">
-  <int value="0" label="Does not contain macros"/>
-  <int value="1" label="Contains macros"/>
+<enum name="AsyncCheckTriggerForceRequestResult">
+  <int value="0" label="Classification is triggered"/>
+  <int value="1"
+      label="Classification is not triggered because the trigger models ping
+             is not skipped"/>
+  <int value="2"
+      label="Classification is not triggered because the URL is not forced by
+             real-time URL check"/>
 </enum>
 
 <enum name="BooleanForceRequest">
@@ -64,17 +69,27 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Is phishing"/>
 </enum>
 
-<enum name="BooleanZipHasAES">
-  <int value="0" label="Zip does not have AES"/>
-  <int value="1" label="Zip has AES"/>
-</enum>
-
 <enum name="CancelEphemeralWarningEvent">
   <int value="0" label="CancellationScheduled"/>
   <int value="1" label="CancellationTriggered"/>
   <int value="2" label="CancellationFailedDownloadNotFound"/>
   <int value="3" label="CancellationFailedDownloadNotEphemeral"/>
   <int value="4" label="CancellationSucceeded"/>
+</enum>
+
+<enum name="CanExtractVisualFeaturesResult">
+  <int value="0" label="Can extract visual features"/>
+  <int value="1" label="User is not opted in"/>
+  <int value="2" label="User is off the record"/>
+  <int value="3" label="Frame is below minimal width and/or height"/>
+  <int value="4" label="Zoom level is above maximum value"/>
+</enum>
+
+<enum name="ClientSideAllowlistMatchResult">
+  <int value="0" label="No match"/>
+  <int value="1" label="CSD match"/>
+  <int value="2" label="High confidence match"/>
+  <int value="3" label="CSD and high confidence match"/>
 </enum>
 
 <enum name="ClientSideDetectionType">
@@ -84,6 +99,7 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="NOTIFICATION_PERMISSION_PROMPT"/>
   <int value="4" label="KEYBOARD_LOCK_REQUESTED"/>
   <int value="5" label="POINTER_LOCK_REQUESTED"/>
+  <int value="6" label="VIBRATION_API"/>
 </enum>
 
 <enum name="ClientSidePhishingImageEmbeddingResult">
@@ -114,6 +130,27 @@ chromium-metrics-reviews@google.com.
   <int value="10" label="Visual extraction failed"/>
 </enum>
 
+<enum name="IntelligentScanVerdict">
+  <int value="0" label="Unspecified"/>
+  <int value="1" label="Intelligent scan verdict safe"/>
+  <int value="2" label="Scam experiment verdict 1"/>
+  <int value="3" label="Scam experiment verdict 2"/>
+  <int value="999" label="Scam experiment verdict catch all enforcement"/>
+  <int value="1000" label="Scam experiment verdict catch all telemetry"/>
+</enum>
+
+<!-- LINT.IfChange(SafeBrowsingAndroidGetReferringAppInfoResult) -->
+
+<enum name="SafeBrowsingAndroidGetReferringAppInfoResult">
+  <int value="0" label="ReferringAppInfo lookup not attempted"/>
+  <int value="1" label="Referring app not found, referring WebAPK not found"/>
+  <int value="2" label="Referring app not found, referring WebAPK found"/>
+  <int value="3" label="Referring app found, referring WebAPK not found"/>
+  <int value="4" label="Referring app found, referring WebAPK found"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/safe_browsing/core/browser/referring_app_info.h:GetReferringAppInfoResult) -->
+
 <enum name="SBClientDetectionClassifyThresholdsResult">
   <int value="0" label="Success"/>
   <int value="1" label="Model size was mismatched"/>
@@ -139,7 +176,34 @@ chromium-metrics-reviews@google.com.
   <int value="15" label="LOCAL_RESOURCE"/>
   <int value="16" label="CHROME_UI_PAGE"/>
   <int value="17" label="(Obsolete) NOT_ALLOWED_BY_POLICY"/>
+  <int value="18" label="MATCH_HC_ALLOWLIST"/>
+  <int value="19" label="ALLOWLIST_MATCH_METRIC"/>
 </enum>
+
+<!-- LINT.IfChange(SBClientDownloadAndroidDownloadProtectionOutcome) -->
+
+<enum name="SBClientDownloadAndroidDownloadProtectionOutcome">
+  <int value="0" label="ClientDownloadRequest not sent: Other reason"/>
+  <int value="1" label="ClientDownloadRequest sent"/>
+  <int value="2"
+      label="ClientDownloadRequest not sent: Android download protection
+             disabled"/>
+  <int value="3" label="ClientDownloadRequest not sent: No display name"/>
+  <int value="4"
+      label="ClientDownloadRequest not sent: Display name from DownloadItem
+             is not a supported file type"/>
+  <int value="5" label="ClientDownloadRequest not sent: Empty URL chain"/>
+  <int value="6" label="ClientDownloadRequest not sent: Invalid URL"/>
+  <int value="7"
+      label="ClientDownloadRequest not sent: Unsupported URL scheme"/>
+  <int value="8" label="ClientDownloadRequest not sent: Remote file"/>
+  <int value="9" label="ClientDownloadRequest not sent: Local file"/>
+  <int value="10"
+      label="ClientDownloadRequest not sent: Service misconfigured"/>
+  <int value="11" label="ClientDownloadRequest not sent: Not sampled"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/safe_browsing/android/download_protection_metrics_data.h:AndroidDownloadProtectionOutcome) -->
 
 <enum name="SBClientDownloadCheckDownloadStats">
   <int value="0" label="INVALID_URL"/>
@@ -182,6 +246,7 @@ chromium-metrics-reviews@google.com.
   <int value="37" label="LOCAL_DECRYPTION_PROMPT"/>
   <int value="38" label="LOCAL_DECRYPTION_FAILED"/>
   <int value="39" label="IMMEDIATE_DEEP_SCAN"/>
+  <int value="40" label="IGNORED_VERDICT"/>
 </enum>
 
 <enum name="SBClientDownloadCheckResult">
@@ -216,15 +281,6 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Has bypassed download warnings before"/>
 </enum>
 
-<enum name="SBClientPhishingCancelClassificationReason">
-  <int value="0" label="NAVIGATE_AWAY"/>
-  <int value="1" label="NAVIGATE_WITHIN_PAGE"/>
-  <int value="2" label="PAGE_RECAPTURED"/>
-  <int value="3" label="SHUTDOWN"/>
-  <int value="4" label="NEW_PHISHING_SCORER"/>
-  <int value="5" label="SCORER_CLEARED"/>
-</enum>
-
 <enum name="SBClientPhishingCancelImageEmbeddingReason">
   <int value="0" label="NAVIGATE_AWAY"/>
   <int value="1" label="NAVIGATE_WITHIN_PAGE"/>
@@ -256,8 +312,10 @@ chromium-metrics-reviews@google.com.
 
 <enum name="SBDeepScanTriggers">
   <int value="0" label="Unknown"/>
-  <int value="1" label="Advanced Protection Prompt"/>
+  <int value="1" label="Consumer prompt"/>
   <int value="2" label="Enterprise policy"/>
+  <int value="3" label="Encrypted archive prompt"/>
+  <int value="4" label="Immediate deep scan"/>
 </enum>
 
 <enum name="SBDeepScanType">
@@ -273,19 +331,6 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Phishing classifier was destructed"/>
   <int value="5"
       label="Scorer sent update and classifier is ready within timeout"/>
-</enum>
-
-<enum name="SevenZipResult">
-  <int value="0" label="Unknown"/>
-  <int value="1" label="Success"/>
-  <int value="2" label="Allocation failure"/>
-  <int value="3" label="CRC failure"/>
-  <int value="4" label="Memory mapping failure"/>
-  <int value="5" label="Malformed archive"/>
-  <int value="6" label="IO error"/>
-  <int value="7" label="Disk full"/>
-  <int value="8" label="No filename"/>
-  <int value="9" label="Unsupported feature in LZMA SDK"/>
 </enum>
 
 <enum name="TailoredWarningType">

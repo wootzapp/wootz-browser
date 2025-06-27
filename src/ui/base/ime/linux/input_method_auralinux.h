@@ -47,9 +47,6 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
   void OnPreeditStart() override {}
   void OnSetPreeditRegion(const gfx::Range& range,
                           const std::vector<ImeTextSpan>& spans) override;
-  void OnClearGrammarFragments(const gfx::Range& range) override;
-  void OnAddGrammarFragment(const ui::GrammarFragment& fragment) override;
-  void OnSetAutocorrectRange(const gfx::Range& range) override;
   void OnSetVirtualKeyboardOccludedBounds(
       const gfx::Rect& screen_bounds) override;
   void OnInsertImage(const GURL& src) override;
@@ -62,7 +59,7 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
                                 TextInputClient* focused) override;
 
  private:
-  // Continues to dispatch the ET_KEY_PRESSED event to the client.
+  // Continues to dispatch the EventType::kKeyPressed event to the client.
   // This needs to be called "before" committing the result string or
   // the composition string.
   ui::EventDispatchDetails DispatchImeFilteredKeyPressEvent(

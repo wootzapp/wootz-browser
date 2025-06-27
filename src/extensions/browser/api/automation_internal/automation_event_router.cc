@@ -4,13 +4,13 @@
 
 #include "extensions/browser/api/automation_internal/automation_event_router.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "base/containers/contains.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -96,15 +96,25 @@ void AutomationEventRouter::UnregisterAllListenersWithDesktopPermission() {
 }
 
 void AutomationEventRouter::DispatchAccessibilityLocationChange(
-    const ui::AXLocationChanges& details) {
+    const ui::AXTreeID& tree_id,
+    const ui::AXLocationChange& details) {
   if (remote_router_) {
-    remote_router_->DispatchAccessibilityLocationChange(details);
+    remote_router_->DispatchAccessibilityLocationChange(tree_id, details);
     return;
   }
 
   for (const auto& remote : automation_remote_set_) {
-    remote->DispatchAccessibilityLocationChange(details.ax_tree_id, details.id,
+    remote->DispatchAccessibilityLocationChange(tree_id, details.id,
                                                 details.new_location);
+  }
+}
+
+void AutomationEventRouter::DispatchAccessibilityScrollChange(
+    const ui::AXTreeID& tree_id,
+    const ui::AXScrollChange& details) {
+  for (const auto& remote : automation_remote_set_) {
+    remote->DispatchAccessibilityScrollChange(
+        tree_id, details.id, details.scroll_x, details.scroll_y);
   }
 }
 
@@ -133,15 +143,15 @@ void AutomationEventRouter::DispatchActionResult(
 void AutomationEventRouter::DispatchGetTextLocationDataResult(
     const ui::AXActionData& data,
     const std::optional<gfx::Rect>& rect) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   CHECK(!data.source_extension_id.empty());
 
   for (const auto& remote : automation_remote_set_) {
     remote->DispatchGetTextLocationResult(data, rect);
   }
 #else
-  NOTREACHED_NORETURN();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  NOTREACHED();
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 void AutomationEventRouter::NotifyAllAutomationExtensionsGone() {
@@ -252,9 +262,9 @@ void AutomationEventRouter::Register(const ExtensionId& extension_id,
 
 void AutomationEventRouter::DispatchAccessibilityEvents(
     const ui::AXTreeID& tree_id,
-    std::vector<ui::AXTreeUpdate> updates,
+    const std::vector<ui::AXTreeUpdate>& updates,
     const gfx::Point& mouse_location,
-    std::vector<ui::AXEvent> events) {
+    const std::vector<ui::AXEvent>& events) {
   if (remote_router_) {
     remote_router_->DispatchAccessibilityEvents(
         tree_id, std::move(updates), mouse_location, std::move(events));
@@ -280,7 +290,7 @@ void AutomationEventRouter::RenderProcessHostDestroyed(
 
 void AutomationEventRouter::RemoveAutomationListener(
     content::RenderProcessHost* host) {
-  RenderProcessHostId rph_id = host->GetID();
+  RenderProcessHostId rph_id = host->GetDeprecatedID();
   ExtensionId extension_id;
   for (auto listener = listeners_.begin(); listener != listeners_.end();) {
     if ((*listener)->render_process_host_id == rph_id) {
@@ -330,7 +340,7 @@ void AutomationEventRouter::TreeRemoved(ui::AXTreeID ax_tree_id) {
 AutomationEventRouter::AutomationListener*
 AutomationEventRouter::GetListenerByRenderProcessID(
     const RenderProcessHostId& listener_rph_id) const {
-  const auto iter = base::ranges::find(
+  const auto iter = std::ranges::find(
       listeners_, listener_rph_id, &AutomationListener::render_process_host_id);
 
   if (iter != listeners_.end()) {

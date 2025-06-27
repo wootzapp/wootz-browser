@@ -35,10 +35,9 @@ NSProcessInfoThermalStateToDeviceThermalState(
     case NSProcessInfoThermalStateCritical:
       return base::PowerThermalObserver::DeviceThermalState::kCritical;
   }
-  NOTREACHED_IN_MIGRATION();
-  return base::PowerThermalObserver::DeviceThermalState::kUnknown;
+  NOTREACHED();
 }
-}
+}  // namespace
 
 namespace base {
 
@@ -61,8 +60,9 @@ ThermalStateObserverMac::ThermalStateObserverMac(
         NSProcessInfo.processInfo.thermalState;
     state = NSProcessInfoThermalStateToDeviceThermalState(nsinfo_state);
     if (state_for_testing_ !=
-        PowerThermalObserver::DeviceThermalState::kUnknown)
+        PowerThermalObserver::DeviceThermalState::kUnknown) {
       state = state_for_testing_;
+    }
     DVLOG(1) << __func__ << ": "
              << PowerMonitorSource::DeviceThermalStateToString(state);
     state_update_callback.Run(state);
@@ -103,14 +103,16 @@ ThermalStateObserverMac::~ThermalStateObserverMac() {
 
 PowerThermalObserver::DeviceThermalState
 ThermalStateObserverMac::GetCurrentThermalState() {
-  if (state_for_testing_ != PowerThermalObserver::DeviceThermalState::kUnknown)
+  if (state_for_testing_ !=
+      PowerThermalObserver::DeviceThermalState::kUnknown) {
     return state_for_testing_;
+  }
   NSProcessInfoThermalState nsinfo_state =
       NSProcessInfo.processInfo.thermalState;
   return NSProcessInfoThermalStateToDeviceThermalState(nsinfo_state);
 }
 
-int ThermalStateObserverMac::GetCurrentSpeedLimit() {
+int ThermalStateObserverMac::GetCurrentSpeedLimit() const {
   apple::ScopedCFTypeRef<CFDictionaryRef> dictionary;
   IOReturn result = IOPMCopyCPUPowerStatus(dictionary.InitializeInto());
   if (result != kIOReturnSuccess) {
@@ -132,4 +134,4 @@ int ThermalStateObserverMac::GetCurrentSpeedLimit() {
   }
   return PowerThermalObserver::kSpeedLimitMax;
 }
-}
+}  // namespace base

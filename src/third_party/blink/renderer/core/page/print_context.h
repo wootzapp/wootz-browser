@@ -50,7 +50,7 @@ class CORE_EXPORT PrintContext : public GarbageCollected<PrintContext> {
 
   // These are only valid when inside print mode.
   virtual wtf_size_t PageCount() const;
-  gfx::Rect PageRect(wtf_size_t page_number) const;
+  gfx::Rect PageRect(wtf_size_t page_index) const;
 
   // Enter print mode, updating layout for paginated layout. WebPrintParams
   // provides a default page size and margins, but this may be overridden by
@@ -71,8 +71,6 @@ class CORE_EXPORT PrintContext : public GarbageCollected<PrintContext> {
 
   virtual void Trace(Visitor*) const;
 
-  bool use_printing_layout() const;
-
  protected:
   friend class PrintContextTest;
 
@@ -83,8 +81,7 @@ class CORE_EXPORT PrintContext : public GarbageCollected<PrintContext> {
 
   Member<LocalFrame> frame_;
 
-  // True when printing layout needs to be applied.
-  bool use_printing_layout_ = true;
+  bool use_paginated_layout_ = true;
 
  private:
   void ComputePageCount();

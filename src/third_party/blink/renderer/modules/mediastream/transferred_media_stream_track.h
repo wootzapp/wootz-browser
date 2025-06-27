@@ -26,7 +26,6 @@
 
 namespace blink {
 
-class DOMException;
 class MediaTrackCapabilities;
 class MediaTrackConstraints;
 class MediaTrackSettings;
@@ -50,7 +49,7 @@ class MODULES_EXPORT TransferredMediaStreamTrack : public MediaStreamTrack {
   bool muted() const override;
   String ContentHint() const override;
   void SetContentHint(const String&) override;
-  String readyState() const override;
+  V8MediaStreamTrackState readyState() const override;
   MediaStreamTrack* clone(ExecutionContext*) override;
   void stopTrack(ExecutionContext*) override;
   MediaTrackCapabilities* getCapabilities() const override;
@@ -85,16 +84,7 @@ class MODULES_EXPORT TransferredMediaStreamTrack : public MediaStreamTrack {
 
   void RegisterMediaStream(MediaStream*) override;
   void UnregisterMediaStream(MediaStream*) override;
-
-#if !BUILDFLAG(IS_ANDROID)
-  void SendWheel(double relative_x,
-                 double relative_y,
-                 int wheel_delta_x,
-                 int wheel_delta_y,
-                 base::OnceCallback<void(DOMException*)> callback) override;
-  void SetZoomLevel(int zoom_level,
-                    base::OnceCallback<void(DOMException*)> callback) override;
-#endif
+  void RegisterSink(SpeechRecognitionMediaStreamAudioSink*) override;
 
   // EventTarget
   const AtomicString& InterfaceName() const override;

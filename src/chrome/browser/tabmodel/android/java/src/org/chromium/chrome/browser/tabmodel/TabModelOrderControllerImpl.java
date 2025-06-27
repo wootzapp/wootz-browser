@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabAttributeKeys;
 import org.chromium.chrome.browser.tab.TabAttributes;
@@ -16,6 +19,7 @@ import org.chromium.chrome.browser.tab.TabLaunchType;
  * <p>TODO(crbug.com/40152902): Move to chrome/browser/tabmodel/internal when all usages are
  * modularized.
  */
+@NullMarked
 class TabModelOrderControllerImpl implements TabModelOrderController {
     private static final int NO_TAB = -1;
     private final TabModelSelector mTabModelSelector;
@@ -33,7 +37,7 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
             position = determineInsertionIndex(type, newTab);
         }
 
-        if (willOpenInForeground(type, newTab.isIncognito())) {
+        if (willOpenInForeground(type, newTab.isIncognitoBranded())) {
             // Forget any existing relationships, we don't want to make things
             // too confusing by having multiple groups active at the same time.
             forgetAllOpeners();
@@ -67,7 +71,7 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
                 // If the tab was opened in the foreground, insert it adjacent to its parent tab if
                 // that exists and that tab is not the current selected tab, else insert the tab
                 // adjacent to the current tab that opened that link.
-                Tab parentTab = TabModelUtils.getTabById(currentModel, newTab.getParentId());
+                Tab parentTab = currentModel.getTabById(newTab.getParentId());
                 if (parentTab != null && currentTab != parentTab) {
                     int parentTabIndex =
                             TabModelUtils.getTabIndexById(currentModel, parentTab.getId());
@@ -104,9 +108,11 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
         TabModel currentModel = mTabModelSelector.getCurrentModel();
         int count = currentModel.getCount();
         for (int i = count - 1; i >= startIndex; i--) {
-            Tab tab = currentModel.getTabAt(i);
+            Tab tab = currentModel.getTabAtChecked(i);
             if (tab.getParentId() == openerId
-                    && TabAttributes.from(tab).get(TabAttributeKeys.GROUPED_WITH_PARENT, true)) {
+                    && assumeNonNull(
+                            TabAttributes.from(tab)
+                                    .get(TabAttributeKeys.GROUPED_WITH_PARENT, true))) {
                 return i;
             }
         }
@@ -114,10 +120,11 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
     }
 
     private int getValidPositionConsideringRelatedTabs(Tab newTab, int position) {
-        TabModelFilter filter =
+        TabGroupModelFilter filter =
                 mTabModelSelector
-                        .getTabModelFilterProvider()
-                        .getTabModelFilter(newTab.isIncognito());
+                        .getTabGroupModelFilterProvider()
+                        .getTabGroupModelFilter(newTab.isIncognito());
+        assumeNonNull(filter);
         return filter.getValidPosition(newTab, position);
     }
 
@@ -126,7 +133,7 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
         TabModel currentModel = mTabModelSelector.getCurrentModel();
         int count = currentModel.getCount();
         for (int i = 0; i < count; i++) {
-            TabAttributes.from(currentModel.getTabAt(i))
+            TabAttributes.from(currentModel.getTabAtChecked(i))
                     .set(TabAttributeKeys.GROUPED_WITH_PARENT, false);
         }
     }
@@ -141,18 +148,22 @@ class TabModelOrderControllerImpl implements TabModelOrderController {
     }
 
     @Override
-    public boolean willOpenInForeground(@TabLaunchType int type, boolean isNewTabIncognito) {
+    public boolean willOpenInForeground(@TabLaunchType int type, boolean isNewTabIncognitoBranded) {
         // Restore is handling the active index by itself.
         if (type == TabLaunchType.FROM_RESTORE
                 || type == TabLaunchType.FROM_BROWSER_ACTIONS
                 || type == TabLaunchType.FROM_RESTORE_TABS_UI) {
             return false;
         }
-        return type != TabLaunchType.FROM_LONGPRESS_BACKGROUND
+        return (type != TabLaunchType.FROM_LONGPRESS_BACKGROUND
                         && type != TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP
                         && type != TabLaunchType.FROM_RECENT_TABS
                         && type != TabLaunchType.FROM_SYNC_BACKGROUND
-                || (!mTabModelSelector.isIncognitoSelected() && isNewTabIncognito);
+                        && type != TabLaunchType.FROM_COLLABORATION_BACKGROUND_IN_GROUP
+                        && type != TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND
+                        && type != TabLaunchType.FROM_REPARENTING_BACKGROUND)
+                || (!mTabModelSelector.isIncognitoBrandedModelSelected()
+                        && isNewTabIncognitoBranded);
     }
 
     /**

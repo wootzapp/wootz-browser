@@ -4,11 +4,15 @@
 
 #include "chrome/browser/ui/views/extensions/extensions_menu_view.h"
 
+#include <algorithm>
+
+#include "base/auto_reset.h"
+#include "base/check_is_test.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/i18n/case_conversion.h"
 #include "base/memory/ptr_util.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -27,6 +31,7 @@
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -96,7 +101,7 @@ ExtensionsMenuView::ExtensionsMenuView(
   browser_->tab_strip_model()->AddObserver(this);
   set_margins(gfx::Insets(0));
 
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetShowCloseButton(true);
   SetTitle(IDS_EXTENSIONS_MENU_TITLE);
 
@@ -124,8 +129,9 @@ ExtensionsMenuView::ExtensionsMenuView(
 }
 
 ExtensionsMenuView::~ExtensionsMenuView() {
-  if (!g_allow_testing_dialogs)
+  if (!g_allow_testing_dialogs) {
     DCHECK_EQ(g_extensions_dialog, this);
+  }
   g_extensions_dialog = nullptr;
   extensions_menu_items_.clear();
 
@@ -136,8 +142,9 @@ ExtensionsMenuView::~ExtensionsMenuView() {
 void ExtensionsMenuView::Populate() {
   // The actions for the profile haven't been initialized yet. We'll call in
   // again once they have.
-  if (!toolbar_model_->actions_initialized())
+  if (!toolbar_model_->actions_initialized()) {
     return;
+  }
 
   DCHECK(children().empty()) << "Populate() can only be called once!";
 
@@ -190,8 +197,9 @@ void ExtensionsMenuView::Populate() {
   AddChildView(std::move(footer));
 
   // Add menu items for each extension.
-  for (const auto& id : toolbar_model_->action_ids())
+  for (const auto& id : toolbar_model_->action_ids()) {
     CreateAndInsertNewItem(id);
+  }
 
   SortMenuItemsByName();
   UpdateSectionVisibility();
@@ -213,47 +221,46 @@ ExtensionsMenuView::CreateExtensionButtonsContainer() {
   extension_buttons->SetBorder(
       views::CreateEmptyBorder(gfx::Insets::VH(0, dialog_insets.left())));
 
-  auto create_section =
-      [&extension_buttons](Section* section) {
-        auto container = std::make_unique<views::View>();
-        section->container = container.get();
-        container->SetLayoutManager(std::make_unique<views::BoxLayout>(
-            views::BoxLayout::Orientation::kVertical));
+  auto create_section = [&extension_buttons](Section* section) {
+    auto container = std::make_unique<views::View>();
+    section->container = container.get();
+    container->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical));
 
-        // Add an emphasized short header explaining the section.
-        auto header = std::make_unique<views::Label>(
-            l10n_util::GetStringUTF16(section->header_string_id),
-            ChromeTextContext::CONTEXT_DIALOG_BODY_TEXT_SMALL,
-            views::style::STYLE_EMPHASIZED);
-        header->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-        header->SetBorder(views::CreateEmptyBorder(
-            gfx::Insets::TLBR(ChromeLayoutProvider::Get()->GetDistanceMetric(
-                                  DISTANCE_CONTROL_LIST_VERTICAL),
-                              0, 0, 0)));
-        container->AddChildView(std::move(header));
+    // Add an emphasized short header explaining the section.
+    auto header = std::make_unique<views::Label>(
+        l10n_util::GetStringUTF16(section->header_string_id),
+        ChromeTextContext::CONTEXT_DIALOG_BODY_TEXT_SMALL,
+        views::style::STYLE_EMPHASIZED);
+    header->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    header->SetBorder(views::CreateEmptyBorder(
+        gfx::Insets::TLBR(ChromeLayoutProvider::Get()->GetDistanceMetric(
+                              views::DISTANCE_CONTROL_LIST_VERTICAL),
+                          0, 0, 0)));
+    container->AddChildView(std::move(header));
 
-        // Add longer text that explains the section in more detail.
-        auto description = std::make_unique<views::Label>(
-            l10n_util::GetStringUTF16(section->description_string_id),
-            ChromeTextContext::CONTEXT_DIALOG_BODY_TEXT_SMALL,
-            views::style::STYLE_PRIMARY);
-        description->SetMultiLine(true);
-        description->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-        container->AddChildView(std::move(description));
+    // Add longer text that explains the section in more detail.
+    auto description = std::make_unique<views::Label>(
+        l10n_util::GetStringUTF16(section->description_string_id),
+        ChromeTextContext::CONTEXT_DIALOG_BODY_TEXT_SMALL,
+        views::style::STYLE_PRIMARY);
+    description->SetMultiLine(true);
+    description->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    container->AddChildView(std::move(description));
 
-        // Add a (currently empty) section for the menu items of the section.
-        auto menu_items = std::make_unique<views::View>();
-        menu_items->SetLayoutManager(std::make_unique<views::BoxLayout>(
-            views::BoxLayout::Orientation::kVertical));
-        section->menu_items = menu_items.get();
-        container->AddChildView(std::move(menu_items));
+    // Add a (currently empty) section for the menu items of the section.
+    auto menu_items = std::make_unique<views::View>();
+    menu_items->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical));
+    section->menu_items = menu_items.get();
+    container->AddChildView(std::move(menu_items));
 
-        // Start off with the section invisible. We'll update it as we add items
-        // if necessary.
-        container->SetVisible(false);
+    // Start off with the section invisible. We'll update it as we add items
+    // if necessary.
+    container->SetVisible(false);
 
-        extension_buttons->AddChildView(std::move(container));
-      };
+    extension_buttons->AddChildView(std::move(container));
+  };
 
   create_section(&has_access_);
   create_section(&wants_access_);
@@ -283,17 +290,20 @@ ExtensionsMenuView::Section* ExtensionsMenuView::GetSectionForSiteInteraction(
 
 void ExtensionsMenuView::SortMenuItemsByName() {
   auto sort_section = [](Section* section) {
-    if (section->menu_items->children().empty())
+    if (section->menu_items->children().empty()) {
       return;
+    }
 
     std::vector<ExtensionMenuItemView*> menu_item_views;
-    for (views::View* view : section->menu_items->children())
+    for (views::View* view : section->menu_items->children()) {
       menu_item_views.push_back(GetAsMenuItemView(view));
+    }
 
     std::sort(menu_item_views.begin(), menu_item_views.end(),
               &CompareExtensionMenuItemViews);
-    for (size_t i = 0; i < menu_item_views.size(); ++i)
+    for (size_t i = 0; i < menu_item_views.size(); ++i) {
       section->menu_items->ReorderChildView(menu_item_views[i], i);
+    }
   };
 
   sort_section(&has_access_);
@@ -327,14 +337,15 @@ void ExtensionsMenuView::InsertMenuItem(ExtensionMenuItemView* menu_item) {
   // Add the view at the end. Note that this *doesn't* insert the item at the
   // correct spot or ensure the view is visible; it's assumed that any callers
   // will handle those separately.
-  section->menu_items->AddChildView(menu_item);
+  section->menu_items->AddChildViewRaw(menu_item);
 }
 
 void ExtensionsMenuView::UpdateSectionVisibility() {
   auto update_section = [](Section* section) {
     bool should_be_visible = !section->menu_items->children().empty();
-    if (section->container->GetVisible() != should_be_visible)
+    if (section->container->GetVisible() != should_be_visible) {
       section->container->SetVisible(should_be_visible);
+    }
   };
 
   update_section(&has_access_);
@@ -349,25 +360,26 @@ void ExtensionsMenuView::Update() {
 
   content::WebContents* const web_contents =
       browser_->tab_strip_model()->GetActiveWebContents();
-  auto move_children_between_sections_if_necessary = [this, web_contents](
-                                                         Section* section) {
-    // Note: Collect the views to move separately, so that we don't change the
-    // children of the view during iteration.
-    std::vector<ExtensionMenuItemView*> views_to_move;
-    for (views::View* view : section->menu_items->children()) {
-      auto* menu_item = GetAsMenuItemView(view);
-      auto site_interaction =
-          menu_item->view_controller()->GetSiteInteraction(web_contents);
-      if (site_interaction == section->site_interaction)
-        continue;
-      views_to_move.push_back(menu_item);
-    }
+  auto move_children_between_sections_if_necessary =
+      [this, web_contents](Section* section) {
+        // Note: Collect the views to move separately, so that we don't change
+        // the children of the view during iteration.
+        std::vector<ExtensionMenuItemView*> views_to_move;
+        for (views::View* view : section->menu_items->children()) {
+          auto* menu_item = GetAsMenuItemView(view);
+          auto site_interaction =
+              menu_item->view_controller()->GetSiteInteraction(web_contents);
+          if (site_interaction == section->site_interaction) {
+            continue;
+          }
+          views_to_move.push_back(menu_item);
+        }
 
-    for (ExtensionMenuItemView* menu_item : views_to_move) {
-      section->menu_items->RemoveChildView(menu_item);
-      InsertMenuItem(menu_item);
-    }
-  };
+        for (ExtensionMenuItemView* menu_item : views_to_move) {
+          section->menu_items->RemoveChildView(menu_item);
+          InsertMenuItem(menu_item);
+        }
+      };
 
   move_children_between_sections_if_necessary(&has_access_);
   move_children_between_sections_if_necessary(&wants_access_);
@@ -446,11 +458,11 @@ void ExtensionsMenuView::OnToolbarActionAdded(
 
 void ExtensionsMenuView::OnToolbarActionRemoved(
     const ToolbarActionsModel::ActionId& action_id) {
-  auto iter = base::ranges::find(extensions_menu_items_, action_id,
-                                 [](const ExtensionMenuItemView* item) {
-                                   return item->view_controller()->GetId();
-                                 });
-  DCHECK(iter != extensions_menu_items_.end());
+  auto iter = std::ranges::find(extensions_menu_items_, action_id,
+                                [](const ExtensionMenuItemView* item) {
+                                  return item->view_controller()->GetId();
+                                });
+  CHECK(iter != extensions_menu_items_.end(), base::NotFatalUntil::M130);
   ExtensionMenuItemView* const view = *iter;
   DCHECK(Contains(view));
   view->parent()->RemoveChildViewT(view);
@@ -483,8 +495,20 @@ void ExtensionsMenuView::OnToolbarPinnedActionsChanged() {
   }
 }
 
+base::flat_set<raw_ptr<ExtensionMenuItemView, CtnExperimental>>
+ExtensionsMenuView::extensions_menu_items_for_testing() {
+  CHECK_IS_TEST();
+  return extensions_menu_items_;
+}
+
+views::Button* ExtensionsMenuView::manage_extensions_button_for_testing() {
+  CHECK_IS_TEST();
+  return manage_extensions_button_;
+}
+
 // static
 base::AutoReset<bool> ExtensionsMenuView::AllowInstancesForTesting() {
+  CHECK_IS_TEST();
   return base::AutoReset<bool>(&g_allow_testing_dialogs, true);
 }
 
@@ -513,8 +537,9 @@ bool ExtensionsMenuView::IsShowing() {
 
 // static
 void ExtensionsMenuView::Hide() {
-  if (IsShowing())
+  if (IsShowing()) {
     g_extensions_dialog->GetWidget()->Close();
+  }
 }
 
 // static
@@ -530,8 +555,9 @@ ExtensionsMenuView::GetSortedItemsForSectionForTesting(
       GetExtensionsMenuViewForTesting()->GetSectionForSiteInteraction(
           site_interaction);
   std::vector<ExtensionMenuItemView*> menu_item_views;
-  for (views::View* view : section->menu_items->children())
+  for (views::View* view : section->menu_items->children()) {
     menu_item_views.push_back(GetAsMenuItemView(view));
+  }
   return menu_item_views;
 }
 

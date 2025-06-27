@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "base/functional/callback.h"
@@ -16,10 +17,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
-#include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/isolated_web_app_installer_model.h"
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/isolated_web_app_installer_view.h"
-#include "chrome/browser/ui/views/web_apps/web_app_info_image_source.h"
+#include "chrome/browser/ui/web_applications/web_app_info_image_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_metadata.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
@@ -30,15 +30,17 @@
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/models/dialog_model_field.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/color/color_id.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
-#include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/strings/grit/ui_strings.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_dialog_model_host.h"
@@ -69,7 +71,7 @@ views::View* GetRootView(views::View* view) {
 
 gfx::Insets BottomPadding(views::DistanceMetric distance) {
   return gfx::Insets::TLBR(
-      0, 0, ChromeLayoutProvider::Get()->GetDistanceMetric(distance), 0);
+      0, 0, views::LayoutProvider::Get()->GetDistanceMetric(distance), 0);
 }
 
 std::unique_ptr<views::StyledLabel> CreateLabelWithContextAndStyle(
@@ -106,10 +108,9 @@ ui::ImageModel CreateImageModelFromBundleMetadata(
 // functions that need a string, but want to accept either ids or raw strings.
 class ToU16String {
  public:
-  // NOLINTNEXTLINE(runtime/explicit)
+  // NOLINTNEXTLINE
   ToU16String(int string_id) : string_(l10n_util::GetStringUTF16(string_id)) {}
-
-  // NOLINTNEXTLINE(runtime/explicit)
+  // NOLINTNEXTLINE
   ToU16String(const std::u16string& string) : string_(string) {}
 
   const std::u16string& get() const { return string_; }
@@ -156,7 +157,7 @@ class InfoPane : public views::BoxLayoutView {
     SetInsideBorderInsets(
         provider->GetInsetsMetric(views::InsetsMetric::INSETS_DIALOG));
     SetOrientation(views::BoxLayout::Orientation::kVertical);
-    SetBackground(views::CreateThemedRoundedRectBackground(
+    SetBackground(views::CreateRoundedRectBackground(
         ui::kColorSubtleEmphasisBackground, kInfoPaneCornerRadius));
     SetData(metadata);
   }
@@ -200,12 +201,12 @@ class InstallerDialogView : public views::BoxLayoutView {
     SetInsideBorderInsets(views::LayoutProvider::Get()->GetInsetsMetric(
         views::InsetsMetric::INSETS_DIALOG));
     SetCollapseMarginsSpacing(true);
-    SetAccessibleRole(ax::mojom::Role::kMain);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kMain);
 
     auto* header = AddChildView(std::make_unique<views::BoxLayoutView>());
     header->SetOrientation(views::BoxLayout::Orientation::kVertical);
     header->SetDefaultFlex(0);
-    header->SetAccessibleRole(
+    header->GetViewAccessibility().SetRole(
         ax::mojom::Role::kRegion,
         l10n_util::GetStringUTF16(IDS_IWA_INSTALLER_BODY_SCREENREADER_NAME));
 
@@ -219,7 +220,7 @@ class InstallerDialogView : public views::BoxLayoutView {
 
     title_label_ = header->AddChildView(CreateLabelWithContextAndStyle(
         views::style::CONTEXT_DIALOG_TITLE, views::style::STYLE_PRIMARY));
-    title_label_->SetAccessibleRole(ax::mojom::Role::kHeading);
+    title_label_->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
     SetTitle(title);
 
     subtitle_label_ = header->AddChildView(CreateLabelWithContextAndStyle(
@@ -269,15 +270,16 @@ class InstallerDialogView : public views::BoxLayoutView {
 
     contents_wrapper_->SetProperty(
         views::kMarginsKey,
-        gfx::Insets::VH(ChromeLayoutProvider::Get()->GetDistanceMetric(
+        gfx::Insets::VH(views::LayoutProvider::Get()->GetDistanceMetric(
                             views::DISTANCE_UNRELATED_CONTROL_VERTICAL),
                         0));
     if (region_name_id.has_value()) {
-      contents_wrapper_->SetAccessibleRole(
+      contents_wrapper_->GetViewAccessibility().SetRole(
           ax::mojom::Role::kRegion,
           l10n_util::GetStringUTF16(region_name_id.value()));
     } else {
-      contents_wrapper_->SetAccessibleRole(ax::mojom::Role::kRegion);
+      contents_wrapper_->GetViewAccessibility().SetRole(
+          ax::mojom::Role::kRegion);
     }
     SetFlexForView(contents_wrapper_, 1);
     return contents_wrapper_->AddChildView(std::move(contents_view));
@@ -463,14 +465,15 @@ void IsolatedWebAppInstallerView::SetDialogButtons(
     return;
   }
 
-  int buttons = ui::DIALOG_BUTTON_CANCEL;
+  int buttons = static_cast<int>(ui::mojom::DialogButton::kCancel);
   dialog_delegate->SetButtonLabel(
-      ui::DIALOG_BUTTON_CANCEL,
+      ui::mojom::DialogButton::kCancel,
       l10n_util::GetStringUTF16(close_button_label_id));
   if (accept_button_label_id.has_value()) {
-    buttons |= ui::DIALOG_BUTTON_OK;
+    buttons = static_cast<int>(ui::mojom::DialogButton::kOk) |
+              static_cast<int>(ui::mojom::DialogButton::kCancel);
     dialog_delegate->SetButtonLabel(
-        ui::DIALOG_BUTTON_OK,
+        ui::mojom::DialogButton::kOk,
         l10n_util::GetStringUTF16(accept_button_label_id.value()));
   }
   dialog_delegate->SetButtons(buttons);
@@ -549,7 +552,7 @@ void IsolatedWebAppInstallerViewImpl::ShowInstallSuccessScreen(
 views::Widget* IsolatedWebAppInstallerViewImpl::ShowDialog(
     const IsolatedWebAppInstallerModel::Dialog& dialog) {
   Dim(true);
-  return absl::visit(
+  return std::visit(
       base::Overloaded{
           [this](const IsolatedWebAppInstallerModel::BundleInvalidDialog&) {
             return ShowChildDialog(
@@ -607,15 +610,6 @@ views::Widget* IsolatedWebAppInstallerViewImpl::ShowDialog(
       dialog);
 }
 
-gfx::Size IsolatedWebAppInstallerViewImpl::GetMaximumSize() const {
-  // `SetCanResize` only works in ash. ash will consider Lacros windows to be
-  // non-resizable if their min and max height are the same. To achieve this,
-  // we set the max size to the View's preferred size.
-  int width = ChromeLayoutProvider::Get()->GetDistanceMetric(
-      DISTANCE_LARGE_MODAL_DIALOG_PREFERRED_WIDTH);
-  return gfx::Size(width, GetHeightForWidth(width));
-}
-
 views::Widget* IsolatedWebAppInstallerViewImpl::ShowChildDialog(
     int title,
     const ui::DialogModelLabel& subtitle,
@@ -657,7 +651,7 @@ views::Widget* IsolatedWebAppInstallerViewImpl::ShowChildDialog(
   // the way we want, so we have to manually create a header View that
   // positions the icon correctly.
   auto header = std::make_unique<views::BoxLayoutView>();
-  int inset = ChromeLayoutProvider::Get()->GetDistanceMetric(
+  int inset = views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_UNRELATED_CONTROL_VERTICAL);
   header->SetInsideBorderInsets(gfx::Insets::TLBR(inset, inset, 0, inset));
   auto* icon = header->AddChildView(std::make_unique<NonAccessibleImageView>());
@@ -667,10 +661,10 @@ views::Widget* IsolatedWebAppInstallerViewImpl::ShowChildDialog(
 
   std::unique_ptr<views::BubbleDialogModelHost> bubble =
       views::BubbleDialogModelHost::CreateModal(dialog_model_builder.Build(),
-                                                ui::MODAL_TYPE_CHILD);
+                                                ui::mojom::ModalType::kChild);
   bubble->SetAnchorView(GetWidget()->GetContentsView());
   bubble->SetArrow(views::BubbleBorder::FLOAT);
-  bubble->set_fixed_width(ChromeLayoutProvider::Get()->GetDistanceMetric(
+  bubble->set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
   bubble->RegisterWidgetInitializedCallback(base::BindOnce(
       [](views::BubbleDialogModelHost* bubble,

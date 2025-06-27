@@ -147,7 +147,7 @@ void CastStreamingSession::ReceiverSessionClient::PreloadAudioBuffer(
   preloaded_audio_buffer_ = std::move(buffer);
   if (playback_command_dispatcher_ && !ongoing_session_has_video()) {
     playback_command_dispatcher_->TryStartPlayback(
-        (*preloaded_audio_buffer_)->timestamp);
+        (*preloaded_audio_buffer_)->get_data()->timestamp);
   }
 }
 
@@ -161,11 +161,16 @@ void CastStreamingSession::ReceiverSessionClient::PreloadVideoBuffer(
   preloaded_video_buffer_ = std::move(buffer);
   if (playback_command_dispatcher_ && ongoing_session_has_video()) {
     playback_command_dispatcher_->TryStartPlayback(
-        (*preloaded_video_buffer_)->timestamp);
+        (*preloaded_video_buffer_)->get_data()->timestamp);
   }
 }
 
-CastStreamingSession::ReceiverSessionClient::~ReceiverSessionClient() = default;
+CastStreamingSession::ReceiverSessionClient::~ReceiverSessionClient() {
+  // Teardown of the `receiver_session_` may trigger callbacks into `this`,
+  // so destroy it explicitly here, so that callbacks execute while all other
+  // members are still valid.
+  receiver_session_.reset();
+}
 
 void CastStreamingSession::ReceiverSessionClient::OnInitializationTimeout() {
   DVLOG(1) << __func__;

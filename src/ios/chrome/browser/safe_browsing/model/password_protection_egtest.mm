@@ -3,13 +3,13 @@
 // found in the LICENSE file.
 
 #import <Foundation/Foundation.h>
+
 #import <string>
 
 #import "base/ios/ios_util.h"
 #import "base/test/ios/wait_util.h"
-#import "components/password_manager/core/common/password_manager_features.h"
 #import "ios/chrome/browser/passwords/model/password_manager_app_interface.h"
-#import "ios/chrome/browser/ui/passwords/password_constants.h"
+#import "ios/chrome/browser/passwords/ui_bundled/password_constants.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
@@ -54,8 +54,6 @@ std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
-  config.features_enabled.push_back(
-      password_manager::features::kPasswordReuseDetectionEnabled);
   config.relaunch_policy = NoForceRelaunchAndResetState;
 
   // Use commandline args to save a fake allowlisted URL.
@@ -87,10 +85,10 @@ std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
   GREYAssertEqual(1, credentialsCount, @"There should be one credential.");
 }
 
-- (void)tearDown {
+- (void)tearDownHelper {
   GREYAssertTrue([PasswordManagerAppInterface clearCredentials],
                  @"Clearing credentials wasn't done.");
-  [super tearDown];
+  [super tearDownHelper];
 }
 
 - (void)typePasswordIntoWebInput {

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web_view/internal/cwv_web_view_internal.h"
-
 #import <memory>
 
 #import "base/test/ios/wait_util.h"
@@ -12,7 +10,9 @@
 #import "ios/web/public/test/scoped_testing_web_client.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/web_client.h"
+#import "ios/web_view/internal/browser_state_keyed_service_factories.h"
 #import "ios/web_view/internal/cwv_web_view_configuration_internal.h"
+#import "ios/web_view/internal/cwv_web_view_internal.h"
 #import "ios/web_view/internal/web_view_browser_state.h"
 #import "ios/web_view/test/test_with_locale_and_resources.h"
 #import "ios/web_view/test/web_view_test_util.h"
@@ -28,7 +28,6 @@ class CWVWebViewTest : public TestWithLocaleAndResources {
  public:
   void SetUp() override {
     TestWithLocaleAndResources::SetUp();
-    CWVWebView.customUserAgent = nil;
 
     configuration_ = [[CWVWebViewConfiguration alloc]
         initWithBrowserState:std::make_unique<WebViewBrowserState>(
@@ -41,7 +40,6 @@ class CWVWebViewTest : public TestWithLocaleAndResources {
     [configuration_ shutDown];
     configuration_ = nil;
 
-    CWVWebView.customUserAgent = nil;
     TestWithLocaleAndResources::TearDown();
   }
 
@@ -60,19 +58,14 @@ class CWVWebViewTest : public TestWithLocaleAndResources {
   }
 
  protected:
-  CWVWebViewTest() : web_client_(std::make_unique<web::WebClient>()) {}
+  CWVWebViewTest() : web_client_(std::make_unique<web::WebClient>()) {
+    EnsureBrowserStateKeyedServiceFactoriesBuilt();
+  }
 
   web::WebTaskEnvironment task_environment_;
   web::ScopedTestingWebClient web_client_;
   CWVWebViewConfiguration* configuration_;
 };
-
-// Test +[CWVWebView customUserAgent].
-TEST_F(CWVWebViewTest, CustomUserAgent) {
-  EXPECT_FALSE(CWVWebView.customUserAgent);
-  CWVWebView.customUserAgent = @"FooCustomUserAgent";
-  EXPECT_NSEQ(@"FooCustomUserAgent", CWVWebView.customUserAgent);
-}
 
 // Test CWVWebView's inputAccessoryView controls whether or not the overriding
 // behavior is enabled.

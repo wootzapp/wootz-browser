@@ -14,7 +14,6 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
@@ -57,9 +56,10 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/features.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/file_manager/file_manager_test_util.h"
 #include "chrome/browser/ash/file_manager/volume.h"
+#include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #endif
 
 namespace web_app {
@@ -205,10 +205,11 @@ class WebAppFileHandlingBrowserTest : public WebAppFileHandlingTestBase {
 
   webapps::AppId InstallFileHandlingWebApp(const std::u16string& title,
                                            const GURL& handler_url) {
-    auto web_app_info = std::make_unique<WebAppInstallInfo>();
-    web_app_info->start_url =
+    GURL start_url =
         https_server()->GetURL("app.com", "/web_app_file_handling/index.html");
-    web_app_info->scope = web_app_info->start_url.GetWithoutFilename();
+    auto web_app_info =
+        WebAppInstallInfo::CreateWithStartUrlForTesting(start_url);
+    web_app_info->scope = web_app_info->start_url().GetWithoutFilename();
     web_app_info->title = title;
     apps::FileHandler entry;
     entry.action = handler_url;
@@ -470,7 +471,7 @@ IN_PROC_BROWSER_TEST_F(WebAppFileHandlingBrowserTest,
             registrar().GetAppById(app_id())->file_handler_approval_state());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // End-to-end test to ensure the file handler is registered on ChromeOS when the
 // extension system is initialized. Gives more coverage than the unit tests.
 IN_PROC_BROWSER_TEST_F(WebAppFileHandlingBrowserTest, IsFileHandlerOnChromeOS) {
@@ -491,6 +492,9 @@ IN_PROC_BROWSER_TEST_F(WebAppFileHandlingBrowserTest, IsFileHandlerOnChromeOS) {
 // inodes).
 IN_PROC_BROWSER_TEST_F(WebAppFileHandlingBrowserTest,
                        HandlerForNonNativeFiles) {
+  // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.
+  extensions::ScopedTestMV2Enabler mv2_enabler_;
+
   InstallFileHandlingPWA();
   base::WeakPtr<file_manager::Volume> fsp_volume =
       file_manager::test::InstallFileSystemProviderChromeApp(profile());

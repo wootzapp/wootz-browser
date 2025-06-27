@@ -21,7 +21,6 @@ import android.os.Looper;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -37,12 +36,12 @@ import org.chromium.base.Token;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.content_public.browser.test.mock.MockWebContents;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -55,11 +54,10 @@ import java.util.concurrent.TimeUnit;
         manifest = Config.NONE,
         shadows = {ShadowLooper.class, ShadowPostTask.class})
 public class TabStateAttributesTest {
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
     @Rule public final MockitoRule mockito = MockitoJUnit.rule();
 
     @Mock private Profile mProfile;
-    @Mock private WebContents mWebContents;
+    @Mock private MockWebContents mWebContents;
     @Mock private TabStateAttributes.Observer mAttributesObserver;
 
     @Captor ArgumentCaptor<WebContentsObserver> mWebContentsObserverCaptor;
@@ -267,6 +265,29 @@ public class TabStateAttributesTest {
     }
 
     @Test
+    public void testLoadStopped_NTPInTabGroup() {
+        TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
+        RewindableIterator<TabObserver> observers = TabTestUtils.getTabObservers(mTab);
+        TabStateAttributes.from(mTab).addObserver(mAttributesObserver);
+
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+
+        mTab.setUrl(new GURL(UrlConstants.NTP_URL));
+        mTab.setTabGroupId(new Token(1L, 2L));
+
+        while (observers.hasNext()) {
+            observers.next().onLoadStopped(mTab, /* toDifferentDocument= */ true);
+        }
+        assertEquals(
+                TabStateAttributes.DirtinessState.DIRTY,
+                TabStateAttributes.from(mTab).getDirtinessState());
+        verify(mAttributesObserver)
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.DIRTY);
+    }
+
+    @Test
     public void testHide() {
         TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
         assertEquals(
@@ -455,6 +476,75 @@ public class TabStateAttributesTest {
 
         mTab.setUrl(new GURL(UrlConstants.CONTENT_SCHEME + "://hello_world"));
         mTab.setTabGroupId(new Token(2L, 1L));
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+    }
+
+    @Test
+    public void testTabHasSensitiveContentUpdates() {
+        TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributes.from(mTab).addObserver(mAttributesObserver);
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+
+        mTab.setTabHasSensitiveContent(true);
+        assertEquals(
+                TabStateAttributes.DirtinessState.UNTIDY,
+                TabStateAttributes.from(mTab).getDirtinessState());
+        verify(mAttributesObserver)
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.UNTIDY);
+        TabStateAttributes.from(mTab).clearTabStateDirtiness();
+
+        mTab.setUrl(new GURL(UrlConstants.NTP_URL));
+        mTab.setTabHasSensitiveContent(false);
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+        TabStateAttributes.from(mTab).clearTabStateDirtiness();
+
+        mTab.setUrl(new GURL(UrlConstants.CONTENT_SCHEME + "://hello_world"));
+        mTab.setTabHasSensitiveContent(true);
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+
+        // Checks that that the number of dirtiness changes to `UNTIDY` did not increase since the
+        // last `UNTIDY` check above.
+        verify(mAttributesObserver)
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.UNTIDY);
+        verify(mAttributesObserver, never())
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.DIRTY);
+    }
+
+    @Test
+    public void testTabUnarchived() {
+        TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributes.from(mTab).addObserver(mAttributesObserver);
+        assertEquals(
+                TabStateAttributes.DirtinessState.CLEAN,
+                TabStateAttributes.from(mTab).getDirtinessState());
+
+        mTab.onTabRestoredFromArchivedTabModel();
+        assertEquals(
+                TabStateAttributes.DirtinessState.DIRTY,
+                TabStateAttributes.from(mTab).getDirtinessState());
+        verify(mAttributesObserver)
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.DIRTY);
+        TabStateAttributes.from(mTab).clearTabStateDirtiness();
+
+        mTab.setUrl(new GURL(UrlConstants.NTP_URL));
+        mTab.onTabRestoredFromArchivedTabModel();
+        assertEquals(
+                TabStateAttributes.DirtinessState.DIRTY,
+                TabStateAttributes.from(mTab).getDirtinessState());
+        verify(mAttributesObserver, times(2))
+                .onTabStateDirtinessChanged(mTab, TabStateAttributes.DirtinessState.DIRTY);
+        TabStateAttributes.from(mTab).clearTabStateDirtiness();
+
+        mTab.setUrl(new GURL(UrlConstants.CONTENT_SCHEME + "://hello_world"));
+        mTab.onTabRestoredFromArchivedTabModel();
         assertEquals(
                 TabStateAttributes.DirtinessState.CLEAN,
                 TabStateAttributes.from(mTab).getDirtinessState());

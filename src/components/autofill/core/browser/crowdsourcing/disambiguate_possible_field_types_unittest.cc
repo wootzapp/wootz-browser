@@ -4,11 +4,13 @@
 
 #include "components/autofill/core/browser/crowdsourcing/disambiguate_possible_field_types.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "components/autofill/core/browser/autofill_field.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
@@ -37,7 +39,7 @@ class DisambiguatePossibleFieldTypesTest : public ::testing::Test {
       const std::vector<TestFieldData>& test_fields) {
     FormData form;
     for (size_t i = 0; i < test_fields.size(); ++i) {
-      form.fields.push_back(
+      test_api(form).Append(
           CreateTestFormField("", "", "", FormControlType::kInputText));
     }
     FormStructure form_structure(form);
@@ -55,7 +57,7 @@ class DisambiguatePossibleFieldTypesTest : public ::testing::Test {
     DisambiguatePossibleFieldTypes(form_structure);
 
     std::vector<FieldTypeSet> disambiguated_possible_field_types;
-    base::ranges::transform(
+    std::ranges::transform(
         form_structure.fields(),
         std::back_inserter(disambiguated_possible_field_types),
         [](const std::unique_ptr<AutofillField>& field) {

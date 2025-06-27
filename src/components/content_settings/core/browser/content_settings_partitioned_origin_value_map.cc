@@ -25,7 +25,7 @@ namespace {
 class RuleIteratorWrapper : public RuleIterator {
  public:
   RuleIteratorWrapper(std::unique_ptr<RuleIterator> rule_iterator_impl,
-                      std::unique_ptr<base::AutoLock> auto_lock)
+                      base::MovableAutoLock auto_lock)
       : rule_iterator_impl_(std::move(rule_iterator_impl)),
         auto_lock_(std::move(auto_lock)) {}
 
@@ -35,7 +35,7 @@ class RuleIteratorWrapper : public RuleIterator {
 
  private:
   std::unique_ptr<RuleIterator> rule_iterator_impl_;
-  std::unique_ptr<base::AutoLock> auto_lock_;
+  base::MovableAutoLock auto_lock_;
 };
 
 }  // namespace
@@ -44,7 +44,7 @@ std::unique_ptr<RuleIterator>
 PartitionedOriginValueMap::GetRuleIterator(
     ContentSettingsType content_type,
     const PartitionKey& partition_key) const NO_THREAD_SAFETY_ANALYSIS {
-  auto auto_lock = std::make_unique<base::AutoLock>(lock_);
+  base::MovableAutoLock auto_lock(lock_);
   auto it = partitions_.find(partition_key);
   if (it == partitions_.end()) {
     return nullptr;
@@ -107,12 +107,12 @@ bool PartitionedOriginValueMap::SetValue(
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
     base::Value value,
-    const RuleMetaData& metadata,
+    RuleMetaData metadata,
     const PartitionKey& partition_key) {
   auto [it, is_new] = partitions_.try_emplace(partition_key, clock_);
   base::AutoLock auto_lock(it->second.GetLock());
   return it->second.SetValue(primary_pattern, secondary_pattern, content_type,
-                             std::move(value), metadata);
+                             std::move(value), std::move(metadata));
 }
 
 bool PartitionedOriginValueMap::DeleteValue(
@@ -161,7 +161,7 @@ void PartitionedOriginValueMap::clear() {
   partitions_.clear();
 }
 
-void PartitionedOriginValueMap::SetClockForTesting(base::Clock* clock) {
+void PartitionedOriginValueMap::SetClockForTesting(const base::Clock* clock) {
   clock_ = clock;
   base::AutoLock lock(lock_);
   for (auto& partition : partitions_) {

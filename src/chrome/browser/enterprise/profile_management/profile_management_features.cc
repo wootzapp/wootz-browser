@@ -18,7 +18,27 @@ BASE_FEATURE(kEnableProfileTokenManagement,
 
 BASE_FEATURE(kOidcAuthProfileManagement,
              "OidcAuthProfileManagement",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kOidcAuthResponseInterception,
+             "OidcAuthResponseInterception",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kOidcEnrollmentTimeout,
+             "kOidcEnrollmentTimeout",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kEnableGenericOidcAuthProfileManagement,
+             "EnableGenericOidcAuthProfileManagement",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kOidcEnrollmentAuthSource,
+             "OidcEnrollmentAuthSource",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kOidcAuthHeaderInterception,
+             "OidcAuthHeaderInterception",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Allow Oidc Enrollment flow to use a stubbed DM token rather than fetching a
 // real one from DM server, if one is supplied.
@@ -50,5 +70,31 @@ constexpr base::FeatureParam<std::string> kOidcAuthStubUserEmail{
 // and does not work the other way around.
 constexpr base::FeatureParam<bool> kOidcAuthIsDasherBased{
     &kOidcAuthProfileManagement, "is_dasher_based", true};
+
+// This feature param forces OIDC enrollment failure, with the provided value.
+/// The value corresponds to the value of `SigninChoiceErrorType`, `0` means no
+/// error.
+constexpr base::FeatureParam<int> kOidcAuthForceErrorUi{
+    &kOidcAuthProfileManagement, "force_error_ui", 0};
+
+// If set to `true`, OIDC flow will always fail its policy fetch and trigger the
+// Timeout dialog.
+constexpr base::FeatureParam<bool> kOidcAuthForceTimeoutUi{
+    &kOidcAuthProfileManagement, "force_timeout_ui", false};
+
+// Controls the timeout duration of client registration during OIDC enrollment
+// flow, in seconds.
+constexpr base::FeatureParam<base::TimeDelta> kOidcEnrollRegistrationTimeout{
+    &kOidcEnrollmentTimeout, "registration_timeout", base::Seconds(30)};
+
+// Allow Oidc Enrollment URL flow to consider more hosts as eligible
+// authentication sources.
+constexpr base::FeatureParam<std::string> kOidcAuthAdditionalHosts{
+    &kOidcEnrollmentAuthSource, "hosts", ""};
+
+// Allow Oidc Enrollment Header flow to consider more URLs as eligible
+// authentication sources.
+constexpr base::FeatureParam<std::string> kOidcAuthAdditionalUrls{
+    &kOidcAuthHeaderInterception, "urls", ""};
 
 }  // namespace profile_management::features

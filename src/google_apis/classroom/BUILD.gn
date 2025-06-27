@@ -2,9 +2,7 @@
 # Use of this source code is governed by a BSD - style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
-import("//testing/test.gni")
 
 assert(is_chromeos)
 
@@ -20,8 +18,12 @@ static_library("classroom") {
     "classroom_api_list_courses_request.h",
     "classroom_api_list_student_submissions_request.cc",
     "classroom_api_list_student_submissions_request.h",
+    "classroom_api_list_students_request.cc",
+    "classroom_api_list_students_request.h",
     "classroom_api_student_submissions_response_types.cc",
     "classroom_api_student_submissions_response_types.h",
+    "classroom_api_students_response_types.cc",
+    "classroom_api_students_response_types.h",
   ]
 
   deps = [
@@ -44,7 +46,9 @@ source_set("classroom_unittests") {
     "classroom_api_list_course_work_request_unittest.cc",
     "classroom_api_list_courses_request_unittest.cc",
     "classroom_api_list_student_submissions_request_unittest.cc",
+    "classroom_api_list_students_request_unittest.cc",
     "classroom_api_student_submissions_response_types_unittest.cc",
+    "classroom_api_students_response_types_unittest.cc",
   ]
 
   deps = [

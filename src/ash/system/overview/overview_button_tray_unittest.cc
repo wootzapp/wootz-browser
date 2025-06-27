@@ -14,6 +14,7 @@
 #include "ash/rotator/screen_rotation_animator.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ash/system/status_area_widget.h"
 #include "ash/system/status_area_widget_test_helper.h"
 #include "ash/test/ash_test_base.h"
@@ -32,6 +33,8 @@
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/window_types.h"
 #include "ui/aura/window.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/display/display_switches.h"
@@ -43,6 +46,7 @@
 #include "ui/events/event.h"
 #include "ui/events/gestures/gesture_types.h"
 #include "ui/events/types/event_type.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/wm/core/window_util.h"
 
@@ -114,8 +118,14 @@ class OverviewButtonTrayTest : public AshTestBase {
 };
 
 // Ensures that creation doesn't cause any crashes and adds the image icon.
+// Ensures that the accessible name gets set on construction.
 TEST_F(OverviewButtonTrayTest, BasicConstruction) {
   EXPECT_TRUE(GetImageView(GetTray()));
+
+  ui::AXNodeData node_data;
+  GetTray()->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ(node_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            l10n_util::GetStringUTF16(IDS_ASH_OVERVIEW_BUTTON_ACCESSIBLE_NAME));
 }
 
 // Test that tablet mode toggle changes visibility.
@@ -286,7 +296,7 @@ TEST_F(OverviewButtonTrayTest, VisibilityChangesForLoginStatus) {
   ClearLogin();
   Shell::Get()->UpdateAfterLoginStatusChange(LoginStatus::NOT_LOGGED_IN);
   EXPECT_FALSE(GetTray()->GetVisible());
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   Shell::Get()->UpdateAfterLoginStatusChange(LoginStatus::USER);
   EXPECT_TRUE(GetTray()->GetVisible());
   SetUserAddingScreenRunning(true);
@@ -351,7 +361,7 @@ TEST_F(OverviewButtonTrayTest, HideAnimationAlwaysCompletesOnDelete) {
 TEST_F(OverviewButtonTrayTest, VisibilityChangesForSystemModalWindow) {
   std::unique_ptr<aura::Window> window =
       CreateTestWindow(gfx::Rect(), aura::client::WINDOW_TYPE_NORMAL);
-  window->SetProperty(aura::client::kModalKey, ui::MODAL_TYPE_SYSTEM);
+  window->SetProperty(aura::client::kModalKey, ui::mojom::ModalType::kSystem);
   window->Show();
   ParentWindowInPrimaryRootWindow(window.get());
 

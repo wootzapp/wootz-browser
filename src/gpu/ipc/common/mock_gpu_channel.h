@@ -80,6 +80,14 @@ class MockGpuChannel : public mojom::GpuChannel {
                     const std::vector<SyncToken>&,
                     uint64_t,
                     CopyToGpuMemoryBufferAsyncCallback));
+  MOCK_METHOD3(CopyNativeGmbToSharedMemorySync,
+               void(gfx::GpuMemoryBufferHandle,
+                    base::UnsafeSharedMemoryRegion,
+                    CopyNativeGmbToSharedMemorySyncCallback));
+  MOCK_METHOD3(CopyNativeGmbToSharedMemoryAsync,
+               void(gfx::GpuMemoryBufferHandle,
+                    base::UnsafeSharedMemoryRegion,
+                    CopyNativeGmbToSharedMemoryAsyncCallback));
 #endif  // BUILDFLAG(IS_WIN)
   MOCK_METHOD4(WaitForTokenInRange,
                void(int32_t, int32_t, int32_t, WaitForTokenInRangeCallback));
@@ -96,7 +104,7 @@ class MockGpuChannel : public mojom::GpuChannel {
   MOCK_METHOD5(RegisterSysmemBufferCollection,
                void(mojo::PlatformHandle,
                     mojo::PlatformHandle,
-                    gfx::BufferFormat,
+                    const viz::SharedImageFormat&,
                     gfx::BufferUsage,
                     bool));
 #endif  // BUILDFLAG(IS_FUCHSIA)

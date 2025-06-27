@@ -58,8 +58,7 @@ crosapi::mojom::ReadyFrameInBufferPtr ToCrosapiBuffer(
         crosapi_rotation = crosapi::mojom::VideoRotation::kVideoRotation270;
         break;
       default:
-        NOTREACHED_IN_MIGRATION()
-            << "Unexpected rotation in video frame metadata";
+        NOTREACHED() << "Unexpected rotation in video frame metadata";
     }
     crosapi_buffer_info->rotation = crosapi_rotation;
   }
@@ -81,7 +80,7 @@ crosapi::mojom::GpuMemoryBufferHandlePtr ToCrosapiGpuMemoryBufferHandle(
   if (buffer_handle.type == gfx::GpuMemoryBufferType::SHARED_MEMORY_BUFFER) {
     crosapi_gpu_handle->platform_handle =
         crosapi::mojom::GpuMemoryBufferPlatformHandle::NewSharedMemoryHandle(
-            std::move(buffer_handle.region));
+            std::move(buffer_handle).region());
   } else if (buffer_handle.type == gfx::GpuMemoryBufferType::NATIVE_PIXMAP) {
     auto crosapi_native_pixmap_handle =
         crosapi::mojom::NativePixmapHandle::New();
@@ -146,7 +145,7 @@ void VideoFrameHandlerAsh::OnNewBuffer(
     crosapi_handle = crosapi::mojom::VideoBufferHandle::NewReadOnlyShmemRegion(
         std::move(buffer_handle->get_read_only_shmem_region()));
   } else {
-    NOTREACHED_IN_MIGRATION() << "Unexpected new buffer type";
+    NOTREACHED() << "Unexpected new buffer type";
   }
   proxy_->OnNewBuffer(buffer_id, std::move(crosapi_handle));
 }

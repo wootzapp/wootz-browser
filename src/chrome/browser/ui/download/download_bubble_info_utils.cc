@@ -6,14 +6,17 @@
 
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/download/download_ui_model.h"
-#include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/enterprise/buildflags/buildflags.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/views/vector_icons.h"
+
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+#include "chrome/browser/enterprise/connectors/common.h"
+#endif
 
 using download::DownloadItem;
 using TailoredWarningType = DownloadUIModel::TailoredWarningType;
@@ -21,23 +24,16 @@ using TailoredWarningType = DownloadUIModel::TailoredWarningType;
 namespace {
 
 IconAndColor IconAndColorForDangerousUiPattern() {
-  return IconAndColor{features::IsChromeRefresh2023()
-                          ? &vector_icons::kDangerousChromeRefreshIcon
-                          : &vector_icons::kDangerousIcon,
+  return IconAndColor{&vector_icons::kDangerousChromeRefreshIcon,
                       kColorDownloadItemIconDangerous};
 }
 
 IconAndColor IconAndColorForSuspiciousUiPattern() {
-  return IconAndColor{features::IsChromeRefresh2023()
-                          ? &kDownloadWarningIcon
-                          : &vector_icons::kNotSecureWarningIcon,
-                      kColorDownloadItemIconWarning};
+  return IconAndColor{&kDownloadWarningIcon, kColorDownloadItemIconWarning};
 }
 
 IconAndColor IconAndColorForDownloadOff() {
-  return IconAndColor{features::IsChromeRefresh2023()
-                          ? &vector_icons::kFileDownloadOffChromeRefreshIcon
-                          : &vector_icons::kFileDownloadOffIcon,
+  return IconAndColor{&vector_icons::kFileDownloadOffChromeRefreshIcon,
                       ui::kColorSecondaryForeground};
 }
 
@@ -49,23 +45,18 @@ IconAndColor IconAndColorForInterrupted(const DownloadUIModel& model) {
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_PASSWORD_PROTECTED:
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_TOO_LARGE:
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_SCAN_FAILED:
-      return IconAndColor{features::IsChromeRefresh2023()
-                              ? &views::kInfoChromeRefreshIcon
-                              : &views::kInfoIcon,
+      return IconAndColor{&views::kInfoChromeRefreshIcon,
                           kColorDownloadItemIconDangerous};
     case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK: {
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
       if (enterprise_connectors::ShouldPromptReviewForDownload(
               model.profile(), model.GetDownloadItem())) {
-        return IconAndColor{features::IsChromeRefresh2023()
-                                ? &kDownloadWarningIcon
-                                : &vector_icons::kNotSecureWarningIcon,
-                            kColorDownloadItemIconDangerous};
-      } else {
-        return IconAndColor{features::IsChromeRefresh2023()
-                                ? &views::kInfoChromeRefreshIcon
-                                : &views::kInfoIcon,
+        return IconAndColor{&kDownloadWarningIcon,
                             kColorDownloadItemIconDangerous};
       }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+      return IconAndColor{&views::kInfoChromeRefreshIcon,
+                          kColorDownloadItemIconDangerous};
     }
     case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE:
     case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_CONTENT:
@@ -92,15 +83,11 @@ IconAndColor IconAndColorForInterrupted(const DownloadUIModel& model) {
 
   if (model.GetLastFailState() ==
       offline_items_collection::FailState::FILE_BLOCKED) {
-    return IconAndColor{features::IsChromeRefresh2023()
-                            ? &views::kInfoChromeRefreshIcon
-                            : &views::kInfoIcon,
+    return IconAndColor{&views::kInfoChromeRefreshIcon,
                         kColorDownloadItemIconDangerous};
   }
 
-  return IconAndColor{features::IsChromeRefresh2023()
-                          ? &vector_icons::kFileDownloadOffChromeRefreshIcon
-                          : &vector_icons::kFileDownloadOffIcon,
+  return IconAndColor{&vector_icons::kFileDownloadOffChromeRefreshIcon,
                       kColorDownloadItemIconDangerous};
 }
 
@@ -110,11 +97,9 @@ IconAndColor IconAndColorForTailoredWarning(const DownloadUIModel& model) {
     case DownloadUIModel::TailoredWarningType::kSuspiciousArchive:
       return IconAndColorForSuspiciousUiPattern();
     case DownloadUIModel::TailoredWarningType::kCookieTheft:
-    case DownloadUIModel::TailoredWarningType::kCookieTheftWithAccountInfo:
       return IconAndColorForDangerousUiPattern();
     case DownloadUIModel::TailoredWarningType::kNoTailoredWarning: {
-      NOTREACHED_IN_MIGRATION();
-      return IconAndColor{};
+      NOTREACHED();
     }
   }
 }
@@ -133,28 +118,24 @@ IconAndColor IconAndColorForInProgressOrComplete(const DownloadUIModel& model) {
       break;
   }
 
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
   if (enterprise_connectors::ShouldPromptReviewForDownload(
           model.profile(), model.GetDownloadItem())) {
     switch (model.GetDangerType()) {
       case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_CONTENT:
-        return IconAndColor{features::IsChromeRefresh2023()
-                                ? &vector_icons::kDangerousChromeRefreshIcon
-                                : &vector_icons::kDangerousIcon,
+        return IconAndColor{&vector_icons::kDangerousChromeRefreshIcon,
                             kColorDownloadItemIconDangerous};
       case download::DOWNLOAD_DANGER_TYPE_POTENTIALLY_UNWANTED:
-        return IconAndColor{features::IsChromeRefresh2023()
-                                ? &kDownloadWarningIcon
-                                : &vector_icons::kNotSecureWarningIcon,
+        return IconAndColor{&kDownloadWarningIcon,
                             kColorDownloadItemIconWarning};
       case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_WARNING:
-        return IconAndColor{features::IsChromeRefresh2023()
-                                ? &views::kInfoChromeRefreshIcon
-                                : &views::kInfoIcon,
+        return IconAndColor{&views::kInfoChromeRefreshIcon,
                             kColorDownloadItemIconWarning};
       default:
         break;
     }
   }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
   if (DownloadUIModel::TailoredWarningType type =
           model.GetTailoredWarningType();
@@ -175,19 +156,14 @@ IconAndColor IconAndColorForInProgressOrComplete(const DownloadUIModel& model) {
       return IconAndColorForDangerousUiPattern();
 
     case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_WARNING:
-      return IconAndColor{features::IsChromeRefresh2023()
-                              ? &views::kInfoChromeRefreshIcon
-                              : &views::kInfoIcon,
+      return IconAndColor{&views::kInfoChromeRefreshIcon,
                           kColorDownloadItemIconWarning};
     case download::DOWNLOAD_DANGER_TYPE_PROMPT_FOR_SCANNING:
     case download::DOWNLOAD_DANGER_TYPE_PROMPT_FOR_LOCAL_PASSWORD_SCANNING:
     case download::DOWNLOAD_DANGER_TYPE_ASYNC_SCANNING:
     case download::DOWNLOAD_DANGER_TYPE_ASYNC_LOCAL_PASSWORD_SCANNING:
     case download::DOWNLOAD_DANGER_TYPE_DEEP_SCANNED_FAILED:
-      return IconAndColor{features::IsChromeRefresh2023()
-                              ? &kDownloadWarningIcon
-                              : &vector_icons::kNotSecureWarningIcon,
-                          kColorDownloadItemIconWarning};
+      return IconAndColor{&kDownloadWarningIcon, kColorDownloadItemIconWarning};
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_PASSWORD_PROTECTED:
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_TOO_LARGE:
     case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK:
@@ -238,7 +214,7 @@ IconAndColor IconAndColorForDownload(const DownloadUIModel& model) {
     case download::DownloadItem::CANCELLED:
       break;
     case download::DownloadItem::MAX_DOWNLOAD_STATE:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   return IconAndColorForDownloadOff();
@@ -273,6 +249,7 @@ std::vector<DownloadBubbleQuickAction> QuickActionsForDownload(
       break;
   }
 
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
   if (enterprise_connectors::ShouldPromptReviewForDownload(
           model.profile(), model.GetDownloadItem())) {
     switch (model.GetDangerType()) {
@@ -284,6 +261,7 @@ std::vector<DownloadBubbleQuickAction> QuickActionsForDownload(
         break;
     }
   }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
   if (model.GetTailoredWarningType() !=
       TailoredWarningType::kNoTailoredWarning) {
@@ -325,38 +303,28 @@ std::vector<DownloadBubbleQuickAction> QuickActionsForDownload(
       actions.emplace_back(
           DownloadCommands::Command::RESUME,
           l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_RESUME_QUICK_ACTION),
-          features::IsChromeRefresh2023()
-              ? &vector_icons::kPlayArrowChromeRefreshIcon
-              : &vector_icons::kPlayArrowIcon);
+          &vector_icons::kPlayArrowChromeRefreshIcon);
     } else {
       actions.emplace_back(
           DownloadCommands::Command::PAUSE,
           l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_PAUSE_QUICK_ACTION),
-          features::IsChromeRefresh2023()
-              ? &vector_icons::kPauseChromeRefreshIcon
-              : &vector_icons::kPauseIcon);
+          &vector_icons::kPauseChromeRefreshIcon);
     }
 
     actions.emplace_back(
         DownloadCommands::Command::CANCEL,
         l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_CANCEL_QUICK_ACTION),
-        features::IsChromeRefresh2023()
-            ? &vector_icons::kCancelChromeRefreshIcon
-            : &vector_icons::kCancelIcon);
+        &vector_icons::kCancelChromeRefreshIcon);
 
   } else {
     actions.emplace_back(DownloadCommands::Command::SHOW_IN_FOLDER,
                          l10n_util::GetStringUTF16(
                              IDS_DOWNLOAD_BUBBLE_SHOW_IN_FOLDER_QUICK_ACTION),
-                         features::IsChromeRefresh2023()
-                             ? &vector_icons::kFolderChromeRefreshIcon
-                             : &vector_icons::kFolderIcon);
+                         &vector_icons::kFolderChromeRefreshIcon);
     actions.emplace_back(
         DownloadCommands::Command::OPEN_WHEN_COMPLETE,
         l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_OPEN_QUICK_ACTION),
-        features::IsChromeRefresh2023()
-            ? &vector_icons::kLaunchChromeRefreshIcon
-            : &kOpenInNewIcon);
+        &vector_icons::kLaunchChromeRefreshIcon);
   }
 
   return actions;
@@ -384,6 +352,7 @@ DownloadBubbleProgressBar ProgressBarForDownload(const DownloadUIModel& model) {
       break;
   }
 
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
   if (enterprise_connectors::ShouldPromptReviewForDownload(
           model.profile(), model.GetDownloadItem())) {
     switch (model.GetDangerType()) {
@@ -395,6 +364,7 @@ DownloadBubbleProgressBar ProgressBarForDownload(const DownloadUIModel& model) {
         break;
     }
   }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
   if (model.GetTailoredWarningType() !=
       TailoredWarningType::kNoTailoredWarning) {

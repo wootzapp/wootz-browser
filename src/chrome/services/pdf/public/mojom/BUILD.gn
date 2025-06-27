@@ -6,11 +6,12 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
 import("//services/screen_ai/buildflags/features.gni")
 
-assert(is_chromeos_ash)
+assert(is_chromeos)
 assert(enable_screen_ai_service)
 
 mojom("mojom") {
   sources = [
+    "pdf_progressive_searchifier.mojom",
     "pdf_searchifier.mojom",
     "pdf_service.mojom",
     "pdf_thumbnailer.mojom",

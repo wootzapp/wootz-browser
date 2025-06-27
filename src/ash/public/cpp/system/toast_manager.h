@@ -27,25 +27,17 @@ class ASH_PUBLIC_EXPORT ToastManager {
   // Cancels a toast with the provided ID.
   virtual void Cancel(std::string_view id) = 0;
 
-  // Toggles highlight on the dismiss button for an active toast. Returns false
-  // if this is not possible or if the highlight has been removed from the
-  // button.
-  virtual bool MaybeToggleA11yHighlightOnActiveToastDismissButton(
-      std::string_view id) = 0;
-
-  // Activates the dismiss button on the active toast if there is a button and
-  // that button is highlighted. Returns false if either case is not true, or if
-  // there is no active toast.
-  virtual bool MaybeActivateHighlightedDismissButtonOnActiveToast(
-      std::string_view id) = 0;
+  // Requests focus on the active toast's button. Returns false if the button
+  // did not take focus.
+  virtual bool RequestFocusOnActiveToastButton(std::string_view id) = 0;
 
   // Tells if a toast with the provided ID is currently being shown.
   virtual bool IsToastShown(std::string_view id) const = 0;
 
-  // Tells if the toast with the provided ID has a dismiss button that is
-  // currently being highlighted. Returns false if the toast is not shown,
-  // does not have a dismiss button, or the dismiss button is not highlighted.
-  virtual bool IsToastDismissButtonHighlighted(std::string_view id) const = 0;
+  // Tells if the toast with the provided ID has a button that is currently
+  // focused. Returns false if the toast is not shown, does not have a button,
+  // or the button is not focused.
+  virtual bool IsToastButtonFocused(std::string_view id) const = 0;
 
   // Creates a `ScopedToastPause`.
   virtual std::unique_ptr<ScopedToastPause> CreateScopedPause() = 0;

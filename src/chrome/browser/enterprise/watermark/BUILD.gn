@@ -4,11 +4,18 @@
 
 source_set("watermark_view_lib") {
   sources = [
+    "settings.cc",
+    "settings.h",
     "watermark_view.cc",
     "watermark_view.h",
   ]
 
-  deps = [ "//ui/views" ]
+  deps = [
+    "//chrome/common:channel_info",
+    "//components/enterprise/watermarking",
+    "//components/version_info:version_info",
+    "//ui/views",
+  ]
 }
 
 executable("watermark_app") {

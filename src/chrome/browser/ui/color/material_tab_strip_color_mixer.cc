@@ -11,10 +11,6 @@
 #include "ui/color/color_provider.h"
 #include "ui/color/color_recipe.h"
 
-#if !BUILDFLAG(IS_ANDROID)
-#include "components/performance_manager/public/features.h"
-#endif
-
 namespace {
 /* 70% opacity */
 constexpr SkAlpha kWebUiTabStripScrollbarThumbAlpha = 0.7 * 255;
@@ -41,6 +37,7 @@ void AddMaterialTabStripColorMixer(ui::ColorProvider* provider,
       ui::kColorSysHeaderInactive};
   mixer[kColorTabBackgroundInactiveHoverFrameActive] = {
       ui::kColorSysStateHeaderHover};
+  mixer[kColorTabStripComboButtonSeparator] = {ui::kColorSysDivider};
   mixer[kColorTabStripControlButtonInkDrop] = {ui::kColorSysStateHeaderHover};
   mixer[kColorTabStripControlButtonInkDropRipple] = {
       ui::kColorSysStateRippleNeutralOnSubtle};
@@ -61,12 +58,7 @@ void AddMaterialTabStripColorMixer(ui::ColorProvider* provider,
       ui::GetResultingPaintColor(ui::kColorSysStateHoverDimBlendProtection,
                                  kColorTabBackgroundSelectedFrameInactive)};
 #if !BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(
-          performance_manager::features::kDiscardRingImprovements)) {
-    mixer[kColorTabDiscardRingFrameActive] = {ui::kColorSysStateInactiveRing};
-  } else {
-    mixer[kColorTabDiscardRingFrameActive] = {ui::kColorSysOutline};
-  }
+  mixer[kColorTabDiscardRingFrameActive] = {ui::kColorSysStateInactiveRing};
   mixer[kColorTabDiscardRingFrameInactive] = {kColorTabDiscardRingFrameActive};
 #endif
   mixer[kColorTabForegroundActiveFrameActive] = {ui::kColorSysOnSurface};

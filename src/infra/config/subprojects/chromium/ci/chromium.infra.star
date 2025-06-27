@@ -5,7 +5,7 @@
 
 load("//lib/branches.star", "branches")
 load("//lib/builder_health_indicators.star", "health_spec")
-load("//lib/builders.star", "os", "sheriff_rotations")
+load("//lib/builders.star", "cpu", "gardener_rotations", "os")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 
@@ -56,7 +56,7 @@ packager_builder(
         category = "packager|3pp|linux",
         short_name = "amd64",
     ),
-    execution_timeout = 4 * time.hour,
+    execution_timeout = 5 * time.hour,
     notifies = ["chromium-infra"],
     properties = {
         "$build/chromium_3pp": {
@@ -98,6 +98,31 @@ packager_builder(
 )
 
 packager_builder(
+    name = "3pp-mac-arm64-packager",
+    description_html = "chromium 3pp packager on Mac ARM64 platform.",
+    executable = "recipe:chromium_3pp",
+    # TODO(crbug.com/40864598): Trigger builds routinely once works fine.
+    schedule = "triggered",
+    triggered_by = [],
+    builderless = True,
+    cores = None,
+    os = os.MAC_DEFAULT,
+    cpu = cpu.ARM64,
+    console_view_entry = consoles.console_view_entry(
+        category = "packager|3pp|mac",
+        short_name = "arm64",
+    ),
+    contact_team_email = "clank-engprod@google.com",
+    notifies = ["chromium-infra"],
+    properties = {
+        "$build/chromium_3pp": {
+            "platform": "mac-arm64",
+            "gclient_config": "chromium",
+        },
+    },
+)
+
+packager_builder(
     name = "3pp-windows-amd64-packager",
     description_html = "3PP Packager for Windows",
     executable = "recipe:chromium_3pp",
@@ -126,7 +151,7 @@ packager_builder(
     executable = "recipe:android/androidx_packager",
     schedule = "0 7,14,22 * * * *",
     triggered_by = [],
-    sheriff_rotations = sheriff_rotations.ANDROID,
+    gardener_rotations = gardener_rotations.ANDROID,
     console_view_entry = consoles.console_view_entry(
         category = "packager|android",
         short_name = "androidx",
@@ -150,30 +175,22 @@ packager_builder(
         "$build/avd_packager": {
             "avd_configs": [
                 # google_apis system images
-                "tools/android/avd/proto/creation/android_28_google_apis_x86.textpb",
-                "tools/android/avd/proto/creation/android_29_google_apis_x86.textpb",
-                "tools/android/avd/proto/creation/android_30_google_apis_x86.textpb",
-                "tools/android/avd/proto/creation/android_31_google_apis_x64.textpb",
-                "tools/android/avd/proto/creation/android_32_google_apis_x64_foldable.textpb",
-                "tools/android/avd/proto/creation/android_33_google_apis_x64.textpb",
-                "tools/android/avd/proto/creation/android_34_google_apis_x64.textpb",
-                "tools/android/avd/proto/creation/android_v_google_apis_x64.textpb",
+                "tools/android/avd/proto_creation/android_28_google_apis_x86.textpb",
+                "tools/android/avd/proto_creation/android_29_google_apis_x86.textpb",
+                "tools/android/avd/proto_creation/android_30_google_apis_x86.textpb",
+                "tools/android/avd/proto_creation/android_31_google_apis_x64.textpb",
+                "tools/android/avd/proto_creation/android_32_google_apis_x64_foldable.textpb",
+                "tools/android/avd/proto_creation/android_33_google_apis_x64.textpb",
+                "tools/android/avd/proto_creation/android_34_google_apis_x64.textpb",
+                "tools/android/avd/proto_creation/android_35_google_apis_x64.textpb",
+                "tools/android/avd/proto_creation/android_36_google_apis_x64.textpb",
 
-                # google_atd system images
-                "tools/android/avd/proto/creation/android_30_google_atd_x86.textpb",
-                "tools/android/avd/proto/creation/android_30_google_atd_x64.textpb",
-                "tools/android/avd/proto/creation/android_31_google_atd_x64.textpb",
-                "tools/android/avd/proto/creation/android_32_google_atd_x64_foldable.textpb",
-                "tools/android/avd/proto/creation/android_33_google_atd_x64.textpb",
+                # google_apis_tablet system images
+                "tools/android/avd/proto_creation/android_35_google_apis_tablet_x64.textpb",
 
                 # TODO(hypan): Using more specific names for the configs below.
-                "tools/android/avd/proto/creation/generic_android19.textpb",
-                "tools/android/avd/proto/creation/generic_android22.textpb",
-                "tools/android/avd/proto/creation/generic_android23.textpb",
-                "tools/android/avd/proto/creation/generic_android24.textpb",
-                "tools/android/avd/proto/creation/generic_android25.textpb",
-                "tools/android/avd/proto/creation/generic_android26.textpb",
-                "tools/android/avd/proto/creation/generic_android27.textpb",
+                "tools/android/avd/proto_creation/generic_android26.textpb",
+                "tools/android/avd/proto_creation/generic_android27.textpb",
             ],
             "gclient_config": "chromium",
             "gclient_apply_config": ["android"],
@@ -197,6 +214,14 @@ packager_builder(
                 "cipd_yaml": "third_party/android_sdk/cipd/build-tools/34.0.0.yaml",
             },
             {
+                "sdk_package_name": "build-tools;35.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/35.0.0.yaml",
+            },
+            {
+                "sdk_package_name": "build-tools;36.0.0",
+                "cipd_yaml": "third_party/android_sdk/cipd/build-tools/36.0.0.yaml",
+            },
+            {
                 "sdk_package_name": "cmdline-tools;latest",
                 "cipd_yaml": "third_party/android_sdk/cipd/cmdline-tools.yaml",
             },
@@ -217,6 +242,14 @@ packager_builder(
             {
                 "sdk_package_name": "platforms;android-34",
                 "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-34.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-35",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-35.yaml",
+            },
+            {
+                "sdk_package_name": "platforms;android-36",
+                "cipd_yaml": "third_party/android_sdk/cipd/platforms/android-36.yaml",
             },
             {
                 "sdk_package_name": "platform-tools",
@@ -303,10 +336,21 @@ packager_builder(
                 "sdk_package_name": "system-images;android-34;google_apis;x86_64",
                 "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-34/google_apis/x86_64.yaml",
             },
-            # TODO(crbug.com/337112189): Replace Android-V system images with the finalized API level once available
             {
-                "sdk_package_name": "system-images;android-VanillaIceCream;google_apis;x86_64",
-                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-VanillaIceCream/google_apis/x86_64.yaml",
+                "sdk_package_name": "system-images;android-34-ext9;android-automotive;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-34/android-automotive/x86_64.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-35;google_apis;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-35/google_apis/x86_64.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-35;google_apis_tablet;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-35/google_apis_tablet/x86_64.yaml",
+            },
+            {
+                "sdk_package_name": "system-images;android-36;google_apis;x86_64",
+                "cipd_yaml": "third_party/android_sdk/cipd/system_images/android-36/google_apis/x86_64.yaml",
             },
         ],
     },
@@ -336,13 +380,12 @@ packager_builder(
 ci.builder(
     name = "android-device-flasher",
     executable = "recipe:android/device_flasher",
-    # TODO(crbug.com/40201767): Find the sweet spot for the frequency.
-    schedule = "0 9 * * 1",  # at 9am UTC every Monday.
+    schedule = "0 9 * * 1,3",  # at 9am UTC every Monday and Wednesday.
     triggered_by = [],
     console_view_entry = consoles.console_view_entry(
         short_name = "flash",
     ),
-    notifies = ["chromium-infra"],
+    notifies = ["chromium-android-device-flasher"],
     properties = {
         "flash_criteria": [
             # Used by ci/Android Release (Nexus 5X)

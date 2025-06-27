@@ -6,8 +6,6 @@ static_library("browser") {
   sources = [
     "bad_message.cc",
     "bad_message.h",
-    "content_credential_manager.cc",
-    "content_credential_manager.h",
     "content_password_manager_driver.cc",
     "content_password_manager_driver.h",
     "content_password_manager_driver_factory.cc",
@@ -49,6 +47,26 @@ static_library("browser") {
   ]
 
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+}
+
+source_set("password_form_classification_util") {
+  sources = [
+    "password_form_classification_util.cc",
+    "password_form_classification_util.h",
+  ]
+
+  public_deps = [
+    "//components/autofill/core/browser",
+    "//components/autofill/core/common",
+  ]
+
+  deps = [
+    "//base",
+    "//components/autofill/content/browser",
+    "//components/password_manager/core/browser:password_form",
+    "//components/password_manager/core/browser/form_parsing",
+    "//content/public/browser",
+  ]
 }
 
 source_set("test_support") {

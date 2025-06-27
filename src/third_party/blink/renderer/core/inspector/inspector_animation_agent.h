@@ -5,7 +5,10 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_ANIMATION_AGENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_ANIMATION_AGENT_H_
 
+#include "third_party/blink/renderer/bindings/core/v8/v8_animation_play_state.h"
 #include "third_party/blink/renderer/core/animation/animation.h"
+#include "third_party/blink/renderer/core/animation/keyframe_effect.h"
+#include "third_party/blink/renderer/core/animation/keyframe_effect_model.h"
 #include "third_party/blink/renderer/core/animation/scroll_snapshot_timeline.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/css_keyframes_rule.h"
@@ -72,16 +75,26 @@ class CORE_EXPORT InspectorAnimationAgent final
   void Trace(Visitor*) const override;
 
  private:
+  struct AnimationKeyframeSnapshot
+      : public GarbageCollected<AnimationKeyframeSnapshot> {
+    double computed_offset;
+    String easing;
+
+    void Trace(Visitor* visitor) const {}
+  };
   struct AnimationSnapshot : public GarbageCollected<AnimationSnapshot> {
     double start_time;
     double duration;
     double delay;
     double end_delay;
+    double iterations;
+    String timing_function;
+    HeapVector<Member<AnimationKeyframeSnapshot>> keyframes;
     std::optional<double> start_offset;
     std::optional<double> end_offset;
-    blink::Animation::AnimationPlayState play_state;
+    V8AnimationPlayState::Enum play_state;
 
-    void Trace(Visitor* visitor) const {}
+    void Trace(Visitor* visitor) const { visitor->Trace(keyframes); }
   };
   using AnimationType = protocol::Animation::Animation::TypeEnum;
 
@@ -89,13 +102,15 @@ class CORE_EXPORT InspectorAnimationAgent final
       blink::Animation&);
   double NormalizedStartTime(blink::Animation&);
   DocumentTimeline& ReferenceTimeline();
-  blink::Animation* AnimationClone(blink::Animation*);
   String CreateCSSId(blink::Animation&);
   void InvalidateInternalState();
   // Updates the given animation snapshot and
   // returns whether any value of the snapshot is updated or not.
   bool CompareAndUpdateInternalSnapshot(blink::Animation& animation,
                                         AnimationSnapshot* snapshot);
+  bool CompareAndUpdateKeyframesSnapshot(
+      KeyframeEffect* keyframe_effect,
+      HeapVector<Member<AnimationKeyframeSnapshot>>* snapshot_keyframes);
   void NotifyAnimationUpdated(const String& animation_id);
 
   Member<InspectedFrames> inspected_frames_;
@@ -106,12 +121,7 @@ class CORE_EXPORT InspectorAnimationAgent final
   // when a blink::Animation instance is updated.
   HeapHashMap<String, Member<AnimationSnapshot>> id_to_animation_snapshot_;
   // Keeps track of the blink::Animation instances by their ids.
-  HeapHashMap<String, Member<blink::Animation>> id_to_animation_;
-  // Keeps track of the clones of blink::Animation instances by the original
-  // animation's id. This is used to actually manipulate the animation without
-  // manipulating the underlying blink::Animation. See
-  // https://codereview.chromium.org/1365113002 for more details.
-  HeapHashMap<String, Member<blink::Animation>> id_to_animation_clone_;
+  HeapHashMap<String, WeakMember<blink::Animation>> id_to_animation_;
   bool is_cloning_;
   HashSet<String> cleared_animations_;
   InspectorAgentState::Boolean enabled_;

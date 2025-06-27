@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ui/views/desktop_capture/share_this_tab_source_view.h"
 
 #include "base/task/bind_post_task.h"
@@ -57,7 +62,7 @@ void HandleCapturedBitmap(
   std::optional<gfx::ImageSkia> image;
 
   // Only scale and update if the frame appears to be new.
-  const uint32_t hash = base::FastHash(base::make_span(
+  const uint32_t hash = base::FastHash(base::span(
       static_cast<uint8_t*>(bitmap.getPixels()), bitmap.computeByteSize()));
   if (!last_hash.has_value() || hash != last_hash.value()) {
     image = ScaleBitmap(bitmap, thumbnail_size);

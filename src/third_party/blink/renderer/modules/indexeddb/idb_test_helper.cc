@@ -12,7 +12,6 @@
 #include "third_party/blink/renderer/modules/indexeddb/idb_key_path.h"
 #include "third_party/blink/renderer/modules/indexeddb/idb_value_wrapping.h"
 #include "third_party/blink/renderer/platform/blob/blob_data.h"
-#include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -21,13 +20,10 @@ std::unique_ptr<IDBValue> CreateNullIDBValueForTesting(v8::Isolate* isolate) {
   scoped_refptr<SerializedScriptValue> null_ssv =
       SerializedScriptValue::NullValue();
 
-  base::span<const uint8_t> ssv_wire_bytes = null_ssv->GetWireData();
+  Vector<char> ssv_wire_bytes(null_ssv->GetWireData());
 
-  scoped_refptr<SharedBuffer> idb_value_buffer = SharedBuffer::Create();
-  idb_value_buffer->Append(reinterpret_cast<const char*>(ssv_wire_bytes.data()),
-                           ssv_wire_bytes.size());
-  auto idb_value = std::make_unique<IDBValue>(std::move(idb_value_buffer),
-                                              Vector<WebBlobInfo>());
+  auto idb_value = std::make_unique<IDBValue>();
+  idb_value->SetData(std::move(ssv_wire_bytes));
   idb_value->SetInjectedPrimaryKey(IDBKey::CreateNumber(42.0),
                                    IDBKeyPath(String("primaryKey")));
   return idb_value;
@@ -49,13 +45,7 @@ std::unique_ptr<IDBValue> CreateIDBValueForTesting(v8::Isolate* isolate,
       create_wrapped_value ? 0 : 1024 * element_count);
   wrapper.DoneCloning();
 
-  Vector<scoped_refptr<BlobDataHandle>> blob_data_handles =
-      wrapper.TakeBlobDataHandles();
-  Vector<WebBlobInfo> blob_infos = wrapper.TakeBlobInfo();
-  scoped_refptr<SharedBuffer> wrapped_marker_buffer = wrapper.TakeWireBytes();
-
-  auto idb_value = std::make_unique<IDBValue>(std::move(wrapped_marker_buffer),
-                                              std::move(blob_infos));
+  auto idb_value = std::move(wrapper).Build();
   idb_value->SetInjectedPrimaryKey(IDBKey::CreateNumber(42.0),
                                    IDBKeyPath(String("primaryKey")));
 

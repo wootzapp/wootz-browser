@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/metrics/call_stacks/call_stack_profile_builder.h"
 
 #include <algorithm>
@@ -20,6 +25,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/metrics/call_stacks/call_stack_profile_encoding.h"
+#include "components/sampling_profiler/call_stack_profile_params.h"
 
 namespace metrics {
 
@@ -56,7 +62,7 @@ uint64_t HashModuleFilename(const base::FilePath& filename) {
 }  // namespace
 
 CallStackProfileBuilder::CallStackProfileBuilder(
-    const CallStackProfileParams& profile_params,
+    const sampling_profiler::CallStackProfileParams& profile_params,
     const WorkIdRecorder* work_id_recorder,
     base::OnceClosure completed_callback)
     : work_id_recorder_(work_id_recorder) {
@@ -158,9 +164,6 @@ void CallStackProfileBuilder::OnSampleCompleted(
   CallStackProfile::Stack stack;
 
   for (const auto& frame : frames) {
-    // The function name should never be provided in UMA profiler usage.
-    DCHECK(frame.function_name.empty());
-
     // keep the frame information even if its module is invalid so we have
     // visibility into how often this issue is happening on the server.
     CallStackProfile::Location* location = stack.add_frame();
@@ -170,7 +173,7 @@ void CallStackProfileBuilder::OnSampleCompleted(
     // Dedup modules.
     auto module_loc = module_index_.find(frame.module);
     if (module_loc == module_index_.end()) {
-      modules_.push_back(frame.module);
+      modules_.push_back(frame.module.get());
       size_t index = modules_.size() - 1;
       module_loc = module_index_.emplace(frame.module, index).first;
     }
@@ -194,6 +197,10 @@ void CallStackProfileBuilder::OnSampleCompleted(
     DCHECK_GE(module_offset, 0);
     location->set_address(static_cast<uint64_t>(module_offset));
     location->set_module_id_index(module_loc->second);
+
+    if (!frame.function_name.empty()) {
+      location->set_function_name(frame.function_name);
+    }
   }
 
   CallStackProfile* call_stack_profile =
@@ -271,6 +278,7 @@ void CallStackProfileBuilder::OnProfileCompleted(
   module_index_.clear();
   modules_.clear();
   sample_timestamps_.clear();
+  work_id_recorder_ = nullptr;
 }
 
 // static

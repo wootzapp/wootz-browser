@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef UI_ACCESSIBILITY_PLATFORM_IACCESSIBLE2_SCOPED_CO_MEM_ARRAY_H_
 #define UI_ACCESSIBILITY_PLATFORM_IACCESSIBLE2_SCOPED_CO_MEM_ARRAY_H_
 
@@ -95,8 +100,8 @@ class ScopedCoMemArray {
     size_ = size;
   }
 
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of, #union
+  // RAW_PTR_EXCLUSION: #addr-of (address returned from a function, also points
+  // to memory managed by the COM Allocator rather than partition_alloc).
   RAW_PTR_EXCLUSION T* mem_ptr_ = nullptr;
   LONG size_ = 0;
 };

@@ -4,13 +4,15 @@
 
 #include "components/services/app_service/public/cpp/icon_info.h"
 
+#include <array>
 #include <utility>
 
 namespace apps {
 
 namespace {
 
-const char* const kPurposeStrings[] = {"kAny", "kMonochrome", "kMaskable"};
+const auto kPurposeStrings =
+    std::to_array<const char*>({"kAny", "kMonochrome", "kMaskable"});
 
 }  // namespace
 

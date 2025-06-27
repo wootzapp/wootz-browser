@@ -10,6 +10,7 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 
 namespace content {
+class NavigationController;
 
 // If set in `SetNavScreenshotCallbackForTesting`, this callback is invoked
 // for each committed navigation when kBackForwardTransitions is enabled.
@@ -20,8 +21,14 @@ namespace content {
 // requested: Whether a screenshot request was made or the navigation was
 // deemed not eligible for screenshotting. The `bitmap` will always be
 // empty if `requested` is false.
-using ScreenshotCallback = base::RepeatingCallback<
-    void(int nav_entry_index, const SkBitmap& bitmap, bool requested)>;
+// out_override: Tests may provide an override bitmap to use. This is primarily
+// used to ensure a capture bitmap is available in cases where certain required
+// GPU features may not be available (e.g. in the emulator).
+using ScreenshotCallback =
+    base::RepeatingCallback<void(int nav_entry_index,
+                                 const SkBitmap& bitmap,
+                                 bool requested,
+                                 SkBitmap& out_override)>;
 
 struct NavigationTransitionTestUtils {
   // Calls `screenshot_callback` with the index of the previous NavigationEntry
@@ -29,6 +36,10 @@ struct NavigationTransitionTestUtils {
   // CaptureNavigationEntryScreenshot function.
   static void SetNavScreenshotCallbackForTesting(
       ScreenshotCallback screenshot_callback);
+
+  // Waits for the compressed screenshot and returns its size in bytes.
+  static size_t WaitForScreenshotCompressed(NavigationController& controller,
+                                            int nav_entry_index);
 };
 
 // Wraps `SetNavScreenshotCallbackForTesting()`, so that the test doesn't have
@@ -37,7 +48,8 @@ struct NavigationTransitionTestUtils {
 class ScopedScreenshotCapturedObserverForTesting {
  public:
   explicit ScopedScreenshotCapturedObserverForTesting(
-      int expected_nav_entry_index);
+      int expected_nav_entry_index,
+      bool expected_requested = true);
   ScopedScreenshotCapturedObserverForTesting(
       const ScopedScreenshotCapturedObserverForTesting&) = delete;
   ScopedScreenshotCapturedObserverForTesting& operator=(

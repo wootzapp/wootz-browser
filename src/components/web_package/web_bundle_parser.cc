@@ -4,17 +4,20 @@
 
 #include "components/web_package/web_bundle_parser.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/numerics/checked_math.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -138,13 +141,13 @@ std::optional<ParsedHeaders> ConvertCBORValueToHeaders(
     if (!item.first.is_bytestring() || !item.second.is_bytestring()) {
       return std::nullopt;
     }
-    base::StringPiece name = item.first.GetBytestringAsString();
-    base::StringPiece value = item.second.GetBytestringAsString();
+    std::string_view name = item.first.GetBytestringAsString();
+    std::string_view value = item.second.GetBytestringAsString();
 
     // If name contains any upper-case or non-ASCII characters, return an error.
     // This matches the requirement in Section 8.1.2 of [RFC7540].
     if (!base::IsStringASCII(name) ||
-        base::ranges::any_of(name, base::IsAsciiUpper<char>)) {
+        std::ranges::any_of(name, base::IsAsciiUpper<char>)) {
       return std::nullopt;
     }
 
@@ -174,7 +177,7 @@ std::optional<ParsedHeaders> ConvertCBORValueToHeaders(
   return result;
 }
 
-GURL ParseExchangeURL(base::StringPiece str, const GURL& base_url) {
+GURL ParseExchangeURL(std::string_view str, const GURL& base_url) {
   DCHECK(base_url.is_empty() || base_url.is_valid());
 
   if (!base::IsStringUTF8(str)) {
@@ -201,7 +204,7 @@ class WebBundleParser::MetadataParser
     : public WebBundleParser::WebBundleSectionParser {
  public:
   MetadataParser(mojo::Remote<mojom::BundleDataSource>& data_source
-                     ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                     LIFETIME_BOUND,
                  GURL base_url,
                  std::optional<uint64_t> offset,
                  ParseMetadataCallback callback)
@@ -347,7 +350,7 @@ class WebBundleParser::MetadataParser
 
     // Check the magic bytes "48 F0 9F 8C 90 F0 9F 93 A6".
     const auto magic = input.ReadBytes(sizeof(kBundleMagicBytes));
-    if (!magic || !base::ranges::equal(*magic, kBundleMagicBytes)) {
+    if (!magic || !std::ranges::equal(*magic, kBundleMagicBytes)) {
       RunErrorCallback("Wrong magic bytes.");
       return;
     }
@@ -358,9 +361,9 @@ class WebBundleParser::MetadataParser
       RunErrorCallback("Cannot read version bytes.");
       return;
     }
-    if (!base::ranges::equal(*version, kVersionB2MagicBytes)) {
+    if (!std::ranges::equal(*version, kVersionB2MagicBytes)) {
       const char* message;
-      if (base::ranges::equal(*version, kVersionB1MagicBytes)) {
+      if (std::ranges::equal(*version, kVersionB1MagicBytes)) {
         message =
             "Bundle format version is 'b1' which is no longer supported."
             " Currently supported version is: 'b2'";
@@ -562,7 +565,7 @@ class WebBundleParser::MetadataParser
         return;
       }
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
     // Read the next metadata section.
     ReadMetadataSections(++section_iter);
@@ -582,7 +585,8 @@ class WebBundleParser::MetadataParser
     base::flat_map<GURL, mojom::BundleResponseLocationPtr> requests;
 
     auto responses_section = section_offsets_.find(kResponsesSection);
-    DCHECK(responses_section != section_offsets_.end());
+    CHECK(responses_section != section_offsets_.end(),
+          base::NotFatalUntil::M130);
     const uint64_t responses_section_offset = responses_section->second.first;
     const uint64_t responses_section_length = responses_section->second.second;
 
@@ -717,7 +721,7 @@ class WebBundleParser::ResponseParser
     : public WebBundleParser::WebBundleSectionParser {
  public:
   ResponseParser(mojo::Remote<mojom::BundleDataSource>& data_source
-                     ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                     LIFETIME_BOUND,
                  uint64_t response_offset,
                  uint64_t response_length,
                  WebBundleParser::ParseResponseCallback callback)
@@ -830,7 +834,7 @@ class WebBundleParser::ResponseParser
     int status;
     const auto& status_str = pseudo_status->second;
     if (status_str.size() != 3 ||
-        !base::ranges::all_of(status_str, base::IsAsciiDigit<char>) ||
+        !std::ranges::all_of(status_str, base::IsAsciiDigit<char>) ||
         !base::StringToInt(status_str, &status)) {
       RunErrorCallback(":status must be 3 ASCII decimal digits.");
       return;
@@ -921,7 +925,7 @@ void WebBundleParser::ParseIntegrityBlock(
   }
 
   std::unique_ptr<WebBundleSectionParser> parser =
-      std::make_unique<web_package::IntegrityBlockParser>(data_source_,
+      std::make_unique<web_package::IntegrityBlockParser>(*data_source_,
                                                           std::move(callback));
   ActivateParser(std::move(parser));
 }

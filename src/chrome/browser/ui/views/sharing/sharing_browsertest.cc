@@ -15,26 +15,27 @@
 #include "base/test/bind.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/sharing/proto/sharing_message.pb.h"
-#include "chrome/browser/sharing/sharing_device_registration_result.h"
-#include "chrome/browser/sharing/sharing_device_source_sync.h"
-#include "chrome/browser/sharing/sharing_fcm_sender.h"
-#include "chrome/browser/sharing/sharing_message_sender.h"
 #include "chrome/browser/sharing/sharing_service_factory.h"
-#include "chrome/browser/sharing/sharing_utils.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/sessions_helper.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "components/gcm_driver/fake_gcm_profile_service.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
+#include "components/sharing_message/proto/sharing_message.pb.h"
+#include "components/sharing_message/sharing_device_registration_result.h"
+#include "components/sharing_message/sharing_device_source_sync.h"
+#include "components/sharing_message/sharing_fcm_sender.h"
+#include "components/sharing_message/sharing_message_sender.h"
+#include "components/sharing_message/sharing_utils.h"
+#include "components/sync/model/client_tag_based_data_type_processor.h"
 #include "components/sync/protocol/sync_enums.pb.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/sync_device_info/device_info_sync_service.h"
 #include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
+#include "ui/base/mojom/menu_source_type.mojom.h"
 
 void FakeWebPushSender::SendMessage(const std::string& fcm_token,
                                     crypto::ECPrivateKey* vapid_key,
@@ -54,7 +55,7 @@ void FakeSharingMessageBridge::SendSharingMessage(
   std::move(on_commit_callback).Run(commit_error);
 }
 
-base::WeakPtr<syncer::ModelTypeControllerDelegate>
+base::WeakPtr<syncer::DataTypeControllerDelegate>
 FakeSharingMessageBridge::GetControllerDelegate() {
   return nullptr;
 }
@@ -114,13 +115,15 @@ void SharingBrowserTest::SetUpDevices(
       original_device_info_tracker->GetAllDeviceInfo();
   ASSERT_EQ(2u, original_devices.size());
 
-  for (size_t i = 0; i < original_devices.size(); i++)
+  for (size_t i = 0; i < original_devices.size(); i++) {
     AddDeviceInfo(*original_devices[i], i);
+  }
   const std::map<syncer::DeviceInfo::FormFactor, int> device_count_by_type =
       fake_device_info_tracker_.CountActiveDevicesByType();
   int total = 0;
-  for (const auto& type_and_count : device_count_by_type)
+  for (const auto& type_and_count : device_count_by_type) {
     total += type_and_count.second;
+  }
   ASSERT_EQ(2, total);
 }
 
@@ -160,9 +163,11 @@ void SharingBrowserTest::AddDeviceInfo(
           original_device.last_updated_timestamp(),
           original_device.pulse_interval(),
           original_device.send_tab_to_self_receiving_enabled(),
+          original_device.send_tab_to_self_receiving_type(),
           original_device.sharing_info(), original_device.paask_info(),
           original_device.fcm_registration_token(),
-          original_device.interested_data_types());
+          original_device.interested_data_types(),
+          original_device.floating_workspace_last_signin_timestamp());
   fake_device_info_tracker_.Add(fake_device.get());
   device_infos_.push_back(std::move(fake_device));
 }
@@ -179,7 +184,7 @@ std::unique_ptr<TestRenderViewContextMenu> SharingBrowserTest::InitContextMenu(
   params.src_url = url;
   params.link_text = base::ASCIIToUTF16(link_text);
   params.page_url = web_contents_->GetVisibleURL();
-  params.source_type = ui::MenuSourceType::MENU_SOURCE_MOUSE;
+  params.source_type = ui::mojom::MenuSourceType::kMouse;
 #if BUILDFLAG(IS_MAC)
   params.writing_direction_default = 0;
   params.writing_direction_left_to_right = 0;
@@ -207,9 +212,9 @@ void SharingBrowserTest::CheckLastReceiver(
                 .token());
 }
 
-chrome_browser_sharing::SharingMessage
+components_sharing_message::SharingMessage
 SharingBrowserTest::GetLastSharingMessageSent() const {
-  chrome_browser_sharing::SharingMessage sharing_message;
+  components_sharing_message::SharingMessage sharing_message;
 
   sharing_message.ParseFromString(
       fake_sharing_message_bridge_.specifics().payload());

@@ -18,7 +18,7 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_browser_process.h"
-#include "components/safe_browsing/content/browser/unsafe_resource_util.h"
+#include "components/safe_browsing/content/browser/content_unsafe_resource_util.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/mock_render_process_host.h"
@@ -59,7 +59,6 @@ class MockSafeBrowsingUIManager : public safe_browsing::SafeBrowsingUIManager {
 
   bool IsUrlAllowlistedOrPendingForWebContents(
       const GURL& url,
-      bool is_subresource,
       content::NavigationEntry* entry,
       WebContents* web_contents,
       bool allowlist_only,
@@ -69,7 +68,7 @@ class MockSafeBrowsingUIManager : public safe_browsing::SafeBrowsingUIManager {
   }
 
  protected:
-  ~MockSafeBrowsingUIManager() override {}
+  ~MockSafeBrowsingUIManager() override = default;
 };
 
 }  // namespace
@@ -82,11 +81,15 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
   ~PhishyInteractionTrackerTest() override = default;
 
   void SetUp() override {
-    ChromeRenderViewHostTestHarness::SetUp();
     browser_process_ = TestingBrowserProcess::GetGlobal();
     sb_service_ =
         base::MakeRefCounted<safe_browsing::TestSafeBrowsingService>();
+    sb_service_->SetUseTestUrlLoaderFactory(true);
+    // Set sb_service before the ChromeRenderViewHostTestHarness::SetUp(),
+    // because it is needed to construct ping manager.
     browser_process_->SetSafeBrowsingService(sb_service_.get());
+
+    ChromeRenderViewHostTestHarness::SetUp();
 
     ui_manager_ = new StrictMock<MockSafeBrowsingUIManager>();
     phishy_interaction_tracker_ =
@@ -94,7 +97,7 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
     phishy_interaction_tracker_->SetUIManagerForTesting(ui_manager_.get());
     phishy_interaction_tracker_->HandlePageChanged();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     // Local state is needed to construct ProxyConfigService, which is a
     // dependency of PingManager on ChromeOS.
     TestingBrowserProcess::GetGlobal()->SetLocalState(profile()->GetPrefs());
@@ -110,7 +113,7 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
         FROM_HERE, phishy_interaction_tracker_.release());
     ui_manager_.reset();
     phishy_interaction_tracker_.reset();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     TestingBrowserProcess::GetGlobal()->SetLocalState(nullptr);
 #endif
     base::RunLoop().RunUntilIdle();
@@ -121,12 +124,9 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
     return Profile::FromBrowserContext(web_contents()->GetBrowserContext());
   }
 
-  security_interstitials::UnsafeResource MakeUnsafeResource(
-      const char* url,
-      bool is_subresource) {
+  security_interstitials::UnsafeResource MakeUnsafeResource(const char* url) {
     security_interstitials::UnsafeResource resource;
     resource.url = GURL(url);
-    resource.is_subresource = is_subresource;
     resource.threat_type =
         safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING;
     return resource;
@@ -150,7 +150,7 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
   }
 
   void TriggerKeyEvent() {
-    content::NativeWebKeyboardEvent key_event(
+    input::NativeWebKeyboardEvent key_event(
         blink::WebKeyboardEvent::Type::kChar,
         blink::WebInputEvent::kNoModifiers, base::TimeTicks::Now());
     phishy_interaction_tracker_->HandleInputEvent(key_event);
@@ -211,7 +211,7 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
 
  protected:
   raw_ptr<TestingBrowserProcess> browser_process_;
-  scoped_refptr<safe_browsing::SafeBrowsingService> sb_service_;
+  scoped_refptr<safe_browsing::TestSafeBrowsingService> sb_service_;
   std::unique_ptr<PhishyInteractionTracker> phishy_interaction_tracker_;
   scoped_refptr<MockSafeBrowsingUIManager> ui_manager_;
   safe_browsing::ChromePingManagerAllowerForTesting allow_ping_manager_;
@@ -220,11 +220,10 @@ class PhishyInteractionTrackerTest : public ChromeRenderViewHostTestHarness {
 TEST_F(PhishyInteractionTrackerTest, CheckHistogramCountsOnPhishyUserEvents) {
   base::HistogramTester histogram_tester_;
 
-  security_interstitials::UnsafeResource resource =
-      MakeUnsafeResource(kBadURL, false /* is_subresource */);
+  security_interstitials::UnsafeResource resource = MakeUnsafeResource(kBadURL);
   safe_browsing::SBThreatType threat_type;
   EXPECT_TRUE(ui_manager_->IsUrlAllowlistedOrPendingForWebContents(
-      resource.url, resource.is_subresource, /*entry=*/nullptr,
+      resource.url, /*entry=*/nullptr,
       safe_browsing::unsafe_resource_util::GetWebContentsForResource(resource),
       true, &threat_type));
 

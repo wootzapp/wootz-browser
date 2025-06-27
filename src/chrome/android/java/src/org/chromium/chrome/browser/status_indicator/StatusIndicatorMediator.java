@@ -107,9 +107,12 @@ class StatusIndicatorMediator
     public void onControlsOffsetChanged(
             int topOffset,
             int topControlsMinHeightOffset,
+            boolean topControlsMinHeightChanged,
             int bottomOffset,
             int bottomControlsMinHeightOffset,
-            boolean needsAnimate) {
+            boolean bottomControlsMinHeightChanged,
+            boolean requestNewFrame,
+            boolean isVisibilityForced) {
         onOffsetChanged(topControlsMinHeightOffset);
     }
 
@@ -236,10 +239,10 @@ class StatusIndicatorMediator
         mTextFadeInAnimation.setInterpolator(Interpolators.FAST_OUT_SLOW_IN_INTERPOLATOR);
         mTextFadeInAnimation.setDuration(FADE_TEXT_DURATION_MS);
         mTextFadeInAnimation.addUpdateListener(
-                (anim -> {
+                anim -> {
                     final float currentAlpha = (float) anim.getAnimatedValue();
                     mModel.set(StatusIndicatorProperties.TEXT_ALPHA, currentAlpha);
-                }));
+                });
         mTextFadeInAnimation.addListener(
                 new CancelAwareAnimatorListener() {
                     @Override
@@ -293,7 +296,8 @@ class StatusIndicatorMediator
                         || textColor != mModel.get(StatusIndicatorProperties.TEXT_COLOR)
                         || iconTint != mModel.get(StatusIndicatorProperties.ICON_TINT);
         assert changed
-                : "#animateUpdate() shouldn't be called without any change to the status indicator.";
+                : "#animateUpdate() shouldn't be called without any change to the status"
+                        + " indicator.";
 
         // 1. Fade out old text.
         ValueAnimator fadeOldOut = ValueAnimator.ofFloat(1.f, 0.f);

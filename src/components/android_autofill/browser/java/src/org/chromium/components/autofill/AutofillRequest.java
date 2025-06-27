@@ -10,6 +10,8 @@ import android.view.ViewStructure;
 import android.view.autofill.AutofillValue;
 
 import org.chromium.base.Log;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.autofill_public.ViewType;
 
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
  * <p>The key method of this class is: - {@link #autofill}: Verifies that the autofill request by
  * the framework is valid.
  */
+@NullMarked
 public class AutofillRequest {
     /** A simple class representing the field that is currently focused by the user. */
     public static class FocusField {
@@ -37,8 +40,8 @@ public class AutofillRequest {
     private static final String TAG = "AutofillRequest";
 
     private FormData mFormData;
-    private FocusField mFocusField;
-    private AutofillHintsService mAutofillHintsService;
+    private @Nullable FocusField mFocusField;
+    private @Nullable AutofillHintsService mAutofillHintsService;
 
     /**
      * @param formData the form of the AutofillRequest.
@@ -53,19 +56,20 @@ public class AutofillRequest {
     }
 
     /**
-     * Verifies that the values of this autofill request from the framework has virtual ids
-     * that match the session id and the ids of existing form fields of the selected form.
-     * If they do, it updates the underlying FormFieldData objects to contain the new values,
-     * which are then used by the native code to fill the form.
+     * Verifies that the values of this autofill request from the framework have virtual ids that
+     * match the session id and the ids of existing form fields of the selected form. If they do, it
+     * updates the underlying FormFieldData objects to contain the new values, which are then used
+     * by the native code to fill the form.
      *
      * @param values the autofill request by the Android Autofill framework
-     * @return whether the autofill request is valid, i.e. whether the virtual ids contained
-     * in it correspond to an ongoing session with existing form fields.
+     * @return whether the autofill request is valid, i.e. whether the virtual ids contained in it
+     *     correspond to an ongoing session with existing form fields.
      */
     public boolean autofill(final SparseArray<AutofillValue> values) {
+        int filledCount = 0;
         for (int i = 0; i < values.size(); ++i) {
             int id = values.keyAt(i);
-            if (toSessionId(id) != mFormData.mSessionId) return false;
+            if (toSessionId(id) != mFormData.mSessionId) continue;
             AutofillValue value = values.get(id);
             if (value == null) continue;
             short index = toIndex(id);
@@ -94,15 +98,16 @@ public class AutofillRequest {
                 Log.e(TAG, "The given AutofillValue wasn't expected, abort autofill.", e);
                 return false;
             }
+            filledCount++;
         }
-        return true;
+        return filledCount != 0;
     }
 
-    public void setFocusField(FocusField focusField) {
+    public void setFocusField(@Nullable FocusField focusField) {
         mFocusField = focusField;
     }
 
-    public FocusField getFocusField() {
+    public @Nullable FocusField getFocusField() {
         return mFocusField;
     }
 
@@ -110,7 +115,7 @@ public class AutofillRequest {
         return mFormData.mFields.size();
     }
 
-    public AutofillValue getFieldNewValue(int index) {
+    public @Nullable AutofillValue getFieldNewValue(int index) {
         FormFieldData field = mFormData.mFields.get(index);
         if (field == null) return null;
         switch (field.getControlType()) {
@@ -148,7 +153,7 @@ public class AutofillRequest {
         return (short) (fieldVirtualId & 0xffff);
     }
 
-    public AutofillHintsService getAutofillHintsService() {
+    public @Nullable AutofillHintsService getAutofillHintsService() {
         return mAutofillHintsService;
     }
 

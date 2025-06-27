@@ -28,7 +28,7 @@ class Extension;
 // This class can be used in two ways:
 // Aided Manifest Construction
 //   The easy way. Use the constructor that takes a name and use helper methods
-//   like AddPermission() to customize the extension without needing to
+//   like AddAPIPermission() to customize the extension without needing to
 //   construct the manifest dictionary by hand. For more customization, you can
 //   use MergeManifest() to add additional keys (which will take precedence over
 //   others).
@@ -38,9 +38,9 @@ class Extension;
 //   TODO(devlin): My suspicion is that this is almost always less readable and
 //   useful, but it came first and is used in many places. It'd be nice to maybe
 //   get rid of it.
-// These are not interchangable - calling SetManifest() with aided manifest
-// construction or e.g. AddPermissions() with custom manifest construction will
-// crash.
+// These are not interchangeable - calling SetManifest() with aided manifest
+// construction or e.g. AddAPIPermissions() with custom manifest construction
+// will crash.
 class ExtensionBuilder {
  public:
   enum class Type {
@@ -87,13 +87,24 @@ class ExtensionBuilder {
   //////////////////////////////////////////////////////////////////////////////
   // Utility methods for use with aided manifest construction.
 
-  // Add one or more permissions to the extension.
-  ExtensionBuilder& AddPermission(const std::string& permission);
-  ExtensionBuilder& AddPermissions(const std::vector<std::string>& permissions);
+  // Adds one or more API permissions to the extension.
+  ExtensionBuilder& AddAPIPermission(const std::string& permission);
+  ExtensionBuilder& AddAPIPermissions(
+      const std::vector<std::string>& permissions);
 
-  // Add one or more optional permissions to the extension.
-  ExtensionBuilder& AddOptionalPermission(const std::string& permission);
-  ExtensionBuilder& AddOptionalPermissions(
+  // Adds one or more optional API permissions to the extension.
+  ExtensionBuilder& AddOptionalAPIPermission(const std::string& permission);
+  ExtensionBuilder& AddOptionalAPIPermissions(
+      const std::vector<std::string>& permissions);
+
+  // Adds one or more host permissions to the extension.
+  ExtensionBuilder& AddHostPermission(const std::string& permission);
+  ExtensionBuilder& AddHostPermissions(
+      const std::vector<std::string>& permissions);
+
+  // Adds one or more optional host permissions to the extension.
+  ExtensionBuilder& AddOptionalHostPermission(const std::string& permission);
+  ExtensionBuilder& AddOptionalHostPermissions(
       const std::vector<std::string>& permissions);
 
   // Sets an action type for the extension to have. By default, no action will
@@ -118,7 +129,7 @@ class ExtensionBuilder {
   // Shortcuts to setting values on the manifest dictionary without needing to
   // go all the way through MergeManifest(). Sample usage:
   // ExtensionBuilder("name").SetManifestKey("version", "0.2").Build();
-  // Can be used in conjuction with chained base::Value::List and
+  // Can be used in conjunction with chained base::Value::List and
   // base::Value::Dict to create complex values.
   template <typename T>
   ExtensionBuilder& SetManifestKey(std::string_view key, T&& value) {

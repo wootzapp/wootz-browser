@@ -22,6 +22,7 @@ import android.app.Activity;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.view.MotionEvent;
+import android.view.View;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -30,7 +31,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -48,24 +48,23 @@ import org.chromium.base.Callback;
 import org.chromium.base.LocaleUtils;
 import org.chromium.base.jank_tracker.PlaceholderJankTracker;
 import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.feed.componentinterfaces.SurfaceCoordinator;
 import org.chromium.chrome.browser.feed.sections.SectionHeaderListProperties;
 import org.chromium.chrome.browser.feed.sections.SectionHeaderView;
 import org.chromium.chrome.browser.feed.webfeed.WebFeedBridge;
+import org.chromium.chrome.browser.feed.webfeed.WebFeedBridgeJni;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.native_page.NativePageNavigationDelegate;
 import org.chromium.chrome.browser.ntp.NewTabPageLaunchOrigin;
 import org.chromium.chrome.browser.ntp.cards.SignInPromo;
 import org.chromium.chrome.browser.preferences.Pref;
-import org.chromium.chrome.browser.preferences.PrefChangeRegistrar;
 import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
@@ -75,6 +74,7 @@ import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.tabmodel.EmptyTabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.xsurface.HybridListRenderer;
 import org.chromium.chrome.browser.xsurface.ProcessScope;
@@ -84,28 +84,19 @@ import org.chromium.chrome.browser.xsurface.feed.FeedSurfaceScope;
 import org.chromium.chrome.browser.xsurface.feed.FeedSurfaceScopeDependencyProvider;
 import org.chromium.chrome.browser.xsurface_provider.XSurfaceProcessScopeProvider;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
+import org.chromium.components.browser_ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.feed.proto.wire.ReliabilityLoggingEnums.DiscoverLaunchResult;
+import org.chromium.components.prefs.PrefChangeRegistrar;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.search_engines.TemplateUrlService;
-import org.chromium.components.signin.AccountCapabilitiesConstants;
-import org.chromium.components.signin.Tribool;
-import org.chromium.components.signin.base.AccountCapabilities;
-import org.chromium.components.signin.base.AccountInfo;
-import org.chromium.components.signin.base.CoreAccountId;
-import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
-import org.chromium.components.supervised_user.SupervisedUserPreferences;
-import org.chromium.components.supervised_user.SupervisedUserPreferencesJni;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.ui.base.WindowAndroid;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 /** Tests for {@link FeedSurfaceCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -113,22 +104,15 @@ import java.util.Map;
 @DisableFeatures({
     ChromeFeatureList.WEB_FEED_SORT,
     ChromeFeatureList.WEB_FEED_ONBOARDING,
-    ChromeFeatureList.FEED_USER_INTERACTION_RELIABILITY_REPORT,
-    // TODO(crbug.com/40858677): Disabling the feature explicitly, because native is not
-    // available to provide a default value. This should be enabled if the feature is enabled by
-    // default or removed if the flag is removed.
-    ChromeFeatureList.SYNC_ANDROID_LIMIT_NTP_PROMO_IMPRESSIONS,
-    ChromeFeatureList.FEED_CONTAINMENT
+    ChromeFeatureList.FEED_CONTAINMENT,
+    ChromeFeatureList.FEED_HEADER_REMOVAL
 })
-@EnableFeatures({
-    ChromeFeatureList.KID_FRIENDLY_CONTENT_FEED,
-    ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS,
-})
+@EnableFeatures({ChromeFeatureList.UNO_PHASE_2_FOLLOW_UP})
 public class FeedSurfaceCoordinatorTest {
     private static final @SurfaceType int SURFACE_TYPE = SurfaceType.NEW_TAB_PAGE;
     private static final long SURFACE_CREATION_TIME_NS = 1234L;
 
-    private class TestLifecycleManager extends FeedSurfaceLifecycleManager {
+    private static class TestLifecycleManager extends FeedSurfaceLifecycleManager {
         public TestLifecycleManager(Activity activity, FeedSurfaceCoordinator coordinator) {
             super(activity, coordinator);
         }
@@ -142,7 +126,7 @@ public class FeedSurfaceCoordinatorTest {
     private class TestSurfaceDelegate implements FeedSurfaceDelegate {
         @Override
         public FeedSurfaceLifecycleManager createStreamLifecycleManager(
-                Activity activity, SurfaceCoordinator coordinator) {
+                Activity activity, SurfaceCoordinator coordinator, Profile profile) {
             mLifecycleManager =
                     new TestLifecycleManager(activity, (FeedSurfaceCoordinator) coordinator);
             return mLifecycleManager;
@@ -154,18 +138,12 @@ public class FeedSurfaceCoordinatorTest {
         }
     }
 
-    private class TestTabModel extends EmptyTabModel {
+    private static class TestTabModel extends EmptyTabModel {
         public ArrayList<TabModelObserver> mObservers = new ArrayList<TabModelObserver>();
 
         @Override
         public void addObserver(TabModelObserver observer) {
             mObservers.add(observer);
-        }
-
-        void selectTab() {
-            for (TabModelObserver observer : mObservers) {
-                observer.didSelectTab(null, 0, 0);
-            }
         }
     }
 
@@ -173,8 +151,6 @@ public class FeedSurfaceCoordinatorTest {
     private TestTabModel mTabModelIncognito = new TestTabModel();
 
     private FeedSurfaceCoordinator mCoordinator;
-
-    @Rule public JniMocker mocker = new JniMocker();
 
     private Activity mActivity;
     private RecyclerView mRecyclerView;
@@ -198,7 +174,6 @@ public class FeedSurfaceCoordinatorTest {
     @Mock private FeedProcessScopeDependencyProvider.Natives mProcessScopeJniMock;
     @Mock private FeedReliabilityLoggingBridge.Natives mFeedReliabilityLoggingBridgeJniMock;
     @Mock private UserPrefs.Natives mUserPrefsJniMock;
-    @Mock private SupervisedUserPreferences.Natives mSupervisedUserPreferencesJniMock;
 
     // Mocked xSurface setup.
     @Mock private ProcessScope mProcessScope;
@@ -207,7 +182,6 @@ public class FeedSurfaceCoordinatorTest {
     @Captor private ArgumentCaptor<FeedListContentManager> mContentManagerCaptor;
 
     // Mocked indirect dependencies.
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
     @Mock private Profile mProfileMock;
     @Mock private IdentityServicesProvider mIdentityService;
     @Mock private SigninManager mSigninManager;
@@ -222,11 +196,15 @@ public class FeedSurfaceCoordinatorTest {
     @Mock private Tracker mTracker;
     @Mock private ScrollableContainerDelegate mScrollableContainerDelegate;
     @Mock ObservableSupplier<Integer> mTabStripHeightSupplier;
+    @Mock private EdgeToEdgeController mEdgeToEdgeController;
+    @Captor private ArgumentCaptor<EdgeToEdgePadAdjuster> mEdgePadAdjusterCaptor;
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private FeedSurfaceMediator mMediatorSpy;
     private int mTabStripHeight;
+    private final ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier =
+            new ObservableSupplierImpl<>();
 
     @Before
     public void setUp() {
@@ -236,15 +214,12 @@ public class FeedSurfaceCoordinatorTest {
 
         mActivity = Robolectric.buildActivity(Activity.class).get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
-        mocker.mock(FeedSurfaceRendererBridgeJni.TEST_HOOKS, mFeedSurfaceRendererBridgeJniMock);
-        mocker.mock(FeedServiceBridgeJni.TEST_HOOKS, mFeedServiceBridgeJniMock);
-        mocker.mock(WebFeedBridge.getTestHooksForTesting(), mWebFeedBridgeJniMock);
-        mocker.mock(FeedProcessScopeDependencyProviderJni.TEST_HOOKS, mProcessScopeJniMock);
-        mocker.mock(
-                FeedReliabilityLoggingBridge.getTestHooksForTesting(),
-                mFeedReliabilityLoggingBridgeJniMock);
-        mocker.mock(UserPrefsJni.TEST_HOOKS, mUserPrefsJniMock);
-        mocker.mock(SupervisedUserPreferencesJni.TEST_HOOKS, mSupervisedUserPreferencesJniMock);
+        FeedSurfaceRendererBridgeJni.setInstanceForTesting(mFeedSurfaceRendererBridgeJniMock);
+        FeedServiceBridgeJni.setInstanceForTesting(mFeedServiceBridgeJniMock);
+        WebFeedBridgeJni.setInstanceForTesting(mWebFeedBridgeJniMock);
+        FeedProcessScopeDependencyProviderJni.setInstanceForTesting(mProcessScopeJniMock);
+        FeedReliabilityLoggingBridgeJni.setInstanceForTesting(mFeedReliabilityLoggingBridgeJniMock);
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
 
         when(mFeedServiceBridgeJniMock.getLoadMoreTriggerLookahead()).thenReturn(5);
 
@@ -268,8 +243,6 @@ public class FeedSurfaceCoordinatorTest {
         TemplateUrlServiceFactory.setInstanceForTesting(mUrlService);
         when(mPrivacyPreferencesManager.isMetricsReportingEnabled()).thenReturn(true);
         when(mUserPrefsJniMock.get(any(Profile.class))).thenReturn(mPrefService);
-        when(mSupervisedUserPreferencesJniMock.isSubjectToParentalControls(any(PrefService.class)))
-                .thenAnswer(invocation -> isPrimaryAccountSupervised());
 
         // Resources set up.
         when(mSectionHeaderView.getResources()).thenReturn(mResources);
@@ -283,8 +256,6 @@ public class FeedSurfaceCoordinatorTest {
         when(mProcessScope.obtainFeedSurfaceScope(any(FeedSurfaceScopeDependencyProvider.class)))
                 .thenReturn(mSurfaceScope);
         when(mSurfaceScope.provideListRenderer()).thenReturn(mRenderer);
-        when(mRenderer.bind(mContentManagerCaptor.capture(), isNull(), eq(false)))
-                .thenReturn(mRecyclerView);
         when(mSurfaceScope.getLaunchReliabilityLogger()).thenReturn(mLaunchReliabilityLogger);
         TrackerFactory.setTrackerForTests(mTracker);
 
@@ -293,7 +264,7 @@ public class FeedSurfaceCoordinatorTest {
         mTabStripHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.tab_strip_height);
         when(mTabStripHeightSupplier.get()).thenReturn(mTabStripHeight);
 
-        mCoordinator = createCoordinator();
+        mCoordinator = createCoordinator(mRecyclerView);
 
         mRecyclerView.setLayoutManager(mLayoutManager);
 
@@ -306,7 +277,9 @@ public class FeedSurfaceCoordinatorTest {
 
     @After
     public void tearDown() {
-        mCoordinator.destroy();
+        if (mCoordinator != null) {
+            mCoordinator.destroy();
+        }
         FeedSurfaceTracker.getInstance().resetForTest();
         FeedSurfaceMediator.setPrefForTest(null, null);
     }
@@ -377,7 +350,7 @@ public class FeedSurfaceCoordinatorTest {
         mCoordinator.destroy();
 
         when(mPrivacyPreferencesManager.isMetricsReportingEnabled()).thenReturn(false);
-        mCoordinator = createCoordinator();
+        mCoordinator = createCoordinator(mRecyclerView);
 
         verify(mLaunchReliabilityLogger, never()).logUiStarting(anyInt(), anyLong());
     }
@@ -469,48 +442,13 @@ public class FeedSurfaceCoordinatorTest {
         reset(mLaunchReliabilityLogger);
         mCoordinator.destroy();
         when(mPrivacyPreferencesManager.isMetricsReportingEnabled()).thenReturn(true);
-        mCoordinator = createCoordinator();
+        mCoordinator = createCoordinator(mRecyclerView);
 
         verify(mLaunchReliabilityLogger, times(1))
                 .logUiStarting(SURFACE_TYPE, SURFACE_CREATION_TIME_NS);
     }
 
     @Test
-    public void testFeedHeaderPosition_scrollableContainerDelegate() {
-        when(mScrollableContainerDelegate.getTopPositionRelativeToContainerView(any()))
-                .thenReturn(-1);
-        assertEquals(-1, mCoordinator.getFeedHeaderPosition());
-
-        mCoordinator.clearScrollableContainerDelegateForTesting();
-        assertEquals(Integer.MAX_VALUE, mCoordinator.getFeedHeaderPosition());
-    }
-
-    @Test
-    public void testIsPrimaryAccountSupervisedForChildUser() {
-        AccountInfo account = createFakeAccount(/* isChild= */ true);
-        when(mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN)).thenReturn(account);
-        when(mIdentityManager.findExtendedAccountInfoByEmailAddress(account.getEmail()))
-                .thenReturn(account);
-        assertTrue(mCoordinator.shouldDisplaySupervisedFeed());
-    }
-
-    @Test
-    public void testIsPrimaryAccountSupervisedForRegularUser() {
-        AccountInfo account = createFakeAccount(/* isChild= */ false);
-        when(mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN)).thenReturn(account);
-        when(mIdentityManager.findExtendedAccountInfoByEmailAddress(account.getEmail()))
-                .thenReturn(account);
-        assertFalse(mCoordinator.shouldDisplaySupervisedFeed());
-    }
-
-    @Test
-    public void testIsPrimaryAccountSupervisedForSignedOutUser() {
-        when(mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN)).thenReturn(null);
-        assertFalse(mCoordinator.shouldDisplaySupervisedFeed());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.DYNAMIC_TOP_CHROME)
     @DisableFeatures(ChromeFeatureList.TAB_STRIP_LAYOUT_OPTIMIZATION)
     public void testTabStripHeightChangeCallback() {
         ArgumentCaptor<Callback<Integer>> captor = ArgumentCaptor.forClass(Callback.class);
@@ -523,32 +461,42 @@ public class FeedSurfaceCoordinatorTest {
                 mCoordinator.getRootViewForTesting().getPaddingTop());
     }
 
-    private AccountInfo createFakeAccount(boolean isChild) {
-        AccountCapabilities capabilities =
-                new AccountCapabilities(
-                        new HashMap<>(
-                                Map.of(
-                                        AccountCapabilitiesConstants
-                                                .IS_SUBJECT_TO_PARENTAL_CONTROLS_CAPABILITY_NAME,
-                                        isChild)));
-        return new AccountInfo(
-                new CoreAccountId("id"),
-                "test@gmail.com",
-                "gaiaId",
-                "John Doe",
-                "John",
-                null,
-                capabilities);
+    @Test
+    @EnableFeatures({
+        ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN,
+        ChromeFeatureList.DRAW_KEY_NATIVE_EDGE_TO_EDGE
+    })
+    public void testEdgeToEdge() {
+        mEdgeToEdgeSupplier.set(mEdgeToEdgeController);
+        verify(mEdgeToEdgeController).registerAdjuster(mEdgePadAdjusterCaptor.capture());
+
+        mEdgePadAdjusterCaptor.getValue().overrideBottomInset(100);
+        assertFalse(
+                "Recycler view should clip to padding when edge to edge.",
+                mCoordinator.getRecyclerView().getClipToPadding());
+        assertEquals(
+                "Padding is different.", 100, mCoordinator.getRecyclerView().getPaddingBottom());
+
+        mEdgePadAdjusterCaptor.getValue().overrideBottomInset(0);
+        assertTrue(
+                "Recycler view should no longer clip to padding when not drawing to edge.",
+                mCoordinator.getRecyclerView().getClipToPadding());
+        assertEquals(
+                "Padding should be reset.", 0, mCoordinator.getRecyclerView().getPaddingBottom());
     }
 
-    private boolean isPrimaryAccountSupervised() {
-        CoreAccountInfo account = mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
-        if (account == null) {
-            return false;
-        }
-        AccountInfo info =
-                mIdentityManager.findExtendedAccountInfoByEmailAddress(account.getEmail());
-        return info.getAccountCapabilities().isSubjectToParentalControls() == Tribool.TRUE;
+    @Test
+    @EnableFeatures(ChromeFeatureList.FEED_HEADER_REMOVAL + ":treatment/label")
+    public void testFeedHeaderShownWithLabelOnly() {
+        assertEquals(View.VISIBLE, mCoordinator.getHeaderViewForTesting().getVisibility());
+        assertEquals(0, mCoordinator.getHeaderPosition());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.FEED_HEADER_REMOVAL + ":treatment/none")
+    public void testFeedHeaderHidden() {
+        assertEquals(View.GONE, mCoordinator.getHeaderViewForTesting().getVisibility());
+        assertEquals(1, mCoordinator.getHeaderPosition());
     }
 
     private boolean hasStreamBound() {
@@ -559,7 +507,10 @@ public class FeedSurfaceCoordinatorTest {
                 .getBoundStatusForTest();
     }
 
-    private FeedSurfaceCoordinator createCoordinator() {
+    private FeedSurfaceCoordinator createCoordinator(RecyclerView recyclerview) {
+        when(mRenderer.bind(mContentManagerCaptor.capture(), isNull(), anyInt()))
+                .thenReturn(recyclerview);
+        when(mRenderer.getAdapter()).thenReturn(mAdapter);
         return new FeedSurfaceCoordinator(
                 mActivity,
                 mSnackbarManager,
@@ -579,13 +530,12 @@ public class FeedSurfaceCoordinatorTest {
                 () -> {
                     return null;
                 },
-                SURFACE_TYPE,
                 SURFACE_CREATION_TIME_NS,
                 null,
                 false,
                 /* viewportView= */ null,
                 mFeedActionDelegate,
-                /* helpAndFeedbackLauncher= */ null,
-                mTabStripHeightSupplier);
+                mTabStripHeightSupplier,
+                mEdgeToEdgeSupplier);
     }
 }

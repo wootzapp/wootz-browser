@@ -60,13 +60,17 @@ class ProfilePickerSignedInFlowController
   // By default does not do anything, in the flow it will be as if the dialog
   // was closed.
   virtual void Cancel();
+  // Resets the host by redirecting to the main profile picker screen and
+  // canceling the ongoing signed in flow. Shows an error dialog when the reset
+  // is done.
+  void ResetHostAndShowErrorDialog(const ForceSigninUIError& error);
 
   // Finishes the creation flow for `profile_`: marks it fully created,
   // transitions from `host_` to a new browser window and calls `callback` if
   // the browser window was successfully opened.
   // TODO(crbug.com/40242414): Tighten this contract by notifying the caller if
   // the browser open was not possible.
-  virtual void FinishAndOpenBrowser(PostHostClearedCallback callback) = 0;
+  void FinishAndOpenBrowser(PostHostClearedCallback callback);
 
   // Finishes the sign-in process by moving to the sync confirmation screen.
   virtual void SwitchToSyncConfirmation();
@@ -76,12 +80,6 @@ class ProfilePickerSignedInFlowController
   virtual void SwitchToManagedUserProfileNotice(
       ManagedUserProfileNoticeUI::ScreenType type,
       signin::SigninChoiceCallback proceed_callback);
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // The default implementation is NOTREACHED
-  virtual void SwitchToLacrosIntro(
-      signin::SigninChoiceCallback proceed_callback);
-#endif
 
   // When the sign-in flow cannot be completed because another profile at
   // `profile_path` is already syncing with a chosen account, shows the profile
@@ -99,6 +97,9 @@ class ProfilePickerSignedInFlowController
   content::WebContents* contents() const { return contents_.get(); }
 
  protected:
+  virtual void FinishAndOpenBrowserInternal(PostHostClearedCallback callback,
+                                            bool is_continue_callback) = 0;
+
   // Returns the profile color, taking into account current policies.
   std::optional<SkColor> GetProfileColor() const;
 
@@ -115,15 +116,14 @@ class ProfilePickerSignedInFlowController
   // content::WebContentsDelegate:
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
-  bool HandleKeyboardEvent(
-      content::WebContents* source,
-      const content::NativeWebKeyboardEvent& event) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
 
   // Callbacks that finalize initialization of WebUI pages.
   void SwitchToSyncConfirmationFinished();
   void SwitchToManagedUserProfileNoticeFinished(
       ManagedUserProfileNoticeUI::ScreenType type,
-      signin::SigninChoiceCallback proceed_callback);
+      signin::SigninChoiceCallback process_user_choice_callback);
 
   // Returns whether the flow is initialized (i.e. whether `Init()` has been
   // called).
@@ -158,6 +158,8 @@ class ProfilePickerSignedInFlowController
 
   // Path to a profile that should be displayed on the profile switch screen.
   base::FilePath switch_profile_path_;
+
+  GURL url_to_open_;
 
   base::WeakPtrFactory<ProfilePickerSignedInFlowController> weak_ptr_factory_{
       this};

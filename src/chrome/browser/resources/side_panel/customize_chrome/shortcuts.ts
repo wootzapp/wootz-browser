@@ -55,10 +55,10 @@ export class ShortcutsElement extends CrLitElement {
     };
   }
 
-  private customLinksEnabled_: boolean = false;
-  protected initialized_: boolean = false;
-  protected radioSelection_: string|undefined = undefined;
-  protected show_: boolean = false;
+  private accessor customLinksEnabled_: boolean = false;
+  protected accessor initialized_: boolean = false;
+  protected accessor radioSelection_: string|undefined = undefined;
+  protected accessor show_: boolean = false;
 
   private setMostVisitedSettingsListenerId_: number|null = null;
 
@@ -119,6 +119,14 @@ export class ShortcutsElement extends CrLitElement {
 
   protected onShowToggleClick_() {
     this.setShow_(!this.show_);
+  }
+
+  protected onRadioSelectionChanged_(e: CustomEvent<{value: string}>) {
+    if (e.detail.value === this.radioSelection_) {
+      return;
+    }
+    this.customLinksEnabled_ = e.detail.value === 'customLinksOption';
+    this.setMostVisitedSettings_();
   }
 
   private setCustomLinksEnabled_(option: string) {

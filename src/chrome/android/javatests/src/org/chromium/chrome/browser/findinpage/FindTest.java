@@ -29,6 +29,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CloseableOnMainThread;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -36,11 +37,9 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
@@ -48,7 +47,6 @@ import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.FullscreenTestUtils;
 import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.content_public.browser.test.util.KeyUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.content_public.browser.test.util.UiUtils;
 
@@ -76,13 +74,16 @@ public class FindTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sActivityTestRule
                             .getActivity()
                             .getTabModelSelector()
                             .getModel(true)
-                            .closeAllTabs();
+                            .getTabRemover()
+                            .closeTabs(
+                                    TabClosureParams.closeAllTabs().build(),
+                                    /* allowDialog= */ false);
                 });
     }
 
@@ -137,7 +138,7 @@ public class FindTest {
         KeyCharacterMap keyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
         final KeyEvent[] events = keyCharacterMap.getEvents(query.toCharArray());
         Assert.assertNotNull(events);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     for (int i = 0; i < events.length; i++) {
                         if (!findQueryText.dispatchKeyEventPreIme(events[i])) {
@@ -326,6 +327,51 @@ public class FindTest {
         Assert.assertEquals(0, findResults.length());
     }
 
+    /** Verify "Find in page" is dismissed when ESCAPE is pressed w/o modifiers. */
+    @Test
+    @SmallTest
+    @Feature({"FindInPage"})
+    public void testFindDismissOnEscape() {
+        sActivityTestRule.loadUrl(sActivityTestRule.getTestServer().getURL(FILEPATH));
+        findInPageFromMenu();
+
+        final FindToolbar findToolbar = getFindToolbar();
+        Assert.assertEquals(View.VISIBLE, findToolbar.getVisibility());
+        final TextView findQueryText = getFindQueryText();
+        Assert.assertTrue(findQueryText.hasFocus());
+
+        KeyUtils.singleKeyEventView(
+                InstrumentationRegistry.getInstrumentation(),
+                findQueryText,
+                KeyEvent.KEYCODE_ESCAPE);
+
+        Assert.assertEquals(View.GONE, findToolbar.getVisibility());
+        Assert.assertFalse(findQueryText.hasFocus());
+    }
+
+    /** Verify "Find in page" isn't dismissed when ESCAPE is pressed w/ modifiers. */
+    @Test
+    @SmallTest
+    @Feature({"FindInPage"})
+    public void testFindDismissOnEscapeWithModifiers() {
+        sActivityTestRule.loadUrl(sActivityTestRule.getTestServer().getURL(FILEPATH));
+        findInPageFromMenu();
+
+        final FindToolbar findToolbar = getFindToolbar();
+        Assert.assertEquals(View.VISIBLE, findToolbar.getVisibility());
+        final TextView findQueryText = getFindQueryText();
+        Assert.assertTrue(findQueryText.hasFocus());
+
+        KeyUtils.singleKeyEventView(
+                InstrumentationRegistry.getInstrumentation(),
+                findQueryText,
+                KeyEvent.KEYCODE_ESCAPE,
+                KeyEvent.META_CTRL_ON);
+
+        Assert.assertEquals(View.VISIBLE, findToolbar.getVisibility());
+        Assert.assertTrue(findQueryText.hasFocus());
+    }
+
     /** Verify FIP in IncognitoTabs. */
     @Test
     @SmallTest
@@ -382,7 +428,7 @@ public class FindTest {
         try (CloseableOnMainThread ignored =
                 CloseableOnMainThread.StrictMode.allowAllThreadPolicies()) {
             // Emulate pasting the text into the find query text box
-            TestThreadUtils.runOnUiThreadBlocking(
+            ThreadUtils.runOnUiThreadBlocking(
                     () -> {
                         // Setup the clipboard with a selection of stylized text
                         ClipboardManager clipboard =
@@ -404,38 +450,13 @@ public class FindTest {
     }
 
     /**
-     * Verify Find in page toolbar is not dismissed when device back key is pressed with the
-     * presence of IME. First back key should dismiss IME and second back key should dismiss Find in
-     * page toolbar.
+     * Verify Find in page toolbar is dismissed when device back key is pressed when IME is not
+     * present. First back key press itself will dismiss Find in page toolbar.
      */
     @Test
     @MediumTest
     @Feature({"FindInPage"})
-    @DisableFeatures(ChromeFeatureList.BACK_GESTURE_REFACTOR)
     public void testBackKeyDoesNotDismissFindWhenImeIsPresent() {
-        sActivityTestRule.loadUrl(sActivityTestRule.getTestServer().getURL(FILEPATH));
-        findInPageFromMenu();
-        final TextView findQueryText = getFindQueryText();
-        KeyUtils.singleKeyEventView(
-                InstrumentationRegistry.getInstrumentation(), findQueryText, KeyEvent.KEYCODE_A);
-        waitForIME(true);
-        // IME is present at this moment, so IME will consume BACK key.
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
-        waitForIME(false);
-        waitForFindInPageVisibility(true);
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
-        waitForFindInPageVisibility(false);
-    }
-
-    /**
-     * Same with {@link #testBackKeyDoesNotDismissFindWhenImeIsPresent()}, but with predictive back
-     * gesture enabled.
-     */
-    @Test
-    @MediumTest
-    @Feature({"FindInPage"})
-    @EnableFeatures(ChromeFeatureList.BACK_GESTURE_REFACTOR)
-    public void testBackKeyDoesNotDismissFindWhenImeIsPresent_BackRefactored() {
         sActivityTestRule.loadUrl(sActivityTestRule.getTestServer().getURL(FILEPATH));
         findInPageFromMenu();
         final TextView findQueryText = getFindQueryText();
@@ -457,25 +478,8 @@ public class FindTest {
     @Test
     @MediumTest
     @Feature({"FindInPage"})
-    @DisableFeatures(ChromeFeatureList.BACK_GESTURE_REFACTOR)
-    public void testBackKeyDismissesFind() {
-        loadTestAndVerifyFindInPage("pitts", "1/7");
-        waitForIME(true);
-        // Hide IME by clicking next button from find tool bar.
-        TouchCommon.singleClickView(
-                sActivityTestRule.getActivity().findViewById(R.id.find_next_button));
-        waitForIME(false);
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
-        waitForFindInPageVisibility(false);
-    }
-
-    /** Same with {@link #testBackKeyDismissesFind()} but with predictive back gesture enabled. */
-    @Test
-    @MediumTest
-    @Feature({"FindInPage"})
-    @EnableFeatures(ChromeFeatureList.BACK_GESTURE_REFACTOR)
     @DisabledTest(message = "https://crbug.com/1458344")
-    public void testBackKeyDismissesFind_BackRefactored() {
+    public void testBackKeyDismissesFind() {
         loadTestAndVerifyFindInPage("pitts", "1/7");
         waitForIME(true);
         // Hide IME by clicking next button from find tool bar.

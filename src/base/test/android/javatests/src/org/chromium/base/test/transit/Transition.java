@@ -4,13 +4,17 @@
 
 package org.chromium.base.test.transit;
 
-import androidx.annotation.Nullable;
+import org.chromium.base.Log;
+import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /** A transition into and/or out of {@link ConditionalState}s. */
+@NullMarked
 public abstract class Transition {
     /**
      * A trigger that will be executed to start the transition after all Conditions are in place and
@@ -21,22 +25,139 @@ public abstract class Transition {
         void triggerTransition();
     }
 
-    protected final TransitionOptions mOptions;
-    @Nullable protected final Trigger mTrigger;
+    private static final String TAG = "Transit";
+    private static int sLastTripId;
 
-    Transition(TransitionOptions options, @Nullable Trigger trigger) {
+    protected final int mId;
+    protected final TransitionOptions mOptions;
+    protected final @Nullable Trigger mTrigger;
+    protected final List<? extends ConditionalState> mExitedStates;
+    protected final List<? extends ConditionalState> mEnteredStates;
+    protected final ConditionWaiter mConditionWaiter;
+
+    Transition(
+            TransitionOptions options,
+            List<? extends ConditionalState> exitedStates,
+            List<? extends ConditionalState> enteredStates,
+            @Nullable Trigger trigger) {
+        mId = ++sLastTripId;
         mOptions = options;
         mTrigger = trigger;
+        mExitedStates = exitedStates;
+        mEnteredStates = enteredStates;
+        mConditionWaiter = new ConditionWaiter(this);
+    }
+
+    void transitionSync() {
+        try {
+            Log.i(TAG, "%s: started", toDebugString());
+            onBeforeTransition();
+            performTransitionWithRetries();
+            onAfterTransition();
+            Log.i(TAG, "%s: finished", toDebugString());
+        } catch (TravelException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw newTransitionException(e);
+        }
+
+        PublicTransitConfig.maybePauseAfterTransition(this);
+    }
+
+    private boolean shouldFailOnAlreadyFulfilled() {
+        // At least one Condition should be not fulfilled, or this is likely an incorrectly
+        // designed Transition. Exceptions to this rule:
+        //     1. null Trigger, for example when focusing on secondary elements of a screen that
+        //        aren't declared in Station#declareElements().
+        //     2. A explicit exception is made with TransitionOptions.mPossiblyAlreadyFulfilled.
+        //        E.g. when not possible to determine whether the trigger needs to be run.
+        return !mOptions.mPossiblyAlreadyFulfilled && mTrigger != null;
+    }
+
+    protected void onBeforeTransition() {
+        for (ConditionalState exited : mExitedStates) {
+            exited.setStateTransitioningFrom();
+        }
+        for (ConditionalState entered : mEnteredStates) {
+            entered.setStateTransitioningTo();
+        }
+        mConditionWaiter.onBeforeTransition(shouldFailOnAlreadyFulfilled());
+    }
+
+    protected void onAfterTransition() {
+        for (ConditionalState exited : mExitedStates) {
+            exited.setStateFinished();
+        }
+        for (ConditionalState entered : mEnteredStates) {
+            entered.setStateActive();
+        }
+        mConditionWaiter.onAfterTransition();
+    }
+
+    protected void performTransitionWithRetries() {
+        if (mOptions.mTries == 1) {
+            triggerTransition();
+            Log.i(TAG, "%s: waiting for conditions", toDebugString());
+            waitUntilConditionsFulfilled();
+        } else {
+            for (int tryNumber = 1; tryNumber <= mOptions.mTries; tryNumber++) {
+                try {
+                    triggerTransition();
+                    Log.i(
+                            TAG,
+                            "%s: try #%d/%d, waiting for conditions",
+                            toDebugString(),
+                            tryNumber,
+                            mOptions.mTries);
+                    waitUntilConditionsFulfilled();
+                    break;
+                } catch (TravelException e) {
+                    Log.w(TAG, "%s: try #%d failed", toDebugString(), tryNumber, e);
+                    if (tryNumber >= mOptions.mTries) {
+                        throw e;
+                    }
+                }
+            }
+        }
     }
 
     protected void triggerTransition() {
         if (mTrigger != null) {
+            Log.i(TAG, "%s: will run trigger", toDebugString());
             try {
-                mTrigger.triggerTransition();
-            } catch (Exception e) {
+                if (mOptions.mRunTriggerOnUiThread) {
+                    ThreadUtils.runOnUiThread(mTrigger::triggerTransition);
+                } else {
+                    mTrigger.triggerTransition();
+                }
+                Log.i(TAG, "%s: finished running trigger", toDebugString());
+            } catch (Throwable e) {
                 throw TravelException.newTravelException(
-                        "Exception thrown by Transition trigger for " + toDebugString(), e);
+                        String.format("%s: trigger threw ", toDebugString()), e);
             }
+        } else {
+            Log.i(TAG, "%s is triggerless", toDebugString());
+        }
+    }
+
+    protected void waitUntilConditionsFulfilled() {
+        // Throws CriteriaNotSatisfiedException if any conditions aren't met within the timeout and
+        // prints the state of all conditions. The timeout can be reduced when explicitly looking
+        // for flakiness due to tight timeouts.
+        try {
+            mConditionWaiter.waitFor();
+        } catch (TravelException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw newTransitionException(e);
+        }
+    }
+
+    protected List<Condition> getTransitionConditions() {
+        if (mOptions.mTransitionConditions == null) {
+            return Collections.EMPTY_LIST;
+        } else {
+            return mOptions.mTransitionConditions;
         }
     }
 
@@ -58,12 +179,16 @@ public abstract class Transition {
         return toDebugString();
     }
 
-    protected List<Condition> getTransitionConditions() {
-        if (mOptions.mTransitionConditions == null) {
-            return Collections.EMPTY_LIST;
-        } else {
-            return mOptions.mTransitionConditions;
-        }
+    public List<? extends ConditionalState> getEnteredStates() {
+        return mEnteredStates;
+    }
+
+    public List<? extends ConditionalState> getExitedStates() {
+        return mExitedStates;
+    }
+
+    public TransitionOptions getOptions() {
+        return mOptions;
     }
 
     /**
@@ -84,6 +209,25 @@ public abstract class Transition {
         return newOptions().withRetry().build();
     }
 
+    /** Convenience method equivalent to newOptions().withPossiblyAlreadyFulfilled().build(). */
+    public static TransitionOptions possiblyAlreadyFulfilledOption() {
+        return newOptions().withPossiblyAlreadyFulfilled().build();
+    }
+
+    /** Convenience method equivalent to newOptions().withCondition().withCondition().build(). */
+    public static TransitionOptions conditionOption(Condition... conditions) {
+        TransitionOptions.Builder builder = newOptions();
+        for (Condition condition : conditions) {
+            builder = builder.withCondition(condition);
+        }
+        return builder.build();
+    }
+
+    /** Convenience method equivalent to newOptions().withRunTriggerOnUiThread().build(). */
+    public static TransitionOptions runTriggerOnUiThreadOption() {
+        return newOptions().withRunTriggerOnUiThread().build();
+    }
+
     /** Options to configure the Transition. */
     public static class TransitionOptions {
 
@@ -92,6 +236,7 @@ public abstract class Transition {
         long mTimeoutMs;
         int mTries = 1;
         boolean mPossiblyAlreadyFulfilled;
+        boolean mRunTriggerOnUiThread;
 
         private TransitionOptions() {}
 
@@ -133,6 +278,12 @@ public abstract class Transition {
             /** The Transition's Conditions might already be all fulfilled before the Trigger. */
             public Builder withPossiblyAlreadyFulfilled() {
                 mPossiblyAlreadyFulfilled = true;
+                return this;
+            }
+
+            /** Run the {@link Trigger} on the UI Thread. */
+            public Builder withRunTriggerOnUiThread() {
+                mRunTriggerOnUiThread = true;
                 return this;
             }
         }

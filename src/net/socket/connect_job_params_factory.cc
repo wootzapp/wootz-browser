@@ -5,11 +5,14 @@
 #include "net/socket/connect_job_params_factory.h"
 
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "base/check.h"
 #include "base/containers/flat_set.h"
+#include "base/feature_list.h"
 #include "base/memory/scoped_refptr.h"
+#include "net/base/features.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/privacy_mode.h"
@@ -26,7 +29,6 @@
 #include "net/socket/transport_connect_job.h"
 #include "net/ssl/ssl_config.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "url/gurl.h"
 #include "url/scheme_host_port.h"
 
@@ -63,21 +65,21 @@ void ConfigureAlpn(const ConnectJobFactory::Endpoint& endpoint,
     return;
   }
 
-  DCHECK(absl::holds_alternative<url::SchemeHostPort>(endpoint));
+  DCHECK(std::holds_alternative<url::SchemeHostPort>(endpoint));
 
   if (alpn_mode == ConnectJobFactory::AlpnMode::kHttp11Only) {
-    ssl_config.alpn_protos = {kProtoHTTP11};
+    ssl_config.alpn_protos = {NextProto::kProtoHTTP11};
     ssl_config.application_settings =
         *common_connect_job_params.application_settings;
   } else {
     DCHECK_EQ(alpn_mode, ConnectJobFactory::AlpnMode::kHttpAll);
-    DCHECK(absl::holds_alternative<url::SchemeHostPort>(endpoint));
+    DCHECK(std::holds_alternative<url::SchemeHostPort>(endpoint));
     ssl_config.alpn_protos = *common_connect_job_params.alpn_protos;
     ssl_config.application_settings =
         *common_connect_job_params.application_settings;
     if (common_connect_job_params.http_server_properties) {
       common_connect_job_params.http_server_properties->MaybeForceHTTP11(
-          absl::get<url::SchemeHostPort>(endpoint), network_anonymization_key,
+          std::get<url::SchemeHostPort>(endpoint), network_anonymization_key,
           &ssl_config);
     }
   }
@@ -93,7 +95,7 @@ void ConfigureAlpn(const ConnectJobFactory::Endpoint& endpoint,
   // that False Start otherwise saves.
   ssl_config.renego_allowed_default = renego_allowed;
   if (renego_allowed) {
-    ssl_config.renego_allowed_for_protos = {kProtoHTTP11};
+    ssl_config.renego_allowed_for_protos = {NextProto::kProtoHTTP11};
   }
 }
 
@@ -107,38 +109,38 @@ base::flat_set<std::string> SupportedProtocolsFromSSLConfig(
 }
 
 HostPortPair ToHostPortPair(const ConnectJobFactory::Endpoint& endpoint) {
-  if (absl::holds_alternative<url::SchemeHostPort>(endpoint)) {
+  if (std::holds_alternative<url::SchemeHostPort>(endpoint)) {
     return HostPortPair::FromSchemeHostPort(
-        absl::get<url::SchemeHostPort>(endpoint));
+        std::get<url::SchemeHostPort>(endpoint));
   }
 
   DCHECK(
-      absl::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
-  return absl::get<ConnectJobFactory::SchemelessEndpoint>(endpoint)
+      std::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
+  return std::get<ConnectJobFactory::SchemelessEndpoint>(endpoint)
       .host_port_pair;
 }
 
 TransportSocketParams::Endpoint ToTransportEndpoint(
     const ConnectJobFactory::Endpoint& endpoint) {
-  if (absl::holds_alternative<url::SchemeHostPort>(endpoint)) {
-    return absl::get<url::SchemeHostPort>(endpoint);
+  if (std::holds_alternative<url::SchemeHostPort>(endpoint)) {
+    return std::get<url::SchemeHostPort>(endpoint);
   }
 
   DCHECK(
-      absl::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
-  return absl::get<ConnectJobFactory::SchemelessEndpoint>(endpoint)
+      std::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
+  return std::get<ConnectJobFactory::SchemelessEndpoint>(endpoint)
       .host_port_pair;
 }
 
 bool UsingSsl(const ConnectJobFactory::Endpoint& endpoint) {
-  if (absl::holds_alternative<url::SchemeHostPort>(endpoint)) {
+  if (std::holds_alternative<url::SchemeHostPort>(endpoint)) {
     return GURL::SchemeIsCryptographic(
-        base::ToLowerASCII(absl::get<url::SchemeHostPort>(endpoint).scheme()));
+        base::ToLowerASCII(std::get<url::SchemeHostPort>(endpoint).scheme()));
   }
 
   DCHECK(
-      absl::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
-  return absl::get<ConnectJobFactory::SchemelessEndpoint>(endpoint).using_ssl;
+      std::holds_alternative<ConnectJobFactory::SchemelessEndpoint>(endpoint));
+  return std::get<ConnectJobFactory::SchemelessEndpoint>(endpoint).using_ssl;
 }
 
 ConnectJobParams MakeSSLSocketParams(
@@ -161,15 +163,29 @@ ConnectJobParams CreateProxyParams(
     size_t proxy_chain_index,
     const std::optional<NetworkTrafficAnnotationTag>& proxy_annotation_tag,
     const OnHostResolutionCallback& resolution_callback,
-    const NetworkAnonymizationKey& network_anonymization_key,
+    const NetworkAnonymizationKey& endpoint_network_anonymization_key,
     SecureDnsPolicy secure_dns_policy,
     const CommonConnectJobParams* common_connect_job_params,
     const NetworkAnonymizationKey& proxy_dns_network_anonymization_key) {
   const ProxyServer& proxy_server =
       proxy_chain.GetProxyServer(proxy_chain_index);
 
+  // If the requested session will be used to speak to a downstream proxy, then
+  // it need not be partitioned based on the ultimate destination's NAK. If the
+  // session is to the destination, then partition using that destination's NAK.
+  // This allows sharing of connections to proxies in multi-server proxy chains.
+  bool use_empty_nak =
+      !base::FeatureList::IsEnabled(net::features::kPartitionProxyChains) &&
+      proxy_chain_index < proxy_chain.length() - 1;
+  // Note that C++ extends the lifetime of this value such that the reference
+  // remains valid as long as the reference.
+  const NetworkAnonymizationKey& network_anonymization_key =
+      use_empty_nak ? NetworkAnonymizationKey()
+                    : endpoint_network_anonymization_key;
+
   // Set up the SSLConfig if using SSL to the proxy.
   SSLConfig proxy_server_ssl_config;
+
   if (proxy_server.is_secure_http_like()) {
     // Disable cert verification network fetches for secure proxies, since
     // those network requests are probably going to need to go through the
@@ -184,7 +200,11 @@ ConnectJobParams CreateProxyParams(
                   // Always enable ALPN for proxies.
                   ConnectJobFactory::AlpnMode::kHttpAll,
                   network_anonymization_key, *common_connect_job_params,
-                  proxy_server_ssl_config, /*renego_allowed=*/false);
+                  proxy_server_ssl_config,
+                  /*renego_allowed=*/false);
+    proxy_server_ssl_config.proxy_chain = proxy_chain;
+    proxy_server_ssl_config.proxy_chain_index = proxy_chain_index;
+    proxy_server_ssl_config.session_usage = SessionUsage::kProxy;
   }
 
   // Create the nested parameters over which the connection to the proxy
@@ -219,8 +239,8 @@ ConnectJobParams CreateProxyParams(
     params = CreateProxyParams(
         proxy_server.host_port_pair(), true, endpoint, proxy_chain,
         proxy_chain_index - 1, proxy_annotation_tag, resolution_callback,
-        network_anonymization_key, secure_dns_policy, common_connect_job_params,
-        proxy_dns_network_anonymization_key);
+        endpoint_network_anonymization_key, secure_dns_policy,
+        common_connect_job_params, proxy_dns_network_anonymization_key);
   }
 
   // For secure connections, wrap the underlying connection params in SSL
@@ -264,7 +284,7 @@ ConnectJobParams ConstructConnectJobParams(
     bool force_tunnel,
     PrivacyMode privacy_mode,
     const OnHostResolutionCallback& resolution_callback,
-    const NetworkAnonymizationKey& network_anonymization_key,
+    const NetworkAnonymizationKey& endpoint_network_anonymization_key,
     SecureDnsPolicy secure_dns_policy,
     bool disable_cert_network_fetches,
     const CommonConnectJobParams* common_connect_job_params,
@@ -277,7 +297,7 @@ ConnectJobParams ConstructConnectJobParams(
     ssl_config.allowed_bad_certs = allowed_bad_certs;
     ssl_config.privacy_mode = privacy_mode;
 
-    ConfigureAlpn(endpoint, alpn_mode, network_anonymization_key,
+    ConfigureAlpn(endpoint, alpn_mode, endpoint_network_anonymization_key,
                   *common_connect_job_params, ssl_config,
                   /*renego_allowed=*/true);
 
@@ -287,6 +307,10 @@ ConnectJobParams ConstructConnectJobParams(
     // TODO(crbug.com/41459647): Also enable 0-RTT for TLS proxies.
     ssl_config.early_data_enabled =
         *common_connect_job_params->enable_early_data;
+
+    ssl_config.proxy_chain = proxy_chain;
+    ssl_config.proxy_chain_index = proxy_chain.length();
+    ssl_config.session_usage = SessionUsage::kDestination;
   }
 
   // Create the nested parameters over which the connection to the endpoint
@@ -294,7 +318,7 @@ ConnectJobParams ConstructConnectJobParams(
   ConnectJobParams params;
   if (proxy_chain.is_direct()) {
     params = ConnectJobParams(base::MakeRefCounted<TransportSocketParams>(
-        ToTransportEndpoint(endpoint), network_anonymization_key,
+        ToTransportEndpoint(endpoint), endpoint_network_anonymization_key,
         secure_dns_policy, resolution_callback,
         SupportedProtocolsFromSSLConfig(ssl_config)));
   } else {
@@ -305,8 +329,9 @@ ConnectJobParams ConstructConnectJobParams(
     params = CreateProxyParams(
         ToHostPortPair(endpoint), should_tunnel, endpoint, proxy_chain,
         /*proxy_chain_index=*/proxy_chain.length() - 1, proxy_annotation_tag,
-        resolution_callback, network_anonymization_key, secure_dns_policy,
-        common_connect_job_params, proxy_dns_network_anonymization_key);
+        resolution_callback, endpoint_network_anonymization_key,
+        secure_dns_policy, common_connect_job_params,
+        proxy_dns_network_anonymization_key);
   }
 
   if (UsingSsl(endpoint)) {
@@ -314,8 +339,9 @@ ConnectJobParams ConstructConnectJobParams(
     // proxies) in SSLSocketParams to handle SSL to to the endpoint.
     // TODO(crbug.com/40181080): Pass `endpoint` directly (preserving scheme
     // when available)?
-    params = MakeSSLSocketParams(std::move(params), ToHostPortPair(endpoint),
-                                 ssl_config, network_anonymization_key);
+    params =
+        MakeSSLSocketParams(std::move(params), ToHostPortPair(endpoint),
+                            ssl_config, endpoint_network_anonymization_key);
   }
 
   return params;

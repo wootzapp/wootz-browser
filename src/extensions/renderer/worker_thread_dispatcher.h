@@ -76,6 +76,7 @@ class WorkerThreadDispatcher :
       blink::WebServiceWorkerContextProxy* proxy,
       int64_t service_worker_version_id,
       const std::optional<base::UnguessableToken>& activation_sequence,
+      const blink::ServiceWorkerToken& service_worker_token,
       ScriptContext* script_context,
       std::unique_ptr<NativeExtensionBindingsSystem> bindings_system);
   void RemoveWorkerData(int64_t service_worker_version_id);
@@ -102,7 +103,7 @@ class WorkerThreadDispatcher :
   // Returns true if the task to each worker thread posts correctly.
   bool UpdateBindingsHelper(const std::optional<ExtensionId>& extension_id);
 
-  using IDToTaskRunnerMap = std::map<base::PlatformThreadId, base::TaskRunner*>;
+  using IDToTaskRunnerMap = std::map<int, base::TaskRunner*>;
   IDToTaskRunnerMap task_runner_map_;
   base::Lock task_runner_map_lock_;
 };

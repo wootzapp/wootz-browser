@@ -13,7 +13,6 @@
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "components/keyed_service/core/keyed_service.h"
 #include "components/unexportable_keys/background_task_priority.h"
 #include "components/unexportable_keys/ref_counted_unexportable_signing_key.h"
 #include "components/unexportable_keys/service_error.h"
@@ -60,6 +59,7 @@ class COMPONENT_EXPORT(UNEXPORTABLE_KEYS) UnexportableKeyServiceImpl
       const UnexportableKeyId& key_id,
       base::span<const uint8_t> data,
       BackgroundTaskPriority priority,
+      size_t max_retries,
       base::OnceCallback<void(ServiceErrorOr<std::vector<uint8_t>>)> callback)
       override;
   ServiceErrorOr<std::vector<uint8_t>> GetSubjectPublicKeyInfo(

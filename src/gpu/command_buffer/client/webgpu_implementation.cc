@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/command_buffer/client/webgpu_implementation.h"
 
 #include <dawn/wire/client/webgpu.h>
@@ -158,55 +163,47 @@ void WebGPUImplementation::SetErrorMessageCallback(
 }
 bool WebGPUImplementation::ThreadSafeShallowLockDiscardableTexture(
     uint32_t texture_id) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 void WebGPUImplementation::CompleteLockDiscardableTexureOnContextThread(
     uint32_t texture_id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 bool WebGPUImplementation::ThreadsafeDiscardableTextureIsDeletedForTracing(
     uint32_t texture_id) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 void* WebGPUImplementation::MapTransferCacheEntry(uint32_t serialized_size) {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 void WebGPUImplementation::UnmapAndCreateTransferCacheEntry(uint32_t type,
                                                             uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 bool WebGPUImplementation::ThreadsafeLockTransferCacheEntry(uint32_t type,
                                                             uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 void WebGPUImplementation::UnlockTransferCacheEntries(
     const std::vector<std::pair<uint32_t, uint32_t>>& entries) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 void WebGPUImplementation::DeleteTransferCacheEntry(uint32_t type,
                                                     uint32_t id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 unsigned int WebGPUImplementation::GetTransferBufferFreeSize() const {
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 bool WebGPUImplementation::IsJpegDecodeAccelerationSupported() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 bool WebGPUImplementation::IsWebPDecodeAccelerationSupported() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 bool WebGPUImplementation::CanDecodeWithHardwareAcceleration(
     const cc::ImageHeaderMetadata* image_metadata) const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 // InterfaceBase implementation.
@@ -325,7 +322,7 @@ void WebGPUImplementation::OnGpuControlReturnData(
     } break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 #endif
 }
@@ -370,6 +367,34 @@ scoped_refptr<APIChannel> WebGPUImplementation::GetAPIChannel() const {
 #endif
 }
 
+ReservedBuffer WebGPUImplementation::ReserveBuffer(
+    WGPUDevice device,
+    const WGPUBufferDescriptor* optionalDesc) {
+#if BUILDFLAG(USE_DAWN)
+  // Commit because we need to make sure messages that free a previously used
+  // buffer is seen first. ReserveBuffer may reuse an existing ID.
+  dawn_wire_->serializer()->Commit();
+
+  WGPUBufferDescriptor placeholderDesc;
+  if (optionalDesc == nullptr) {
+    placeholderDesc = {};  // Zero initialize.
+    optionalDesc = &placeholderDesc;
+  }
+
+  auto reserved =
+      dawn_wire_->wire_client()->ReserveBuffer(device, optionalDesc);
+  ReservedBuffer result;
+  result.buffer = reserved.buffer;
+  result.id = reserved.handle.id;
+  result.generation = reserved.handle.generation;
+  result.deviceId = reserved.deviceHandle.id;
+  result.deviceGeneration = reserved.deviceHandle.generation;
+  return result;
+#else
+  return {};
+#endif
+}
+
 ReservedTexture WebGPUImplementation::ReserveTexture(
     WGPUDevice device,
     const WGPUTextureDescriptor* optionalDesc) {
@@ -394,8 +419,7 @@ ReservedTexture WebGPUImplementation::ReserveTexture(
   result.deviceGeneration = reserved.deviceHandle.generation;
   return result;
 #else
-  NOTREACHED_IN_MIGRATION();
-  return {};
+  NOTREACHED();
 #endif
 }
 
@@ -409,7 +433,8 @@ void WebGPUImplementation::AssociateMailbox(
     GLuint device_generation,
     GLuint texture_id,
     GLuint texture_generation,
-    GLuint usage,
+    uint64_t usage,
+    uint64_t internal_usage,
     const WGPUTextureFormat* view_formats,
     GLuint view_format_count,
     MailboxFlags flags,
@@ -439,8 +464,32 @@ void WebGPUImplementation::AssociateMailbox(
 
   helper_->AssociateMailboxImmediate(
       device_id, device_generation, texture_id, texture_generation, usage,
-      flags, view_format_count, num_entries,
+      internal_usage, flags, view_format_count, num_entries,
       reinterpret_cast<GLuint*>(immediate_data.data()));
+#endif
+}
+
+void WebGPUImplementation::AssociateMailboxForBuffer(GLuint device_id,
+                                                     GLuint device_generation,
+                                                     GLuint buffer_id,
+                                                     GLuint buffer_generation,
+                                                     uint64_t usage,
+                                                     const Mailbox& mailbox) {
+#if BUILDFLAG(USE_DAWN)
+  // Commit previous Dawn commands as they may manipulate buffer object IDs
+  // and need to be resolved prior to the AssociateMailboxForBuffer command.
+  // Otherwise the service side might not know, for example that the previous
+  // buffer using that ID has been released.
+  dawn_wire_->serializer()->Commit();
+
+  // The command buffer transfer data in 4-byte "entries". So the array of data
+  // we pass must have a byte-length that's a multiple of 4.
+  constexpr size_t kEntrySize = 4u;
+  static_assert(sizeof(mailbox.name) % kEntrySize == 0u);
+
+  helper_->AssociateMailboxForBufferImmediate(
+      device_id, device_generation, buffer_id, buffer_generation, usage,
+      reinterpret_cast<const GLuint*>(mailbox.name));
 #endif
 }
 
@@ -451,6 +500,17 @@ void WebGPUImplementation::DissociateMailbox(GLuint texture_id,
   // to Dissociating the shared image from that texture.
   dawn_wire_->serializer()->Commit();
   helper_->DissociateMailbox(texture_id, texture_generation);
+#endif
+}
+
+void WebGPUImplementation::DissociateMailboxForBuffer(
+    GLuint buffer_id,
+    GLuint buffer_generation) {
+#if BUILDFLAG(USE_DAWN)
+  // Commit previous Dawn commands that might be rendering to the buffer, prior
+  // to Dissociating the shared image from that buffer.
+  dawn_wire_->serializer()->Commit();
+  helper_->DissociateMailboxForBuffer(buffer_id, buffer_generation);
 #endif
 }
 

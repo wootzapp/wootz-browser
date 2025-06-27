@@ -435,7 +435,7 @@ class HintsFetcherDisabledBrowserTest : public InProcessBrowserTest {
                optimization_guide::HintsFetcherRemoteResponseType::kHung) {
       return std::make_unique<net::test_server::HungResponse>();
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
 
     return std::move(response);
@@ -1475,7 +1475,8 @@ IN_PROC_BROWSER_TEST_F(HintsFetcherSearchPagePrerenderingBrowserTest,
   // Load a page in the prerender.
   GURL prerender_url = search_results_page_url();
   ResetCountHintsRequestsReceived();
-  int host_id = prerender_helper()->AddPrerender(prerender_url);
+  content::FrameTreeNodeId host_id =
+      prerender_helper()->AddPrerender(prerender_url);
   EXPECT_EQ(0u, count_hints_requests_received());
   histogram_tester->ExpectBucketCount(
       "OptimizationGuide.HintsFetcher.GetHintsRequest.HostCount", 0, 0);
@@ -1701,22 +1702,18 @@ class PersonalizedHintsFetcherBrowserTest : public HintsFetcherBrowserTest {
 
   ~PersonalizedHintsFetcherBrowserTest() override = default;
 
-  void SetUp() override { HintsFetcherBrowserTest::SetUp(); }
+  void SetUpBrowserContextKeyedServices(
+      content::BrowserContext* context) override {
+    HintsFetcherBrowserTest::SetUpBrowserContextKeyedServices(context);
+    IdentityTestEnvironmentProfileAdaptor::
+        SetIdentityTestEnvironmentFactoriesOnBrowserContext(context);
+  }
 
   void SetUpOnMainThread() override {
     HintsFetcherBrowserTest::SetUpOnMainThread();
     identity_test_env_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
             browser()->profile());
-  }
-
-  void SetUpInProcessBrowserTestFixture() override {
-    create_services_subscription_ =
-        BrowserContextDependencyManager::GetInstance()
-            ->RegisterCreateServicesCallbackForTesting(
-                base::BindRepeating(&PersonalizedHintsFetcherBrowserTest::
-                                        OnWillCreateBrowserContextServices,
-                                    base::Unretained(this)));
   }
 
   void PopulateEnabledFeatures(
@@ -1767,15 +1764,9 @@ class PersonalizedHintsFetcherBrowserTest : public HintsFetcherBrowserTest {
   }
 
  private:
-  void OnWillCreateBrowserContextServices(content::BrowserContext* context) {
-    IdentityTestEnvironmentProfileAdaptor::
-        SetIdentityTestEnvironmentFactoriesOnBrowserContext(context);
-  }
-
   // Identity test support.
   std::unique_ptr<IdentityTestEnvironmentProfileAdaptor>
       identity_test_env_adaptor_;
-  base::CallbackListSubscription create_services_subscription_;
 };
 
 IN_PROC_BROWSER_TEST_F(PersonalizedHintsFetcherBrowserTest, NoUserSignIn) {

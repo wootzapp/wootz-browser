@@ -25,9 +25,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/channel_info.h"
-#include "chrome/common/child_process_logging.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
@@ -35,7 +33,6 @@
 #include "chrome/common/media/cdm_registration.h"
 #include "chrome/common/ppapi_utils.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/common_resources.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/crash/core/common/crash_key.h"
@@ -74,7 +71,7 @@
 #include "base/win/windows_version.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "extensions/common/constants.h"
 #endif
 
@@ -90,6 +87,7 @@
 
 #if BUILDFLAG(ENABLE_PDF)
 #include "components/pdf/common/constants.h"
+#include "components/pdf/common/pdf_util.h"
 #endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
@@ -193,11 +191,6 @@ void ChromeContentClient::AddPlugins(
 #endif  // BUILDFLAG(ENABLE_NACL)
 }
 
-std::vector<url::Origin>
-ChromeContentClient::GetPdfInternalPluginAllowedOrigins() {
-  return {url::Origin::Create(GURL(chrome::kChromeUIPrintURL))};
-}
-
 void ChromeContentClient::AddContentDecryptionModules(
     std::vector<content::CdmInfo>* cdms,
     std::vector<media::CdmHostFilePath>* cdm_host_file_paths) {
@@ -229,8 +222,15 @@ void ChromeContentClient::AddContentDecryptionModules(
 //
 // Example standard schemes: https://, chrome-extension://, chrome://, file://
 // Example nonstandard schemes: mailto:, data:, javascript:, about:
+//
+// Warning: Adding a scheme here will make URLs with that scheme incompatible
+// with other parts of the web. If you just need the URL parser to handle the
+// hostname or path correctly, you don't need to add a scheme here since
+// non-special scheme URLs are now supported (see http://crbug.com/40063064 for
+// details). If you add a new scheme, please also add WPT tests for it like
+// https://crrev.com/c/5790445.
 static const char* const kChromeStandardURLSchemes[] = {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
     extensions::kExtensionScheme,
 #endif
     chrome::kIsolatedAppScheme,   chrome::kChromeNativeScheme,
@@ -248,11 +248,11 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->referrer_schemes.push_back(content::kAndroidAppScheme);
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   schemes->extension_schemes.push_back(extensions::kExtensionScheme);
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   schemes->savable_schemes.push_back(extensions::kExtensionScheme);
 #endif
   schemes->savable_schemes.push_back(chrome::kChromeSearchScheme);
@@ -261,7 +261,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   // chrome-search: resources shouldn't trigger insecure content warnings.
   schemes->secure_schemes.push_back(chrome::kChromeSearchScheme);
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   // Treat extensions as secure because communication with them is entirely in
   // the browser, so there is no danger of manipulation or eavesdropping on
   // communication with them by third parties.
@@ -275,7 +275,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->no_access_schemes.push_back(chrome::kChromeNativeScheme);
   schemes->secure_schemes.push_back(chrome::kChromeNativeScheme);
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   schemes->service_worker_schemes.push_back(extensions::kExtensionScheme);
   schemes->service_worker_schemes.push_back(url::kFileScheme);
 
@@ -288,7 +288,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->csp_bypassing_schemes.push_back(extensions::kExtensionScheme);
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   schemes->predefined_handler_schemes.emplace_back(
       url::kMailToScheme, chrome::kChromeOSDefaultMailtoHandler);
   schemes->predefined_handler_schemes.emplace_back(
@@ -300,7 +300,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->service_worker_schemes.push_back(chrome::kIsolatedAppScheme);
   url::AddWebStorageScheme(chrome::kIsolatedAppScheme);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   schemes->local_schemes.push_back(content::kExternalFileScheme);
 #endif
 
@@ -317,6 +317,10 @@ std::u16string ChromeContentClient::GetLocalizedString(
     int message_id,
     const std::u16string& replacement) {
   return l10n_util::GetStringFUTF16(message_id, replacement);
+}
+
+bool ChromeContentClient::HasDataResource(int resource_id) const {
+  return ui::ResourceBundle::GetSharedInstance().HasDataResource(resource_id);
 }
 
 std::string_view ChromeContentClient::GetDataResource(
@@ -352,8 +356,7 @@ std::string ChromeContentClient::GetProcessTypeNameInEnglish(int type) {
   }
 #endif
 
-  NOTREACHED_IN_MIGRATION() << "Unknown child process type!";
-  return "Unknown";
+  NOTREACHED() << "Unknown child process type!";
 }
 
 blink::OriginTrialPolicy* ChromeContentClient::GetOriginTrialPolicy() {
@@ -392,9 +395,7 @@ void ChromeContentClient::ExposeInterfacesToBrowser(
   // Sets up the simplified in-process heap profiler, if it's enabled.
   const auto* heap_profiler_controller =
       heap_profiling::HeapProfilerController::GetInstance();
-  if (heap_profiler_controller && heap_profiler_controller->IsEnabled() &&
-      base::FeatureList::IsEnabled(
-          heap_profiling::kHeapProfilerCentralControl)) {
+  if (heap_profiler_controller && heap_profiler_controller->IsEnabled()) {
     binders->Add<heap_profiling::mojom::SnapshotController>(
         base::BindRepeating(&heap_profiling::ChildProcessSnapshotController::
                                 CreateSelfOwnedReceiver),
@@ -402,4 +403,13 @@ void ChromeContentClient::ExposeInterfacesToBrowser(
         // which can only be accessed on this sequence.
         base::SequencedTaskRunner::GetCurrentDefault());
   }
+}
+
+bool ChromeContentClient::IsFilePickerAllowedForCrossOriginSubframe(
+    const url::Origin& origin) {
+#if BUILDFLAG(ENABLE_PDF)
+  return IsPdfExtensionOrigin(origin);
+#else
+  return false;
+#endif
 }

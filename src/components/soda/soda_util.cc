@@ -4,16 +4,19 @@
 
 #include "components/soda/soda_util.h"
 
-#include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include <string>
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "base/feature_list.h"
+#include "build/build_config.h"
+#include "components/soda/constants.h"
+#include "components/soda/soda_installer.h"
+#include "media/base/media_switches.h"
+#include "media/mojo/mojom/speech_recognizer.mojom.h"
+#include "ui/base/l10n/l10n_util.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #include "base/feature_list.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
 #endif
 
 #if BUILDFLAG(IS_WIN)
@@ -30,18 +33,9 @@ namespace {
 
 #if BUILDFLAG(IS_CHROMEOS)
 bool IsSupportedChromeOS() {
-// Some Chrome OS devices do not support on-device speech.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (!base::FeatureList::IsEnabled(
-          ash::features::kOnDeviceSpeechRecognition)) {
-    return false;
-  }
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  if (!chromeos::BrowserParamsProxy::Get()->IsOndeviceSpeechSupported()) {
-    return false;
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-  return true;
+  // Some Chrome OS devices do not support on-device speech.
+  return base::FeatureList::IsEnabled(
+      ash::features::kOnDeviceSpeechRecognition);
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
@@ -83,6 +77,50 @@ bool IsOnDeviceSpeechRecognitionSupported() {
 #else
   return true;
 #endif
+}
+
+media::mojom::AvailabilityStatus IsOnDeviceSpeechRecognitionAvailable(
+    const std::string& language) {
+  if (!base::FeatureList::IsEnabled(media::kOnDeviceWebSpeech) ||
+      !IsOnDeviceSpeechRecognitionSupported()) {
+    return media::mojom::AvailabilityStatus::kUnavailable;
+  }
+
+  speech::SodaInstaller* soda_installer = speech::SodaInstaller::GetInstance();
+  DCHECK(soda_installer);
+
+  // Check whether the language supported.
+  bool is_language_supported = false;
+  speech::LanguageCode lang_code = speech::LanguageCode::kNone;
+  for (auto const& available_lang : soda_installer->GetAvailableLanguages()) {
+    if (l10n_util::GetLanguage(available_lang) ==
+        l10n_util::GetLanguage(language)) {
+      is_language_supported = true;
+      lang_code = speech::GetLanguageCode(available_lang);
+      break;
+    }
+  }
+
+  if (!is_language_supported) {
+    return media::mojom::AvailabilityStatus::kUnavailable;
+  }
+
+  if (soda_installer->IsSodaInstalled(lang_code)) {
+    return media::mojom::AvailabilityStatus::kAvailable;
+  }
+
+  if (soda_installer->IsLanguageEnabled(language)) {
+    // By this point the language must be either be available but not yet
+    // installed or currently downloading.
+    if (soda_installer->IsSodaLanguageDownloading(
+            speech::GetLanguageCode(language))) {
+      return media::mojom::AvailabilityStatus::kDownloading;
+    }
+
+    return media::mojom::AvailabilityStatus::kDownloadable;
+  }
+
+  return media::mojom::AvailabilityStatus::kUnavailable;
 }
 
 }  // namespace speech

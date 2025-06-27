@@ -13,12 +13,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.payments.PaymentManifestParser;
 import org.chromium.components.payments.PaymentManifestParser.ManifestParseCallback;
 import org.chromium.components.payments.WebAppManifestSection;
@@ -29,7 +32,8 @@ import org.chromium.url.GURL;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class PaymentManifestParserTest implements ManifestParseCallback {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private final PaymentManifestParser mParser = new PaymentManifestParser();
     private GURL[] mWebAppManifestUris;
@@ -60,9 +64,9 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
 
     @Before
     public void setUp() throws Throwable {
-        mActivityTestRule.startMainActivityOnBlankPage();
-        mActivityTestRule.runOnUiThread(
-                (Runnable) () -> mParser.createNative(mActivityTestRule.getWebContents()));
+        WebPageStation page = mActivityTestRule.startOnBlankPage();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> mParser.createNative(page.webContentsElement.get()));
         mWebAppManifestUris = null;
         mSupportedOrigins = null;
         mWebAppManifest = null;
@@ -73,20 +77,19 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
 
     @After
     public void tearDown() throws Throwable {
-        mActivityTestRule.runOnUiThread((Runnable) () -> mParser.destroyNative());
+        ThreadUtils.runOnUiThreadBlocking(() -> mParser.destroyNative());
     }
 
     @Test
     @MediumTest
     @Feature({"Payments"})
     public void testParseInvalidPaymentMethodManifest() throws Throwable {
-        mActivityTestRule.runOnUiThread(
-                (Runnable)
-                        () ->
-                                mParser.parsePaymentMethodManifest(
-                                        new GURL("https://chromium.org/pmm.json"),
-                                        "invalid payment method manifest",
-                                        PaymentManifestParserTest.this));
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mParser.parsePaymentMethodManifest(
+                                new GURL("https://chromium.org/pmm.json"),
+                                "invalid payment method manifest",
+                                this));
         CriteriaHelper.pollInstrumentationThread(() -> mParseFailure);
     }
 
@@ -94,22 +97,21 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
     @MediumTest
     @Feature({"Payments"})
     public void testParsePaymentMethodManifest() throws Throwable {
-        mActivityTestRule.runOnUiThread(
-                (Runnable)
-                        () ->
-                                mParser.parsePaymentMethodManifest(
-                                        new GURL("https://bobpay.test/pmm.json"),
-                                        "{"
-                                                + "  \"default_applications\": ["
-                                                + "    \"https://bobpay.test/app.json\","
-                                                + "    \"https://alicepay.test/app.json\""
-                                                + "  ],"
-                                                + "  \"supported_origins\": ["
-                                                + "    \"https://charliepay.test\","
-                                                + "    \"https://evepay.test\""
-                                                + "  ]"
-                                                + "}",
-                                        PaymentManifestParserTest.this));
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mParser.parsePaymentMethodManifest(
+                                new GURL("https://bobpay.test/pmm.json"),
+                                "{"
+                                        + "  \"default_applications\": ["
+                                        + "    \"https://bobpay.test/app.json\","
+                                        + "    \"https://alicepay.test/app.json\""
+                                        + "  ],"
+                                        + "  \"supported_origins\": ["
+                                        + "    \"https://charliepay.test\","
+                                        + "    \"https://evepay.test\""
+                                        + "  ]"
+                                        + "}",
+                                this));
         CriteriaHelper.pollInstrumentationThread(() -> mParsePaymentMethodManifestSuccess);
         Assert.assertNotNull(mWebAppManifestUris);
         Assert.assertEquals(2, mWebAppManifestUris.length);
@@ -126,13 +128,13 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
     @Feature({"Payments"})
     public void testParsePaymentMethodManifestSupportedOriginsWildcardNotSupported()
             throws Throwable {
-        mActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 (Runnable)
                         () ->
                                 mParser.parsePaymentMethodManifest(
                                         new GURL("https://bobpay.test/pmm.json"),
                                         "{\"supported_origins\": \"*\"}",
-                                        PaymentManifestParserTest.this));
+                                        this));
         Assert.assertNull(mWebAppManifestUris);
         Assert.assertNull(mSupportedOrigins);
     }
@@ -141,12 +143,8 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
     @MediumTest
     @Feature({"Payments"})
     public void testParseInvalidWebAppManifest() throws Throwable {
-        mActivityTestRule.runOnUiThread(
-                (Runnable)
-                        () ->
-                                mParser.parseWebAppManifest(
-                                        "invalid web app manifest",
-                                        PaymentManifestParserTest.this));
+        ThreadUtils.runOnUiThreadBlocking(
+                (Runnable) () -> mParser.parseWebAppManifest("invalid web app manifest", this));
         CriteriaHelper.pollInstrumentationThread(() -> mParseFailure);
     }
 
@@ -154,7 +152,7 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
     @MediumTest
     @Feature({"Payments"})
     public void testParseWebAppManifest() throws Throwable {
-        mActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 (Runnable)
                         () ->
                                 mParser.parseWebAppManifest(
@@ -172,7 +170,7 @@ public class PaymentManifestParserTest implements ManifestParseCallback {
                                                 + "    }]"
                                                 + "  }]"
                                                 + "}",
-                                        PaymentManifestParserTest.this));
+                                        this));
         CriteriaHelper.pollInstrumentationThread(() -> mParseWebAppManifestSuccess);
         Assert.assertNotNull(mWebAppManifest);
         Assert.assertEquals(1, mWebAppManifest.length);

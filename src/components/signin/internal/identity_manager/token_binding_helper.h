@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_SIGNIN_INTERNAL_IDENTITY_MANAGER_TOKEN_BINDING_HELPER_H_
 #define COMPONENTS_SIGNIN_INTERNAL_IDENTITY_MANAGER_TOKEN_BINDING_HELPER_H_
 
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "base/containers/flat_map.h"
@@ -29,6 +31,26 @@ struct CoreAccountId;
 // Keys needs to be loaded into the helper on every startup.
 class TokenBindingHelper {
  public:
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(Error)
+  enum class Error {
+    // Reserved for histograms.
+    // kNone = 0
+    kKeyNotFound = 1,
+    kLoadKeyFailure = 2,
+    kCreateAssertionFaiure = 3,
+    kSignAssertionFailure = 4,
+    kAppendSignatureFailure = 5,
+    kMaxValue = kAppendSignatureFailure
+  };
+
+  static constexpr Error kNoErrorForMetrics = static_cast<Error>(0);
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/signin/enums.xml:TokenBindingGenerateAssertionResult)
+
+  using GenerateAssertionCallback = base::OnceCallback<void(std::string)>;
+
   explicit TokenBindingHelper(
       unexportable_keys::UnexportableKeyService& unexportable_key_service);
 
@@ -58,16 +80,25 @@ class TokenBindingHelper {
   // Asynchronously generates a binding key assertion with a key associated with
   // `account_id`. The result is returned through `callback`. Returns an empty
   // string if the generation fails.
-  void GenerateBindingKeyAssertion(
-      const CoreAccountId& account_id,
-      std::string_view challenge,
-      const GURL& destination_url,
-      base::OnceCallback<void(std::string)> callback);
+  // If not empty, `ephemeral_public_key` will be added to the assertion,
+  // instructing the recipient to encrypt sensitive data with this key.
+  void GenerateBindingKeyAssertion(const CoreAccountId& account_id,
+                                   std::string_view challenge,
+                                   std::string_view ephemeral_public_key,
+                                   const GURL& destination_url,
+                                   GenerateAssertionCallback callback);
 
   // Returns a wrapped key associated with `account_id`. Returns an empty vector
   // if no key is found.
   std::vector<uint8_t> GetWrappedBindingKey(
       const CoreAccountId& account_id) const;
+
+  // Returns the number of bound tokens.
+  size_t GetBoundTokenCount() const;
+
+  // Returns whether all accounts reuse the same binding key.
+  // Returns `true` if empty.
+  bool AreAllBindingKeysSame() const;
 
  private:
   struct BindingKeyData {
@@ -87,8 +118,9 @@ class TokenBindingHelper {
 
   void SignAssertionToken(
       std::string_view challenge,
+      std::string_view ephemeral_public_key,
       const GURL& destination_url,
-      base::OnceCallback<void(std::string)> callback,
+      GenerateAssertionCallback callback,
       unexportable_keys::ServiceErrorOr<unexportable_keys::UnexportableKeyId>
           binding_key);
 

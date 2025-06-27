@@ -5,7 +5,7 @@
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getTemplate} from './app_service_internals.html.js';
-import type {AppCapabilityInfo, AppInfo, PreferredAppInfo, PromiseAppInfo, ShortcutInfo} from './app_service_internals.mojom-webui.js';
+import type {AppCapabilityInfo, AppInfo, PreferredAppInfo, PromiseAppInfo} from './app_service_internals.mojom-webui.js';
 import {AppServiceInternalsPageHandler} from './app_service_internals.mojom-webui.js';
 
 export class AppServiceInternalsElement extends PolymerElement {
@@ -19,25 +19,37 @@ export class AppServiceInternalsElement extends PolymerElement {
 
   static get properties() {
     return {
-      appList_: Array,
-      preferredAppList_: Array,
-      promiseAppList_: Array,
-      appCapabilityList_: Array,
-      shortcutList_: Array,
+      appList_: {
+        type: Array,
+        value: () => [],
+      },
+
+      preferredAppList_: {
+        type: Array,
+        value: () => [],
+      },
+
+      promiseAppList_: {
+        type: Array,
+        value: () => [],
+      },
+
+      appCapabilityList_: {
+        type: Array,
+        value: () => [],
+      },
     };
   }
 
   /** List containing debug information for all installed apps. */
-  private appList_: AppInfo[] = [];
+  declare private appList_: AppInfo[];
   private hashChangeListener_ = () => this.onHashChanged_();
   /** List containing preferred app debug information for installed apps. */
-  private preferredAppList_: PreferredAppInfo[] = [];
+  declare private preferredAppList_: PreferredAppInfo[];
   /** List containing debug information for all promise apps. */
-  private promiseAppList_: PromiseAppInfo[] = [];
+  declare private promiseAppList_: PromiseAppInfo[];
   /** List containing app capability access information. */
-  private appCapabilityList_: AppCapabilityInfo[] = [];
-  /** List containing debug information for all shortcuts. */
-  private shortcutList_: ShortcutInfo[] = [];
+  declare private appCapabilityList_: AppCapabilityInfo[];
 
   override ready() {
     super.ready();
@@ -50,7 +62,6 @@ export class AppServiceInternalsElement extends PolymerElement {
         this.preferredAppList_ = debugInfo.preferredAppList;
         this.promiseAppList_ = debugInfo.promiseAppList;
         this.appCapabilityList_ = debugInfo.appCapabilityList;
-        this.shortcutList_ = debugInfo.shortcutList;
       }
       window.addEventListener('hashchange', this.hashChangeListener_);
       // setTimeout ensures that we only apply the hash change after all the
@@ -105,14 +116,6 @@ export class AppServiceInternalsElement extends PolymerElement {
       fileParts.push(appCapability.name + '\n');
       fileParts.push('-----\n');
       fileParts.push(appCapability.debugInfo + '\n');
-    }
-
-    fileParts.push('Shortcut List\n');
-    fileParts.push('================\n\n');
-    for (const shortcut of this.shortcutList_) {
-      fileParts.push(shortcut.name + '\n');
-      fileParts.push('-----\n');
-      fileParts.push(shortcut.debugInfo + '\n');
     }
 
     fileParts.push('Promise App List\n');

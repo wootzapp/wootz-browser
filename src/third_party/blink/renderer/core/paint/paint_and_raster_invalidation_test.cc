@@ -469,7 +469,8 @@ TEST_P(PaintAndRasterInvalidationTest, NonCompositedLayoutViewResize) {
 
 TEST_P(PaintAndRasterInvalidationTest, FullInvalidationWithHTMLTransform) {
   GetDocument().documentElement()->setAttribute(
-      html_names::kStyleAttr, AtomicString("transform: scale(0.5)"));
+      html_names::kStyleAttr,
+      AtomicString("transform: scale(0.5) translateX(1px)"));
   const DisplayItemClient& client = ViewScrollingBackgroundClient();
   UpdateAllLifecyclePhasesForTest();
 
@@ -477,6 +478,7 @@ TEST_P(PaintAndRasterInvalidationTest, FullInvalidationWithHTMLTransform) {
   GetDocument().View()->Resize(gfx::Size(500, 500));
   UpdateAllLifecyclePhasesForTest();
 
+  ASSERT_TRUE(GetRasterInvalidationTracking());
   EXPECT_THAT(
       GetRasterInvalidationTracking()->Invalidations(),
       UnorderedElementsAre(
@@ -1160,6 +1162,12 @@ TEST_P(PaintAndRasterInvalidationTest,
 }
 
 TEST_P(PaintAndRasterInvalidationTest, RepaintScrollbarThumbOnHover) {
+  // In RasterInducingScroll the scrollbar is composited, not using blink
+  // raster invalidation.
+  if (RuntimeEnabledFeatures::RasterInducingScrollEnabled()) {
+    return;
+  }
+
   USE_NON_OVERLAY_SCROLLBARS_OR_QUIT();
   SetBodyInnerHTML(R"HTML(
     <style>body {margin: 0}</style>
@@ -1179,6 +1187,122 @@ TEST_P(PaintAndRasterInvalidationTest, RepaintScrollbarThumbOnHover) {
       UnorderedElementsAre(RasterInvalidationInfo{
           scrollbar->Id(), scrollbar->DebugName(), scrollbar->FrameRect(),
           PaintInvalidationReason::kScrollControl}));
+}
+
+// This tests an optimization for motionmark suits, where changing styles of
+// elements with a clip path should not, by itself, require a full paint
+// invalidation. For example, transform changes can skip paint invalidation.
+TEST_P(PaintAndRasterInvalidationTest,
+       StyleChangesWithClipPathDoNotInvalidate) {
+  SetBodyInnerHTML(R"HTML(
+    <svg width='300' height='300'>
+      <defs>
+        <clipPath id='c' clipPathUnits='objectBoundingBox'>
+          <rect />
+        </clipPath>
+      </defs>
+      <rect id='rect'
+          width='100'
+          height='100'
+          transform='translate(100,100)'
+          clip-path='url(#c)' />
+    </svg>
+  )HTML");
+
+  auto* rect = GetDocument().getElementById(AtomicString("rect"));
+  EXPECT_FALSE(rect->GetLayoutObject()->ShouldDoFullPaintInvalidation());
+  rect->setAttribute(svg_names::kTransformAttr,
+                     AtomicString("translate(200,100)"));
+  GetDocument().View()->UpdateLifecycleToLayoutClean(
+      DocumentUpdateReason::kTest);
+  EXPECT_FALSE(rect->GetLayoutObject()->ShouldDoFullPaintInvalidation());
+}
+
+TEST_P(PaintAndRasterInvalidationTest, NonCompositedScrollAndRepaint) {
+  SetBodyInnerHTML(R"HTML(
+    <style>
+      body { margin: 0; }
+      ::-webkit-scrollbar { display: none; }
+    </style>
+    <div id="scroller" style="overflow: scroll; width: 200px; height: 200px">
+      <div id="child1" style="position: relative; top: 100px; width: 50px;
+                              height: 50px; background: red"></div>
+      <div id="child2" style="position: relative; top: 100px; width: 50px;
+                              height: 50px; background: red"></div>
+      <div style="height: 1000px"></div>
+    </div>
+    After
+  )HTML");
+
+  auto* scroller = GetDocument().getElementById(AtomicString("scroller"));
+  auto* child1 = GetLayoutBoxByElementId("child1");
+  auto child1_id = child1->Layer()->Id();
+  auto child1_name = child1->Layer()->DebugName();
+  auto* child2 = GetLayoutBoxByElementId("child2");
+  auto child2_id = child2->Layer()->Id();
+  auto child2_name = child2->Layer()->DebugName();
+  auto* pac = GetDocument().View()->GetPaintArtifactCompositor();
+
+  // Scroll only.
+  GetDocument().View()->SetTracksRasterInvalidations(true);
+  scroller->scrollTo(0, 50);
+  UpdateAllLifecyclePhasesForTest();
+  if (RuntimeEnabledFeatures::RasterInducingScrollEnabled()) {
+    EXPECT_EQ(pac->PreviousUpdateForTesting(),
+              PaintArtifactCompositor::UpdateType::kRasterInducingScroll);
+    EXPECT_FALSE(GetRasterInvalidationTracking()->HasInvalidations());
+  } else {
+    EXPECT_EQ(pac->PreviousUpdateForTesting(),
+              PaintArtifactCompositor::UpdateType::kFull);
+    EXPECT_THAT(
+        GetRasterInvalidationTracking()->Invalidations(),
+        UnorderedElementsAre(
+            RasterInvalidationInfo{child1_id, child1_name,
+                                   gfx::Rect(0, 100, 50, 50),
+                                   PaintInvalidationReason::kPaintProperty},
+            RasterInvalidationInfo{child1_id, child1_name,
+                                   gfx::Rect(0, 50, 50, 50),
+                                   PaintInvalidationReason::kPaintProperty},
+            RasterInvalidationInfo{child2_id, child2_name,
+                                   gfx::Rect(0, 150, 50, 50),
+                                   PaintInvalidationReason::kPaintProperty},
+            RasterInvalidationInfo{child2_id, child2_name,
+                                   gfx::Rect(0, 100, 50, 50),
+                                   PaintInvalidationReason::kPaintProperty}));
+  }
+  GetDocument().View()->SetTracksRasterInvalidations(false);
+
+  // Remove a LayoutObject.
+  GetDocument().View()->SetTracksRasterInvalidations(true);
+  To<Element>(child2->GetNode())
+      ->SetInlineStyleProperty(CSSPropertyID::kDisplay, AtomicString("none"));
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_EQ(pac->PreviousUpdateForTesting(),
+            PaintArtifactCompositor::UpdateType::kFull);
+  EXPECT_THAT(GetRasterInvalidationTracking()->Invalidations(),
+              UnorderedElementsAre(RasterInvalidationInfo{
+                  child2_id, child2_name, gfx::Rect(0, 100, 50, 50),
+                  PaintInvalidationReason::kChunkDisappeared}));
+  GetDocument().View()->SetTracksRasterInvalidations(false);
+
+  // Scroll and repaint.
+  GetDocument().View()->SetTracksRasterInvalidations(true);
+  scroller->scrollTo(0, 100);
+  To<Element>(child1->GetNode())
+      ->SetInlineStyleProperty(CSSPropertyID::kBackground,
+                               AtomicString("green"));
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_EQ(pac->PreviousUpdateForTesting(),
+            PaintArtifactCompositor::UpdateType::kFull);
+  EXPECT_THAT(GetRasterInvalidationTracking()->Invalidations(),
+              UnorderedElementsAre(
+                  RasterInvalidationInfo{
+                      child1_id, child1_name, gfx::Rect(0, 50, 50, 50),
+                      PaintInvalidationReason::kPaintProperty},
+                  RasterInvalidationInfo{
+                      child1_id, child1_name, gfx::Rect(0, 0, 50, 50),
+                      PaintInvalidationReason::kPaintProperty}));
+  GetDocument().View()->SetTracksRasterInvalidations(false);
 }
 
 class PaintInvalidatorTestClient : public RenderingTestChromeClient {

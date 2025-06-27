@@ -102,7 +102,7 @@ UserScript::Source UserScript::GetSourceForScriptID(
 
   // TODO(crbug.com/40927913): Handle gracefully when a new source is handed,
   // specially when user has different Chrome versions.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 // static
@@ -115,8 +115,9 @@ bool UserScript::IsURLUserScript(const GURL& url,
 
 // static
 int UserScript::ValidUserScriptSchemes(bool can_execute_script_everywhere) {
-  if (can_execute_script_everywhere)
+  if (can_execute_script_everywhere) {
     return URLPattern::SCHEME_ALL;
+  }
   int valid_schemes = kValidUserScriptSchemes;
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kExtensionsOnChromeURLs)) {
@@ -241,8 +242,9 @@ bool UserScript::MatchesURL(const GURL& url) const {
 
 bool UserScript::MatchesDocument(const GURL& effective_document_url,
                                  bool is_subframe) const {
-  if (is_subframe && !match_all_frames())
+  if (is_subframe && !match_all_frames()) {
     return false;
+  }
 
   return MatchesURL(effective_document_url);
 }
@@ -330,8 +332,8 @@ void UserScript::Unpickle(const base::Pickle& pickle,
   CHECK(iter->ReadBool(&match_all_frames_));
   int match_origin_as_fallback_int = 0;
   CHECK(iter->ReadInt(&match_origin_as_fallback_int));
-  match_origin_as_fallback_ =
-      static_cast<MatchOriginAsFallbackBehavior>(match_origin_as_fallback_int);
+  match_origin_as_fallback_ = static_cast<mojom::MatchOriginAsFallbackBehavior>(
+      match_origin_as_fallback_int);
   CHECK(iter->ReadBool(&incognito_enabled_));
 
   // Read the execution world.

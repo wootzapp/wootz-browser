@@ -8,21 +8,16 @@
 #include <optional>
 #include <string>
 
-#include "base/gtest_prod_util.h"
 #include "components/autofill/core/browser/payments/credit_card_save_manager.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 
 namespace autofill {
 
 class AutofillClient;
-class AutofillDriver;
-class PersonalDataManager;
 
 class TestCreditCardSaveManager : public CreditCardSaveManager {
  public:
-  TestCreditCardSaveManager(
-      AutofillDriver* driver,
-      AutofillClient* client,
-      PersonalDataManager* personal_data_manager);
+  explicit TestCreditCardSaveManager(AutofillClient* client);
 
   TestCreditCardSaveManager(const TestCreditCardSaveManager&) = delete;
   TestCreditCardSaveManager& operator=(const TestCreditCardSaveManager&) =
@@ -55,19 +50,21 @@ class TestCreditCardSaveManager : public CreditCardSaveManager {
 
   void set_upload_request_card(const CreditCard& card);
 
-  payments::PaymentsNetworkInterface::UploadCardRequestDetails*
-  upload_request();
+  payments::UploadCardRequestDetails* upload_request();
+
+  bool should_request_expiration_date_from_user();
+
+  bool should_request_name_from_user();
 
   void InitVirtualCardEnroll(
       const CreditCard& credit_card,
-      std::optional<payments::PaymentsNetworkInterface::
-                        GetDetailsForEnrollmentResponseDetails>
+      std::optional<payments::GetDetailsForEnrollmentResponseDetails>
           get_details_for_enrollment_response_details);
 
   void OnDidUploadCard(
-      AutofillClient::PaymentsRpcResult result,
-      const payments::PaymentsNetworkInterface::UploadCardResponseDetails&
-          upload_card_response_details) override;
+      payments::PaymentsAutofillClient::PaymentsRpcResult result,
+      const payments::UploadCardResponseDetails& upload_card_response_details)
+      override;
 
  private:
   bool credit_card_upload_enabled_ = false;

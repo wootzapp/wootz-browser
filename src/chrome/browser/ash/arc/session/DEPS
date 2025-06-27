@@ -41,6 +41,7 @@ include_rules = [
   "+chrome/browser/prefs",
   "+chrome/browser/profiles",
   "+chrome/browser/signin",
+  "+chrome/browser/ui/ash/login",
   "+chrome/browser/ui/ash/multi_user",
   "+chrome/browser/ui/ash/shelf",
   "+chrome/browser/ui/browser_commands.h",
@@ -50,3 +51,10 @@ include_rules = [
   "+chrome/grit",
   "+chrome/test/base",
 ]
+
+specific_include_rules = {
+  "arc_session_manager_browsertest\.cc": [
+    "+chrome/browser/ash/test",
+    "+chrome/browser/ui/browser_window.h",
+  ]
+}

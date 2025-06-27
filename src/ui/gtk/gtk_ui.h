@@ -5,6 +5,7 @@
 #ifndef UI_GTK_GTK_UI_H_
 #define UI_GTK_GTK_UI_H_
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -15,6 +16,8 @@
 #include "base/memory/raw_ptr.h"
 #include "printing/buildflags/buildflags.h"
 #include "ui/base/glib/scoped_gsignal.h"
+#include "ui/color/color_provider.h"
+#include "ui/color/color_provider_key.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font_render_params.h"
 #include "ui/gtk/gtk_ui_platform.h"
@@ -81,10 +84,8 @@ class GtkUi : public ui::LinuxUiAndTheme {
   int GetCursorThemeSize() override;
   std::unique_ptr<ui::LinuxInputMethodContext> CreateInputMethodContext(
       ui::LinuxInputMethodContextDelegate* delegate) const override;
-  bool GetTextEditCommandsForEvent(
-      const ui::Event& event,
-      int text_flags,
-      std::vector<ui::TextEditCommandAuraLinux>* commands) override;
+  ui::TextEditCommand GetTextEditCommandForEvent(const ui::Event& event,
+                                                 int text_flags) override;
   gfx::FontRenderParams GetDefaultFontRenderParams() override;
   bool AnimationsEnabled() const override;
   void AddWindowButtonOrderObserver(
@@ -105,9 +106,11 @@ class GtkUi : public ui::LinuxUiAndTheme {
   void GetInactiveSelectionFgColor(SkColor* color) const override;
   bool PreferDarkTheme() const override;
   void SetDarkTheme(bool dark) override;
+  void SetAccentColor(std::optional<SkColor> accent_color) override;
   std::unique_ptr<ui::NavButtonProvider> CreateNavButtonProvider() override;
   ui::WindowFrameProvider* GetWindowFrameProvider(bool solid_frame,
-                                                  bool tiled) override;
+                                                  bool tiled,
+                                                  bool maximized) override;
 
  private:
   using TintMap = std::map<int, color_utils::HSL>;
@@ -151,6 +154,9 @@ class GtkUi : public ui::LinuxUiAndTheme {
 
   display::DisplayConfig GetDisplayConfig() const;
 
+  void AddGtkNativeColorMixer(ui::ColorProvider* provider,
+                              const ui::ColorProviderKey& key);
+
   std::unique_ptr<GtkUiPlatform> platform_;
 
   raw_ptr<NativeThemeGtk> native_theme_;
@@ -175,6 +181,8 @@ class GtkUi : public ui::LinuxUiAndTheme {
   SkColor inactive_selection_bg_color_;
   SkColor inactive_selection_fg_color_;
 
+  std::optional<SkColor> accent_color_;
+
   std::optional<gfx::FontRenderParams> default_font_render_params_;
 
   std::unique_ptr<SettingsProvider> settings_provider_;
@@ -188,10 +196,13 @@ class GtkUi : public ui::LinuxUiAndTheme {
 
   // Paints a native window frame.  Typically only one of these will be
   // non-null.  The exception is when the user starts or stops their compositor
-  // while Chrome is running.  This 2D array is indexed first by whether the
+  // while Chrome is running.  This 3D array is indexed first by whether the
   // frame is translucent (0) or solid(1), then by whether the frame is normal
-  // (0) or tiled (1).
-  std::unique_ptr<ui::WindowFrameProvider> frame_providers_[2][2];
+  // (0) or tiled (1), then by whether the frame is maximized (0) or not (1).
+  std::array<
+      std::array<std::array<std::unique_ptr<ui::WindowFrameProvider>, 2>, 2>,
+      2>
+      frame_providers_;
 
   // Objects to notify when the window frame button order changes.
   base::ObserverList<ui::WindowButtonOrderObserver>::Unchecked

@@ -43,20 +43,33 @@ class PLATFORM_EXPORT ShapeResultBuffer {
                                    float total_width,
                                    unsigned from,
                                    unsigned to) const;
-  Vector<double> IndividualCharacterAdvances(const StringView&,
-                                             TextDirection,
-                                             float total_width) const;
 
   HeapVector<ShapeResult::RunFontData> GetRunFontData() const;
 
+  wtf_size_t ShapeResultSize() const { return results_.size(); }
+  ShapeResultView* ViewAt(wtf_size_t index) const;
+
   GlyphData EmphasisMarkGlyphData(const FontDescription&) const;
+
+  struct CharacterRangeContext {
+    const StringView& text;
+    const bool is_rtl;
+    int from;
+    int to;
+    float current_x;
+    unsigned total_num_characters = 0;
+    std::optional<float> from_x;
+    std::optional<float> to_x;
+    float min_y = 0;
+    float max_y = 0;
+  };
+  // A helper for GetCharacterRange().
+  static void ComputeRangeIn(const ShapeResult& result,
+                             const gfx::RectF& ink_bounds,
+                             CharacterRangeContext& context);
 
  private:
   friend class ShapeResultBloberizer;
-
-  static void AddRunInfoAdvances(const ShapeResult::RunInfo& run_info,
-                                 double offset,
-                                 Vector<double>& advances);
 
   // Empirically, cases where we get more than 50 ShapeResults are extremely
   // rare.

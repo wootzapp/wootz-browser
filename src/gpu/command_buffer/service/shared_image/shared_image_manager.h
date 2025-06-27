@@ -14,6 +14,7 @@
 #include "base/trace_event/memory_dump_provider.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/common/mailbox.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/service/shared_image/shared_image_backing.h"
 #include "gpu/gpu_gles2_export.h"
 #include "gpu/vulkan/buildflags.h"
@@ -27,7 +28,6 @@ class D3DSharedFence;
 namespace gpu {
 class DXGISharedHandleManager;
 class SharedImageRepresentationFactoryRef;
-class VaapiDependenciesFactory;
 
 class GPU_GLES2_EXPORT SharedImageManager
     : public base::trace_event::MemoryDumpProvider {
@@ -46,6 +46,12 @@ class GPU_GLES2_EXPORT SharedImageManager
   SharedImageManager& operator=(const SharedImageManager&) = delete;
 
   ~SharedImageManager() override;
+
+#if BUILDFLAG(IS_OZONE)
+  void SetSupportsOverlays(bool supports_overlays) {
+    supports_overlays_on_ozone_ = supports_overlays;
+  }
+#endif
 
   // base::trace_event::MemoryDumpProvider implementation:
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
@@ -88,21 +94,22 @@ class GPU_GLES2_EXPORT SharedImageManager
       wgpu::BackendType backend_type,
       std::vector<wgpu::TextureFormat> view_formats,
       scoped_refptr<SharedContextState> context_state);
+  std::unique_ptr<DawnBufferRepresentation> ProduceDawnBuffer(
+      const Mailbox& mailbox,
+      MemoryTypeTracker* ref,
+      const wgpu::Device& device,
+      wgpu::BackendType backend_type);
   std::unique_ptr<OverlayImageRepresentation> ProduceOverlay(
       const Mailbox& mailbox,
       MemoryTypeTracker* ref);
-  std::unique_ptr<VaapiImageRepresentation> ProduceVASurface(
-      const Mailbox& mailbox,
-      MemoryTypeTracker* ref,
-      VaapiDependenciesFactory* dep_factory);
   std::unique_ptr<MemoryImageRepresentation> ProduceMemory(
       const Mailbox& mailbox,
       MemoryTypeTracker* ref);
   std::unique_ptr<RasterImageRepresentation> ProduceRaster(
       const Mailbox& mailbox,
       MemoryTypeTracker* ref);
-  std::unique_ptr<VideoDecodeImageRepresentation> ProduceVideoDecode(
-      VideoDecodeDevice device,
+  std::unique_ptr<VideoImageRepresentation> ProduceVideo(
+      VideoDevice device,
       const Mailbox& mailbox,
       MemoryTypeTracker* ref);
 
@@ -111,7 +118,8 @@ class GPU_GLES2_EXPORT SharedImageManager
       const Mailbox& mailbox,
       MemoryTypeTracker* ref,
       gpu::VulkanDeviceQueue* vulkan_device_queue,
-      gpu::VulkanImplementation& vulkan_impl);
+      gpu::VulkanImplementation& vulkan_impl,
+      bool needs_detiling);
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
@@ -127,7 +135,7 @@ class GPU_GLES2_EXPORT SharedImageManager
 
   // Provides the usage flags supported by the given |mailbox|. Returns nullopt
   // if no backing is registered for `mailbox`.
-  std::optional<uint32_t> GetUsageForMailbox(const Mailbox& mailbox);
+  std::optional<SharedImageUsageSet> GetUsageForMailbox(const Mailbox& mailbox);
 
   // Called by SharedImageRepresentation in the destructor.
   void OnRepresentationDestroyed(const Mailbox& mailbox,
@@ -141,7 +149,7 @@ class GPU_GLES2_EXPORT SharedImageManager
     return display_context_on_another_thread_;
   }
 
-  static bool SupportsScanoutImages();
+  bool SupportsScanoutImages();
 
   // Returns the NativePixmap backing |mailbox|. Returns null if the SharedImage
   // doesn't exist or is not backed by a NativePixmap. The caller is not
@@ -170,6 +178,10 @@ class GPU_GLES2_EXPORT SharedImageManager
 
 #if BUILDFLAG(IS_WIN)
   scoped_refptr<DXGISharedHandleManager> dxgi_shared_handle_manager_;
+#endif
+
+#if BUILDFLAG(IS_OZONE)
+  bool supports_overlays_on_ozone_ = false;
 #endif
 
   THREAD_CHECKER(thread_checker_);

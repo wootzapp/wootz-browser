@@ -55,9 +55,10 @@ if there is evidence of active exploitation.
 Example bugs:
 
 * Memory corruption in the browser process ([319125](https://crbug.com/319125#c10)).
-* Memory corruption in the GPU process when it is reachable directly from web
+* Memory corruption in an unsandboxed GPU process when it is reachable directly from web
   content without compromising the renderer.
-  ([1420130](https://crbug.com/1420130), [1427865](https://crbug.com/1427865))
+  ([1420130](https://crbug.com/1420130), [1427865](https://crbug.com/1427865)).
+  ([on some platforms we consider the GPU process 'sandboxed'](../../docs/security/process-sandboxes-by-platform.md)).
 * Exploit chains made up of multiple bugs that can lead to code execution
   outside of the sandbox ([416449](https://crbug.com/416449)).
 * A bug that enables web content to read local files
@@ -65,7 +66,6 @@ Example bugs:
 
 Note that the individual bugs that make up the chain will have lower severity
 ratings.
-
 
 ## High severity (S1) {#TOC-High-severity}
 
@@ -102,15 +102,16 @@ such as memory corruption in the renderer process
 ([570427](https://crbug.com/570427), [468936](https://crbug.com/468936)).
 * Complete control over the apparent origin in the omnibox
 ([76666](https://crbug.com/76666)).
-* Memory corruption in the browser or another high privileged process (e.g. GPU
-  or network process), that can only be triggered from a compromised renderer,
+* Memory corruption in the browser or another high privileged process (e.g. a
+  GPU or network process on a [platform where they're not sandboxed](../../docs/security/process-sandboxes-by-platform.md)),
+  that can only be triggered from a compromised renderer,
   leading to a sandbox escape ([1393177](https://crbug.com/1393177),
   [1421268](crbug.com/1421268)).
 * Kernel memory corruption that could be used as a sandbox escape from a
 compromised renderer ([377392](https://crbug.com/377392)).
-* Memory corruption in the browser or another high privileged process (e.g. GPU
-  or network process) that requires specific user interaction, such as granting
-  a permission ([455735](https://crbug.com/455735)).
+* Memory corruption in the browser or another high privileged process (e.g.
+  GPU or network process on a [platform where they're not sandboxed](../../docs/security/process-sandboxes-by-platform.md))
+  that requires specific user interaction, such as granting a permission ([455735](https://crbug.com/455735)).
 * Site Isolation bypasses:
     - Cross-site execution contexts unexpectedly sharing a renderer process
       ([863069](https://crbug.com/863069), [886976](https://crbug.com/886976)).
@@ -127,6 +128,9 @@ in potential memory corruption exploits, or exposure of sensitive user
 information that an attacker can exfiltrate. Bugs that would normally be rated
 at a higher severity level with unusual mitigating factors may be rated as
 medium severity.
+
+Certain vulnerabilities in [sandboxed GPU shader compilers](#TOC-Sandboxed-shader-compilers)
+should be marked as medium severity.
 
 They are normally assigned Priority **P1** and assigned to the current stable
 milestone (or earliest milestone affected). If the fix seems too complicated to
@@ -223,9 +227,28 @@ The crash occurred while a raw_ptr<T> object containing a dangling pointer was b
 MiraclePtr should make this crash non-exploitable in regular builds.
 ```
 
-MiraclePtr is now active on all Chrome platforms in non-renderer processes as of 118.
-Severity assessments are made with consideration of all active release channels (Dev, Beta, Stable, and Extended Stable);
+MiraclePtr is now active on all Chrome platforms in non-renderer processes as
+of 118 and on Fuchsia as of 128. Severity assessments are made with
+consideration of all active release channels (Dev, Beta, Stable, and Extended Stable);
 BRP is now enabled in all active release channels.
 
-If a bug is marked `MiraclePtr Status:PROTECTED`, it should be downgraded by one severity level.
-(For example, a bug that would previously be High severity would now be only Medium severity).
+As of 128, if a bug is marked `MiraclePtr Status:PROTECTED`, it is not
+considered a security issue. It should be converted to type:Bug and assigned to
+the appropriate engineering team as functional issue.
+
+## Sandboxed GPU Shader Compilers {#TOC-Sandboxed-shader-compilers}
+
+If a GPU shader compiler is in a separate process outside the GPU process and sandboxed, the
+overall attack surface of a vulnerability in that specific compiler may be much lower than an
+in-GPU-process shader compiler. Unlike the renderer process, which can make hundreds of different
+IPCs to the browser process, a well sandboxed shader compiler process can make a very limited number
+of IPCs back to the GPU process. Furthermore, code execution in a sandboxed GPU shader compiler
+is now limited to writing arbitrary shaders, which is a much lower threat surface than code execution
+in the GPU process as a whole.
+
+Currently, only the Metal shader compiler is in its own sandboxed process, so vulnerabilities that would
+otherwise be high severity should be considered medium severity if they are specific to that compiler.
+
+Vulnerabilities specific to the Metal shader compiler will typically call into the `MTLCompiler` in
+the stack trace, and a PoC will only be reproducible on MacOS devices. An example of a stack trace
+specific to the metal shader compiler can be found at ([40074630](https://crbug.com/40074630)).

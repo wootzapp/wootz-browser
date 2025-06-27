@@ -20,8 +20,15 @@ import android.app.Activity;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Insets;
+import android.graphics.drawable.BitmapDrawable;
+import android.os.Build;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.util.DisplayMetrics;
 import android.util.Size;
+import android.view.WindowInsets;
+import android.view.WindowMetrics;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 
@@ -33,7 +40,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
@@ -41,7 +49,6 @@ import org.robolectric.annotation.Resetter;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.TabUtils.UseDesktopUserAgentCaller;
@@ -50,7 +57,6 @@ import org.chromium.chrome.test.AutomotiveContextWrapperTestRule;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridgeJni;
 import org.chromium.components.browser_ui.util.AutomotiveUtils;
-import org.chromium.components.browser_ui.util.BrowserUiUtilsCachedFlags;
 import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.content_public.browser.NavigationController;
@@ -86,7 +92,15 @@ public class TabUtilsUnitTest {
         }
     }
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
+    @Implements(WindowMetrics.class)
+    public static class ShadowWindowMetrics {
+        @Implementation
+        public static WindowInsets getWindowInsets() {
+            return sTestSysBarInsets;
+        }
+    }
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public AutomotiveContextWrapperTestRule mAutomotiveContextWrapperTestRule =
@@ -98,7 +112,10 @@ public class TabUtilsUnitTest {
 
     private static final int TEST_SCREEN_WIDTH = 1000;
     private static final int TEST_SCREEN_HEIGHT = 1000;
-    private static final float TEST_DENSITY = 1.3f;
+    private static final int TEST_NAVIGATION_BAR_HEIGHT = 30;
+
+    private static final int TEST_STATUS_BAR_HEIGHT = 30;
+    private static WindowInsets sTestSysBarInsets;
 
     @Mock WebsitePreferenceBridge.Natives mWebsitePreferenceBridgeJniMock;
     @Mock private Tab mTab;
@@ -120,9 +137,8 @@ public class TabUtilsUnitTest {
 
     @Before
     public void setup() {
-        MockitoAnnotations.initMocks(this);
         ShadowProfile.setProfile(mProfile);
-        mJniMocker.mock(WebsitePreferenceBridgeJni.TEST_HOOKS, mWebsitePreferenceBridgeJniMock);
+        WebsitePreferenceBridgeJni.setInstanceForTesting(mWebsitePreferenceBridgeJniMock);
 
         when(mTab.isNativePage()).thenReturn(false);
         when(mTabNative.isNativePage()).thenReturn(true);
@@ -160,6 +176,18 @@ public class TabUtilsUnitTest {
                         })
                 .when(mTabNative)
                 .setUserAgent(anyInt());
+        if (VERSION.SDK_INT >= VERSION_CODES.R) {
+            sTestSysBarInsets =
+                    new WindowInsets.Builder()
+                            .setInsets(
+                                    WindowInsets.Type.systemBars(),
+                                    Insets.of(
+                                            0,
+                                            TEST_STATUS_BAR_HEIGHT,
+                                            0,
+                                            TEST_NAVIGATION_BAR_HEIGHT))
+                            .build();
+        }
     }
 
     @After
@@ -168,83 +196,24 @@ public class TabUtilsUnitTest {
     }
 
     @Test
-    public void testSwitchUserAgent_NotForcedByUser() {
+    public void testSwitchUserAgent() {
         // Test non-native tab.
-        TabUtils.switchUserAgent(mTab, false, false, UseDesktopUserAgentCaller.OTHER);
+        TabUtils.switchUserAgent(mTab, false, UseDesktopUserAgentCaller.OTHER);
         verify(mNavigationController)
                 .setUseDesktopUserAgent(false, true, UseDesktopUserAgentCaller.OTHER);
 
-        TabUtils.switchUserAgent(mTab, true, false, UseDesktopUserAgentCaller.OTHER);
+        TabUtils.switchUserAgent(mTab, true, UseDesktopUserAgentCaller.OTHER);
         verify(mNavigationController)
                 .setUseDesktopUserAgent(true, true, UseDesktopUserAgentCaller.OTHER);
 
         // Test native tab.
-        TabUtils.switchUserAgent(mTabNative, false, false, UseDesktopUserAgentCaller.OTHER);
+        TabUtils.switchUserAgent(mTabNative, false, UseDesktopUserAgentCaller.OTHER);
         verify(mNavigationController)
                 .setUseDesktopUserAgent(false, false, UseDesktopUserAgentCaller.OTHER);
 
-        TabUtils.switchUserAgent(mTabNative, true, false, UseDesktopUserAgentCaller.OTHER);
+        TabUtils.switchUserAgent(mTabNative, true, UseDesktopUserAgentCaller.OTHER);
         verify(mNavigationController)
                 .setUseDesktopUserAgent(true, false, UseDesktopUserAgentCaller.OTHER);
-
-        // Tab#setUserAgent should not be used when it is not forcedByUser.
-        verify(mTab, never()).setUserAgent(anyInt());
-    }
-
-    @Test
-    public void testSwitchUserAgent_ForcedByUser_DefaultMobile() {
-        // Global setting is Mobile.
-        mRdsDefault = false;
-
-        // Test non-native tab.
-        TabUtils.switchUserAgent(mTab, false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mTab).setUserAgent(TabUserAgent.DEFAULT);
-
-        TabUtils.switchUserAgent(mTab, true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mTab).setUserAgent(TabUserAgent.DESKTOP);
-
-        // Test native tab.
-        TabUtils.switchUserAgent(mTabNative, false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(false, false, UseDesktopUserAgentCaller.OTHER);
-        verify(mTabNative).setUserAgent(TabUserAgent.DEFAULT);
-
-        TabUtils.switchUserAgent(mTabNative, true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(true, false, UseDesktopUserAgentCaller.OTHER);
-        verify(mTabNative).setUserAgent(TabUserAgent.DESKTOP);
-    }
-
-    @Test
-    public void testSwitchUserAgent_ForcedByUser_DefaultDesktop() {
-        // Global setting is Desktop.
-        mRdsDefault = true;
-
-        // Test non-native tab.
-        TabUtils.switchUserAgent(mTab, false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mTab).setUserAgent(TabUserAgent.MOBILE);
-
-        TabUtils.switchUserAgent(mTab, true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mTab).setUserAgent(TabUserAgent.DEFAULT);
-
-        // Test native tab.
-        TabUtils.switchUserAgent(mTabNative, false, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(false, false, UseDesktopUserAgentCaller.OTHER);
-        verify(mTabNative).setUserAgent(TabUserAgent.MOBILE);
-
-        TabUtils.switchUserAgent(mTabNative, true, true, UseDesktopUserAgentCaller.OTHER);
-        verify(mNavigationController)
-                .setUseDesktopUserAgent(true, false, UseDesktopUserAgentCaller.OTHER);
-        verify(mTabNative).setUserAgent(TabUserAgent.DEFAULT);
     }
 
     @Test
@@ -362,70 +331,42 @@ public class TabUtilsUnitTest {
     }
 
     @Test
+    @Config(
+            sdk = Build.VERSION_CODES.R,
+            shadows = {ShadowWindowMetrics.class},
+            qualifiers = "w" + TEST_SCREEN_WIDTH + "dp-h" + TEST_SCREEN_HEIGHT + "dp-land")
     public void testGetTabThumbnailAspectRatioWithHorizontalAutomotiveToolbar() {
         mAutomotiveContextWrapperTestRule.setIsAutomotive(true);
-
+        AutomotiveUtils.forceHorizontalAutomotiveToolbarForTesting(true);
         mActivityScenarioRule
                 .getScenario()
                 .onActivity(
                         activity -> {
-                            Activity spyActivity = spy(activity);
-                            doReturn(mResources).when(spyActivity).getResources();
-                            doReturn(mConfiguration).when(mResources).getConfiguration();
-                            doReturn(mDisplayMetrics).when(mResources).getDisplayMetrics();
-                            doReturn(0).when(mBrowserControlsStateProvider).getTopControlsHeight();
-                            mConfiguration.orientation = Configuration.ORIENTATION_LANDSCAPE;
-                            mConfiguration.screenWidthDp = TEST_SCREEN_WIDTH;
-                            mConfiguration.screenHeightDp = TEST_SCREEN_HEIGHT;
-                            mDisplayMetrics.density = TEST_DENSITY;
                             int horizontalAutomotiveToolbarHeightDp =
                                     AutomotiveUtils.getHorizontalAutomotiveToolbarHeightDp(
-                                            spyActivity);
-                            float expectedAspectRatio =
-                                    (TEST_SCREEN_WIDTH * 1.f)
-                                            / (TEST_SCREEN_HEIGHT
-                                                    - horizontalAutomotiveToolbarHeightDp);
-                            assertEquals(
-                                    "Thumbnail aspect ratio should take into account the horizontal"
-                                            + " automotive toolbar.",
-                                    expectedAspectRatio,
-                                    TabUtils.getTabThumbnailAspectRatio(
-                                            spyActivity, mBrowserControlsStateProvider),
-                                    0.01);
+                                            activity);
+                            callAndVerifyGetTabThumbnailAspectRatio(
+                                    activity, horizontalAutomotiveToolbarHeightDp, 0);
                         });
     }
 
     @Test
+    @Config(
+            sdk = Build.VERSION_CODES.R,
+            shadows = {ShadowWindowMetrics.class},
+            qualifiers = "w" + TEST_SCREEN_WIDTH + "dp-h" + TEST_SCREEN_HEIGHT + "dp-land")
     public void testGetTabThumbnailAspectRatioWithVerticalAutomotiveToolbar() {
         mAutomotiveContextWrapperTestRule.setIsAutomotive(true);
-        BrowserUiUtilsCachedFlags.getInstance().setVerticalAutomotiveBackButtonToolbarFlag(true);
-
         mActivityScenarioRule
                 .getScenario()
                 .onActivity(
                         activity -> {
                             Activity spyActivity = spy(activity);
-                            doReturn(mResources).when(spyActivity).getResources();
-                            doReturn(mConfiguration).when(mResources).getConfiguration();
-                            doReturn(mDisplayMetrics).when(mResources).getDisplayMetrics();
-                            doReturn(0).when(mBrowserControlsStateProvider).getTopControlsHeight();
-                            mConfiguration.orientation = Configuration.ORIENTATION_LANDSCAPE;
-                            mConfiguration.screenWidthDp = TEST_SCREEN_WIDTH;
-                            mConfiguration.screenHeightDp = TEST_SCREEN_HEIGHT;
-                            mDisplayMetrics.density = TEST_DENSITY;
                             int verticalAutomotiveToolbarWidthDp =
                                     AutomotiveUtils.getVerticalAutomotiveToolbarWidthDp(
                                             spyActivity);
-                            float expectedAspectRatio =
-                                    (TEST_SCREEN_WIDTH * 1.f - verticalAutomotiveToolbarWidthDp)
-                                            / (TEST_SCREEN_HEIGHT);
-                            assertEquals(
-                                    "Thumbnail aspect ratio should take into account the vertical"
-                                            + " automotive toolbar.",
-                                    expectedAspectRatio,
-                                    TabUtils.getTabThumbnailAspectRatio(
-                                            spyActivity, mBrowserControlsStateProvider),
-                                    0.01);
+                            callAndVerifyGetTabThumbnailAspectRatio(
+                                    spyActivity, 0, verticalAutomotiveToolbarWidthDp);
                         });
     }
 
@@ -438,8 +379,10 @@ public class TabUtilsUnitTest {
         TabThumbnailView thumbnailView = Mockito.mock(TabThumbnailView.class);
         Bitmap bitmap = Bitmap.createBitmap(mockImageSize, mockImageSize, Bitmap.Config.ARGB_8888);
         bitmap.setDensity(DisplayMetrics.DENSITY_DEFAULT);
-        TabUtils.setBitmapAndUpdateImageMatrix(
-                thumbnailView, bitmap, new Size(mockTargetSize, mockTargetSize));
+        TabUtils.setDrawableAndUpdateImageMatrix(
+                thumbnailView,
+                new BitmapDrawable(bitmap),
+                new Size(mockTargetSize, mockTargetSize));
 
         assertNotEquals("The bitmap image density should not be zero.", 0, bitmap.getDensity());
         assertEquals(
@@ -460,8 +403,10 @@ public class TabUtilsUnitTest {
 
         Bitmap bitmap = Bitmap.createBitmap(mockImageSize, mockImageSize, Bitmap.Config.ARGB_8888);
         bitmap.setDensity(DisplayMetrics.DENSITY_DEFAULT);
-        TabUtils.setBitmapAndUpdateImageMatrix(
-                thumbnailView, bitmap, new Size(mockTargetSize, mockTargetSize));
+        TabUtils.setDrawableAndUpdateImageMatrix(
+                thumbnailView,
+                new BitmapDrawable(bitmap),
+                new Size(mockTargetSize, mockTargetSize));
 
         assertNotEquals("The bitmap image density should not be zero.", 0, bitmap.getDensity());
         assertEquals(
@@ -469,5 +414,23 @@ public class TabUtilsUnitTest {
                 DisplayUtil.getUiDensityForAutomotive(
                         ContextUtils.getApplicationContext(), DisplayMetrics.DENSITY_DEFAULT),
                 bitmap.getDensity());
+    }
+
+    private void callAndVerifyGetTabThumbnailAspectRatio(
+            Activity spyActivity,
+            int horizontalAutomotiveToolbarHeightDp,
+            int verticalAutomotiveToolbarWidthDp) {
+        doReturn(0).when(mBrowserControlsStateProvider).getTopControlsHeight();
+        float expectedAspectRatio =
+                (TEST_SCREEN_WIDTH * 1.f - verticalAutomotiveToolbarWidthDp)
+                        / (TEST_SCREEN_HEIGHT * 1.f
+                                - horizontalAutomotiveToolbarHeightDp
+                                - TEST_STATUS_BAR_HEIGHT
+                                - TEST_NAVIGATION_BAR_HEIGHT);
+        assertEquals(
+                "Thumbnail aspect ratio is not as expected.",
+                expectedAspectRatio,
+                TabUtils.getTabThumbnailAspectRatio(spyActivity, mBrowserControlsStateProvider),
+                0.01);
     }
 }

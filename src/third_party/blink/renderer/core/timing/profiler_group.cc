@@ -4,7 +4,8 @@
 
 #include "third_party/blink/renderer/core/timing/profiler_group.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "third_party/blink/public/platform/task_type.h"
@@ -20,7 +21,6 @@
 #include "third_party/blink/renderer/core/timing/profiler.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
@@ -328,7 +328,7 @@ void ProfilerGroup::StopDetachedProfiler(String profiler_id) {
 
   // we use a vector instead of a map because the expected number of profiler
   // is expected to be very small
-  auto* it = base::ranges::find(detached_profiler_ids_, profiler_id);
+  auto it = std::ranges::find(detached_profiler_ids_, profiler_id);
 
   if (it == detached_profiler_ids_.end()) {
     // Profiler already stopped

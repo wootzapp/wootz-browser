@@ -32,6 +32,9 @@ BackgroundSyncControllerFactory::BackgroundSyncControllerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   DependsOn(ukm::UkmBackgroundRecorderFactory::GetInstance());
   DependsOn(site_engagement::SiteEngagementServiceFactory::GetInstance());
@@ -39,9 +42,10 @@ BackgroundSyncControllerFactory::BackgroundSyncControllerFactory()
 
 BackgroundSyncControllerFactory::~BackgroundSyncControllerFactory() = default;
 
-KeyedService* BackgroundSyncControllerFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+BackgroundSyncControllerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new BackgroundSyncControllerImpl(
+  return std::make_unique<BackgroundSyncControllerImpl>(
       context, std::make_unique<BackgroundSyncDelegateImpl>(
                    Profile::FromBrowserContext(context)));
 }

@@ -81,10 +81,8 @@ message ChromeUserPopulation {
   // profiles may be inactive.
   optional int32 number_of_loaded_profiles = 11;
 
-  // The number of profiles that are currently open, i.e. have open browsers or
-  // were open the last time Chrome was running. Profiles that fail to
-  // initialize are skipped.
-  optional int32 number_of_open_profiles = 12;
+  // Deprecated: number_of_open_profiles
+  reserved 12;
 
   // Server-side only field.
   reserved 13;
@@ -134,12 +132,62 @@ message ChromeUserPopulation {
   reserved 19;
 }
 
+// Identifies a web app (e.g. a WebAPK) on the basis of its origin and id, as
+// defined in https://www.w3.org/TR/appmanifest/#id-member.
+message SafeBrowsingWebAppKey {
+  // Serialized origin without the scheme portion. In most cases, this is just
+  // the host part. May include a colon character followed by a port number, if
+  // the port number is non-default.
+  optional string start_url_origin = 1;
+  // Manifest id or (if there is no id) the path and query portions of
+  // start_url, without leading slash character, e.g. will be empty string if
+  // the path is "/". This should not include URL fragments, but should include
+  // query params.
+  optional string id_or_start_path = 2;
+}
+
 message ImageFeatureEmbedding {
   // Tracking embedding-model's version from iteration to iteration
   optional int32 embedding_model_version = 1;
 
   // Raw tensor output of the embedding layer.
   repeated float embedding_value = 2;
+}
+
+// The metadata for the Llama-CSD trigger rules which are propagated to
+// CSD-Phishing server through Chrome.
+message LlamaTriggerRuleInfo {
+  // Unique id for the llama-csd forced trigger rule
+  optional int32 llama_trigger_rule_id = 1;
+  // Whether to request additional intelligence from Chrome.
+  optional bool intelligent_scan = 2;
+}
+
+message LlamaForcedTriggerInfo {
+  repeated LlamaTriggerRuleInfo llama_trigger_rule_infos = 1;
+  // True if requested by any of the trigger rules.
+  optional bool intelligent_scan = 2;
+  // URL responsible to trigger the ping.
+  optional string trigger_url = 3;
+}
+
+message IntelligentScanInfo {
+  optional string brand = 1;
+  optional string intent = 2;
+
+  // Reason why the brand and intent are empty.
+  enum NoInfoReason {
+    NO_INFO_REASON_UNSPECIFIED = 0;
+    // Client cannot infer the brand and intent because there is no text on the
+    // page.
+    EMPTY_TEXT = 1;
+    // Allowlisted by high confidence allowlist.
+    ALLOWLISTED = 2;
+    // The on device model is unavailable, which can be from a few reasons such
+    // as device incapability or not enough space on disk.
+    ON_DEVICE_MODEL_UNAVAILABLE = 3;
+  }
+  optional NoInfoReason no_info_reason = 3;
 }
 
 message ClientPhishingRequest {
@@ -256,7 +304,7 @@ message ClientPhishingRequest {
   optional ImageFeatureEmbedding image_feature_embedding = 29;
 
   enum ReportType {
-    UNKNOWN = 0;
+    REPORT_TYPE_UNSPECIFIED = 0;
     // Normal/full ping to Safe Browsing containing all the fields in the
     // ClientPhishingRequest.
     FULL_REPORT = 1;
@@ -267,7 +315,24 @@ message ClientPhishingRequest {
 
   optional ReportType report_type = 30;
 
-  // next available tag number: 31.
+  // The information of Llama trigger rules that triggered a CSD ping. Set only
+  // if client_side_detection_type = FORCE_REQUEST.
+  optional LlamaForcedTriggerInfo llama_forced_trigger_info = 31;
+
+  // Represents the on-device model LLM response.
+  optional IntelligentScanInfo intelligent_scan_info = 32;
+
+  // next available tag number: 33.
+}
+
+// Verdict based on IntelligentScanInfo included in ClientPhishingRequest
+enum IntelligentScanVerdict {
+  INTELLIGENT_SCAN_VERDICT_UNSPECIFIED = 0;
+  INTELLIGENT_SCAN_VERDICT_SAFE = 1;
+  SCAM_EXPERIMENT_VERDICT_1 = 2;
+  SCAM_EXPERIMENT_VERDICT_2 = 3;
+  SCAM_EXPERIMENT_CATCH_ALL_ENFORCEMENT = 999;
+  SCAM_EXPERIMENT_CATCH_ALL_TELEMETRY = 1000;
 }
 
 message ClientPhishingResponse {
@@ -285,6 +350,8 @@ message ClientPhishingResponse {
   // Marked OBSOLETE because the URL is sent for all users, so the server
   // can do allowlist matching.
   repeated string OBSOLETE_allowlist_expression = 2;
+
+  optional IntelligentScanVerdict intelligent_scan_verdict = 3;
 }
 
 // Enum used to keep stats about why the pre-classification check failed.
@@ -309,7 +376,9 @@ enum PreClassificationCheckResult {
   NO_CLASSIFY_LOCAL_RESOURCE = 15;
   NO_CLASSIFY_CHROME_UI_PAGE = 16;
   OBSOLETE_NO_CLASSIFY_NOT_ALLOWED_BY_POLICY = 17;
-  NO_CLASSIFY_MAX = 18;  // Always add before this, and update this value.
+  NO_CLASSIFY_MATCH_HC_ALLOWLIST = 18;
+  NO_CLASSIFY_ALLOWLIST_METRIC = 19;
+  NO_CLASSIFY_MAX = 20;  // Always add before this, and update this value.
 }
 
 // This value must be kept in sync with those in
@@ -327,6 +396,43 @@ enum PhishingDetectorResult {
   DOM_EXTRACTION_FAILED = 8;
   TERM_EXTRACTION_FAILED = 9;
   VISUAL_EXTRACTION_FAILED = 10;
+}
+
+// The referring app info that launches Chrome. Only used on Android.
+// This information may be spoofed so do not rely solely on its correctness
+// for anti-abuse purposes. For more details, see:
+// go/phishguard-referring-app-android.
+message ReferringAppInfo {
+  // The source of the referring_app_name.
+  enum ReferringAppSource {
+    REFERRING_APP_SOURCE_UNSPECIFIED = 0;
+    // The referring app is known to Chrome. If the referring app info is from
+    // this source, the referring_app_name is a hardcoded string that is
+    // predefined in Chrome.
+    KNOWN_APP_ID = 1;
+    // The referring app is unknown to Chrome. The referring app name is
+    // obtained from
+    // https://developer.android.com/reference/android/provider/Browser?hl=en#EXTRA_APPLICATION_ID.
+    // If the referring app info is from this source, the referring_app_name
+    // is volatile and can be changed by the referring app.
+    UNKNOWN_APP_ID = 2;
+    // The referring app info is obtained from
+    // https://developer.android.com/reference/android/app/Activity#getReferrer().
+    // If the referring app info is from this source, the referring_app_name
+    // is volatile and can be changed by the referring app.
+    ACTIVITY_REFERRER = 3;
+  }
+
+  optional ReferringAppSource referring_app_source = 1;
+
+  optional string referring_app_name = 2;
+
+  // If Chrome was launched by a WebAPK, this field identifies that WebAPK.
+  // Note: This is not mutually exclusive with referring_app_{source,name}. If
+  // an external app launches a WebAPK which then launches Chrome,
+  // referring_app_{source,name} will refer to the original referring app while
+  // this referring_webapk field will refer to the WebAPK.
+  optional SafeBrowsingWebAppKey referring_webapk = 3;
 }
 
 // The message is used for client request to determine whether the provided URL
@@ -389,7 +495,7 @@ message LoginReputationClientRequest {
   repeated Frame frames = 3;
 
   // The message contains fields needed for a password reuse event.
-  // Next tag: 4
+  // Next tag: 7
   message PasswordReuseEvent {
     // Domains from the Chrome password manager DB that are associated with
     // the same password as the one triggering this event. The field is filled
@@ -400,22 +506,8 @@ message LoginReputationClientRequest {
     // The frame that the password reuse is detected.
     optional int32 frame_id = 2;
 
-    // Deprecated field.
-    reserved 3;
-
-    // TODO(crbug.com/41431428): Remove once ReusedPasswordAccountType is
-    // implemented. Sync account type.
-    enum SyncAccountType {
-      // Not a sign-in user.
-      NOT_SIGNED_IN = 0;
-
-      // User signed in with @gmail.com, or @googlemail.com account.
-      GMAIL = 1;
-
-      // User signed in with a G Suite account.
-      GSUITE = 2;
-    }
-    optional SyncAccountType sync_account_type = 4;
+    // Deprecated fields.
+    reserved 3, 4;
 
     // TODO(crbug.com/41431428): Remove once ReusedPasswordAccountType is
     // implemented. Type of password being reused.
@@ -521,40 +613,11 @@ message LoginReputationClientRequest {
     optional bool hide_on_interaction = 4;
     // True if OmniboxUIExperimentElideToRegistrableDomain is enabled.
     optional bool elide_to_registrable_domain = 5;
-    // True if this is the control group. This sent by the finch config.
-    optional bool simplified_url_display_enabled = 6;
+
+    // Deprecated: simplified_url_display_enabled.
+    reserved 6;
   };
   optional UrlDisplayExperiment url_display_experiment = 14;
-
-  // The referring app info that launches Chrome. Only used on Android.
-  // This information may be spoofed so do not rely solely on its correctness
-  // for anti-abuse purposes. For more details, see:
-  // go/phishguard-referring-app-android.
-  message ReferringAppInfo {
-    // The source of the referring_app_name.
-    enum ReferringAppSource {
-      REFERRING_APP_SOURCE_UNSPECIFIED = 0;
-      // The referring app is known to Chrome. If the referring app info is from
-      // this source, the referring_app_name is a hardcoded string that is
-      // predefined in Chrome.
-      KNOWN_APP_ID = 1;
-      // The referring app is unknown to Chrome. The referring app name is
-      // obtained from
-      // https://developer.android.com/reference/android/provider/Browser?hl=en#EXTRA_APPLICATION_ID.
-      // If the referring app info is from this source, the referring_app_name
-      // is volatile and can be changed by the referring app.
-      UNKNOWN_APP_ID = 2;
-      // The referring app info is obtained from
-      // https://developer.android.com/reference/android/app/Activity#getReferrer().
-      // If the referring app info is from this source, the referring_app_name
-      // is volatile and can be changed by the referring app.
-      ACTIVITY_REFERRER = 3;
-    }
-
-    optional ReferringAppSource referring_app_source = 1;
-
-    optional string referring_app_name = 2;
-  }
 
   optional ReferringAppInfo referring_app_info = 15;
 
@@ -907,6 +970,10 @@ message ClientDownloadRequest {
 
   repeated ArchivedBinary archived_binary = 22;
 
+  // The Safety Net shared ID. Populated only for Android download protection.
+  // TODO(crbug.com/397407934): Add this field for real.
+  // optional string safety_net_id = 23;
+
   // Population that the reporting user is part of.
   optional ChromeUserPopulation population = 24;
 
@@ -1011,6 +1078,8 @@ message ClientDownloadRequest {
     // Supported in M120.
     // Version 4: Client supports tailored warnings on downloads page. Client
     // sends download reports without explicit user decision. Supported in M125.
+    // Version 5: Fixed the issue that cookie theft warnings are not bypassable.
+    // See https://crbug.com/350780005.
     optional int32 version = 1;
   }
   optional TailoredInfo tailored_info = 86;
@@ -1021,6 +1090,15 @@ message ClientDownloadRequest {
 
   // The token from previous requests related to this download, if any exists.
   optional bytes previous_token = 91;
+
+  // Fields 92-96 are reserved for server-side use and are never sent by the
+  // client.
+  reserved 92 to 96;
+
+  // Records the app that launched Chrome. Populated on Android only.
+  // This information may be spoofed so do not rely solely on its correctness
+  // for anti-abuse purposes.
+  optional ReferringAppInfo referring_app_info = 97;
 }
 
 message ReferrerChainOptions {
@@ -1169,6 +1247,10 @@ enum ClientSideDetectionType {
   KEYBOARD_LOCK_REQUESTED = 4;
   // Pointer lock request triggered.
   POINTER_LOCK_REQUESTED = 5;
+  // Vibration API request triggered.
+  VIBRATION_API = 6;
+  // Fullscreen API request triggered.
+  FULLSCREEN_API = 7;
 }
 
 message ClientDownloadResponse {
@@ -1339,6 +1421,13 @@ message ClientIncidentReport {
       optional Type type = 3 [default = UNKNOWN];
     }
 
+    message ServiceWorkerRegistrationIncident {
+      // The service worker's scope url.
+      optional string scope_url = 1;
+      // The URLs used to import scripts by the service worker.
+      repeated string import_script_url = 2;
+    }
+
     optional int64 incident_time_msec = 1;
     optional TrackedPreferenceIncident tracked_preference = 2;
     optional BinaryIntegrityIncident binary_integrity = 3;
@@ -1347,6 +1436,11 @@ message ClientIncidentReport {
     optional ResourceRequestIncident resource_request = 7;
     // Note: skip tag 8 because it was previously used.
     reserved 8;
+    // A ServiceWorkerRegistrationIncident is created for every service
+    // worker on a ESB profile that sends notifications and has imported
+    // scripts from a origin that is different from its scope URL. The
+    // report is created and emitted from the Notification Telemetry Service.
+    optional ServiceWorkerRegistrationIncident notification_import_script = 9;
   }
 
   repeated IncidentData incident = 1;
@@ -1521,7 +1615,7 @@ message DownloadMetadata {
 // A Detailed Safebrowsing Report from clients. Chrome safebrowsing reports are
 // only sent by Chrome users who have opted into extended Safe Browsing.
 // This proto is replacing ClientMalwareReportRequest.
-// Next tag: 35
+// Next tag: 37
 message ClientSafeBrowsingReportRequest {
   // Note: A lot of the "optional" fields would make sense to be
   // "required" instead.  However, having them as optional allows the
@@ -1556,6 +1650,12 @@ message ClientSafeBrowsingReportRequest {
     // This report is triggered if a download warning is not interacted when
     // Chrome is closed.
     DANGEROUS_DOWNLOAD_PROFILE_CLOSED = 26;
+    // This report is triggered by the sampled HPRT lookup where it showed
+    // different verdicts from the URL real-time lookup.
+    URL_REALTIME_AND_HASH_REALTIME_DISCREPANCY = 27;
+    // Triggered by a redirect to an external app, either through an
+    // external protocol scheme (e.g. mailto://) or an Intent.
+    EXTERNAL_APP_REDIRECT = 28;
   }
 
   message HTTPHeader {
@@ -1656,7 +1756,7 @@ message ClientSafeBrowsingReportRequest {
     PVER4_NATIVE = 2;
     // Android SafetyNet API.
     // https://developer.android.com/training/safetynet/safebrowsing.html
-    ANDROID_SAFETYNET = 3;
+    ANDROID_SAFETYNET = 3 [deprecated = true];
     // Flywheel (data compression service).
     // Deprecated as of 2021-1. Data saver has been completely turned down.
     FLYWHEEL = 4 [deprecated = true];
@@ -1668,6 +1768,8 @@ message ClientSafeBrowsingReportRequest {
     ANDROID_SAFEBROWSING_REAL_TIME = 7;
     // The Android Safe Browsing API hit in local blocklist.
     ANDROID_SAFEBROWSING = 8;
+    // Client-side phishing.
+    CLIENT_SIDE_DETECTION = 9;
   }
 
   // The information propagated from the client about various environment
@@ -1684,6 +1786,8 @@ message ClientSafeBrowsingReportRequest {
     // the user may see the page before they see a warning. See
     // go/async-sb-check-telemetry for details.
     optional bool is_async_check = 7;
+    // Whether Google Play Protect is verifying apps.
+    optional bool app_verification_enabled = 8;
   }
   optional SafeBrowsingClientProperties client_properties = 17;
 
@@ -1736,13 +1840,11 @@ message ClientSafeBrowsingReportRequest {
       // Applicable actions: DISCARD, OPEN_SUBPAGE
       BUBBLE_MAINPAGE = 1;
       // Applicable actions: PROCEED, DISCARD, DISMISS, CLOSE, BACK,
-      // PROCEED_DEEP_SCAN, OPEN_LEARN_MORE_LINK
+      // PROCEED_DEEP_SCAN, OPEN_LEARN_MORE_LINK, ACCEPT_DEEP_SCAN
       BUBBLE_SUBPAGE = 2;
-      // Applicable actions: DISCARD, KEEP, PROCEED
+      // Applicable actions: DISCARD, KEEP, PROCEED, ACCEPT_DEEP_SCAN
       DOWNLOADS_PAGE = 3;
-      // Applicable actions: PROCEED, CANCEL, CLOSE
-      // TODO(chlily): Remove CLOSE option once ImprovedDownloadPageWarnings
-      // launches.
+      // Applicable actions: PROCEED, CANCEL
       DOWNLOAD_PROMPT = 4;
       // Applicable actions: OPEN_SUBPAGE
       // Note: This only covers ChromeOS Lacros v2 notifications. CLOSE should
@@ -1779,6 +1881,8 @@ message ClientSafeBrowsingReportRequest {
       PROCEED_DEEP_SCAN = 9;
       // The user clicks the learn more link on the bubble subpage.
       OPEN_LEARN_MORE_LINK = 10;
+      // The user accepts starting a deep scan.
+      ACCEPT_DEEP_SCAN = 11;
     }
     optional Action action = 2;
 
@@ -2008,6 +2112,28 @@ message ClientSafeBrowsingReportRequest {
   }
 
   optional PermissionPromptInfo permission_prompt_info = 34;
+
+  // Locale of the device, e.g. en, en_US.
+  optional string locale = 35;
+
+  // Information included in the URL real-time and hash real-time discrepancy
+  // info reports.
+  message UrlRealTimeAndHashRealTimeDiscrepancyInfo {
+    enum LookupThreatType {
+      SAFE_OR_OTHER = 0;
+      MALWARE = 1;
+      PHISHING = 2;
+      UNWANTED = 3;
+      BILLING = 4;
+    }
+    // The threat type determined by the hash realtime mechanism.
+    optional LookupThreatType hash_realtime_threat_type = 1;
+    // The threat type determined by the URL real-time mechanism.
+    optional LookupThreatType url_realtime_threat_type = 2;
+  }
+
+  optional UrlRealTimeAndHashRealTimeDiscrepancyInfo
+      url_real_time_and_hash_real_time_discrepancy_info = 36;
 }
 
 // An HTML Element on the page (eg: iframe, div, script, etc).
@@ -2090,7 +2216,8 @@ message ExtensionTelemetryReportRequest {
                                 // externally via an update url.
     }
 
-    // The state of the extension as determined by SB blocklist.
+    // The state of the extension as determined by SB blocklist, Omaha, or CRX
+    // Telemetry server.
     enum BlocklistState {
       // The extension is not in the blocklist.
       NOT_BLOCKLISTED = 0;
@@ -2104,6 +2231,20 @@ message ExtensionTelemetryReportRequest {
       BLOCKLISTED_POTENTIALLY_UNWANTED = 4;
       // Used when we couldn't connect to server, e.g. when offline.
       BLOCKLISTED_UNKNOWN = 5;
+    }
+
+    // Installation policy for the extension, default is NO_POLICY if not
+    // controlled by policy.
+    enum InstallationPolicy {
+      NO_POLICY = 0;                 // No policy for Extension.
+      INSTALLATION_ALLOWED = 1;      // Extension can be installed.
+      INSTALLATION_BLOCKED = 2;      // Extension cannot be installed.
+      INSTALLATION_FORCED = 3;       // Extension will be installed
+                                     // automatically and cannot be disabled.
+      INSTALLATION_RECOMMENDED = 4;  // Extension will be installed
+                                     // automatically but can be disabled.
+      INSTALLATION_REMOVED = 5;      // Extension cannot be installed and will
+                                     // be automatically removed.
     }
 
     optional string id = 1;
@@ -2135,10 +2276,15 @@ message ExtensionTelemetryReportRequest {
     optional bool is_converted_from_user_script = 9;
     optional Type type = 10;
     optional InstallLocation install_location = 11;
+    // The state of the extension determined by a combination of SB blocklist,
+    // Omaha, and CRX Telemetry service.
     optional BlocklistState blocklist_state = 12;
     // Bitmask of reason(s) the Chrome extension is disabled.
     // Bit positions are defined in extensions::disable_reason::DisableReason
     // (located in //extensions/browser/disable_reason.h)
+    //
+    // TODO(crbug.com/372186532): This field will be deprecated in favor of
+    // disable_reasons_list field below.
     optional uint32 disable_reasons = 13;
 
     // Manifest.json file associated with the extension. Only populated for
@@ -2155,6 +2301,19 @@ message ExtensionTelemetryReportRequest {
 
     // Only populated for off-store extensions.
     repeated FileInfo file_infos = 15;
+
+    // The state of the extension determined by the CRX telemetry server only.
+    optional BlocklistState telemetry_blocklist_state = 16;
+
+    // Installation policy for the extension determined by enterprise policy.
+    optional InstallationPolicy installation_policy = 17;
+
+    // List of reasons for which the Chrome extension is disabled. The reason
+    // values are defined in extensions::disable_reason::DisableReason (located
+    // in //extensions/browser/disable_reason.h).
+    repeated uint32 disable_reasons_list = 18;
+
+    // Next available tag number: 19.
   }
 
   // Information about the various telemetry signals.
@@ -2445,6 +2604,38 @@ message ExtensionTelemetryReportRequest {
   optional uint32 configuration_version = 3;
   // Tracks the current setting of developer mode in chrome://extensions page.
   optional bool developer_mode_enabled = 4;
+
+  // DEPRECATED.
+  // TODO(crbug.com/367327319): Clean up after new proto is live.
+  enum ManagementAuthorityTrustworthiness {
+    NONE = 0;           // No management authority found.
+    LOW = 1;            // Local device management authority.
+    TRUSTED = 2;        // Non-local management authority.
+    FULLY_TRUSTED = 3;  // Cryptographically verifiable policy source
+                        // e.g. CBCM, ChromeOS.
+  }
+
+  // DEPRECATED.
+  // TODO(crbug.com/367327319): Clean up after new proto is live.
+  optional ManagementAuthorityTrustworthiness
+      management_authority_trustworthiness = 5 [deprecated = true];
+
+  // Level of trustworthiness of a management authority entity.
+  enum ManagementAuthority {
+    MANAGEMENT_AUTHORITY_UNSPECIFIED = 0;
+    MANAGEMENT_AUTHORITY_NONE = 1;     // No management authority found.
+    MANAGEMENT_AUTHORITY_LOW = 2;      // Local device management authority.
+    MANAGEMENT_AUTHORITY_TRUSTED = 3;  // Non-local management authority.
+    MANAGEMENT_AUTHORITY_FULLY_TRUSTED =
+        4;  // Cryptographically verifiable policy source
+            // e.g. CBCM, ChromeOS.
+  }
+
+  // The highest level of management authority trustworthiness between the
+  // platform and the browser.
+  optional ManagementAuthority management_authority = 6;
+
+  // Next available tag number: 7.
 }
 
 message ExtensionTelemetryReportResponse {

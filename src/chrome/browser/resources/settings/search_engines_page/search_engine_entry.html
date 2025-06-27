@@ -25,6 +25,14 @@
         width: 36px;
       }
 
+      #downloadedIcon {
+        display: block;
+        height: var(--site-favicon-height, 16px);
+        margin-inline-end: 8px;
+        min-width: 16px;
+        width: var(--site-favicon-width, 16px);
+      }
+
       #name-column {
         align-items: center;
         display: flex;
@@ -47,8 +55,14 @@
     <div class="list-item cr-row" role="row">
       <span role="cell" id="name-column">
         <site-favicon favicon-url="[[engine.iconURL]]" url="[[engine.url]]"
-            icon-path="[[engine.iconPath]]">
+            icon-path="[[engine.iconPath]]"
+            hidden="[[shouldShowDownloadedIcon_(showDownloadedIcon_, engine)]]">
         </site-favicon>
+        <img id="downloadedIcon" is="cr-auto-img"
+            auto-src="[[engine.iconURL]]" clear-src
+            on-load="onDownloadedIconLoadSuccess_"
+            on-error="onDownloadedIconLoadError_"
+            hidden="[[!shouldShowDownloadedIcon_(showDownloadedIcon_, engine)]]">
         <div>[[engine.displayName]]</div>
       </span>
       <span class="additional-info-column-group">
@@ -60,11 +74,13 @@
         </span>
         <span role="cell" id="controls-column-group">
           <cr-button class="secondary-button" on-click="onActivateClick_"
+              aria-label="[[getActivateButtonAriaLabel_(engine)]]"
               hidden="[[!engine.canBeActivated]]" id="activate">
             $i18n{searchEnginesActivate}
           </cr-button>
           <cr-icon-button class="icon-edit" on-click="onViewOrEditClick_"
               title="$i18n{edit}" hidden="[[!showEditIcon_]]"
+              aria-label="[[getEditButtonAriaLabel_(engine)]]"
               disabled$="[[!engine.canBeEdited]]" id="editIconButton">
           </cr-icon-button>
           <cr-button class="secondary-button" on-click="onViewOrEditClick_"
@@ -73,6 +89,7 @@
           </cr-button>
           <cr-icon-button class="icon-more-vert" on-click="onDotsClick_"
               disabled$="[[engine.default]]" title="$i18n{moreActions}"
+              aria-label="[[getMoreActionsAriaLabel_(engine)]]"
               hidden="[[engine.isManaged]]">
           </cr-icon-button>
           <cr-action-menu role-description="$i18n{menu}">

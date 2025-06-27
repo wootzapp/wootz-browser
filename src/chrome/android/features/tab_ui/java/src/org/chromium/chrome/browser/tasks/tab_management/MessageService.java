@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.IntDef;
 
 import org.chromium.base.ObserverList;
@@ -24,6 +25,8 @@ public class MessageService {
         MessageType.PRICE_MESSAGE,
         MessageType.INCOGNITO_REAUTH_PROMO_MESSAGE,
         MessageType.ARCHIVED_TABS_MESSAGE,
+        MessageType.ARCHIVED_TABS_IPH_MESSAGE,
+        MessageType.COLLABORATION_ACTIVITY,
         MessageType.ALL
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -33,7 +36,9 @@ public class MessageService {
         int PRICE_MESSAGE = 2;
         int INCOGNITO_REAUTH_PROMO_MESSAGE = 3;
         int ARCHIVED_TABS_MESSAGE = 4;
-        int ALL = 5;
+        int ARCHIVED_TABS_IPH_MESSAGE = 5;
+        int COLLABORATION_ACTIVITY = 6;
+        int ALL = 7;
     }
 
     /**
@@ -111,8 +116,14 @@ public class MessageService {
         this.mMessageType = mMessageType;
     }
 
+    @CallSuper
+    public void destroy() {
+        mObservers.clear();
+    }
+
     /**
      * Add a {@link MessageObserver} to be notified when message from external service is changes.
+     *
      * @param observer a {@link MessageObserver} to add.
      */
     public void addObserver(MessageObserver observer) {
@@ -157,6 +168,6 @@ public class MessageService {
         RecordHistogram.recordEnumeratedHistogram(
                 String.format("GridTabSwitcher.%s.DisableReason", messageType),
                 reason,
-                MessageDisableReason.MAX_VALUE + 1);
+                MessageDisableReason.MAX_VALUE);
     }
 }

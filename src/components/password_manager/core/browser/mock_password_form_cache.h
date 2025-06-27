@@ -6,7 +6,6 @@
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_MOCK_PASSWORD_FORM_CACHE_H_
 
 #include "components/password_manager/core/browser/password_form_cache.h"
-
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace password_manager {
@@ -17,12 +16,12 @@ class MockPasswordFormCache : public PasswordFormCache {
   ~MockPasswordFormCache() override;
   MockPasswordFormCache(const MockPasswordFormCache&) = delete;
   MockPasswordFormCache& operator=(const MockPasswordFormCache&) = delete;
-  MOCK_METHOD(bool,
-              HasPasswordForm,
+  MOCK_METHOD(const PasswordForm*,
+              GetPasswordForm,
               (PasswordManagerDriver*, autofill::FormRendererId),
               (const override));
-  MOCK_METHOD(bool,
-              HasPasswordForm,
+  MOCK_METHOD(const PasswordForm*,
+              GetPasswordForm,
               (PasswordManagerDriver*, autofill::FieldRendererId),
               (const override));
 };

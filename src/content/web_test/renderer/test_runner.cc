@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/web_test/renderer/test_runner.h"
 
 #include <stddef.h>
@@ -25,6 +30,7 @@
 #include "base/test/bind.h"
 #include "build/build_config.h"
 #include "cc/paint/paint_canvas.h"
+#include "cc/paint/skia_paint_canvas.h"
 #include "content/public/common/isolated_world_ids.h"
 #include "content/public/renderer/render_frame_observer.h"
 #include "content/renderer/render_thread_impl.h"
@@ -33,7 +39,6 @@
 #include "content/web_test/renderer/app_banner_service.h"
 #include "content/web_test/renderer/blink_test_helpers.h"
 #include "content/web_test/renderer/fake_subresource_filter.h"
-#include "content/web_test/renderer/pixel_dump.h"
 #include "content/web_test/renderer/spell_check_client.h"
 #include "content/web_test/renderer/test_preferences.h"
 #include "content/web_test/renderer/web_frame_test_proxy.h"
@@ -45,7 +50,11 @@
 #include "gin/wrappable.h"
 #include "mojo/public/mojom/base/text_direction.mojom-forward.h"
 #include "net/base/filename_util.h"
+#include "printing/metafile_skia.h"
+#include "printing/mojom/print.mojom.h"
+#include "printing/page_number.h"
 #include "printing/page_range.h"
+#include "printing/print_settings.h"
 #include "services/network/public/mojom/cors.mojom.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
@@ -256,7 +265,6 @@ class TestRunnerBindings : public gin::Wrappable<TestRunnerBindings> {
   void CapturePrintingPixelsThen(v8::Local<v8::Function> callback);
 #endif
   void CheckForLeakedWindows();
-  void ClearAllDatabases();
   void ClearTrustTokenState(v8::Local<v8::Function> callback);
   void CopyImageThen(int x, int y, v8::Local<v8::Function> callback);
   void DisableMockScreenOrientation();
@@ -329,7 +337,6 @@ class TestRunnerBindings : public gin::Wrappable<TestRunnerBindings> {
                        v8::Local<v8::Function> callback);
   void SetCustomPolicyDelegate(gin::Arguments* args);
   void SetCustomTextOutput(const std::string& output);
-  void SetDatabaseQuota(int quota);
   void SetDisallowedSubresourcePathSuffixes(std::vector<std::string> suffixes,
                                             bool block_subresources);
   void SetDomainRelaxationForbiddenForURLScheme(bool forbidden,
@@ -554,8 +561,6 @@ gin::ObjectTemplateBuilder TestRunnerBindings::GetObjectTemplateBuilder(
       // checker.
       .SetMethod("checkForLeakedWindows",
                  &TestRunnerBindings::CheckForLeakedWindows)
-      // Clears WebSQL databases.
-      .SetMethod("clearAllDatabases", &TestRunnerBindings::ClearAllDatabases)
       .SetMethod("clearBackForwardList", &TestRunnerBindings::NotImplemented)
       // Clears persistent Trust Tokens state in the browser. See
       // https://github.com/wicg/trust-token-api.
@@ -740,9 +745,6 @@ gin::ObjectTemplateBuilder TestRunnerBindings::GetObjectTemplateBuilder(
                  &TestRunnerBindings::SetCustomPolicyDelegate)
       .SetMethod("setCustomTextOutput",
                  &TestRunnerBindings::SetCustomTextOutput)
-      // Setting quota to kDefaultDatabaseQuota will reset it to the default
-      // value.
-      .SetMethod("setDatabaseQuota", &TestRunnerBindings::SetDatabaseQuota)
       .SetMethod("setDomainRelaxationForbiddenForURLScheme",
                  &TestRunnerBindings::SetDomainRelaxationForbiddenForURLScheme)
       .SetMethod("setDumpConsoleMessages",
@@ -1119,7 +1121,7 @@ void TestRunnerBindings::SetEffectiveConnectionType(
   else if (connection_type == "Type4G")
     web_type = blink::WebEffectiveConnectionType::kType4G;
   else
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
 
   if (runner_)
     runner_->SetEffectiveConnectionType(web_type);
@@ -1135,7 +1137,7 @@ std::string TestRunnerBindings::GetWritableDirectory() {
 }
 
 void TestRunnerBindings::SetFilePathForMockFileDialog(const std::string& path) {
-  if (frame_) {
+  if (!frame_) {
     return;
   }
   frame_->GetWebTestControlHostRemote()->SetFilePathForMockFileDialog(
@@ -1835,20 +1837,6 @@ void TestRunnerBindings::DumpNavigationPolicy() {
   runner_->DumpNavigationPolicy(*frame_);
 }
 
-void TestRunnerBindings::ClearAllDatabases() {
-  if (!frame_) {
-    return;
-  }
-  frame_->GetWebTestControlHostRemote()->ClearAllDatabases();
-}
-
-void TestRunnerBindings::SetDatabaseQuota(int quota) {
-  if (!frame_) {
-    return;
-  }
-  frame_->GetWebTestControlHostRemote()->SetDatabaseQuota(quota);
-}
-
 void TestRunnerBindings::SetBlockThirdPartyCookies(bool block) {
   if (!frame_) {
     return;
@@ -2170,7 +2158,7 @@ void TestRunnerBindings::CopyImageThen(int x,
     return;
   }
   mojo::Remote<blink::mojom::ClipboardHost> remote_clipboard;
-  frame_->GetBrowserInterfaceBroker()->GetInterface(
+  frame_->GetBrowserInterfaceBroker().GetInterface(
       remote_clipboard.BindNewPipeAndPassReceiver());
 
   blink::ClipboardSequenceNumberToken sequence_number_before;
@@ -2187,8 +2175,7 @@ void TestRunnerBindings::CopyImageThen(int x,
 
   mojo_base::BigBuffer png_data;
   remote_clipboard->ReadPng(ui::ClipboardBuffer::kCopyPaste, &png_data);
-  SkBitmap bitmap;
-  gfx::PNGCodec::Decode(png_data.data(), png_data.size(), &bitmap);
+  SkBitmap bitmap = gfx::PNGCodec::Decode(png_data);
 
   blink::WebLocalFrame* web_frame = GetWebFrame();
   v8::Isolate* isolate = web_frame->GetAgentGroupScheduler()->Isolate();
@@ -2347,13 +2334,14 @@ void TestRunnerBindings::ZoomPageIn() {
     return;
   }
 
-  blink::WebView* web_view = GetWebFrame()->View();
+  blink::WebFrameWidget* web_frame_widget =
+      frame_->GetLocalRootWebFrameWidget();
   // TODO(danakj): This should be an async call through the browser process.
   // JS can wait for `matchMedia("screen and (min-resolution: 2dppx)").matches`
   // for the operation to complete, if it can tell which number to use in
   // min-resolution.
-  frame_->GetLocalRootWebFrameWidget()->SetZoomLevelForTesting(
-      web_view->ZoomLevel() + 1);
+  web_frame_widget->SetZoomLevelForTesting(web_frame_widget->GetZoomLevel() +
+                                           1);
 }
 
 void TestRunnerBindings::ZoomPageOut() {
@@ -2367,13 +2355,14 @@ void TestRunnerBindings::ZoomPageOut() {
   if (!frame_->IsMainFrame())
     return;
 
-  blink::WebView* web_view = GetWebFrame()->View();
+  blink::WebFrameWidget* web_frame_widget =
+      frame_->GetLocalRootWebFrameWidget();
   // TODO(danakj): This should be an async call through the browser process.
   // JS can wait for `matchMedia("screen and (min-resolution: 2dppx)").matches`
   // for the operation to complete, if it can tell which number to use in
   // min-resolution.
-  frame_->GetLocalRootWebFrameWidget()->SetZoomLevelForTesting(
-      web_view->ZoomLevel() - 1);
+  web_frame_widget->SetZoomLevelForTesting(web_frame_widget->GetZoomLevel() -
+                                           1);
 }
 
 void TestRunnerBindings::SetPageZoomFactor(double zoom_factor) {
@@ -2393,7 +2382,7 @@ void TestRunnerBindings::SetPageZoomFactor(double zoom_factor) {
   // for the operation to complete, if it can tell which number to use in
   // min-resolution.
   frame_->GetLocalRootWebFrameWidget()->SetZoomLevelForTesting(
-      blink::PageZoomFactorToZoomLevel(zoom_factor));
+      blink::ZoomFactorToZoomLevel(zoom_factor));
 }
 
 std::string TestRunnerBindings::TooltipText() {
@@ -2584,8 +2573,7 @@ bool TestRunner::WorkQueue::ProcessWorkItemInternal(
       source.GetWebTestControlHostRemote()->Reload();
       return true;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void TestRunner::WorkQueue::ReplicateStates(const base::Value::Dict& values,
@@ -2764,6 +2752,10 @@ bool TestRunner::CanDumpPixelsFromRenderer() const {
          web_test_runtime_flags_.is_printing();
 }
 
+bool TestRunner::IsPrinting() const {
+  return web_test_runtime_flags_.is_printing();
+}
+
 #if BUILDFLAG(ENABLE_PRINTING)
 gfx::Size TestRunner::GetPrintingPageSize(blink::WebLocalFrame* frame) const {
   const int printing_width = web_test_runtime_flags_.printing_width();
@@ -2873,8 +2865,33 @@ SkBitmap TestRunner::PrintFrameToBitmap(blink::WebLocalFrame* frame) {
           ? printing::mojom::PrintScalingOption::kCenterShrinkToFitPaper
           : printing::mojom::PrintScalingOption::kSourceSize;
 
-  return content::PrintFrameToBitmap(frame, print_params,
-                                     GetPrintingPageRanges(frame));
+  auto* frame_widget = frame->LocalRoot()->FrameWidget();
+  frame_widget->UpdateAllLifecyclePhases(blink::DocumentUpdateReason::kTest);
+
+  uint32_t page_count = frame->PrintBegin(print_params, blink::WebNode());
+
+  const printing::PageRanges& page_ranges = GetPrintingPageRanges(frame);
+  std::vector<uint32_t> pages(
+      printing::PageNumber::GetPages(page_ranges, page_count));
+  gfx::Size spool_size = frame->SpoolSizeInPixelsForTesting(pages);
+
+  bool is_opaque = false;
+
+  SkBitmap bitmap;
+  if (!bitmap.tryAllocN32Pixels(spool_size.width(), spool_size.height(),
+                                is_opaque)) {
+    LOG(ERROR) << "Failed to create bitmap width=" << spool_size.width()
+               << " height=" << spool_size.height();
+    return SkBitmap();
+  }
+
+  printing::MetafileSkia metafile(printing::mojom::SkiaDocumentType::kMSKP,
+                                  printing::PrintSettings::NewCookie());
+  cc::SkiaPaintCanvas canvas(bitmap);
+  canvas.SetPrintingMetafile(&metafile);
+  frame->PrintPagesForTesting(&canvas, spool_size, &pages);
+  frame->PrintEnd();
+  return bitmap;
 }
 #endif  // BUILDFLAG(ENABLE_PRINTING)
 
@@ -2906,8 +2923,7 @@ SkBitmap TestRunner::DumpPixelsInRenderer(blink::WebLocalFrame* main_frame) {
 
   return PrintFrameToBitmap(target_frame);
 #else
-  NOTREACHED_IN_MIGRATION();
-  return SkBitmap();
+  NOTREACHED();
 #endif
 }
 
@@ -3119,16 +3135,6 @@ void TestRunner::FinishTestIfReady(WebFrameTestProxy& source) {
 
 void TestRunner::TestFinishedFromSecondaryRenderer(WebFrameTestProxy& source) {
   NotifyDone(source);
-}
-
-void TestRunner::ResetRendererAfterWebTest() {
-  WebFrameTestProxy* main_frame = FindInProcessMainWindowMainFrame();
-  // When the about:blank navigation happens in a new process, the new
-  // WebFrameTestProxy is not designated to be the "MainWindowMainFrame" one
-  // yet. It will be tracked later after receiving the SetTestConfiguration IPC.
-  if (main_frame)
-    main_frame->Reset();
-  Reset();
 }
 
 void TestRunner::AddMainFrame(WebFrameTestProxy& frame) {

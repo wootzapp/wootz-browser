@@ -26,7 +26,7 @@ void DoPopulateMatrix(T* target_matrix,
                       double y,
                       double z,
                       double w) {
-  auto out = target_matrix->Data();
+  auto out = target_matrix->AsSpan();
   out[0] = 1.0 - 2 * (y * y + z * z);
   out[1] = 2 * (x * y - z * w);
   out[2] = 2 * (x * z + y * w);
@@ -126,7 +126,7 @@ OrientationSensor::OrientationSensor(
     const SpatialSensorOptions* options,
     ExceptionState& exception_state,
     device::mojom::blink::SensorType type,
-    const Vector<mojom::blink::PermissionsPolicyFeature>& features)
+    const Vector<network::mojom::PermissionsPolicyFeature>& features)
     : Sensor(execution_context, options, exception_state, type, features),
       reading_dirty_(true) {}
 

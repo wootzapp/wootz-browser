@@ -5,11 +5,10 @@
 #ifndef GPU_COMMAND_BUFFER_COMMON_SHARED_IMAGE_CAPABILITIES_H_
 #define GPU_COMMAND_BUFFER_COMMON_SHARED_IMAGE_CAPABILITIES_H_
 
-#include <vector>
+#include <stdint.h>
 
 #include "build/build_config.h"
 #include "gpu/gpu_export.h"
-#include "ui/gfx/buffer_types.h"
 
 namespace gpu {
 
@@ -19,8 +18,17 @@ struct GPU_EXPORT SharedImageCapabilities {
   ~SharedImageCapabilities();
 
   bool supports_scanout_shared_images = false;
+
+#if BUILDFLAG(IS_WIN)
+  // On Windows, overlays are in general not supported. However, in some cases
+  // they are supported for the software video frame use case in particular.
+  // This cap details whether that support is present.
+  bool supports_scanout_shared_images_for_software_video_frames = false;
+#endif
+
   bool supports_luminance_shared_images = false;
   bool supports_r16_shared_images = false;
+  bool supports_native_nv12_mappable_shared_images = false;
   bool is_r16f_supported = false;
   bool disable_r8_shared_images = false;
   bool disable_webgpu_shared_images = false;
@@ -28,9 +36,8 @@ struct GPU_EXPORT SharedImageCapabilities {
   bool shared_image_d3d = false;
   bool shared_image_swap_chain = false;
 
-  std::vector<gfx::BufferUsageAndFormat> texture_target_exception_list;
 #if BUILDFLAG(IS_MAC)
-  uint32_t macos_specific_texture_target;
+  uint32_t texture_target_for_io_surfaces = 0;
 #endif
 };
 

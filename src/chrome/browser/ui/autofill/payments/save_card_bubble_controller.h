@@ -9,10 +9,10 @@
 #include <string>
 #include <vector>
 
-#include "components/autofill/core/browser/autofill_client.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
-#include "components/autofill/core/browser/ui/payments/payments_bubble_closed_reasons.h"
-#include "components/autofill/core/browser/ui/payments/save_card_and_virtual_card_enroll_confirmation_ui_params.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
+#include "components/autofill/core/browser/ui/payments/payments_ui_closed_reasons.h"
+#include "components/autofill/core/browser/ui/payments/save_payment_method_and_virtual_card_enroll_confirmation_ui_params.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/models/image_model.h"
@@ -66,13 +66,13 @@ class SaveCardBubbleController {
 
   // Returns a once callback for the save card bubble controller's
   // OnBubbleClosed() method.
-  virtual base::OnceCallback<void(PaymentsBubbleClosedReason)>
+  virtual base::OnceCallback<void(PaymentsUiClosedReason)>
   GetOnBubbleClosedCallback() = 0;
 
   // Returns the UI parameters needed to display the save card confirmation
   // view. This can only be called while the confirmation bubble view is being
   // shown.
-  virtual const SaveCardAndVirtualCardEnrollConfirmationUiParams&
+  virtual const SavePaymentMethodAndVirtualCardEnrollConfirmationUiParams&
   GetConfirmationUiParams() const = 0;
 
   // Returns whether the dialog should include a textfield requesting the user
@@ -92,11 +92,12 @@ class SaveCardBubbleController {
   // OnSaveButton takes in a struct representing the cardholder name,
   // expiration date month and expiration date year confirmed/entered by the
   // user if they were requested, or struct with empty strings otherwise.
-  virtual void OnSaveButton(const AutofillClient::UserProvidedCardDetails&
-                                user_provided_card_details) = 0;
+  virtual void OnSaveButton(
+      const payments::PaymentsAutofillClient::UserProvidedCardDetails&
+          user_provided_card_details) = 0;
   virtual void OnLegalMessageLinkClicked(const GURL& url) = 0;
   virtual void OnManageCardsClicked() = 0;
-  virtual void OnBubbleClosed(PaymentsBubbleClosedReason closed_reason) = 0;
+  virtual void OnBubbleClosed(PaymentsUiClosedReason closed_reason) = 0;
 
   // State.
 

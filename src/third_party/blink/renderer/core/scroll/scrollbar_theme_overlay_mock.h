@@ -56,18 +56,18 @@ class CORE_EXPORT ScrollbarThemeOverlayMock
   }
 
   bool ShouldSnapBackToDragOrigin(const Scrollbar& scrollbar,
-                                  const WebMouseEvent& evt) override {
+                                  const WebMouseEvent& evt) const override {
     return false;
   }
 
-  int MinimumThumbLength(const Scrollbar& scrollbar) override {
+  int MinimumThumbLength(const Scrollbar& scrollbar) const override {
     return ThumbThickness(scrollbar.ScaleFromDIP(), EScrollbarWidth::kAuto);
   }
 
  private:
   bool IsMockTheme() const final { return true; }
 
-  base::TimeDelta delay_;
+  base::TimeDelta delay_ = base::TimeDelta::Max();
 };
 
 }  // namespace blink

@@ -12,6 +12,7 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ssl/https_upgrades_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -122,15 +123,15 @@ IN_PROC_BROWSER_TEST_F(ScriptingAPITest, MainFrameTests) {
 }
 
 IN_PROC_BROWSER_TEST_F(ScriptingAPITest, SubFramesTests) {
-  // Open up two tabs, each with cross-site iframes, one at a.com and one at
-  // d.com.
-  // In both cases, the cross-site iframes point to b.com and c.com.
   OpenURLInCurrentTab(
       embedded_test_server()->GetURL("a.com", "/iframe_cross_site.html"));
   OpenURLInNewTab(
       embedded_test_server()->GetURL("d.com", "/iframe_cross_site.html"));
+  OpenURLInNewTab(
+      embedded_test_server()->GetURL("e.com", "/iframe_sandboxed_srcdoc.html"));
+  OpenURLInNewTab(
+      embedded_test_server()->GetURL("f.com", "/iframe_blob_url.html"));
 
-  // From there, the test continues in the JS.
   ASSERT_TRUE(RunExtensionTest("scripting/sub_frames")) << message_;
 }
 
@@ -181,6 +182,8 @@ IN_PROC_BROWSER_TEST_F(ScriptingAPITest, CSSInjection) {
       embedded_test_server()->GetURL("chromium.org", "/title2.html"));
   OpenURLInNewTab(embedded_test_server()->GetURL("subframes.example",
                                                  "/iframe_cross_site.html"));
+  OpenURLInNewTab(embedded_test_server()->GetURL(
+      "subframes-sandboxed.example", "/iframe_sandboxed_srcdoc.html"));
 
   ASSERT_TRUE(RunExtensionTest("scripting/css_injection")) << message_;
 }
@@ -626,6 +629,10 @@ IN_PROC_BROWSER_TEST_F(ScriptingAPITest, InjectImmediately) {
 // Regression test for https://crbug.com/1495191.
 IN_PROC_BROWSER_TEST_F(ScriptingAPITest,
                        PRE_DynamicContentScriptsInjectInIncognito) {
+  // TODO(crbug.com/40937027): Convert test to use HTTPS and then remove.
+  ScopedAllowHttpForHostnamesForTesting allow_http({"example.com"},
+                                                   profile()->GetPrefs());
+
   // Load up two extensions, one that's allowed in incognito and one that's
   // not.
   const Extension* incognito_allowed =
@@ -671,6 +678,10 @@ IN_PROC_BROWSER_TEST_F(ScriptingAPITest,
 
 IN_PROC_BROWSER_TEST_F(ScriptingAPITest,
                        DynamicContentScriptsInjectInIncognito) {
+  // TODO(crbug.com/40937027): Convert test to use HTTPS and then remove.
+  ScopedAllowHttpForHostnamesForTesting allow_http({"example.com"},
+                                                   profile()->GetPrefs());
+
   // Repeat the steps of navigating to an on-the-record and off-the-record page
   // to validate injection after a restart. This verifies the incognito bit
   // is properly set when restoring scripts after a restart.
@@ -769,27 +780,6 @@ class ScriptingAPIPrerenderingTest : public ScriptingAPITest {
 // TODO(crbug.com/40857271): disabled due to flakiness.
 IN_PROC_BROWSER_TEST_F(ScriptingAPIPrerenderingTest, DISABLED_Basic) {
   ASSERT_TRUE(RunExtensionTest("scripting/prerendering")) << message_;
-}
-
-class ScriptingAndUserScriptsAPITest : public ScriptingAPITest {
- public:
-  ScriptingAndUserScriptsAPITest() = default;
-  ScriptingAndUserScriptsAPITest(const ScriptingAndUserScriptsAPITest&) =
-      delete;
-  ScriptingAndUserScriptsAPITest& operator=(
-      const ScriptingAndUserScriptsAPITest&) = delete;
-  ~ScriptingAndUserScriptsAPITest() override = default;
-
-  void SetUpOnMainThread() override {
-    ScriptingAPITest::SetUpOnMainThread();
-    // The userScripts API is only available to users in developer mode.
-    util::SetDeveloperModeForProfile(profile(), true);
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(ScriptingAndUserScriptsAPITest,
-                       ScriptingAPIDoesNotAffectUserScripts) {
-  ASSERT_TRUE(RunExtensionTest("scripting/dynamic_user_scripts")) << message_;
 }
 
 }  // namespace extensions

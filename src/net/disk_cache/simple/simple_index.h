@@ -9,8 +9,6 @@
 
 #include <list>
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "base/functional/callback.h"
@@ -29,6 +27,8 @@
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
 #include "net/disk_cache/disk_cache.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/application_status_listener.h"
@@ -111,8 +111,7 @@ class NET_EXPORT_PRIVATE EntryMetadata {
 static_assert(sizeof(EntryMetadata) == 8, "incorrect metadata size");
 
 // This class is not Thread-safe.
-class NET_EXPORT_PRIVATE SimpleIndex
-    : public base::SupportsWeakPtr<SimpleIndex> {
+class NET_EXPORT_PRIVATE SimpleIndex final {
  public:
   // Used in histograms. Please only add entries at the end.
   enum IndexInitMethod {
@@ -138,7 +137,7 @@ class NET_EXPORT_PRIVATE SimpleIndex
               net::CacheType cache_type,
               std::unique_ptr<SimpleIndexFile> simple_index_file);
 
-  virtual ~SimpleIndex();
+  ~SimpleIndex();
 
   void Initialize(base::Time cache_mtime);
 
@@ -169,7 +168,7 @@ class NET_EXPORT_PRIVATE SimpleIndex
   bool UpdateEntrySize(uint64_t entry_hash,
                        base::StrictNumeric<uint32_t> entry_size);
 
-  using EntrySet = std::unordered_map<uint64_t, EntryMetadata>;
+  using EntrySet = absl::flat_hash_map<uint64_t, EntryMetadata>;
 
   // Insert an entry in the given set if there is not already entry present.
   // Returns true if the set was modified.
@@ -281,7 +280,7 @@ class NET_EXPORT_PRIVATE SimpleIndex
 
   // This stores all the entry_hash of entries that are removed during
   // initialization.
-  std::unordered_set<uint64_t> removed_entries_;
+  absl::flat_hash_set<uint64_t> removed_entries_;
   bool initialized_ = false;
   IndexInitMethod init_method_ = INITIALIZE_METHOD_MAX;
 
@@ -304,6 +303,13 @@ class NET_EXPORT_PRIVATE SimpleIndex
   // background we can write the index much more frequently, to insure fresh
   // index on next startup.
   bool app_on_background_ = false;
+
+  // Flag and params for SimpleCachePrioritizedCaching feature.
+  const bool prioritized_caching_enabled_;
+  const int caching_prioritization_factor_;
+  const uint64_t caching_prioritization_period_in_seconds_;
+
+  base::WeakPtrFactory<SimpleIndex> weak_ptr_factory_{this};
 };
 
 }  // namespace disk_cache

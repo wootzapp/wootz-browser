@@ -110,8 +110,8 @@ import * as Console from 'devtools/panels/console/console.js';
 
   function dumpFocus() {
     const firstMessage = consoleView.visibleViewMessages[0];
-    const hasTrace = !!firstMessage.element().querySelector('.console-message-stack-trace-toggle');
-    const hasHiddenStackTrace = firstMessage.element().querySelector('.console-message-stack-trace-wrapper > div.hidden');
+    const hasTrace = !!firstMessage.element().querySelector('.console-message-stack-trace-toggle .console-message-expand-icon');
+    const hasHiddenStackTrace = firstMessage.element().querySelector('.console-message-stack-trace-wrapper > div.hidden-stack-trace');
     const hasCollapsedObject = firstMessage.element().querySelector('.console-view-object-properties-section.hidden');
     const hasExpandedObject = firstMessage.element().querySelector('.console-view-object-properties-section:not(.hidden)');
 
@@ -141,9 +141,9 @@ import * as Console from 'devtools/panels/console/console.js';
       name += '#' + element.id;
     if (element.getAttribute('aria-label'))
       name += ':' + element.getAttribute('aria-label');
-    else if (element.title)
+    if (element.title)
       name += ':' + element.title;
-    else if (element.className)
+    if (element.className)
       name += '.' + element.className.split(' ').join('.');
     TestRunner.addResult(name);
   }

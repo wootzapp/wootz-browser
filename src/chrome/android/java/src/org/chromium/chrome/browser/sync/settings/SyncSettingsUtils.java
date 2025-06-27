@@ -28,6 +28,7 @@ import org.chromium.base.Log;
 import org.chromium.base.Promise;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ChromeStringConstants;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.CustomTabsUiType;
 import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
@@ -38,12 +39,12 @@ import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.sync.TrustedVaultClient;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.base.GoogleServiceAuthError;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.google_apis.gaia.GoogleServiceAuthErrorState;
 import org.chromium.ui.widget.Toast;
 
 import java.lang.annotation.Retention;
@@ -51,7 +52,6 @@ import java.lang.annotation.RetentionPolicy;
 
 /** Helper methods for sync settings. */
 public class SyncSettingsUtils {
-    private static final String DASHBOARD_URL = "https://www.google.com/settings/chrome/sync";
     private static final String MY_ACCOUNT_URL = "https://myaccount.google.com/smartlink/home";
     private static final String TAG = "SyncSettingsUtils";
 
@@ -126,6 +126,7 @@ public class SyncSettingsUtils {
 
     /** Returns the type of the sync error, for syncing users. */
     public static @SyncError int getSyncError(Profile profile) {
+        assert profile != null;
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         if (syncService == null) {
             return SyncError.NO_ERROR;
@@ -135,22 +136,11 @@ public class SyncSettingsUtils {
             return SyncError.NO_ERROR;
         }
 
-        @SyncError int error = getSyncErrorFromSyncService(syncService);
-        if (error != SyncError.NO_ERROR) {
-            return error;
-        }
-
         if (!syncService.isInitialSyncFeatureSetupComplete()) {
             return SyncError.SYNC_SETUP_INCOMPLETE;
         }
 
-        if (syncService.getSelectedTypes().contains(UserSelectableType.PASSWORDS)
-                && PasswordManagerUtilBridge.isGmsCoreUpdateRequired(
-                        UserPrefs.get(profile), /* isPwdSyncEnabled= */ true)) {
-            return SyncError.UPM_BACKEND_OUTDATED;
-        }
-
-        return SyncError.NO_ERROR;
+        return getCommonError(profile);
     }
 
     /**
@@ -263,8 +253,9 @@ public class SyncSettingsUtils {
             return context.getString(R.string.sync_settings_not_confirmed);
         }
 
-        if (syncService.getAuthError() != GoogleServiceAuthError.State.NONE) {
-            return getSyncStatusSummaryForAuthError(context, syncService.getAuthError());
+        @GoogleServiceAuthErrorState int authErrorState = syncService.getAuthError().getState();
+        if (authErrorState != GoogleServiceAuthErrorState.NONE) {
+            return getSyncStatusSummaryForAuthError(context, authErrorState);
         }
 
         if (syncService.requiresClientUpgrade()) {
@@ -300,7 +291,7 @@ public class SyncSettingsUtils {
 
         if (syncService.getSelectedTypes().contains(UserSelectableType.PASSWORDS)
                 && PasswordManagerUtilBridge.isGmsCoreUpdateRequired(
-                        UserPrefs.get(profile), /* isPwdSyncEnabled= */ true)) {
+                        UserPrefs.get(profile), syncService)) {
             return context.getString(R.string.sync_error_outdated_gms);
         }
 
@@ -308,30 +299,33 @@ public class SyncSettingsUtils {
     }
 
     /**
-     * Gets the sync status summary for a given {@link GoogleServiceAuthError.State}.
+     * Gets the sync status summary for a given {@link GoogleServiceAuthErrorState}.
+     *
      * @param context The application context, used by the method to get string resources.
      * @param state Must not be GoogleServiceAuthError.State.None.
      */
     private static String getSyncStatusSummaryForAuthError(
-            Context context, @GoogleServiceAuthError.State int state) {
-        switch (state) {
-            case GoogleServiceAuthError.State.INVALID_GAIA_CREDENTIALS:
-                return context.getString(R.string.sync_error_ga);
-            case GoogleServiceAuthError.State.CONNECTION_FAILED:
-                return context.getString(R.string.sync_error_connection);
-            case GoogleServiceAuthError.State.SERVICE_UNAVAILABLE:
-                return context.getString(R.string.sync_error_service_unavailable);
-            case GoogleServiceAuthError.State.REQUEST_CANCELED:
-            case GoogleServiceAuthError.State.UNEXPECTED_SERVICE_RESPONSE:
-            case GoogleServiceAuthError.State.SERVICE_ERROR:
-                return context.getString(R.string.sync_error_generic);
-            case GoogleServiceAuthError.State.NONE:
+            Context context, @GoogleServiceAuthErrorState int state) {
+        return switch (state) {
+            case GoogleServiceAuthErrorState.INVALID_GAIA_CREDENTIALS -> context.getString(
+                    R.string.sync_error_ga);
+            case GoogleServiceAuthErrorState.CONNECTION_FAILED -> context.getString(
+                    R.string.sync_error_connection);
+            case GoogleServiceAuthErrorState.SERVICE_UNAVAILABLE -> context.getString(
+                    R.string.sync_error_service_unavailable);
+            case GoogleServiceAuthErrorState.REQUEST_CANCELED,
+                    GoogleServiceAuthErrorState.UNEXPECTED_SERVICE_RESPONSE,
+                    GoogleServiceAuthErrorState.SERVICE_ERROR -> context.getString(
+                    R.string.sync_error_generic);
+            case GoogleServiceAuthErrorState.NONE -> {
                 assert false : "No summary if there's no auth error";
-                return "";
-            default:
+                yield "";
+            }
+            default -> {
                 assert false : "Unknown auth error state";
-                return "";
-        }
+                yield "";
+            }
+        };
     }
 
     /** Returns an icon that represents the current sync state. */
@@ -399,13 +393,13 @@ public class SyncSettingsUtils {
      */
     public static void openSyncDashboard(Activity activity) {
         // TODO(crbug.com/41450409): Create a builder for custom tab intents.
-        openCustomTabWithURL(activity, DASHBOARD_URL);
+        openCustomTabWithURL(activity, ChromeStringConstants.SYNC_DASHBOARD_URL);
     }
 
     /**
      * Opens web dashboard to manage google account in a custom tab.
      *
-     * Callers should ensure the current account has sync consent prior to calling.
+     * <p>Callers should ensure the current account has sync consent prior to calling.
      *
      * @param activity The activity to use for starting the intent.
      */
@@ -419,16 +413,12 @@ public class SyncSettingsUtils {
      * required for managing a trusted vault.
      *
      * @param fragment Fragment to use when starting the dialog.
-     * @param accountInfo Account representing the user.
      * @param requestCode Arbitrary request code that upon completion will be passed back via
-     *         Fragment.onActivityResult().
+     *     Fragment.onActivityResult().
      * @param pendingIntentPromise promise that provides the intent to be started.
      */
     private static void openTrustedVaultDialogForPendingIntent(
-            Fragment fragment,
-            CoreAccountInfo accountInfo,
-            int requestCode,
-            Promise<PendingIntent> pendingIntentPromise) {
+            Fragment fragment, int requestCode, Promise<PendingIntent> pendingIntentPromise) {
         pendingIntentPromise.then(
                 (pendingIntent) -> {
                     try {
@@ -480,7 +470,6 @@ public class SyncSettingsUtils {
                 .recordKeyRetrievalTrigger(TrustedVaultUserActionTriggerForUMA.SETTINGS);
         openTrustedVaultDialogForPendingIntent(
                 fragment,
-                accountInfo,
                 requestCode,
                 TrustedVaultClient.get().createKeyRetrievalIntent(accountInfo));
     }
@@ -501,7 +490,6 @@ public class SyncSettingsUtils {
                         TrustedVaultUserActionTriggerForUMA.SETTINGS);
         openTrustedVaultDialogForPendingIntent(
                 fragment,
-                accountInfo,
                 requestCode,
                 TrustedVaultClient.get().createRecoverabilityDegradedIntent(accountInfo));
     }
@@ -512,15 +500,12 @@ public class SyncSettingsUtils {
      * @param fragment Fragment to use when starting the dialog.
      * @param accountInfo Account representing the user.
      * @param requestCode Arbitrary request code that upon completion will be passed back via
-     *         Fragment.onActivityResult().
+     *     Fragment.onActivityResult().
      */
     public static void openTrustedVaultOptInDialog(
             Fragment fragment, CoreAccountInfo accountInfo, int requestCode) {
         openTrustedVaultDialogForPendingIntent(
-                fragment,
-                accountInfo,
-                requestCode,
-                TrustedVaultClient.get().createOptInIntent(accountInfo));
+                fragment, requestCode, TrustedVaultClient.get().createOptInIntent(accountInfo));
     }
 
     /**
@@ -573,8 +558,12 @@ public class SyncSettingsUtils {
         return canShowFullName ? fullName : accountEmail;
     }
 
-    /** Returns the type of the sync error/identity error for signed-in non-syncing users. */
+    /**
+     * Returns the type of the sync error/identity error for signed-in non-syncing users.
+     * TODO(crbug.com/330290259): Merge this into getSyncError().
+     */
     public static @SyncError int getIdentityError(Profile profile) {
+        assert profile != null;
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         // TODO(crbug.com/40944114): Consider converting this to an assertion instead.
         if (syncService == null) {
@@ -593,7 +582,7 @@ public class SyncSettingsUtils {
             return SyncError.NO_ERROR;
         }
 
-        @SyncError int error = getSyncErrorFromSyncService(syncService);
+        @SyncError int error = getCommonError(profile);
         // Do not show identity error for unrecoverable errors, since they are not actionable.
         // TODO(crbug.com/40944114): Remove these unused values after sync-to-signin transition.
         if (error == SyncError.OTHER_ERRORS) {
@@ -602,11 +591,13 @@ public class SyncSettingsUtils {
         return error;
     }
 
-    /** Returns the type of the sync error from sync service. */
-    private static @SyncError int getSyncErrorFromSyncService(SyncService syncService) {
+    /** Returns the errors common to both getSyncError() and getIdentityError(). */
+    private static @SyncError int getCommonError(Profile profile) {
+        SyncService syncService = SyncServiceFactory.getForProfile(profile);
         assert syncService != null;
 
-        if (syncService.getAuthError() == GoogleServiceAuthError.State.INVALID_GAIA_CREDENTIALS) {
+        if (syncService.getAuthError().getState()
+                == GoogleServiceAuthErrorState.INVALID_GAIA_CREDENTIALS) {
             return SyncError.AUTH_ERROR;
         }
 
@@ -614,7 +605,7 @@ public class SyncSettingsUtils {
             return SyncError.CLIENT_OUT_OF_DATE;
         }
 
-        if (syncService.getAuthError() != GoogleServiceAuthError.State.NONE
+        if (syncService.getAuthError().getState() != GoogleServiceAuthErrorState.NONE
                 || syncService.hasUnrecoverableError()) {
             return SyncError.OTHER_ERRORS;
         }
@@ -636,6 +627,16 @@ public class SyncSettingsUtils {
             return syncService.isEncryptEverythingEnabled()
                     ? SyncError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_EVERYTHING
                     : SyncError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_PASSWORDS;
+        }
+
+        // This error doesn't lead to a SyncErrorMessage and thus should be thrown at the last.
+        // Otherwise this would block other errors from showing the SyncErrorMessage.
+        // TODO(crbug.com/345217772): Look for a better alternative. Maybe return all the sync
+        // errors at the moment and not just one.
+        if (syncService.getSelectedTypes().contains(UserSelectableType.PASSWORDS)
+                && PasswordManagerUtilBridge.isGmsCoreUpdateRequired(
+                        UserPrefs.get(profile), syncService)) {
+            return SyncError.UPM_BACKEND_OUTDATED;
         }
 
         return SyncError.NO_ERROR;
@@ -678,6 +679,10 @@ public class SyncSettingsUtils {
                 return new ErrorCardDetails(
                         R.string.identity_error_card_sync_recoverability_degraded_for_passwords,
                         R.string.identity_error_card_button_verify);
+            case SyncError.UPM_BACKEND_OUTDATED:
+                return new ErrorCardDetails(
+                        R.string.sync_error_card_outdated_gms,
+                        R.string.password_manager_outdated_gms_positive_button);
             case SyncError.OTHER_ERRORS:
             case SyncError.SYNC_SETUP_INCOMPLETE:
             case SyncError.NO_ERROR:

@@ -41,19 +41,13 @@
 namespace blink {
 
 SkFont FontPlatformData::CreateSkFont(const FontDescription*) const {
-  SkFont font;
+  SkFont font(typeface_);
   font.setSize(SkFloatToScalar(text_size_));
-  font.setTypeface(typeface_);
   font.setEmbolden(synthetic_bold_);
   font.setSkewX(synthetic_italic_ ? -SK_Scalar1 / 4 : 0);
 
   bool use_subpixel_rendering = style_.use_subpixel_rendering;
   bool use_anti_alias = style_.use_anti_alias;
-
-  if (RuntimeEnabledFeatures::DisableAhemAntialiasEnabled() && IsAhem()) {
-    use_subpixel_rendering = false;
-    use_anti_alias = false;
-  }
 
   if (use_subpixel_rendering) {
     font.setEdging(SkFont::Edging::kSubpixelAntiAlias);
@@ -87,7 +81,8 @@ WebFontRenderStyle FontPlatformData::QuerySystemForRenderStyle() {
   style.use_anti_alias = 0;
   style.use_subpixel_rendering = 0;
 
-  if (WebTestSupport::IsRunningWebTest()) {
+  if (WebTestSupport::IsRunningWebTest() ||
+      RuntimeEnabledFeatures::NoFontAntialiasingEnabled()) {
     if (WebTestSupport::IsFontAntialiasingEnabledForTest()) {
       style.use_anti_alias = 1;
     }

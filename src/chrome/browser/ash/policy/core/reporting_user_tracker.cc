@@ -4,11 +4,11 @@
 
 #include "chrome/browser/ash/policy/core/reporting_user_tracker.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/check_is_test.h"
 #include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "base/values.h"
 #include "chrome/common/pref_names.h"
 #include "components/account_id/account_id.h"
@@ -83,8 +83,7 @@ void ReportingUserTracker::OnUserRemoved(
 
 void ReportingUserTracker::AddReportingUser(const AccountId& account_id) {
   ScopedListPrefUpdate users_update(local_state_, ::prefs::kReportingUsers);
-  // TODO(b/267685577): Email should be canonicalized.
-  base::Value email_value(account_id.GetUserEmail());
+  base::Value email_value(FullyCanonicalize(account_id.GetUserEmail()));
   if (!base::Contains(users_update.Get(), email_value)) {
     users_update->Append(std::move(email_value));
   }
@@ -93,7 +92,7 @@ void ReportingUserTracker::AddReportingUser(const AccountId& account_id) {
 void ReportingUserTracker::RemoveReportingUser(const AccountId& account_id) {
   ScopedListPrefUpdate users_update(local_state_, ::prefs::kReportingUsers);
   base::Value::List& update_list = users_update.Get();
-  auto it = base::ranges::find(
+  auto it = std::ranges::find(
       update_list, base::Value(FullyCanonicalize(account_id.GetUserEmail())));
   if (it == update_list.end()) {
     return;

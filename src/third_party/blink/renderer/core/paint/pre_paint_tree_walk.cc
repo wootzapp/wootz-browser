@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/core/paint/pre_paint_tree_walk.h"
 
+#include "base/debug/dump_without_crashing.h"
 #include "base/types/optional_util.h"
 #include "third_party/blink/renderer/core/dom/document_lifecycle.h"
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
@@ -20,6 +21,7 @@
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
 #include "third_party/blink/renderer/core/layout/layout_box_model_object.h"
 #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
+#include "third_party/blink/renderer/core/layout/layout_html_canvas.h"
 #include "third_party/blink/renderer/core/layout/layout_multi_column_flow_thread.h"
 #include "third_party/blink/renderer/core/layout/layout_shift_tracker.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
@@ -28,6 +30,7 @@
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/link_highlight.h"
 #include "third_party/blink/renderer/core/page/page.h"
+#include "third_party/blink/renderer/core/paint/clip_path_clipper.h"
 #include "third_party/blink/renderer/core/paint/object_paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_property_tree_printer.h"
@@ -98,10 +101,8 @@ void PrePaintTreeWalk::WalkTree(LocalFrameView& root_frame_view) {
     // If any change needs a more significant intersection update in a frame
     // view, we should have set the state on that frame view during the tree
     // walk or earlier.
-    if (RuntimeEnabledFeatures::IntersectionOptimizationEnabled()) {
-      root_frame_view.SetIntersectionObservationState(
-          LocalFrameView::kScrollAndVisibilityOnly);
-    }
+    root_frame_view.SetIntersectionObservationState(
+        LocalFrameView::kScrollAndVisibilityOnly);
   }
 }
 
@@ -190,8 +191,7 @@ bool HasBlockingEventHandlerHelper(const LocalFrame& frame,
         registry.EventHandlerTargets(EventHandlerRegistry::kWheelEventBlocking);
     return blocking->Contains(&target);
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool HasBlockingEventHandlerHelper(const LayoutObject& object,
@@ -268,10 +268,6 @@ void PrePaintTreeWalk::InvalidatePaintForHitTesting(
   context.paint_invalidator_context.painting_layer->SetNeedsRepaint();
   // We record hit test data when the painting layer repaints. No need to
   // invalidate the display item client.
-  if (!RuntimeEnabledFeatures::HitTestOpaquenessEnabled()) {
-    ObjectPaintInvalidator(object).InvalidateDisplayItemClient(
-        object, PaintInvalidationReason::kHitTest);
-  }
 }
 
 bool PrePaintTreeWalk::NeedsTreeBuilderContextUpdate(
@@ -345,7 +341,7 @@ void PrePaintTreeWalk::CheckTreeBuilderContextState(
   DCHECK(!object.DescendantNeedsPaintPropertyUpdate());
   DCHECK(!object.DescendantShouldCheckLayoutForPaintInvalidation());
   DCHECK(!object.ShouldCheckLayoutForPaintInvalidation());
-  NOTREACHED_IN_MIGRATION() << "Unknown reason.";
+  NOTREACHED() << "Unknown reason.";
 }
 #endif
 
@@ -483,11 +479,9 @@ FragmentData* PrePaintTreeWalk::GetOrCreateFragmentData(
   }
 
   if (allow_update) {
-    fragment_data->SetFragmentID(pre_paint_info.fragmentainer_idx);
     if (needs_paint_properties)
       fragment_data->EnsurePaintProperties();
   } else {
-    DCHECK_EQ(fragment_data->FragmentID(), pre_paint_info.fragmentainer_idx);
     DCHECK(!needs_paint_properties || fragment_data->PaintProperties());
   }
 
@@ -587,8 +581,9 @@ bool PrePaintTreeWalk::CollectMissableChildren(
     const PhysicalBoxFragment& parent) {
   bool has_missable_children = false;
   for (const PhysicalFragmentLink& child : parent.Children()) {
-    if (UNLIKELY(child->IsLayoutObjectDestroyedOrMoved()))
+    if (child->IsLayoutObjectDestroyedOrMoved()) [[unlikely]] {
       continue;
+    }
     if (child->IsOutOfFlowPositioned() &&
         (context.current_container.fragment || child->IsFixedPositioned())) {
       // Add all out-of-flow positioned fragments inside a fragmentation
@@ -734,18 +729,20 @@ void PrePaintTreeWalk::WalkMissedChildren(
   // fragmentainer. When generating fragments, layout sets their correct
   // block-offset (obviously), as a physical offset. But since we're just
   // pretending to have a fragment in this case, we have to do it ourselves. For
-  // vertical-rl, the block-start offset is at the right edge of the
-  // fragmentainer, not at the left (vertical-lr) (which is zero), and not at
-  // the top (horizontal-tb) (also zero). So we need to adjust for vertical-rl.
+  // vertical-rl and sideways-rl, the block-start offset is at the right edge of
+  // the fragmentainer, not at the left (vertical-lr) (which is zero), and not
+  // at the top (horizontal-tb) (also zero). So we need to adjust for
+  // vertical-rl and sideways-rl.
   PhysicalOffset offset_to_block_start_edge;
   if (fragment.IsFragmentainerBox() &&
-      fragment.Style().GetWritingMode() == WritingMode::kVerticalRl) {
+      fragment.Style().IsFlippedBlocksWritingMode()) {
     offset_to_block_start_edge.left = fragment.Size().width;
   }
 
   for (const PhysicalFragmentLink& child : fragment.Children()) {
-    if (UNLIKELY(child->IsLayoutObjectDestroyedOrMoved()))
+    if (child->IsLayoutObjectDestroyedOrMoved()) [[unlikely]] {
       continue;
+    }
     if (!child->IsOutOfFlowPositioned()) {
       continue;
     }
@@ -763,7 +760,6 @@ void PrePaintTreeWalk::WalkMissedChildren(
       }
 
       bool update_tree_builder_context =
-          RuntimeEnabledFeatures::PrePaintAncestorsOfMissedOOFEnabled() &&
           NeedsTreeBuilderContextUpdate(descendant_object, descendant_context);
 
       RebuildContextForMissedDescendant(fragment, *descendant_object.Parent(),
@@ -813,8 +809,9 @@ void PrePaintTreeWalk::WalkFragmentationContextRootChildren(
 
   for (PhysicalFragmentLink child : fragment.Children()) {
     const auto* box_fragment = To<PhysicalBoxFragment>(child.fragment.Get());
-    if (UNLIKELY(box_fragment->IsLayoutObjectDestroyedOrMoved()))
+    if (box_fragment->IsLayoutObjectDestroyedOrMoved()) [[unlikely]] {
       continue;
+    }
 
     if (box_fragment->GetLayoutObject()) {
       // OOFs contained by a multicol container will be visited during object
@@ -892,6 +889,18 @@ void PrePaintTreeWalk::WalkPageContainer(
       StitchedPageContentRect(page_container).offset;
 
   for (const PhysicalFragmentLink& grandchild : page_container.Children()) {
+    if (grandchild->GetBoxType() == PhysicalFragment::kPageMargin) {
+      // This is one of 16 possible page margin boxes, e.g. used to display page
+      // headers or footers.
+      PrePaintTreeWalkContext margin_box_context(
+          parent_context, parent_context.NeedsTreeBuilderContext());
+      PrePaintInfo margin_pre_paint_info =
+          CreatePrePaintInfo(grandchild, margin_box_context);
+      Walk(*grandchild->GetLayoutObject(), margin_box_context,
+           &margin_pre_paint_info);
+      continue;
+    }
+
     DCHECK_EQ(grandchild->GetBoxType(), PhysicalFragment::kPageBorderBox);
 
     // This is a page border box, which contains the page contents area fragment
@@ -1366,6 +1375,8 @@ void PrePaintTreeWalk::Walk(const LayoutObject& object,
   // Early out from the tree walk if possible.
   if (!needs_tree_builder_context_update && !ObjectRequiresPrePaint(object) &&
       !ContextRequiresChildPrePaint(parent_context)) {
+    // The only time this should occur is if the object is a fragmentless box.
+    DCHECK(ClipPathClipper::ClipPathStatusResolved(object));
     return;
   }
 

@@ -27,9 +27,9 @@ SubresourceFilterSafeBrowsingClientRequest::
         base::TimeTicks start_time,
         scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager>
             database_manager,
-        scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
         SubresourceFilterSafeBrowsingClient* client)
-    : request_id_(request_id),
+    : safe_browsing::SafeBrowsingDatabaseManager::Client(GetPassKey()),
+      request_id_(request_id),
       start_time_(start_time),
       database_manager_(std::move(database_manager)),
       client_(client) {
@@ -39,8 +39,9 @@ SubresourceFilterSafeBrowsingClientRequest::
 SubresourceFilterSafeBrowsingClientRequest::
     ~SubresourceFilterSafeBrowsingClientRequest() {
   CHECK_CURRENTLY_ON(content::BrowserThread::UI, base::NotFatalUntil::M129);
-  if (!request_completed_)
+  if (!request_completed_) {
     database_manager_->CancelCheck(this);
+  }
   timer_.Stop();
 }
 

@@ -5,14 +5,15 @@
 #include "chrome/browser/ash/file_suggest/file_suggest_keyed_service.h"
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
-#include "ash/utility/forest_util.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/browser/ash/file_suggest/drive_file_suggestion_provider.h"
 #include "chrome/browser/ash/file_suggest/drive_recent_file_suggestion_provider.h"
 #include "chrome/browser/ash/file_suggest/file_suggest_util.h"
 #include "chrome/browser/ash/file_suggest/local_file_suggestion_provider.h"
+#include "components/prefs/pref_service.h"
 #include "storage/browser/file_system/file_system_context.h"
 
 namespace ash {
@@ -35,7 +36,7 @@ FileSuggestKeyedService::FileSuggestKeyedService(
   proto_.Init();
 
   if (features::IsLauncherContinueSectionWithRecentsEnabled() ||
-      IsForestFeatureEnabled()) {
+      features::IsForestFeatureEnabled()) {
     drive_file_suggestion_provider_ =
         std::make_unique<DriveRecentFileSuggestionProvider>(
             profile, base::BindRepeating(
@@ -67,27 +68,47 @@ void FileSuggestKeyedService::MaybeUpdateItemSuggestCache(
 void FileSuggestKeyedService::GetSuggestFileData(
     FileSuggestionType type,
     GetSuggestFileDataCallback callback) {
+  const auto* const pref_service = profile_->GetPrefs();
+  if (!pref_service ||
+      (!base::Contains(pref_service->GetList(
+                           prefs::kContextualGoogleIntegrationsConfiguration),
+                       prefs::kGoogleDriveIntegrationName) &&
+       type == FileSuggestionType::kDriveFile)) {
+    // When drive is disabled by policy, return an empty list to indicate no
+    // further waiting on results is necessary.
+    std::move(callback).Run(/*suggestions=*/std::vector<FileSuggestData>());
+    return;
+  }
+
   // Always return null if `proto_` is not ready.
   if (!proto_.initialized()) {
     std::move(callback).Run(/*suggestions=*/std::nullopt);
     return;
   }
 
-  GetSuggestFileDataCallback filter_suggestions_callback =
+  // Deduplicate file suggestions, then filter out removed suggestions.
+  GetSuggestFileDataCallback filter_removed_suggestions_callback =
       base::BindOnce(&FileSuggestKeyedService::FilterRemovedSuggestions,
                      weak_factory_.GetWeakPtr(), std::move(callback));
+  GetSuggestFileDataCallback dedupe_suggestions_callback =
+      base::BindOnce(&FileSuggestKeyedService::FilterDuplicateSuggestions,
+                     weak_factory_.GetWeakPtr(),
+                     std::move(filter_removed_suggestions_callback));
+
   switch (type) {
     case FileSuggestionType::kDriveFile:
       drive_file_suggestion_provider_->GetSuggestFileData(
-          std::move(filter_suggestions_callback));
+          std::move(dedupe_suggestions_callback));
       return;
     case FileSuggestionType::kLocalFile:
       local_file_suggestion_provider_->GetSuggestFileData(
-          std::move(filter_suggestions_callback));
+          std::move(dedupe_suggestions_callback));
       return;
   }
 }
 
+// NOTE: An absolute file path for a Google Doc looks like:
+// /media/fuse/drivefs-48de6bc248c2f6d8e809521347ef6190/root/Test doc.gdoc
 void FileSuggestKeyedService::RemoveSuggestionsAndNotify(
     const std::vector<base::FilePath>& absolute_file_paths) {
   if (!IsProtoInitialized()) {
@@ -165,6 +186,30 @@ void FileSuggestKeyedService::OnSuggestionProviderUpdated(
 bool FileSuggestKeyedService::IsReadyForTest() const {
   return local_file_suggestion_provider_->IsInitialized() &&
          IsProtoInitialized();
+}
+
+void FileSuggestKeyedService::FilterDuplicateSuggestions(
+    GetSuggestFileDataCallback callback,
+    const std::optional<std::vector<FileSuggestData>>& suggestions) {
+  // There are no candidate suggestions. Therefore, return early.
+  if (!suggestions.has_value() || suggestions->empty()) {
+    std::move(callback).Run(suggestions);
+    return;
+  }
+
+  // Dedupe any items with duplicate file_path.
+  std::vector<FileSuggestData> unique_suggestions;
+  std::set<base::FilePath> unique_file_paths;
+  for (const auto& suggestion : *suggestions) {
+    auto result = unique_file_paths.insert(suggestion.file_path);
+    if (result.second) {
+      // Insertion took place, current `suggestion` file path is not a
+      // duplicate.
+      unique_suggestions.push_back(suggestion);
+    }
+  }
+
+  std::move(callback).Run(unique_suggestions);
 }
 
 void FileSuggestKeyedService::FilterRemovedSuggestions(

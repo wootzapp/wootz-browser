@@ -21,8 +21,7 @@ namespace blink {
 class RenderBlockingResourceManagerTest : public SimTest {
  public:
   static Vector<char> ReadAhemWoff2() {
-    return test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2"))
-        ->CopyAs<Vector<char>>();
+    return *test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2"));
   }
 
  protected:
@@ -49,7 +48,7 @@ class RenderBlockingResourceManagerTest : public SimTest {
   }
 
   const Font& GetTargetFont() {
-    return GetTarget()->GetLayoutObject()->Style()->GetFont();
+    return *GetTarget()->GetLayoutObject()->Style()->GetFont();
   }
 };
 

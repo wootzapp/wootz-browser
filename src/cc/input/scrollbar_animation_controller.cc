@@ -121,9 +121,8 @@ void ScrollbarAnimationController::StopAnimation() {
 
 void ScrollbarAnimationController::PostDelayedAnimation(
     AnimationChange animation_change) {
-  // If fade duration is zero we are in a test environment and should not
-  // animate.
-  if (fade_duration_.is_zero()) {
+  // If fade duration is the max value, do not start a timer.
+  if (fade_delay_.is_max()) {
     return;
   }
 
@@ -140,8 +139,10 @@ bool ScrollbarAnimationController::Animate(base::TimeTicks now) {
   bool animated = false;
 
   for (ScrollbarLayerImplBase* scrollbar : Scrollbars()) {
-    if (!scrollbar->CanScrollOrientation())
-      scrollbar->SetOverlayScrollbarLayerOpacityAnimated(0);
+    if (!scrollbar->CanScrollOrientation()) {
+      scrollbar->SetOverlayScrollbarLayerOpacityAnimated(
+          0, /*fade_out_animation=*/false);
+    }
   }
 
   if (is_animating_) {
@@ -355,14 +356,13 @@ bool ScrollbarAnimationController::MouseIsNearScrollbarThumb(
 bool ScrollbarAnimationController::MouseIsNearScrollbar(
     ScrollbarOrientation orientation) const {
   DCHECK(need_thinning_animation_);
-  return GetScrollbarAnimationController(orientation)
-      .mouse_is_near_scrollbar_track();
+  return GetScrollbarAnimationController(orientation).mouse_is_near_scrollbar();
 }
 
 bool ScrollbarAnimationController::MouseIsNearAnyScrollbar() const {
   DCHECK(need_thinning_animation_);
-  return vertical_controller_->mouse_is_near_scrollbar_track() ||
-         horizontal_controller_->mouse_is_near_scrollbar_track();
+  return vertical_controller_->mouse_is_near_scrollbar() ||
+         horizontal_controller_->mouse_is_near_scrollbar();
 }
 
 bool ScrollbarAnimationController::ScrollbarsHidden() const {
@@ -386,14 +386,17 @@ void ScrollbarAnimationController::ApplyOpacityToScrollbars(float opacity) {
   for (ScrollbarLayerImplBase* scrollbar : Scrollbars()) {
     DCHECK(scrollbar->is_overlay_scrollbar());
     float effective_opacity = scrollbar->CanScrollOrientation() ? opacity : 0;
-    scrollbar->SetOverlayScrollbarLayerOpacityAnimated(effective_opacity);
+    scrollbar->SetOverlayScrollbarLayerOpacityAnimated(
+        effective_opacity,
+        /*fade_out_animation=*/animation_change_ == AnimationChange::kFadeOut);
   }
 
   bool previously_visible_ = opacity_ > 0.0f;
   bool currently_visible = opacity > 0.0f;
 
-  if (opacity_ != opacity)
+  if (opacity_ != opacity) {
     client_->SetNeedsRedrawForScrollbarAnimation();
+  }
 
   opacity_ = opacity;
 

@@ -11,8 +11,6 @@ import("//third_party/protobuf/proto_library.gni")
 # events with several attached metrics.
 source_set("structured") {
   sources = [
-    "arena_event_buffer.cc",
-    "arena_event_buffer.h",
     "key_data_prefs_delegate.cc",
     "key_data_prefs_delegate.h",
     "key_data_provider_file.cc",
@@ -32,6 +30,15 @@ source_set("structured") {
     "structured_metrics_service.cc",
     "structured_metrics_service.h",
   ]
+
+  if (is_chromeos) {
+    sources += [
+      "flushed_map.cc",
+      "flushed_map.h",
+      "storage_manager.cc",
+      "storage_manager.h",
+    ]
+  }
 
   public_deps = [
     ":common",
@@ -56,7 +63,7 @@ source_set("structured") {
   ]
 }
 
-if (is_chromeos_ash) {
+if (is_chromeos) {
   source_set("external_metrics") {
     sources = [
       "external_metrics.cc",
@@ -100,8 +107,7 @@ proto_library("proto") {
   # which means protos can't be referred to by absolute paths from within other
   # protos.
   import_dirs = [ "//third_party/metrics_proto" ]
-  proto_deps = [ "//third_party/metrics_proto" ]
-  link_deps = [ "//third_party/metrics_proto" ]
+  deps = [ "//third_party/metrics_proto" ]
 }
 
 # Sources used by all source sets in this BUILD file.
@@ -140,12 +146,14 @@ source_set("structured_metrics_features") {
   public_deps = [ "//base" ]
 }
 
-action("gen_structured_events") {
+action("gen_structured_events_cpp") {
   script = "//tools/metrics/structured/gen_events.py"
 
   # Re-generate the outputs if the codegen code changes:
   inputs = [
-    "//tools/metrics/structured/codegen.py",
+    "//tools/metrics/structured/code_generator_cpp.py",
+    "//tools/metrics/structured/code_generator.py",
+    "//tools/metrics/structured/codegen_util.py",
     "//tools/metrics/structured/gen_events.py",
     "//tools/metrics/structured/sync/model.py",
     "//tools/metrics/structured/sync/model_util.py",
@@ -165,19 +173,51 @@ action("gen_structured_events") {
     rebase_path(sources[0], root_build_dir),
     "--output",
     rebase_path(outdir, root_build_dir),
+    "--target",
+    "chromium",
+  ]
+}
+
+action("gen_structured_events_ts") {
+  script = "//tools/metrics/structured/gen_events.py"
+
+  # Re-generate the outputs if the codegen code changes:
+  inputs = [
+    "//tools/metrics/structured/code_generator_ts.py",
+    "//tools/metrics/structured/code_generator.py",
+    "//tools/metrics/structured/codegen_util.py",
+    "//tools/metrics/structured/gen_events.py",
+    "//tools/metrics/structured/sync/model.py",
+    "//tools/metrics/structured/sync/model_util.py",
+    "//tools/metrics/structured/templates_events.py",
+  ]
+  sources = [ "//tools/metrics/structured/sync/structured.xml" ]
+
+  outdir = "$target_gen_dir"
+
+  outputs = [ outdir + "/structured_events.ts" ]
+
+  args = [
+    "--input",
+    rebase_path(sources[0], root_build_dir),
+    "--output",
+    rebase_path(outdir, root_build_dir),
+    "--target",
+    "webui",
   ]
 }
 
 # TODO(b/309122738): Generate the events by platform.
 source_set("structured_events") {
-  sources = get_target_outputs(":gen_structured_events")
+  sources = get_target_outputs(":gen_structured_events_cpp")
+
   public_deps = [
     ":events",
     "//components/metrics/structured/buildflags",
   ]
 
   deps = [
-    ":gen_structured_events",
+    ":gen_structured_events_cpp",
     "//base",
   ]
 }
@@ -187,7 +227,8 @@ action("gen_structured_metrics_validator") {
 
   # Re-generate the outputs if the codegen code changes:
   inputs = [
-    "//tools/metrics/structured/codegen.py",
+    "//tools/metrics/structured/code_generator_cpp.py",
+    "//tools/metrics/structured/codegen_util.py",
     "//tools/metrics/structured/gen_validator.py",
     "//tools/metrics/structured/sync/model.py",
     "//tools/metrics/structured/sync/model_util.py",
@@ -209,7 +250,7 @@ action("gen_structured_metrics_validator") {
     rebase_path(outdir, root_build_dir),
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     sources += [ "//tools/metrics/structured/sync/structured_chromiumos.xml" ]
 
     args += [
@@ -261,11 +302,14 @@ source_set("test_support") {
 source_set("unit_tests") {
   testonly = true
   sources = [
-    "arena_event_buffer_unittest.cc",
     "key_data_prefs_delegate_unittest.cc",
     "structured_metrics_recorder_unittest.cc",
     "structured_metrics_service_unittest.cc",
   ]
+
+  if (is_chromeos) {
+    sources += [ "flushed_map_unittest.cc" ]
+  }
 
   deps = [
     ":events",
@@ -285,7 +329,7 @@ source_set("unit_tests") {
     "//testing/gtest",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     sources += [ "external_metrics_unittest.cc" ]
 
     deps += [ ":external_metrics" ]

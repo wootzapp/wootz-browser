@@ -21,6 +21,10 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
+namespace gfx {
+class Image;
+}
+
 namespace net {
 enum class ReferrerPolicy;
 }
@@ -31,6 +35,9 @@ class SimpleURLLoader;
 
 namespace content {
 
+using IdentityProviderDataPtr = scoped_refptr<IdentityProviderData>;
+using IdentityRequestAccountPtr = scoped_refptr<IdentityRequestAccount>;
+class FederatedIdentityPermissionContextDelegate;
 class RenderFrameHostImpl;
 
 // Manages network requests and maintains relevant state for interaction with
@@ -81,6 +88,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
     // is possible to distinguish which it is since HTTP response codes are
     // positive and net errors are negative.
     int response_code;
+    bool cors_error = false;
   };
 
   enum class LogoutResponse {
@@ -111,6 +119,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
     GURL client_metadata;
     GURL metrics;
     GURL disconnect;
+    GURL issuance;
   };
 
   struct CONTENT_EXPORT WellKnown {
@@ -211,13 +220,14 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
     kMaxValue = kCrossSite
   };
 
-  using AccountList = std::vector<IdentityRequestAccount>;
   using AccountsRequestCallback =
-      base::OnceCallback<void(FetchStatus, AccountList)>;
+      base::OnceCallback<void(FetchStatus,
+                              std::vector<IdentityRequestAccountPtr>)>;
   using DownloadCallback =
       base::OnceCallback<void(std::unique_ptr<std::string> response_body,
                               int response_code,
-                              const std::string& mime_type)>;
+                              const std::string& mime_type,
+                              bool cors_error)>;
   using FetchWellKnownCallback =
       base::OnceCallback<void(FetchStatus, const WellKnown&)>;
   using FetchConfigCallback = base::OnceCallback<
@@ -237,6 +247,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
       base::OnceCallback<void(FedCmTokenResponseType,
                               std::optional<FedCmErrorDialogType>,
                               std::optional<FedCmErrorUrlType>)>;
+  using ImageCallback = base::OnceCallback<void(const gfx::Image&)>;
 
   static std::unique_ptr<IdpNetworkRequestManager> Create(
       RenderFrameHostImpl* host);
@@ -244,6 +255,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
   IdpNetworkRequestManager(
       const url::Origin& relying_party,
       scoped_refptr<network::SharedURLLoaderFactory> loader_factory,
+      FederatedIdentityPermissionContextDelegate* permission_delegate,
       network::mojom::ClientSecurityStatePtr client_security_state);
 
   virtual ~IdpNetworkRequestManager();
@@ -268,10 +280,18 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
 
   virtual void FetchClientMetadata(const GURL& endpoint,
                                    const std::string& client_id,
+                                   int rp_brand_icon_ideal_size,
+                                   int rp_brand_icon_minimum_size,
                                    FetchClientMetadataCallback);
 
-  // Fetch accounts list for this user from the IDP.
-  virtual void SendAccountsRequest(const GURL& accounts_url,
+  // Fetch accounts list for this user from the IDP. idp_origin is required
+  // because accounts_url may be empty when lightweight fedcm is enabled. When
+  // lightweight fedcm is enabled, no actual network request will be sent if
+  // there are unexpired stored accounts for idp_origin. If there are no
+  // unexpired stored accounts and accounts_url is empty, the callback will be
+  // invoked with an empty accounts list.
+  virtual void SendAccountsRequest(const url::Origin& idp_origin,
+                                   const GURL& accounts_url,
                                    const std::string& client_id,
                                    AccountsRequestCallback callback);
 
@@ -280,6 +300,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
       const GURL& token_url,
       const std::string& account,
       const std::string& url_encoded_post_data,
+      bool idp_blindness,
       TokenRequestCallback callback,
       ContinueOnCallback continue_on,
       RecordErrorMetricsCallback record_error_metrics_callback);
@@ -295,6 +316,7 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
   // Sends error code to metrics endpoint when token generation fails.
   virtual void SendFailedTokenRequestMetrics(
       const GURL& metrics_endpoint_url,
+      bool did_show_ui,
       MetricsEndpointErrorCode error_code);
 
   // Send logout request to a single target.
@@ -305,6 +327,9 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
                                      const std::string& account_hint,
                                      const std::string& client_id,
                                      DisconnectCallback callback);
+
+  // Download and decode an image. The request is made uncredentialed.
+  virtual void DownloadAndDecodeImage(const GURL& url, ImageCallback callback);
 
  private:
   // Starts download request using `url_loader`. Calls `parse_json_callback`
@@ -329,6 +354,14 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
                        DownloadCallback callback,
                        std::unique_ptr<std::string> response_body);
 
+  void OnDownloadedImage(ImageCallback callback,
+                         std::unique_ptr<std::string> response_body,
+                         int response_code,
+                         const std::string& mime_type,
+                         bool cors_error);
+
+  void OnDecodedImage(ImageCallback callback, const SkBitmap& decoded_bitmap);
+
   std::unique_ptr<network::ResourceRequest> CreateUncredentialedResourceRequest(
       const GURL& target_url,
       bool send_origin,
@@ -347,6 +380,9 @@ class CONTENT_EXPORT IdpNetworkRequestManager {
   url::Origin relying_party_origin_;
 
   scoped_refptr<network::SharedURLLoaderFactory> loader_factory_;
+
+  raw_ptr<FederatedIdentityPermissionContextDelegate> permission_delegate_ =
+      nullptr;
 
   network::mojom::ClientSecurityStatePtr client_security_state_;
 

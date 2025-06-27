@@ -20,17 +20,20 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
+import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.partnercustomizations.TestPartnerBrowserCustomizationsProvider;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
+import org.chromium.ui.base.UiAndroidFeatures;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -38,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 /** Integration tests for the partner disabling incognito mode feature. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableFeatures(UiAndroidFeatures.USE_NEW_ETC1_ENCODER) // https://crbug.com/401244299
 public class PartnerDisableIncognitoModeIntegrationTest {
     @Rule
     public BasePartnerBrowserCustomizationIntegrationTestRule mActivityTestRule =
@@ -56,7 +60,7 @@ public class PartnerDisableIncognitoModeIntegrationTest {
 
     private void assertIncognitoMenuItemEnabled(boolean enabled) throws ExecutionException {
         Menu menu =
-                TestThreadUtils.runOnUiThreadBlocking(
+                ThreadUtils.runOnUiThreadBlocking(
                         new Callable<Menu>() {
                             @Override
                             public Menu call() {
@@ -92,16 +96,17 @@ public class PartnerDisableIncognitoModeIntegrationTest {
                             PartnerBrowserCustomizations.isIncognitoDisabled(),
                             Matchers.is(parentalControlsEnabled));
                     Criteria.checkThat(
-                            IncognitoUtils.isIncognitoModeEnabled(),
+                            IncognitoUtils.isIncognitoModeEnabled(
+                                    ProfileManager.getLastUsedRegularProfile()),
                             Matchers.not(parentalControlsEnabled));
                 });
     }
 
     private void toggleActivityForegroundState() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onPause());
-        TestThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onStop());
-        TestThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onStart());
-        TestThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onResume());
+        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onPause());
+        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onStop());
+        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onStart());
+        ThreadUtils.runOnUiThreadBlocking(() -> mActivityTestRule.getActivity().onResume());
     }
 
     @Test

@@ -50,29 +50,15 @@ bool IsUrlAllowedForTrustedBiddingSignals(
     const KURL& url,
     const mojom::blink::InterestGroup& group,
     String& error_out) {
-  bool allow_cross_origin = base::FeatureList::IsEnabled(
-      blink::features::kFledgePermitCrossOriginTrustedSignals);
-  if (allow_cross_origin) {
+  if (!IsUrlAllowedForRenderUrls(url) || url.HasFragmentIdentifier() ||
+      !group.trusted_bidding_signals_url->Query().IsNull()) {
     error_out =
         "trustedBiddingSignalsURL must have https schema and have no query "
         "string, fragment identifier or embedded credentials.";
-  } else {
-    error_out =
-        "trustedBiddingSignalsURL must have the same origin as the "
-        "InterestGroup owner and have no query string, fragment identifier or "
-        "embedded credentials.";
-  }
-
-  if (!IsUrlAllowedForRenderUrls(url) || url.HasFragmentIdentifier() ||
-      !group.trusted_bidding_signals_url->Query().IsNull()) {
     return false;
   }
 
-  if (allow_cross_origin) {
-    return true;
-  } else {
-    return group.owner->IsSameOriginWith(SecurityOrigin::Create(url).get());
-  }
+  return true;
 }
 
 size_t EstimateHashMapSize(const HashMap<String, double>& hash_map) {
@@ -134,6 +120,15 @@ size_t EstimateBlinkInterestGroupSize(
   }
   size += sizeof(group.trusted_bidding_signals_slot_size_mode);
   size += sizeof(group.max_trusted_bidding_signals_url_length);
+  if (group.trusted_bidding_signals_coordinator) {
+    size += group.trusted_bidding_signals_coordinator->ToString().length();
+  }
+  if (group.view_and_click_counts_providers) {
+    for (const scoped_refptr<const SecurityOrigin>& provider :
+         *group.view_and_click_counts_providers) {
+      size += provider->ToString().length();
+    }
+  }
   size += group.user_bidding_signals.length();
 
   if (group.ads) {
@@ -142,6 +137,11 @@ size_t EstimateBlinkInterestGroupSize(
       size += ad->size_group.length();
       size += ad->buyer_reporting_id.length();
       size += ad->buyer_and_seller_reporting_id.length();
+      if (ad->selectable_buyer_and_seller_reporting_ids) {
+        for (const auto& id : *ad->selectable_buyer_and_seller_reporting_ids) {
+          size += id.length();
+        }
+      }
       size += ad->metadata.length();
       size += ad->ad_render_id.length();
       if (ad->allowed_reporting_origins) {
@@ -149,6 +149,7 @@ size_t EstimateBlinkInterestGroupSize(
           size += origin->ToString().length();
         }
       }
+      size += ad->creative_scanning_metadata.length();
     }
   }
 
@@ -158,6 +159,7 @@ size_t EstimateBlinkInterestGroupSize(
       size += ad->size_group.length();
       size += ad->metadata.length();
       size += ad->ad_render_id.length();
+      size += ad->creative_scanning_metadata.length();
     }
   }
 
@@ -311,7 +313,39 @@ bool ValidateBlinkInterestGroup(const mojom::blink::InterestGroup& group,
     return false;
   }
 
+  if (group.trusted_bidding_signals_coordinator) {
+    if (group.trusted_bidding_signals_coordinator->Protocol() !=
+        url::kHttpsScheme) {
+      error_field_name = "trustedBiddingSignalsCoordinator";
+      error_field_value = group.trusted_bidding_signals_coordinator->ToString();
+      error = "trustedBiddingSignalsCoordinator origin must be HTTPS.";
+      return false;
+    }
+  }
+
+  if (group.view_and_click_counts_providers) {
+    for (const scoped_refptr<const SecurityOrigin>& provider :
+         *group.view_and_click_counts_providers) {
+      if (provider->Protocol() != url::kHttpsScheme) {
+        error_field_name = "viewAndClickCountsProviders";
+        error_field_value = provider->ToString();
+        error = "viewAndClickCountsProviders origin must be HTTPS.";
+        return false;
+      }
+    }
+  }
+
   if (group.ads) {
+    std::optional<WTF::wtf_size_t>
+        selectable_buyer_and_seller_reporting_ids_hard_limit;
+    if (base::FeatureList::IsEnabled(
+            features::kFledgeLimitSelectableBuyerAndSellerReportingIds) &&
+        features::kFledgeSelectableBuyerAndSellerReportingIdsHardLimit.Get() >=
+            0) {
+      selectable_buyer_and_seller_reporting_ids_hard_limit =
+          features::kFledgeSelectableBuyerAndSellerReportingIdsHardLimit.Get();
+    }
+
     for (WTF::wtf_size_t i = 0; i < group.ads.value().size(); ++i) {
       const KURL& render_url = KURL(group.ads.value()[i]->render_url);
       if (!IsUrlAllowedForRenderUrls(render_url)) {
@@ -339,6 +373,20 @@ bool ValidateBlinkInterestGroup(const mojom::blink::InterestGroup& group,
         error_field_name = String::Format("ads[%u].adRenderId", i);
         error_field_value = group.ads.value()[i]->ad_render_id;
         error = "The adRenderId is too long.";
+        return false;
+      }
+      if (selectable_buyer_and_seller_reporting_ids_hard_limit &&
+          group.ads.value()[i]->selectable_buyer_and_seller_reporting_ids &&
+          group.ads.value()[i]
+                  ->selectable_buyer_and_seller_reporting_ids->size() >
+              *selectable_buyer_and_seller_reporting_ids_hard_limit) {
+        error_field_name =
+            String::Format("ads[%u].selectableBuyerAndSellerReportingIds", i);
+        error_field_value = "";
+        error = String::Format(
+            "selectableBuyerAndSellerReportingIds cannot have more than %u "
+            "elements.",
+            *selectable_buyer_and_seller_reporting_ids_hard_limit);
         return false;
       }
       auto& allowed_reporting_origins =
@@ -408,6 +456,8 @@ bool ValidateBlinkInterestGroup(const mojom::blink::InterestGroup& group,
       DCHECK(group.ad_components.value()[i]->buyer_reporting_id.IsNull());
       DCHECK(group.ad_components.value()[i]
                  ->buyer_and_seller_reporting_id.IsNull());
+      DCHECK(!group.ad_components.value()[i]
+                  ->selectable_buyer_and_seller_reporting_ids.has_value());
       DCHECK(!group.ad_components.value()[i]
                   ->allowed_reporting_origins.has_value());
     }
@@ -516,6 +566,40 @@ bool ValidateBlinkInterestGroup(const mojom::blink::InterestGroup& group,
     return false;
   }
 
+  return true;
+}
+
+// Must be kept in sync with blink::InterestGroup::IsValidForJoinAndUpdate()
+// in blink/common/interest_group/.
+bool PerformAdditionalJoinAndUpdateTimeValidations(
+    const mojom::blink::InterestGroup& group,
+    String& error_field_name,
+    String& error_field_value,
+    String& error) {
+  if (!group.ads ||
+      !base::FeatureList::IsEnabled(
+          features::kFledgeLimitSelectableBuyerAndSellerReportingIds) ||
+      features::kFledgeSelectableBuyerAndSellerReportingIdsSoftLimit.Get() <
+          0) {
+    return true;
+  }
+  WTF::wtf_size_t selectable_buyer_and_seller_reporting_ids_soft_limit =
+      features::kFledgeSelectableBuyerAndSellerReportingIdsSoftLimit.Get();
+  for (WTF::wtf_size_t i = 0; i < group.ads.value().size(); ++i) {
+    if (group.ads.value()[i]->selectable_buyer_and_seller_reporting_ids &&
+        group.ads.value()[i]
+                ->selectable_buyer_and_seller_reporting_ids->size() >
+            selectable_buyer_and_seller_reporting_ids_soft_limit) {
+      error_field_name =
+          String::Format("ads[%u].selectableBuyerAndSellerReportingIds", i);
+      error_field_value = "";
+      error = String::Format(
+          "selectableBuyerAndSellerReportingIds cannot have more than %u "
+          "elements.",
+          selectable_buyer_and_seller_reporting_ids_soft_limit);
+      return false;
+    }
+  }
   return true;
 }
 

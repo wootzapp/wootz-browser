@@ -156,7 +156,7 @@ void CopyOutputResultSkiaRGBA::UnlockSkBitmap() const {
   result_.lock().Release();
 }
 
-ReadbackContextRGBA::ReadbackContextRGBA(
+ReadbackContextTexture::ReadbackContextTexture(
     base::WeakPtr<SkiaOutputSurfaceImplOnGpu> impl_on_gpu,
     std::unique_ptr<CopyOutputRequest> request,
     const gfx::Rect& result_rect,
@@ -168,25 +168,24 @@ ReadbackContextRGBA::ReadbackContextRGBA(
       mailbox_(mailbox),
       color_space_(color_space) {}
 
-ReadbackContextRGBA::~ReadbackContextRGBA() = default;
+ReadbackContextTexture::~ReadbackContextTexture() = default;
 
-void ReadbackContextRGBA::OnMailboxReady(GrGpuFinishedContext c) {
-  auto context = base::WrapUnique(static_cast<ReadbackContextRGBA*>(c));
-
+void ReadbackContextTexture::OnMailboxReady(GrGpuFinishedContext c) {
+  auto context = base::WrapUnique(static_cast<ReadbackContextTexture*>(c));
   context->OnMailboxReadyInternal();
+  // `context` is destroyed when this goes out of scope.
 }
 
-void ReadbackContextRGBA::OnMailboxReadyInternal() {
+void ReadbackContextTexture::OnMailboxReadyInternal() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   if (impl_on_gpu_) {
     impl_on_gpu_->ReadbackDone();
   }
 
-  auto format = CopyOutputResult::Format::RGBA;
   request_->SendResult(std::make_unique<CopyOutputTextureResult>(
-      format, result_rect_,
-      CopyOutputResult::TextureResult(mailbox_, gpu::SyncToken(), color_space_),
+      request_->result_format(), result_rect_,
+      CopyOutputResult::TextureResult(mailbox_, color_space_),
       CopyOutputResult::ReleaseCallbacks()));
 }
 
@@ -232,29 +231,31 @@ void CopyOutputResultSkiaYUV::OnReadbackDone(
 }
 
 // CopyOutputResult implementation:
-bool CopyOutputResultSkiaYUV::ReadI420Planes(uint8_t* y_out,
+bool CopyOutputResultSkiaYUV::ReadI420Planes(base::span<uint8_t> y_out,
                                              int y_out_stride,
-                                             uint8_t* u_out,
+                                             base::span<uint8_t> u_out,
                                              int u_out_stride,
-                                             uint8_t* v_out,
+                                             base::span<uint8_t> v_out,
                                              int v_out_stride) const {
   // Hold the lock so the AsyncReadResultHelper will not be reset during
   // pixel data reading.
   base::AutoLock auto_lock(result_.lock());
 
   // The |result_| has been reset.
-  if (!result_)
+  if (!result_) {
     return false;
+  }
 
   auto* data0 = static_cast<const uint8_t*>(result_->data(0));
   auto* data1 = static_cast<const uint8_t*>(result_->data(1));
   auto* data2 = static_cast<const uint8_t*>(result_->data(2));
-  libyuv::CopyPlane(data0, result_->rowBytes(0), y_out, y_out_stride, width(0),
-                    height(0));
-  libyuv::CopyPlane(data1, result_->rowBytes(1), u_out, u_out_stride, width(1),
-                    height(1));
-  libyuv::CopyPlane(data2, result_->rowBytes(2), v_out, v_out_stride, width(2),
-                    height(2));
+  // TODO(crbug.com/384959115): Verify span size before calling into libyuv.
+  libyuv::CopyPlane(data0, result_->rowBytes(0), y_out.data(), y_out_stride,
+                    width(0), height(0));
+  libyuv::CopyPlane(data1, result_->rowBytes(1), u_out.data(), u_out_stride,
+                    width(1), height(1));
+  libyuv::CopyPlane(data2, result_->rowBytes(2), v_out.data(), v_out_stride,
+                    width(2), height(2));
   return true;
 }
 
@@ -321,12 +322,12 @@ CopyOutputResultSkiaNV12::CopyOutputResultSkiaNV12(
 
 CopyOutputResultSkiaNV12::~CopyOutputResultSkiaNV12() = default;
 
-bool CopyOutputResultSkiaNV12::ReadNV12Planes(uint8_t* y_out,
+bool CopyOutputResultSkiaNV12::ReadNV12Planes(base::span<uint8_t> y_out,
                                               int y_out_stride,
-                                              uint8_t* uv_out,
+                                              base::span<uint8_t> uv_out,
                                               int uv_out_stride) const {
   const auto plane_pointer = [y_out, uv_out](int plane_number) {
-    return plane_number == 0 ? y_out : uv_out;
+    return plane_number == 0 ? y_out.data() : uv_out.data();
   };
 
   const auto plane_stride = [y_out_stride, uv_out_stride](int plane_number) {
@@ -352,6 +353,7 @@ bool CopyOutputResultSkiaNV12::ReadNV12Planes(uint8_t* y_out,
       return false;
     }
 
+    // TODO(crbug.com/384959115): Verify span size before calling into libyuv.
     auto* data = static_cast<const uint8_t*>(result->data(0));
     libyuv::CopyPlane(data, result->rowBytes(0), plane_pointer(i),
                       plane_stride(i), width(i), height(i));
@@ -368,59 +370,6 @@ void CopyOutputResultSkiaNV12::OnNV12PlaneReadbackDone(
 
   context->nv12_planes_readback->PlaneReadbackDone(context->plane_index,
                                                    std::move(async_result));
-}
-
-NV12PlanesReadyContext::NV12PlanesReadyContext(
-    base::WeakPtr<SkiaOutputSurfaceImplOnGpu> impl_on_gpu,
-    std::unique_ptr<CopyOutputRequest> request,
-    const gfx::Rect& result_rect,
-    const std::array<gpu::MailboxHolder, CopyOutputResult::kMaxPlanes>&
-        mailbox_holders,
-    const gfx::ColorSpace& color_space,
-    bool is_multiplane)
-    : impl_on_gpu_(impl_on_gpu),
-      request_(std::move(request)),
-      result_rect_(result_rect),
-      mailbox_holders_(mailbox_holders),
-      color_space_(color_space),
-      is_multiplane_(is_multiplane) {
-  outstanding_mailboxes_ = is_multiplane ? 1 : CopyOutputResult::kNV12MaxPlanes;
-}
-
-NV12PlanesReadyContext::~NV12PlanesReadyContext() {
-  DCHECK_EQ(outstanding_mailboxes_, 0);
-}
-
-void NV12PlanesReadyContext::OnMailboxReady() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-
-  if (impl_on_gpu_) {
-    impl_on_gpu_->ReadbackDone();
-  }
-
-  outstanding_mailboxes_--;
-  if (outstanding_mailboxes_ == 0) {
-    auto format = is_multiplane_ ? CopyOutputResult::Format::NV12_MULTIPLANE
-                                 : CopyOutputResult::Format::NV12_PLANES;
-    request_->SendResult(std::make_unique<CopyOutputTextureResult>(
-        format, result_rect_,
-        CopyOutputResult::TextureResult(mailbox_holders_, color_space_),
-        CopyOutputResult::ReleaseCallbacks()));
-  }
-}
-
-NV12SingleMailboxReadyContext::NV12SingleMailboxReadyContext(
-    scoped_refptr<NV12PlanesReadyContext> nv12_planes_flushed)
-    : nv12_planes_flushed(nv12_planes_flushed) {}
-
-NV12SingleMailboxReadyContext::~NV12SingleMailboxReadyContext() = default;
-
-// static
-void NV12SingleMailboxReadyContext::OnMailboxReady(GrGpuFinishedContext c) {
-  auto context =
-      base::WrapUnique(static_cast<NV12SingleMailboxReadyContext*>(c));
-
-  context->nv12_planes_flushed->OnMailboxReady();
 }
 
 }  // namespace viz

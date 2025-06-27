@@ -116,7 +116,7 @@ enum class WebSchedulerTrackedFeature : uint32_t {
   // kAppBanner = 42. Removed after support added for back/forward cache.
   // See https://crbug.com/1276864.
   kPrinting = 43,
-  kWebDatabase = 44,
+  // kWebDatabase = 44, Removed after WebSQL removal.
   kPictureInPicture = 45,
   // kPortal = 46. Removed
   kSpeechRecognizer = 47,
@@ -163,10 +163,17 @@ enum class WebSchedulerTrackedFeature : uint32_t {
   kUnloadHandler = 67,
   kParserAborted = 68,
 
+  // Aggressive throttling is disabled when the page has an active Bluetooth
+  // connection.
+  kWebBluetooth = 69,
+
+  // The back/forward cache is disabled during WebAuthn transactions.
+  kWebAuthentication = 70,
+
   // Please keep in sync with WebSchedulerTrackedFeature in
   // tools/metrics/histograms/enums.xml. These values should not be renumbered.
 
-  kMaxValue = kParserAborted,
+  kMaxValue = kWebAuthentication,
 };
 
 using WebSchedulerTrackedFeatures =
@@ -192,12 +199,6 @@ BLINK_COMMON_EXPORT bool IsFeatureSticky(WebSchedulerTrackedFeature feature);
 
 // All the sticky features.
 BLINK_COMMON_EXPORT WebSchedulerTrackedFeatures StickyFeatures();
-
-// Generates a list of uint64_t bit masks for the `WebSchedulerTrackedFeatures`
-// in the following order:
-// [<bit mask for 0-63>, <bit mask for 64-127>, ...]
-BLINK_COMMON_EXPORT std::vector<uint64_t> ToEnumBitMasks(
-    WebSchedulerTrackedFeatures features);
 
 // Disables wake up alignment permanently for the process. This is called when a
 // feature that is incompatible with wake up alignment is used. Thread-safe.

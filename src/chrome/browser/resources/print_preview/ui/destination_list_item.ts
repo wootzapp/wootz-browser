@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/icons.html.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import './icons.html.js';
 import './destination_list_item_style.css.js';
-import '../strings.m.js';
+import '/strings.m.js';
 
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -43,10 +43,10 @@ export class PrintPreviewDestinationListItemElement extends PolymerElement {
     ];
   }
 
-  destination: Destination;
-  searchQuery: RegExp|null;
+  declare destination: Destination;
+  declare searchQuery: RegExp|null;
   private destinationIcon_: string;
-  private searchHint_: string;
+  declare private searchHint_: string;
 
   private highlights_: HTMLElement[] = [];
 

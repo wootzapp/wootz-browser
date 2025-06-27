@@ -16,14 +16,19 @@
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "base/test/gmock_expected_support.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
+#include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 namespace {
@@ -67,10 +72,9 @@ TEST_F(CreateChooserTitleTest, ExtensionsFrameTree) {
   extensions::TestExtensionSystem* extension_system =
       static_cast<extensions::TestExtensionSystem*>(
           extensions::ExtensionSystem::Get(profile()));
-  extensions::ExtensionService* extension_service =
-      extension_system->CreateExtensionService(
-          base::CommandLine::ForCurrentProcess(), base::FilePath(), false);
-  extension_service->AddExtension(extension.get());
+  extension_system->CreateExtensionService(
+      base::CommandLine::ForCurrentProcess(), base::FilePath(), false);
+  extensions::ExtensionRegistrar::Get(profile())->AddExtension(extension.get());
 
   NavigateAndCommit(extension->GetResourceURL("index.html"));
   content::RenderFrameHost* subframe =
@@ -90,15 +94,20 @@ TEST_F(CreateChooserTitleTest, ExtensionsFrameTree) {
 
 #if !BUILDFLAG(IS_ANDROID)
 TEST_F(CreateChooserTitleTest, IsolatedWebAppFrameTree) {
-  const GURL app_url(
-      "isolated-app://"
-      "berugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaic");
-  const std::string app_name("Chooser Title FrameTree IWA Name");
-
+  data_decoder::test::InProcessDataDecoder in_process_data_decoder;
   web_app::test::AwaitStartWebAppProviderAndSubsystems(profile());
-  web_app::AddDummyIsolatedAppToRegistry(profile(), app_url, app_name);
 
-  NavigateAndCommit(app_url);
+  std::unique_ptr<web_app::ScopedBundledIsolatedWebApp> iwa =
+      web_app::IsolatedWebAppBuilder(web_app::ManifestBuilder().SetName(
+                                         "Chooser Title FrameTree IWA Name"))
+          .BuildBundle();
+  iwa->TrustSigningKey();
+  iwa->FakeInstallPageState(profile());
+  ASSERT_OK_AND_ASSIGN(web_app::IsolatedWebAppUrlInfo url_info,
+                       iwa->Install(profile()));
+  GURL app_url = url_info.origin().GetURL();
+  web_app::SimulateIsolatedWebAppNavigation(web_contents(), app_url);
+
   content::RenderFrameHost* subframe =
       content::NavigationSimulator::NavigateAndCommitFromDocument(
           GURL("data:text/html,"),

@@ -12,6 +12,7 @@
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/functional/callback_helpers.h"
+#include "base/strings/to_string.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/gtest_util.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -138,8 +139,7 @@ SetUpDeferStartupActiveTabsHintsFetch(bool is_enabled) {
       std::make_unique<base::test::ScopedFeatureList>();
   auto params = GetOptimizationHintsDefaultFeatureParams();
 
-  params["defer_startup_active_tabs_hints_fetch"] =
-      is_enabled ? "true" : "false";
+  params["defer_startup_active_tabs_hints_fetch"] = base::ToString(is_enabled);
   scoped_feature_list->InitAndEnableFeatureWithParameters(
       features::kOptimizationHints, params);
   return scoped_feature_list;
@@ -311,8 +311,6 @@ class HintsManagerTest : public ProtoDatabaseProviderTestBase {
              GetOptimizationHintsDefaultFeatureParams()},
             {features::kRemoteOptimizationGuideFetching,
              {{"batch_update_hints_for_top_hosts", "true"}}},
-            {features::kOptimizationHintsComponent,
-             {{"check_failed_component_version_pref", "true"}}},
         },
         /*disabled_features=*/{});
 
@@ -782,19 +780,7 @@ TEST_F(HintsManagerTest, ProcessHintsWithExistingPref) {
   pref_service()->SetString(prefs::kPendingHintsProcessingVersion, "2.0.0");
   CreateHintsManager(/*top_host_provider=*/nullptr);
 
-  // Verify config not processed for same version (2.0.0) and pref not cleared.
-  {
-    base::HistogramTester histogram_tester;
-    InitializeWithDefaultConfig("2.0.0");
-    histogram_tester.ExpectUniqueSample(
-        "OptimizationGuide.ProcessHintsResult",
-        ProcessHintsComponentResult::kFailedFinishProcessing, 1);
-    EXPECT_FALSE(pref_service()
-                     ->GetString(prefs::kPendingHintsProcessingVersion)
-                     .empty());
-  }
-
-  // Now verify config is processed for different version and pref cleared.
+  // Verify config is processed for different version and pref cleared.
   {
     base::HistogramTester histogram_tester;
     InitializeWithDefaultConfig("3.0.0");
@@ -805,29 +791,6 @@ TEST_F(HintsManagerTest, ProcessHintsWithExistingPref) {
                                         ProcessHintsComponentResult::kSuccess,
                                         1);
   }
-}
-
-TEST_F(HintsManagerTest,
-       ProcessHintsWithExistingPrefDoesNotClearOrCountAsMidProcessing) {
-  // Write hints processing pref for version 2.0.0.
-  pref_service()->SetString(prefs::kPendingHintsProcessingVersion, "2.0.0");
-  CreateHintsManager(/*top_host_provider=*/nullptr);
-
-  // Verify component for same version counts as "failed".
-  base::HistogramTester histogram_tester;
-  InitializeWithDefaultConfig("2.0.0", /*should_wait=*/false);
-  hints_manager()->Shutdown();
-
-  histogram_tester.ExpectUniqueSample(
-      "OptimizationGuide.ProcessHintsResult",
-      ProcessHintsComponentResult::kFailedFinishProcessing, 1);
-
-  // Verify that pref still not cleared at shutdown and was not counted as
-  // mid-processing.
-  histogram_tester.ExpectUniqueSample(
-      "OptimizationGuide.ProcessingComponentAtShutdown", false, 1);
-  EXPECT_FALSE(
-      pref_service()->GetString(prefs::kPendingHintsProcessingVersion).empty());
 }
 
 TEST_F(HintsManagerTest, ProcessHintsWithInvalidPref) {
@@ -1980,7 +1943,7 @@ TEST_F(HintsManagerFetchingTest, HintsFetcherTimerFetchOnStartup) {
   InitializeWithDefaultConfig("1.0.0");
 
   tab_url_provider()->SetUrls(
-      {GURL("https://a.com"), GURL("https://b.com"), GURL("wootzapp://new-tab")});
+      {GURL("https://a.com"), GURL("https://b.com"), GURL("chrome://new-tab")});
 
   // No hints fetch should happen on startup.
   RunUntilIdle();
@@ -2026,7 +1989,7 @@ TEST_F(HintsManagerFetchingTest, HintsFetcherDeferredStartup) {
   InitializeWithDefaultConfig("1.0.0");
 
   tab_url_provider()->SetUrls(
-      {GURL("https://a.com"), GURL("https://b.com"), GURL("wootzapp://new-tab")});
+      {GURL("https://a.com"), GURL("https://b.com"), GURL("chrome://new-tab")});
 
   // No hints fetch should happen on startup.
   RunUntilIdle();
@@ -3453,7 +3416,7 @@ TEST_F(HintsManagerFetchingTest,
        PageInsightsHubContextRequestContextMetadataPihSentGetHintsRequest) {
   base::HistogramTester histogram_tester;
 
-  hints_manager()->RegisterOptimizationTypes({proto::PAGE_INSIGHTS});
+  hints_manager()->RegisterOptimizationTypes({proto::TYPE_UNSPECIFIED});
   InitializeWithDefaultConfig("1.0.0.0");
 
   hints_manager()->SetHintsFetcherFactoryForTesting(
@@ -3469,7 +3432,7 @@ TEST_F(HintsManagerFetchingTest,
   std::optional<proto::RequestContextMetadata> request_context_metadata =
       std::make_optional(request_context_metadata_var);
   hints_manager()->CanApplyOptimizationOnDemand(
-      {url_with_url_keyed_hint()}, {proto::PAGE_INSIGHTS},
+      {url_with_url_keyed_hint()}, {proto::TYPE_UNSPECIFIED},
       proto::RequestContext::CONTEXT_PAGE_INSIGHTS_HUB,
       base::BindRepeating(
           [](base::RunLoop* run_loop, const GURL& url,
@@ -3477,7 +3440,7 @@ TEST_F(HintsManagerFetchingTest,
                                   OptimizationGuideDecisionWithMetadata>&
                  decisions) {
             EXPECT_EQ(decisions.size(), 1u);
-            auto it = decisions.find(proto::PAGE_INSIGHTS);
+            auto it = decisions.find(proto::TYPE_UNSPECIFIED);
             EXPECT_TRUE(it != decisions.end());
 
             run_loop->Quit();
@@ -3498,7 +3461,7 @@ TEST_F(
     PageInsightsHubContextNotSentRequestContextMetadataPihSentGetHintsRequest) {
   base::HistogramTester histogram_tester;
 
-  hints_manager()->RegisterOptimizationTypes({proto::PAGE_INSIGHTS});
+  hints_manager()->RegisterOptimizationTypes({proto::TYPE_UNSPECIFIED});
   InitializeWithDefaultConfig("1.0.0.0");
 
   hints_manager()->SetHintsFetcherFactoryForTesting(
@@ -3514,7 +3477,7 @@ TEST_F(
   std::optional<proto::RequestContextMetadata> request_context_metadata =
       std::make_optional(request_context_metadata_var);
   hints_manager()->CanApplyOptimizationOnDemand(
-      {url_with_url_keyed_hint()}, {proto::PAGE_INSIGHTS},
+      {url_with_url_keyed_hint()}, {proto::TYPE_UNSPECIFIED},
       proto::RequestContext::CONTEXT_BOOKMARKS,
       base::BindRepeating(
           [](base::RunLoop* run_loop, const GURL& url,
@@ -3522,7 +3485,7 @@ TEST_F(
                                   OptimizationGuideDecisionWithMetadata>&
                  decisions) {
             EXPECT_EQ(decisions.size(), 1u);
-            auto it = decisions.find(proto::PAGE_INSIGHTS);
+            auto it = decisions.find(proto::TYPE_UNSPECIFIED);
             EXPECT_TRUE(it != decisions.end());
 
             run_loop->Quit();
@@ -3541,7 +3504,7 @@ TEST_F(HintsManagerFetchingTest,
        PageInsightsHubContextRequestContextMetadataPihNotSentGetHintsRequest) {
   base::HistogramTester histogram_tester;
 
-  hints_manager()->RegisterOptimizationTypes({proto::PAGE_INSIGHTS});
+  hints_manager()->RegisterOptimizationTypes({proto::TYPE_UNSPECIFIED});
   InitializeWithDefaultConfig("1.0.0.0");
 
   hints_manager()->SetHintsFetcherFactoryForTesting(
@@ -3549,7 +3512,7 @@ TEST_F(HintsManagerFetchingTest,
           {HintsFetcherEndState::kFetchSuccessWithURLHints}));
   std::unique_ptr<base::RunLoop> run_loop = std::make_unique<base::RunLoop>();
   hints_manager()->CanApplyOptimizationOnDemand(
-      {url_with_url_keyed_hint()}, {proto::PAGE_INSIGHTS},
+      {url_with_url_keyed_hint()}, {proto::TYPE_UNSPECIFIED},
       proto::RequestContext::CONTEXT_PAGE_INSIGHTS_HUB,
       base::BindRepeating(
           [](base::RunLoop* run_loop, const GURL& url,
@@ -3557,7 +3520,7 @@ TEST_F(HintsManagerFetchingTest,
                                   OptimizationGuideDecisionWithMetadata>&
                  decisions) {
             EXPECT_EQ(decisions.size(), 1u);
-            auto it = decisions.find(proto::PAGE_INSIGHTS);
+            auto it = decisions.find(proto::TYPE_UNSPECIFIED);
             EXPECT_TRUE(it != decisions.end());
 
             run_loop->Quit();
@@ -3602,17 +3565,7 @@ TEST_F(HintsManagerFetchingNoBatchUpdateTest,
   EXPECT_FALSE(active_tabs_batch_update_hints_fetcher());
 }
 
-class HintsManagerComponentSkipProcessingTest : public HintsManagerTest {
- public:
-  HintsManagerComponentSkipProcessingTest() {
-    scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        features::kOptimizationHintsComponent,
-        {{"check_failed_component_version_pref", "false"}});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
+using HintsManagerComponentSkipProcessingTest = HintsManagerTest;
 
 TEST_F(HintsManagerComponentSkipProcessingTest, ProcessHintsWithExistingPref) {
   // Write hints processing pref for version 2.0.0.

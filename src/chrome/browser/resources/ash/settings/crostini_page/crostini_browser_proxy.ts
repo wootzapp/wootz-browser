@@ -11,9 +11,9 @@ import 'chrome://resources/ash/common/cr_elements/cr_input/cr_input.js';
 
 import {sendWithPromise} from 'chrome://resources/js/cr.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {SkColor} from 'chrome://resources/mojo/skia/public/mojom/skcolor.mojom-webui.js';
+import type {SkColor} from 'chrome://resources/mojo/skia/public/mojom/skcolor.mojom-webui.js';
 
-import {GuestId, TERMINA_VM_TYPE} from '../guest_os/guest_os_browser_proxy.js';
+import {type GuestId, TERMINA_VM_TYPE} from '../guest_os/guest_os_browser_proxy.js';
 
 // Identifiers for the default Crostini VM and container.
 export const DEFAULT_CROSTINI_VM = TERMINA_VM_TYPE;
@@ -73,9 +73,8 @@ export interface CrostiniPortActiveSetting {
 
 export const PortState = {
   VALID: '',
-  INVALID: loadTimeData.getString('crostiniPortForwardingAddError') as string,
-  DUPLICATE: loadTimeData.getString('crostiniPortForwardingAddExisting') as
-      string,
+  INVALID: loadTimeData.getString('crostiniPortForwardingAddError'),
+  DUPLICATE: loadTimeData.getString('crostiniPortForwardingAddExisting'),
 };
 
 export const MIN_VALID_PORT_NUMBER = 1024;   // Minimum 16-bit integer value.
@@ -218,10 +217,17 @@ export interface CrostiniBrowserProxy {
 
   checkCrostiniIsRunning(): Promise<boolean>;
 
+  checkBruschettaIsRunning(): Promise<boolean>;
+
   /**
    * Shuts Crostini (Termina VM) down.
    */
   shutdownCrostini(): void;
+
+  /**
+   * Shuts Bruschetta (gLinux for ChromeOS) down.
+   */
+  shutdownBruschetta(): void;
 
   /**
    * @param enabled Set Crostini's access to the mic.
@@ -425,8 +431,16 @@ export class CrostiniBrowserProxyImpl implements CrostiniBrowserProxy {
     return sendWithPromise('checkCrostiniIsRunning');
   }
 
+  checkBruschettaIsRunning(): Promise<boolean> {
+    return sendWithPromise('checkBruschettaIsRunning');
+  }
+
   shutdownCrostini(): void {
     chrome.send('shutdownCrostini');
+  }
+
+  shutdownBruschetta(): void {
+    chrome.send('shutdownBruschetta');
   }
 
   setCrostiniMicSharingEnabled(enabled: boolean): void {

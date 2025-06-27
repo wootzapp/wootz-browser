@@ -23,18 +23,18 @@
 
 namespace cc {
 
-RasterSource::RasterSource(const RecordingSource* other)
-    : display_list_(other->display_list_),
-      background_color_(other->background_color_),
-      requires_clear_(other->requires_clear_),
-      is_solid_color_(other->is_solid_color_),
-      solid_color_(other->solid_color_),
-      recorded_bounds_(other->recorded_bounds_),
-      size_(other->size_),
+RasterSource::RasterSource(const RecordingSource& other)
+    : display_list_(other.display_list_),
+      background_color_(other.background_color_),
+      requires_clear_(other.requires_clear_),
+      is_solid_color_(other.is_solid_color_),
+      solid_color_(other.solid_color_),
+      recorded_bounds_(other.recorded_bounds_),
+      size_(other.size_),
       slow_down_raster_scale_factor_for_debug_(
-          other->slow_down_raster_scale_factor_for_debug_),
-      recording_scale_factor_(other->recording_scale_factor_),
-      directly_composited_image_info_(other->directly_composited_image_info_) {
+          other.slow_down_raster_scale_factor_for_debug_),
+      recording_scale_factor_(other.recording_scale_factor_),
+      directly_composited_image_info_(other.directly_composited_image_info_) {
   DCHECK(recorded_bounds_.IsEmpty() ||
          gfx::Rect(size_).Contains(recorded_bounds_));
 }
@@ -123,8 +123,7 @@ void RasterSource::PlaybackToCanvas(
 void RasterSource::PlaybackDisplayListToCanvas(
     SkCanvas* raster_canvas,
     const PlaybackSettings& settings) const {
-  // TODO(enne): Temporary CHECK debugging for http://crbug.com/823835
-  CHECK(display_list_.get());
+  CHECK(display_list_);
   int repeat_count = std::max(1, slow_down_raster_scale_factor_for_debug_);
   PlaybackParams params(settings.image_provider, SkM44());
   params.raster_inducing_scroll_offsets =
@@ -138,24 +137,11 @@ bool RasterSource::PerformSolidColorAnalysis(gfx::Rect layer_rect,
                                              SkColor4f* color,
                                              int max_ops_to_analyze) const {
   TRACE_EVENT0("cc", "RasterSource::PerformSolidColorAnalysis");
-
+  CHECK(display_list_);
   layer_rect.Intersect(gfx::Rect(size_));
   layer_rect = gfx::ScaleToRoundedRect(layer_rect, recording_scale_factor_);
   return display_list_->GetColorIfSolidInRect(layer_rect, color,
                                               max_ops_to_analyze);
-}
-
-void RasterSource::GetDiscardableImagesInRect(
-    const gfx::Rect& layer_rect,
-    std::vector<const DrawImage*>* images) const {
-  DCHECK_EQ(0u, images->size());
-  display_list_->discardable_image_map().GetDiscardableImagesInRect(layer_rect,
-                                                                    images);
-}
-
-base::flat_map<PaintImage::Id, PaintImage::DecodingMode>
-RasterSource::TakeDecodingModeMap() {
-  return display_list_->TakeDecodingModeMap();
 }
 
 bool RasterSource::IntersectsRect(const gfx::Rect& layer_rect) const {

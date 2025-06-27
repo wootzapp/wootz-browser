@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/socket/ssl_client_socket_impl.h"
 
 #include <errno.h>
@@ -26,11 +31,11 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/rand_util.h"
+#include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "components/miracle_parameter/common/public/miracle_parameter.h"
 #include "crypto/ec_private_key.h"
 #include "crypto/openssl_util.h"
 #include "net/base/features.h"
@@ -41,6 +46,7 @@
 #include "net/base/trace_constants.h"
 #include "net/base/tracing.h"
 #include "net/base/url_util.h"
+#include "net/cert/cert_status_flags.h"
 #include "net/cert/cert_verifier.h"
 #include "net/cert/ct_verifier.h"
 #include "net/cert/sct_auditing_delegate.h"
@@ -77,15 +83,8 @@ const int kSSLClientSocketNoPendingResult = 1;
 // overlap with any value of the net::Error range, including net::OK).
 const int kCertVerifyPending = 1;
 
-BASE_FEATURE(kDefaultOpenSSLBufferSizeFeature,
-             "DefaultOpenSSLBufferSizeFeature",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Default size of the internal BoringSSL buffers.
-MIRACLE_PARAMETER_FOR_INT(GetDefaultOpenSSLBufferSize,
-                          kDefaultOpenSSLBufferSizeFeature,
-                          "DefaultOpenSSLBufferSize",
-                          17 * 1024)
+const int kDefaultOpenSSLBufferSize = 17 * 1024;
 
 base::Value::Dict NetLogPrivateKeyOperationParams(uint16_t algorithm,
                                                   SSLPrivateKey* key) {
@@ -124,8 +123,7 @@ base::Value::Dict NetLogSSLMessageParams(bool is_write,
                                          size_t len,
                                          NetLogCaptureMode capture_mode) {
   if (len == 0) {
-    NOTREACHED_IN_MIGRATION();
-    return base::Value::Dict();
+    NOTREACHED();
   }
 
   base::Value::Dict dict;
@@ -188,7 +186,6 @@ class SSLClientSocketImpl::SSLContext {
   friend struct base::DefaultSingletonTraits<SSLContext>;
 
   SSLContext() {
-    crypto::EnsureOpenSSLInit();
     ssl_socket_data_index_ =
         SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
     DCHECK_NE(ssl_socket_data_index_, -1);
@@ -304,20 +301,20 @@ std::vector<uint8_t> SSLClientSocketImpl::GetECHRetryConfigs() {
   return std::vector<uint8_t>(retry_configs, retry_configs + retry_configs_len);
 }
 
-int SSLClientSocketImpl::ExportKeyingMaterial(std::string_view label,
-                                              bool has_context,
-                                              std::string_view context,
-                                              unsigned char* out,
-                                              unsigned int outlen) {
+int SSLClientSocketImpl::ExportKeyingMaterial(
+    std::string_view label,
+    std::optional<base::span<const uint8_t>> context,
+    base::span<uint8_t> out) {
+  DCHECK(base::IsStringASCII(label));
   if (!IsConnected())
     return ERR_SOCKET_NOT_CONNECTED;
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
 
   if (!SSL_export_keying_material(
-          ssl_.get(), out, outlen, label.data(), label.size(),
-          reinterpret_cast<const unsigned char*>(context.data()),
-          context.length(), has_context ? 1 : 0)) {
+          ssl_.get(), out.data(), out.size(), label.data(), label.size(),
+          context.has_value() ? context->data() : nullptr,
+          context.has_value() ? context->size() : 0, context.has_value())) {
     LOG(ERROR) << "Failed to export keying material.";
     return ERR_FAILED;
   }
@@ -468,7 +465,7 @@ SSLClientSocketImpl::GetPeerApplicationSettings() const {
 }
 
 bool SSLClientSocketImpl::GetSSLInfo(SSLInfo* ssl_info) {
-  ssl_info->Reset();
+  *ssl_info = SSLInfo();
   if (!server_cert_)
     return false;
 
@@ -512,8 +509,7 @@ int64_t SSLClientSocketImpl::GetTotalReceivedBytes() const {
 void SSLClientSocketImpl::GetSSLCertRequestInfo(
     SSLCertRequestInfo* cert_request_info) const {
   if (!ssl_) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
 
   cert_request_info->host_and_port = host_and_port_;
@@ -649,9 +645,13 @@ int SSLClientSocketImpl::Init() {
   }
 
   if (context_->config().PostQuantumKeyAgreementEnabled()) {
-    static const int kCurves[] = {NID_X25519Kyber768Draft00, NID_X25519,
-                                  NID_X9_62_prime256v1, NID_secp384r1};
-    if (!SSL_set1_curves(ssl_.get(), kCurves, std::size(kCurves))) {
+    const uint16_t postquantum_group =
+        base::FeatureList::IsEnabled(features::kUseMLKEM)
+            ? SSL_GROUP_X25519_MLKEM768
+            : SSL_GROUP_X25519_KYBER768_DRAFT00;
+    const uint16_t kGroups[] = {postquantum_group, SSL_GROUP_X25519,
+                                SSL_GROUP_SECP256R1, SSL_GROUP_SECP384R1};
+    if (!SSL_set1_group_ids(ssl_.get(), kGroups, std::size(kGroups))) {
       return ERR_UNEXPECTED;
     }
   }
@@ -674,9 +674,9 @@ int SSLClientSocketImpl::Init() {
       SSL_set_session(ssl_.get(), session.get());
   }
 
-  const int kBufferSize = GetDefaultOpenSSLBufferSize();
   transport_adapter_ = std::make_unique<SocketBIOAdapter>(
-      stream_socket_.get(), kBufferSize, kBufferSize, this);
+      stream_socket_.get(), kDefaultOpenSSLBufferSize,
+      kDefaultOpenSSLBufferSize, this);
   BIO* transport_bio = transport_adapter_->bio();
 
   BIO_up_ref(transport_bio);  // SSL_set0_rbio takes ownership.
@@ -960,12 +960,14 @@ int SSLClientSocketImpl::DoHandshakeComplete(int result) {
   }
   UMA_HISTOGRAM_ENUMERATION("Net.SSLHandshakeDetails", details);
 
-  // Measure TLS connections that implement the renegotiation_info extension.
-  // Note this records true for TLS 1.3. By removing renegotiation altogether,
-  // TLS 1.3 is implicitly patched against the bug. See
-  // https://crbug.com/850800.
+  // Measure TLS connections that implement the renegotiation_info and EMS
+  // extensions. TLS 1.3 is already patched for both bugs, so these functions
+  // record true in TLS 1.3 although the extensions are not actually negotiated.
+  // See https://crbug.com/850800.
   base::UmaHistogramBoolean("Net.SSLRenegotiationInfoSupported",
                             SSL_get_secure_renegotiation_support(ssl_.get()));
+  base::UmaHistogramBoolean("Net.SSLExtendedMainSecretSupported",
+                            SSL_get_extms_support(ssl_.get()));
 
   completed_connect_ = true;
   next_handshake_state_ = STATE_NONE;
@@ -1065,9 +1067,7 @@ ssl_verify_result_t SSLClientSocketImpl::VerifyCert() {
     //
     // See section 6.1.7 of draft-ietf-tls-esni-13.
     if (HostIsIPAddressNoBrackets(ech_name_override)) {
-      NOTREACHED_IN_MIGRATION();
-      OpenSSLPutNetError(FROM_HERE, ERR_INVALID_ECH_CONFIG_LIST);
-      return ssl_verify_invalid;
+      NOTREACHED();
     }
   }
 
@@ -1123,11 +1123,17 @@ ssl_verify_result_t SSLClientSocketImpl::HandleVerifyResult() {
 
   // If the connection was good, check HPKP and CT status simultaneously,
   // but prefer to treat the HPKP error as more serious, if there was one.
-  if (result == OK) {
-    int ct_result = CheckCTRequirements();
+  if (result == OK || result == ERR_CERTIFICATE_TRANSPARENCY_REQUIRED) {
+    if (context_->sct_auditing_delegate()) {
+      context_->sct_auditing_delegate()->MaybeEnqueueReport(
+          host_and_port_, server_cert_verify_result_.verified_cert.get(),
+          server_cert_verify_result_.scts);
+    }
+
     TransportSecurityState::PKPStatus pin_validity =
         context_->transport_security_state()->CheckPublicKeyPins(
-            host_and_port_, server_cert_verify_result_.is_issued_by_known_root,
+            host_and_port_.host(),
+            server_cert_verify_result_.is_issued_by_known_root,
             server_cert_verify_result_.public_key_hashes);
     switch (pin_validity) {
       case TransportSecurityState::PKPStatus::VIOLATED:
@@ -1142,8 +1148,6 @@ ssl_verify_result_t SSLClientSocketImpl::HandleVerifyResult() {
         // Do nothing.
         break;
     }
-    if (result != ERR_SSL_PINNED_KEY_NOT_IN_CERT_CHAIN && ct_result != OK)
-      result = ct_result;
   }
 
   is_fatal_cert_error_ =
@@ -1170,34 +1174,6 @@ ssl_verify_result_t SSLClientSocketImpl::HandleVerifyResult() {
 
   OpenSSLPutNetError(FROM_HERE, result);
   return ssl_verify_invalid;
-}
-
-int SSLClientSocketImpl::CheckCTRequirements() {
-  TransportSecurityState::CTRequirementsStatus ct_requirement_status =
-      context_->transport_security_state()->CheckCTRequirements(
-          host_and_port_, server_cert_verify_result_.is_issued_by_known_root,
-          server_cert_verify_result_.public_key_hashes,
-          server_cert_verify_result_.verified_cert.get(),
-          server_cert_verify_result_.policy_compliance);
-
-  if (context_->sct_auditing_delegate()) {
-    context_->sct_auditing_delegate()->MaybeEnqueueReport(
-        host_and_port_, server_cert_verify_result_.verified_cert.get(),
-        server_cert_verify_result_.scts);
-  }
-
-  switch (ct_requirement_status) {
-    case TransportSecurityState::CT_REQUIREMENTS_NOT_MET:
-      server_cert_verify_result_.cert_status |=
-          CERT_STATUS_CERTIFICATE_TRANSPARENCY_REQUIRED;
-      return ERR_CERTIFICATE_TRANSPARENCY_REQUIRED;
-    case TransportSecurityState::CT_REQUIREMENTS_MET:
-    case TransportSecurityState::CT_NOT_REQUIRED:
-      return OK;
-  }
-
-  NOTREACHED_IN_MIGRATION();
-  return OK;
 }
 
 void SSLClientSocketImpl::DoConnectCallback(int rv) {
@@ -1239,9 +1215,7 @@ int SSLClientSocketImpl::DoHandshakeLoop(int last_io_result) {
         break;
       case STATE_NONE:
       default:
-        rv = ERR_UNEXPECTED;
-        NOTREACHED_IN_MIGRATION() << "unexpected state" << state;
-        break;
+        NOTREACHED() << "unexpected state" << state;
     }
   } while (rv != ERR_IO_PENDING && next_handshake_state_ != STATE_NONE);
   return rv;
@@ -1353,14 +1327,6 @@ int SSLClientSocketImpl::DoPayloadWrite() {
     CHECK_LE(rv, user_write_buf_len_);
     net_log_.AddByteTransferEvent(NetLogEventType::SSL_SOCKET_BYTES_SENT, rv,
                                   user_write_buf_->data());
-    if (first_post_handshake_write_ && SSL_is_init_finished(ssl_.get())) {
-      if (base::FeatureList::IsEnabled(features::kTLS13KeyUpdate) &&
-          SSL_version(ssl_.get()) == TLS1_3_VERSION) {
-        const int ok = SSL_key_update(ssl_.get(), SSL_KEY_UPDATE_REQUESTED);
-        DCHECK(ok);
-      }
-      first_post_handshake_write_ = false;
-    }
     return rv;
   }
 
@@ -1398,17 +1364,24 @@ void SSLClientSocketImpl::DoPeek() {
     // requires that the max value sentinel be named |kMaxValue|, transform the
     // max-value sentinel into a one-past-the-end ("boundary") sentinel by
     // adding 1, in order to be able to use the three-parameter macro.
+    ssl_early_data_reason_t early_data_reason =
+        SSL_get_early_data_reason(ssl_.get());
     UMA_HISTOGRAM_ENUMERATION("Net.SSLHandshakeEarlyDataReason",
-                              SSL_get_early_data_reason(ssl_.get()),
+                              early_data_reason,
                               ssl_early_data_reason_max_value + 1);
     if (IsGoogleHost(host_and_port_.host())) {
       // Most Google hosts are known to implement 0-RTT, so this gives more
       // targeted metrics as we initially roll out client support. See
       // https://crbug.com/641225.
       UMA_HISTOGRAM_ENUMERATION("Net.SSLHandshakeEarlyDataReason.Google",
-                                SSL_get_early_data_reason(ssl_.get()),
+                                early_data_reason,
                                 ssl_early_data_reason_max_value + 1);
     }
+    net_log_.AddEvent(NetLogEventType::SSL_HANDSHAKE_EARLY_DATA_REASON, [&] {
+      base::Value::Dict dict;
+      dict.Set("early_data_reason", early_data_reason);
+      return dict;
+    });
 
     // On early data reject, clear early data on any other sessions in the
     // cache, so retries do not get stuck attempting 0-RTT. See
@@ -1518,6 +1491,13 @@ int SSLClientSocketImpl::ClientCertRequestCallback(SSL* ssl) {
 
     std::vector<uint16_t> preferences =
         client_private_key_->GetAlgorithmPreferences();
+    // If the key supports rsa_pkcs1_sha256, automatically add support for
+    // rsa_pkcs1_sha256_legacy, for use with TLS 1.3. We convert here so that
+    // not every `SSLPrivateKey` needs to implement it explicitly.
+    if (base::FeatureList::IsEnabled(features::kLegacyPKCS1ForTLS13) &&
+        base::Contains(preferences, SSL_SIGN_RSA_PKCS1_SHA256)) {
+      preferences.push_back(SSL_SIGN_RSA_PKCS1_SHA256_LEGACY);
+    }
     SSL_set_signing_algorithm_prefs(ssl_.get(), preferences.data(),
                                     preferences.size());
 
@@ -1568,12 +1548,16 @@ SSLClientSessionCache::Key SSLClientSocketImpl::GetSessionCacheKey(
     key.network_anonymization_key = ssl_config_.network_anonymization_key;
   }
   key.privacy_mode = ssl_config_.privacy_mode;
+  key.proxy_chain = ssl_config_.proxy_chain;
+  key.proxy_chain_index = ssl_config_.proxy_chain_index;
+  key.session_usage = ssl_config_.session_usage;
   return key;
 }
 
 bool SSLClientSocketImpl::IsRenegotiationAllowed() const {
-  if (negotiated_protocol_ == kProtoUnknown)
+  if (negotiated_protocol_ == NextProto::kProtoUnknown) {
     return ssl_config_.renego_allowed_default;
+  }
 
   for (NextProto allowed : ssl_config_.renego_allowed_for_protos) {
     if (negotiated_protocol_ == allowed)
@@ -1604,11 +1588,18 @@ ssl_private_key_result_t SSLClientSocketImpl::PrivateKeySignCallback(
         // provider name in the common case with logging disabled.
         client_private_key_.get());
   });
-
   base::UmaHistogramSparse("Net.SSLClientCertSignatureAlgorithm", algorithm);
+
+  // Map rsa_pkcs1_sha256_legacy back to rsa_pkcs1_sha256. We convert it here,
+  // so that not every `SSLPrivateKey` needs to implement it explicitly.
+  if (base::FeatureList::IsEnabled(features::kLegacyPKCS1ForTLS13) &&
+      algorithm == SSL_SIGN_RSA_PKCS1_SHA256_LEGACY) {
+    algorithm = SSL_SIGN_RSA_PKCS1_SHA256;
+  }
+
   signature_result_ = ERR_IO_PENDING;
   client_private_key_->Sign(
-      algorithm, base::make_span(in, in_len),
+      algorithm, base::span(in, in_len),
       base::BindOnce(&SSLClientSocketImpl::OnPrivateKeyComplete,
                      weak_factory_.GetWeakPtr()));
   return ssl_private_key_retry;
@@ -1695,8 +1686,8 @@ void SSLClientSocketImpl::LogConnectEndEvent(int rv) {
 }
 
 void SSLClientSocketImpl::RecordNegotiatedProtocol() const {
-  UMA_HISTOGRAM_ENUMERATION("Net.SSLNegotiatedAlpnProtocol",
-                            negotiated_protocol_, kProtoLast + 1);
+  base::UmaHistogramEnumeration("Net.SSLNegotiatedAlpnProtocol",
+                                negotiated_protocol_);
 }
 
 int SSLClientSocketImpl::MapLastOpenSSLError(

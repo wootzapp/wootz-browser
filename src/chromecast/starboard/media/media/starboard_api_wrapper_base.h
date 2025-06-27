@@ -10,6 +10,7 @@
 
 #include <vector>
 
+#include "base/containers/span.h"
 #include "chromecast/starboard/media/media/starboard_api_wrapper.h"
 
 namespace chromecast {
@@ -36,8 +37,7 @@ class StarboardApiWrapperBase : public StarboardApiWrapper {
                        int height) override;
   void WriteSample(void* player,
                    StarboardMediaType type,
-                   StarboardSampleInfo* sample_infos,
-                   int sample_infos_count) override;
+                   base::span<const StarboardSampleInfo> sample_infos) override;
   void WriteEndOfStream(void* player, StarboardMediaType type) override;
   void SetVolume(void* player, double volume) override;
   bool SetPlaybackRate(void* player, double playback_rate) override;
@@ -65,6 +65,10 @@ class StarboardApiWrapperBase : public StarboardApiWrapper {
                                   int certificate_size) override;
   bool DrmIsServerCertificateUpdatable(void* drm_system) override;
   void DrmDestroySystem(void* drm_system) override;
+
+  StarboardMediaSupportType CanPlayMimeAndKeySystem(
+      const char* mime,
+      const char* key_system) override;
 
  private:
   // Converts StarboardSampleInfo to SbPlayerSampleInfo. `side_data` is used to
@@ -96,10 +100,13 @@ class StarboardApiWrapperBase : public StarboardApiWrapper {
 
   // Calls the relevant starboard version's function to write samples (e.g.
   // SbPlayerWriteSamples or SbPlayerWriteSample2).
-  virtual void CallWriteSamples(SbPlayer player,
-                                SbMediaType sample_type,
-                                const SbPlayerSampleInfo* sample_infos,
-                                int number_of_sample_infos) = 0;
+  virtual void CallWriteSamples(
+      SbPlayer player,
+      SbMediaType sample_type,
+      base::span<const SbPlayerSampleInfo> sample_infos) = 0;
+
+  // Tracks whether |EnsureInitialized| was called.
+  bool initialized_ = false;
 };
 
 }  // namespace media

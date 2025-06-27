@@ -5,12 +5,12 @@
 """Siso configuration for rewriting remote calls into reproxy config."""
 
 load("@builtin//encoding.star", "json")
-load("@builtin//lib/gn.star", "gn")
 load("@builtin//path.star", "path")
 load("@builtin//runtime.star", "runtime")
 load("@builtin//struct.star", "module")
 load("./clang_code_coverage_wrapper.star", "clang_code_coverage_wrapper")
 load("./config.star", "config")
+load("./gn_logs.star", "gn_logs")
 load("./platform.star", "platform")
 load("./rewrapper_cfg.star", "rewrapper_cfg")
 
@@ -64,6 +64,13 @@ def __parse_rewrapper_cmdline(ctx, cmd):
         rw_opts.update({
             "exec_timeout": "4m",
             "reclient_timeout": "8m",
+        })
+    if runtime.os == "darwin":
+        # Mac gets timeouts occasionally on large input uploads (likely due to large invalidations)
+        # b/356981080
+        rw_opts.update({
+            "exec_timeout": "3m",
+            "reclient_timeout": "6m",
         })
 
     # Command line options are the highest priority.
@@ -205,8 +212,9 @@ def __rewrite_rewrapper(ctx, cmd, use_large = False):
         })
 
         # Some large compiles take longer than the default timeout 2m.
-        rwcfg["exec_timeout"] = "4m"
-        rwcfg["reclient_timeout"] = "4m"
+        # same as clang_exception.star.
+        rwcfg["exec_timeout"] = "10m"
+        rwcfg["reclient_timeout"] = "10m"
     ctx.actions.fix(
         args = args,
         reproxy_config = json.encode(rwcfg),
@@ -232,12 +240,8 @@ __handlers = {
     "strip_rewrapper": __strip_rewrapper,
 }
 
-def __use_remoteexec(ctx):
-    if "args.gn" in ctx.metadata:
-        gn_args = gn.args(ctx)
-        if gn_args.get("use_remoteexec") == "true":
-            return True
-    return False
+def __use_reclient(ctx):
+    return gn_logs.read(ctx).get("use_reclient") == "true"
 
 def __step_config(ctx, step_config):
     # New rules to convert commands calling rewrapper to use reproxy instead.
@@ -310,8 +314,9 @@ def __step_config(ctx, step_config):
             },
             "canonicalize_working_dir": rule.get("canonicalize_dir", False),
             "exec_strategy": exec_strategy,
-            "exec_timeout": rule.get("timeout", "10m"),
-            "reclient_timeout": rule.get("timeout", "10m"),
+            # TODO: crbug.com/380755128 - Make each compile unit smaller.
+            "exec_timeout": rule.get("timeout", "30m"),
+            "reclient_timeout": rule.get("timeout", "15m"),
             "download_outputs": True,
         }
         new_rules.append(rule)
@@ -321,7 +326,7 @@ def __step_config(ctx, step_config):
 
 reproxy = module(
     "reproxy",
-    enabled = __use_remoteexec,
+    enabled = __use_reclient,
     step_config = __step_config,
     filegroups = __filegroups,
     handlers = __handlers,

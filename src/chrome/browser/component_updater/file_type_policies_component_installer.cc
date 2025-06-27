@@ -111,9 +111,8 @@ base::FilePath FileTypePoliciesComponentInstallerPolicy::GetRelativeInstallDir()
 
 void FileTypePoliciesComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(kFileTypePoliciesPublicKeySHA256,
-               kFileTypePoliciesPublicKeySHA256 +
-                   std::size(kFileTypePoliciesPublicKeySHA256));
+  hash->assign(std::begin(kFileTypePoliciesPublicKeySHA256),
+               std::end(kFileTypePoliciesPublicKeySHA256));
 }
 
 std::string FileTypePoliciesComponentInstallerPolicy::GetName() const {

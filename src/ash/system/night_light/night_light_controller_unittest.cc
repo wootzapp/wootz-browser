@@ -15,6 +15,7 @@
 #include "ash/public/cpp/session/session_types.h"
 #include "ash/root_window_controller.h"
 #include "ash/session/session_controller_impl.h"
+#include "ash/session/test_pref_service_provider.h"
 #include "ash/session/test_session_controller_client.h"
 #include "ash/shell.h"
 #include "ash/system/geolocation/geolocation_controller.h"
@@ -222,8 +223,6 @@ class NightLightTest : public NoSessionAshTestBase,
     geolocation_controller()->SetClockForTesting(&clock_);
     GetController()->SetClockForTesting(this);
 
-    CreateTestUserSessions();
-
     // Simulate user 1 login.
     SimulateNewUserFirstLogin(kUser1Email);
 
@@ -234,12 +233,6 @@ class NightLightTest : public NoSessionAshTestBase,
     // instance, which is initialized by `AshTestHelper`.
     SimpleGeolocationProvider::GetInstance()
         ->SetSharedUrlLoaderFactoryForTesting(geolocation_url_loader_factory_);
-  }
-
-  void CreateTestUserSessions() {
-    GetSessionControllerClient()->Reset();
-    GetSessionControllerClient()->AddUserSession(kUser1Email);
-    GetSessionControllerClient()->AddUserSession(kUser2Email);
   }
 
   void SwitchActiveUser(const std::string& email) {
@@ -481,7 +474,7 @@ TEST_F(NightLightTest, TestUserSwitchAndSettingsPersistence) {
   TestCompositorsTemperature(user1_temperature);
 
   // Switch to user 2, and expect NightLight to be disabled.
-  SwitchActiveUser(kUser2Email);
+  SimulateUserLogin({kUser2Email});
   EXPECT_FALSE(controller->IsNightLightEnabled());
   // Changing user_2's color temperature shouldn't affect user_1's settings.
   const float user2_temperature = 0.2f;
@@ -1036,8 +1029,8 @@ TEST_F(NightLightTest, TestAmbientLightRemappingTemperature) {
             controller->ambient_temperature());
 
   // Simulate powerd sending multiple times an ambient temperature of 8000.
-  // The remapped ambient temperature should grow and eventually reach ~7400.
-  float ambient_temperature = SimulateAmbientColorFromPowerd(8000, 7400.0f);
+  // The remapped ambient temperature should grow and eventually reach ~7450.
+  float ambient_temperature = SimulateAmbientColorFromPowerd(8000, 7450.0f);
 
   // If powerd sends the same temperature, the remapped temperature should not
   // change.
@@ -1087,7 +1080,7 @@ TEST_F(NightLightTest, MultiUserManualStatusToggleWithSchedules) {
   controller->SetCustomEndTime(MakeTimeOfDay(8, kPM));
   controller->SetScheduleType(ScheduleType::kCustom);
   controller->SetColorTemperature(kUser1Temperature);
-  SwitchActiveUser(kUser2Email);
+  SimulateUserLogin({kUser2Email});
   controller->SetScheduleType(ScheduleType::kSunsetToSunrise);
   controller->SetColorTemperature(kUser2Temperature);
   SwitchActiveUser(kUser1Email);
@@ -1294,21 +1287,6 @@ class NightLightCrtcTest : public NightLightTest {
     return logger_->GetActionsAndClear();
   }
 
-  bool VerifyCrtcMatrix(int64_t display_id,
-                        float temperature,
-                        const std::string& logger_actions_string) const {
-    constexpr float kRedScale = 1.0f;
-    const float blue_scale =
-        NightLightControllerImpl::BlueColorScaleFromTemperature(temperature);
-    const float green_scale =
-        NightLightControllerImpl::GreenColorScaleFromTemperature(temperature);
-    std::stringstream pattern_stream;
-    pattern_stream << "*set_color_matrix(id=" << display_id
-                   << ",ctm[0]=" << kRedScale << "*ctm[4]=" << green_scale
-                   << "*ctm[8]=" << blue_scale << "*)*";
-    return base::MatchPattern(logger_actions_string, pattern_stream.str());
-  }
-
  private:
   std::unique_ptr<display::test::ActionLogger> logger_;
   // Not owned.
@@ -1345,10 +1323,6 @@ TEST_F(NightLightCrtcTest, TestAllDisplaysSupportCrtcMatrix) {
   TestCompositorsTemperature(0.0f);
   // Hence software cursor should not be used.
   EXPECT_FALSE(IsCursorCompositingEnabled());
-  // Verify correct matrix has been set on both crtcs.
-  std::string logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_TRUE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 
   // Setting a new temperature is applied.
   temperature = 0.65f;
@@ -1356,14 +1330,11 @@ TEST_F(NightLightCrtcTest, TestAllDisplaysSupportCrtcMatrix) {
   EXPECT_EQ(temperature, controller->GetColorTemperature());
   TestCompositorsTemperature(0.0f);
   EXPECT_FALSE(IsCursorCompositingEnabled());
-  logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_TRUE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 
   // Test the cursor compositing behavior when Night Light is on (and doesn't
   // require the software cursor) while other accessibility settings that affect
   // the cursor are toggled.
-  for (const auto* const pref : {prefs::kAccessibilityLargeCursorEnabled,
+  for (const auto* const pref : {prefs::kDockedMagnifierEnabled,
                                  prefs::kAccessibilityHighContrastEnabled}) {
     user1_pref_service()->SetBoolean(pref, true);
     EXPECT_TRUE(IsCursorCompositingEnabled());
@@ -1401,20 +1372,12 @@ TEST_F(NightLightCrtcTest,
   TestCompositorsTemperature(0.0f);
   // Hence software cursor should not be used.
   EXPECT_FALSE(IsCursorCompositingEnabled());
-  // Verify compressed gamma space matrix has been set on both crtcs.
-  std::string logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_TRUE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
-
   // Setting a new temperature is applied.
   temperature = 0.65f;
   controller->SetColorTemperature(temperature);
   EXPECT_EQ(temperature, controller->GetColorTemperature());
   TestCompositorsTemperature(0.0f);
   EXPECT_FALSE(IsCursorCompositingEnabled());
-  logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_TRUE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 }
 
 // One display supports CRTC matrix and the other doesn't.
@@ -1434,18 +1397,25 @@ TEST_F(NightLightCrtcTest, TestMixedCrtcMatrixSupport) {
   controller->SetColorTemperature(temperature);
   EXPECT_EQ(temperature, controller->GetColorTemperature());
 
+  ui::test::EventGenerator* generator = GetEventGenerator();
+
   // The first display supports CRTC matrix, so its compositor has identity
   // matrix.
   TestDisplayCompositorTemperature(kId1, 0.0f);
+  const display::Display& display_1 = display_manager()->GetDisplayForId(kId1);
+  generator->MoveMouseTo(display_1.bounds().CenterPoint());
+  // Cursor moves to display that supports CRTC matrix, thus it should be
+  // using hardware compositing.
+  EXPECT_FALSE(IsCursorCompositingEnabled());
+
   // However, the second display doesn't support CRTC matrix, Night Light is
   // using the compositor matrix on this display.
   TestDisplayCompositorTemperature(kId2, temperature);
-  // With mixed CRTC support, software cursor must be on.
+  const display::Display& display_2 = display_manager()->GetDisplayForId(kId2);
+  generator->MoveMouseTo(display_2.bounds().CenterPoint());
+  // Cursor moves to a display that doesn't support CRTC matrix, thus it should
+  // be using software compositing.
   EXPECT_TRUE(IsCursorCompositingEnabled());
-  // Verify correct matrix has been set on both crtcs.
-  const std::string logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_FALSE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 }
 
 // All displays don't support CRTC matrices.
@@ -1469,10 +1439,6 @@ TEST_F(NightLightCrtcTest, TestNoCrtcMatrixSupport) {
   TestCompositorsTemperature(temperature);
   // With no CRTC support, software cursor must be on.
   EXPECT_TRUE(IsCursorCompositingEnabled());
-  // No CRTC matrices have been set.
-  const std::string logger_actions = GetLoggerActionsAndClear();
-  EXPECT_FALSE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_FALSE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 }
 
 // Tests that switching CRTC matrix support on while Night Light is enabled
@@ -1497,10 +1463,6 @@ TEST_F(NightLightCrtcTest, TestNoDoubleNightLightEffect) {
   TestCompositorsTemperature(temperature);
   // With no CRTC support, software cursor must be on.
   EXPECT_TRUE(IsCursorCompositingEnabled());
-  // No CRTC matrices have been set.
-  std::string logger_actions = GetLoggerActionsAndClear();
-  EXPECT_FALSE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_FALSE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 
   // Simulate that the two displays suddenly became able to support CRTC matrix.
   // This shouldn't happen in practice, but we noticed multiple times on resume
@@ -1517,9 +1479,6 @@ TEST_F(NightLightCrtcTest, TestNoDoubleNightLightEffect) {
   UpdateDisplays(std::move(outputs2));
   TestCompositorsTemperature(0.0f);
   EXPECT_FALSE(IsCursorCompositingEnabled());
-  logger_actions = GetLoggerActionsAndClear();
-  EXPECT_TRUE(VerifyCrtcMatrix(kId1, temperature, logger_actions));
-  EXPECT_TRUE(VerifyCrtcMatrix(kId2, temperature, logger_actions));
 }
 
 // The following tests are for ambient color temperature conversions
@@ -1875,8 +1834,10 @@ TEST_F(AmbientEQTest, TestAmbientRgbScalingUpdatesOnUserChangedToEnabled) {
   EXPECT_EQ(kDefaultScalingFactors, controller_->ambient_rgb_scaling_factors());
 
   // Enable the pref for user 2 then switch to user2 and the factors update.
-  user2_pref_service()->SetBoolean(prefs::kAmbientColorEnabled, true);
-  SwitchActiveUser(kUser2Email);
+  auto user2_pref_service =
+      TestPrefServiceProvider::CreateUserPrefServiceSimple();
+  user2_pref_service->SetBoolean(prefs::kAmbientColorEnabled, true);
+  SimulateUserLogin({kUser2Email}, std::nullopt, std::move(user2_pref_service));
   const auto coolest_scaling_factors =
       controller_->ambient_rgb_scaling_factors();
   EXPECT_NE(kDefaultScalingFactors, coolest_scaling_factors);
@@ -1894,8 +1855,10 @@ TEST_F(AmbientEQTest, TestAmbientRgbScalingUpdatesOnUserChangedBothDisabled) {
 
   // Disable the pref for user 2 then switch to user2 and the factors still
   // shouldn't update.
-  user2_pref_service()->SetBoolean(prefs::kAmbientColorEnabled, false);
-  SwitchActiveUser(kUser2Email);
+  auto user2_pref_service =
+      TestPrefServiceProvider::CreateUserPrefServiceSimple();
+  user2_pref_service->SetBoolean(prefs::kAmbientColorEnabled, false);
+  SimulateUserLogin({kUser2Email}, std::nullopt, std::move(user2_pref_service));
   EXPECT_EQ(kDefaultScalingFactors, controller_->ambient_rgb_scaling_factors());
 }
 

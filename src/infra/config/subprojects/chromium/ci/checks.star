@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 """Definitions of builders in the presubmit.linux builder group."""
 
-load("//lib/builders.star", "os", "sheriff_rotations")
+load("//lib/builders.star", "gardener_rotations", "os")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 load("//lib/builder_health_indicators.star", "health_spec")
@@ -26,7 +26,7 @@ ci.builder(
     builderless = True,
     cores = 32,
     os = os.LINUX_DEFAULT,
-    sheriff_rotations = sheriff_rotations.CHROMIUM,
+    gardener_rotations = gardener_rotations.CHROMIUM,
     console_view_entry = consoles.console_view_entry(
         console_view = "checks",
         category = "presubmit",
@@ -47,9 +47,11 @@ ci.builder(
     name = "win-presubmit",
     executable = "recipe:presubmit",
     builderless = True,
-    cores = 32,
+    cores = "16|32",
     os = os.WINDOWS_DEFAULT,
-    sheriff_rotations = sheriff_rotations.CHROMIUM,
+    # TODO: crrev.com/i/7808548 - Drop cores=32 and add ssd=True after bot migration.
+    ssd = None,
+    gardener_rotations = gardener_rotations.CHROMIUM,
     console_view_entry = consoles.console_view_entry(
         console_view = "checks",
         category = "presubmit",

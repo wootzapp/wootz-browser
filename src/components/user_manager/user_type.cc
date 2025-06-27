@@ -7,7 +7,7 @@
 namespace user_manager {
 
 const char* UserTypeToString(UserType user_type) {
-  // Used in crash key for UserManagerBase::UserLoggedIn.
+  // Used in crash key for UserManagerImpl::UserLoggedIn.
   switch (user_type) {
     case UserType::kRegular:
       return "regular";
@@ -19,10 +19,10 @@ const char* UserTypeToString(UserType user_type) {
       return "managed-guest-session";
     case UserType::kKioskApp:
       return "chrome-app-kiosk";
-    case UserType::kArcKioskApp:
-      return "arc-kiosk";
     case UserType::kWebKioskApp:
       return "web-kiosk";
+    case UserType::kKioskIWA:
+      return "iwa-kiosk";
   }
 }
 

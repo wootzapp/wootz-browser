@@ -26,13 +26,13 @@ import androidx.test.espresso.matcher.ViewMatchers;
 import androidx.test.filters.MediumTest;
 
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations;
@@ -45,9 +45,7 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.night_mode.ChromeNightModeTestUtils;
@@ -60,7 +58,6 @@ import org.chromium.chrome.browser.suggestions.SuggestionsUiDelegate;
 import org.chromium.chrome.browser.suggestions.SuggestionsUiDelegateImpl;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.native_page.TouchEnabledDelegate;
-import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
@@ -71,7 +68,6 @@ import org.chromium.chrome.test.util.browser.offlinepages.FakeOfflinePageBridge;
 import org.chromium.chrome.test.util.browser.suggestions.SuggestionsDependenciesRule;
 import org.chromium.chrome.test.util.browser.suggestions.mostvisited.FakeMostVisitedSites;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.test.util.NightModeTestUtils;
@@ -83,13 +79,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
-/** Instrumentation tests for the {@link MostVisitedTilesCarouselLayout} on the New Tab Page. */
+/** Instrumentation tests for the {@link MostVisitedTilesLayout} on the New Tab Page. */
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
 @Batch(Batch.PER_CLASS)
 public class MostVisitedTilesLayoutTest {
-    public final int TILE_GRID_ROWS = 2;
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
@@ -143,19 +140,13 @@ public class MostVisitedTilesLayoutTest {
         ChromeNightModeTestUtils.tearDownNightModeAfterChromeActivityDestroyed();
     }
 
-    @Before
-    public void setUp() {
-        MockitoAnnotations.initMocks(this);
-    }
-
     @Test
     @MediumTest
     @Feature({"NewTabPage", "RenderTest"})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
-    @DisableFeatures(ChromeFeatureList.QUERY_TILES)
     public void testTilesLayoutAppearance(boolean nightModeEnabled) throws Exception {
         NewTabPage ntp = setUpFakeDataToShowOnNtp(FAKE_MOST_VISITED_URLS.length);
-        mRenderTestRule.render(getTilesLayout(ntp), "ntp_tile_carousel_layout");
+        mRenderTestRule.render(getTilesLayout(ntp), "ntp_tile_layout");
     }
 
     @Test
@@ -176,7 +167,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_PORTRAIT));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_full_carousel_portrait");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_full_portrait");
 
         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         CriteriaHelper.pollUiThread(
@@ -185,7 +176,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_LANDSCAPE));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_full_carousel_landscape");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_full_landscape");
 
         // Reset device orientation.
         ActivityTestUtils.clearActivityOrientation(activity);
@@ -199,7 +190,7 @@ public class MostVisitedTilesLayoutTest {
                     "This test is flaky not only on the Nougat emulator but also on Ubuntu-22.04"
                             + " when building android-x86-rel., see crbug.com/1450693")
     public void testModernTilesLayoutAppearance_Two() throws IOException, InterruptedException {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         ChromeNightModeTestUtils.setUpNightModeForChromeActivity(
                                 /* nightModeEnabled= */ false));
@@ -214,7 +205,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_PORTRAIT));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_two_tiles_carousel_portrait");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_portrait");
 
         activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         CriteriaHelper.pollUiThread(
@@ -223,7 +214,7 @@ public class MostVisitedTilesLayoutTest {
                             activity.getResources().getConfiguration().orientation,
                             is(ORIENTATION_LANDSCAPE));
                 });
-        mRenderTestRule.render(tilesLayout, "modern_two_tiles_carousel_landscape");
+        mRenderTestRule.render(tilesLayout, "modern_tiles_layout_two_tiles_landscape");
 
         // Reset device orientation.
         ActivityTestUtils.clearActivityOrientation(activity);
@@ -280,10 +271,10 @@ public class MostVisitedTilesLayoutTest {
         return ntp;
     }
 
-    private ViewGroup getTilesLayout(NewTabPage ntp) {
-        ViewGroup mostVisitedTilesLayout = ntp.getView().findViewById(R.id.mv_tiles_layout);
-        assertNotNull("Unable to retrieve the tile_carousel_layout.", mostVisitedTilesLayout);
-        return mostVisitedTilesLayout;
+    private TilesLinearLayout getTilesLayout(NewTabPage ntp) {
+        TilesLinearLayout mvTilesLayout = ntp.getView().findViewById(R.id.mv_tiles_layout);
+        assertNotNull("Unable to retrieve the mv_tiles_layout.", mvTilesLayout);
+        return mvTilesLayout;
     }
 
     /**
@@ -304,7 +295,7 @@ public class MostVisitedTilesLayoutTest {
 
         ViewGroup contentView = new FrameLayout(activity);
 
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     setOfflinePageBridge(offlineUrls);
                     activity.setContentView(contentView);
@@ -318,10 +309,10 @@ public class MostVisitedTilesLayoutTest {
                     containerLayout.setVisibility(View.VISIBLE);
                     contentView.addView(containerLayout);
                     initializeCoordinator(containerLayout);
-                    ViewGroup mostVisitedTilesLayout =
+                    TilesLinearLayout mvTilesLayout =
                             containerLayout.findViewById(R.id.mv_tiles_layout);
-                    assertNotNull(mostVisitedTilesLayout);
-                    return mostVisitedTilesLayout;
+                    assertNotNull(mvTilesLayout);
+                    return mvTilesLayout;
                 });
     }
 
@@ -354,8 +345,7 @@ public class MostVisitedTilesLayoutTest {
                 new SuggestionsUiDelegateImpl(null, profile, null, activity.getSnackbarManager());
 
         TileGroup.Delegate delegate =
-                new TileGroupDelegateImpl(
-                        activity, profile, null, null, BrowserUiUtils.HostSurface.NOT_SET) {
+                new TileGroupDelegateImpl(activity, profile, null, null) {
                     @Override
                     public void onLoadingComplete(List<Tile> tiles) {
                         super.onLoadingComplete(tiles);
@@ -369,8 +359,6 @@ public class MostVisitedTilesLayoutTest {
                         mActivityLifecycleDispatcher,
                         containerLayout,
                         mWindowAndroid,
-                        /* isScrollableMvtEnabled= */ true,
-                        TILE_GRID_ROWS,
                         null,
                         null);
         coordinator.initWithNative(profile, uiDelegate, delegate, mTouchEnabledDelegate);

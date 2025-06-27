@@ -20,10 +20,12 @@ enum class ResourceRequestBlockedReason {
   kCoopSandboxedIFrameCannotNavigateToCoopPage,
   kCorpNotSameOrigin,
   kCorpNotSameOriginAfterDefaultedToSameOriginByCoep,
+  kCorpNotSameOriginAfterDefaultedToSameOriginByDip,
+  kCorpNotSameOriginAfterDefaultedToSameOriginByCoepAndDip,
   kCorpNotSameSite,
   kConversionRequest,
-  kSupervisedUserUrlBlocked,
-  kMax = kSupervisedUserUrlBlocked,
+  kSRIMessageSignatureMismatch,
+  kMax = kConversionRequest,
 };
 
 }  // namespace blink

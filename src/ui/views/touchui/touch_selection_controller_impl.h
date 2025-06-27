@@ -9,15 +9,14 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
-#include "ui/base/pointer/touch_editing_controller.h"
 #include "ui/events/event_observer.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/selection_bound.h"
+#include "ui/touch_selection/touch_editing_controller.h"
 #include "ui/touch_selection/touch_selection_menu_runner.h"
 #include "ui/views/touchui/touch_selection_controller.h"
 #include "ui/views/view.h"
 #include "ui/views/views_export.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget_observer.h"
 
 namespace ui {
@@ -113,7 +112,7 @@ class VIEWS_EXPORT TouchSelectionControllerImpl
   void CreateHandleWidgets();
 
   // Gets the contents views of the handle widgets. Returns nullptr if the
-  // handle widget has been destroyed.
+  // handle widget has been closed.
   EditingHandleView* GetSelectionHandle1();
   EditingHandleView* GetSelectionHandle2();
   EditingHandleView* GetCursorHandle();
@@ -139,9 +138,9 @@ class VIEWS_EXPORT TouchSelectionControllerImpl
   raw_ptr<Widget> client_widget_ = nullptr;
 
   // Widgets for the selection handles and cursor handle.
-  views::UniqueWidgetPtr selection_handle_1_widget_;
-  views::UniqueWidgetPtr selection_handle_2_widget_;
-  views::UniqueWidgetPtr cursor_handle_widget_;
+  std::unique_ptr<Widget> selection_handle_1_widget_;
+  std::unique_ptr<Widget> selection_handle_2_widget_;
+  std::unique_ptr<Widget> cursor_handle_widget_;
 
   // Magnifier which is shown when touch dragging to adjust the selection.
   std::unique_ptr<ui::TouchSelectionMagnifierAura> touch_selection_magnifier_;

@@ -4,9 +4,12 @@
 
 #include "android_webview/browser/aw_field_trials.h"
 
+#include "android_webview/common/aw_features.h"
+#include "android_webview/common/aw_switches.h"
+#include "base/allocator/partition_alloc_features.h"
 #include "base/base_paths_android.h"
-#include "base/feature_list.h"
-#include "base/memory/raw_ref.h"
+#include "base/check.h"
+#include "base/metrics/field_trial_params.h"
 #include "base/metrics/persistent_histogram_allocator.h"
 #include "base/path_service.h"
 #include "components/history/core/browser/features.h"
@@ -22,43 +25,52 @@
 #include "net/base/features.h"
 #include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/blink/public/common/features_generated.h"
 #include "ui/android/ui_android_features.h"
 #include "ui/gl/gl_features.h"
+#include "ui/gl/gl_switches.h"
 
-namespace {
+namespace internal {
 
-class AwFeatureOverrides {
- public:
-  explicit AwFeatureOverrides(base::FeatureList& feature_list)
-      : feature_list_(feature_list) {}
+AwFeatureOverrides::AwFeatureOverrides(base::FeatureList& feature_list)
+    : feature_list_(feature_list) {}
 
-  AwFeatureOverrides(const AwFeatureOverrides& other) = delete;
-  AwFeatureOverrides& operator=(const AwFeatureOverrides& other) = delete;
-
-  ~AwFeatureOverrides() {
-    feature_list_->RegisterExtraFeatureOverrides(std::move(overrides_));
+AwFeatureOverrides::~AwFeatureOverrides() {
+  // TODO(crbug.com/379864779): This doesn't play well with potential server-
+  // side overrides.
+  for (const auto& field_trial_override : field_trial_overrides_) {
+    feature_list_->RegisterFieldTrialOverride(
+        field_trial_override.feature->name, field_trial_override.override_state,
+        field_trial_override.field_trial);
   }
+  feature_list_->RegisterExtraFeatureOverrides(
+      std::move(overrides_), /*replace_use_default_overrides=*/true);
+}
 
-  // Enable a feature with WebView-specific override.
-  void EnableFeature(const base::Feature& feature) {
-    overrides_.emplace_back(
-        std::cref(feature),
-        base::FeatureList::OverrideState::OVERRIDE_ENABLE_FEATURE);
-  }
+void AwFeatureOverrides::EnableFeature(const base::Feature& feature) {
+  overrides_.emplace_back(
+      std::cref(feature),
+      base::FeatureList::OverrideState::OVERRIDE_ENABLE_FEATURE);
+}
 
-  // Disable a feature with WebView-specific override.
-  void DisableFeature(const base::Feature& feature) {
-    overrides_.emplace_back(
-        std::cref(feature),
-        base::FeatureList::OverrideState::OVERRIDE_DISABLE_FEATURE);
-  }
+void AwFeatureOverrides::DisableFeature(const base::Feature& feature) {
+  overrides_.emplace_back(
+      std::cref(feature),
+      base::FeatureList::OverrideState::OVERRIDE_DISABLE_FEATURE);
+}
 
- private:
-  base::raw_ref<base::FeatureList> feature_list_;
-  std::vector<base::FeatureList::FeatureOverrideInfo> overrides_;
-};
+void AwFeatureOverrides::OverrideFeatureWithFieldTrial(
+    const base::Feature& feature,
+    base::FeatureList::OverrideState override_state,
+    base::FieldTrial* field_trial) {
+  field_trial_overrides_.emplace_back(FieldTrialOverride{
+      .feature = raw_ref(feature),
+      .override_state = override_state,
+      .field_trial = field_trial,
+  });
+}
 
-}  // namespace
+}  // namespace internal
 
 void AwFieldTrials::OnVariationsSetupComplete() {
   // Persistent histograms must be enabled ASAP, but depends on Features.
@@ -66,7 +78,7 @@ void AwFieldTrials::OnVariationsSetupComplete() {
   if (base::PathService::Get(base::DIR_ANDROID_APP_DATA, &metrics_dir)) {
     InstantiatePersistentHistogramsWithFeaturesAndCleanup(metrics_dir);
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -76,23 +88,17 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   if (!feature_list) {
     return;
   }
-  AwFeatureOverrides aw_feature_overrides(*feature_list);
+  internal::AwFeatureOverrides aw_feature_overrides(*feature_list);
 
   // Disable third-party storage partitioning on WebView.
   aw_feature_overrides.DisableFeature(
       net::features::kThirdPartyStoragePartitioning);
 
-  if (!base::FeatureList::IsEnabled(
-          mojo::features::kMojoFixAssociatedHandleLeak)) {
-    // Disable support for partitioning blob URLs if the bug fix that prevents
-    // blob URL creation from hanging under certain conditions isn't enabled.
-    aw_feature_overrides.DisableFeature(
-        net::features::kSupportPartitionedBlobUrl);
-  }
-
+#if BUILDFLAG(ENABLE_VALIDATING_COMMAND_DECODER)
   // Disable the passthrough on WebView.
   aw_feature_overrides.DisableFeature(
       ::features::kDefaultPassthroughCommandDecoder);
+#endif
 
   // HDR does not support webview yet. See crbug.com/1493153 for an explanation.
   aw_feature_overrides.DisableFeature(ui::kAndroidHDR);
@@ -104,6 +110,10 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // Disable fenced frames on WebView.
   aw_feature_overrides.DisableFeature(blink::features::kFencedFrames);
 
+  // Disable FLEDGE on WebView.
+  aw_feature_overrides.DisableFeature(blink::features::kAdInterestGroupAPI);
+  aw_feature_overrides.DisableFeature(blink::features::kFledge);
+
   // Disable low latency overlay for WebView. There is currently no plan to
   // enable these optimizations in WebView though they are not fundamentally
   // impossible.
@@ -113,8 +123,7 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
       blink::features::kLowLatencyWebGLImageChromium);
 
   // Disable Shared Storage on WebView.
-  aw_feature_overrides.DisableFeature(blink::features::kSharedStorageAPI);
-  aw_feature_overrides.DisableFeature(blink::features::kSharedStorageAPIM125);
+  aw_feature_overrides.DisableFeature(network::features::kSharedStorageAPI);
 
   // Disable scrollbar-color on WebView.
   aw_feature_overrides.DisableFeature(blink::features::kScrollbarColor);
@@ -138,6 +147,11 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // WebView does not support EME persistent license yet, because it's not
   // clear on how user can remove persistent media licenses from UI.
   aw_feature_overrides.DisableFeature(media::kMediaDrmPersistentLicense);
+
+  // WebView does not support multiple processes, so don't try to call some
+  // MediaDrm APIs in a separate process.
+  aw_feature_overrides.DisableFeature(
+      media::kAllowMediaCodecCallsInSeparateProcess);
 
   aw_feature_overrides.DisableFeature(::features::kBackgroundFetch);
 
@@ -179,6 +193,9 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // TODO(crbug.com/41441927): WebUSB is not yet supported on WebView.
   aw_feature_overrides.DisableFeature(::features::kWebUsb);
 
+  // Disable Web Serial API on WebView.
+  aw_feature_overrides.DisableFeature(blink::features::kWebSerialAPI);
+
   // Disable TFLite based language detection on webview until webview supports
   // ML model delivery via Optimization Guide component.
   // TODO(crbug.com/40819484): Enable the feature on Webview.
@@ -191,12 +208,8 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
 
   // FedCM is not yet supported on WebView.
   aw_feature_overrides.DisableFeature(::features::kFedCm);
-
-  // Disable enhanced track-pad features until WebView's experiment
-  // is fully rolled out to stable.
-  aw_feature_overrides.DisableFeature(ui::kConvertTrackpadEventsToMouse);
   aw_feature_overrides.DisableFeature(
-      ::features::kMouseAndTrackpadDropdownMenu);
+      blink::features::kFedCmWithStorageAccessAPI);
 
   // TODO(crbug.com/40272633): Web MIDI permission prompt for all usage.
   aw_feature_overrides.DisableFeature(blink::features::kBlockMidiByDefault);
@@ -205,4 +218,99 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // AwContents to leak in apps that don't call destroy().
   aw_feature_overrides.DisableFeature(blink::features::kDevicePosture);
   aw_feature_overrides.DisableFeature(blink::features::kViewportSegments);
+
+  // PaintHolding for OOPIFs. This should be a no-op since WebView doesn't use
+  // site isolation but field trial testing doesn't indicate that. Revisit when
+  // enabling site isolation. See crbug.com/356170748.
+  aw_feature_overrides.DisableFeature(blink::features::kPaintHoldingForIframes);
+
+  // Since Default Nav Transition does not support WebView yet, disable the
+  // LocalSurfaceId increment flag. TODO(crbug.com/361600214): Re-enable for
+  // WebView when we start introducing this feature.
+  aw_feature_overrides.DisableFeature(
+      blink::features::kIncrementLocalSurfaceIdForMainframeSameDocNavigation);
+
+  // Disabling this feature for WebView, since it can switch focus when scrolled
+  // in cases with multiple views which can trigger HTML focus changes that
+  // aren't intended. See crbug.com/378779896, crbug.com/373672168 for more
+  // details.
+  aw_feature_overrides.DisableFeature(
+      ::features::kFocusRenderWidgetHostViewAndroidOnActionDown);
+
+  // Disabling the permission element as it needs embedder support in order to
+  // function and the webview permission manager cannot support it.
+  aw_feature_overrides.DisableFeature(blink::features::kPermissionElement);
+
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kDebugBsa)) {
+    // Feature parameters can only be set via a field trial.
+    const char kTrialName[] = "StudyDebugBsa";
+    const char kGroupName[] = "GroupDebugBsa";
+    base::FieldTrial* field_trial =
+        base::FieldTrialList::CreateFieldTrial(kTrialName, kGroupName);
+    // If field_trial is null, there was some unexpected name conflict.
+    CHECK(field_trial);
+    base::FieldTrialParams params;
+    params.emplace(net::features::kIpPrivacyTokenServer.name,
+                   "https://staging-phosphor-pa.sandbox.googleapis.com");
+    base::AssociateFieldTrialParams(kTrialName, kGroupName, params);
+    aw_feature_overrides.OverrideFeatureWithFieldTrial(
+        net::features::kEnableIpProtectionProxy,
+        base::FeatureList::OverrideState::OVERRIDE_ENABLE_FEATURE, field_trial);
+    aw_feature_overrides.EnableFeature(network::features::kMaskedDomainList);
+  }
+
+  // Feature parameters can only be set via a field trial.
+  // Note: Performing a field trial here means we cannot include
+  // |kBtmTtl| in the testing config json.
+  {
+    const char kDipsWebViewExperiment[] = "DipsWebViewExperiment";
+    const char kDipsWebViewGroup[] = "DipsWebViewGroup";
+    base::FieldTrial* dips_field_trial = base::FieldTrialList::CreateFieldTrial(
+        kDipsWebViewExperiment, kDipsWebViewGroup);
+    CHECK(dips_field_trial) << "Unexpected name conflict.";
+    base::FieldTrialParams params;
+    const std::string ttl_time_delta_30_days = "30d";
+    params.emplace(features::kBtmInteractionTtl.name, ttl_time_delta_30_days);
+    base::AssociateFieldTrialParams(kDipsWebViewExperiment, kDipsWebViewGroup,
+                                    params);
+    aw_feature_overrides.OverrideFeatureWithFieldTrial(
+        features::kBtmTtl,
+        base::FeatureList::OverrideState::OVERRIDE_ENABLE_FEATURE,
+        dips_field_trial);
+  }
+
+  // Delete Incidental Party State (DIPS) feature is not yet supported on
+  // WebView.
+  aw_feature_overrides.DisableFeature(::features::kBtm);
+
+  // These features have shown performance improvements in WebView but not some
+  // other platforms.
+  aw_feature_overrides.EnableFeature(features::kEnsureExistingRendererAlive);
+  aw_feature_overrides.EnableFeature(blink::features::kThreadedBodyLoader);
+  aw_feature_overrides.EnableFeature(blink::features::kThreadedPreloadScanner);
+  aw_feature_overrides.EnableFeature(blink::features::kPrecompileInlineScripts);
+
+  // This feature has not been experimented with yet on WebView.
+  // TODO(crbug.com/336852432): Enable this feature for WebView.
+  aw_feature_overrides.DisableFeature(
+      blink::features::kNavigationPredictorNewViewportFeatures);
+
+  // This feature is global for the process and thus should not be enabled by
+  // WebView.
+  aw_feature_overrides.DisableFeature(
+      base::features::kPartitionAllocMemoryTagging);
+
+  // Disable Topics on WebView.
+  aw_feature_overrides.DisableFeature(network::features::kBrowsingTopics);
+
+  // Sharing ANGLE's Vulkan queue is not supported on WebView.
+  aw_feature_overrides.DisableFeature(::features::kVulkanFromANGLE);
+
+  // Partitioned :visited links history is not supported on WebView.
+  aw_feature_overrides.DisableFeature(
+      blink::features::kPartitionVisitedLinkDatabaseWithSelfLinks);
+
+  // Disable draw cutout edge-to-edge on WebView. Safe area insets are not
+  // handled correctly when WebView is drawing edge-to-edge.
+  aw_feature_overrides.DisableFeature(features::kDrawCutoutEdgeToEdge);
 }

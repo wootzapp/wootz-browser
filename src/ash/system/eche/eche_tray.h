@@ -24,6 +24,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "ui/display/display_observer.h"
+#include "ui/display/tablet_state.h"
 #include "ui/events/event_handler.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/controls/button/button.h"
@@ -83,7 +84,10 @@ class ASH_EXPORT EcheTray
   // TODO(b/226687249): Move to ash/webui/eche_app_ui if dependency cycle error
   // is fixed. Enum representing the connection fail reason. These values are
   // persisted to logs. Entries should not be renumbered and numeric values
-  // should never be reused.
+  // should never be reused. Keep in sync with the ConnectionFailReason UMA enum
+  // defined in //tools/metrics/histograms/enums.xml.
+  //
+  // LINT.IfChange(ConnectionFailReason)
   enum class ConnectionFailReason {
     // Initial state.
     kUnknown = 0,
@@ -119,6 +123,7 @@ class ASH_EXPORT EcheTray
 
     kMaxValue = kConnectionFailRemoteDeviceOnCellular,
   };
+  // LINT.ThenChange(//tools/metrics/histograms/enums.xml:ConnectionFailReason)
 
   using GracefulCloseCallback = base::OnceCallback<void()>;
   using GracefulGoBackCallback = base::RepeatingCallback<void()>;
@@ -134,12 +139,11 @@ class ASH_EXPORT EcheTray
   // TrayBackgroundView:
   void ClickedOutsideBubble(const ui::LocatedEvent& event) override;
   void UpdateTrayItemColor(bool is_active) override;
-  std::u16string GetAccessibleNameForTray() override;
   void HandleLocaleChange() override;
   void HideBubbleWithView(const TrayBubbleView* bubble_view) override;
   void AnchorUpdated() override;
   void Initialize() override;
-  void CloseBubble() override;
+  void CloseBubbleInternal() override;
   void ShowBubble() override;
   TrayBubbleView* GetBubbleView() override;
   views::Widget* GetBubbleWidget() const override;
@@ -266,6 +270,8 @@ class ASH_EXPORT EcheTray
   }
   views::ImageButton* GetIcon();
 
+  std::u16string GetAccessibleName();
+
  private:
   FRIEND_TEST_ALL_PREFIXES(EcheTrayTest, EcheTrayCreatesBubbleButHideFirst);
   FRIEND_TEST_ALL_PREFIXES(EcheTrayTest, EcheTrayOnDisplayConfigurationChanged);
@@ -314,7 +320,7 @@ class ASH_EXPORT EcheTray
   void UpdateEcheSizeAndBubbleBounds();
 
   // ScreenLayoutObserver:
-  void OnDisplayConfigurationChanged() override;
+  void OnDidApplyDisplayChanges() override;
 
   // ShelfObserver:
   void OnAutoHideStateChanged(ShelfAutoHideState new_state) override;

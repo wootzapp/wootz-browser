@@ -26,11 +26,11 @@ suite('cr-toolbar', function() {
 
     toolbar.narrow = true;
     await toolbar.updateComplete;
-    assertFalse(isVisible(toolbar.shadowRoot!.querySelector('picture')));
+    assertFalse(isVisible(toolbar.shadowRoot.querySelector('picture')));
 
     toolbar.alwaysShowLogo = true;
     await toolbar.updateComplete;
-    assertTrue(isVisible(toolbar.shadowRoot!.querySelector('picture')));
+    assertTrue(isVisible(toolbar.shadowRoot.querySelector('picture')));
   });
 
   test('Custom logo', function() {
@@ -44,11 +44,22 @@ suite('cr-toolbar', function() {
     assertTrue(!!toolbar);
 
     // There is no picture element because it's replaced with slot.
-    assertFalse(isVisible(toolbar.shadowRoot!.querySelector('picture')));
+    assertFalse(isVisible(toolbar.shadowRoot.querySelector('picture')));
 
     const newLogo = toolbar.querySelector('#logo');
     assertTrue(!!newLogo);
     assertEquals('product-logo', newLogo.assignedSlot!.name);
     assertEquals('New logo', newLogo.textContent!.trim());
+  });
+
+  test('Sends input aria-description', () => {
+    document.body.innerHTML = getTrustedHtml(`
+      <cr-toolbar id="toolbar" search-input-aria-description="my description">
+      </cr-toolbar>
+    `);
+
+    const toolbar = document.body.querySelector('cr-toolbar');
+    assertTrue(!!toolbar);
+    assertEquals('my description', toolbar.getSearchField().inputAriaDescription);
   });
 });

@@ -9,7 +9,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_constants.h"
 #include "components/feature_engagement/public/configuration_provider.h"
@@ -23,7 +22,7 @@
 #include "chrome/browser/user_education/user_education_configuration_provider.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/growth/campaigns_configuration_provider.h"
 #endif
 
@@ -50,11 +49,19 @@ TrackerFactory::TrackerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
+              // The service is needed by the System Profile OTR (that manages
+              // the Profile Picker) to track elements for IPHs displayed in
+              // the Profile Picker.
+              .WithSystem(ProfileSelection::kOffTheRecordOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {}
 
 TrackerFactory::~TrackerFactory() = default;
 
-KeyedService* TrackerFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+TrackerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
 
@@ -73,7 +80,7 @@ KeyedService* TrackerFactory::BuildServiceInstanceFor(
   providers.emplace_back(
       std::make_unique<UserEducationConfigurationProvider>());
 #endif
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   providers.emplace_back(
       std::make_unique<growth::CampaignsConfigurationProvider>());
 #endif

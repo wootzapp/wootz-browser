@@ -4,11 +4,11 @@
 
 #include "ui/gl/gl_context_egl.h"
 
+#include <algorithm>
 #include <memory>
 
 #include "base/command_line.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "third_party/khronos/EGL/egl.h"
@@ -16,6 +16,7 @@
 #include "ui/gl/egl_util.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_display.h"
+#include "ui/gl/gl_features.h"
 #include "ui/gl/gl_fence.h"
 #include "ui/gl/gl_gl_api_implementation.h"
 #include "ui/gl/gl_surface_egl.h"
@@ -92,6 +93,11 @@
 #define EGL_CONTEXT_VIRTUALIZATION_GROUP_ANGLE 0x3481
 #endif /* EGL_ANGLE_context_virtualization */
 
+#ifndef EGL_ANGLE_create_context_passthrough_shaders
+#define EGL_ANGLE_create_context_passthrough_shaders 1
+#define EGL_CONTEXT_PASSTHROUGH_SHADERS_ANGLE 0x3463
+#endif /* EGL_ANGLE_create_context_passthrough_shaders */
+
 using ui::GetEGLErrorString;
 using ui::GetLastEGLErrorString;
 
@@ -105,7 +111,7 @@ namespace {
 bool ChangeContextAttributes(std::vector<EGLint>& context_attributes,
                              EGLint attribute,
                              EGLint value) {
-  auto iter = base::ranges::find(context_attributes, attribute);
+  auto iter = std::ranges::find(context_attributes, attribute);
   if (iter != context_attributes.end()) {
     ++iter;
     if (iter != context_attributes.end()) {
@@ -154,6 +160,11 @@ bool GLContextEGL::InitializeImpl(GLSurface* compatible_surface,
   // contexts are compatible
   if (!gl_display_->ext->b_EGL_KHR_no_config_context) {
     config_ = compatible_surface->GetConfig();
+    if (!config_) {
+      LOG(ERROR) << "Failed to get config for surface "
+                 << compatible_surface->GetHandle();
+      return false;
+    }
     EGLint config_renderable_type = 0;
     if (!eglGetConfigAttrib(gl_display_->GetDisplay(), config_,
                             EGL_RENDERABLE_TYPE, &config_renderable_type)) {
@@ -178,6 +189,12 @@ bool GLContextEGL::InitializeImpl(GLSurface* compatible_surface,
     context_attributes.push_back(EGL_TRUE);
   }
 
+  if (attribs.passthrough_shaders &&
+      gl_display_->ext->b_EGL_ANGLE_create_context_passthrough_shaders) {
+    context_attributes.push_back(EGL_CONTEXT_PASSTHROUGH_SHADERS_ANGLE);
+    context_attributes.push_back(EGL_TRUE);
+  }
+
   // EGL_KHR_create_context allows requesting both a major and minor context
   // version
   if (gl_display_->ext->b_EGL_KHR_create_context) {
@@ -196,13 +213,16 @@ bool GLContextEGL::InitializeImpl(GLSurface* compatible_surface,
     DCHECK(context_client_minor_version == 0);
   }
 
-  bool is_swangle = IsSoftwareGLImplementation(GetGLImplementationParts());
+  bool is_swangle = IsSwiftShaderGLImplementation(GetGLImplementationParts());
 
   if (attribs.webgl_compatibility_context && is_swangle &&
-      IsARMSwiftShaderPlatform()) {
+      IsARMSwiftShaderPlatform() &&
+      !features::IsSwiftShaderAllowedByCommandLine(
+          base::CommandLine::ForCurrentProcess())) {
     // crbug.com/1378476: LLVM 10 is used as the JIT compiler for SwiftShader,
     // which doesn't fully support ARM. Disable Swiftshader on ARM CPUs for
     // WebGL until LLVM is upgraded.
+    // Allow SwiftShader if explicitly requested by command line for testing.
     DVLOG(1) << __FUNCTION__
              << ": Software WebGL contexts are not supported on ARM CPUs.";
     return false;
@@ -285,10 +305,13 @@ bool GLContextEGL::InitializeImpl(GLSurface* compatible_surface,
 
   if (gl_display_->ext->b_EGL_ANGLE_create_context_client_arrays) {
     context_attributes.push_back(EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE);
-    context_attributes.push_back(
-        attribs.angle_create_context_client_arrays ? EGL_TRUE : EGL_FALSE);
+    context_attributes.push_back(attribs.allow_client_arrays ? EGL_TRUE
+                                                             : EGL_FALSE);
   } else {
-    DCHECK(!attribs.angle_create_context_client_arrays);
+    // Client arrays are allowed by default without
+    // ANGLE_create_context_client_arrays to control it. Verify that's the
+    // requested behavior.
+    DCHECK(attribs.allow_client_arrays);
   }
 
   if (gl_display_->ext->b_EGL_ANGLE_robust_resource_initialization ||
@@ -324,7 +347,7 @@ bool GLContextEGL::InitializeImpl(GLSurface* compatible_surface,
         context_attributes.push_back(EGL_HIGH_POWER_ANGLE);
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -601,8 +624,7 @@ unsigned int GLContextEGL::CheckStickyGraphicsResetStatusImpl() {
   const ExtensionsGL& ext = g_current_gl_driver->ext;
   if ((graphics_reset_status_ == GL_NO_ERROR) &&
       gl_display_->ext->b_EGL_EXT_create_context_robustness &&
-      (ext.b_GL_KHR_robustness || ext.b_GL_EXT_robustness ||
-       ext.b_GL_ARB_robustness)) {
+      (ext.b_GL_KHR_robustness || ext.b_GL_EXT_robustness)) {
     graphics_reset_status_ = glGetGraphicsResetStatusARB();
   }
   return graphics_reset_status_;

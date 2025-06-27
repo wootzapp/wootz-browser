@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {Destination, PrinterType} from '../utils/print_preview_cros_app_types.js';
+import type {Destination} from '../utils/print_preview_cros_app_types.js';
+import {PrinterType} from '../utils/print_preview_cros_app_types.js';
 
 /**
  * @fileoverview
@@ -15,6 +16,5 @@ export const PDF_DESTINATION: Destination = {
   id: 'SAVE_AS_PDF',
   displayName: 'Save as PDF',
   printerType: PrinterType.PDF_PRINTER,
-  printerManuallySelected: false,
   printerStatusReason: null,
 };

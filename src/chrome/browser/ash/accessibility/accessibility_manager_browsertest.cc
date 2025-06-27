@@ -26,11 +26,10 @@
 #include "chrome/browser/ash/login/test/guest_session_mixin.h"
 #include "chrome/browser/ash/login/test/logged_in_user_mixin.h"
 #include "chrome/browser/ash/login/test/oobe_base_test.h"
-#include "chrome/browser/ash/preferences.h"
+#include "chrome/browser/ash/preferences/preferences.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/braille_display_private/mock_braille_controller.h"
 #include "chrome/browser/extensions/component_loader.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/prefs/pref_service_syncable_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -51,10 +50,13 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/supervised_user/core/common/supervised_user_constants.h"
+#include "components/user_manager/test_helper.h"
+#include "components/user_manager/user_manager.h"
 #include "components/user_manager/user_names.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_host_test_helper.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/accessibility_switches.h"
@@ -80,7 +82,7 @@ using ::testing::WithParamInterface;
 
 // Use a real domain to avoid policy loading problems.
 constexpr char kTestUserName[] = "owner@gmail.com";
-constexpr char kTestUserGaiaId[] = "9876543210";
+constexpr GaiaId::Literal kTestUserGaiaId("9876543210");
 constexpr char kSodaUnsupportedLocale[] = "af-ZA";
 
 // Dictation notification titles and descriptions. '*'s are used as placeholders
@@ -220,6 +222,14 @@ bool IsReducedAnimationsEnabled() {
   return AccessibilityManager::Get()->IsReducedAnimationsEnabled();
 }
 
+bool IsAlwaysShowScrollbarsEnabled() {
+  return AccessibilityManager::Get()->IsAlwaysShowScrollbarsEnabled();
+}
+
+void SetAlwaysShowScrollbarsEnabled(bool enabled) {
+  AccessibilityManager::Get()->EnableAlwaysShowScrollbars(enabled);
+}
+
 void SetMouseKeysEnabled(bool enabled) {
   GetActiveUserPrefs()->SetBoolean(prefs::kAccessibilityMouseKeysEnabled,
                                    enabled);
@@ -326,6 +336,11 @@ void SetAutoclickEnabledPref(bool enabled) {
 void SetReducedAnimationsEnabledPref(bool enabled) {
   GetActiveUserPrefs()->SetBoolean(
       prefs::kAccessibilityReducedAnimationsEnabled, enabled);
+}
+
+void SetAlwaysShowScrollbarsEnabledPref(bool enabled) {
+  GetActiveUserPrefs()->SetBoolean(
+      prefs::kAccessibilityAlwaysShowScrollbarsEnabled, enabled);
 }
 
 void SetMouseKeysEnabledPref(bool enabled) {
@@ -485,7 +500,8 @@ class AccessibilityManagerTest : public MixinBasedInProcessBrowserTest {
     scoped_feature_list_.InitWithFeatures(
         {features::kOnDeviceSpeechRecognition,
          ::features::kAccessibilityReducedAnimations,
-         ::features::kAccessibilityMouseKeys},
+         ::features::kAccessibilityMouseKeys,
+         ::features::kAccessibilityFaceGaze},
         {});
     MixinBasedInProcessBrowserTest::SetUpCommandLine(command_line);
   }
@@ -586,6 +602,7 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest, TypePref) {
   EXPECT_FALSE(IsHighContrastEnabled());
   EXPECT_FALSE(IsAutoclickEnabled());
   EXPECT_FALSE(IsReducedAnimationsEnabled());
+  EXPECT_FALSE(IsAlwaysShowScrollbarsEnabled());
   EXPECT_FALSE(IsMouseKeysEnabled());
   EXPECT_EQ(default_autoclick_delay_, GetAutoclickDelay());
   EXPECT_FALSE(IsVirtualKeyboardEnabled());
@@ -610,6 +627,9 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest, TypePref) {
 
   SetReducedAnimationsEnabledPref(true);
   EXPECT_TRUE(IsReducedAnimationsEnabled());
+
+  SetAlwaysShowScrollbarsEnabledPref(true);
+  EXPECT_TRUE(IsAlwaysShowScrollbarsEnabled());
 
   SetMouseKeysEnabledPref(true);
   EXPECT_TRUE(IsMouseKeysEnabled());
@@ -646,6 +666,9 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest, TypePref) {
 
   SetReducedAnimationsEnabledPref(false);
   EXPECT_FALSE(IsReducedAnimationsEnabled());
+
+  SetAlwaysShowScrollbarsEnabledPref(false);
+  EXPECT_FALSE(IsAlwaysShowScrollbarsEnabled());
 
   SetMouseKeysEnabledPref(false);
   EXPECT_FALSE(IsMouseKeysEnabled());
@@ -896,10 +919,8 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest, AccessibilityMenuVisibility) {
 
 IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest,
                        EnhancedNetworkVoicesExtensionLoadedWhenNeeded) {
-  extensions::ComponentLoader* component_loader =
-      extensions::ExtensionSystem::Get(browser()->profile())
-          ->extension_service()
-          ->component_loader();
+  auto* component_loader =
+      extensions::ComponentLoader::Get(browser()->profile());
 
   // Not loaded yet.
   EXPECT_FALSE(
@@ -997,6 +1018,18 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest,
       panel->GetWidget()->GetWindowBoundsInScreen()));
 }
 
+IN_PROC_BROWSER_TEST_F(AccessibilityManagerTest,
+                       FaceGazeSettingsPageOpensWhenFeatureIsEnabled) {
+  GetActiveUserPrefs()->SetBoolean(
+      prefs::kAccessibilityFaceGazeAcceleratorDialogHasBeenAccepted, true);
+  base::RunLoop waiter;
+  AccessibilityManager::Get()->SetOpenSettingsSubpageObserverForTest(
+      base::BindLambdaForTesting([&waiter]() { waiter.Quit(); }));
+  // Enable FaceGaze and wait for settings page to open.
+  AccessibilityManager::Get()->EnableFaceGaze(true);
+  waiter.Run();
+}
+
 class AccessibilityManagerDlcTest : public AccessibilityManagerTest {
  public:
   AccessibilityManagerDlcTest()
@@ -1008,12 +1041,18 @@ class AccessibilityManagerDlcTest : public AccessibilityManagerTest {
       delete;
 
  protected:
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    AccessibilityManagerTest::SetUpCommandLine(command_line);
+    scoped_feature_list_.InitAndEnableFeature(
+        ::features::kAccessibilityFaceGaze);
+  }
+
   void SetUpOnMainThread() override {
+    AccessibilityManagerTest::SetUpOnMainThread();
     UninstallSodaForTesting();
     EnsureSodaObservation();
     ClearMessageCenter();
     AssertMessageCenterEmpty();
-    AccessibilityManagerTest::SetUpOnMainThread();
   }
 
   void TearDownOnMainThread() override {
@@ -1039,7 +1078,7 @@ class AccessibilityManagerDlcTest : public AccessibilityManagerTest {
     // We require `install_pumpkin_callback_` to be set before `OnPumpkinError`
     // can be called.
     manager->install_pumpkin_callback_ = base::DoNothing();
-    AccessibilityManager::Get()->OnPumpkinError("Error");
+    manager->OnPumpkinError("Error");
   }
 
   void OnPumpkinInstalled(bool success, const std::string& root_path) {
@@ -1049,6 +1088,20 @@ class AccessibilityManagerDlcTest : public AccessibilityManagerTest {
   void OnPumpkinDataCreated(
       std::optional<extensions::api::accessibility_private::PumpkinData> data) {
     AccessibilityManager::Get()->OnPumpkinDataCreated(std::move(data));
+  }
+
+  void InstallFaceGazeAssetsAndWait() {
+    base::RunLoop loop;
+    AccessibilityManager::Get()->InstallFaceGazeAssets(base::DoNothing());
+    loop.RunUntilIdle();
+  }
+
+  void OnFaceGazeAssetsFailed() {
+    AccessibilityManager* manager = AccessibilityManager::Get();
+    // We require `install_facegaze_assets_callback_` to be set before
+    // `OnFaceGazeAssetsFailed` can be called.
+    manager->install_facegaze_assets_callback_ = base::DoNothing();
+    manager->OnFaceGazeAssetsFailed("Error");
   }
 
   speech::SodaInstaller* soda_installer() {
@@ -1550,6 +1603,41 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerDlcTest,
   OnPumpkinDataCreated(std::nullopt);
 }
 
+// Ensures that the correct notification is shown when the facegaze-assets DLC
+// is successfully downloaded.
+IN_PROC_BROWSER_TEST_F(AccessibilityManagerDlcTest, FaceGazeAssetsSucceeded) {
+  AccessibilityManager::Get()->EnableFaceGaze(true);
+  // Turning on FaceGaze will add a pinned notification to the message center,
+  // so clear it for the purposes of this test.
+  ClearMessageCenter();
+  InstallFaceGazeAssetsAndWait();
+
+  message_center::NotificationList::Notifications notifications =
+      message_center::MessageCenter::Get()->GetVisibleNotifications();
+  ASSERT_EQ(1u, notifications.size());
+  ASSERT_EQ(u"Face control files downloaded",
+            (*notifications.begin())->title());
+  ASSERT_EQ(u"Face control will be available to other users on the device",
+            (*notifications.begin())->message());
+}
+
+// Ensures that the correct notification is shown when the facegaze-assets DLC
+// fails to download.
+IN_PROC_BROWSER_TEST_F(AccessibilityManagerDlcTest, FaceGazeAssetsFailed) {
+  AccessibilityManager::Get()->EnableFaceGaze(true);
+  // Turning on FaceGaze will add a pinned notification to the message center,
+  // so clear it for the purposes of this test.
+  ClearMessageCenter();
+  OnFaceGazeAssetsFailed();
+
+  message_center::NotificationList::Notifications notifications =
+      message_center::MessageCenter::Get()->GetVisibleNotifications();
+  ASSERT_EQ(1u, notifications.size());
+  ASSERT_EQ(u"Couldn't download face control files",
+            (*notifications.begin())->title());
+  ASSERT_EQ(u"Try again later", (*notifications.begin())->message());
+}
+
 enum DictationDialogTestVariant {
   kOfflineEnabledAndAvailable,
   kOfflineEnabledAndUnavailable,
@@ -1734,9 +1822,16 @@ class AccessibilityManagerLoginTest : public OobeBaseTest {
   }
 
   void CreateSession(const AccountId& account_id) {
+    ASSERT_TRUE(user_manager::TestHelper(user_manager::UserManager::Get())
+                    .AddRegularUser(account_id));
+
     auto* session_manager = session_manager::SessionManager::Get();
-    session_manager->CreateSession(account_id, account_id.GetUserEmail(),
-                                   false);
+    session_manager->CreateSession(
+        account_id,
+        // TODO(crbug.com/278643115): Use fake username hash.
+        account_id.GetUserEmail(),
+        /*new_user=*/false,
+        /*has_active_session=*/false);
   }
 
   void StartUserSession(const AccountId& account_id) {
@@ -1781,68 +1876,74 @@ IN_PROC_BROWSER_TEST_F(AccessibilityManagerLoginTest, BrailleOnLoginScreen) {
 
 IN_PROC_BROWSER_TEST_F(AccessibilityManagerLoginTest, Login) {
   WaitForSigninScreen();
-  EXPECT_FALSE(IsLargeCursorEnabled());
-  EXPECT_FALSE(IsSpokenFeedbackEnabled());
-  EXPECT_FALSE(IsHighContrastEnabled());
   EXPECT_FALSE(IsAutoclickEnabled());
-  EXPECT_FALSE(IsReducedAnimationsEnabled());
-  EXPECT_FALSE(IsMouseKeysEnabled());
-  EXPECT_FALSE(IsVirtualKeyboardEnabled());
+  EXPECT_FALSE(IsHighContrastEnabled());
+  EXPECT_FALSE(IsLargeCursorEnabled());
   EXPECT_FALSE(IsMonoAudioEnabled());
+  EXPECT_FALSE(IsMouseKeysEnabled());
+  EXPECT_FALSE(IsAlwaysShowScrollbarsEnabled());
+  EXPECT_FALSE(IsReducedAnimationsEnabled());
+  EXPECT_FALSE(IsSpokenFeedbackEnabled());
+  EXPECT_FALSE(IsVirtualKeyboardEnabled());
   EXPECT_EQ(default_autoclick_delay_, GetAutoclickDelay());
 
   CreateSession(test_account_id_);
 
   // Confirms that the features are still disabled just after login.
-  EXPECT_FALSE(IsLargeCursorEnabled());
-  EXPECT_FALSE(IsSpokenFeedbackEnabled());
-  EXPECT_FALSE(IsHighContrastEnabled());
   EXPECT_FALSE(IsAutoclickEnabled());
-  EXPECT_FALSE(IsReducedAnimationsEnabled());
-  EXPECT_FALSE(IsMouseKeysEnabled());
-  EXPECT_FALSE(IsVirtualKeyboardEnabled());
+  EXPECT_FALSE(IsHighContrastEnabled());
+  EXPECT_FALSE(IsLargeCursorEnabled());
   EXPECT_FALSE(IsMonoAudioEnabled());
+  EXPECT_FALSE(IsMouseKeysEnabled());
+  EXPECT_FALSE(IsAlwaysShowScrollbarsEnabled());
+  EXPECT_FALSE(IsReducedAnimationsEnabled());
+  EXPECT_FALSE(IsSpokenFeedbackEnabled());
+  EXPECT_FALSE(IsVirtualKeyboardEnabled());
   EXPECT_EQ(default_autoclick_delay_, GetAutoclickDelay());
 
   StartUserSession(test_account_id_);
 
   // Confirms that the features are still disabled after session starts.
-  EXPECT_FALSE(IsLargeCursorEnabled());
-  EXPECT_FALSE(IsSpokenFeedbackEnabled());
-  EXPECT_FALSE(IsHighContrastEnabled());
   EXPECT_FALSE(IsAutoclickEnabled());
-  EXPECT_FALSE(IsReducedAnimationsEnabled());
-  EXPECT_FALSE(IsMouseKeysEnabled());
-  EXPECT_FALSE(IsVirtualKeyboardEnabled());
+  EXPECT_FALSE(IsHighContrastEnabled());
+  EXPECT_FALSE(IsLargeCursorEnabled());
   EXPECT_FALSE(IsMonoAudioEnabled());
+  EXPECT_FALSE(IsMouseKeysEnabled());
+  EXPECT_FALSE(IsAlwaysShowScrollbarsEnabled());
+  EXPECT_FALSE(IsReducedAnimationsEnabled());
+  EXPECT_FALSE(IsSpokenFeedbackEnabled());
+  EXPECT_FALSE(IsVirtualKeyboardEnabled());
   EXPECT_EQ(default_autoclick_delay_, GetAutoclickDelay());
-
-  SetLargeCursorEnabled(true);
-  EXPECT_TRUE(IsLargeCursorEnabled());
-
-  SetSpokenFeedbackEnabled(true);
-  EXPECT_TRUE(IsSpokenFeedbackEnabled());
-
-  SetHighContrastEnabled(true);
-  EXPECT_TRUE(IsHighContrastEnabled());
-
-  SetAutoclickEnabled(true);
-  EXPECT_TRUE(IsAutoclickEnabled());
-
-  SetReducedAnimationsEnabled(true);
-  EXPECT_TRUE(IsReducedAnimationsEnabled());
-
-  SetMouseKeysEnabled(true);
-  EXPECT_TRUE(IsMouseKeysEnabled());
 
   SetAutoclickDelay(kTestAutoclickDelayMs);
   EXPECT_EQ(kTestAutoclickDelayMs, GetAutoclickDelay());
 
-  SetVirtualKeyboardEnabled(true);
-  EXPECT_TRUE(IsVirtualKeyboardEnabled());
+  SetAutoclickEnabled(true);
+  EXPECT_TRUE(IsAutoclickEnabled());
+
+  SetHighContrastEnabled(true);
+  EXPECT_TRUE(IsHighContrastEnabled());
+
+  SetLargeCursorEnabled(true);
+  EXPECT_TRUE(IsLargeCursorEnabled());
 
   SetMonoAudioEnabled(true);
   EXPECT_TRUE(IsMonoAudioEnabled());
+
+  SetMouseKeysEnabled(true);
+  EXPECT_TRUE(IsMouseKeysEnabled());
+
+  SetAlwaysShowScrollbarsEnabled(true);
+  EXPECT_TRUE(IsAlwaysShowScrollbarsEnabled());
+
+  SetReducedAnimationsEnabled(true);
+  EXPECT_TRUE(IsReducedAnimationsEnabled());
+
+  SetSpokenFeedbackEnabled(true);
+  EXPECT_TRUE(IsSpokenFeedbackEnabled());
+
+  SetVirtualKeyboardEnabled(true);
+  EXPECT_TRUE(IsVirtualKeyboardEnabled());
 }
 
 // Tests that ash and browser process has the same states after sign-in.
@@ -1921,8 +2022,15 @@ INSTANTIATE_TEST_SUITE_P(UserTypeInstantiation,
 IN_PROC_BROWSER_TEST_P(AccessibilityManagerUserTypeTest, BrailleWhenLoggedIn) {
   if (GetParam() == user_manager::UserType::kChild) {
     logged_in_user_mixin_->LogInUser();
+    histogram_tester_.ExpectBucketCount("Accessibility.CrosSpokenFeedback",
+                                        /*sample=*/false, 2);
+  } else {
+    histogram_tester_.ExpectBucketCount("Accessibility.CrosSpokenFeedback",
+                                        /*sample=*/false, 1);
   }
 
+  histogram_tester_.ExpectBucketCount("Accessibility.CrosSpokenFeedback",
+                                      /*sample=*/true, 0);
   histogram_tester_.ExpectBucketCount(
       "Accessibility.CrosSpokenFeedback.BrailleDisplayConnected."
       "ConnectionChanged",

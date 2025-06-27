@@ -13,34 +13,14 @@
 #include "components/dom_distiller/core/distilled_page_prefs.h"
 #include "components/dom_distiller/core/distiller.h"
 #include "components/dom_distiller/core/dom_distiller_request_view_base.h"
-#include "components/dom_distiller/core/dom_distiller_service.h"
 #include "components/dom_distiller/core/proto/distilled_article.pb.h"
 #include "components/dom_distiller/core/task_tracker.h"
 #include "components/dom_distiller/core/viewer.h"
+#import "ios/chrome/browser/dom_distiller/model/distiller_service.h"
 #include "ui/gfx/geometry/size.h"
 
-namespace dom_distiller {
-
 DistillerViewer::DistillerViewer(
-    dom_distiller::DomDistillerService* distillerService,
-    PrefService* prefs,
-    const GURL& url,
-    DistillationFinishedCallback callback)
-    : DistillerViewerInterface(prefs),
-      url_(url),
-      csp_nonce_(base::Base64Encode(base::RandBytesAsVector(16))),
-      callback_(std::move(callback)) {
-  DCHECK(distillerService);
-  DCHECK(url.is_valid());
-  std::unique_ptr<dom_distiller::DistillerPage> page =
-      distillerService->CreateDefaultDistillerPage(gfx::Size());
-  std::unique_ptr<ViewerHandle> viewer_handle =
-      distillerService->ViewUrl(this, std::move(page), url);
-  TakeViewerHandle(std::move(viewer_handle));
-}
-
-DistillerViewer::DistillerViewer(
-    dom_distiller::DistillerFactory* distiller_factory,
+    DistillerService* distiller_service,
     std::unique_ptr<dom_distiller::DistillerPage> page,
     PrefService* prefs,
     const GURL& url,
@@ -51,13 +31,12 @@ DistillerViewer::DistillerViewer(
       callback_(std::move(callback)) {
   DCHECK(url.is_valid());
   SendCommonJavaScript();
-  distiller_ = distiller_factory->CreateDistillerForUrl(url);
-  distiller_->DistillPage(
+  distiller_service->DistillPage(
       url, std::move(page),
       base::BindOnce(&DistillerViewer::OnDistillerFinished,
-                     base::Unretained(this)),
+                     weak_ptr_factory_.GetWeakPtr()),
       base::BindRepeating(&DistillerViewer::OnArticleDistillationUpdated,
-                          base::Unretained(this)));
+                          weak_ptr_factory_.GetWeakPtr()));
 }
 
 DistillerViewer::~DistillerViewer() {}
@@ -85,7 +64,7 @@ void DistillerViewer::OnArticleReady(
       }
     }
 
-    const std::string html = viewer::GetArticleTemplateHtml(
+    const std::string html = dom_distiller::viewer::GetArticleTemplateHtml(
         distilled_page_prefs_->GetTheme(),
         distilled_page_prefs_->GetFontFamily(), csp_nonce_);
 
@@ -94,9 +73,10 @@ void DistillerViewer::OnArticleReady(
                        "distillerOnIos = true; " + js_buffer_ + "</script>";
 
     std::move(callback_).Run(url_, html_and_script, images,
-                             article_proto->title());
+                             article_proto->title(), csp_nonce_);
   } else {
-    std::move(callback_).Run(url_, std::string(), {}, std::string());
+    std::move(callback_).Run(url_, std::string(), {}, std::string(),
+                             std::string());
   }
 }
 
@@ -107,5 +87,3 @@ void DistillerViewer::SendJavaScript(const std::string& buffer) {
 std::string DistillerViewer::GetCspNonce() {
   return csp_nonce_;
 }
-
-}  // namespace dom_distiller

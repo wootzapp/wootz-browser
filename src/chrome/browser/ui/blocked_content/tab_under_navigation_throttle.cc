@@ -12,24 +12,17 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
-#include "base/metrics/field_trial_params.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/notreached.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
-#include "components/blocked_content/list_item_position.h"
 #include "components/blocked_content/popup_opener_tab_helper.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/pref_registry/pref_registry_syncable.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
@@ -69,10 +62,6 @@ void LogTabUnderAttempt(content::NavigationHandle* handle) {
 
 }  // namespace
 
-BASE_FEATURE(kBlockTabUnders,
-             "BlockTabUnders",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // static
 std::unique_ptr<content::NavigationThrottle>
 TabUnderNavigationThrottle::MaybeCreate(content::NavigationHandle* handle) {
@@ -82,8 +71,9 @@ TabUnderNavigationThrottle::MaybeCreate(content::NavigationHandle* handle) {
   // Otherwise, it should be safe to avoid creating a throttle in non primary
   // pages because prerendered pages should not be able to open popups. A
   // tab-under could therefore never occur within the non-primary page.
-  if (handle->IsInPrimaryMainFrame())
+  if (handle->IsInPrimaryMainFrame()) {
     return base::WrapUnique(new TabUnderNavigationThrottle(handle));
+  }
   return nullptr;
 }
 
@@ -92,7 +82,6 @@ TabUnderNavigationThrottle::~TabUnderNavigationThrottle() = default;
 TabUnderNavigationThrottle::TabUnderNavigationThrottle(
     content::NavigationHandle* handle)
     : content::NavigationThrottle(handle),
-      block_(base::FeatureList::IsEnabled(kBlockTabUnders)),
       has_opened_popup_since_last_user_gesture_at_start_(
           HasOpenedPopupSinceLastUserGesture()),
       started_in_foreground_(handle->GetWebContents()->GetVisibility() ==
@@ -117,8 +106,9 @@ bool TabUnderNavigationThrottle::IsSuspiciousClientRedirect() const {
   // away while in the background.
   content::WebContents* contents = navigation_handle()->GetWebContents();
   const GURL& previous_main_frame_url = contents->GetLastCommittedURL();
-  if (previous_main_frame_url.is_empty())
+  if (previous_main_frame_url.is_empty()) {
     return false;
+  }
 
   // Same-site navigations are exempt from tab-under protection.
   const GURL& target_url = navigation_handle()->GetURL();
@@ -149,19 +139,11 @@ TabUnderNavigationThrottle::MaybeBlockNavigation() {
   }
 
   seen_tab_under_ = true;
-  content::WebContents* contents = navigation_handle()->GetWebContents();
 
   LogTabUnderAttempt(navigation_handle());
 
-  if (block_ && !TabUndersAllowedBySettings()) {
-    const std::string error =
-        base::StringPrintf(kBlockTabUnderFormatMessage,
-                           navigation_handle()->GetURL().spec().c_str());
-    contents->GetPrimaryMainFrame()->AddMessageToConsole(
-        blink::mojom::ConsoleMessageLevel::kError, error.c_str());
-    ShowUI();
-    return content::NavigationThrottle::CANCEL;
-  }
+  // We unconditionally proceed. There used to be a tab-under blocking
+  // experiment, but it never launched.
   return content::NavigationThrottle::PROCEED;
 }
 
@@ -194,17 +176,6 @@ bool TabUnderNavigationThrottle::HasOpenedPopupSinceLastUserGesture() const {
       blocked_content::PopupOpenerTabHelper::FromWebContents(contents);
   return popup_opener &&
          popup_opener->has_opened_popup_since_last_user_gesture();
-}
-
-bool TabUnderNavigationThrottle::TabUndersAllowedBySettings() const {
-  content::WebContents* contents = navigation_handle()->GetWebContents();
-  HostContentSettingsMap* settings_map =
-      HostContentSettingsMapFactory::GetForProfile(
-          Profile::FromBrowserContext(contents->GetBrowserContext()));
-  DCHECK(settings_map);
-  return settings_map->GetContentSetting(contents->GetLastCommittedURL(),
-                                         GURL(), ContentSettingsType::POPUPS) ==
-         CONTENT_SETTING_ALLOW;
 }
 
 content::NavigationThrottle::ThrottleCheckResult

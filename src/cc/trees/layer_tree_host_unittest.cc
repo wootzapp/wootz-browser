@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <array>
+
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "cc/trees/layer_tree_host.h"
 
 #include <stddef.h>
@@ -20,13 +27,11 @@
 #include "base/synchronization/lock.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "cc/animation/animation_host.h"
-#include "cc/base/features.h"
 #include "cc/input/scroll_elasticity_helper.h"
 #include "cc/layers/content_layer_client.h"
 #include "cc/layers/heads_up_display_layer.h"
@@ -45,12 +50,12 @@
 #include "cc/test/fake_frame_info.h"
 #include "cc/test/fake_layer_tree_host_client.h"
 #include "cc/test/fake_paint_image_generator.h"
-#include "cc/test/fake_painted_scrollbar_layer.h"
 #include "cc/test/fake_picture_layer.h"
 #include "cc/test/fake_picture_layer_impl.h"
 #include "cc/test/fake_proxy.h"
 #include "cc/test/fake_recording_source.h"
 #include "cc/test/fake_scoped_ui_resource.h"
+#include "cc/test/fake_scrollbar_layer.h"
 #include "cc/test/fake_video_frame_provider.h"
 #include "cc/test/layer_test_common.h"
 #include "cc/test/layer_tree_test.h"
@@ -67,6 +72,7 @@
 #include "cc/trees/layer_tree_host_impl.h"
 #include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/paint_holding_reason.h"
+#include "cc/trees/property_tree_layer_tree_delegate.h"
 #include "cc/trees/scroll_node.h"
 #include "cc/trees/single_thread_proxy.h"
 #include "cc/trees/swap_promise.h"
@@ -74,10 +80,12 @@
 #include "cc/trees/transform_node.h"
 #include "cc/view_transition/view_transition_request.h"
 #include "components/ukm/test_ukm_recorder.h"
+#include "components/viz/client/client_resource_provider.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
+#include "components/viz/common/quads/compositor_frame.h"
 #include "components/viz/common/quads/compositor_frame_transition_directive.h"
 #include "components/viz/common/quads/compositor_render_pass_draw_quad.h"
 #include "components/viz/common/quads/draw_quad.h"
@@ -90,7 +98,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkPicture.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
 #include "ui/gfx/animation/keyframe/timing_function.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/gfx/geometry/size_conversions.h"
@@ -123,6 +131,30 @@ FrameInfo CreateFakeImplDroppedFrameInfo() {
   auto info = CreateFakeFrameInfo(FrameInfo::FrameFinalState::kDropped);
   info.main_thread_response = FrameInfo::MainThreadResponse::kMissing;
   return info;
+}
+
+// Returns the delta scale of all quads in the frame's root pass from their
+// ideal, or 0 if they are not all the same.
+float FrameQuadScaleDeltaFromIdeal(const viz::CompositorFrame& frame) {
+  float frame_scale = 0.f;
+  viz::CompositorRenderPass* root_pass = frame.render_pass_list.back().get();
+  for (auto* draw_quad : root_pass->quad_list) {
+    // Checkerboards mean an incomplete frame.
+    if (draw_quad->material != viz::DrawQuad::Material::kTiledContent) {
+      return 0.f;
+    }
+    const viz::TileDrawQuad* quad = viz::TileDrawQuad::MaterialCast(draw_quad);
+    float quad_scale =
+        quad->tex_coord_rect.width() / static_cast<float>(quad->rect.width());
+    float transform_scale = SkScalarToFloat(
+        quad->shared_quad_state->quad_to_target_transform.rc(0, 0));
+    float scale = quad_scale / transform_scale;
+    if (frame_scale != 0.f && frame_scale != scale) {
+      return 0.f;
+    }
+    frame_scale = scale;
+  }
+  return frame_scale;
 }
 
 using LayerTreeHostTest = LayerTreeTest;
@@ -835,7 +867,7 @@ class LayerTreeHostTestSetNeedsCommit2 : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -987,8 +1019,7 @@ class LayerTreeHostTestInvisibleLayersSkipRenderPass
     ++index_;
     switch (index_) {
       case kAllInvisible:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
       case kOneVisible:
         child1_->SetHideLayerAndSubtree(false);
         break;
@@ -2109,31 +2140,23 @@ class LayerTreeHostTestEffectTreeSync : public LayerTreeHostTest {
     switch (layer_tree_host()->SourceFrameNumber()) {
       case 1:
         node->opacity = 0.5f;
-        node->is_currently_animating_opacity = true;
         break;
       case 2:
-        node->is_currently_animating_opacity = true;
         break;
       case 3:
-        node->is_currently_animating_opacity = false;
         break;
       case 4:
         node->opacity = 0.25f;
-        node->is_currently_animating_opacity = true;
         break;
       case 5:
         node->filters = blur_filter_;
-        node->is_currently_animating_filter = true;
         break;
       case 6:
-        node->is_currently_animating_filter = true;
         break;
       case 7:
-        node->is_currently_animating_filter = false;
         break;
       case 8:
         node->filters = sepia_filter_;
-        node->is_currently_animating_filter = true;
         break;
     }
   }
@@ -2682,10 +2705,11 @@ class LayerTreeHostTestNoExtraCommitFromScrollbarInvalidate
     root_layer_ = Layer::Create();
     root_layer_->SetBounds(gfx::Size(10, 20));
 
-    bool paint_scrollbar = true;
-    bool has_thumb = false;
-    scrollbar_ = FakePaintedScrollbarLayer::Create(paint_scrollbar, has_thumb,
-                                                   root_layer_->element_id());
+    auto scrollbar = FakePaintedScrollbarLayer::CreateScrollbar();
+    scrollbar->set_should_paint(true);
+    scrollbar->set_has_thumb(false);
+    scrollbar_ = base::MakeRefCounted<FakePaintedScrollbarLayer>(
+        root_layer_->element_id());
     scrollbar_->SetPosition(gfx::PointF(0.f, 10.f));
     scrollbar_->SetBounds(gfx::Size(10, 10));
 
@@ -2867,8 +2891,7 @@ class LayerTreeHostTestRasterColorSpaceChange : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
 
     if (!frame_data->has_no_damage) {
@@ -2919,8 +2942,7 @@ class LayerTreeHostTestRasterColorSpaceChange : public LayerTreeHostTest {
       case 6:
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -2983,7 +3005,7 @@ class LayerTreeHostTestSetNeedsCommitWithForcedRedraw
         EXPECT_EQ(gfx::Rect(bounds_), root_damage_rect);
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     return draw_result;
@@ -3079,7 +3101,7 @@ class LayerTreeHostTestUndrawnLayersDamageLater : public LayerTreeHostTest {
         EXPECT_EQ(gfx::Rect(child_layer_bounds_), root_damage_rect);
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     return draw_result;
@@ -3103,7 +3125,7 @@ class LayerTreeHostTestUndrawnLayersDamageLater : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -3191,7 +3213,7 @@ class LayerTreeHostTestDamageWithScale : public LayerTreeHostTest {
         break;
       }
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     return draw_result;
@@ -3208,7 +3230,7 @@ class LayerTreeHostTestDamageWithScale : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -4183,7 +4205,6 @@ class OnDrawLayerTreeFrameSink : public TestLayerTreeFrameSink {
   OnDrawLayerTreeFrameSink(
       scoped_refptr<viz::RasterContextProvider> compositor_context_provider,
       scoped_refptr<viz::RasterContextProvider> worker_context_provider,
-      gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
       const viz::RendererSettings& renderer_settings,
       const viz::DebugRendererSettings* const debug_settings,
       TaskRunnerProvider* task_runner_provider,
@@ -4192,7 +4213,7 @@ class OnDrawLayerTreeFrameSink : public TestLayerTreeFrameSink {
       base::RepeatingClosure invalidate_callback)
       : TestLayerTreeFrameSink(std::move(compositor_context_provider),
                                std::move(worker_context_provider),
-                               gpu_memory_buffer_manager,
+                               /*shared_image_interface=*/nullptr,
                                renderer_settings,
                                debug_settings,
                                task_runner_provider,
@@ -4234,8 +4255,8 @@ class LayerTreeHostTestAbortedCommitDoesntStallSynchronousCompositor
         base::Unretained(this));
     auto frame_sink = std::make_unique<OnDrawLayerTreeFrameSink>(
         compositor_context_provider, std::move(worker_context_provider),
-        gpu_memory_buffer_manager(), renderer_settings, &debug_settings_,
-        task_runner_provider(), false /* synchronous_composite */, refresh_rate,
+        renderer_settings, &debug_settings_, task_runner_provider(),
+        false /* synchronous_composite */, refresh_rate,
         std::move(on_draw_callback));
     layer_tree_frame_sink_ = frame_sink.get();
     return std::move(frame_sink);
@@ -4276,8 +4297,7 @@ class LayerTreeHostTestSynchronousCompositorActivateWithoutDraw
     // Make |invalidate_callback| do nothing so there is no draw.
     auto frame_sink = std::make_unique<OnDrawLayerTreeFrameSink>(
         compositor_context_provider, std::move(worker_context_provider),
-        gpu_memory_buffer_manager(), renderer_settings, &debug_settings_,
-        task_runner_provider(),
+        renderer_settings, &debug_settings_, task_runner_provider(),
         /*synchronous_composite=*/false, refresh_rate,
         /*invalidate_callback=*/base::DoNothing());
     return std::move(frame_sink);
@@ -4294,7 +4314,7 @@ class LayerTreeHostTestSynchronousCompositorActivateWithoutDraw
     } else if (activate_count_ == 2) {
       EndTest();
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   }
 
@@ -4426,7 +4446,7 @@ class LayerTreeHostTestUIResource : public LayerTreeHostTest {
         FakeScopedUIResource::Create(layer_tree_host()->GetUIResourceManager());
   }
 
-  std::unique_ptr<FakeScopedUIResource> ui_resources_[5];
+  std::array<std::unique_ptr<FakeScopedUIResource>, 5> ui_resources_;
   int num_ui_resources_;
 };
 
@@ -4853,12 +4873,14 @@ class LayerTreeHostTestPropertyChangesDuringUpdateArePushed
 
   void SetupTree() override {
     root_ = Layer::Create();
-    root_->SetBounds(gfx::Size(1, 1));
+    root_->SetBounds(gfx::Size(30, 30));
 
-    bool paint_scrollbar = true;
-    bool has_thumb = false;
-    scrollbar_layer_ = FakePaintedScrollbarLayer::Create(
-        paint_scrollbar, has_thumb, root_->element_id());
+    auto scrollbar = FakePaintedScrollbarLayer::CreateScrollbar();
+    scrollbar->set_should_paint(true);
+    scrollbar->set_has_thumb(false);
+    scrollbar_layer_ =
+        base::MakeRefCounted<FakePaintedScrollbarLayer>(root_->element_id());
+    scrollbar_layer_->SetBounds(gfx::Size(23, 100));
 
     root_->AddChild(scrollbar_layer_);
 
@@ -5952,7 +5974,7 @@ class LayerTreeHostTestElasticOverscroll : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -6170,7 +6192,7 @@ class LayerTreeHostTestBreakSwapPromise : public LayerTreeHostTest {
 
   int commit_count_;
   int commit_complete_count_;
-  TestSwapPromiseResult swap_promise_result_[3];
+  std::array<TestSwapPromiseResult, 3> swap_promise_result_;
 };
 
 MULTI_THREAD_TEST_F(LayerTreeHostTestBreakSwapPromise);
@@ -6207,8 +6229,7 @@ class LayerTreeHostTestKeepSwapPromise : public LayerTreeHostTest {
       case 2:
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -6289,7 +6310,7 @@ class LayerTreeHostTestKeepSwapPromiseMFBA : public LayerTreeHostTest {
     if (host_impl->sync_tree()->source_frame_number() == 0) {
       host_impl->BlockNotifyReadyToActivateForTesting(true);
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   }
 
@@ -6323,8 +6344,7 @@ class LayerTreeHostTestKeepSwapPromiseMFBA : public LayerTreeHostTest {
       case 2:
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -6768,7 +6788,7 @@ class LayerTreeHostTestGpuRasterizationEnabledWithMSAA : public LayerTreeTest {
                               host_impl->sync_tree()->LayerById(layer_->id()))
                               ->GetRasterSource();
     EXPECT_GT(host_impl->GetMSAASampleCountForRaster(
-                  raster_source->GetDisplayItemList()),
+                  *raster_source->GetDisplayItemList()),
               0);
     EXPECT_TRUE(host_impl->pending_tree()->use_gpu_rasterization());
     EXPECT_TRUE(host_impl->use_gpu_rasterization());
@@ -7050,7 +7070,7 @@ class LayerTreeHostTestSynchronousCompositeSwapPromise
         !layer_tree_host()->GetSettings().single_thread_proxy_scheduler;
     return std::make_unique<TestLayerTreeFrameSink>(
         compositor_context_provider, std::move(worker_context_provider),
-        gpu_memory_buffer_manager(), renderer_settings, &debug_settings_,
+        /*shared_image_interface=*/nullptr, renderer_settings, &debug_settings_,
         task_runner_provider(), synchronous_composite, disable_display_vsync,
         refresh_rate);
   }
@@ -7223,65 +7243,16 @@ class LayerTreeHostTestCrispUpAfterPinchEnds : public LayerTreeHostTest {
     client_.set_bounds(root->bounds());
   }
 
-  // Returns the delta scale of all quads in the frame's root pass from their
-  // ideal, or 0 if they are not all the same.
-  float FrameQuadScaleDeltaFromIdeal(LayerTreeHostImpl::FrameData* frame_data) {
-    if (frame_data->has_no_damage)
-      return 0.f;
-    float frame_scale = 0.f;
-    viz::CompositorRenderPass* root_pass =
-        frame_data->render_passes.back().get();
-    for (auto* draw_quad : root_pass->quad_list) {
-      // Checkerboards mean an incomplete frame.
-      if (draw_quad->material != viz::DrawQuad::Material::kTiledContent)
-        return 0.f;
-      const viz::TileDrawQuad* quad =
-          viz::TileDrawQuad::MaterialCast(draw_quad);
-      float quad_scale =
-          quad->tex_coord_rect.width() / static_cast<float>(quad->rect.width());
-      float transform_scale = SkScalarToFloat(
-          quad->shared_quad_state->quad_to_target_transform.rc(0, 0));
-      float scale = quad_scale / transform_scale;
-      if (frame_scale != 0.f && frame_scale != scale)
-        return 0.f;
-      frame_scale = scale;
-    }
-    return frame_scale;
-  }
-
   void BeginTest() override { PostSetNeedsCommitToMainThread(); }
 
   DrawResult PrepareToDrawOnThread(LayerTreeHostImpl* host_impl,
                                    LayerTreeHostImpl::FrameData* frame_data,
                                    DrawResult draw_result) override {
-    float quad_scale_delta = FrameQuadScaleDeltaFromIdeal(frame_data);
+    host_impl_ = host_impl;
+    current_page_scale_factor_ =
+        host_impl->active_tree()->current_page_scale_factor();
+
     switch (frame_) {
-      case 1:
-        // Drew at page scale 1 before any pinching.
-        EXPECT_EQ(1.f, host_impl->active_tree()->current_page_scale_factor());
-        EXPECT_EQ(1.f, quad_scale_delta);
-        PostNextAfterDraw(host_impl);
-        break;
-      case 2:
-        if (quad_scale_delta != 1.f)
-          break;
-        // Drew at page scale 1.5 after pinching in.
-        EXPECT_EQ(1.5f, host_impl->active_tree()->current_page_scale_factor());
-        EXPECT_EQ(1.f, quad_scale_delta);
-        PostNextAfterDraw(host_impl);
-        break;
-      case 3:
-        // By pinching out, we will create a new tiling and raster it. This may
-        // cause some additional draws, though we should still be drawing with
-        // the old 1.5 tiling.
-        if (frame_data->has_no_damage)
-          break;
-        // Drew at page scale 1 with the 1.5 tiling while pinching out.
-        EXPECT_EQ(1.f, host_impl->active_tree()->current_page_scale_factor());
-        EXPECT_EQ(1.5f, quad_scale_delta);
-        // We don't PostNextAfterDraw here, instead we wait for the new tiling
-        // to finish rastering so we don't get any noise in further steps.
-        break;
       case 4:
         // Drew at page scale 1 with the 1.5 tiling after pinching out completed
         // while waiting for texture uploads to complete.
@@ -7293,16 +7264,52 @@ class LayerTreeHostTestCrispUpAfterPinchEnds : public LayerTreeHostTest {
         EXPECT_TRUE(frame_data->has_no_damage);
         PostNextAfterDraw(host_impl);
         break;
+    }
+
+    return draw_result;
+  }
+
+  void DisplayReceivedCompositorFrameOnThread(
+      const viz::CompositorFrame& frame) override {
+    float quad_scale_delta = FrameQuadScaleDeltaFromIdeal(frame);
+
+    // Frame 4 should have no damage to be displayed.
+    EXPECT_NE(4, frame_);
+
+    switch (frame_) {
+      case 1:
+        // Drew at page scale 1 before any pinching.
+        EXPECT_EQ(1.f, current_page_scale_factor_);
+        EXPECT_EQ(1.f, quad_scale_delta);
+        PostNextAfterDraw(host_impl_);
+        break;
+      case 2:
+        if (quad_scale_delta != 1.f)
+          break;
+        // Drew at page scale 1.5 after pinching in.
+        EXPECT_EQ(1.5f, current_page_scale_factor_);
+        EXPECT_EQ(1.f, quad_scale_delta);
+        PostNextAfterDraw(host_impl_);
+        break;
+      case 3:
+        // Drew at page scale 1 with the 1.5 tiling while pinching out.
+        EXPECT_EQ(1.f, current_page_scale_factor_);
+        EXPECT_EQ(1.5f, quad_scale_delta);
+        // We don't PostNextAfterDraw here, instead we wait for the new tiling
+        // to finish rastering so we don't get any noise in further steps.
+        break;
+
       case 5:
         if (quad_scale_delta != 1.f)
           break;
         // Drew at scale 1 after texture uploads are done.
-        EXPECT_EQ(1.f, host_impl->active_tree()->current_page_scale_factor());
+        EXPECT_EQ(1.f, current_page_scale_factor_);
         EXPECT_EQ(1.f, quad_scale_delta);
+
+        host_impl_ = nullptr;
         EndTest();
         break;
     }
-    return draw_result;
   }
 
   void PostNextAfterDraw(LayerTreeHostImpl* host_impl) {
@@ -7368,7 +7375,9 @@ class LayerTreeHostTestCrispUpAfterPinchEnds : public LayerTreeHostTest {
   }
 
   FakeContentLayerClient client_;
+  raw_ptr<LayerTreeHostImpl> host_impl_;
   int frame_;
+  float current_page_scale_factor_;
   bool posted_;
   base::WaitableEvent playback_allowed_event_;
 };
@@ -7493,59 +7502,42 @@ class LayerTreeHostTestContinuousDrawWhenCreatingVisibleTiles
     client_.set_bounds(root->bounds());
   }
 
-  // Returns the delta scale of all quads in the frame's root pass from their
-  // ideal, or 0 if they are not all the same.
-  float FrameQuadScaleDeltaFromIdeal(LayerTreeHostImpl::FrameData* frame_data) {
-    if (frame_data->has_no_damage)
-      return 0.f;
-    float frame_scale = 0.f;
-    viz::CompositorRenderPass* root_pass =
-        frame_data->render_passes.back().get();
-    for (auto* draw_quad : root_pass->quad_list) {
-      const viz::TileDrawQuad* quad =
-          viz::TileDrawQuad::MaterialCast(draw_quad);
-      float quad_scale =
-          quad->tex_coord_rect.width() / static_cast<float>(quad->rect.width());
-      float transform_scale = SkScalarToFloat(
-          quad->shared_quad_state->quad_to_target_transform.rc(0, 0));
-      float scale = quad_scale / transform_scale;
-      if (frame_scale != 0.f && frame_scale != scale)
-        return 0.f;
-      frame_scale = scale;
-    }
-    return frame_scale;
-  }
-
   void BeginTest() override { PostSetNeedsCommitToMainThread(); }
 
   DrawResult PrepareToDrawOnThread(LayerTreeHostImpl* host_impl,
                                    LayerTreeHostImpl::FrameData* frame_data,
                                    DrawResult draw_result) override {
-    float quad_scale_delta = FrameQuadScaleDeltaFromIdeal(frame_data);
+    current_page_scale_factor_ =
+        host_impl->active_tree()->current_page_scale_factor();
+    return draw_result;
+  }
+
+  void DisplayReceivedCompositorFrameOnThread(
+      const viz::CompositorFrame& frame) override {
+    float quad_scale_delta = FrameQuadScaleDeltaFromIdeal(frame);
     switch (step_) {
       case 1:
         // Drew at scale 1 before any pinching.
-        EXPECT_EQ(1.f, host_impl->active_tree()->current_page_scale_factor());
+        EXPECT_EQ(1.f, current_page_scale_factor_);
         EXPECT_EQ(1.f, quad_scale_delta);
         break;
       case 2:
         if (quad_scale_delta != 1.f / 1.5f)
           break;
         // Drew at scale 1 still though the ideal is 1.5.
-        EXPECT_EQ(1.5f, host_impl->active_tree()->current_page_scale_factor());
+        EXPECT_EQ(1.5f, current_page_scale_factor_);
         EXPECT_EQ(1.f / 1.5f, quad_scale_delta);
         break;
       case 3:
         // Continuous draws are attempted.
-        EXPECT_EQ(1.5f, host_impl->active_tree()->current_page_scale_factor());
-        if (!frame_data->has_no_damage)
-          EXPECT_EQ(1.f / 1.5f, quad_scale_delta);
+        EXPECT_EQ(1.5f, current_page_scale_factor_);
+        EXPECT_EQ(1.f / 1.5f, quad_scale_delta);
         break;
       case 4:
         if (quad_scale_delta != 1.f)
           break;
         // Drew at scale 1.5 when all the tiles completed.
-        EXPECT_EQ(1.5f, host_impl->active_tree()->current_page_scale_factor());
+        EXPECT_EQ(1.5f, current_page_scale_factor_);
         EXPECT_EQ(1.f, quad_scale_delta);
         break;
       case 5:
@@ -7557,11 +7549,8 @@ class LayerTreeHostTestContinuousDrawWhenCreatingVisibleTiles
         // try to draw once more.
         break;
       case 7:
-        NOTREACHED_IN_MIGRATION()
-            << "No draws should happen once we have a complete frame.";
-        break;
+        NOTREACHED() << "No draws should happen once we have a complete frame.";
     }
-    return draw_result;
   }
 
   void DrawLayersOnThread(LayerTreeHostImpl* host_impl) override {
@@ -7610,6 +7599,7 @@ class LayerTreeHostTestContinuousDrawWhenCreatingVisibleTiles
   FakeContentLayerClient client_;
   int step_;
   int continuous_draws_;
+  float current_page_scale_factor_;
   base::WaitableEvent playback_allowed_event_;
 };
 
@@ -7732,8 +7722,7 @@ class LayerTreeHostTestNoTasksBetweenWillAndDidCommit
     // The entire purpose of Non-Blocking Commit is to allow the main thread to
     // continue doing work while commit is running on the impl thread, making
     // this test obsolete.
-    if (base::FeatureList::IsEnabled(features::kNonBlockingCommit) &&
-        layer_tree_host()->IsThreaded()) {
+    if (layer_tree_host()->IsThreaded()) {
       DidCommit();
       EndTest();
     } else {
@@ -8180,14 +8169,14 @@ class LayerTreeHostTestSubmitFrameResources : public LayerTreeHostTest {
 
     viz::CompositorRenderPass* child_pass = AddRenderPass(
         &frame->render_passes, viz::CompositorRenderPassId{2},
-        gfx::Rect(3, 3, 10, 10), gfx::Transform(), FilterOperations());
+        gfx::Rect(3, 3, 100, 100), gfx::Transform(), FilterOperations());
     std::vector<viz::ResourceId> child_resources =
         AddOneOfEveryQuadType(child_pass, host_impl->resource_provider(),
                               viz::CompositorRenderPassId{0});
 
     viz::CompositorRenderPass* pass = AddRenderPass(
         &frame->render_passes, viz::CompositorRenderPassId{1},
-        gfx::Rect(3, 3, 10, 10), gfx::Transform(), FilterOperations());
+        gfx::Rect(3, 3, 100, 100), gfx::Transform(), FilterOperations());
     std::vector<viz::ResourceId> root_resources = AddOneOfEveryQuadType(
         pass, host_impl->resource_provider(), child_pass->id);
 
@@ -8211,11 +8200,11 @@ class LayerTreeHostTestSubmitFrameResources : public LayerTreeHostTest {
   void DisplayReceivedCompositorFrameOnThread(
       const viz::CompositorFrame& frame) override {
     EXPECT_EQ(2u, frame.render_pass_list.size());
-    // Each render pass has 10 resources in it. And the root render pass has a
-    // mask resource used when drawing the child render pass. The number 10 may
+    // Each render pass has 6 resources in it. And the root render pass has a
+    // mask resource used when drawing the child render pass. The number 6 may
     // change if AppendOneOfEveryQuadType() is updated, and the value here
     // should be updated accordingly.
-    EXPECT_EQ(21u, frame.resource_list.size());
+    EXPECT_EQ(13u, frame.resource_list.size());
 
     EndTest();
   }
@@ -8258,14 +8247,16 @@ class LayerTreeHostTestBeginFrameAcks : public LayerTreeHostTest {
       return;
     layers_drawn_ = true;
 
-    EXPECT_TRUE(frame_data_);
-    EXPECT_TRUE(compositor_frame_submitted_);
     EXPECT_EQ(viz::BeginFrameAck(current_begin_frame_args_, true),
               frame_data_->begin_frame_ack);
     EndTest();
   }
 
-  void AfterTest() override { EXPECT_TRUE(layers_drawn_); }
+  void AfterTest() override {
+    EXPECT_TRUE(frame_data_);
+    EXPECT_TRUE(compositor_frame_submitted_);
+    EXPECT_TRUE(layers_drawn_);
+  }
 
  private:
   bool compositor_frame_submitted_ = false;
@@ -8298,8 +8289,8 @@ class LayerTreeHostTestQueueImageDecode : public LayerTreeHostTest {
         &LayerTreeHostTestQueueImageDecode::ImageDecodeFinished,
         base::Unretained(this));
     // Schedule the decode twice for the same image.
-    layer_tree_host()->QueueImageDecode(image_.paint_image(), callback);
-    layer_tree_host()->QueueImageDecode(image_.paint_image(), callback);
+    layer_tree_host()->QueueImageDecode(image_, callback);
+    layer_tree_host()->QueueImageDecode(image_, callback);
   }
 
   void ReadyToCommitOnThread(LayerTreeHostImpl* impl) override {
@@ -8352,7 +8343,12 @@ class LayerTreeHostTestQueueImageDecodeNonLazy : public LayerTreeHostTest {
     auto callback = base::BindOnce(
         &LayerTreeHostTestQueueImageDecodeNonLazy::ImageDecodeFinished,
         base::Unretained(this));
-    layer_tree_host()->QueueImageDecode(image, std::move(callback));
+    layer_tree_host()->QueueImageDecode(
+        DrawImage(image,
+                  /*use_dark_mode=*/false,
+                  SkIRect::MakeWH(image.width(), image.height()),
+                  PaintFlags::FilterQuality::kNone, SkM44()),
+        std::move(callback));
   }
 
   void ImageDecodeFinished(bool decode_succeeded) {
@@ -8449,20 +8445,55 @@ class LayerTreeHostTestImageAnimation : public LayerTreeHostTest {
         EXPECT_EQ(layer->update_rect(), image_rect);
         EXPECT_EQ(generator_->frames_decoded().size(), 2u);
         EXPECT_EQ(generator_->frames_decoded().count(1u), 1u);
+        EXPECT_EQ(layer->GetDamageReasons(),
+                  DamageReasonSet{DamageReason::kAnimatedImage});
         break;
       case 3:
         EXPECT_EQ(layer->InvalidationForTesting().bounds(), image_rect);
         EXPECT_EQ(layer->update_rect(), image_rect);
         EXPECT_EQ(generator_->frames_decoded().size(), 3u);
         EXPECT_EQ(generator_->frames_decoded().count(2u), 1u);
+        EXPECT_EQ(layer->GetDamageReasons(),
+                  DamageReasonSet{DamageReason::kAnimatedImage});
         break;
       default:
         // Only 3 draws should happen for 3 frames of the animate image.
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     if (draw_count_ == 3)
       EndTest();
+  }
+
+  void WillSubmitCompositorFrame(LayerTreeHostImpl* host_impl,
+                                 const viz::CompositorFrame& frame) override {
+    const viz::FrameIntervalInputs& inputs =
+        frame.metadata.frame_interval_inputs;
+
+    // `draw_count_` matches `WillPrepareToDrawOnThread`
+    switch (draw_count_) {
+      case 1:
+        // Very first frame is set directly, without calling
+        // PictureLayerImpl::InvalidateRegionForImages.
+        EXPECT_FALSE(inputs.has_only_content_frame_interval_updates);
+        break;
+      case 2:
+        // Second frame contains damage from animating image only.
+        ASSERT_EQ(inputs.content_interval_info.size(), 1u);
+        EXPECT_EQ(inputs.content_interval_info[0].type,
+                  viz::ContentFrameIntervalType::kAnimatingImage);
+        EXPECT_EQ(inputs.content_interval_info[0].frame_interval,
+                  base::Seconds(1));
+        EXPECT_TRUE(inputs.has_only_content_frame_interval_updates);
+        break;
+      case 3:
+        // Because the image isn't repeating, it's no longer considered
+        // animating at the very last frame.
+        EXPECT_FALSE(inputs.has_only_content_frame_interval_updates);
+        break;
+      default:
+        NOTREACHED();
+    }
   }
 
   void AfterTest() override {
@@ -8674,10 +8705,10 @@ class DontUpdateLayersWithEmptyBounds : public LayerTreeTest {
         break;
       case 2: {
         scoped_refptr<RasterSource> child_raster =
-            child_->GetRecordingSourceForTesting()->CreateRasterSource();
+            child_->GetRecordingSourceForTesting().CreateRasterSource();
         EXPECT_FALSE(child_raster->IsSolidColor());
         scoped_refptr<RasterSource> mask_raster =
-            mask_->GetRecordingSourceForTesting()->CreateRasterSource();
+            mask_->GetRecordingSourceForTesting().CreateRasterSource();
         EXPECT_FALSE(mask_raster->IsSolidColor());
       }
 
@@ -8723,7 +8754,7 @@ class LayerTreeHostTestNewLocalSurfaceIdForcesDraw : public LayerTreeHostTest {
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 };
@@ -8937,10 +8968,10 @@ class LayerTreeHostTopControlsDeltaTriggersViewportUpdate
 MULTI_THREAD_TEST_F(LayerTreeHostTopControlsDeltaTriggersViewportUpdate);
 
 #if BUILDFLAG(IS_CHROMEOS)
-// Tests that custom sequence throughput tracking result is reported to
+// Tests that custom sequence metrics tracking result is reported to
 // LayerTreeHostClient.
 constexpr MutatorHost::TrackedAnimationSequenceId kSequenceId = 1u;
-class LayerTreeHostCustomThroughputTrackerTest : public LayerTreeHostTest {
+class LayerTreeHostCustomMetricsTrackerTest : public LayerTreeHostTest {
  public:
   // Custom sequences are only supported for ChromeOS UI, which is
   // Single-Threaded.
@@ -8955,10 +8986,10 @@ class LayerTreeHostCustomThroughputTrackerTest : public LayerTreeHostTest {
     //   e(2,2)b(3)B(0,3)E(3)s(3)S(3)e(3,3)P(3)b(4)B(3,4)E(4)s(4)S(4)e(4,4)P(4)
     switch (layer_tree_host()->SourceFrameNumber()) {
       case 1:
-        animation_host()->StartThroughputTracking(kSequenceId);
+        animation_host()->StartCompositorMetricsTracking(kSequenceId);
         break;
       case 3:
-        animation_host()->StopThroughputTracking(kSequenceId);
+        animation_host()->StopCompositorMetricsTracking(kSequenceId);
         break;
       default:
         break;
@@ -8968,7 +8999,8 @@ class LayerTreeHostCustomThroughputTrackerTest : public LayerTreeHostTest {
       PostSetNeedsCommitWithForcedRedrawToMainThread();
   }
 
-  void NotifyThroughputTrackerResults(CustomTrackerResults results) override {
+  void NotifyCompositorMetricsTrackerResults(
+      CustomTrackerResults results) override {
     // Check that data for kSequenceId is captured. Ideally, we should get
     // 2 frame_expected and 2 frame_produced. But on slow bots, it is difficult
     // to infer the correct numbers. Both frame_expected and frame_produced
@@ -8987,7 +9019,7 @@ class LayerTreeHostCustomThroughputTrackerTest : public LayerTreeHostTest {
   }
 };
 
-SINGLE_THREAD_TEST_F(LayerTreeHostCustomThroughputTrackerTest);
+SINGLE_THREAD_TEST_F(LayerTreeHostCustomMetricsTrackerTest);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 class LayerTreeHostTestDelegatedInkMetadataBase
@@ -9293,7 +9325,7 @@ class LayerTreeHostTestEventsMetrics : public LayerTreeHostTest {
     tick_clock.Advance(base::Microseconds(10));
     std::unique_ptr<EventMetrics> metrics =
         ScrollUpdateEventMetrics::CreateForTesting(
-            ui::ET_GESTURE_SCROLL_UPDATE, ui::ScrollInputType::kWheel,
+            ui::EventType::kGestureScrollUpdate, ui::ScrollInputType::kWheel,
             /*is_inertial=*/false,
             ScrollUpdateEventMetrics::ScrollUpdateType::kContinued,
             /*delta=*/10.0f, event_time, arrived_in_browser_main_timestamp,
@@ -9626,7 +9658,7 @@ class LayerTreeHostTestIgnoreEventsMetricsForNoUpdate
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -9656,6 +9688,8 @@ class LayerTreeHostUkmSmoothnessMetric : public LayerTreeTest {
   void SetupTree() override {
     LayerTreeTest::SetupTree();
     shmem_region_ = layer_tree_host()->CreateSharedMemoryForSmoothnessUkm();
+    shmem_region_dropped_frames_ =
+        layer_tree_host()->CreateSharedMemoryForDroppedFramesUkm();
   }
 
   void BeginTest() override {
@@ -9671,6 +9705,9 @@ class LayerTreeHostUkmSmoothnessMetric : public LayerTreeTest {
     // It is not always possible to guarantee an exact number of dropped frames.
     // So validate that there are non-zero dropped frames.
     EXPECT_GT(smoothness->data.avg_smoothness, 0);
+
+    ASSERT_TRUE(shmem_region_dropped_frames_.IsValid());
+    // TODO(crbug.com/395868899): Test that values are exported here.
   }
 
   void WillBeginImplFrameOnThread(LayerTreeHostImpl* host_impl,
@@ -9678,7 +9715,7 @@ class LayerTreeHostUkmSmoothnessMetric : public LayerTreeTest {
                                   bool has_damage) override {
     last_args_ = args;
     if (!fcp_sent_) {
-      host_impl->dropped_frame_counter()->OnFcpReceived();
+      host_impl->dropped_frame_counter()->OnFirstContentfulPaintReceived();
       fcp_sent_ = true;
     }
   }
@@ -9705,6 +9742,7 @@ class LayerTreeHostUkmSmoothnessMetric : public LayerTreeTest {
   bool fcp_sent_ = false;
   viz::BeginFrameArgs last_args_;
   base::ReadOnlySharedMemoryRegion shmem_region_;
+  base::ReadOnlySharedMemoryRegion shmem_region_dropped_frames_;
 };
 
 MULTI_THREAD_TEST_F(LayerTreeHostUkmSmoothnessMetric);
@@ -9731,7 +9769,7 @@ class LayerTreeHostUkmSmoothnessMemoryOwnership : public LayerTreeTest {
                                   bool has_damage) override {
     last_args_ = args;
     if (!fcp_sent_) {
-      host_impl->dropped_frame_counter()->OnFcpReceived();
+      host_impl->dropped_frame_counter()->OnFirstContentfulPaintReceived();
       fcp_sent_ = true;
     }
     host_impl->SetNeedsCommit();
@@ -9782,7 +9820,10 @@ class LayerTreeHostTestViewTransitionsPropagatedToMetadata
     layer_tree_host()->AddViewTransitionRequest(
         ViewTransitionRequest::CreateCapture(
             blink::ViewTransitionToken(), /*maybe_cross_frame_sink=*/false, {},
-            base::BindLambdaForTesting([this]() { CommitLambdaCalled(); })));
+            base::BindLambdaForTesting(
+                [this](const viz::ViewTransitionElementResourceRects&) {
+                  CommitLambdaCalled();
+                })));
   }
 
   void CommitLambdaCalled() { ++num_lambda_calls_; }
@@ -9791,7 +9832,7 @@ class LayerTreeHostTestViewTransitionsPropagatedToMetadata
       const viz::CompositorFrame& frame) override {
     ASSERT_EQ(1u, frame.metadata.transition_directives.size());
     const auto& save = frame.metadata.transition_directives[0];
-    submitted_sequence_ids_.push_back(save.sequence_id());
+    submitted_sequence_id_ = save.sequence_id();
 
     EXPECT_EQ(save.type(),
               viz::CompositorFrameTransitionDirective::Type::kSave);
@@ -9800,14 +9841,14 @@ class LayerTreeHostTestViewTransitionsPropagatedToMetadata
   void DidPresentCompositorFrame(
       uint32_t frame_token,
       const viz::FrameTimingDetails& frame_timing_details) override {
-    layer_tree_host()->NotifyTransitionRequestsFinished(
-        submitted_sequence_ids_);
+    layer_tree_host()->NotifyTransitionRequestsFinished(submitted_sequence_id_,
+                                                        {});
     EndTest();
   }
 
   void AfterTest() override { EXPECT_EQ(1, num_lambda_calls_); }
 
-  std::vector<uint32_t> submitted_sequence_ids_;
+  uint32_t submitted_sequence_id_;
   int num_lambda_calls_ = 0;
 };
 
@@ -9914,7 +9955,7 @@ class LayerTreeHostTestHideLayerAndSubtree
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -9965,7 +10006,7 @@ class LayerTreeHostTestHideLayerAndSubtreeOnParent
         EndTest();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   }
 
@@ -10186,9 +10227,7 @@ class LayerTreeHostTestDelayRecreateTiling
         }
         break;
       case 3:
-        NOTREACHED_IN_MIGRATION()
-            << "We shouldn't see another commit in this test";
-        break;
+        NOTREACHED() << "We shouldn't see another commit in this test";
     }
   }
 
@@ -10598,7 +10637,7 @@ class LayerTreeHostTestForceRecreateTilingForLCDText
     layer_id_ = layer_on_main_->id();
   }
 
-  void WillCommit(const CommitState&) override {
+  void OnCommitRequested() override {
     switch (layer_tree_host()->SourceFrameNumber()) {
       case 0:
         // First frame enables LCD text by marking the layer opaque.
@@ -10644,6 +10683,7 @@ class LayerTreeHostTestForceRecreateTilingForLCDText
                   LCDTextDisallowedReason::kContentsNotOpaque);
         EXPECT_FALSE(layer_impl->HighResTiling()->can_use_lcd_text());
         host_impl->GetInputHandler().PinchGestureEnd(gfx::Point(1, 1));
+        PostSetNeedsCommitToMainThread();
         break;
       case 2:
         ASSERT_FALSE(host_impl->IsPinchGestureActive());
@@ -10719,7 +10759,8 @@ class LayerTreeHostTestDamagePropagatesFromViewTransitionSurface
     root->AddChild(layer_with_view_transition_content_);
 
     blink::ViewTransitionToken transition_token;
-    resource_id_ = viz::ViewTransitionElementResourceId(transition_token, 1);
+    resource_id_ =
+        viz::ViewTransitionElementResourceId(transition_token, 1, false);
     view_transition_layer_ = ViewTransitionContentLayer::Create(
         resource_id_, /*is_live_content_layer=*/true);
     CopyProperties(root, view_transition_layer_.get());
@@ -10756,9 +10797,9 @@ class LayerTreeHostTestDamagePropagatesFromViewTransitionSurface
 
   void BeginTest() override { layer_tree_host()->SetNeedsCommit(); }
 
-  void WillSubmitCompositorFrame(LayerTreeHostImpl* host_impl,
-                                 const viz::CompositorFrame& frame) override {
-    switch (host_impl->active_tree()->source_frame_number()) {
+  void DisplayReceivedCompositorFrameOnThread(
+      const viz::CompositorFrame& frame) override {
+    switch (frame_) {
       case 0: {
         // First frame draws the entire tree with full damage.
         ASSERT_EQ(frame.render_pass_list.size(), 3u);
@@ -10859,6 +10900,7 @@ class LayerTreeHostTestDamagePropagatesFromViewTransitionSurface
       default:
         break;
     }
+    ++frame_;
   }
 
  private:
@@ -10866,6 +10908,8 @@ class LayerTreeHostTestDamagePropagatesFromViewTransitionSurface
   viz::ViewTransitionElementResourceId resource_id_;
   scoped_refptr<ViewTransitionContentLayer> view_transition_layer_;
   scoped_refptr<SolidColorLayer> layer_with_view_transition_content_;
+
+  int frame_ = 0;
 
   // All rects are in the root coordinate space.
   const gfx::Rect root_rect_ = gfx::Rect(0, 0, 50, 50);
@@ -10881,8 +10925,8 @@ class LayerTreeHostTestBlockOnCommitAfterInputEvent : public LayerTreeHostTest {
   void BeginTest() override { PostSetNeedsCommitToMainThread(); }
   void WillBeginMainFrame() override { ++main_frame_num_; }
   void DidBeginMainFrame() override {
-    EXPECT_EQ(main_frame_num_ % 2 == 0,
-              layer_tree_host()->WaitedForCommitForTesting());
+    EXPECT_EQ(main_frame_num_ % 2 != 0,
+              layer_tree_host()->MustWaitForCommitForTesting());
   }
   void DidCommit() override {
     if (main_frame_num_ < 5) {
@@ -10896,8 +10940,6 @@ class LayerTreeHostTestBlockOnCommitAfterInputEvent : public LayerTreeHostTest {
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_{
-      features::kNonBlockingCommit};
   uint32_t main_frame_num_ = 0u;
 };
 MULTI_THREAD_TEST_F(LayerTreeHostTestBlockOnCommitAfterInputEvent);
@@ -11003,6 +11045,72 @@ class LayerTreeHostTestDetachInputDelegateAndRenderFrameObserver
   bool did_shutdown_render_frame_observer_ = false;
 };
 MULTI_THREAD_TEST_F(LayerTreeHostTestDetachInputDelegateAndRenderFrameObserver);
+
+class LayerTreeHostTestSetMaxSafeAreaInsets : public LayerTreeHostTest {
+ public:
+  LayerTreeHostTestSetMaxSafeAreaInsets() : LayerTreeHostTest() {}
+
+  void BeginTest() override { PostSetNeedsCommitToMainThread(); }
+
+  void SetupTree() override {
+    LayerTreeHostTest::SetupTree();
+
+    gfx::InsetsF insets(10);
+    insets.set_bottom(20);
+    layer_tree_host()->SetMaxSafeAreaInsets(insets);
+  }
+
+  void CommitCompleteOnThread(LayerTreeHostImpl* host_impl) override {
+    EXPECT_EQ(20, host_impl->pending_tree()->max_safe_area_inset_bottom());
+
+    host_impl->pending_tree()->PushPropertiesTo(host_impl->active_tree());
+    EXPECT_EQ(20, host_impl->active_tree()->max_safe_area_inset_bottom());
+
+    EndTest();
+  }
+};
+
+MULTI_THREAD_TEST_F(LayerTreeHostTestSetMaxSafeAreaInsets);
+
+class LayerTreeHostTestCustomPropertyTreeDelegate : public LayerTreeHostTest {
+ public:
+  class TestPropertyTreeDelegate : public PropertyTreeLayerTreeDelegate {
+   public:
+    bool update_called() { return update_called_; }
+
+    void UpdatePropertyTreesIfNeeded() override {
+      update_called_ = true;
+      PropertyTreeLayerTreeDelegate::UpdatePropertyTreesIfNeeded();
+    }
+
+   private:
+    bool update_called_ = false;
+  };
+
+  void RunTest(CompositorMode mode) override {
+    owned_property_tree_delegate_ =
+        std::make_unique<TestPropertyTreeDelegate>();
+    SetPropertyTreeDelegate(owned_property_tree_delegate_.get());
+    LayerTreeHostTest::RunTest(mode);
+  }
+
+ protected:
+  void BeginTest() override { PostSetNeedsUpdateLayersToMainThread(); }
+
+  void DidBeginMainFrame() override { EndTest(); }
+
+  void AfterTest() override {
+    EXPECT_TRUE(owned_property_tree_delegate_->update_called());
+
+    // Prevent a dangling pointer error.
+    SetPropertyTreeDelegate(nullptr);
+  }
+
+ private:
+  std::unique_ptr<TestPropertyTreeDelegate> owned_property_tree_delegate_;
+};
+
+MULTI_THREAD_TEST_F(LayerTreeHostTestCustomPropertyTreeDelegate);
 
 }  // namespace
 }  // namespace cc

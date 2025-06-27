@@ -33,24 +33,6 @@ HTMLSummaryElement::HTMLSummaryElement(Document& document)
     : HTMLElement(html_names::kSummaryTag, document) {
 }
 
-LayoutObject* HTMLSummaryElement::CreateLayoutObject(
-    const ComputedStyle& style) {
-  if (RuntimeEnabledFeatures::DetailsStylingEnabled()) {
-    return HTMLElement::CreateLayoutObject(style);
-  }
-
-  // See: crbug.com/603928 - We manually check for other display types, then
-  // fallback to a regular LayoutBlockFlow as "display: inline;" should behave
-  // as an "inline-block".
-  EDisplay display = style.Display();
-  if (display == EDisplay::kFlex || display == EDisplay::kInlineFlex ||
-      display == EDisplay::kGrid || display == EDisplay::kInlineGrid ||
-      display == EDisplay::kLayoutCustom ||
-      display == EDisplay::kInlineLayoutCustom)
-    return LayoutObject::CreateObject(this, style);
-  return LayoutObject::CreateBlockFlowOrListItem(this, style);
-}
-
 HTMLDetailsElement* HTMLSummaryElement::DetailsElement() const {
   if (auto* details = DynamicTo<HTMLDetailsElement>(parentNode()))
     return details;
@@ -66,8 +48,12 @@ bool HTMLSummaryElement::IsMainSummary() const {
   return false;
 }
 
-bool HTMLSummaryElement::SupportsFocus(UpdateBehavior update_behavior) const {
-  return IsMainSummary() || HTMLElement::SupportsFocus(update_behavior);
+FocusableState HTMLSummaryElement::SupportsFocus(
+    UpdateBehavior update_behavior) const {
+  if (IsMainSummary()) {
+    return FocusableState::kFocusable;
+  }
+  return HTMLElement::SupportsFocus(update_behavior);
 }
 
 int HTMLSummaryElement::DefaultTabIndex() const {

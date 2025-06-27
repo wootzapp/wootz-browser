@@ -3,8 +3,9 @@
 # found in the LICENSE file.
 """Definitions of builders in the tryserver.chromium.fuzz builder group."""
 
-load("//lib/builders.star", "os", "siso")
+load("//lib/builders.star", "cpu", "os", "siso")
 load("//lib/consoles.star", "consoles")
+load("//lib/gn_args.star", "gn_args")
 load("//lib/try.star", "try_")
 
 try_.defaults.set(
@@ -15,6 +16,7 @@ try_.defaults.set(
     cores = 8,
     os = os.LINUX_DEFAULT,
     execution_timeout = try_.DEFAULT_EXECUTION_TIMEOUT,
+    reclient_enabled = False,
     service_account = try_.DEFAULT_SERVICE_ACCOUNT,
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_UNTRUSTED,
@@ -59,6 +61,13 @@ try_.builder(
     name = "linux-asan-media-v8-arm-rel",
     mirrors = ["ci/ASan Release Media (32-bit x86 with V8-ARM)"],
     gn_args = "ci/ASan Release Media (32-bit x86 with V8-ARM)",
+)
+
+try_.builder(
+    name = "linux-asan-v8-sandbox-testing",
+    mirrors = ["ci/ASAN Release V8 Sandbox Testing"],
+    gn_args = "ci/ASAN Release V8 Sandbox Testing",
+    contact_team_email = "v8-infra@google.com",
 )
 
 try_.builder(
@@ -109,6 +118,7 @@ try_.builder(
     gn_args = "ci/Mac ASAN Release",
     cores = None,
     os = os.MAC_DEFAULT,
+    cpu = cpu.ARM64,
 )
 
 try_.builder(
@@ -131,4 +141,30 @@ try_.builder(
     mirrors = ["ci/Win ASan Release Media"],
     gn_args = "ci/Win ASan Release Media",
     os = os.WINDOWS_DEFAULT,
+)
+
+try_.builder(
+    name = "linux-libfuzzer-high-end-asan-rel",
+    mirrors = ["ci/Libfuzzer High End Upload Linux ASan"],
+    gn_args = gn_args.config(
+        configs = [
+            "ci/Libfuzzer High End Upload Linux ASan",
+            "no_symbols",
+            "skip_generate_fuzzer_owners",
+        ],
+    ),
+    contact_team_email = "chrome-deet-core@google.com",
+)
+
+try_.builder(
+    name = "linux-libfuzzer-high-end-asan-dbg",
+    mirrors = ["ci/Libfuzzer High End Upload Linux ASan Debug"],
+    gn_args = gn_args.config(
+        configs = [
+            "ci/Libfuzzer High End Upload Linux ASan Debug",
+            "no_symbols",
+            "skip_generate_fuzzer_owners",
+        ],
+    ),
+    contact_team_email = "chrome-deet-core@google.com",
 )

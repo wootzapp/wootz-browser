@@ -7,7 +7,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_parse_from_string_options.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_supported_type.h"
 #include "third_party/blink/renderer/core/dom/document_fragment.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/editing/serializers/serialization.h"
@@ -18,6 +18,7 @@
 #include "third_party/blink/renderer/core/html/html_div_element.h"
 #include "third_party/blink/renderer/core/html/html_document.h"
 #include "third_party/blink/renderer/core/html/parser/html_construction_site.h"
+#include "third_party/blink/renderer/core/keywords.h"
 #include "third_party/blink/renderer/core/testing/null_execution_context.h"
 #include "third_party/blink/renderer/core/xml/dom_parser.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
@@ -87,7 +88,7 @@ TEST(HTMLDocumentParserFastpathTest, LongTextIsSplit) {
   document->write("<body></body>");
   auto* div = MakeGarbageCollected<HTMLDivElement>(*document);
   std::vector<LChar> chars(Text::kDefaultLengthLimit + 1, 'a');
-  div->setInnerHTML(String(chars.data(), static_cast<unsigned>(chars.size())));
+  div->setInnerHTML(String(base::span(chars)));
   Text* text_node = To<Text>(div->firstChild());
   ASSERT_TRUE(text_node);
   // Text is split at 64k for performance. See
@@ -312,9 +313,9 @@ TEST(HTMLDocumentParserFastpathTest, NullMappedToReplacementChar) {
   auto* div = MakeGarbageCollected<HTMLDivElement>(*document);
 
   base::HistogramTester histogram_tester;
-  // Constructor that takes size is needed because of \0 in string.
+  // Constructor that takes a base::span is needed because of \0 in string.
   div->setInnerHTML(
-      String("<div id='x' name='x\0y'></div>", static_cast<size_t>(29)));
+      String(base::span_from_cstring("<div id='x' name='x\0y'></div>")));
   Element* new_div = div->getElementById(AtomicString("x"));
   ASSERT_TRUE(new_div);
   // Null chars are generally mapped to \uFFFD (at least this test should
@@ -327,10 +328,9 @@ TEST(HTMLDocumentParserFastpathTest, DomParserUsesFastPath) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
   auto* parser = DOMParser::Create(scope.GetScriptState());
-  auto* parser_options = ParseFromStringOptions::Create();
   base::HistogramTester histogram_tester;
-  parser->parseFromString("<strong>0</strong> items left", "text/html",
-                          parser_options);
+  parser->parseFromString("<strong>0</strong> items left",
+                          V8SupportedType(V8SupportedType::Enum::kTextHtml));
   histogram_tester.ExpectTotalCount("Blink.HTMLFastPathParser.ParseResult", 1);
 }
 
@@ -338,10 +338,9 @@ TEST(HTMLDocumentParserFastpathTest, BodyWithLeadingWhitespace) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
   auto* parser = DOMParser::Create(scope.GetScriptState());
-  auto* parser_options = ParseFromStringOptions::Create();
   base::HistogramTester histogram_tester;
-  Document* document =
-      parser->parseFromString("\n   <div></div>", "text/html", parser_options);
+  Document* document = parser->parseFromString(
+      "\n   <div></div>", V8SupportedType(V8SupportedType::Enum::kTextHtml));
   histogram_tester.ExpectTotalCount("Blink.HTMLFastPathParser.ParseResult", 1);
   EXPECT_EQ("<body><div></div></body>", CreateMarkup(document->body()));
   auto* first_child = document->body()->firstChild();
@@ -352,10 +351,9 @@ TEST(HTMLDocumentParserFastpathTest, BodyWithLeadingAndTrailingWhitespace) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
   auto* parser = DOMParser::Create(scope.GetScriptState());
-  auto* parser_options = ParseFromStringOptions::Create();
   base::HistogramTester histogram_tester;
-  Document* document = parser->parseFromString("\n   x<div></div>y ",
-                                               "text/html", parser_options);
+  Document* document = parser->parseFromString(
+      "\n   x<div></div>y ", V8SupportedType(V8SupportedType::Enum::kTextHtml));
   histogram_tester.ExpectTotalCount("Blink.HTMLFastPathParser.ParseResult", 1);
   EXPECT_EQ("<body>x<div></div>y </body>", CreateMarkup(document->body()));
   auto* first_child = document->body()->firstChild();
@@ -366,10 +364,10 @@ TEST(HTMLDocumentParserFastpathTest, BodyWithLeadingAndTrailingWhitespace2) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
   auto* parser = DOMParser::Create(scope.GetScriptState());
-  auto* parser_options = ParseFromStringOptions::Create();
   base::HistogramTester histogram_tester;
-  Document* document = parser->parseFromString("\n   x \n  <div></div>y \n   ",
-                                               "text/html", parser_options);
+  Document* document = parser->parseFromString(
+      "\n   x \n  <div></div>y \n   ",
+      V8SupportedType(V8SupportedType::Enum::kTextHtml));
   histogram_tester.ExpectTotalCount("Blink.HTMLFastPathParser.ParseResult", 1);
   EXPECT_EQ("<body>x \n  <div></div>y \n   </body>",
             CreateMarkup(document->body()));

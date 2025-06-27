@@ -8,7 +8,6 @@
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_screen_test_api.h"
 #include "base/command_line.h"
-#include "base/strings/string_piece.h"
 #include "chrome/browser/ash/arc/policy/arc_policy_util.h"
 #include "chrome/browser/ash/login/login_wizard.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
@@ -21,9 +20,9 @@
 #include "chrome/browser/ash/login/test/oobe_screens_utils.h"
 #include "chrome/browser/ash/login/test/user_auth_config.h"
 #include "chrome/browser/ash/login/test/user_policy_mixin.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/oobe_ui.h"
 #include "chromeos/ash/components/dbus/cryptohome/UserDataAuth.pb.h"
@@ -36,6 +35,7 @@
 #include "components/account_id/account_id.h"
 #include "components/user_manager/known_user.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "third_party/cros_system_api/dbus/cryptohome/dbus-constants.h"
 
 namespace ash {
@@ -226,7 +226,8 @@ class EncryptionMigrationTest : public EncryptionMigrationTestBase {
  public:
   EncryptionMigrationTest()
       : EncryptionMigrationTestBase(LoginManagerMixin::TestUserInfo{
-            AccountId::FromUserEmailGaiaId("user@gmail.com", "user")}) {}
+            AccountId::FromUserEmailGaiaId("user@gmail.com", GaiaId("user"))}) {
+  }
   ~EncryptionMigrationTest() override = default;
 
   EncryptionMigrationTest(const EncryptionMigrationTest& other) = delete;
@@ -239,7 +240,8 @@ class EncryptionMigrationChildUserTest : public EncryptionMigrationTestBase {
  public:
   EncryptionMigrationChildUserTest()
       : EncryptionMigrationTestBase(LoginManagerMixin::TestUserInfo{
-            AccountId::FromUserEmailGaiaId("userchild@gmail.com", "userchild"),
+            AccountId::FromUserEmailGaiaId("userchild@gmail.com",
+                                           GaiaId("userchild")),
             test::kDefaultAuthSetup, user_manager::UserType::kChild}) {}
   ~EncryptionMigrationChildUserTest() override = default;
 

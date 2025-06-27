@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import("//build/config/features.gni")
+import("//testing/test.gni")
 
 static_library("privacy_sandbox_prefs") {
   sources = [
@@ -32,6 +33,17 @@ component("features") {
   public_deps = [ "//base" ]
 }
 
+source_set("privacy_sandbox_survey_service") {
+  sources = [
+    "privacy_sandbox_survey_service.cc",
+    "privacy_sandbox_survey_service.h",
+  ]
+
+  deps = [ "//components/keyed_service/core:core" ]
+
+  public_deps = [ "//base" ]
+}
+
 source_set("tracking_protection_onboarding") {
   sources = [
     "tracking_protection_onboarding.cc",
@@ -45,22 +57,6 @@ source_set("tracking_protection_onboarding") {
     "//components/pref_registry:pref_registry",
     "//components/prefs",
     "//components/version_info",
-  ]
-
-  public_deps = [ "//base" ]
-}
-
-source_set("tracking_protection_reminder_service") {
-  sources = [
-    "tracking_protection_reminder_service.cc",
-    "tracking_protection_reminder_service.h",
-  ]
-
-  deps = [
-    ":features",
-    ":privacy_sandbox_prefs",
-    "//components/keyed_service/core:core",
-    "//components/prefs",
   ]
 
   public_deps = [ "//base" ]
@@ -81,6 +77,7 @@ source_set("tracking_protection_settings") {
     "//components/content_settings/core/browser",
     "//components/content_settings/core/common",
     "//components/keyed_service/core:core",
+    "//components/policy/core/common",
     "//components/pref_registry:pref_registry",
     "//components/prefs",
     "//url:url",
@@ -103,10 +100,11 @@ static_library("tracking_protection_prefs") {
   public_deps = [ "//base" ]
 }
 
-source_set("privacy_sandbox_notice_storage") {
+source_set("tpcd") {
   sources = [
-    "privacy_sandbox_notice_storage.cc",
-    "privacy_sandbox_notice_storage.h",
+    "tpcd_pref_names.cc",
+    "tpcd_pref_names.h",
+    "tpcd_utils.h",
   ]
 
   deps = [
@@ -156,13 +154,15 @@ if (use_blink) {
 
     deps = [
       ":privacy_sandbox_prefs",
-      ":tracking_protection_reminder_service",
+      ":privacy_sandbox_survey_service",
       ":tracking_protection_settings",
       "//components/browsing_topics/common:common",
       "//components/content_settings/core/browser",
       "//components/content_settings/core/browser:cookie_settings",
       "//components/content_settings/core/common",
       "//components/keyed_service/core:core",
+      "//components/metrics/dwa:dwa",
+      "//components/metrics/dwa:dwa_builders",
       "//components/pref_registry:pref_registry",
       "//components/prefs",
       "//components/privacy_sandbox/privacy_sandbox_attestations",
@@ -196,11 +196,14 @@ if (use_blink) {
       "//components/content_settings/core/browser:browser",
       "//components/content_settings/core/common:common",
       "//components/content_settings/core/test:test_support",
+      "//components/metrics/dwa:dwa",
+      "//components/metrics/dwa:dwa_builders",
       "//components/prefs:test_support",
       "//components/privacy_sandbox/privacy_sandbox_attestations",
       "//components/privacy_sandbox/privacy_sandbox_attestations:test_support",
       "//components/sync_preferences:test_support",
       "//content/test:test_support",
+      "//net",
       "//testing/gmock",
       "//testing/gtest:gtest",
       "//ui/base:base",
@@ -212,20 +215,23 @@ if (use_blink) {
 source_set("unit_tests") {
   testonly = true
   sources = [
-    "privacy_sandbox_notice_storage_unittest.cc",
+    "privacy_sandbox_survey_service_unittest.cc",
     "tracking_protection_onboarding_unittest.cc",
   ]
 
+  data = [ "//tools/metrics/histograms/metadata/privacy/histograms.xml" ]
+
   deps = [
     ":features",
-    ":privacy_sandbox_notice_storage",
     ":privacy_sandbox_prefs",
+    ":privacy_sandbox_survey_service",
     ":tracking_protection_onboarding",
     ":tracking_protection_prefs",
     ":tracking_protection_settings",
     "//base/test:test_support",
     "//components/content_settings/core/common",
     "//components/prefs:test_support",
+    "//components/signin/public/identity_manager:test_support",
     "//components/sync_preferences:test_support",
     "//components/version_info",
     "//testing/gtest",

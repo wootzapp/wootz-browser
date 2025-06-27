@@ -5,8 +5,7 @@
       "linux",
       "mac",
       "android",
-      "chromeos_ash",
-      "chromeos_lacros",
+      "chromeos",
       "fuchsia"
     ],
     "policy_pref_mapping_tests": [
@@ -29,6 +28,9 @@
             "default_value": false
           },
           "sync.preferences": {
+            "default_value": false
+          },
+          "sync.product_comparison": {
             "default_value": false
           },
           "sync.reading_list": {
@@ -57,6 +59,7 @@
             "extensions",
             "passwords",
             "preferences",
+            "productComparison",
             "readingList",
             "savedTabGroups",
             "tabs",
@@ -83,6 +86,9 @@
           "sync.preferences": {
             "value": false
           },
+          "sync.product_comparison": {
+            "value": false
+          },
           "sync.reading_list": {
             "value": false
           },
@@ -104,7 +110,7 @@
   },
   {
     "os": [
-      "chromeos_ash"
+      "chromeos"
     ],
     "policy_pref_mapping_tests": [
       {

@@ -52,7 +52,8 @@ class VirtualCardEnrollBubbleControllerImpl
 
   // Shows the confirmation bubble view after the virtual card enrollment
   // process has completed.
-  virtual void ShowConfirmationBubbleView(bool is_vcn_enrolled);
+  virtual void ShowConfirmationBubbleView(
+      payments::PaymentsAutofillClient::PaymentsRpcResult result);
 
   // VirtualCardEnrollBubbleController:
   const VirtualCardEnrollUiModel& GetUiModel() const override;
@@ -66,14 +67,14 @@ class VirtualCardEnrollBubbleControllerImpl
   bool IsEnrollmentComplete() const override;
 #endif
 
-  void OnAcceptButton(bool did_switch_to_loading_state = false) override;
+  void OnAcceptButton(bool did_switch_to_loading_state) override;
   void OnDeclineButton() override;
   void OnLinkClicked(VirtualCardEnrollmentLinkType link_type,
                      const GURL& url) override;
-  void OnBubbleClosed(PaymentsBubbleClosedReason closed_reason) override;
-  base::OnceCallback<void(PaymentsBubbleClosedReason)>
-  GetOnBubbleClosedCallback() override;
-  const SaveCardAndVirtualCardEnrollConfirmationUiParams&
+  void OnBubbleClosed(PaymentsUiClosedReason closed_reason) override;
+  base::OnceCallback<void(PaymentsUiClosedReason)> GetOnBubbleClosedCallback()
+      override;
+  const SavePaymentMethodAndVirtualCardEnrollConfirmationUiParams&
   GetConfirmationUiParams() const override;
   bool IsIconVisible() const override;
 
@@ -93,7 +94,7 @@ class VirtualCardEnrollBubbleControllerImpl
       VirtualCardEnrollBubbleControllerImpl>;
 
   // Contains the UI assets shown in the virtual card enrollment view.
-  VirtualCardEnrollUiModel ui_model_;
+  std::unique_ptr<VirtualCardEnrollUiModel> ui_model_;
 
   // Whether we should re-show the dialog when users return to the tab.
   bool reprompt_required_ = false;
@@ -133,7 +134,7 @@ class VirtualCardEnrollBubbleControllerImpl
 
   // UI parameters needed to display the virtual card enrollment confirmation
   // view.
-  std::optional<SaveCardAndVirtualCardEnrollConfirmationUiParams>
+  std::optional<SavePaymentMethodAndVirtualCardEnrollConfirmationUiParams>
       confirmation_ui_params_;
 
   base::WeakPtrFactory<VirtualCardEnrollBubbleControllerImpl> weak_ptr_factory_{

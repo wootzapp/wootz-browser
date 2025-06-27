@@ -66,43 +66,22 @@ BASE_FEATURE(kMbiOverrideTaskRunnerHandle,
              "MbiOverrideTaskRunnerHandle",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Feature to experiment with different values for: "prioritize main thread
-// compositing tasks if we haven't done a main frame in this many milliseconds."
-PLATFORM_EXPORT BASE_DECLARE_FEATURE(kPrioritizeCompositingAfterDelayTrials);
-
 // Buffer time that we want to extend the loading state after the FMP is
 // received.
 PLATFORM_EXPORT base::TimeDelta
 GetLoadingPhaseBufferTimeAfterFirstMeaningfulPaint();
 
-// Finch flag for preventing rendering starvation during threaded scrolling.
-// With this feature enabled, the existing delay-based rendering anti-starvation
-// applies, and the compositor task queue priority is controlled with the
-// `kCompositorTQPolicyDuringThreadedScroll` `FeatureParam`.
-PLATFORM_EXPORT BASE_DECLARE_FEATURE(kThreadedScrollPreventRenderingStarvation);
+// Kill switch for throttling timed-out requestIdleCallback tasks.
+PLATFORM_EXPORT BASE_DECLARE_FEATURE(kThrottleTimedOutIdleTasks);
 
-enum class CompositorTQPolicyDuringThreadedScroll {
-  // Compositor TQ has low priority, delay-based anti-starvation does not apply.
-  // This is the current behavior and it isn't exposed through
-  // `kCompositorTQPolicyDuringThreadedScrollOptions`; this exists to simplify
-  // the relayed policy logic.
-  kLowPriorityAlways,
-  // Compositor TQ has low priority, delay-based anti-starvation applies.
-  kLowPriorityWithAntiStarvation,
-  // Compositor TQ has normal priority, delay-based anti-starvation applies.
-  kNormalPriorityWithAntiStarvation,
-  // Compositor TQ has very high priority. Note that this is the same priority
-  // as used by the delay-based anti-starvation logic.
-  kVeryHighPriorityAlways,
-};
-
-PLATFORM_EXPORT extern const base::FeatureParam<
-    CompositorTQPolicyDuringThreadedScroll>::Option
-    kCompositorTQPolicyDuringThreadedScrollOptions[];
-
-PLATFORM_EXPORT extern const base::FeatureParam<
-    CompositorTQPolicyDuringThreadedScroll>
-    kCompositorTQPolicyDuringThreadedScroll;
+// crbug.com/40785325 and crbug.com/378738907: If enabled, the signals used for
+// idle periods are requested via WidgetScheduler::Delegate instead of via
+// PageScheduler. This fixes a few issues where we might not get the requisite
+// RequestBeginMainFrameNotExpected signals from a BeginMainFrame source, but
+// are receiving BeginMainFrames, which can cause idle tasks to stop running.
+BASE_FEATURE(kUseWidgetSchedulerForIdlePeriodSignals,
+             "UseWidgetSchedulerForIdlePeriodSignals",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 }  // namespace scheduler
 }  // namespace blink

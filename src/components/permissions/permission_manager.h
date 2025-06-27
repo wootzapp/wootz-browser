@@ -19,6 +19,7 @@
 #include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_request_id.h"
 #include "components/permissions/permission_util.h"
+#include "content/public/browser/permission_controller.h"
 #include "content/public/browser/permission_controller_delegate.h"
 #include "content/public/browser/permission_result.h"
 #include "url/origin.h"
@@ -92,9 +93,6 @@ class PermissionManager : public KeyedService,
 
   class PermissionResponseCallback;
 
-  struct Subscription;
-  using SubscriptionsMap =
-      base::IDMap<std::unique_ptr<Subscription>, SubscriptionId>;
   using SubscriptionTypeCounts = base::flat_map<ContentSettingsType, size_t>;
 
   PermissionContextBase* GetPermissionContext(ContentSettingsType type);
@@ -117,39 +115,37 @@ class PermissionManager : public KeyedService,
       const content::PermissionRequestDescription& request_description,
       base::OnceCallback<void(const std::vector<PermissionStatus>&)> callback)
       override;
-  PermissionStatus GetPermissionStatus(blink::PermissionType permission,
-                                       const GURL& requesting_origin,
-                                       const GURL& embedding_origin) override;
+  PermissionStatus GetPermissionStatus(
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
+      const GURL& requesting_origin,
+      const GURL& embedding_origin) override;
   content::PermissionResult GetPermissionResultForOriginWithoutContext(
-      blink::PermissionType permission,
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
       const url::Origin& requesting_origin,
       const url::Origin& embedding_origin) override;
   PermissionStatus GetPermissionStatusForCurrentDocument(
-      blink::PermissionType permission,
-      content::RenderFrameHost* render_frame_host) override;
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
+      content::RenderFrameHost* render_frame_host,
+      bool should_include_device_status) override;
   content::PermissionResult GetPermissionResultForCurrentDocument(
-      blink::PermissionType permission,
-      content::RenderFrameHost* render_frame_host) override;
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
+      content::RenderFrameHost* render_frame_host,
+      bool should_include_device_status) override;
   PermissionStatus GetPermissionStatusForWorker(
-      blink::PermissionType permission,
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
       content::RenderProcessHost* render_process_host,
       const GURL& worker_origin) override;
   PermissionStatus GetPermissionStatusForEmbeddedRequester(
-      blink::PermissionType permission,
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
       content::RenderFrameHost* render_frame_host,
       const url::Origin& requesting_origin) override;
   bool IsPermissionOverridable(
       blink::PermissionType permission,
       const std::optional<url::Origin>& origin) override;
-  SubscriptionId SubscribeToPermissionStatusChange(
-      blink::PermissionType permission,
-      content::RenderProcessHost* render_process_host,
-      content::RenderFrameHost* render_frame_host,
-      const GURL& requesting_origin,
-      bool should_include_device_status,
-      base::RepeatingCallback<void(PermissionStatus)> callback) override;
+  void OnPermissionStatusChangeSubscriptionAdded(
+      content::PermissionController::SubscriptionId subscription_id) override;
   void UnsubscribeFromPermissionStatusChange(
-      SubscriptionId subscription_id) override;
+      content::PermissionController::SubscriptionId subscription_id) override;
   std::optional<gfx::Rect> GetExclusionAreaBoundsInScreen(
       content::WebContents* web_contents) const override;
 
@@ -172,7 +168,7 @@ class PermissionManager : public KeyedService,
   // Only one of |render_process_host| and |render_frame_host| should be set,
   // or neither. RenderProcessHost will be inferred from |render_frame_host|.
   content::PermissionResult GetPermissionStatusInternal(
-      ContentSettingsType permission,
+      const blink::mojom::PermissionDescriptorPtr& permission_descriptor,
       content::RenderProcessHost* render_process_host,
       content::RenderFrameHost* render_frame_host,
       const GURL& requesting_origin,
@@ -184,21 +180,18 @@ class PermissionManager : public KeyedService,
   PendingRequestsMap pending_requests_;
   PendingRequestLocalId::Generator request_local_id_generator_;
 
-  SubscriptionsMap subscriptions_;
-  SubscriptionId::Generator subscription_id_generator_;
-
   // Tracks the number of Subscriptions in |subscriptions_| which have a
   // certain ContentSettingsType. An entry for a given ContentSettingsType key
   // is added on first use and never removed. This is done to utilize the
   // flat_map's efficiency in accessing/editing items and minimize the use of
   // the unefficient addition/removal of items.
-  SubscriptionTypeCounts subscription_type_counts_;             
-  friend class WootzPermissionManager; 
-  GURL forced_requesting_origin_;
+  SubscriptionTypeCounts subscription_type_counts_;
 
   PermissionContextMap permission_contexts_;
 
   bool is_shutting_down_ = false;
+
+  base::WeakPtrFactory<PermissionManager> weak_factory_{this};
 };
 
 }  // namespace permissions

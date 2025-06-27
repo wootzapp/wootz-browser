@@ -1,4 +1,4 @@
-    <style include="cr-shared-style settings-page-styles cr-hidden-style iron-flex">
+    <style include="cr-shared-style settings-page-styles cr-hidden-style">
       :host([is-subpage-animating]) {
         /* Prevent an unwanted horizontal scrollbar when transitioning back from
          * a sub-page. */
@@ -7,6 +7,16 @@
 
       :host(:not([in-search-mode])) settings-section:not([active]) {
         display: none;
+      }
+
+      settings-section[section="aiInfoCard"] {
+        --cr-card-shadow: none;
+      }
+
+      @media (forced-colors: active) {
+        settings-section[section="aiInfoCard"] {
+          --cr-border-hcm: none;
+        }
       }
     </style>
     <template is="dom-if" if="[[showBasicPage_(currentRoute_, inSearchMode)]]"
@@ -24,10 +34,24 @@
             </settings-people-page>
           </settings-section>
         </template>
+        <template is="dom-if" if="[[showAiInfoCard_(pageVisibility.ai)]]"
+            restamp>
+          <settings-section section="aiInfoCard" nest-under-section="ai">
+            <settings-ai-info-card></settings-ai-info-card>
+          </settings-section>
+        </template>
         <template is="dom-if"
             if="[[showExperimentalAdvancedPage_(pageVisibility.ai)]]"
             restamp>
-          <settings-section page-title="$i18n{aiPageTitle}" section="ai">
+<if expr="enable_glic">
+          <template is="dom-if" if="[[showGlicSection_]]" restamp>
+            <settings-section page-title="$i18n{glicSectionTitle}"
+                nest-under-section="ai" section="glicSection">
+              <settings-glic-page prefs="{{prefs}}"></settings-glic-page>
+            </settings-section>
+          </template>
+</if>
+          <settings-section page-title="[[aiPageTitle_]]" section="ai">
             <settings-ai-page prefs="{{prefs}}"></settings-ai-page>
           </settings-section>
         </template>
@@ -45,21 +69,10 @@
               prefs="{{prefs}}">
           </settings-privacy-guide-promo>
         </settings-section>
-        <!-- TODO(crbug.com/40277421): Remove after SafetyHub launched. -->
-        <template is="dom-if"
-              if="[[showSafetyCheckPage_(pageVisibility.safetyCheck)]]" restamp>
-          <settings-section page-title="$i18n{safetyCheckSectionTitle}"
-              section="safetyCheck" nest-under-section="privacy"
-              id="safetyCheckSettingsSection">
-            <settings-safety-check-page prefs="{{prefs}}">
-            </settings-safety-check-page>
-          </settings-section>
-        </template>
         <!--  TODO(crbug.com/40267370): Add a test to basic_page_test.ts
         to check that settings-safety-hub-entry-point is not visible
         in the guest mode. -->
-        <template is="dom-if"
-            if="[[showSafetyHubEntryPointPage_(pageVisibility.safetyHub)]]"
+        <template is="dom-if" if="[[showPage_(pageVisibility.safetyHub)]]"
             restamp>
           <settings-section page-title="$i18n{safetyHub}"
               section="safetyHubEntryPoint" nest-under-section="privacy"
@@ -79,32 +92,46 @@
         <template is="dom-if"
             if="[[showPage_(pageVisibility.performance)]]"
             restamp>
+          <settings-section page-title="$i18n{generalPageTitle}"
+              section="performance" id="performanceSettingsSection"
+<if expr="_google_chrome">
+              show-send-feedback-button
+              on-send-feedback="onSendPerformanceFeedbackClick_"
+</if>
+              >
+            <settings-performance-page prefs="{{prefs}}">
+            </settings-performance-page>
+          </settings-section>
           <settings-section page-title="$i18n{memoryPageTitle}"
+              section="memory" nest-under-section="performance"
+              id="memorySettingsSection"
 <if expr="_google_chrome">
               show-send-feedback-button
               on-send-feedback="onSendMemorySaverFeedbackClick_"
 </if>
-              section="performance" id="performanceSettingsSection">
-            <settings-performance-page prefs="{{prefs}}">
-            </settings-performance-page>
+              >
+            <settings-memory-page prefs="{{prefs}}">
+            </settings-memory-page>
           </settings-section>
           <settings-section page-title="$i18n{batteryPageTitle}"
               section="battery" nest-under-section="performance"
+              id="batterySettingsSection" hidden="[[!showBatterySettings_]]"
 <if expr="_google_chrome">
               show-send-feedback-button
               on-send-feedback="onSendBatterySaverFeedbackClick_"
 </if>
-              id="batterySettingsSection" hidden="[[!showBatterySettings_]]">
+              >
             <settings-battery-page prefs="{{prefs}}">
             </settings-battery-page>
           </settings-section>
           <settings-section page-title="$i18n{speedPageTitle}"
               section="speed" nest-under-section="performance"
+              id="speedSettingsSection"
 <if expr="_google_chrome">
               show-send-feedback-button
               on-send-feedback="onSendSpeedFeedbackClick_"
 </if>
-              id="speedSettingsSection">
+              >
             <settings-speed-page prefs="{{prefs}}"></settings-speed-page>
           </settings-section>
         </template>
@@ -221,19 +248,9 @@
                 restamp>
               <settings-section page-title="$i18n{resetPageTitle}"
                   section="reset">
-                <settings-reset-page prefs="{{prefs}}"></settings-reset-page>
+                <settings-reset-page></settings-reset-page>
               </settings-section>
             </template>
-<if expr="_google_chrome">
-            <template is="dom-if"
-                if="[[showGetMostChrome_(pageVisibility.getMostChrome)]]"
-                restamp>
-              <settings-section page-title="$i18n{getTheMostOutOfChrome}"
-                  section="getMostChrome" no-search>
-                <settings-get-most-chrome-page></settings-get-most-chrome-page>
-              </settings-section>
-            </template>
-</if>
           </div>
         </template>
       </settings-idle-load>

@@ -4,20 +4,23 @@
 
 package org.chromium.components.download;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
 import android.provider.BaseColumns;
+import android.provider.MediaStore;
 import android.provider.MediaStore.Downloads;
 import android.provider.MediaStore.MediaColumns;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import org.jni_zero.CalledByNative;
@@ -27,7 +30,8 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.StrictModeContext;
-import org.chromium.base.compat.ApiHelperForQ;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.third_party.android.provider.MediaStoreUtils;
 import org.chromium.third_party.android.provider.MediaStoreUtils.PendingParams;
 import org.chromium.third_party.android.provider.MediaStoreUtils.PendingSession;
@@ -44,6 +48,7 @@ import java.util.Locale;
 
 /** Helper class for publishing download files to the public download collection. */
 @JNINamespace("download")
+@NullMarked
 public class DownloadCollectionBridge {
     private static final String TAG = "DownloadCollection";
 
@@ -95,13 +100,14 @@ public class DownloadCollectionBridge {
     /**
      * Creates an intermediate URI for download to be written into. On completion, call
      * nativeOnCreateIntermediateUriResult() with |callbackId|.
+     *
      * @param fileName Name of the file.
      * @param mimeType Mime type of the file.
      * @param originalUrl Originating URL of the download.
      * @param referrer Referrer of the download.
      */
     @CalledByNative
-    public static String createIntermediateUriForPublish(
+    public static @Nullable String createIntermediateUriForPublish(
             final String fileName,
             final String mimeType,
             final String originalUrl,
@@ -151,8 +157,9 @@ public class DownloadCollectionBridge {
         try {
             PendingSession session = openPendingUri(destinationUri);
             OutputStream out = session.openOutputStream();
+            assumeNonNull(out);
             InputStream in = new FileInputStream(sourcePath);
-            ApiHelperForQ.copy(in, out);
+            FileUtils.copy(in, out);
             in.close();
             out.close();
             return true;
@@ -219,10 +226,12 @@ public class DownloadCollectionBridge {
 
     /**
      * Opens the intermediate Uri for writing.
+     *
      * @param intermediateUri Intermediate Uri that is going to be written to.
      * @return file descriptor that is opened for writing.
      */
     @CalledByNative
+    @SuppressWarnings("NullAway") // NPE caught by broad catch handler.
     private static int openIntermediateUri(final String intermediateUri) {
         try {
             ContentResolver resolver = ContextUtils.getApplicationContext().getContentResolver();
@@ -269,18 +278,19 @@ public class DownloadCollectionBridge {
 
     /**
      * Gets the display names for all downloads
+     *
      * @return an array of download Uri and display name pair.
      */
     @CalledByNative
     @RequiresApi(29)
-    private static DisplayNameInfo[] getDisplayNamesForDownloads() {
+    private static DisplayNameInfo @Nullable [] getDisplayNamesForDownloads() {
         ContentResolver resolver = ContextUtils.getApplicationContext().getContentResolver();
         Cursor cursor = null;
         try {
             Uri uri = Downloads.EXTERNAL_CONTENT_URI;
             cursor =
                     resolver.query(
-                            ApiHelperForQ.setIncludePending(uri),
+                            MediaStore.setIncludePending(uri),
                             new String[] {BaseColumns._ID, MediaColumns.DISPLAY_NAME},
                             null,
                             null,
@@ -311,11 +321,12 @@ public class DownloadCollectionBridge {
 
     /**
      * Gets the content URI of the download that has the given file name.
+     *
      * @param fileName name of the file.
      * @return Uri of the download with the given display name.
      */
     @RequiresApi(29)
-    public static Uri getDownloadUriForFileName(String fileName) {
+    public static @Nullable Uri getDownloadUriForFileName(String fileName) {
         Cursor cursor = null;
         try {
             Uri uri = Downloads.EXTERNAL_CONTENT_URI;
@@ -323,7 +334,7 @@ public class DownloadCollectionBridge {
                     ContextUtils.getApplicationContext()
                             .getContentResolver()
                             .query(
-                                    ApiHelperForQ.setIncludePending(uri),
+                                    MediaStore.setIncludePending(uri),
                                     new String[] {BaseColumns._ID},
                                     "_display_name LIKE ?1",
                                     new String[] {fileName},
@@ -348,13 +359,14 @@ public class DownloadCollectionBridge {
 
     /**
      * Helper method to create a pending session for download to be written into.
+     *
      * @param fileName Name of the file.
      * @param mimeType Mime type of the file.
      * @param originalUrl Originating URL of the download.
      * @param referrer Referrer of the download.
      * @return Uri created for the pending session, or null if failed.
      */
-    private static Uri createPendingSessionInternal(
+    private static @Nullable Uri createPendingSessionInternal(
             final String fileName,
             final String mimeType,
             final String originalUrl,
@@ -419,7 +431,7 @@ public class DownloadCollectionBridge {
         }
     }
 
-    private static @NonNull PendingSession openPendingUri(final String pendingUri) {
+    private static PendingSession openPendingUri(final String pendingUri) {
         return MediaStoreUtils.openPending(
                 ContextUtils.getApplicationContext(), Uri.parse(pendingUri));
     }
@@ -437,11 +449,12 @@ public class DownloadCollectionBridge {
 
     /**
      * Gets the display name for a download.
+     *
      * @param downloadUri Uri of the download.
      * @return the display name of the download.
      */
     @CalledByNative
-    private static String getDisplayName(final String downloadUri) {
+    private static @Nullable String getDisplayName(final String downloadUri) {
         ContentResolver resolver = ContextUtils.getApplicationContext().getContentResolver();
         Cursor cursor = null;
         try {

@@ -39,8 +39,6 @@ import zip_helpers
 
 # Pngs that we shouldn't convert to webp. Please add rationale when updating.
 _PNG_WEBP_EXCLUSION_PATTERN = re.compile('|'.join([
-    # Crashes on Galaxy S5 running L (https://crbug.com/807059).
-    r'.*star_gray\.png',
     # Android requires pngs for 9-patch images.
     r'.*\.9\.png',
     # Daydream requires pngs for icon files.
@@ -750,6 +748,7 @@ def _PackageApk(options, build):
       'link',
       '--auto-add-overlay',
       '--no-version-vectors',
+      '--no-xml-namespaces',
       '--output-text-symbols',
       build.r_txt_path,
   ]
@@ -766,9 +765,6 @@ def _PackageApk(options, build):
   #       can be used with recent versions of aapt2.
   if options.shared_resources:
     link_command.append('--shared-lib')
-
-  if int(options.min_sdk_version) > 21:
-    link_command.append('--no-xml-namespaces')
 
   if options.package_id:
     link_command += [

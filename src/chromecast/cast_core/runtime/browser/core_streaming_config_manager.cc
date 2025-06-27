@@ -4,12 +4,13 @@
 
 #include "chromecast/cast_core/runtime/browser/core_streaming_config_manager.h"
 
+#include <algorithm>
 #include <string_view>
 #include <utility>
 
 #include "base/containers/contains.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chromecast/shared/platform_info_serializer.h"
@@ -131,10 +132,10 @@ cast_streaming::ReceiverConfig CreateConfig(
         continue;
       }
 
-      auto it = base::ranges::find(
+      auto it = std::ranges::find(
           audio_limits, converted_codec,
           &cast_streaming::ReceiverConfig::AudioLimits::codec);
-      DCHECK(it != audio_limits.end());
+      CHECK(it != audio_limits.end(), base::NotFatalUntil::M130);
       if (it->max_sample_rate) {
         it->max_sample_rate =
             std::max(it->max_sample_rate.value(), info.max_samples_per_second);

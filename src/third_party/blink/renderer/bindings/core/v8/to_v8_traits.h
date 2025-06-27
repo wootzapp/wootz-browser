@@ -10,7 +10,7 @@
 #include "base/numerics/safe_conversions.h"
 #include "third_party/blink/renderer/bindings/core/v8/idl_types.h"
 #include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
-#include "third_party/blink/renderer/platform/bindings/dom_data_store.h"
+#include "third_party/blink/renderer/core/typed_arrays/array_buffer_view_helpers.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
 #include "third_party/blink/renderer/platform/wtf/type_traits.h"
@@ -44,13 +44,6 @@ class UnionBase;
 template <typename T, typename SFINAEHelper = void>
 struct ToV8Traits;
 
-// Used only for allowing a ScriptPromiseProperty to specify that it will
-// resolve/reject with v8::Undefined.
-struct ToV8UndefinedGenerator {
-  DISALLOW_NEW();
-  using ImplType = ToV8UndefinedGenerator;
-};
-
 // undefined
 template <>
 struct ToV8Traits<IDLUndefined> {
@@ -67,20 +60,14 @@ struct ToV8Traits<IDLAny> {
   [[nodiscard]] static v8::Local<v8::Value> ToV8(
       ScriptState* script_state,
       const ScriptValue& script_value) {
-    // It is not correct to take empty |script_value|.
-    // However, some call sites expect to get v8::Undefined
-    // when ToV8 takes empty |script_value|.
-    // TODO(crbug.com/1183637): Enable the following DCHECK.
-    // DCHECK(!script_value.IsEmpty());
+    DCHECK(!script_value.IsEmpty());
     return script_value.V8ValueFor(script_state);
   }
 
   [[nodiscard]] static v8::Local<v8::Value> ToV8(
       ScriptState* script_state,
       const v8::Local<v8::Value>& value) {
-    // TODO(crbug.com/1183637): Remove this if-branch.
-    if (value.IsEmpty())
-      return v8::Undefined(script_state->GetIsolate());
+    DCHECK(!value.IsEmpty());
     return value;
   }
 };
@@ -227,86 +214,19 @@ struct ToV8Traits<IDLObject> {
 
   [[nodiscard]] static v8::Local<v8::Value> ToV8(
       ScriptState* script_state,
-      const ScriptValue& script_value) {
-    DCHECK(!script_value.IsEmpty());
-    v8::Local<v8::Value> v8_value = script_value.V8ValueFor(script_state);
-    // TODO(crbug.com/1185033): Change this if-branch to DCHECK.
-    if (!v8_value->IsObject())
-      return v8::Undefined(script_state->GetIsolate());
-    return v8_value;
-  }
-};
-
-// Promise
-template <>
-struct ToV8Traits<IDLPromise> {
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
-      ScriptState* script_state,
-      const ScriptPromiseUntyped& script_promise) {
-    DCHECK(!script_promise.IsEmpty());
-    return script_promise.V8Value();
+      const ScriptObject& script_object) {
+    return script_object.V8ObjectFor(script_state);
   }
 };
 
 // ScriptWrappable
-
-namespace bindings {
-
-// Helper function for ScriptWrappable
-[[nodiscard]] inline v8::Local<v8::Value> ToV8HelperScriptWrappable(
-    ScriptState* script_state,
-    ScriptWrappable* script_wrappable) {
-  CHECK(script_wrappable);
-  v8::Local<v8::Object> wrapper;
-  if (LIKELY(
-          DOMDataStore::GetWrapper(script_state->GetIsolate(), script_wrappable)
-              .ToLocal(&wrapper))) {
-    return wrapper;
-  }
-
-  return script_wrappable->Wrap(script_state);
-}
-
-// For optimization
-[[nodiscard]] inline v8::Local<v8::Value> ToV8HelperScriptWrappable(
-    v8::Isolate* isolate,
-    ScriptWrappable* script_wrappable,
-    v8::Local<v8::Object> creation_context_object) {
-  CHECK(script_wrappable);
-  v8::Local<v8::Object> wrapper;
-  if (LIKELY(DOMDataStore::GetWrapper(isolate, script_wrappable)
-                 .ToLocal(&wrapper))) {
-    return wrapper;
-  }
-
-  CHECK(!creation_context_object.IsEmpty());
-  ScriptState* script_state =
-      ScriptState::ForRelevantRealm(isolate, creation_context_object);
-  return script_wrappable->Wrap(script_state);
-}
-
-}  // namespace bindings
-
 template <typename T>
 struct ToV8Traits<
     T,
     std::enable_if_t<std::is_base_of<ScriptWrappable, T>::value>> {
   [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
                                                  T* script_wrappable) {
-    return bindings::ToV8HelperScriptWrappable(script_state, script_wrappable);
-  }
-
-  // This overload is used for the case when a ToV8 caller does not have
-  // |script_state| but has a receiver object (a creation context object)
-  // which is needed to create a wrapper. If a wrapper object corresponding to
-  // the receiver object exists, ToV8 can return it without a call to
-  // CreationContext() which is slow.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
-      v8::Isolate* isolate,
-      T* script_wrappable,
-      v8::Local<v8::Object> creation_context_object) {
-    return bindings::ToV8HelperScriptWrappable(isolate, script_wrappable,
-                                               creation_context_object);
+    return script_wrappable->ToV8(script_state);
   }
 };
 
@@ -363,20 +283,6 @@ struct ToV8Traits<
                                                  const T& enumeration) {
     return V8String(script_state->GetIsolate(), enumeration.AsCStr());
   }
-
-  // TODO(crbug.com/1184543): Remove this overload.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
-                                                 const String& value) {
-    DCHECK(!value.empty());
-    return V8String(script_state->GetIsolate(), value);
-  }
-
-  // TODO(crbug.com/1184543): Remove this overload.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
-                                                 const AtomicString& value) {
-    DCHECK(!value.empty());
-    return V8String(script_state->GetIsolate(), value.GetString());
-  }
 };
 
 // NotShared
@@ -386,17 +292,6 @@ struct ToV8Traits<NotShared<T>> {
                                                  NotShared<T> value) {
     DCHECK(!value.IsNull());
     return ToV8Traits<T>::ToV8(script_state, value.Get());
-  }
-
-  // TODO(crbug.com/1183647): Remove this overload. It is used in generated
-  // code, but it might cause bugs because T* cannot tell whether it's NotShared
-  // or MaybeShared.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
-                                                 T* value) {
-    // TODO(canonmukai): Remove this if-branch and add DCHECK(value) instead.
-    if (!value)
-      return v8::Null(script_state->GetIsolate());
-    return ToV8Traits<T>::ToV8(script_state, value);
   }
 };
 
@@ -415,7 +310,7 @@ namespace bindings {
 
 // Helper function for IDLSequence
 template <typename ElementIDLType, typename ContainerType>
-[[nodiscard]] inline v8::Local<v8::Value> ToV8HelperSequence(
+[[nodiscard]] inline v8::Local<v8::Object> ToV8HelperSequence(
     ScriptState* script_state,
     const ContainerType& sequence) {
   auto current_it = sequence.begin();
@@ -423,29 +318,31 @@ template <typename ElementIDLType, typename ContainerType>
   const auto callback = [&current_it, end_it, script_state]() {
     DCHECK(end_it != current_it);
     std::ignore = end_it;
+    // SAFETY: v8::Array::New ensures the current callback will be called no
+    // more than sequence.size() times, so the current_it++ is safe.
+    auto it = UNSAFE_BUFFERS(current_it++);
     if constexpr (WTF::IsAnyMemberType<decltype(*current_it)>::value) {
-      return ToV8Traits<ElementIDLType>::ToV8(script_state,
-                                              (current_it++)->Get());
+      return ToV8Traits<ElementIDLType>::ToV8(script_state, it->Get());
     } else {
-      return ToV8Traits<ElementIDLType>::ToV8(script_state, *(current_it++));
+      return ToV8Traits<ElementIDLType>::ToV8(script_state, *it);
     }
   };
   return v8::Array::New(script_state->GetContext(),
                         base::checked_cast<size_t>(sequence.size()), callback)
-      .template As<v8::Value>()
+      .template As<v8::Object>()
       .ToLocalChecked();
 }
 
 // Helper function for IDLSequence in order to reduce code size. This avoids
 // template instantiation of ToV8HelperSequence<T> where T is a subclass of
-// bindings::DictionaryBase, bindings::UnionBase, or ScriptWrappable.
+// bindings::DictionaryBase, or ScriptWrappable.
 // Since these base classes are the leftmost base class,
 // HeapVector<Member<TheBase>> has the same binary representation with
 // HeapVector<Member<T>>. We leverage this fact to reduce the APK size.
 //
 // This hack reduces the APK size by 4 Kbytes as of 2021 March.
 template <typename BaseClassOfT, typename T>
-[[nodiscard]] inline v8::Local<v8::Value> ToV8HelperSequenceWithMemberUpcast(
+[[nodiscard]] inline v8::Local<v8::Object> ToV8HelperSequenceWithMemberUpcast(
     ScriptState* script_state,
     const HeapVector<Member<T>>& sequence) {
   static_assert(std::is_base_of_v<BaseClassOfT, T>);
@@ -455,7 +352,7 @@ template <typename BaseClassOfT, typename T>
 }
 
 template <typename BaseClassOfT, typename T>
-[[nodiscard]] inline v8::Local<v8::Value> ToV8HelperSequenceWithMemberUpcast(
+[[nodiscard]] inline v8::Local<v8::Object> ToV8HelperSequenceWithMemberUpcast(
     ScriptState* script_state,
     const HeapDeque<Member<T>>& sequence) {
   static_assert(std::is_base_of_v<BaseClassOfT, T>);
@@ -476,20 +373,17 @@ template <typename ValueIDLType, typename ContainerType>
     object = v8::Object::New(isolate);
   }
   v8::Local<v8::Context> context = script_state->GetContext();
-  typename ContainerType::const_iterator end = record.end();
-  for (typename ContainerType::const_iterator iter = record.begin();
-       iter != end; ++iter) {
+  for (const auto& [key, value] : record) {
     v8::Local<v8::Value> v8_value;
-    if constexpr (WTF::IsAnyMemberType<decltype(iter->second)>::value) {
-      v8_value =
-          ToV8Traits<ValueIDLType>::ToV8(script_state, iter->second.Get());
+    if constexpr (WTF::IsAnyMemberType<decltype(value)>::value) {
+      v8_value = ToV8Traits<ValueIDLType>::ToV8(script_state, value.Get());
     } else {
-      v8_value = ToV8Traits<ValueIDLType>::ToV8(script_state, iter->second);
+      v8_value = ToV8Traits<ValueIDLType>::ToV8(script_state, value);
     }
     // The object was just created so setting the property shouldn't fail.
     CHECK(object
-              ->CreateDataProperty(
-                  context, V8AtomicString(isolate, iter->first), v8_value)
+              ->CreateDataProperty(context, V8AtomicString(isolate, key),
+                                   v8_value)
               .ToChecked());
   }
   return object;
@@ -502,14 +396,14 @@ template <typename T>
 struct ToV8Traits<
     IDLSequence<T>,
     std::enable_if_t<std::is_base_of<bindings::DictionaryBase, T>::value>> {
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const HeapVector<Member<T>>& value) {
     return bindings::ToV8HelperSequenceWithMemberUpcast<
         bindings::DictionaryBase>(script_state, value);
   }
 
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const HeapVector<Member<const T>>& value) {
     return bindings::ToV8HelperSequenceWithMemberUpcast<
@@ -517,7 +411,7 @@ struct ToV8Traits<
   }
 
   // TODO(crbug.com/1185046): Remove this overload.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const v8::LocalVector<v8::Value>& value) {
     return bindings::ToV8HelperSequence<IDLAny>(script_state, value);
@@ -528,21 +422,21 @@ template <typename T>
 struct ToV8Traits<
     IDLSequence<T>,
     std::enable_if_t<std::is_base_of<ScriptWrappable, T>::value>> {
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const HeapVector<Member<T>>& value) {
     return bindings::ToV8HelperSequenceWithMemberUpcast<ScriptWrappable>(
         script_state, value);
   }
 
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const HeapVector<Member<const T>>& value) {
     return bindings::ToV8HelperSequenceWithMemberUpcast<ScriptWrappable>(
         script_state, value);
   }
 
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(
       ScriptState* script_state,
       const HeapDeque<Member<T>>& value) {
     return bindings::ToV8HelperSequenceWithMemberUpcast<ScriptWrappable>(
@@ -553,31 +447,11 @@ struct ToV8Traits<
 template <typename T>
 struct ToV8Traits<
     IDLSequence<T>,
-    std::enable_if_t<std::is_base_of<bindings::UnionBase, T>::value>> {
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
-      ScriptState* script_state,
-      const HeapVector<Member<T>>& value) {
-    return bindings::ToV8HelperSequenceWithMemberUpcast<bindings::UnionBase>(
-        script_state, value);
-  }
-
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
-      ScriptState* script_state,
-      const HeapVector<Member<const T>>& value) {
-    return bindings::ToV8HelperSequenceWithMemberUpcast<bindings::UnionBase>(
-        script_state, value);
-  }
-};
-
-template <typename T>
-struct ToV8Traits<
-    IDLSequence<T>,
     std::enable_if_t<!std::is_base_of<bindings::DictionaryBase, T>::value &&
-                     !std::is_base_of<ScriptWrappable, T>::value &&
-                     !std::is_base_of<bindings::UnionBase, T>::value>> {
+                     !std::is_base_of<ScriptWrappable, T>::value>> {
   template <typename ContainerType>
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
-                                                 const ContainerType& value) {
+  [[nodiscard]] static v8::Local<v8::Object> ToV8(ScriptState* script_state,
+                                                  const ContainerType& value) {
     return bindings::ToV8HelperSequence<T>(script_state, value);
   }
 };
@@ -595,22 +469,22 @@ struct ToV8Traits<IDLArray<T>> {
   template <typename ContainerType>
   [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
                                                  const ContainerType& value) {
-    v8::Local<v8::Value> v8_value =
+    v8::Local<v8::Object> v8_object =
         ToV8Traits<IDLSequence<T>>::ToV8(script_state, value);
-    v8_value.As<v8::Object>()->SetIntegrityLevel(script_state->GetContext(),
-                                                 v8::IntegrityLevel::kFrozen);
-    return v8_value;
+    v8_object->SetIntegrityLevel(script_state->GetContext(),
+                                 v8::IntegrityLevel::kFrozen);
+    return v8_object;
   }
 
   // TODO(crbug.com/1185046): Remove this overload.
   [[nodiscard]] static v8::Local<v8::Value> ToV8(
       ScriptState* script_state,
       const v8::LocalVector<v8::Value>& value) {
-    v8::Local<v8::Value> v8_value =
+    v8::Local<v8::Object> v8_object =
         ToV8Traits<IDLSequence<IDLAny>>::ToV8(script_state, value);
-    v8_value.As<v8::Object>()->SetIntegrityLevel(script_state->GetContext(),
-                                                 v8::IntegrityLevel::kFrozen);
-    return v8_value;
+    v8_object->SetIntegrityLevel(script_state->GetContext(),
+                                 v8::IntegrityLevel::kFrozen);
+    return v8_object;
   }
 };
 
@@ -709,14 +583,11 @@ template <>
 struct ToV8Traits<IDLNullable<IDLObject>> {
   [[nodiscard]] static v8::Local<v8::Value> ToV8(
       ScriptState* script_state,
-      const ScriptValue& script_value) {
-    // TODO(crbug.com/1183637): Remove this if-branch.
-    if (script_value.IsEmpty())
+      const ScriptObject& script_object) {
+    if (script_object.IsNull()) {
       return v8::Null(script_state->GetIsolate());
-
-    v8::Local<v8::Value> v8_value = script_value.V8ValueFor(script_state);
-    DCHECK(v8_value->IsNull() || v8_value->IsObject());
-    return v8_value;
+    }
+    return script_object.V8ObjectFor(script_state);
   }
 };
 
@@ -801,14 +672,6 @@ struct ToV8Traits<IDLNullable<NotShared<T>>> {
   [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
                                                  NotShared<T> value) {
     if (value.IsNull())
-      return v8::Null(script_state->GetIsolate());
-    return ToV8Traits<NotShared<T>>::ToV8(script_state, value);
-  }
-
-  // TODO(crbug.com/1183647): Remove this overload.
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
-                                                 T* value) {
-    if (!value)
       return v8::Null(script_state->GetIsolate());
     return ToV8Traits<NotShared<T>>::ToV8(script_state, value);
   }
@@ -903,21 +766,6 @@ struct ToV8Traits<IDLNullable<IDLRecord<K, V>>> {
   }
 };
 
-// Nullable Date
-// IDLDate must be used as IDLNullable<IDLDate>.
-template <>
-struct ToV8Traits<IDLNullable<IDLDate>> {
-  [[nodiscard]] static v8::Local<v8::Value> ToV8(
-      ScriptState* script_state,
-      const std::optional<base::Time> date) {
-    if (!date)
-      return v8::Null(script_state->GetIsolate());
-    return v8::Date::New(script_state->GetContext(),
-                         date->InMillisecondsFSinceUnixEpochIgnoringNull())
-        .ToLocalChecked();
-  }
-};
-
 // Union types
 
 template <typename T>
@@ -926,10 +774,7 @@ struct ToV8Traits<
     std::enable_if_t<std::is_base_of<bindings::UnionBase, T>::value>> {
   [[nodiscard]] static v8::Local<v8::Value> ToV8(ScriptState* script_state,
                                                  const T* value) {
-    // TODO(crbug.com/1185018): nullptr shouldn't be passed.  This should be
-    // DCHECK(value);
-    if (!value)
-      return v8::Null(script_state->GetIsolate());
+    DCHECK(value);
     return value->ToV8(script_state);
   }
 };
@@ -963,15 +808,6 @@ struct ToV8Traits<IDLOptional<T>> {
     return ToV8Traits<T>::ToV8(script_state, value);
   }
 };
-
-template <typename IDLType, typename BlinkType>
-ScriptPromise<IDLType> ToResolvedPromise(ScriptState* script_state,
-                                         BlinkType value) {
-  auto v8_value = ToV8Traits<IDLType>::ToV8(script_state, value);
-  return ScriptPromise<IDLType>(
-      script_state->GetIsolate(),
-      ScriptPromiseUntyped::ResolveRaw(script_state, v8_value));
-}
 
 }  // namespace blink
 

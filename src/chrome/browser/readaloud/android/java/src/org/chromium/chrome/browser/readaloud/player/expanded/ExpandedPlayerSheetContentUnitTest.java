@@ -16,6 +16,7 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -23,10 +24,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
@@ -44,6 +47,7 @@ import java.util.Locale;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class ExpandedPlayerSheetContentUnitTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private BottomSheetController mBottomSheetController;
     @Mock private InteractionHandler mInteractionHandler;
     @Mock private PropertyModel mModel;
@@ -69,7 +73,6 @@ public class ExpandedPlayerSheetContentUnitTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mContext = ApplicationProvider.getApplicationContext();
         mPlayDrawable = mContext.getDrawable(R.drawable.play_button);
         mPauseDrawable = mContext.getDrawable(R.drawable.pause_button);
@@ -212,12 +215,12 @@ public class ExpandedPlayerSheetContentUnitTest {
         mContent.onPlaybackStateChanged(PlaybackListener.State.PLAYING);
         assertTrue(mErrorLayout.getVisibility() == View.GONE);
         assertTrue(mNormalLayout.getVisibility() == View.VISIBLE);
-        assertEquals(mPlayPauseButton.getContentDescription(), "Pause");
+        assertEquals("Pause", mPlayPauseButton.getContentDescription());
 
         mContent.onPlaybackStateChanged(PlaybackListener.State.PAUSED);
         assertTrue(mErrorLayout.getVisibility() == View.GONE);
         assertTrue(mNormalLayout.getVisibility() == View.VISIBLE);
-        assertEquals(mPlayPauseButton.getContentDescription(), "Play");
+        assertEquals("Play", mPlayPauseButton.getContentDescription());
     }
 
     @Test
@@ -242,7 +245,7 @@ public class ExpandedPlayerSheetContentUnitTest {
         mContent.showOptionsMenu();
         verify(mModel).set(PlayerProperties.SHOW_MINI_PLAYER_ON_DISMISS, false);
         verify(mBottomSheetController).hideContent(mContent, false);
-        verify(mBottomSheetController).requestShowContent(mOptionsMenu, true);
+        verify(mBottomSheetController).requestShowContent(mOptionsMenu, false);
     }
 
     @Test
@@ -250,7 +253,7 @@ public class ExpandedPlayerSheetContentUnitTest {
         mContent.showSpeedMenu();
         verify(mModel).set(PlayerProperties.SHOW_MINI_PLAYER_ON_DISMISS, false);
         verify(mBottomSheetController).hideContent(mContent, false);
-        verify(mBottomSheetController).requestShowContent(mSpeedMenu, true);
+        verify(mBottomSheetController).requestShowContent(mSpeedMenu, false);
     }
 
     @Test
@@ -263,5 +266,13 @@ public class ExpandedPlayerSheetContentUnitTest {
     @Test
     public void testCanSuppressInAnyState() {
         assertTrue(mContent.canSuppressInAnyState());
+    }
+
+    @Test
+    public void testGetVerticalScrollOffset() {
+        ScrollView scrollView = mContentView.findViewById(R.id.scroll_view);
+        scrollView.setPadding(0, 100, 0, 100);
+        scrollView.scrollTo(0, 100);
+        assertEquals(100, mContent.getVerticalScrollOffset());
     }
 }

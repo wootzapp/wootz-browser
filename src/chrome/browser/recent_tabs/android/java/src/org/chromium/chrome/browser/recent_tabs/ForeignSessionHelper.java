@@ -11,6 +11,9 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.CollectionUtil;
+import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -28,6 +31,7 @@ import java.util.List;
  * This class exposes to Java information about sessions, windows, and tabs on the user's synced
  * devices.
  */
+@NullMarked
 public class ForeignSessionHelper {
     private long mNativeForeignSessionHelper;
 
@@ -286,6 +290,7 @@ public class ForeignSessionHelper {
 
         for (ForeignSessionTab tab : sessionTabs) {
             tabIds.add(tab.id);
+            RecordUserAction.record("MobileCrossDeviceTabJourney");
         }
         if (tabIds.size() == 0) {
             return 0;
@@ -330,6 +335,9 @@ public class ForeignSessionHelper {
         void setInvalidationsForSessionsEnabled(long nativeForeignSessionHelper, boolean enabled);
 
         int openForeignSessionTabsAsBackgroundTabs(
-                long nativeForeignSessionHelper, Tab tab, int[] tabIds, String sessionTag);
+                long nativeForeignSessionHelper,
+                @Nullable Tab tab,
+                int[] tabIds,
+                String sessionTag);
     }
 }

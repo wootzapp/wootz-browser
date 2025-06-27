@@ -68,22 +68,10 @@ void UnpinAppWithIDFromShelf(const std::string& app_id);
 apps::LaunchSource ShelfLaunchSourceToAppsLaunchSource(
     ash::ShelfLaunchSource source);
 
-// Checks if |BrowserAppShelfController| and |BrowserAppShelfItemController| can
-// handle the app indicated by |app_id|. Returns true if the app is a web app,
-// system web app, or Lacros browser (kWeb, kSystemWeb, kStandaloneBrowser app
-// service types respectively).
-bool BrowserAppShelfControllerShouldHandleApp(const std::string& app_id,
-                                              Profile* profile);
-
 // Records an app launch from shelf event in `ScalableIph`. Note that
 // `ScalableIph` records events for a subset of app ids.
 void MaybeRecordAppLaunchForScalableIph(const std::string& app_id,
                                         Profile* profile,
                                         ash::ShelfLaunchSource source);
-
-// Displays a nudge notifying users of affected web apps now opening in
-// standalone windows by default, which previously opened in tabs.
-void MaybeShowStandaloneMigrationNudge(const std::string& app_id,
-                                       Profile* profile);
 
 #endif  // CHROME_BROWSER_UI_ASH_SHELF_CHROME_SHELF_CONTROLLER_UTIL_H_

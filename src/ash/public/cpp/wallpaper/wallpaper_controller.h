@@ -33,7 +33,6 @@ namespace ash {
 
 class WallpaperControllerObserver;
 class WallpaperControllerClient;
-class WallpaperDragDropDelegate;
 class WallpaperDriveFsDelegate;
 
 // Used by Chrome to set the wallpaper displayed by ash.
@@ -42,6 +41,12 @@ class ASH_PUBLIC_EXPORT WallpaperController {
   // A callback for confirming if Set*Wallpaper operations completed
   // successfully.
   using SetWallpaperCallback = base::OnceCallback<void(bool success)>;
+
+  // A callback specifically for `SetTimeOfDayWallpaper` that also gives
+  // information about which wallpaper image was set, and if the operation was
+  // successful.
+  using SetTimeOfDayWallpaperCallback =
+      base::OnceCallback<void(uint64_t unit_id, bool success)>;
 
   using DailyGooglePhotosIdCache = base::HashingLRUCacheSet<uint32_t>;
 
@@ -55,12 +60,6 @@ class ASH_PUBLIC_EXPORT WallpaperController {
 
   // Sets the client interface, used to show the wallpaper picker, etc.
   virtual void SetClient(WallpaperControllerClient* client) = 0;
-
-  // Gets/sets the delegate for drag-and-drop events over the wallpaper.
-  // NOTE: May be `nullptr` when drag-and-drop related features are disabled.
-  virtual WallpaperDragDropDelegate* GetDragDropDelegate() = 0;
-  virtual void SetDragDropDelegate(
-      std::unique_ptr<WallpaperDragDropDelegate> delegate) = 0;
 
   virtual void SetDriveFsDelegate(
       std::unique_ptr<WallpaperDriveFsDelegate> drivefs_delegate) = 0;
@@ -157,10 +156,11 @@ class ASH_PUBLIC_EXPORT WallpaperController {
 
   // Downloads and sets a time of day wallpaper to be the active wallpaper.
   // |acount_id|: The user's account id.
-  // |callback|: Called with a boolean to indicate success when the wallpaper is
-  // fetched and decoded.
-  virtual void SetTimeOfDayWallpaper(const AccountId& account_id,
-                                     SetWallpaperCallback callback) = 0;
+  // |callback|: Called with the unit_id of the selected wallpaper, and a
+  // boolean to indicate success when the wallpaper is fetched and decoded.
+  virtual void SetTimeOfDayWallpaper(
+      const AccountId& account_id,
+      SetTimeOfDayWallpaperCallback callback) = 0;
 
   // Sets the user's wallpaper to be the default wallpaper. Note: different user
   // types may have different default wallpapers.
@@ -233,6 +233,7 @@ class ASH_PUBLIC_EXPORT WallpaperController {
   // or the image failed to decode.
   virtual void SetSeaPenWallpaper(const AccountId& account_id,
                                   uint32_t image_id,
+                                  bool preview_mode,
                                   SetWallpaperCallback callback) = 0;
 
   // Confirms the wallpaper being previewed to be set as the actual user
@@ -344,9 +345,14 @@ class ASH_PUBLIC_EXPORT WallpaperController {
   virtual bool IsWallpaperControlledByPolicy(
       const AccountId& account_id) const = 0;
 
-  // Returns a struct with info about the active user's wallpaper if there is an
-  // active user.
+  // Returns active user's `WallpaperInfo` if there is an active user that has
+  // valid `WallpaperInfo`.
   virtual std::optional<WallpaperInfo> GetActiveUserWallpaperInfo() const = 0;
+
+  // Returns a `WallpaperInfo` for the given `account_id` if `account_id` exists
+  // and has valid saved info.
+  virtual std::optional<WallpaperInfo> GetWallpaperInfoForAccountId(
+      const AccountId& account_id) const = 0;
 
   // Set and store the collection id used to update refreshable wallpapers.
   // Empty if daily refresh is not enabled.
@@ -367,6 +373,10 @@ class ASH_PUBLIC_EXPORT WallpaperController {
   // Sync wallpaper infos and images.
   // |account_id|: The account id of the user.
   virtual void SyncLocalAndRemotePrefs(const AccountId& account_id) = 0;
+
+  // The `AccountId` for the user whose wallpaper is currently displayed. May be
+  // empty `AccountId` for things like OOBE and device policy wallpaper.
+  virtual const AccountId& CurrentAccountId() const = 0;
 };
 
 }  // namespace ash

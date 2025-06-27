@@ -13,6 +13,7 @@
 #include "build/build_config.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/permissions/permission_hats_trigger_helper.h"
 #include "components/permissions/permission_request_data.h"
 #include "components/permissions/permission_request_enums.h"
 #include "components/permissions/request_type.h"
@@ -116,10 +117,6 @@ class PermissionRequest {
       bool format_origin_bold);
 #endif
 
-  bool SupportsLifetime() const;
-  void SetLifetime(std::optional<base::TimeDelta> lifetime);
-  const std::optional<base::TimeDelta>& GetLifetime() const;
-  std::optional<base::TimeDelta> lifetime_;
   // Returns a weak pointer to this instance.
   base::WeakPtr<PermissionRequest> GetWeakPtr();
 
@@ -150,6 +147,13 @@ class PermissionRequest {
   // If not provided, the generic text for this button will be used instead.
   // The default implementation returns std::nullopt (ie, use generic text).
   virtual std::optional<std::u16string> GetAllowAlwaysText() const;
+
+  // Returns the text to be used in the "block" button of the permission
+  // prompt.
+  //
+  // If not provided, the generic text for this button will be used instead.
+  // The default implementation returns std::nullopt (ie, use generic text).
+  virtual std::optional<std::u16string> GetBlockText() const;
 
   // Whether the request was initiated by the user clicking on the permission
   // element.
@@ -213,6 +217,12 @@ class PermissionRequest {
 
   bool uses_automatic_embargo() const { return uses_automatic_embargo_; }
 
+  std::optional<PermissionHatsTriggerHelper::PreviewParametersForHats>
+  get_preview_parameters() const;
+
+  void set_preview_parameters(
+      PermissionHatsTriggerHelper::PreviewParametersForHats preview_parmeters);
+
  protected:
   // Sets whether this request is permission element initiated, for testing
   // subclasses only.
@@ -230,6 +240,9 @@ class PermissionRequest {
   base::OnceClosure delete_callback_;
 
   const bool uses_automatic_embargo_ = true;
+
+  std::optional<PermissionHatsTriggerHelper::PreviewParametersForHats>
+      preview_parameters_;
 
   base::WeakPtrFactory<PermissionRequest> weak_factory_{this};
 };

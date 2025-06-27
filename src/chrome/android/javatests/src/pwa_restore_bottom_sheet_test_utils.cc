@@ -10,9 +10,10 @@
 #include "base/android/jni_array.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/android/webapk/webapk_sync_service.h"
+#include "chrome/browser/android/webapk/webapk_sync_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_test_util_jni/PwaRestoreBottomSheetTestUtils_jni.h"
 
 using base::android::JavaParamRef;
@@ -35,7 +36,7 @@ void JNI_PwaRestoreBottomSheetTestUtils_WaitForWebApkDatabaseInitialization(
   }
 
   webapk::WebApkSyncService* service =
-      webapk::WebApkSyncService::GetForProfile(profile);
+      webapk::WebApkSyncServiceFactory::GetForProfile(profile);
   service->RegisterDoneInitializingCallback(
       base::BindOnce(&OnWebApkDatabaseInitialized, env));
 }
@@ -58,7 +59,7 @@ void JNI_PwaRestoreBottomSheetTestUtils_SetAppListForRestoring(
                                          &last_used_in_days_vector);
 
   webapk::WebApkSyncService* service =
-      webapk::WebApkSyncService::GetForProfile(profile);
+      webapk::WebApkSyncServiceFactory::GetForProfile(profile);
   service->MergeSyncDataForTesting(app_vector, last_used_in_days_vector);
 }
 

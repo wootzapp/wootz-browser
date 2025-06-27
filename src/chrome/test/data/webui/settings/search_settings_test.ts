@@ -43,12 +43,12 @@ suite('SearchSettingsTest', function() {
               div.querySelector('.search-highlight-wrapper');
           assertTrue(!!highlightWrapper);
 
-          const originalContent = highlightWrapper!.querySelector(
+          const originalContent = highlightWrapper.querySelector(
               '.search-highlight-original-content');
           assertTrue(!!originalContent);
-          assertEquals(optionText, originalContent!.textContent);
+          assertEquals(optionText, originalContent.textContent);
 
-          const searchHits = highlightWrapper!.querySelectorAll<HTMLElement>(
+          const searchHits = highlightWrapper.querySelectorAll<HTMLElement>(
               '.search-highlight-hit');
           assertEquals(1, searchHits.length);
           assertEquals('Settings', searchHits[0]!.textContent);
@@ -107,6 +107,7 @@ suite('SearchSettingsTest', function() {
         getTrustedHtml(`<settings-section hidden-by-search>
            <cr-action-menu>${text}</cr-action-menu>
            <cr-dialog>${text}</cr-dialog>
+           <cr-icon>${text}</cr-icon>
            <cr-icon-button>${text}</cr-icon-button>
            <cr-slider>${text}</cr-slider>
            <dialog>${text}</dialog>
@@ -159,13 +160,16 @@ suite('SearchSettingsTest', function() {
          `;
       }
 
-      get properties() {
+      static get properties() {
         return {
-          noSearch: Boolean,
+          noSearch: {
+            type: Boolean,
+            value: true,
+          },
         };
       }
 
-      noSearch: boolean = true;
+      declare noSearch: boolean;
     }
 
     customElements.define('dummy-test-element', DummyTestElement);
@@ -249,7 +253,7 @@ suite('SearchSettingsTest', function() {
       const originalContent =
           highlightWrapper.querySelector('.search-highlight-original-content');
       assertTrue(!!originalContent);
-      originalContent!.childNodes[0]!.nodeValue = 'Foo';
+      originalContent.childNodes[0]!.nodeValue = 'Foo';
       return new Promise<void>(resolve => {
         setTimeout(() => {
           assertFalse(section.hiddenBySearch);
@@ -275,7 +279,7 @@ suite('SearchSettingsTest', function() {
     const highlight = mydiv.querySelector('.search-highlight-wrapper');
     assertTrue(!!highlight);
 
-    const searchHits = highlight!.querySelectorAll('.search-highlight-hit');
+    const searchHits = highlight.querySelectorAll('.search-highlight-hit');
     assertEquals(1, searchHits.length);
     assertEquals('Match', searchHits[0]!.textContent);
   });

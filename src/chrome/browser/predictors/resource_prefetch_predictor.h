@@ -82,7 +82,6 @@ struct PreconnectRequest {
 
 struct PrefetchRequest {
   PrefetchRequest(const GURL& url,
-                  const net::NetworkAnonymizationKey& network_anonymization_key,
                   network::mojom::RequestDestination destination);
 
   PrefetchRequest(const PrefetchRequest&) = default;
@@ -91,7 +90,6 @@ struct PrefetchRequest {
   PrefetchRequest& operator=(PrefetchRequest&&) = default;
 
   GURL url;
-  net::NetworkAnonymizationKey network_anonymization_key;
   network::mojom::RequestDestination destination;
 };
 
@@ -183,11 +181,6 @@ class ResourcePrefetchPredictor : public history::HistoryServiceObserver {
   // Returns true if preconnect data exists for the |main_frame_url|.
   virtual bool IsUrlPreconnectable(const GURL& main_frame_url) const;
 
-  // Sets the |observer| to be notified when the resource prefetch predictor
-  // data changes. Previously registered observer will be discarded. Call
-  // this with nullptr parameter to de-register observer.
-  void SetObserverForTesting(TestObserver* observer);
-
   // Returns true iff there is OriginData that can be used for a |url| and fills
   // |prediction| with origins and hosts that need to be preconnected and
   // preresolved respectively. |prediction| pointer may be nullptr to get return
@@ -199,15 +192,34 @@ class ResourcePrefetchPredictor : public history::HistoryServiceObserver {
   // assembled a PageRequestSummary.
   virtual void RecordPageRequestSummary(const PageRequestSummary& summary);
 
+  // Add/remove the |observer| to be notified when the resource prefetch
+  // predictor
+  void AddObserverForTesting(TestObserver* observer);
+  void RemoveObserverForTesting(TestObserver* observer);
+
   // Record LCP element locators after a page has finished loading and LCP has
   // been determined.
-  void LearnLcpp(const GURL& url, const LcppDataInputs& inputs);
+  void LearnLcpp(const std::optional<url::Origin>& initiator_origin,
+                 const GURL& url,
+                 const LcppDataInputs& inputs);
 
   // Deletes all URLs from the predictor database and caches.
   void DeleteAllUrls();
 
   // Returns LcppStat for the `url`, or std::nullopt on failure.
-  std::optional<LcppStat> GetLcppStat(const GURL& url) const;
+  std::optional<LcppStat> GetLcppStat(
+      const std::optional<url::Origin>& initiator_origin,
+      const GURL& url) const;
+
+  void OnLcpUpdatedForTesting(
+      const std::optional<std::string>& element_locator);
+  void OnLcpTimingPredictedForTesting(
+      const std::optional<std::string>& element_locator);
+
+  void GetPreconnectAndPrefetchRequest(
+      const std::optional<url::Origin>& initiator_origin,
+      const GURL& url,
+      PreconnectPrediction& prediction);
 
  private:
   friend class LoadingPredictor;
@@ -320,21 +332,14 @@ class ResourcePrefetchPredictor : public history::HistoryServiceObserver {
   void ConnectToHistoryService();
 
   // Used for testing to inject mock tables.
-  void set_mock_tables(scoped_refptr<ResourcePrefetchPredictorTables> tables) {
+  void set_mock_tables_for_testing(
+      scoped_refptr<ResourcePrefetchPredictorTables> tables) {
     tables_ = tables;
+    use_lcpp_mock_table_for_testing_ = true;
   }
 
-  // LCPP histogram recording functions.
-  bool RecordLcpElementLocatorHistogram(LcppData& data,
-                                        const std::string& host,
-                                        const std::string& lcp_element_locator);
-  bool RecordLcpInfluencerScriptUrlsHistogram(
-      LcppData& data,
-      const std::string& host,
-      const std::vector<GURL>& lcp_influencer_scripts);
-
   const raw_ptr<Profile, DanglingUntriaged> profile_;
-  raw_ptr<TestObserver> observer_;
+  std::set<raw_ptr<TestObserver>> test_observer_set_;
   const LoadingPredictorConfig config_;
   InitializationState initialization_state_;
   scoped_refptr<ResourcePrefetchPredictorTables> tables_;
@@ -343,6 +348,7 @@ class ResourcePrefetchPredictor : public history::HistoryServiceObserver {
   std::unique_ptr<RedirectDataMap> host_redirect_data_;
   std::unique_ptr<OriginDataMap> origin_data_;
   std::unique_ptr<LcppDataMap> lcpp_data_;
+  bool use_lcpp_mock_table_for_testing_ = false;
 
   base::ScopedObservation<history::HistoryService,
                           history::HistoryServiceObserver>
@@ -370,6 +376,12 @@ class TestObserver {
   virtual void OnNavigationLearned(const PageRequestSummary& summary) {}
 
   virtual void OnLcppLearned() {}
+
+  virtual void OnLcpUpdated(const std::optional<std::string>& element_locator) {
+  }
+
+  virtual void OnLcpTimingPredicted(
+      const std::optional<std::string>& element_locator) {}
 
  protected:
   // |predictor| must be non-NULL and has to outlive the TestObserver.

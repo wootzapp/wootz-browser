@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/os_crypt/async/browser/dpapi_key_provider.h"
 
 #include <windows.h>
@@ -11,6 +16,7 @@
 #include "base/base64.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/notreached.h"
 #include "base/types/expected.h"
 #include "base/win/scoped_localalloc.h"
 #include "components/os_crypt/async/common/algorithm.mojom.h"
@@ -110,11 +116,33 @@ void DPAPIKeyProvider::GetKey(KeyCallback callback) {
 
   if (result.has_value()) {
     std::move(callback).Run(kKeyTag, std::move(result.value()));
-  } else {
-    std::move(callback).Run(std::string(), std::nullopt);
+    return;
   }
+  KeyError status;
+  switch (result.error()) {
+    case KeyStatus::kSuccess:
+      NOTREACHED();
+    case KeyStatus::kKeyNotFound:
+      status = KeyError::kPermanentlyUnavailable;
+      break;
+    case KeyStatus::kKeyDecodeFailure:
+      status = KeyError::kPermanentlyUnavailable;
+      break;
+    case KeyStatus::kKeyTooShort:
+      status = KeyError::kPermanentlyUnavailable;
+      break;
+    case KeyStatus::kInvalidKeyHeader:
+      status = KeyError::kPermanentlyUnavailable;
+      break;
+    case KeyStatus::kDPAPIDecryptFailure:
+      status = KeyError::kTemporarilyUnavailable;
+      break;
+    case KeyStatus::kInvalidKeyLength:
+      status = KeyError::kPermanentlyUnavailable;
+      break;
+  }
+  std::move(callback).Run(kKeyTag, base::unexpected(status));
 }
-
 bool DPAPIKeyProvider::UseForEncryption() {
   return true;
 }

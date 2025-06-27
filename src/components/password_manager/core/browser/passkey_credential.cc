@@ -4,9 +4,13 @@
 
 #include "components/password_manager/core/browser/passkey_credential.h"
 
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "base/feature_list.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -16,10 +20,6 @@
 #include "components/sync/protocol/webauthn_credential_specifics.pb.h"
 #include "components/webauthn/core/browser/passkey_model_utils.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_ANDROID)
-#include "components/webauthn/android/webauthn_cred_man_delegate.h"
-#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace password_manager {
 
@@ -64,12 +64,7 @@ namespace {
 
 int GetAuthenticationLabelForPasskeysFromAndroid() {
 #if BUILDFLAG(IS_ANDROID)
-  // CredMan is Android specific and when it is enabled, the label changes.
-  return webauthn::WebAuthnCredManDelegate::CredManMode() ==
-                 webauthn::WebAuthnCredManDelegate::CredManEnabledMode::
-                     kNonGpmPasskeys
-             ? IDS_PASSWORD_MANAGER_PASSKEY
-             : IDS_PASSWORD_MANAGER_USE_SCREEN_LOCK;
+  return IDS_PASSWORD_MANAGER_PASSKEY;
 #else
   return IDS_PASSWORD_MANAGER_USE_SCREEN_LOCK;
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -102,9 +97,15 @@ PasskeyCredential::PasskeyCredential(PasskeyCredential&&) = default;
 PasskeyCredential& PasskeyCredential::operator=(PasskeyCredential&&) = default;
 
 std::u16string PasskeyCredential::GetAuthenticatorLabel() const {
-  if (authenticator_label_) {
-    return *authenticator_label_;
-  }
+  return authenticator_label_.value_or(GetAuthenticatorLabelBySourceType());
+}
+
+void PasskeyCredential::SetAuthenticatorLabel(
+    const std::u16string& authenticator_label) {
+  authenticator_label_ = authenticator_label;
+}
+
+std::u16string PasskeyCredential::GetAuthenticatorLabelBySourceType() const {
   int id;
   switch (source_) {
     case Source::kWindowsHello:

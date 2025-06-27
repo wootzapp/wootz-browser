@@ -71,8 +71,6 @@ void MemorySaverModePolicy::OnBeforeTabRemoved(
 }
 
 void MemorySaverModePolicy::OnPassedToGraph(Graph* graph) {
-
-  graph_ = graph;
   graph->AddPageNodeObserver(this);
   graph->GetRegisteredObjectAs<TabPageDecorator>()->AddObserver(this);
 }
@@ -91,13 +89,12 @@ void MemorySaverModePolicy::OnTakenFromGraph(Graph* graph) {
     tab_page_decorator->RemoveObserver(this);
   }
   graph->RemovePageNodeObserver(this);
-  graph_ = nullptr;
 }
 
 void MemorySaverModePolicy::OnMemorySaverModeChanged(bool enabled) {
-  high_efficiency_mode_enabled_ = enabled;
+  memory_saver_mode_enabled_ = enabled;
 
-  if (high_efficiency_mode_enabled_) {
+  if (memory_saver_mode_enabled_) {
     DCHECK(active_discard_timers_.empty());
     StartAllDiscardTimers();
   } else {
@@ -111,18 +108,18 @@ base::TimeDelta MemorySaverModePolicy::GetTimeBeforeDiscardForTesting() const {
 
 void MemorySaverModePolicy::SetMode(MemorySaverModeAggressiveness mode) {
   mode_ = mode;
-  if (high_efficiency_mode_enabled_) {
+  if (memory_saver_mode_enabled_) {
     active_discard_timers_.clear();
     StartAllDiscardTimers();
   }
 }
 
 bool MemorySaverModePolicy::IsMemorySaverDiscardingEnabled() const {
-  return high_efficiency_mode_enabled_;
+  return memory_saver_mode_enabled_;
 }
 
 void MemorySaverModePolicy::StartAllDiscardTimers() {
-  for (const PageNode* page_node : graph_->GetAllPageNodes()) {
+  for (const PageNode* page_node : GetOwningGraph()->GetAllPageNodes()) {
     TabPageDecorator::TabHandle* tab_handle =
         TabPageDecorator::FromPageNode(page_node);
     if (tab_handle && !page_node->IsVisible()) {
@@ -137,7 +134,7 @@ void MemorySaverModePolicy::StartDiscardTimerIfEnabled(
     base::TimeDelta time_before_discard) {
   if (IsMemorySaverDiscardingEnabled()) {
     TabRevisitTracker* revisit_tracker =
-        graph_->GetRegisteredObjectAs<TabRevisitTracker>();
+        GetOwningGraph()->GetRegisteredObjectAs<TabRevisitTracker>();
     CHECK(revisit_tracker);
 
     TabRevisitTracker::StateBundle state =
@@ -194,9 +191,11 @@ void MemorySaverModePolicy::DiscardPageTimerCallback(
     StartDiscardTimerIfEnabled(
         tab_handle, requested_time_before_discard - elapsed_not_suspended);
   } else {
-    PageDiscardingHelper::GetFromGraph(graph_)->ImmediatelyDiscardMultiplePages(
-        {tab_handle->page_node()},
-        PageDiscardingHelper::DiscardReason::PROACTIVE);
+    GetOwningGraph()
+        ->GetRegisteredObjectAs<PageDiscardingHelper>()
+        ->ImmediatelyDiscardMultiplePages(
+            {tab_handle->page_node()},
+            DiscardEligibilityPolicy::DiscardReason::PROACTIVE);
   }
 }
 
@@ -210,7 +209,7 @@ base::TimeDelta MemorySaverModePolicy::GetTimeBeforeDiscardForCurrentMode()
     case MemorySaverModeAggressiveness::kAggressive:
       return base::Hours(2);
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 int MemorySaverModePolicy::GetMaxNumRevisitsForCurrentMode() const {
@@ -222,7 +221,7 @@ int MemorySaverModePolicy::GetMaxNumRevisitsForCurrentMode() const {
     case MemorySaverModeAggressiveness::kAggressive:
       return 5;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace performance_manager::policies

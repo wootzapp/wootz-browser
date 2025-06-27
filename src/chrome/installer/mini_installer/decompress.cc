@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/installer/mini_installer/decompress.h"
 
 #include <windows.h>
@@ -218,7 +223,7 @@ bool InitializeFdi() {
         L"C:\\Windows\\system32\\cabinet.dll",
     };
 
-    wchar_t path[MAX_PATH] = {0};
+    wchar_t path[MAX_PATH] = {};
     for (size_t i = 0; i < _countof(candidate_paths); ++i) {
       path[0] = L'\0';
       DWORD result =

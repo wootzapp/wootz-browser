@@ -24,6 +24,7 @@
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
 
@@ -56,9 +57,7 @@ VirtualKeyboardTray::VirtualKeyboardTray(
   // First sets the image with non-Jelly color to get the image dimension and
   // create the correct paddings, and then updates the color if Jelly is
   // enabled.
-  if (chromeos::features::IsJellyEnabled()) {
-    UpdateTrayItemColor(is_active());
-  }
+  UpdateTrayItemColor(is_active());
 
   // The Shell may not exist in some unit tests.
   if (Shell::HasInstance()) {
@@ -66,6 +65,9 @@ VirtualKeyboardTray::VirtualKeyboardTray(
     Shell::Get()->AddShellObserver(this);
     keyboard::KeyboardUIController::Get()->AddObserver(this);
   }
+
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ASH_VIRTUAL_KEYBOARD_TRAY_ACCESSIBLE_NAME));
 }
 
 VirtualKeyboardTray::~VirtualKeyboardTray() {
@@ -111,11 +113,6 @@ void VirtualKeyboardTray::Initialize() {
       Shell::Get()->accessibility_controller()->virtual_keyboard().enabled());
 }
 
-std::u16string VirtualKeyboardTray::GetAccessibleNameForTray() {
-  return l10n_util::GetStringUTF16(
-      IDS_ASH_VIRTUAL_KEYBOARD_TRAY_ACCESSIBLE_NAME);
-}
-
 void VirtualKeyboardTray::HandleLocaleChange() {
   icon_->SetTooltipText(l10n_util::GetStringUTF16(
       IDS_ASH_STATUS_TRAY_ACCESSIBILITY_VIRTUAL_KEYBOARD));
@@ -127,7 +124,6 @@ void VirtualKeyboardTray::HideBubbleWithView(
 void VirtualKeyboardTray::ClickedOutsideBubble(const ui::LocatedEvent& event) {}
 
 void VirtualKeyboardTray::UpdateTrayItemColor(bool is_active) {
-  DCHECK(chromeos::features::IsJellyEnabled());
   icon_->SetImage(ui::ImageModel::FromVectorIcon(
       kShelfKeyboardNewuiIcon,
       is_active ? cros_tokens::kCrosSysSystemOnPrimaryContainer

@@ -14,56 +14,51 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 
 import org.chromium.base.test.BaseRobolectricTestRule;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
 /** JUnit tests of the class {@link PrivacyGuidePagerAdapter} */
 @RunWith(ParameterizedRobolectricTestRunner.class)
-@EnableFeatures({
-    ChromeFeatureList.PRIVACY_GUIDE_ANDROID_3,
-    ChromeFeatureList.PRIVACY_GUIDE_PRELOAD_ANDROID
-})
 public class PrivacyGuidePagerAdapterTest {
+    public static Collection<Object[]> generateBooleanCombinations(int nElements) {
+        Collection<Object[]> result = new ArrayList<>();
+        generate(result, new Boolean[nElements], 0);
+        return result;
+    }
+
+    private static void generate(Collection<Object[]> result, Boolean[] current, int index) {
+        // Base case
+        if (index == current.length) {
+            // Row is filled so add the current combination to the result and return
+            result.add(current.clone());
+            return;
+        }
+
+        // Set current index to false and recurse
+        current[index] = false;
+        generate(result, current, index + 1);
+        // Set current index to true and recurse
+        current[index] = true;
+        generate(result, current, index + 1);
+    }
+
     @Parameters
     public static Collection<Object[]> data() {
-        return Arrays.asList(
-                new Object[][] {
-                    {false, false, false, false},
-                    {false, false, false, true},
-                    {false, false, true, false},
-                    {false, false, true, true},
-                    {false, true, false, false},
-                    {false, true, false, true},
-                    {false, true, true, false},
-                    {false, true, true, true},
-                    {true, false, false, false},
-                    {true, false, false, true},
-                    {true, false, true, false},
-                    {true, false, true, true},
-                    {true, true, false, false},
-                    {true, true, false, true},
-                    {true, true, true, false},
-                    {true, true, true, true}
-                });
+        int nElements = 4; // Number of elements in each combination
+        return generateBooleanCombinations(nElements);
     }
 
     @Rule(order = -2)
     public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
-
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
     @Parameter(0)
     public boolean mShouldDisplayHistorySync;
@@ -75,7 +70,7 @@ public class PrivacyGuidePagerAdapterTest {
     public boolean mShouldDisplayCookies;
 
     @Parameter(3)
-    public boolean mShouldDisplayPreload;
+    public boolean mShouldDisplayAdTopics;
 
     private StepDisplayHandler mStepDisplayHandler;
     private FragmentScenario mScenario;
@@ -115,15 +110,15 @@ public class PrivacyGuidePagerAdapterTest {
                     }
 
                     @Override
-                    public boolean shouldDisplayPreload() {
-                        return mShouldDisplayPreload;
+                    public boolean shouldDisplayAdTopics() {
+                        return mShouldDisplayAdTopics;
                     }
                 };
         mPagerAdapter =
                 new PrivacyGuidePagerAdapter(
                         mFragment,
                         mStepDisplayHandler,
-                        PrivacyGuideFragment.ALL_FRAGMENT_TYPE_ORDER_PG3);
+                        PrivacyGuideFragment.ALL_FRAGMENT_TYPE_ORDER);
     }
 
     private Set<Class> getDisplayedFragmentClasses() {
@@ -150,10 +145,9 @@ public class PrivacyGuidePagerAdapterTest {
                 "Safe Browsing step displayed incorrectly",
                 mShouldDisplaySafeBrowsing,
                 fragmentClassSet.contains(SafeBrowsingFragment.class));
-        Assert.assertTrue(fragmentClassSet.contains(SearchSuggestionsFragment.class));
         Assert.assertEquals(
-                "Preload step displayed incorrectly",
-                mShouldDisplayPreload,
-                fragmentClassSet.contains(PreloadFragment.class));
+                "Ad Topics step displayed incorrectly",
+                mShouldDisplayAdTopics,
+                fragmentClassSet.contains(AdTopicsFragment.class));
     }
 }

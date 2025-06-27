@@ -13,6 +13,7 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/task/thread_pool.h"
@@ -167,9 +168,8 @@ base::FilePath FirstPartySetsComponentInstallerPolicy::GetRelativeInstallDir()
 // static
 void FirstPartySetsComponentInstallerPolicy::GetPublicKeyHash(
     std::vector<uint8_t>* hash) {
-  hash->assign(kFirstPartySetsPublicKeySHA256,
-               kFirstPartySetsPublicKeySHA256 +
-                   std::size(kFirstPartySetsPublicKeySHA256));
+  hash->assign(std::begin(kFirstPartySetsPublicKeySHA256),
+               std::end(kFirstPartySetsPublicKeySHA256));
 }
 
 void FirstPartySetsComponentInstallerPolicy::GetHash(

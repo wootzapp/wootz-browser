@@ -185,8 +185,8 @@ using IsStatusOrAssignmentValid = absl::conjunction<
 class Helper {
  public:
   // Move type-agnostic error handling to the .cc.
-  static void HandleInvalidStatusCtorArg(absl::Nonnull<Status*>);
-  ABSL_ATTRIBUTE_NORETURN static void Crash(const absl::Status& status);
+  static void HandleInvalidStatusCtorArg(Status* absl_nonnull);
+  [[noreturn]] static void Crash(const absl::Status& status);
 };
 
 // Construct an instance of T in `p` through placement new, passing Args... to
@@ -194,7 +194,7 @@ class Helper {
 // This abstraction is here mostly for the gcc performance fix.
 template <typename T, typename... Args>
 ABSL_ATTRIBUTE_NONNULL(1)
-void PlacementNew(absl::Nonnull<void*> p, Args&&... args) {
+void PlacementNew(void* absl_nonnull p, Args&&... args) {
   new (p) T(std::forward<Args>(args)...);
 }
 
@@ -438,7 +438,7 @@ struct MoveAssignBase<T, false> {
   MoveAssignBase& operator=(MoveAssignBase&&) = delete;
 };
 
-ABSL_ATTRIBUTE_NORETURN void ThrowBadStatusOrAccess(absl::Status status);
+[[noreturn]] void ThrowBadStatusOrAccess(absl::Status status);
 
 // Used to introduce jitter into the output of printing functions for
 // `StatusOr` (i.e. `AbslStringify` and `operator<<`).

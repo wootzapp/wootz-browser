@@ -4,7 +4,7 @@
 
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import 'chrome://resources/cr_elements/cr_input/cr_input_style.css.js';
-import '../strings.m.js';
+import '/strings.m.js';
 
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
@@ -28,8 +28,8 @@ const RADIUS_PX: number = 9;
 export interface PrintPreviewMarginControlElement {
   $: {
     input: HTMLInputElement,
-    lineContainer: HTMLDivElement,
-    line: HTMLDivElement,
+    lineContainer: HTMLElement,
+    line: HTMLElement,
   };
 }
 
@@ -107,18 +107,18 @@ export class PrintPreviewMarginControlElement extends
     };
   }
 
-  disabled: boolean;
-  side: CustomMarginsOrientation;
-  invalid: boolean;
-  invisible: boolean;
-  measurementSystem: MeasurementSystem|null;
-  scaleTransform: number;
-  translateTransform: Coordinate2d;
-  pageSize: Size;
-  clipSize: Size|null;
+  declare disabled: boolean;
+  declare side: CustomMarginsOrientation;
+  declare invalid: boolean;
+  declare invisible: boolean;
+  declare measurementSystem: MeasurementSystem|null;
+  declare scaleTransform: number;
+  declare translateTransform: Coordinate2d;
+  declare pageSize: Size;
+  declare clipSize: Size|null;
 
-  private focused_: boolean;
-  private positionInPts_: number;
+  declare private focused_: boolean;
+  declare private positionInPts_: number;
 
   static get observers() {
     return [
@@ -226,8 +226,8 @@ export class PrintPreviewMarginControlElement extends
       return null;
     }
     assert(this.measurementSystem);
-    const decimal = this.measurementSystem!.decimalDelimiter;
-    const thousands = this.measurementSystem!.thousandsDelimiter;
+    const decimal = this.measurementSystem.decimalDelimiter;
+    const thousands = this.measurementSystem.thousandsDelimiter;
     const whole = `(?:0|[1-9]\\d*|[1-9]\\d{0,2}(?:[${thousands}]\\d{3})*)`;
     const fractional = `(?:[${decimal}]\\d+)`;
     const wholeDecimal = `(?:${whole}[${decimal}])`;
@@ -238,7 +238,7 @@ export class PrintPreviewMarginControlElement extends
       // the dot symbol in order to use parseFloat() properly.
       value = value.replace(new RegExp(`\\${thousands}`, 'g'), '')
                   .replace(decimal, '.');
-      return this.measurementSystem!.convertToPoints(parseFloat(value));
+      return this.measurementSystem.convertToPoints(parseFloat(value));
     }
     return null;
   }
@@ -249,11 +249,11 @@ export class PrintPreviewMarginControlElement extends
    */
   private serializeValueFromPts_(value: number): string {
     assert(this.measurementSystem);
-    value = this.measurementSystem!.convertFromPoints(value);
-    value = this.measurementSystem!.roundValue(value);
+    value = this.measurementSystem.convertFromPoints(value);
+    value = this.measurementSystem.roundValue(value);
     // Convert the dot symbol to the decimal delimiter for the locale.
     return value.toString().replace(
-        '.', this.measurementSystem!.decimalDelimiter);
+        '.', this.measurementSystem.decimalDelimiter);
   }
 
   private fire_(eventName: string, detail?: any) {

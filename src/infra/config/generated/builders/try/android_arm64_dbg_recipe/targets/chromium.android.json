@@ -91,8 +91,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/android_webview/tools/cts_archive",
-              "location": "android_webview/tools/cts_archive",
-              "revision": "UYQZhJpB3MWpJIAcesI-M1bqRoTghiKCYr_SD9tPDewC"
+              "location": "android_webview/tools/cts_archive/cipd",
+              "revision": "8BpUBTnmt5bH3GiqPKpmTWTP-Ie2X1TuUgf4F0IsgVgC"
             }
           ],
           "dimensions": {
@@ -134,8 +134,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/android_webview/tools/cts_archive",
-              "location": "android_webview/tools/cts_archive",
-              "revision": "UYQZhJpB3MWpJIAcesI-M1bqRoTghiKCYr_SD9tPDewC"
+              "location": "android_webview/tools/cts_archive/cipd",
+              "revision": "8BpUBTnmt5bH3GiqPKpmTWTP-Ie2X1TuUgf4F0IsgVgC"
             }
           ],
           "dimensions": {
@@ -155,6 +155,7 @@
       {
         "args": [
           "--use-apk-under-test-flags-file",
+          "--webview-mutations-enabled",
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices"
         ],
@@ -163,11 +164,11 @@
             "--bucket",
             "chromium-result-details",
             "--test-name",
-            "webview_instrumentation_test_apk"
+            "webview_instrumentation_test_apk_mutations"
           ],
           "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
         },
-        "name": "webview_instrumentation_test_apk",
+        "name": "webview_instrumentation_test_apk_mutations",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -319,7 +320,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -351,7 +353,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -382,8 +385,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/android_webview/tools/cts_archive",
-              "location": "android_webview/tools/cts_archive",
-              "revision": "UYQZhJpB3MWpJIAcesI-M1bqRoTghiKCYr_SD9tPDewC"
+              "location": "android_webview/tools/cts_archive/cipd",
+              "revision": "8BpUBTnmt5bH3GiqPKpmTWTP-Ie2X1TuUgf4F0IsgVgC"
             }
           ],
           "dimensions": {
@@ -391,7 +394,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 2
@@ -424,8 +428,8 @@
           "cipd_packages": [
             {
               "cipd_package": "chromium/android_webview/tools/cts_archive",
-              "location": "android_webview/tools/cts_archive",
-              "revision": "UYQZhJpB3MWpJIAcesI-M1bqRoTghiKCYr_SD9tPDewC"
+              "location": "android_webview/tools/cts_archive/cipd",
+              "revision": "8BpUBTnmt5bH3GiqPKpmTWTP-Ie2X1TuUgf4F0IsgVgC"
             }
           ],
           "dimensions": {
@@ -433,7 +437,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 2
@@ -444,6 +449,7 @@
       {
         "args": [
           "--use-apk-under-test-flags-file",
+          "--webview-mutations-enabled",
           "--gs-results-bucket=chromium-result-details",
           "--recover-devices"
         ],
@@ -452,11 +458,11 @@
             "--bucket",
             "chromium-result-details",
             "--test-name",
-            "webview_instrumentation_test_apk"
+            "webview_instrumentation_test_apk_mutations"
           ],
           "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
         },
-        "name": "webview_instrumentation_test_apk",
+        "name": "webview_instrumentation_test_apk_mutations",
         "resultdb": {
           "enable": true,
           "has_native_resultdb_integration": true
@@ -467,7 +473,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 12
@@ -502,7 +509,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 12
@@ -535,7 +543,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -568,7 +577,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -919,12 +929,53 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
         "test": "chrome_public_smoke_test",
         "test_id_prefix": "ninja://chrome/android:chrome_public_smoke_test/"
+      },
+      {
+        "args": [
+          "--git-revision=${got_revision}",
+          "--gs-results-bucket=chromium-result-details",
+          "--recover-devices"
+        ],
+        "merge": {
+          "args": [
+            "--bucket",
+            "chromium-result-details",
+            "--test-name",
+            "chrome_public_test_apk"
+          ],
+          "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
+        },
+        "name": "chrome_public_test_apk",
+        "precommit_args": [
+          "--gerrit-issue=${patch_issue}",
+          "--gerrit-patchset=${patch_set}",
+          "--buildbucket-id=${buildbucket_build_id}"
+        ],
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "device_os": "PQ3A.190801.002",
+            "device_os_flavor": "google",
+            "device_os_type": "userdebug",
+            "device_type": "walleye",
+            "os": "Android",
+            "pool": "chromium.tests"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
+          "shards": 20
+        },
+        "test": "chrome_public_test_apk",
+        "test_id_prefix": "ninja://chrome/android:chrome_public_test_apk/"
       },
       {
         "args": [
@@ -951,13 +1002,53 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
           "shards": 2
         },
         "test": "chrome_public_test_vr_apk",
         "test_id_prefix": "ninja://chrome/android:chrome_public_test_vr_apk/"
+      },
+      {
+        "args": [
+          "--git-revision=${got_revision}",
+          "--gs-results-bucket=chromium-result-details",
+          "--recover-devices"
+        ],
+        "merge": {
+          "args": [
+            "--bucket",
+            "chromium-result-details",
+            "--test-name",
+            "chrome_public_unit_test_apk"
+          ],
+          "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
+        },
+        "name": "chrome_public_unit_test_apk",
+        "precommit_args": [
+          "--gerrit-issue=${patch_issue}",
+          "--gerrit-patchset=${patch_set}",
+          "--buildbucket-id=${buildbucket_build_id}"
+        ],
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "device_os": "PQ3A.190801.002",
+            "device_os_flavor": "google",
+            "device_os_type": "userdebug",
+            "device_type": "walleye",
+            "os": "Android",
+            "pool": "chromium.tests"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
+        },
+        "test": "chrome_public_unit_test_apk",
+        "test_id_prefix": "ninja://chrome/android:chrome_public_unit_test_apk/"
       },
       {
         "args": [
@@ -984,7 +1075,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -1016,7 +1108,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -1048,7 +1141,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -1080,7 +1174,8 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
@@ -1112,12 +1207,47 @@
             "device_os_flavor": "google",
             "device_os_type": "userdebug",
             "device_type": "walleye",
-            "os": "Android"
+            "os": "Android",
+            "pool": "chromium.tests"
           },
           "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com"
         },
         "test": "vr_android_unittests",
         "test_id_prefix": "ninja://chrome/browser/android/vr:vr_android_unittests/"
+      },
+      {
+        "args": [
+          "--gs-results-bucket=chromium-result-details",
+          "--recover-devices"
+        ],
+        "merge": {
+          "args": [
+            "--bucket",
+            "chromium-result-details",
+            "--test-name",
+            "webview_instrumentation_test_apk"
+          ],
+          "script": "//build/android/pylib/results/presentation/test_results_presentation.py"
+        },
+        "name": "webview_instrumentation_test_apk",
+        "resultdb": {
+          "enable": true,
+          "has_native_resultdb_integration": true
+        },
+        "swarming": {
+          "dimensions": {
+            "device_os": "PQ3A.190801.002",
+            "device_os_flavor": "google",
+            "device_os_type": "userdebug",
+            "device_type": "walleye",
+            "os": "Android",
+            "pool": "chromium.tests"
+          },
+          "service_account": "chromium-tester@chops-service-accounts.iam.gserviceaccount.com",
+          "shards": 6
+        },
+        "test": "webview_instrumentation_test_apk",
+        "test_id_prefix": "ninja://android_webview/test:webview_instrumentation_test_apk/"
       }
     ]
   }

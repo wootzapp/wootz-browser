@@ -208,30 +208,6 @@ public final class MainActivityTest {
     }
 
     /**
-     * Tests that a WebAPK should be launched as a tab if Chrome's version number is lower than
-     * {@link HostBrowserUtils#MINIMUM_REQUIRED_CHROME_VERSION}.
-     */
-    @Test
-    public void testShouldLaunchInTabWhenChromeVersionIsTooLow() throws Exception {
-        mBrowserInstaller.setInstalledBrowserWithVersion(BROWSER_PACKAGE_NAME, "56.0.000.0");
-
-        final String startUrl = "https://www.google.com/";
-
-        Bundle bundle = new Bundle();
-        bundle.putString(WebApkMetaDataKeys.START_URL, startUrl);
-        bundle.putString(WebApkMetaDataKeys.SCOPE, startUrl);
-        bundle.putString(WebApkMetaDataKeys.RUNTIME_HOST, BROWSER_PACKAGE_NAME);
-        WebApkTestHelper.registerWebApkWithMetaData(
-                WebApkUtilsTest.WEBAPK_PACKAGE_NAME, bundle, /* shareTargetMetaData= */ null);
-
-        Intent launchIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(startUrl));
-        Robolectric.buildActivity(H2OMainActivity.class, launchIntent).create();
-
-        Intent startedActivityIntent = ShadowApplication.getInstance().getNextStartedActivity();
-        assertTabbedBrowserLaunched(startedActivityIntent, BROWSER_PACKAGE_NAME, startUrl);
-    }
-
-    /**
      * Tests that a WebAPK should not be launched as a tab if Chrome's version is higher or equal to
      * {@link WebApkUtils#MINIMUM_REQUIRED_CHROME_VERSION}.
      */
@@ -298,7 +274,9 @@ public final class MainActivityTest {
      */
     private void assertTabbedBrowserLaunched(
             Intent intent, String browserPackageName, String expectedStartUrl) {
-        Assert.assertEquals(browserPackageName, intent.getPackage());
+        Assert.assertEquals(browserPackageName, intent.getComponent().getPackageName());
+        Assert.assertEquals(
+                TestBrowserInstaller.COMPONENT_CLASS, intent.getComponent().getClassName());
         Assert.assertEquals(Intent.ACTION_VIEW, intent.getAction());
         Assert.assertEquals(expectedStartUrl, intent.getDataString());
     }
@@ -309,7 +287,7 @@ public final class MainActivityTest {
      */
     private void assertWebApkLaunched(Intent intent, String expectedStartUrl) {
         Assert.assertEquals(BROWSER_PACKAGE_NAME, intent.getPackage());
-        Assert.assertEquals(HostBrowserLauncher.ACTION_START_WEBAPK, intent.getAction());
+        Assert.assertEquals(HostBrowserUtils.ACTION_START_WEBAPK, intent.getAction());
         Assert.assertEquals(expectedStartUrl, intent.getStringExtra(WebApkConstants.EXTRA_URL));
     }
 }

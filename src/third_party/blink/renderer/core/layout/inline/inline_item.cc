@@ -17,6 +17,7 @@ namespace {
 struct SameSizeAsInlineItem {
   UntracedMember<void*> members[2];
   unsigned integers[3];
+  uint8_t bytes[1];
   unsigned bit_fields : 32;
 };
 
@@ -76,17 +77,7 @@ InlineItem::InlineItem(InlineItemType type,
       // Use atomic construction to allow for concurrently marking InlineItem.
       layout_object_(layout_object,
                      Member<LayoutObject>::AtomicInitializerTag{}),
-      type_(type),
-      text_type_(static_cast<unsigned>(TextItemType::kNormal)),
-      style_variant_(static_cast<unsigned>(StyleVariant::kStandard)),
-      end_collapse_type_(kNotCollapsible),
-      bidi_level_(UBIDI_LTR),
-      segment_data_(0),
-      is_empty_item_(false),
-      is_block_level_(false),
-      is_end_collapsible_newline_(false),
-      is_generated_for_line_break_(false),
-      is_unsafe_to_reuse_shape_result_(false) {
+      type_(type) {
   DCHECK_GE(end, start);
   ComputeBoxProperties();
 }
@@ -101,6 +92,7 @@ InlineItem::InlineItem(const InlineItem& other,
       shape_result_(shape_result, Member<ShapeResult>::AtomicInitializerTag{}),
       layout_object_(other.layout_object_,
                      Member<LayoutObject>::AtomicInitializerTag{}),
+      index_(other.index_),
       type_(other.type_),
       text_type_(other.text_type_),
       style_variant_(other.style_variant_),
@@ -115,13 +107,22 @@ InlineItem::InlineItem(const InlineItem& other,
   DCHECK_GE(end, start);
 }
 
+InlineItem::InlineItem(const InlineItem& other)
+    : InlineItem(other,
+                 other.start_offset_,
+                 other.end_offset_,
+                 other.shape_result_.Get()) {}
+
 InlineItem::~InlineItem() = default;
 
 void InlineItem::ComputeBoxProperties() {
   DCHECK(!is_empty_item_);
 
   if (type_ == InlineItem::kText || type_ == InlineItem::kAtomicInline ||
-      type_ == InlineItem::kControl || UNLIKELY(type_ == kInitialLetterBox)) {
+      type_ == InlineItem::kControl) {
+    return;
+  }
+  if (type_ == kInitialLetterBox) [[unlikely]] {
     return;
   }
 
@@ -180,13 +181,14 @@ const char* InlineItem::InlineItemTypeToString(InlineItemType val) const {
     case kRubyLinePlaceholder:
       return "RubyLinePlaceholder";
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 void InlineItem::SetSegmentData(const RunSegmenter::RunSegmenterRange& range,
-                                HeapVector<InlineItem>* items) {
+                                InlineItems* items) {
   unsigned segment_data = InlineItemSegment::PackSegmentData(range);
-  for (InlineItem& item : *items) {
+  for (Member<InlineItem>& item_ptr : *items) {
+    InlineItem& item = *item_ptr;
     if (item.Type() == InlineItem::kText) {
       item.segment_data_ = segment_data;
     }
@@ -202,20 +204,21 @@ void InlineItem::SetSegmentData(const RunSegmenter::RunSegmenterRange& range,
 // @param end_offset The exclusive end offset to set.
 // @param level The level to set.
 // @return The index of the next item.
-unsigned InlineItem::SetBidiLevel(HeapVector<InlineItem>& items,
+unsigned InlineItem::SetBidiLevel(InlineItems& items,
                                   unsigned index,
                                   unsigned end_offset,
                                   UBiDiLevel level) {
-  for (; items[index].end_offset_ < end_offset; index++)
-    items[index].SetBidiLevel(level);
-  InlineItem* item = &items[index];
+  for (; items[index]->end_offset_ < end_offset; index++) {
+    items[index]->SetBidiLevel(level);
+  }
+  InlineItem* item = items[index];
   item->SetBidiLevel(level);
 
   if (item->end_offset_ == end_offset) {
     // Let close items have the same bidi-level as the previous item.
     while (index + 1 < items.size() &&
-           items[index + 1].Type() == InlineItem::kCloseTag) {
-      items[++index].SetBidiLevel(level);
+           items[index + 1]->Type() == InlineItem::kCloseTag) {
+      items[++index]->SetBidiLevel(level);
     }
   } else {
     // If a reused item needs to split, |SetNeedsLayout| to ensure the line is
@@ -237,8 +240,36 @@ const Font& InlineItem::FontWithSvgScaling() const {
     // ::first-line.
     return svg_text->ScaledFont();
   }
-  return Style()->GetFont();
+  return *Style()->GetFont();
 }
+
+wtf_size_t InlineItem::Index(base::span<const Member<InlineItem>> items) const {
+  wtf_size_t index = 0;
+  for (const Member<InlineItem>& item : items) {
+    if (this == &*item) {
+      return index;
+    }
+    ++index;
+  }
+  return index;
+}
+
+void InlineItem::UpdateIndex(base::span<Member<InlineItem>> items) {
+  wtf_size_t index = 0;
+  for (Member<InlineItem>& item : items) {
+    item->index_ = index++;
+  }
+}
+
+#if EXPENSIVE_DCHECKS_ARE_ON()
+void InlineItem::CheckIndex(base::span<Member<InlineItem>> items) {
+  wtf_size_t index = 0;
+  for (Member<InlineItem>& item : items) {
+    DCHECK_EQ(item->index_, index);
+    ++index;
+  }
+}
+#endif  // EXPENSIVE_DCHECKS_ARE_ON()
 
 String InlineItem::ToString() const {
   String object_info;
@@ -257,15 +288,15 @@ String InlineItem::ToString() const {
 // @param items The list of InlineItem.
 // @param index The index to split.
 // @param offset The offset to split at.
-void InlineItem::Split(HeapVector<InlineItem>& items,
-                       unsigned index,
-                       unsigned offset) {
-  DCHECK_GT(offset, items[index].start_offset_);
-  DCHECK_LT(offset, items[index].end_offset_);
-  items[index].shape_result_ = nullptr;
-  items.insert(index + 1, items[index]);
-  items[index].end_offset_ = offset;
-  items[index + 1].start_offset_ = offset;
+void InlineItem::Split(InlineItems& items, unsigned index, unsigned offset) {
+  InlineItem* source = &*items[index];
+  DCHECK_GT(offset, source->start_offset_);
+  DCHECK_LT(offset, source->end_offset_);
+  source->shape_result_ = nullptr;
+  InlineItem* copy = MakeGarbageCollected<InlineItem>(*source);
+  source->end_offset_ = offset;
+  copy->start_offset_ = offset;
+  items.insert(index + 1, copy);
 }
 
 #if DCHECK_IS_ON()

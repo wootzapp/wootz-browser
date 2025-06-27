@@ -94,7 +94,7 @@ CRWSessionStorage* DecodeSessionStorage(NSData* data) {
       [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey]);
 }
 
-}
+}  // namespace
 
 // Tests that unarchiving CRWSessionStorage data results in an equivalent
 // storage.
@@ -229,4 +229,15 @@ TEST_F(CRWSessionStorageTest, DecodeStableIdentifierFromTabId) {
   EXPECT_NSEQ(decoded.stableIdentifier, @"tabid-identifier");
 
   EXPECT_FALSE([decoded.userData objectForKey:@"TabId"]);
+}
+
+// Tests that unarchiving CRWSessionStorage drops invalid itemStorages.
+// This is a test for the fix for https://crbug.com/358616893 (where a
+// couple of user have corrupt data on disk).
+TEST_F(CRWSessionStorageTest, TestWorkaroundForIssue_358616893) {
+  session_storage_.itemStorages = @[ @"Not a CRWNavigationItemStorage" ];
+
+  CRWSessionStorage* decoded =
+      DecodeSessionStorage(EncodeSessionStorage(session_storage_));
+  EXPECT_EQ(decoded.itemStorages.count, 0u);
 }

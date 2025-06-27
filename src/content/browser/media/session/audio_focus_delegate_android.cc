@@ -7,9 +7,11 @@
 #include "base/android/jni_android.h"
 #include "base/unguessable_token.h"
 #include "content/browser/media/session/media_session_impl.h"
-#include "content/public/android/content_jni_headers/AudioFocusDelegate_jni.h"
 #include "media/base/media_switches.h"
 #include "services/media_session/public/mojom/audio_focus.mojom.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "content/public/android/content_jni_headers/AudioFocusDelegate_jni.h"
 
 using base::android::JavaParamRef;
 
@@ -86,17 +88,18 @@ const base::UnguessableToken& AudioFocusDelegateAndroid::request_id() const {
 
 void AudioFocusDelegateAndroid::OnSuspend(JNIEnv*,
                                           const JavaParamRef<jobject>&) {
-  if (!media_session_->IsActive() ||
-      !base::FeatureList::IsEnabled(media::kAudioFocusLossSuspendMediaSession))
+  if (!media_session_->IsActive()) {
     return;
+  }
 
   media_session_->Suspend(MediaSession::SuspendType::kSystem);
 }
 
 void AudioFocusDelegateAndroid::OnResume(JNIEnv*,
                                          const JavaParamRef<jobject>&) {
-  if (!media_session_->IsSuspended())
+  if (!media_session_->IsSuspended()) {
     return;
+  }
 
   media_session_->Resume(MediaSession::SuspendType::kSystem);
 }
@@ -107,12 +110,6 @@ void AudioFocusDelegateAndroid::OnStartDucking(JNIEnv*, jobject) {
 
 void AudioFocusDelegateAndroid::OnStopDucking(JNIEnv*, jobject) {
   media_session_->StopDucking();
-}
-
-void AudioFocusDelegateAndroid::RecordSessionDuck(
-    JNIEnv*,
-    const JavaParamRef<jobject>&) {
-  media_session_->RecordSessionDuck();
 }
 
 void AudioFocusDelegateAndroid::OnAudioStateChanged(bool is_audible) {

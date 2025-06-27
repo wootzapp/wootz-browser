@@ -17,6 +17,7 @@
 #include "ash/system/tray/tri_view.h"
 #include "ash/system/tray/unfocusable_label.h"
 #include "ash/system/tray/view_click_listener.h"
+#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -25,6 +26,7 @@
 #include "ui/base/models/image_model.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_highlight.h"
 #include "ui/views/animation/ink_drop_state.h"
@@ -81,6 +83,12 @@ void HoverHighlightView::AddRightView(views::View* view,
   right_view_->SetEnabled(GetEnabled());
   tri_view_->AddView(TriView::Container::END, right_view_);
   tri_view_->SetContainerVisible(TriView::Container::END, true);
+
+  GetViewAccessibility().SetRole(ax::mojom::Role::kGenericContainer);
+  GetViewAccessibility().SetName(GetViewAccessibility().GetCachedName());
+  GetViewAccessibility().SetDescription(
+      l10n_util::GetStringUTF16(IDS_ASH_A11Y_ROLE_BUTTON));
+  SetAndUpdateAccessibleDefaultAction();
 }
 
 void HoverHighlightView::AddAdditionalRightView(views::View* view) {
@@ -96,7 +104,15 @@ void HoverHighlightView::SetRightViewVisible(bool visible) {
 
   tri_view_->SetContainerVisible(TriView::Container::END, visible);
   right_view_->SetVisible(visible);
+
+  if (!visible ||
+      (accessibility_state_ != AccessibilityState::CHECKED_CHECKBOX &&
+       accessibility_state_ != AccessibilityState::UNCHECKED_CHECKBOX)) {
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGenericContainer);
+  }
+
   DeprecatedLayoutImmediately();
+  SetAndUpdateAccessibleDefaultAction();
 }
 
 void HoverHighlightView::SetSubText(const std::u16string& sub_text) {
@@ -108,7 +124,7 @@ void HoverHighlightView::SetSubText(const std::u16string& sub_text) {
         sub_row_->AddChildView(TrayPopupUtils::CreateUnfocusableLabel());
   }
 
-  sub_text_label_->SetEnabledColorId(kColorAshTextColorSecondary);
+  sub_text_label_->SetEnabledColor(kColorAshTextColorSecondary);
   sub_text_label_->SetAutoColorReadabilityEnabled(false);
   sub_text_label_->SetText(sub_text);
 }
@@ -120,7 +136,7 @@ void HoverHighlightView::AddIconAndLabel(const gfx::ImageSkia& image,
   std::unique_ptr<views::ImageView> icon(TrayPopupUtils::CreateMainImageView(
       /*use_wide_layout=*/true));
   icon_ = icon.get();
-  icon->SetImage(image);
+  icon->SetImage(ui::ImageModel::FromImageSkia(image));
   icon->SetEnabled(GetEnabled());
 
   AddViewAndLabel(std::move(icon), text);
@@ -148,7 +164,7 @@ void HoverHighlightView::AddViewAndLabel(std::unique_ptr<views::View> view,
   SetLayoutManager(std::make_unique<views::FillLayout>());
   tri_view_ = TrayPopupUtils::CreateDefaultRowView(
       /*use_wide_layout=*/true);
-  AddChildView(tri_view_.get());
+  AddChildViewRaw(tri_view_.get());
 
   left_view_ = view.get();
   tri_view_->AddView(TriView::Container::START, view.release());
@@ -156,7 +172,7 @@ void HoverHighlightView::AddViewAndLabel(std::unique_ptr<views::View> view,
   text_label_ = TrayPopupUtils::CreateUnfocusableLabel();
   text_label_->SetText(text);
   text_label_->SetEnabled(GetEnabled());
-  text_label_->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+  text_label_->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
   TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosButton2,
                                         *text_label_);
   tri_view_->AddView(TriView::Container::CENTER, text_label_);
@@ -169,7 +185,7 @@ void HoverHighlightView::AddViewAndLabel(std::unique_ptr<views::View> view,
 
   AddSubRowContainer();
 
-  SetAccessibleName(text);
+  GetViewAccessibility().SetName(text);
 }
 
 void HoverHighlightView::AddLabelRow(const std::u16string& text) {
@@ -179,18 +195,18 @@ void HoverHighlightView::AddLabelRow(const std::u16string& text) {
   SetLayoutManager(std::make_unique<views::FillLayout>());
   tri_view_ = TrayPopupUtils::CreateDefaultRowView(
       /*use_wide_layout=*/true);
-  AddChildView(tri_view_.get());
+  AddChildViewRaw(tri_view_.get());
 
   text_label_ = TrayPopupUtils::CreateUnfocusableLabel();
   text_label_->SetText(text);
-  text_label_->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+  text_label_->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
   TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosButton2,
                                         *text_label_);
   tri_view_->AddView(TriView::Container::CENTER, text_label_);
 
   AddSubRowContainer();
 
-  SetAccessibleName(text);
+  GetViewAccessibility().SetName(text);
 }
 
 void HoverHighlightView::AddLabelRow(const std::u16string& text,
@@ -211,8 +227,20 @@ void HoverHighlightView::SetExpandable(bool expandable) {
 void HoverHighlightView::SetAccessibilityState(
     AccessibilityState accessibility_state) {
   accessibility_state_ = accessibility_state;
+
+  if (accessibility_state_ == AccessibilityState::CHECKED_CHECKBOX) {
+    GetViewAccessibility().SetRole(ax::mojom::Role::kCheckBox);
+    GetViewAccessibility().SetCheckedState(ax::mojom::CheckedState::kTrue);
+  } else if (accessibility_state_ == AccessibilityState::UNCHECKED_CHECKBOX) {
+    GetViewAccessibility().SetRole(ax::mojom::Role::kCheckBox);
+    GetViewAccessibility().SetCheckedState(ax::mojom::CheckedState::kFalse);
+  } else {
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGenericContainer);
+  }
+
   if (accessibility_state_ != AccessibilityState::DEFAULT) {
-    NotifyAccessibilityEvent(ax::mojom::Event::kCheckedStateChanged, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kCheckedStateChanged,
+                                       true);
   }
 }
 
@@ -226,16 +254,17 @@ void HoverHighlightView::Reset() {
   tri_view_ = nullptr;
 
   RemoveAllChildViews();
+  SetAndUpdateAccessibleDefaultAction();
 
   is_populated_ = false;
 }
 
 void HoverHighlightView::OnSetTooltipText(const std::u16string& tooltip_text) {
   if (text_label_) {
-    text_label_->SetTooltipText(tooltip_text);
+    text_label_->SetCustomTooltipText(tooltip_text);
   }
   if (sub_text_label_) {
-    sub_text_label_->SetTooltipText(tooltip_text);
+    sub_text_label_->SetCustomTooltipText(tooltip_text);
   }
   if (left_view_) {
     DCHECK(views::IsViewClass<views::ImageView>(left_view_));
@@ -251,38 +280,6 @@ void HoverHighlightView::PerformAction() {
   listener_->OnViewClicked(this);
 }
 
-void HoverHighlightView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  if (right_view_ && right_view_->GetVisible() &&
-      std::string(right_view_->GetClassName()).find("Button") !=
-          std::string::npos) {
-    // Allow selection of sub-components.
-    node_data->role = ax::mojom::Role::kGenericContainer;
-
-    // Include "press search plus space to activate" when announcing.
-    node_data->SetDefaultActionVerb(ax::mojom::DefaultActionVerb::kClick);
-
-    node_data->SetName(GetAccessibleName());
-    node_data->SetDescription(
-        l10n_util::GetStringUTF16(IDS_ASH_A11Y_ROLE_BUTTON));
-  } else {
-    views::Button::GetAccessibleNodeData(node_data);
-  }
-
-  ax::mojom::CheckedState checked_state;
-
-  if (accessibility_state_ == AccessibilityState::CHECKED_CHECKBOX) {
-    checked_state = ax::mojom::CheckedState::kTrue;
-  } else if (accessibility_state_ == AccessibilityState::UNCHECKED_CHECKBOX) {
-    checked_state = ax::mojom::CheckedState::kFalse;
-  } else {
-    return;  // Not a checkbox
-  }
-
-  // Checkbox
-  node_data->role = ax::mojom::Role::kCheckBox;
-  node_data->SetCheckedState(checked_state);
-}
-
 gfx::Size HoverHighlightView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
   gfx::Size size = views::Button::CalculatePreferredSize(available_size);
@@ -292,10 +289,6 @@ gfx::Size HoverHighlightView::CalculatePreferredSize(
   }
 
   return size;
-}
-
-int HoverHighlightView::GetHeightForWidth(int width) const {
-  return GetPreferredSize(views::SizeBounds(width, {})).height();
 }
 
 void HoverHighlightView::OnFocus() {
@@ -315,6 +308,7 @@ void HoverHighlightView::AddSubRowContainer() {
 }
 
 void HoverHighlightView::OnEnabledChanged() {
+  views::Button::OnEnabledChanged();
   if (left_view_) {
     left_view_->SetEnabled(GetEnabled());
   }
@@ -324,6 +318,14 @@ void HoverHighlightView::OnEnabledChanged() {
   if (right_view_) {
     right_view_->SetEnabled(GetEnabled());
   }
+}
+
+void HoverHighlightView::SetAndUpdateAccessibleDefaultAction() {
+  SetDefaultActionVerb((right_view_ && right_view_->GetVisible() &&
+                        base::Contains(right_view_->GetClassName(), "Button"))
+                           ? ax::mojom::DefaultActionVerb::kClick
+                           : ax::mojom::DefaultActionVerb::kPress);
+  UpdateAccessibleDefaultActionVerb();
 }
 
 BEGIN_METADATA(HoverHighlightView)

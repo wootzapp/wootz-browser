@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/auto_reset.h"
 #include "build/branding_buildflags.h"
 #include "extensions/common/extension_id.h"
 #include "url/gurl.h"
@@ -34,6 +35,7 @@ namespace extension_urls {
 extern const char kChromeWebstoreBaseURL[];
 extern const char kChromeWebstoreUpdateURL[];
 extern const char kNewChromeWebstoreBaseURL[];
+extern const char kExtensionsDocsWhatsNewURL[];
 
 // Various utm attribution sources for web store URLs.
 // From the sub-menu item in the extension menu inside the 3-dot menu.
@@ -42,10 +44,6 @@ extern const char kAppMenuUtmSource[];
 extern const char kExtensionsMenuUtmSource[];
 // From the link in the sidebar in the chrome://extensions page.
 extern const char kExtensionsSidebarUtmSource[];
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-// From the link on chrome://settings/getMostChrome page.
-extern const char kGetMostChromeUtmSource[];
-#endif
 
 // Returns the URL prefix for the extension/apps gallery. Can be set via the
 // --apps-gallery-url switch. The URL returned will not contain a trailing
@@ -53,13 +51,15 @@ extern const char kGetMostChromeUtmSource[];
 GURL GetWebstoreLaunchURL();
 GURL GetNewWebstoreLaunchURL();
 
+// Returns the URL to the Chrome Web Store's "What's New" page for extensions.
+GURL GetDocsWhatsNewURL();
+
 // Returns a url with a utm_source query param value of `utm_source_value`
 // appended.
 GURL AppendUtmSource(const GURL& url, std::string_view utm_source_value);
 
-// Returns the URL to the extensions category on the old and new Web Store
-// depending on extensions_features::kNewWebstoreURL feature flag.
-std::string GetWebstoreExtensionsCategoryURL();
+// Returns the URL to the extensions category on the Web Store.
+GURL GetWebstoreExtensionsCategoryURL();
 
 // Returns the URL prefix for an item in the extension/app gallery. This URL
 // will contain a trailing slash and should be concatenated with an item ID
@@ -67,12 +67,11 @@ std::string GetWebstoreExtensionsCategoryURL();
 std::string GetWebstoreItemDetailURLPrefix();
 
 // Returns the URL used to get webstore data (ratings, manifest, icon URL,
-// etc.) about an extension from the webstore as JSON.
-GURL GetWebstoreItemJsonDataURL(const extensions::ExtensionId& extension_id);
-
-// Returns the URL used to get webstore data (ratings, manifest, icon URL,
 // etc.) about an extension from the webstore using the new itemSnippets API.
-GURL GetWebstoreItemSnippetURL(const std::string& extension_id);
+GURL GetWebstoreItemSnippetURL(const extensions::ExtensionId& extension_id);
+
+// Sets the itemSnippets API URL to `test_url`.
+base::AutoReset<const GURL*> SetItemSnippetURLForTesting(const GURL* test_url);
 
 // Returns the compile-time constant webstore update url specific to
 // Chrome. Usually you should prefer using GetWebstoreUpdateUrl.
@@ -104,6 +103,10 @@ bool IsWebstoreOrigin(const url::Origin& origin);
 // Returns whether the URL is the webstore update URL (just considering host
 // and path, not scheme, query, etc.)
 bool IsWebstoreUpdateUrl(const GURL& update_url);
+
+// Returns whether the URL is the same origin with the Webstore API URL
+// (https://chromewebstore.googleapis.com/).
+bool IsWebstoreApiUrl(const GURL& url);
 
 // Returns true if the URL points to an extension blocklist.
 bool IsBlocklistUpdateUrl(const GURL& url);

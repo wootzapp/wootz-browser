@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/file_system_provider/content_cache/content_cache_impl.h"
 
 #include <memory>
@@ -16,6 +21,7 @@
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
+#include "base/test/gmock_callback_support.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
@@ -31,7 +37,9 @@
 namespace ash::file_system_provider {
 namespace {
 
+using base::test::RunClosure;
 using base::test::TestFuture;
+using testing::_;
 using testing::AllOf;
 using testing::ElementsAre;
 using testing::Field;
@@ -40,6 +48,19 @@ using testing::Pair;
 
 // The default chunk size that is requested via the `FileStreamReader`.
 constexpr int kDefaultChunkSize = 512;
+
+class MockContentCacheObserver : public ContentCache::Observer {
+ public:
+  MOCK_METHOD(void,
+              OnItemEvicted,
+              (const base::FilePath& fsp_path),
+              (override));
+
+  MOCK_METHOD(void,
+              OnItemRemovedFromDisk,
+              (const base::FilePath& fsp_path, int64_t bytes_removed),
+              (override));
+};
 
 class FileSystemProviderContentCacheImplTest : public testing::Test {
  protected:
@@ -63,6 +84,8 @@ class FileSystemProviderContentCacheImplTest : public testing::Test {
 
     content_cache_ = std::make_unique<ContentCacheImpl>(
         temp_dir_.GetPath(), std::move(db), /*max_cache_size=*/500);
+
+    content_cache_->AddObserver(&content_cache_observer_);
   }
 
   void TearDown() override { content_cache_.reset(); }
@@ -89,6 +112,20 @@ class FileSystemProviderContentCacheImplTest : public testing::Test {
         InitializeBufferWithRandBytes(chunk_size);
     EXPECT_EQ(WriteBytesToContentCache(file, buffer, /*offset=*/0, chunk_size),
               base::File::FILE_OK);
+
+    return file;
+  }
+
+  OpenedCloudFile ReadFileFromCache(const base::FilePath& path,
+                                    const std::string& version_tag,
+                                    int chunk_size) {
+    OpenedCloudFile file(path, OpenFileMode::OPEN_FILE_MODE_READ, ++request_id_,
+                         version_tag, chunk_size);
+    scoped_refptr<net::IOBufferWithSize> buffer =
+        base::MakeRefCounted<net::IOBufferWithSize>(kDefaultChunkSize);
+    EXPECT_THAT(
+        ReadBytesFromContentCache(file, buffer, /*offset=*/0, chunk_size),
+        Pair(chunk_size, base::File::FILE_OK));
 
     return file;
   }
@@ -153,11 +190,22 @@ class FileSystemProviderContentCacheImplTest : public testing::Test {
     return std::make_pair(future.Get<int>(), future.Get<base::File::Error>());
   }
 
+  std::unique_ptr<base::RunLoop> CreateItemRemovedRunLoop(
+      const base::FilePath& fsp_path,
+      int64_t bytes_removed) {
+    auto run_loop = std::make_unique<base::RunLoop>();
+    EXPECT_CALL(content_cache_observer_,
+                OnItemRemovedFromDisk(fsp_path, bytes_removed))
+        .WillOnce(RunClosure(run_loop->QuitClosure()));
+    return run_loop;
+  }
+
   int request_id_ = 0;
 
   scoped_refptr<base::SequencedTaskRunner> db_task_runner_;
   base::WeakPtr<ContextDatabase> context_db_;
   std::unique_ptr<ContentCacheImpl> content_cache_;
+  MockContentCacheObserver content_cache_observer_;
   base::test::TaskEnvironment task_environment_;
   base::ScopedTempDir temp_dir_;
 };
@@ -249,47 +297,6 @@ TEST_F(FileSystemProviderContentCacheImplTest,
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest,
-       WriteBytesFailsWhenFileEvictedButNotRemoved) {
-  // Perform initial write to cache of length 512 bytes.
-  const base::FilePath fsp_path("random-path");
-  const std::string version_tag("versionA");
-  WriteFileToCache(fsp_path, version_tag, kDefaultChunkSize);
-
-  // The file now exists in the cache.
-  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
-
-  content_cache_->Evict(fsp_path);
-
-  // The file is now evicted from the cache.
-  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
-
-  // Cannot write to the file in its evicted state.
-  OpenedCloudFile file(fsp_path, OpenFileMode::OPEN_FILE_MODE_READ,
-                       ++request_id_, version_tag, kDefaultChunkSize);
-  EXPECT_EQ(
-      WriteBytesToContentCache(file, /*buffer=*/nullptr,
-                               /*offset=*/kDefaultChunkSize, kDefaultChunkSize),
-      base::File::FILE_ERROR_NOT_FOUND);
-
-  // No new replacement file is added to the cache.
-  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
-
-  // Remove the evicted file from the cache.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(
-      remove_items_future.Get(),
-      AllOf(Field(&RemovedItemStats::num_items, 1),
-            Field(&RemovedItemStats::bytes_removed, kDefaultChunkSize)));
-
-  // Now can write to a file with the same name.
-  WriteFileToCache(fsp_path, version_tag, kDefaultChunkSize);
-
-  // The file exists in the cache again.
-  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
-}
-
-TEST_F(FileSystemProviderContentCacheImplTest,
        WriteBytesShouldFailIfMultipleWritersAttemptToWriteToStartOfNewFile) {
   OpenedCloudFile file(base::FilePath("random-path"),
                        OpenFileMode::OPEN_FILE_MODE_READ, ++request_id_,
@@ -366,45 +373,30 @@ TEST_F(FileSystemProviderContentCacheImplTest,
   content_cache_->SetMaxCacheItems(2);
 
   // Inserts file into cache with size `kDefaultChunkSize`. 1 space left.
-  WriteFileToCache(base::FilePath("random-path1"), /*version_tag=*/"versionA",
-                   kDefaultChunkSize);
+  base::FilePath random_path1("random-path1");
+  OpenedCloudFile file1 =
+      WriteFileToCache(random_path1,
+                       /*version_tag=*/"versionA", kDefaultChunkSize);
+  content_cache_->CloseFile(file1);
   // Inserts another file into cache that is `kDefaultChunkSize` * 2. 0 spaces
   // left.
-  WriteFileToCache(base::FilePath("random-path2"), /*version_tag=*/"versionA",
-                   kDefaultChunkSize * 2);
+  OpenedCloudFile file2 =
+      WriteFileToCache(base::FilePath("random-path2"),
+                       /*version_tag=*/"versionA", kDefaultChunkSize * 2);
+  content_cache_->CloseFile(file2);
 
   EXPECT_THAT(content_cache_->GetCachedFilePaths(),
-              ElementsAre(base::FilePath("random-path2"),
-                          base::FilePath("random-path1")));
+              ElementsAre(base::FilePath("random-path2"), random_path1));
 
-  // Expect third insertion to succeed, with size of `kDefaultChunkSize` * 3.
-  OpenedCloudFile file3(base::FilePath("random-path3"),
-                        OpenFileMode::OPEN_FILE_MODE_READ, ++request_id_,
-                        /*version_tag=*/"versionA", kDefaultChunkSize * 3);
-  scoped_refptr<net::IOBufferWithSize> buffer =
-      InitializeBufferWithRandBytes(kDefaultChunkSize * 3);
-  EXPECT_EQ(WriteBytesToContentCache(file3, /*buffer=*/buffer,
-                                     /*offset=*/0, kDefaultChunkSize),
-            base::File::FILE_OK);
-
-  // Oldest file (i.e. `random-path1`) should be evicted now and thus
-  // `WriteBytes` should return `base::File::FILE_ERROR_NOT_FOUND`.
-  OpenedCloudFile file1(base::FilePath("random-path1"),
-                        OpenFileMode::OPEN_FILE_MODE_READ, ++request_id_,
-                        /*version_tag=*/"versionA", kDefaultChunkSize);
-  EXPECT_EQ(WriteBytesToContentCache(file1, /*buffer=*/nullptr,
-                                     /*offset=*/512, kDefaultChunkSize),
-            base::File::FILE_ERROR_NOT_FOUND);
-
-  // Removing items should return the total size of `kDefaultChunkSize` which is
-  // the size of `random-path1` as that is the least-recently used item in the
-  // cache.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(
-      remove_items_future.Get(),
-      AllOf(Field(&RemovedItemStats::num_items, 1),
-            Field(&RemovedItemStats::bytes_removed, kDefaultChunkSize)));
+  // Expect third insertion to succeed and evict and remove the oldest file
+  // (i.e. `random-path1`).
+  std::unique_ptr<base::RunLoop> run_loop = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ kDefaultChunkSize);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
+  OpenedCloudFile file3 =
+      WriteFileToCache(base::FilePath("random-path3"),
+                       /*version_tag=*/"versionA", kDefaultChunkSize * 3);
+  run_loop->Run();
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest,
@@ -667,43 +659,102 @@ TEST_F(FileSystemProviderContentCacheImplTest,
   EXPECT_FALSE(item->has_value());
 }
 
-TEST_F(FileSystemProviderContentCacheImplTest, RemoveItemsRemovesEvictedFiles) {
+TEST_F(FileSystemProviderContentCacheImplTest, EvictedFileRemovedUponClosing) {
   // Inserts file into cache with size `kDefaultChunkSize`.
   int64_t random_path1_size = kDefaultChunkSize;
   base::FilePath random_path1("random-path1");
-  WriteFileToCache(random_path1, "versionA", random_path1_size);
+  OpenedCloudFile file =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
 
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
   content_cache_->Evict(random_path1);
 
-  // The evicted item should not be readable again (despite being
-  // in the cache).
-  OpenedCloudFile file(random_path1, OpenFileMode::OPEN_FILE_MODE_READ,
-                       ++request_id_, "versionA", kDefaultChunkSize);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
+  // Close the evicted file and expect it gets removed.
+  std::unique_ptr<base::RunLoop> run_loop = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ random_path1_size);
+  content_cache_->CloseFile(file);
+  run_loop->Run();
+}
 
-  // Ensure the `RemoveItems` returns the correct values.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(
-      remove_items_future.Get(),
-      AllOf(Field(&RemovedItemStats::num_items, 1),
-            Field(&RemovedItemStats::bytes_removed, random_path1_size)));
+TEST_F(FileSystemProviderContentCacheImplTest,
+       NonEvictedFileNotRemovedUponClosing) {
+  // Inserts file into cache with size `kDefaultChunkSize`.
+  int64_t random_path1_size = kDefaultChunkSize;
+  base::FilePath random_path1("random-path1");
+  OpenedCloudFile file =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
+
+  // Close the file and expect it doesn't removed.
+  EXPECT_CALL(
+      content_cache_observer_,
+      OnItemRemovedFromDisk(random_path1, /*bytes_removed*/ kDefaultChunkSize))
+      .Times(0);
+  content_cache_->CloseFile(file);
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest,
        EvictingNonExistentFileDoesNothing) {
   // Attempt to evict a non-existent.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(_)).Times(0);
+  EXPECT_CALL(content_cache_observer_, OnItemRemovedFromDisk(_, _)).Times(0);
   content_cache_->Evict(base::FilePath("random-path1"));
+}
 
-  // Ensure the `RemoveItems` does nothing.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(remove_items_future.Get(),
-              AllOf(Field(&RemovedItemStats::num_items, 0),
-                    Field(&RemovedItemStats::bytes_removed, 0)));
+TEST_F(FileSystemProviderContentCacheImplTest,
+       FilesRemovedUponEvictingWhenNotOpened) {
+  // Inserts two files into cache.
+  int64_t random_path1_size = kDefaultChunkSize;
+  base::FilePath random_path1("random-path1");
+  OpenedCloudFile file1 =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
+  content_cache_->CloseFile(file1);
+
+  int64_t random_path2_size = kDefaultChunkSize * 2;
+  base::FilePath random_path2("random-path2");
+  OpenedCloudFile file2 =
+      WriteFileToCache(random_path2, "versionA", random_path2_size);
+  content_cache_->CloseFile(file2);
+
+  // Expect that evicting the files will remove them.
+  std::unique_ptr<base::RunLoop> run_loop1 = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ random_path1_size);
+  std::unique_ptr<base::RunLoop> run_loop2 = CreateItemRemovedRunLoop(
+      random_path2, /*bytes_removed*/ random_path2_size);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
+  content_cache_->Evict(random_path1);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path2));
+  content_cache_->Evict(random_path2);
+
+  run_loop1->Run();
+  run_loop2->Run();
+}
+
+TEST_F(FileSystemProviderContentCacheImplTest,
+       FilesRemovedUponResizeWhenNotOpened) {
+  // Inserts two files into cache.
+  int64_t random_path1_size = kDefaultChunkSize;
+  base::FilePath random_path1("random-path1");
+  OpenedCloudFile file1 =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
+  content_cache_->CloseFile(file1);
+
+  int64_t random_path2_size = kDefaultChunkSize * 2;
+  base::FilePath random_path2("random-path2");
+  OpenedCloudFile file2 =
+      WriteFileToCache(random_path2, "versionA", random_path2_size);
+  content_cache_->CloseFile(file2);
+
+  // Expect that resizing the cache to size 0 will remove all the files.
+  std::unique_ptr<base::RunLoop> run_loop1 = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ random_path1_size);
+  std::unique_ptr<base::RunLoop> run_loop2 = CreateItemRemovedRunLoop(
+      random_path2, /*bytes_removed*/ random_path2_size);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path2));
+  content_cache_->SetMaxCacheItems(0);
+
+  run_loop1->Run();
+  run_loop2->Run();
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest, OldestFilesAreEvictedOnResize) {
@@ -712,45 +763,45 @@ TEST_F(FileSystemProviderContentCacheImplTest, OldestFilesAreEvictedOnResize) {
   // Inserts file into cache with size `kDefaultChunkSize`. 2 spaces left.
   int64_t random_path1_size = kDefaultChunkSize;
   base::FilePath random_path1("random-path1");
-  WriteFileToCache(random_path1, "versionA", random_path1_size);
+  OpenedCloudFile file1 =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
   // Inserts another file into cache that is `kDefaultChunkSize` * 2. 1 space
   // left.
   int64_t random_path2_size = kDefaultChunkSize * 2;
   base::FilePath random_path2("random-path2");
-  WriteFileToCache(random_path2, "versionA", random_path2_size);
+  OpenedCloudFile file2 =
+      WriteFileToCache(random_path2, "versionA", random_path2_size);
   // Inserts another file into cache that is `kDefaultChunkSize` * 4. 0 spaces
   // left.
   int64_t random_path3_size = kDefaultChunkSize * 4;
-  WriteFileToCache(base::FilePath("random-path3"), "versionA",
-                   random_path3_size);
+  base::FilePath random_path3("random-path3");
+  OpenedCloudFile file3 =
+      WriteFileToCache(random_path3, "versionA", random_path3_size);
 
   // Resize the cache to only have 1 spot, the `random-path1` and `random-path2`
   // entries (least-recently used) should be evicted since there are no files
   // already evicted.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path2));
   content_cache_->SetMaxCacheItems(1);
 
-  // The evicted items should not be readable again (despite being
-  // in the cache).
-  OpenedCloudFile file1(random_path1, OpenFileMode::OPEN_FILE_MODE_READ,
-                        ++request_id_, "versionA", random_path1_size);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file1, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
-  OpenedCloudFile file2(random_path2, OpenFileMode::OPEN_FILE_MODE_READ,
-                        ++request_id_, "versionA", random_path2_size);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file2, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
+  // Close the evicted files and expect they get removed.
+  std::unique_ptr<base::RunLoop> run_loop1 = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ random_path1_size);
+  content_cache_->CloseFile(file1);
+  std::unique_ptr<base::RunLoop> run_loop2 = CreateItemRemovedRunLoop(
+      random_path2, /*bytes_removed*/ random_path2_size);
+  content_cache_->CloseFile(file2);
 
-  // Ensure the `RemoveItems` returns the correct values.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(remove_items_future.Get(),
-              AllOf(Field(&RemovedItemStats::num_items, 2),
-                    Field(&RemovedItemStats::bytes_removed,
-                          random_path1_size + random_path2_size)));
+  // Closing the non-evicted file should not remove it.
+  EXPECT_CALL(
+      content_cache_observer_,
+      OnItemRemovedFromDisk(random_path3, /*bytes_removed*/ random_path3_size))
+      .Times(0);
+  content_cache_->CloseFile(file3);
+
+  run_loop1->Run();
+  run_loop2->Run();
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest,
@@ -760,135 +811,80 @@ TEST_F(FileSystemProviderContentCacheImplTest,
   // Inserts file into cache with size `kDefaultChunkSize`. 3 spaces left.
   int64_t random_path1_size = kDefaultChunkSize;
   base::FilePath random_path1("random-path1");
-  WriteFileToCache(random_path1, "versionA", random_path1_size);
+  OpenedCloudFile file1 =
+      WriteFileToCache(random_path1, "versionA", random_path1_size);
   // Inserts another file into cache that is `kDefaultChunkSize` * 2. 2 spaces
   // left.
   int64_t random_path2_size = kDefaultChunkSize * 2;
   base::FilePath random_path2("random-path2");
-  WriteFileToCache(random_path2, "versionA", random_path2_size);
+  OpenedCloudFile file2 =
+      WriteFileToCache(random_path2, "versionA", random_path2_size);
   // Inserts another file into cache that is `kDefaultChunkSize` * 3. 1 space
   // left.
-  WriteFileToCache(base::FilePath("random-path3"), "versionA",
-                   kDefaultChunkSize * 3);
+  int64_t random_path3_size = kDefaultChunkSize * 2;
+  base::FilePath random_path3("random-path3");
+  OpenedCloudFile file3 =
+      WriteFileToCache(random_path3, "versionA", random_path3_size);
   // Inserts another file into cache that is `kDefaultChunkSize` * 4. 0 spaces
   // left.
   int64_t random_path4_size = kDefaultChunkSize * 4;
   base::FilePath random_path4("random-path4");
-  WriteFileToCache(random_path4, "versionA", random_path4_size);
+  OpenedCloudFile file4 =
+      WriteFileToCache(random_path4, "versionA", random_path4_size);
 
   // Evict the least and most-recently-used file.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path1));
   content_cache_->Evict(random_path1);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path4));
   content_cache_->Evict(random_path4);
 
   // Resize the cache to only have 1 spot, the `random-path4` and `random-path1`
   // entries are already evicted so only one more file (`random-path2` the
   // least-recently used and not already evicted) is evicted.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(random_path2));
   content_cache_->SetMaxCacheItems(1);
 
-  // The evicted items should not be readable again (despite being
-  // in the cache).
-  OpenedCloudFile file1(random_path1, OpenFileMode::OPEN_FILE_MODE_READ,
-                        ++request_id_, "versionA", random_path1_size);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file1, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
-  OpenedCloudFile file2(random_path2, OpenFileMode::OPEN_FILE_MODE_READ,
-                        ++request_id_, "versionA", random_path2_size);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file2, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
-  OpenedCloudFile file4(random_path4, OpenFileMode::OPEN_FILE_MODE_READ,
-                        ++request_id_, "versionA", random_path4_size);
-  EXPECT_THAT(
-      ReadBytesFromContentCache(file4, /*buffer=*/nullptr,
-                                /*offset=*/0, /*length=*/kDefaultChunkSize),
-      Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
+  // Close the evicted files and expect they get removed.
+  std::unique_ptr<base::RunLoop> run_loop1 = CreateItemRemovedRunLoop(
+      random_path1, /*bytes_removed*/ random_path1_size);
+  content_cache_->CloseFile(file1);
+  // Close the evicted file and expect it gets removed.
+  std::unique_ptr<base::RunLoop> run_loop2 = CreateItemRemovedRunLoop(
+      random_path2, /*bytes_removed*/ random_path2_size);
+  content_cache_->CloseFile(file2);
+  std::unique_ptr<base::RunLoop> run_loop4 = CreateItemRemovedRunLoop(
+      random_path4, /*bytes_removed*/ random_path4_size);
+  content_cache_->CloseFile(file4);
 
-  // Ensure the `RemoveItems` returns the correct values.
-  TestFuture<RemovedItemStats> remove_items_future;
-  content_cache_->RemoveItems(remove_items_future.GetCallback());
-  EXPECT_THAT(
-      remove_items_future.Get(),
-      AllOf(Field(&RemovedItemStats::num_items, 3),
-            Field(&RemovedItemStats::bytes_removed,
-                  random_path1_size + random_path2_size + random_path4_size)));
+  // Closing the non-evicted file should not remove it.
+  EXPECT_CALL(
+      content_cache_observer_,
+      OnItemRemovedFromDisk(random_path3, /*bytes_removed*/ random_path3_size))
+      .Times(0);
+  content_cache_->CloseFile(file3);
+
+  run_loop1->Run();
+  run_loop2->Run();
+  run_loop4->Run();
 }
 
-TEST_F(FileSystemProviderContentCacheImplTest,
-       RemoveItemsCanBeCalledMultipleTimesAndWithNoItems) {
-  // Add 2 items to the cache then resize the cache to only allow 1 item (this
-  // marks /a.txt for eviction).
-  WriteFileToCache(base::FilePath("/a.txt"), "versionA", kDefaultChunkSize);
-  WriteFileToCache(base::FilePath("/b.txt"), "versionB", kDefaultChunkSize);
-  content_cache_->SetMaxCacheItems(1);
+TEST_F(FileSystemProviderContentCacheImplTest, EvictCanBeCalledMultipleTimes) {
+  // Add 1 item to the cache via a Write FSP request. `CloseFile()` to ensure
+  // the eviction+removal isn't blocked.
+  OpenedCloudFile file =
+      WriteFileToCache(base::FilePath("/a.txt"), "versionA", kDefaultChunkSize);
+  content_cache_->CloseFile(file);
 
-  // Run RemoveItems twice, the first invocation will yield on the first removal
-  // of the item from the file system which will allow the second RemoveItems to
-  // be ran before the first one has completed.
-  TestFuture<RemovedItemStats> first_remove_items_future;
-  TestFuture<RemovedItemStats> second_remove_items_future;
-  content_cache_->RemoveItems(first_remove_items_future.GetCallback());
-  content_cache_->RemoveItems(second_remove_items_future.GetCallback());
+  // Run Evict twice but the file should only be evicted and removed once.
+  std::unique_ptr<base::RunLoop> run_loop = CreateItemRemovedRunLoop(
+      file.file_path, /*bytes_removed*/ kDefaultChunkSize);
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(file.file_path));
+  content_cache_->Evict(file.file_path);
 
-  // Ensure the same value comes back on both the callbacks.
-  auto evict_items_callback_matcher =
-      AllOf(Field(&RemovedItemStats::num_items, 1),
-            Field(&RemovedItemStats::bytes_removed, kDefaultChunkSize));
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(_)).Times(0);
+  content_cache_->Evict(file.file_path);
 
-  EXPECT_THAT(first_remove_items_future.Get(), evict_items_callback_matcher);
-  EXPECT_THAT(second_remove_items_future.Get(), evict_items_callback_matcher);
-
-  // If remove is called again, should respond via the callback with 0 items and
-  // 0 bytes evicted.
-  TestFuture<RemovedItemStats> no_items_evicted_future;
-  content_cache_->RemoveItems(no_items_evicted_future.GetCallback());
-  EXPECT_THAT(no_items_evicted_future.Get(),
-              AllOf(Field(&RemovedItemStats::num_items, 0),
-                    Field(&RemovedItemStats::bytes_removed, 0)));
-}
-
-TEST_F(FileSystemProviderContentCacheImplTest, EvictCallsCallback) {
-  // Inserts file into cache with size `kDefaultChunkSize`.
-  int64_t random_path_size = kDefaultChunkSize;
-  base::FilePath random_path("random-path1");
-  WriteFileToCache(random_path, "versionA", random_path_size);
-
-  TestFuture<const base::FilePath&> future;
-  content_cache_->SetOnItemEvictedCallback(future.GetRepeatingCallback());
-
-  content_cache_->Evict(random_path);
-
-  // Wait until the OnItemEvictedCallback has been called with the correct file
-  // path.
-  EXPECT_EQ(future.Take(), random_path);
-}
-
-TEST_F(FileSystemProviderContentCacheImplTest, ResizeCallsCallback) {
-  content_cache_->SetMaxCacheItems(2);
-
-  // Inserts file into cache with size `kDefaultChunkSize`. 1 space left.
-  int64_t random_path1_size = kDefaultChunkSize;
-  base::FilePath random_path1("random-path1");
-  WriteFileToCache(random_path1, "versionA", random_path1_size);
-  // Inserts another file into cache that is `kDefaultChunkSize` * 2. 0 spaces
-  // left.
-  int64_t random_path2_size = kDefaultChunkSize * 2;
-  base::FilePath random_path2("random-path2");
-  WriteFileToCache(random_path2, "versionA", random_path2_size);
-
-  TestFuture<const base::FilePath&> future;
-  content_cache_->SetOnItemEvictedCallback(future.GetRepeatingCallback());
-
-  // Resize the cache to only have 1 spot, the `random-path1` entry
-  // (least-recently used) should be evicted since there are no files already
-  // evicted.
-  content_cache_->SetMaxCacheItems(1);
-
-  // Wait until the OnItemEvictedCallback has been called with the correct file
-  // path.
-  EXPECT_EQ(future.Take(), random_path1);
+  run_loop->Run();
 }
 
 TEST_F(FileSystemProviderContentCacheImplTest,
@@ -921,11 +917,144 @@ TEST_F(FileSystemProviderContentCacheImplTest,
       std::make_unique<ash::file_system_provider::CloudFileInfo>("versionB"));
 
   // Notify of the file changes.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(fsp_path1));
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(fsp_path3));
   content_cache_->Notify(*changes);
 
   // The deleted file and file with different version tag are now evicted from
   // the cache.
   EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path2));
+}
+
+TEST_F(FileSystemProviderContentCacheImplTest,
+       ObservedVersionTagEvictsFileWithDifferentVersionTagFromCache) {
+  // Insert file into cache.
+  const base::FilePath fsp_path("random-path1");
+  WriteFileToCache(fsp_path, "versionA", kDefaultChunkSize);
+
+  // The file now exists in the cache.
+  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
+
+  // Expect that file is deleted on observing that the version changed.
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(fsp_path));
+  content_cache_->ObservedVersionTag(fsp_path, "versionB");
+
+  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
+}
+
+TEST_F(FileSystemProviderContentCacheImplTest,
+       ExistingRequestsShouldSucceedWhenFileEvictedButNotRemoved) {
+  // Initiate write and read requests for a file.
+  const base::FilePath fsp_path("random-path");
+  const std::string version_tag("versionA");
+  OpenedCloudFile write_file =
+      WriteFileToCache(fsp_path, version_tag, kDefaultChunkSize);
+  OpenedCloudFile read_file =
+      ReadFileFromCache(fsp_path, version_tag, kDefaultChunkSize);
+
+  // The file now exists in the cache.
+  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
+
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(fsp_path));
+  content_cache_->Evict(fsp_path);
+
+  // The file is now evicted from the cache.
+  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
+
+  // Can still make write and read requests with the same request id.
+  scoped_refptr<net::IOBufferWithSize> write_buffer =
+      InitializeBufferWithRandBytes(kDefaultChunkSize);
+  EXPECT_EQ(
+      WriteBytesToContentCache(write_file, write_buffer,
+                               /*offset=*/kDefaultChunkSize, kDefaultChunkSize),
+      base::File::FILE_OK);
+  scoped_refptr<net::IOBufferWithSize> read_buffer =
+      InitializeBufferWithRandBytes(kDefaultChunkSize);
+  EXPECT_THAT(ReadBytesFromContentCache(read_file, read_buffer,
+                                        /*offset=*/kDefaultChunkSize,
+                                        kDefaultChunkSize),
+              Pair(kDefaultChunkSize, base::File::FILE_OK));
+
+  // Close the write request. This does not remove the file.
+  content_cache_->CloseFile(write_file);
+
+  // Can still make read requests with the same request id.
+  EXPECT_THAT(ReadBytesFromContentCache(read_file, read_buffer,
+                                        /*offset=*/kDefaultChunkSize,
+                                        kDefaultChunkSize),
+              Pair(kDefaultChunkSize, base::File::FILE_OK));
+
+  // Close the read request. This removes the evicted file since there are no
+  // more existing requests.
+  std::unique_ptr<base::RunLoop> run_loop = CreateItemRemovedRunLoop(
+      fsp_path, /*bytes_removed*/ kDefaultChunkSize * 2);
+  content_cache_->CloseFile(read_file);
+  run_loop->Run();
+}
+
+TEST_F(FileSystemProviderContentCacheImplTest,
+       NewRequestsShouldFailWhenFileEvictedButNotRemoved) {
+  // Initiate write request for a file.
+  const base::FilePath fsp_path("random-path");
+  const std::string version_tag("versionA");
+  OpenedCloudFile write_file1 =
+      WriteFileToCache(fsp_path, version_tag, kDefaultChunkSize);
+
+  // The file now exists in the cache.
+  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
+
+  EXPECT_CALL(content_cache_observer_, OnItemEvicted(fsp_path));
+  content_cache_->Evict(fsp_path);
+
+  // The file is now evicted from the cache.
+  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
+
+  // Cannot make new write or read requests with a new request id when the file
+  // is in its evicted state.
+  OpenedCloudFile write_file2(fsp_path, OpenFileMode::OPEN_FILE_MODE_READ,
+                              ++request_id_, version_tag, kDefaultChunkSize);
+  scoped_refptr<net::IOBufferWithSize> buffer =
+      InitializeBufferWithRandBytes(kDefaultChunkSize);
+  EXPECT_EQ(WriteBytesToContentCache(write_file2, buffer,
+                                     /*offset=*/0, kDefaultChunkSize),
+            base::File::FILE_ERROR_INVALID_OPERATION);
+  EXPECT_EQ(
+      WriteBytesToContentCache(write_file2, buffer,
+                               /*offset=*/kDefaultChunkSize, kDefaultChunkSize),
+      base::File::FILE_ERROR_NOT_FOUND);
+  OpenedCloudFile read_file(fsp_path, OpenFileMode::OPEN_FILE_MODE_READ,
+                            ++request_id_, version_tag, kDefaultChunkSize);
+
+  EXPECT_THAT(ReadBytesFromContentCache(read_file, /*buffer=*/nullptr,
+                                        /*offset=*/0, kDefaultChunkSize),
+              Pair(-1, base::File::FILE_ERROR_NOT_FOUND));
+
+  // No new replacement file is added to the cache.
+  EXPECT_EQ(content_cache_->GetCachedFilePaths().size(), 0U);
+
+  // Close original write request and expect file gets removed.
+  std::unique_ptr<base::RunLoop> run_loop =
+      CreateItemRemovedRunLoop(fsp_path, /*bytes_removed*/ kDefaultChunkSize);
+  content_cache_->CloseFile(write_file1);
+  run_loop->Run();
+
+  // Now can write to and read from the file with new request ids.
+  EXPECT_EQ(WriteBytesToContentCache(write_file2, buffer,
+                                     /*offset=*/0, kDefaultChunkSize),
+            base::File::FILE_OK);
+  EXPECT_EQ(
+      WriteBytesToContentCache(write_file2, buffer,
+                               /*offset=*/kDefaultChunkSize, kDefaultChunkSize),
+      base::File::FILE_OK);
+  scoped_refptr<net::IOBufferWithSize> read_buffer =
+      InitializeBufferWithRandBytes(kDefaultChunkSize);
+  EXPECT_THAT(ReadBytesFromContentCache(read_file, read_buffer,
+                                        /*offset=*/kDefaultChunkSize,
+                                        kDefaultChunkSize),
+              Pair(kDefaultChunkSize, base::File::FILE_OK));
+
+  // The file exists in the cache again.
+  EXPECT_THAT(content_cache_->GetCachedFilePaths(), ElementsAre(fsp_path));
 }
 
 }  // namespace

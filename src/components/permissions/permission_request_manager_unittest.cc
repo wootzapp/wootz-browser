@@ -79,11 +79,17 @@ class PermissionRequestManagerTest : public content::RenderViewHostTestHarness {
 
   void TearDown() override {
     prompt_factory_ = nullptr;
+    manager_ = nullptr;
     content::RenderViewHostTestHarness::TearDown();
   }
 
   void Accept() {
     manager_->Accept();
+    task_environment()->RunUntilIdle();
+  }
+
+  void AcceptThisTime() {
+    manager_->AcceptThisTime();
     task_environment()->RunUntilIdle();
   }
 
@@ -99,11 +105,12 @@ class PermissionRequestManagerTest : public content::RenderViewHostTestHarness {
 
   void OpenHelpCenterLink() {
 #if !BUILDFLAG(IS_ANDROID)
-    const ui::MouseEvent event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
-                               ui::EventTimeForNow(), 0, 0);
+    const ui::MouseEvent event(ui::EventType::kMousePressed, gfx::Point(),
+                               gfx::Point(), ui::EventTimeForNow(), 0, 0);
 #else  // BUILDFLAG(IS_ANDROID)
     const ui::TouchEvent event(
-        ui::ET_TOUCH_MOVED, gfx::PointF(), gfx::PointF(), ui::EventTimeForNow(),
+        ui::EventType::kTouchMoved, gfx::PointF(), gfx::PointF(),
+        ui::EventTimeForNow(),
         ui::PointerDetails(ui::EventPointerType::kTouch, 1));
 #endif
     manager_->OpenHelpCenterLink(event);
@@ -176,7 +183,7 @@ class PermissionRequestManagerTest : public content::RenderViewHostTestHarness {
   MockPermissionRequest iframe_request_other_domain_;
   MockPermissionRequest iframe_request_camera_other_domain_;
   MockPermissionRequest iframe_request_mic_other_domain_;
-  raw_ptr<PermissionRequestManager, DanglingUntriaged> manager_;
+  raw_ptr<PermissionRequestManager> manager_;
   std::unique_ptr<MockPermissionPromptFactory> prompt_factory_;
   TestPermissionsClient client_;
   base::test::ScopedFeatureList feature_list_;
@@ -574,15 +581,14 @@ class QuicklyDeletedRequest : public PermissionRequest {
   QuicklyDeletedRequest(const GURL& requesting_origin,
                         RequestType request_type,
                         PermissionRequestGestureType gesture_type)
-      : PermissionRequest(
-            requesting_origin,
-            request_type,
-            gesture_type == PermissionRequestGestureType::GESTURE,
-            base::BindLambdaForTesting(
-                [](ContentSetting result,
-                   bool is_one_time,
-                   bool is_final_decision) { NOTREACHED_IN_MIGRATION(); }),
-            base::NullCallback()) {}
+      : PermissionRequest(requesting_origin,
+                          request_type,
+                          gesture_type == PermissionRequestGestureType::GESTURE,
+                          base::BindLambdaForTesting(
+                              [](ContentSetting result,
+                                 bool is_one_time,
+                                 bool is_final_decision) { NOTREACHED(); }),
+                          base::NullCallback()) {}
 
   static std::unique_ptr<QuicklyDeletedRequest> CreateRequest(
       MockPermissionRequest* request) {
@@ -805,7 +811,7 @@ TEST_F(PermissionRequestManagerTest, UMAForSimpleDeniedBubbleAlternatePath) {
 
   Deny();
   histograms.ExpectUniqueSample(PermissionUmaUtil::kPermissionsPromptDenied,
-                                static_cast<base::HistogramBase::Sample>(
+                                static_cast<base::HistogramBase::Sample32>(
                                     RequestTypeForUma::PERMISSION_GEOLOCATION),
                                 1);
 }
@@ -816,14 +822,14 @@ TEST_F(PermissionRequestManagerTest, UMAForTabSwitching) {
   manager_->AddRequest(web_contents()->GetPrimaryMainFrame(), &request1_);
   WaitForBubbleToBeShown();
   histograms.ExpectUniqueSample(PermissionUmaUtil::kPermissionsPromptShown,
-                                static_cast<base::HistogramBase::Sample>(
+                                static_cast<base::HistogramBase::Sample32>(
                                     RequestTypeForUma::PERMISSION_GEOLOCATION),
                                 1);
 
   MockTabSwitchAway();
   MockTabSwitchBack();
   histograms.ExpectUniqueSample(PermissionUmaUtil::kPermissionsPromptShown,
-                                static_cast<base::HistogramBase::Sample>(
+                                static_cast<base::HistogramBase::Sample32>(
                                     RequestTypeForUma::PERMISSION_GEOLOCATION),
                                 1);
 }
@@ -845,7 +851,8 @@ class MockNotificationPermissionUiSelector : public PermissionUiSelector {
         prediction_likelihood_(prediction_likelihood),
         async_delay_(async_delay) {}
 
-  void SelectUiToUse(PermissionRequest* request,
+  void SelectUiToUse(content::WebContents* web_contents,
+                     PermissionRequest* request,
                      DecisionMadeCallback callback) override {
     selected_ui_to_use_ = true;
     Decision decision(quiet_ui_reason_, Decision::ShowNoWarning());
@@ -1618,6 +1625,124 @@ TEST_F(PermissionRequestManagerTest,
   WaitAndAcceptPromptForRequest(request_notifications.get());
 
   EXPECT_EQ(prompt_factory_->show_count(), 5);
+}
+
+// Verifies that a high-priority request cannot preempt a low-priority request
+// if the high-priority request comes in as the result of a permission prompt
+// being accepted.
+// Permissions requested in order:
+// 1. Gelocation (low)
+// 2. Mic (high)
+TEST_F(PermissionRequestManagerTest, ReentrantPermissionRequestAccept) {
+  request1_.RegisterOnPermissionDecidedCallback(
+      base::BindLambdaForTesting([&]() {
+        manager_->AddRequest(web_contents()->GetPrimaryMainFrame(),
+                             &request_mic_);
+      }));
+
+  manager_->AddRequest(web_contents()->GetPrimaryMainFrame(), &request1_);
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Accept();
+  EXPECT_TRUE(request1_.granted());
+  EXPECT_FALSE(request_mic_.granted());
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Accept();
+  EXPECT_TRUE(request_mic_.granted());
+}
+
+// Verifies that a high-priority request cannot preempt a low-priority request
+// if the high-priority request comes in as the result of a permission prompt
+// being accepted once.
+// Permissions requested in order:
+// 1. Gelocation (low)
+// 2. Mic (high)
+TEST_F(PermissionRequestManagerTest, ReentrantPermissionRequestAcceptOnce) {
+  request1_.RegisterOnPermissionDecidedCallback(
+      base::BindLambdaForTesting([&]() {
+        manager_->AddRequest(web_contents()->GetPrimaryMainFrame(),
+                             &request_mic_);
+      }));
+
+  manager_->AddRequest(web_contents()->GetPrimaryMainFrame(), &request1_);
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  AcceptThisTime();
+  EXPECT_TRUE(request1_.granted());
+  EXPECT_FALSE(request_mic_.granted());
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Accept();
+  EXPECT_TRUE(request_mic_.granted());
+}
+
+// Verifies that a high-priority request cannot preempt a low-priority request
+// if the high-priority request comes in as the result of a permission prompt
+// being denied.
+// Permissions requested in order:
+// 1. Gelocation (low)
+// 2. Mic (high)
+TEST_F(PermissionRequestManagerTest, ReentrantPermissionRequestDeny) {
+  request1_.RegisterOnPermissionDecidedCallback(
+      base::BindLambdaForTesting([&]() {
+        manager_->AddRequest(web_contents()->GetPrimaryMainFrame(),
+                             &request_mic_);
+      }));
+
+  manager_->AddRequest(web_contents()->GetPrimaryMainFrame(), &request1_);
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Deny();
+  EXPECT_FALSE(request1_.granted());
+  EXPECT_FALSE(request_mic_.granted());
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Accept();
+  EXPECT_FALSE(request1_.granted());
+  EXPECT_TRUE(request_mic_.granted());
+}
+
+// Verifies that a high-priority request cannot preempt a low-priority request
+// if the high-priority request comes in as the result of a permission prompt
+// being dismissed.
+// Permissions requested in order:
+// 1. Gelocation (low)
+// 2. Mic (high)
+TEST_F(PermissionRequestManagerTest, ReentrantPermissionRequestCancelled) {
+  request1_.RegisterOnPermissionDecidedCallback(
+      base::BindLambdaForTesting([&]() {
+        manager_->AddRequest(web_contents()->GetPrimaryMainFrame(),
+                             &request_mic_);
+      }));
+
+  manager_->AddRequest(web_contents()->GetPrimaryMainFrame(), &request1_);
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Closing();
+  EXPECT_TRUE(request1_.cancelled());
+  EXPECT_FALSE(request_mic_.cancelled());
+  WaitForBubbleToBeShown();
+
+  EXPECT_TRUE(prompt_factory_->is_visible());
+  EXPECT_EQ(prompt_factory_->request_count(), 1);
+  Accept();
+  EXPECT_FALSE(request1_.granted());
+  EXPECT_TRUE(request_mic_.granted());
 }
 
 // Verifies order of requests with mixed low-high priority requests input, with

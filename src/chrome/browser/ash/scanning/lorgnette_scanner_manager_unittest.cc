@@ -239,6 +239,7 @@ class FakeZeroconfScannerDetector final : public ZeroconfScannerDetector {
                        const std::string& service_name) override {}
 
   void OnDeviceCacheFlushed(const std::string& service_type) override {}
+  void OnPermissionRejected() override {}
 
   // Used to trigger on_scanners_detected_callback_ after adding the given
   // |scanners| to the detected scanners.
@@ -280,8 +281,7 @@ class LorgnetteScannerManagerTest : public testing::Test {
         TestingBrowserProcess::GetGlobal());
     EXPECT_TRUE(profile_manager_->SetUp());
     TestingProfile* testing_profile =
-        profile_manager_->CreateTestingProfile(kEmail,
-                                               /*is_main_profile=*/true);
+        profile_manager_->CreateTestingProfile(kEmail);
     fake_user_manager->AddUserWithAffiliationAndTypeAndProfile(
         account_id, false, user_manager::UserType::kRegular, testing_profile);
     fake_user_manager->LoginUser(account_id);

@@ -22,7 +22,6 @@
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/origin_trials/browser/leveldb_persistence_provider.h"
 #include "components/origin_trials/browser/origin_trials.h"
-#include "components/origin_trials/common/features.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/origin_trials_controller_delegate.h"
@@ -31,7 +30,6 @@
 #include "content/shell/browser/shell_content_browser_client.h"
 #include "content/shell/browser/shell_content_index_provider.h"
 #include "content/shell/browser/shell_download_manager_delegate.h"
-#include "content/shell/browser/shell_federated_permission_context.h"
 #include "content/shell/browser/shell_paths.h"
 #include "content/shell/browser/shell_permission_manager.h"
 #include "content/shell/common/shell_switches.h"
@@ -188,33 +186,6 @@ ContentIndexProvider* ShellBrowserContext::GetContentIndexProvider() {
   return content_index_provider_.get();
 }
 
-FederatedIdentityApiPermissionContextDelegate*
-ShellBrowserContext::GetFederatedIdentityApiPermissionContext() {
-  return GetShellFederatedPermissionContext();
-}
-
-FederatedIdentityAutoReauthnPermissionContextDelegate*
-ShellBrowserContext::GetFederatedIdentityAutoReauthnPermissionContext() {
-  return GetShellFederatedPermissionContext();
-}
-
-FederatedIdentityPermissionContextDelegate*
-ShellBrowserContext::GetFederatedIdentityPermissionContext() {
-  return GetShellFederatedPermissionContext();
-}
-
-ShellFederatedPermissionContext*
-ShellBrowserContext::GetShellFederatedPermissionContext() {
-  if (!federated_permission_context_)
-    federated_permission_context_ =
-        std::make_unique<ShellFederatedPermissionContext>();
-  return federated_permission_context_.get();
-}
-
-void ShellBrowserContext::ResetFederatedPermissionContext() {
-  federated_permission_context_.reset();
-}
-
 ReduceAcceptLanguageControllerDelegate*
 ShellBrowserContext::GetReduceAcceptLanguageControllerDelegate() {
   if (!reduce_accept_lang_controller_delegate_) {
@@ -227,9 +198,6 @@ ShellBrowserContext::GetReduceAcceptLanguageControllerDelegate() {
 
 OriginTrialsControllerDelegate*
 ShellBrowserContext::GetOriginTrialsControllerDelegate() {
-  if (!origin_trials::features::IsPersistentOriginTrialsEnabled())
-    return nullptr;
-
   if (!origin_trials_controller_delegate_) {
     origin_trials_controller_delegate_ =
         std::make_unique<origin_trials::OriginTrials>(

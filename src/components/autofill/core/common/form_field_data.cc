@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <optional>
 #include <tuple>
+#include <variant>
 
 #include "base/notreached.h"
 #include "base/pickle.h"
@@ -15,6 +16,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/types/cxx23_to_underlying.h"
+#include "base/types/zip.h"
 #include "build/build_config.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_util.h"
@@ -32,7 +34,7 @@ const int kFormFieldDataPickleVersion = 9;
 
 void WriteSelectOption(const SelectOption& option, base::Pickle* pickle) {
   pickle->WriteString16(option.value);
-  pickle->WriteString16(option.content);
+  pickle->WriteString16(option.text);
 }
 
 bool ReadSelectOption(base::PickleIterator* iter, SelectOption* option) {
@@ -40,7 +42,7 @@ bool ReadSelectOption(base::PickleIterator* iter, SelectOption* option) {
   std::u16string content;
   if (!iter->ReadString16(&value) || !iter->ReadString16(&content))
     return false;
-  *option = {.value = value, .content = content};
+  *option = {.value = value, .text = content};
   return true;
 }
 
@@ -116,8 +118,9 @@ bool DeserializeSection1(base::PickleIterator* iter,
     // TODO(crbug.com/1353392,crbug.com/1482526): Why does the Password Manager
     // (de)serialize form control types? Remove it or migrate it to the enum
     // values.
-    field_data->set_form_control_type(StringToFormControlTypeDiscouraged(
-        form_control_type, /*fallback=*/FormControlType::kInputText));
+    field_data->set_form_control_type(
+        StringToFormControlTypeDiscouraged(form_control_type)
+            .value_or(FormControlType::kInputText));
   }
   return success;
 }
@@ -161,19 +164,20 @@ bool DeserializeSection7(base::PickleIterator* iter,
 bool DeserializeSection3(base::PickleIterator* iter,
                          FormFieldData* field_data) {
   std::vector<std::u16string> option_values;
-  std::vector<std::u16string> option_contents;
+  std::vector<std::u16string> option_texts;
   base::i18n::TextDirection text_direction = base::i18n::UNKNOWN_DIRECTION;
   if (!ReadAsInt(iter, &text_direction) ||
       !ReadStringVector(iter, &option_values) ||
-      !ReadStringVector(iter, &option_contents) ||
-      option_values.size() != option_contents.size()) {
+      !ReadStringVector(iter, &option_texts) ||
+      option_values.size() != option_texts.size()) {
     return false;
   }
   field_data->set_text_direction(text_direction);
   std::vector<SelectOption> options;
-  for (size_t i = 0; i < option_values.size(); ++i) {
-    options.push_back({.value = std::move(option_values[i]),
-                       .content = std::move(option_contents[i])});
+  for (auto [option_value, option_text] :
+       base::zip(option_values, option_texts)) {
+    options.push_back(
+        {.value = std::move(option_value), .text = std::move(option_text)});
   }
   field_data->set_options(std::move(options));
   return true;
@@ -295,22 +299,22 @@ Section::operator bool() const {
 }
 
 bool Section::is_from_autocomplete() const {
-  return absl::holds_alternative<Autocomplete>(value_);
+  return std::holds_alternative<Autocomplete>(value_);
 }
 
 bool Section::is_from_fieldidentifier() const {
-  return absl::holds_alternative<FieldIdentifier>(value_);
+  return std::holds_alternative<FieldIdentifier>(value_);
 }
 
 bool Section::is_default() const {
-  return absl::holds_alternative<Default>(value_);
+  return std::holds_alternative<Default>(value_);
 }
 
 std::string Section::ToString() const {
   static constexpr char kDefaultSection[] = "-default";
 
   std::string section_name;
-  if (const Autocomplete* autocomplete = absl::get_if<Autocomplete>(&value_)) {
+  if (const Autocomplete* autocomplete = std::get_if<Autocomplete>(&value_)) {
     // To prevent potential section name collisions, append `kDefaultSection`
     // suffix to fields without a `HtmlFieldMode`. Without this, 'autocomplete'
     // attribute values "section--shipping street-address" and "shipping
@@ -319,8 +323,7 @@ std::string Section::ToString() const {
                    (autocomplete->mode != HtmlFieldMode::kNone
                         ? "-" + HtmlFieldModeToString(autocomplete->mode)
                         : kDefaultSection);
-  } else if (const FieldIdentifier* f =
-                 absl::get_if<FieldIdentifier>(&value_)) {
+  } else if (const FieldIdentifier* f = std::get_if<FieldIdentifier>(&value_)) {
     FieldIdentifier field_identifier = *f;
     section_name = base::StrCat(
         {field_identifier.field_name, "_",
@@ -355,15 +358,22 @@ FormFieldData& FormFieldData::operator=(FormFieldData&&) = default;
 
 FormFieldData::~FormFieldData() = default;
 
+base::optional_ref<const SelectOption> FormFieldData::selected_option() const {
+  for (const SelectOption& option : options()) {
+    if (option.value == value()) {
+      return option;
+    }
+  }
+  return std::nullopt;
+}
+
 bool FormFieldData::SameFieldAs(const FormFieldData& field) const {
   auto equality_tuple = [](const FormFieldData& f) {
-    return std::tuple_cat(
-        std::tie(f.label_, f.name_, f.name_attribute_, f.id_attribute_,
-                 f.form_control_type_, f.autocomplete_attribute_,
-                 f.placeholder_, f.max_length_, f.css_classes_, f.is_focusable_,
-                 f.should_autocomplete_, f.role_, f.text_direction_,
-                 f.options_),
-        std::make_tuple(IsCheckable(f.check_status_)));
+    return std::tie(f.label_, f.name_, f.name_attribute_, f.id_attribute_,
+                    f.form_control_type_, f.autocomplete_attribute_,
+                    f.placeholder_, f.max_length_, f.css_classes_,
+                    f.is_focusable_, f.should_autocomplete_, f.role_,
+                    f.text_direction_, f.options_);
   };
   return equality_tuple(*this) == equality_tuple(field);
 }
@@ -384,26 +394,6 @@ bool FormFieldData::IsPasswordInputElement() const {
 
 bool FormFieldData::IsSelectElement() const {
   return form_control_type() == FormControlType::kSelectOne;
-}
-
-bool FormFieldData::IsSelectListElement() const {
-  return form_control_type() == FormControlType::kSelectList;
-}
-
-bool FormFieldData::IsSelectOrSelectListElement() const {
-  return IsSelectElement() || IsSelectListElement();
-}
-
-bool FormFieldData::DidUserType() const {
-  return properties_mask() & kUserTyped;
-}
-
-bool FormFieldData::HadFocus() const {
-  return properties_mask() & kHadFocus;
-}
-
-bool FormFieldData::WasPasswordAutofilled() const {
-  return properties_mask() & kAutofilled;
 }
 
 // static
@@ -434,6 +424,8 @@ std::string_view FormControlTypeToString(FormControlType type) {
       return "contenteditable";
     case FormControlType::kInputCheckbox:
       return "checkbox";
+    case FormControlType::kInputDate:
+      return "date";
     case FormControlType::kInputEmail:
       return "email";
     case FormControlType::kInputMonth:
@@ -454,30 +446,23 @@ std::string_view FormControlTypeToString(FormControlType type) {
       return "url";
     case FormControlType::kSelectOne:
       return "select-one";
-    case FormControlType::kSelectMultiple:
-      return "select-multiple";
-    case FormControlType::kSelectList:
-      return "selectlist";
     case FormControlType::kTextArea:
       return "textarea";
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
-FormControlType StringToFormControlTypeDiscouraged(
-    std::string_view type_string,
-    std::optional<FormControlType> fallback) {
+std::optional<FormControlType> StringToFormControlTypeDiscouraged(
+    std::string_view type_string) {
   for (auto i = base::to_underlying(FormControlType::kMinValue);
        i <= base::to_underlying(FormControlType::kMaxValue); ++i) {
     FormControlType type = static_cast<FormControlType>(i);
-    if (type_string == autofill::FormControlTypeToString(type)) {
+    if (mojom::IsKnownEnumValue(type) &&
+        type_string == FormControlTypeToString(type)) {
       return type;
     }
   }
-  if (fallback) {
-    return *fallback;
-  }
-  NOTREACHED_NORETURN();
+  return std::nullopt;
 }
 
 void SerializeFormFieldData(const FormFieldData& field_data,
@@ -702,6 +687,7 @@ LogBuffer& operator<<(LogBuffer& buffer, const FormFieldData& field) {
   buffer << Tr{} << "Is enabled:" << field.is_enabled();
   buffer << Tr{} << "Is readonly:" << field.is_readonly();
   buffer << Tr{} << "Is empty:" << (field.value().empty() ? "Yes" : "No");
+  buffer << Tr{} << "Value:" << field.value() << SetParentTagContainsPII{};
   buffer << CTag{"table"};
   return buffer;
 }

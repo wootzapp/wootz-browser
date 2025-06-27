@@ -12,7 +12,6 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
-#include "chrome/browser/optimization_guide/android/jni_headers/OptimizationGuideBridge_jni.h"
 #include "chrome/browser/optimization_guide/chrome_hints_manager.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
@@ -23,6 +22,9 @@
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/optimization_guide/android/jni_headers/OptimizationGuideBridge_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF8;
@@ -228,6 +230,23 @@ void OptimizationGuideBridge::CanApplyOptimization(
           optimization_type),
       base::BindOnce(&OnOptimizationGuideDecision,
                      ScopedJavaGlobalRef<jobject>(env, java_callback)));
+}
+
+base::android::ScopedJavaLocalRef<jobject>
+OptimizationGuideBridge::CanApplyOptimizationSync(JNIEnv* env,
+                                                  GURL& url,
+                                                  jint optimization_type) {
+  optimization_guide::OptimizationMetadata metadata;
+
+  auto decision = optimization_guide_keyed_service_->CanApplyOptimization(
+      url,
+      static_cast<optimization_guide::proto::OptimizationType>(
+          optimization_type),
+      /* optimization_metadata = */ &metadata);
+
+  return Java_OptimizationGuideBridge_createDecisionWithMetadata(
+      env, static_cast<int>(decision),
+      ToJavaSerializedAnyMetadata(env, metadata));
 }
 
 void OptimizationGuideBridge::CanApplyOptimizationOnDemand(

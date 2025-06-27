@@ -167,9 +167,9 @@ export namespace AutomationPredicate {
   export function touchLeaf(node: AutomationNode): boolean {
     return Boolean(!node.firstChild && node.name) ||
         node.role === Role.BUTTON || node.role === Role.CHECK_BOX ||
-        node.role === Role.POP_UP_BUTTON || node.role === Role.PORTAL ||
-        node.role === Role.RADIO_BUTTON || node.role === Role.SLIDER ||
-        node.role === Role.SWITCH || node.role === Role.TEXT_FIELD ||
+        node.role === Role.POP_UP_BUTTON || node.role === Role.RADIO_BUTTON ||
+        node.role === Role.SLIDER || node.role === Role.SWITCH ||
+        node.role === Role.TEXT_FIELD ||
         node.role === Role.TEXT_FIELD_WITH_COMBO_BOX ||
         (node.role === Role.MENU_ITEM && !hasActionableDescendant(node)) ||
         AutomationPredicate.image(node) ||
@@ -371,6 +371,7 @@ export namespace AutomationPredicate {
           Role.BUTTON,
           Role.CELL,
           Role.CHECK_BOX,
+          Role.GRID_CELL,
           Role.RADIO_BUTTON,
           Role.SWITCH,
         ].includes(node.role!) &&
@@ -660,8 +661,7 @@ export namespace AutomationPredicate {
 
   export function math(node: AutomationNode): boolean {
     // TODO(b/314203187): Not null asserted, check to make sure it's correct.
-    return node.role === Role.MATH ||
-        Boolean(node.htmlAttributes!['data-mathml']);
+    return Boolean(node.mathContent);
   }
 
   /** Matches against nodes visited during group navigation. */
@@ -834,9 +834,8 @@ export namespace AutomationPredicate {
 
   // Table related predicates.
   /** Returns if the node has a cell like role. */
-  export const cellLike =
-      AutomationPredicate.roles(
-        [Role.CELL, Role.ROW_HEADER, Role.COLUMN_HEADER]);
+  export const cellLike = AutomationPredicate.roles(
+      [Role.CELL, Role.GRID_CELL, Role.ROW_HEADER, Role.COLUMN_HEADER]);
 
   /** Returns if the node is a table header. */
   export const tableHeader =
@@ -845,6 +844,9 @@ export namespace AutomationPredicate {
   /** Matches against nodes that we may be able to retrieve image data from. */
   export const supportsImageData =
       AutomationPredicate.roles([Role.CANVAS, Role.IMAGE, Role.VIDEO]);
+
+  /** Matches against menu like nodes. */
+  export const menu = AutomationPredicate.roles([Role.MENU, Role.MENU_BAR]);
 
   /** Matches against menu item like nodes. */
   export const menuItem = AutomationPredicate.roles(

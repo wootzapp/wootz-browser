@@ -5,29 +5,18 @@
 #ifndef IOS_CHROME_BROWSER_SAFE_BROWSING_MODEL_VERDICT_CACHE_MANAGER_FACTORY_H_
 #define IOS_CHROME_BROWSER_SAFE_BROWSING_MODEL_VERDICT_CACHE_MANAGER_FACTORY_H_
 
-#include "base/no_destructor.h"
-#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
-
-class ChromeBrowserState;
-class KeyedService;
+#import "base/no_destructor.h"
+#import "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
 namespace safe_browsing {
 class VerdictCacheManager;
 }
 
-namespace web {
-class BrowserState;
-}
-
 // Singleton that owns VerdictCacheManager objects, one for each active
-// ChromeBrowserState.
-class VerdictCacheManagerFactory : public BrowserStateKeyedServiceFactory {
+// profile.
+class VerdictCacheManagerFactory : public ProfileKeyedServiceFactoryIOS {
  public:
-  // Returns the instance of VerdictCacheManager associated with this browser
-  // state, creating one if none exists.
-  static safe_browsing::VerdictCacheManager* GetForBrowserState(
-      ChromeBrowserState* browser_state);
-
+  static safe_browsing::VerdictCacheManager* GetForProfile(ProfileIOS* profile);
   // Returns the singleton instance of VerdictCacheManagerFactory.
   static VerdictCacheManagerFactory* GetInstance();
 
@@ -39,8 +28,6 @@ class VerdictCacheManagerFactory : public BrowserStateKeyedServiceFactory {
 
   // BrowserStateKeyedServiceFactory:
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
-      web::BrowserState* browser_state) const override;
-  web::BrowserState* GetBrowserStateToUse(
       web::BrowserState* browser_state) const override;
 };
 

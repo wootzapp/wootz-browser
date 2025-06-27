@@ -4,12 +4,16 @@
 
 import 'chrome://shopping-insights-side-panel.top-chrome/app.js';
 
-import {BrowserProxyImpl} from 'chrome://resources/cr_components/commerce/browser_proxy.js';
-import type {PriceInsightsInfo, ProductInfo} from 'chrome://resources/cr_components/commerce/shopping_service.mojom-webui.js';
-import {PageCallbackRouter, PriceInsightsInfo_PriceBucket} from 'chrome://resources/cr_components/commerce/shopping_service.mojom-webui.js';
+import {PageCallbackRouter} from 'chrome://resources/cr_components/commerce/price_tracking.mojom-webui.js';
+import {PriceTrackingBrowserProxyImpl} from 'chrome://resources/cr_components/commerce/price_tracking_browser_proxy.js';
+import type {ProductInfo} from 'chrome://resources/cr_components/commerce/shared.mojom-webui.js';
+import type {PriceInsightsInfo} from 'chrome://resources/cr_components/commerce/shopping_service.mojom-webui.js';
+import {PriceInsightsInfo_PriceBucket} from 'chrome://resources/cr_components/commerce/shopping_service.mojom-webui.js';
+import {ShoppingServiceBrowserProxyImpl} from 'chrome://resources/cr_components/commerce/shopping_service_browser_proxy.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {stringToMojoString16} from 'chrome://resources/js/mojo_type_util.js';
 import type {ShoppingInsightsAppElement} from 'chrome://shopping-insights-side-panel.top-chrome/app.js';
+import {PriceInsightsBrowserProxyImpl} from 'chrome://shopping-insights-side-panel.top-chrome/price_insights_browser_proxy.js';
 import type {PriceTrackingSection} from 'chrome://shopping-insights-side-panel.top-chrome/price_tracking_section.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import type {MetricsTracker} from 'chrome://webui-test/metrics_test_support.js';
@@ -20,7 +24,10 @@ import {isVisible} from 'chrome://webui-test/test_util.js';
 
 suite('ShoppingInsightsAppTest', () => {
   let shoppingInsightsApp: ShoppingInsightsAppElement;
-  const shoppingServiceApi = TestMock.fromClass(BrowserProxyImpl);
+  const shoppingServiceApi =
+      TestMock.fromClass(ShoppingServiceBrowserProxyImpl);
+  const priceTrackingProxy = TestMock.fromClass(PriceTrackingBrowserProxyImpl);
+  const priceInsightsProxy = TestMock.fromClass(PriceInsightsBrowserProxyImpl);
   let metrics: MetricsTracker;
 
   const productInfo: ProductInfo = {
@@ -32,6 +39,8 @@ suite('ShoppingInsightsAppTest', () => {
     currentPrice: '$12',
     previousPrice: '$34',
     clusterId: BigInt(12345),
+    categoryLabels: [],
+    priceSummary: '',
   };
   const priceInsights1: PriceInsightsInfo = {
     clusterId: BigInt(123),
@@ -94,7 +103,7 @@ suite('ShoppingInsightsAppTest', () => {
     currencyCode: 'usd',
   };
 
-  setup(async () => {
+  setup(() => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     shoppingServiceApi.reset();
@@ -106,7 +115,15 @@ suite('ShoppingInsightsAppTest', () => {
     shoppingServiceApi.setResultFor(
         'getPriceTrackingStatusForCurrentUrl',
         Promise.resolve({tracked: false}));
-    BrowserProxyImpl.setInstance(shoppingServiceApi);
+    ShoppingServiceBrowserProxyImpl.setInstance(shoppingServiceApi);
+
+    priceTrackingProxy.reset();
+    priceTrackingProxy.setResultFor(
+        'getCallbackRouter', new PageCallbackRouter());
+    PriceTrackingBrowserProxyImpl.setInstance(priceTrackingProxy);
+
+    priceInsightsProxy.reset();
+    PriceInsightsBrowserProxyImpl.setInstance(priceInsightsProxy);
 
     shoppingInsightsApp = document.createElement('shopping-insights-app');
 
@@ -167,7 +184,7 @@ suite('ShoppingInsightsAppTest', () => {
     assertEquals(
         loadTimeData.getString('buyOptions'), buyOption.textContent!.trim());
 
-    const button = attributesRow.shadowRoot!.querySelector('iron-icon');
+    const button = attributesRow.shadowRoot!.querySelector('cr-icon');
     assertTrue(!!button);
     button.click();
     const url = await shoppingServiceApi.whenCalled('openUrlInNewTab');
@@ -194,7 +211,7 @@ suite('ShoppingInsightsAppTest', () => {
     assertEquals(
         loadTimeData.getString('feedback'), feedbackButton.textContent!.trim());
     feedbackButton.click();
-    assertEquals(1, shoppingServiceApi.getCallCount('showFeedback'));
+    assertEquals(1, priceInsightsProxy.getCallCount('showFeedback'));
     assertEquals(
         1, metrics.count('Commerce.PriceInsights.InlineFeedbackLinkClicked'));
 
@@ -328,12 +345,9 @@ suite('ShoppingInsightsAppTest', () => {
       shoppingServiceApi.setResultFor(
           'getPriceTrackingStatusForCurrentUrl',
           Promise.resolve({tracked: true}));
-      shoppingServiceApi.setResultFor(
+      priceTrackingProxy.setResultFor(
           'getParentBookmarkFolderNameForCurrentUrl',
           Promise.resolve({name: stringToMojoString16('Parent folder')}));
-
-      const callbackRouter = new PageCallbackRouter();
-      shoppingServiceApi.setResultFor('getCallbackRouter', callbackRouter);
 
       document.body.appendChild(shoppingInsightsApp);
       await shoppingServiceApi.whenCalled('getProductInfoForCurrentUrl');
@@ -364,12 +378,9 @@ suite('ShoppingInsightsAppTest', () => {
     shoppingServiceApi.setResultFor(
         'getPriceInsightsInfoForCurrentUrl',
         Promise.resolve({priceInsightsInfo: priceInsights1}));
-    shoppingServiceApi.setResultFor(
+    priceTrackingProxy.setResultFor(
         'getParentBookmarkFolderNameForCurrentUrl',
         Promise.resolve({name: stringToMojoString16('Parent folder')}));
-
-    const callbackRouter = new PageCallbackRouter();
-    shoppingServiceApi.setResultFor('getCallbackRouter', callbackRouter);
 
     document.body.appendChild(shoppingInsightsApp);
     await shoppingServiceApi.whenCalled('getProductInfoForCurrentUrl');

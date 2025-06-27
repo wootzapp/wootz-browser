@@ -174,12 +174,13 @@ void AutoplayUmaHelper::OnIntersectionChangedForMutedVideoOffscreenDuration(
 
 void AutoplayUmaHelper::Invoke(ExecutionContext* execution_context,
                                Event* event) {
-  if (event->type() == event_type_names::kPlaying)
+  if (event->type() == event_type_names::kPlaying) {
     HandlePlayingEvent();
-  else if (event->type() == event_type_names::kPause)
+  } else if (event->type() == event_type_names::kPause) {
     HandlePauseEvent();
-  else
-    NOTREACHED_IN_MIGRATION();
+  } else {
+    NOTREACHED();
+  }
 }
 
 void AutoplayUmaHelper::HandlePlayingEvent() {
@@ -281,7 +282,7 @@ void AutoplayUmaHelper::MaybeStopRecordingMutedVideoOffscreenDuration() {
 
 void AutoplayUmaHelper::MaybeUnregisterContextDestroyedObserver() {
   // TODO(keishi): Remove IsIteratingOverObservers() check when
-  // HeapObserverSet() supports removal while iterating.
+  // HeapObserverList() supports removal while iterating.
   if (!ShouldListenToContextDestroyed() && !GetExecutionContext()
                                                 ->ContextLifecycleObserverSet()
                                                 .IsIteratingOverObservers()) {

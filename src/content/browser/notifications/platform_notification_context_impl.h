@@ -135,6 +135,12 @@ class CONTENT_EXPORT PlatformNotificationContextImpl
   void ReDisplayNotifications(
       std::vector<GURL> origins,
       ReDisplayNotificationsResultCallback callback) override;
+  void WriteNotificationMetadata(
+      const std::string& notification_id,
+      const GURL& origin,
+      const std::string& metadata_key,
+      const std::string& metadata_value,
+      WriteResourcesResultCallback callback) override;
 
   // ServiceWorkerContextCoreObserver implementation.
   void OnRegistrationDeleted(int64_t registration_id,
@@ -315,6 +321,13 @@ class CONTENT_EXPORT PlatformNotificationContextImpl
                                 ReDisplayNotificationsResultCallback callback,
                                 bool initialized);
 
+  void DoWriteNotificationMetadata(const std::string& notification_id,
+                                   const GURL& origin,
+                                   const std::string& metadata_key,
+                                   const std::string& metadata_value,
+                                   WriteResourcesResultCallback callback,
+                                   bool initialized);
+
   void OnStorageWipedInitialized(bool initialized);
 
   // Deletes all notifications associated with |service_worker_registration_id|
@@ -336,8 +349,16 @@ class CONTENT_EXPORT PlatformNotificationContextImpl
   void SetTaskRunnerForTesting(
       const scoped_refptr<base::SequencedTaskRunner>& task_runner);
 
+  void DisplayNotification(const NotificationDatabaseData& data,
+                           WriteResultCallback callback);
+
+  void CloseNotifications(const std::set<std::string>& notification_ids);
+  void ScheduleTrigger(base::Time timestamp);
+  void ScheduleNotification(const NotificationDatabaseData& data);
+  void LogClose(const NotificationDatabaseData& data);
+
   base::FilePath path_;
-  raw_ptr<BrowserContext, AcrossTasksDanglingUntriaged> browser_context_;
+  raw_ptr<BrowserContext> browser_context_;
 
   scoped_refptr<ServiceWorkerContextWrapper> service_worker_context_;
 
@@ -359,7 +380,7 @@ class CONTENT_EXPORT PlatformNotificationContextImpl
   NotificationDatabase::UkmCallback ukm_callback_;
 
   // Flag if the |browser_context_| has been shutdown already.
-  bool has_shutdown_;
+  std::atomic_bool has_shutdown_;
 };
 
 }  // namespace content

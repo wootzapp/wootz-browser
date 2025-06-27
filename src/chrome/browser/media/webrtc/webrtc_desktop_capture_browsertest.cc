@@ -2,19 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
+
 #include "base/barrier_closure.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/desktop_capture/desktop_capture_api.h"
+#include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/media/webrtc/fake_desktop_media_picker_factory.h"
 #include "chrome/browser/media/webrtc/webrtc_browsertest_base.h"
 #include "chrome/browser/media/webrtc/webrtc_browsertest_common.h"
@@ -50,7 +51,7 @@ content::WebContents* GetWebContents(Browser* browser, int tab) {
 
 content::DesktopMediaID GetDesktopMediaIDForScreen() {
   return content::DesktopMediaID(content::DesktopMediaID::TYPE_SCREEN,
-                                 content::DesktopMediaID::kNullId);
+                                 content::DesktopMediaID::kFakeId);
 }
 
 content::DesktopMediaID GetDesktopMediaIDForTab(Browser* browser, int tab) {
@@ -59,8 +60,9 @@ content::DesktopMediaID GetDesktopMediaIDForTab(Browser* browser, int tab) {
   return content::DesktopMediaID(
       content::DesktopMediaID::TYPE_WEB_CONTENTS,
       content::DesktopMediaID::kNullId,
-      content::WebContentsMediaCaptureId(main_frame->GetProcess()->GetID(),
-                                         main_frame->GetRoutingID()));
+      content::WebContentsMediaCaptureId(
+          main_frame->GetProcess()->GetDeprecatedID(),
+          main_frame->GetRoutingID()));
 }
 
 infobars::ContentInfoBarManager* GetInfoBarManager(Browser* browser, int tab) {
@@ -152,7 +154,7 @@ class InfobarUIChangeObserver : public TabStripModelObserver {
 
  public:
   void EraseObserver(InfoBarChangeObserver* observer) {
-    auto iter = base::ranges::find(
+    auto iter = std::ranges::find(
         observers_, observer,
         [](const auto& observer_iter) { return observer_iter.second.get(); });
     observers_.erase(iter);
@@ -185,7 +187,7 @@ class InfobarUIChangeObserver : public TabStripModelObserver {
 
     void OnInfoBarReplaced(infobars::InfoBar* old_infobar,
                            infobars::InfoBar* new_infobar) override {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
 
     void OnManagerShuttingDown(infobars::InfoBarManager* manager) override {
@@ -232,11 +234,12 @@ class WebRtcDesktopCaptureBrowserTest : public WebRtcTestBase {
     command_line->AppendSwitchASCII(switches::kAutoSelectDesktopCaptureSource,
                                     "Entire screen");
     command_line->AppendSwitch(switches::kEnableUserMediaScreenCapturing);
+    // MSan and GL do not get along so avoid using the GPU with MSan.
     // TODO(crbug.com/40260482): Remove this after fixing feature
     // detection in 0c tab capture path as it'll no longer be needed.
-    if constexpr (!BUILDFLAG(IS_CHROMEOS)) {
-      command_line->AppendSwitch(switches::kUseGpuInTests);
-    }
+#if !BUILDFLAG(IS_CHROMEOS) && !defined(MEMORY_SANITIZER)
+    command_line->AppendSwitch(switches::kUseGpuInTests);
+#endif
   }
 
  protected:
@@ -305,6 +308,9 @@ class WebRtcDesktopCaptureBrowserTest : public WebRtcTestBase {
   }
 
   FakeDesktopMediaPickerFactory picker_factory_;
+
+  // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.
+  extensions::ScopedTestMV2Enabler mv2_enabler_;
 };
 
 // TODO(crbug.com/40915051): Fails on MAC.
@@ -400,17 +406,21 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_LE(frame_counter, 3);
 }
 
-// TODO(crbug.com/40555763): Enable on Mac when thread check crash is fixed.
-// TODO(sprang): Figure out why test times out on Win 10 and ChromeOS.
-// TODO(crbug.com/40118868): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-// TODO(crbug.com/40776079): Test is flaky on Linux.
+// Flaky on ASan bots. See https://crbug.com/40270173.
+// Crashes on some Macs. See https://crbug.com/351095634.
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || BUILDFLAG(IS_MAC)
+#define MAYBE_RunP2PScreenshareWhileSharingScreen \
+  DISABLED_RunP2PScreenshareWhileSharingScreen
+#else
+#define MAYBE_RunP2PScreenshareWhileSharingScreen \
+  RunP2PScreenshareWhileSharingScreen
+#endif
 IN_PROC_BROWSER_TEST_F(WebRtcDesktopCaptureBrowserTest,
-                       DISABLED_RunP2PScreenshareWhileSharingScreen) {
+                       MAYBE_RunP2PScreenshareWhileSharingScreen) {
   RunP2PScreenshareWhileSharing(base::BindOnce(GetDesktopMediaIDForScreen));
 }
 
-// TODO(crbug.com/40270173) flaky on ASan bots
+// Flaky on ASan bots. See https://crbug.com/40270173.
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
 #define MAYBE_RunP2PScreenshareWhileSharingTab \
   DISABLED_RunP2PScreenshareWhileSharingTab

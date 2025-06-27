@@ -7,14 +7,15 @@
 #include <memory>
 
 #include "base/barrier_callback.h"
+#include "base/check_deref.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/simple_test_clock.h"
 #include "base/test/test_future.h"
+#include "base/time/time.h"
 #include "base/version.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
-#include "chrome/browser/dips/dips_service.h"
-#include "chrome/browser/dips/dips_utils.h"
 #include "chrome/browser/first_party_sets/scoped_mock_first_party_sets_handler.h"
 #include "chrome/browser/webid/federated_identity_permission_context.h"
 #include "chrome/browser/webid/federated_identity_permission_context_factory.h"
@@ -34,8 +35,10 @@
 #include "components/permissions/permission_util.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/btm_service.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
+#include "content/public/test/browser_test_utils.h"
 #include "content/public/test/web_contents_tester.h"
 #include "net/base/schemeful_site.h"
 #include "net/first_party_sets/first_party_set_entry.h"
@@ -43,12 +46,18 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/features_generated.h"
+#include "third_party/blink/public/common/input/web_mouse_event.h"
 
 namespace {
 
 using testing::_;
+using testing::AllOf;
+using testing::Contains;
+using testing::Each;
 using testing::ElementsAre;
+using testing::Gt;
 using testing::IsEmpty;
+using testing::Lt;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 using PermissionStatus = blink::mojom::PermissionStatus;
@@ -57,6 +66,20 @@ constexpr char kGrantIsImplicitHistogram[] =
     "API.StorageAccess.GrantIsImplicit";
 constexpr char kPromptResultHistogram[] = "Permissions.Action.StorageAccess";
 constexpr char kRequestOutcomeHistogram[] = "API.StorageAccess.RequestOutcome";
+
+MATCHER_P(DecidedByRelatedWebsiteSets, inner, "") {
+  return testing::ExplainMatchResult(
+      inner, arg.metadata.decided_by_related_website_sets(), result_listener);
+}
+
+MATCHER_P(IsExpired, inner, "") {
+  return testing::ExplainMatchResult(inner, arg.IsExpired(), result_listener);
+}
+
+MATCHER_P(ExpirationIs, inner, "") {
+  return testing::ExplainMatchResult(inner, arg.metadata.expiration(),
+                                     result_listener);
+}
 
 GURL GetTopLevelURL() {
   return GURL("https://embedder.com");
@@ -119,18 +142,10 @@ class StorageAccessGrantPermissionContextTest
 
     content_settings::PageSpecificContentSettings::CreateForWebContents(
         web_contents(),
-        std::make_unique<chrome::PageSpecificContentSettingsDelegate>(
-            web_contents()));
+        std::make_unique<PageSpecificContentSettingsDelegate>(web_contents()));
 
-    DIPSService* dips_service = DIPSService::Get(browser_context());
-    CHECK(dips_service);
-    base::test::TestFuture<void> future;
-    dips_service->storage()
-        ->AsyncCall(&DIPSStorage::RecordInteraction)
-        .WithArgs(GetRequesterURL(), base::Time::Now(),
-                  DIPSCookieMode::kBlock3PC)
-        .Then(future.GetCallback());
-    ASSERT_TRUE(future.Wait());
+    CHECK_DEREF(content::BtmService::Get(browser_context()))
+        .RecordUserActivationForTesting(GetRequesterURL());
     permission_context_ =
         std::make_unique<StorageAccessGrantPermissionContext>(profile());
   }
@@ -141,19 +156,18 @@ class StorageAccessGrantPermissionContextTest
     ChromeRenderViewHostTestHarness::TearDown();
   }
 
-  std::unique_ptr<base::test::TestFuture<ContentSetting>> DecidePermission(
-      bool user_gesture) {
-    auto future = std::make_unique<base::test::TestFuture<ContentSetting>>();
+  base::test::TestFuture<ContentSetting> DecidePermission(bool user_gesture) {
+    base::test::TestFuture<ContentSetting> future;
     permission_context_->DecidePermissionForTesting(
         permissions::PermissionRequestData(permission_context(), CreateFakeID(),
                                            user_gesture, GetRequesterURL(),
                                            GetTopLevelURL()),
-        future->GetCallback());
+        future.GetCallback());
     return future;
   }
 
   ContentSetting DecidePermissionSync(bool user_gesture) {
-    return DecidePermission(user_gesture)->Get();
+    return DecidePermission(user_gesture).Get();
   }
 
   ContentSetting RequestPermissionSync() {
@@ -269,7 +283,7 @@ TEST_F(StorageAccessGrantPermissionContextTest,
   // Accept the prompt and validate we get the expected setting back in our
   // callback.
   request_manager()->Accept();
-  EXPECT_EQ(CONTENT_SETTING_ALLOW, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_ALLOW, future.Get());
 
   histogram_tester().ExpectUniqueSample(kGrantIsImplicitHistogram,
                                         /*sample=*/false, 1);
@@ -303,7 +317,7 @@ TEST_F(StorageAccessGrantPermissionContextTest, PermissionDecided) {
   EXPECT_EQ(GetTopLevelURL(), request_manager()->GetEmbeddingOrigin());
 
   request_manager()->Dismiss();
-  EXPECT_EQ(CONTENT_SETTING_ASK, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_ASK, future.Get());
   histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
                                         RequestOutcome::kDismissedByUser, 1);
   // Expect no pscs entry for dismissed permissions.
@@ -353,12 +367,11 @@ TEST_F(StorageAccessGrantPermissionContextTest, BlockReused) {
 
 TEST_F(StorageAccessGrantPermissionContextTest, FpsGrantReused) {
   auto* map = HostContentSettingsMapFactory::GetForProfile(profile());
-  content_settings::ContentSettingConstraints constraint;
-  constraint.set_session_model(
-      content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION);
+  content_settings::ContentSettingConstraints constraints;
+  constraints.set_decided_by_related_website_sets(true);
   map->SetContentSettingDefaultScope(GetRequesterURL(), GetTopLevelURL(),
                                      ContentSettingsType::STORAGE_ACCESS,
-                                     CONTENT_SETTING_ALLOW, constraint);
+                                     CONTENT_SETTING_ALLOW, constraints);
 
   RequestPermissionSync();
   histogram_tester().ExpectUniqueSample(
@@ -474,7 +487,7 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithImplicitGrantsTest,
     // Close the prompt and validate we get the expected setting back in our
     // callback.
     request_manager()->Dismiss();
-    EXPECT_EQ(CONTENT_SETTING_ASK, future->Get());
+    EXPECT_EQ(CONTENT_SETTING_ASK, future.Get());
   }
   EXPECT_EQ(histogram_tester().GetBucketCount(kRequestOutcomeHistogram,
                                               RequestOutcome::kDismissedByUser),
@@ -558,7 +571,7 @@ TEST_F(StorageAccessGrantPermissionContextTest, ExplicitGrantDenial) {
   // Deny the prompt and validate we get the expected setting back in our
   // callback.
   request_manager()->Deny();
-  EXPECT_EQ(CONTENT_SETTING_BLOCK, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_BLOCK, future.Get());
 
   histogram_tester().ExpectTotalCount(kGrantIsImplicitHistogram, 0);
   histogram_tester().ExpectUniqueSample(
@@ -588,7 +601,7 @@ TEST_F(StorageAccessGrantPermissionContextTest,
   auto future = DecidePermission(/*user_gesture=*/true);
   // Ensure the prompt is not shown.
   ASSERT_FALSE(request_manager()->IsRequestInProgress());
-  EXPECT_EQ(CONTENT_SETTING_BLOCK, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_BLOCK, future.Get());
 
   // However, ensure that the user's denial is not exposed when querying the
   // permission, per the spec.
@@ -613,7 +626,7 @@ TEST_F(StorageAccessGrantPermissionContextTest, ExplicitGrantAccept) {
   // Accept the prompt and validate we get the expected setting back in our
   // callback.
   request_manager()->Accept();
-  EXPECT_EQ(CONTENT_SETTING_ALLOW, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_ALLOW, future.Get());
 
   histogram_tester().ExpectUniqueSample(kGrantIsImplicitHistogram,
                                         /*sample=*/false, 1);
@@ -655,18 +668,21 @@ class StorageAccessGrantPermissionContextAPIWithFirstPartySetsTest
 
 TEST_F(StorageAccessGrantPermissionContextAPIWithFirstPartySetsTest,
        ImplicitGrant_AutograntedWithinFPS) {
-  base::Time expiration_lower_bound_check = base::Time::Now();
-
   HostContentSettingsMap* settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile());
   DCHECK(settings_map);
 
-  // Check no `SessionModel::NON_RESTORABLE_USER_SESSION` setting exists yet.
-  ContentSettingsForOneType non_restorable_grants =
-      settings_map->GetSettingsForOneType(
-          ContentSettingsType::STORAGE_ACCESS,
-          content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION);
-  EXPECT_EQ(0u, non_restorable_grants.size());
+  // Overriding the clock to test expiry time.
+  base::SimpleTestClock test_clock;
+  test_clock.SetNow(base::Time::Now());
+  settings_map->SetClockForTesting(&test_clock);
+
+  // Check no `SessionModel::DURABLE` setting with
+  // `decided_by_related_website_sets` exists yet.
+  ASSERT_THAT(settings_map->GetSettingsForOneType(
+                  ContentSettingsType::STORAGE_ACCESS,
+                  content_settings::mojom::SessionModel::DURABLE),
+              Each(DecidedByRelatedWebsiteSets(false)));
 
   EXPECT_EQ(DecidePermissionSync(/*user_gesture=*/true), CONTENT_SETTING_ALLOW);
 
@@ -676,39 +692,41 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithFirstPartySetsTest,
                                         /*sample=*/true, 1);
 
   DCHECK(settings_map);
-  // Check the `SessionModel::NON_RESTORABLE_USER_SESSION` settings granted by
-  // FPS.
-  non_restorable_grants = settings_map->GetSettingsForOneType(
-      ContentSettingsType::STORAGE_ACCESS,
-      content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION);
-  EXPECT_EQ(1u, non_restorable_grants.size());
+  // Check the `SessionModel::DURABLE` setting with
+  // `decided_by_related_website_sets` granted by FPS and its expiry.
+  EXPECT_THAT(
+      settings_map->GetSettingsForOneType(
+          ContentSettingsType::STORAGE_ACCESS,
+          content_settings::mojom::SessionModel::DURABLE),
+      Contains(AllOf(
+          DecidedByRelatedWebsiteSets(true), IsExpired(false),
+          ExpirationIs(
+              test_clock.Now() +
+              permissions::kStorageAccessAPIRelatedWebsiteSetsLifetime))));
 
   EXPECT_THAT(page_specific_content_settings()->GetTwoSiteRequests(
                   ContentSettingsType::STORAGE_ACCESS),
               IsEmpty());
-
-  auto setting = non_restorable_grants[0];
-
-  EXPECT_NE(true, setting.IsExpired());
-  // Check to ensure the expiration time is in expected range.
-  EXPECT_GT(setting.metadata.expiration(),
-            permissions::kStorageAccessAPIRelatedWebsiteSetsLifetime +
-                expiration_lower_bound_check);
-  EXPECT_LT(setting.metadata.expiration(),
-            permissions::kStorageAccessAPIRelatedWebsiteSetsLifetime +
-                base::Time::Now());
 }
 
 class StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest
-    : public StorageAccessGrantPermissionContextTest {
+    : public StorageAccessGrantPermissionContextTest,
+      public testing::WithParamInterface<bool> {
  public:
   StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest() = default;
 
   void SetUp() override {
     StorageAccessGrantPermissionContextTest::SetUp();
 
-    feature_list_.InitAndEnableFeature(
-        blink::features::kFedCmWithStorageAccessAPI);
+    // This feature is already enabled by default, but the SUT behavior does
+    // different things if it's overridden or not. So we also try initializing
+    // as-is, without overriding.
+    if (override_feature_state()) {
+      feature_list_.InitAndEnableFeature(
+          blink::features::kFedCmWithStorageAccessAPI);
+    } else {
+      feature_list_.Init();
+    }
 
     FederatedIdentityPermissionContextFactory::GetForProfile(profile())
         ->GrantSharingPermission(
@@ -720,11 +738,13 @@ class StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest
             "my_account");
   }
 
+  bool override_feature_state() const { return GetParam(); }
+
  private:
   base::test::ScopedFeatureList feature_list_;
 };
 
-TEST_F(StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
+TEST_P(StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
        AutoResolveWithConnection) {
   prompt_factory().set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::NONE);
@@ -732,7 +752,7 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
   auto future = DecidePermission(/*user_gesture=*/false);
   // Ensure no prompt is shown.
   ASSERT_FALSE(request_manager()->IsRequestInProgress());
-  EXPECT_EQ(CONTENT_SETTING_ALLOW, future->Get());
+  EXPECT_EQ(CONTENT_SETTING_ALLOW, future.Get());
 
   histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
                                         RequestOutcome::kAllowedByFedCM, 1);
@@ -752,3 +772,8 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
                   ContentSettingsType::STORAGE_ACCESS),
               IsEmpty());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
+    testing::Bool());

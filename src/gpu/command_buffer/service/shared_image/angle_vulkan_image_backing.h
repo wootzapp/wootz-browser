@@ -27,7 +27,7 @@ class AngleVulkanImageBacking : public ClearTrackingSharedImageBacking {
                           const gfx::ColorSpace& color_space,
                           GrSurfaceOrigin surface_origin,
                           SkAlphaType alpha_type,
-                          uint32_t usage,
+                          gpu::SharedImageUsageSet usage,
                           std::string debug_label);
   ~AngleVulkanImageBacking() override;
 
@@ -38,6 +38,7 @@ class AngleVulkanImageBacking : public ClearTrackingSharedImageBacking {
   // SharedImageBacking implementation.
   SharedImageBackingType GetType() const override;
   bool UploadFromMemory(const std::vector<SkPixmap>& pixmaps) override;
+  bool ReadbackToMemory(const std::vector<SkPixmap>& pixmaps) override;
   void Update(std::unique_ptr<gfx::GpuFence> in_fence) override;
   std::unique_ptr<GLTexturePassthroughImageRepresentation>
   ProduceGLTexturePassthrough(SharedImageManager* manager,

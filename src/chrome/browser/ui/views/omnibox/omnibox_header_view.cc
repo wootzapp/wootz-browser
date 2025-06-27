@@ -76,24 +76,21 @@ OmniboxHeaderView::OmniboxHeaderView(OmniboxPopupViewViews* popup_view,
           base::Unretained(this)));
   views::FocusRing::Get(header_toggle_button_)
       ->SetOutsetFocusRingDisabled(true);
+
+  UpdateExpandedCollapsedAccessibleState();
 }
 
 void OmniboxHeaderView::SetHeader(const std::u16string& header_text,
                                   bool is_suggestion_group_hidden) {
   header_text_ = header_text;
 
-  // TODO(tommycli): Our current design calls for uppercase text here, but
-  // it seems like an open question what should happen for non-Latin locales.
-  // Moreover, it seems unusual to do case conversion in Views in general.
-  std::u16string header_str = header_text_;
-    header_str = base::i18n::ToUpper(header_str);
-  header_label_->SetText(header_str);
+  header_label_->SetText(header_text_);
   header_toggle_button_->SetToggled(is_suggestion_group_hidden);
 }
 
 gfx::Insets OmniboxHeaderView::GetInsets() const {
   // Makes the header height roughly the same as the single-line row height.
-  const int vertical = 8;
+  constexpr int vertical = 8;
 
   // Aligns the header text with the icons of ordinary matches. The assumed
   // small icon width here is lame, but necessary, since it's not explicitly
@@ -133,25 +130,12 @@ void OmniboxHeaderView::OnThemeChanged() {
   UpdateUI();
 }
 
-void OmniboxHeaderView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  // Hidden OmniboxHeaderView instances are not associated with any group ID, so
-  // they are neither collapsed or expanded.s
-  if (!GetVisible()) {
-    return;
-  }
-
-  node_data->AddState(suggestion_group_hidden_ ? ax::mojom::State::kCollapsed
-                                               : ax::mojom::State::kExpanded);
-}
-
 void OmniboxHeaderView::UpdateUI() {
-  OmniboxPartState part_state = OmniboxPartState::NORMAL;
-  if (popup_view_->model()->GetPopupSelection() == GetHeaderSelection()) {
-    part_state = OmniboxPartState::SELECTED;
-  } else if (IsMouseHovered()) {
-    part_state = OmniboxPartState::HOVERED;
-  }
-
+  const OmniboxPartState part_state =
+      popup_view_->model()->GetPopupSelection() == GetHeaderSelection()
+          ? OmniboxPartState::SELECTED
+          : (IsMouseHovered() ? OmniboxPartState::HOVERED
+                              : OmniboxPartState::NORMAL);
   const auto* const color_provider = GetColorProvider();
   const SkColor text_color =
       color_provider->GetColor((part_state == OmniboxPartState::SELECTED)
@@ -165,7 +149,7 @@ void OmniboxHeaderView::UpdateUI() {
                                    : kColorOmniboxResultsIcon);
   views::InkDrop::Get(header_toggle_button_)->SetBaseColor(icon_color);
 
-  int dip_size = GetLayoutConstant(LOCATION_BAR_ICON_SIZE);
+  const int dip_size = GetLayoutConstant(LOCATION_BAR_ICON_SIZE);
   const gfx::ImageSkia arrow_down = gfx::CreateVectorIcon(
       omnibox::kArrowDownChromeRefreshIcon, dip_size, icon_color);
   const ui::ImageModel arrow_up = ui::ImageModel::FromVectorIcon(
@@ -176,8 +160,9 @@ void OmniboxHeaderView::UpdateUI() {
   header_toggle_button_->SetImageModel(views::Button::STATE_NORMAL, arrow_up);
   header_toggle_button_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_TOOLTIP_HEADER_HIDE_SUGGESTIONS_BUTTON));
-  header_toggle_button_->SetAccessibleName(l10n_util::GetStringFUTF16(
-      IDS_ACC_HEADER_HIDE_SUGGESTIONS_BUTTON, header_text_));
+  header_toggle_button_->GetViewAccessibility().SetName(
+      l10n_util::GetStringFUTF16(IDS_ACC_HEADER_HIDE_SUGGESTIONS_BUTTON,
+                                 header_text_));
 
   // The "toggled" button state corresponds with the group being hidden.
   // The button's action is therefore to Show the group, when clicked.
@@ -200,7 +185,7 @@ void OmniboxHeaderView::SetSuggestionGroupVisibility(
     bool suggestion_group_hidden) {
   suggestion_group_hidden_ = suggestion_group_hidden;
 
-  NotifyAccessibilityEvent(ax::mojom::Event::kExpandedChanged, true);
+  UpdateExpandedCollapsedAccessibleState();
 
   // Because this view doesn't have true focus (it stays on the textfield),
   // we also need to manually announce state changes.
@@ -216,6 +201,21 @@ void OmniboxHeaderView::SetSuggestionGroupVisibility(
 OmniboxPopupSelection OmniboxHeaderView::GetHeaderSelection() const {
   return OmniboxPopupSelection(model_index_,
                                OmniboxPopupSelection::FOCUSED_BUTTON_HEADER);
+}
+
+void OmniboxHeaderView::UpdateExpandedCollapsedAccessibleState() const {
+  // Hidden OmniboxHeaderView instances are not associated with any group ID, so
+  // they are neither collapsed or expanded.
+  if (!GetVisible()) {
+    GetViewAccessibility().RemoveExpandCollapseState();
+    return;
+  }
+
+  if (suggestion_group_hidden_) {
+    GetViewAccessibility().SetIsCollapsed();
+  } else {
+    GetViewAccessibility().SetIsExpanded();
+  }
 }
 
 BEGIN_METADATA(OmniboxHeaderView)

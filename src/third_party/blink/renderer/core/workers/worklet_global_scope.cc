@@ -5,12 +5,13 @@
 #include "third_party/blink/renderer/core/workers/worklet_global_scope.h"
 
 #include <memory>
+
 #include "base/task/single_thread_task_runner.h"
 #include "services/metrics/public/cpp/mojo_ukm_recorder.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/devtools/inspector_issue.mojom-blink.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/worker_or_worklet_script_controller.h"
 #include "third_party/blink/renderer/core/execution_context/agent.h"
@@ -107,7 +108,8 @@ WorkletGlobalScope::WorkletGlobalScope(
               : blink::LocalFrameToken()),
       parent_cross_origin_isolated_capability_(
           creation_params->parent_cross_origin_isolated_capability),
-      parent_is_isolated_context_(creation_params->parent_is_isolated_context) {
+      parent_is_isolated_context_(creation_params->parent_is_isolated_context),
+      browser_interface_broker_proxy_(this) {
   DCHECK((thread_type_ == ThreadType::kMainThread && frame_) ||
          (thread_type_ == ThreadType::kOffMainThread && worker_thread_));
 
@@ -150,6 +152,13 @@ WorkletGlobalScope::WorkletGlobalScope(
             std::move(creation_params->code_cache_host_interface)));
   }
 
+  if (creation_params->browser_interface_broker.is_valid()) {
+    browser_interface_broker_proxy_.Bind(
+        ToCrossVariantMojoType(
+            std::move(creation_params->browser_interface_broker)),
+        GetTaskRunner(TaskType::kInternalDefault));
+  }
+
   blob_url_store_pending_remote_ = std::move(creation_params->blob_url_store);
 }
 
@@ -157,6 +166,11 @@ WorkletGlobalScope::~WorkletGlobalScope() = default;
 
 const BrowserInterfaceBrokerProxy&
 WorkletGlobalScope::GetBrowserInterfaceBroker() const {
+  if (browser_interface_broker_proxy_.is_bound()) {
+    CHECK(IsSharedStorageWorkletGlobalScope());
+    return browser_interface_broker_proxy_;
+  }
+
   return GetEmptyBrowserInterfaceBroker();
 }
 
@@ -341,6 +355,7 @@ WorkletGlobalScope::TakeBlobUrlStorePendingRemote() {
 
 void WorkletGlobalScope::Trace(Visitor* visitor) const {
   visitor->Trace(frame_);
+  visitor->Trace(browser_interface_broker_proxy_);
   WorkerOrWorkletGlobalScope::Trace(visitor);
 }
 

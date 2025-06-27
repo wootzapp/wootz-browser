@@ -25,7 +25,6 @@
 #include "device/vr/public/mojom/xr_session.mojom.h"
 #include "device/vr/util/fps_meter.h"
 #include "device/vr/util/sliding_average.h"
-#include "device/vr/vr_device.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -206,10 +205,6 @@ class OpenXrRenderLoop : public XRThread,
   void OnSessionStart();
   bool HasSessionEnded();
   bool SubmitCompositedFrame();
-  void EnableSupportedFeatures(
-      device::mojom::XRSessionMode mode,
-      const std::vector<device::mojom::XRSessionFeature>& requiredFeatures,
-      const std::vector<device::mojom::XRSessionFeature>& optionalFeatures);
 
   // viz::ContextLostObserver Implementation
   void OnContextLost() override;
@@ -272,10 +267,14 @@ class OpenXrRenderLoop : public XRThread,
 
   void MaybeRejectSessionCallback();
 
+  gfx::Transform mojo_from_local() {
+    // mojo_from_local is currently identity.
+    return gfx::Transform();
+  }
+
   bool IsFeatureEnabled(device::mojom::XRSessionFeature feature) const;
   int16_t next_frame_id_ = 0;
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
-  std::unordered_set<device::mojom::XRSessionFeature> enabled_features_;
 
   // Owned by OpenXrStatics
   XrInstance instance_;
@@ -293,6 +292,8 @@ class OpenXrRenderLoop : public XRThread,
   bool is_presenting_ = false;  // True if we have a presenting session.
   bool webxr_visible_ = true;   // The browser may hide a presenting session.
   bool overlay_visible_ = false;
+
+  std::optional<int16_t> delayed_get_frame_data_id_;
   base::OnceCallback<void()> delayed_get_frame_data_callback_;
 
   gfx::RectF left_webxr_bounds_;
@@ -312,6 +313,10 @@ class OpenXrRenderLoop : public XRThread,
       mojom::XRVisibilityState::VISIBLE;
   mojom::VRStageParametersPtr current_stage_parameters_;
   uint32_t stage_parameters_id_;
+
+  // Only used if depth sensing feature is enabled. Tracks whether we can pause
+  // depth sensing or not.
+  bool depth_active_ = true;
 
   // Lifetime of the platform helper is guaranteed by the OpenXrDevice.
   raw_ptr<OpenXrPlatformHelper> platform_helper_;

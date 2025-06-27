@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/input/event_handler.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -229,7 +228,7 @@ TEST_F(SelectionControllerTest, AdjustSelectionWithTrailingWhitespace) {
   SetBodyContent(
       "<input type=checkbox>"
       "<div style='user-select:none'>abc</div>");
-  Element* const input = GetDocument().QuerySelector(AtomicString("input"));
+  Element* const input = QuerySelector("input");
 
   const SelectionInFlatTree& selection = ExpandWithGranularity(
       SelectionInFlatTree::Builder()

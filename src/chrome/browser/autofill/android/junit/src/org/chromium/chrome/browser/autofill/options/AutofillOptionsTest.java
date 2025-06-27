@@ -17,9 +17,17 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import static org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus.ANDROID_AUTOFILL_SERVICE_IS_GOOGLE;
+import static org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus.ANDROID_VERSION_TOO_OLD;
+import static org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus.AVAILABLE;
+import static org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus.NOT_ALLOWED_BY_POLICY;
+import static org.chromium.chrome.browser.autofill.AndroidAutofillAvailabilityStatus.UNKNOWN_ANDROID_AUTOFILL_SERVICE;
+import static org.chromium.chrome.browser.autofill.AutofillClientProviderUtils.setAutofillAvailabilityToUseForTesting;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_THIRD_PARTY_TOGGLE_CHANGED;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.THIRD_PARTY_AUTOFILL_ENABLED;
+import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.THIRD_PARTY_TOGGLE_IS_READ_ONLY;
 
+import android.text.SpannableString;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -35,28 +43,27 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.FeatureList;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.autofill.AutofillClientProviderUtils;
 import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment.AutofillOptionsReferrer;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.autofill.AutofillFeatures;
+import org.chromium.components.browser_ui.settings.TextMessagePreference;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
@@ -65,6 +72,8 @@ import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modaldialog.ModalDialogProperties.ButtonType;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.text.ChromeClickableSpan;
+import org.chromium.ui.text.SpanApplier;
 
 import java.util.Optional;
 
@@ -73,14 +82,17 @@ import java.util.Optional;
 @Config(manifest = Config.NONE)
 @EnableFeatures(AutofillFeatures.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID)
 public class AutofillOptionsTest {
+
+    private static final String SKIP_ALL_CHECKS_PARAM_VALUE = "skip_all_checks";
+    private static final String ONLY_SKIP_AWG_CHECK_PARAM_VALUE = "only_skip_awg_check";
+
     // Shorthand for frequent enums that can't be static imports.
     private static final @RadioButtonGroupThirdPartyPreference.ThirdPartyOption int DEFAULT =
             RadioButtonGroupThirdPartyPreference.ThirdPartyOption.DEFAULT;
     private static final @RadioButtonGroupThirdPartyPreference.ThirdPartyOption int USE_3P =
             RadioButtonGroupThirdPartyPreference.ThirdPartyOption.USE_OTHER_PROVIDER;
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
-    @Rule public JniMocker mJniMocker = new JniMocker();
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private UserPrefsJni mMockUserPrefsJni;
     @Mock private PrefService mPrefs;
@@ -92,16 +104,13 @@ public class AutofillOptionsTest {
     @Captor ArgumentCaptor<PropertyModel> mRestartConfirmationDialogModelCaptor;
 
     private AutofillOptionsFragment mFragment;
-    private AutoCloseable mCloseableMocks;
     private FragmentScenario mScenario;
 
     @Before
     public void setUp() {
-        mCloseableMocks = MockitoAnnotations.openMocks(this);
-        AutofillClientProviderUtils.setAllowedToUseAutofillFrameworkForTesting(true);
-
-        mJniMocker.mock(UserPrefsJni.TEST_HOOKS, mMockUserPrefsJni);
+        UserPrefsJni.setInstanceForTesting(mMockUserPrefsJni);
         doReturn(mPrefs).when(mMockUserPrefsJni).get(mProfile);
+        HelpAndFeedbackLauncherFactory.setInstanceForTesting(mHelpAndFeedbackLauncher);
 
         mScenario =
                 FragmentScenario.launchInContainer(
@@ -115,7 +124,6 @@ public class AutofillOptionsTest {
                             (AutofillOptionsFragment)
                                     fragment; // Valid until scenario is recreated.
                     mFragment.setProfile(mProfile);
-                    mFragment.setHelpAndFeedbackLauncher(mHelpAndFeedbackLauncher);
                 });
     }
 
@@ -124,12 +132,12 @@ public class AutofillOptionsTest {
         if (mScenario != null) {
             mScenario.close();
         }
-        mCloseableMocks.close();
     }
 
     @Test
     @SmallTest
     public void constructedWithPrefAsDefaultForOption() {
+        setAutofillAvailabilityToUseForTesting(AVAILABLE);
         doReturn(true).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
 
         // Initializing should set default property but not make use of dialogs or restarts yet.
@@ -139,12 +147,13 @@ public class AutofillOptionsTest {
 
         assertTrue(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         assertTrue(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_ready));
     }
 
     @Test
     @SmallTest
     public void optionDisabledForAwgUpdatesOnResume() {
-        AutofillClientProviderUtils.setAllowedToUseAutofillFrameworkForTesting(false);
+        setAutofillAvailabilityToUseForTesting(ANDROID_AUTOFILL_SERVICE_IS_GOOGLE);
         doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
 
         // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
@@ -157,21 +166,41 @@ public class AutofillOptionsTest {
         // On construction (assuming Awg is set), the setting is turned off and can't change.
         assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         assertFalse(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_disabled));
 
         // On resume, check again whether AwG isn't used anymore — e.g. coming back from Settings.
-        AutofillClientProviderUtils.setAllowedToUseAutofillFrameworkForTesting(true);
+        setAutofillAvailabilityToUseForTesting(AVAILABLE);
         doReturn(true).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
         lifecycleRegistry.handleLifecycleEvent(Event.ON_RESUME);
 
         assertTrue(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         assertTrue(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_ready));
     }
 
     @Test
     @SmallTest
-    public void optionEnabledWithOverrideForAwg() {
-        AutofillClientProviderUtils.setAllowedToUseAutofillFrameworkForTesting(false);
-        addFeatureOverrideForAwG();
+    public void optionDisabledByPolicy() {
+        setAutofillAvailabilityToUseForTesting(NOT_ALLOWED_BY_POLICY);
+        doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
+
+        // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
+        AutofillOptionsCoordinator autofillOptions =
+                new AutofillOptionsCoordinator(mFragment, this::assertModalNotUsed, Assert::fail);
+        PropertyModel model = autofillOptions.initializeNow();
+
+        // On construction (assuming Awg is set), the setting is turned off and can't change.
+        assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
+        assertTrue(model.get(THIRD_PARTY_TOGGLE_IS_READ_ONLY));
+        assertFalse(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getString(R.string.autofill_options_hint_policy));
+    }
+
+    @Test
+    @SmallTest
+    public void optionEnabledWithSpecialOverrideForAwg() {
+        setAutofillAvailabilityToUseForTesting(ANDROID_AUTOFILL_SERVICE_IS_GOOGLE);
+        addFeatureOverrideToSkipChecks(ONLY_SKIP_AWG_CHECK_PARAM_VALUE);
         doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
 
         // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
@@ -182,12 +211,64 @@ public class AutofillOptionsTest {
         // On construction (assuming Awg is set), the setting is turned off but may change.
         assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         assertTrue(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_ready));
+    }
+
+    @Test
+    @SmallTest
+    public void overrideForAwgDoesntAllowOtherChecksToBeSkipped() {
+        setAutofillAvailabilityToUseForTesting(ANDROID_VERSION_TOO_OLD);
+        addFeatureOverrideToSkipChecks(ONLY_SKIP_AWG_CHECK_PARAM_VALUE);
+        doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
+
+        // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
+        PropertyModel model =
+                new AutofillOptionsCoordinator(mFragment, this::assertModalNotUsed, Assert::fail)
+                        .initializeNow();
+
+        // On construction, the setting is turned off and can't change.
+        assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
+        assertFalse(getRadioButtonComponent().isEnabled());
+    }
+
+    @Test
+    @SmallTest
+    public void genericOverrideAllowsOtherChecksToBeSkipped() {
+        setAutofillAvailabilityToUseForTesting(UNKNOWN_ANDROID_AUTOFILL_SERVICE);
+        addFeatureOverrideToSkipChecks(SKIP_ALL_CHECKS_PARAM_VALUE);
+
+        // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
+        PropertyModel model =
+                new AutofillOptionsCoordinator(mFragment, this::assertModalNotUsed, Assert::fail)
+                        .initializeNow();
+
+        // On construction, the setting is turned off but can change.
+        assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
+        assertTrue(getRadioButtonComponent().isEnabled());
+    }
+
+    @Test
+    @SmallTest
+    public void optionEnabledWithGenericOverrideForAwg() {
+        setAutofillAvailabilityToUseForTesting(ANDROID_AUTOFILL_SERVICE_IS_GOOGLE);
+        addFeatureOverrideToSkipChecks(SKIP_ALL_CHECKS_PARAM_VALUE);
+        doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
+
+        // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
+        PropertyModel model =
+                new AutofillOptionsCoordinator(mFragment, this::assertModalNotUsed, Assert::fail)
+                        .initializeNow();
+
+        // On construction (assuming Awg is set), the setting is turned off but may change.
+        assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
+        assertTrue(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_ready));
     }
 
     @Test
     @SmallTest
     public void optionEnabledToSwitchOffAwg() {
-        AutofillClientProviderUtils.setAllowedToUseAutofillFrameworkForTesting(false);
+        setAutofillAvailabilityToUseForTesting(ANDROID_AUTOFILL_SERVICE_IS_GOOGLE);
         doReturn(true).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
 
         // Toggling on resume is to align with prefs and shouldn't trigger restart/dialogs.
@@ -197,7 +278,9 @@ public class AutofillOptionsTest {
 
         // On construction (assuming Awg is set), the setting is turned off but may change.
         assertTrue(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
+        assertFalse(model.get(THIRD_PARTY_TOGGLE_IS_READ_ONLY));
         assertTrue(getRadioButtonComponent().isEnabled());
+        assertHintDisplays(getSpannableString(R.string.autofill_options_hint_3p_setting_ready));
     }
 
     @Test
@@ -237,7 +320,7 @@ public class AutofillOptionsTest {
     @SmallTest
     public void updateSettingsFromPrefOnViewCreated() {
         doReturn(true).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
-        assertEquals(getRadioButtonComponent().getSelectedOption(), DEFAULT); // Not updated!
+        assertEquals(DEFAULT, getRadioButtonComponent().getSelectedOption()); // Not updated!
 
         // Update on initial binding. Fail if that triggers the dialog or restarting!
         AutofillOptionsCoordinator.createFor(mFragment, this::assertModalNotUsed, Assert::fail);
@@ -248,6 +331,9 @@ public class AutofillOptionsTest {
     @Test
     @SmallTest
     public void toggledOptionSetsPrefAndRestarts() {
+        HistogramWatcher histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        AutofillOptionsMediator.HISTOGRAM_RESTART_ACCEPTED, true);
         doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
         PropertyModel model =
                 new AutofillOptionsCoordinator(mFragment, () -> mDialogManager, mRestartRunnable)
@@ -261,12 +347,16 @@ public class AutofillOptionsTest {
         verify(mPrefs).setBoolean(eq(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE), eq(true));
         assertTrue(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         verifyOptionReflectedInView(USE_3P);
+        histogramWatcher.assertExpected();
         verify(mRestartRunnable).run();
     }
 
     @Test
     @SmallTest
     public void toggledOptionResetsWithoutConfirmation() {
+        HistogramWatcher histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        AutofillOptionsMediator.HISTOGRAM_RESTART_ACCEPTED, false);
         doReturn(false).when(mPrefs).getBoolean(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE);
         PropertyModel model =
                 new AutofillOptionsCoordinator(mFragment, () -> mDialogManager, mRestartRunnable)
@@ -281,6 +371,7 @@ public class AutofillOptionsTest {
                 .setBoolean(eq(Pref.AUTOFILL_USING_VIRTUAL_VIEW_STRUCTURE), anyBoolean());
         assertFalse(model.get(THIRD_PARTY_AUTOFILL_ENABLED));
         verifyOptionReflectedInView(DEFAULT);
+        histogramWatcher.assertExpected();
         verify(mRestartRunnable, times(0)).run();
     }
 
@@ -325,15 +416,21 @@ public class AutofillOptionsTest {
 
     @Test
     @SmallTest
-    public void setsTitleAndPref() {
+    public void suppliesTitle() {
+        AutofillOptionsCoordinator.createFor(mFragment, this::assertModalNotUsed, Assert::fail);
+
+        assertEquals(mFragment.getPageTitle().get(), getString(R.string.autofill_options_title));
+    }
+
+    @Test
+    @SmallTest
+    public void setsPref() {
         // Update on initial binding. Shouldn't trigger dialogs or restart.
         AutofillOptionsCoordinator.createFor(mFragment, this::assertModalNotUsed, Assert::fail);
 
         assertEquals(
-                mFragment.getActivity().getTitle(), getString(R.string.autofill_options_title));
-        assertEquals(
-                getRadioButtonComponent().getKey(),
-                AutofillOptionsFragment.PREF_AUTOFILL_THIRD_PARTY_FILLING);
+                AutofillOptionsFragment.PREF_AUTOFILL_THIRD_PARTY_FILLING,
+                getRadioButtonComponent().getKey());
         assertEquals(
                 getRadioButtonComponent().getDefaultButton().getPrimaryText(),
                 getString(R.string.autofill_third_party_filling_default));
@@ -392,6 +489,15 @@ public class AutofillOptionsTest {
         return mFragment.getResources().getString(stringId);
     }
 
+    private SpannableString getSpannableString(@StringRes int stringId) {
+        return SpanApplier.applySpans(
+                getString(stringId),
+                new SpanApplier.SpanInfo(
+                        "<link>",
+                        "</link>",
+                        new ChromeClickableSpan(mFragment.getContext(), unusedView -> fail())));
+    }
+
     private void verifyOptionReflectedInView(
             @RadioButtonGroupThirdPartyPreference.ThirdPartyOption int selectedOption) {
         assert selectedOption == DEFAULT || selectedOption == USE_3P;
@@ -423,7 +529,7 @@ public class AutofillOptionsTest {
             mediator.onDismiss(model, DialogDismissalCause.NAVIGATE_BACK);
             return;
         }
-        assertNotNull(optButtonToClick.get());
+        assertTrue(optButtonToClick.isPresent());
         mediator.onClick(model, optButtonToClick.get());
         if (optButtonToClick.get() == ButtonType.NEGATIVE) {
             verify(mDialogManager)
@@ -437,14 +543,18 @@ public class AutofillOptionsTest {
         return mFragment.getThirdPartyFillingOption();
     }
 
-    private void addFeatureOverrideForAwG() {
-        FeatureList.TestValues testValues = new FeatureList.TestValues();
-        testValues.addFeatureFlagOverride(
-                ChromeFeatureList.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID, true);
-        testValues.addFieldTrialParamOverride(
-                ChromeFeatureList.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID,
-                "skip_compatibility_check",
-                Boolean.toString(true));
-        FeatureList.setTestValues(testValues);
+    private void assertHintDisplays(CharSequence message) {
+        assertNotNull(mFragment);
+        TextMessagePreference hint = mFragment.getHint();
+        assertTrue(hint.isShown());
+        assertNotNull(hint.getSummary());
+        assertEquals(message.toString(), hint.getSummary().toString());
+    }
+
+    private void addFeatureOverrideToSkipChecks(String checksToSkip) {
+        FeatureOverrides.newBuilder()
+                .enable(ChromeFeatureList.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID)
+                .param("skip_compatibility_check", checksToSkip)
+                .apply();
     }
 }

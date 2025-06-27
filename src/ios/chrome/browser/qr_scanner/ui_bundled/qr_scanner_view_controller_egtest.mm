@@ -9,8 +9,8 @@
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/qr_scanner/ui_bundled/qr_scanner_app_interface.h"
-#import "ios/chrome/browser/ui/scanner/camera_state.h"
-#import "ios/chrome/browser/ui/settings/settings_app_interface.h"
+#import "ios/chrome/browser/scanner/ui_bundled/camera_state.h"
+#import "ios/chrome/browser/settings/ui_bundled/settings_app_interface.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
@@ -137,7 +137,7 @@ void ShowQRScanner() {
 
   // Tap the QR Code scanner button in the keyboard accessory view.
   [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityLabel(@"QR code Search")]
+      selectElementWithMatcher:grey_accessibilityLabel(@"QR code search")]
       performAction:grey_tap()];
 }
 
@@ -229,8 +229,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   [SettingsAppInterface overrideSearchEngineWithURL:templateURL];
 }
 
-- (void)tearDown {
-  [super tearDown];
+- (void)tearDownHelper {
+  [super tearDownHelper];
   [SettingsAppInterface resetSearchEngine];
   _camera_controller_swizzler.reset();
 }
@@ -339,16 +339,16 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
            isPresentedBy:[QRScannerAppInterface.currentBrowserViewController
                                  presentedViewController]];
   GREYAssertNil(error, error.localizedDescription);
-  [[EarlGrey selectElementWithMatcher:grey_text([QRScannerAppInterface
-                                          dialogTitleForState:state])]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey
+      waitForUIElementToAppearWithMatcher:grey_text([QRScannerAppInterface
+                                              dialogTitleForState:state])];
 }
 
 // Checks that there is no visible alert with title corresponding to `state`.
 - (void)assertQRScannerIsNotPresentingADialogForState:(CameraState)state {
-  [[EarlGrey selectElementWithMatcher:grey_text([QRScannerAppInterface
-                                          dialogTitleForState:state])]
-      assertWithMatcher:grey_nil()];
+  [ChromeEarlGrey
+      waitForUIElementToDisappearWithMatcher:grey_text([QRScannerAppInterface
+                                                 dialogTitleForState:state])];
 }
 
 #pragma mark - Helpers for mocks

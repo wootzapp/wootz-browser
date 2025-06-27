@@ -7,8 +7,13 @@ static_library("metrics") {
     "facilitated_payments_metrics.cc",
     "facilitated_payments_metrics.h",
   ]
-
-  deps = [ "//base" ]
+  deps = [
+    "//base",
+    "//components/facilitated_payments/core/utils",
+    "//components/facilitated_payments/core/validation",
+    "//services/metrics/public/cpp:metrics_cpp",
+    "//services/metrics/public/cpp:ukm_builders",
+  ]
 }
 
 source_set("unit_tests") {
@@ -18,6 +23,8 @@ source_set("unit_tests") {
     ":metrics",
     "//base",
     "//base/test:test_support",
+    "//components/facilitated_payments/core/utils",
+    "//components/ukm:test_support",
     "//testing/gtest",
   ]
 }

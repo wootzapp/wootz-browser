@@ -35,8 +35,9 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
-#include "crypto/sha2.h"
+#include "crypto/hash.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
+#include "net/base/host_port_pair.h"
 #include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
@@ -47,6 +48,7 @@
 #include "net/cookies/cookie_setting_override.h"
 #include "net/filter/source_stream.h"
 #include "net/ssl/ssl_info.h"
+#include "net/storage_access_api/status.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
@@ -91,7 +93,7 @@ void VerifyCert(const scoped_refptr<net::X509Certificate>& certificate,
                 const GURL& url,
                 const std::string& ocsp_result,
                 const std::string& sct_list,
-                int frame_tree_node_id,
+                FrameTreeNodeId frame_tree_node_id,
                 VerifyCallback callback) {
   VerifyCallback wrapped_callback = mojo::WrapCallbackWithDefaultInvokeIfNotRun(
       std::move(callback), net::ERR_FAILED, net::CertVerifyResult(), false);
@@ -110,7 +112,8 @@ void VerifyCert(const scoped_refptr<net::X509Certificate>& certificate,
   }
 
   network_context->VerifyCertForSignedExchange(
-      certificate, url, ocsp_result, sct_list, std::move(wrapped_callback));
+      certificate, net::HostPortPair::FromURL(url), ocsp_result, sct_list,
+      std::move(wrapped_callback));
 }
 
 std::string OCSPErrorToString(const bssl::OCSPVerifyResult& ocsp_result) {
@@ -141,15 +144,13 @@ std::string OCSPErrorToString(const bssl::OCSPVerifyResult& ocsp_result) {
 
   switch (ocsp_result.revocation_status) {
     case bssl::OCSPRevocationStatus::GOOD:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case bssl::OCSPRevocationStatus::REVOKED:
       return "OCSP response indicates that the certificate is revoked.";
     case bssl::OCSPRevocationStatus::UNKNOWN:
       return "OCSP responder doesn't know about the certificate.";
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -169,17 +170,17 @@ void SignedExchangeHandler::SetShouldIgnoreCertValidityPeriodErrorForTesting(
 SignedExchangeHandler::SignedExchangeHandler(
     bool is_secure_transport,
     bool has_nosniff,
-    std::string content_type,
+    std::string_view content_type,
     std::unique_ptr<net::SourceStream> body,
     ExchangeHeadersCallback headers_callback,
     std::unique_ptr<SignedExchangeCertFetcherFactory> cert_fetcher_factory,
-    const std::optional<net::IsolationInfo> outer_request_isolation_info,
+    std::optional<net::IsolationInfo> outer_request_isolation_info,
     int load_flags,
     const net::IPEndPoint& remote_endpoint,
     std::unique_ptr<blink::WebPackageRequestMatcher> request_matcher,
     std::unique_ptr<SignedExchangeDevToolsProxy> devtools_proxy,
     SignedExchangeReporter* reporter,
-    int frame_tree_node_id)
+    FrameTreeNodeId frame_tree_node_id)
     : is_secure_transport_(is_secure_transport),
       has_nosniff_(has_nosniff),
       headers_callback_(std::move(headers_callback)),
@@ -225,7 +226,7 @@ SignedExchangeHandler::SignedExchangeHandler(
                            "content type must be "
                            "\"application/signed-exchange;v=b3\". But the "
                            "response content type was \"%s\"",
-                           content_type.c_str()));
+                           std::string(content_type).c_str()));
     // Proceed to extract and redirect to the fallback URL.
   }
 
@@ -242,8 +243,7 @@ SignedExchangeHandler::~SignedExchangeHandler() = default;
 SignedExchangeHandler::SignedExchangeHandler()
     : is_secure_transport_(true),
       has_nosniff_(true),
-      load_flags_(net::LOAD_NORMAL),
-      frame_tree_node_id_(FrameTreeNode::kFrameTreeNodeInvalidId) {}
+      load_flags_(net::LOAD_NORMAL) {}
 
 const GURL& SignedExchangeHandler::GetFallbackUrl() const {
   return prologue_fallback_url_and_after_.fallback_url().url;
@@ -312,7 +312,7 @@ void SignedExchangeHandler::DidReadHeader(bool completed_syncly,
         result = ParseHeadersAndFetchCertificate();
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
     if (result != SignedExchangeLoadResult::kSuccess) {
       RunErrorCallback(result, net::ERR_INVALID_SIGNED_EXCHANGE);
@@ -343,8 +343,7 @@ SignedExchangeHandler::ParsePrologueBeforeFallbackUrl() {
 
   prologue_before_fallback_url_ =
       signed_exchange_prologue::BeforeFallbackUrl::Parse(
-          base::make_span(
-              header_buf_->bytes(),
+          header_buf_->first(
               signed_exchange_prologue::BeforeFallbackUrl::kEncodedSizeInBytes),
           devtools_proxy_.get());
 
@@ -365,8 +364,7 @@ SignedExchangeHandler::ParsePrologueFallbackUrlAndAfter() {
 
   prologue_fallback_url_and_after_ =
       signed_exchange_prologue::FallbackUrlAndAfter::Parse(
-          base::make_span(
-              header_buf_->bytes(),
+          header_buf_->first(
               prologue_before_fallback_url_.ComputeFallbackUrlAndAfterLength()),
           prologue_before_fallback_url_, devtools_proxy_.get());
 
@@ -405,13 +403,12 @@ SignedExchangeHandler::ParseHeadersAndFetchCertificate() {
 
   DCHECK(version_.has_value());
 
-  std::string_view data(header_buf_->data(), header_read_buf_->size());
-  std::string_view signature_header_field = data.substr(
-      0, prologue_fallback_url_and_after_.signature_header_field_length());
-  base::span<const uint8_t> cbor_header =
-      base::as_bytes(base::make_span(data.substr(
-          prologue_fallback_url_and_after_.signature_header_field_length(),
-          prologue_fallback_url_and_after_.cbor_header_length())));
+  base::span<const uint8_t> data = header_buf_->span();
+  std::string_view signature_header_field = base::as_string_view(data.first(
+      prologue_fallback_url_and_after_.signature_header_field_length()));
+  base::span<const uint8_t> cbor_header = data.subspan(
+      prologue_fallback_url_and_after_.signature_header_field_length(),
+      prologue_fallback_url_and_after_.cbor_header_length());
   envelope_ = SignedExchangeEnvelope::Parse(
       *version_, prologue_fallback_url_and_after_.fallback_url(),
       signature_header_field, cbor_header, devtools_proxy_.get());
@@ -479,8 +476,8 @@ void SignedExchangeHandler::OnCertReceived(
     reporter_->set_cert_server_ip_address(cert_server_ip_address_);
 
   if (result != SignedExchangeLoadResult::kSuccess) {
-    UMA_HISTOGRAM_MEDIUM_TIMES("SignedExchange.Time.CertificateFetch.Failure",
-                               cert_fetch_duration);
+    DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+        "SignedExchange.Time.CertificateFetch.Failure", cert_fetch_duration);
 
     signed_exchange_utils::ReportErrorAndTraceEvent(
         devtools_proxy_.get(), "Failed to fetch the certificate.",
@@ -490,8 +487,8 @@ void SignedExchangeHandler::OnCertReceived(
     return;
   }
 
-  UMA_HISTOGRAM_MEDIUM_TIMES("SignedExchange.Time.CertificateFetch.Success",
-                             cert_fetch_duration);
+  DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+      "SignedExchange.Time.CertificateFetch.Success", cert_fetch_duration);
   unverified_cert_chain_ = std::move(cert_chain);
 
   DCHECK(version_.has_value());
@@ -582,13 +579,13 @@ bool SignedExchangeHandler::CheckOCSPStatus(
   // result here.
   UMA_HISTOGRAM_ENUMERATION(kHistogramOCSPResponseStatus,
                             ocsp_result.response_status,
-                            static_cast<base::HistogramBase::Sample>(
+                            static_cast<base::HistogramBase::Sample32>(
                                 bssl::OCSPVerifyResult::RESPONSE_STATUS_MAX) +
                                 1);
   if (ocsp_result.response_status == bssl::OCSPVerifyResult::PROVIDED) {
     UMA_HISTOGRAM_ENUMERATION(kHistogramOCSPRevocationStatus,
                               ocsp_result.revocation_status,
-                              static_cast<base::HistogramBase::Sample>(
+                              static_cast<base::HistogramBase::Sample32>(
                                   bssl::OCSPRevocationStatus::MAX_VALUE) +
                                   1);
     if (ocsp_result.revocation_status == bssl::OCSPRevocationStatus::GOOD) {
@@ -701,7 +698,7 @@ void SignedExchangeHandler::CheckAbsenceOfCookies(base::OnceClosure callback) {
     std::move(callback).Run();
     return;
   }
-  DCHECK(outer_request_isolation_info_.has_value());
+  CHECK(outer_request_isolation_info_.has_value());
 
   StoragePartition* storage_partition =
       frame->current_frame_host()->GetProcess()->GetStoragePartition();
@@ -716,28 +713,34 @@ void SignedExchangeHandler::CheckAbsenceOfCookies(base::OnceClosure callback) {
           network::mojom::RestrictedCookieManagerRole::NETWORK,
           inner_url_origin, isolation_info,
           /* is_service_worker = */ false,
-          render_frame_host ? render_frame_host->GetProcess()->GetID() : -1,
+          render_frame_host ? render_frame_host->GetProcess()->GetDeprecatedID()
+                            : -1,
           render_frame_host ? render_frame_host->GetRoutingID()
                             : MSG_ROUTING_NONE,
+          /*cookie_setting_overrides=*/
           render_frame_host ? render_frame_host->GetCookieSettingOverrides()
                             : net::CookieSettingOverrides(),
+          /*devtools_cookie_setting_overrides=*/net::CookieSettingOverrides(),
           cookie_manager_.BindNewPipeAndPassReceiver(),
-          render_frame_host ? render_frame_host->CreateCookieAccessObserver()
+          render_frame_host ? render_frame_host->CreateCookieAccessObserver(
+                                  CookieAccessDetails::Source::kNonNavigation)
                             : mojo::NullRemote());
 
-  DCHECK(isolation_info.top_frame_origin().has_value());
+  CHECK(isolation_info.top_frame_origin().has_value());
   auto match_options = network::mojom::CookieManagerGetOptions::New();
   match_options->name = "";
   match_options->match_type = network::mojom::CookieMatchType::STARTS_WITH;
-  // We set `has_storage_access` to true below in order to use any Storage
-  // Access grant that exists, since a frame might go through this code path and
-  // then obtain storage access in order to access cookies. Using true instead
-  // of false here means we are being conservative, since this runs an error
-  // callback if any cookies were retrieved.
+  // We set `storage_access_api_status` to kAccessViaAPI below in order to use
+  // any Storage Access grant that exists, since a frame might go through this
+  // code path and then obtain storage access in order to access cookies. Using
+  // true instead of false here means we are being conservative, since this runs
+  // an error callback if any cookies were retrieved.
   cookie_manager_->GetAllForUrl(
       envelope_->request_url().url, isolation_info.site_for_cookies(),
-      *isolation_info.top_frame_origin(), /*has_storage_access=*/true,
-      std::move(match_options), /*is_ad_tagged=*/false,
+      *isolation_info.top_frame_origin(),
+      net::StorageAccessApiStatus::kAccessViaAPI, std::move(match_options),
+      /*is_ad_tagged=*/false,
+      /*apply_devtools_overrides=*/false,
       /*force_disable_third_party_cookies=*/false,
       base::BindOnce(&SignedExchangeHandler::OnGetCookies,
                      weak_factory_.GetWeakPtr(), std::move(callback)));

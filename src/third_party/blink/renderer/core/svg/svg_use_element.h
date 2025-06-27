@@ -68,11 +68,6 @@ class SVGUseElement final : public SVGGraphicsElement,
  private:
   gfx::RectF GetBBox() override;
 
-  void CollectStyleForPresentationAttribute(
-      const QualifiedName&,
-      const AtomicString&,
-      MutableCSSPropertyValueSet*) override;
-
   bool IsStructurallyExternal() const override;
 
   InsertionNotificationRequest InsertedInto(ContainerNode&) override;
@@ -117,9 +112,10 @@ class SVGUseElement final : public SVGGraphicsElement,
       const QualifiedName& attribute_name) const override;
   void SynchronizeAllSVGAttributes() const override;
   void CollectExtraStyleForPresentationAttribute(
-      MutableCSSPropertyValueSet* style) override;
+      HeapVector<CSSPropertyValue, 8>& style) override;
 
   Member<SVGResourceDocumentContent> document_content_;
+  Member<SVGResourceTarget> external_resource_target_;
 
   Member<SVGAnimatedLength> x_;
   Member<SVGAnimatedLength> y_;

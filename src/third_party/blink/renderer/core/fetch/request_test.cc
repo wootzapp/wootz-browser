@@ -13,6 +13,7 @@
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_request_destination.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_request_init.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
 #include "third_party/blink/renderer/core/html/forms/form_data.h"
@@ -74,7 +75,7 @@ TEST_F(RequestBodyTest, InitWithBodyString) {
 TEST_F(RequestBodyTest, InitWithBodyArrayBuffer) {
   V8TestingScope scope;
   String body = "test body!";
-  auto* buffer = DOMArrayBuffer::Create(body.Bytes(), body.length());
+  auto* buffer = DOMArrayBuffer::Create(body.Span8());
   auto* init = CreateRequestInit(
       scope, ToV8Traits<DOMArrayBuffer>::ToV8(scope.GetScriptState(), buffer));
 
@@ -89,8 +90,7 @@ TEST_F(RequestBodyTest, InitWithBodyArrayBuffer) {
 TEST_F(RequestBodyTest, InitWithBodyArrayBufferView) {
   V8TestingScope scope;
   String body = "test body!";
-  DOMArrayBufferView* buffer_view =
-      DOMUint8Array::Create(body.Span8().data(), body.length());
+  DOMArrayBufferView* buffer_view = DOMUint8Array::Create(body.Span8());
   auto* init =
       CreateRequestInit(scope, ToV8Traits<DOMArrayBufferView>::ToV8(
                                    scope.GetScriptState(), buffer_view));
@@ -138,7 +138,7 @@ TEST_F(RequestBodyTest, InitWithUrlSearchParams) {
 TEST_F(RequestBodyTest, InitWithBlob) {
   V8TestingScope scope;
   String body = "test body!";
-  auto* blob = Blob::Create(body.Span8().data(), body.length(), "text/html");
+  auto* blob = Blob::Create(body.Span8(), "text/html");
   auto* init = CreateRequestInit(
       scope, ToV8Traits<Blob>::ToV8(scope.GetScriptState(), blob));
 
@@ -187,10 +187,14 @@ TEST(ServiceWorkerRequestTest, FromAndToFetchAPIRequest) {
 
   const KURL url("http://www.example.com/");
   const String method = "GET";
-  struct {
+  struct KeyValueCStringPair {
     const char* key;
     const char* value;
-  } headers[] = {{"X-Foo", "bar"}, {"X-Quux", "foop"}, {nullptr, nullptr}};
+  };
+  constexpr auto headers = std::to_array<KeyValueCStringPair>({
+      {"X-Foo", "bar"},
+      {"X-Quux", "foop"},
+  });
   const String referrer = "http://www.referrer.com/";
   const network::mojom::ReferrerPolicy kReferrerPolicy =
       network::mojom::ReferrerPolicy::kAlways;
@@ -211,9 +215,8 @@ TEST(ServiceWorkerRequestTest, FromAndToFetchAPIRequest) {
   fetch_api_request->cache_mode = kCacheMode;
   fetch_api_request->redirect_mode = kRedirectMode;
   fetch_api_request->destination = kDestination;
-  for (int i = 0; headers[i].key; ++i) {
-    fetch_api_request->headers.insert(String(headers[i].key),
-                                      String(headers[i].value));
+  for (const auto& header : headers) {
+    fetch_api_request->headers.insert(String(header.key), String(header.value));
   }
   fetch_api_request->referrer =
       mojom::blink::Referrer::New(KURL(NullURL(), referrer), kReferrerPolicy);
@@ -225,15 +228,16 @@ TEST(ServiceWorkerRequestTest, FromAndToFetchAPIRequest) {
   DCHECK(request);
   EXPECT_EQ(url, request->url());
   EXPECT_EQ(method, request->method());
-  EXPECT_EQ("audio", request->destination());
+  EXPECT_EQ(V8RequestDestination::Enum::kAudio, request->destination());
   EXPECT_EQ(referrer, request->referrer());
   EXPECT_EQ("navigate", request->mode());
 
   Headers* request_headers = request->getHeaders();
 
   WTF::HashMap<String, String> headers_map;
-  for (int i = 0; headers[i].key; ++i)
-    headers_map.insert(headers[i].key, headers[i].value);
+  for (const auto& header : headers) {
+    headers_map.insert(header.key, header.value);
+  }
   EXPECT_EQ(headers_map.size(), request_headers->HeaderList()->size());
   for (WTF::HashMap<String, String>::iterator iter = headers_map.begin();
        iter != headers_map.end(); ++iter) {

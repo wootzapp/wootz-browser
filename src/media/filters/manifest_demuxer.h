@@ -83,11 +83,14 @@ class MEDIA_EXPORT ManifestDemuxerEngineHost {
   // Appends data to the chunk demuxer, parses it, and returns true if the new
   // data was parsed successfully.
   virtual bool AppendAndParseData(std::string_view role,
-                                  base::TimeDelta start,
                                   base::TimeDelta end,
                                   base::TimeDelta* offset,
-                                  const uint8_t* data,
-                                  size_t data_size) = 0;
+                                  base::span<const uint8_t> data) = 0;
+
+  // Reset the parser state in chunk demuxer.
+  virtual void ResetParserState(std::string_view role,
+                                base::TimeDelta end,
+                                base::TimeDelta* offset) = 0;
 
   // Allow seeking from within an implementation.
   virtual void RequestSeek(base::TimeDelta time) = 0;
@@ -151,8 +154,9 @@ class MEDIA_EXPORT ManifestDemuxer : public Demuxer, ManifestDemuxerEngineHost {
     // and network fetches.
     virtual void StartWaitingForSeek() = 0;
 
-    // Abort any pending reads, parses, or network requests.
-    virtual void AbortPendingReads() = 0;
+    // Abort any pending reads, parses, or network requests. calls CB when
+    // finished.
+    virtual void AbortPendingReads(base::OnceClosure cb) = 0;
 
     // Returns whether this engine supports seeking. Some live stream content
     // can't be seeked.
@@ -163,6 +167,11 @@ class MEDIA_EXPORT ManifestDemuxer : public Demuxer, ManifestDemuxerEngineHost {
 
     // Stop demuxing and clean up pending CBs.
     virtual void Stop() = 0;
+
+    // Handle track changes. Only one audio or video track is allowed to be
+    // enabled at once.
+    virtual void SelectVideoVariant(const MediaTrack::Id&) = 0;
+    virtual void SelectAudioRendition(const MediaTrack::Id&) = 0;
   };
 
   // ManifestDemuxer takes and keeps ownership of `impl` for the lifetime of
@@ -218,11 +227,12 @@ class MEDIA_EXPORT ManifestDemuxer : public Demuxer, ManifestDemuxerEngineHost {
                         base::TimeDelta time,
                         size_t data_size) override;
   bool AppendAndParseData(std::string_view role,
-                          base::TimeDelta start,
                           base::TimeDelta end,
                           base::TimeDelta* offset,
-                          const uint8_t* data,
-                          size_t data_size) override;
+                          base::span<const uint8_t> data) override;
+  void ResetParserState(std::string_view role,
+                        base::TimeDelta end,
+                        base::TimeDelta* offset) override;
   void OnError(PipelineStatus status) override;
   void RequestSeek(base::TimeDelta time) override;
   void SetGroupStartTimestamp(std::string_view role,
@@ -263,6 +273,12 @@ class MEDIA_EXPORT ManifestDemuxer : public Demuxer, ManifestDemuxerEngineHost {
     WrapperReadCb read_cb_;
     raw_ptr<DemuxerStream> stream_;
   };
+
+  void OnChunkDemuxerTracksChangeComplete(
+      DemuxerStream::Type type,
+      std::optional<MediaTrack::Id> track_id,
+      TrackChangeCB change_completed_cb,
+      const std::vector<DemuxerStream*>& streams);
 
   void OnChunkDemuxerInitialized(PipelineStatus init_status);
   void OnChunkDemuxerOpened();
@@ -335,6 +351,9 @@ class MEDIA_EXPORT ManifestDemuxer : public Demuxer, ManifestDemuxerEngineHost {
   // Pending an event. Don't trigger a new event chain while one is in
   // progress.
   bool has_pending_event_ = false;
+
+  std::optional<MediaTrack::Id> internal_video_track_id_;
+  std::optional<MediaTrack::Id> internal_audio_track_id_;
 
   // A pending "next event" callback, which can be canceled in the case of a
   // seek or a playback rate change.

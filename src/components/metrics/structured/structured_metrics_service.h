@@ -7,12 +7,18 @@
 
 #include <memory>
 
+#include "base/functional/callback_forward.h"
+#include "base/gtest_prod_util.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/threading/sequence_bound.h"
 #include "components/metrics/structured/reporting/structured_metrics_reporting_service.h"
+#include "components/metrics/structured/storage_manager.h"
 #include "components/metrics/structured/structured_metrics_recorder.h"
 #include "components/metrics/structured/structured_metrics_scheduler.h"
 #include "components/metrics/unsent_log_store.h"
+#include "third_party/metrics_proto/chrome_user_metrics_extension.pb.h"
 
 FORWARD_DECLARE_TEST(StructuredMetricsServiceTest, RotateLogs);
 
@@ -21,9 +27,12 @@ class PrefRegistrySimple;
 namespace metrics {
 class StructuredMetricsServiceTestBase;
 class TestStructuredMetricsServiceDisabled;
+class TestStructuredMetricsService;
 
 FORWARD_DECLARE_TEST(TestStructuredMetricsServiceDisabled,
                      ValidStateWhenDisabled);
+
+FORWARD_DECLARE_TEST(TestStructuredMetricsService, CreateLogs);
 }  // namespace metrics
 
 namespace metrics::structured {
@@ -36,13 +45,13 @@ FORWARD_DECLARE_TEST(StructuredMetricsServiceTest, RotateLogs);
 
 // The Structured Metrics Service is responsible for collecting and uploading
 // Structured Metric events.
-class StructuredMetricsService final {
+class StructuredMetricsService final : public StorageManager::StorageDelegate {
  public:
   StructuredMetricsService(MetricsServiceClient* client,
                            PrefService* local_state,
-                           std::unique_ptr<StructuredMetricsRecorder> recorder);
+                           scoped_refptr<StructuredMetricsRecorder> recorder);
 
-  ~StructuredMetricsService();
+  ~StructuredMetricsService() override;
 
   StructuredMetricsService(const StructuredMetricsService&) = delete;
   StructuredMetricsService& operator=(StructuredMetricsService&) = delete;
@@ -83,11 +92,12 @@ class StructuredMetricsService final {
 
   FRIEND_TEST_ALL_PREFIXES(metrics::structured::StructuredMetricsServiceTest,
                            RotateLogs);
+  FRIEND_TEST_ALL_PREFIXES(metrics::TestStructuredMetricsService, CreateLogs);
   FRIEND_TEST_ALL_PREFIXES(metrics::TestStructuredMetricsServiceDisabled,
                            ValidStateWhenDisabled);
 
   // Sets the instance of the recorder used for test.
-  void SetRecorderForTest(std::unique_ptr<StructuredMetricsRecorder> recorder);
+  void SetRecorderForTest(scoped_refptr<StructuredMetricsRecorder> recorder);
 
   // Callback function to get the upload interval.
   base::TimeDelta GetUploadTimeInterval();
@@ -119,20 +129,12 @@ class StructuredMetricsService final {
   void CreateLogs(metrics::MetricsLogsEventManager::CreateReason reason,
                   bool notify_scheduler);
 
-  // Collects events from the EventStorage. The log is also serialized and
-  // stored in |log_store_|.
-  //
-  // Must be called from an IO sequence.
-  void CollectEventsAndStoreLog(
-      ChromeUserMetricsExtension&& uma_proto,
-      metrics::MetricsLogsEventManager::CreateReason reason);
-
-  // Once a log has been created, start an upload. Potentially, notify the log
-  // rotation scheduler.
-  //
-  // |notify_scheduler| is only false when an upload is attempted when the
-  // service starts.
-  void OnCollectEventsAndStoreLog(bool notify_scheduler);
+  // Adds metadata to the uma proto, stores a temporary log into the log store,
+  // and starts an upload.
+  void StoreLogAndStartUpload(
+      metrics::MetricsLogsEventManager::CreateReason reason,
+      bool notify_scheduler,
+      ChromeUserMetricsExtension uma_proto);
 
   // Starts the initialization process for |this|.
   void Initialize();
@@ -152,6 +154,14 @@ class StructuredMetricsService final {
   // called.
   void MaybeStartUpload();
 
+  // Sets callback to be performed after a logs is created and stored. When set
+  // uploads will be blocked.
+  void SetCreateLogsCallbackInTests(base::OnceClosure callback);
+
+  // StorageManager::StorageDelegate:
+  void OnFlushed(const FlushedKey& key) override;
+  void OnDeleted(const FlushedKey& key, DeleteReason reason) override;
+
   // Helper function to serialize a ChromeUserMetricsExtension proto.
   static std::string SerializeLog(const ChromeUserMetricsExtension& uma_proto);
 
@@ -159,7 +169,7 @@ class StructuredMetricsService final {
   static UnsentLogStore::UnsentLogStoreLimits GetLogStoreLimits();
 
   // Manages on-device recording of events.
-  std::unique_ptr<StructuredMetricsRecorder> recorder_;
+  scoped_refptr<StructuredMetricsRecorder> recorder_;
 
   // Service for uploading completed logs.
   std::unique_ptr<reporting::StructuredMetricsReportingService>
@@ -181,11 +191,36 @@ class StructuredMetricsService final {
   // The metrics client |this| is service is associated.
   raw_ptr<MetricsServiceClient> client_;
 
+  // Callback to be performed once a log is created and stored.
+  base::OnceClosure create_log_callback_for_tests_;
+
   SEQUENCE_CHECKER(sequence_checker_);
 
+// Access to |recorder_| through |task_runner_| is only needed on Ash Chrome.
+// Other platforms can continue to access |recorder_| directly.
+#if BUILDFLAG(IS_CHROMEOS)
   // An IO task runner for creating logs.
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
+  // A helper class for performing asynchronous IO task on the
+  // StructuredMetricsRecorder.
+  class ServiceIOHelper {
+   public:
+    explicit ServiceIOHelper(scoped_refptr<StructuredMetricsRecorder> recorder);
+
+    ~ServiceIOHelper();
+
+    // Reads the events from |recorder_|.
+    ChromeUserMetricsExtension ProvideEvents();
+
+   private:
+    // Access to the recorder is thead-safe.
+    scoped_refptr<StructuredMetricsRecorder> recorder_;
+  };
+
+  // Holds a refptr to |recorder_| and provides access through |task_runner_|.
+  base::SequenceBound<ServiceIOHelper> io_helper_;
+#endif
   base::WeakPtrFactory<StructuredMetricsService> weak_factory_{this};
 };
 

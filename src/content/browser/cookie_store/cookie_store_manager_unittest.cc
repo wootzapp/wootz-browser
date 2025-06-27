@@ -365,6 +365,7 @@ class CookieStoreManagerTest
 
   bool IsFullCookieAccessAllowed(
       content::BrowserContext* browser_context,
+      content::WebContents* web_contents,
       const GURL& url,
       const blink::StorageKey& storage_key) override {
     if (net::SchemefulSite(url) == storage_key.top_level_site()) {
@@ -1792,6 +1793,40 @@ TEST_P(CookieStoreManagerTest, CookieChangeForOverwrite) {
             worker_test_helper_->changes()[0].cause);
 }
 
+TEST_P(CookieStoreManagerTest, CookieChangeForNoChangeOverwrite) {
+  SetCookieStoreInitializer(base::BindLambdaForTesting([&]() {
+    EXPECT_TRUE(
+        SetSessionCookie("cookie-name", "cookie-value", "example.com", "/"));
+  }));
+
+  int64_t registration_id =
+      RegisterServiceWorker(kExampleScope, kExampleWorkerScript);
+  ASSERT_NE(registration_id, kInvalidRegistrationId);
+
+  CookieStoreSync::Subscriptions subscriptions;
+  subscriptions.emplace_back(blink::mojom::CookieChangeSubscription::New());
+  subscriptions.back()->name = "";
+  subscriptions.back()->match_type =
+      ::network::mojom::CookieMatchType::STARTS_WITH;
+  subscriptions.back()->url = GURL(kExampleScope);
+  EXPECT_TRUE(example_service_->AddSubscriptions(registration_id,
+                                                 std::move(subscriptions)));
+
+  std::optional<CookieStoreSync::Subscriptions> all_subscriptions_opt =
+      example_service_->GetSubscriptions(registration_id);
+  ASSERT_TRUE(all_subscriptions_opt.has_value());
+  ASSERT_EQ(1u, all_subscriptions_opt.value().size());
+
+  if (reset_context_during_test()) {
+    ResetServiceWorkerContext();
+  }
+
+  ASSERT_TRUE(
+      SetSessionCookie("cookie-name", "cookie-value", "example.com", "/"));
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(0u, worker_test_helper_->changes().size());
+}
+
 TEST_P(CookieStoreManagerTest, GetSubscriptionsFromWrongOrigin) {
   int64_t example_registration_id =
       RegisterServiceWorker(kExampleScope, kExampleWorkerScript);
@@ -1843,11 +1878,8 @@ TEST_F(CookieStoreManagerTest, UnTrustworthyOrigin) {
 // cookies with third-party cookie blocking on.
 TEST_F(CookieStoreManagerTest, PartitionedWorker_FirstPartyPartition) {
   base::test::ScopedFeatureList feature_list;
-  // TODO(crbug.com/328043119): Remove code associated with
-  // kAncestorChainBitEnabledInPartitionedCookies after it's enabled by default.
   feature_list.InitWithFeatures(
-      {net::features::kThirdPartyStoragePartitioning,
-       net::features::kAncestorChainBitEnabledInPartitionedCookies},
+      {net::features::kThirdPartyStoragePartitioning},
       {});
 
   // Register 1P worker.

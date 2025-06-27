@@ -9,8 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "android_webview/test/webview_instrumentation_test_jni/EmbeddedComponentLoaderTest_jni.h"
-#include "android_webview/test/webview_instrumentation_test_native_jni/EmbeddedComponentLoaderFactory_jni.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
@@ -20,6 +18,10 @@
 #include "base/values.h"
 #include "base/version.h"
 #include "components/component_updater/android/component_loader_policy.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/test/webview_instrumentation_test_jni/EmbeddedComponentLoaderTest_jni.h"
+#include "android_webview/test/webview_instrumentation_test_native_jni/EmbeddedComponentLoaderFactory_jni.h"
 
 namespace component_updater {
 
@@ -42,8 +44,7 @@ constexpr uint8_t kUnavailableComponentSha256Hash[] = {
 static void ExpectTrueToJava(bool condition, const std::string& error) {
   if (!condition) {
     JNIEnv* env = base::android::AttachCurrentThread();
-    Java_EmbeddedComponentLoaderTest_fail(
-        env, base::android::ConvertUTF8ToJavaString(env, error));
+    Java_EmbeddedComponentLoaderTest_fail(env, error);
   }
 }
 

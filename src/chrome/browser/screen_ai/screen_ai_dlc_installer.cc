@@ -13,9 +13,12 @@
 #include "base/task/thread_pool.h"
 #include "chrome/browser/screen_ai/screen_ai_install_state.h"
 #include "chromeos/ash/components/dbus/dlcservice/dlcservice.pb.h"
+#include "chromeos/ash/components/dbus/dlcservice/dlcservice_client.h"
 #include "services/screen_ai/public/cpp/utilities.h"
 
 namespace {
+
+using screen_ai::dlc_installer::DlcInstallResult;
 
 constexpr char kScreenAIDlcName[] = "screen-ai";
 
@@ -26,10 +29,34 @@ constexpr int kMaxInstallRetries = 5;
 constexpr int kUninstallDelayInSeconds = 300;
 
 struct InstallMetadata {
-  bool dlc_available_from_before_this_session = false;
   int install_retries = 0;
   int retry_delay_in_seconds = kBaseRetryDelayInSeconds;
 };
+
+void RecordDlcInstallResult(std::string_view result_string) {
+  DlcInstallResult result_enum = DlcInstallResult::kSuccess;
+
+  if (result_string == dlcservice::kErrorNone) {
+    result_enum = DlcInstallResult::kSuccess;
+  } else if (result_string == dlcservice::kErrorInternal) {
+    result_enum = DlcInstallResult::kErrorInternal;
+  } else if (result_string == dlcservice::kErrorBusy) {
+    result_enum = DlcInstallResult::kErrorBusy;
+  } else if (result_string == dlcservice::kErrorNeedReboot) {
+    result_enum = DlcInstallResult::kErrorNeedReboot;
+  } else if (result_string == dlcservice::kErrorInvalidDlc) {
+    result_enum = DlcInstallResult::kErrorInvalidDlc;
+  } else if (result_string == dlcservice::kErrorAllocation) {
+    result_enum = DlcInstallResult::kErrorAllocation;
+  } else if (result_string == dlcservice::kErrorNoImageFound) {
+    result_enum = DlcInstallResult::kErrorNoImageFound;
+  } else {
+    NOTREACHED() << "Unexpected error: " << result_string;
+  }
+
+  base::UmaHistogramEnumeration("Accessibility.ScreenAI.DlcInstallResult",
+                                result_enum);
+}
 
 void InstallInternal(InstallMetadata metadata);
 
@@ -55,12 +82,7 @@ void OnInstallCompleted(
     return;
   }
 
-  // Record metric only for new installs.
-  if (!metadata.dlc_available_from_before_this_session) {
-    screen_ai::ScreenAIInstallState::RecordComponentInstallationResult(
-        /*install=*/true,
-        /*successful=*/install_result.error == dlcservice::kErrorNone);
-  }
+  RecordDlcInstallResult(install_result.error);
 
   if (install_result.error != dlcservice::kErrorNone) {
     VLOG(0) << "ScreenAI installation failed: " << install_result.error;
@@ -78,16 +100,6 @@ void OnInstallCompleted(
 
   base::UmaHistogramCounts100("Accessibility.ScreenAI.Component.InstallRetries",
                               metadata.install_retries);
-}
-
-void OnUninstallCompleted(std::string_view err) {
-  screen_ai::ScreenAIInstallState::RecordComponentInstallationResult(
-      /*install=*/false,
-      /*successful=*/err == dlcservice::kErrorNone);
-
-  if (err != dlcservice::kErrorNone) {
-    VLOG(0) << "Unistall failed: " << err;
-  }
 }
 
 void OnInstallProgress(double progress) {
@@ -139,22 +151,17 @@ namespace screen_ai::dlc_installer {
 void Install() {
   screen_ai::ScreenAIInstallState::GetInstance()->SetState(
       screen_ai::ScreenAIInstallState::State::kDownloading);
-
-  // Need to know installation state for metrics.
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&CheckIfDlcExistsOnNonUIThread),
-      base::BindOnce([](bool dlc_exists) {
-        InstallMetadata metadata;
-        metadata.dlc_available_from_before_this_session = dlc_exists;
-        InstallInternal(metadata);
-      }));
+  InstallMetadata metadata;
+  InstallInternal(metadata);
 }
 
 void Uninstall() {
   ash::DlcserviceClient::Get()->Uninstall(
-      kScreenAIDlcName, base::BindOnce(&OnUninstallCompleted));
+      kScreenAIDlcName, base::BindOnce([](std::string_view err) {
+        if (err != dlcservice::kErrorNone) {
+          VLOG(0) << "Unistall failed: " << err;
+        }
+      }));
 }
 
 void ManageInstallation(PrefService* local_state) {

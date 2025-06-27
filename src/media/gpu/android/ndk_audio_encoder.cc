@@ -239,7 +239,7 @@ void NdkAudioEncoder::Encode(std::unique_ptr<AudioBus> audio_bus,
     return;
   }
 
-  if (input_timestamp_tracker_->base_timestamp() == kNoTimestamp) {
+  if (!input_timestamp_tracker_->base_timestamp()) {
     input_timestamp_tracker_->SetBaseTimestamp(capture_time -
                                                base::TimeTicks());
     output_timestamp_tracker_->SetBaseTimestamp(capture_time -
@@ -283,7 +283,7 @@ void NdkAudioEncoder::Flush(EncoderStatusCB done_cb) {
   }
 
   // Nothing to flush if we never fed input to the encoder.
-  if (input_timestamp_tracker_->base_timestamp() == kNoTimestamp) {
+  if (!input_timestamp_tracker_->base_timestamp()) {
     ReportOk(std::move(done_cb));
     return;
   }
@@ -340,13 +340,9 @@ void NdkAudioEncoder::FeedEos() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK_EQ(flush_state_, FlushState::kFlushingInputs);
 
-  size_t capacity = 0;
   const size_t buffer_idx = media_codec_->TakeInput();
-
-  uint8_t* buffer_ptr =
-      AMediaCodec_getInputBuffer(media_codec_->codec(), buffer_idx, &capacity);
-
-  if (!buffer_ptr) {
+  auto mc_input_buffer = media_codec_->GetInputBuffer(buffer_idx);
+  if (mc_input_buffer.empty()) {
     LogAndReportError({EncoderStatus::Codes::kEncoderFailedFlush,
                        "Unable to get input buffer during flush"},
                       std::move(pending_flush_cb_));
@@ -382,12 +378,9 @@ void NdkAudioEncoder::FeedInput(const AudioBus* audio_bus) {
   CHECK(!error_occurred_);
 
   const size_t buffer_idx = media_codec_->TakeInput();
+  auto mc_input_buffer = media_codec_->GetInputBuffer(buffer_idx);
 
-  size_t capacity = 0;
-  uint8_t* buffer_ptr =
-      AMediaCodec_getInputBuffer(media_codec_->codec(), buffer_idx, &capacity);
-
-  if (!buffer_ptr) {
+  if (mc_input_buffer.empty()) {
     LogError({EncoderStatus::Codes::kEncoderFailedEncode,
               "Unable to get input buffer"});
     return;
@@ -397,18 +390,18 @@ void NdkAudioEncoder::FeedInput(const AudioBus* audio_bus) {
       audio_bus->channels() * SampleFormatToBytesPerChannel(kSampleFormatS16);
   const size_t total_bytes = bytes_per_frame * audio_bus->frames();
 
-  if (capacity < total_bytes) {
+  if (mc_input_buffer.size() < total_bytes) {
     LogError({EncoderStatus::Codes::kEncoderFailedEncode,
               base::StringPrintf(
                   "Input capacity too small: needed=%zu, capacity=%zu",
-                  total_bytes, capacity)});
+                  total_bytes, mc_input_buffer.size())});
     return;
   }
 
   // MediaCodec uses signed 16bit PCM encoding by default.
   // Configuring the encoder to use float PCM did not work in tests.
   audio_bus->ToInterleaved<SignedInt16SampleTypeTraits>(
-      audio_bus->frames(), reinterpret_cast<int16_t*>(buffer_ptr));
+      audio_bus->frames(), reinterpret_cast<int16_t*>(mc_input_buffer.data()));
 
   CHECK_EQ(audio_bus->frames(), kAacFramesPerBuffer);
   const auto timestamp_us =
@@ -431,8 +424,8 @@ void NdkAudioEncoder::CompleteFlush() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK_EQ(flush_state_, FlushState::kPendingEOS);
 
-  input_timestamp_tracker_->SetBaseTimestamp(kNoTimestamp);
-  output_timestamp_tracker_->SetBaseTimestamp(kNoTimestamp);
+  input_timestamp_tracker_->Reset();
+  output_timestamp_tracker_->Reset();
 
   ClearMediaCodec();
   flush_state_ = FlushState::kNeedsMediaCodec;
@@ -463,40 +456,38 @@ bool NdkAudioEncoder::DrainConfig() {
   // We already have the info we need from `output_buffer`
   std::ignore = media_codec_->TakeOutput();
 
-  size_t capacity = 0;
-  uint8_t* buf_data = AMediaCodec_getOutputBuffer(
-      media_codec_->codec(), output_buffer.buffer_index, &capacity);
+  auto mc_output_data =
+      media_codec_->GetOutputBuffer(output_buffer.buffer_index);
 
-  if (!buf_data) {
+  if (mc_output_data.empty()) {
     LogError({EncoderStatus::Codes::kEncoderFailedEncode,
               "Can't obtain config output buffer from media codec"});
     return false;
   }
 
   const size_t mc_buffer_size = base::checked_cast<size_t>(mc_buffer_info.size);
+  const size_t mc_buffer_offset = static_cast<size_t>(mc_buffer_info.offset);
 
-  if (mc_buffer_info.offset + mc_buffer_size > capacity) {
-    LogError(
-        {EncoderStatus::Codes::kEncoderFailedEncode,
-         base::StringPrintf("Invalid config output buffer layout."
-                            "offset: %d size: %zu capacity: %zu",
-                            mc_buffer_info.offset, mc_buffer_size, capacity)});
+  if (mc_buffer_offset + mc_buffer_size > mc_output_data.size()) {
+    LogError({EncoderStatus::Codes::kEncoderFailedEncode,
+              base::StringPrintf("Invalid config output buffer layout."
+                                 "offset: %d size: %zu capacity: %zu",
+                                 mc_buffer_offset, mc_buffer_size,
+                                 mc_output_data.size())});
     return false;
   }
 
-  const uint8_t* data_start = buf_data + mc_buffer_info.offset;
-
+  mc_output_data = mc_output_data.subspan(mc_buffer_offset, mc_buffer_size);
   if (GetOutputFormat(options_) == AudioEncoder::AacOutputFormat::ADTS) {
     NullMediaLog null_log;
-    if (!aac_config_parser_.Parse(base::make_span(data_start, mc_buffer_size),
-                                  &null_log)) {
+    if (!aac_config_parser_.Parse(mc_output_data, &null_log)) {
       LogError({EncoderStatus::Codes::kInvalidOutputBuffer,
                 "Could not parse output config"});
       return false;
     }
   } else {
     // Output format is AudioEncoder::AacOutputFormat::AAC
-    codec_desc_.assign(data_start, data_start + mc_buffer_size);
+    codec_desc_.assign(mc_output_data.begin(), mc_output_data.end());
   }
 
   AMediaCodec_releaseOutputBuffer(media_codec_->codec(),
@@ -530,41 +521,33 @@ void NdkAudioEncoder::DrainOutput() {
     return;
   }
 
-  size_t capacity = 0;
-  uint8_t* buf_data = AMediaCodec_getOutputBuffer(
-      media_codec_->codec(), output_buffer.buffer_index, &capacity);
-
-  if (!buf_data) {
+  auto mc_output_data =
+      media_codec_->GetOutputBuffer(output_buffer.buffer_index);
+  if (mc_output_data.empty()) {
     LogError({EncoderStatus::Codes::kEncoderFailedEncode,
               "Unable to get output buffer"});
     return;
   }
 
   const size_t mc_buffer_size = base::checked_cast<size_t>(mc_buffer_info.size);
-  const int32_t mc_buffer_offset = mc_buffer_info.offset;
-  if (mc_buffer_size + mc_buffer_offset > capacity) {
-    LogError(
-        {EncoderStatus::Codes::kEncoderFailedEncode,
-         base::StringPrintf("Invalid output buffer layout."
-                            "offset: %d size: %zu capacity: %zu",
-                            mc_buffer_info.offset, mc_buffer_size, capacity)});
+  const size_t mc_buffer_offset = static_cast<size_t>(mc_buffer_info.offset);
+  if (mc_buffer_size + mc_buffer_offset > mc_output_data.size()) {
+    LogError({EncoderStatus::Codes::kEncoderFailedEncode,
+              base::StringPrintf("Invalid output buffer layout."
+                                 "offset: %d size: %zu capacity: %zu",
+                                 mc_buffer_info.offset, mc_buffer_size,
+                                 mc_output_data.size())});
     return;
   }
 
-  auto output_format = GetOutputFormat(options_);
-
-  int output_data_size;
-
-  auto mc_data = base::make_span(buf_data + mc_buffer_offset, mc_buffer_size);
+  mc_output_data = mc_output_data.subspan(mc_buffer_offset, mc_buffer_size);
   base::HeapArray<uint8_t> output_data;
 
+  auto output_format = GetOutputFormat(options_);
   if (output_format == AudioEncoder::AacOutputFormat::ADTS) {
     int adts_header_size = 0;
-    output_data =
-        aac_config_parser_.CreateAdtsFromEsds(mc_data, &adts_header_size);
-
-    output_data_size = mc_data.size() + adts_header_size;
-
+    output_data = aac_config_parser_.CreateAdtsFromEsds(mc_output_data,
+                                                        &adts_header_size);
     if (output_data.empty()) {
       AMediaCodec_releaseOutputBuffer(media_codec_->codec(),
                                       output_buffer.buffer_index, false);
@@ -574,10 +557,7 @@ void NdkAudioEncoder::DrainOutput() {
     }
 
   } else {
-    output_data = base::HeapArray<uint8_t>::Uninit(mc_data.size());
-    memcpy(output_data.data(), mc_data.data(), mc_data.size_bytes());
-
-    output_data_size = mc_data.size();
+    output_data = base::HeapArray<uint8_t>::CopiedFrom(mc_output_data);
   }
 
   AMediaCodec_releaseOutputBuffer(media_codec_->codec(),
@@ -595,7 +575,7 @@ void NdkAudioEncoder::DrainOutput() {
 
   output_cb_.Run(
       EncodedAudioBuffer(
-          output_params_, std::move(output_data), output_data_size, timestamp,
+          output_params_, std::move(output_data), timestamp,
           output_timestamp_tracker_->GetFrameDuration(kAacFramesPerBuffer)),
       desc);
 }

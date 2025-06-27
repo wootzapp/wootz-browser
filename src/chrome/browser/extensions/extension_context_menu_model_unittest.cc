@@ -18,7 +18,6 @@
 #include "base/values.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/extensions/chrome_extension_browser_constants.h"
 #include "chrome/browser/extensions/context_menu_matcher.h"
 #include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_action_test_util.h"
@@ -30,6 +29,7 @@
 #include "chrome/browser/extensions/permissions/permissions_updater.h"
 #include "chrome/browser/extensions/permissions/scripting_permissions_modifier.h"
 #include "chrome/browser/extensions/permissions/site_permissions_helper.h"
+#include "chrome/browser/extensions/permissions_url_constants.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/common/extensions/api/context_menus.h"
@@ -42,6 +42,7 @@
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
 #include "extensions/browser/extension_dialog_auto_confirm.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/permissions_manager.h"
@@ -145,7 +146,7 @@ class MenuBuilder {
   MenuBuilder(const MenuBuilder&) = delete;
   MenuBuilder& operator=(const MenuBuilder&) = delete;
 
-  ~MenuBuilder() {}
+  ~MenuBuilder() = default;
 
   std::unique_ptr<ExtensionContextMenuModel> BuildMenu() {
     return std::make_unique<ExtensionContextMenuModel>(
@@ -298,7 +299,7 @@ class ExtensionContextMenuModelTest : public ExtensionServiceTestBase {
   display::test::TestScreen test_screen_;
 };
 
-ExtensionContextMenuModelTest::ExtensionContextMenuModelTest() {}
+ExtensionContextMenuModelTest::ExtensionContextMenuModelTest() = default;
 
 const Extension* ExtensionContextMenuModelTest::AddExtension(
     const std::string& name,
@@ -329,8 +330,8 @@ const Extension* ExtensionContextMenuModelTest::AddExtensionWithHostPermission(
           .Build();
   if (!extension.get())
     ADD_FAILURE();
-  service()->GrantPermissions(extension.get());
-  service()->AddExtension(extension.get());
+  PermissionsUpdater(profile()).GrantActivePermissions(extension.get());
+  registrar()->AddExtension(extension.get());
   return extension.get();
 }
 
@@ -339,7 +340,7 @@ void ExtensionContextMenuModelTest::InitializeAndAddExtension(
   PermissionsUpdater updater(profile());
   updater.InitializePermissions(&extension);
   updater.GrantActivePermissions(&extension);
-  service()->AddExtension(&extension);
+  registrar()->AddExtension(&extension);
 }
 
 Browser* ExtensionContextMenuModelTest::GetBrowser() {
@@ -520,7 +521,7 @@ TEST_F(ExtensionContextMenuModelTest, ComponentExtensionContextMenu) {
             .SetID(crx_file::id_util::GenerateId("component"))
             .SetLocation(ManifestLocation::kComponent)
             .Build();
-    service()->AddExtension(extension.get());
+    registrar()->AddExtension(extension.get());
 
     ExtensionContextMenuModel menu(extension.get(), GetBrowser(),
                                    /*is_pinned=*/true, nullptr, true,
@@ -561,7 +562,7 @@ TEST_F(ExtensionContextMenuModelTest, ComponentExtensionContextMenu) {
     ExtensionContextMenuModel menu(extension.get(), GetBrowser(),
                                    /*is_pinned=*/true, nullptr, true,
                                    ContextMenuSource::kToolbarAction);
-    service()->AddExtension(extension.get());
+    registrar()->AddExtension(extension.get());
     EXPECT_TRUE(OptionsPageInfo::HasOptionsPage(extension.get()));
     EXPECT_EQ(GetCommandState(menu, ExtensionContextMenuModel::OPTIONS),
               CommandState::kEnabled);
@@ -655,7 +656,7 @@ TEST_F(ExtensionContextMenuModelTest,
           .SetManifestVersion(2)
           .SetID(crx_file::id_util::GenerateId("extension"))
           .Build();
-  service()->AddExtension(extension.get());
+  registrar()->AddExtension(extension.get());
 
   {
     // Verify the "options" entry is absent if the extension doesn't have
@@ -673,7 +674,7 @@ TEST_F(ExtensionContextMenuModelTest,
           .SetID(crx_file::id_util::GenerateId("extension_with_options_page"))
           .SetManifestKey("options_page", "options_page.html")
           .Build();
-  service()->AddExtension(extension_with_options.get());
+  registrar()->AddExtension(extension_with_options.get());
 
   {
     // Verify the "options" entry is enabled if and only if the
@@ -1314,7 +1315,7 @@ TEST_F(ExtensionContextMenuModelTest,
 
     // Uninstall the extension so as not to conflict with more additions.
     std::u16string error;
-    EXPECT_TRUE(service()->UninstallExtension(
+    EXPECT_TRUE(registrar()->UninstallExtension(
         extension->id(), UNINSTALL_REASON_FOR_TESTING, &error));
     EXPECT_TRUE(error.empty()) << error;
     EXPECT_EQ(nullptr, registry()->GetInstalledExtension(extension->id()));
@@ -1468,7 +1469,7 @@ TEST_F(ExtensionContextMenuModelTest,
   InitializeEmptyExtensionService();
 
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("extension").AddPermissions({"activeTab"}).Build();
+      ExtensionBuilder("extension").AddAPIPermission("activeTab").Build();
   InitializeAndAddExtension(*extension);
 
   // Navigate to a url that should have "customize by extension" site
@@ -1561,7 +1562,7 @@ TEST_F(ExtensionContextMenuModelTest,
 
   // Add an extension that wants access to a.com.
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("extension").AddPermission("*://a.com/*").Build();
+      ExtensionBuilder("extension").AddHostPermission("*://a.com/*").Build();
   InitializeAndAddExtension(*extension);
 
   // Additionally, grant it the (unrequested) access to b.com.
@@ -1674,7 +1675,7 @@ TEST_F(ExtensionContextMenuModelTest,
   // Add an extension that wants access to a.com and b.com.
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("extension")
-          .AddPermissions({"*://a.com/*", "*://b.com/*"})
+          .AddHostPermissions({"*://a.com/*", "*://b.com/*"})
           .Build();
   InitializeAndAddExtension(*extension);
 
@@ -1725,7 +1726,7 @@ TEST_F(ExtensionContextMenuModelTest, TestClickingPageAccessLearnMore) {
 
   // Add an extension that wants access to a.com.
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("extension").AddPermission("*://a.com/*").Build();
+      ExtensionBuilder("extension").AddHostPermission("*://a.com/*").Build();
   InitializeAndAddExtension(*extension);
 
   PermissionsManager* permissions_manager = PermissionsManager::Get(profile());
@@ -1753,8 +1754,9 @@ TEST_F(ExtensionContextMenuModelTest, TestClickingPageAccessLearnMore) {
   content::NavigationController& controller = web_contents->GetController();
   content::RenderFrameHostTester::CommitPendingLoad(&controller);
 
-  EXPECT_EQ(GURL(chrome_extension_constants::kRuntimeHostPermissionsHelpURL),
-            web_contents->GetLastCommittedURL());
+  EXPECT_EQ(
+      GURL(extension_permissions_constants::kRuntimeHostPermissionsHelpURL),
+      web_contents->GetLastCommittedURL());
 }
 
 TEST_F(ExtensionContextMenuModelTest, HistogramTest_Basic) {
@@ -1814,7 +1816,7 @@ TEST_F(ExtensionContextMenuModelTest, HistogramTest_CustomCommand) {
   InitializeEmptyExtensionService();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("extension")
-          .SetAction(ActionInfo::Type::kBrowser)
+          .SetAction(ActionInfo::Type::kAction)
           .Build();
   InitializeAndAddExtension(*extension);
 
@@ -1822,7 +1824,7 @@ TEST_F(ExtensionContextMenuModelTest, HistogramTest_CustomCommand) {
   ASSERT_TRUE(manager);
 
   MenuBuilder builder(extension, GetBrowser(), manager);
-  builder.AddContextItem(MenuItem::BROWSER_ACTION);
+  builder.AddContextItem(MenuItem::ACTION);
   std::unique_ptr<ExtensionContextMenuModel> menu = builder.BuildMenu();
   EXPECT_EQ(1, CountExtensionItems(*menu));
 
@@ -1850,7 +1852,7 @@ TEST_P(ExtensionActionContextMenuModelTest,
 
   scoped_refptr<const Extension> extension =
       BuildExtensionWithActionType(action_type);
-  service()->AddExtension(extension.get());
+  registrar()->AddExtension(extension.get());
 
   MenuManager* const manager = CreateMenuManager();
 
@@ -1880,7 +1882,7 @@ TEST_P(ExtensionActionContextMenuModelTest, ActionMenuItemsAreLimited) {
 
   scoped_refptr<const Extension> extension =
       BuildExtensionWithActionType(action_type);
-  service()->AddExtension(extension.get());
+  registrar()->AddExtension(extension.get());
 
   MenuManager* const manager = CreateMenuManager();
 
@@ -1911,7 +1913,7 @@ TEST_P(ExtensionActionContextMenuModelTest,
 
   scoped_refptr<const Extension> extension =
       BuildExtensionWithActionType(action_type);
-  service()->AddExtension(extension.get());
+  registrar()->AddExtension(extension.get());
 
   MenuManager* const manager = CreateMenuManager();
 
@@ -2299,7 +2301,7 @@ TEST_P(ExtensionContextMenuModelWithUserHostControlsTest,
 
   // Add an extension that wants access to a.com.
   scoped_refptr<const Extension> extension =
-      ExtensionBuilder("extension").AddPermission("*://a.com/*").Build();
+      ExtensionBuilder("extension").AddHostPermission("*://a.com/*").Build();
   InitializeAndAddExtension(*extension);
 
   EXPECT_FALSE(PermissionsManager::Get(profile())->HasWithheldHostPermissions(
@@ -2334,8 +2336,9 @@ TEST_P(ExtensionContextMenuModelWithUserHostControlsTest,
   content::NavigationController& controller = web_contents->GetController();
   content::RenderFrameHostTester::CommitPendingLoad(&controller);
 
-  EXPECT_EQ(web_contents->GetLastCommittedURL(),
-            GURL(chrome_extension_constants::kExtensionsSitePermissionsURL));
+  EXPECT_EQ(
+      web_contents->GetLastCommittedURL(),
+      GURL(extension_permissions_constants::kExtensionsSitePermissionsURL));
 }
 
 class ExtensionContextMenuModelWithUserHostControlsAndPermittedSitesTest

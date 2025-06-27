@@ -9,7 +9,7 @@
       ".*isolate",
       ".vpython",
       "build/check_gn_headers.py",
-      "build/check_gn_headers_whitelist.txt",
+      "build/check_gn_headers_allowlist.txt",
       "build/get_landmines.py",
       "build/gn_helpers.py",
       "build/mac_toolchain.py",
@@ -49,9 +49,7 @@
       "components/test/data/.*",
       "components/version_ui/resources/.*(css|html|js)",
       "content/test/data/.*",
-      "content/test/gpu/.*",
       "extensions/test/data/.*",
-      "gpu/gles2_conform_support/gles2_conform_test_expectations.txt",
       "media/test/data/.*",
       "mojo/tools/.*",
       "net/data/.*",
@@ -60,23 +58,30 @@
       "third_party/angle/DEPS",
       "third_party/closure_compiler/.*(css|html|js)",
       "third_party/dawn/DEPS",
+      "third_party/dawn/generator/.*",
+      "third_party/dawn/src/dawn/.*json",
       "third_party/hunspell_dictionaries/.*",
-      "third_party/jstemplate/.*(css|html|js)",
       "third_party/openscreen/src/DEPS",
       "third_party/polymer/v1_0/components-chromium/.*(css|html|js)",
       "third_party/vulkan-deps/DEPS",
       "third_party/web-animations-js/.*(css|html|js)",
       "third_party/zlib/google/test/data/.*",
-      "tools/android/avd/proto/creation/.*",
       "tools/clang/scripts/update.py",
       "tools/rust/update_rust.py",
       "tools/grit/.*",
       "tools/mb/.*",
-      "tools/metrics/histograms/histograms.xml",
+      "tools/msan/.*",
       "tools/perf/.*",
       "tools/telemetry/.*",
       "tools/traffic_annotation/scripts/.*",
+      "tools/ubsan/.*",
       "ui/webui/resources/.*(css|html|js)"
+    ]
+  },
+  "dawn_chromium_presubmit": {
+    "exclusions": [
+      "third_party/dawn/webgpu-cts/compat-expectations.txt",
+      "third_party/dawn/webgpu-cts/expectations.txt"
     ]
   },
   "fuchsia": {
@@ -98,7 +103,10 @@
   },
   "win": {
     "exclusions": [
-      "build/toolchain/win/rc/win/rc.exe.sha1"
+      "build/toolchain/win/rc/win/rc.exe.sha1",
+      "build/toolchain/win/rc/rc.py",
+      "build/toolchain/win/midl.py",
+      "build/toolchain/win/ml.py"
     ]
   }
 }

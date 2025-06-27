@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/visitedlink/browser/visitedlink_writer.h"
 
 #include <stdio.h>
 #include <string.h>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -124,14 +130,18 @@ void AsyncTruncate(base::ScopedFILE* file) {
 }
 
 // These values are logged to UMA. Entries should not be renumbered and
-// numeric values should never be reused. Please keep in sync with
-// "AddFingerprint" in tools/metrics/histograms/enums.xml.
+// numeric values should never be reused. NOTE: Please also keep in line with
+// components/visitedlink/browser/partitioned_visitedlink_writer.cc:
+// AddFingerprint.
+//
+// LINT.IfChange(AddFingerprint)
 enum class AddFingerprint {
   kNewVisit = 0,
   kAlreadyVisited = 1,
   kTableError = 2,
   kMaxValue = kTableError,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/history/enums.xml:AddFingerprint)
 
 }  // namespace
 
@@ -170,7 +180,7 @@ VisitedLinkWriter::LoadFromFileResult::LoadFromFileResult(
   memcpy(this->salt, salt, LINK_SALT_LENGTH);
 }
 
-VisitedLinkWriter::LoadFromFileResult::~LoadFromFileResult() {}
+VisitedLinkWriter::LoadFromFileResult::~LoadFromFileResult() = default;
 
 // TableBuilder ---------------------------------------------------------------
 
@@ -210,7 +220,7 @@ class VisitedLinkWriter::TableBuilder
   void OnComplete(bool succeed) override;
 
  private:
-  ~TableBuilder() override {}
+  ~TableBuilder() override = default;
 
   // OnComplete mashals to this function on the main thread to do the
   // notification.
@@ -324,8 +334,7 @@ VisitedLinkWriter::Hash VisitedLinkWriter::TryToAddURL(const GURL& url) {
   // TODO(boliu): Move this check to HistoryService when IsOffTheRecord is
   // removed from BrowserContext.
   if (browser_context_ && browser_context_->IsOffTheRecord()) {
-    NOTREACHED_IN_MIGRATION();
-    return null_hash_;
+    NOTREACHED();
   }
 
   if (!url.is_valid())
@@ -481,8 +490,7 @@ VisitedLinkWriter::Hash VisitedLinkWriter::AddFingerprint(
   if (!hash_table_ || table_length_ == 0) {
     UMA_HISTOGRAM_ENUMERATION("History.VisitedLinks.TryToAddFingerprint",
                               AddFingerprint::kTableError);
-    NOTREACHED_IN_MIGRATION();  // Not initialized.
-    return null_hash_;
+    NOTREACHED();  // Not initialized.
   }
 
   Hash cur_hash = HashFingerprint(fingerprint);
@@ -515,8 +523,7 @@ VisitedLinkWriter::Hash VisitedLinkWriter::AddFingerprint(
       // logic, so stop here.
       UMA_HISTOGRAM_ENUMERATION("History.VisitedLinks.TryToAddFingerprint",
                                 AddFingerprint::kTableError);
-      NOTREACHED_IN_MIGRATION();
-      return null_hash_;
+      NOTREACHED();
     }
   }
 }
@@ -541,8 +548,7 @@ void VisitedLinkWriter::DeleteFingerprintsFromCurrentTable(
 bool VisitedLinkWriter::DeleteFingerprint(Fingerprint fingerprint,
                                           bool update_file) {
   if (!hash_table_ || table_length_ == 0) {
-    NOTREACHED_IN_MIGRATION();  // Not initialized.
-    return false;
+    NOTREACHED();  // Not initialized.
   }
   if (!IsVisited(fingerprint))
     return false;  // Not in the database to delete.
@@ -1014,20 +1020,21 @@ uint32_t VisitedLinkWriter::DefaultTableSize() const {
 uint32_t VisitedLinkWriter::NewTableSizeForCount(int32_t item_count) const {
   // These table sizes are selected to be the maximum prime number less than
   // a "convenient" multiple of 1K.
-  static const int table_sizes[] = {
-      16381,      // 16K  = 16384   <- don't shrink below this table size
-                  //                   (should be == default_table_size)
-      32767,      // 32K  = 32768
-      65521,      // 64K  = 65536
-      130051,     // 128K = 131072
-      262127,     // 256K = 262144
-      524269,     // 512K = 524288
-      1048549,    // 1M   = 1048576
-      2097143,    // 2M   = 2097152
-      4194301,    // 4M   = 4194304
-      8388571,    // 8M   = 8388608
-      16777199,   // 16M  = 16777216
-      33554347};  // 32M  = 33554432
+  static const auto table_sizes = std::to_array<int>({
+      16381,     // 16K  = 16384   <- don't shrink below this table size
+                 //                   (should be == default_table_size)
+      32767,     // 32K  = 32768
+      65521,     // 64K  = 65536
+      130051,    // 128K = 131072
+      262127,    // 256K = 262144
+      524269,    // 512K = 524288
+      1048549,   // 1M   = 1048576
+      2097143,   // 2M   = 2097152
+      4194301,   // 4M   = 4194304
+      8388571,   // 8M   = 8388608
+      16777199,  // 16M  = 16777216
+      33554347,
+  });  // 32M  = 33554432
 
   // Try to leave the table 33% full.
   int desired = item_count * 3;
@@ -1198,7 +1205,7 @@ void VisitedLinkWriter::TableBuilder::OnCompleteMainThread() {
 
 // static
 VisitedLinkCommon::Fingerprint* VisitedLinkWriter::GetHashTableFromMapping(
-    const base::WritableSharedMemoryMapping& hash_table_mapping) {
+    base::WritableSharedMemoryMapping& hash_table_mapping) {
   DCHECK(hash_table_mapping.IsValid());
   // Our table pointer is just the data immediately following the header.
   return reinterpret_cast<Fingerprint*>(

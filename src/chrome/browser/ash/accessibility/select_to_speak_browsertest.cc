@@ -86,9 +86,20 @@ class SelectToSpeakTest : public AccessibilityFeatureBrowserTest {
     histogram_tester_.ExpectTotalCount(kSpeechDurationMetric, expected_count);
   }
 
+  void TearDownOnMainThread() override {
+    if (console_observer_ && !console_observer_->HasErrorsOrWarnings()) {
+      // In manifest v3, there are errors that get fired during tear down that
+      // can cause tests to flake. To avoid flakiness, we reset the console
+      // observer, but only if there were no errors during the test.
+      console_observer_.reset();
+    }
+
+    AccessibilityFeatureBrowserTest::TearDownOnMainThread();
+  }
+
  protected:
-  SelectToSpeakTest() {}
-  ~SelectToSpeakTest() override {}
+  SelectToSpeakTest() = default;
+  ~SelectToSpeakTest() override = default;
 
   // Note that we do not enable Select to Speak in the SetUp method because
   // tests are less flaky if we load the page URL before loading up the
@@ -243,17 +254,6 @@ class SelectToSpeakTestWithVoiceSwitching : public SelectToSpeakTest {
     prefs->SetBoolean(prefs::kAccessibilitySelectToSpeakVoiceSwitching, true);
     SelectToSpeakTest::SetUpOnMainThread();
   }
-};
-
-class SelectToSpeakTestWithMagnifierFollowing : public SelectToSpeakTest {
- public:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    scoped_feature_list_.InitAndEnableFeature(
-        ::features::kAccessibilityMagnifierFollowsSts);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(SelectToSpeakTest, SpeakStatusTray) {
@@ -650,7 +650,7 @@ IN_PROC_BROWSER_TEST_F(SelectToSpeakTest,
   EXPECT_GT(final_window_position.y(), initial_window_position.y());
 }
 
-IN_PROC_BROWSER_TEST_F(SelectToSpeakTestWithMagnifierFollowing,
+IN_PROC_BROWSER_TEST_F(SelectToSpeakTest,
                        FullscreenMagnifierFollowsTextBoundsWhenPrefOn) {
   sm_.send_word_events_and_wait_to_finish(true);
   Profile* profile = AccessibilityManager::Get()->profile();
@@ -880,25 +880,14 @@ IN_PROC_BROWSER_TEST_F(SelectToSpeakTest,
 
   const std::string name = "Listen to selected text";
 
-  // If the EmbeddedA11yHelper in Lacros hasn't completed loading the helper
-  // extension, the context menu option won't be present. Keep trying until it
-  // is present. For users, it gets installed so quickly in Lacros that they
-  // won't see this type of behavior.
-  while (true) {
-    // Right-click the selected region.
-    generator_->PressRightButton();
-    generator_->ReleaseRightButton();
+  // Right-click the selected region.
+  generator_->PressRightButton();
+  generator_->ReleaseRightButton();
 
-    // Wait for the copy context menu item to be shown,
-    // this means the menu is displayed.
-    automation_test_utils_->GetNodeBoundsInRoot("Copy Ctrl+C", "menuItem");
-    if (automation_test_utils_->NodeExistsNoWait(name, "menuItem")) {
-      break;
-    }
-    // Close the menu and wait for the close to propagate.
-    generator_->PressAndReleaseKey(ui::VKEY_ESCAPE, /*flags=*/0);
-    automation_test_utils_->WaitForChildrenChangedEvent();
-  }
+  // Wait for the copy context menu item to be shown,
+  // this means the menu is displayed.
+  automation_test_utils_->GetNodeBoundsInRoot("Copy Ctrl+C", "menuItem");
+  ASSERT_TRUE(automation_test_utils_->NodeExistsNoWait(name, "menuItem"));
 
   // Click the Select to Speak menu item.
   gfx::Rect menu_item_bounds =

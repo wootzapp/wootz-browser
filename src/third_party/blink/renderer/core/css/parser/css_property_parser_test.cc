@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/css_image_set_value.h"
 #include "third_party/blink/renderer/core/css/css_repeat_style_value.h"
+#include "third_party/blink/renderer/core/css/css_test_helpers.h"
 #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
@@ -35,8 +36,8 @@ static int ComputeNumberOfTracks(const CSSValueList* value_list) {
     }
     if (auto* repeat_value =
             DynamicTo<cssvalue::CSSGridIntegerRepeatValue>(*value)) {
-      number_of_tracks +=
-          repeat_value->Repetitions() * ComputeNumberOfTracks(repeat_value);
+      number_of_tracks += *repeat_value->GetRepetitionsIfKnown() *
+                          ComputeNumberOfTracks(repeat_value);
       continue;
     }
     ++number_of_tracks;
@@ -46,8 +47,7 @@ static int ComputeNumberOfTracks(const CSSValueList* value_list) {
 
 static bool IsValidPropertyValueForStyleRule(CSSPropertyID property_id,
                                              const String& value) {
-  CSSTokenizer tokenizer(value);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(value);
   HeapVector<CSSPropertyValue, 64> parsed_properties;
   return CSSPropertyParser::ParseValue(
       property_id, /*allow_important_annotation=*/false, stream,
@@ -232,7 +232,8 @@ static int GetGridPositionInteger(const CSSValue& value) {
   DCHECK_EQ(list.length(), static_cast<size_t>(1));
   const auto& primitive_value = To<CSSPrimitiveValue>(list.Item(0));
   DCHECK(primitive_value.IsNumber());
-  return primitive_value.ComputeInteger(CSSToLengthConversionData());
+  return primitive_value.ComputeInteger(
+      CSSToLengthConversionData(/*element=*/nullptr));
 }
 
 TEST(CSSPropertyParserTest, GridPositionLimit1) {
@@ -353,8 +354,8 @@ TEST(CSSPropertyParserTest, PaintUseCount) {
   auto dummy_page_holder =
       std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
   dummy_page_holder->GetFrame().Loader().CommitNavigation(
-      WebNavigationParams::CreateWithHTMLBufferForTesting(
-          SharedBuffer::Create(), KURL("https://example.com")),
+      WebNavigationParams::CreateWithEmptyHTMLForTesting(
+          KURL("https://example.com")),
       nullptr /* extra_data */);
   Document& document = dummy_page_holder->GetDocument();
   Page::InsertOrdinaryPageForTesting(&dummy_page_holder->GetPage());
@@ -880,7 +881,8 @@ TEST(CSSPropertyParserTest, ImageSetNegativeResolution) {
 }
 
 TEST(CSSPropertyParserTest, ImageSetOnlyOneGradientColor) {
-  TestImageSetParsingFailure("image-set(linear-gradient(red) 1x)");
+  TestImageSetParsing("image-set(linear-gradient(red) 1x)",
+                      "image-set(linear-gradient(red) 1x)");
 }
 
 TEST(CSSPropertyParserTest, ImageSetAddCalcMissingUnit1) {
@@ -920,46 +922,6 @@ TEST(CSSPropertyParserTest, LightDarkAuthor) {
       "light-dark(url(light.png), url(dark.png))", context));
 }
 
-TEST(CSSPropertyParserTest, UALightDarkColor) {
-  ScopedCSSLightDarkColorsForTest disable_light_dark(false);
-  auto* ua_context = MakeGarbageCollected<CSSParserContext>(
-      kUASheetMode, SecureContextMode::kInsecureContext);
-
-  const struct {
-    const char* value;
-    bool valid;
-  } tests[] = {
-      {"light-dark()", false},
-      {"light-dark(#feedab)", false},
-      {"light-dark(red blue)", false},
-      {"light-dark(red,,blue)", false},
-      {"light-dark(red, blue)", true},
-      {"light-dark(#000000, #ffffff)", true},
-      {"light-dark(rgb(0, 0, 0), hsl(180, 75%, 50%))", true},
-      {"light-dark(rgba(0, 0, 0, 0.5), hsla(180, 75%, 50%, "
-       "0.7))",
-       true},
-      {"light-dark(ff0000, green)", false},
-  };
-
-  for (const auto& test : tests) {
-    EXPECT_EQ(!!CSSParser::ParseSingleValue(CSSPropertyID::kColor, test.value,
-                                            ua_context),
-              test.valid);
-  }
-}
-
-TEST(CSSPropertyParserTest, UALightDarkColorSerialization) {
-  ScopedCSSLightDarkColorsForTest disable_light_dark(false);
-
-  auto* ua_context = MakeGarbageCollected<CSSParserContext>(
-      kUASheetMode, SecureContextMode::kInsecureContext);
-  const CSSValue* value = CSSParser::ParseSingleValue(
-      CSSPropertyID::kColor, "light-dark(red,#aaa)", ua_context);
-  ASSERT_TRUE(value);
-  EXPECT_EQ("light-dark(red, rgb(170, 170, 170))", value->CssText());
-}
-
 TEST(CSSPropertyParserTest, UALightDarkBackgroundImage) {
   auto* ua_context = MakeGarbageCollected<CSSParserContext>(
       kUASheetMode, SecureContextMode::kInsecureContext);
@@ -988,14 +950,14 @@ TEST(CSSPropertyParserTest, UALightDarkBackgroundImage) {
   }
 }
 
-TEST(CSSPropertyParserTest, UAAppearanceAutoBaseSelectSerialization) {
-  auto* ua_context = MakeGarbageCollected<CSSParserContext>(
-      kUASheetMode, SecureContextMode::kInsecureContext);
-  const CSSValue* value = CSSParser::ParseSingleValue(
-      CSSPropertyID::kBackgroundColor,
-      "-internal-appearance-auto-base-select(red, blue)", ua_context);
+TEST(CSSPropertyParserTest, UAAutoBaseSerialization) {
+  // Note: we're not using CSSParser::ParseSingleValue, because it expects
+  // arbitrary function substitution to already have happened.
+  const CSSPropertyValueSet* set = css_test_helpers::ParseDeclarationBlock(
+      "color:-internal-auto-base(red, blue)", kUASheetMode);
+  const CSSValue* value = set->GetPropertyCSSValue(CSSPropertyID::kColor);
   ASSERT_TRUE(value);
-  EXPECT_EQ("-internal-appearance-auto-base-select(red, blue)",
+  EXPECT_EQ("-internal-auto-base(red, blue)",
             value->CssText());
 }
 
@@ -1004,8 +966,7 @@ namespace {
 bool ParseCSSValue(CSSPropertyID property_id,
                    const String& value,
                    const CSSParserContext* context) {
-  CSSTokenizer tokenizer(value);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(value);
   HeapVector<CSSPropertyValue, 64> parsed_properties;
   return CSSPropertyParser::ParseValue(
       property_id, /*allow_important_annotation=*/false, stream, context,
@@ -1047,8 +1008,7 @@ TEST(CSSPropertyParserTest, ParseRevert) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
 
   String string = " revert";
-  CSSTokenizer tokenizer(string);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(string);
 
   const CSSValue* value = CSSPropertyParser::ParseSingleValue(
       CSSPropertyID::kMarginLeft, stream, context);
@@ -1061,31 +1021,12 @@ TEST(CSSPropertyParserTest, ParseRevertLayer) {
       kHTMLStandardMode, SecureContextMode::kInsecureContext);
 
   String string = " revert-layer";
-  CSSTokenizer tokenizer(string);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(string);
 
   const CSSValue* value = CSSPropertyParser::ParseSingleValue(
       CSSPropertyID::kMarginLeft, stream, context);
   ASSERT_TRUE(value);
   EXPECT_TRUE(value->IsRevertLayerValue());
-}
-
-// anchor() and anchor-size() shouldn't parse when the feature is disabled.
-TEST(CSSPropertyParserTest, AnchorPositioningDisabled) {
-  ScopedHTMLSelectListElementForTest select_list_disabled(false);
-  ScopedCSSAnchorPositioningForTest anchor_positioning_disabled(false);
-
-  auto* context = MakeGarbageCollected<CSSParserContext>(
-      kHTMLStandardMode, SecureContextMode::kInsecureContext);
-
-  EXPECT_FALSE(
-      ParseCSSValue(CSSPropertyID::kTop, "anchor(--foo top)", context));
-  EXPECT_FALSE(
-      ParseCSSValue(CSSPropertyID::kBottom, "anchor(--foo bottom)", context));
-  EXPECT_FALSE(ParseCSSValue(CSSPropertyID::kWidth, "anchor-size(--foo width)",
-                             context));
-  EXPECT_FALSE(ParseCSSValue(CSSPropertyID::kHeight,
-                             "anchor-size(--foo height)", context));
 }
 
 void TestRepeatStyleParsing(const String& testValue,

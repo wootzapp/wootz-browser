@@ -6,6 +6,7 @@
 
 #include "third_party/blink/renderer/core/css/style_containment_scope_tree.h"
 #include "third_party/blink/renderer/core/dom/layout_tree_builder_traversal.h"
+#include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/layout/layout_quote.h"
 
 namespace blink {
@@ -93,7 +94,7 @@ const LayoutQuote* StyleContainmentScope::FindQuotePrecedingElement(
                element, *quote->GetOwningPseudo()) < 0;
   };
   // Find the first quote for which comp will return true.
-  auto* it = std::upper_bound(quotes_.begin(), quotes_.end(), element, comp);
+  auto it = std::upper_bound(quotes_.begin(), quotes_.end(), element, comp);
   // And get the previous quote as it will be the one we are searching for.
   return it == quotes_.begin() ? nullptr : *std::prev(it);
 }

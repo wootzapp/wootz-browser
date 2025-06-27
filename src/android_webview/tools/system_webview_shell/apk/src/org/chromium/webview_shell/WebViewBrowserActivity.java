@@ -76,6 +76,8 @@ public class WebViewBrowserActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ContextUtils.initApplicationContext(getApplicationContext());
+
+        EdgeToEdgeUtil.setupEdgeToEdge(this);
         setContentView(R.layout.activity_webview_browser);
         setSupportActionBar((Toolbar) findViewById(R.id.browser_toolbar));
         mWebViewVersion = WebViewCompat.getCurrentWebViewPackage(this).versionName;
@@ -97,6 +99,7 @@ public class WebViewBrowserActivity extends AppCompatActivity {
     }
 
     @Override
+    @SuppressWarnings("GestureBackNavigation")
     public void onBackPressed() {
         if (mWebView != null && mWebView.canGoBack()) {
             mWebView.goBack();
@@ -199,30 +202,43 @@ public class WebViewBrowserActivity extends AppCompatActivity {
             }
             return true;
         } else if (itemId == R.id.menu_get_cookie) {
-            String cookie = CookieManager.getInstance().getCookie(mWebView.getUrl());
-            Log.w(TAG, "GetCookie: " + cookie);
+            String url = mWebView.getUrl();
+            if (url != null) {
+                String cookie = CookieManager.getInstance().getCookie(url);
+                Log.w(TAG, "GetCookie: " + cookie);
+                Toast.makeText(this, "Printing cookie values to adb logcat", Toast.LENGTH_SHORT)
+                        .show();
+            } else {
+                Toast.makeText(this, "Error: Url is not set", Toast.LENGTH_SHORT).show();
+            }
             return true;
         } else if (itemId == R.id.menu_enable_tracing) {
-            mEnableTracing = !mEnableTracing;
-            item.setChecked(mEnableTracing);
+            // This menu item is disabled when mIsStoppingTracing is true, but this
+            // is only updated if the menu is closed and reopened. This check is for when
+            // this menu item is triggered multiple times while the menu is open which
+            // can cause tracing to start when it is already started and throw an error.
+            if (!mIsStoppingTracing) {
+                mEnableTracing = !mEnableTracing;
+                item.setChecked(mEnableTracing);
 
-            TracingController tracingController = TracingController.getInstance();
-            if (mEnableTracing) {
-                tracingController.start(
-                        new TracingConfig.Builder()
-                                .addCategories(TracingConfig.CATEGORIES_WEB_DEVELOPER)
-                                .setTracingMode(TracingConfig.RECORD_CONTINUOUSLY)
-                                .build());
-            } else {
-                try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
-                    String outFileName = getFilesDir() + "/webview_tracing.json";
-                    try {
-                        tracingController.stop(
-                                new TracingLogger(outFileName, this),
-                                Executors.newSingleThreadExecutor());
-                        mIsStoppingTracing = true;
-                    } catch (FileNotFoundException e) {
-                        throw new RuntimeException(e);
+                TracingController tracingController = TracingController.getInstance();
+                if (mEnableTracing) {
+                    tracingController.start(
+                            new TracingConfig.Builder()
+                                    .addCategories(TracingConfig.CATEGORIES_WEB_DEVELOPER)
+                                    .setTracingMode(TracingConfig.RECORD_CONTINUOUSLY)
+                                    .build());
+                } else {
+                    try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
+                        String outFileName = getFilesDir() + "/webview_tracing.json";
+                        try {
+                            tracingController.stop(
+                                    new TracingLogger(outFileName, this),
+                                    Executors.newSingleThreadExecutor());
+                            mIsStoppingTracing = true;
+                        } catch (FileNotFoundException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }
             }
@@ -390,7 +406,6 @@ public class WebViewBrowserActivity extends AppCompatActivity {
 
     private class TracingLogger extends FileOutputStream {
         private long mByteCount;
-        private long mChunkCount;
         private final Activity mActivity;
 
         public TracingLogger(String fileName, Activity activity) throws FileNotFoundException {
@@ -401,7 +416,6 @@ public class WebViewBrowserActivity extends AppCompatActivity {
         @Override
         public void write(byte[] chunk) throws IOException {
             mByteCount += chunk.length;
-            mChunkCount++;
             super.write(chunk);
         }
 

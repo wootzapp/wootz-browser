@@ -13,7 +13,6 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/android/oom_intervention/near_oom_monitor.h"
 #include "chrome/browser/android/oom_intervention/near_oom_reduction_message_delegate.h"
 #include "chrome/browser/ui/interventions/intervention_delegate.h"
 #include "components/crash/content/browser/crash_metrics_reporter_android.h"
@@ -79,13 +78,6 @@ class OomInterventionTabHelper
   // Starts detecting near-OOM situation in renderer.
   void StartDetectionInRenderer();
 
-  // Called when NearOomMonitor detects near-OOM situation.
-  void OnNearOomDetected();
-
-  // Called when we stop monitoring high memory usage in the foreground
-  // renderer.
-  void OnDetectionWindowElapsedWithoutHighMemoryUsage();
-
   void ResetInterventionState();
 
   void ResetInterfaces();
@@ -120,9 +112,6 @@ class OomInterventionTabHelper
   // memory only after renderer process is dead.
   base::UnsafeSharedMemoryRegion shared_metrics_buffer_;
   base::WritableSharedMemoryMapping metrics_mapping_;
-
-  base::TimeTicks last_navigation_timestamp_;
-  base::TimeTicks start_monitor_timestamp_;
 
   base::ScopedObservation<crash_reporter::CrashMetricsReporter,
                           crash_reporter::CrashMetricsReporter::Observer>

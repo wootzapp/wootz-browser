@@ -4,18 +4,17 @@
 
 #include "components/autofill/content/renderer/form_autofill_issues.h"
 
+#include <algorithm>
 #include <string_view>
 #include <vector>
 
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "components/autofill/content/renderer/form_autofill_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/platform/web_string.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/public/web/web_autofill_client.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_element_collection.h"
@@ -33,7 +32,6 @@ using blink::WebInputElement;
 using blink::WebLabelElement;
 using blink::WebLocalFrame;
 using blink::WebString;
-using blink::WebVector;
 using blink::mojom::GenericIssueErrorType;
 
 namespace autofill::form_issues {
@@ -62,7 +60,7 @@ const WebString& GetWebString() {
 void MaybeAppendLabelWithoutControlDevtoolsIssue(
     WebLabelElement label,
     std::vector<FormIssue>& form_issues) {
-  if (!label.CorrespondingControl().IsNull()) {
+  if (label.CorrespondingControl()) {
     return;
   }
 
@@ -79,12 +77,12 @@ void MaybeAppendAriaLabelledByDevtoolsIssue(
     const WebElement& element,
     std::vector<FormIssue>& form_issues) {
   const WebString& aria_label_attr = GetWebString<kAriaLabelledBy>();
-  if (base::ranges::any_of(
+  if (std::ranges::any_of(
           base::SplitStringPiece(element.GetAttribute(aria_label_attr).Utf16(),
                                  base::kWhitespaceUTF16, base::KEEP_WHITESPACE,
                                  base::SPLIT_WANT_NONEMPTY),
           [&](const auto& id) {
-            return element.GetDocument().GetElementById(WebString(id)).IsNull();
+            return !element.GetDocument().GetElementById(WebString(id));
           })) {
     form_issues.emplace_back(
         GenericIssueErrorType::kFormAriaLabelledByToNonExistingId,
@@ -106,34 +104,34 @@ void MaybeAppendInputWithEmptyIdAndNameDevtoolsIssue(
 
 int GetShadowHostDOMNodeId(const WebFormControlElement& element) {
   WebElement host = element.OwnerShadowHost();
-  if (host.IsNull()) {
+  if (!host) {
     return /*blink::kInvalidDOMNodeId*/ 0;
   }
   return host.GetDomNodeId();
 }
 
 void MaybeAppendDuplicateIdForInputDevtoolsIssue(
-    const WebVector<WebFormControlElement>& elements,
+    const std::vector<WebFormControlElement>& elements,
     std::vector<FormIssue>& form_issues) {
   const WebString& id_attr = GetWebString<kId>();
 
   // Create copies of |elements| with ids that can be modified
-  WebVector<WebFormControlElement> elements_with_id_attr;
+  std::vector<WebFormControlElement> elements_with_id_attr;
   elements_with_id_attr.reserve(elements.size());
   for (const auto& element : elements) {
     if (IsAutofillableElement(element) && !element.GetIdAttribute().IsEmpty()) {
       elements_with_id_attr.push_back(element);
     }
   }
-  base::ranges::sort(elements_with_id_attr, [](const WebFormControlElement& a,
-                                               const WebFormControlElement& b) {
+  std::ranges::sort(elements_with_id_attr, [](const WebFormControlElement& a,
+                                              const WebFormControlElement& b) {
     return std::forward_as_tuple(a.GetIdAttribute(),
                                  GetShadowHostDOMNodeId(a)) <
            std::forward_as_tuple(b.GetIdAttribute(), GetShadowHostDOMNodeId(b));
   });
 
   for (auto it = elements_with_id_attr.begin();
-       (it = base::ranges::adjacent_find(
+       (it = std::ranges::adjacent_find(
             it, elements_with_id_attr.end(),
             [](const WebFormControlElement& a, const WebFormControlElement& b) {
               return a.GetIdAttribute() == b.GetIdAttribute() &&
@@ -221,8 +219,9 @@ void MaybeAppendInputAssignedAutocompleteValueToIdOrNameAttributesDevtoolsIssue(
   }
 }
 
-void AppendFormIssuesInternal(const WebVector<WebFormControlElement>& elements,
-                              std::vector<FormIssue>& form_issues) {
+void AppendFormIssuesInternal(
+    const std::vector<WebFormControlElement>& elements,
+    std::vector<FormIssue>& form_issues) {
   if (elements.size() == 0) {
     return;
   }
@@ -230,10 +229,9 @@ void AppendFormIssuesInternal(const WebVector<WebFormControlElement>& elements,
   const WebString& label_attr = GetWebString<kLabel>();
   WebElementCollection labels =
       elements[0].GetDocument().GetElementsByHTMLTagName(label_attr);
-  CHECK(!labels.IsNull());
+  CHECK(labels);
 
-  for (WebElement item = labels.FirstItem(); !item.IsNull();
-       item = labels.NextItem()) {
+  for (WebElement item = labels.FirstItem(); item; item = labels.NextItem()) {
     WebLabelElement label = item.To<WebLabelElement>();
     MaybeAppendLabelWithoutControlDevtoolsIssue(label, form_issues);
   }
@@ -256,7 +254,7 @@ void AppendFormIssuesInternal(const WebVector<WebFormControlElement>& elements,
 // and returns a vector that is the union of `form_issues` and the new issues
 // found.
 std::vector<FormIssue> GetFormIssues(
-    const blink::WebVector<blink::WebFormControlElement>& control_elements,
+    const std::vector<blink::WebFormControlElement>& control_elements,
     std::vector<FormIssue> form_issues) {
   AppendFormIssuesInternal(control_elements, form_issues);
   return form_issues;
@@ -280,11 +278,9 @@ std::vector<FormIssue> CheckForLabelsWithIncorrectForAttribute(
   }
 
   WebElementCollection labels = document.GetElementsByHTMLTagName(label_attr);
-  for (WebElement item = labels.FirstItem(); !item.IsNull();
-       item = labels.NextItem()) {
+  for (WebElement item = labels.FirstItem(); item; item = labels.NextItem()) {
     WebLabelElement label = item.To<WebLabelElement>();
-    if (!label.CorrespondingControl().IsNull() ||
-        !label.HasAttribute(for_attr)) {
+    if (label.CorrespondingControl() || !label.HasAttribute(for_attr)) {
       continue;
     }
 
@@ -313,28 +309,26 @@ std::vector<FormIssue> CheckForLabelsWithIncorrectForAttribute(
 
 void MaybeEmitFormIssuesToDevtools(blink::WebLocalFrame& web_local_frame,
                                    base::span<const FormData> forms) {
-  // TODO(crbug.com/40249826): Only calculate and emit these issues if devtools
-  // is open.
+  // Only log the issues if devtools is connected.
+  if (!web_local_frame.IsInspectorConnected()) {
+    return;
+  }
   WebDocument document = web_local_frame.GetDocument();
   std::vector<FormIssue> form_issues;
   // Get issues from forms input elements.
-  for (const WebFormElement& form_element :
-       base::FeatureList::IsEnabled(
-           blink::features::kAutofillIncludeFormElementsInShadowDom)
-           ? document.GetTopLevelForms()
-           : document.Forms()) {
+  for (const WebFormElement& form_element : document.GetTopLevelForms()) {
     form_issues = form_issues::GetFormIssues(
         form_element.GetFormControlElements(), std::move(form_issues));
   }
   // Get issues from input elements that belong to no form.
   form_issues = form_issues::GetFormIssues(
-      form_util::GetAutofillableFormControlElements(document, WebFormElement()),
+      form_util::GetOwnedAutofillableFormControls(document, WebFormElement()),
       std::move(form_issues));
   // Look for fields that after parsed were found to have labels incorrectly
   // used.
   for (const FormData& form : forms) {
     form_issues = form_issues::CheckForLabelsWithIncorrectForAttribute(
-        document, form.fields, std::move(form_issues));
+        document, form.fields(), std::move(form_issues));
   }
   if (form_issues.size() > kMaxNumberOfDevtoolsIssuesEmitted) {
     form_issues.erase(form_issues.begin() + kMaxNumberOfDevtoolsIssuesEmitted,
@@ -348,7 +342,7 @@ void MaybeEmitFormIssuesToDevtools(blink::WebLocalFrame& web_local_frame,
 }
 
 std::vector<FormIssue> GetFormIssuesForTesting(  // IN-TEST
-    const blink::WebVector<blink::WebFormControlElement>& control_elements,
+    const std::vector<blink::WebFormControlElement>& control_elements,
     std::vector<FormIssue> form_issues) {
   return GetFormIssues(control_elements, form_issues);
 }

@@ -17,9 +17,11 @@
 #include "components/viz/common/vertical_scroll_direction.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/allow_service_worker_result.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/visibility.h"
+#include "content/public/browser/web_contents_capability_type.h"
 #include "ipc/ipc_message.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "services/network/public/mojom/fetch_api.mojom-forward.h"
@@ -30,9 +32,11 @@
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom-forward.h"
 #include "third_party/blink/public/mojom/frame/lifecycle.mojom.h"
+#include "third_party/blink/public/mojom/frame/viewport_intersection_state.mojom-forward.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom-forward.h"
 #include "third_party/blink/public/mojom/media/capture_handle_config.mojom-forward.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/accessibility/ax_location_and_scroll_updates.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 
@@ -40,6 +44,7 @@ class GURL;
 
 namespace blink {
 namespace mojom {
+class ViewportIntersectionState;
 enum class ViewportFit;
 }  // namespace mojom
 }  // namespace blink
@@ -50,11 +55,19 @@ class Size;
 
 namespace ui {
 struct AXUpdatesAndEvents;
-struct AXLocationChanges;
+struct AXLocationAndScrollUpdates;
 namespace mojom {
 enum class VirtualKeyboardMode;
 }  // namespace mojom
 }  // namespace ui
+
+namespace net::device_bound_sessions {
+struct SessionAccess;
+}  // namespace net::device_bound_sessions
+
+namespace network {
+struct ResourceRequest;
+}  // namespace network
 
 namespace network::mojom {
 class SharedDictionaryAccessDetails;
@@ -70,7 +83,6 @@ class RenderProcessHost;
 class RenderViewHost;
 class RenderWidgetHost;
 class Page;
-class WebContents;
 struct CookieAccessDetails;
 struct EntryChangedDetails;
 struct FocusedNodeDetails;
@@ -80,6 +92,7 @@ struct MediaPlayerId;
 struct PrunedDetails;
 struct Referrer;
 struct TrustTokenAccessDetails;
+class WebContents;
 
 // Note: before adding a new `WebContentsObserver` subclass, consider if simpler
 // helpers will suffice:
@@ -114,6 +127,7 @@ struct TrustTokenAccessDetails;
 // returned by GetRenderViewHost().
 class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
  public:
+
   WebContentsObserver(WebContentsObserver&&) = delete;
   WebContentsObserver(const WebContentsObserver&) = delete;
   WebContentsObserver& operator=(WebContentsObserver&&) = delete;
@@ -181,7 +195,7 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // destroyed.
   // Use |RenderFrameHostChanged| to listen for when a RenderFrameHost object is
   // made the current host for a frame.
-  virtual void FrameDeleted(int frame_tree_node_id) {}
+  virtual void FrameDeleted(FrameTreeNodeId frame_tree_node_id) {}
 
   // This method is invoked whenever one of the frames of a WebContents changes
   // its |RenderFrameHost::GetLifecycleState()| i.e., when RenderFrameHost
@@ -231,8 +245,10 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
 
   // This method is invoked when a write-access Captured Surface Control API is
   // successfully invoked by a tab-capturing Web application. These include:
-  // * CaptureController.sendWheel()
-  // * CaptureController.setZoomLevel()
+  // * CaptureController.forwardWheel()
+  // * CaptureController.increaseZoomLevel()
+  // * CaptureController.decreaseZoomLevel()
+  // * CaptureController.resetZoomLevel()
   //
   // Observing this occurrence allows us to update the UX accordingly; for
   // example, show the user an indicator that the capturing tab is being
@@ -371,17 +387,33 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // DocumentUserData for more details).
   virtual void DidFinishNavigation(NavigationHandle* navigation_handle) {}
 
+  // Called when the NavigationHandleTiming associated with `navigation_handle`
+  // has been updated, which can be triggered by any of these events:
+  // - The URLLoader for the network request had started (if the navigation
+  //   needs a URLLoader)
+  // - A network response has been received (including redirect responses)
+  // - The navigation got blocked, and will commit an error page.
+  // - The Commit IPC has been sent
+  virtual void DidUpdateNavigationHandleTiming(
+      NavigationHandle* navigation_handle) {}
+
   // Called after the WebContents completes the previewed page activation steps.
   // `activation_time` is the time the activation happened.
   virtual void DidActivatePreviewedPage(base::TimeTicks activation_time) {}
 
   // Document load events ------------------------------------------------------
 
-  // These three methods correspond to the points in time when a document starts
-  // loading for the first time (initiates outgoing requests), when incoming
-  // data subsequently starts arriving, and when it finishes loading. Note:
-  // There is no guarantee that calls to DidStartLoading/DidStopLoading are
-  // interleaved (e.g. there can be 2 calls to DidStartLoading in a row).
+  // These three methods correspond to the points in time when any document in
+  // the frame tree starts loading for the first time (initiates outgoing
+  // requests), when incoming data subsequently starts arriving, and when the
+  // whole frame tree finishes loading.
+  // Notes:
+  // - There is no guarantee that calls to DidStartLoading/DidStopLoading are
+  //   interleaved (e.g. there can be 2 calls to DidStartLoading in a row).
+  // - These functions are different and unrelated from DidFinishLoad, which
+  //   is a notification about a specific document instead of the whole frame
+  //   tree, and uses a slightly different trigger to signify that the load had
+  //   finished.
   virtual void DidStartLoading() {}
   virtual void DidStopLoading() {}
 
@@ -442,8 +474,12 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // content scripts marked "document_end" get injected into the frame.
   virtual void DOMContentLoaded(RenderFrameHost* render_frame_host) {}
 
-  // This method is invoked when the load is done, i.e. the spinner of the tab
-  // will stop spinning, and the onload event was dispatched.
+  // This method is invoked when the load is done for the document represented
+  // by `render_frame_host` on the renderer side, e.g. the onload event was
+  // dispatched. Note that this function is not related to
+  // `DidStartLoading()` or `DidStopLoading()` as those functions track the
+  // loading state of the whole frame tree and uses a different set of triggers
+  // to mark the load ending.
   //
   // If the WebContents is displaying replacement content, e.g. network error
   // pages, DidFinishLoad is invoked for frames that were not sending
@@ -485,6 +521,9 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // Called when a network request issued by the navigation reads or sets a
   // cookie. If a notification is received after the navigation has committed,
   // it will be attributed to the RenderFrameHost created by the navigation.
+  // This method not only includes accesses from the navigation's
+  // request/response, but also accesses from other requests/responses triggered
+  // by the navigation e.g. early hints requests.
   virtual void OnCookiesAccessed(NavigationHandle* navigation_handle,
                                  const CookieAccessDetails& details) {}
 
@@ -507,6 +546,20 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   virtual void OnSharedDictionaryAccessed(
       NavigationHandle* navigation_handle,
       const network::mojom::SharedDictionaryAccessDetails& details) {}
+
+  // Called when a network request issued by the navivation accesses a
+  // device bound session
+  // (https://github.com/WICG/dbsc/blob/main/README.md).
+  virtual void OnDeviceBoundSessionAccessed(
+      RenderFrameHost* render_frame_host,
+      const net::device_bound_sessions::SessionAccess& access) {}
+
+  // Called when a document accesses a device bound session
+  // (https://github.com/WICG/dbsc/blob/main/README.md) by issuing a
+  // network request.
+  virtual void OnDeviceBoundSessionAccessed(
+      NavigationHandle* navigation_handle,
+      const net::device_bound_sessions::SessionAccess& access) {}
 
   // Called when the renderer requests access to storage.
   // Observers will be notified about the type of storage access requested
@@ -626,6 +679,10 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // This method is invoked when the title of the WebContents is set.
   virtual void TitleWasSet(NavigationEntry* entry) {}
 
+  // Invoked when the title is changed for any main frame in the WebContents
+  // (a primary main frame of a WebContents, a fenced frame or a MPArch guest).
+  virtual void TitleWasSetForMainFrame(RenderFrameHost* render_frame_host) {}
+
   // These methods are invoked when a Pepper plugin instance is created/deleted
   // in the DOM.
   virtual void PepperInstanceCreated() {}
@@ -633,6 +690,9 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
 
   // This method is called when the viewport fit of a WebContents changes.
   virtual void ViewportFitChanged(blink::mojom::ViewportFit value) {}
+
+  // This method is called when the safe area constraint changed.
+  virtual void SafeAreaConstraintChanged(bool has_constraint) {}
 
   // This method is called when the virtual keyboard mode of a WebContents
   // changes. This can happen as a result of the
@@ -669,15 +729,7 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // provided |render_frame_host|. By the time this is called the
   // |inner_web_contents| will have been added to the WebContents tree.
   virtual void InnerWebContentsAttached(WebContents* inner_web_contents,
-                                        RenderFrameHost* render_frame_host,
-                                        bool is_full_page) {}
-
-  // Notifies that an |inner_web_contents| instance has been detached from this
-  // WebContents. InnerWebContentsAttached() will already have been called for
-  // the |inner_web_contents|. By the time this is called the
-  // |inner_web_contents| will have been removed from the WebContents tree, but
-  // will still be alive and is safe to observe.
-  virtual void InnerWebContentsDetached(WebContents* inner_web_contents) {}
+                                        RenderFrameHost* render_frame_host) {}
 
   // Invoked when WebContents::Clone() was used to clone a WebContents.
   virtual void DidCloneToNewWebContents(WebContents* old_web_contents,
@@ -686,6 +738,12 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // Invoked when the WebContents is being destroyed. Gives subclasses a chance
   // to cleanup. After the whole loop over all WebContentsObservers has been
   // finished, web_contents() returns nullptr.
+  // Do not use this method. It is invoked half-way through the destructor of
+  // WebContentsImpl and using it often results in crashes or surprising
+  // behavior. Conceptually, this is only necessary by objects that depend on,
+  // but outlive the WebContents. These objects should instead coordinate with
+  // the owner of the WebContents which is responsible for destroying the
+  // WebContents.
   virtual void WebContentsDestroyed() {}
 
   // Called when the user agent override for a WebContents has been changed.
@@ -710,6 +768,18 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // Called when the audio state of an individual frame changes.
   virtual void OnFrameAudioStateChanged(RenderFrameHost* rfh, bool audible) {}
 
+  // Called when an individual remote subframe's intersection with the viewport
+  // of the page changes. Note that this value is independent from the
+  // visibility of the page.
+  //
+  // Note: This is only called for remote frames. If you only care about if the
+  // frame intersects or not with the viewport, use OnFrameVisibilityChanged()
+  // below, as it is called for all frames.
+  virtual void OnRemoteSubframeViewportIntersectionStateChanged(
+      RenderFrameHost* rfh,
+      const blink::mojom::ViewportIntersectionState&
+          viewport_intersection_state) {}
+
   // Called when an individual frame's visibility inside the viewport of the
   // page changes. Note that this value is independent from the visibility of
   // the page.
@@ -725,13 +795,12 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
       RenderFrameHost* rfh,
       bool is_capturing_media_stream) {}
 
-  // Called when the connected to USB device state changes.
-  virtual void OnIsConnectedToUsbDeviceChanged(
-      bool is_connected_to_usb_device) {}
-
-  // Called when the connected to Bluetooth device state changes.
-  virtual void OnIsConnectedToBluetoothDeviceChanged(
-      bool is_connected_to_bluetooth_device) {}
+  // Called when WebContents starts/stops using a capability type. The
+  // arguments indicate the capability type that starts/stops being used
+  // and whether it is in use (true if it starts being used, false if it stops).
+  virtual void OnCapabilityTypesChanged(
+      WebContentsCapabilityType capability_type,
+      bool used) {}
 
   // Invoked when the WebContents is muted/unmuted.
   virtual void DidUpdateAudioMutingState(bool muted) {}
@@ -780,7 +849,8 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   virtual void AccessibilityEventReceived(
       const ui::AXUpdatesAndEvents& details) {}
   virtual void AccessibilityLocationChangesReceived(
-      const std::vector<ui::AXLocationChanges>& details) {}
+      const ui::AXTreeID& tree_id,
+      ui::AXLocationAndScrollUpdates& details) {}
 
   // Invoked when theme color is changed.
   virtual void DidChangeThemeColor() {}
@@ -852,6 +922,16 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // Invoked when a paste event occurs.
   virtual void OnPaste() {}
 
+  // Called when `copied_text` was copied to the clipboard from a given
+  // `render_frame_host` within this WebContents. Use this observer instead of
+  // ui::ClipboardObserver if you care about the source RenderFrameHost where
+  // the copy operation took place.
+  // Note: If clipboard copy events for other types of data are later needed by
+  // other WebContentsObservers, it'd be okay to generalize this method to
+  // support content::ClipboardPasteData directly.
+  virtual void OnTextCopiedToClipboard(RenderFrameHost* render_frame_host,
+                                       const std::u16string& copied_text) {}
+
   // Invoked if an IPC message is coming from a specific RenderFrameHost.
   virtual bool OnMessageReceived(const IPC::Message& message,
                                  RenderFrameHost* render_frame_host);
@@ -911,7 +991,12 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // to work. This will be invoked right after `new_contents` is created, but
   // before its `WasDiscarded` is set to true and before it's attached to a tab
   // strip.
+  // TODO(crbug.com/347770670): Remove this once new WebContents are no longer
+  // created during discard operations.
   virtual void AboutToBeDiscarded(WebContents* new_contents) {}
+
+  // Called when WebContents has finished its discard operation.
+  virtual void WasDiscarded() {}
 
   // Called when WebContents received a request to lock the keyboard.
   virtual void KeyboardLockRequested() {}
@@ -921,6 +1006,21 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
 
   // Called when WebContents received a request to vibrate the page.
   virtual void VibrationRequested() {}
+
+  // Called when a first contentful paint happened in the primary main frame.
+  virtual void OnFirstContentfulPaintInPrimaryMainFrame() {}
+
+  // Invoked when a fetch keepalive request is created in this WebContents.
+  //
+  // Note that such request is usually initiated from corresponding renderer
+  // process. This method just captures the time when the request is proxied in
+  // the browser process.
+  //
+  // `resource_request` is the fetch keepalive request that is created.
+  // `initiator_rfh` is the RenderFrameHost that initiates the request.
+  virtual void OnKeepAliveRequestCreated(
+      const network::ResourceRequest& resource_request,
+      RenderFrameHost* initiator_rfh) {}
 
   WebContents* web_contents() const;
 

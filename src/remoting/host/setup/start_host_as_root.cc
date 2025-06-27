@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "remoting/host/setup/start_host_as_root.h"
 
 #include <errno.h>
@@ -17,6 +22,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/process/launch.h"
+#include "base/strings/string_split.h"
 
 namespace remoting {
 
@@ -72,18 +78,39 @@ int StartHostAsRoot(int argc, char** argv) {
   DCHECK(getuid() == 0);
 
   base::CommandLine command_line(argc, argv);
-  std::string user_email;
   std::string user_name;
   if (command_line.HasSwitch("corp-user")) {
-    user_email = command_line.GetSwitchValueASCII("corp-user");
+    // For compat reasons, we support either email or username for this param.
+    // TODO: joedow - Remove support for the email param around M135 or so.
+    std::string arg_value = command_line.GetSwitchValueASCII("corp-user");
+    auto parts = base::SplitStringOnce(arg_value, '@');
+    if (!parts) {
+      user_name = std::move(arg_value);
+    } else {
+      user_name = std::string(parts->first);
+    }
   } else if (command_line.HasSwitch("cloud-user")) {
-    user_email = command_line.GetSwitchValueASCII("cloud-user");
-  }
-
-  if (!user_email.empty()) {
-    size_t at_symbol_pos = user_email.find("@");
-    if (at_symbol_pos != std::string::npos) {
-      user_name = user_email.substr(0, at_symbol_pos);
+    std::string arg_value = command_line.GetSwitchValueASCII("cloud-user");
+    auto parts = base::SplitStringOnce(arg_value, '@');
+    if (parts) {
+      user_name = std::string(parts->first);
+    } else {
+      fprintf(stderr, "The --cloud-user flag requires an email address.\n");
+      return 1;
+    }
+    // The 'user-name' flag can be used to override the username portion of the
+    // value provided via the 'cloud-user' flag for Cloud hosts. Note that this
+    // is not allowed for Corp hosts.
+    if (command_line.HasSwitch("user-name")) {
+      std::string user_name_switch_value =
+          command_line.GetSwitchValueASCII("user-name");
+      if (user_name == user_name_switch_value) {
+        fprintf(stderr,
+                "The --user-name flag is not required when the value matches "
+                "the username portion of the email provided via the cloud-user "
+                "flag.\n");
+      }
+      user_name = user_name_switch_value;
     }
   } else if (command_line.HasSwitch("user-name")) {
     user_name = command_line.GetSwitchValueASCII("user-name");
@@ -91,10 +118,13 @@ int StartHostAsRoot(int argc, char** argv) {
 
   if (user_name.empty()) {
     fprintf(stderr,
-            "Must specify of the following arguments when running as root:\n"
-            "  --user-name\n  --corp-user\n  --cloud-user\n");
+            "Must specify one of the following arguments when running as root:"
+            "\n  --user-name=<username>\n  --corp-user=<username>"
+            "\n  --cloud-user=<email>\n");
     return 1;
   }
+  fprintf(stdout, "Configuring the host service to run as local account: %s\n",
+          user_name.c_str());
 
   errno = 0;
   const passwd* user_struct = getpwnam(user_name.c_str());

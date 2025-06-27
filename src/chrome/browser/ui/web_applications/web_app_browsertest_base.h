@@ -13,14 +13,14 @@
 #include "chrome/browser/web_applications/web_app_callback_app_identity.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
-#include "chrome/test/base/in_process_browser_test.h"
+#include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/test/content_mock_cert_verifier.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/ui/chromeos/test_util.h"
+#include "chrome/browser/ui/ash/test_util.h"
 #endif
 
 class Profile;
@@ -38,21 +38,23 @@ namespace web_app {
 class OsIntegrationTestOverrideImpl;
 class WebAppProvider;
 
-// Base class for tests of user interface support for web applications.
 #if BUILDFLAG(IS_CHROMEOS)
-class WebAppBrowserTestBase : public ChromeOSBrowserUITest {
+using WebAppBrowserTestBaseParent = ChromeOSBrowserUITest;
 #else
-class WebAppBrowserTestBase : public InProcessBrowserTest {
+using WebAppBrowserTestBaseParent = MixinBasedInProcessBrowserTest;
 #endif
+
+// Base class for tests of user interface support for web applications.
+class WebAppBrowserTestBase : public WebAppBrowserTestBaseParent {
  public:
   WebAppBrowserTestBase();
   WebAppBrowserTestBase(const WebAppBrowserTestBase&) = delete;
-  WebAppBrowserTestBase& operator=(const WebAppBrowserTestBase&) =
-      delete;
+  WebAppBrowserTestBase& operator=(const WebAppBrowserTestBase&) = delete;
   ~WebAppBrowserTestBase() override = 0;
 
   WebAppProvider& provider();
 
+  // Returns the profile from the browser() object, during test set up.
   Profile* profile();
 
   webapps::AppId InstallPWA(const GURL& app_url);
@@ -73,11 +75,6 @@ class WebAppBrowserTestBase : public InProcessBrowserTest {
 
   // Launches the app as a tab and returns the browser.
   Browser* LaunchBrowserForWebAppInTab(const webapps::AppId&);
-
-  // Simulates a page calling window.open on an URL and waits for the
-  // navigation.
-  content::WebContents* OpenWindow(content::WebContents* contents,
-                                   const GURL& url);
 
   // Simulates a page navigating itself to an URL and waits for the
   // navigation.
@@ -112,6 +109,7 @@ class WebAppBrowserTestBase : public InProcessBrowserTest {
       content::BrowserContext* context) {}
 
   GURL GetInstallableAppURL();
+  GURL GetAppURLWithManifest(const std::string& manifest_url);
   static const char* GetInstallableAppName();
 
   // InProcessBrowserTest:
@@ -121,6 +119,7 @@ class WebAppBrowserTestBase : public InProcessBrowserTest {
   void TearDownInProcessBrowserTestFixture() override;
   void TearDownOnMainThread() override;
   void SetUpCommandLine(base::CommandLine* command_line) override;
+  void PreRunTestOnMainThread() override;
   void SetUpOnMainThread() override;
 
  private:
@@ -134,6 +133,9 @@ class WebAppBrowserTestBase : public InProcessBrowserTest {
   // Similar to net::MockCertVerifier, but also updates the CertVerifier
   // used by the NetworkService.
   content::ContentMockCertVerifier cert_verifier_;
+  // Store separately instead of accessing directly from `browser()`, as some
+  // tests close that browser (and thus make it a UAF).
+  base::WeakPtr<Profile> browser_profile_;
   base::AutoReset<std::optional<AppIdentityUpdate>> update_dialog_scope_;
 };
 

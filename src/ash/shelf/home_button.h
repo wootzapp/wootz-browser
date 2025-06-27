@@ -20,6 +20,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/events/devices/input_device_event_observer.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/views/view_targeter_delegate.h"
@@ -49,13 +50,17 @@ class Shell;
 //
 // If Assistant is enabled, the button is filled in; long-pressing it will
 // launch Assistant.
+//
+// If Sunfish/Scanner is enabled, long-pressing the button will start a
+// Sunfish-behaviour capture mode session instead.
 class ASH_EXPORT HomeButton : public ShelfControlButton,
                               public ShelfButtonDelegate,
                               public views::ViewTargeterDelegate,
                               public ShellObserver,
                               public ShelfConfig::Observer,
                               public AppListModelProvider::Observer,
-                              public QuickAppAccessModel::Observer {
+                              public QuickAppAccessModel::Observer,
+                              public ui::InputDeviceEventObserver {
   METADATA_HEADER(HomeButton, ShelfControlButton)
 
  public:
@@ -99,10 +104,10 @@ class ASH_EXPORT HomeButton : public ShelfControlButton,
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
   void Layout(PassKey) override;
+  void AddedToWidget() override;
 
   // views::Button:
   void OnGestureEvent(ui::GestureEvent* event) override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
 
   // ShelfButtonDelegate:
   void OnShelfButtonAboutToRequestFocusFromTabTraversal(ShelfButton* button,
@@ -114,9 +119,13 @@ class ASH_EXPORT HomeButton : public ShelfControlButton,
   // ShelfConfig::Observer:
   void OnShelfConfigUpdated() override;
 
+  // ui::InputDeviceEventObserver:
+  void OnInputDeviceConfigurationChanged(uint8_t input_device_types) override;
+  void OnDeviceListsComplete() override;
+
   // Called when the availability of a long-press gesture may have changed, e.g.
   // when Assistant becomes enabled.
-  void OnAssistantAvailabilityChanged();
+  void OnIconUpdated();
 
   // True if the app list is shown for the display containing this button.
   bool IsShowingAppList() const;
@@ -157,6 +166,8 @@ class ASH_EXPORT HomeButton : public ShelfControlButton,
   views::ImageButton* quick_app_button_for_test() const {
     return quick_app_button_;
   }
+
+  void UpdateTooltipText();
 
  protected:
   // views::Button:
@@ -229,8 +240,6 @@ class ASH_EXPORT HomeButton : public ShelfControlButton,
   // Returns a clip rect which will clip the `expandable_container` to the
   // bounds of the home button.
   gfx::Rect GetExpandableContainerClipRectToHomeButton();
-
-  const bool jelly_enabled_;
 
   base::ScopedObservation<QuickAppAccessModel, QuickAppAccessModel::Observer>
       quick_app_model_observation_{this};

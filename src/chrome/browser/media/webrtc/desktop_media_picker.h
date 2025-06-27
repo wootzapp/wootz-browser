@@ -9,11 +9,15 @@
 #include <string>
 #include <utility>
 
+#include "base/feature_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "build/android_buildflags.h"
+#include "build/buildflag.h"
 #include "content/public/browser/desktop_media_id.h"
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -22,6 +26,10 @@ class DesktopMediaList;
 namespace content {
 class WebContents;
 }
+
+#if BUILDFLAG(IS_DESKTOP_ANDROID)
+BASE_DECLARE_FEATURE(kAndroidMediaPicker);
+#endif
 
 // Base class for desktop media picker UI. It's used by Desktop Media API, and
 // by ARC to let user choose a desktop media source.
@@ -40,6 +48,7 @@ class DesktopMediaPicker {
       kGetDisplayMedia,
       kScreenshotDataCollector,
       kArcScreenCapture,
+      kGlic
     };
 
     explicit Params(RequestSource request_source);
@@ -56,7 +65,7 @@ class DesktopMediaPicker {
     // Parent window the dialog is relative to, only used on Mac.
     gfx::NativeWindow parent = gfx::NativeWindow();
     // The modality used for showing the dialog.
-    ui::ModalType modality = ui::ModalType::MODAL_TYPE_CHILD;
+    ui::mojom::ModalType modality = ui::mojom::ModalType::kChild;
     // The name used in the dialog for what is requesting the picker to be
     // shown.
     std::u16string app_name;
@@ -101,7 +110,7 @@ class DesktopMediaPicker {
 
   // Creates a picker dialog/confirmation box depending on the value of
   // |request|. If no request is available the default picker, namely
-  // DesktopMediaPickerViews is used.
+  // DesktopMediaPickerImpl is used.
   static std::unique_ptr<DesktopMediaPicker> Create(
       const content::MediaStreamRequest* request);
 

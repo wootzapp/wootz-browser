@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/display/types/display_color_management.h"
 
 #include "base/check.h"
@@ -53,8 +58,7 @@ float EvaluateLut(float x,
       lut_j1 = lut[j1].b;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   return (alpha * lut_j0 + one_minus_alpha * lut_j1) / 65535.f;
@@ -63,7 +67,7 @@ float EvaluateLut(float x,
 }  // namespace
 
 GammaCurve::GammaCurve() = default;
-GammaCurve::GammaCurve(const std::vector<GammaRampRGBEntry>& lut)
+GammaCurve::GammaCurve(std::vector<GammaRampRGBEntry>&& lut)
     : lut_(std::move(lut)) {}
 GammaCurve::GammaCurve(GammaCurve&& other)
     : lut_(std::move(other.lut_)), pre_curve_(std::move(other.pre_curve_)) {}

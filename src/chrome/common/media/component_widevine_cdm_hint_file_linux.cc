@@ -31,8 +31,8 @@ base::Value::Dict GetHintFileContents() {
   base::FilePath hint_file_path;
   CHECK(base::PathService::Get(chrome::FILE_COMPONENT_WIDEVINE_CDM_HINT,
                                &hint_file_path));
-  DVLOG(1) << __func__ << " checking " << hint_file_path;
 
+  DVLOG(1) << __func__ << " checking " << hint_file_path;
   if (!base::PathExists(hint_file_path)) {
     DVLOG(1) << "CDM hint file at " << hint_file_path << " does not exist.";
     return base::Value::Dict();

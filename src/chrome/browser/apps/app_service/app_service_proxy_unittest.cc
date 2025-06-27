@@ -16,7 +16,6 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/publishers/app_publisher.h"
 #include "chrome/browser/web_applications/test/fake_web_app_provider.h"
@@ -32,21 +31,17 @@
 #include "components/services/app_service/public/cpp/intent_test_util.h"
 #include "components/services/app_service/public/cpp/intent_util.h"
 #include "components/services/app_service/public/cpp/preferred_app.h"
-#include "components/services/app_service/public/cpp/shortcut/shortcut_registry_cache.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia_rep.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/apps/app_service/subscriber_crosapi.h"
-#include "chromeos/constants/chromeos_features.h"
+#if BUILDFLAG(IS_CHROMEOS)
 #include "components/services/app_service/public/cpp/types_util.h"
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace apps {
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 class FakePublisherForProxyTest : public AppPublisher {
  public:
   FakePublisherForProxyTest(AppServiceProxy* proxy,
@@ -134,9 +129,8 @@ class FakePublisherForProxyTest : public AppPublisher {
   std::vector<std::string> known_app_ids_;
   std::set<std::string> supported_link_apps_;
 };
-#endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // FakeAppRegistryCacheObserver is used to test OnAppUpdate.
 class FakeAppRegistryCacheObserver : public apps::AppRegistryCache::Observer {
  public:
@@ -174,29 +168,7 @@ class FakeAppRegistryCacheObserver : public apps::AppRegistryCache::Observer {
 
   std::set<std::string> app_ids_;
 };
-
-class FakeSubscriberForProxyTest : public SubscriberCrosapi {
- public:
-  explicit FakeSubscriberForProxyTest(Profile* profile)
-      : SubscriberCrosapi(profile) {
-    apps::AppServiceProxyFactory::GetForProfile(profile)
-        ->RegisterCrosApiSubScriber(this);
-  }
-
-  PreferredAppsList& preferred_apps_list() { return preferred_apps_list_; }
-
-  void OnPreferredAppsChanged(PreferredAppChangesPtr changes) override {
-    preferred_apps_list_.ApplyBulkUpdate(std::move(changes));
-  }
-
-  void InitializePreferredApps(apps::PreferredApps preferred_apps) override {
-    preferred_apps_list_.Init(std::move(preferred_apps));
-  }
-
- private:
-  apps::PreferredAppsList preferred_apps_list_;
-};
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 class AppServiceProxyTest : public testing::Test {
  public:
@@ -373,176 +345,6 @@ TEST_F(AppServiceProxyIconTest, IconCoalescer) {
   EXPECT_EQ(6, NumOuterFinishedCallbacks());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-class AppServiceProxyShortcutIconTest : public AppServiceProxyTest {
- public:
-  AppServiceProxyShortcutIconTest()
-      : features_{chromeos::features::kCrosWebAppShortcutUiUpdate} {}
-
- protected:
-  UniqueReleaser LoadShortcutIcon(AppServiceProxy* proxy,
-                                  const std::string& shortcut_id) {
-    return proxy->LoadShortcutIcon(
-        ShortcutId(shortcut_id), IconType::kUncompressed,
-        /*size_hint_in_dip=*/1,
-        /*allow_placeholder_icon=*/false,
-        base::BindOnce([](int* num_callbacks,
-                          apps::IconValuePtr icon) { ++(*num_callbacks); },
-                       &num_outer_finished_callbacks_));
-  }
-  UniqueReleaser LoadShortcutIconWithBadge(AppServiceProxy* proxy,
-                                           const ShortcutId& shortcut_id) {
-    return proxy->LoadShortcutIconWithBadge(
-        shortcut_id, IconType::kUncompressed,
-        /*size_hint_in_dip=*/1,
-        /*badge_size_hint_in_dip=*/1,
-        /*allow_placeholder_icon=*/false,
-        base::BindOnce(
-            [](int* num_callbacks, apps::IconValuePtr shortcut_icon,
-               apps::IconValuePtr badge_icon) { ++(*num_callbacks); },
-            &num_outer_finished_callbacks_));
-  }
-  void OverrideAppServiceProxyShortcutInnerIconLoader(
-      AppServiceProxy* proxy,
-      apps::IconLoader* icon_loader) {
-    proxy->OverrideShortcutInnerIconLoaderForTesting(icon_loader);
-  }
-
- private:
-  base::test::ScopedFeatureList features_;
-};
-
-TEST_F(AppServiceProxyShortcutIconTest, IconCache) {
-  // This is mostly a sanity check. For an isolated, comprehensive unit test of
-  // the IconCache code, see icon_cache_unittest.cc.
-  //
-  // This tests an AppServiceProxy as a 'black box', which uses an
-  // IconCache but also other IconLoader filters, such as an IconCoalescer.
-  FakeIconLoader fake;
-  OverrideAppServiceProxyShortcutInnerIconLoader(proxy(), &fake);
-
-  // The next LoadShortcutIcon call should be a cache miss.
-  UniqueReleaser c0 = LoadShortcutIcon(proxy(), "cromulent");
-  EXPECT_EQ(1, fake.NumPendingCallbacks());
-  EXPECT_EQ(0, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(0, NumOuterFinishedCallbacks());
-
-  // After a cache miss, manually trigger the inner callback.
-  fake.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake.NumPendingCallbacks());
-  EXPECT_EQ(1, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(1, NumOuterFinishedCallbacks());
-
-  // The next LoadShortcutIcon call should be a cache hit.
-  UniqueReleaser c1 = LoadShortcutIcon(proxy(), "cromulent");
-  EXPECT_EQ(0, fake.NumPendingCallbacks());
-  EXPECT_EQ(1, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(2, NumOuterFinishedCallbacks());
-
-  // Destroy the IconLoader::Releaser's, clearing the cache.
-  c0.reset();
-  c1.reset();
-
-  // The next LoadShortcutIcon call should be a cache miss.
-  UniqueReleaser c2 = LoadShortcutIcon(proxy(), "cromulent");
-  EXPECT_EQ(1, fake.NumPendingCallbacks());
-  EXPECT_EQ(1, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(2, NumOuterFinishedCallbacks());
-
-  // After a cache miss, manually trigger the inner callback.
-  fake.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake.NumPendingCallbacks());
-  EXPECT_EQ(2, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(3, NumOuterFinishedCallbacks());
-}
-
-TEST_F(AppServiceProxyShortcutIconTest, IconCoalescer) {
-  // This is mostly a sanity check. For an isolated, comprehensive unit test of
-  // the IconCoalescer code, see icon_coalescer_unittest.cc.
-  //
-  // This tests an AppServiceProxy as a 'black box', which uses an
-  // IconCoalescer but also other IconLoader filters, such as an IconCache.
-  FakeIconLoader fake;
-  OverrideAppServiceProxyShortcutInnerIconLoader(proxy(), &fake);
-
-  // Issue 4 LoadShortcutIcon requests, 2 after de-duplication.
-  UniqueReleaser a0 = LoadShortcutIcon(proxy(), "avocet");
-  UniqueReleaser a1 = LoadShortcutIcon(proxy(), "avocet");
-  UniqueReleaser b2 = LoadShortcutIcon(proxy(), "brolga");
-  UniqueReleaser a3 = LoadShortcutIcon(proxy(), "avocet");
-  EXPECT_EQ(2, fake.NumPendingCallbacks());
-  EXPECT_EQ(0, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(0, NumOuterFinishedCallbacks());
-
-  // Resolve their responses.
-  fake.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake.NumPendingCallbacks());
-  EXPECT_EQ(2, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(4, NumOuterFinishedCallbacks());
-
-  // Issue another request, that triggers neither IconCache nor IconCoalescer.
-  UniqueReleaser c4 = LoadShortcutIcon(proxy(), "curlew");
-  EXPECT_EQ(1, fake.NumPendingCallbacks());
-  EXPECT_EQ(2, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(4, NumOuterFinishedCallbacks());
-
-  // Destroying the IconLoader::Releaser shouldn't affect the fact that there's
-  // an in-flight "curlew" request to the FakeIconLoader.
-  c4.reset();
-  EXPECT_EQ(1, fake.NumPendingCallbacks());
-  EXPECT_EQ(2, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(4, NumOuterFinishedCallbacks());
-
-  // Issuing another "curlew" request should coalesce with the in-flight one.
-  UniqueReleaser c5 = LoadShortcutIcon(proxy(), "curlew");
-  EXPECT_EQ(1, fake.NumPendingCallbacks());
-  EXPECT_EQ(2, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(4, NumOuterFinishedCallbacks());
-
-  // Resolving the in-flight request to the inner IconLoader, |fake|, should
-  // resolve the two coalesced requests to the outer IconLoader, |proxy|.
-  fake.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake.NumPendingCallbacks());
-  EXPECT_EQ(3, fake.NumInnerFinishedCallbacks());
-  EXPECT_EQ(6, NumOuterFinishedCallbacks());
-}
-
-TEST_F(AppServiceProxyShortcutIconTest, LoadShortcutIconWithBadge) {
-  FakeIconLoader fake_shortcut_loader;
-  FakeIconLoader fake_app_loader;
-  OverrideAppServiceProxyShortcutInnerIconLoader(proxy(),
-                                                 &fake_shortcut_loader);
-  OverrideAppServiceProxyInnerIconLoader(proxy(), &fake_app_loader);
-
-  auto shortcut = std::make_unique<Shortcut>("host_app_id", "local_id");
-  ShortcutId shortcut_id = shortcut->shortcut_id;
-  proxy()->ShortcutRegistryCache()->UpdateShortcut(std::move(shortcut));
-
-  UniqueReleaser c0 = LoadShortcutIconWithBadge(proxy(), shortcut_id);
-  EXPECT_EQ(1, fake_shortcut_loader.NumPendingCallbacks());
-  EXPECT_EQ(0, fake_shortcut_loader.NumInnerFinishedCallbacks());
-  EXPECT_EQ(0, NumOuterFinishedCallbacks());
-
-  // After a cache miss, manually trigger the inner callback.
-  fake_shortcut_loader.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake_shortcut_loader.NumPendingCallbacks());
-  EXPECT_EQ(1, fake_shortcut_loader.NumInnerFinishedCallbacks());
-  EXPECT_EQ(0, NumOuterFinishedCallbacks());
-
-  // Should start loading icon for the host app.
-  EXPECT_EQ(1, fake_app_loader.NumPendingCallbacks());
-  EXPECT_EQ(0, fake_app_loader.NumInnerFinishedCallbacks());
-  EXPECT_EQ(0, NumOuterFinishedCallbacks());
-
-  // After a cache miss, manually trigger the inner callback.
-  fake_app_loader.FlushPendingCallbacks();
-  EXPECT_EQ(0, fake_app_loader.NumPendingCallbacks());
-  EXPECT_EQ(1, fake_app_loader.NumInnerFinishedCallbacks());
-  EXPECT_EQ(1, NumOuterFinishedCallbacks());
-}
-
-#endif
-
 TEST_F(AppServiceProxyTest, ProxyAccessPerProfile) {
   TestingProfile::Builder profile_builder;
 
@@ -571,7 +373,7 @@ TEST_F(AppServiceProxyTest, ProxyAccessPerProfile) {
   TestingProfile::Builder guest_builder;
   guest_builder.SetGuestSession();
   auto guest_profile = guest_builder.Build();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // App service is not available for original profile.
   EXPECT_FALSE(apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(
       guest_profile.get()));
@@ -592,7 +394,7 @@ TEST_F(AppServiceProxyTest, ProxyAccessPerProfile) {
       apps::AppServiceProxyFactory::GetForProfile(guest_profile.get());
   EXPECT_TRUE(guest_proxy);
   EXPECT_NE(guest_proxy, proxy);
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 TEST_F(AppServiceProxyTest, ReinitializeClearsCache) {
@@ -613,7 +415,6 @@ TEST_F(AppServiceProxyTest, ReinitializeClearsCache) {
             AppType::kUnknown);
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 class AppServiceProxyPreferredAppsTest : public AppServiceProxyTest {
  public:
   void SetUp() override {
@@ -1025,9 +826,8 @@ TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsDuplicatedSupportedLink) {
 
   EXPECT_EQ(3U, GetPreferredAppsList().GetEntrySize());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsSetSupportedLinks) {
   GetPreferredAppsList().Init();
 
@@ -1041,8 +841,6 @@ TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsSetSupportedLinks) {
       apps_util::MakeIntentFilterForUrlScope(GURL("https://www.b.com/"));
   auto intent_filter_c =
       apps_util::MakeIntentFilterForUrlScope(GURL("https://www.c.com/"));
-
-  FakeSubscriberForProxyTest sub(proxy()->profile());
 
   FakePublisherForProxyTest pub(
       proxy(), AppType::kArc,
@@ -1061,13 +859,6 @@ TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsSetSupportedLinks) {
   EXPECT_TRUE(pub.AppHasSupportedLinksPreference(kAppId2));
   EXPECT_FALSE(pub.AppHasSupportedLinksPreference(kAppId3));
 
-  EXPECT_EQ(kAppId1, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.a.com/")));
-  EXPECT_EQ(kAppId1, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.b.com/")));
-  EXPECT_EQ(kAppId2, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.c.com/")));
-
   // App 3 overlaps with both App 1 and 2. Both previous apps should have all
   // their supported link filters removed.
   IntentFilters app_3_filters;
@@ -1079,13 +870,6 @@ TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsSetSupportedLinks) {
   EXPECT_FALSE(pub.AppHasSupportedLinksPreference(kAppId2));
   EXPECT_TRUE(pub.AppHasSupportedLinksPreference(kAppId3));
 
-  EXPECT_EQ(std::nullopt, sub.preferred_apps_list().FindPreferredAppForUrl(
-                              GURL("https://www.a.com/")));
-  EXPECT_EQ(kAppId3, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.b.com/")));
-  EXPECT_EQ(kAppId3, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.c.com/")));
-
   // Setting App 3 as preferred again should not change anything.
   app_3_filters = std::vector<IntentFilterPtr>();
   app_3_filters.push_back(intent_filter_b->Clone());
@@ -1093,14 +877,10 @@ TEST_F(AppServiceProxyPreferredAppsTest, PreferredAppsSetSupportedLinks) {
   proxy()->SetSupportedLinksPreference(kAppId3, std::move(app_3_filters));
 
   EXPECT_TRUE(pub.AppHasSupportedLinksPreference(kAppId3));
-  EXPECT_EQ(kAppId3, sub.preferred_apps_list().FindPreferredAppForUrl(
-                         GURL("https://www.c.com/")));
 
   proxy()->RemoveSupportedLinksPreference(kAppId3);
 
   EXPECT_FALSE(pub.AppHasSupportedLinksPreference(kAppId3));
-  EXPECT_EQ(std::nullopt, sub.preferred_apps_list().FindPreferredAppForUrl(
-                              GURL("https://www.c.com/")));
 }
 
 TEST_F(AppServiceProxyTest, LaunchCallback) {
@@ -1241,5 +1021,5 @@ TEST_F(AppServiceProxyTest, GetAppsForIntentBestHandler) {
   EXPECT_EQ("name 2", intent_launch_info[0].activity_name);
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }  // namespace apps

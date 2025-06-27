@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/device/generic_sensor/platform_sensor_fusion.h"
 
+#include <algorithm>
 #include <limits>
 
 #include "base/check.h"
@@ -12,7 +18,6 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "services/device/generic_sensor/platform_sensor_fusion_algorithm.h"
 #include "services/device/generic_sensor/platform_sensor_provider.h"
@@ -119,7 +124,7 @@ PlatformSensorFusion::PlatformSensorFusion(
 
   fusion_algorithm_->set_fusion_sensor(this);
 
-  if (base::ranges::any_of(source_sensors_, [](const auto& pair) {
+  if (std::ranges::any_of(source_sensors_, [](const auto& pair) {
         return pair.second->GetReportingMode() ==
                mojom::ReportingMode::ON_CHANGE;
       })) {
@@ -228,8 +233,7 @@ bool PlatformSensorFusion::GetSourceReading(mojom::SensorType type,
   auto it = source_sensors_.find(type);
   if (it != source_sensors_.end())
     return it->second->GetLatestRawReading(result);
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool PlatformSensorFusion::IsSignificantlyDifferent(

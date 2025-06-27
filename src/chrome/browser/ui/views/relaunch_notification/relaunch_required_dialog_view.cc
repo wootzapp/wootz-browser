@@ -19,6 +19,8 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/point.h"
@@ -91,7 +93,7 @@ ui::ImageModel RelaunchRequiredDialogView::GetWindowIcon() {
   return ui::ImageModel::FromVectorIcon(
       vector_icons::kBusinessIcon, ui::kColorIcon,
       ChromeLayoutProvider::Get()->GetDistanceMetric(
-          DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE));
+          views::DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE));
 }
 
 // |relaunch_required_timer_| automatically starts for the next time the title
@@ -104,11 +106,11 @@ RelaunchRequiredDialogView::RelaunchRequiredDialogView(
           base::BindRepeating(&RelaunchRequiredDialogView::UpdateWindowTitle,
                               base::Unretained(this))) {
   set_internal_name("RelaunchRequiredDialog");
-  SetDefaultButton(ui::DIALOG_BUTTON_NONE);
-  SetButtonLabel(ui::DIALOG_BUTTON_OK,
+  SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kNone));
+  SetButtonLabel(ui::mojom::DialogButton::kOk,
                  l10n_util::GetStringUTF16(IDS_RELAUNCH_ACCEPT_BUTTON));
   SetButtonLabel(
-      ui::DIALOG_BUTTON_CANCEL,
+      ui::mojom::DialogButton::kCancel,
       l10n_util::GetStringUTF16(IDS_RELAUNCH_REQUIRED_CANCEL_BUTTON));
   SetShowIcon(true);
   SetAcceptCallback(base::BindOnce(
@@ -121,7 +123,7 @@ RelaunchRequiredDialogView::RelaunchRequiredDialogView(
       base::RecordAction, base::UserMetricsAction("RelaunchRequired_Close")));
   SetLayoutManager(std::make_unique<views::FillLayout>());
 
-  SetModalType(ui::MODAL_TYPE_WINDOW);
+  SetModalType(ui::mojom::ModalType::kWindow);
   SetShowCloseButton(false);
   set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH));
@@ -141,7 +143,8 @@ RelaunchRequiredDialogView::RelaunchRequiredDialogView(
   // TODO(bsep): Remove this when fixing https://crbug.com/810970.
   const int title_offset =
       2 * provider->GetInsetsMetric(views::INSETS_DIALOG_TITLE).left() +
-      provider->GetDistanceMetric(DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE);
+      provider->GetDistanceMetric(
+          views::DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE);
   label->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(0, title_offset - margins().left(), 0, 0)));
 

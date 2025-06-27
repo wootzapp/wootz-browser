@@ -12,6 +12,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/time/time.h"
 #include "chrome/browser/download/download_danger_prompt.h"
 #include "chrome/browser/download/download_warning_desktop_hats_utils.h"
 #include "chrome/browser/ui/webui/downloads/downloads.mojom-forward.h"
@@ -25,11 +26,25 @@ namespace content {
 class DownloadManager;
 class WebContents;
 class WebUI;
-}
+}  // namespace content
 
 namespace download {
 class DownloadItem;
 }
+
+// Represents the possible outcomes of showing a ESB download row promotion.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+//
+// LINT.IfChange(SafeBrowsingEsbDownloadRowPromoOutcome)
+enum class SafeBrowsingEsbDownloadRowPromoOutcome {
+  // The kShown and kClicked values are not meant to be mutually exclusive,
+  // the same promo row can be shown AND clicked.
+  kShown = 0,
+  kClicked = 1,
+  kMaxValue = kClicked,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/safe_browsing/enums.xml:SafeBrowsingEsbDownloadRowPromoOutcome)
 
 // The handler for Javascript messages related to the "downloads" view,
 // also observes changes to the download manager.
@@ -56,11 +71,10 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
   void GetDownloads(const std::vector<std::string>& search_terms) override;
   void OpenFileRequiringGesture(const std::string& id) override;
   void Drag(const std::string& id) override;
-  void SaveDangerousRequiringGesture(const std::string& id) override;
   void SaveSuspiciousRequiringGesture(const std::string& id) override;
-  void RecordOpenBypassWarningPrompt(const std::string& id) override;
-  void SaveDangerousFromPromptRequiringGesture(const std::string& id) override;
-  void RecordCancelBypassWarningPrompt(const std::string& id) override;
+  void RecordOpenBypassWarningDialog(const std::string& id) override;
+  void SaveDangerousFromDialogRequiringGesture(const std::string& id) override;
+  void RecordCancelBypassWarningDialog(const std::string& id) override;
   void DiscardDangerous(const std::string& id) override;
   void RetryDownload(const std::string& id) override;
   void Show(const std::string& id) override;
@@ -105,18 +119,6 @@ class DownloadsDOMHandler : public content::WebContentsObserver,
   // Convenience method to call |original_notifier_->GetManager()| while
   // null-checking |original_notifier_|.
   content::DownloadManager* GetOriginalNotifierManager() const;
-
-  // Displays a native prompt asking the user for confirmation after accepting
-  // the dangerous download specified by |dangerous|. The function returns
-  // immediately, and will invoke DangerPromptAccepted() asynchronously if the
-  // user accepts the dangerous download. The native prompt will observe
-  // |dangerous| until either the dialog is dismissed or |dangerous| is no
-  // longer an in-progress dangerous download.
-  virtual void ShowDangerPrompt(download::DownloadItem* dangerous);
-
-  // Conveys danger acceptance from the DownloadDangerPrompt to the
-  // DownloadItem.
-  void DangerPromptDone(int download_id, DownloadDangerPrompt::Action action);
 
   // Launches a HaTS survey for a download warning that is heeded, bypassed, or
   // ignored (if all preconditions are met).

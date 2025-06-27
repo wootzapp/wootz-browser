@@ -10,7 +10,7 @@
 #import "base/test/ios/wait_util.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/time/time.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/web/model/image_fetch/image_fetch_java_script_feature.h"
 #import "ios/web/js_messaging/java_script_feature_manager.h"
 #import "ios/web/public/js_messaging/java_script_feature.h"
@@ -37,7 +37,7 @@ constexpr base::TimeDelta kWaitForGetImageDataTimeout = base::Seconds(1);
 
 const char kImageUrl[] = "http://www.chrooooooooooome.com/";
 const char kImageData[] = "abc";
-}
+}  // namespace
 
 // Test fixture for ImageFetchTabHelper class.
 class ImageFetchTabHelperTest : public PlatformTest {
@@ -48,9 +48,9 @@ class ImageFetchTabHelperTest : public PlatformTest {
  protected:
   ImageFetchTabHelperTest()
       : web_client_(std::make_unique<web::FakeWebClient>()) {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
+    profile_ = TestProfileIOS::Builder().Build();
 
-    web::WebState::CreateParams params(browser_state_.get());
+    web::WebState::CreateParams params(profile_.get());
     web_state_ = web::WebState::Create(params);
   }
 
@@ -70,7 +70,7 @@ class ImageFetchTabHelperTest : public PlatformTest {
 
   // Sets up the network::TestURLLoaderFactory to handle download request.
   void SetUpTestSharedURLLoaderFactory() {
-    browser_state_->SetSharedURLLoaderFactory(
+    profile_->SetSharedURLLoaderFactory(
         base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
             &test_url_loader_factory_));
 
@@ -102,7 +102,7 @@ class ImageFetchTabHelperTest : public PlatformTest {
   web::ScopedTestingWebClient web_client_;
   web::WebTaskEnvironment task_environment_{
       web::WebTaskEnvironment::MainThreadType::IO};
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<web::WebState> web_state_;
 
   network::TestURLLoaderFactory test_url_loader_factory_;
@@ -119,8 +119,9 @@ TEST_F(ImageFetchTabHelperTest, GetImageDataWithJsSucceedFromCanvas) {
           stringWithFormat:
               @"__gCrWeb.imageFetch = {}; __gCrWeb.imageFetch.getImageData = "
                "function(id, url) { "
-               "__gCrWeb.common.sendWebKitMessage('ImageFetchMessageHandler', "
-               "{'id': id, 'data': btoa('%s'), 'from':'canvas'}); }; true;",
+               "  window.webkit.messageHandlers['ImageFetchMessageHandler']."
+               "  postMessage({'id': id, 'data': btoa('%s'), 'from':'canvas'});"
+               "}; true;",
               kImageData],
       ImageFetchJavaScriptFeature::GetInstance());
   ASSERT_NSEQ(@YES, script_result);
@@ -152,8 +153,9 @@ TEST_F(ImageFetchTabHelperTest, GetImageDataWithJsSucceedFromXmlHttpRequest) {
           stringWithFormat:
               @"__gCrWeb.imageFetch = {}; __gCrWeb.imageFetch.getImageData = "
                "function(id, url) { "
-               "__gCrWeb.common.sendWebKitMessage('ImageFetchMessageHandler', "
-               "{'id': id, 'data': btoa('%s'), 'from':'xhr'}); }; true;",
+               "  window.webkit.messageHandlers['ImageFetchMessageHandler']."
+               "  postMessage({'id': id, 'data': btoa('%s'), 'from':'xhr'});"
+               "}; true;",
               kImageData],
       ImageFetchJavaScriptFeature::GetInstance());
   ASSERT_NSEQ(@YES, script_result);
@@ -182,8 +184,8 @@ TEST_F(ImageFetchTabHelperTest, GetImageDataWithJsFail) {
       web_state(),
       @"__gCrWeb.imageFetch = {}; __gCrWeb.imageFetch.getImageData = "
        "function(id, url) { "
-       "__gCrWeb.common.sendWebKitMessage('ImageFetchMessageHandler', "
-       "{'id': id}); }; true;",
+       "  window.webkit.messageHandlers['ImageFetchMessageHandler']."
+       "  postMessage({'id': id}); }; true;",
       ImageFetchJavaScriptFeature::GetInstance());
   ASSERT_NSEQ(@YES, script_result);
 

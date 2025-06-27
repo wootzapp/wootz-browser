@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/device_notifications/device_status_icon_renderer.h"
+
 #include "base/i18n/message_formatter.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -14,6 +15,8 @@
 #include "chrome/grit/generated_resources.h"
 #include "extensions/buildflags/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/color_palette.h"
+#include "ui/gfx/paint_vector_icon.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/extension_registry.h"
@@ -47,7 +50,7 @@ std::u16string GetOriginConnectionCountLabel(Profile* profile,
         connection_count, base::UTF8ToUTF16(name));
   }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -64,7 +67,10 @@ DeviceStatusIconRenderer::~DeviceStatusIconRenderer() {
   if (status_icon_) {
     auto* status_tray = g_browser_process->status_tray();
     DCHECK(status_tray);
-    status_tray->RemoveStatusIcon(status_icon_);
+    std::unique_ptr<StatusIcon> removed_icon =
+        status_tray->RemoveStatusIcon(status_icon_);
+    status_icon_ = nullptr;
+    removed_icon.reset();
   }
 }
 
@@ -133,16 +139,18 @@ void DeviceStatusIconRenderer::RefreshIcon() {
   DCHECK(status_tray);
   if (device_system_tray_icon_->profiles().empty()) {
     if (status_icon_) {
-      status_tray->RemoveStatusIcon(status_icon_);
+      std::unique_ptr<StatusIcon> removed_icon =
+          status_tray->RemoveStatusIcon(status_icon_);
       status_icon_ = nullptr;
+      removed_icon.reset();
     }
     return;
   }
 
   // This tries to construct this:
   // ------------------------------------------------
-  // |Google Chrome is accessing Device device(s)      |
-  // |About Device device                              |
+  // |Google Chrome is accessing Device device(s)   |
+  // |About Device device                           |
   // |---------------Separator----------------------|
   // |Profile1 section (see below profile for loop) |
   // |...                                           |
@@ -152,9 +160,7 @@ void DeviceStatusIconRenderer::RefreshIcon() {
   int total_connection_count = 0;
   int total_origin_count = 0;
   // Title will be updated after looping through profiles below.
-#if !BUILDFLAG(IS_MAC)
   menu->AddTitle(u"");
-#endif  //! BUILDFLAG(IS_MAC)
   AddItem(menu.get(), GetAboutDeviceLabel(),
           base::BindRepeating(&DeviceStatusIconRenderer::ShowHelpCenterUrl,
                               weak_factory_.GetWeakPtr()));
@@ -191,13 +197,13 @@ void DeviceStatusIconRenderer::RefreshIcon() {
   }
   auto title_label = device_system_tray_icon_->GetTitleLabel(
       total_origin_count, total_connection_count);
-#if !BUILDFLAG(IS_MAC)
   menu->SetLabel(0, title_label);
-#endif  //! BUILDFLAG(IS_MAC)
 
   if (!status_icon_) {
     status_icon_ = status_tray->CreateStatusIcon(
-        StatusTray::OTHER_ICON, device_system_tray_icon_->GetIcon(),
+        StatusTray::OTHER_ICON,
+        gfx::CreateVectorIcon(device_system_tray_icon_->GetIcon(),
+                              gfx::kGoogleGrey300),
         title_label);
   } else {
     status_icon_->SetToolTip(title_label);

@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_RENDER_PASS_ENCODER_H_
 
 #include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
-#include "third_party/blink/renderer/core/typed_arrays/nadc_typed_array_view.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_object.h"
 #include "third_party/blink/renderer/modules/webgpu/gpu_programmable_pass_encoder.h"
@@ -30,7 +29,7 @@ class GPURenderPassEncoder : public DawnObject<wgpu::RenderPassEncoder>,
   GPURenderPassEncoder(const GPURenderPassEncoder&) = delete;
   GPURenderPassEncoder& operator=(const GPURenderPassEncoder&) = delete;
 
-  // gpu_render_pass_encoder.idl
+  // gpu_render_pass_encoder.idl {{{
   void setBindGroup(uint32_t index, DawnObject<wgpu::BindGroup>* bindGroup) {
     GetHandle().SetBindGroup(
         index, bindGroup ? bindGroup->GetHandle() : wgpu::BindGroup(nullptr));
@@ -40,7 +39,7 @@ class GPURenderPassEncoder : public DawnObject<wgpu::RenderPassEncoder>,
                     const Vector<uint32_t>& dynamicOffsets);
   void setBindGroup(uint32_t index,
                     GPUBindGroup* bind_group,
-                    NADCTypedArrayView<uint32_t> dynamic_offsets_data,
+                    base::span<const uint32_t> dynamic_offsets_data,
                     uint64_t dynamic_offsets_data_start,
                     uint32_t dynamic_offsets_data_length,
                     ExceptionState& exception_state);
@@ -56,7 +55,6 @@ class GPURenderPassEncoder : public DawnObject<wgpu::RenderPassEncoder>,
   void setPipeline(const DawnObject<wgpu::RenderPipeline>* pipeline) {
     GetHandle().SetPipeline(pipeline->GetHandle());
   }
-
   void setBlendConstant(const V8GPUColor* color,
                         ExceptionState& exception_state);
   void setStencilReference(uint32_t reference) {
@@ -122,6 +120,36 @@ class GPURenderPassEncoder : public DawnObject<wgpu::RenderPassEncoder>,
     GetHandle().DrawIndexedIndirect(indirectBuffer->GetHandle(),
                                     indirectOffset);
   }
+  void multiDrawIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                         uint64_t indirectOffset,
+                         uint32_t maxDrawCount,
+                         ExceptionState& exception_state);
+  void multiDrawIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                         uint64_t indirectOffset,
+                         uint32_t maxDrawCount,
+                         DawnObject<wgpu::Buffer>* drawCountBuffer,
+                         ExceptionState& exception_state);
+  void multiDrawIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                         uint64_t indirectOffset,
+                         uint32_t maxDrawCount,
+                         DawnObject<wgpu::Buffer>* drawCountBuffer,
+                         uint64_t drawCountBufferOffset,
+                         ExceptionState& exception_state);
+  void multiDrawIndexedIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                                uint64_t indirectOffset,
+                                uint32_t maxDrawCount,
+                                ExceptionState& exception_state);
+  void multiDrawIndexedIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                                uint64_t indirectOffset,
+                                uint32_t maxDrawCount,
+                                DawnObject<wgpu::Buffer>* drawCountBuffer,
+                                ExceptionState& exception_state);
+  void multiDrawIndexedIndirect(const DawnObject<wgpu::Buffer>* indirectBuffer,
+                                uint64_t indirectOffset,
+                                uint32_t maxDrawCount,
+                                DawnObject<wgpu::Buffer>* drawCountBuffer,
+                                uint64_t drawCountBufferOffset,
+                                ExceptionState& exception_state);
   void executeBundles(const HeapVector<Member<GPURenderBundle>>& bundles);
   void beginOcclusionQuery(uint32_t queryIndex) {
     GetHandle().BeginOcclusionQuery(queryIndex);
@@ -131,8 +159,9 @@ class GPURenderPassEncoder : public DawnObject<wgpu::RenderPassEncoder>,
                       uint32_t queryIndex,
                       ExceptionState& exception_state);
   void end() { GetHandle().End(); }
+  // }}} End of WebIDL binding implementation.
 
-  void setLabelImpl(const String& value) override {
+  void SetLabelImpl(const String& value) override {
     std::string utf8_label = value.Utf8();
     GetHandle().SetLabel(utf8_label.c_str());
   }

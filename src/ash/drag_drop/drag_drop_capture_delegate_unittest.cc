@@ -39,7 +39,8 @@ class DragDropCaptureDelegateTest : public AshTestBase {
   // AshTestBase:
   void SetUp() override {
     drag_drop_capture_delegate_.reset(new DragDropCaptureDelegate());
-    AshTestBase::SetUp(std::make_unique<TestShellDelegate>());
+    set_shell_delegate(std::make_unique<TestShellDelegate>());
+    AshTestBase::SetUp();
   }
 
   void TearDown() override {
@@ -61,8 +62,9 @@ class TestWindowDelegate : public aura::test::TestWindowDelegate {
   // ui::EventHandler:
   void OnTouchEvent(ui::TouchEvent* event) final {
     motion_event.OnTouch(*event);
-    if (event->type() == ui::ET_TOUCH_CANCELLED)
+    if (event->type() == ui::EventType::kTouchCancelled) {
       touch_cancel_received = true;
+    }
   }
 
   ui::MotionEventAura motion_event;
@@ -108,7 +110,7 @@ TEST_F(DragDropCaptureDelegateTest, CanTakeCaptureAndConvertToOriginalWindow) {
   EXPECT_TRUE(drag_drop_capture_delegate_->capture_window()->HasCapture());
   EXPECT_TRUE(source_window_delegate.touch_cancel_received);
 
-  ui::GestureEventDetails event_details(ui::ET_GESTURE_SCROLL_UPDATE);
+  ui::GestureEventDetails event_details(ui::EventType::kGestureScrollUpdate);
   ui::GestureEvent gesture_event(0, 0, 0, ui::EventTimeForNow(), event_details);
   ui::Event::DispatcherApi(&gesture_event)
       .set_target(drag_drop_capture_delegate_->capture_window());

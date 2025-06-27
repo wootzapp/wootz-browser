@@ -9,9 +9,11 @@ import android.os.Bundle;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.Pref;
-import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
@@ -20,11 +22,10 @@ import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 
 /** Fragment containing standard protection settings. */
+@NullMarked
 public class StandardProtectionSettingsFragment extends SafeBrowsingSettingsFragmentBase
         implements Preference.OnPreferenceChangeListener {
     @VisibleForTesting static final String PREF_SUBTITLE = "subtitle";
-    @VisibleForTesting static final String PREF_BULLET_ONE = "bullet_one";
-    @VisibleForTesting static final String PREF_BULLET_TWO = "bullet_two";
     @VisibleForTesting static final String PREF_EXTENDED_REPORTING = "extended_reporting";
     @VisibleForTesting static final String PREF_PASSWORD_LEAK_DETECTION = "password_leak_detection";
 
@@ -34,8 +35,9 @@ public class StandardProtectionSettingsFragment extends SafeBrowsingSettingsFrag
     private ManagedPreferenceDelegate mManagedPreferenceDelegate;
     private PrefService mPrefService;
 
+    @Initializer
     @Override
-    protected void onCreatePreferencesInternal(Bundle bundle, String rootKey) {
+    protected void onCreatePreferencesInternal(@Nullable Bundle bundle, @Nullable String rootKey) {
         mManagedPreferenceDelegate = createManagedPreferenceDelegate();
         mPrefService = UserPrefs.get(getProfile());
 
@@ -44,56 +46,20 @@ public class StandardProtectionSettingsFragment extends SafeBrowsingSettingsFrag
         mExtendedReportingPreference.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
 
         mPasswordLeakDetectionPreference = findPreference(PREF_PASSWORD_LEAK_DETECTION);
-        mPasswordLeakDetectionPreference.setOnPreferenceChangeListener(this);
-        mPasswordLeakDetectionPreference.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_LEAK_TOGGLE_MOVE)) {
+            mPasswordLeakDetectionPreference.setOnPreferenceChangeListener(this);
+            mPasswordLeakDetectionPreference.setManagedPreferenceDelegate(
+                    mManagedPreferenceDelegate);
+        } else {
+            mPasswordLeakDetectionPreference.setVisible(false);
+        }
 
-        updateToFriendlierSettings();
         updateLeakDetectionAndExtendedReportingPreferences();
     }
 
     @Override
     protected int getPreferenceResource() {
         return R.xml.standard_protection_preferences;
-    }
-
-    /**
-     * Updates the standard protection fragment based on the value of the friendlier settings
-     * feature flag and whether hash real-time lookup is eligible. The updates include removing the
-     * two bullet points and updating the strings.
-     */
-    private void updateToFriendlierSettings() {
-        if (ChromeFeatureList.isEnabled(
-                ChromeFeatureList.FRIENDLIER_SAFE_BROWSING_SETTINGS_STANDARD_PROTECTION)) {
-            // Remove the two bullet points
-            getPreferenceScreen().removePreference(findPreference(PREF_BULLET_ONE));
-            getPreferenceScreen().removePreference(findPreference(PREF_BULLET_TWO));
-
-            // Update the strings to the friendlier settings strings if the friendlier settings
-            // feature flag is enabled. Otherwise, it will use the default strings that are
-            // defined in the standard_protection_preferences.xml file.
-            findPreference(PREF_SUBTITLE)
-                    .setTitle(
-                            getContext()
-                                    .getString(
-                                            R.string
-                                                    .safe_browsing_standard_protection_subtitle_updated));
-            mExtendedReportingPreference.setTitle(
-                    getContext()
-                            .getString(
-                                    R.string
-                                            .safe_browsing_standard_protection_extended_reporting_title_updated));
-            mPasswordLeakDetectionPreference.setTitle(
-                    getContext().getString(R.string.passwords_leak_detection_switch_title_updated));
-            mPasswordLeakDetectionPreference.setSummary(
-                    getContext().getString(R.string.passwords_leak_detection_switch_summary));
-        } else if (SafeBrowsingBridge.isHashRealTimeLookupEligibleInSession()) {
-            findPreference(PREF_BULLET_TWO)
-                    .setSummary(
-                            getContext()
-                                    .getString(
-                                            R.string
-                                                    .safe_browsing_standard_protection_bullet_two_proxy));
-        }
     }
 
     /**
@@ -121,15 +87,17 @@ public class StandardProtectionSettingsFragment extends SafeBrowsingSettingsFrag
                 is_standard_protection && !extended_reporting_disabled_by_delegate);
         mExtendedReportingPreference.setChecked(extended_reporting_checked);
 
-        boolean leak_detection_enabled =
-                mPrefService.getBoolean(Pref.PASSWORD_LEAK_DETECTION_ENABLED);
-        boolean leak_detection_disabled_by_delegate =
-                mManagedPreferenceDelegate.isPreferenceClickDisabled(
-                        mPasswordLeakDetectionPreference);
-        mPasswordLeakDetectionPreference.setEnabled(
-                is_standard_protection && !leak_detection_disabled_by_delegate);
-        mPasswordLeakDetectionPreference.setChecked(
-                is_enhanced_protection || (is_standard_protection && leak_detection_enabled));
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.PASSWORD_LEAK_TOGGLE_MOVE)) {
+            boolean leak_detection_enabled =
+                    mPrefService.getBoolean(Pref.PASSWORD_LEAK_DETECTION_ENABLED);
+            boolean leak_detection_disabled_by_delegate =
+                    mManagedPreferenceDelegate.isPreferenceClickDisabled(
+                            mPasswordLeakDetectionPreference);
+            mPasswordLeakDetectionPreference.setEnabled(
+                    is_standard_protection && !leak_detection_disabled_by_delegate);
+            mPasswordLeakDetectionPreference.setChecked(
+                    is_enhanced_protection || (is_standard_protection && leak_detection_enabled));
+        }
     }
 
     @Override

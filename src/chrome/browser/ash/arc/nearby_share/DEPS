@@ -31,3 +31,10 @@ include_rules = [
   "+chrome/common/chrome_paths_internal.h",
   "+chrome/test/base",
 ]
+
+specific_include_rules = {
+  # Allows access for tests.
+  ".*_unittest\\.cc": [
+    "+chrome/browser/ui/views/chrome_layout_provider.h",
+  ],
+}

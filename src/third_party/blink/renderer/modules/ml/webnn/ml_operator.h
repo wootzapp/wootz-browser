@@ -5,8 +5,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_ML_WEBNN_ML_OPERATOR_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_ML_WEBNN_ML_OPERATOR_H_
 
+#include <variant>
+
 #include "services/webnn/public/mojom/webnn_graph.mojom-blink.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/dictionary_base.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
@@ -16,23 +17,33 @@
 
 namespace blink {
 
+class MLArgMinMaxOptions;
+class MLCumulativeSumOptions;
 class MLGraphBuilder;
 class MLOperand;
+class MLOperatorOptions;
+class MLGruCellOptions;
+class MLLstmOptions;
+class MLLstmCellOptions;
+class MLPadOptions;
+class MLReverseOptions;
+class MLSliceOptions;
+class MLSplitOptions;
 
 class MODULES_EXPORT MLOperator : public GarbageCollected<MLOperator> {
  public:
   using OperationSubKind =
-      absl::variant<webnn::mojom::blink::ArgMinMax::Kind,
-                    webnn::mojom::blink::Conv2d::Kind,
-                    webnn::mojom::blink::ElementWiseBinary::Kind,
-                    webnn::mojom::blink::ElementWiseUnary::Kind,
-                    webnn::mojom::blink::Pool2d::Kind,
-                    webnn::mojom::blink::Reduce::Kind,
-                    absl::monostate>;
+      std::variant<webnn::mojom::blink::ArgMinMax::Kind,
+                   webnn::mojom::blink::Conv2d::Kind,
+                   webnn::mojom::blink::ElementWiseBinary::Kind,
+                   webnn::mojom::blink::ElementWiseUnary::Kind,
+                   webnn::mojom::blink::Pool2d::Kind,
+                   webnn::mojom::blink::Reduce::Kind,
+                   std::monostate>;
 
   static String OperatorKindToString(
       webnn::mojom::blink::Operation::Tag kind,
-      OperationSubKind sub_kind = absl::monostate{});
+      OperationSubKind sub_kind = std::monostate{});
 
   // It is safe for a caller, usually a MLGraphBuidler operation build method,
   // that passes the reference of the options dictionary argument received from
@@ -48,8 +59,8 @@ class MODULES_EXPORT MLOperator : public GarbageCollected<MLOperator> {
   // MLGraphBuilder operation build method.
   MLOperator(MLGraphBuilder* builder,
              webnn::mojom::blink::Operation::Tag kind,
-             OperationSubKind sub_kind = absl::monostate{},
-             const bindings::DictionaryBase* options = nullptr);
+             const MLOperatorOptions* options,
+             OperationSubKind sub_kind = std::monostate{});
 
   MLOperator(const MLOperator&) = delete;
   MLOperator& operator=(const MLOperator&) = delete;
@@ -62,13 +73,12 @@ class MODULES_EXPORT MLOperator : public GarbageCollected<MLOperator> {
   OperationSubKind SubKind() const;
   template <typename MojomKind>
   MojomKind SubKind() const {
-    return absl::get<MojomKind>(SubKind());
+    return std::get<MojomKind>(SubKind());
   }
 
-  const bindings::DictionaryBase* Options() const;
-  bool IsConnected() const;
-  const HeapVector<Member<const MLOperand>>& Inputs() const;
-  const HeapVector<Member<const MLOperand>>& Outputs() const;
+  const MLOperatorOptions* Options() const;
+  const HeapVector<Member<MLOperand>>& Inputs() const;
+  const HeapVector<Member<MLOperand>>& Outputs() const;
   MLGraphBuilder const* Builder() const { return builder_.Get(); }
 
   // According to WebNN programming model
@@ -77,31 +87,48 @@ class MODULES_EXPORT MLOperator : public GarbageCollected<MLOperator> {
   // connected by operands (edges). This method connects the operator with its
   // input and output operands during a computational graph building session. An
   // operator is only allowed to be connected once.
-  void Connect(HeapVector<Member<const MLOperand>> inputs,
-               HeapVector<Member<const MLOperand>> outputs);
+  void Connect(HeapVector<Member<MLOperand>> inputs,
+               HeapVector<Member<MLOperand>> outputs);
 
  private:
   Member<MLGraphBuilder> builder_;
   webnn::mojom::blink::Operation::Tag kind_;
-  OperationSubKind sub_kind_;
 
   // The correct type of options_ depends on OperatorKind. For example, if the
   // OperatorKind is kClamp, options_ could static_cast to MLClampOptions.
-  Member<const bindings::DictionaryBase> options_;
-  // is_conneted_ indicates whether the operator is connected with operands.
-  // An operator without operand connections could be used by an MLActivation
-  // to represent an activation function that is fused into another operator.
-  bool is_connected_{false};
-  HeapVector<Member<const MLOperand>> inputs_;
-  HeapVector<Member<const MLOperand>> outputs_;
+  Member<const MLOperatorOptions> options_;
+  OperationSubKind sub_kind_;
+
+  HeapVector<Member<MLOperand>> inputs_;
+  HeapVector<Member<MLOperand>> outputs_;
 };
 
 // TODO: crbug.com/325612086 - Remove all these subclasses. This information
 // should all be contained within the respective mojo Operation struct.
 
+class MODULES_EXPORT MLArgMinMaxOperator : public MLOperator {
+ public:
+  MLArgMinMaxOperator(MLGraphBuilder* builder,
+                      OperationSubKind sub_kind,
+                      const uint32_t axis,
+                      const MLArgMinMaxOptions* options);
+
+  MLArgMinMaxOperator(const MLArgMinMaxOperator&) = delete;
+  MLArgMinMaxOperator& operator=(const MLArgMinMaxOperator&) = delete;
+
+  ~MLArgMinMaxOperator() override;
+
+  uint32_t Axis() const { return axis_; }
+
+ private:
+  uint32_t axis_;
+};
+
 class MODULES_EXPORT MLConcatOperator : public MLOperator {
  public:
-  MLConcatOperator(MLGraphBuilder* builder, const uint32_t axis);
+  MLConcatOperator(MLGraphBuilder* builder,
+                   const uint32_t axis,
+                   const MLOperatorOptions* options);
 
   MLConcatOperator(const MLConcatOperator&) = delete;
   MLConcatOperator& operator=(const MLConcatOperator&) = delete;
@@ -114,12 +141,29 @@ class MODULES_EXPORT MLConcatOperator : public MLOperator {
   uint32_t axis_;
 };
 
+class MODULES_EXPORT MLCumulativeSumOperator : public MLOperator {
+ public:
+  MLCumulativeSumOperator(MLGraphBuilder* builder,
+                          const uint32_t axis,
+                          const MLCumulativeSumOptions* options);
+
+  MLCumulativeSumOperator(const MLCumulativeSumOperator&) = delete;
+  MLCumulativeSumOperator& operator=(const MLCumulativeSumOperator&) = delete;
+
+  ~MLCumulativeSumOperator() override;
+
+  uint32_t Axis() const { return axis_; }
+
+ private:
+  const uint32_t axis_;
+};
+
 class MODULES_EXPORT MLLstmOperator : public MLOperator {
  public:
   MLLstmOperator(MLGraphBuilder* builder,
                  uint32_t steps,
                  uint32_t hidden_size,
-                 const bindings::DictionaryBase* options);
+                 const MLLstmOptions* options);
 
   MLLstmOperator(const MLLstmOperator&) = delete;
   MLLstmOperator& operator=(const MLLstmOperator&) = delete;
@@ -138,7 +182,7 @@ class MODULES_EXPORT MLLstmCellOperator : public MLOperator {
  public:
   MLLstmCellOperator(MLGraphBuilder* builder,
                      uint32_t hidden_size,
-                     const bindings::DictionaryBase* options);
+                     const MLLstmCellOptions* options);
 
   MLLstmCellOperator(const MLLstmCellOperator&) = delete;
   MLLstmCellOperator& operator=(const MLLstmCellOperator&) = delete;
@@ -156,7 +200,7 @@ class MODULES_EXPORT MLGruOperator : public MLOperator {
   MLGruOperator(MLGraphBuilder* builder,
                 uint32_t steps,
                 uint32_t hidden_size,
-                const bindings::DictionaryBase* options);
+                const MLOperatorOptions* options);
 
   MLGruOperator(const MLGruOperator&) = delete;
   MLGruOperator& operator=(const MLGruOperator&) = delete;
@@ -175,7 +219,7 @@ class MODULES_EXPORT MLGruCellOperator : public MLOperator {
  public:
   MLGruCellOperator(MLGraphBuilder* builder,
                     uint32_t hidden_size,
-                    const bindings::DictionaryBase* options);
+                    const MLGruCellOptions* options);
 
   MLGruCellOperator(const MLGruCellOperator&) = delete;
   MLGruCellOperator& operator=(const MLGruCellOperator&) = delete;
@@ -193,7 +237,7 @@ class MODULES_EXPORT MLPadOperator : public MLOperator {
   MLPadOperator(MLGraphBuilder* builder,
                 const Vector<uint32_t>& beginning_padding,
                 const Vector<uint32_t>& ending_padding,
-                const bindings::DictionaryBase* options = nullptr);
+                const MLPadOptions* options);
 
   MLPadOperator(const MLPadOperator&) = delete;
   MLPadOperator& operator=(const MLPadOperator&) = delete;
@@ -208,11 +252,30 @@ class MODULES_EXPORT MLPadOperator : public MLOperator {
   Vector<uint32_t> ending_padding_;
 };
 
+class MODULES_EXPORT MLReverseOperator : public MLOperator {
+ public:
+  MLReverseOperator(MLGraphBuilder* builder,
+                    Vector<uint32_t> axes,
+                    const MLReverseOptions* options);
+
+  MLReverseOperator(const MLReverseOperator&) = delete;
+  MLReverseOperator& operator=(const MLReverseOperator&) = delete;
+
+  ~MLReverseOperator() override;
+
+  const Vector<uint32_t>& Axes() const;
+
+ private:
+  Vector<uint32_t> axes_;
+};
+
 class MODULES_EXPORT MLSliceOperator : public MLOperator {
  public:
   MLSliceOperator(MLGraphBuilder* builder,
-                  const Vector<uint32_t>& beginning_padding,
-                  const Vector<uint32_t>& ending_padding);
+                  const Vector<uint32_t>& starts,
+                  const Vector<uint32_t>& sizes,
+                  const Vector<uint32_t>& strides,
+                  const MLSliceOptions* options);
 
   MLSliceOperator(const MLSliceOperator&) = delete;
   MLSliceOperator& operator=(const MLSliceOperator&) = delete;
@@ -221,20 +284,39 @@ class MODULES_EXPORT MLSliceOperator : public MLOperator {
 
   const Vector<uint32_t>& Starts() const;
   const Vector<uint32_t>& Sizes() const;
+  const Vector<uint32_t>& Strides() const;
 
  private:
   Vector<uint32_t> starts_;
   Vector<uint32_t> sizes_;
+  Vector<uint32_t> strides_;
+};
+
+class MODULES_EXPORT MLSoftmaxOperator : public MLOperator {
+ public:
+  MLSoftmaxOperator(MLGraphBuilder* builder,
+                    const uint32_t axis,
+                    const MLOperatorOptions* options);
+
+  MLSoftmaxOperator(const MLSoftmaxOperator&) = delete;
+  MLSoftmaxOperator& operator=(const MLSoftmaxOperator&) = delete;
+
+  ~MLSoftmaxOperator() override;
+
+  uint32_t Axis() const { return axis_; }
+
+ private:
+  const uint32_t axis_;
 };
 
 class MODULES_EXPORT MLSplitOperator : public MLOperator {
  public:
   MLSplitOperator(MLGraphBuilder* builder,
                   const uint32_t splits,
-                  const bindings::DictionaryBase* options = nullptr);
+                  const MLSplitOptions* options);
   MLSplitOperator(MLGraphBuilder* builder,
                   const Vector<uint32_t>& splits,
-                  const bindings::DictionaryBase* options = nullptr);
+                  const MLSplitOptions* options);
 
   MLSplitOperator(const MLSplitOperator&) = delete;
   MLSplitOperator& operator=(const MLSplitOperator&) = delete;
@@ -249,6 +331,23 @@ class MODULES_EXPORT MLSplitOperator : public MLOperator {
   bool is_even_split_;
   uint32_t split_number_;
   Vector<uint32_t> split_sizes_;
+};
+
+class MODULES_EXPORT MLTileOperator : public MLOperator {
+ public:
+  MLTileOperator(MLGraphBuilder* builder,
+                 const Vector<uint32_t>& repetitons,
+                 const MLOperatorOptions* options);
+
+  MLTileOperator(const MLTileOperator&) = delete;
+  MLTileOperator& operator=(const MLTileOperator&) = delete;
+
+  ~MLTileOperator() override;
+
+  const Vector<uint32_t>& Repetitions() const;
+
+ private:
+  Vector<uint32_t> repetitions_;
 };
 }  // namespace blink
 

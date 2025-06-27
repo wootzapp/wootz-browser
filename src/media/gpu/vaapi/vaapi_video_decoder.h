@@ -13,7 +13,7 @@
 #include <optional>
 #include <utility>
 
-#include "base/containers/id_map.h"
+#include "base/containers/flat_map.h"
 #include "base/containers/lru_cache.h"
 #include "base/containers/queue.h"
 #include "base/memory/raw_ptr.h"
@@ -22,7 +22,6 @@
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
 #include "media/base/callback_registry.h"
 #include "media/base/cdm_context.h"
 #include "media/base/status.h"
@@ -31,7 +30,7 @@
 #include "media/base/video_codecs.h"
 #include "media/base/video_frame_layout.h"
 #include "media/gpu/chromeos/video_decoder_pipeline.h"
-#include "media/gpu/decode_surface_handler.h"
+#include "media/gpu/vaapi/vaapi_decode_surface_handler.h"
 #include "media/gpu/vaapi/vaapi_status.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
@@ -49,7 +48,7 @@ class VASurface;
 class ScopedVASurface;
 
 class VaapiVideoDecoder : public VideoDecoderMixin,
-                          public DecodeSurfaceHandler<VASurface> {
+                          public VaapiDecodeSurfaceHandler {
  public:
   static std::unique_ptr<VideoDecoderMixin> Create(
       std::unique_ptr<MediaLog> media_log,
@@ -79,17 +78,20 @@ class VaapiVideoDecoder : public VideoDecoderMixin,
   void ApplyResolutionChange() override;
   bool NeedsTranscryption() override;
 
-  // DecodeSurfaceHandler<VASurface> implementation.
-  scoped_refptr<VASurface> CreateSurface() override;
-  void SurfaceReady(scoped_refptr<VASurface> va_surface,
+  // VaapiDecodeSurfaceHandler implementation.
+  std::unique_ptr<VASurfaceHandle> CreateSurface() override;
+  void SurfaceReady(VASurfaceID va_surface_id,
                     int32_t buffer_id,
                     const gfx::Rect& visible_rect,
                     const VideoColorSpace& color_space) override;
 
   // Must be called before Initialize().
   void set_ignore_resolution_changes_to_smaller_vp9_for_testing(bool value);
+  ~VaapiVideoDecoder() override;
 
  private:
+  friend class VaapiVideoDecoderTest;
+
   // Decode task holding single decode request.
   struct DecodeTask {
     DecodeTask(scoped_refptr<DecoderBuffer> buffer,
@@ -128,7 +130,6 @@ class VaapiVideoDecoder : public VideoDecoderMixin,
       std::unique_ptr<MediaLog> media_log,
       scoped_refptr<base::SequencedTaskRunner> decoder_task_runner,
       base::WeakPtr<VideoDecoderMixin::Client> client);
-  ~VaapiVideoDecoder() override;
 
   // Schedule the next decode task in the queue to be executed.
   void ScheduleNextDecodeTask();
@@ -200,6 +201,13 @@ class VaapiVideoDecoder : public VideoDecoderMixin,
       bool needs_detiling,
       base::TimeDelta timestamp);
 
+  bool IsConfiguredForTesting() const {
+    // Mock instances of |vaapi_wrapper_| and |decoder_| are created and
+    // injected to VaapiVideoDecoder for testing purposes.
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    return !!vaapi_wrapper_ && !!decoder_;
+  }
+
   // The video decoder's state.
   State state_ GUARDED_BY_CONTEXT(sequence_checker_) = State::kUninitialized;
 
@@ -246,8 +254,7 @@ class VaapiVideoDecoder : public VideoDecoderMixin,
   // libva vaDestroySurfaces(): "Surfaces can only be destroyed after all
   // contexts using these surfaces have been destroyed."
   // TODO(crbug.com/1040291): remove this keep-alive when using SharedImages.
-  base::IDMap<std::unique_ptr<ScopedVASurface>,
-              decltype(gfx::GpuMemoryBufferId::id)>
+  base::flat_map<base::UnguessableToken, std::unique_ptr<ScopedVASurface>>
       allocated_va_surfaces_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   // We need to use a CdmContextRef so that we destruct
@@ -264,7 +271,7 @@ class VaapiVideoDecoder : public VideoDecoderMixin,
 
   EncryptionScheme encryption_scheme_ GUARDED_BY_CONTEXT(sequence_checker_);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // To keep the CdmContext event callback registered.
   std::unique_ptr<CallbackRegistration> cdm_event_cb_registration_
       GUARDED_BY_CONTEXT(sequence_checker_);

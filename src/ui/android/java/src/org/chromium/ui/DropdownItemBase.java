@@ -4,39 +4,33 @@
 
 package org.chromium.ui;
 
-import android.graphics.drawable.Drawable;
-
-import androidx.annotation.Nullable;
-
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.url.GURL;
 
 /**
  * Base implementation of DropdownItem which is used to get default settings to
  * show the item.
  */
+@NullMarked
 public class DropdownItemBase implements DropdownItem {
     @Override
-    public String getLabel() {
+    public @Nullable String getLabel() {
         return null;
     }
 
     @Override
-    public String getSecondaryLabel() {
+    public @Nullable String getSecondaryLabel() {
         return null;
     }
 
     @Override
-    public String getSublabel() {
+    public @Nullable String getSublabel() {
         return null;
     }
 
     @Override
-    public String getSecondarySublabel() {
-        return null;
-    }
-
-    @Override
-    public String getItemTag() {
+    public @Nullable String getSecondarySublabel() {
         return null;
     }
 
@@ -52,16 +46,6 @@ public class DropdownItemBase implements DropdownItem {
 
     @Override
     public boolean isGroupHeader() {
-        return false;
-    }
-
-    @Override
-    public boolean isMultilineLabel() {
-        return false;
-    }
-
-    @Override
-    public boolean isBoldLabel() {
         return false;
     }
 
@@ -86,11 +70,6 @@ public class DropdownItemBase implements DropdownItem {
     }
 
     @Override
-    public boolean isIconAtStart() {
-        return false;
-    }
-
-    @Override
     public int getIconSizeResId() {
         return 0;
     }
@@ -101,13 +80,7 @@ public class DropdownItemBase implements DropdownItem {
     }
 
     @Override
-    public GURL getCustomIconUrl() {
-        return null;
-    }
-
-    @Override
-    @Nullable
-    public Drawable getIconDrawable() {
+    public @Nullable GURL getCustomIconUrl() {
         return null;
     }
 }

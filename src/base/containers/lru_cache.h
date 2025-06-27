@@ -19,6 +19,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <concepts>
 #include <functional>
 #include <list>
 #include <map>
@@ -114,11 +115,8 @@ class LRUCacheBase {
   // Inserts an item into the list. If an existing item has the same key, it is
   // removed prior to insertion. An iterator indicating the inserted item will
   // be returned (this will always be the front of the list).
-  template <
-      class K,
-      class V,
-      class MapKeyGetter = GetKeyFromKVPair,
-      class = std::enable_if_t<std::is_same_v<MapKeyGetter, GetKeyFromValue>>>
+  template <class K, class V>
+    requires(std::same_as<GetKeyFromValue, GetKeyFromKVPair>)
   iterator Put(K&& key, V&& value) {
     return Put(value_type{std::forward<K>(key), std::forward<V>(value)});
   }
@@ -128,8 +126,9 @@ class LRUCacheBase {
   // recency list.
   iterator Get(const key_type& key) {
     typename KeyIndex::iterator index_iter = index_.find(key);
-    if (index_iter == index_.end())
+    if (index_iter == index_.end()) {
       return end();
+    }
     typename ValueList::iterator iter = index_iter->second;
 
     // Move the touched item to the front of the recency ordering.
@@ -141,15 +140,17 @@ class LRUCacheBase {
   // result without affecting the ordering (unlike Get()).
   iterator Peek(const key_type& key) {
     typename KeyIndex::const_iterator index_iter = index_.find(key);
-    if (index_iter == index_.end())
+    if (index_iter == index_.end()) {
       return end();
+    }
     return index_iter->second;
   }
 
   const_iterator Peek(const key_type& key) const {
     typename KeyIndex::const_iterator index_iter = index_.find(key);
-    if (index_iter == index_.end())
+    if (index_iter == index_.end()) {
       return end();
+    }
     return index_iter->second;
   }
 
@@ -162,6 +163,9 @@ class LRUCacheBase {
 
   // Erases the item referenced by the given iterator. An iterator to the item
   // following it will be returned. The iterator must be valid.
+  // Note that caller should avoid using std::remove_if() with this container as
+  // the iterator from begin()/end() is not designed to have the key modified,
+  // see comment on begin().
   iterator Erase(iterator pos) {
     index_.erase(GetKeyFromValue()(*pos));
     return ordering_.erase(pos);
@@ -179,8 +183,9 @@ class LRUCacheBase {
   // Shrinks the cache so it only holds |new_size| items. If |new_size| is
   // bigger or equal to the current number of items, this will do nothing.
   void ShrinkToSize(size_type new_size) {
-    for (size_type i = size(); i > new_size; i--)
+    for (size_type i = size(); i > new_size; i--) {
       Erase(rbegin());
+    }
   }
 
   // Deletes everything from the cache.
@@ -203,6 +208,10 @@ class LRUCacheBase {
   // Note that since these iterators are actually iterators over a list, you
   // can keep them as you insert or delete things (as long as you don't delete
   // the one you are pointing to) and they will still be valid.
+  // Also, caller should avoid moving the order of items around, or any
+  // operation that modifies the key in the value with these iterators, such as
+  // using std::remove_if(). This is because the key in index_ is not updated
+  // and the container will be corrupted.
   iterator begin() { return ordering_.begin(); }
   const_iterator begin() const { return ordering_.begin(); }
   iterator end() { return ordering_.end(); }
@@ -212,6 +221,22 @@ class LRUCacheBase {
   const_reverse_iterator rbegin() const { return ordering_.rbegin(); }
   reverse_iterator rend() { return ordering_.rend(); }
   const_reverse_iterator rend() const { return ordering_.rend(); }
+
+  struct IndexRange {
+    using iterator = KeyIndex::const_iterator;
+
+    IndexRange(const iterator& begin, const iterator& end)
+        : begin_(begin), end_(end) {}
+
+    iterator begin() const { return begin_; }
+    iterator end() const { return end_; }
+
+   private:
+    iterator begin_;
+    iterator end_;
+  };
+  // Allows iterating the index, which can be useful when the index is ordered.
+  IndexRange index() const { return IndexRange(index_.begin(), index_.end()); }
 
   bool empty() const { return ordering_.empty(); }
 

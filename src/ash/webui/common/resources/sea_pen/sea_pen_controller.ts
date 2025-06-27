@@ -2,20 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SeaPenImageId} from './constants.js';
-import {MantaStatusCode, SeaPenFeedbackMetadata, SeaPenProviderInterface, SeaPenQuery, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
+import {FullscreenPreviewState} from 'chrome://resources/ash/common/personalization/wallpaper_state.js';
+
+import type {SeaPenImageId} from './constants.js';
+import {QUERY} from './constants.js';
+import {isSeaPenTextInputEnabled} from './load_time_booleans.js';
+import type {SeaPenFeedbackMetadata, SeaPenProviderInterface, SeaPenQuery, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
+import {MantaStatusCode} from './sea_pen.mojom-webui.js';
 import * as seaPenAction from './sea_pen_actions.js';
 import {logSeaPenImageSet} from './sea_pen_metrics_logger.js';
-import {SeaPenStoreInterface} from './sea_pen_store.js';
+import type {SeaPenStoreInterface} from './sea_pen_store.js';
 import {isNonEmptyArray, isPersonalizationApp} from './sea_pen_utils.js';
 import {withMinimumDelay} from './transition.js';
 
 export async function selectRecentSeaPenImage(
     id: SeaPenImageId, provider: SeaPenProviderInterface,
     store: SeaPenStoreInterface): Promise<void> {
-  const originalCurrentSelected = store.data.currentSelected;
-  // Returns if the selected image is the current wallpaper.
-  if (id === originalCurrentSelected) {
+  if (id === store.data.currentSelected) {
+    // Return if the just selected image is already the current image.
     return;
   }
   // Batch these changes together to reduce polymer churn as multiple state
@@ -25,33 +29,41 @@ export async function selectRecentSeaPenImage(
   store.dispatch(seaPenAction.beginLoadSelectedRecentSeaPenImageAction());
   store.endBatchUpdate();
 
-  const {success} = await provider.selectRecentSeaPenImage(id);
+  const shouldPreview = await shouldShowFullscreenPreview(provider);
+  if (shouldPreview) {
+    provider.makeTransparent();
+    store.dispatch(seaPenAction.setSeaPenFullscreenStateAction(
+        FullscreenPreviewState.LOADING));
+  }
+  const {success} = await provider.selectRecentSeaPenImage(id, shouldPreview);
 
   store.beginBatchUpdate();
   store.dispatch(seaPenAction.endSelectRecentSeaPenImageAction(id, success));
   if (!success) {
-    console.warn('Error setting wallpaper');
-  }
-  if (store.data.loading.setImage === 0) {
-    // Mark the image as applied or revert back to the old one.
+    console.warn('Error setting image');
+    store.dispatch(seaPenAction.setSeaPenFullscreenStateAction(
+        FullscreenPreviewState.OFF));
+    // Revert back to the old one.
     store.dispatch(seaPenAction.setSelectedRecentSeaPenImageAction(
-        success ? id : originalCurrentSelected));
+        store.data.currentSelected));
   }
   store.endBatchUpdate();
 
   if (success) {
-    logSeaPenImageSet(/*source=*/ 'Recent');
+    const isTextQuery =
+        !!store.data.recentImageData[id]?.imageInfo?.query?.textQuery;
+    logSeaPenImageSet(isTextQuery, /*source=*/ 'Recent');
   }
 }
 
-export async function searchSeaPenThumbnails(
+export async function getSeaPenThumbnails(
     query: SeaPenQuery, provider: SeaPenProviderInterface,
     store: SeaPenStoreInterface): Promise<void> {
   store.dispatch(seaPenAction.beginSearchSeaPenThumbnailsAction(query));
   store.dispatch(seaPenAction.setCurrentSeaPenQueryAction(query));
-  const {images, statusCode} =
-      await withMinimumDelay(provider.searchWallpaper(query));
-  if (!isNonEmptyArray(images) || statusCode !== MantaStatusCode.kOk) {
+  const {thumbnails, statusCode} =
+      await withMinimumDelay(provider.getSeaPenThumbnails(query));
+  if (!isNonEmptyArray(thumbnails) || statusCode !== MantaStatusCode.kOk) {
     console.warn('Error generating thumbnails. Status code: ', statusCode);
   }
 
@@ -66,29 +78,40 @@ export async function searchSeaPenThumbnails(
   const templateIdParam = params.get('seaPenTemplateId');
   if (!templateIdParam ||
       (templateIdParam === query.templateQuery?.id.toString()) ||
-      (templateIdParam === 'Query' && !!query.textQuery)) {
+      (templateIdParam === QUERY && !!query.textQuery)) {
     store.dispatch(
         seaPenAction.setThumbnailResponseStatusCodeAction(statusCode));
-    store.dispatch(seaPenAction.setSeaPenThumbnailsAction(query, images));
+    store.dispatch(seaPenAction.setSeaPenThumbnailsAction(query, thumbnails));
   }
 }
 
-export async function selectSeaPenWallpaper(
+export async function selectSeaPenThumbnail(
     thumbnail: SeaPenThumbnail, provider: SeaPenProviderInterface,
     store: SeaPenStoreInterface): Promise<void> {
-  const originalCurrentSelected = store.data.currentSelected;
+  if (store.data.recentImages &&
+      store.data.recentImages.includes(thumbnail.id)) {
+    return selectRecentSeaPenImage(thumbnail.id, provider, store);
+  }
 
   let promise: ReturnType<SeaPenProviderInterface['selectSeaPenThumbnail']>;
+
+  store.dispatch(seaPenAction.beginSelectSeaPenThumbnailAction(thumbnail));
+
+  const shouldPreview = await shouldShowFullscreenPreview(provider);
+  if (shouldPreview) {
+    provider.makeTransparent();
+    store.dispatch(seaPenAction.setSeaPenFullscreenStateAction(
+        FullscreenPreviewState.LOADING));
+  }
   if (isPersonalizationApp()) {
-    promise = withMinimumDelay(provider.selectSeaPenThumbnail(thumbnail.id));
+    promise = withMinimumDelay(
+        provider.selectSeaPenThumbnail(thumbnail.id, shouldPreview));
   } else {
     // VC Background should not start the visual loading state immediately. The
     // async request will resolve very quickly.
     store.beginBatchUpdate();
-    promise = provider.selectSeaPenThumbnail(thumbnail.id);
+    promise = provider.selectSeaPenThumbnail(thumbnail.id, shouldPreview);
   }
-
-  store.dispatch(seaPenAction.beginSelectSeaPenThumbnailAction(thumbnail));
 
   const {success} = await promise;
 
@@ -96,27 +119,28 @@ export async function selectSeaPenWallpaper(
   store.dispatch(
       seaPenAction.endSelectSeaPenThumbnailAction(thumbnail, success));
 
-  if (store.data.loading.setImage === 0) {
-    // If the user has not already clicked on another thumbnail, treat this
-    // thumbnail as set.
-    // TODO(b/321252838) improve this with an async observer for VC Background.
+  if (!success) {
+    store.dispatch(seaPenAction.setSeaPenFullscreenStateAction(
+        FullscreenPreviewState.OFF));
+    // Revert back to the original one.
     store.dispatch(seaPenAction.setSelectedRecentSeaPenImageAction(
-        success ? thumbnail.id : originalCurrentSelected));
+        store.data.currentSelected));
   }
   store.endBatchUpdate();
-  // Re-fetches the recent Sea Pen image if setting sea pen wallpaper
+  // Re-fetches the recent SeaPen image if setting SeaPen thumbnail
   // successfully, which means the file has been downloaded successfully.
   if (success) {
-    logSeaPenImageSet(/*source=*/ 'Create');
+    const isTextQuery = !!store.data.currentSeaPenQuery?.textQuery;
+    logSeaPenImageSet(isTextQuery, /*source=*/ 'Create');
     await fetchRecentSeaPenData(provider, store);
   }
 }
 
-export async function clearSeaPenThumbnails(store: SeaPenStoreInterface) {
+export function clearSeaPenThumbnails(store: SeaPenStoreInterface) {
   store.dispatch(seaPenAction.clearSeaPenThumbnailsAction());
 }
 
-export async function cleanUpSwitchingTemplate(store: SeaPenStoreInterface) {
+export function cleanUpSeaPenQueryStates(store: SeaPenStoreInterface) {
   store.beginBatchUpdate();
   store.dispatch(seaPenAction.setThumbnailResponseStatusCodeAction(null));
   store.dispatch(seaPenAction.clearCurrentSeaPenQueryAction());
@@ -135,12 +159,12 @@ export async function deleteRecentSeaPenImage(
   }
 }
 
-export async function getRecentSeaPenImages(
+export async function getRecentSeaPenImageIds(
     provider: SeaPenProviderInterface,
     store: SeaPenStoreInterface): Promise<void> {
   store.dispatch(seaPenAction.beginLoadRecentSeaPenImagesAction());
 
-  const {ids} = await provider.getRecentSeaPenImages();
+  const {ids} = await provider.getRecentSeaPenImageIds();
   if (ids == null) {
     console.warn('Failed to fetch recent sea pen images');
   }
@@ -157,7 +181,7 @@ export async function fetchRecentSeaPenData(
     store: SeaPenStoreInterface): Promise<void> {
   // Do not restart loading local image list if a load is already in progress.
   if (!store.data.loading.recentImages) {
-    await getRecentSeaPenImages(provider, store);
+    await getRecentSeaPenImageIds(provider, store);
   }
   await getMissingRecentSeaPenImageData(provider, store);
 }
@@ -238,4 +262,44 @@ export async function closeSeaPenIntroductionDialog(
   // Dispatch action to set the should show dialog boolean.
   store.dispatch(
       seaPenAction.setShouldShowSeaPenIntroductionDialogAction(false));
+}
+
+export async function getShouldShowSeaPenFreeformIntroductionDialog(
+    provider: SeaPenProviderInterface,
+    store: SeaPenStoreInterface): Promise<void> {
+  const {shouldShowFreeformDialog} =
+      await provider.shouldShowSeaPenFreeformIntroductionDialog();
+
+  // Dispatch action to set the should show dialog boolean.
+  store.dispatch(
+      seaPenAction.setShouldShowSeaPenFreeformIntroductionDialogAction(
+          shouldShowFreeformDialog));
+}
+
+export async function closeSeaPenFreeformIntroductionDialog(
+    provider: SeaPenProviderInterface,
+    store: SeaPenStoreInterface): Promise<void> {
+  if (!store.data.shouldShowSeaPenFreeformIntroductionDialog) {
+    // Do nothing if the introduction dialog is already closed;
+    return;
+  }
+
+  await provider.handleSeaPenFreeformIntroductionDialogClosed();
+
+  // Dispatch action to set the should show dialog boolean.
+  store.dispatch(
+      seaPenAction.setShouldShowSeaPenFreeformIntroductionDialogAction(false));
+}
+
+/**
+ * Check whether to show fullscreen preview while selecting a SeaPen image
+ * as wallpaper.
+ */
+async function shouldShowFullscreenPreview(provider: SeaPenProviderInterface):
+    Promise<boolean> {
+  if (!isPersonalizationApp() || !isSeaPenTextInputEnabled()) {
+    return false;
+  }
+  const {tabletMode} = await provider.isInTabletMode();
+  return tabletMode;
 }

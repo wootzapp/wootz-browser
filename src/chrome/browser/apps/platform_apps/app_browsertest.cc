@@ -16,12 +16,10 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
@@ -76,15 +74,15 @@
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/login/test/local_state_mixin.h"
-#include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "chromeos/components/kiosk/kiosk_test_utils.h"  // nogncheck
+#include "chrome/browser/ash/test/kiosk_app_logged_in_browser_test_mixin.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
-#include "components/user_manager/scoped_user_manager.h"
+#include "components/user_manager/user_manager.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+#include "chrome/browser/printing/test_print_preview_observer.h"
 #include "chrome/browser/ui/webui/print_preview/print_preview_ui.h"
 #endif
 
@@ -97,7 +95,6 @@ namespace extensions {
 
 namespace {
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 bool ExpectChromeAppsDefaultEnabled() {
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   return false;
@@ -105,7 +102,6 @@ bool ExpectChromeAppsDefaultEnabled() {
   return true;
 #endif
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // Non-abstract RenderViewContextMenu class.
 class PlatformAppContextMenu : public RenderViewContextMenu {
@@ -123,16 +119,15 @@ class PlatformAppContextMenu : public RenderViewContextMenu {
 
 // This class keeps track of tabs as they are added to the browser. It will be
 // "done" (i.e. won't block on Wait()) once |observations| tabs have been added.
-class TabsAddedNotificationObserver : public TabStripModelObserver {
+class TabsAddedObserver : public TabStripModelObserver {
  public:
-  TabsAddedNotificationObserver(Browser* browser, size_t observations)
+  TabsAddedObserver(Browser* browser, size_t observations)
       : observations_(observations) {
     browser->tab_strip_model()->AddObserver(this);
   }
-  TabsAddedNotificationObserver(const TabsAddedNotificationObserver&) = delete;
-  TabsAddedNotificationObserver& operator=(
-      const TabsAddedNotificationObserver&) = delete;
-  ~TabsAddedNotificationObserver() override = default;
+  TabsAddedObserver(const TabsAddedObserver&) = delete;
+  TabsAddedObserver& operator=(const TabsAddedObserver&) = delete;
+  ~TabsAddedObserver() override = default;
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
@@ -161,55 +156,7 @@ class TabsAddedNotificationObserver : public TabStripModelObserver {
   std::vector<raw_ptr<content::WebContents, VectorExperimental>> observed_tabs_;
 };
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-class ScopedPreviewTestDelegate : printing::PrintPreviewUI::TestDelegate {
- public:
-  ScopedPreviewTestDelegate() {
-    printing::PrintPreviewUI::SetDelegateForTesting(this);
-  }
-
-  ~ScopedPreviewTestDelegate() override {
-    printing::PrintPreviewUI::SetDelegateForTesting(nullptr);
-  }
-
-  // PrintPreviewUI::TestDelegate implementation.
-  void DidGetPreviewPageCount(uint32_t page_count) override {
-    total_page_count_ = page_count;
-  }
-
-  // PrintPreviewUI::TestDelegate implementation.
-  void DidRenderPreviewPage(content::WebContents* preview_dialog) override {
-    dialog_size_ = preview_dialog->GetContainerBounds().size();
-    ++rendered_page_count_;
-    CHECK(rendered_page_count_ <= total_page_count_);
-    if (rendered_page_count_ == total_page_count_ && run_loop_) {
-      run_loop_->Quit();
-    }
-  }
-
-  void WaitUntilPreviewIsReady() {
-    if (rendered_page_count_ >= total_page_count_)
-      return;
-
-    base::RunLoop run_loop;
-    base::AutoReset<base::RunLoop*> auto_reset(&run_loop_, &run_loop);
-    run_loop.Run();
-  }
-
-  gfx::Size dialog_size() { return dialog_size_; }
-
- private:
-  uint32_t total_page_count_ = 1;
-  uint32_t rendered_page_count_ = 0;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION base::RunLoop* run_loop_ = nullptr;
-  gfx::Size dialog_size_;
-};
-
-#endif  // ENABLE_PRINT_PREVIEW
-
-#if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_WIN)
+#if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_WIN)
 bool CopyTestDataAndGetTestFilePath(const base::FilePath& test_data_file,
                                     const base::FilePath& temp_dir,
                                     const char* filename,
@@ -222,7 +169,7 @@ bool CopyTestDataAndGetTestFilePath(const base::FilePath& test_data_file,
   *file_path = path;
   return true;
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_WIN)
+#endif  // !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_WIN)
 
 class PlatformAppWithFileBrowserTest : public PlatformAppBrowserTest {
  public:
@@ -317,8 +264,8 @@ class PlatformAppWithFileBrowserTest : public PlatformAppBrowserTest {
   base::AutoReset<bool> enable_chrome_apps_;
 };
 
-const char kChromiumURL[] = "http://chromium.org";
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+const char kChromiumURL[] = "https://chromium.org";
+#if !BUILDFLAG(IS_CHROMEOS)
 const char kTestFilePath[] = "platform_apps/launch_files/test.txt";
 #endif
 
@@ -501,7 +448,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, AppWithContextMenuClicked) {
 
 // https://crbug.com/1155013
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, DISABLED_DisallowNavigation) {
-  TabsAddedNotificationObserver observer(browser(), 1);
+  TabsAddedObserver observer(browser(), 1);
 
   ASSERT_TRUE(StartEmbeddedTestServer());
   ASSERT_TRUE(RunExtensionTest("platform_apps/navigation",
@@ -518,7 +465,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest,
   // The test will try to open in app urls and external urls via clicking links
   // and window.open(). Only the external urls should succeed in opening tabs.
   const size_t kExpectedNumberOfTabs = 2u;
-  TabsAddedNotificationObserver observer(browser(), kExpectedNumberOfTabs);
+  TabsAddedObserver observer(browser(), kExpectedNumberOfTabs);
   ASSERT_TRUE(RunExtensionTest("platform_apps/background_page_navigation",
                                {.launch_as_platform_app = true}))
       << message_;
@@ -651,15 +598,13 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MAYBE_ExtensionWindowingApis) {
 
 // ChromeOS does not support passing arguments on the command line, so the tests
 // that rely on this functionality are disabled.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
+#if !BUILDFLAG(IS_CHROMEOS)
 // Tests that launch data is sent through if the file extension matches.
 IN_PROC_BROWSER_TEST_F(PlatformAppWithFileBrowserTest,
                        LaunchFilesWithFileExtension) {
   RunPlatformAppTestWithFiles("platform_apps/launch_file_by_extension",
                               kTestFilePath);
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // Tests that command line parameters get passed through to platform apps
 // via launchData correctly when launching with a file.
@@ -746,7 +691,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppWithFileBrowserTest,
       "platform_apps/launch_file_with_any_extension", test_file))
       << message_;
 }
-#endif  //  !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  //  !BUILDFLAG(IS_WIN)
 
 // Tests that launch data is sent through for a file with no extension if a
 // handler accepts *.
@@ -863,7 +808,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppWithFileBrowserTest, LaunchNewFile) {
       << message_;
 }
 
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, OpenLink) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -881,8 +826,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MutationEventsDisabled) {
 
 // This appears to be unreliable.
 // TODO(stevenjb): Investigate and enable
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) || \
-    BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #define MAYBE_AppWindowRestoreState DISABLED_AppWindowRestoreState
 #else
 #define MAYBE_AppWindowRestoreState AppWindowRestoreState
@@ -1082,10 +1026,6 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest,
   ASSERT_TRUE(launched_listener2.WaitUntilSatisfied());
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-// TODO(crbug.com/40211465): Run these tests on Chrome OS with both Ash and
-// Lacros processes active.
-
 class PlatformAppChromeAppsDeprecationTest
     : public PlatformAppBrowserTest,
       public ::testing::WithParamInterface<bool> {
@@ -1126,8 +1066,6 @@ INSTANTIATE_TEST_SUITE_P(
     /* no prefix */,
     PlatformAppChromeAppsDeprecationTest,
     ::testing::Values(true, false));
-
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 namespace {
 
@@ -1314,27 +1252,27 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, DISABLED_WebContentsHasFocus) {
 
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest,
                        WindowDotPrintShouldBringUpPrintPreview) {
-  ScopedPreviewTestDelegate preview_delegate;
+  printing::TestPrintPreviewObserver print_observer(/*wait_for_loaded=*/false);
   ASSERT_TRUE(RunExtensionTest("platform_apps/print_api",
                                {.launch_as_platform_app = true}))
       << message_;
-  preview_delegate.WaitUntilPreviewIsReady();
+  print_observer.WaitUntilPreviewIsReady();
 }
 
 // This test verifies that http://crbug.com/297179 is fixed.
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest,
                        DISABLED_ClosingWindowWhilePrintingShouldNotCrash) {
-  ScopedPreviewTestDelegate preview_delegate;
+  printing::TestPrintPreviewObserver print_observer(/*wait_for_loaded=*/false);
   ASSERT_TRUE(RunExtensionTest("platform_apps/print_api",
                                {.launch_as_platform_app = true}))
       << message_;
-  preview_delegate.WaitUntilPreviewIsReady();
+  print_observer.WaitUntilPreviewIsReady();
   GetFirstAppWindow()->GetBaseWindow()->Close();
 }
 
 #endif  // ENABLE_PRINT_PREVIEW
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 
 class PlatformAppIncognitoBrowserTest : public PlatformAppBrowserTest,
                                         public AppWindowRegistry::Observer {
@@ -1360,15 +1298,9 @@ class PlatformAppIncognitoBrowserTest : public PlatformAppBrowserTest,
   std::set<std::string> opener_app_ids_;
 };
 
-// Seen to fail repeatedly on CrOS; crbug.com/774011.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-#define MAYBE_IncognitoComponentApp IncognitoComponentApp
-#else
-#define MAYBE_IncognitoComponentApp DISABLED_IncognitoComponentApp
-#endif
-
+// Seen to fail repeatedly; crbug.com/774011.
 IN_PROC_BROWSER_TEST_F(PlatformAppIncognitoBrowserTest,
-                       MAYBE_IncognitoComponentApp) {
+                       DISABLED_IncognitoComponentApp) {
   // Get the file manager app.
   const Extension* file_manager =
       extension_registry()->enabled_extensions().GetByID(
@@ -1405,6 +1337,8 @@ IN_PROC_BROWSER_TEST_F(PlatformAppIncognitoBrowserTest,
 class RestartKioskDeviceTest : public PlatformAppBrowserTest,
                                public ash::LocalStateMixin::Delegate {
  public:
+  RestartKioskDeviceTest() { set_chromeos_user_ = false; }
+
   void SetUpLocalState() override {
     // Until EnterKioskSession is called, the setup and the test run in a
     // regular user session. Marking another user as the owner prevents the
@@ -1414,9 +1348,6 @@ class RestartKioskDeviceTest : public PlatformAppBrowserTest,
   }
 
   void SetUpOnMainThread() override {
-    user_manager_.Reset(std::make_unique<ash::FakeChromeUserManager>());
-    chromeos::SetUpFakeKioskSession();
-
     PlatformAppBrowserTest::SetUpOnMainThread();
     // Disable "faked" shutdown of Chrome if the OS was supposed to restart.
     // The fakes this test injects would cause it to crash.
@@ -1426,11 +1357,6 @@ class RestartKioskDeviceTest : public PlatformAppBrowserTest,
     fake_power_manager_client->set_restart_callback(base::DoNothing());
   }
 
-  void TearDownOnMainThread() override {
-    PlatformAppBrowserTest::TearDownOnMainThread();
-    user_manager_.Reset();
-  }
-
  protected:
   static int num_request_restart_calls() {
     return chromeos::FakePowerManagerClient::Get()->num_request_restart_calls();
@@ -1438,8 +1364,8 @@ class RestartKioskDeviceTest : public PlatformAppBrowserTest,
 
  private:
   ash::LocalStateMixin local_state_mixin_{&mixin_host_, this};
-  user_manager::TypedScopedUserManager<ash::FakeChromeUserManager>
-      user_manager_;
+  ash::KioskAppLoggedInBrowserTestMixin login_mixin_{&mixin_host_,
+                                                     "kiosk-app-account"};
 };
 
 // Tests that chrome.runtime.restart would request device restart in
@@ -1460,7 +1386,7 @@ IN_PROC_BROWSER_TEST_F(RestartKioskDeviceTest, Restart) {
   EXPECT_EQ(1, num_request_restart_calls());
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Test that when an application is uninstalled and re-install it does not have
 // access to the previously set data.

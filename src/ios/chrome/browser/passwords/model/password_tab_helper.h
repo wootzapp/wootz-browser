@@ -15,6 +15,7 @@
 @protocol PasswordControllerDelegate;
 @protocol PasswordGenerationProvider;
 @protocol PasswordsUiDelegate;
+@class SharedPasswordController;
 
 namespace password_manager {
 class PasswordManager;
@@ -52,6 +53,9 @@ class PasswordTabHelper : public web::WebStateObserver,
   // PasswordController. May return nil.
   id<PasswordGenerationProvider> GetPasswordGenerationProvider();
 
+  // Returns the SharedPasswordController owned by the PasswordController.
+  SharedPasswordController* GetSharedPasswordController();
+
   // web::WebStatePolicyDecider:
   void ShouldAllowRequest(
       NSURLRequest* request,
@@ -69,8 +73,6 @@ class PasswordTabHelper : public web::WebStateObserver,
 
   // The Objective-C password controller instance.
   __strong PasswordController* controller_;
-
-  WEB_STATE_USER_DATA_KEY_DECL();
 };
 
 #endif  // IOS_CHROME_BROWSER_PASSWORDS_MODEL_PASSWORD_TAB_HELPER_H_

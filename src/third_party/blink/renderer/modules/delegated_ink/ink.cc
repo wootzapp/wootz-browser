@@ -4,12 +4,13 @@
 
 #include "third_party/blink/renderer/modules/delegated_ink/ink.h"
 
+#include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_ink_presenter_param.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/navigator.h"
 #include "third_party/blink/renderer/modules/delegated_ink/delegated_ink_trail_presenter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -28,22 +29,21 @@ Ink::Ink(Navigator& navigator) : Supplement<Navigator>(navigator) {}
 
 ScriptPromise<DelegatedInkTrailPresenter> Ink::requestPresenter(
     ScriptState* state,
-    InkPresenterParam* presenter_param,
-    ExceptionState& exception_state) {
+    InkPresenterParam* presenter_param) {
   if (!state->ContextIsValid()) {
-    exception_state.ThrowException(
-        ToExceptionCode(ESErrorType::kError),
+    V8ThrowException::ThrowError(
+        state->GetIsolate(),
         "The object is no longer associated with a window.");
-    return ScriptPromise<DelegatedInkTrailPresenter>();
+    return EmptyPromise();
   }
 
   if (presenter_param->presentationArea() &&
       (presenter_param->presentationArea()->GetDocument() !=
        GetSupplementable()->DomWindow()->GetFrame()->GetDocument())) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
+    V8ThrowDOMException::Throw(
+        state->GetIsolate(), DOMExceptionCode::kNotAllowedError,
         "Presentation area element does not belong to the document.");
-    return ScriptPromise<DelegatedInkTrailPresenter>();
+    return EmptyPromise();
   }
 
   return ToResolvedPromise<DelegatedInkTrailPresenter>(

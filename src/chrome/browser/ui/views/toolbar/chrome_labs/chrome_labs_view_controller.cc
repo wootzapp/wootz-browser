@@ -16,7 +16,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/about_flags.h"
 #include "chrome/browser/flag_descriptions.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -24,17 +23,20 @@
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_model.h"
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_bubble_view.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_item_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/buildflags.h"
-#include "components/flags_ui/feature_entry.h"
-#include "components/flags_ui/flags_state.h"
-#include "components/flags_ui/flags_storage.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/user_education/common/new_badge/new_badge_controller.h"
+#include "components/webui/flags/feature_entry.h"
+#include "components/webui/flags/flags_state.h"
+#include "components/webui/flags/flags_storage.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/settings/about_flags.h"
 #include "chrome/browser/profiles/profile.h"
 #else
@@ -80,10 +82,11 @@ void EmitToHistogram(const std::u16string& selected_lab_state,
   };
 
   const auto get_enum = [](const std::string& internal_name) {
-    if (internal_name == flag_descriptions::kScrollableTabStripFlagId)
+    if (internal_name == flag_descriptions::kScrollableTabStripFlagId) {
       return ChromeLabsSelectedLab::kTabScrollingSelected;
+    }
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP) && \
-    (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS_ASH))
+    (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS))
     if (internal_name == flag_descriptions::kWebUITabStripFlagId)
       return ChromeLabsSelectedLab::kWebUITabStripSelected;
 #endif
@@ -92,8 +95,9 @@ void EmitToHistogram(const std::u16string& selected_lab_state,
   };
 
   const std::string histogram_name = get_histogram_name(selected_lab_state);
-  if (!histogram_name.empty())
+  if (!histogram_name.empty()) {
     base::UmaHistogramEnumeration(histogram_name, get_enum(internal_name));
+  }
 }
 
 // Returns the number of days since epoch (1970-01-01) in the local timezone.
@@ -127,8 +131,9 @@ int ChromeLabsViewController::GetIndexOfEnabledLabState(
   flags_state->GetSanitizedEnabledFlags(flags_storage, &enabled_entries);
   for (int i = 0; i < entry->NumOptions(); i++) {
     const std::string name = entry->NameForOption(i);
-    if (base::Contains(enabled_entries, name))
+    if (base::Contains(enabled_entries, name)) {
       return i;
+    }
   }
   return 0;
 }
@@ -167,15 +172,14 @@ void ChromeLabsViewController::ParseModelDataAndAddLabs() {
               },
               chrome_labs_bubble_view_.get(), lab.internal_name,
               flags_storage_));
-      if (ShouldLabShowNewBadge(browser_->profile(), lab)) {
-        lab_item->ShowNewBadge();
-      }
+      lab_item->SetShowNewBadge(
+          ShouldLabShowNewBadge(browser_->profile(), lab));
     }
   }
 }
 
 void ChromeLabsViewController::RestartToApplyFlags() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // On Chrome OS be less intrusive and restart inside the user session after
   // we apply the newly selected flags.
   VLOG(1) << "Restarting to apply per-session flags...";
@@ -198,14 +202,15 @@ void ChromeLabsViewController::SetRestartCallback() {
                           base::Unretained(this)));
 }
 
-bool ChromeLabsViewController::ShouldLabShowNewBadge(Profile* profile,
-                                                     const LabInfo& lab) {
+user_education::DisplayNewBadge ChromeLabsViewController::ShouldLabShowNewBadge(
+    Profile* profile,
+    const LabInfo& lab) {
   // This experiment was added before adding the new badge and is not new.
   if (lab.internal_name == flag_descriptions::kScrollableTabStripFlagId) {
-    return false;
+    return user_education::DisplayNewBadge();
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ScopedDictPrefUpdate update(
       profile->GetPrefs(), chrome_labs_prefs::kChromeLabsNewBadgeDictAshChrome);
 #else
@@ -223,12 +228,15 @@ bool ChromeLabsViewController::ShouldLabShowNewBadge(Profile* profile,
     // experiment in Chrome Labs and will be used to determine whether or not to
     // show the new badge.
     new_badge_prefs.Set(lab.internal_name, static_cast<int>(current_day));
-    return true;
+    return user_education::DisplayNewBadge(
+        base::PassKey<ChromeLabsViewController>(), true);
   }
   int days_elapsed = current_day - *start_day;
   // Show the new badge for 7 days. If the users sets the clock such that the
   // current day is now before |start_day| don’t show the new badge.
-  return days_elapsed >= 0 && days_elapsed < 7;
+  return user_education::DisplayNewBadge(
+      base::PassKey<ChromeLabsViewController>(),
+      days_elapsed >= 0 && days_elapsed < 7);
 }
 
 void ChromeLabsViewController::RestartToApplyFlagsForTesting() {

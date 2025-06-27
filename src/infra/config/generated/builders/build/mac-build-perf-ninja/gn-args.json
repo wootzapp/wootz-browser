@@ -11,7 +11,10 @@
     "proprietary_codecs": true,
     "symbol_level": 0,
     "target_cpu": "x64",
+    "target_os": "mac",
     "use_clang_coverage": true,
-    "use_remoteexec": true
+    "use_reclient": true,
+    "use_remoteexec": true,
+    "use_siso": false
   }
 }

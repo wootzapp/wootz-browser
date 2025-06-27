@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.customtabs.features.minimizedcustomtab;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isCompletelyDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
@@ -15,6 +16,7 @@ import static org.junit.Assert.assertNotNull;
 
 import static org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.CustomTabMinimizationManager.ASPECT_RATIO;
 
+import android.app.Activity;
 import android.graphics.Bitmap;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,23 +26,28 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.core.graphics.drawable.RoundedBitmapDrawable;
+import androidx.test.espresso.matcher.ViewMatchers.Visibility;
 import androidx.test.filters.SmallTest;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** On-device unit tests for {@link MinimizedCardViewBinder}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.UNIT_TESTS)
-public class MinimizedCardViewBinderTest extends BlankUiTestActivityTestCase {
+public class MinimizedCardViewBinderTest {
     private static final int HEIGHT_DP = 90;
     private static final String SHORT_TITLE = "Google";
     private static final String LONG_TITLE =
@@ -49,26 +56,35 @@ public class MinimizedCardViewBinderTest extends BlankUiTestActivityTestCase {
     private static final String LONG_URL =
             "subdomain.longlonglonglonglonglonglonglong.awebsitewithalongurl.com";
 
+    @ClassRule
+    public static final BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+
+    private static Activity sActivity;
+
     private View mView;
     private PropertyModel mModel;
     private TextView mTitle;
     private TextView mUrl;
     private ImageView mFavicon;
 
-    @Override
-    public void setUpTest() throws Exception {
-        super.setUpTest();
+    @BeforeClass
+    public static void setupSuite() {
+        sActivity = sActivityTestRule.launchActivity(null);
+    }
 
-        TestThreadUtils.runOnUiThreadBlocking(
+    @Before
+    public void setUp() throws Exception {
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    float density = getActivity().getResources().getDisplayMetrics().density;
+                    float density = sActivity.getResources().getDisplayMetrics().density;
                     int height = Math.round(HEIGHT_DP * density);
                     int width = Math.round(ASPECT_RATIO.floatValue() * height);
                     var layoutParams = new FrameLayout.LayoutParams(width, height);
-                    ViewGroup content = new FrameLayout(getActivity());
-                    getActivity().setContentView(content, layoutParams);
+                    ViewGroup content = new FrameLayout(sActivity);
+                    sActivity.setContentView(content, layoutParams);
                     mView =
-                            LayoutInflater.from(getActivity())
+                            LayoutInflater.from(sActivity)
                                     .inflate(R.layout.custom_tabs_minimized_card, content, true);
                     mModel =
                             new PropertyModel.Builder(MinimizedCardProperties.ALL_KEYS)
@@ -88,7 +104,7 @@ public class MinimizedCardViewBinderTest extends BlankUiTestActivityTestCase {
     @SmallTest
     public void testTitleUrlFavicon() {
         var favicon = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(MinimizedCardProperties.TITLE, SHORT_TITLE);
                     mModel.set(MinimizedCardProperties.URL, SHORT_URL);
@@ -105,7 +121,7 @@ public class MinimizedCardViewBinderTest extends BlankUiTestActivityTestCase {
     @SmallTest
     public void testTitleUrlFaviconLong() {
         var favicon = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(MinimizedCardProperties.TITLE, LONG_TITLE);
                     mModel.set(MinimizedCardProperties.URL, LONG_URL);
@@ -115,6 +131,23 @@ public class MinimizedCardViewBinderTest extends BlankUiTestActivityTestCase {
         onView(withId(R.id.title)).check(matches(withText(LONG_TITLE)));
         assertEquals(1, mTitle.getLineCount());
         onView(withId(R.id.url)).check(matches(withText(LONG_URL)));
+        assertEquals(1, mUrl.getLineCount());
+        onView(withId(R.id.favicon)).check(matches(isCompletelyDisplayed()));
+        assertEquals(favicon, ((RoundedBitmapDrawable) mFavicon.getDrawable()).getBitmap());
+    }
+
+    @Test
+    @SmallTest
+    public void testEmptyTitle() {
+        var favicon = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mModel.set(MinimizedCardProperties.URL, SHORT_URL);
+                    mModel.set(MinimizedCardProperties.FAVICON, favicon);
+                });
+
+        onView(withId(R.id.title)).check(matches(withEffectiveVisibility(Visibility.GONE)));
+        onView(withId(R.id.url)).check(matches(withText(SHORT_URL)));
         assertEquals(1, mUrl.getLineCount());
         onView(withId(R.id.favicon)).check(matches(isCompletelyDisplayed()));
         assertEquals(favicon, ((RoundedBitmapDrawable) mFavicon.getDrawable()).getBitmap());

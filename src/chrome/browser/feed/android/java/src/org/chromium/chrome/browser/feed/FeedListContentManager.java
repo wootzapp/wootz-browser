@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.xsurface.ListContentManager;
 import org.chromium.chrome.browser.xsurface.ListContentManagerObserver;
 import org.chromium.chrome.browser.xsurface.LoggingParameters;
 import org.chromium.ui.UiUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -141,7 +142,7 @@ public class FeedListContentManager implements ListContentManager {
             FrameLayout enclosingLayout = new FrameLayout(parent.getContext());
             FrameLayout.LayoutParams layoutParams =
                     new FrameLayout.LayoutParams(
-                            new LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.MATCH_PARENT));
+                            new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
             enclosingLayout.setLayoutParams(layoutParams);
 
             // Set the left and right paddings.
@@ -295,11 +296,12 @@ public class FeedListContentManager implements ListContentManager {
      * Replaces content in the range [index, index+count) with the content in {@code
      * newContentList}. For content that already exists in the range, it is moved rather than
      * removed and then inserted.
-     * @param index Index of first item to replace.
+     *
+     * @param rangeStart Index of first item to replace.
      * @param count Number of items to replace.
      * @param newContentList List of content to insert.
      * @return Whether content has changed. Returns false if the new content matches the replaced
-     *         content.
+     *     content.
      */
     public boolean replaceRange(int rangeStart, int count, List<FeedContent> newContentList) {
         boolean hasContentChange = false;

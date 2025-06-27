@@ -42,6 +42,7 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_constants.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/image_view.h"
@@ -112,23 +113,6 @@ VerticalDateView::VerticalDateView()
 
 VerticalDateView::~VerticalDateView() = default;
 
-void VerticalDateView::OnThemeChanged() {
-  views::View::OnThemeChanged();
-
-  // For Jelly: color ids are already set and theme change will be handled
-  // automatically.
-  if (chromeos::features::IsJellyEnabled()) {
-    return;
-  }
-
-  text_label_->SetEnabledColor(AshColorProvider::Get()->GetContentLayerColor(
-      AshColorProvider::ContentLayerType::kTextColorPrimary));
-  icon_->SetImage(gfx::CreateVectorIcon(
-      kCalendarBackgroundIcon,
-      AshColorProvider::Get()->GetContentLayerColor(
-          AshColorProvider::ContentLayerType::kIconColorPrimary)));
-}
-
 void VerticalDateView::UpdateText() {
   const base::Time time_to_show = GetTimeToShow();
   const std::u16string new_text = calendar_utils::GetDayIntOfMonth(
@@ -136,15 +120,11 @@ void VerticalDateView::UpdateText() {
   if (text_label_->GetText() == new_text)
     return;
   text_label_->SetText(new_text);
-  text_label_->SetTooltipText(base::TimeFormatFriendlyDate(time_to_show));
+  text_label_->SetCustomTooltipText(base::TimeFormatFriendlyDate(time_to_show));
 }
 
 void VerticalDateView::UpdateIconAndLabelColorId(ui::ColorId color_id) {
-  if (!chromeos::features::IsJellyEnabled()) {
-    return;
-  }
-
-  text_label_->SetEnabledColorId(color_id);
+  text_label_->SetEnabledColor(color_id);
   icon_->SetImage(
       ui::ImageModel::FromVectorIcon(kCalendarBackgroundIcon, color_id));
 }
@@ -167,6 +147,10 @@ TimeView::TimeView(ClockLayout clock_layout, ClockModel* model, Type type)
       SetupDateviews(clock_layout);
       break;
   }
+  // Set role before updating text to ensure that AccessibilityPaintChecks don't
+  // fail.
+  GetViewAccessibility().SetRole(ax::mojom::Role::kTime);
+
   UpdateTextInternal(GetTimeToShow());
 }
 
@@ -213,7 +197,7 @@ void TimeView::UpdateClockLayout(ClockLayout clock_layout) {
 void TimeView::SetTextColorId(ui::ColorId color_id,
                               bool auto_color_readability_enabled) {
   auto set_color_id = [&](views::Label* label) {
-    label->SetEnabledColorId(color_id);
+    label->SetEnabledColor(color_id);
     label->SetAutoColorReadabilityEnabled(auto_color_readability_enabled);
   };
 
@@ -271,7 +255,7 @@ void TimeView::SetTextShadowValues(const gfx::ShadowValues& shadows) {
 }
 
 void TimeView::SetDateViewColorId(ui::ColorId color_id) {
-  if (chromeos::features::IsJellyEnabled() && vertical_date_view_) {
+  if (vertical_date_view_) {
     vertical_date_view_->UpdateIconAndLabelColorId(color_id);
   }
 }
@@ -292,11 +276,6 @@ void TimeView::Refresh() {
 
 base::HourClockType TimeView::GetHourTypeForTesting() const {
   return model_->hour_clock_type();
-}
-
-void TimeView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  views::View::GetAccessibleNodeData(node_data);
-  node_data->role = ax::mojom::Role::kTime;
 }
 
 void TimeView::ChildPreferredSizeChanged(views::View* child) {
@@ -324,6 +303,13 @@ void TimeView::UpdateTimeFormat() {
   UpdateText();
 }
 
+void TimeView::SetAmPmClockType(base::AmPmClockType am_pm_clock_type) {
+  if (am_pm_clock_type_ != am_pm_clock_type) {
+    am_pm_clock_type_ = am_pm_clock_type;
+    UpdateText();
+  }
+}
+
 void TimeView::UpdateTextInternal(const base::Time& now) {
   // Just in case |now| is null, do NOT update time; otherwise, it will
   // crash icu code by calling into base::TimeFormatTimeOfDayWithHourClockType,
@@ -333,21 +319,22 @@ void TimeView::UpdateTextInternal(const base::Time& now) {
     return;
   }
   const std::u16string friendly_format_date = base::TimeFormatFriendlyDate(now);
-  SetAccessibleName(base::TimeFormatTimeOfDayWithHourClockType(
-                        now, model_->hour_clock_type(), base::kKeepAmPm) +
-                    u", " + friendly_format_date);
+  GetViewAccessibility().SetName(
+      base::TimeFormatTimeOfDayWithHourClockType(now, model_->hour_clock_type(),
+                                                 base::kKeepAmPm) +
+      u", " + friendly_format_date);
 
   switch (type_) {
     case kTime: {
       // Calculate horizontal clock layout label.
       const std::u16string current_time =
           base::TimeFormatTimeOfDayWithHourClockType(
-              now, model_->hour_clock_type(), base::kDropAmPm);
+              now, model_->hour_clock_type(), am_pm_clock_type_);
 
       const bool label_length_changed =
           horizontal_time_label_->GetText().length() != current_time.length();
       horizontal_time_label_->SetText(current_time);
-      horizontal_time_label_->SetTooltipText(friendly_format_date);
+      horizontal_time_label_->SetCustomTooltipText(friendly_format_date);
 
       // Calculate vertical clock layout labels.
       std::u16string current_hours =
@@ -371,7 +358,7 @@ void TimeView::UpdateTextInternal(const base::Time& now) {
     case kDate: {
       const std::u16string current_date = FormatDate(now);
       horizontal_date_label_->SetText(current_date);
-      horizontal_date_label_->SetTooltipText(friendly_format_date);
+      horizontal_date_label_->SetCustomTooltipText(friendly_format_date);
       vertical_date_view_->UpdateText();
     }
   }

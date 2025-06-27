@@ -6,31 +6,41 @@
  * @fileoverview Test helpers for the annotations manager.
  */
 
-import {gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
-import {NON_TEXT_NODE_NAMES}
-    from '//ios/web/annotations/resources/annotations_constants.js';
+import {NON_TEXT_NODE_NAMES} from '//ios/web/annotations/resources/annotations_constants.js';
+import {gCrWebLegacy} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 
 // Simpleton tags with no closing tags (only those used in tests).
 const NO_END_TAGS_NODE_NAMES = new Set([
-  'br'
+  'br',
 ]);
 
 /**
  * Returns count of <chrome_annotation>s.
  */
 function countAnnotations(): number {
-  let nodes = document.querySelectorAll("chrome_annotation");
+  const nodes = document.querySelectorAll('chrome_annotation');
   return nodes.length;
 }
 
 /**
  * Simulate clicking annotation at given `index`.
  */
-function clickAnnotation(index: number): boolean {
-  let nodes = document.querySelectorAll("chrome_annotation");
-  let decoration = nodes[index];
+function clickAnnotation(index: number, viewport: boolean): boolean {
+  const nodes = document.querySelectorAll('chrome_annotation');
+  const decoration = nodes[index];
   if (decoration && decoration instanceof HTMLElement) {
-    decoration.click();
+    if (viewport) {
+      const rect = decoration.getBoundingClientRect();
+      const event = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.x + 1,
+        clientY: rect.y + 1,
+      });
+      decoration.parentElement!.dispatchEvent(event);
+    } else {
+      decoration.click();
+    }
     return true;
   }
   return false;
@@ -52,16 +62,16 @@ function clickAnnotation(index: number): boolean {
         return;
       }
       const element = node as Element;
-      if (element.shadowRoot && element.shadowRoot != node) {
+      if (element.shadowRoot && element.shadowRoot !== node) {
         traverse(element.shadowRoot);
         return;
       }
 
-      let tagName = element.tagName.toLowerCase();
+      const tagName = element.tagName.toLowerCase();
       parts.push('<' + tagName + '>');
       length += tagName.length + 2;
       if (node.hasChildNodes()) {
-        for (let child of node.childNodes) {
+        for (const child of node.childNodes) {
           traverse(child);
         }
       }
@@ -80,7 +90,7 @@ function clickAnnotation(index: number): boolean {
   return ''.concat(...parts);
 }
 
-gCrWeb.annotationsTest = {
+gCrWebLegacy.annotationsTest = {
   getPageTaggedText,
   countAnnotations,
   clickAnnotation,

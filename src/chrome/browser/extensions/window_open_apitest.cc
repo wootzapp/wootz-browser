@@ -8,10 +8,10 @@
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+#include "chrome/browser/extensions/browsertest_util.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
@@ -39,18 +39,13 @@
 #include "ui/base/base_window.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
+#include "ash/wm/window_pin_util.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/extensions/window_controller.h"
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chromeos/ui/base/window_pin_type.h"
 #include "ui/aura/window.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/ui/lacros/window_properties.h"
-#else
-#include "chrome/browser/ui/chromeos/window_pin_util.h"
 #endif
 
 using content::OpenURLParams;
@@ -84,21 +79,26 @@ bool WaitForTabsPopupsApps(Browser* browser,
   const base::TimeDelta kWaitTime = base::Seconds(10);
   base::TimeTicks end_time = base::TimeTicks::Now() + kWaitTime;
   while (base::TimeTicks::Now() < end_time) {
-    if (chrome::GetBrowserCount(browser->profile()) == num_browsers &&
-        browser->tab_strip_model()->count() == num_tabs)
+    if (extensions::browsertest_util::GetWindowControllerCountInProfile(
+            browser->profile()) == num_browsers &&
+        browser->tab_strip_model()->count() == num_tabs) {
       break;
+    }
 
     content::RunAllTasksUntilIdle();
   }
 
-  EXPECT_EQ(num_browsers, chrome::GetBrowserCount(browser->profile()));
+  EXPECT_EQ(num_browsers,
+            extensions::browsertest_util::GetWindowControllerCountInProfile(
+                browser->profile()));
   EXPECT_EQ(num_tabs, browser->tab_strip_model()->count());
 
   int num_popups_seen = 0;
   int num_app_popups_seen = 0;
   for (Browser* b : *BrowserList::GetInstance()) {
-    if (b == browser)
+    if (b == browser) {
       continue;
+    }
 
     EXPECT_TRUE(b->is_type_popup() || b->is_type_app_popup());
     if (b->is_type_popup())
@@ -109,7 +109,9 @@ bool WaitForTabsPopupsApps(Browser* browser,
   EXPECT_EQ(num_popups, num_popups_seen);
   EXPECT_EQ(num_app_popups, num_app_popups_seen);
 
-  return ((num_browsers == chrome::GetBrowserCount(browser->profile())) &&
+  return ((num_browsers ==
+           extensions::browsertest_util::GetWindowControllerCountInProfile(
+               browser->profile())) &&
           (num_tabs == browser->tab_strip_model()->count()) &&
           (num_popups == num_popups_seen) &&
           (num_app_popups == num_app_popups_seen));
@@ -354,36 +356,25 @@ namespace {
 
 aura::Window* GetCurrentWindow() {
   extensions::WindowController* controller = nullptr;
-  for (extensions::WindowController* iter :
-       extensions::WindowControllerList::GetInstance()->windows()) {
-    if (iter->window()->IsActive()) {
-      controller = iter;
+  for (extensions::WindowController* window :
+       *extensions::WindowControllerList::GetInstance()) {
+    if (window->window()->IsActive()) {
+      controller = window;
       break;
     }
   }
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  if (!controller || !controller->window())
-    return nullptr;
-#else
   EXPECT_TRUE(controller);
-#endif
+
   return controller->window()->GetNativeWindow();
 }
 
 chromeos::WindowPinType GetCurrentWindowPinType() {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  chromeos::WindowPinType type =
-      GetCurrentWindow()->GetProperty(lacros::kWindowPinTypeKey);
-#else
   chromeos::WindowPinType type = GetWindowPinType(GetCurrentWindow());
-#endif
+
   return type;
 }
 
-// Disabling this test temporarily - Ash needs to be built to make this test
-// work. Will enable after this landed.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 void SetCurrentWindowPinType(chromeos::WindowPinType type) {
   if (type == chromeos::WindowPinType::kNone) {
     UnpinWindow(GetCurrentWindow());
@@ -391,13 +382,9 @@ void SetCurrentWindowPinType(chromeos::WindowPinType type) {
     PinWindow(GetCurrentWindow(), /*trusted=*/true);
   }
 }
-#endif
 
 }  // namespace
 
-// Disabling this test temporarily - Ash needs to be built to make this test
-// work. Will enable after this landed.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, OpenLockedFullscreenWindow) {
   ASSERT_TRUE(RunExtensionTest("locked_fullscreen/with_permission",
                                {.custom_arg = "openLockedFullscreenWindow"}))
@@ -407,17 +394,8 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, OpenLockedFullscreenWindow) {
   // it's in locked fullscreen mode).
   EXPECT_EQ(chromeos::WindowPinType::kTrustedPinned, GetCurrentWindowPinType());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
-// Disabled on Lacros due to flaky. crbug.com/1254453
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_UpdateWindowToLockedFullscreen \
-  DISABLED_UpdateWindowToLockedFullscreen
-#else
-#define MAYBE_UpdateWindowToLockedFullscreen UpdateWindowToLockedFullscreen
-#endif
-IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
-                       MAYBE_UpdateWindowToLockedFullscreen) {
+IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, UpdateWindowToLockedFullscreen) {
   ASSERT_TRUE(
       RunExtensionTest("locked_fullscreen/with_permission",
                        {.custom_arg = "updateWindowToLockedFullscreen"}))
@@ -427,9 +405,6 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
   EXPECT_EQ(chromeos::WindowPinType::kTrustedPinned, GetCurrentWindowPinType());
 }
 
-// Disabling this test temporarily - Ash needs to be built to make this test
-// work. Will enable after this landed.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, RemoveLockedFullscreenFromWindow) {
   // After locking the window, do a LockedFullscreenStateChanged so the
   // command_controller state catches up as well.
@@ -444,7 +419,6 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, RemoveLockedFullscreenFromWindow) {
   // Make sure the current window is removed from locked-fullscreen state.
   EXPECT_EQ(chromeos::WindowPinType::kNone, GetCurrentWindowPinType());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // Make sure that commands disabling code works in locked fullscreen mode.
 IN_PROC_BROWSER_TEST_F(WindowOpenApiTest, VerifyCommandsInLockedFullscreen) {
@@ -478,20 +452,11 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
   // Make sure no new windows get created (so only the one created by default
   // exists) since the call to chrome.windows.create fails on the javascript
   // side.
-  EXPECT_EQ(1u,
-            extensions::WindowControllerList::GetInstance()->windows().size());
+  EXPECT_EQ(1u, extensions::WindowControllerList::GetInstance()->size());
 }
 
-// Disabled on Lacros due to flaky. crbug.com/1254453
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_UpdateWindowToLockedFullscreenWithoutPermission \
-  DISABLED_UpdateWindowToLockedFullscreenWithoutPermission
-#else
-#define MAYBE_UpdateWindowToLockedFullscreenWithoutPermission \
-  UpdateWindowToLockedFullscreenWithoutPermission
-#endif
 IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
-                       MAYBE_UpdateWindowToLockedFullscreenWithoutPermission) {
+                       UpdateWindowToLockedFullscreenWithoutPermission) {
   ASSERT_TRUE(
       RunExtensionTest("locked_fullscreen/without_permission",
                        {.custom_arg = "updateWindowToLockedFullscreen"}))
@@ -502,9 +467,6 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
   EXPECT_EQ(chromeos::WindowPinType::kNone, GetCurrentWindowPinType());
 }
 
-// Disabling this test temporarily - Ash needs to be built to make this test
-// work. Will enable after this landed.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
                        RemoveLockedFullscreenFromWindowWithoutPermission) {
   SetCurrentWindowPinType(chromeos::WindowPinType::kTrustedPinned);
@@ -518,7 +480,6 @@ IN_PROC_BROWSER_TEST_F(WindowOpenApiTest,
   // The current window is still locked-fullscreen.
   EXPECT_EQ(chromeos::WindowPinType::kTrustedPinned, GetCurrentWindowPinType());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if !BUILDFLAG(IS_CHROMEOS)

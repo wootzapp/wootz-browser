@@ -4,6 +4,8 @@
 
 package org.chromium.components.autofill;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 
 import androidx.annotation.IntDef;
@@ -11,6 +13,8 @@ import androidx.annotation.IntDef;
 import org.chromium.autofill.mojom.SubmissionSource;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -22,6 +26,7 @@ import java.util.concurrent.TimeUnit;
  * and when generalizing it we did not change these names to maintain continuity when
  * analyzing the histograms.
  */
+@NullMarked
 public class AutofillProviderUMA {
     // Records whether the Autofill service is enabled or not.
     public static final String UMA_AUTOFILL_ENABLED = "Autofill.WebView.Enabled";
@@ -85,8 +90,6 @@ public class AutofillProviderUMA {
     // public static final int DEPRECATED_DOM_MUTATION_AFTER_XHR = 3;
     public static final int PROBABLY_FORM_SUBMITTED = 4;
     public static final int FORM_SUBMISSION = 5;
-    // This bucket is not recorded at the moment because it can only be recorded in relation with
-    // password manager (which doesn't exist in web view).
     public static final int DOM_MUTATION_AFTER_AUTOFILL = 6;
     public static final int SUBMISSION_SOURCE_HISTOGRAM_COUNT = 7;
 
@@ -124,7 +127,7 @@ public class AutofillProviderUMA {
         Provider.MAX_VALUE
     })
     @Retention(RetentionPolicy.SOURCE)
-    private @interface Provider {
+    public @interface Provider {
         int UNKNOWN = 0;
         int AWG = 1;
         int SAMSUNG_PASS = 2;
@@ -150,9 +153,8 @@ public class AutofillProviderUMA {
         public static final int EVENT_FIELD_CHANGED_VISIBILITY = 1 << 5;
         public static final int EVENT_FORM_SUBMITTED = 1 << 6;
         public static final int EVENT_BOTTOM_SHEET_SHOWN = 1 << 7;
-        public static final int EVENT_MAX = 1 << 8;
 
-        private Long mSuggestionTimeMillis;
+        private @Nullable Long mSuggestionTimeMillis;
 
         public void record(int event) {
             // Do not record any event until we get EVENT_VIRTUAL_STRUCTURE_PROVIDED, which makes
@@ -337,11 +339,11 @@ public class AutofillProviderUMA {
         }
     }
 
-    private SessionRecorder mRecorder;
-    private Boolean mAutofillDisabledOnSessionStart;
+    private @Nullable SessionRecorder mRecorder;
+    private @Nullable Boolean mAutofillDisabledOnSessionStart;
 
     private final boolean mIsAwGCurrentAutofillService;
-    private ServerPredictionRecorder mServerPredictionRecorder;
+    private @Nullable ServerPredictionRecorder mServerPredictionRecorder;
 
     private final @Provider int mCurrentProvider;
 
@@ -430,10 +432,18 @@ public class AutofillProviderUMA {
      *     starts.
      */
     public void onServerTypeAvailable(FormData formData, boolean afterSessionStarted) {
+        assumeNonNull(mRecorder);
         mRecorder.onServerTypeAvailable(formData, afterSessionStarted);
     }
 
-    private static @Provider int getCurrentProvider(String packageName) {
+    /**
+     * This method is mapping package names of Autofill providers to the {@link Provider} enum which
+     * is used for logging metrics.
+     *
+     * @param packageName is the package name of an Autofill provider.
+     * @return {@link Provider} enum value corresponding to the package.
+     */
+    public static @Provider int getCurrentProvider(String packageName) {
         switch (packageName) {
             case AWG_PACKAGE_NAME:
                 return Provider.AWG;

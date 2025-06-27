@@ -8,11 +8,9 @@
 #include "base/containers/to_vector.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/engagement/site_engagement_service_factory.h"
 #include "chrome/browser/file_system_access/chrome_file_system_access_permission_context.h"
@@ -27,6 +25,7 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -44,24 +43,36 @@
 #include "components/prefs/pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/site_engagement/content/site_engagement_score.h"
+#include "components/strings/grit/privacy_sandbox_strings.h"
+#include "content/public/browser/file_system_access_permission_context.h"
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_task_environment.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/device/public/cpp/test/fake_usb_device_manager.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features_generated.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/webui/webui_allowlist.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 #include "extensions/test/test_extension_dir.h"
+#include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/smart_card/smart_card_permission_context.h"
+#include "chrome/browser/smart_card/smart_card_permission_context_factory.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace site_settings {
 
@@ -83,6 +94,10 @@ constexpr ContentSettingsType kContentTypeTrackingProtection =
 
 class SiteSettingsHelperTest : public testing::Test {
  public:
+  void SetUp() override {
+    TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
+  }
+
   void VerifySetting(const base::Value::List& exceptions,
                      int index,
                      const std::string& pattern,
@@ -696,13 +711,7 @@ TEST_F(SiteSettingsHelperTest,
       ContentSettingsPattern::Wildcard(),
       ContentSettingsPattern::FromString("some-site.com"),
       kContentTypeTrackingProtection, CONTENT_SETTING_ALLOW);
-  // Add unique 3PC exception
-  map->SetContentSettingCustomScope(
-      ContentSettingsPattern::Wildcard(),
-      ContentSettingsPattern::FromString("some-site.com"), kContentTypeCookies,
-      CONTENT_SETTING_ALLOW);
-  // Add 3PC exception with the same pattern as the Tracking Protection
-  // exception. This should end up being filtered out.
+  // Add 3PC exception
   map->SetContentSettingCustomScope(
       ContentSettingsPattern::Wildcard(),
       ContentSettingsPattern::FromString("third-party-cookies.com"),
@@ -713,15 +722,15 @@ TEST_F(SiteSettingsHelperTest,
       ContentSettingsPattern::Wildcard(), kContentTypeCookies,
       CONTENT_SETTING_ALLOW);
 
-  // Check that cookies list has three exceptions.
+  // Check that cookies list has two exceptions.
   base::Value::List cookie_exceptions;
   site_settings::GetExceptionsForContentType(kContentTypeCookies, &profile,
                                              /*web_ui=*/nullptr,
                                              /*incognito=*/false,
                                              &cookie_exceptions);
-  ASSERT_EQ(3U, cookie_exceptions.size());
+  ASSERT_EQ(2U, cookie_exceptions.size());
 
-  // Check that Tracking Protection list only has two exceptions.
+  // Check that Tracking Protection list has two exceptions.
   base::Value::List tp_exceptions;
   site_settings::GetExceptionsForContentType(
       kContentTypeTrackingProtection, &profile,
@@ -753,9 +762,8 @@ TEST_F(SiteSettingsHelperTest,
           IDS_SETTINGS_THIRD_PARTY_COOKIES_ONLY_EXCEPTION_LABEL));
 }
 
-TEST_F(
-    SiteSettingsHelperTest,
-    TrackingProtectionExceptionsListIncludes3pcExceptionsWithDifferentSource) {
+TEST_F(SiteSettingsHelperTest,
+       TrackingProtectionExceptionsListIncludes3pcExceptionsWithSamePattern) {
   TestingProfile profile;
   HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForProfile(&profile);
@@ -764,16 +772,11 @@ TEST_F(
       ContentSettingsPattern::Wildcard(),
       ContentSettingsPattern::FromString("some-site.com"),
       kContentTypeTrackingProtection, CONTENT_SETTING_ALLOW);
-  // Add 3PC exception for same pattern but from enterprise source
-  auto policy_provider = std::make_unique<content_settings::MockProvider>();
-  policy_provider->SetWebsiteSetting(
+  // Add 3PC exception for same pattern
+  map->SetContentSettingCustomScope(
       ContentSettingsPattern::Wildcard(),
       ContentSettingsPattern::FromString("some-site.com"), kContentTypeCookies,
-      base::Value(CONTENT_SETTING_ALLOW), /*constraints=*/{},
-      content_settings::PartitionKey::GetDefaultForTesting());
-  policy_provider->set_read_only(true);
-  content_settings::TestUtils::OverrideProvider(map, std::move(policy_provider),
-                                                ProviderType::kPolicyProvider);
+      CONTENT_SETTING_ALLOW);
 
   // Check that Tracking Protection list has two exceptions.
   base::Value::List tp_exceptions;
@@ -951,8 +954,8 @@ TEST_F(SiteSettingsHelperTest, CreateChooserExceptionObject) {
         /*chooser_exception_details=*/exception_details,
         /*profile=*/nullptr);
     ExpectValidChooserExceptionObject(
-        exception, /*chooser_type=*/kUsbChooserGroupName,
-        /*display_name=*/kObjectName, chooser_object);
+        exception, /*expected_chooser_type=*/kUsbChooserGroupName,
+        /*expected_display_name=*/kObjectName, chooser_object);
 
     const auto& sites_list = exception.Find(kSites)->GetList();
     ExpectValidSiteExceptionObject(
@@ -1008,10 +1011,10 @@ TEST_F(SiteSettingsHelperTest, CreateChooserExceptionObject) {
         /*chooser_type=*/kUsbChooserGroupName,
         /*chooser_exception_details=*/exception_details,
         /*profile=*/nullptr);
-    ExpectValidChooserExceptionObject(exception,
-                                      /*chooser_type=*/kUsbChooserGroupName,
-                                      /*display_name=*/kObjectName,
-                                      chooser_object);
+    ExpectValidChooserExceptionObject(
+        exception,
+        /*expected_chooser_type=*/kUsbChooserGroupName,
+        /*expected_display_name=*/kObjectName, chooser_object);
 
     // The set sorts the sites by origin, but the CreateChooserExceptionObject
     // method sorts the sites further by the source. Therefore, policy granted
@@ -1046,8 +1049,8 @@ TEST_F(SiteSettingsHelperTest, ShowAutograntedRWSPermissions) {
   HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForProfile(&profile);
   content_settings::ContentSettingConstraints constraint;
-  constraint.set_session_model(
-      content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION);
+  constraint.set_session_model(content_settings::mojom::SessionModel::DURABLE);
+  constraint.set_decided_by_related_website_sets(true);
   constexpr char kToplevelURL[] = "https://firstparty.com";
   constexpr char kEmbeddedURL[] = "https://embedded.com";
   map->SetContentSettingDefaultScope(GURL(kEmbeddedURL), GURL(kToplevelURL),
@@ -1075,8 +1078,8 @@ TEST_F(SiteSettingsHelperTest, HideAutograntedRWSPermissions) {
   HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForProfile(&profile);
   content_settings::ContentSettingConstraints constraint;
-  constraint.set_session_model(
-      content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION);
+  constraint.set_session_model(content_settings::mojom::SessionModel::DURABLE);
+  constraint.set_decided_by_related_website_sets(true);
   constexpr char kToplevelURL[] = "https://firstparty.com";
   constexpr char kEmbeddedURL[] = "https://embedded.com";
   map->SetContentSettingDefaultScope(GURL(kEmbeddedURL), GURL(kToplevelURL),
@@ -1093,13 +1096,15 @@ TEST_F(SiteSettingsHelperTest, HideAutograntedRWSPermissions) {
 
 TEST_F(SiteSettingsHelperTest, AutomaticFullscreenVisibility) {
   TestingProfile profile;
+  profile.SetPermissionControllerDelegate(
+      permissions::GetPermissionControllerDelegate(&profile));
   base::test::ScopedFeatureList feature_list{
       features::kAutomaticFullscreenContentSetting};
   const ContentSettingsType type = ContentSettingsType::AUTOMATIC_FULLSCREEN;
 
   // Automatic Fullscreen is visible for non-origin-specific lists.
   auto types = GetVisiblePermissionCategories();
-  EXPECT_TRUE(base::ranges::any_of(types, [](auto& t) { return t == type; }));
+  EXPECT_TRUE(base::Contains(types, type));
 
   constexpr char kDefault[] = "https://www.default.com:443";
   constexpr char kAllowed[] = "https://www.allowed.com:443";
@@ -1112,7 +1117,7 @@ TEST_F(SiteSettingsHelperTest, AutomaticFullscreenVisibility) {
   EXPECT_EQ(SiteSettingSource::kDefault, source);
   EXPECT_EQ(CONTENT_SETTING_BLOCK, content_setting);
   types = GetVisiblePermissionCategories(kDefault, &profile);
-  EXPECT_FALSE(base::ranges::any_of(types, [](auto& t) { return t == type; }));
+  EXPECT_FALSE(base::Contains(types, type));
 
   // Simulate allowing Automatic Fullscreen through enterprise policy.
   auto policy_provider = std::make_unique<content_settings::MockProvider>();
@@ -1131,8 +1136,49 @@ TEST_F(SiteSettingsHelperTest, AutomaticFullscreenVisibility) {
   EXPECT_EQ(SiteSettingSource::kPolicy, source);
   EXPECT_EQ(CONTENT_SETTING_ALLOW, content_setting);
   types = GetVisiblePermissionCategories(kAllowed, &profile);
-  EXPECT_TRUE(base::ranges::any_of(types, [](auto& t) { return t == type; }));
+  EXPECT_TRUE(base::Contains(types, type));
 }
+
+#if BUILDFLAG(IS_CHROMEOS)
+TEST_F(SiteSettingsHelperTest, WebPrintingVisibility) {
+  TestingProfile profile;
+  profile.SetPermissionControllerDelegate(
+      permissions::GetPermissionControllerDelegate(&profile));
+  base::test::ScopedFeatureList feature_list{blink::features::kWebPrinting};
+  const ContentSettingsType type = ContentSettingsType::WEB_PRINTING;
+
+  // Web Printing is visible for non-origin-specific lists.
+  EXPECT_TRUE(base::Contains(GetVisiblePermissionCategories(), type));
+
+  constexpr char kDefault[] = "https://www.default.com:443";
+  constexpr char kAllowed[] = "https://www.allowed.com:443";
+  constexpr char kIwa[] =
+      "isolated-app://aerugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaic";
+
+  // Web Printing is not visible for sites with the default source.
+  EXPECT_FALSE(
+      base::Contains(GetVisiblePermissionCategories(kDefault, &profile), type));
+
+  // Web Printing is always visible for IWA origins.
+  EXPECT_TRUE(
+      base::Contains(GetVisiblePermissionCategories(kIwa, &profile), type));
+
+  // Simulate allowing Web Printing through enterprise policy.
+  auto policy_provider = std::make_unique<content_settings::MockProvider>();
+  policy_provider->SetWebsiteSetting(
+      ContentSettingsPattern::FromString(kAllowed),
+      ContentSettingsPattern::FromString(kAllowed), type,
+      base::Value(CONTENT_SETTING_ALLOW), /*constraints=*/{},
+      content_settings::PartitionKey::GetDefaultForTesting());
+  content_settings::TestUtils::OverrideProvider(
+      HostContentSettingsMapFactory::GetForProfile(&profile),
+      std::move(policy_provider), ProviderType::kPolicyProvider);
+
+  // Web Printing is visible for origins with non-default sources.
+  EXPECT_TRUE(
+      base::Contains(GetVisiblePermissionCategories(kAllowed, &profile), type));
+}
+#endif
 
 namespace {
 
@@ -1153,16 +1199,40 @@ constexpr char kUsbPolicySetting[] = R"(
       }
     ])";
 
+void ExpectDisplayNameEq(const base::Value& actual_exception_object,
+                         const std::string& display_name) {
+  const std::string* actual_display_name =
+      actual_exception_object.GetDict().FindString(kDisplayName);
+  ASSERT_TRUE(actual_display_name);
+  EXPECT_EQ(*actual_display_name, display_name);
+}
+
+}  // namespace
+
 class SiteSettingsHelperChooserExceptionTest : public testing::Test {
  protected:
   const GURL kGoogleUrl{"https://google.com"};
   const GURL kChromiumUrl{"https://chromium.org"};
   const GURL kAndroidUrl{"https://android.com"};
   const GURL kTestUrl{"https://test.com"};
+#if BUILDFLAG(IS_CHROMEOS)
+  const GURL kIWAUrl1{
+      "isolated-app://"
+      "anayaszofsyqapbofoli7ljxoxkp32qkothweire2o6t7xy6taz6oaacai/"};
+  const GURL kIWAUrl2{
+      "isolated-app://"
+      "ajnpiorf3kprxsslcme5f2rkwfoxx24orkkudpf6roqxssxnjx7y4aacai/"};
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   Profile* profile() { return &profile_; }
 
-  void SetUp() override { SetUpUsbChooserContext(); }
+  void SetUp() override {
+    TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
+    SetUpUsbChooserContext();
+#if BUILDFLAG(IS_CHROMEOS)
+    SetUpSmartCardPermissionContext();
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  }
 
   // Sets up the UsbChooserContext with two devices and permissions for these
   // devices. It also adds three policy defined permissions. The two devices
@@ -1204,22 +1274,80 @@ class SiteSettingsHelperChooserExceptionTest : public testing::Test {
                                std::move(*policy_value));
   }
 
+#if BUILDFLAG(IS_CHROMEOS)
+  void SetUpSmartCardPermissionContext() {
+    auto& permission_context =
+        SmartCardPermissionContextFactory::GetForProfile(*profile());
+
+    const auto kIWA1Origin = url::Origin::Create(kIWAUrl1);
+    const auto kIWA2Origin = url::Origin::Create(kIWAUrl2);
+
+    permission_context.GrantPersistentReaderPermission(kIWA1Origin, "Reader 1");
+    permission_context.GrantPersistentReaderPermission(kIWA1Origin, "Reader 2");
+    permission_context.GrantPersistentReaderPermission(kIWA2Origin, "Reader 1");
+    permission_context.FlushScheduledSaveSettingsCalls();
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
   device::FakeUsbDeviceManager device_manager_;
 
  private:
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
+#if BUILDFLAG(IS_CHROMEOS)
+  base::test::ScopedFeatureList feature_list_{blink::features::kSmartCard};
+#endif  // BUILDFLAG(IS_CHROMEOS)
 };
 
-void ExpectDisplayNameEq(const base::Value& actual_exception_object,
-                         const std::string& display_name) {
-  const std::string* actual_display_name =
-      actual_exception_object.GetDict().FindString(kDisplayName);
-  ASSERT_TRUE(actual_display_name);
-  EXPECT_EQ(*actual_display_name, display_name);
-}
+#if BUILDFLAG(IS_CHROMEOS)
+TEST_F(SiteSettingsHelperChooserExceptionTest,
+       GetSmartCardExceptionListFromProfile) {
+  const std::string kSmartCardChooserGroupName(
+      ContentSettingsTypeToGroupName(ContentSettingsType::SMART_CARD_DATA));
+  const ChooserTypeNameEntry* chooser_type =
+      ChooserTypeFromGroupName(kSmartCardChooserGroupName);
 
-}  // namespace
+  base::Value::List exceptions_list =
+      GetChooserExceptionListFromProfile(profile(), *chooser_type);
+  ASSERT_EQ(exceptions_list.size(), 2u);
+
+  {
+    const auto& exception = exceptions_list[0];
+    ExpectDisplayNameEq(exception,
+                        /*display_name=*/"Reader 1");
+
+    const auto& sites_list = *exception.GetDict().FindList(kSites);
+    ASSERT_EQ(sites_list.size(), 2u);
+    ExpectValidSiteExceptionObject(
+        sites_list[0],
+        /*display_name=*/kIWAUrl2.DeprecatedGetOriginAsURL().spec(),
+        /*origin=*/kIWAUrl2,
+        /*source=*/SiteSettingSource::kPreference,
+        /*incognito=*/false);
+    ExpectValidSiteExceptionObject(
+        sites_list[1],
+        /*display_name=*/kIWAUrl1.DeprecatedGetOriginAsURL().spec(),
+        /*origin=*/kIWAUrl1,
+        /*source=*/SiteSettingSource::kPreference,
+        /*incognito=*/false);
+  }
+
+  {
+    const auto& exception = exceptions_list[1];
+    ExpectDisplayNameEq(exception,
+                        /*display_name=*/"Reader 2");
+
+    const auto& sites_list = *exception.GetDict().FindList(kSites);
+    ASSERT_EQ(sites_list.size(), 1u);
+    ExpectValidSiteExceptionObject(
+        sites_list[0],
+        /*display_name=*/kIWAUrl1.DeprecatedGetOriginAsURL().spec(),
+        /*origin=*/kIWAUrl1,
+        /*source=*/SiteSettingSource::kPreference,
+        /*incognito=*/false);
+  }
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 TEST_F(SiteSettingsHelperChooserExceptionTest,
        GetChooserExceptionListFromProfile) {
@@ -1363,11 +1491,11 @@ TEST_F(PersistentPermissionsSiteSettingsHelperTest,
   context->SetOriginHasExtendedPermissionForTesting(kTestOrigin);
 
   auto file_write_grant = context->GetWritePermissionGrant(
-      kTestOrigin, kTestPath,
+      kTestOrigin, content::PathInfo(kTestPath),
       ChromeFileSystemAccessPermissionContext::HandleType::kFile,
       ChromeFileSystemAccessPermissionContext::UserAction::kSave);
   auto file_read_grant = context->GetWritePermissionGrant(
-      kTestOrigin, kTestPath2,
+      kTestOrigin, content::PathInfo(kTestPath2),
       ChromeFileSystemAccessPermissionContext::HandleType::kFile,
       ChromeFileSystemAccessPermissionContext::UserAction::kSave);
 
@@ -1401,6 +1529,7 @@ class SiteSettingsHelperExtensionTest
             std::make_unique<content::BrowserTaskEnvironment>()) {}
 
   void SetUp() override {
+    TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
     extensions::ExtensionServiceTestBase::SetUp();
     // The test profile is initialized in InitializeEmptyExtensionService().
     InitializeEmptyExtensionService();
@@ -1421,10 +1550,7 @@ class SiteSettingsHelperExtensionTest
   }
 
   void UnloadExtension(std::string extension_id) {
-    auto* extension_service =
-        extensions::ExtensionSystem::Get(profile())->extension_service();
-    ASSERT_TRUE(extension_service);
-    extension_service->UnloadExtension(
+    extensions::ExtensionRegistrar::Get(profile())->RemoveExtension(
         extension_id, extensions::UnloadedExtensionReason::DISABLE);
   }
 };
@@ -1524,25 +1650,29 @@ TEST_F(SiteSettingsHelperExtensionTest,
 
 class SiteSettingsHelperIsolatedWebAppTest : public testing::Test {
  protected:
-  void InstallIsolatedWebApp(const GURL& url, const std::string& name) {
+  void SetUp() override {
+    TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
     web_app::test::AwaitStartWebAppProviderAndSubsystems(&testing_profile_);
-    web_app::AddDummyIsolatedAppToRegistry(&testing_profile_, url, name);
+  }
+
+  web_app::IsolatedWebAppUrlInfo InstallIsolatedWebApp(
+      const std::string& name) {
+    const std::unique_ptr<web_app::ScopedBundledIsolatedWebApp> bundle =
+        web_app::IsolatedWebAppBuilder(web_app::ManifestBuilder().SetName(name))
+            .BuildBundle();
+    bundle->FakeInstallPageState(profile());
+    bundle->TrustSigningKey();
+    return bundle->InstallChecked(profile());
   }
 
   Profile* profile() { return &testing_profile_; }
 
-  const GURL kAppUrl{
-      "isolated-app://"
-      "berugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaic"};
   const std::string kAppName = "test IWA Name";
 
  private:
   content::BrowserTaskEnvironment task_environment_;
+  data_decoder::test::InProcessDataDecoder in_process_data_decoder_;
   TestingProfile testing_profile_;
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  web_app::test::ScopedSkipMainProfileCheck skip_main_profile_check_;
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 };
 
 TEST_F(SiteSettingsHelperIsolatedWebAppTest,
@@ -1552,16 +1682,16 @@ TEST_F(SiteSettingsHelperIsolatedWebAppTest,
   auto kPreferenceSource = SiteSettingSource::kPreference;
   const std::u16string& kObjectName = u"Gadget";
 
-  InstallIsolatedWebApp(kAppUrl, kAppName);
+  web_app::IsolatedWebAppUrlInfo app_url_info = InstallIsolatedWebApp(kAppName);
 
   // Create a chooser object for testing.
   base::Value::Dict chooser_object;
   chooser_object.Set("name", kObjectName);
 
-  // Add a user permission for an origin of |kAppUrl|.
+  // Add a user permission for an origin of `app_url_info`.
   ChooserExceptionDetails exception_details;
-  exception_details.insert({kAppUrl.DeprecatedGetOriginAsURL(),
-                            kPreferenceSource, /*incognito=*/false});
+  exception_details.insert(
+      {app_url_info.origin().GetURL(), kPreferenceSource, /*incognito=*/false});
   {
     auto exception = CreateChooserExceptionObject(
         /*display_name=*/kObjectName,
@@ -1570,14 +1700,14 @@ TEST_F(SiteSettingsHelperIsolatedWebAppTest,
         /*chooser_exception_details=*/exception_details,
         /*profile=*/profile());
     ExpectValidChooserExceptionObject(
-        exception, /*chooser_type=*/kUsbChooserGroupName,
-        /*display_name=*/kObjectName, chooser_object);
+        exception, /*expected_chooser_type=*/kUsbChooserGroupName,
+        /*expected_display_name=*/kObjectName, chooser_object);
 
     const auto& sites_list = exception.Find(kSites)->GetList();
     ExpectValidSiteExceptionObject(
         /*actual_site_object=*/sites_list[0],
         /*display_name=*/kAppName,
-        /*origin=*/kAppUrl,
+        /*origin=*/app_url_info.origin().GetURL(),
         /*source=*/kPreferenceSource,
         /*incognito=*/false);
   }
@@ -1587,17 +1717,18 @@ TEST_F(SiteSettingsHelperIsolatedWebAppTest, AutomaticFullscreenVisibility) {
   base::test::ScopedFeatureList feature_list{
       features::kAutomaticFullscreenContentSetting};
   const ContentSettingsType type = ContentSettingsType::AUTOMATIC_FULLSCREEN;
-  InstallIsolatedWebApp(kAppUrl, kAppName);
+  web_app::IsolatedWebAppUrlInfo app_url_info = InstallIsolatedWebApp(kAppName);
 
   // Automatic Fullscreen is visible for IWAs, even with default BLOCK values.
   SiteSettingSource source;
   auto* map = HostContentSettingsMapFactory::GetForProfile(profile());
-  ContentSetting content_setting =
-      GetContentSettingForOrigin(profile(), map, kAppUrl, type, &source);
+  ContentSetting content_setting = GetContentSettingForOrigin(
+      profile(), map, app_url_info.origin().GetURL(), type, &source);
   EXPECT_EQ(SiteSettingSource::kDefault, source);
   EXPECT_EQ(CONTENT_SETTING_BLOCK, content_setting);
-  const auto types = GetVisiblePermissionCategories(kAppUrl.spec(), profile());
-  EXPECT_TRUE(base::ranges::any_of(types, [](auto& t) { return t == type; }));
+  const auto types = GetVisiblePermissionCategories(
+      app_url_info.origin().GetURL().spec(), profile());
+  EXPECT_TRUE(std::ranges::any_of(types, [](auto& t) { return t == type; }));
 }
 
 }  // namespace site_settings

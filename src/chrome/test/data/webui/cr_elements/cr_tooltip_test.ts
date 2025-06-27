@@ -4,6 +4,9 @@
 
 // clang-format off
 import {html, CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+
+import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+
 import {TooltipPosition} from 'chrome://resources/cr_elements/cr_tooltip/cr_tooltip.js';
 import type {CrTooltipElement} from 'chrome://resources/cr_elements/cr_tooltip/cr_tooltip.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -33,11 +36,11 @@ suite('cr-tooltip', function() {
 
   customElements.define(TestElement.is, TestElement);
 
-  setup(async () => {
+  setup(() => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     parent = document.createElement('test-element') as TestElement;
     document.body.appendChild(parent);
-    tooltip = parent.shadowRoot!.querySelector('cr-tooltip')!;
+    tooltip = parent.shadowRoot.querySelector('cr-tooltip')!;
   });
 
   test('sets correct target', async() => {
@@ -45,8 +48,8 @@ suite('cr-tooltip', function() {
     assertEquals(parent, tooltip.target);
     tooltip.for = 'test-for';
     await microtasksFinished();
-    assertEquals(parent.shadowRoot!.querySelector('#test-for'), tooltip.target);
-    const manualDiv = parent.shadowRoot!.querySelector('#test-manual');
+    assertEquals(parent.shadowRoot.querySelector('#test-for'), tooltip.target);
+    const manualDiv = parent.shadowRoot.querySelector('#test-manual');
     assertTrue(!!manualDiv);
     tooltip.target = manualDiv;
     await microtasksFinished();
@@ -60,7 +63,7 @@ suite('cr-tooltip', function() {
     assertTrue(tooltip.$.tooltip.hidden);
 
     // Tooltip shows when show() is called and plays fade in animation.
-    const text = parent.shadowRoot!.querySelector<HTMLElement>('#tooltip-text');
+    const text = parent.shadowRoot.querySelector<HTMLElement>('#tooltip-text');
     assertTrue(!!text);
     text.textContent = 'test';
     tooltip.show();
@@ -101,14 +104,14 @@ suite('cr-tooltip', function() {
   });
 
   test('positioning', async () => {
-    const text = parent.shadowRoot!.querySelector<HTMLElement>('#tooltip-text');
+    const text = parent.shadowRoot.querySelector<HTMLElement>('#tooltip-text');
     assertTrue(!!text);
     text.textContent = 'test';
     tooltip.for = 'test-for';
     await microtasksFinished();
     tooltip.show();
 
-    const target = parent.shadowRoot!.querySelector('#test-for');
+    const target = parent.shadowRoot.querySelector('#test-for');
     assertTrue(!!target);
     const parentRect = parent.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
@@ -146,6 +149,64 @@ suite('cr-tooltip', function() {
     await microtasksFinished();
     expectedLeft = targetLeft - tooltipRect.width - 6;  // Offset 6
     expectedTop = targetTop + verticalCenterOffset;
+    assertEquals(
+        expectedLeft,
+        (tooltip.computedStyleMap().get('left') as CSSUnitValue).value);
+    assertEquals(
+        expectedTop,
+        (tooltip.computedStyleMap().get('top') as CSSUnitValue).value);
+  });
+});
+
+suite('cr-tooltip in dialog', function() {
+  let tooltip: CrTooltipElement;
+  let parent: CrLitElement;
+
+  // Test parent element.
+  class TestDialogElement extends CrLitElement {
+    static get is() {
+      return 'test-dialog-element';
+    }
+
+    override render() {
+      return html`
+        <cr-dialog show-on-attach>
+          <div slot="body">
+            <div id="test-for">Hover for tooltip</div>
+            <cr-tooltip animation-delay="0" for="test-for"
+                fit-to-visible-bounds>
+              <span id="tooltip-text">Hello from cr-dialog slot</span>
+            </cr-tooltip>
+          </div>
+        </cr-dialog>`;
+    }
+  }
+
+  customElements.define(TestDialogElement.is, TestDialogElement);
+
+  setup(async () => {
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    parent = document.createElement('test-dialog-element') as TestDialogElement;
+    document.body.appendChild(parent);
+    tooltip = parent.shadowRoot.querySelector('cr-tooltip')!;
+    await microtasksFinished();
+  });
+
+  test('positioning', () => {
+    tooltip.show();
+    const dialog = parent.shadowRoot.querySelector('cr-dialog');
+    assertTrue(!!dialog);
+    const parentRect = dialog.$.dialog.getBoundingClientRect();
+    const target = parent.shadowRoot.querySelector('#test-for');
+    assertTrue(!!target);
+    const targetRect = target.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const horizontalCenterOffset = (targetRect.width - tooltipRect.width) / 2;
+    const targetLeft = targetRect.left - parentRect.left;
+    const targetTop =
+        Math.max(targetRect.top - parentRect.top, -parentRect.top);
+    const expectedLeft = targetLeft + horizontalCenterOffset;
+    const expectedTop = targetTop + targetRect.height + 14;  // default offset
     assertEquals(
         expectedLeft,
         (tooltip.computedStyleMap().get('left') as CSSUnitValue).value);

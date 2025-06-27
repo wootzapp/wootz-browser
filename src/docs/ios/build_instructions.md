@@ -12,8 +12,12 @@ Are you a Google employee? See
 
 ## System requirements
 
+<!-- LINT.IfChange -->
+
 * A 64-bit Mac capable of running the required version of Xcode.
-* [Xcode](https://developer.apple.com/xcode) 15.0 or higher.
+* [Xcode](https://developer.apple.com/xcode) 16.0 or higher.
+
+<!-- LINT.ThenChange(//ios/build/chrome_build.gni) -->
 
 Note: after installing Xcode, you need to launch it and to let it install
 the iOS simulator. This is required as part of the build, see [this discussion](
@@ -28,13 +32,26 @@ Clone the `depot_tools` repository:
 $ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
 
-Add `depot_tools` to the end of your PATH (you will probably want to put this
-in your `~/.bashrc` or `~/.zshrc`). Assuming you cloned `depot_tools` to
-`/path/to/depot_tools`:
+You need to add the directory where you checked out `depot_tools` to your
+`PATH` to make the `gclient` commands available. It is also recommended to
+add the `depot_tools/python-bin` directory to your `PATH` to get access to
+a recent version of python3 (the version shipped by default on macOS tends
+to be quite old which can lead to build failure).
+
+To do that, edit your shell login script (e.g. `~/.bash_profile`, `~/.zprofile`)
+and add the following line at the end (assuming you've checked out `depot_tools`
+in your `HOME` directory):
 
 ```shell
-$ export PATH="$PATH:/path/to/depot_tools"
+export PATH="$HOME/depot_tools:$HOME/depot_tools/python-bin:$PATH"
 ```
+
+You may need to run `gclient status` to force an update of `depot_tools`
+before the `python3` command work once you've updated your `PATH`.
+
+You can omit `$HOME/depot_tools/python-bin` if you already have a recent
+version of python installed and you manually manage it (but this may lead
+to unexpected build failures).
 
 ## Get the code
 
@@ -83,9 +100,15 @@ as well.
 More information about [developing with Xcode](xcode_tips.md). *Xcode project
 is an artifact, any changes made in the project itself will be ignored.*
 
-You can customize the build by editing the file `$HOME/.setup-gn` (create it if
-it does not exist).  Look at `src/ios/build/tools/setup-gn.config` for
-available configuration options.
+You can customize the build by editing a file called `.setup-gn` (create it if
+it does not exist). It can be stored in two locations:
+
+* `$HOME/.setup-gn` (the settings will be applied to all Chromium checkouts).
+* The directory above `src/` (i.e. the directory containing your `.gclient`)
+  for checkout-specific settings.
+
+Look at `src/ios/build/tools/setup-gn.config` for available configuration
+options.
 
 From this point, you can either build from Xcode or from the command line using
 `autoninja`. `setup-gn.py` creates sub-directories named
@@ -251,7 +274,7 @@ be signed on the command line, e.g.:
 $ autoninja -C out/Debug-iphoneos ios_web_shell
 ninja: Entering directory `out/Debug-iphoneos'
 FAILED: ios_web_shell.app/ios_web_shell ios_web_shell.app/_CodeSignature/CodeResources ios_web_shell.app/embedded.mobileprovision
-python ../../build/config/ios/codesign.py code-sign-bundle -t=iphoneos -i=0123456789ABCDEF0123456789ABCDEF01234567 -e=../../build/config/ios/entitlements.plist -b=obj/ios/web/shell/ios_web_shell ios_web_shell.app
+python ../../build/config/apple/codesign.py code-sign-bundle -t=iphoneos -i=0123456789ABCDEF0123456789ABCDEF01234567 -e=../../build/config/ios/entitlements.plist -b=obj/ios/web/shell/ios_web_shell ios_web_shell.app
 Error: no mobile provisioning profile found for "org.chromium.ios-web-shell".
 ninja: build stopped: subcommand failed.
 ```
@@ -281,6 +304,7 @@ experimental code and should only be used for analysis.
 ```
 [gn_args]
 use_blink = true
+ios_content_shell_bundle_identifier="REPLACE_YOUR_BUNDLE_IDENTIFIER_HERE"
 ```
 Note that only certain targets support blink. `content_shell` being the
 most useful.
@@ -417,7 +441,7 @@ is open before checking out. This will increase your chances of success.
 
 ### Debugging
 
-To help with deterministic builds, and to work with Goma, the path to source
+To help with deterministic builds, and to work with reclient, the path to source
 files in debugging symbols are relative to source directory. To allow Xcode
 to find the source files, you need to ensure to have an `~/.lldbinit-Xcode`
 file with the following lines into it (substitute {SRC} for your actual path

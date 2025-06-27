@@ -3,11 +3,12 @@
 // found in the LICENSE file.
 
 #include "components/signin/public/base/hybrid_encryption_key.h"
+
 #include "components/signin/public/base/hybrid_encryption_key.pb.h"
 #include "components/signin/public/base/tink_key.pb.h"
 
 namespace {
-const size_t kEncapsulatedKeySize = 32;
+constexpr size_t kEncapsulatedKeySize = 32;
 
 const EVP_HPKE_KEM* GetKem() {
   return EVP_hpke_x25519_hkdf_sha256();
@@ -59,12 +60,11 @@ HybridEncryptionKey& HybridEncryptionKey::operator=(
     HybridEncryptionKey&& other) noexcept = default;
 
 std::optional<std::vector<uint8_t>> HybridEncryptionKey::Decrypt(
-    base::span<const uint8_t> encrypted_data) {
+    base::span<const uint8_t> encrypted_data) const {
   if (encrypted_data.size() < kEncapsulatedKeySize) {
     return std::nullopt;
   }
-  base::span<const uint8_t> encapsulated_key =
-      encrypted_data.subspan(0, kEncapsulatedKeySize);
+  auto encapsulated_key = encrypted_data.first<kEncapsulatedKeySize>();
 
   bssl::ScopedEVP_HPKE_CTX recipient_context;
   if (!EVP_HPKE_CTX_setup_recipient(
@@ -87,7 +87,7 @@ std::optional<std::vector<uint8_t>> HybridEncryptionKey::Decrypt(
   return plaintext;
 }
 
-std::string HybridEncryptionKey::ExportPublicKey() {
+std::string HybridEncryptionKey::ExportPublicKey() const {
   tink::HpkePublicKey hpke_public_key;
   hpke_public_key.set_version(0);
   tink::HpkeParams* params = hpke_public_key.mutable_params();
@@ -114,7 +114,7 @@ std::string HybridEncryptionKey::ExportPublicKey() {
 }
 
 std::vector<uint8_t> HybridEncryptionKey::EncryptForTesting(
-    base::span<const uint8_t> plaintext) {
+    base::span<const uint8_t> plaintext) const {
   std::vector<uint8_t> public_key = GetPublicKey();
   // This vector will hold the encapsulated key followed by the ciphertext.
   std::vector<uint8_t> encrypted_data(kEncapsulatedKeySize);
@@ -132,7 +132,7 @@ std::vector<uint8_t> HybridEncryptionKey::EncryptForTesting(
                         EVP_HPKE_CTX_max_overhead(sender_context.get()));
 
   base::span<uint8_t> ciphertext =
-      base::make_span(encrypted_data).subspan(kEncapsulatedKeySize);
+      base::span(encrypted_data).subspan<kEncapsulatedKeySize>();
   size_t ciphertext_len;
 
   if (!EVP_HPKE_CTX_seal(sender_context.get(), ciphertext.data(),
@@ -153,7 +153,7 @@ HybridEncryptionKey::HybridEncryptionKey(
                           private_key.size()));
 }
 
-std::vector<uint8_t> HybridEncryptionKey::GetPublicKey() {
+std::vector<uint8_t> HybridEncryptionKey::GetPublicKey() const {
   std::vector<uint8_t> public_key(EVP_HPKE_MAX_PUBLIC_KEY_LENGTH);
   size_t public_key_len;
   EVP_HPKE_KEY_public_key(key_.get(), public_key.data(), &public_key_len,

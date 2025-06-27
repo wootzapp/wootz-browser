@@ -3,14 +3,13 @@
 // found in the LICENSE file.
 
 import {GoogleCalendarPageHandlerRemote} from 'chrome://new-tab-page/google_calendar.mojom-webui.js';
-import type {DismissModuleEvent, GoogleCalendarModuleElement} from 'chrome://new-tab-page/lazy_load.js';
+import type {DismissModuleInstanceEvent, GoogleCalendarModuleElement} from 'chrome://new-tab-page/lazy_load.js';
 import {googleCalendarDescriptor, GoogleCalendarProxyImpl} from 'chrome://new-tab-page/lazy_load.js';
 import {$$} from 'chrome://new-tab-page/new_tab_page.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import type {TestMock} from 'chrome://webui-test/test_mock.js';
-import {eventToPromise, isVisible} from 'chrome://webui-test/test_util.js';
+import {eventToPromise, isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {installMock} from '../../../test_support.js';
 
@@ -20,8 +19,9 @@ suite('NewTabPageModulesGoogleCalendarModuleTest', () => {
   let handler: TestMock<GoogleCalendarPageHandlerRemote>;
   let module: GoogleCalendarModuleElement;
 
-  const title = `Today's Calendar`;
-  const dismissToast = `Today's Calendar hidden`;
+  const dismissTime = '6';
+  const dismissToast = 'Google Calendar hidden';
+  const title = 'Google Calendar';
 
   async function initializeModule(numEvents: number = 0) {
     handler.setResultFor(
@@ -29,13 +29,14 @@ suite('NewTabPageModulesGoogleCalendarModuleTest', () => {
     module = await googleCalendarDescriptor.initialize(0) as
         GoogleCalendarModuleElement;
     document.body.append(module);
-    await waitAfterNextRender(module);
   }
 
-  setup(async () => {
+  setup(() => {
     loadTimeData.overrideValues({
-      modulesTodayCalendarHeader: title,
-      modulesTodayCalendarDismissToastMessage: dismissToast,
+      modulesGoogleCalendarTitle: title,
+      modulesGoogleCalendarDismissToastMessage: dismissToast,
+      modulesDismissForHoursButtonText: 'Hide for $1 hours',
+      calendarModuleDismissHours: dismissTime,
     });
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     handler = installMock(
@@ -70,13 +71,13 @@ suite('NewTabPageModulesGoogleCalendarModuleTest', () => {
      ).dispatchEvent(new Event('dismiss-button-click'));
 
     // Assert.
-    const event: DismissModuleEvent = await whenFired;
+    const event: DismissModuleInstanceEvent = await whenFired;
     assertEquals(dismissToast, event.detail.message);
     assertTrue(!!event.detail.restoreCallback);
     assertEquals(1, handler.getCallCount('dismissModule'));
 
     // Act.
-    event.detail.restoreCallback!();
+    event.detail.restoreCallback();
 
     // Assert.
     assertEquals(1, handler.getCallCount('restoreModule'));
@@ -88,5 +89,31 @@ suite('NewTabPageModulesGoogleCalendarModuleTest', () => {
 
     assertTrue(isVisible(module.$.calendar));
     assertEquals(module.$.calendar.events.length, 2);
+  });
+
+  test('displays module info', async () => {
+    await initializeModule(1);
+    assertTrue(!!module);
+    assertFalse(!!$$(module, 'ntp-info-dialog'));
+
+    // Act.
+    ($$(module, 'ntp-module-header-v2')!
+     ).dispatchEvent(new Event('info-button-click'));
+    await microtasksFinished();
+
+    // Assert.
+    assertTrue(!!$$(module, 'ntp-info-dialog'));
+  });
+
+  test('include time in dismiss text', async () => {
+    await initializeModule(1);
+    assertTrue(!!module);
+
+    // Assert.
+    const dismissButton = $$(module.$.moduleHeaderElementV2, '#dismiss');
+    assertTrue(!!dismissButton);
+    assertTrue(!!dismissButton.textContent);
+    assertEquals(
+        dismissButton.textContent.trim(), `Hide for ${dismissTime} hours`);
   });
 });

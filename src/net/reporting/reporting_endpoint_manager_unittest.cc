@@ -19,6 +19,7 @@
 #include "net/reporting/reporting_cache.h"
 #include "net/reporting/reporting_endpoint.h"
 #include "net/reporting/reporting_policy.h"
+#include "net/reporting/reporting_target_type.h"
 #include "net/reporting/reporting_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -50,7 +51,10 @@ class TestReportingCache : public ReportingCache {
 
   std::vector<ReportingEndpoint> GetCandidateEndpointsForDelivery(
       const ReportingEndpointGroupKey& group_key) override {
-    EXPECT_EQ(expected_origin_, group_key.origin);
+    // Enterprise endpoints don't have an origin.
+    if (group_key.target_type == ReportingTargetType::kDeveloper) {
+      EXPECT_EQ(expected_origin_, group_key.origin);
+    }
     EXPECT_EQ(expected_group_, group_key.group_name);
     return reporting_endpoints_[group_key.network_anonymization_key];
   }
@@ -65,192 +69,168 @@ class TestReportingCache : public ReportingCache {
                  base::Value::Dict body,
                  int depth,
                  base::TimeTicks queued,
-                 int attempts) override {
-    NOTREACHED_IN_MIGRATION();
+                 int attempts,
+                 ReportingTargetType target_type) override {
+    NOTREACHED();
   }
   void GetReports(
       std::vector<raw_ptr<const ReportingReport, VectorExperimental>>*
           reports_out) const override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  base::Value GetReportsAsValue() const override {
-    NOTREACHED_IN_MIGRATION();
-    return base::Value();
-  }
+  base::Value GetReportsAsValue() const override { NOTREACHED(); }
   std::vector<raw_ptr<const ReportingReport, VectorExperimental>>
   GetReportsToDeliver() override {
-    NOTREACHED_IN_MIGRATION();
-    return {};
+    NOTREACHED();
   }
   std::vector<raw_ptr<const ReportingReport, VectorExperimental>>
   GetReportsToDeliverForSource(
       const base::UnguessableToken& reporting_source) override {
-    NOTREACHED_IN_MIGRATION();
-    return {};
+    NOTREACHED();
   }
   void ClearReportsPending(
       const std::vector<raw_ptr<const ReportingReport, VectorExperimental>>&
           reports) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void IncrementReportsAttempts(
       const std::vector<raw_ptr<const ReportingReport, VectorExperimental>>&
           reports) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   base::flat_map<url::Origin, std::vector<ReportingEndpoint>>
   GetV1ReportingEndpointsByOrigin() const override {
-    NOTREACHED_IN_MIGRATION();
-    return base::flat_map<url::Origin, std::vector<ReportingEndpoint>>();
+    NOTREACHED();
   }
   void IncrementEndpointDeliveries(const ReportingEndpointGroupKey& group_key,
                                    const GURL& url,
                                    int reports_delivered,
                                    bool successful) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void SetExpiredSource(
       const base::UnguessableToken& reporting_source) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   const base::flat_set<base::UnguessableToken>& GetExpiredSources()
       const override {
-    NOTREACHED_IN_MIGRATION();
-    return expired_sources_;
+    NOTREACHED();
   }
   void RemoveReports(
       const std::vector<raw_ptr<const ReportingReport, VectorExperimental>>&
           reports) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void RemoveReports(
       const std::vector<raw_ptr<const ReportingReport, VectorExperimental>>&
           reports,
       bool delivery_success) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  void RemoveAllReports() override { NOTREACHED_IN_MIGRATION(); }
-  size_t GetFullReportCountForTesting() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
+  void RemoveAllReports() override { NOTREACHED(); }
+  size_t GetFullReportCountForTesting() const override { NOTREACHED(); }
   size_t GetReportCountWithStatusForTesting(
       ReportingReport::Status status) const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
+    NOTREACHED();
   }
   bool IsReportPendingForTesting(const ReportingReport* report) const override {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
   bool IsReportDoomedForTesting(const ReportingReport* report) const override {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
   void OnParsedHeader(
       const NetworkAnonymizationKey& network_anonymization_key,
       const url::Origin& origin,
       std::vector<ReportingEndpointGroup> parsed_header) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void OnParsedReportingEndpointsHeader(
       const base::UnguessableToken& reporting_source,
       const IsolationInfo& isolation_info,
       std::vector<ReportingEndpoint> endpoints) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  std::set<url::Origin> GetAllOrigins() const override {
-    NOTREACHED_IN_MIGRATION();
-    return std::set<url::Origin>();
+  void SetEnterpriseReportingEndpoints(
+      const base::flat_map<std::string, GURL>& endpoints) override {
+    NOTREACHED();
   }
+  std::set<url::Origin> GetAllOrigins() const override { NOTREACHED(); }
   void RemoveClient(const NetworkAnonymizationKey& network_anonymization_key,
                     const url::Origin& origin) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void RemoveClientsForOrigin(const url::Origin& origin) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  void RemoveAllClients() override { NOTREACHED_IN_MIGRATION(); }
+  void RemoveAllClients() override { NOTREACHED(); }
   void RemoveEndpointGroup(
       const ReportingEndpointGroupKey& group_key) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  void RemoveEndpointsForUrl(const GURL& url) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void RemoveEndpointsForUrl(const GURL& url) override { NOTREACHED(); }
   void RemoveSourceAndEndpoints(
       const base::UnguessableToken& reporting_source) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void AddClientsLoadedFromStore(
       std::vector<ReportingEndpoint> loaded_endpoints,
       std::vector<CachedReportingEndpointGroup> loaded_endpoint_groups)
       override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
-  base::Value GetClientsAsValue() const override {
-    NOTREACHED_IN_MIGRATION();
-    return base::Value();
-  }
-  size_t GetEndpointCount() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
-  void Flush() override { NOTREACHED_IN_MIGRATION(); }
+  base::Value GetClientsAsValue() const override { NOTREACHED(); }
+  size_t GetEndpointCount() const override { NOTREACHED(); }
+  void Flush() override { NOTREACHED(); }
   ReportingEndpoint GetV1EndpointForTesting(
       const base::UnguessableToken& reporting_source,
       const std::string& endpoint_name) const override {
-    NOTREACHED_IN_MIGRATION();
-    return ReportingEndpoint();
+    NOTREACHED();
   }
   ReportingEndpoint GetEndpointForTesting(
       const ReportingEndpointGroupKey& group_key,
       const GURL& url) const override {
-    NOTREACHED_IN_MIGRATION();
-    return ReportingEndpoint();
+    NOTREACHED();
+  }
+  std::vector<ReportingEndpoint> GetEnterpriseEndpointsForTesting()
+      const override {
+    NOTREACHED();
   }
   bool EndpointGroupExistsForTesting(const ReportingEndpointGroupKey& group_key,
                                      OriginSubdomains include_subdomains,
                                      base::Time expires) const override {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
   bool ClientExistsForTesting(
       const NetworkAnonymizationKey& network_anonymization_key,
       const url::Origin& origin) const override {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
-  size_t GetEndpointGroupCountForTesting() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
-  size_t GetClientCountForTesting() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
-  size_t GetReportingSourceCountForTesting() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
+  size_t GetEndpointGroupCountForTesting() const override { NOTREACHED(); }
+  size_t GetClientCountForTesting() const override { NOTREACHED(); }
+  size_t GetReportingSourceCountForTesting() const override { NOTREACHED(); }
   void SetEndpointForTesting(const ReportingEndpointGroupKey& group_key,
                              const GURL& url,
                              OriginSubdomains include_subdomains,
                              base::Time expires,
                              int priority,
                              int weight) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   void SetV1EndpointForTesting(const ReportingEndpointGroupKey& group_key,
                                const base::UnguessableToken& reporting_source,
                                const IsolationInfo& isolation_info,
                                const GURL& url) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
+  }
+  void SetEnterpriseEndpointForTesting(
+      const ReportingEndpointGroupKey& group_key,
+      const GURL& url) override {
+    NOTREACHED();
   }
   IsolationInfo GetIsolationInfoForEndpoint(
       const ReportingEndpoint& endpoint) const override {
-    NOTREACHED_IN_MIGRATION();
-    return IsolationInfo();
+    NOTREACHED();
   }
 
  private:
@@ -293,12 +273,33 @@ class ReportingEndpointManagerTest : public testing::Test {
         ReportingEndpoint::EndpointInfo{endpoint, priority, weight}));
   }
 
+  void SetEnterpriseEndpoint(
+      const GURL& endpoint,
+      int priority = ReportingEndpoint::EndpointInfo::kDefaultPriority,
+      int weight = ReportingEndpoint::EndpointInfo::kDefaultWeight,
+      const NetworkAnonymizationKey& network_anonymization_key =
+          NetworkAnonymizationKey()) {
+    ReportingEndpointGroupKey group_key(kEnterpriseGroupKey);
+    group_key.network_anonymization_key = network_anonymization_key;
+    cache_.SetEndpoint(ReportingEndpoint(
+        group_key,
+        ReportingEndpoint::EndpointInfo{endpoint, priority, weight}));
+  }
+
   const NetworkAnonymizationKey kNak;
   const url::Origin kOrigin = url::Origin::Create(GURL("https://origin/"));
   const SchemefulSite kSite = SchemefulSite(kOrigin);
   const std::string kGroup = "group";
   const ReportingEndpointGroupKey kGroupKey =
-      ReportingEndpointGroupKey(kNak, kOrigin, kGroup);
+      ReportingEndpointGroupKey(kNak,
+                                kOrigin,
+                                kGroup,
+                                ReportingTargetType::kDeveloper);
+  const ReportingEndpointGroupKey kEnterpriseGroupKey =
+      ReportingEndpointGroupKey(kNak,
+                                /*origin=*/std::nullopt,
+                                kGroup,
+                                ReportingTargetType::kEnterprise);
   const GURL kEndpoint = GURL("https://endpoint/");
 
   ReportingPolicy policy_;
@@ -314,13 +315,24 @@ TEST_F(ReportingEndpointManagerTest, NoEndpoint) {
   EXPECT_FALSE(endpoint);
 }
 
-TEST_F(ReportingEndpointManagerTest, Endpoint) {
+TEST_F(ReportingEndpointManagerTest, DeveloperEndpoint) {
   SetEndpoint(kEndpoint);
 
   ReportingEndpoint endpoint =
       endpoint_manager_->FindEndpointForDelivery(kGroupKey);
   ASSERT_TRUE(endpoint);
   EXPECT_EQ(kEndpoint, endpoint.info.url);
+  EXPECT_EQ(ReportingTargetType::kDeveloper, endpoint.group_key.target_type);
+}
+
+TEST_F(ReportingEndpointManagerTest, EnterpriseEndpoint) {
+  SetEnterpriseEndpoint(kEndpoint);
+
+  ReportingEndpoint endpoint =
+      endpoint_manager_->FindEndpointForDelivery(kEnterpriseGroupKey);
+  ASSERT_TRUE(endpoint);
+  EXPECT_EQ(kEndpoint, endpoint.info.url);
+  EXPECT_EQ(ReportingTargetType::kEnterprise, endpoint.group_key.target_type);
 }
 
 TEST_F(ReportingEndpointManagerTest, BackedOffEndpoint) {
@@ -531,9 +543,11 @@ TEST_F(ReportingEndpointManagerTest, NetworkAnonymizationKey) {
   const auto kNetworkAnonymizationKey2 =
       NetworkAnonymizationKey::CreateSameSite(kSite2);
   const ReportingEndpointGroupKey kGroupKey1(kNetworkAnonymizationKey1, kOrigin,
-                                             kGroup);
+                                             kGroup,
+                                             ReportingTargetType::kDeveloper);
   const ReportingEndpointGroupKey kGroupKey2(kNetworkAnonymizationKey2, kOrigin,
-                                             kGroup);
+                                             kGroup,
+                                             ReportingTargetType::kDeveloper);
 
   // An Endpoint set for kNetworkAnonymizationKey1 should not affect
   // kNetworkAnonymizationKey2.
@@ -579,9 +593,11 @@ TEST_F(ReportingEndpointManagerTest,
   const auto kNetworkAnonymizationKey2 =
       NetworkAnonymizationKey::CreateSameSite(kSite2);
   const ReportingEndpointGroupKey kGroupKey1(kNetworkAnonymizationKey1, kOrigin,
-                                             kGroup);
+                                             kGroup,
+                                             ReportingTargetType::kDeveloper);
   const ReportingEndpointGroupKey kGroupKey2(kNetworkAnonymizationKey2, kOrigin,
-                                             kGroup);
+                                             kGroup,
+                                             ReportingTargetType::kDeveloper);
 
   const GURL kEndpoint1("https://endpoint1/");
   const GURL kEndpoint2("https://endpoint2/");
@@ -657,7 +673,8 @@ TEST_F(ReportingEndpointManagerTest, CacheEviction) {
   const auto kDifferentNetworkAnonymizationKey =
       NetworkAnonymizationKey::CreateSameSite(kSite);
   const ReportingEndpointGroupKey kDifferentGroupKey(
-      kDifferentNetworkAnonymizationKey, kOrigin, kGroup);
+      kDifferentNetworkAnonymizationKey, kOrigin, kGroup,
+      ReportingTargetType::kDeveloper);
   SetEndpoint(kEndpoint, ReportingEndpoint::EndpointInfo::kDefaultPriority,
               ReportingEndpoint::EndpointInfo::kDefaultWeight,
               kDifferentNetworkAnonymizationKey);

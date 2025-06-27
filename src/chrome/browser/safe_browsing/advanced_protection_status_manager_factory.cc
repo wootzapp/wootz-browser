@@ -9,12 +9,24 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "content/public/browser/browser_context.h"
 
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/safe_browsing/advanced_protection_status_manager_android.h"
+#else
+#include "chrome/browser/safe_browsing/advanced_protection_status_manager_desktop.h"
+#endif
+
 namespace {
 
 std::unique_ptr<KeyedService> BuildService(content::BrowserContext* context) {
+#if BUILDFLAG(IS_ANDROID)
+  return std::make_unique<
+      safe_browsing::AdvancedProtectionStatusManagerAndroid>();
+#else
   Profile* profile = Profile::FromBrowserContext(context);
-  return std::make_unique<safe_browsing::AdvancedProtectionStatusManager>(
+  return std::make_unique<
+      safe_browsing::AdvancedProtectionStatusManagerDesktop>(
       profile->GetPrefs(), IdentityManagerFactory::GetForProfile(profile));
+#endif
 }
 
 }  // namespace
@@ -49,6 +61,9 @@ AdvancedProtectionStatusManagerFactory::AdvancedProtectionStatusManagerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
   DependsOn(IdentityManagerFactory::GetInstance());
 }

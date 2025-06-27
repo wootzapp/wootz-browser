@@ -64,6 +64,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
           <input id="useFrontFacing" type="checkbox">
           <label for="useFrontFacing">Enable front-facing camera</label>
+          <br/>
+          <input id="requestRawDepth" type="checkbox">
+          <label for="requestRawDepth">Request raw depth buffer</label>
+          <br/>
+          <input id="requestSmoothDepth" type="checkbox">
+          <label for="requestSmoothDepth">Request smooth depth buffer (will be requested after raw if both are requested)</label>
         </p>
       </details>
     </header>
@@ -89,6 +95,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       import {mat4, vec3, mat3, vec2} from '../js/cottontail/src/math/gl-matrix.js';
 
       const useFrontFacing = document.getElementById('useFrontFacing');
+      const requestRawDepth = document.getElementById('requestRawDepth');
+      const requestSmoothDepth = document.getElementById('requestSmoothDepth');
 
       // XR globals.
       let xrButton = null;
@@ -133,8 +141,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         // Requests an immersive session with environment integration.
 
         let options = {
-          requiredFeatures: ['depth-sensing', 'dom-overlay'],
-          optionalFeatures: [],
+          requiredFeatures: ['depth-sensing'],
+          optionalFeatures: ['dom-overlay'],
           domOverlay: { root: textOverlayElement },
           depthSensing: {
             usagePreference: ["cpu-optimized"],
@@ -144,6 +152,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
         if (useFrontFacing.checked) {
           options.optionalFeatures.push('front-facing');
+        }
+
+        if (requestRawDepth.checked || requestSmoothDepth.checked) {
+          options.depthSensing.depthTypeRequest = [];
+          if (requestRawDepth.checked) {
+            options.depthSensing.depthTypeRequest.push("raw");
+          }
+
+          if (requestSmoothDepth.checked) {
+            options.depthSensing.depthTypeRequest.push("smooth");
+          }
         }
 
         navigator.xr.requestSession('immersive-ar', options).then((session) => {
@@ -330,10 +349,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
               renderDepthInformationGPU(depthData, view, viewport);
             } else {
+              console.error("Depth data unavailable in the current frame!");
               textInfoElement.innerHTML = "Depth data unavailable in the current frame!";
             }
           }
         } else {
+              console.error("Pose unavailable in the current frame!");
           textInfoElement.innerHTML = "Pose unavailable in the current frame!";
         }
       }

@@ -31,8 +31,6 @@ class AudioOutputDispatcher;
 // AudioManagerBase provides AudioManager functions common for all platforms.
 class MEDIA_EXPORT AudioManagerBase : public AudioManager {
  public:
-  enum class VoiceProcessingMode { kDisabled = 0, kEnabled = 1 };
-
   AudioManagerBase(const AudioManagerBase&) = delete;
   AudioManagerBase& operator=(const AudioManagerBase&) = delete;
 
@@ -113,7 +111,6 @@ class MEDIA_EXPORT AudioManagerBase : public AudioManager {
   void GetAudioOutputDeviceDescriptions(
       AudioDeviceDescriptions* device_descriptions) final;
 
-  AudioParameters GetDefaultOutputStreamParameters() override;
   AudioParameters GetOutputStreamParameters(
       const std::string& device_id) override;
   AudioParameters GetInputStreamParameters(
@@ -198,7 +195,7 @@ class MEDIA_EXPORT AudioManagerBase : public AudioManager {
   int num_output_streams_;
 
   // Track output state change listeners.
-  base::ObserverList<AudioDeviceListener>::Unchecked output_listeners_;
+  base::ObserverList<AudioDeviceListener> output_listeners_;
 
   // Contains currently open input streams.
   std::unordered_set<raw_ptr<AudioInputStream, CtnExperimental>> input_streams_;

@@ -11,6 +11,8 @@ include_rules = [
   "+chrome/browser/ui/android/toolbar",
   "+third_party/blink/public/mojom:mojom_platform_java",
   "+components/browser_ui/device_lock/android",
+  "+components/browser_ui/edge_to_edge/android",
+  "+components/sensitive_content/android/java/src/org/chromium/components/sensitive_content/SensitiveContentClient.java",
 ]
 
 specific_include_rules = {
@@ -101,9 +103,6 @@ specific_include_rules = {
     "+chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
   ],
   "IncognitoNotificationServiceImpl\.java": [
-    "+chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
-  ],
-  "MultiInstanceChromeTabbedActivity\.java": [
     "+chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java"
   ],
   "MultiInstanceManager\.java": [

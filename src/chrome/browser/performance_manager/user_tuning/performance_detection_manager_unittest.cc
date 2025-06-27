@@ -10,9 +10,16 @@
 #include <vector>
 
 #include "base/location.h"
+#include "base/strings/strcat.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
+#include "base/time/time.h"
+#include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
+#include "chrome/browser/performance_manager/test_support/page_discarding_utils.h"
+#include "chrome/browser/performance_manager/user_tuning/cpu_health_tracker.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/performance_manager/public/features.h"
+#include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/performance_manager.h"
 #include "components/performance_manager/public/resource_attribution/page_context.h"
 #include "components/performance_manager/test_support/test_harness_helper.h"
@@ -96,18 +103,6 @@ class MockPerformanceDetectionManagerActionableTabsObserver
                std::vector<resource_attribution::PageContext>),
               (override));
 };
-
-// Number of times to see a health status consecutively for the health status to
-// change
-const int kNumHealthStatusForChange =
-    performance_manager::features::kCPUTimeOverThreshold.Get() /
-    performance_manager::features::kCPUSampleFrequency.Get();
-
-const int kUnhealthySystemCpuUsagePercentage =
-    performance_manager::features::kCPUUnhealthyPercentageThreshold.Get() + 1;
-const int kDegradedSystemCpuUsagePercentage =
-    performance_manager::features::kCPUDegradedHealthPercentageThreshold.Get() +
-    1;
 }  // namespace
 
 class PerformanceDetectionManagerTest : public ChromeRenderViewHostTestHarness {
@@ -120,6 +115,13 @@ class PerformanceDetectionManagerTest : public ChromeRenderViewHostTestHarness {
     ChromeRenderViewHostTestHarness::SetUp();
     pm_harness_.SetUp();
     SetContents(CreateTestWebContents());
+    Graph* graph = PerformanceManager::GetGraph();
+    graph->PassToGraph(std::make_unique<policies::DiscardEligibilityPolicy>());
+    auto page_discarding_helper =
+        std::make_unique<policies::PageDiscardingHelper>();
+    page_discarding_helper->SetMockDiscarderForTesting(
+        std::make_unique<testing::MockPageDiscarder>());
+    graph->PassToGraph(std::move(page_discarding_helper));
   }
 
   void TearDown() override {
@@ -206,5 +208,63 @@ TEST_F(PerformanceDetectionManagerTest, UpdatedActionableTabsSentToObservers) {
             PerformanceDetectionManager::ResourceType::kCpu);
   EXPECT_TRUE(observer.actionable_tabs().value().empty());
   manager()->RemoveActionableTabsObserver(&observer);
+}
+
+TEST_F(PerformanceDetectionManagerTest, DiscardMetricsRecorded) {
+  CreateManager();
+  base::HistogramTester histogram_tester;
+  manager()->DiscardTabs({});
+  const std::string health_status_prefix =
+      "PerformanceControls.Intervention.BackgroundTab.Cpu."
+      "HealthStatusAfterDiscard.";
+  const std::string one_minute_metric =
+      base::StrCat({health_status_prefix, "1Min"});
+  const std::string two_minutes_metric =
+      base::StrCat({health_status_prefix, "2Min"});
+  const std::string four_minutes_metric =
+      base::StrCat({health_status_prefix, "4Min"});
+
+  // Immediately after discard, we shouldn't record any health measurements
+  histogram_tester.ExpectBucketCount(
+      one_minute_metric, PerformanceDetectionManager::HealthLevel::kHealthy, 0);
+  histogram_tester.ExpectBucketCount(
+      two_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      0);
+  histogram_tester.ExpectBucketCount(
+      four_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      0);
+
+  // One minute have elapsed since discard
+  task_environment()->FastForwardBy(base::Minutes(1));
+  histogram_tester.ExpectBucketCount(
+      one_minute_metric, PerformanceDetectionManager::HealthLevel::kHealthy, 1);
+  histogram_tester.ExpectBucketCount(
+      two_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      0);
+  histogram_tester.ExpectBucketCount(
+      four_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      0);
+
+  // Two minutes have elapsed since discard
+  task_environment()->FastForwardBy(base::Minutes(1));
+  histogram_tester.ExpectBucketCount(
+      one_minute_metric, PerformanceDetectionManager::HealthLevel::kHealthy, 1);
+  histogram_tester.ExpectBucketCount(
+      two_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      1);
+  histogram_tester.ExpectBucketCount(
+      four_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      0);
+
+  // Four minutes have elapsed since discard
+  task_environment()->FastForwardBy(base::Minutes(2));
+  histogram_tester.ExpectBucketCount(
+      one_minute_metric, PerformanceDetectionManager::HealthLevel::kHealthy, 1);
+  histogram_tester.ExpectBucketCount(
+      two_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      1);
+  histogram_tester.ExpectBucketCount(
+      four_minutes_metric, PerformanceDetectionManager::HealthLevel::kHealthy,
+      1);
 }
 }  // namespace performance_manager::user_tuning

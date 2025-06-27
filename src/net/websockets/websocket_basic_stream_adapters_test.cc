@@ -55,6 +55,7 @@
 #include "net/quic/quic_context.h"
 #include "net/quic/quic_http_utils.h"
 #include "net/quic/quic_server_info.h"
+#include "net/quic/quic_session_alias_key.h"
 #include "net/quic/quic_session_key.h"
 #include "net/quic/quic_test_packet_maker.h"
 #include "net/quic/test_quic_crypto_client_config_handle.h"
@@ -78,6 +79,7 @@
 #include "net/third_party/quiche/src/quiche/common/platform/api/quiche_flags.h"
 #include "net/third_party/quiche/src/quiche/common/quiche_buffer_allocator.h"
 #include "net/third_party/quiche/src/quiche/common/simple_buffer_allocator.h"
+#include "net/third_party/quiche/src/quiche/http2/core/spdy_protocol.h"
 #include "net/third_party/quiche/src/quiche/quic/core/crypto/quic_crypto_client_config.h"
 #include "net/third_party/quiche/src/quiche/quic/core/http/http_encoder.h"
 #include "net/third_party/quiche/src/quiche/quic/core/qpack/qpack_decoder.h"
@@ -96,7 +98,6 @@
 #include "net/third_party/quiche/src/quiche/quic/test_tools/mock_random.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/qpack/qpack_test_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/quic_test_utils.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_protocol.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "net/websockets/websocket_test_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -144,6 +145,7 @@ class WebSocketClientSocketHandleAdapterTest : public TestWithTaskEnvironment {
         socks_params, /*proxy_annotation_tag=*/TRAFFIC_ANNOTATION_FOR_TESTS,
         MEDIUM, SocketTag(), ClientSocketPool::RespectLimits::ENABLED,
         callback.callback(), ClientSocketPool::ProxyAuthCallback(),
+        /*fail_if_alias_requires_proxy_override=*/false,
         network_session_->GetSocketPool(HttpNetworkSession::NORMAL_SOCKET_POOL,
                                         ProxyChain::Direct()),
         NetLogWithSource());
@@ -344,7 +346,7 @@ class MockDelegate : public WebSocketSpdyStreamAdapter::Delegate {
   MOCK_METHOD(void, OnHeadersSent, (), (override));
   MOCK_METHOD(void,
               OnHeadersReceived,
-              (const spdy::Http2HeaderBlock&),
+              (const quiche::HttpHeaderBlock&),
               (override));
   MOCK_METHOD(void, OnClose, (int), (override));
 };
@@ -366,12 +368,12 @@ class WebSocketSpdyStreamAdapterTest : public TestWithTaskEnvironment {
 
   ~WebSocketSpdyStreamAdapterTest() override = default;
 
-  static spdy::Http2HeaderBlock RequestHeaders() {
+  static quiche::HttpHeaderBlock RequestHeaders() {
     return WebSocketHttp2Request("/", "www.example.org:443",
                                  "http://www.example.org", {});
   }
 
-  static spdy::Http2HeaderBlock ResponseHeaders() {
+  static quiche::HttpHeaderBlock ResponseHeaders() {
     return WebSocketHttp2Response({});
   }
 
@@ -1139,7 +1141,7 @@ class MockQuicDelegate : public WebSocketQuicStreamAdapter::Delegate {
   MOCK_METHOD(void, OnHeadersSent, (), (override));
   MOCK_METHOD(void,
               OnHeadersReceived,
-              (const spdy::Http2HeaderBlock&),
+              (const quiche::HttpHeaderBlock&),
               (override));
   MOCK_METHOD(void, OnClose, (int), (override));
 };
@@ -1148,7 +1150,7 @@ class WebSocketQuicStreamAdapterTest
     : public TestWithTaskEnvironment,
       public ::testing::WithParamInterface<quic::ParsedQuicVersion> {
  protected:
-  static spdy::Http2HeaderBlock RequestHeaders() {
+  static quiche::HttpHeaderBlock RequestHeaders() {
     return WebSocketHttp2Request("/", "www.example.org:443",
                                  "http://www.example.org", {});
   }
@@ -1203,25 +1205,30 @@ class WebSocketQuicStreamAdapterTest
       std::string_view data) {
     quiche::QuicheBuffer buffer = quic::HttpEncoder::SerializeDataFrameHeader(
         data.size(), quiche::SimpleBufferAllocator::Get());
-    return server_maker_.MakeDataPacket(
-        packet_number, client_data_stream_id1_, /*fin=*/false,
-        base::StrCat({std::string_view(buffer.data(), buffer.size()), data}));
+    return server_maker_.Packet(packet_number)
+        .AddStreamFrame(
+            client_data_stream_id1_, /*fin=*/false,
+            base::StrCat(
+                {std::string_view(buffer.data(), buffer.size()), data}))
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructRstPacket(
       uint64_t packet_number,
       quic::QuicRstStreamErrorCode error_code) {
-    return client_maker_.MakeRstPacket(packet_number, client_data_stream_id1_,
-                                       error_code,
-                                       /*include_stop_sending_if_v99=*/true);
+    return client_maker_.Packet(packet_number)
+        .AddStopSendingFrame(client_data_stream_id1_, error_code)
+        .AddRstStreamFrame(client_data_stream_id1_, error_code)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicEncryptedPacket> ConstructClientAckPacket(
       uint64_t packet_number,
       uint64_t largest_received,
       uint64_t smallest_received) {
-    return client_maker_.MakeAckPacket(packet_number, largest_received,
-                                       smallest_received);
+    return client_maker_.Packet(packet_number)
+        .AddAckFrame(1, largest_received, smallest_received)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructAckAndRstPacket(
@@ -1229,10 +1236,11 @@ class WebSocketQuicStreamAdapterTest
       quic::QuicRstStreamErrorCode error_code,
       uint64_t largest_received,
       uint64_t smallest_received) {
-    return client_maker_.MakeAckAndRstPacket(
-        packet_number, client_data_stream_id1_, error_code, largest_received,
-        smallest_received,
-        /*include_stop_sending_if_v99=*/true);
+    return client_maker_.Packet(packet_number)
+        .AddAckFrame(/*first_received=*/1, largest_received, smallest_received)
+        .AddStopSendingFrame(client_data_stream_id1_, error_code)
+        .AddRstStreamFrame(client_data_stream_id1_, error_code)
+        .Build();
   }
 
   void Initialize() {
@@ -1273,11 +1281,13 @@ class WebSocketQuicStreamAdapterTest
         /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
         &transport_security_state_, &ssl_config_service_,
         /*server_info=*/nullptr,
-        QuicSessionKey("mail.example.org", 80, PRIVACY_MODE_DISABLED,
-                       ProxyChain::Direct(), SessionUsage::kDestination,
-                       SocketTag(), NetworkAnonymizationKey(),
-                       SecureDnsPolicy::kAllow,
-                       /*require_dns_https_alpn=*/false),
+        QuicSessionAliasKey(
+            url::SchemeHostPort(),
+            QuicSessionKey("mail.example.org", 80, PRIVACY_MODE_DISABLED,
+                           ProxyChain::Direct(), SessionUsage::kDestination,
+                           SocketTag(), NetworkAnonymizationKey(),
+                           SecureDnsPolicy::kAllow,
+                           /*require_dns_https_alpn=*/false)),
         /*require_confirmation=*/false,
         /*migrate_session_early_v2=*/false,
         /*migrate_session_on_network_change_v2=*/false,
@@ -1298,7 +1308,9 @@ class WebSocketQuicStreamAdapterTest
         base::DefaultTickClock::GetInstance(),
         base::SingleThreadTaskRunner::GetCurrentDefault().get(),
         /*socket_performance_watcher=*/nullptr, ConnectionEndpointMetadata(),
-        /*report_ecn=*/true, NetLogWithSource::Make(NetLogSourceType::NONE));
+        /*enable_origin_frame=*/true, /*allow_server_preferred_address=*/true,
+        MultiplexedSessionCreationInitiator::kUnknown,
+        NetLogWithSource::Make(NetLogSourceType::NONE));
 
     session_->Initialize();
 
@@ -1410,13 +1422,19 @@ TEST_P(WebSocketQuicStreamAdapterTest, AsyncAdapterCreation) {
   mock_quic_data_.AddWrite(SYNCHRONOUS,
                            ConstructSettingsPacket(packet_number++));
 
-  mock_quic_data_.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                            packet_number++, kMaxOpenStreams,
-                                            /* unidirectional = */ false));
+  mock_quic_data_.AddWrite(
+      SYNCHRONOUS, client_maker_.Packet(packet_number++)
+                       .AddStreamsBlockedFrame(/*control_frame_id=*/1,
+                                               /*stream_count=*/kMaxOpenStreams,
+                                               /* unidirectional = */ false)
+                       .Build());
 
   mock_quic_data_.AddRead(
-      ASYNC, server_maker_.MakeMaxStreamsPacket(1, kMaxOpenStreams + 2,
-                                                /* unidirectional = */ false));
+      ASYNC, server_maker_.Packet(1)
+                 .AddMaxStreamsFrame(/*control_frame_id=*/1,
+                                     /*stream_count=*/kMaxOpenStreams + 2,
+                                     /* unidirectional = */ false)
+                 .Build());
 
   mock_quic_data_.AddRead(ASYNC, ERR_IO_PENDING);
   mock_quic_data_.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
@@ -1461,7 +1479,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, SendRequestHeadersThenDisconnect) {
   mock_quic_data_.AddWrite(SYNCHRONOUS,
                            ConstructSettingsPacket(packet_number++));
   SpdyTestUtil spdy_util;
-  spdy::Http2HeaderBlock request_header_block = WebSocketHttp2Request(
+  quiche::HttpHeaderBlock request_header_block = WebSocketHttp2Request(
       "/", "www.example.org:443", "http://www.example.org", {});
   mock_quic_data_.AddWrite(
       SYNCHRONOUS,
@@ -1497,7 +1515,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, OnHeadersReceivedThenDisconnect) {
                            ConstructSettingsPacket(packet_number++));
 
   SpdyTestUtil spdy_util;
-  spdy::Http2HeaderBlock request_header_block = WebSocketHttp2Request(
+  quiche::HttpHeaderBlock request_header_block = WebSocketHttp2Request(
       "/", "www.example.org:443", "http://www.example.org", {});
   mock_quic_data_.AddWrite(
       SYNCHRONOUS,
@@ -1506,7 +1524,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, OnHeadersReceivedThenDisconnect) {
           /*fin=*/false, ConvertRequestPriorityToQuicPriority(LOWEST),
           std::move(request_header_block), nullptr));
 
-  spdy::Http2HeaderBlock response_header_block = WebSocketHttp2Response({});
+  quiche::HttpHeaderBlock response_header_block = WebSocketHttp2Response({});
   mock_quic_data_.AddRead(
       ASYNC, server_maker_.MakeResponseHeadersPacket(
                  /*packet_number=*/1, client_data_stream_id1_, /*fin=*/false,
@@ -1549,7 +1567,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, Read) {
                            ConstructSettingsPacket(packet_number++));
 
   SpdyTestUtil spdy_util;
-  spdy::Http2HeaderBlock request_header_block = WebSocketHttp2Request(
+  quiche::HttpHeaderBlock request_header_block = WebSocketHttp2Request(
       "/", "www.example.org:443", "http://www.example.org", {});
   mock_quic_data_.AddWrite(
       SYNCHRONOUS,
@@ -1558,7 +1576,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, Read) {
           /*fin=*/false, ConvertRequestPriorityToQuicPriority(LOWEST),
           std::move(request_header_block), nullptr));
 
-  spdy::Http2HeaderBlock response_header_block = WebSocketHttp2Response({});
+  quiche::HttpHeaderBlock response_header_block = WebSocketHttp2Response({});
   mock_quic_data_.AddRead(
       ASYNC, server_maker_.MakeResponseHeadersPacket(
                  /*packet_number=*/1, client_data_stream_id1_, /*fin=*/false,
@@ -1633,7 +1651,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, ReadIntoSmallBuffer) {
                            ConstructSettingsPacket(packet_number++));
 
   SpdyTestUtil spdy_util;
-  spdy::Http2HeaderBlock request_header_block = WebSocketHttp2Request(
+  quiche::HttpHeaderBlock request_header_block = WebSocketHttp2Request(
       "/", "www.example.org:443", "http://www.example.org", {});
   mock_quic_data_.AddWrite(
       SYNCHRONOUS,
@@ -1642,7 +1660,7 @@ TEST_P(WebSocketQuicStreamAdapterTest, ReadIntoSmallBuffer) {
           /*fin=*/false, ConvertRequestPriorityToQuicPriority(LOWEST),
           std::move(request_header_block), nullptr));
 
-  spdy::Http2HeaderBlock response_header_block = WebSocketHttp2Response({});
+  quiche::HttpHeaderBlock response_header_block = WebSocketHttp2Response({});
   mock_quic_data_.AddRead(
       ASYNC, server_maker_.MakeResponseHeadersPacket(
                  /*packet_number=*/1, client_data_stream_id1_, /*fin=*/false,

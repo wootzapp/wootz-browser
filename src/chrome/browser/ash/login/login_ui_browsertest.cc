@@ -3,11 +3,14 @@
 // found in the LICENSE file.
 
 #include <string>
+
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/display/screen_orientation_controller_test_api.h"
 #include "ash/login/login_screen_controller.h"
 #include "ash/public/cpp/login_screen_test_api.h"
+#include "ash/public/cpp/test/shell_test_api.h"
 #include "ash/shell.h"
 #include "base/command_line.h"
 #include "base/test/scoped_feature_list.h"
@@ -34,7 +37,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/welcome_screen_handler.h"
-#include "chrome/browser/ui/webui/ash/system_web_dialog_delegate.h"
+#include "chrome/browser/ui/webui/ash/system_web_dialog/system_web_dialog_delegate.h"
 #include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
 #include "chromeos/ash/components/dbus/debug_daemon/fake_debug_daemon_client.h"
@@ -44,8 +47,10 @@
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/known_user.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "net/dns/mock_host_resolver.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/display/test/display_manager_test_api.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/test/event_generator.h"
@@ -76,7 +81,19 @@ IN_PROC_BROWSER_TEST_F(InterruptedAutoStartEnrollmentTest, ShowsWelcome) {
 }
 
 IN_PROC_BROWSER_TEST_F(OobeBaseTest, OobeNoExceptions) {
+  display::test::DisplayManagerTestApi display_manager(
+      ash::ShellTestApi().display_manager());
+
   test::WaitForWelcomeScreen();
+
+  // Test minimum screen size and global ResizeObservers
+  display_manager.UpdateDisplay(std::string("900x600"));
+  // Test portrait transition
+  display_manager.UpdateDisplay(std::string("600x900"));
+  ScreenOrientationControllerTestApi(
+      Shell::Get()->screen_orientation_controller())
+      .UpdateNaturalOrientation();
+
   OobeBaseTest::CheckJsExceptionErrors(0);
 }
 
@@ -234,9 +251,9 @@ class DisplayPasswordButtonTest : public LoginManagerTest {
 
  protected:
   const LoginManagerMixin::TestUserInfo not_managed_user_{
-      AccountId::FromUserEmailGaiaId("user@gmail.com", "1111")};
+      AccountId::FromUserEmailGaiaId("user@gmail.com", GaiaId("1111"))};
   const LoginManagerMixin::TestUserInfo managed_user_{
-      AccountId::FromUserEmailGaiaId("user@example.com", "22222")};
+      AccountId::FromUserEmailGaiaId("user@example.com", GaiaId("22222"))};
   UserPolicyMixin user_policy_mixin_{&mixin_host_, managed_user_.account_id};
   LoginManagerMixin login_manager_mixin_{&mixin_host_};
 };
@@ -361,9 +378,9 @@ class UserManagementDisclosureTest : public LoginManagerTest {
 
  protected:
   const LoginManagerMixin::TestUserInfo not_managed_user{
-      AccountId::FromUserEmailGaiaId("user@gmail.com", "1111")};
+      AccountId::FromUserEmailGaiaId("user@gmail.com", GaiaId("1111"))};
   const LoginManagerMixin::TestUserInfo managed_user{
-      AccountId::FromUserEmailGaiaId("user@example.com", "11111")};
+      AccountId::FromUserEmailGaiaId("user@example.com", GaiaId("11111"))};
   UserPolicyMixin managed_user_policy_mixin_{&mixin_host_,
                                              managed_user.account_id};
   LoginManagerMixin login_manager_mixin_{&mixin_host_};

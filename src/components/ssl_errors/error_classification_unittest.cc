@@ -213,6 +213,8 @@ TEST_F(SSLErrorClassificationTest, TestPrivateURL) {
 TEST_F(SSLErrorClassificationTest, GetClockState) {
   // This test aims to obtain all possible return values of
   // |GetClockState|.
+  field_trial_test()->SetFeatureParams(
+      true, 0.0, network_time::NetworkTimeTracker::FETCHES_ON_DEMAND_ONLY);
   TestingPrefServiceSimple pref_service;
   network_time::NetworkTimeTracker::RegisterPrefs(pref_service.registry());
   network_time::NetworkTimeTracker network_time_tracker(
@@ -268,11 +270,7 @@ TEST_F(SSLErrorClassificationTest, GetClockState) {
 
   // Now clear the network time.  The build time should reassert
   // itself.
-  network_time_tracker.UpdateNetworkTime(
-      base::Time(),
-      base::Seconds(1),         // resolution
-      base::Milliseconds(250),  // latency
-      base::TimeTicks::Now());  // posting time
+  network_time_tracker.ClearNetworkTimeForTesting();
   ssl_errors::SetBuildTimeForTesting(base::Time::Now() + base::Days(3));
   EXPECT_EQ(
       ssl_errors::ClockState::CLOCK_STATE_PAST,

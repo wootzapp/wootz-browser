@@ -31,8 +31,7 @@ std::string GetStringNameForHintOrigin(HintOrigin hint_origin) {
     case HintOrigin::OPTIMIZATION_GUIDE:
       return "OptimizationGuide";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
@@ -54,15 +53,15 @@ LoadingPredictorConfig::LoadingPredictorConfig()
       max_consecutive_misses(3),
       max_redirect_consecutive_misses(5),
       flush_data_to_disk_delay_seconds(30),
-      lcpp_histogram_sliding_window_size(
-          blink::features::kLCPCriticalPathPredictorHistogramSlidingWindowSize
-              .Get()),
-      max_lcpp_histogram_buckets(
-          blink::features::kLCPCriticalPathPredictorMaxHistogramBuckets.Get()),
       lcpp_multiple_key_histogram_sliding_window_size(
           blink::features::kLcppMultipleKeyHistogramSlidingWindowSize.Get()),
       lcpp_multiple_key_max_histogram_buckets(
-          blink::features::kLcppMultipleKeyMaxHistogramBuckets.Get()) {}
+          blink::features::kLcppMultipleKeyMaxHistogramBuckets.Get()),
+      lcpp_initiator_origin_histogram_sliding_window_size(
+          blink::features::kLcppInitiatorOriginHistogramSlidingWindowSize
+              .Get()),
+      lcpp_initiator_origin_max_histogram_buckets(
+          blink::features::kLcppInitiatorOriginMaxHistogramBuckets.Get()) {}
 
 LoadingPredictorConfig::LoadingPredictorConfig(
     const LoadingPredictorConfig& other) = default;

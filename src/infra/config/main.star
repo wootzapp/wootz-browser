@@ -13,7 +13,7 @@ load("//lib/chrome_settings.star", "chrome_settings")
 load("//project.star", "settings")
 
 lucicfg.check_version(
-    min = "1.43.6",
+    min = "1.44.1",
     message = "Update depot_tools",
 )
 
@@ -45,7 +45,6 @@ lucicfg.config(
         "luci/project.cfg",
         "luci/realms.cfg",
         "luci/testhaus.cfg",
-        "luci/tricium-prod.cfg",
         "outages.pyl",
         "sheriff-rotations/*.txt",
         "project.pyl",
@@ -67,12 +66,6 @@ lucicfg.config(
 lucicfg.emit(
     dest = "luci/testhaus.cfg",
     data = io.read_file("testhaus.cfg"),
-)
-
-# Just copy tricium-prod.cfg to the generated outputs
-lucicfg.emit(
-    dest = "luci/tricium-prod.cfg",
-    data = io.read_file("tricium-prod.cfg"),
 )
 
 # Just copy LUCI Analysis config to generated outputs.
@@ -147,6 +140,7 @@ luci.cq(
     submit_max_burst = 2,
     submit_burst_delay = time.minute,
     status_host = "chromium-cq-status.appspot.com",
+    honor_gerrit_linked_accounts = True,
 )
 
 luci.logdog(
@@ -246,6 +240,40 @@ luci.realm(
 )
 
 luci.realm(
+    name = "@project",
+    bindings = [
+        # Allow everyone (including non-logged-in users) to see chromium tree status.
+        luci.binding(
+            roles = "role/treestatus.limitedReader",
+            groups = [
+                "all",
+            ],
+        ),
+        # Only allow Googlers to see PII.
+        luci.binding(
+            roles = "role/treestatus.reader",
+            groups = [
+                "googlers",
+            ],
+            users = [
+                "chromium-status-hr@appspot.gserviceaccount.com",
+                "luci-notify@appspot.gserviceaccount.com",
+            ],
+        ),
+        # Only allow Googlers and service accounts.
+        luci.binding(
+            roles = "role/treestatus.writer",
+            groups = [
+                "googlers",
+            ],
+            users = [
+                "luci-notify@appspot.gserviceaccount.com",
+            ],
+        ),
+    ],
+)
+
+luci.realm(
     name = "webrtc",
     bindings = [
         # Allow WebRTC builders to create invocations in their own builds.
@@ -295,6 +323,11 @@ exec("//generators/sort-consoles.star")
 # validating the final non-outages configuration
 exec("//validators/builder-group-triggers.star")
 exec("//validators/builders-in-consoles.star")
+
+# Notify findit about completed builds for code coverage purposes
+luci.buildbucket_notification_topic(
+    name = "projects/findit-for-me/topics/buildbucket_notification",
+)
 
 # Execute this file last so that any configuration changes needed for handling
 # outages gets final say

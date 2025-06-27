@@ -30,7 +30,6 @@
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -63,9 +62,8 @@ MediaQuerySet::MediaQuerySet(const MediaQuerySet&) = default;
 MediaQuerySet::MediaQuerySet(HeapVector<Member<const MediaQuery>> queries)
     : queries_(std::move(queries)) {}
 
-MediaQuerySet* MediaQuerySet::Create(
-    const String& media_string,
-    const ExecutionContext* execution_context) {
+MediaQuerySet* MediaQuerySet::Create(const String& media_string,
+                                     ExecutionContext* execution_context) {
   if (media_string.empty()) {
     return MediaQuerySet::Create();
   }
@@ -79,7 +77,7 @@ void MediaQuerySet::Trace(Visitor* visitor) const {
 
 const MediaQuerySet* MediaQuerySet::CopyAndAdd(
     const String& query_string,
-    const ExecutionContext* execution_context) const {
+    ExecutionContext* execution_context) const {
   // To "parse a media query" for a given string means to follow "the parse
   // a media query list" steps and return "null" if more than one media query
   // is returned, or else the returned media query.
@@ -110,7 +108,7 @@ const MediaQuerySet* MediaQuerySet::CopyAndAdd(
 
 const MediaQuerySet* MediaQuerySet::CopyAndRemove(
     const String& query_string_to_remove,
-    const ExecutionContext* execution_context) const {
+    ExecutionContext* execution_context) const {
   // To "parse a media query" for a given string means to follow "the parse
   // a media query list" steps and return "null" if more than one media query
   // is returned, or else the returned media query.
@@ -174,7 +172,7 @@ String MediaList::mediaText(ExecutionContext* execution_context) const {
   return MediaTextInternal();
 }
 
-void MediaList::setMediaText(const ExecutionContext* execution_context,
+void MediaList::setMediaText(ExecutionContext* execution_context,
                              const String& value) {
   CSSStyleSheet::RuleMutationScope mutation_scope(parent_rule_);
 
@@ -192,7 +190,7 @@ String MediaList::item(unsigned index) const {
   return String();
 }
 
-void MediaList::deleteMedium(const ExecutionContext* execution_context,
+void MediaList::deleteMedium(ExecutionContext* execution_context,
                              const String& medium,
                              ExceptionState& exception_state) {
   CSSStyleSheet::RuleMutationScope mutation_scope(parent_rule_);
@@ -209,7 +207,7 @@ void MediaList::deleteMedium(const ExecutionContext* execution_context,
   NotifyMutation();
 }
 
-void MediaList::appendMedium(const ExecutionContext* execution_context,
+void MediaList::appendMedium(ExecutionContext* execution_context,
                              const String& medium) {
   CSSStyleSheet::RuleMutationScope mutation_scope(parent_rule_);
 

@@ -5,19 +5,21 @@
 #ifndef MEDIA_GPU_WINDOWS_D3D12_FENCE_H_
 #define MEDIA_GPU_WINDOWS_D3D12_FENCE_H_
 
-#include <d3d12.h>
 #include <wrl.h>
 
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "media/gpu/windows/d3d11_status.h"
+#include "media/gpu/windows/d3d_com_defs.h"
 
 namespace media {
 
 // D3D12Fence wraps a ID3D12Fence pointer and its last signaled fence value.
 class D3D12Fence : public base::RefCountedThreadSafe<D3D12Fence> {
  public:
-  explicit D3D12Fence(Microsoft::WRL::ComPtr<ID3D12Fence> fence);
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
+  explicit D3D12Fence(ComD3D12Fence fence);
 
   static scoped_refptr<D3D12Fence> Create(
       ID3D12Device* device,
@@ -30,11 +32,14 @@ class D3D12Fence : public base::RefCountedThreadSafe<D3D12Fence> {
   // Wait on CPU until the |fence_value| is signaled.
   D3D11Status Wait(uint64_t fence_value) const;
 
+  // Signal the fence and wait on CPU until the fence is signaled.
+  D3D11Status SignalAndWait(ID3D12CommandQueue& command_queue);
+
  private:
   friend class RefCountedThreadSafe;
   ~D3D12Fence();
 
-  Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
+  ComD3D12Fence fence_;
   uint64_t fence_value_ = 0;
 };
 

@@ -5,6 +5,7 @@
 #include "chrome/browser/ash/app_restore/full_restore_service_factory.h"
 
 #include "base/no_destructor.h"
+#include "base/trace_event/trace_event.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/app_restore/full_restore_prefs.h"
@@ -20,8 +21,9 @@ namespace ash::full_restore {
 // static
 bool FullRestoreServiceFactory::IsFullRestoreAvailableForProfile(
     const Profile* profile) {
-  if (chrome::IsRunningInForcedAppMode() || DemoSession::IsDeviceInDemoMode())
+  if (IsRunningInForcedAppMode() || DemoSession::IsDeviceInDemoMode()) {
     return false;
+  }
 
   // No service for non-regular user profile, or ephemeral user profile, system
   // profile.
@@ -42,6 +44,7 @@ FullRestoreServiceFactory* FullRestoreServiceFactory::GetInstance() {
 
 // static
 FullRestoreService* FullRestoreServiceFactory::GetForProfile(Profile* profile) {
+  TRACE_EVENT0("ui", "FullRestoreServiceFactory::GetForProfile");
   return static_cast<FullRestoreService*>(
       GetInstance()->GetServiceForBrowserContext(profile, true));
 }

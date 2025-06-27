@@ -17,22 +17,22 @@ import '../../components/dialogs/oobe_loading_dialog.js';
 import '../../components/dialogs/oobe_modal_dialog.js';
 import '../../components/gaia_dialog.js';
 
-import {Authenticator, AuthFlow, AuthMode, SUPPORTED_PARAMS} from '//oobe/gaia_auth_host/authenticator.js';
+import type {Authenticator} from '//oobe/gaia_auth_host/authenticator.js';
+import {AuthFlow, AuthMode, SUPPORTED_PARAMS} from '//oobe/gaia_auth_host/authenticator.js';
 import {assert} from '//resources/js/assert.js';
 import {sendWithPromise} from '//resources/js/cr.js';
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {LoginScreenBehavior, LoginScreenBehaviorInterface} from '../../components/behaviors/login_screen_behavior.js';
-import {MultiStepBehavior, MultiStepBehaviorInterface} from '../../components/behaviors/multi_step_behavior.js';
 import type {OobeModalDialog} from '../../components/dialogs/oobe_modal_dialog.js';
 import {OobeUiState} from '../../components/display_manager_types.js';
 import type {GaiaDialog} from '../../components/gaia_dialog.js';
-import {OobeI18nMixin, OobeI18nMixinInterface} from '../../components/mixins/oobe_i18n_mixin.js';
+import {LoginScreenMixin} from '../../components/mixins/login_screen_mixin.js';
+import {MultiStepMixin} from '../../components/mixins/multi_step_mixin.js';
+import {OobeI18nMixin} from '../../components/mixins/oobe_i18n_mixin.js';
 import {OobeTypes} from '../../components/oobe_types.js';
 import type {SecurityTokenPin} from '../../components/security_token_pin.js';
 import {Oobe} from '../../cr_ui.js';
-import {invokePolymerMethod} from '../../display_manager.js';
 
 import {getTemplate} from './gaia_signin.html.js';
 
@@ -87,12 +87,7 @@ enum EnrollmentNudgeUserAction {
 }
 
 const GaiaSigninElementBase =
-    mixinBehaviors(
-        [LoginScreenBehavior, MultiStepBehavior],
-        OobeI18nMixin(PolymerElement)) as {
-      new (): PolymerElement & OobeI18nMixinInterface &
-          LoginScreenBehaviorInterface & MultiStepBehaviorInterface,
-    };
+    LoginScreenMixin(MultiStepMixin(OobeI18nMixin(PolymerElement)));
 
 interface GaiaSigninScreenData {
   hasUserPods: boolean;
@@ -145,15 +140,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
         type: Boolean,
         value: false,
         observer: 'onSamlChanged',
-      },
-
-      /**
-       * Whether the authenticator is or has been in the |SAML| AuthFlow during
-       * the current authentication attempt.
-       */
-      usedSaml: {
-        type: Boolean,
-        value: false,
       },
 
       /**
@@ -231,15 +217,9 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
       },
 
       /**
-       * Whether the default SAML 3rd-party page is configured for the device.
-       */
-      isDefaultSsoProviderConfigured: {
-        type: Boolean,
-        value: false,
-      },
-
-      /**
-       * Whether the default SAML 3rd-party page is visible.
+       * Whether the default SAML 3rd-party page is visible. We need to track
+       * this in addition to `isSamlSsoVisible` because it has some UI
+       * implications (e.g. user needs to be able to switch to non-default IdP).
        */
       isDefaultSsoProvider: {
         type: Boolean,
@@ -267,7 +247,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
   private isLoadingUiShown: boolean;
   private navigationEnabled: boolean;
   private isSaml: boolean;
-  private usedSaml: boolean;
   private pinDialogParameters: OobeTypes.SecurityTokenPinDialogParameters|null;
   private isSamlSsoVisible: boolean;
   private videoEnabled: boolean;
@@ -277,7 +256,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
   private canGaiaGoBack: boolean;
   private firstSigninStep: boolean;
   private isShown: boolean;
-  private isDefaultSsoProviderConfigured: boolean;
   private isDefaultSsoProvider: boolean;
   private isClosable: boolean;
   private emailDomain: string;
@@ -289,7 +267,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
   private showViewProcessed: boolean;
   private authCompleted: boolean;
   private pinDialogResultReported: boolean;
-  private fallbackGaiaPath: string;
 
   constructor() {
     super();
@@ -335,15 +312,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
      * dialog.
      */
     this.pinDialogResultReported = false;
-
-    /**
-     * Gaia path which can serve as a fallback in reloading scenarios. Expected
-     * to correspond to editable Gaia username page.
-     * TODO(b/259181755): this should no longer be needed once we change the
-     * implementation of the "Enter Google Account info" button to fully reload
-     * the flow through cpp code.
-     */
-    this.fallbackGaiaPath = '';
   }
 
   override get EXTERNAL_API(): string[] {
@@ -541,7 +509,7 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
    * Event handler that is invoked just before the frame is shown.
    * @param data Screen init payload
    */
-  onBeforeShow(data: GaiaSigninScreenData): void {
+  override onBeforeShow(data: GaiaSigninScreenData): void {
     // Re-enable navigation in case it was disabled before refresh.
     this.navigationEnabled = true;
 
@@ -554,7 +522,9 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
     const pinDialog =
         this.shadowRoot?.querySelector<SecurityTokenPin>('#pinDialog');
     assert(!!pinDialog);
-    invokePolymerMethod(pinDialog, 'onBeforeShow');
+    pinDialog.onBeforeShow();
+
+    super.onBeforeShow(data);
   }
 
   // Used in tests.
@@ -562,13 +532,14 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
     const gaiaDialog =
         this.shadowRoot?.querySelector<GaiaDialog>('#signin-frame-dialog');
     assert(!!gaiaDialog);
-    return gaiaDialog.getFrame() as chrome.webviewTag.WebView;
+    return gaiaDialog.getFrame();
   }
 
   /**
    * Event handler that is invoked just before the screen is hidden.
    */
-  onBeforeHide(): void {
+  override onBeforeHide(): void {
+    super.onBeforeHide();
     this.isShown = false;
     this.authenticator.resetWebview();
   }
@@ -583,11 +554,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
 
     this.authCompleted = false;
     this.navigationButtonsHidden = false;
-    this.fallbackGaiaPath = data.fallbackGaiaPath;
-
-    // Reset SAML
-    this.isSaml = false;
-    this.usedSaml = false;
 
     // Reset the PIN dialog, in case it's shown.
     this.closePinDialog();
@@ -599,13 +565,10 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
       }
     });
 
-    this.isDefaultSsoProviderConfigured =
-        data.screenMode === ScreenAuthMode.SAML_REDIRECT;
     params.doSamlRedirect = data.screenMode === ScreenAuthMode.SAML_REDIRECT;
     params.menuEnterpriseEnrollment =
         !(data.enterpriseManagedDevice || data.hasDeviceOwner);
     params.isFirstUser = !(data.enterpriseManagedDevice || data.hasDeviceOwner);
-    params.obfuscatedOwnerId = data.obfuscatedOwnerId;
 
     this.authenticatorParams = params;
 
@@ -663,10 +626,6 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
    * Observer that is called when the |isSaml| property gets changed.
    */
   private onSamlChanged(): void {
-    if (this.isSaml) {
-      this.usedSaml = true;
-    }
-
     chrome.send('samlStateChanged', [this.isSaml]);
 
     this.classList.toggle('saml', this.isSaml);
@@ -851,11 +810,10 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
       return;
     }
 
-    // If user goes back from the derived SAML page or GAIA page that is shown
-    // to change SSO provider we need to reload default authenticator.
-    if ((this.isSamlSsoVisible || this.isDefaultSsoProviderConfigured) &&
-        !this.isDefaultSsoProvider) {
-      this.userActed('reloadDefault');
+    // If user goes back from the derived SAML page we need to reload the
+    // default authenticator.
+    if (this.isSamlSsoVisible && !this.isDefaultSsoProvider) {
+      this.userActed(['reloadGaia', /*force_default_gaia_page*/ false]);
       return;
     }
     this.userActed(isBackClicked ? 'back' : 'cancel');
@@ -1020,16 +978,9 @@ export class GaiaSigninElement extends GaiaSigninElementBase {
    * Invoked when "Enter Google Account info" button is pressed on SAML screen.
    */
   private onSamlPageChangeAccount() {
-    // The user requests to change the account. We must clear the email
-    // field of the auth params.
-    this.videoEnabled = false;
-    this.authenticatorParams.email = '';
-    // Replace Gaia path with a fallback path to land on Gaia username page.
-    assert(
-        this.fallbackGaiaPath,
-        'fallback Gaia path needed when trying to switch from SAML to Gaia');
-    this.authenticatorParams.gaiaPath = this.fallbackGaiaPath;
-    this.loadAuthenticator_(false /* doSamlRedirect */);
+    // The user requests to change the account so the default gaia
+    // page must be shown.
+    this.userActed(['reloadGaia', /*force_default_gaia_page*/ true]);
   }
 
   /**

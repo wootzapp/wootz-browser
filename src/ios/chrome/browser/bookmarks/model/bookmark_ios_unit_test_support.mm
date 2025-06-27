@@ -6,20 +6,15 @@
 
 #import <memory>
 
-#import "base/feature_list.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "components/bookmarks/common/bookmark_features.h"
 #import "components/bookmarks/common/bookmark_metrics.h"
-#import "components/sync/base/features.h"
-#import "ios/chrome/browser/bookmarks/model/account_bookmark_model_factory.h"
+#import "components/bookmarks/test/bookmark_test_helpers.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
-#import "ios/chrome/browser/bookmarks/model/legacy_bookmark_model.h"
-#import "ios/chrome/browser/bookmarks/model/legacy_bookmark_model_test_helpers.h"
-#import "ios/chrome/browser/bookmarks/model/local_or_syncable_bookmark_model_factory.h"
 #import "ios/chrome/browser/bookmarks/model/managed_bookmark_service_factory.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
 #import "url/gurl.h"
@@ -33,68 +28,39 @@ BookmarkIOSUnitTestSupport::BookmarkIOSUnitTestSupport(
 BookmarkIOSUnitTestSupport::~BookmarkIOSUnitTestSupport() = default;
 
 void BookmarkIOSUnitTestSupport::SetUp() {
-  // Get a BookmarkModel from the test ChromeBrowserState.
-  TestChromeBrowserState::Builder test_cbs_builder;
-  test_cbs_builder.AddTestingFactory(
+  // Get a BookmarkModel from the test ProfileIOS.
+  TestProfileIOS::Builder test_profile_builder;
+  test_profile_builder.AddTestingFactory(
       AuthenticationServiceFactory::GetInstance(),
-      AuthenticationServiceFactory::GetDefaultFactory());
-  test_cbs_builder.AddTestingFactory(
-      ios::LocalOrSyncableBookmarkModelFactory::GetInstance(),
-      ios::LocalOrSyncableBookmarkModelFactory::GetDefaultFactory());
-  test_cbs_builder.AddTestingFactory(
-      ios::AccountBookmarkModelFactory::GetInstance(),
-      ios::AccountBookmarkModelFactory::GetDefaultFactory());
-  test_cbs_builder.AddTestingFactory(
+      AuthenticationServiceFactory::GetFactoryWithDelegate(
+          std::make_unique<FakeAuthenticationServiceDelegate>()));
+  test_profile_builder.AddTestingFactory(
       ios::BookmarkModelFactory::GetInstance(),
       ios::BookmarkModelFactory::GetDefaultFactory());
-  test_cbs_builder.AddTestingFactory(
+  test_profile_builder.AddTestingFactory(
       ManagedBookmarkServiceFactory::GetInstance(),
       ManagedBookmarkServiceFactory::GetDefaultFactory());
 
-  chrome_browser_state_ = test_cbs_builder.Build();
+  profile_ = std::move(test_profile_builder).Build();
 
   SetUpBrowserStateBeforeCreatingServices();
 
-  AuthenticationServiceFactory::CreateAndInitializeForBrowserState(
-      chrome_browser_state_.get(),
-      std::make_unique<FakeAuthenticationServiceDelegate>());
-
-  local_or_syncable_bookmark_model_ =
-      ios::LocalOrSyncableBookmarkModelFactory::GetForBrowserState(
-          chrome_browser_state_.get());
+  bookmark_model_ = ios::BookmarkModelFactory::GetForProfile(profile_.get());
   if (wait_for_initialization_) {
-    WaitForLegacyBookmarkModelToLoad(local_or_syncable_bookmark_model_);
+    bookmarks::test::WaitForBookmarkModelToLoad(bookmark_model_);
   }
 
-  account_bookmark_model_ =
-      ios::AccountBookmarkModelFactory::GetForBrowserState(
-          chrome_browser_state_.get());
-  if (wait_for_initialization_ && account_bookmark_model_) {
-    WaitForLegacyBookmarkModelToLoad(account_bookmark_model_);
-  }
-
-  bookmark_model_ = ios::BookmarkModelFactory::GetForBrowserState(
-      chrome_browser_state_.get());
-  if (wait_for_initialization_) {
-    // Waiting for the two underlying models, done earlier, should guarantee
-    // that the merged view is also loaded.
-    EXPECT_TRUE(bookmark_model_->loaded());
-  }
-
-  pref_service_ = chrome_browser_state_->GetPrefs();
+  pref_service_ = profile_->GetPrefs();
   EXPECT_TRUE(pref_service_);
 
-  if (wait_for_initialization_ &&
-      base::FeatureList::IsEnabled(
-          syncer::kEnableBookmarkFoldersForAccountStorage)) {
+  if (wait_for_initialization_) {
     // Some tests exercise account bookmarks. Make sure their permanent
     // folders exist.
-    ios::BookmarkModelFactory::GetModelForBrowserStateIfUnificationEnabledOrDie(
-        chrome_browser_state_.get())
+    ios::BookmarkModelFactory::GetForProfile(profile_.get())
         ->CreateAccountPermanentFolders();
   }
 
-  browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
+  browser_ = std::make_unique<TestBrowser>(profile_.get());
 }
 
 void BookmarkIOSUnitTestSupport::SetUpBrowserStateBeforeCreatingServices() {}
@@ -110,30 +76,17 @@ const BookmarkNode* BookmarkIOSUnitTestSupport::AddBookmark(
     const BookmarkNode* parent,
     const std::u16string& title,
     const GURL& url) {
-  LegacyBookmarkModel* model = GetBookmarkModelForNode(parent);
-  return model->AddURL(parent, parent->children().size(), title, url);
+  return bookmark_model_->AddURL(parent, parent->children().size(), title, url);
 }
 
 const BookmarkNode* BookmarkIOSUnitTestSupport::AddFolder(
     const BookmarkNode* parent,
     const std::u16string& title) {
-  LegacyBookmarkModel* model = GetBookmarkModelForNode(parent);
-  return model->AddFolder(parent, parent->children().size(), title);
+  return bookmark_model_->AddFolder(parent, parent->children().size(), title);
 }
 
 void BookmarkIOSUnitTestSupport::ChangeTitle(const std::u16string& title,
                                              const BookmarkNode* node) {
-  LegacyBookmarkModel* model = GetBookmarkModelForNode(node);
-  model->SetTitle(node, title, bookmarks::metrics::BookmarkEditSource::kUser);
-}
-
-LegacyBookmarkModel* BookmarkIOSUnitTestSupport::GetBookmarkModelForNode(
-    const BookmarkNode* node) {
-  DCHECK(node);
-  if (local_or_syncable_bookmark_model_->IsNodePartOfModel(node)) {
-    return local_or_syncable_bookmark_model_;
-  }
-  DCHECK(account_bookmark_model_);
-  DCHECK(account_bookmark_model_->IsNodePartOfModel(node));
-  return account_bookmark_model_;
+  bookmark_model_->SetTitle(node, title,
+                            bookmarks::metrics::BookmarkEditSource::kUser);
 }

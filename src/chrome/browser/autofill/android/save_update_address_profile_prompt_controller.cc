@@ -12,22 +12,24 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/types/optional_util.h"
-#include "chrome/android/chrome_jni_headers/SaveUpdateAddressProfilePromptController_jni.h"
 #include "chrome/browser/autofill/android/personal_data_manager_android.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "components/autofill/core/browser/autofill_address_util.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/autofill_profile_comparator.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/browser/ui/addresses/autofill_address_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/SaveUpdateAddressProfilePromptController_jni.h"
 
 namespace autofill {
 
@@ -83,10 +85,9 @@ std::u16string SaveUpdateAddressProfilePromptController::GetTitle() {
           : IDS_AUTOFILL_SAVE_ADDRESS_PROMPT_TITLE);
 }
 
-std::u16string SaveUpdateAddressProfilePromptController::GetSourceNotice(
+std::u16string SaveUpdateAddressProfilePromptController::GetRecordTypeNotice(
     signin::IdentityManager* identity_manager) {
-  if (!is_migration_to_account_ &&
-      profile_.source() != AutofillProfile::Source::kAccount) {
+  if (!is_migration_to_account_ && !profile_.IsAccountProfile()) {
     return std::u16string();
   }
   std::optional<AccountInfo> account =
@@ -113,14 +114,14 @@ std::u16string SaveUpdateAddressProfilePromptController::GetSourceNotice(
   // account and is only going to be updated there.
   if (original_profile_) {
     return l10n_util::GetStringFUTF16(
-        IDS_AUTOFILL_ADDRESS_ALREADY_SAVED_IN_ACCOUNT_SOURCE_NOTICE,
+        IDS_AUTOFILL_ADDRESS_ALREADY_SAVED_IN_ACCOUNT_RECORD_TYPE_NOTICE,
         base::UTF8ToUTF16(account->email));
   }
 
   // Notify the user that their address is going to be saved in their Google
   // account if they accept the prompt.
   return l10n_util::GetStringFUTF16(
-      IDS_AUTOFILL_ADDRESS_WILL_BE_SAVED_IN_ACCOUNT_SOURCE_NOTICE,
+      IDS_AUTOFILL_ADDRESS_WILL_BE_SAVED_IN_ACCOUNT_RECORD_TYPE_NOTICE,
       base::UTF8ToUTF16(account->email));
 }
 

@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include "base/i18n/rtl.h"
+#include "base/task/current_thread.h"
 #include "base/trace_event/base_tracing.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
@@ -66,15 +67,18 @@ void ShowSystemMenuAtScreenPixelLocation(HWND window, const gfx::Point& point) {
   TRACE_EVENT0("ui", "ShowSystemMenuAtScreenPixelLocation");
 
   UINT flags = TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD;
-  if (base::i18n::IsRTL())
+  if (base::i18n::IsRTL()) {
     flags |= TPM_RIGHTALIGN;
+  }
   HMENU menu = ::GetSystemMenu(window, FALSE);
 
+  base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
   const int command =
       ::TrackPopupMenu(menu, flags, point.x(), point.y(), 0, window, nullptr);
 
-  if (command)
+  if (command) {
     ::SendMessage(window, WM_SYSCOMMAND, static_cast<WPARAM>(command), 0);
+  }
 }
 
 }  // namespace views

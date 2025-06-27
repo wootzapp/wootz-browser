@@ -4,16 +4,17 @@
 
 #include "chrome/browser/ui/views/apps/app_dialog/app_uninstall_dialog_view.h"
 
+#include <memory>
+#include <optional>
 #include <string>
 
-#include "ash/components/arc/test/arc_util_test_support.h"
-#include "ash/components/arc/test/connection_holder_util.h"
-#include "ash/components/arc/test/fake_app_instance.h"
+#include "base/containers/to_vector.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
+#include "base/test/gmock_expected_support.h"
 #include "base/test/run_until.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
@@ -27,6 +28,7 @@
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_observers.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
@@ -35,19 +37,28 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "chromeos/ash/experiences/arc/test/arc_util_test_support.h"
+#include "chromeos/ash/experiences/arc/test/connection_holder_util.h"
+#include "chromeos/ash/experiences/arc/test/fake_app_instance.h"
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/any_widget_observer.h"
 
 class AppUninstallDialogViewBrowserTest : public DialogBrowserTest {
  public:
-  AppDialogView* ActiveView() {
+  AppUninstallDialogView* ActiveView() {
     return AppUninstallDialogView::GetActiveViewForTesting();
+  }
+
+  std::optional<std::u16string> GetTitleText(
+      AppUninstallDialogView* uninstall_dialog_view) {
+    return uninstall_dialog_view->GetTitleTextForTesting();
   }
 
   void ShowUi(const std::string& name) override {
@@ -57,18 +68,15 @@ class AppUninstallDialogViewBrowserTest : public DialogBrowserTest {
         apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
     ASSERT_TRUE(app_service_proxy);
 
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr,
-        base::BindLambdaForTesting([&](bool) { run_loop.Quit(); }));
-    run_loop.Run();
+    UninstallApp(app_id_);
 
     ASSERT_NE(nullptr, ActiveView());
-    EXPECT_EQ(ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL,
-              ActiveView()->GetDialogButtons());
+    EXPECT_EQ(static_cast<int>(ui::mojom::DialogButton::kOk) |
+                  static_cast<int>(ui::mojom::DialogButton::kCancel),
+              ActiveView()->buttons());
     std::u16string title =
         u"Uninstall \"" + base::ASCIIToUTF16(app_name_) + u"\"?";
-    EXPECT_EQ(title, ActiveView()->GetWindowTitle());
+    EXPECT_EQ(title, GetTitleText(ActiveView()));
 
     if (name == "accept") {
       if (app_service_proxy->AppRegistryCache().GetAppType(app_id_) ==
@@ -104,6 +112,19 @@ class AppUninstallDialogViewBrowserTest : public DialogBrowserTest {
     // dialog.
     base::RunLoop().RunUntilIdle();
     EXPECT_EQ(nullptr, ActiveView());
+  }
+
+  // Uninstalls the given app, and returns true if the confirmation dialog was
+  // displayed.
+  bool UninstallApp(std::string app_id) {
+    auto* app_service_proxy =
+        apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
+    DCHECK(app_service_proxy);
+
+    base::test::TestFuture<bool> future;
+    app_service_proxy->UninstallForTesting(app_id, nullptr,
+                                           future.GetCallback());
+    return future.Get();
   }
 
  protected:
@@ -228,44 +249,22 @@ IN_PROC_BROWSER_TEST_F(WebAppsUninstallDialogViewBrowserTest,
                        ExistingDialogFocus) {
   CreateApp();
 
-  auto* app_service_proxy =
-      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
-  ASSERT_TRUE(app_service_proxy);
-
   // First call to uninstall should return true in callback for successful.
-  {
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr, base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_TRUE(dialog_opened);
-          run_loop.Quit();
-        }));
-    run_loop.Run();
-  }
+  EXPECT_TRUE(UninstallApp(app_id_));
 
   views::Widget* first_widget = ActiveView()->GetWidget();
   first_widget->Hide();
   EXPECT_FALSE(first_widget->IsVisible());
 
   // Second call should be unsuccessful.
-  {
-    base::RunLoop run_loop;
-
-    // The shown widget should be the one opened in the first call to uninstall.
-    views::AnyWidgetObserver observer(views::test::AnyWidgetTestPasskey{});
-    observer.set_shown_callback(
-        base::BindLambdaForTesting([&](views::Widget* widget) {
-          EXPECT_EQ(first_widget, widget);
-          EXPECT_TRUE(first_widget->IsVisible());
-        }));
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr, base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_FALSE(dialog_opened);
-          run_loop.Quit();
-        }));
-
-    run_loop.Run();
-  }
+  // The shown widget should be the one opened in the first call to uninstall.
+  views::AnyWidgetObserver observer(views::test::AnyWidgetTestPasskey{});
+  observer.set_shown_callback(
+      base::BindLambdaForTesting([&](views::Widget* widget) {
+        EXPECT_EQ(first_widget, widget);
+        EXPECT_TRUE(first_widget->IsVisible());
+      }));
+  EXPECT_FALSE(UninstallApp(app_id_));
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppsUninstallDialogViewBrowserTest,
@@ -279,33 +278,18 @@ IN_PROC_BROWSER_TEST_F(WebAppsUninstallDialogViewBrowserTest,
   ASSERT_TRUE(app_service_proxy);
 
   // First call to uninstall should return true in callback for successful.
-  {
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr, base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_TRUE(dialog_opened);
-          run_loop.Quit();
-        }));
-    run_loop.Run();
-  }
-  // Second call should be unsuccessful.
-  {
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr, base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_FALSE(dialog_opened);
-          run_loop.Quit();
-        }));
+  EXPECT_TRUE(UninstallApp(app_id_));
 
-    run_loop.Run();
-  }
+  // Second call should be unsuccessful.
+  EXPECT_FALSE(UninstallApp(app_id_));
 
   ASSERT_NE(nullptr, ActiveView());
-  EXPECT_EQ(ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL,
-            ActiveView()->GetDialogButtons());
+  EXPECT_EQ(static_cast<int>(ui::mojom::DialogButton::kOk) |
+                static_cast<int>(ui::mojom::DialogButton::kCancel),
+            ActiveView()->buttons());
   std::u16string title =
       u"Uninstall \"" + base::ASCIIToUTF16(app_name_) + u"\"?";
-  EXPECT_EQ(title, ActiveView()->GetWindowTitle());
+  EXPECT_EQ(title, GetTitleText(ActiveView()));
 
   // Cancelling the active dialog should not uninstall the web app.
   ActiveView()->CancelDialog();
@@ -321,15 +305,7 @@ IN_PROC_BROWSER_TEST_F(WebAppsUninstallDialogViewBrowserTest,
 
   // Uninstall dialog should be reopenable.
   EXPECT_EQ(nullptr, ActiveView());
-  {
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        app_id_, nullptr, base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_TRUE(dialog_opened);
-          run_loop.Quit();
-        }));
-    run_loop.Run();
-  }
+  EXPECT_TRUE(UninstallApp(app_id_));
   ASSERT_NE(nullptr, ActiveView());
 }
 
@@ -343,17 +319,28 @@ class IsolatedWebAppsUninstallDialogViewBrowserTest
 
  protected:
   base::test::ScopedFeatureList feature_list_;
+
+  std::vector<views::View*> GetViews(
+      views::View* view,
+      AppUninstallDialogView::DialogViewID view_type) {
+    std::vector<raw_ptr<views::View, VectorExperimental>> views_group;
+
+    view->GetViewsInGroup(base::to_underlying(view_type), &views_group);
+    return base::ToVector(views_group, [](auto item) { return item.get(); });
+  }
 };
 
 IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
                        SubAppsShownCorrectly) {
-  std::unique_ptr<net::EmbeddedTestServer> iwa_dev_server =
-      web_app::CreateAndStartDevServer(
-          FILE_PATH_LITERAL("web_apps/subapps_isolated_app"));
+  std::unique_ptr<web_app::ScopedBundledIsolatedWebApp> app =
+      web_app::IsolatedWebAppBuilder(
+          web_app::ManifestBuilder().AddPermissionsPolicyWildcard(
+              network::mojom::PermissionsPolicyFeature::kSubApps))
+          .BuildBundle();
 
-  web_app::IsolatedWebAppUrlInfo parent_app =
-      web_app::InstallDevModeProxyIsolatedWebApp(browser()->profile(),
-                                                 iwa_dev_server->GetOrigin());
+  ASSERT_OK_AND_ASSIGN(web_app::IsolatedWebAppUrlInfo parent_app,
+                       app->Install(browser()->profile()));
+
   const webapps::AppId parent_app_id = parent_app.app_id();
   const GURL parent_app_url = parent_app.origin().GetURL();
 
@@ -377,29 +364,14 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
                                  webapps::WebappInstallSource::SUB_APP);
   }
 
-  auto* app_service_proxy =
-      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
-  ASSERT_TRUE(app_service_proxy);
-  {
-    base::RunLoop run_loop;
-    app_service_proxy->UninstallForTesting(
-        parent_app_id, nullptr,
-        base::BindLambdaForTesting([&](bool dialog_opened) {
-          EXPECT_TRUE(dialog_opened);
-          run_loop.Quit();
-        }));
-    run_loop.Run();
-  }
+  EXPECT_TRUE(UninstallApp(parent_app_id));
 
   views::View* view = ActiveView()->GetWidget()->GetContentsView();
-  std::vector<raw_ptr<views::View, VectorExperimental>> views_group;
+  std::vector<views::View*> views_group;
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    views_group.clear();
-    view->GetViewsInGroup(
-        base::to_underlying(
-            AppUninstallDialogView::DialogViewID::SUB_APP_LABEL),
-        &views_group);
+    views_group =
+        GetViews(view, AppUninstallDialogView::DialogViewID::SUB_APP_LABEL);
     return views_group.size() == 3u;
   }));
 
@@ -409,13 +381,38 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
   }
   EXPECT_EQ(sub_apps_actual, sub_apps_expected);
 
-  std::vector<raw_ptr<views::View, VectorExperimental>> sub_app_icons;
-  view->GetViewsInGroup(
-      base::to_underlying(AppUninstallDialogView::DialogViewID::SUB_APP_ICON),
-      &sub_app_icons);
+  std::vector<views::View*> sub_app_icons =
+      GetViews(view, AppUninstallDialogView::DialogViewID::SUB_APP_ICON);
   EXPECT_EQ(sub_app_icons.size(), 3u);
   views::ImageView* icon_view =
       static_cast<views::ImageView*>(sub_app_icons[0]);
   EXPECT_FALSE(icon_view->GetImageModel().IsEmpty());
   EXPECT_EQ(icon_view->GetVisibleBounds().size(), gfx::Size(32, 32));
+}
+
+IN_PROC_BROWSER_TEST_F(IsolatedWebAppsUninstallDialogViewBrowserTest,
+                       SubAppsAreNotShownWhenNoneAreInstalled) {
+  std::unique_ptr<web_app::ScopedBundledIsolatedWebApp> app =
+      web_app::IsolatedWebAppBuilder(
+          web_app::ManifestBuilder().AddPermissionsPolicyWildcard(
+              network::mojom::PermissionsPolicyFeature::kSubApps))
+          .BuildBundle();
+
+  ASSERT_OK_AND_ASSIGN(web_app::IsolatedWebAppUrlInfo parent_app,
+                       app->Install(browser()->profile()));
+
+  const webapps::AppId parent_app_id = parent_app.app_id();
+  const GURL parent_app_url = parent_app.origin().GetURL();
+
+  std::unordered_set<std::u16string> sub_apps_expected;
+
+  EXPECT_TRUE(UninstallApp(parent_app_id));
+
+  views::View* view = ActiveView()->GetWidget()->GetContentsView();
+  ASSERT_TRUE(base::test::RunUntil([&]() { return view->GetVisible(); }));
+
+  // the subapps list should be not visible
+  std::vector<views::View*> views_group =
+      GetViews(view, AppUninstallDialogView::DialogViewID::SUB_APP_LABEL);
+  EXPECT_THAT(views_group, testing::IsEmpty());
 }

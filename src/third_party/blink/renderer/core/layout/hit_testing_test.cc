@@ -15,12 +15,13 @@
 #include "third_party/blink/renderer/core/layout/hit_test_request.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
 using HitNodeCb =
-    base::MockRepeatingCallback<ListBasedHitTestBehavior(const Node& node)>;
+    base::MockRepeatingCallback<ListBasedHitTestBehavior(const Node& node,
+                                                         DOMNodeId node_id)>;
 using testing::_;
 using testing::Return;
 
@@ -40,6 +41,11 @@ class HitTestingTest : public RenderingTest {
       return PositionWithAffinity();
     return layout_object->PositionForPoint(hit_result.LocalPoint());
   }
+
+  static HitTestResult HitTestForOcclusion(const Element& target) {
+    const LayoutObject* object = target.GetLayoutObject();
+    return object->HitTestForOcclusion(VisualRectInDocument(*object));
+  }
 };
 
 // Helper class used by |HitNodeCb| to allow callers to stop hit testing at a
@@ -51,7 +57,7 @@ class HitNodeCallbackStopper : public GarbageCollected<HitNodeCallbackStopper> {
   HitNodeCallbackStopper& operator=(const HitNodeCallbackStopper&) = delete;
   ~HitNodeCallbackStopper() = default;
 
-  ListBasedHitTestBehavior StopAtNode(const Node& node) {
+  ListBasedHitTestBehavior StopAtNode(const Node& node, DOMNodeId node_id) {
     did_stop_hit_testing_ = false;
     if (node == stop_node_) {
       did_stop_hit_testing_ = true;
@@ -84,13 +90,38 @@ TEST_F(HitTestingTest, OcclusionHitTest) {
 
   Element* target = GetElementById("target");
   Element* occluder = GetElementById("occluder");
-  HitTestResult result = target->GetLayoutObject()->HitTestForOcclusion();
+  HitTestResult result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), target);
 
   occluder->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-10px");
   UpdateAllLifecyclePhasesForTest();
-  result = target->GetLayoutObject()->HitTestForOcclusion();
+  result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), occluder);
+}
+
+TEST_F(HitTestingTest, OcclusionHitTestSVGTextWithFilterCrash) {
+  SetBodyInnerHTML(R"HTML(
+    <style>
+    div {
+      width: 100px;
+      height: 100px;
+    }
+    text {
+      filter: blur(10px);
+    }
+    </style>
+
+    <div id="target"></div>
+    <svg overflow="visible" display="block">
+      <text id="occluder" y="40" font-size="50px">M</text>
+    </svg>
+  )HTML");
+
+  Element* target = GetElementById("target");
+  Element* occluder = GetElementById("occluder");
+  HitTestResult result = HitTestForOcclusion(*target);
+  // The intersection will be flagged on the text node.
+  EXPECT_EQ(result.InnerNode(), occluder->firstChild());
 }
 
 TEST_F(HitTestingTest, HitTestWithCallback) {
@@ -113,13 +144,13 @@ TEST_F(HitTestingTest, HitTestWithCallback) {
 
   // Perform hit test without stopping, and verify that the result innernode is
   // set to the target.
-  EXPECT_CALL(hit_node_cb, Run(_))
+  EXPECT_CALL(hit_node_cb, Run(_, _))
       .WillRepeatedly(Return(ListBasedHitTestBehavior::kContinueHitTesting));
 
   LocalFrame* frame = GetDocument().GetFrame();
   DCHECK(!frame->View()->NeedsLayout());
   const PhysicalRect& hit_rect =
-      target->GetLayoutObject()->VisualRectInDocument();
+      VisualRectInDocument(*target->GetLayoutObject());
   HitTestRequest::HitTestRequestType hit_type =
       HitTestRequest::kIgnorePointerEventsNone | HitTestRequest::kReadOnly |
       HitTestRequest::kIgnoreClipping |
@@ -150,17 +181,18 @@ TEST_F(HitTestingTest, HitTestWithCallback) {
 
   // Set up HitNodeCb helper, and the HitNodeCb expectations.
   Node* stop_node = GetElementById("occluder_2");
-  HitNodeCallbackStopper hit_node_callback_stopper(stop_node);
-  EXPECT_CALL(hit_node_cb, Run(_))
-      .WillRepeatedly(testing::Invoke(&hit_node_callback_stopper,
+  HitNodeCallbackStopper* hit_node_callback_stopper =
+      MakeGarbageCollected<HitNodeCallbackStopper>(stop_node);
+  EXPECT_CALL(hit_node_cb, Run(_, _))
+      .WillRepeatedly(testing::Invoke(hit_node_callback_stopper,
                                       &HitNodeCallbackStopper::StopAtNode));
-  EXPECT_FALSE(hit_node_callback_stopper.DidStopHitTesting());
+  EXPECT_FALSE(hit_node_callback_stopper->DidStopHitTesting());
 
   // Perform hit test and verify that hit testing stops at the given node.
   result = frame->GetEventHandler().HitTestResultAtLocation(
       location, hit_type, target->GetLayoutObject(), true, hit_node_cb.Get());
   EXPECT_TRUE(result.ListBasedTestResult().Contains(stop_node));
-  EXPECT_TRUE(hit_node_callback_stopper.DidStopHitTesting());
+  EXPECT_TRUE(hit_node_callback_stopper->DidStopHitTesting());
 }
 
 TEST_F(HitTestingTest, OcclusionHitTestWithClipPath) {
@@ -189,20 +221,20 @@ TEST_F(HitTestingTest, OcclusionHitTestWithClipPath) {
   Element* occluder = GetElementById("occluder");
 
   // target and occluder don't overlap, no occlusion.
-  HitTestResult result = target->GetLayoutObject()->HitTestForOcclusion();
+  HitTestResult result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), target);
 
   // target and occluder layout rects overlap, but the overlapping area of the
   // occluder is clipped out, so no occlusion.
   occluder->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-4px");
   UpdateAllLifecyclePhasesForTest();
-  result = target->GetLayoutObject()->HitTestForOcclusion();
+  result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), target);
 
   // target and clipped area of occluder overlap, so there is occlusion.
   occluder->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-6px");
   UpdateAllLifecyclePhasesForTest();
-  result = target->GetLayoutObject()->HitTestForOcclusion();
+  result = HitTestForOcclusion(*target);
   EXPECT_EQ(result.InnerNode(), occluder);
 }
 

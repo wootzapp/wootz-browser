@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/views/bubble/webui_bubble_manager.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/tab_search_bubble_host.h"
 #include "chrome/browser/ui/views/tabs/tab_search_button.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -27,8 +28,8 @@
 
 namespace {
 ui::MouseEvent GetDummyEvent() {
-  return ui::MouseEvent(ui::ET_MOUSE_PRESSED, gfx::PointF(), gfx::PointF(),
-                        base::TimeTicks::Now(), 0, 0);
+  return ui::MouseEvent(ui::EventType::kMousePressed, gfx::PointF(),
+                        gfx::PointF(), base::TimeTicks::Now(), 0, 0);
 }
 }  // namespace
 
@@ -39,14 +40,11 @@ class TabSearchButtonBrowserTest : public InProcessBrowserTest {
   }
 
   TabSearchButton* tab_search_button() {
-    return browser_view()
-        ->tab_strip_region_view()
-        ->tab_search_container()
-        ->tab_search_button();
+    return browser_view()->tab_strip_region_view()->GetTabSearchButton();
   }
 
   TabSearchBubbleHost* tab_search_bubble_host() {
-    return tab_search_button()->tab_search_bubble_host();
+    return browser_view()->GetTabSearchBubbleHost();
   }
 
   WebUIBubbleManager* bubble_manager() {
@@ -83,8 +81,7 @@ class TabSearchButtonBrowserUITest : public DialogBrowserTest {
     AppendTab(chrome::kChromeUIBookmarksURL);
     auto* tab_search_button = BrowserView::GetBrowserViewForBrowser(browser())
                                   ->tab_strip_region_view()
-                                  ->tab_search_container()
-                                  ->tab_search_button();
+                                  ->GetTabSearchButton();
     views::test::ButtonTestApi(tab_search_button).NotifyClick(GetDummyEvent());
   }
 

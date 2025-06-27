@@ -24,13 +24,6 @@ const char kDisableModalAnimations[] = "disable-modal-animations";
 const char kShowMacOverlayBorders[] = "show-mac-overlay-borders";
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
-// Enable resources file sharing with ash-chrome.
-// This flag is enabled when feature::kLacrosResourcesFileSharing is set and
-// ash-side operation is successfully done.
-const char kEnableResourcesFileSharing[] = "enable-resources-file-sharing";
-#endif
-
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // Specifies system font family name. Improves determenism when rendering
 // pages in headless mode.
@@ -40,10 +33,9 @@ const char kSystemFontFamily[] = "system-font-family";
 #if BUILDFLAG(IS_LINUX)
 // Specify the toolkit used to construct the Linux GUI.
 const char kUiToolkitFlag[] = "ui-toolkit";
+// Disables GTK IME integration.
+const char kDisableGtkIme[] = "disable-gtk-ime";
 #endif
-
-// Disables layer-edge anti-aliasing in the compositor.
-const char kDisableCompositedAntialiasing[] = "disable-composited-antialiasing";
 
 // Disables touch event based drag and drop.
 const char kDisableTouchDragDrop[] = "disable-touch-drag-drop";
@@ -73,6 +65,8 @@ const char kForceHighContrast[] = "force-high-contrast";
 
 // The language file that we want to try to open. Of the form
 // language[-country] where language is the 2 letter code from ISO-639.
+// On Linux, this flag does not work; use the LC_*/LANG environment variables
+// instead.
 const char kLang[] = "lang";
 
 // Transform localized strings to be longer, with beginning and end markers to
@@ -111,5 +105,9 @@ const char kUIDisablePartialSwap[] = "ui-disable-partial-swap";
 
 // Enables the ozone x11 clipboard for linux-chromeos.
 const char kUseSystemClipboard[] = "use-system-clipboard";
+
+// Headless screen info in the format: {0,0 800x600}{800,0 600x800}.
+// See //components/headless/screen_info/headless_screen_info.h for details.
+const char kScreenInfo[] = "screen-info";
 
 }  // namespace switches

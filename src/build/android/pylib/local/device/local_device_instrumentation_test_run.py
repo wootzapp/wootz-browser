@@ -29,9 +29,12 @@ from devil.android.tools import system_app
 from devil.android.tools import webview_app
 from devil.utils import reraiser_thread
 from incremental_install import installer
+from lib.proto import exception_recorder
+from lib.proto import measures
 from pylib import constants
 from pylib.base import base_test_result
 from pylib.base import output_manager
+from pylib.base import test_exception
 from pylib.constants import host_paths
 from pylib.instrumentation import instrumentation_parser
 from pylib.instrumentation import instrumentation_test_instance
@@ -41,9 +44,9 @@ from pylib.output import remote_output_manager
 from pylib.symbols import stack_symbolizer
 from pylib.utils import chrome_proxy_utils
 from pylib.utils import code_coverage_utils
+from pylib.utils import device_dependencies
 from pylib.utils import gold_utils
 from pylib.utils import instrumentation_tracing
-from pylib.utils.device_dependencies import DevicePathComponentsFor
 from py_trace_event import trace_event
 from py_trace_event import trace_time
 from py_utils import contextlib_ext
@@ -63,8 +66,8 @@ _JINJA_TEMPLATE_DIR = os.path.join(
 _JINJA_TEMPLATE_FILENAME = 'render_test.html.jinja'
 
 _WPR_GO_LINUX_X86_64_PATH = os.path.join(host_paths.DIR_SOURCE_ROOT,
-                                         'third_party', 'webpagereplay', 'bin',
-                                         'linux', 'x86_64', 'wpr')
+                                         'third_party', 'webpagereplay', 'cipd',
+                                         'bin', 'linux', 'x86_64', 'wpr')
 
 _TAG = 'test_runner_py'
 
@@ -110,6 +113,16 @@ _EXTRA_TEST_IS_UNIT = 'BaseChromiumAndroidJUnitRunner.IsUnitTest'
 _EXTRA_PACKAGE_UNDER_TEST = ('org.chromium.chrome.test.pagecontroller.rules.'
                              'ChromeUiApplicationTestRule.PackageUnderTest')
 
+_EXTRA_WEBVIEW_PROCESS_MODE = 'AwJUnit4ClassRunner.ProcessMode'
+
+# LINT.IfChange
+_EXTRA_WEBVIEW_REBASELINE_MODE = (
+    'org.chromium.android_webview.test.RebaselineMode')
+_VALUE_WEBVIEW_REBASELINE_MODE = 'rebaseline'
+# pylint: disable=line-too-long
+# LINT.ThenChange(//android_webview/tools/system_webview_shell/layout_tests/src/org/chromium/webview_shell/test/WebViewLayoutTest.java)
+# pylint: enable=line-too-long
+
 FEATURE_ANNOTATION = 'Feature'
 RENDER_TEST_FEATURE_ANNOTATION = 'RenderTest'
 WPR_ARCHIVE_FILE_PATH_ANNOTATION = 'WPRArchiveDirectory'
@@ -120,7 +133,7 @@ _DEVICE_GOLD_DIR = 'skia_gold'
 # A map of Android product models to SDK ints.
 RENDER_TEST_MODEL_SDK_CONFIGS = {
     # Android x86 emulator.
-    'Android SDK built for x86': [24, 26],
+    'Android SDK built for x86': [26],
     # We would like this to be supported, but it is currently too prone to
     # introducing flakiness due to a combination of Gold and Chromium issues.
     # See crbug.com/1233700 and skbug.com/12149 for more information.
@@ -129,9 +142,33 @@ RENDER_TEST_MODEL_SDK_CONFIGS = {
 
 _BATCH_SUFFIX = '_batch'
 # If the batch is too big it starts to fail for command line length reasons.
-_LOCAL_TEST_BATCH_MAX_GROUP_SIZE = 200
+_UNIT_TEST_MAX_GROUP_SIZE = 200
+# With sharding, large batches can unbalance the shards, so break down batches
+# of slow tests to a size that should not take more than a couple of minutes to
+# run.
+_NON_UNIT_TEST_MAX_GROUP_SIZE = 30
 
 _PICKLE_FORMAT_VERSION = 12
+
+
+def _dict2list(d):
+  if isinstance(d, dict):
+    return sorted([(k, _dict2list(v)) for k, v in d.items()])
+  if isinstance(d, list):
+    return [_dict2list(v) for v in d]
+  if isinstance(d, tuple):
+    return tuple(_dict2list(v) for v in d)
+  return d
+
+
+def _UpdateExtrasListener(extras, new_listener):
+  existing_listeners = extras.get('listener')
+  if existing_listeners:
+    # Comma is used to specify multiple listeners. See AndroidJUnitRunner.java
+    # in androidx code.
+    extras['listener'] = ','.join([existing_listeners, new_listener])
+  else:
+    extras['listener'] = new_listener
 
 
 class _TestListPickleException(Exception):
@@ -319,6 +356,7 @@ class LocalDeviceInstrumentationTestRun(
 
     @local_device_environment.handle_shard_failures_with(
         self._env.DenylistDevice)
+    @measures.timed_func('device_setup')
     @trace_event.traced
     def individual_device_set_up(device, host_device_tuples):
       # Functions to run concurrerntly when --concurrent-adb is enabled.
@@ -331,6 +369,8 @@ class LocalDeviceInstrumentationTestRun(
         test_data_root_dir = _DEVICE_TEMP_DIR_DATA_ROOT
 
       if self._test_instance.replace_system_package:
+
+        @measures.timed_func('device_setup', 'replace_package')
         @trace_event.traced
         def replace_package(dev):
           # We need the context manager to be applied before modifying any
@@ -354,6 +394,7 @@ class LocalDeviceInstrumentationTestRun(
 
       if self._test_instance.system_packages_to_remove:
 
+        @measures.timed_func('device_setup', 'remove_packages')
         @trace_event.traced
         def remove_packages(dev):
           logging.info('Attempting to remove system packages %s',
@@ -375,22 +416,36 @@ class LocalDeviceInstrumentationTestRun(
                          instant_app=False):
 
         @instrumentation_tracing.no_tracing
+        @measures.timed_func('device_setup', 'install_apk')
         @trace_event.traced
         def install_helper_internal(d, apk_path=None):
           # pylint: disable=unused-argument
-          d.Install(
-              apk,
-              modules=modules,
-              fake_modules=fake_modules,
-              permissions=permissions,
-              additional_locales=additional_locales,
-              instant_app=instant_app,
-              force_queryable=self._test_instance.IsApkForceQueryable(apk))
+          try:
+            d.Install(
+                apk,
+                modules=modules,
+                fake_modules=fake_modules,
+                permissions=permissions,
+                additional_locales=additional_locales,
+                instant_app=instant_app,
+                force_queryable=self._test_instance.IsApkForceQueryable(apk))
+          except device_errors.CommandFailedError as e:
+            exception_recorder.register(
+                test_exception.InstallationFailedError(e))
+            raise
+          except device_errors.CommandTimeoutError as e:
+            exception_recorder.register(
+                test_exception.InstallationTimeoutError(e))
+            raise
+          except base_error.BaseError as e:
+            exception_recorder.register(test_exception.InstallationError(e))
+            raise
 
         return install_helper_internal
 
       def install_apex_helper(apex):
         @instrumentation_tracing.no_tracing
+        @measures.timed_func('device_setup', 'install_apex')
         @trace_event.traced
         def install_helper_internal(d, apk_path=None):
           # pylint: disable=unused-argument
@@ -400,10 +455,23 @@ class LocalDeviceInstrumentationTestRun(
 
       def incremental_install_helper(apk, json_path, permissions):
 
+        @measures.timed_func('device_setup', 'install_incremental')
         @trace_event.traced
         def incremental_install_helper_internal(d, apk_path=None):
           # pylint: disable=unused-argument
-          installer.Install(d, json_path, apk=apk, permissions=permissions)
+          try:
+            installer.Install(d, json_path, apk=apk, permissions=permissions)
+          except device_errors.CommandFailedError as e:
+            exception_recorder.register(
+                test_exception.InstallationFailedError(e))
+            raise
+          except device_errors.CommandTimeoutError as e:
+            exception_recorder.register(
+                test_exception.InstallationTimeoutError(e))
+            raise
+          except base_error.BaseError as e:
+            exception_recorder.register(test_exception.InstallationError(e))
+            raise
 
         return incremental_install_helper_internal
 
@@ -440,6 +508,7 @@ class LocalDeviceInstrumentationTestRun(
 
       if self._test_instance.use_webview_provider:
 
+        @measures.timed_func('device_setup', 'use_webview_provider')
         @trace_event.traced
         def use_webview_provider(dev):
           # We need the context manager to be applied before modifying any
@@ -466,6 +535,7 @@ class LocalDeviceInstrumentationTestRun(
 
       if self._test_instance.use_voice_interaction_service:
 
+        @measures.timed_func('device_setup', 'use_voice_interaction_service')
         @trace_event.traced
         def use_voice_interaction_service(device):
           voice_interaction_service_context = _VoiceInteractionService(
@@ -503,6 +573,7 @@ class LocalDeviceInstrumentationTestRun(
       # Execute any custom setup shell commands
       if self._test_instance.run_setup_commands:
 
+        @measures.timed_func('device_setup', 'run_setup_commands')
         @trace_event.traced
         def run_setup_commands(dev):
           for cmd in self._test_instance.run_setup_commands:
@@ -511,6 +582,7 @@ class LocalDeviceInstrumentationTestRun(
 
         post_install_steps.append(run_setup_commands)
 
+      @measures.timed_func('device_setup', 'set_debug_app')
       @trace_event.traced
       def set_debug_app(dev):
         # Set debug app in order to enable reading command line flags on user
@@ -521,9 +593,18 @@ class LocalDeviceInstrumentationTestRun(
         cmd.append(target_package)
         dev.RunShellCommand(cmd, check_return=True)
 
+      @measures.timed_func('device_setup', 'approve_app_links')
       @trace_event.traced
       def approve_app_links(dev):
         self._ToggleAppLinks(dev, 'STATE_APPROVED')
+
+      @trace_event.traced
+      def disable_system_modals(dev):
+        # Disable "Swipe down to exit fullscreen" modal.
+        # Disable notification permission dialog in Android T+.
+        cmd = ('settings put secure immersive_mode_confirmations confirmed && '
+               'settings put secure notification_permission_enabled 0')
+        dev.RunShellCommand(cmd, shell=True, check_return=True)
 
       @trace_event.traced
       def set_vega_permissions(dev):
@@ -538,6 +619,7 @@ class LocalDeviceInstrumentationTestRun(
               'android.permission.READ_EXTERNAL_STORAGE'
           ])
 
+      @measures.timed_func('device_setup', 'push_test_data')
       @instrumentation_tracing.no_tracing
       def push_test_data(dev):
         device_root = test_data_root_dir
@@ -545,18 +627,16 @@ class LocalDeviceInstrumentationTestRun(
         # commands. Don't resolve if the path is passed to app through flags.
         if self._env.force_main_user:
           device_root = device.ResolveSpecialPath(device_root)
-        host_device_tuples_substituted = [
-            (h, local_device_test_run.SubstituteDeviceRoot(d, device_root))
-            for h, d in host_device_tuples
-        ]
+        resolved_host_device_tuples = device_dependencies.SubstituteDeviceRoot(
+            host_device_tuples, device_root)
         logging.info('Pushing data dependencies.')
-        for h, d in host_device_tuples_substituted:
+        for h, d in resolved_host_device_tuples:
           logging.debug('  %r -> %r', h, d)
         dev.PlaceNomediaFile(device_root)
-        dev.PushChangedFiles(host_device_tuples_substituted,
+        dev.PushChangedFiles(resolved_host_device_tuples,
                              delete_device_stale=True,
                              as_root=self._env.force_main_user)
-        if not host_device_tuples_substituted:
+        if not resolved_host_device_tuples:
           dev.RunShellCommand(['rm', '-rf', device_root],
                               check_return=True,
                               as_root=self._env.force_main_user)
@@ -564,6 +644,7 @@ class LocalDeviceInstrumentationTestRun(
                               check_return=True,
                               as_root=self._env.force_main_user)
 
+      @measures.timed_func('device_setup', 'create_flag_changer')
       @trace_event.traced
       def create_flag_changer(dev):
         flags = self._test_instance.flags
@@ -573,8 +654,9 @@ class LocalDeviceInstrumentationTestRun(
           webview_flags.append('--webview-verbose-logging')
 
         def _get_variations_seed_path_arg(seed_path):
-          seed_path_components = DevicePathComponentsFor(seed_path)
-          test_seed_path = local_device_test_run.SubstituteDeviceRoot(
+          seed_path_components = device_dependencies.DevicePathComponentsFor(
+              seed_path)
+          test_seed_path = device_dependencies.SubstituteDeviceRootSingle(
               seed_path_components, test_data_root_dir)
           return '--variations-test-seed-path={0}'.format(test_seed_path)
 
@@ -601,8 +683,8 @@ class LocalDeviceInstrumentationTestRun(
 
       install_steps += [push_test_data, create_flag_changer]
       post_install_steps += [
-          set_debug_app, approve_app_links, set_vega_permissions,
-          DismissCrashDialogs
+          set_debug_app, approve_app_links, disable_system_modals,
+          set_vega_permissions, DismissCrashDialogs
       ]
 
       def bind_crash_handler(step, dev):
@@ -811,6 +893,16 @@ class LocalDeviceInstrumentationTestRun(
 
   #override
   def _GroupTests(self, tests):
+    batched_tests, other_tests = self._GroupTestsIntoBatchesAndOthers(tests)
+    batched_tests_split = self._SplitBatchesAboveMaxSize(batched_tests)
+    all_tests = batched_tests_split + other_tests
+
+    # Sort all tests by hash.
+    # TODO(crbug.com/40200835): Add sorting logic back to _PartitionTests.
+    return self._SortTests(all_tests)
+
+  def _GroupTestsIntoBatchesAndOthers(self, tests):
+    # pylint: disable=no-self-use
     batched_tests = dict()
     other_tests = []
     for test in tests:
@@ -846,42 +938,31 @@ class LocalDeviceInstrumentationTestRun(
           base_test_result.MULTIPROCESS_SUFFIX in test['method'])
         if webview_multiprocess_mode:
           batch_name += '|multiprocess_mode'
-
         batched_tests.setdefault(batch_name, []).append(test)
       else:
         other_tests.append(test)
+    for tests_in_batch in batched_tests.values():
+      tests_in_batch.sort(key=_dict2list)
+    return batched_tests, other_tests
 
-    def dict2list(d):
-      if isinstance(d, dict):
-        return sorted([(k, dict2list(v)) for k, v in d.items()])
-      if isinstance(d, list):
-        return [dict2list(v) for v in d]
-      if isinstance(d, tuple):
-        return tuple(dict2list(v) for v in d)
-      return d
+  def _SplitBatchesAboveMaxSize(self, batched_tests):
+    # pylint: disable=no-self-use
+    batched_tests_split = []
+    for batch_name, tests_in_batch in batched_tests.items():
+      if batch_name.startswith('UnitTests'):
+        max_group_size = _UNIT_TEST_MAX_GROUP_SIZE
+      else:
+        max_group_size = _NON_UNIT_TEST_MAX_GROUP_SIZE
+      for i in range(0, len(tests_in_batch), max_group_size):
+        batched_tests_split.append(tests_in_batch[i:i + max_group_size])
+    return batched_tests_split
 
-    test_count = sum(
-        [len(test) - 1 for test in tests if self._CountTestsIndividually(test)])
-    test_count += len(tests)
-    if self._test_instance.total_external_shards > 1:
-      # Calculate suitable test batch max group size based on average partition
-      # size. The batch size should be below partition size to balance between
-      # shards. Choose to divide by 3 as it works fine with most of test suite
-      # without increasing too much setup/teardown time for batch tests.
-      test_batch_max_group_size = \
-        max(1, test_count // self._test_instance.total_external_shards // 3)
-    else:
-      test_batch_max_group_size = _LOCAL_TEST_BATCH_MAX_GROUP_SIZE
+  #override
+  def _GroupTestsAfterSharding(self, tests):
+    # pylint: disable=no-self-use
+    batched_tests, other_tests = self._GroupTestsIntoBatchesAndOthers(tests)
+    all_tests = list(batched_tests.values()) + other_tests
 
-    all_tests = []
-    for _, btests in list(batched_tests.items()):
-      # Ensure a consistent ordering across external shards.
-      btests.sort(key=dict2list)
-      all_tests.extend([
-          btests[i:i + test_batch_max_group_size]
-          for i in range(0, len(btests), test_batch_max_group_size)
-      ])
-    all_tests.extend(other_tests)
     # Sort all tests by hash.
     # TODO(crbug.com/40200835): Add sorting logic back to _PartitionTests.
     return self._SortTests(all_tests)
@@ -946,6 +1027,10 @@ class LocalDeviceInstrumentationTestRun(
                                 (coverage_basename, '%2m_%p%c'))
       extras[EXTRA_CLANG_COVERAGE_DEVICE_FILE] = posixpath.join(
           device_clang_profile_dir, clang_profile_filename)
+      if self._test_instance.use_native_coverage_listener:
+        _UpdateExtrasListener(
+            extras,
+            'org.chromium.base.test.NativeCoverageInstrumentationRunListener')
 
     if self._test_instance.enable_breakpad_dump:
       # Use external storage directory so that the breakpad dump can be accessed
@@ -1032,6 +1117,9 @@ class LocalDeviceInstrumentationTestRun(
       flags_to_add.append('--render-test-output-dir=%s' %
                           self._render_tests_device_output_dir.name)
 
+    if self._test_instance.webview_rebaseline_mode:
+      extras[_EXTRA_WEBVIEW_REBASELINE_MODE] = _VALUE_WEBVIEW_REBASELINE_MODE
+
     if _IsWPRRecordReplayTest(test):
       wpr_archive_relative_path = _GetWPRArchivePath(test)
       if not wpr_archive_relative_path:
@@ -1075,8 +1163,21 @@ class LocalDeviceInstrumentationTestRun(
 
     with ui_capture_dir:
       with self._ArchiveLogcat(device, test_name) as logcat_file:
-        output = device.StartInstrumentation(
-            target, raw=True, extras=extras, timeout=timeout, retries=0)
+        try:
+          output = device.StartInstrumentation(
+              target, raw=True, extras=extras, timeout=timeout, retries=0)
+        except device_errors.CommandFailedError as e:
+          exception_recorder.register(
+              test_exception.StartInstrumentationFailedError(e))
+          raise
+        except device_errors.CommandTimeoutError as e:
+          exception_recorder.register(
+              test_exception.StartInstrumentationTimeoutError(e))
+          raise
+        except base_error.BaseError as e:
+          exception_recorder.register(
+              test_exception.StartInstrumentationError(e))
+          raise
 
       duration_ms = time_ms() - start_ms
 
@@ -1380,6 +1481,9 @@ class LocalDeviceInstrumentationTestRun(
             # Workaround for https://github.com/mockito/mockito/issues/922
             'notPackage': 'net.bytebuddy',
         }
+        if self._test_instance.webview_process_mode:
+          extras[_EXTRA_WEBVIEW_PROCESS_MODE] = (
+              self._test_instance.webview_process_mode)
         if self._test_instance.timeout_scale != 1:
           extras[EXTRA_TIMEOUT_SCALE] = str(self._test_instance.timeout_scale)
 
@@ -1387,8 +1491,8 @@ class LocalDeviceInstrumentationTestRun(
         # adds the listener). This is needed to enable the the listener when
         # using AndroidJUnitRunner directly.
         if self._test_instance.has_chromium_test_listener:
-          extras['listener'] = (
-              'org.chromium.testing.TestListInstrumentationRunListener')
+          _UpdateExtrasListener(
+              extras, 'org.chromium.testing.TestListInstrumentationRunListener')
         elif not run_disabled:
           extras['notAnnotation'] = 'androidx.test.filters.FlakyTest'
 

@@ -20,7 +20,6 @@
 #include "content/common/features.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
-#include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "net/http/http_util.h"
 #include "net/url_request/redirect_info.h"
@@ -52,10 +51,7 @@ void ReportErrorAndTraceEvent(
 }
 
 bool IsSignedExchangeHandlingEnabled(BrowserContext* context) {
-  if (!GetContentClient()->browser()->AllowSignedExchange(context))
-    return false;
-
-  return base::FeatureList::IsEnabled(features::kSignedHTTPExchange);
+  return GetContentClient()->browser()->AllowSignedExchange(context);
 }
 
 bool IsSignedExchangeReportingForDistributorsEnabled() {
@@ -84,7 +80,7 @@ bool ShouldHandleAsSignedHTTPExchange(
 }
 
 std::optional<SignedExchangeVersion> GetSignedExchangeVersion(
-    const std::string& content_type) {
+    std::string_view content_type) {
   // https://wicg.github.io/webpackage/loading.html#signed-exchange-version
   // Step 1. Let mimeType be the supplied MIME type of response. [spec text]
   // |content_type| is the supplied MIME type.
@@ -101,10 +97,9 @@ std::optional<SignedExchangeVersion> GetSignedExchangeVersion(
   std::map<std::string, std::string> params;
   if (semicolon != std::string_view::npos) {
     net::HttpUtil::NameValuePairsIterator parser(
-        content_type.begin() + semicolon + 1, content_type.end(), ';');
+        content_type.substr(semicolon + 1), ';');
     while (parser.GetNext()) {
-      const std::string_view name = parser.name_piece();
-      params[base::ToLowerASCII(name)] = parser.value();
+      params[base::ToLowerASCII(parser.name())] = parser.value();
     }
     if (!parser.valid())
       return std::nullopt;
@@ -195,12 +190,10 @@ SignedExchangeLoadResult GetLoadResultFromSignatureVerifierResult(
         kErrInvalidSignatureIntegrity_deprecated:
     case SignedExchangeSignatureVerifier::Result::
         kErrInvalidTimestamp_deprecated:
-      NOTREACHED_IN_MIGRATION();
-      return SignedExchangeLoadResult::kSignatureVerificationError;
+      NOTREACHED();
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return SignedExchangeLoadResult::kSignatureVerificationError;
+  NOTREACHED();
 }
 
 net::RedirectInfo CreateRedirectInfo(
@@ -231,7 +224,8 @@ network::mojom::URLResponseHeadPtr CreateRedirectResponseHead(
   std::string link_header;
   if (!is_fallback_redirect &&
       outer_response.headers) {
-    outer_response.headers->GetNormalizedHeader("link", &link_header);
+    link_header = outer_response.headers->GetNormalizedHeader("link").value_or(
+        std::string());
   }
   if (link_header.empty()) {
     buf = base::StringPrintf("HTTP/1.1 %d %s\r\n", 303, "See Other");
@@ -277,11 +271,12 @@ void SetVerificationTimeForTesting(
 }
 
 bool IsCookielessOnlyExchange(const net::HttpResponseHeaders& inner_headers) {
-  std::string value;
+  std::optional<std::string_view> value;
   size_t iter = 0;
-  while (inner_headers.EnumerateHeader(&iter, "Vary", &value)) {
-    if (base::EqualsCaseInsensitiveASCII(value, "cookie"))
+  while ((value = inner_headers.EnumerateHeader(&iter, "Vary"))) {
+    if (base::EqualsCaseInsensitiveASCII(*value, "cookie")) {
       return true;
+    }
   }
   return false;
 }

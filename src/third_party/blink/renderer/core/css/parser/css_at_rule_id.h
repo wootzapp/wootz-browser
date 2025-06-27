@@ -56,8 +56,12 @@ enum class CSSAtRuleID {
   kCSSAtRuleRightTop,
   kCSSAtRuleRightMiddle,
   kCSSAtRuleRightBottom,
-  // CSS Functions
+  // CSS Functions and Mixins
   kCSSAtRuleFunction,
+  kCSSAtRuleMixin,
+  kCSSAtRuleApplyMixin,
+
+  kCount  // Must go last.
 };
 
 CSSAtRuleID CssAtRuleID(StringView name);

@@ -25,10 +25,10 @@ NullRenderer::NullRenderer(const RendererSettings* settings,
 NullRenderer::~NullRenderer() = default;
 
 void NullRenderer::SwapBuffers(SwapFrameData swap_frame_data) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 void NullRenderer::BeginDrawingFrame() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool NullRenderer::CanPartialSwap() {
@@ -48,5 +48,10 @@ gfx::Size NullRenderer::GetRenderPassBackingPixelSize(
 void NullRenderer::CopyDrawnRenderPass(
     const copy_output::RenderPassGeometry& geometry,
     std::unique_ptr<CopyOutputRequest> request) {}
+
+gfx::Rect NullRenderer::GetRenderPassBackingDrawnRect(
+    const AggregatedRenderPassId& render_pass_id) const {
+  return gfx::Rect();
+}
 
 }  // namespace viz

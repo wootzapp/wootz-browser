@@ -2,12 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/network/public/cpp/cors/cors.h"
 
 #include <limits.h>
 
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "services/network/public/cpp/features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -378,6 +385,26 @@ TEST_F(CorsTest, SafelistedContentType) {
   EXPECT_TRUE(IsCorsSafelistedHeader("content-type",
                                      "application/x-www-form-urlencoded"));
   EXPECT_TRUE(IsCorsSafelistedHeader("content-type", "multipart/form-data"));
+
+  // Test message/ad-auction-trusted-signals-request, which is currently
+  // safelisted by default, but has a feature to disable it, in case the rollout
+  // runs into any issues.
+  EXPECT_TRUE(IsCorsSafelistedHeader(
+      "content-type", "message/ad-auction-trusted-signals-request"));
+  for (bool enable_pa_safelist_kv_v2_signals : {false, true}) {
+    base::test::ScopedFeatureList feature_list;
+    if (enable_pa_safelist_kv_v2_signals) {
+      feature_list.InitAndEnableFeature(
+          features::kProtectedAudienceCorsSafelistKVv2Signals);
+    } else {
+      feature_list.InitAndDisableFeature(
+          features::kProtectedAudienceCorsSafelistKVv2Signals);
+    }
+    EXPECT_EQ(
+        enable_pa_safelist_kv_v2_signals,
+        IsCorsSafelistedHeader("content-type",
+                               "message/ad-auction-trusted-signals-request"));
+  }
 
   EXPECT_TRUE(IsCorsSafelistedHeader("content-type", "Text/plain"));
   EXPECT_TRUE(IsCorsSafelistedHeader("content-type", "tEXT/PLAIN"));

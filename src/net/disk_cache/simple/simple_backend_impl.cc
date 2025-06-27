@@ -191,13 +191,15 @@ class SimpleBackendImpl::ActiveEntryProxy
 
   static std::unique_ptr<SimpleEntryImpl::ActiveEntryProxy> Create(
       int64_t entry_hash,
-      SimpleBackendImpl* backend) {
-    return base::WrapUnique(new ActiveEntryProxy(entry_hash, backend));
+      base::WeakPtr<SimpleBackendImpl> backend) {
+    return base::WrapUnique(
+        new ActiveEntryProxy(entry_hash, std::move(backend)));
   }
 
  private:
-  ActiveEntryProxy(uint64_t entry_hash, SimpleBackendImpl* backend)
-      : entry_hash_(entry_hash), backend_(backend->AsWeakPtr()) {}
+  ActiveEntryProxy(uint64_t entry_hash,
+                   base::WeakPtr<SimpleBackendImpl> backend)
+      : entry_hash_(entry_hash), backend_(std::move(backend)) {}
 
   uint64_t entry_hash_;
   base::WeakPtr<SimpleBackendImpl> backend_;
@@ -227,8 +229,7 @@ SimpleBackendImpl::SimpleBackendImpl(
       post_open_by_hash_waiting_(
           base::MakeRefCounted<SimplePostOperationWaiterTable>()),
       net_log_(net_log) {
-  // Treat negative passed-in sizes same as SetMaxSize would here and in other
-  // backends, as default (if first call).
+  // Treat negative passed-in sizes same as in other backends, as default.
   if (orig_max_size_ < 0)
     orig_max_size_ = 0;
 }
@@ -271,16 +272,9 @@ void SimpleBackendImpl::Init(CompletionOnceCallback completion_callback) {
       base::BindOnce(&SimpleBackendImpl::InitCacheStructureOnDisk,
                      std::move(file_operations), path_, orig_max_size_,
                      GetCacheType()),
-      base::BindOnce(&SimpleBackendImpl::InitializeIndex, AsWeakPtr(),
+      base::BindOnce(&SimpleBackendImpl::InitializeIndex,
+                     weak_ptr_factory_.GetWeakPtr(),
                      std::move(completion_callback)));
-}
-
-bool SimpleBackendImpl::SetMaxSize(int64_t max_bytes) {
-  if (max_bytes < 0)
-    return false;
-  orig_max_size_ = max_bytes;
-  index_->SetMaxSize(max_bytes);
-  return true;
 }
 
 int64_t SimpleBackendImpl::MaxFileSize() const {
@@ -359,7 +353,8 @@ void SimpleBackendImpl::DoomEntries(std::vector<uint64_t>* entry_hashes,
       base::BindOnce(&SimpleSynchronousEntry::DeleteEntrySetFiles,
                      mass_doom_entry_hashes_ptr, path_,
                      file_operations_factory_->CreateUnbound()),
-      base::BindOnce(&SimpleBackendImpl::DoomEntriesComplete, AsWeakPtr(),
+      base::BindOnce(&SimpleBackendImpl::DoomEntriesComplete,
+                     weak_ptr_factory_.GetWeakPtr(),
                      std::move(mass_doom_entry_hashes), barrier_callback));
 }
 
@@ -395,9 +390,9 @@ EntryResult SimpleBackendImpl::OpenEntry(const std::string& key,
     base::OnceCallback<EntryResult(EntryResultCallback)> operation =
         base::BindOnce(&SimpleBackendImpl::OpenEntry, base::Unretained(this),
                        key, request_priority);
-    post_operation->emplace_back(
-        base::BindOnce(&RunEntryResultOperationAndCallback, AsWeakPtr(),
-                       std::move(operation), std::move(callback)));
+    post_operation->emplace_back(base::BindOnce(
+        &RunEntryResultOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
+        std::move(operation), std::move(callback)));
     return EntryResult::MakeError(net::ERR_IO_PENDING);
   }
   return simple_entry->OpenEntry(std::move(callback));
@@ -427,9 +422,9 @@ EntryResult SimpleBackendImpl::CreateEntry(
     base::OnceCallback<EntryResult(EntryResultCallback)> operation =
         base::BindOnce(&SimpleBackendImpl::CreateEntry, base::Unretained(this),
                        key, request_priority);
-    post_operation->emplace_back(
-        base::BindOnce(&RunEntryResultOperationAndCallback, AsWeakPtr(),
-                       std::move(operation), std::move(callback)));
+    post_operation->emplace_back(base::BindOnce(
+        &RunEntryResultOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
+        std::move(operation), std::move(callback)));
     return EntryResult::MakeError(net::ERR_IO_PENDING);
   }
 
@@ -463,9 +458,9 @@ EntryResult SimpleBackendImpl::OpenOrCreateEntry(
       base::OnceCallback<EntryResult(EntryResultCallback)> operation =
           base::BindOnce(&SimpleBackendImpl::OpenOrCreateEntry,
                          base::Unretained(this), key, request_priority);
-      post_operation->emplace_back(
-          base::BindOnce(&RunEntryResultOperationAndCallback, AsWeakPtr(),
-                         std::move(operation), std::move(callback)));
+      post_operation->emplace_back(base::BindOnce(
+          &RunEntryResultOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
+          std::move(operation), std::move(callback)));
       return EntryResult::MakeError(net::ERR_IO_PENDING);
     }
   }
@@ -491,7 +486,7 @@ SimpleBackendImpl::MaybeOptimisticCreateForPostDoom(
         net_log_, GetNewEntryPriority(request_priority));
     simple_entry->SetKey(key);
     simple_entry->SetActiveEntryProxy(
-        ActiveEntryProxy::Create(entry_hash, this));
+        ActiveEntryProxy::Create(entry_hash, weak_ptr_factory_.GetWeakPtr()));
     simple_entry->SetCreatePendingDoom();
     std::pair<EntryMap::iterator, bool> insert_result = active_entries_.insert(
         EntryMap::value_type(entry_hash, simple_entry.get()));
@@ -522,7 +517,7 @@ net::Error SimpleBackendImpl::DoomEntry(const std::string& key,
         base::BindOnce(&SimpleBackendImpl::DoomEntry, base::Unretained(this),
                        key, priority);
     post_operation->emplace_back(
-        base::BindOnce(&RunOperationAndCallback, AsWeakPtr(),
+        base::BindOnce(&RunOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
                        std::move(operation), std::move(callback)));
     return net::ERR_IO_PENDING;
   }
@@ -538,9 +533,9 @@ net::Error SimpleBackendImpl::DoomEntriesBetween(
     const Time initial_time,
     const Time end_time,
     CompletionOnceCallback callback) {
-  index_->ExecuteWhenReady(base::BindOnce(&SimpleBackendImpl::IndexReadyForDoom,
-                                          AsWeakPtr(), initial_time, end_time,
-                                          std::move(callback)));
+  index_->ExecuteWhenReady(base::BindOnce(
+      &SimpleBackendImpl::IndexReadyForDoom, weak_ptr_factory_.GetWeakPtr(),
+      initial_time, end_time, std::move(callback)));
   return net::ERR_IO_PENDING;
 }
 
@@ -554,7 +549,7 @@ int64_t SimpleBackendImpl::CalculateSizeOfAllEntries(
     Int64CompletionOnceCallback callback) {
   index_->ExecuteWhenReady(
       base::BindOnce(&SimpleBackendImpl::IndexReadyForSizeCalculation,
-                     AsWeakPtr(), std::move(callback)));
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
   return net::ERR_IO_PENDING;
 }
 
@@ -564,7 +559,8 @@ int64_t SimpleBackendImpl::CalculateSizeOfEntriesBetween(
     Int64CompletionOnceCallback callback) {
   index_->ExecuteWhenReady(
       base::BindOnce(&SimpleBackendImpl::IndexReadyForSizeBetweenCalculation,
-                     AsWeakPtr(), initial_time, end_time, std::move(callback)));
+                     weak_ptr_factory_.GetWeakPtr(), initial_time, end_time,
+                     std::move(callback)));
   return net::ERR_IO_PENDING;
 }
 
@@ -636,7 +632,7 @@ class SimpleBackendImpl::SimpleIterator final : public Iterator {
 };
 
 std::unique_ptr<Backend::Iterator> SimpleBackendImpl::CreateIterator() {
-  return std::make_unique<SimpleIterator>(AsWeakPtr());
+  return std::make_unique<SimpleIterator>(weak_ptr_factory_.GetWeakPtr());
 }
 
 void SimpleBackendImpl::GetStats(base::StringPairs* stats) {
@@ -803,7 +799,8 @@ SimpleBackendImpl::CreateOrFindActiveOrDoomedEntry(
         entry_operations_mode_, this, file_tracker_, file_operations_factory_,
         net_log_, GetNewEntryPriority(request_priority));
     entry->SetKey(key);
-    entry->SetActiveEntryProxy(ActiveEntryProxy::Create(entry_hash, this));
+    entry->SetActiveEntryProxy(
+        ActiveEntryProxy::Create(entry_hash, weak_ptr_factory_.GetWeakPtr()));
   }
   // TODO(jkarlin): In case of recycling a half-closed entry, we might want to
   // update its priority.
@@ -842,9 +839,9 @@ EntryResult SimpleBackendImpl::OpenEntryFromHash(uint64_t entry_hash,
         base::BindOnce(&SimpleBackendImpl::OpenEntryFromHash,
                        base::Unretained(this), entry_hash);
     // TODO(crbug.com/40105434) The cancellation behavior looks wrong.
-    post_doom->emplace_back(base::BindOnce(&RunEntryResultOperationAndCallback,
-                                           AsWeakPtr(), std::move(operation),
-                                           std::move(callback)));
+    post_doom->emplace_back(base::BindOnce(
+        &RunEntryResultOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
+        std::move(operation), std::move(callback)));
     return EntryResult::MakeError(net::ERR_IO_PENDING);
   }
 
@@ -862,10 +859,11 @@ EntryResult SimpleBackendImpl::OpenEntryFromHash(uint64_t entry_hash,
         net_log_, GetNewEntryPriority(net::HIGHEST));
     it->second = simple_entry.get();
     simple_entry->SetActiveEntryProxy(
-        ActiveEntryProxy::Create(entry_hash, this));
+        ActiveEntryProxy::Create(entry_hash, weak_ptr_factory_.GetWeakPtr()));
     post_open_by_hash_waiting_->OnOperationStart(entry_hash);
     callback = base::BindOnce(&SimpleBackendImpl::OnEntryOpenedFromHash,
-                              AsWeakPtr(), entry_hash, std::move(callback));
+                              weak_ptr_factory_.GetWeakPtr(), entry_hash,
+                              std::move(callback));
   }
 
   // Note: the !did_insert case includes when another OpenEntryFromHash is
@@ -883,9 +881,9 @@ net::Error SimpleBackendImpl::DoomEntryFromHash(
     base::OnceCallback<net::Error(CompletionOnceCallback)> operation =
         base::BindOnce(&SimpleBackendImpl::DoomEntryFromHash,
                        base::Unretained(this), entry_hash);
-    post_doom->emplace_back(base::BindOnce(&RunOperationAndCallback,
-                                           AsWeakPtr(), std::move(operation),
-                                           std::move(callback)));
+    post_doom->emplace_back(
+        base::BindOnce(&RunOperationAndCallback, weak_ptr_factory_.GetWeakPtr(),
+                       std::move(operation), std::move(callback)));
     return net::ERR_IO_PENDING;
   }
 

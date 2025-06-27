@@ -190,9 +190,8 @@ class ASH_EXPORT CalendarView : public CalendarModel::Observer,
   friend class CalendarViewPixelTest;
   friend class CalendarViewAnimationTest;
 
-  // For GlanceablesV2: Creates the new header of the calendar view, which
-  // includes a `CalendarHeaderView`, a reset to today button, and up/down
-  // buttons.
+  // Creates the new header of the calendar view, which includes a
+  // `CalendarHeaderView`, a reset to today button, and up/down buttons.
   views::View* CreateCalendarHeaderRow();
 
   // Creates the calendar view title that includes a label,
@@ -405,6 +404,11 @@ class ASH_EXPORT CalendarView : public CalendarModel::Observer,
   // Checks if `up_next_view_` exists and is visible.
   bool IsUpNextViewVisible() const;
 
+  // Helps to verify the idea that the calendar month scroll animation could
+  // interrupt other running animations unexpectedly.
+  // TODO(http://b/361693496): Remove this after the original issue fixed.
+  void UpdateAnimationCrashKeys();
+
   // Setters for animation flags.
   void set_should_header_animate(bool should_animate) {
     should_header_animate_ = should_animate;
@@ -503,6 +507,15 @@ class ASH_EXPORT CalendarView : public CalendarModel::Observer,
       scoped_calendar_view_controller_observer_{this};
   base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
       scoped_view_observer_{this};
+
+  // TODO(http://b/361693496): Remove this after the original issue fixed.
+  bool is_event_list_close_animation_running_ = false;
+  bool is_event_list_open_animation_running_ = false;
+  bool is_fade_in_up_next_view_animation_running_ = false;
+  bool is_fade_out_up_next_view_animation_running_ = false;
+  bool is_header_animation_running_ = false;
+  bool is_reset_to_today_animation_running_ = false;
+  bool is_reset_to_today_fade_in_animation_running_ = false;
 
   base::WeakPtrFactory<CalendarView> weak_factory_{this};
 };

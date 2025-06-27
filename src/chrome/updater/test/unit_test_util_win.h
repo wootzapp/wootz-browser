@@ -71,8 +71,13 @@ void SetupCmdExe(UpdaterScope scope,
                                  const std::wstring& display_name,
                                  const std::wstring& command_line);
 
+// Disables a service for test purposes.
+[[nodiscard]] bool DisableService(const std::wstring& service_name);
+
 // Creates an event accessible to all authenticated users on the machine.
 test::EventHolder CreateEveryoneWaitableEventForTest();
+
+int RunVPythonCommand(const base::CommandLine& command_line);
 
 }  // namespace updater::test
 

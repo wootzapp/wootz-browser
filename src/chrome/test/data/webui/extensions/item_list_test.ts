@@ -7,8 +7,9 @@ import 'chrome://extensions/extensions.js';
 
 import type {ExtensionsItemListElement} from 'chrome://extensions/extensions.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {microtasksFinished} from 'chrome://webui-test/test_util.js';
+
 import {createExtensionInfo, testVisible} from './test_util.js';
 
 suite('ExtensionItemListTest', function() {
@@ -31,7 +32,6 @@ suite('ExtensionItemListTest', function() {
       createExt({
         name: 'Alpha',
         id: 'a'.repeat(32),
-        safetyCheckText: {panelString: 'This extension contains malware.'},
       }),
       createExt({name: 'Bravo', id: 'b'.repeat(32)}),
       createExt({name: 'Charlie', id: 'c'.repeat(29) + 'wxy'}),
@@ -42,81 +42,79 @@ suite('ExtensionItemListTest', function() {
     itemList.extensions = extensionItems;
     itemList.apps = appItems;
     itemList.filter = '';
-    itemList.isMv2DeprecationWarningDismissed = false;
+    itemList.isMv2DeprecationNoticeDismissed = false;
     document.body.appendChild(itemList);
   }
 
-  test('Filtering', function() {
-    function itemLengthEquals(num: number) {
-      flush();
+  test('Filtering', async () => {
+    async function itemLengthEquals(num: number) {
+      await microtasksFinished();
       assertEquals(
-          itemList.shadowRoot!.querySelectorAll('extensions-item').length, num);
+          itemList.shadowRoot.querySelectorAll('extensions-item').length, num);
     }
 
     // We should initially show all the items.
-    itemLengthEquals(4);
+    await itemLengthEquals(4);
 
     // All extension items have an 'a'.
     itemList.filter = 'a';
-    itemLengthEquals(3);
+    await itemLengthEquals(3);
     // Filtering is case-insensitive, so all extension items should be shown.
     itemList.filter = 'A';
-    itemLengthEquals(3);
+    await itemLengthEquals(3);
     // Only 'Bravo' has a 'b'.
     itemList.filter = 'b';
-    itemLengthEquals(1);
+    await itemLengthEquals(1);
     assertEquals(
         'Bravo',
-        itemList.shadowRoot!.querySelector('extensions-item')!.data.name);
+        itemList.shadowRoot.querySelector('extensions-item')!.data.name);
     // Test inner substring (rather than prefix).
     itemList.filter = 'lph';
-    itemLengthEquals(1);
+    await itemLengthEquals(1);
     assertEquals(
         'Alpha',
-        itemList.shadowRoot!.querySelector('extensions-item')!.data.name);
+        itemList.shadowRoot.querySelector('extensions-item')!.data.name);
     // Test trailing/leading spaces.
     itemList.filter = '   Alpha  ';
-    itemLengthEquals(1);
+    await itemLengthEquals(1);
     assertEquals(
         'Alpha',
-        itemList.shadowRoot!.querySelector('extensions-item')!.data.name);
+        itemList.shadowRoot.querySelector('extensions-item')!.data.name);
     // Test string with no matching items.
     itemList.filter = 'z';
-    itemLengthEquals(0);
+    await itemLengthEquals(0);
     // A filter of '' should reset to show all items.
     itemList.filter = '';
-    itemLengthEquals(4);
+    await itemLengthEquals(4);
     // A filter of 'q' should should show just the apps item.
     itemList.filter = 'q';
-    itemLengthEquals(1);
+    await itemLengthEquals(1);
     // A filter of 'xy' should show just the 'Charlie' item since its id
     // matches.
     itemList.filter = 'xy';
-    itemLengthEquals(1);
+    await itemLengthEquals(1);
     assertEquals(
         'Charlie',
-        itemList.shadowRoot!.querySelector('extensions-item')!.data.name);
+        itemList.shadowRoot.querySelector('extensions-item')!.data.name);
   });
 
-  test('NoItems', function() {
-    flush();
+  test('NoItems', async () => {
     boundTestVisible('#no-items', false);
     boundTestVisible('#no-search-results', false);
 
     itemList.extensions = [];
     itemList.apps = [];
-    flush();
+    await microtasksFinished();
     boundTestVisible('#no-items', true);
     boundTestVisible('#no-search-results', false);
   });
 
-  test('NoSearchResults', function() {
-    flush();
+  test('NoSearchResults', async () => {
     boundTestVisible('#no-items', false);
     boundTestVisible('#no-search-results', false);
 
     itemList.filter = 'non-existent name';
-    flush();
+    await microtasksFinished();
     boundTestVisible('#no-items', false);
     boundTestVisible('#no-search-results', true);
   });
@@ -124,9 +122,7 @@ suite('ExtensionItemListTest', function() {
   // Tests that the extensions section and the chrome apps section, along with
   // their headers, are only visible when extensions or chrome apps are
   // existent, respectively. Otherwise, no items section is shown.
-  test('SectionsVisibility', function() {
-    flush();
-
+  test('SectionsVisibility', async () => {
     // Extensions and chrome apps were added during setup.
     boundTestVisible('#extensions-section', true);
     boundTestVisible('#extensions-section h2.section-header', true);
@@ -135,7 +131,7 @@ suite('ExtensionItemListTest', function() {
     boundTestVisible('#no-items', false);
 
     itemList.apps = [];
-    flush();
+    await microtasksFinished();
 
     // Verify chrome apps section is not visible when there are no chrome apps.
     boundTestVisible('#extensions-section', true);
@@ -145,7 +141,7 @@ suite('ExtensionItemListTest', function() {
     boundTestVisible('#no-items', false);
 
     itemList.extensions = [];
-    flush();
+    await microtasksFinished();
 
     // Verify extensions section is not visible when there are no extensions.
     // Since there are no extensions or chrome apps, no items section is
@@ -163,95 +159,281 @@ suite('ExtensionItemListTest', function() {
     loadTimeData.getString('browserManagedByOrg');
   });
 
-  test('SafetyCheckPanel', function() {
-    // The extension review panel should not be visible if
-    // safetyCheckShowReviewPanel and safetyHubShowReviewPanel are set to
-    // false.
-    loadTimeData.overrideValues({'safetyCheckShowReviewPanel': false});
-    loadTimeData.overrideValues({'safetyHubShowReviewPanel': false});
-
-    // set up the element again to capture the updated value of
-    // safetyCheckShowReviewPanel.
+  test('SafetyCheckPanel_EnabledSafetyCheck', async () => {
+    // Panel is hidden if there are no unsafe extensions and panel wasn't
+    // previously shown.
     setupElement();
-
-    flush();
     boundTestVisible('extensions-review-panel', false);
-    // The extension review panel should be visible if the feature flag is set
-    // to true.
-    loadTimeData.overrideValues({'safetyCheckShowReviewPanel': true});
 
-    // set up the element again to capture the updated value of
-    // safetyCheckShowReviewPanel.
-    setupElement();
-
-    flush();
+    // Panel is visible if there are unsafe extensions.
+    itemList.extensions = [
+      ...itemList.extensions.slice(),
+      createExtensionInfo({
+        name: 'Unsafe extension',
+        id: 'd'.repeat(32),
+        safetyCheckText: {panelString: 'This extension contains malware.'},
+      }),
+    ];
+    await microtasksFinished();
     boundTestVisible('extensions-review-panel', true);
-
-    // The extension review panel should  be visible if
-    // safetyHubShowReviewPanel is set to true.
-    loadTimeData.overrideValues({'safetyCheckShowReviewPanel': false});
-    loadTimeData.overrideValues({'safetyHubShowReviewPanel': true});
-    setupElement();
-
-    flush();
-    boundTestVisible('extensions-review-panel', true);
+    const reviewPanel =
+        itemList.shadowRoot.querySelector('extensions-review-panel');
+    assertTrue(!!reviewPanel);
+    assertEquals(1, reviewPanel.extensions.length);
   });
 
-  test('ManifestV2DeprecationPanel_Disabled', async function() {
-    // Panel is hidden if panel is disabled.
-    loadTimeData.overrideValues({'MV2DeprecationPanelEnabled': false});
+  test('SafetyCheckPanel_EnabledSafetyHub', async () => {
+    // Panel is hidden if there are no unsafe extensions and panel
+    // wasn't previously shown.
+    setupElement();
+    boundTestVisible('extensions-review-panel', false);
+
+    // Panel is visible if there are unsafe extensions.
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'Unsafe extension',
+        id: 'd'.repeat(32),
+        safetyCheckText: {panelString: 'This extension contains malware.'},
+      }),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-review-panel', true);
+    const reviewPanel =
+        itemList.shadowRoot.querySelector('extensions-review-panel');
+    assertTrue(!!reviewPanel);
+    assertEquals(1, reviewPanel.extensions.length);
+  });
+
+  test('ManifestV2DeprecationPanel_None', function() {
+    // Panel is hidden for experiment on stage 0 (none).
+    loadTimeData.overrideValues({MV2ExperimentStage: 0});
     setupElement();
     boundTestVisible('extensions-mv2-deprecation-panel', false);
   });
 
-  test('ManifestV2DeprecationPanel_Enabled', async function() {
-    // Panel is hidden if panel is enabled and has no extensions affected
-    // by the MV2 deprecation.
-    loadTimeData.overrideValues({'MV2DeprecationPanelEnabled': true});
-    setupElement();
-    boundTestVisible('extensions-mv2-deprecation-panel', false);
-
-    // Panel is visible if panel is enabled and has at least one extension
+  test('ManifestV2DeprecationPanel_Warning', async function() {
+    // Panel is hidden for experiment on stage 1 (warning) and has no extensions
     // affected by the MV2 deprecation.
-    itemList.push('extensions', createExtensionInfo({
-                    name: 'Extension D',
-                    id: 'd'.repeat(32),
-                    isAffectedByMV2Deprecation: true,
-                  }));
-    flush();
+    loadTimeData.overrideValues({MV2ExperimentStage: 1});
+    setupElement();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+
+    // Panel is visible for experiment on stage 1 (warning) and has at least one
+    // extension affected by the MV2 deprecation.
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'Extension D',
+        id: 'd'.repeat(32),
+        isAffectedByMV2Deprecation: true,
+      }),
+    ];
+    await microtasksFinished();
     boundTestVisible('extensions-mv2-deprecation-panel', true);
     const mv2DeprecationPanel =
-        itemList.shadowRoot!.querySelector('extensions-mv2-deprecation-panel');
+        itemList.shadowRoot.querySelector('extensions-mv2-deprecation-panel');
     assertTrue(!!mv2DeprecationPanel);
     assertEquals(1, mv2DeprecationPanel.extensions.length);
 
-    // Panel is visible if panel is enabled and has multiple extensions affected
-    // by the MV2 deprecation.
-    itemList.push('extensions', createExtensionInfo({
-                    name: 'Extension E',
-                    id: 'e'.repeat(32),
-                    isAffectedByMV2Deprecation: true,
-                  }));
-    flush();
+    // Panel is visible for experiment on stage 1 (warning) and has multiple
+    // extensions affected by the MV2 deprecation.
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'Extension E',
+        id: 'e'.repeat(32),
+        isAffectedByMV2Deprecation: true,
+      }),
+    ];
+
+    await microtasksFinished();
     boundTestVisible('extensions-mv2-deprecation-panel', true);
     assertEquals(2, mv2DeprecationPanel.extensions.length);
 
     // Extensions that are affected by the MV2 deprecation, but have already
     // been acknowledged, are not included in the list.
-    itemList.push('extensions', createExtensionInfo({
-                    name: 'Extension F',
-                    id: 'f'.repeat(32),
-                    isAffectedByMV2Deprecation: true,
-                    didAcknowledgeMV2DeprecationWarning: true,
-                  }));
-    flush();
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'Extension F',
+        id: 'f'.repeat(32),
+        isAffectedByMV2Deprecation: true,
+        didAcknowledgeMV2DeprecationNotice: true,
+      }),
+    ];
+    await microtasksFinished();
     boundTestVisible('extensions-mv2-deprecation-panel', true);
     // The length remains at 2.
     assertEquals(2, mv2DeprecationPanel.extensions.length);
 
-    // Panel is hidden if warning has been dismissed.
-    itemList.set('isMv2DeprecationWarningDismissed', true);
-    flush();
+    // Panel is hidden if notice has been dismissed.
+    itemList.isMv2DeprecationNoticeDismissed = true;
+    await microtasksFinished();
     boundTestVisible('extensions-mv2-deprecation-panel', false);
+  });
+
+  test('ManifestV2DeprecationPanel_DisableWithReEnable', async function() {
+    // Panel is hidden for experiment on stage 2 (disable with re-enable) when
+    // it has no extensions affected by the MV2 deprecation.
+    loadTimeData.overrideValues({MV2ExperimentStage: 2});
+    setupElement();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+
+    // Panel is hidden for experiment on stage 2 (disable with re-enable)
+    // when extension is affected by the MV2 deprecation but it's not disabled
+    // due to unsupported manifest version.
+    // Note: This can happen when the user chose to re-enable a MV2 disabled
+    // extension.
+    let extension = Object.assign({}, itemList.extensions[0]);
+    extension.isAffectedByMV2Deprecation = true;
+    extension.disableReasons.unsupportedManifestVersion = false;
+    itemList.extensions = [extension, ...itemList.extensions.slice(1)];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+
+    // Panel is visible for experiment on stage 2 (disable with re-enable)
+    // when extension is affected by the MV2 deprecation and extension is
+    // disabled due to unsupported manifest version.
+    extension = Object.assign({}, itemList.extensions[0]);
+    extension.disableReasons.unsupportedManifestVersion = true;
+    itemList.extensions = [extension, ...itemList.extensions.slice(1)];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+    const mv2DeprecationPanel =
+        itemList.shadowRoot.querySelector('extensions-mv2-deprecation-panel');
+    assertTrue(!!mv2DeprecationPanel);
+    assertEquals(1, mv2DeprecationPanel.extensions.length);
+
+    // Panel is visible for experiment on stage 2 (disable with re-enable) and
+    // has multiple extensions affected by the MV2 deprecation that are disabled
+    // due to unsupported manifest version.
+    extension = Object.assign({}, itemList.extensions[1]);
+    extension.isAffectedByMV2Deprecation = true;
+    extension.disableReasons.unsupportedManifestVersion = true;
+    itemList.extensions = [
+      ...itemList.extensions.slice(0, 1),
+      extension,
+      ...itemList.extensions.slice(2),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+    assertEquals(2, mv2DeprecationPanel.extensions.length);
+
+    // Extensions that are affected by the MV2 deprecation, but have already
+    // been acknowledged, are not included in the list.
+    extension = Object.assign({}, itemList.extensions[1]);
+    extension.didAcknowledgeMV2DeprecationNotice = true;
+    itemList.extensions = [
+      ...itemList.extensions.slice(0, 1),
+      extension,
+      ...itemList.extensions.slice(2),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+    // Panel has only one extension.
+    assertEquals(1, mv2DeprecationPanel.extensions.length);
+
+    // Panel is hidden if notice has been dismissed.
+    itemList.isMv2DeprecationNoticeDismissed = true;
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+  });
+
+  test('ManifestV2DeprecationPanel_Unsupported', async function() {
+    // Panel is hidden for experiment on stage 3 (unsupported) when
+    // it has no extensions affected by the MV2 deprecation.
+    loadTimeData.overrideValues({MV2ExperimentStage: 3});
+    setupElement();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+
+    // Panel is hidden for experiment on stage 3 (unsupported) when extension is
+    // affected by the MV2 deprecation but it's not disabled due to unsupported
+    // manifest version.
+    let extension = Object.assign({}, itemList.extensions[0]);
+    extension.isAffectedByMV2Deprecation = true;
+    extension.disableReasons.unsupportedManifestVersion = false;
+    itemList.extensions = [extension, ...itemList.extensions.slice(1)];
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+
+    // Panel is visible for experiment on stage 3 (unsupported) when extension
+    // is affected by the MV2 deprecation and extension is disabled due to
+    // unsupported manifest version.
+    extension = Object.assign({}, itemList.extensions[0]);
+    extension.disableReasons.unsupportedManifestVersion = true;
+    itemList.extensions = [extension, ...itemList.extensions.slice(1)];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+    const mv2DeprecationPanel =
+        itemList.shadowRoot.querySelector('extensions-mv2-deprecation-panel');
+    assertTrue(!!mv2DeprecationPanel);
+    assertEquals(1, mv2DeprecationPanel.extensions.length);
+
+    // Panel is visible for experiment on stage 3 (unsupported) and has multiple
+    // extensions affected by the MV2 deprecation that are disabled due to
+    // unsupported manifest version.
+    extension = Object.assign({}, itemList.extensions[1]);
+    extension.isAffectedByMV2Deprecation = true;
+    extension.disableReasons.unsupportedManifestVersion = true;
+    itemList.extensions = [
+      ...itemList.extensions.slice(0, 1),
+      extension,
+      ...itemList.extensions.slice(2),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+    assertEquals(2, mv2DeprecationPanel.extensions.length);
+
+    // Panel is hidden if notice has been dismissed for this stage.
+    itemList.isMv2DeprecationNoticeDismissed = true;
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+  });
+
+  test('ManifestV2DeprecationPanel_TitleVisibility', async () => {
+    // Enable feature for mv2 panel (mv2 panel is enabled for stage 1). Its
+    // visibility will be determined by whether it has extensions to show.
+    loadTimeData.overrideValues({
+      MV2ExperimentStage: 1,
+    });
+    setupElement();
+
+    // Both panels should be hidden since they don't have extensions to show.
+    boundTestVisible('extensions-mv2-deprecation-panel', false);
+    boundTestVisible('extensions-review-panel', false);
+
+    // Show the MV2 deprecation panel by adding an extension affected by the
+    // mv2 deprecation.
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'MV2 extension',
+        id: 'd'.repeat(32),
+        isAffectedByMV2Deprecation: true,
+      }),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-mv2-deprecation-panel', true);
+
+    // MV2 deprecation panel title is hidden when the review panel is hidden.
+    const mv2DeprecationPanel = itemList.shadowRoot.querySelector<HTMLElement>(
+        'extensions-mv2-deprecation-panel');
+    assertTrue(!!mv2DeprecationPanel);
+    testVisible(mv2DeprecationPanel, '.panel-title', false);
+
+    // Show the review panel by adding an extension with safety check text.
+    itemList.extensions = [
+      ...itemList.extensions,
+      createExtensionInfo({
+        name: 'Unsafe extension',
+        id: 'e'.repeat(32),
+        safetyCheckText: {panelString: 'This extension contains malware.'},
+      }),
+    ];
+    await microtasksFinished();
+    boundTestVisible('extensions-review-panel', true);
+
+    // MV2 deprecation panel title is visible when the review panel is visible.
+    testVisible(mv2DeprecationPanel, '.panel-title', true);
   });
 });

@@ -13,8 +13,7 @@ extern const char kWebsiteSettingsActionHistogram[];
 // UMA statistics for PageInfo. Do not reorder or remove existing
 // fields. A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.page_info
-// All values here should have corresponding entries in
-// WebsiteSettingsAction area of enums.xml.
+// LINT.IfChange(PageInfoAction)
 enum PageInfoAction {
   PAGE_INFO_OPENED = 0,
   // No longer used; indicated actions for the old version of Page Info that
@@ -56,8 +55,12 @@ enum PageInfoAction {
   PAGE_INFO_COOKIES_PAGE_OPENED = 33,
   PAGE_INFO_COOKIES_SETTINGS_OPENED = 34,
   PAGE_INFO_ALL_SITES_WITH_FPS_FILTER_OPENED = 35,
-  kMaxValue = PAGE_INFO_ALL_SITES_WITH_FPS_FILTER_OPENED
+  PAGE_INFO_SHOW_FULL_HISTORY_CLICKED = 36,
+  PAGE_INFO_SAFE_BROWSING_HELP_OPENED = 37,
+  PAGE_INFO_SYNC_SETTINGS_OPENED = 38,
+  kMaxValue = PAGE_INFO_SYNC_SETTINGS_OPENED
 };
+// LINT.ThenChange(//tools/metrics/histograms/enums.xml:WebsiteSettingsAction)
 
 }  // namespace page_info
 

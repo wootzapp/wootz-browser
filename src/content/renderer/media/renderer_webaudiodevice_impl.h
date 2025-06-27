@@ -49,7 +49,11 @@ class CONTENT_EXPORT RendererWebAudioDeviceImpl
       const blink::WebAudioSinkDescriptor& sink_descriptor,
       int number_of_output_channels,
       const blink::WebAudioLatencyHint& latency_hint,
+      std::optional<float> context_sample_rate,
       media::AudioRendererSink::RenderCallback* webaudio_callback);
+  static int GetOutputBufferSize(const blink::WebAudioLatencyHint& latency_hint,
+                                 int resolved_context_sample_rate,
+                                 const media::AudioParameters& hardware_params);
 
   // blink::WebAudioDevice implementation.
   void Start() override;
@@ -70,9 +74,14 @@ class CONTENT_EXPORT RendererWebAudioDeviceImpl
              const media::AudioGlitchInfo& glitch_info,
              media::AudioBus* dest) override;
 
-  // This callback method may be called from either the main thread or non-main
-  // threads.
+  // This callback method may be called in two different scenarios:
+  // 1) When the constructor's audio device activation fails. (main thread)
+  // 2) When the audio infra reports an device/render error. (audio thread)
   void OnRenderError() override;
+
+  // Notifies the client (e.g. Blink WebAudio) of device/renderer-related
+  // errors. Intended to be executed via a task runner asynchronously.
+  void NotifyRenderError();
 
   void SetSilentSinkTaskRunnerForTesting(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
@@ -81,9 +90,13 @@ class CONTENT_EXPORT RendererWebAudioDeviceImpl
     return current_sink_params_;
   }
 
-  // Creates a new sink and return its device status. If the status is OK,
-  // replace the existing sink with the new one.
-  media::OutputDeviceStatus CreateSinkAndGetDeviceStatus() override;
+  // Creates a new sink if one hasn't been created yet, and returns the sink
+  // status.
+  media::OutputDeviceStatus MaybeCreateSinkAndGetStatus() override;
+
+  const media::AudioParameters& GetOriginalSinkParamsForTesting() const {
+    return original_sink_params_;
+  }
 
  protected:
   // Callback to get output device params (for tests).
@@ -99,6 +112,7 @@ class CONTENT_EXPORT RendererWebAudioDeviceImpl
       const blink::WebAudioSinkDescriptor& sink_descriptor,
       media::ChannelLayoutConfig layout_config,
       const blink::WebAudioLatencyHint& latency_hint,
+      std::optional<float> context_sample_rate,
       media::AudioRendererSink::RenderCallback* webaudio_callback,
       OutputDeviceParamsCallback device_params_cb,
       CreateSilentSinkCallback create_silent_sink_cb);
@@ -142,6 +156,9 @@ class CONTENT_EXPORT RendererWebAudioDeviceImpl
   // An alternative task runner for `silent_sink_suspender_` or a silent audio
   // sink.
   scoped_refptr<base::SingleThreadTaskRunner> silent_sink_task_runner_;
+
+  // Mainly to bubble up the OnRenderError to the Blink WebAudio module.
+  scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
 
   // Used to trigger one single textlog indicating that rendering started as
   // intended. Set to true once in the first call to the Render callback.

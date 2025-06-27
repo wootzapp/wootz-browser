@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "gpu/vulkan/vma_wrapper.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
 
-#include <algorithm>
+#include "gpu/vulkan/vma_wrapper.h"
 
 #include <vk_mem_alloc.h>
 
-#include "base/metrics/histogram_functions.h"
+#include <algorithm>
+#include <array>
+
 #include "build/build_config.h"
 #include "gpu/vulkan/vulkan_function_pointers.h"
 
@@ -73,10 +78,6 @@ VkResult CreateAllocator(VkPhysicalDevice physical_device,
   // of optional extensions in VulkanImplementation.
   bool vk_ext_memory_budget_supported = gfx::HasExtension(
       enabled_extensions, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
-
-  // Collect data on how often it is supported.
-  base::UmaHistogramBoolean("GPU.Vulkan.ExtMemoryBudgetSupported",
-                            vk_ext_memory_budget_supported);
 
   // Enable VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT flag if extension is
   // available.
@@ -189,10 +190,10 @@ void GetBudget(VmaAllocator allocator, VmaBudget* budget) {
 
 std::pair<uint64_t, uint64_t> GetTotalAllocatedAndUsedMemory(
     VmaAllocator allocator) {
-  // See GrVkMemoryAllocatorImpl::totalAllocatedAndUsedMemory() in skia for
+  // See VulkanAMDMemoryAllocator::totalAllocatedAndUsedMemory() in skia for
   // reference.
-  VmaBudget budget[VK_MAX_MEMORY_HEAPS];
-  GetBudget(allocator, budget);
+  std::array<VmaBudget, VK_MAX_MEMORY_HEAPS> budget;
+  GetBudget(allocator, budget.data());
   const VkPhysicalDeviceMemoryProperties* pPhysicalDeviceMemoryProperties;
   vmaGetMemoryProperties(allocator, &pPhysicalDeviceMemoryProperties);
   uint64_t total_allocated_memory = 0, total_used_memory = 0;

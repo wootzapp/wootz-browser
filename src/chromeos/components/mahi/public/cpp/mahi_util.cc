@@ -23,7 +23,13 @@ ActionType MatchButtonTypeToActionType(const ButtonType button_type) {
       return ActionType::kSettings;
     case ButtonType::kQA:
       return ActionType::kQA;
+    case ButtonType::kElucidation:
+      return ActionType::kElucidation;
+    case ButtonType::kSummaryOfSelection:
+      return ActionType::kSummaryOfSelection;
   }
 }
+
+DEFINE_UI_CLASS_PROPERTY_KEY(bool, kIsMahiMenuKey, false)
 
 }  // namespace chromeos::mahi

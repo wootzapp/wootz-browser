@@ -7,6 +7,7 @@ package org.chromium.chrome.browser;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Browser;
 
@@ -21,10 +22,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.IntentUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.init.AsyncInitializationActivity;
@@ -35,7 +38,6 @@ import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.Referrer;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.network.mojom.ReferrerPolicy;
@@ -184,7 +186,7 @@ public class TabsOpenedFromExternalAppTest {
         }
 
         final Tab originalTab = testRule.getActivity().getActivityTab();
-        TestThreadUtils.runOnUiThreadBlocking(() -> testRule.getActivity().onNewIntent(intent));
+        ThreadUtils.runOnUiThreadBlocking(() -> testRule.getActivity().onNewIntent(intent));
         // NoTouchMode changes external app launch behaviour depending on whether Chrome is
         // foregrounded - which it is for these tests.
         if (createNewTab) {
@@ -210,7 +212,7 @@ public class TabsOpenedFromExternalAppTest {
     }
 
     private void assertBackPressSendsChromeToBackground() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertTrue(
                             "Window does not have focus before pressing back.",
@@ -399,6 +401,9 @@ public class TabsOpenedFromExternalAppTest {
     @Test
     @LargeTest
     @Feature({"Navigation"})
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.TIRAMISU,
+            message = "crbug.com/350395970")
     public void testNoNewTabForSameApp() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
 
@@ -439,6 +444,9 @@ public class TabsOpenedFromExternalAppTest {
     @Test
     @LargeTest
     @Feature({"Navigation"})
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.TIRAMISU,
+            message = "crbug.com/350395970")
     public void testNewTabForUnknownApp() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
 
@@ -486,6 +494,9 @@ public class TabsOpenedFromExternalAppTest {
     @Test
     @LargeTest
     @Feature({"Navigation"})
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.TIRAMISU,
+            message = "crbug.com/350395970")
     public void testNewTabWithNewTabExtra() throws Exception {
         mActivityTestRule.startMainActivityOnBlankPage();
 
@@ -526,6 +537,9 @@ public class TabsOpenedFromExternalAppTest {
     @Test
     @LargeTest
     @Feature({"Navigation", "Main"})
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.TIRAMISU,
+            message = "crbug.com/350395970")
     public void testNoNewTabForSameAppOnStart() throws Exception {
         String url1 = mTestServer.getURL("/chrome/test/data/android/google.html");
         String url2 = mTestServer.getURL("/chrome/test/data/android/about.html");

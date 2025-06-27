@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -463,7 +468,7 @@ class PortsTest : public testing::Test, public MessageRouter {
   base::Lock global_lock_;
 
   base::Lock lock_;
-  std::map<NodeName, TestNode*> nodes_;
+  std::map<NodeName, raw_ptr<TestNode, CtnExperimental>> nodes_;
 };
 
 }  // namespace
@@ -1524,8 +1529,8 @@ TEST_F(PortsTest, MergePortsFailsGracefully) {
   EXPECT_EQ(OK, node1.node().InitializePort(Y, node0.name(), X.name(),
                                             node0.name(), X.name()));
 
-  // Block the merge from proceeding until we can do something stupid with port
-  // C. This avoids the test logic racing with async merge logic.
+  // Block the merge from proceeding until we can do something with port C. This
+  // avoids the test logic racing with async merge logic.
   node1.BlockOnEvent(Event::Type::kMergePort);
 
   // Initiate the merge between B and C.

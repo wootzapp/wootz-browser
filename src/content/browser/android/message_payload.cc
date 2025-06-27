@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
@@ -14,10 +15,11 @@
 #include "base/containers/span.h"
 #include "base/functional/overloaded.h"
 #include "base/notreached.h"
-#include "content/public/android/content_jni_headers/MessagePayloadJni_jni.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/blink/public/common/messaging/string_message_codec.h"
 #include "third_party/blink/public/common/messaging/transferable_message.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "content/public/android/content_jni_headers/MessagePayloadJni_jni.h"
 
 namespace {
 
@@ -61,7 +63,7 @@ namespace content::android {
 base::android::ScopedJavaLocalRef<jobject> ConvertWebMessagePayloadToJava(
     const blink::WebMessagePayload& payload) {
   JNIEnv* env = base::android::AttachCurrentThread();
-  return absl::visit(
+  return std::visit(
       base::Overloaded{
           [env](const std::u16string& str) {
             return Java_MessagePayloadJni_createFromString(
@@ -109,9 +111,7 @@ blink::WebMessagePayload ConvertToWebMessagePayloadFromJava(
     case MessagePayloadType::kInvalid:
       break;
   }
-  NOTREACHED_IN_MIGRATION()
-      << "Unsupported or invalid Java MessagePayload type.";
-  return std::u16string();
+  NOTREACHED() << "Unsupported or invalid Java MessagePayload type.";
 }
 
 }  // namespace content::android

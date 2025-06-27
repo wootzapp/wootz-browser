@@ -99,8 +99,7 @@ PpapiPluginProcessHost* PpapiPluginProcessHost::CreatePluginHost(
   if (plugin_host->Init(info))
     return plugin_host;
 
-  NOTREACHED_IN_MIGRATION();  // Init is not expected to fail.
-  return nullptr;
+  NOTREACHED();  // Init is not expected to fail.
 }
 
 // static
@@ -233,7 +232,6 @@ bool PpapiPluginProcessHost::Init(const ContentPluginInfo& info) {
       std::make_unique<base::CommandLine>(exe_path);
   cmd_line->AppendSwitchASCII(switches::kProcessType,
                               switches::kPpapiPluginProcess);
-  BrowserChildProcessHostImpl::CopyTraceStartupFlags(cmd_line.get());
 
 #if BUILDFLAG(IS_WIN)
   cmd_line->AppendArgNative(
@@ -253,7 +251,6 @@ bool PpapiPluginProcessHost::Init(const ContentPluginInfo& info) {
     sandbox::policy::switches::kEnableSandboxLogging,
 #endif
     switches::kPpapiStartupDialog,
-    switches::kTimeZoneForTesting,
   };
   cmd_line->CopySwitchesFrom(browser_command_line, kPluginForwardSwitches);
 
@@ -274,6 +271,8 @@ bool PpapiPluginProcessHost::Init(const ContentPluginInfo& info) {
   cmd_line->AppendSwitchASCII(
       switches::kPpapiSubpixelRenderingSetting,
       base::NumberToString(font_params.subpixel_rendering));
+
+  LOG(WARNING) << "Ppapi sandbox on Windows is not supported.";
 #endif
 
   if (!plugin_launcher.empty())

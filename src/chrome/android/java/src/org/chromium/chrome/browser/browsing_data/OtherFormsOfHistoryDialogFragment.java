@@ -23,7 +23,7 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.document.ChromeAsyncTabLauncher;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.ui.text.NoUnderlineClickableSpan;
+import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 
 /** Informs the user about the existence of other forms of browsing history. */
@@ -46,14 +46,14 @@ public class OtherFormsOfHistoryDialogFragment extends DialogFragment
         View view = inflater.inflate(R.layout.other_forms_of_history_dialog, null);
 
         // Linkify the <link></link> span in the dialog text.
-        TextView textView = (TextView) view.findViewById(R.id.text);
+        TextView textView = view.findViewById(R.id.text);
         final SpannableString textWithLink =
                 SpanApplier.applySpans(
                         textView.getText().toString(),
                         new SpanApplier.SpanInfo(
                                 "<link>",
                                 "</link>",
-                                new NoUnderlineClickableSpan(
+                                new ChromeClickableSpan(
                                         getContext(),
                                         (widget) -> {
                                             new ChromeAsyncTabLauncher(/* incognito= */ false)

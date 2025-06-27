@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import '../cr_icon_button/cr_icon_button.js';
-import '../icons_lit.html.js';
+import '../icons.html.js';
 
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
@@ -73,16 +73,19 @@ export class CrToolbarSearchFieldElement extends
       },
 
       iconOverride: {type: String},
+
+      inputAriaDescription: {type: String},
     };
   }
 
-  narrow: boolean = false;
-  showingSearch: boolean = false;
-  disabled: boolean = false;
-  override autofocus: boolean = false;
-  spinnerActive: boolean = false;
-  private searchFocused_: boolean = false;
-  iconOverride?: string;
+  accessor narrow: boolean = false;
+  accessor showingSearch: boolean = false;
+  accessor disabled: boolean = false;
+  override accessor autofocus: boolean = false;
+  accessor spinnerActive: boolean = false;
+  private accessor searchFocused_: boolean = false;
+  accessor iconOverride: string|undefined;
+  accessor inputAriaDescription: string = '';
 
   override firstUpdated() {
     this.addEventListener('click', e => this.showSearch_(e));
@@ -102,9 +105,18 @@ export class CrToolbarSearchFieldElement extends
     this.focus_();
   }
 
+  protected onSearchTermNativeBeforeInput(e: InputEvent) {
+    this.fire('search-term-native-before-input', {e});
+  }
+
   override onSearchTermInput() {
     super.onSearchTermInput();
     this.showingSearch = this.hasSearchText || this.isSearchFocused();
+  }
+
+  protected onSearchTermNativeInput(e: InputEvent) {
+    this.onSearchTermInput();
+    this.fire('search-term-native-input', {e, inputValue: this.getValue()});
   }
 
   protected getIconTabIndex_(): number {
@@ -147,7 +159,7 @@ export class CrToolbarSearchFieldElement extends
   }
 
   private async showSearch_(e: Event) {
-    if (e.target !== this.shadowRoot!.querySelector('#clearSearch')) {
+    if (e.target !== this.shadowRoot.querySelector('#clearSearch')) {
       this.showingSearch = true;
     }
     if (this.narrow) {
@@ -160,6 +172,7 @@ export class CrToolbarSearchFieldElement extends
     this.setValue('');
     this.focus_();
     this.spinnerActive = false;
+    this.fire('search-term-cleared');
   }
 }
 

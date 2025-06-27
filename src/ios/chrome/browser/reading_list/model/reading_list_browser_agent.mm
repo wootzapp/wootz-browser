@@ -15,24 +15,23 @@
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/sync/base/features.h"
 #import "components/ukm/ios/ukm_url_recorder.h"
+#import "ios/chrome/browser/ntp/shared/metrics/home_metrics.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_constants.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_model_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/snackbar_util.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
-#import "ios/chrome/browser/ui/ntp/metrics/home_metrics.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/web_state.h"
 #import "net/base/apple/url_conversions.h"
 #import "services/metrics/public/cpp/ukm_builders.h"
 #import "ui/base/l10n/l10n_util.h"
-
-BROWSER_USER_DATA_KEY_IMPL(ReadingListBrowserAgent)
 
 ReadingListBrowserAgent::ReadingListBrowserAgent(Browser* browser) {
   browser_ = browser;
@@ -72,8 +71,7 @@ void ReadingListBrowserAgent::AddURLsToReadingList(
         l10n_util::GetNSString(IDS_IOS_READING_LIST_SNACKBAR_MESSAGE);
   }
 
-  MDCSnackbarMessage* message =
-      [MDCSnackbarMessage messageWithText:snackbar_text];
+  MDCSnackbarMessage* message = CreateSnackbarMessage(snackbar_text);
   message.accessibilityLabel = snackbar_text;
   message.action = snackbar_action;
 
@@ -89,8 +87,7 @@ void ReadingListBrowserAgent::BulkAddURLsToReadingListWithViewSnackbar(
   base::RecordAction(base::UserMetricsAction("IOSReadingListItemsAddedInBulk"));
 
   ReadingListModel* reading_list_model =
-      ReadingListModelFactory::GetInstance()->GetForBrowserState(
-          browser_->GetBrowserState());
+      ReadingListModelFactory::GetForProfile(browser_->GetProfile());
   if (!reading_list_model->loaded()) {
     return;
   }
@@ -145,7 +142,7 @@ void ReadingListBrowserAgent::BulkAddURLsToReadingListWithViewSnackbar(
   MDCSnackbarMessageAction* action = CreateViewAction();
 
   TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
-  MDCSnackbarMessage* message = [MDCSnackbarMessage messageWithText:result];
+  MDCSnackbarMessage* message = CreateSnackbarMessage(result);
   message.action = action;
 
   CommandDispatcher* dispatcher = browser_->GetCommandDispatcher();
@@ -159,14 +156,13 @@ void ReadingListBrowserAgent::BulkAddURLsToReadingListWithViewSnackbar(
 AccountInfo ReadingListBrowserAgent::GetAccountInfoFromLastAddedURL(
     const GURL& url) {
   ReadingListModel* reading_model =
-      ReadingListModelFactory::GetInstance()->GetForBrowserState(
-          browser_->GetBrowserState());
-  CoreAccountId account_id = reading_model->GetAccountWhereEntryIsSavedTo(url);
+      ReadingListModelFactory::GetForProfile(browser_->GetProfile());
+  GaiaId gaia_id = reading_model->GetAccountWhereEntryIsSavedTo(url);
   signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForBrowserState(
-          browser_->GetBrowserState()->GetOriginalChromeBrowserState());
+      IdentityManagerFactory::GetForProfile(
+          browser_->GetProfile()->GetOriginalProfile());
   AccountInfo account_info =
-      identity_manager->FindExtendedAccountInfoByAccountId(account_id);
+      identity_manager->FindExtendedAccountInfoByGaiaId(gaia_id);
   return account_info;
 }
 
@@ -186,11 +182,11 @@ void ReadingListBrowserAgent::AddURLToReadingListwithTitle(const GURL& url,
     }
   }
 
-  RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kShortcuts);
+  RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kShortcuts,
+                              browser_->GetProfile()->GetPrefs());
   base::RecordAction(base::UserMetricsAction("MobileReadingListAdd"));
   ReadingListModel* reading_model =
-      ReadingListModelFactory::GetInstance()->GetForBrowserState(
-          browser_->GetBrowserState());
+      ReadingListModelFactory::GetForProfile(browser_->GetProfile());
   reading_model->AddOrReplaceEntry(url, base::SysNSStringToUTF8(title),
                                    reading_list::ADDED_VIA_CURRENT_APP,
                                    /*estimated_read_time=*/base::TimeDelta());
@@ -221,8 +217,7 @@ ReadingListBrowserAgent::CreateUndoActionWithReadingListURLs(
 void ReadingListBrowserAgent::RemoveURLsFromReadingList(
     NSArray<URLWithTitle*>* urls) {
   ReadingListModel* reading_model =
-      ReadingListModelFactory::GetInstance()->GetForBrowserState(
-          browser_->GetBrowserState());
+      ReadingListModelFactory::GetForProfile(browser_->GetProfile());
 
   for (URLWithTitle* url_with_title in urls) {
     reading_model->RemoveEntryByURL(url_with_title.URL, FROM_HERE);

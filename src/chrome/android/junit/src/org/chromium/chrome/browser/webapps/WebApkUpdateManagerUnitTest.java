@@ -10,7 +10,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -27,11 +26,11 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.android.util.concurrent.RoboExecutorService;
@@ -50,8 +49,6 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.test.BackgroundShadowAsyncTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ShortcutHelper;
@@ -83,8 +80,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Observer;
-import java.util.concurrent.TimeoutException;
 
 /** Unit tests for WebApkUpdateManager. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -93,13 +88,11 @@ import java.util.concurrent.TimeoutException;
         shadows = {ShadowUrlUtilities.class, BackgroundShadowAsyncTask.class})
 @LooperMode(LooperMode.Mode.LEGACY)
 public class WebApkUpdateManagerUnitTest {
-    @Mock private Activity mActivityMock;
+    @Mock public Activity mActivityMock;
+    @Mock public ActivityLifecycleDispatcher mLifecycleDispatcher;
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Rule public FakeTimeTestRule mClockRule = new FakeTimeTestRule();
-
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
-    @Rule public final TestRule mProcessor = new Features.JUnitProcessor();
 
     private static final String WEBAPK_PACKAGE_NAME = "org.chromium.webapk.test_package";
     private static final String UNBOUND_WEBAPK_PACKAGE_NAME = "com.webapk.test_package";
@@ -242,7 +235,10 @@ public class WebApkUpdateManagerUnitTest {
 
         public TestWebApkUpdateManager(
                 Activity activity, boolean nameUpdatesEnabled, boolean iconUpdatesEnabled) {
-            this(activity, buildMockTabProvider(), Mockito.mock(ActivityLifecycleDispatcher.class));
+            super(
+                    activity,
+                    buildMockTabProvider(),
+                    Mockito.mock(ActivityLifecycleDispatcher.class));
             mNameUpdatesEnabled = nameUpdatesEnabled;
             mIconUpdatesEnabled = iconUpdatesEnabled;
         }
@@ -252,13 +248,6 @@ public class WebApkUpdateManagerUnitTest {
             ActivityTabProvider tabProvider = Mockito.mock(ActivityTabProvider.class);
             Mockito.when(tabProvider.get()).thenReturn(mockTab);
             return tabProvider;
-        }
-
-        private TestWebApkUpdateManager(
-                Activity activity,
-                ActivityTabProvider tabProvider,
-                ActivityLifecycleDispatcher activityLifecycleDispatcher) {
-            super(activity, tabProvider, activityLifecycleDispatcher);
         }
 
         /** Returns whether the is-update-needed check has been triggered. */
@@ -419,25 +408,20 @@ public class WebApkUpdateManagerUnitTest {
     }
 
     private void registerStorageForWebApkPackage(String webApkPackageName) throws Exception {
-        try {
-            CallbackHelper helper = new CallbackHelper();
-            WebappRegistry.getInstance()
-                    .register(
-                            WebappIntentUtils.getIdForWebApkPackage(webApkPackageName),
-                            new WebappRegistry.FetchWebappDataStorageCallback() {
-                                @Override
-                                public void onWebappDataStorageRetrieved(
-                                        WebappDataStorage storage) {
-                                    helper.notifyCalled();
-                                }
-                            });
+        CallbackHelper helper = new CallbackHelper();
+        WebappRegistry.getInstance()
+                .register(
+                        WebappIntentUtils.getIdForWebApkPackage(webApkPackageName),
+                        new WebappRegistry.FetchWebappDataStorageCallback() {
+                            @Override
+                            public void onWebappDataStorageRetrieved(WebappDataStorage storage) {
+                                helper.notifyCalled();
+                            }
+                        });
             BackgroundShadowAsyncTask.runBackgroundTasks();
-            ShadowLooper.runUiThreadTasks();
+        ShadowLooper.runUiThreadTasks();
 
-            helper.waitForFirst();
-        } catch (TimeoutException e) {
-            fail();
-        }
+        helper.waitForOnly();
     }
 
     private static WebappDataStorage getStorage(String packageName) {
@@ -677,9 +661,9 @@ public class WebApkUpdateManagerUnitTest {
 
     /**
      * Tries to complete update request.
-     * @param updateManager
+     *
      * @param result The result of the update task. Emulates the proto creation as always
-     *               succeeding.
+     *     succeeding.
      */
     private static void tryCompletingUpdate(
             TestWebApkUpdateManager updateManager,
@@ -751,12 +735,11 @@ public class WebApkUpdateManagerUnitTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
 
         PathUtils.setPrivateDataDirectorySuffix("chrome");
         PostTask.setPrenativeThreadPoolExecutorForTesting(new RoboExecutorService());
 
-        mJniMocker.mock(WebApkUpdateManagerJni.TEST_HOOKS, new TestWebApkUpdateManagerJni());
+        WebApkUpdateManagerJni.setInstanceForTesting(new TestWebApkUpdateManagerJni());
 
         WebappRegistry.refreshSharedPrefsForTesting();
         registerWebApk(

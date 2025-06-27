@@ -58,10 +58,7 @@ void PreviewZoomController::InitializeZoom() {
   CHECK(zoom_controller);
   CHECK(host_zoom_map);
 
-  content::NavigationEntry* entry =
-      web_contents()->GetController().GetLastCommittedEntry();
-  CHECK(entry);
-  const GURL url = host_zoom_map->GetURLFromEntry(entry);
+  const GURL url = content::HostZoomMap::GetURLForWebContents(web_contents());
   const std::string host = net::GetHostOrSpecFromURL(url);
 
   // If a user changed zoom level for the host in this session, recover it.
@@ -114,8 +111,7 @@ double GetNextZoomLevel(double default_zoom_level,
           std::upper_bound(begin, end, current_zoom_level, std::greater<>());
       // If the next level is within epsilon of the current, keep going until
       // we're taking a meaningful step.
-      while (next != end &&
-             blink::PageZoomValuesEqual(*next, current_zoom_level)) {
+      while (next != end && blink::ZoomValuesEqual(*next, current_zoom_level)) {
         ++next;
       }
       if (next == end) {
@@ -130,8 +126,7 @@ double GetNextZoomLevel(double default_zoom_level,
       auto next = std::upper_bound(begin, end, current_zoom_level);
       // If the next level is within epsilon of the current, keep going until
       // we're taking a meaningful step.
-      while (next != end &&
-             blink::PageZoomValuesEqual(*next, current_zoom_level)) {
+      while (next != end && blink::ZoomValuesEqual(*next, current_zoom_level)) {
         ++next;
       }
       if (next == end) {
@@ -149,10 +144,7 @@ void PreviewZoomController::Zoom(content::PageZoom zoom) {
   CHECK(zoom_controller);
   CHECK(host_zoom_map);
 
-  content::NavigationEntry* entry =
-      web_contents()->GetController().GetLastCommittedEntry();
-  CHECK(entry);
-  const GURL url = host_zoom_map->GetURLFromEntry(entry);
+  const GURL url = content::HostZoomMap::GetURLForWebContents(web_contents());
   const std::string host = net::GetHostOrSpecFromURL(url);
 
   const double level = GetNextZoomLevel(

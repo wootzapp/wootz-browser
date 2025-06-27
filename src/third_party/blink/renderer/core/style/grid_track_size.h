@@ -133,15 +133,14 @@ class GridTrackSize {
   }
 
   void CacheMinMaxTrackBreadthTypes() {
-    // TODO(https://crbug.com/313072): Support calc-size() in grid track sizes.
     min_track_breadth_is_auto_ = min_track_breadth_.IsAuto();
-    min_track_breadth_is_fixed_ = min_track_breadth_.IsSpecified();
+    min_track_breadth_is_fixed_ = min_track_breadth_.HasOnlyFixedAndPercent();
     min_track_breadth_is_flex_ = min_track_breadth_.IsFlex();
     min_track_breadth_is_max_content_ = min_track_breadth_.IsMaxContent();
     min_track_breadth_is_min_content_ = min_track_breadth_.IsMinContent();
 
     max_track_breadth_is_auto_ = max_track_breadth_.IsAuto();
-    max_track_breadth_is_fixed_ = max_track_breadth_.IsSpecified();
+    max_track_breadth_is_fixed_ = max_track_breadth_.HasOnlyFixedAndPercent();
     max_track_breadth_is_flex_ = max_track_breadth_.IsFlex();
     max_track_breadth_is_max_content_ = max_track_breadth_.IsMaxContent();
     max_track_breadth_is_min_content_ = max_track_breadth_.IsMinContent();

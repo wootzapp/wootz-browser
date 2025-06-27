@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <utility>
 
 #include "base/memory/scoped_refptr.h"
@@ -379,17 +380,17 @@ TEST_F(ExtensionSpecialStoragePolicyTest, NotificationTest) {
   PolicyChangeObserver observer;
   policy_->AddObserver(&observer);
 
-  scoped_refptr<Extension> apps[] = {
+  auto apps = std::to_array<scoped_refptr<Extension>>({
       CreateProtectedApp(),
       CreateUnlimitedApp(),
-  };
+  });
 
-  int change_flags[] = {
+  auto change_flags = std::to_array<int>({
       SpecialStoragePolicy::STORAGE_PROTECTED,
 
       SpecialStoragePolicy::STORAGE_PROTECTED |
           SpecialStoragePolicy::STORAGE_UNLIMITED,
-  };
+  });
 
   ASSERT_EQ(std::size(apps), std::size(change_flags));
   for (size_t i = 0; i < std::size(apps); ++i) {

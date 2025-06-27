@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "sandbox/win/src/policy_engine_opcodes.h"
-
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/compiler_specific.h"
+#include "sandbox/win/src/policy_engine_opcodes.h"
 #include "sandbox/win/src/policy_engine_params.h"
 #include "sandbox/win/src/sandbox_nt_types.h"
 #include "sandbox/win/src/sandbox_nt_util.h"
@@ -45,7 +45,7 @@ TEST(PolicyEngineTest, ParameterSetTest) {
   ParameterSet pset4 = ParamPickerMake(txt);
   const wchar_t* result3 = nullptr;
   EXPECT_TRUE(pset4.Get(&result3));
-  EXPECT_EQ(0, wcscmp(txt, result3));
+  EXPECT_EQ(0, UNSAFE_TODO(wcscmp(txt, result3)));
 }
 
 TEST(PolicyEngineTest, OpcodeConstraints) {
@@ -55,9 +55,9 @@ TEST(PolicyEngineTest, OpcodeConstraints) {
   EXPECT_FALSE(__is_polymorphic(PolicyOpcode));
   // Keep developers from adding smarts to the opcodes which should
   // be pretty much a bag of bytes with a OO interface.
-  EXPECT_TRUE(__has_trivial_destructor(PolicyOpcode));
-  EXPECT_TRUE(__has_trivial_constructor(PolicyOpcode));
-  EXPECT_TRUE(__has_trivial_copy(PolicyOpcode));
+  EXPECT_TRUE(__is_trivially_destructible(PolicyOpcode));
+  EXPECT_TRUE(__is_trivially_constructible(PolicyOpcode));
+  EXPECT_TRUE(__is_trivially_copyable(PolicyOpcode));
 }
 
 TEST(PolicyEngineTest, TrueFalseOpcodes) {

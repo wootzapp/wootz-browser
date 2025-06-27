@@ -5,9 +5,10 @@
 #import "ios/chrome/browser/overlays/model/public/overlay_request_queue_callback_installer.h"
 
 #import "ios/chrome/browser/overlays/model/public/overlay_callback_manager.h"
+#import "ios/chrome/browser/overlays/model/public/overlay_request_config.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request_queue.h"
+#import "ios/chrome/browser/overlays/model/public/overlay_response_info.h"
 #import "ios/chrome/browser/overlays/model/test/fake_overlay_request_callback_installer.h"
-#import "ios/chrome/browser/overlays/model/test/overlay_test_macros.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "testing/gmock/include/gmock/gmock.h"
 #import "testing/platform_test.h"
@@ -16,18 +17,18 @@ namespace {
 // OverlayModality used in tests.
 const OverlayModality kModality = OverlayModality::kWebContentArea;
 // OverlayRequest ConfigType used for testing.
-DEFINE_TEST_OVERLAY_REQUEST_CONFIG(SupportedConfig);
+DEFINE_STATELESS_OVERLAY_REQUEST_CONFIG(SupportedConfig);
 // OverlayResponse InfoType used for testing.
-DEFINE_TEST_OVERLAY_RESPONSE_INFO(DispatchInfo);
+DEFINE_STATELESS_OVERLAY_RESPONSE_INFO(DispatchInfo);
 }  // namespace
 
 // Test fixture for OverlayRequestQueueCallbackInstaller.
 class OverlayRequestQueueCallbackInstallerTest : public PlatformTest {
  public:
-  OverlayRequestQueueCallbackInstallerTest()
-      : queue_installer_(
-            OverlayRequestQueueCallbackInstaller::Create(&web_state_,
-                                                         kModality)) {
+  OverlayRequestQueueCallbackInstallerTest() {
+    OverlayRequestQueue::CreateForWebState(&web_state_);
+    queue_installer_ =
+        OverlayRequestQueueCallbackInstaller::Create(&web_state_, kModality);
     std::unique_ptr<FakeOverlayRequestCallbackInstaller> request_installer =
         std::make_unique<FakeOverlayRequestCallbackInstaller>(
             &callback_receiver_, std::set<const OverlayResponseSupport*>(

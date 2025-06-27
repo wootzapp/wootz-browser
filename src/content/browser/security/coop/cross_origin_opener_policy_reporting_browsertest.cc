@@ -46,13 +46,9 @@ class CrossOriginOpenerPolicyReportingBrowserTest
  public:
   CrossOriginOpenerPolicyReportingBrowserTest()
       : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
-    // Enable COOP and DocumentReporting:
-    feature_list_.InitWithFeatures(
-        // Enabled features:
-        {network::features::kCrossOriginOpenerPolicy,
-         net::features::kDocumentReporting},
-        // Disabled features:
-        {});
+    // Enable COOP:
+    feature_list_.InitAndEnableFeature(
+        network::features::kCrossOriginOpenerPolicy);
   }
 
   int32_t reports_uploaded() {
@@ -191,7 +187,7 @@ class SendTestReportsAtNavigationFinishObserver : public WebContentsObserver {
     for (const base::UnguessableToken& reporting_source : reporting_sources_) {
       network_context->QueueReport(
           "type", "default", url_, reporting_source,
-          net::NetworkAnonymizationKey::CreateSameSite(site), "Mozilla/1.0",
+          net::NetworkAnonymizationKey::CreateSameSite(site),
           base::Value::Dict());
     }
   }

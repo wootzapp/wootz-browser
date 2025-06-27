@@ -24,6 +24,9 @@ class NetLogWithSource;
 // This object holds proxy information returned by ResolveProxy.
 class NET_EXPORT ProxyInfo {
  public:
+  // Creates a proxy info that uses a direct connection.
+  static ProxyInfo Direct();
+
   ProxyInfo();
   ProxyInfo(const ProxyInfo& other);
   ~ProxyInfo();
@@ -110,6 +113,13 @@ class NET_EXPORT ProxyInfo {
   // This is a temporary workaround to gather initial metrics for IP Protection.
   // TODO(crbug.com/40947771): Remove once the experiment is concluded.
   bool is_mdl_match() const { return is_mdl_match_; }
+
+  // Sets `prt_header_value_` to given `prt_header_value`. This value will be
+  // used in "Sec-Probabilistic-Reveal-Token" header if the right flags are
+  // enabled.
+  void SetPRTHeaderValue(std::optional<std::string> prt_header_value);
+
+  std::optional<std::string> PRTHeaderValue() const;
 
   // Returns the first valid proxy chain. is_empty() must be false to be able
   // to call this function.
@@ -201,6 +211,8 @@ class NET_EXPORT ProxyInfo {
   // determined synchronously without running a PAC.
   base::TimeTicks proxy_resolve_start_time_;
   base::TimeTicks proxy_resolve_end_time_;
+
+  std::optional<std::string> prt_header_value_;
 };
 
 }  // namespace net

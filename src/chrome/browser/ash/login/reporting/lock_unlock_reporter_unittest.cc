@@ -27,6 +27,8 @@
 
 using testing::_;
 using testing::Eq;
+using testing::Gt;
+using testing::IsEmpty;
 using testing::StrEq;
 
 namespace ash {
@@ -120,7 +122,7 @@ class LockUnlockTestHelper {
 class LockUnlockReporterTest
     : public ::testing::TestWithParam<LockUnlockReporterTestCase> {
  protected:
-  LockUnlockReporterTest() {}
+  LockUnlockReporterTest() = default;
 
   void SetUp() override { test_helper_.Init(); }
 
@@ -128,6 +130,35 @@ class LockUnlockReporterTest
 
   LockUnlockTestHelper test_helper_;
 };
+
+// When the device is locked/unlocked by an unaffiliated user a unique user ID
+// for this device should be reported.
+TEST_F(LockUnlockReporterTest, ReportUnaffiliatedUserId) {
+  policy::ManagedSessionService managed_session_service;
+  auto reporter_helper = test_helper_.GetReporterHelper(
+      /*reporting_enabled=*/true,
+      /*should_report_user=*/false);
+
+  auto reporter = LockUnlockReporter::CreateForTest(std::move(reporter_helper),
+                                                    &managed_session_service);
+
+  auto profile = test_helper_.CreateRegularUserProfile();
+  auto* const user = ProfileHelper::Get()->GetUserByProfile(profile.get());
+  managed_session_service.OnUserProfileLoaded(user->GetAccountId());
+
+  test_helper_.session_manager()->SetSessionState(
+      session_manager::SessionState::LOCKED);
+  managed_session_service.OnSessionStateChanged();
+
+  const LockUnlockRecord& record = test_helper_.GetRecord();
+  ASSERT_THAT(test_helper_.GetReportCount(), Eq(1));
+  EXPECT_TRUE(record.has_event_timestamp_sec());
+  EXPECT_FALSE(record.has_unlock_event());
+  EXPECT_FALSE(record.has_affiliated_user());
+  EXPECT_TRUE(record.has_unaffiliated_user());
+  EXPECT_TRUE(record.unaffiliated_user().has_user_id_num());
+  EXPECT_TRUE(record.has_lock_event());
+}
 
 TEST_F(LockUnlockReporterTest, ReportLockPolicyEnabled) {
   policy::ManagedSessionService managed_session_service;

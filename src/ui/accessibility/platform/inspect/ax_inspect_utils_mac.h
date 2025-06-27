@@ -14,14 +14,18 @@
 #include "base/functional/callback_forward.h"
 #include "ui/accessibility/platform/inspect/ax_inspect.h"
 
-using ui::AXTreeSelector;
-
 namespace ui {
 
 // Returns true if the given accessibility attribute is valid, and could have
 // been exposed on certain accessibility objects.
 COMPONENT_EXPORT(AX_PLATFORM)
 bool IsValidAXAttribute(const std::string& attribute);
+
+// Return AXElement in a tree by a given accessibility role.
+COMPONENT_EXPORT(AX_PLATFORM)
+base::apple::ScopedCFTypeRef<AXUIElementRef> FindAXUIElement(
+    const AXUIElementRef node,
+    const char* role);
 
 // Return AXElement in a tree by a given criteria.
 using AXFindCriteria = base::RepeatingCallback<bool(const AXUIElementRef)>;
@@ -33,6 +37,12 @@ base::apple::ScopedCFTypeRef<AXUIElementRef> FindAXUIElement(
 // Returns AXUIElement and its application process id by a given tree selector.
 COMPONENT_EXPORT(AX_PLATFORM)
 std::pair<base::apple::ScopedCFTypeRef<AXUIElementRef>, int> FindAXUIElement(
+    const AXTreeSelector&);
+
+// Returns application AXUIElement and its application process id by a given
+// tree selector.
+COMPONENT_EXPORT(AX_PLATFORM)
+std::pair<base::apple::ScopedCFTypeRef<AXUIElementRef>, int> FindAXApplication(
     const AXTreeSelector&);
 
 // Returns AXUIElement for a window having title matching the given pattern.

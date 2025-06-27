@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.omnibox;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.graphics.Rect;
 import android.provider.Settings;
@@ -17,22 +19,26 @@ import android.view.inputmethod.InputConnection;
 import android.widget.EditText;
 
 import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
+import org.chromium.build.annotations.EnsuresNonNull;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.widget.text.VerticallyFixedEditText;
+import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.text.EmptyTextWatcher;
 
+import java.util.Optional;
+
 /** An {@link EditText} that shows autocomplete text at the end. */
+@NullMarked
 public class AutocompleteEditText extends VerticallyFixedEditText
         implements AutocompleteEditTextModelBase.Delegate {
     private static final String TAG = "AutocompleteEdit";
+    private static final boolean DEBUG = OmniboxFeatures.sDiagInputConnection.getValue();
 
-    private static final boolean DEBUG = false;
-
-    private AutocompleteEditTextModelBase mModel;
+    private @Nullable AutocompleteEditTextModelBase mModel;
     private boolean mIgnoreTextChangesForAutocomplete = true;
     private boolean mLastEditWasPaste;
     private boolean mOnSanitizing;
@@ -90,15 +96,16 @@ public class AutocompleteEditText extends VerticallyFixedEditText
         mNativeInitialized = true;
     }
 
+    @EnsuresNonNull("mModel")
     private void ensureModel() {
         if (mModel != null) return;
 
-        mModel = new SpannableAutocompleteEditTextModel(this);
+        mModel = new SpannableAutocompleteEditTextModel(this, getContext());
         mModel.setIgnoreTextChangeFromAutocomplete(true);
-        mModel.setLayoutDirectionIsLtr(getLayoutDirection() != LAYOUT_DIRECTION_RTL);
         mModel.onFocusChanged(hasFocus());
-        mModel.onSetText(getText());
-        mModel.onTextChanged(getText(), 0, 0, getText().length());
+        Editable text = assumeNonNull(getText());
+        mModel.onSetText(text);
+        mModel.onTextChanged(text, 0, 0, text.length());
         mModel.onSelectionChanged(getSelectionStart(), getSelectionEnd());
         if (mLastEditWasPaste) mModel.onPaste();
         mModel.setIgnoreTextChangeFromAutocomplete(false);
@@ -130,6 +137,16 @@ public class AutocompleteEditText extends VerticallyFixedEditText
     public String getTextWithAutocomplete() {
         if (mModel == null) return "";
         return mModel.getTextWithAutocomplete();
+    }
+
+    /**
+     * @return Additional text presented in the omnibox, indicating the destination of the default
+     *     match.
+     */
+    @VisibleForTesting
+    public Optional<String> getAdditionalText() {
+        if (mModel == null) return Optional.empty();
+        return mModel.getAdditionalText();
     }
 
     /**
@@ -199,12 +216,18 @@ public class AutocompleteEditText extends VerticallyFixedEditText
      *
      * @param userText user The text entered by the user.
      * @param inlineAutocompleteText The suggested autocompletion for the user's text.
+     * @param additionalText This string is displayed adjacent to the omnibox if this match is the
+     *     default. Will usually be URL when autocompleting a title, and empty otherwise.
      */
     public void setAutocompleteText(
-            @NonNull CharSequence userText, @Nullable CharSequence inlineAutocompleteText) {
+            CharSequence userText,
+            @Nullable CharSequence inlineAutocompleteText,
+            Optional<String> additionalText) {
         boolean emptyAutocomplete = TextUtils.isEmpty(inlineAutocompleteText);
         if (!emptyAutocomplete) mDisableTextScrollingFromAutocomplete = true;
-        if (mModel != null) mModel.setAutocompleteText(userText, inlineAutocompleteText);
+        if (mModel != null) {
+            mModel.setAutocompleteText(userText, inlineAutocompleteText, additionalText);
+        }
     }
 
     /**
@@ -262,13 +285,13 @@ public class AutocompleteEditText extends VerticallyFixedEditText
     }
 
     @VisibleForTesting
-    public InputConnection getInputConnection() {
+    public @Nullable InputConnection getInputConnection() {
         if (mModel == null) return null;
         return mModel.getInputConnection();
     }
 
     @Override
-    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+    public @Nullable InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         InputConnection target = super.onCreateInputConnection(outAttrs);
         // Initially, target is null until View gets the focus.
         if (target == null && mModel == null) {
@@ -298,7 +321,7 @@ public class AutocompleteEditText extends VerticallyFixedEditText
     }
 
     @Override
-    public void setOnKeyListener(OnKeyListener listener) {
+    public void setOnKeyListener(@Nullable OnKeyListener listener) {
         super.setOnKeyListener(listener);
         mOnKeyListener = listener;
     }
@@ -333,18 +356,18 @@ public class AutocompleteEditText extends VerticallyFixedEditText
     public void onUpdateSelectionForTesting(int selStart, int selEnd) {}
 
     @Override
-    public void onRtlPropertiesChanged(int layoutDirection) {
-        super.onRtlPropertiesChanged(layoutDirection);
-        if (mModel != null) {
-            mModel.setLayoutDirectionIsLtr(layoutDirection != LAYOUT_DIRECTION_RTL);
-        }
-    }
-
-    @Override
     public String getKeyboardPackageName() {
         String defaultIme =
                 Settings.Secure.getString(
                         getContext().getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
         return defaultIme == null ? "" : defaultIme;
+    }
+
+    /* package */ void setModelForTesting(AutocompleteEditTextModelBase model) {
+        mModel = model;
+    }
+
+    /* package */ @Nullable AutocompleteEditTextModelBase getModelForTesting() {
+        return mModel;
     }
 }

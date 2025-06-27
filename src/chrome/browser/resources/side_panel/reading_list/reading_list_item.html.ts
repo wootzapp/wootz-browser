@@ -3,9 +3,11 @@
 // found in the LICENSE file.
 
 import {html} from '//resources/lit/v3_0/lit.rollup.js';
+
 import type {ReadingListItemElement} from './reading_list_item.js';
 
 export function getHtml(this: ReadingListItemElement) {
+  // clang-format off
   return html`<!--_html_template_start_-->
 <cr-url-list-item id="crUrlListItem"
     title="${this.data.title}"
@@ -16,8 +18,7 @@ export function getHtml(this: ReadingListItemElement) {
   <cr-icon-button slot="suffix" id="updateStatusButton" disable-ripple
       aria-label="${this.getUpdateStatusButtonTooltip_(
           '$i18n{tooltipMarkAsUnread}', '$i18n{tooltipMarkAsRead}')}"
-      iron-icon="${this.getUpdateStatusButtonIcon_('cr:check-circle',
-          'read-later:check-circle-outline')}"
+      iron-icon="${this.getUpdateStatusButtonIcon_()}"
       ?noink="${!this.buttonRipples}" no-ripple-on-focus
       @click="${this.onUpdateStatusClick_}"
       title="${this.getUpdateStatusButtonTooltip_('$i18n{tooltipMarkAsUnread}',
@@ -30,4 +31,5 @@ export function getHtml(this: ReadingListItemElement) {
   </cr-icon-button>
 </cr-url-list-item>
 <!--_html_template_end_-->`;
+  // clang-format on
 }

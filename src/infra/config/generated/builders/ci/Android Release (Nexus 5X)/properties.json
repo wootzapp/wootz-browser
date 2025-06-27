@@ -17,7 +17,7 @@
               "builder_group": "chromium.gpu",
               "execution_mode": "COMPILE_AND_TEST",
               "legacy_android_config": {
-                "config": "main_builder"
+                "config": "base_config"
               },
               "legacy_chromium_config": {
                 "apply_configs": [
@@ -25,7 +25,8 @@
                   "mb"
                 ],
                 "build_config": "Release",
-                "config": "android",
+                "config": "main_builder",
+                "target_arch": "arm",
                 "target_bits": 64,
                 "target_platform": "android"
               },
@@ -48,28 +49,22 @@
       ],
       "mirroring_builder_group_and_names": [
         {
-          "builder": "android-arm64-rel",
-          "group": "tryserver.chromium.android"
-        },
-        {
           "builder": "gpu-try-android-m-nexus-5x-64",
           "group": "tryserver.chromium.android"
         }
-      ]
+      ],
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/Android Release (Nexus 5X)/targets"
     }
-  },
-  "$build/reclient": {
-    "instance": "rbe-chromium-trusted",
-    "metrics_project": "chromium-reclient-metrics",
-    "scandeps_server": true
   },
   "$build/siso": {
     "configs": [
       "builder"
     ],
+    "enable_cloud_monitoring": true,
     "enable_cloud_profiler": true,
     "enable_cloud_trace": true,
     "experiments": [],
+    "metrics_project": "chromium-reclient-metrics",
     "project": "rbe-chromium-trusted",
     "remote_jobs": 250
   },
@@ -81,6 +76,9 @@
     ]
   },
   "builder_group": "chromium.gpu",
+  "gardener_rotations": [
+    "chromium.gpu"
+  ],
   "recipe": "chromium",
   "sheriff_rotations": [
     "chromium.gpu"

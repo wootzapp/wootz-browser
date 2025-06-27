@@ -24,12 +24,14 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "net/base/address_family.h"
 #include "net/base/auth.h"
 #include "net/base/features.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
 #include "net/base/load_timing_info.h"
+#include "net/base/load_timing_internal_info.h"
 #include "net/base/net_errors.h"
 #include "net/base/proxy_chain.h"
 #include "net/base/proxy_server.h"
@@ -38,6 +40,7 @@
 #include "net/base/url_util.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/filter/filter_source_stream.h"
+#include "net/filter/source_stream_type.h"
 #include "net/http/bidirectional_stream_impl.h"
 #include "net/http/http_auth.h"
 #include "net/http/http_auth_controller.h"
@@ -56,10 +59,12 @@
 #include "net/http/http_status_code.h"
 #include "net/http/http_stream.h"
 #include "net/http/http_stream_factory.h"
+#include "net/http/http_stream_pool.h"
 #include "net/http/http_util.h"
 #include "net/http/transport_security_state.h"
 #include "net/http/url_security_manager.h"
 #include "net/log/net_log_event_type.h"
+#include "net/log/net_log_util.h"
 #include "net/proxy_resolution/proxy_info.h"
 #include "net/socket/client_socket_factory.h"
 #include "net/socket/next_proto.h"
@@ -159,6 +164,20 @@ void RecordWebSocketFallbackResult(int result,
                                        connection_info));
 }
 
+const std::string_view NegotiatedProtocolToHistogramSuffix(
+    NextProto next_proto) {
+  switch (next_proto) {
+    case NextProto::kProtoHTTP11:
+      return "H1";
+    case NextProto::kProtoHTTP2:
+      return "H2";
+    case NextProto::kProtoQUIC:
+      return "H3";
+    case NextProto::kProtoUnknown:
+      return "Unknown";
+  }
+}
+
 }  // namespace
 
 const int HttpNetworkTransaction::kDrainBodyBufferSize;
@@ -200,6 +219,9 @@ HttpNetworkTransaction::~HttpNetworkTransaction() {
 int HttpNetworkTransaction::Start(const HttpRequestInfo* request_info,
                                   CompletionOnceCallback callback,
                                   const NetLogWithSource& net_log) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::Start",
+              NetLogWithSourceToFlow(net_log), "url", request_info->url);
+
   if (request_info->load_flags & LOAD_ONLY_FROM_CACHE)
     return ERR_CACHE_MISS;
 
@@ -209,15 +231,21 @@ int HttpNetworkTransaction::Start(const HttpRequestInfo* request_info,
   request_ = request_info;
   url_ = request_->url;
   network_anonymization_key_ = request_->network_anonymization_key;
+  start_timeticks_ = base::TimeTicks::Now();
 #if BUILDFLAG(ENABLE_REPORTING)
   // Store values for later use in NEL report generation.
   request_method_ = request_->method;
-  request_->extra_headers.GetHeader(HttpRequestHeaders::kReferer,
-                                    &request_referrer_);
-  request_->extra_headers.GetHeader(HttpRequestHeaders::kUserAgent,
-                                    &request_user_agent_);
+  if (std::optional<std::string> header =
+          request_->extra_headers.GetHeader(HttpRequestHeaders::kReferer);
+      header) {
+    request_referrer_.swap(header.value());
+  }
+  if (std::optional<std::string> header =
+          request_->extra_headers.GetHeader(HttpRequestHeaders::kUserAgent);
+      header) {
+    request_user_agent_.swap(header.value());
+  }
   request_reporting_upload_depth_ = request_->reporting_upload_depth;
-  start_timeticks_ = base::TimeTicks::Now();
 #endif  // BUILDFLAG(ENABLE_REPORTING)
 
   if (request_->idempotency == IDEMPOTENT ||
@@ -230,19 +258,19 @@ int HttpNetworkTransaction::Start(const HttpRequestInfo* request_info,
     response_.unused_since_prefetch = true;
   }
 
-  if (request_->load_flags & LOAD_RESTRICTED_PREFETCH) {
+  if (request_->load_flags & LOAD_RESTRICTED_PREFETCH_FOR_MAIN_FRAME) {
     DCHECK(response_.unused_since_prefetch);
     response_.restricted_prefetch = true;
   }
 
-  next_state_ = STATE_NOTIFY_BEFORE_CREATE_STREAM;
+  next_state_ = STATE_CREATE_STREAM;
   int rv = DoLoop(OK);
   if (rv == ERR_IO_PENDING)
     callback_ = std::move(callback);
 
   // This always returns ERR_IO_PENDING because DoCreateStream() does, but
   // GenerateNetworkErrorLoggingReportIfError() should be called here if any
-  // other net::Error can be returned.
+  // other Error can be returned.
   DCHECK_EQ(rv, ERR_IO_PENDING);
   return rv;
 }
@@ -252,6 +280,9 @@ int HttpNetworkTransaction::RestartIgnoringLastError(
   DCHECK(!stream_.get());
   DCHECK(!stream_request_.get());
   DCHECK_EQ(STATE_NONE, next_state_);
+
+  TRACE_EVENT("net", "HttpNetworkTransaction::RestartIgnoringLastError",
+              NetLogWithSourceToFlow(net_log_));
 
   if (!CheckMaxRestarts())
     return ERR_TOO_MANY_RETRIES;
@@ -264,7 +295,7 @@ int HttpNetworkTransaction::RestartIgnoringLastError(
 
   // This always returns ERR_IO_PENDING because DoCreateStream() does, but
   // GenerateNetworkErrorLoggingReportIfError() should be called here if any
-  // other net::Error can be returned.
+  // other Error can be returned.
   DCHECK_EQ(rv, ERR_IO_PENDING);
   return rv;
 }
@@ -278,6 +309,9 @@ int HttpNetworkTransaction::RestartWithCertificate(
   DCHECK(!stream_request_.get());
   DCHECK(!stream_.get());
   DCHECK_EQ(STATE_NONE, next_state_);
+
+  TRACE_EVENT("net", "HttpNetworkTransaction::RestartWithCertificate",
+              NetLogWithSourceToFlow(net_log_));
 
   if (!CheckMaxRestarts())
     return ERR_TOO_MANY_RETRIES;
@@ -301,20 +335,22 @@ int HttpNetworkTransaction::RestartWithCertificate(
 
   // This always returns ERR_IO_PENDING because DoCreateStream() does, but
   // GenerateNetworkErrorLoggingReportIfError() should be called here if any
-  // other net::Error can be returned.
+  // other Error can be returned.
   DCHECK_EQ(rv, ERR_IO_PENDING);
   return rv;
 }
 
 int HttpNetworkTransaction::RestartWithAuth(const AuthCredentials& credentials,
                                             CompletionOnceCallback callback) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::RestartWithAuth",
+              NetLogWithSourceToFlow(net_log_));
+
   if (!CheckMaxRestarts())
     return ERR_TOO_MANY_RETRIES;
 
   HttpAuth::Target target = pending_auth_target_;
   if (target == HttpAuth::AUTH_NONE) {
-    NOTREACHED_IN_MIGRATION();
-    return ERR_UNEXPECTED;
+    NOTREACHED();
   }
   pending_auth_target_ = HttpAuth::AUTH_NONE;
 
@@ -363,6 +399,7 @@ void HttpNetworkTransaction::PrepareForAuthRestart(HttpAuth::Target target) {
 
     session_->http_server_properties()->SetHTTP11Required(
         url::SchemeHostPort(rewritten_url), network_anonymization_key_);
+    stream_->SetHTTP11Required();
   }
 
   bool keep_alive = false;
@@ -404,6 +441,8 @@ void HttpNetworkTransaction::DidDrainBodyForAuthRestart(bool keep_alive) {
       // Close the stream and mark it as not_reusable.  Even in the
       // keep_alive case, we've determined that the stream_ is not
       // reusable if new_stream is NULL.
+      TRACE_EVENT("net", "HttpNetworkTransaction::DidDrainBodyForAuthRestart",
+                  NetLogWithSourceToFlow(net_log_));
       stream_->Close(true);
       next_state_ = STATE_CREATE_STREAM;
     } else {
@@ -475,6 +514,10 @@ int64_t HttpNetworkTransaction::GetTotalSentBytes() const {
   return total_sent_bytes;
 }
 
+int64_t HttpNetworkTransaction::GetReceivedBodyBytes() const {
+  return received_body_bytes_;
+}
+
 void HttpNetworkTransaction::DoneReading() {}
 
 const HttpResponseInfo* HttpNetworkTransaction::GetResponseInfo() const {
@@ -502,13 +545,25 @@ LoadState HttpNetworkTransaction::GetLoadState() const {
   }
 }
 
-void HttpNetworkTransaction::SetQuicServerInfo(
-    QuicServerInfo* quic_server_info) {}
-
 bool HttpNetworkTransaction::GetLoadTimingInfo(
     LoadTimingInfo* load_timing_info) const {
   if (!stream_ || !stream_->GetLoadTimingInfo(load_timing_info))
     return false;
+
+  // If `dns_resolution_{start/end}_time_override_` are set, and they are older
+  // than `domain_lookup_{start/end}` of the `stream_`, use the overrides.
+  // TODO(crbug.com/40812426): Remove this when we launch Happy Eyeballs v3.
+  if (!dns_resolution_start_time_override_.is_null() &&
+      !dns_resolution_end_time_override_.is_null() &&
+      (dns_resolution_start_time_override_ <
+       load_timing_info->connect_timing.domain_lookup_start) &&
+      (dns_resolution_end_time_override_ <
+       load_timing_info->connect_timing.domain_lookup_end)) {
+    load_timing_info->connect_timing.domain_lookup_start =
+        dns_resolution_start_time_override_;
+    load_timing_info->connect_timing.domain_lookup_end =
+        dns_resolution_end_time_override_;
+  }
 
   load_timing_info->proxy_resolve_start =
       proxy_info_.proxy_resolve_start_time();
@@ -516,6 +571,28 @@ bool HttpNetworkTransaction::GetLoadTimingInfo(
   load_timing_info->send_start = send_start_time_;
   load_timing_info->send_end = send_end_time_;
   return true;
+}
+
+void HttpNetworkTransaction::PopulateLoadTimingInternalInfo(
+    LoadTimingInternalInfo* load_timing_internal_info) const {
+  if (!create_stream_start_time_.is_null() &&
+      !create_stream_end_time_.is_null()) {
+    CHECK_LE(create_stream_start_time_, create_stream_end_time_);
+    load_timing_internal_info->create_stream_delay =
+        create_stream_end_time_ - create_stream_start_time_;
+  }
+  if (!connected_callback_start_time_.is_null() &&
+      !connected_callback_end_time_.is_null()) {
+    CHECK_LE(connected_callback_start_time_, connected_callback_end_time_);
+    load_timing_internal_info->connected_callback_delay =
+        connected_callback_end_time_ - connected_callback_start_time_;
+  }
+  if (!initialize_stream_start_time_.is_null() &&
+      !initialize_stream_end_time_.is_null()) {
+    CHECK_LE(initialize_stream_start_time_, initialize_stream_end_time_);
+    load_timing_internal_info->initialize_stream_delay =
+        initialize_stream_end_time_ - initialize_stream_start_time_;
+  }
 }
 
 bool HttpNetworkTransaction::GetRemoteEndpoint(IPEndPoint* endpoint) const {
@@ -549,11 +626,6 @@ void HttpNetworkTransaction::SetWebSocketHandshakeStreamCreateHelper(
   websocket_handshake_stream_base_create_helper_ = create_helper;
 }
 
-void HttpNetworkTransaction::SetBeforeNetworkStartCallback(
-    BeforeNetworkStartCallback callback) {
-  before_network_start_callback_ = std::move(callback);
-}
-
 void HttpNetworkTransaction::SetConnectedCallback(
     const ConnectedCallback& callback) {
   connected_callback_ = callback;
@@ -578,23 +650,26 @@ void HttpNetworkTransaction::SetResponseHeadersCallback(
 }
 
 void HttpNetworkTransaction::SetModifyRequestHeadersCallback(
-    base::RepeatingCallback<void(net::HttpRequestHeaders*)> callback) {
+    base::RepeatingCallback<void(HttpRequestHeaders*)> callback) {
   modify_headers_callbacks_ = std::move(callback);
 }
 
 void HttpNetworkTransaction::SetIsSharedDictionaryReadAllowedCallback(
     base::RepeatingCallback<bool()> callback) {
   // This method should not be called for this class.
-  NOTREACHED_IN_MIGRATION();
-}
-
-int HttpNetworkTransaction::ResumeNetworkStart() {
-  DCHECK_EQ(next_state_, STATE_CREATE_STREAM);
-  return DoLoop(OK);
+  NOTREACHED();
 }
 
 void HttpNetworkTransaction::ResumeAfterConnected(int result) {
   DCHECK_EQ(next_state_, STATE_CONNECTED_CALLBACK_COMPLETE);
+
+  connected_callback_end_time_ = base::TimeTicks::Now();
+  CHECK(!connected_callback_start_time_.is_null());
+  CHECK_LE(connected_callback_start_time_, connected_callback_end_time_);
+  base::UmaHistogramTimes(
+      "Net.NetworkTransaction.ConnectedCallbackDelay",
+      connected_callback_end_time_ - connected_callback_start_time_);
+
   OnIOComplete(result);
 }
 
@@ -618,18 +693,25 @@ void HttpNetworkTransaction::OnStreamReady(const ProxyInfo& used_proxy_info,
   stream_ = std::move(stream);
   stream_->SetRequestHeadersCallback(request_headers_callback_);
   proxy_info_ = used_proxy_info;
+  negotiated_protocol_ = stream_request_->negotiated_protocol();
   // TODO(crbug.com/40473589): Remove `was_alpn_negotiated` when we remove
   // chrome.loadTimes API.
   response_.was_alpn_negotiated =
-      stream_request_->negotiated_protocol() != kProtoUnknown;
+      stream_request_->negotiated_protocol() != NextProto::kProtoUnknown;
   response_.alpn_negotiated_protocol =
       NextProtoToString(stream_request_->negotiated_protocol());
   response_.alternate_protocol_usage =
       stream_request_->alternate_protocol_usage();
   // TODO(crbug.com/40815866): Stop using `was_fetched_via_spdy`.
   response_.was_fetched_via_spdy =
-      stream_request_->negotiated_protocol() == kProtoHTTP2;
+      stream_request_->negotiated_protocol() == NextProto::kProtoHTTP2;
   response_.dns_aliases = stream_->GetDnsAliases();
+
+  dns_resolution_start_time_override_ =
+      stream_request_->dns_resolution_start_time_override();
+  dns_resolution_end_time_override_ =
+      stream_request_->dns_resolution_end_time_override();
+
   SetProxyInfoInResponse(used_proxy_info, &response_);
   OnIOComplete(OK);
 }
@@ -637,7 +719,7 @@ void HttpNetworkTransaction::OnStreamReady(const ProxyInfo& used_proxy_info,
 void HttpNetworkTransaction::OnBidirectionalStreamImplReady(
     const ProxyInfo& used_proxy_info,
     std::unique_ptr<BidirectionalStreamImpl> stream) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void HttpNetworkTransaction::OnWebSocketHandshakeStreamReady(
@@ -722,6 +804,20 @@ void HttpNetworkTransaction::OnQuicBroken() {
   net_error_details_.quic_broken = true;
 }
 
+void HttpNetworkTransaction::OnSwitchesToHttpStreamPool(
+    HttpStreamPoolRequestInfo request_info) {
+  CHECK_EQ(STATE_CREATE_STREAM_COMPLETE, next_state_);
+  CHECK(stream_request_);
+  stream_request_.reset();
+
+  stream_request_ = session_->http_stream_pool()->RequestStream(
+      this, std::move(request_info), priority_,
+      /*allowed_bad_certs=*/observed_bad_certs_, enable_ip_based_pooling_,
+      enable_alternative_services_, net_log_);
+  CHECK(!stream_request_->completed());
+  // No IO completion yet.
+}
+
 ConnectionAttempts HttpNetworkTransaction::GetConnectionAttempts() const {
   return connection_attempts_;
 }
@@ -763,10 +859,6 @@ int HttpNetworkTransaction::DoLoop(int result) {
     State state = next_state_;
     next_state_ = STATE_NONE;
     switch (state) {
-      case STATE_NOTIFY_BEFORE_CREATE_STREAM:
-        DCHECK_EQ(OK, rv);
-        rv = DoNotifyBeforeCreateStream();
-        break;
       case STATE_CREATE_STREAM:
         DCHECK_EQ(OK, rv);
         rv = DoCreateStream();
@@ -857,34 +949,32 @@ int HttpNetworkTransaction::DoLoop(int result) {
             NetLogEventType::HTTP_TRANSACTION_DRAIN_BODY_FOR_AUTH_RESTART, rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state";
-        rv = ERR_FAILED;
-        break;
+        NOTREACHED() << "bad state";
     }
   } while (rv != ERR_IO_PENDING && next_state_ != STATE_NONE);
 
   return rv;
 }
 
-int HttpNetworkTransaction::DoNotifyBeforeCreateStream() {
-  next_state_ = STATE_CREATE_STREAM;
-  bool defer = false;
-  if (!before_network_start_callback_.is_null())
-    std::move(before_network_start_callback_).Run(&defer);
-  if (!defer)
-    return OK;
-  return ERR_IO_PENDING;
-}
-
 int HttpNetworkTransaction::DoCreateStream() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::CreateStream",
+              NetLogWithSourceToFlow(net_log_), "retry_attempts",
+              retry_attempts_, "num_restarts", num_restarts_);
   response_.network_accessed = true;
 
   next_state_ = STATE_CREATE_STREAM_COMPLETE;
-  // IP based pooling is only enabled on a retry after 421 Misdirected Request
+  // IP based pooling is only disabled on a retry after 421 Misdirected Request
   // is received. Alternative Services are also disabled in this case (though
   // they can also be disabled when retrying after a QUIC error).
-  if (!enable_ip_based_pooling_)
+  if (!enable_ip_based_pooling_) {
     DCHECK(!enable_alternative_services_);
+  }
+
+  create_stream_start_time_ = base::TimeTicks::Now();
+  // Reset `create_stream_end_time__` to prevent an inconsistent state in
+  // case that `DoCreateStream` is called multiple times.
+  create_stream_end_time_ = base::TimeTicks();
+
   if (ForWebSocketHandshake()) {
     stream_request_ =
         session_->http_stream_factory()->RequestWebSocketHandshakeStream(
@@ -901,10 +991,30 @@ int HttpNetworkTransaction::DoCreateStream() {
 }
 
 int HttpNetworkTransaction::DoCreateStreamComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::CreateStreamComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
+  RecordStreamRequestResult(result);
   CopyConnectionAttemptsFromStreamRequest();
   if (result == OK) {
+    create_stream_end_time_ = base::TimeTicks::Now();
     next_state_ = STATE_CONNECTED_CALLBACK;
     DCHECK(stream_.get());
+    CHECK(!create_stream_start_time_.is_null());
+    CHECK_LE(create_stream_start_time_, create_stream_end_time_);
+    base::UmaHistogramTimes(
+        base::StrCat(
+            {"Net.NetworkTransaction.Create",
+             (ForWebSocketHandshake() ? "WebSocketStreamTime."
+                                      : "HttpStreamTime."),
+             (IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ""),
+             NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+        create_stream_end_time_ - create_stream_start_time_);
+    if (!reset_connection_and_request_for_resend_start_time_.is_null()) {
+      base::UmaHistogramTimes(
+          "Net.NetworkTransaction.ResetConnectionAndResendRequestTime",
+          base::TimeTicks::Now() -
+              reset_connection_and_request_for_resend_start_time_);
+    }
   } else if (result == ERR_HTTP_1_1_REQUIRED ||
              result == ERR_PROXY_HTTP_1_1_REQUIRED) {
     return HandleHttp11Required(result);
@@ -921,13 +1031,44 @@ int HttpNetworkTransaction::DoCreateStreamComplete(int result) {
 
 int HttpNetworkTransaction::DoInitStream() {
   DCHECK(stream_.get());
+  TRACE_EVENT("net", "HttpNetworkTransaction::InitStream",
+              NetLogWithSourceToFlow(net_log_));
   next_state_ = STATE_INIT_STREAM_COMPLETE;
 
-  return stream_->InitializeStream(can_send_early_data_, priority_, net_log_,
-                                   io_callback_);
+  initialize_stream_start_time_ = base::TimeTicks::Now();
+  int rv = stream_->InitializeStream(can_send_early_data_, priority_, net_log_,
+                                     io_callback_);
+
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  bool blocked = rv == ERR_IO_PENDING;
+  if (blocked) {
+    blocked_initialize_stream_start_time_ = initialize_stream_start_time_;
+  }
+  base::UmaHistogramBoolean(
+      base::StrCat({"Net.NetworkTransaction.InitializeStreamBlocked",
+                    IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+                    NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+      blocked);
+  return rv;
 }
 
 int HttpNetworkTransaction::DoInitStreamComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::InitStreamComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
+  initialize_stream_end_time_ = base::TimeTicks::Now();
+
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  if (!blocked_initialize_stream_start_time_.is_null()) {
+    base::UmaHistogramTimes(
+        base::StrCat(
+            {"Net.NetworkTransaction.InitializeStreamBlockTime",
+             IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+             NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+        initialize_stream_end_time_ - blocked_initialize_stream_start_time_);
+  }
+
   if (result != OK) {
     if (result < 0)
       result = HandleIOError(result);
@@ -947,6 +1088,8 @@ int HttpNetworkTransaction::DoInitStreamComplete(int result) {
 }
 
 int HttpNetworkTransaction::DoConnectedCallback() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::ConnectedCallback",
+              NetLogWithSourceToFlow(net_log_));
   // Register the HttpRequestInfo object on the stream here so that it's
   // available when invoking the `connected_callback_`, as
   // HttpStream::GetAcceptChViaAlps() needs the HttpRequestInfo to retrieve
@@ -982,6 +1125,11 @@ int HttpNetworkTransaction::DoConnectedCallback() {
     is_issued_by_known_root = ssl_info.is_issued_by_known_root;
   }
 
+  connected_callback_start_time_ = base::TimeTicks::Now();
+  // Reset `connected_callback_end_time_` to prevent an inconsistent state in
+  // case that `DoConnectedCallback` is called multiple times.
+  connected_callback_end_time_ = base::TimeTicks();
+
   return connected_callback_.Run(
       TransportInfo(type, remote_endpoint_,
                     std::string{stream_->GetAcceptChViaAlps()},
@@ -992,6 +1140,8 @@ int HttpNetworkTransaction::DoConnectedCallback() {
 }
 
 int HttpNetworkTransaction::DoConnectedCallbackComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::ConnectedCallbackComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
   if (result != OK) {
     if (stream_) {
       stream_->Close(/*not_reusable=*/false);
@@ -1015,13 +1165,34 @@ int HttpNetworkTransaction::DoGenerateProxyAuthToken() {
         target, AuthURL(target), request_->network_anonymization_key,
         session_->http_auth_cache(), session_->http_auth_handler_factory(),
         session_->host_resolver());
-  return auth_controllers_[target]->MaybeGenerateAuthToken(request_,
-                                                           io_callback_,
-                                                           net_log_);
+  int rv = auth_controllers_[target]->MaybeGenerateAuthToken(
+      request_, io_callback_, net_log_);
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  const bool blocked = rv == ERR_IO_PENDING;
+  if (blocked) {
+    blocked_generate_proxy_auth_token_start_time_ = base::TimeTicks::Now();
+  }
+  base::UmaHistogramBoolean(
+      base::StrCat({"Net.NetworkTransaction.GenerateProxyAuthTokenBlocked",
+                    IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+                    NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+      blocked);
+  return rv;
 }
 
 int HttpNetworkTransaction::DoGenerateProxyAuthTokenComplete(int rv) {
   DCHECK_NE(ERR_IO_PENDING, rv);
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  if (!blocked_generate_proxy_auth_token_start_time_.is_null()) {
+    base::UmaHistogramTimes(
+        base::StrCat(
+            {"Net.NetworkTransaction.GenerateProxyAuthTokenBlockTime",
+             IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+             NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+        base::TimeTicks::Now() - blocked_generate_proxy_auth_token_start_time_);
+  }
   if (rv == OK)
     next_state_ = STATE_GENERATE_SERVER_AUTH_TOKEN;
   return rv;
@@ -1040,13 +1211,35 @@ int HttpNetworkTransaction::DoGenerateServerAuthToken() {
   }
   if (!ShouldApplyServerAuth())
     return OK;
-  return auth_controllers_[target]->MaybeGenerateAuthToken(request_,
-                                                           io_callback_,
-                                                           net_log_);
+  int rv = auth_controllers_[target]->MaybeGenerateAuthToken(
+      request_, io_callback_, net_log_);
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  const bool blocked = rv == ERR_IO_PENDING;
+  if (blocked) {
+    blocked_generate_server_auth_token_start_time_ = base::TimeTicks::Now();
+  }
+  base::UmaHistogramBoolean(
+      base::StrCat({"Net.NetworkTransaction.GenerateServerAuthTokenBlocked",
+                    IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+                    NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+      blocked);
+  return rv;
 }
 
 int HttpNetworkTransaction::DoGenerateServerAuthTokenComplete(int rv) {
   DCHECK_NE(ERR_IO_PENDING, rv);
+  // TODO(crbug.com/359404121): Remove this histogram after the investigation
+  // completes.
+  if (!blocked_generate_server_auth_token_start_time_.is_null()) {
+    base::UmaHistogramTimes(
+        base::StrCat(
+            {"Net.NetworkTransaction.GenerateServerAuthTokenBlockTime",
+             IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : ".",
+             NegotiatedProtocolToHistogramSuffix(negotiated_protocol_)}),
+        base::TimeTicks::Now() -
+            blocked_generate_server_auth_token_start_time_);
+  }
   if (rv == OK)
     next_state_ = STATE_INIT_REQUEST_BODY;
   return rv;
@@ -1100,12 +1293,20 @@ int HttpNetworkTransaction::BuildRequestHeaders(
     auth_controllers_[HttpAuth::AUTH_SERVER]->AddAuthorizationHeader(
         &request_headers_);
 
-  if (net::features::kIpPrivacyAddHeaderToProxiedRequests.Get() &&
+  if (features::kIpPrivacyAddHeaderToProxiedRequests.Get() &&
       proxy_info_.is_for_ip_protection()) {
-    CHECK(!proxy_info_.is_direct() ||
-          net::features::kIpPrivacyDirectOnly.Get());
     if (!proxy_info_.is_direct()) {
       request_headers_.SetHeader("IP-Protection", "1");
+    }
+  }
+
+  if (features::kProbabilisticRevealTokensAddHeaderToProxiedRequests.Get() &&
+      proxy_info_.is_for_ip_protection() && !proxy_info_.is_direct()) {
+    if (std::optional<std::string> maybe_prt_header_value =
+            proxy_info_.PRTHeaderValue();
+        maybe_prt_header_value.has_value()) {
+      request_headers_.SetHeader("Sec-Probabilistic-Reveal-Token",
+                                 std::move(maybe_prt_header_value.value()));
     }
   }
 
@@ -1122,6 +1323,8 @@ int HttpNetworkTransaction::BuildRequestHeaders(
 }
 
 int HttpNetworkTransaction::DoInitRequestBody() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::InitRequestBody",
+              NetLogWithSourceToFlow(net_log_));
   next_state_ = STATE_INIT_REQUEST_BODY_COMPLETE;
   int rv = OK;
   if (request_->upload_data_stream)
@@ -1133,12 +1336,16 @@ int HttpNetworkTransaction::DoInitRequestBody() {
 }
 
 int HttpNetworkTransaction::DoInitRequestBodyComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::InitRequestBodyComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
   if (result == OK)
     next_state_ = STATE_BUILD_REQUEST;
   return result;
 }
 
 int HttpNetworkTransaction::DoBuildRequest() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::BuildRequest",
+              NetLogWithSourceToFlow(net_log_));
   next_state_ = STATE_BUILD_REQUEST_COMPLETE;
   headers_valid_ = false;
 
@@ -1153,12 +1360,17 @@ int HttpNetworkTransaction::DoBuildRequest() {
 }
 
 int HttpNetworkTransaction::DoBuildRequestComplete(int result) {
-  if (result == OK)
+  TRACE_EVENT("net", "HttpNetworkTransaction::BuildRequestComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
+  if (result == OK) {
     next_state_ = STATE_SEND_REQUEST;
+  }
   return result;
 }
 
 int HttpNetworkTransaction::DoSendRequest() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::SendRequest",
+              NetLogWithSourceToFlow(net_log_));
   send_start_time_ = base::TimeTicks::Now();
   next_state_ = STATE_SEND_REQUEST_COMPLETE;
 
@@ -1167,6 +1379,8 @@ int HttpNetworkTransaction::DoSendRequest() {
 }
 
 int HttpNetworkTransaction::DoSendRequestComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::SendRequestComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result);
   send_end_time_ = base::TimeTicks::Now();
 
   if (result == ERR_HTTP_1_1_REQUIRED ||
@@ -1181,11 +1395,17 @@ int HttpNetworkTransaction::DoSendRequestComplete(int result) {
 }
 
 int HttpNetworkTransaction::DoReadHeaders() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::ReadHeaders",
+              NetLogWithSourceToFlow(net_log_));
   next_state_ = STATE_READ_HEADERS_COMPLETE;
   return stream_->ReadResponseHeaders(io_callback_);
 }
 
 int HttpNetworkTransaction::DoReadHeadersComplete(int result) {
+  TRACE_EVENT("net", "HttpNetworkTransaction::ReadHeadersComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result,
+              "response_code",
+              response_.headers ? response_.headers->response_code() : -1);
   // We can get a ERR_SSL_CLIENT_AUTH_CERT_NEEDED here due to SSL renegotiation.
   // Server certificate errors are impossible. Rather than reverify the new
   // server certificate, BoringSSL forbids server certificates from changing.
@@ -1193,15 +1413,9 @@ int HttpNetworkTransaction::DoReadHeadersComplete(int result) {
   if (result == ERR_SSL_CLIENT_AUTH_CERT_NEEDED) {
     DCHECK(stream_.get());
     DCHECK(IsSecureRequest());
-    // Unclear if this is needed. Copied behavior from an earlier version of
-    // Chrome.
-    //
-    // TODO(https://crbug.com/332234173): Assuming this isn't hit, replace with
-    // a CHECK.
-    if (!response_.cert_request_info) {
-      DUMP_WILL_BE_NOTREACHED_NORETURN();
-      response_.cert_request_info = base::MakeRefCounted<SSLCertRequestInfo>();
-    }
+    // Should only reach this code when there's a certificate request.
+    CHECK(response_.cert_request_info);
+
     total_received_bytes_ += stream_->GetTotalReceivedBytes();
     total_sent_bytes_ += stream_->GetTotalSentBytes();
     stream_->Close(true);
@@ -1252,6 +1466,9 @@ int HttpNetworkTransaction::DoReadHeadersComplete(int result) {
 
     if (EarlyHintsAreAllowedOn(response_.connection_info) &&
         early_response_headers_callback_) {
+      // Process Alt-Svc headers so that QUIC session can be set up sooner
+      ProcessAltSvcHeader();
+
       early_response_headers_callback_.Run(std::move(response_.headers));
     }
 
@@ -1336,15 +1553,7 @@ int HttpNetworkTransaction::DoReadHeadersComplete(int result) {
     return OK;
   }
 
-  if (IsSecureRequest()) {
-    stream_->GetSSLInfo(&response_.ssl_info);
-    if (response_.ssl_info.is_valid() &&
-        !IsCertStatusError(response_.ssl_info.cert_status)) {
-      session_->http_stream_factory()->ProcessAlternativeServices(
-          session_, network_anonymization_key_, response_.headers.get(),
-          url::SchemeHostPort(request_->url));
-    }
-  }
+  ProcessAltSvcHeader();
 
   int rv = HandleAuthChallenge();
   if (rv != OK)
@@ -1393,6 +1602,8 @@ int HttpNetworkTransaction::DoReadHeadersComplete(int result) {
 }
 
 int HttpNetworkTransaction::DoReadBody() {
+  TRACE_EVENT("net", "HttpNetworkTransaction::ReadBody",
+              NetLogWithSourceToFlow(net_log_));
   DCHECK(read_buf_.get());
   DCHECK_GT(read_buf_len_, 0);
   DCHECK(stream_ != nullptr);
@@ -1408,7 +1619,13 @@ int HttpNetworkTransaction::DoReadBodyComplete(int result) {
   if (result <= 0) {
     DCHECK_NE(ERR_IO_PENDING, result);
     done = true;
+  } else {
+    received_body_bytes_ += result;
   }
+
+  TRACE_EVENT("net", "HttpNetworkTransaction::ReadBodyComplete",
+              NetLogWithSourceToFlow(net_log_), "result", result,
+              "received_body_bytes", received_body_bytes_);
 
   // Clean up connection if we are done.
   if (done) {
@@ -1434,7 +1651,7 @@ int HttpNetworkTransaction::DoReadBodyComplete(int result) {
     // This transaction was successful. If it had been retried because of an
     // error with an alternative service, mark that alternative service broken.
     if (!enable_alternative_services_ &&
-        retried_alternative_service_.protocol != kProtoUnknown) {
+        retried_alternative_service_.protocol != NextProto::kProtoUnknown) {
       HistogramBrokenAlternateProtocolLocation(
           BROKEN_ALTERNATE_PROTOCOL_LOCATION_HTTP_NETWORK_TRANSACTION);
       session_->http_server_properties()->MarkAlternativeServiceBroken(
@@ -1492,9 +1709,11 @@ int HttpNetworkTransaction::DoDrainBodyForAuthRestartComplete(int result) {
 
 #if BUILDFLAG(ENABLE_REPORTING)
 void HttpNetworkTransaction::ProcessReportToHeader() {
-  std::string value;
-  if (!response_.headers->GetNormalizedHeader("Report-To", &value))
+  std::optional<std::string> value =
+      response_.headers->GetNormalizedHeader("Report-To");
+  if (!value) {
     return;
+  }
 
   ReportingService* reporting_service = session_->reporting_service();
   if (!reporting_service)
@@ -1508,13 +1727,13 @@ void HttpNetworkTransaction::ProcessReportToHeader() {
     return;
 
   reporting_service->ProcessReportToHeader(url::Origin::Create(url_),
-                                           network_anonymization_key_, value);
+                                           network_anonymization_key_, *value);
 }
 
 void HttpNetworkTransaction::ProcessNetworkErrorLoggingHeader() {
-  std::string value;
-  if (!response_.headers->GetNormalizedHeader(
-          NetworkErrorLoggingService::kHeaderName, &value)) {
+  std::optional<std::string> value = response_.headers->GetNormalizedHeader(
+      NetworkErrorLoggingService::kHeaderName);
+  if (!value) {
     return;
   }
 
@@ -1525,8 +1744,9 @@ void HttpNetworkTransaction::ProcessNetworkErrorLoggingHeader() {
 
   // Don't accept NEL headers received via a proxy, because the IP address of
   // the destination server is not known.
-  if (response_.was_fetched_via_proxy)
+  if (response_.WasFetchedViaProxy()) {
     return;
+  }
 
   // Only accept NEL headers on HTTPS connections that have no certificate
   // errors.
@@ -1540,7 +1760,7 @@ void HttpNetworkTransaction::ProcessNetworkErrorLoggingHeader() {
 
   network_error_logging_service->OnHeader(network_anonymization_key_,
                                           url::Origin::Create(url_),
-                                          remote_endpoint_.address(), value);
+                                          remote_endpoint_.address(), *value);
 }
 
 void HttpNetworkTransaction::GenerateNetworkErrorLoggingReportIfError(int rv) {
@@ -1549,7 +1769,7 @@ void HttpNetworkTransaction::GenerateNetworkErrorLoggingReportIfError(int rv) {
 }
 
 void HttpNetworkTransaction::GenerateNetworkErrorLoggingReport(int rv) {
-  // |rv| should be a valid net::Error
+  // |rv| should be a valid Error
   DCHECK_NE(rv, ERR_IO_PENDING);
   DCHECK_LE(rv, 0);
 
@@ -1570,8 +1790,9 @@ void HttpNetworkTransaction::GenerateNetworkErrorLoggingReport(int rv) {
 
   // Don't generate NEL reports if we are behind a proxy, to avoid leaking
   // internal network details.
-  if (response_.was_fetched_via_proxy)
+  if (response_.WasFetchedViaProxy()) {
     return;
+  }
 
   // Ignore errors from non-HTTPS origins.
   if (!url_.SchemeIsCryptographic())
@@ -1835,8 +2056,7 @@ int HttpNetworkTransaction::HandleIOError(int error) {
     case RetryReason::kHttpMisdirectedRequest:
     case RetryReason::kHttp11Required:
     case RetryReason::kSslClientAuthSignatureFailed:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   return error;
 }
@@ -1902,6 +2122,12 @@ bool HttpNetworkTransaction::CheckMaxRestarts() {
 
 void HttpNetworkTransaction::ResetConnectionAndRequestForResend(
     RetryReason retry_reason) {
+  TRACE_EVENT("net",
+              "HttpNetworkTransaction::ResetConnectionAndRequestForResend",
+              NetLogWithSourceToFlow(net_log_), "retry_reason", retry_reason);
+
+  reset_connection_and_request_for_resend_start_time_ = base::TimeTicks::Now();
+
   // TODO:(crbug.com/1495705): Remove this CHECK after fixing the bug.
   CHECK(request_);
   base::UmaHistogramEnumeration(
@@ -1994,7 +2220,7 @@ GURL HttpNetworkTransaction::AuthURL(HttpAuth::Target target) const {
     }
     case HttpAuth::AUTH_SERVER:
       if (ForWebSocketHandshake()) {
-        return net::ChangeWebSocketSchemeToHttpScheme(request_->url);
+        return ChangeWebSocketSchemeToHttpScheme(request_->url);
       }
       return request_->url;
     default:
@@ -2021,15 +2247,16 @@ bool HttpNetworkTransaction::ContentEncodingsValid() const {
   HttpResponseHeaders* headers = GetResponseHeaders();
   DCHECK(headers);
 
-  std::string accept_encoding;
-  request_headers_.GetHeader(HttpRequestHeaders::kAcceptEncoding,
-                             &accept_encoding);
   std::set<std::string> allowed_encodings;
-  if (!HttpUtil::ParseAcceptEncoding(accept_encoding, &allowed_encodings))
+  if (!HttpUtil::ParseAcceptEncoding(
+          request_headers_.GetHeader(HttpRequestHeaders::kAcceptEncoding)
+              .value_or(std::string()),
+          &allowed_encodings)) {
     return false;
+  }
 
-  std::string content_encoding;
-  headers->GetNormalizedHeader("Content-Encoding", &content_encoding);
+  std::string content_encoding =
+      headers->GetNormalizedHeader("Content-Encoding").value_or(std::string());
   std::set<std::string> used_encodings;
   if (!HttpUtil::ParseContentEncoding(content_encoding, &used_encodings))
     return false;
@@ -2042,11 +2269,12 @@ bool HttpNetworkTransaction::ContentEncodingsValid() const {
 
   bool result = true;
   for (auto const& encoding : used_encodings) {
-    SourceStream::SourceType source_type =
+    SourceStreamType source_type =
         FilterSourceStream::ParseEncodingType(encoding);
     // We don't reject encodings we are not aware. They just will not decode.
-    if (source_type == SourceStream::TYPE_UNKNOWN)
+    if (source_type == SourceStreamType::kUnknown) {
       continue;
+    }
     if (allowed_encodings.find(encoding) == allowed_encodings.end()) {
       result = false;
       break;
@@ -2061,6 +2289,52 @@ bool HttpNetworkTransaction::ContentEncodingsValid() const {
   return result;
 }
 
+void HttpNetworkTransaction::RecordStreamRequestResult(int result) {
+  // Do not record the elapsed time when this restarted. Restarting usually
+  // involves user interaction and we can't predict how long the interaction
+  // took time.
+  if (num_restarts_ == 0) {
+    base::TimeDelta elapsed = base::TimeTicks::Now() - start_timeticks_;
+    base::UmaHistogramTimes(
+        base::StrCat({"Net.NetworkTransaction.StreamRequestCompleteTime.",
+                      IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : "",
+                      result == OK ? "Success" : "Failure"}),
+        elapsed);
+  }
+
+  if (result == OK) {
+    base::UmaHistogramEnumeration(
+        base::StrCat({
+            "Net.NetworkTransaction.NegotiatedProtocol.",
+            IsGoogleHostWithAlpnH3(url_.host()) ? "GoogleHost." : "",
+        }),
+        negotiated_protocol_);
+
+    IPEndPoint endpoint;
+    int get_endpoint_result = stream_->GetRemoteEndpoint(&endpoint);
+    if (get_endpoint_result == OK) {
+      base::UmaHistogramEnumeration(
+          "Net.NetworkTransaction.StreamAddressFamily", endpoint.GetFamily(),
+          static_cast<AddressFamily>(ADDRESS_FAMILY_LAST + 1));
+    }
+  } else {
+    base::UmaHistogramSparse("Net.NetworkTransaction.StreamRequestErrorCode",
+                             -result);
+  }
+}
+
+void HttpNetworkTransaction::ProcessAltSvcHeader() {
+  if (IsSecureRequest()) {
+    stream_->GetSSLInfo(&response_.ssl_info);
+    if (response_.ssl_info.is_valid() &&
+        !IsCertStatusError(response_.ssl_info.cert_status)) {
+      session_->http_stream_factory()->ProcessAlternativeServices(
+          session_, network_anonymization_key_, response_.headers.get(),
+          url::SchemeHostPort(request_->url));
+    }
+  }
+}
+
 // static
 void HttpNetworkTransaction::SetProxyInfoInResponse(
     const ProxyInfo& proxy_info,
@@ -2068,11 +2342,8 @@ void HttpNetworkTransaction::SetProxyInfoInResponse(
   response_info->was_mdl_match = proxy_info.is_mdl_match();
   if (proxy_info.is_empty()) {
     response_info->proxy_chain = ProxyChain();
-    response_info->was_fetched_via_proxy = false;
   } else {
     response_info->proxy_chain = proxy_info.proxy_chain();
-    response_info->was_fetched_via_proxy =
-        !response_info->proxy_chain.is_direct();
   }
 }
 

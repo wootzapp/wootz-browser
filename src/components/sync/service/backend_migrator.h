@@ -8,10 +8,11 @@
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/service/data_type_manager.h"
 
 namespace syncer {
@@ -34,8 +35,8 @@ class BackendMigrator {
     IDLE,
     WAITING_TO_START,  // Waiting for previous configuration to finish.
     DISABLING_TYPES,   // Exit criteria: OnConfigureDone for enabled types
-                       // _excluding_ |to_migrate_| and empty download progress
-                       // markers for types in |to_migrate_|.
+                       // _excluding_ `to_migrate_` and empty download progress
+                       // markers for types in `to_migrate_`.
     REENABLING_TYPES,  // Exit criteria: OnConfigureDone for enabled types.
   };
 
@@ -49,8 +50,8 @@ class BackendMigrator {
 
   virtual ~BackendMigrator();
 
-  // Starts a sequence of events that will disable and reenable |types|.
-  void MigrateTypes(ModelTypeSet types);
+  // Starts a sequence of events that will disable and reenable `types`.
+  void MigrateTypes(DataTypeSet types);
 
   void AddMigrationObserver(MigrationObserver* observer);
   void RemoveMigrationObserver(MigrationObserver* observer);
@@ -62,7 +63,7 @@ class BackendMigrator {
   void OnConfigureDone(const DataTypeManager::ConfigureResult& result);
 
   // Returns the types that are currently pending migration (if any).
-  ModelTypeSet GetPendingMigrationTypesForTest() const;
+  DataTypeSet GetPendingMigrationTypesForTest() const;
 
  private:
   void ChangeState(State new_state);
@@ -89,7 +90,7 @@ class BackendMigrator {
 
   base::ObserverList<MigrationObserver>::Unchecked migration_observers_;
 
-  ModelTypeSet to_migrate_;
+  DataTypeSet to_migrate_;
 
   base::WeakPtrFactory<BackendMigrator> weak_ptr_factory_{this};
 };

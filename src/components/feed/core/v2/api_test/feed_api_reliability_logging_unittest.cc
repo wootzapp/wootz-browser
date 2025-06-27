@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <sstream>
+
 #include "base/functional/callback_helpers.h"
 #include "base/strings/strcat.h"
 #include "build/buildflag.h"
@@ -17,6 +18,7 @@
 #include "components/feed/core/v2/public/feed_service.h"
 #include "components/feed/core/v2/public/stream_type.h"
 #include "components/feed/core/v2/test/callback_receiver.h"
+#include "components/feed/feed_feature_list.h"
 #include "net/http/http_status_code.h"
 
 namespace feed {
@@ -70,7 +72,7 @@ TEST_F(FeedApiReliabilityLoggingTest,
 #if BUILDFLAG(IS_ANDROID)
 TEST_F(FeedApiReliabilityLoggingTest, AttachSurface_DisabledByDse) {
   profile_prefs_.SetBoolean(prefs::kEnableSnippetsByDse, false);
-  CreateStream(/*wait_for_initialization=*/true, /*start_surface=*/false,
+  CreateStream(/*wait_for_initialization=*/true,
                /*is_new_tab_search_engine_url_android_enabled*/ true);
   TestForYouSurface surface(stream_.get());
   EXPECT_EQ(
@@ -247,6 +249,10 @@ TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_Success) {
 }
 
 TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_ZeroCards) {
+  // InjectRealFeedQueryResponse is only supported in old feed query request.
+  base::test::ScopedFeatureList features;
+  features.InitAndDisableFeature(kDiscoFeedEndpoint);
+
   network_.InjectRealFeedQueryResponseWithNoContent();
   TestForYouSurface surface(stream_.get());
   WaitForIdleTaskQueue();
@@ -309,6 +315,78 @@ TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_NoResponseReceived) {
 
       "LogLaunchFinishedAfterStreamUpdate "
       "result=NO_CARDS_REQUEST_ERROR_OTHER\n"
+
+      "LogAboveTheFoldRender result=FULL_FEED_ERROR\n",
+      surface.reliability_logging_bridge.GetEventsString());
+}
+
+TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_InternetDisconnected) {
+  network_.error = net::ERR_INTERNET_DISCONNECTED;
+  TestForYouSurface surface(stream_.get());
+  WaitForIdleTaskQueue();
+
+  EXPECT_EQ(
+      "LogFeedLaunchOtherStart\n"
+      "LogLoadingIndicatorShown\n"
+
+      "LogCacheReadStart\n"
+      "LogCacheReadEnd result=EMPTY_SESSION\n"
+
+      "LogFeedRequestStart id=1\n"
+      "LogRequestSent id=1\n"
+      // Should not call LogResponseReceived.
+      "LogRequestFinished result=-106 id=1\n"
+
+      "LogLaunchFinishedAfterStreamUpdate "
+      "result=NO_CARDS_REQUEST_ERROR_NO_INTERNET\n"
+
+      "LogAboveTheFoldRender result=FULL_FEED_ERROR\n",
+      surface.reliability_logging_bridge.GetEventsString());
+}
+
+TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_NameNotResolved) {
+  network_.error = net::ERR_NAME_NOT_RESOLVED;
+  TestForYouSurface surface(stream_.get());
+  WaitForIdleTaskQueue();
+
+  EXPECT_EQ(
+      "LogFeedLaunchOtherStart\n"
+      "LogLoadingIndicatorShown\n"
+
+      "LogCacheReadStart\n"
+      "LogCacheReadEnd result=EMPTY_SESSION\n"
+
+      "LogFeedRequestStart id=1\n"
+      "LogRequestSent id=1\n"
+      // Should not call LogResponseReceived.
+      "LogRequestFinished result=-105 id=1\n"
+
+      "LogLaunchFinishedAfterStreamUpdate "
+      "result=NO_CARDS_REQUEST_ERROR_NO_INTERNET\n"
+
+      "LogAboveTheFoldRender result=FULL_FEED_ERROR\n",
+      surface.reliability_logging_bridge.GetEventsString());
+}
+
+TEST_F(FeedApiReliabilityLoggingTest, LoadStreamComplete_AddressUnreachable) {
+  network_.error = net::ERR_ADDRESS_UNREACHABLE;
+  TestForYouSurface surface(stream_.get());
+  WaitForIdleTaskQueue();
+
+  EXPECT_EQ(
+      "LogFeedLaunchOtherStart\n"
+      "LogLoadingIndicatorShown\n"
+
+      "LogCacheReadStart\n"
+      "LogCacheReadEnd result=EMPTY_SESSION\n"
+
+      "LogFeedRequestStart id=1\n"
+      "LogRequestSent id=1\n"
+      // Should not call LogResponseReceived.
+      "LogRequestFinished result=-109 id=1\n"
+
+      "LogLaunchFinishedAfterStreamUpdate "
+      "result=NO_CARDS_REQUEST_ERROR_NO_INTERNET\n"
 
       "LogAboveTheFoldRender result=FULL_FEED_ERROR\n",
       surface.reliability_logging_bridge.GetEventsString());

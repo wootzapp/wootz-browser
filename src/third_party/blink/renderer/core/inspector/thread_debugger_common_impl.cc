@@ -35,6 +35,7 @@
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/html/html_collection.h"
+#include "third_party/blink/renderer/core/html/html_frame_owner_element.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/inspector/identifiers_factory.h"
 #include "third_party/blink/renderer/core/inspector/inspector_dom_debugger_agent.h"
@@ -132,12 +133,13 @@ unsigned ThreadDebuggerCommonImpl::PromiseRejected(
     const String& error_message,
     v8::Local<v8::Value> exception,
     std::unique_ptr<SourceLocation> location) {
-  const String default_message = "Uncaught (in promise)";
+  const StringView default_message = "Uncaught (in promise)";
   String message = error_message;
-  if (message.empty())
-    message = default_message;
-  else if (message.StartsWith("Uncaught "))
-    message = message.Substring(0, 8) + " (in promise)" + message.Substring(8);
+  if (message.empty()) {
+    message = "Uncaught (in promise)";
+  } else if (message.StartsWith("Uncaught ")) {
+    message = "Uncaught (in promise)" + StringView(message, 8);
+  }
 
   ReportConsoleMessage(
       ToExecutionContext(context), mojom::ConsoleMessageSource::kJavaScript,
@@ -197,6 +199,7 @@ v8::Local<v8::Object> SerializeNodeToV8Object(
   static const char kShadowRootMode[] = "mode";
   static const char kShadowRootOpen[] = "open";
   static const char kShadowRootClosed[] = "closed";
+  static const char kFrameIdParameterName[] = "frameId";
 
   v8::LocalVector<v8::Name> serialized_value_keys(isolate);
   v8::LocalVector<v8::Value> serialized_value_values(isolate);
@@ -239,6 +242,18 @@ v8::Local<v8::Object> SerializeNodeToV8Object(
 
   if (node->IsElementNode()) {
     Element* element = To<Element>(node);
+
+    if (HTMLFrameOwnerElement* frameOwnerElement =
+            DynamicTo<HTMLFrameOwnerElement>(node)) {
+      if (frameOwnerElement->ContentFrame()) {
+        serialized_value_keys.push_back(
+            V8String(isolate, kFrameIdParameterName));
+        serialized_value_values.push_back(V8String(
+            isolate,
+            IdentifiersFactory::IdFromToken(
+                frameOwnerElement->ContentFrame()->GetDevToolsFrameToken())));
+      }
+    }
 
     if (ShadowRoot* shadow_root = node->GetShadowRoot()) {
       // Do not decrease `max_node_depth` for shadow root. Shadow root should be
@@ -979,36 +994,41 @@ void ThreadDebuggerCommonImpl::GetEventListenersCallback(
 }
 
 static uint64_t GetTraceId(ThreadDebuggerCommonImpl* this_thread_debugger,
-                           const v8_inspector::StringView& title_view) {
-  WTF::String title = ToCoreString(title_view);
-  unsigned title_hash = WTF::GetHash(title);
-  return title_hash ^ (reinterpret_cast<uintptr_t>(this_thread_debugger));
+                           v8::Local<v8::String> label) {
+  unsigned label_hash = label->GetIdentityHash();
+  return label_hash ^ (reinterpret_cast<uintptr_t>(this_thread_debugger));
 }
 
-void ThreadDebuggerCommonImpl::consoleTime(
-    const v8_inspector::StringView& title_view) {
+void ThreadDebuggerCommonImpl::consoleTime(v8::Isolate* isolate,
+                                           v8::Local<v8::String> label) {
   TRACE_EVENT_COPY_NESTABLE_ASYNC_BEGIN0(
-      "blink.console", ToCoreString(title_view).Utf8().c_str(),
+      "blink.console", ToCoreString(isolate, label).Utf8().c_str(),
       TRACE_ID_WITH_SCOPE("console.time",
-                          TRACE_ID_LOCAL(GetTraceId(this, title_view))));
+                          TRACE_ID_LOCAL(GetTraceId(this, label))));
 }
 
-void ThreadDebuggerCommonImpl::consoleTimeEnd(
-    const v8_inspector::StringView& title_view) {
+void ThreadDebuggerCommonImpl::consoleTimeEnd(v8::Isolate* isolate,
+                                              v8::Local<v8::String> label) {
   TRACE_EVENT_COPY_NESTABLE_ASYNC_END0(
-      "blink.console", ToCoreString(title_view).Utf8().c_str(),
+      "blink.console", ToCoreString(isolate, label).Utf8().c_str(),
       TRACE_ID_WITH_SCOPE("console.time",
-                          TRACE_ID_LOCAL(GetTraceId(this, title_view))));
+                          TRACE_ID_LOCAL(GetTraceId(this, label))));
 }
 
-void ThreadDebuggerCommonImpl::consoleTimeStamp(
-    const v8_inspector::StringView& title) {
-  ExecutionContext* ec = CurrentExecutionContext(isolate_);
-  // TODO(dgozman): we can save on a copy here if TracedValue would take a
-  // StringView.
+void ThreadDebuggerCommonImpl::consoleTimeStamp(v8::Isolate* isolate,
+                                                v8::Local<v8::String> label) {
+  v8::LocalVector<v8::Value> empty_args(isolate);
+  consoleTimeStampWithArgs(isolate, label, empty_args);
+}
+
+void ThreadDebuggerCommonImpl::consoleTimeStampWithArgs(
+    v8::Isolate* isolate,
+    v8::Local<v8::String> label,
+    const v8::LocalVector<v8::Value>& args) {
   DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
-      "TimeStamp", inspector_time_stamp_event::Data, ec, ToCoreString(title));
-  probe::ConsoleTimeStamp(ec, ToCoreString(title));
+      "TimeStamp", inspector_time_stamp_event::Data,
+      CurrentExecutionContext(isolate_), ToCoreString(isolate, label), args);
+  probe::ConsoleTimeStamp(isolate_, label);
 }
 
 void ThreadDebuggerCommonImpl::startRepeatingTimer(

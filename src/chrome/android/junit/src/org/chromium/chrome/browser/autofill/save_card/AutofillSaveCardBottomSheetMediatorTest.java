@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.autofill.save_card;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -21,9 +23,8 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.browser.autofill.save_card.AutofillSaveCardBottomSheetMediator.SaveCardPromptResult;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -36,12 +37,13 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
     @Mock private AutofillSaveCardBottomSheetContent mBottomSheetContent;
     @Mock private AutofillSaveCardBottomSheetLifecycle mLifeCycle;
     @Mock private BottomSheetController mBottomSheetController;
-    @Mock private PropertyModel mModel;
+    private PropertyModel mModel;
     @Mock private AutofillSaveCardBottomSheetBridge mDelegate;
     private AutofillSaveCardBottomSheetMediator mMediator;
 
     @Before
     public void setUp() {
+        mModel = new PropertyModel.Builder(AutofillSaveCardBottomSheetProperties.ALL_KEYS).build();
         mMediator =
                 new AutofillSaveCardBottomSheetMediator(
                         mBottomSheetContent,
@@ -49,7 +51,8 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
                         mBottomSheetController,
                         mModel,
                         mDelegate,
-                        /* isServerCard= */ true);
+                        /* isServerCard= */ true,
+                        /* isLoadingDisabled= */ false);
     }
 
     @Test
@@ -78,19 +81,17 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_SAVE_CARD_LOADING_AND_CONFIRMATION})
-    public void testOnAccepted_withLoadingConfirmation() {
+    public void testOnAccepted() {
         mMediator.onAccepted();
 
         verifyNoInteractions(mLifeCycle);
         verifyNoInteractions(mBottomSheetController);
-        verify(mModel).set(AutofillSaveCardBottomSheetProperties.SHOW_LOADING_STATE, true);
         verify(mDelegate).onUiAccepted();
+        assertTrue(mModel.get(AutofillSaveCardBottomSheetProperties.SHOW_LOADING_STATE));
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_SAVE_CARD_LOADING_AND_CONFIRMATION})
-    public void testOnAccepted_forLocalCard_withLoadingConfirmation() {
+    public void testOnAccepted_forLocalCard() {
         // Create a mediator for local card. `isServerCard` is false for local cards.
         AutofillSaveCardBottomSheetMediator mediator =
                 new AutofillSaveCardBottomSheetMediator(
@@ -99,7 +100,8 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
                         mBottomSheetController,
                         mModel,
                         mDelegate,
-                        /* isServerCard= */ false);
+                        /* isServerCard= */ false,
+                        /* isLoadingDisabled= */ false);
         mediator.onAccepted();
 
         verify(mLifeCycle).end();
@@ -109,12 +111,22 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
                         /* animate= */ eq(true),
                         eq(StateChangeReason.INTERACTION_COMPLETE));
         verify(mDelegate).onUiAccepted();
+        assertFalse(mModel.get(AutofillSaveCardBottomSheetProperties.SHOW_LOADING_STATE));
     }
 
     @Test
-    @DisableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_SAVE_CARD_LOADING_AND_CONFIRMATION})
-    public void testOnAccepted_withoutLoadingConfirmation() {
-        mMediator.onAccepted();
+    public void testOnAccepted_whenLoadingDisabled() {
+        // Create a mediator with `isLoadingDisabled` set as true.
+        AutofillSaveCardBottomSheetMediator mediator =
+                new AutofillSaveCardBottomSheetMediator(
+                        mBottomSheetContent,
+                        mLifeCycle,
+                        mBottomSheetController,
+                        mModel,
+                        mDelegate,
+                        /* isServerCard= */ true,
+                        /* isLoadingDisabled= */ true);
+        mediator.onAccepted();
 
         verify(mLifeCycle).end();
         verify(mBottomSheetController)
@@ -123,6 +135,7 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
                         /* animate= */ eq(true),
                         eq(StateChangeReason.INTERACTION_COMPLETE));
         verify(mDelegate).onUiAccepted();
+        assertFalse(mModel.get(AutofillSaveCardBottomSheetProperties.SHOW_LOADING_STATE));
     }
 
     @Test
@@ -161,5 +174,48 @@ public final class AutofillSaveCardBottomSheetMediatorTest {
                         any(AutofillSaveCardBottomSheetContent.class),
                         /* animate= */ eq(true),
                         eq(StateChangeReason.INTERACTION_COMPLETE));
+    }
+
+    @Test
+    public void testMetrics_hideAfterOnAccepted() {
+        HistogramWatcher loadingShownHistogram =
+                HistogramWatcher.newSingleRecordWatcher(
+                        AutofillSaveCardBottomSheetMediator.LOADING_SHOWN_HISTOGRAM, true);
+        HistogramWatcher loadingResultHistogram =
+                HistogramWatcher.newSingleRecordWatcher(
+                        AutofillSaveCardBottomSheetMediator.LOADING_RESULT_HISTOGRAM,
+                        SaveCardPromptResult.ACCEPTED);
+
+        mMediator.onAccepted();
+        mMediator.hide(StateChangeReason.INTERACTION_COMPLETE);
+
+        loadingShownHistogram.assertExpected();
+        loadingResultHistogram.assertExpected();
+    }
+
+    @Test
+    public void testMetrics_onCanceledAfterOnAccepted() {
+        HistogramWatcher loadingResultHistogram =
+                HistogramWatcher.newSingleRecordWatcher(
+                        AutofillSaveCardBottomSheetMediator.LOADING_RESULT_HISTOGRAM,
+                        SaveCardPromptResult.CLOSED);
+
+        mMediator.onAccepted();
+        mMediator.onCanceled();
+
+        loadingResultHistogram.assertExpected();
+    }
+
+    @Test
+    public void testMetrics_hideWithoutCallbacks() {
+        HistogramWatcher loadingResultHistogram =
+                HistogramWatcher.newBuilder()
+                        .expectNoRecords(
+                                AutofillSaveCardBottomSheetMediator.LOADING_RESULT_HISTOGRAM)
+                        .build();
+
+        mMediator.hide(StateChangeReason.INTERACTION_COMPLETE);
+
+        loadingResultHistogram.assertExpected();
     }
 }

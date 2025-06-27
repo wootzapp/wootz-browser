@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/supervised_user/core/browser/supervised_user_pref_store.h"
+
 #include <set>
 #include <string>
 
 #include "base/memory/ref_counted.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "base/values.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/testing_pref_store.h"
 #include "components/safe_search_api/safe_search_util.h"
-#include "components/supervised_user/core/browser/supervised_user_pref_store.h"
 #include "components/supervised_user/core/browser/supervised_user_settings_service.h"
 #include "components/supervised_user/core/common/pref_names.h"
 #include "components/supervised_user/core/common/supervised_user_constants.h"
@@ -35,7 +35,7 @@ class SupervisedUserPrefStoreFixture : public PrefStore::Observer {
   bool initialization_completed() const { return initialization_completed_; }
 
   // PrefStore::Observer implementation:
-  void OnPrefValueChanged(const std::string& key) override;
+  void OnPrefValueChanged(std::string_view key) override;
   void OnInitializationCompleted(bool succeeded) override;
 
  private:
@@ -55,11 +55,13 @@ SupervisedUserPrefStoreFixture::~SupervisedUserPrefStoreFixture() {
   pref_store_->RemoveObserver(this);
 }
 
-void SupervisedUserPrefStoreFixture::OnPrefValueChanged(
-    const std::string& key) {
+void SupervisedUserPrefStoreFixture::OnPrefValueChanged(std::string_view key) {
   const base::Value* value = nullptr;
-  ASSERT_TRUE(pref_store_->GetValue(key, &value));
-  changed_prefs_.SetByDottedPath(key, value->Clone());
+  if (pref_store_->GetValue(key, &value)) {
+    ASSERT_TRUE(changed_prefs_.SetByDottedPath(key, value->Clone()) != nullptr);
+  } else {
+    ASSERT_TRUE(changed_prefs_.RemoveByDottedPath(key));
+  }
 }
 
 void SupervisedUserPrefStoreFixture::OnInitializationCompleted(bool succeeded) {
@@ -160,19 +162,10 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // The custodian can allow sites and apps to request permissions.
   // Currently tested indirectly by enabling geolocation requests.
-  base::HistogramTester histogram_tester;
-  histogram_tester.ExpectTotalCount(
-      "SupervisedUsers.ExtensionsMayRequestPermissions", 0);
-
   fixture.changed_prefs()->clear();
   service_.SetLocalSetting(supervised_user::kGeolocationDisabled,
                            base::Value(false));
   EXPECT_EQ(0u, fixture.changed_prefs()->size());
-
-  histogram_tester.ExpectUniqueSample(
-      "SupervisedUsers.ExtensionsMayRequestPermissions", /*enabled=*/true, 1);
-  histogram_tester.ExpectTotalCount(
-      "SupervisedUsers.ExtensionsMayRequestPermissions", 1);
 
   fixture.changed_prefs()->clear();
   service_.SetLocalSetting(supervised_user::kGeolocationDisabled,
@@ -181,11 +174,6 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
   EXPECT_THAT(fixture.changed_prefs()->FindBoolByDottedPath(
                   prefs::kSupervisedUserExtensionsMayRequestPermissions),
               Optional(false));
-
-  histogram_tester.ExpectBucketCount(
-      "SupervisedUsers.ExtensionsMayRequestPermissions", /*enabled=*/false, 1);
-  histogram_tester.ExpectTotalCount(
-      "SupervisedUsers.ExtensionsMayRequestPermissions", 2);
 
   // The custodian allows extension installation without parental approval.
   // TODO(b/321240396): test suitable metrics.
@@ -200,6 +188,49 @@ TEST_F(SupervisedUserPrefStoreTest, ConfigureSettings) {
               Optional(true));
 
 #endif
+}
+
+TEST_F(SupervisedUserPrefStoreTest, IsEmptyAfterDeactivation) {
+  SupervisedUserPrefStoreFixture fixture(&service_);
+  EXPECT_FALSE(fixture.initialization_completed());
+
+  // Prefs should not change yet when the service is ready, but not
+  // activated yet.
+  pref_store_->SetInitializationCompleted();
+  EXPECT_TRUE(fixture.initialization_completed());
+  EXPECT_EQ(0u, fixture.changed_prefs()->size());
+
+  service_.SetActive(true);
+  EXPECT_NE(0u, fixture.changed_prefs()->size())
+      << "Expected default values to be set.";
+
+  service_.SetActive(false);
+  EXPECT_EQ(0u, fixture.changed_prefs()->size())
+      << "Expected all prefs, including defaults, to be cleared.";
+}
+
+TEST_F(SupervisedUserPrefStoreTest, LocalOverridesAreClearedAfterDeactivation) {
+  SupervisedUserPrefStoreFixture fixture(&service_);
+  EXPECT_FALSE(fixture.initialization_completed());
+
+  // Prefs should not change yet when the service is ready, but not
+  // activated yet.
+  pref_store_->SetInitializationCompleted();
+  EXPECT_TRUE(fixture.initialization_completed());
+  EXPECT_EQ(0u, fixture.changed_prefs()->size());
+
+  service_.SetActive(true);
+  service_.SetLocalSetting(supervised_user::kSafeSitesEnabled,
+                           base::Value(true));
+  EXPECT_NE(0u, fixture.changed_prefs()->size())
+      << "Expected default values to be set.";
+  EXPECT_EQ(fixture.changed_prefs()->FindBoolByDottedPath(
+                prefs::kSupervisedUserSafeSites),
+            base::Value(true));
+
+  service_.SetActive(false);
+  EXPECT_EQ(0u, fixture.changed_prefs()->size())
+      << "Expected all prefs, including defaults, to be cleared.";
 }
 
 TEST_F(SupervisedUserPrefStoreTest, ActivateSettingsBeforeInitialization) {

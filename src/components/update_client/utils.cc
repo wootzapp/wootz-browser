@@ -2,32 +2,42 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/update_client/utils.h"
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "base/check.h"
 #include "base/containers/contains.h"
+#include "base/containers/heap_array.h"
+#include "base/containers/span.h"
+#include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/functional/callback.h"
 #include "base/json/json_file_value_serializer.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/system/sys_info.h"
+#include "base/threading/platform_thread.h"
+#include "base/threading/scoped_blocking_call.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "components/crx_file/id_util.h"
-#include "components/update_client/component.h"
 #include "components/update_client/configurator.h"
 #include "components/update_client/network.h"
 #include "components/update_client/update_client.h"
@@ -47,10 +57,6 @@ namespace update_client {
 const char kArchAmd64[] = "x86_64";
 const char kArchIntel[] = "x86";
 const char kArchArm64[] = "arm64";
-
-bool HasDiffUpdate(const Component& component) {
-  return !component.crx_diffurls().empty();
-}
 
 bool IsHttpServerError(int status_code) {
   return 500 <= status_code && status_code < 600;
@@ -94,29 +100,32 @@ bool VerifyFileHash256(const base::FilePath& filepath,
   std::unique_ptr<crypto::SecureHash> hasher(
       crypto::SecureHash::Create(crypto::SecureHash::SHA256));
 
-  int64_t file_size = 0;
-  if (!base::GetFileSize(filepath, &file_size)) {
+  base::File file(filepath, base::File::FLAG_OPEN |
+                                base::File::FLAG_WIN_SEQUENTIAL_SCAN |
+                                base::File::FLAG_READ);
+  if (!file.IsValid()) {
     return false;
   }
-  if (file_size > 0) {
-    base::MemoryMappedFile mmfile;
-    if (!mmfile.Initialize(filepath)) {
-      return false;
-    }
-    hasher->Update(mmfile.data(), mmfile.length());
+  auto buffer = base::HeapArray<uint8_t>::Uninit(4096);
+  std::optional<size_t> bytes_read = file.ReadAtCurrentPos(buffer);
+  while (bytes_read.value_or(0) > 0) {
+    hasher->Update(buffer.first(*bytes_read));
+    bytes_read = file.ReadAtCurrentPos(buffer);
   }
+  if (!bytes_read) {
+    return false;
+  }
+  std::array<uint8_t, crypto::kSHA256Length> sha256_hash;
+  hasher->Finish(sha256_hash);
 
-  uint8_t actual_hash[crypto::kSHA256Length] = {0};
-  hasher->Finish(actual_hash, sizeof(actual_hash));
-
-  return memcmp(actual_hash, &expected_hash[0], sizeof(actual_hash)) == 0;
+  return base::span(sha256_hash) == base::span(expected_hash);
 }
 
 bool IsValidBrand(const std::string& brand) {
   const size_t kMaxBrandSize = 4;
   return brand.empty() ||
          (brand.size() == kMaxBrandSize &&
-          base::ranges::all_of(brand, &base::IsAsciiAlpha<char>));
+          std::ranges::all_of(brand, &base::IsAsciiAlpha<char>));
 }
 
 // Helper function.
@@ -127,7 +136,7 @@ bool IsValidInstallerAttributePart(const std::string& part,
                                    size_t min_length,
                                    size_t max_length) {
   return part.size() >= min_length && part.size() <= max_length &&
-         base::ranges::all_of(part, [&special_chars](char ch) {
+         std::ranges::all_of(part, [&special_chars](char ch) {
            return base::IsAsciiAlpha(ch) || base::IsAsciiDigit(ch) ||
                   base::Contains(special_chars, ch);
          });
@@ -186,6 +195,29 @@ std::string GetArchitecture() {
 #else   // BUILDFLAG(IS_WIN)
   return base::SysInfo().OperatingSystemArchitecture();
 #endif  // BUILDFLAG(IS_WIN)
+}
+
+bool RetryDeletePathRecursively(const base::FilePath& path) {
+  return RetryDeletePathRecursivelyCustom(
+      path, /*tries=*/5,
+      /*seconds_between_tries=*/base::Seconds(1));
+}
+
+bool RetryDeletePathRecursivelyCustom(const base::FilePath& path,
+                                      size_t tries,
+                                      base::TimeDelta seconds_between_tries) {
+  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                base::BlockingType::WILL_BLOCK);
+  for (size_t i = 0;;) {
+    if (base::DeletePathRecursively(path)) {
+      return true;
+    }
+    if (++i >= tries) {
+      break;
+    }
+    base::PlatformThread::Sleep(seconds_between_tries);
+  }
+  return false;
 }
 
 }  // namespace update_client

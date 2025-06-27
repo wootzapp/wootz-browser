@@ -141,7 +141,7 @@ class BaseTestCase(unittest.TestCase):
                     'args': ['--disable-site-isolation-trials'],
                 },
             ]))
-        for wpt_dir in self.mac_port.WPT_DIRS:
+        for wpt_dir in self.mac_port.wpt_dirs():
             self._write(self.tool.filesystem.join(wpt_dir, 'MANIFEST.json'),
                         json.dumps({}))
 
@@ -173,7 +173,8 @@ class BaseTestCase(unittest.TestCase):
             return self.original_port_factory_get(port_name, options, **kwargs)
 
         self._mocks = contextlib.ExitStack()
-        self._mock_copier = mock.Mock(wraps=BaselineCopier(self.tool))
+        self._mock_copier = mock.Mock(
+            wraps=BaselineCopier(self.tool, self.mac_port))
         # See https://docs.python.org/3/library/unittest.mock.html#where-to-patch
         # for why `blinkpy.common.checkout.baseline_copier.BaselineCopier` is
         # not patched instead.
@@ -538,6 +539,37 @@ class TestRebaseline(BaseTestCase):
         self.assertFalse(
             self.tool.filesystem.exists(
                 self._expand('platform/test-win-win7/reftest-expected.png')))
+
+    def test_rebaseline_without_expected_image(self):
+        build = Build('MOCK Win10', 1000)
+        self.tool.results_fetcher.set_results(
+            build,
+            WebTestResults.from_json(
+                {
+                    'tests': {
+                        'pixel-test.html': {
+                            'expected': 'PASS',
+                            'actual': 'FAIL',
+                            'is_unexpected': True,
+                            'artifacts': {
+                                'actual_image': [
+                                    'https://results.api.cr.dev/pixel-test-actual.png',
+                                ],
+                            },
+                        },
+                    },
+                },
+                step_name='blink_web_tests'))
+
+        test_baseline_set = TestBaselineSet(self.tool.builders)
+        test_baseline_set.add('pixel-test.html', build, 'blink_web_tests')
+        self.command.rebaseline(self.options(), test_baseline_set)
+
+        self._assert_baseline_downloaded(
+            'https://results.api.cr.dev/pixel-test-actual.png',
+            'platform/test-win-win10/pixel-test-expected.png')
+        self.assertEqual(
+            self._read('platform/test-win-win7/pixel-test-expected.png'), '')
 
     def test_rebaseline_with_cache_hit(self):
         results = WebTestResults([

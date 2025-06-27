@@ -5,20 +5,33 @@
 #include "ash/wm/overview/birch/birch_bar_controller.h"
 
 #include "ash/birch/birch_model.h"
+#include "ash/birch/coral_util.h"
 #include "ash/constants/ash_pref_names.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
+#include "ash/shell_delegate.h"
 #include "ash/wm/overview/birch/birch_bar_constants.h"
 #include "ash/wm/overview/birch/birch_bar_context_menu_model.h"
 #include "ash/wm/overview/birch/birch_bar_menu_model_adapter.h"
+#include "ash/wm/overview/birch/birch_bar_util.h"
 #include "ash/wm/overview/birch/birch_bar_view.h"
 #include "ash/wm/overview/birch/birch_chip_context_menu_model.h"
+#include "ash/wm/overview/birch/birch_privacy_nudge_controller.h"
+#include "ash/wm/overview/birch/coral_chip_button.h"
 #include "ash/wm/overview/overview_grid.h"
 #include "ash/wm/overview/overview_session.h"
 #include "ash/wm/overview/overview_utils.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/json/json_writer.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
+#include "base/strings/strcat.h"
+#include "base/strings/utf_string_conversions.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+#include "ui/views/controls/menu/menu_controller.h"
+#include "ui/views/view_utils.h"
 
 namespace ash {
 
@@ -62,18 +75,22 @@ std::string GetPrefNameFromSuggestionType(BirchSuggestionType type) {
       return prefs::kBirchUseCalendar;
     case BirchSuggestionType::kDrive:
       return prefs::kBirchUseFileSuggest;
-    case BirchSuggestionType::kTab:
-      return prefs::kBirchUseRecentTabs;
+    case BirchSuggestionType::kChromeTab:
+      return prefs::kBirchUseChromeTabs;
+    case BirchSuggestionType::kMedia:
+      return prefs::kBirchUseLostMedia;
+    case BirchSuggestionType::kCoral:
+      return prefs::kBirchUseCoral;
     case BirchSuggestionType::kExplore:
     case BirchSuggestionType::kUndefined:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
 }  // namespace
 
-BirchBarController::BirchBarController(bool from_pine_service)
-    : from_pine_service_(from_pine_service) {
+BirchBarController::BirchBarController(bool is_informed_restore)
+    : is_informed_restore_(is_informed_restore) {
   // Init and register the show suggestions pref changed callback.
   show_suggestions_pref_registrar_.Init(GetPrefService());
   show_suggestions_pref_registrar_.Add(
@@ -86,8 +103,9 @@ BirchBarController::BirchBarController(bool from_pine_service)
 
   for (const auto& suggestion_pref :
        {prefs::kBirchUseCalendar, prefs::kBirchUseWeather,
-        prefs::kBirchUseFileSuggest, prefs::kBirchUseRecentTabs,
-        prefs::kBirchUseSelfShare, prefs::kBirchUseReleaseNotes}) {
+        prefs::kBirchUseFileSuggest, prefs::kBirchUseChromeTabs,
+        prefs::kBirchUseLostMedia, prefs::kBirchUseReleaseNotes,
+        prefs::kBirchUseCoral}) {
     customize_suggestions_pref_registrar_.Add(
         suggestion_pref,
         base::BindRepeating(
@@ -104,8 +122,11 @@ BirchBarController::BirchBarController(bool from_pine_service)
 BirchBarController::~BirchBarController() {
   // Avoid dangling pointers to our `items_`.
   for (auto& bar_view : bar_views_) {
-    bar_view->Shutdown();
+    bar_view->ShutdownChips();
   }
+
+  // Chips are shutdown, stop observing lost media change if we did.
+  OnLostMediaItemRemoved();
 }
 
 // static.
@@ -125,11 +146,8 @@ void BirchBarController::RegisterBar(BirchBarView* bar_view) {
   bar_views_.emplace_back(bar_view);
 
   // Directly initialize the bar view if data fetching is done.
-  if (!birch_model_observer_.IsObserving() && !data_fetch_in_progress_) {
+  if (!IsDataLoading()) {
     InitBarWithItems(bar_view, items_);
-  } else if (from_pine_service_) {
-    // Perform loading animation at the beginning of pine section.
-    bar_view->Loading();
   }
 }
 
@@ -141,18 +159,19 @@ void BirchBarController::OnBarDestroying(BirchBarView* bar_view) {
   }
 }
 
-void BirchBarController::ShowChipContextMenu(BirchChipButton* chip,
-                                             BirchSuggestionType chip_type,
-                                             const gfx::Point& point,
-                                             ui::MenuSourceType source_type) {
+void BirchBarController::ShowChipContextMenu(
+    BirchChipButton* chip,
+    BirchSuggestionType chip_type,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
   chip_menu_model_adapter_ = std::make_unique<BirchBarMenuModelAdapter>(
       std::make_unique<BirchChipContextMenuModel>(
           /*delegate=*/chip, chip_type),
       chip->GetWidget(), source_type,
       base::BindOnce(&BirchBarController::OnChipContextMenuClosed,
                      weak_ptr_factory_.GetWeakPtr()),
-      Shell::Get()->IsInTabletMode());
-  chip_menu_model_adapter_->set_close_menu_on_customizing_suggestions(true);
+      Shell::Get()->IsInTabletMode(), /*for_chip_menu=*/true);
+  BirchPrivacyNudgeController::DidShowContextMenu();
   chip_menu_model_adapter_->Run(gfx::Rect(point, gfx::Size()),
                                 views::MenuAnchorPosition::kBubbleTopRight,
                                 views::MenuRunner::CONTEXT_MENU |
@@ -161,21 +180,30 @@ void BirchBarController::ShowChipContextMenu(BirchChipButton* chip,
 }
 
 void BirchBarController::OnItemHiddenByUser(BirchItem* item) {
-  // Remove the item from birch bars. If there is an extra item not showing in
-  // the bars, push it in the bars.
-  BirchItem* extra_item = items_.size() > BirchBarView::kMaxChipsNum
-                              ? items_[BirchBarView::kMaxChipsNum].get()
-                              : nullptr;
-  for (auto& bar_view : bar_views_) {
-    bar_view->RemoveChip(item);
-    if (extra_item) {
-      bar_view->AddChip(extra_item);
-    }
+  // Do not remove the item if the bars are animating.
+  if (std::ranges::any_of(bar_views_, [](BirchBarView* bar_view) {
+        return bar_view->IsAnimating();
+      })) {
+    return;
   }
+
+  auto iter = std::ranges::find_if(items_, base::MatchesUniquePtr(item));
+  if (iter == items_.end()) {
+    return;
+  }
+
+  RemoveItemChips(item);
+
+  // Move the removing item out of the `items_` such that item-removed observers
+  // could know the item is being removed to avoid duplicated removing.
+  auto removing_item = std::move(*iter);
+  items_.erase(iter);
 
   // Erase the item from model and controller.
   Shell::Get()->birch_model()->RemoveItem(item);
-  std::erase_if(items_, base::MatchesUniquePtr(item));
+  if (item->GetType() == BirchItemType::kLostMedia) {
+    OnLostMediaItemRemoved();
+  }
 }
 
 void BirchBarController::SetShowBirchSuggestions(bool show) {
@@ -200,27 +228,164 @@ bool BirchBarController::GetShowSuggestionType(BirchSuggestionType type) const {
       GetPrefNameFromSuggestionType(type));
 }
 
-void BirchBarController::ExecuteCommand(int command_id, int event_flags) {
-  if (command_id ==
-      base::to_underlying(BirchBarContextMenuModel::CommandId::kReset)) {
-    bool suggestion_pref_changed = false;
-    {
-      // Holding the data fetch requests to avoid sending multiple requests.
-      base::AutoReset<bool> hold_data_request(
-          &hold_data_request_on_suggestion_pref_change_, true);
-      for (const auto& pref_name :
-           {prefs::kBirchUseWeather, prefs::kBirchUseCalendar,
-            prefs::kBirchUseFileSuggest, prefs::kBirchUseRecentTabs}) {
+bool BirchBarController::IsDataLoading() const {
+  return birch_model_observer_.IsObserving() || data_fetch_in_progress_;
+}
+
+void BirchBarController::ToggleTemperatureUnits() {
+  // Toggle the preference.
+  auto* pref_service = GetPrefService();
+  bool current_value = pref_service->GetBoolean(prefs::kBirchUseCelsius);
+  pref_service->SetBoolean(prefs::kBirchUseCelsius, !current_value);
+
+  // Refresh the suggestion chips.
+  for (auto& bar_view : bar_views_) {
+    bar_view->SetState(BirchBarView::State::kReloading);
+  }
+  MaybeFetchDataFromModel();
+}
+
+void BirchBarController::ProvideFeedbackForCoral() {
+  if (!coral_util::IsCoralFeedbackAllowedByPolicy(GetPrefService())) {
+    return;
+  }
+
+  base::Value::List root;
+  for (auto& item : items_) {
+    if (item->GetType() == BirchItemType::kCoral) {
+      root.Append(
+          static_cast<BirchCoralItem*>(item.get())->ToCoralItemDetails());
+    }
+  }
+  Shell::Get()->coral_controller()->OpenFeedbackDialog(
+      /*group_description=*/
+      base::WriteJsonWithOptions(root, base::JSONWriter::OPTIONS_PRETTY_PRINT)
+          .value_or(std::string()));
+}
+
+void BirchBarController::ExecuteMenuCommand(int command_id, bool from_chip) {
+  using CommandId = BirchBarContextMenuModel::CommandId;
+  switch (command_id) {
+    case base::to_underlying(CommandId::kShowSuggestions):
+      // Note that the menu should be dismissed before changing the show
+      // suggestions pref which may destroy the chips.
+      if (auto* menu_controller = views::MenuController::GetActiveInstance()) {
+        menu_controller->Cancel(views::MenuController::ExitType::kAll);
+      } else if (from_chip) {
+        // When tapping on the "Show suggestions" switch button, the menu
+        // controller may be destroyed before executing the command. To avoid
+        // UAF, reset the menu model adapter.
+        chip_menu_model_adapter_.reset();
+      }
+
+      SetShowBirchSuggestions(/*show=*/!GetShowBirchSuggestions());
+      break;
+    case base::to_underlying(CommandId::kWeatherSuggestions):
+    case base::to_underlying(CommandId::kCalendarSuggestions):
+    case base::to_underlying(CommandId::kDriveSuggestions):
+    case base::to_underlying(CommandId::kChromeTabSuggestions):
+    case base::to_underlying(CommandId::kMediaSuggestions):
+    case base::to_underlying(CommandId::kCoralSuggestions): {
+      // To avoid UAF, dismiss the menu before changing the pref which
+      // would destroy current chips.
+      auto* menu_controller = views::MenuController::GetActiveInstance();
+      if (from_chip && menu_controller) {
+        menu_controller->Cancel(views::MenuController::ExitType::kAll);
+      }
+
+      const BirchSuggestionType suggestion_type =
+          birch_bar_util::CommandIdToSuggestionType(command_id);
+      const bool current_show_status = GetShowSuggestionType(suggestion_type);
+      SetShowSuggestionType(suggestion_type, !current_show_status);
+      break;
+    }
+    case base::to_underlying(CommandId::kReset): {
+      bool suggestion_pref_changed = false;
+      {
+        // Holding the data fetch requests to avoid sending multiple requests.
+        base::AutoReset<bool> hold_data_request(
+            &hold_data_request_on_suggestion_pref_change_, true);
         auto* pref_service = GetPrefService();
-        suggestion_pref_changed |= !pref_service->GetBoolean(pref_name);
-        pref_service->SetBoolean(pref_name, true);
+        for (const auto& pref_name :
+             {prefs::kBirchUseWeather, prefs::kBirchUseCalendar,
+              prefs::kBirchUseFileSuggest, prefs::kBirchUseChromeTabs,
+              prefs::kBirchUseLostMedia, prefs::kBirchUseCoral}) {
+          suggestion_pref_changed |= !pref_service->GetBoolean(pref_name);
+          pref_service->SetBoolean(pref_name, true);
+        }
+      }
+
+      // If there are suggestion prefs being changed, call suggestion pref
+      // changed callback.
+      if (suggestion_pref_changed) {
+        OnCustomizeSuggestionsPrefChanged();
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void BirchBarController::ExecuteCommand(int command_id, int event_flags) {
+  ExecuteMenuCommand(command_id, /*from_chip=*/false);
+}
+
+void BirchBarController::OnCoralGroupRemoved(const base::Token& group_id) {
+  auto iter =
+      std::find_if(items_.begin(), items_.end(), [&group_id](const auto& item) {
+        if (item->GetType() != BirchItemType::kCoral) {
+          return false;
+        }
+        return static_cast<BirchCoralItem*>(item.get())->group_id() == group_id;
+      });
+  if (iter == items_.end()) {
+    return;
+  }
+
+  RemoveItemChips(iter->get());
+  items_.erase(iter);
+}
+
+void BirchBarController::OnCoralEntityRemoved(const base::Token& group_id,
+                                              std::string_view identifier) {
+  for (auto& bar_view : bar_views_) {
+    for (const auto& chip : bar_view->chips()) {
+      auto* coral_chip = views::AsViewClass<CoralChipButton>(chip);
+      if (!coral_chip) {
+        continue;
+      }
+      const auto* item = chip->GetItem();
+      if (static_cast<const BirchCoralItem*>(item)->group_id() == group_id) {
+        if (auto* tab_app_selector_widget =
+                coral_chip->tab_app_selection_widget()) {
+          tab_app_selector_widget->RemoveItem(identifier);
+        } else {
+          coral_chip->ReloadIcon();
+        }
       }
     }
+  }
+}
 
-    // If there are suggestion prefs being changed, call suggestion pref changed
-    // callback.
-    if (suggestion_pref_changed) {
-      OnCustomizeSuggestionsPrefChanged();
+void BirchBarController::OnCoralGroupTitleUpdated(const base::Token& group_id,
+                                                  const std::string& title) {
+  for (auto& bar_view : bar_views_) {
+    for (const auto& chip : bar_view->chips()) {
+      auto* coral_chip = views::AsViewClass<CoralChipButton>(chip);
+      if (!coral_chip) {
+        continue;
+      }
+
+      auto* coral_item = static_cast<BirchCoralItem*>(coral_chip->GetItem());
+      // If `title` is empty, keep the existing placeholder title. We still want
+      // to update the chip to remove the loading animation.
+      if (coral_item->group_id() == group_id) {
+        if (!title.empty()) {
+          coral_item->set_title(base::UTF8ToUTF16(title));
+        }
+        coral_chip->UpdateTitle(base::UTF16ToUTF8(coral_item->title()));
+      }
     }
   }
 }
@@ -235,7 +400,7 @@ void BirchBarController::MaybeFetchDataFromModel() {
     // Fetching data from model.
     data_fetch_in_progress_ = true;
     birch_model->RequestBirchDataFetch(
-        /*is_post_login=*/from_pine_service_,
+        /*is_post_login=*/is_informed_restore_,
         base::BindOnce(&BirchBarController::OnItemsFetchedFromModel,
                        weak_ptr_factory_.GetWeakPtr()));
   } else if (!birch_model_observer_.IsObserving()) {
@@ -265,13 +430,32 @@ void BirchBarController::OnItemsFetchedFromModel() {
   base::UmaHistogramCustomCounts("Ash.Birch.ChipCount", items.size(),
                                  /*min=*/0, /*exclusive_max=*/10,
                                  /*buckets=*/10);
+
+  // Record the number of coral items shown.
+  auto num_coral_items =
+      std::count_if(items.begin(), items.end(),
+                    [](const std::unique_ptr<ash::BirchItem>& item) {
+                      return item->GetType() == BirchItemType::kCoral;
+                    });
+  base::UmaHistogramExactLinear("Ash.Birch.Coral.ClusterCount", num_coral_items,
+                                /*exclusive_max=*/3);
+
   RecordTimeOfDayRankingHistogram(items);
 
   for (auto& bar_view : bar_views_) {
     InitBarWithItems(bar_view, items);
   }
 
+  // Clear the old lost media item if it exists.
+  OnLostMediaItemRemoved();
+
   items_ = std::move(items);
+
+  for (const auto& item : items_) {
+    if (item->GetType() == BirchItemType::kLostMedia) {
+      OnLostMediaItemReceived();
+    }
+  }
 }
 
 void BirchBarController::InitBarWithItems(
@@ -288,6 +472,17 @@ void BirchBarController::InitBarWithItems(
   }
 
   bar_view->SetupChips(items_to_show);
+}
+
+void BirchBarController::RemoveItemChips(BirchItem* item) {
+  // Remove the item from birch bars. If there is an extra item not showing in
+  // the bars, push it in the bars.
+  BirchItem* extra_item = items_.size() > BirchBarView::kMaxChipsNum
+                              ? items_[BirchBarView::kMaxChipsNum].get()
+                              : nullptr;
+  for (auto& bar_view : bar_views_) {
+    bar_view->RemoveChip(item, extra_item);
+  }
 }
 
 void BirchBarController::OnChipContextMenuClosed() {
@@ -309,9 +504,10 @@ void BirchBarController::OnShowSuggestionsPrefChanged() {
   for (auto& root : Shell::GetAllRootWindows()) {
     auto* overview_grid = overview_session->GetGridWithRootWindow(root);
     if (show) {
+      MaybeFetchDataFromModel();
       overview_grid->MaybeInitBirchBarWidget(/*by_user=*/true);
     } else {
-      overview_grid->DestroyBirchBarWidget(/*by_user=*/true);
+      overview_grid->ShutdownBirchBarWidgetByUser();
     }
   }
 }
@@ -322,10 +518,46 @@ void BirchBarController::OnCustomizeSuggestionsPrefChanged() {
   }
 
   for (auto& bar_view : bar_views_) {
-    bar_view->Reloading();
+    bar_view->SetState(BirchBarView::State::kReloading);
   }
 
   MaybeFetchDataFromModel();
+}
+
+void BirchBarController::OnLostMediaItemReceived() {
+  Shell::Get()->birch_model()->SetLostMediaDataChangedCallback(
+      base::BindRepeating(&BirchBarController::OnLostMediaItemUpdated,
+                          weak_ptr_factory_.GetWeakPtr()));
+}
+
+void BirchBarController::OnLostMediaItemRemoved() {
+  if (auto* birch_model = Shell::Get()->birch_model()) {
+    birch_model->ResetLostMediaDataChangedCallback();
+  }
+}
+
+void BirchBarController::OnLostMediaItemUpdated(
+    std::unique_ptr<BirchItem> updated_item) {
+  auto lost_media_item =
+      std::find_if(items_.begin(), items_.end(), [](const auto& item) {
+        return item->GetType() == BirchItemType::kLostMedia;
+      });
+  if (lost_media_item == items_.end()) {
+    return;
+  }
+
+  // If the lost media item is null, remove the lost media chip from bars.
+  // Otherwise, update the chip with new item contents.
+  if (!updated_item) {
+    RemoveItemChips(lost_media_item->get());
+    items_.erase(lost_media_item);
+    OnLostMediaItemRemoved();
+  } else {
+    *(lost_media_item->get()) = *(updated_item.get());
+    for (auto bar_view : bar_views_) {
+      bar_view->UpdateChip(lost_media_item->get());
+    }
+  }
 }
 
 }  // namespace ash

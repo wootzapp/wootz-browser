@@ -48,6 +48,9 @@ class CONTENT_EXPORT ServiceWorkerCacheStorageMatcher {
 
   void Run();
 
+  base::TimeTicks cache_lookup_start() { return cache_lookup_start_; }
+  base::TimeDelta cache_lookup_duration() { return cache_lookup_duration_; }
+
  private:
   void FailFallback();
   void DidMatch(blink::mojom::MatchResultPtr result);
@@ -63,7 +66,8 @@ class CONTENT_EXPORT ServiceWorkerCacheStorageMatcher {
   ServiceWorkerFetchDispatcher::FetchCallback fetch_callback_;
 
   mojo::Remote<blink::mojom::CacheStorage> remote_;
-  base::TimeTicks dispatch_event_time_;
+  base::TimeTicks cache_lookup_start_;
+  base::TimeDelta cache_lookup_duration_;
 
   std::unique_ptr<ServiceWorkerInstalledScriptsSender>
       installed_scripts_sender_;

@@ -7,11 +7,13 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
-#include "components/android_autofill/browser/autofill_provider.h"
 #include "components/android_autofill/browser/android_autofill_provider_bridge.h"
+#include "components/android_autofill/browser/autofill_provider.h"
 #include "components/android_autofill/browser/form_data_android.h"
-#include "components/autofill/core/browser/autofill_manager.h"
+#include "components/autofill/core/browser/field_types.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
 #include "components/autofill/core/common/unique_ids.h"
+#include "components/webauthn/android/webauthn_cred_man_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
 
 namespace content {
@@ -62,20 +64,6 @@ class AndroidAutofillProvider : public AutofillProvider,
 
   static constexpr char kPrefillRequestStateUma[] =
       "Autofill.WebView.PrefillRequestState";
-  // The name of the UMA that is emitted when a form similarity check between a
-  // cached form and the interacted form fails.
-  static constexpr char kPrefillRequestBottomsheetNoViewStructureDelayUma[] =
-      "Autofill.WebView.BottomsheetNoViewStructureDelay";
-  static constexpr char kSimilarityCheckCacheRequestUma[] =
-      "Autofill.WebView.FormSimilarityCheck.CachedForm";
-  // The name of the UMA that is emitted when a form similarity check is run in
-  // OnAskForValuesToFill.
-  static constexpr char kSimilarityCheckAskForValuesToFillUma[] =
-      "Autofill.WebView.FormSimilarityCheck.AskForValuesToFill";
-  // The name of the UMA that is emitted when a form similarity check is run in
-  // OnFocusOnFormField.
-  static constexpr char kSimilarityCheckFocusOnFormFieldUma[] =
-      "Autofill.WebView.FormSimilarityCheck.FocusOnFormField";
 
   static void CreateForWebContents(content::WebContents* web_contents);
 
@@ -97,22 +85,20 @@ class AndroidAutofillProvider : public AutofillProvider,
       const FormData& form,
       const FormFieldData& field,
       AutofillSuggestionTriggerSource /*unused_trigger_source*/) override;
-  void OnTextFieldDidChange(AndroidAutofillManager* manager,
-                            const FormData& form,
-                            const FormFieldData& field,
-                            const base::TimeTicks timestamp) override;
+  void OnTextFieldValueChanged(AndroidAutofillManager* manager,
+                               const FormData& form,
+                               const FormFieldData& field,
+                               const base::TimeTicks timestamp) override;
   void OnTextFieldDidScroll(AndroidAutofillManager* manager,
                             const FormData& form,
                             const FormFieldData& field) override;
-  void OnSelectControlDidChange(AndroidAutofillManager* manager,
-                                const FormData& form,
-                                const FormFieldData& field) override;
+  void OnSelectControlSelectionChanged(AndroidAutofillManager* manager,
+                                       const FormData& form,
+                                       const FormFieldData& field) override;
   void OnFormSubmitted(AndroidAutofillManager* manager,
                        const FormData& form,
-                       bool known_success,
                        mojom::SubmissionSource source) override;
-  void OnFocusOnNonFormField(AndroidAutofillManager* manager,
-                             bool had_interacted_form) override;
+  void OnFocusOnNonFormField(AndroidAutofillManager* manager) override;
   void OnFocusOnFormField(AndroidAutofillManager* manager,
                           const FormData& form,
                           const FormFieldData& field) override;
@@ -164,16 +150,21 @@ class AndroidAutofillProvider : public AutofillProvider,
 
   void FireSuccessfulSubmission(mojom::SubmissionSource source);
 
+  // Updates fields that changed on native class only. The Android bridge is not
+  // yet invoked to give preference to a possible CredMan flow.
+  // Using the given form and field that are newly focused, the method returns
+  // the necessary field information to continue the focus event later on. If
+  // continuing the focus event is not possible or necessary, it returns a
+  // `std::nullopt`.
+  std::optional<AndroidAutofillProviderBridge::FieldInfo> StartFocusChange(
+      const FormData& form,
+      const FormFieldData& field);
+
   // Calls `OnFormFieldDidChange` in the bridge if there is an ongoing Autofill
   // session for this `form`.
   void MaybeFireFormFieldDidChange(AndroidAutofillManager* manager,
                                    const FormData& form,
                                    const FormFieldData& field);
-
-  // Propagates visibility changes for fields in `form` and notifies the bridge
-  // in case any of the fields had a visibility change.
-  void MaybeFireFormFieldVisibilitiesDidChange(AndroidAutofillManager* manager,
-                                             const FormData& form);
 
   bool IsLinkedManager(AndroidAutofillManager* manager) const;
 
@@ -183,12 +174,9 @@ class AndroidAutofillProvider : public AutofillProvider,
 
   // Same as `IsLinkedForm`, but also checks that `form` and `form_` are
   // similar, using form similarity checks.
-  // If `similarity_metric` is not null, it emits a
-  // `FormDataAndroid::SimilarityCheckResult` with the name `similarity_metric`.
-  bool IsLinkedForm(const FormData& form,
-                    const char* similarity_metric = nullptr);
+  bool IsLinkedForm(const FormData& form) const;
 
-  gfx::RectF ToClientAreaBound(const gfx::RectF& bounding_box);
+  gfx::RectF ToClientAreaBound(const gfx::RectF& bounding_box) const;
 
   void StartNewSession(AndroidAutofillManager* manager,
                        const FormData& form,
@@ -212,10 +200,11 @@ class AndroidAutofillProvider : public AutofillProvider,
   // conditions are met:
   // 1. Prefill requests are supported (correct SDK version & feature flag).
   // 2. No prefill request has been sent so far, since the framework only
-  // supports caching a single form at a time.
+  //    supports caching a single form at a time.
   // 3. There is no ongoing Autofill session. This is to ensure that the
-  // `onProvideAutofillStructure` callback from the framework does not confuse
-  // information requests for caching and for the current Autofill session.
+  //    `onProvideAutofillStructure` callback from the framework does not
+  //     confuse information requests for caching and for the current Autofill
+  //     session.
   // 4. The form is predicted to be a login form.
   void MaybeSendPrefillRequest(const AndroidAutofillManager& manager,
                                FormGlobalId form_id);
@@ -236,7 +225,7 @@ class AndroidAutofillProvider : public AutofillProvider,
         const FormStructure& form_structure);
 
     // Creates a map as expected by `FormDataAndroid::UpdateFieldTypes`.
-    base::flat_map<FieldGlobalId, AutofillType> ToFieldTypeMap() const;
+    base::flat_map<FieldGlobalId, FieldType> ToFieldTypeMap() const;
 
     std::optional<FieldGlobalId> username_field_id;
     std::optional<FieldGlobalId> password_field_id;
@@ -259,6 +248,45 @@ class AndroidAutofillProvider : public AutofillProvider,
   // gets accessed.
   // TODO(crbug.com/40284788): Remove once a fix is landed on the renderer side.
   void SetBottomSheetShownOff();
+
+  // Stops the keyboard suppression. Called when the CredMan UI was closed. If
+  // the UI was dismissed without selecting a passkey, `success` will be false.
+  // If a `field_to_focus` is given and CredMan wasn't able to sign the
+  // user in, attempt to continue an earlier attempt to focus a field.
+  void OnCredManUiClosed(
+      FormGlobalId form_id,
+      std::optional<AndroidAutofillProviderBridge::FieldInfo> field_to_focus,
+      webauthn::WebAuthnCredManDelegate::State has_passkeys,
+      bool success);
+
+  // Returns true if CredMan *may* be shown for the given field. It only returns
+  // false if the sheet was already shown or prefetching concluded and indicated
+  // that no passkeys are available.
+  bool IntendsToShowCredMan(const FormFieldData& field,
+                            content::RenderFrameHost* rfh) const;
+
+  // Returns true if a passkey request is pending  or succeeded for the given
+  // `rfh` and the CredMan UI should be shown when the given `field` is focused.
+  bool ShouldShowCredManForField(const FormFieldData& field,
+                                 content::RenderFrameHost* rfh);
+
+  // Triggers a prefetched passkey request which opens a bottom sheet. The given
+  // `field_to_focus` is used to continue any interrupted focus event once
+  // CredMan closes. Returns true if the sheet was opened and false if that
+  // wasn't possible.
+  bool ShowCredManSheet(
+      content::RenderFrameHost* rfh,
+      FormGlobalId form_id,
+      std::optional<AndroidAutofillProviderBridge::FieldInfo> field_to_focus);
+
+  enum class CredManBottomSheetLifecycle {
+    kNotShown,   // The sheet hasn't been shown. Does not indicate it will be.
+    kIsShowing,  // The sheet was triggered. Does not guarantee it's visible.
+    kClosed,     // The sheet was dismissed and shouldn't be shown again.
+  };
+
+  CredManBottomSheetLifecycle credman_sheet_status_ =
+      CredManBottomSheetLifecycle::kNotShown;
 
   // This is used by the keyboard suppressor. We update it with the result of
   // the platform method call `showAutofillDialog`. Since we are not notified
@@ -296,8 +324,11 @@ class AndroidAutofillProvider : public AutofillProvider,
 
   // Properties of the last-focused field of the current session for `form_`
   // (queried input or changed select box).
-  FieldGlobalId last_focused_field_id_;
-  FieldTypeGroup field_type_group_{FieldTypeGroup::kNoGroup};
+  struct {
+    FieldGlobalId id;
+    FieldTypeGroup group = {FieldTypeGroup::kNoGroup};
+    url::Origin origin;
+  } current_field_;
 
   // The frame of the field for which the last OnAskForValuesToFill() happened.
   //
@@ -310,14 +341,7 @@ class AndroidAutofillProvider : public AutofillProvider,
   // ancestor frame of the queried field.
   content::GlobalRenderFrameHostId last_queried_field_rfh_id_;
 
-  // The origin of the field of the current session (cf.
-  // `last_focused_field_id_`). This is determines which fields are safe to be
-  // filled in cross-frame forms.
-  url::Origin triggered_origin_;
   base::WeakPtr<AndroidAutofillManager> manager_;
-  bool check_submission_ = false;
-  // Valid only if check_submission_ is true.
-  mojom::SubmissionSource pending_submission_source_;
 
   static constexpr SessionId kMinimumSessionId = SessionId(1);
   static constexpr SessionId kMaximumSessionId = SessionId(0xffff);
@@ -329,6 +353,8 @@ class AndroidAutofillProvider : public AutofillProvider,
 
   // Used for handling keyboard suppression in case there's a bottom sheet.
   std::unique_ptr<TouchToFillKeyboardSuppressor> keyboard_suppressor_;
+
+  base::WeakPtrFactory<AndroidAutofillProvider> weak_ptr_factory_{this};
 };
 }  // namespace autofill
 

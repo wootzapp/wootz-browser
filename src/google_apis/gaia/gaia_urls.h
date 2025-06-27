@@ -63,6 +63,7 @@ class COMPONENT_EXPORT(GOOGLE_APIS) GaiaUrls {
   const GURL& rotate_bound_cookies_url() const;
   const GURL& classroom_api_origin_url() const;
   const GURL& tasks_api_origin_url() const;
+  const GURL& people_api_origin_url() const;
 
   // URL to a blank page on the Gaia domain.
   const GURL& blank_page_url() const;
@@ -77,6 +78,11 @@ class COMPONENT_EXPORT(GOOGLE_APIS) GaiaUrls {
   // Returns a Logout URL that continues to the given continue_url.
   // If no continue_url is given, continues to https://accounts.google.com.
   GURL LogOutURLWithContinueURL(const GURL& contine_url);
+
+  // Whether `gaia_url` points to the default Gaia URL or a custom one. Avoid
+  // using this method - it is intended for tweaking behavior for manual
+  // testing.
+  bool IsUsingDefaultGaiaOrigin() const;
 
  private:
   friend struct base::DefaultSingletonTraits<GaiaUrls>;
@@ -94,6 +100,7 @@ class COMPONENT_EXPORT(GOOGLE_APIS) GaiaUrls {
   GURL account_capabilities_origin_url_;
   GURL classroom_api_origin_url_;
   GURL tasks_api_origin_url_;
+  GURL people_api_origin_url_;
 
   GURL embedded_setup_chromeos_url_;
   GURL embedded_setup_chromeos_kid_signup_url_;
@@ -115,9 +122,6 @@ class COMPONENT_EXPORT(GOOGLE_APIS) GaiaUrls {
   GURL reauth_url_;
   GURL account_capabilities_url_;
   GURL get_check_connection_info_url_;
-
-  std::string oauth2_chrome_client_id_;
-  std::string oauth2_chrome_client_secret_;
 
   GURL oauth2_token_url_;
   GURL oauth2_issue_token_url_;

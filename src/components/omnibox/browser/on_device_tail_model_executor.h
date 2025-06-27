@@ -42,16 +42,11 @@ class OnDeviceTailModelExecutor {
     ModelInput();
     ModelInput(std::string prefix,
                std::string previous_query,
-               size_t max_num_suggestions,
-               size_t max_rnn_steps,
-               float probability_threshold);
-    ~ModelInput();
+               size_t max_num_suggestions);
 
     std::string prefix;
     std::string previous_query;
     size_t max_num_suggestions;
-    size_t max_rnn_steps;
-    float probability_threshold;
   };
 
   using ModelMetadata =
@@ -90,6 +85,9 @@ class OnDeviceTailModelExecutor {
     RnnCellStates();
     RnnCellStates(size_t num_layer, size_t state_size);
     RnnCellStates(const RnnCellStates& other);
+    RnnCellStates(RnnCellStates&& other) noexcept;
+    RnnCellStates& operator=(const RnnCellStates& other);
+    RnnCellStates& operator=(RnnCellStates&& other) noexcept;
     ~RnnCellStates();
 
     bool operator==(const RnnCellStates& other) const {
@@ -101,7 +99,8 @@ class OnDeviceTailModelExecutor {
 
     // Cell states, see definitions at
     // https://github.com/tensorflow/lingvo/blob/master/lingvo/core/rnn_cell.py#L221.
-    std::vector<std::vector<float>> c_i, m_i;
+    std::vector<std::vector<float>> c_i;
+    std::vector<std::vector<float>> m_i;
   };
 
   // The struct which holds the output from subgraph `rnn_step_`.
@@ -132,6 +131,9 @@ class OnDeviceTailModelExecutor {
     BeamNode();
     BeamNode(int num_layer, int state_size);
     BeamNode(const BeamNode& other);
+    BeamNode(BeamNode&& other) noexcept;
+    BeamNode& operator=(const BeamNode& other);
+    BeamNode& operator=(BeamNode&& other) noexcept;
     ~BeamNode();
 
     bool operator>(const BeamNode& other) const {
@@ -221,7 +223,7 @@ class OnDeviceTailModelExecutor {
   // We use this on device filter since this model is an ML model and we do not
   // have a good way to force the model to drop a given result in any
   // circumstance during training.
-  bool IsSuggestionBad(const std::string suggestion);
+  bool IsSuggestionBad(const std::string& suggestion);
 
   // The tokenizer and tensorflow lite model & interpreter instances.
   std::unique_ptr<OnDeviceTailTokenizer> tokenizer_;
@@ -245,6 +247,8 @@ class OnDeviceTailModelExecutor {
   size_t num_layer_;
   size_t embedding_dimension_;
   size_t vocab_size_;
+  size_t max_num_steps_;
+  float log_probability_threshold_;
 
   // The time when the executor is last called.
   base::TimeTicks executor_last_called_time_;

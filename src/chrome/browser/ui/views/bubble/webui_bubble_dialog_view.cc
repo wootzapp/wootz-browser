@@ -4,12 +4,14 @@
 
 #include "chrome/browser/ui/views/bubble/webui_bubble_dialog_view.h"
 
+#include "build/build_config.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/visibility.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "third_party/skia/include/core/SkRect.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/bubble/bubble_border.h"
@@ -17,11 +19,32 @@
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
 
+#if defined(USE_AURA)
+#include "chrome/browser/ui/views/bubble/webui_bubble_event_handler_aura.h"
+#include "ui/aura/window.h"
+#endif
+
+#if BUILDFLAG(ENABLE_DESKTOP_AURA)
+#include "ui/views/widget/desktop_aura/desktop_native_widget_aura.h"
+#endif
+
 namespace {
 
 // The min size available to the WebBubbleDialogView. These are arbitrary sizes
 // that match those set by ExtensionPopup.
 constexpr gfx::Size kMinSize(25, 25);
+
+#if defined(USE_AURA)
+bool ShouldUseEventHandlerForBubbleDrag(aura::Window* window) {
+#if BUILDFLAG(ENABLE_DESKTOP_AURA)
+  // Only use the event handler for non desktop aura windows. In the case of
+  // desktop aura windows the host WM is responsible for controlling the drag.
+  return views::DesktopNativeWidgetAura::ForWindow(window) == nullptr;
+#else
+  return true;
+#endif
+}
+#endif
 
 // WebUIBubbleView provides the functionality needed to embed a WebContents
 // within a Views hierarchy.
@@ -66,11 +89,12 @@ WebUIBubbleDialogView::WebUIBubbleDialogView(
     views::View* anchor_view,
     base::WeakPtr<WebUIContentsWrapper> contents_wrapper,
     const std::optional<gfx::Rect>& anchor_rect,
-    views::BubbleBorder::Arrow arrow)
+    views::BubbleBorder::Arrow arrow,
+    bool autosize)
     : BubbleDialogDelegateView(anchor_view,
                                arrow,
                                views::BubbleBorder::DIALOG_SHADOW,
-                               true),
+                               autosize),
       contents_wrapper_(contents_wrapper),
       web_view_(AddChildView(std::make_unique<WebUIBubbleView>(
           contents_wrapper_->web_contents()))),
@@ -79,7 +103,7 @@ WebUIBubbleDialogView::WebUIBubbleDialogView(
 
   contents_wrapper_->web_contents()->WasShown();
 
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   set_margins(gfx::Insets());
   SetLayoutManager(std::make_unique<views::FillLayout>());
 }
@@ -89,8 +113,9 @@ WebUIBubbleDialogView::~WebUIBubbleDialogView() {
 }
 
 void WebUIBubbleDialogView::ClearContentsWrapper() {
-  if (!contents_wrapper_)
+  if (!contents_wrapper_) {
     return;
+  }
   DCHECK_EQ(this, contents_wrapper_->GetHost().get());
   DCHECK_EQ(web_view_->web_contents(), contents_wrapper_->web_contents());
   web_view_->SetWebContents(nullptr);
@@ -122,9 +147,18 @@ void WebUIBubbleDialogView::AddedToWidget() {
   // This view needs to be added to the widget before setting itself as the host
   // of the contents, so that the contents' resizing request can be propagated
   // to the widget.
+  views::Widget* widget = GetWidget();
   contents_wrapper_->SetHost(weak_factory_.GetWeakPtr());
-  bubble_widget_observation_.Observe(GetWidget());
+  bubble_widget_observation_.Observe(widget);
   web_view_->holder()->SetCornerRadii(gfx::RoundedCornersF(GetCornerRadius()));
+
+#if defined(USE_AURA)
+  aura::Window* window = widget->GetNativeView();
+  if (ShouldUseEventHandlerForBubbleDrag(window)) {
+    event_handler_ = std::make_unique<WebUIBubbleEventHandlerAura>();
+    window->AddPreTargetHandler(event_handler_.get());
+  }
+#endif
 }
 
 gfx::Rect WebUIBubbleDialogView::GetBubbleBounds() {
@@ -171,7 +205,7 @@ void WebUIBubbleDialogView::ResizeDueToAutoResize(content::WebContents* source,
 
 bool WebUIBubbleDialogView::HandleKeyboardEvent(
     content::WebContents* source,
-    const content::NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   return unhandled_keyboard_event_handler_.HandleKeyboardEvent(
       event, GetFocusManager());
 }
@@ -191,8 +225,9 @@ bool WebUIBubbleDialogView::ShouldDescendIntoChildForEventHandling(
 }
 
 gfx::Rect WebUIBubbleDialogView::GetAnchorRect() const {
-  if (bubble_anchor_)
+  if (bubble_anchor_) {
     return bubble_anchor_.value();
+  }
   return BubbleDialogDelegateView::GetAnchorRect();
 }
 

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/crash/core/app/crashpad.h"
 
 #include <dlfcn.h>
@@ -13,8 +18,6 @@
 #include <algorithm>
 #include <string_view>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/tagging.h"
 #include "base/android/build_info.h"
 #include "base/android/java_exception_reporter.h"
 #include "base/android/jni_android.h"
@@ -34,13 +37,15 @@
 #include "base/synchronization/lock.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "components/crash/android/package_paths_jni/PackagePaths_jni.h"
 #include "components/crash/core/app/crash_reporter_client.h"
 #include "content/public/common/content_descriptors.h"
+#include "partition_alloc/buildflags.h"
+#include "partition_alloc/tagging.h"
 #include "sandbox/linux/services/syscall_wrappers.h"
 #include "third_party/crashpad/crashpad/client/annotation.h"
 #include "third_party/crashpad/crashpad/client/client_argv_handling.h"
 #include "third_party/crashpad/crashpad/client/crashpad_client.h"
+#include "third_party/crashpad/crashpad/client/crashpad_info.h"
 #include "third_party/crashpad/crashpad/client/simulate_crash_linux.h"
 #include "third_party/crashpad/crashpad/snapshot/sanitized/sanitization_information.h"
 #include "third_party/crashpad/crashpad/util/linux/exception_handler_client.h"
@@ -49,6 +54,9 @@
 #include "third_party/crashpad/crashpad/util/linux/scoped_pr_set_dumpable.h"
 #include "third_party/crashpad/crashpad/util/misc/from_pointer_cast.h"
 #include "third_party/crashpad/crashpad/util/posix/signals.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/crash/android/package_paths_jni/PackagePaths_jni.h"
 
 namespace crashpad {
 namespace {
@@ -290,7 +298,6 @@ void SetBuildInfoAnnotations(std::map<std::string, std::string>* annotations) {
   (*annotations)["board"] = info->board();
   (*annotations)["installer_package_name"] = info->installer_package_name();
   (*annotations)["abi_name"] = info->abi_name();
-  (*annotations)["custom_themes"] = info->custom_themes();
   (*annotations)["resources_version"] = info->resources_version();
   (*annotations)["gms_core_version"] = info->gms_version_code();
 
@@ -382,19 +389,23 @@ bool BuildEnvironmentWithApk(bool use_64_bit,
 
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   static constexpr char kClasspathVar[] = "CLASSPATH";
-  std::string current_classpath;
-  env->GetVar(kClasspathVar, &current_classpath);
-  classpath += ":" + current_classpath;
+  std::optional<std::string> current_classpath = env->GetVar(kClasspathVar);
+  if (current_classpath.has_value()) {
+    classpath += ":" + current_classpath.value();
+  }
 
   static constexpr char kLdLibraryPathVar[] = "LD_LIBRARY_PATH";
-  std::string current_library_path;
-  env->GetVar(kLdLibraryPathVar, &current_library_path);
-  library_path += ":" + current_library_path;
+  std::optional<std::string> current_library_path =
+      env->GetVar(kLdLibraryPathVar);
+  if (current_library_path.has_value()) {
+    library_path += ":" + current_library_path.value();
+  }
 
   static constexpr char kRuntimeRootVar[] = "ANDROID_RUNTIME_ROOT";
-  std::string runtime_root;
-  if (env->GetVar(kRuntimeRootVar, &runtime_root)) {
-    library_path += ":" + runtime_root + (use_64_bit ? "/lib64" : "/lib");
+  std::optional<std::string> runtime_root = env->GetVar(kRuntimeRootVar);
+  if (runtime_root.has_value()) {
+    library_path +=
+        ":" + runtime_root.value() + (use_64_bit ? "/lib64" : "/lib");
   }
 
   result->push_back("CLASSPATH=" + classpath);
@@ -427,13 +438,10 @@ void BuildHandlerArgs(CrashReporterClient* crash_reporter_client,
   // TODO(jperaza): Set URL for Android when Crashpad takes over report upload.
   *url = std::string();
 
-  std::string product_name;
-  std::string product_version;
-  std::string channel;
-  crash_reporter_client->GetProductNameAndVersion(&product_name,
-                                                  &product_version, &channel);
-  (*process_annotations)["prod"] = product_name;
-  (*process_annotations)["ver"] = product_version;
+  ProductInfo product_info;
+  crash_reporter_client->GetProductInfo(&product_info);
+  (*process_annotations)["prod"] = product_info.product_name;
+  (*process_annotations)["ver"] = product_info.version;
 
   SetBuildInfoAnnotations(process_annotations);
 
@@ -443,8 +451,8 @@ void BuildHandlerArgs(CrashReporterClient* crash_reporter_client,
 #else
   const bool allow_empty_channel = false;
 #endif
-  if (allow_empty_channel || !channel.empty()) {
-    (*process_annotations)["channel"] = channel;
+  if (allow_empty_channel || !product_info.channel.empty()) {
+    (*process_annotations)["channel"] = product_info.channel;
   }
 
   (*process_annotations)["plat"] = std::string("Android");
@@ -478,10 +486,9 @@ bool SetLdLibraryPath(const base::FilePath& lib_path) {
 
   static constexpr char kLibraryPathVar[] = "LD_LIBRARY_PATH";
   std::unique_ptr<base::Environment> env(base::Environment::Create());
-  std::string old_path;
-  if (env->GetVar(kLibraryPathVar, &old_path)) {
-    library_path.push_back(':');
-    library_path.append(old_path);
+  std::optional<std::string> old_path = env->GetVar(kLibraryPathVar);
+  if (old_path.has_value()) {
+    library_path += ":" + old_path.value();
   }
 
   if (!env->SetVar(kLibraryPathVar, library_path)) {
@@ -698,15 +705,27 @@ bool PlatformCrashpadInitialization(
 
   g_is_browser = browser_process;
 
-  bool dump_at_crash = true;
   base::android::SetJavaExceptionCallback(SetJavaExceptionInfo);
 
+  CrashReporterClient* crash_reporter_client = GetCrashReporterClient();
+  bool dump_at_crash = true;
   unsigned int dump_percentage =
-      GetCrashReporterClient()->GetCrashDumpPercentage();
+      crash_reporter_client->GetCrashDumpPercentage();
   if (dump_percentage < 100 &&
       static_cast<unsigned int>(base::RandInt(0, 99)) >= dump_percentage) {
     dump_at_crash = false;
   }
+
+  // In the not-large-dumps case, record enough extra memory to be able to save
+  // dereferenced memory from all registers on the crashing thread. Crashpad may
+  // save 512-bytes per register, and the largest register set (not including
+  // stack pointers) is ARM64 with 32 registers. Hence, 16 KiB.
+  const uint32_t indirect_memory_limit =
+      crash_reporter_client->GetShouldDumpLargerDumps() ? 4 * 1024 * 1024
+                                                        : 16 * 1024;
+  crashpad::CrashpadInfo::GetCrashpadInfo()
+      ->set_gather_indirectly_referenced_memory(crashpad::TriState::kEnabled,
+                                                indirect_memory_limit);
 
   if (browser_process) {
     HandlerStarter* starter = HandlerStarter::Get();

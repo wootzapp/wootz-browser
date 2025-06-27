@@ -8,8 +8,9 @@ function generateBid(
     interestGroup, auctionSignals, perBuyerSignals, trustedBiddingSignals,
     browserSignals) {
   const ad = interestGroup.ads[0];
-  realTimeReporting.contributeToRealTimeHistogram(101, {priorityWeight: 0.5});
-  return {'ad': interestGroup.name, 'bid': 1, 'render': ad.renderURL};
+  const bid = interestGroup.name === 'winner' ? 2 : 1;
+  realTimeReporting.contributeToHistogram({bucket: 101, priorityWeight: 0.5});
+  return {'ad': interestGroup.name, 'bid': bid, 'render': ad.renderURL};
 }
 
 function reportWin(

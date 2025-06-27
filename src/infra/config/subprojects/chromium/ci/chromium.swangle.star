@@ -3,26 +3,34 @@
 # found in the LICENSE file.
 """Definitions of builders in the chromium.swangle builder group."""
 
-load("//lib/builders.star", "sheriff_rotations", "siso")
 load("//lib/builder_config.star", "builder_config")
 load("//lib/builder_health_indicators.star", "health_spec")
+load("//lib/builders.star", "gardener_rotations", "siso")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 load("//lib/gn_args.star", "gn_args")
+load("//lib/targets.star", "targets")
 
 ci.defaults.set(
     executable = "recipe:angle_chromium",
     builder_group = "chromium.swangle",
     pool = ci.gpu.POOL,
-    sheriff_rotations = sheriff_rotations.CHROMIUM_GPU,
+    gardener_rotations = gardener_rotations.CHROMIUM_GPU,
     contact_team_email = "chrome-gpu-infra@google.com",
     execution_timeout = ci.DEFAULT_EXECUTION_TIMEOUT,
     health_spec = health_spec.DEFAULT,
+    reclient_enabled = False,
     service_account = ci.gpu.SERVICE_ACCOUNT,
     shadow_service_account = ci.gpu.SHADOW_SERVICE_ACCOUNT,
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_TRUSTED,
     siso_remote_jobs = siso.remote_jobs.DEFAULT,
+)
+
+targets.builder_defaults.set(
+    mixins = [
+        "chromium-tester-service-account",
+    ],
 )
 
 consoles.console_view(
@@ -69,8 +77,26 @@ ci.gpu.linux_builder(
             "gpu_tests",
             "release_try_builder",
             "minimal_symbols",
-            "reclient",
+            "remoteexec",
+            "linux",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "gpu_swangle_telemetry_tests",
+        ],
+        mixins = [
+            "gpu-swarming-pool",
+            "isolate_profile_data",
+            "linux-jammy",
+            "no_gpu",
+            "x86-64",
+        ],
+    ),
+    targets_settings = targets.settings(
+        browser_config = targets.browser_config.RELEASE,
+        os_type = targets.os_type.LINUX,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "Chromium|Linux",
@@ -107,8 +133,23 @@ ci.gpu.linux_builder(
             "gpu_tests",
             "release_try_builder",
             "minimal_symbols",
-            "reclient",
+            "remoteexec",
+            "linux",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        mixins = [
+            "gpu-swarming-pool",
+            "isolate_profile_data",
+            "linux-jammy",
+            "no_gpu",
+            "x86-64",
+        ],
+    ),
+    targets_settings = targets.settings(
+        browser_config = targets.browser_config.RELEASE,
+        os_type = targets.os_type.LINUX,
     ),
     # Uncomment this entry when this experimental tester is actually in use.
     # console_view_entry = consoles.console_view_entry(
@@ -145,10 +186,28 @@ ci.gpu.linux_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "linux",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "gpu-swarming-pool",
+            "isolate_profile_data",
+            "linux-jammy",
+            "no_gpu",
+            "timeout_15m",
+            "x86-64",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.LINUX,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "ToT SwiftShader|Linux",
@@ -181,10 +240,28 @@ ci.gpu.linux_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "linux",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "gpu-swarming-pool",
+            "isolate_profile_data",
+            "linux-jammy",
+            "no_gpu",
+            "timeout_15m",
+            "x86-64",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.LINUX,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "DEPS|Linux",
@@ -217,10 +294,25 @@ ci.gpu.linux_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "linux",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        mixins = [
+            "gpu-swarming-pool",
+            "isolate_profile_data",
+            "linux-jammy",
+            "no_gpu",
+            "timeout_15m",
+            "x86-64",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.LINUX,
     ),
     # Uncomment this entry when this experimental tester is actually in use.
     # console_view_entry = consoles.console_view_entry(
@@ -259,8 +351,22 @@ ci.gpu.mac_builder(
             "gpu_tests",
             "release_try_builder",
             "minimal_symbols",
-            "reclient",
+            "remoteexec",
+            "mac",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "gpu_swangle_telemetry_tests",
+        ],
+        mixins = [
+            "mac_mini_intel_gpu_stable",
+        ],
+    ),
+    targets_settings = targets.settings(
+        browser_config = targets.browser_config.RELEASE,
+        os_type = targets.os_type.MAC,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "Chromium|Mac",
@@ -296,10 +402,23 @@ ci.gpu.windows_builder(
             "gpu_tests",
             "release_try_builder",
             "minimal_symbols",
-            "reclient",
+            "remoteexec",
             "x86",
             "resource_allowlisting",
+            "win",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "gpu_swangle_telemetry_tests",
+        ],
+        mixins = [
+            "win10_gce_gpu_pool",
+        ],
+    ),
+    targets_settings = targets.settings(
+        browser_config = targets.browser_config.RELEASE,
+        os_type = targets.os_type.WINDOWS,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "Chromium|Windows",
@@ -334,10 +453,24 @@ ci.gpu.windows_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "win",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "win10_gce_gpu_pool",
+            "timeout_15m",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.WINDOWS,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "ToT SwiftShader|Windows",
@@ -372,11 +505,24 @@ ci.gpu.windows_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "win",
             "x86",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "win10_gce_gpu_pool",
+            "timeout_15m",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.WINDOWS,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "ToT SwiftShader|Windows",
@@ -409,10 +555,24 @@ ci.gpu.windows_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "win",
+            "x64",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "win10_gce_gpu_pool",
+            "timeout_15m",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.WINDOWS,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "DEPS|Windows",
@@ -445,11 +605,24 @@ ci.gpu.windows_builder(
             "angle_deqp_tests",
             "shared",
             "release",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "dcheck_always_on",
+            "win",
             "x86",
         ],
+    ),
+    targets = targets.bundle(
+        targets = [
+            "swangle_gtests",
+        ],
+        mixins = [
+            "win10_gce_gpu_pool",
+            "timeout_15m",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.WINDOWS,
     ),
     console_view_entry = consoles.console_view_entry(
         category = "DEPS|Windows",

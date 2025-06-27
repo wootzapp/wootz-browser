@@ -4,6 +4,23 @@
 
 package org.chromium.chrome.browser.ui.plus_addresses;
 
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.CANCEL_BUTTON_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.CONFIRM_BUTTON_ENABLED;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.CONFIRM_BUTTON_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.ERROR_STATE_INFO;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.LOADING_INDICATOR_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.PLUS_ADDRESS_ICON_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.PLUS_ADDRESS_LOADING_VIEW_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.PROPOSED_PLUS_ADDRESS;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.REFRESH_ICON_ENABLED;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.REFRESH_ICON_VISIBLE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.SHOW_ONBOARDING_NOTICE;
+import static org.chromium.chrome.browser.ui.plus_addresses.PlusAddressCreationProperties.VISIBLE;
+
+import android.content.Context;
+
+import androidx.annotation.Nullable;
+
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
 import org.chromium.chrome.browser.layouts.LayoutType;
@@ -16,6 +33,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
 
 /**
@@ -31,17 +49,20 @@ import org.chromium.url.GURL;
  */
 /*package*/ class PlusAddressCreationMediator extends EmptyBottomSheetObserver
         implements PlusAddressCreationDelegate, TabModelObserver, LayoutStateObserver {
-    private final PlusAddressCreationBottomSheetContent mBottomSheetContent;
+    private final Context mContext;
     private final BottomSheetController mBottomSheetController;
     private final LayoutStateProvider mLayoutStateProvider;
     private final TabModelSelector mTabModelSelector;
     private final TabModel mTabModel;
     private final PlusAddressCreationViewBridge mBridge;
+    private PropertyModel mModel;
+    @Nullable private String mProposedPlusAddress;
+    @Nullable private PlusAddressCreationErrorStateInfo mErrorStateInfo;
 
     /**
      * Creates the mediator.
      *
-     * @param bottomSheetContent The bottom sheet content to be shown.
+     * @param context Current application context.
      * @param bottomSheetController The controller to use for showing or hiding the content.
      * @param layoutStateProvider The LayoutStateProvider used to detect when the bottom sheet needs
      *     to be hidden after a change of layout (e.g. to the tab switcher).
@@ -51,41 +72,64 @@ import org.chromium.url.GURL;
      * @param bridge The bridge to signal UI flow events (onConfirmed, onCanceled, etc.) to.
      */
     PlusAddressCreationMediator(
-            PlusAddressCreationBottomSheetContent bottomSheetContent,
+            Context context,
             BottomSheetController bottomSheetController,
             LayoutStateProvider layoutStateProvider,
             TabModel tabModel,
             TabModelSelector tabModelSelector,
             PlusAddressCreationViewBridge bridge) {
-        mBottomSheetContent = bottomSheetContent;
+        mContext = context;
         mBottomSheetController = bottomSheetController;
         mLayoutStateProvider = layoutStateProvider;
         mTabModel = tabModel;
         mTabModelSelector = tabModelSelector;
         mBridge = bridge;
 
-        mBottomSheetContent.setDelegate(this);
         mBottomSheetController.addObserver(this);
         mLayoutStateProvider.addObserver(this);
         mTabModel.addObserver(this);
     }
 
+    void setModel(PropertyModel model) {
+        mModel = model;
+    }
+
     /** Requests to show the bottom sheet content. */
     void requestShowContent() {
-        mBottomSheetController.requestShowContent(mBottomSheetContent, /* animate= */ true);
+        mModel.set(VISIBLE, true);
     }
 
     void updateProposedPlusAddress(String plusAddress) {
-        mBottomSheetContent.setProposedPlusAddress(plusAddress);
+        mProposedPlusAddress = plusAddress;
+        mModel.set(PLUS_ADDRESS_LOADING_VIEW_VISIBLE, false);
     }
 
-    void showError() {
-        mBottomSheetContent.showError();
+    @Override
+    public void onPlusAddressLoadingViewHidden() {
+        mModel.set(PLUS_ADDRESS_ICON_VISIBLE, true);
+        mModel.set(PROPOSED_PLUS_ADDRESS, mProposedPlusAddress);
+        mModel.set(REFRESH_ICON_ENABLED, true);
+        mModel.set(CONFIRM_BUTTON_ENABLED, true);
+    }
+
+    void showError(PlusAddressCreationErrorStateInfo errorStateInfo) {
+        if (mModel.get(LOADING_INDICATOR_VISIBLE)) {
+            // If the loading view is visible, hide it first and then show the error screen to avoid
+            // UI glitches.
+            mErrorStateInfo = errorStateInfo;
+            mModel.set(LOADING_INDICATOR_VISIBLE, false);
+        } else {
+            mModel.set(ERROR_STATE_INFO, errorStateInfo);
+        }
+    }
+
+    void hideRefreshButton() {
+        mModel.set(REFRESH_ICON_VISIBLE, false);
     }
 
     /** Hide the bottom sheet (if showing) and clean up observers. */
     void destroy() {
-        mBottomSheetController.hideContent(mBottomSheetContent, /* animate= */ false);
+        mModel.set(VISIBLE, false);
         mBottomSheetController.removeObserver(this);
         mLayoutStateProvider.removeObserver(this);
         mTabModel.removeObserver(this);
@@ -93,25 +137,61 @@ import org.chromium.url.GURL;
 
     // PlusAddressCreationDelegate implementation:
     @Override
+    public void onRefreshClicked() {
+        mModel.set(
+                PROPOSED_PLUS_ADDRESS,
+                mContext.getString(
+                        R.string.plus_address_model_refresh_temporary_label_content_android));
+        mModel.set(REFRESH_ICON_ENABLED, false);
+        mModel.set(CONFIRM_BUTTON_ENABLED, false);
+        mModel.set(PLUS_ADDRESS_ICON_VISIBLE, false);
+        mModel.set(PLUS_ADDRESS_LOADING_VIEW_VISIBLE, true);
+        mBridge.onRefreshClicked();
+    }
+
+    @Override
     public void onConfirmRequested() {
+        mModel.set(REFRESH_ICON_ENABLED, false);
+        mModel.set(CONFIRM_BUTTON_ENABLED, false);
+        mModel.set(CONFIRM_BUTTON_VISIBLE, false);
+        mModel.set(CANCEL_BUTTON_VISIBLE, mModel.get(SHOW_ONBOARDING_NOTICE));
+        mModel.set(LOADING_INDICATOR_VISIBLE, true);
         mBridge.onConfirmRequested();
     }
 
     @Override
-    public void onConfirmFinished() {
-        mBottomSheetController.hideContent(
-                mBottomSheetContent, /* animate= */ true, StateChangeReason.INTERACTION_COMPLETE);
+    public void onConfirmationLoadingViewHidden() {
+        if (mModel.get(VISIBLE) && mErrorStateInfo != null) {
+            mModel.set(ERROR_STATE_INFO, mErrorStateInfo);
+            mErrorStateInfo = null;
+        }
+    }
+
+    @Override
+    public void onTryAgain() {
+        boolean wasPlusAddressReserved = mModel.get(ERROR_STATE_INFO).wasPlusAddressReserved();
+        mModel.set(ERROR_STATE_INFO, null);
+        if (wasPlusAddressReserved) {
+            onConfirmRequested();
+        } else {
+            mBridge.tryAgainToReservePlusAddress();
+        }
     }
 
     @Override
     public void onCanceled() {
-        mBottomSheetController.hideContent(
-                mBottomSheetContent, /* animate= */ true, StateChangeReason.INTERACTION_COMPLETE);
+        mModel.set(VISIBLE, false);
         mBridge.onCanceled();
     }
 
     @Override
+    public void onConfirmFinished() {
+        mModel.set(VISIBLE, false);
+    }
+
+    @Override
     public void onPromptDismissed() {
+        mModel.set(VISIBLE, false);
         mBridge.onPromptDismissed();
     }
 
@@ -127,6 +207,7 @@ import org.chromium.url.GURL;
     // EmptyBottomSheetObserver overridden methods follow:
     @Override
     public void onSheetClosed(@StateChangeReason int reason) {
+        mModel.set(VISIBLE, false);
         // Swipe to dismiss should record cancel metrics.
         if (reason == StateChangeReason.SWIPE) {
             mBridge.onCanceled();
@@ -141,7 +222,7 @@ import org.chromium.url.GURL;
         // ways such as by opening a link from another app. In this case we want to hide the bottom
         // sheet rather than keeping the bottom sheet open while this tab loads behind the scrim.
         if (lastId != tab.getId()) {
-            mBottomSheetController.hideContent(mBottomSheetContent, /* animate= */ false);
+            mModel.set(VISIBLE, false);
         }
     }
 
@@ -151,7 +232,7 @@ import org.chromium.url.GURL;
         // When the browser layout changes away from browsing to say the tab switcher, then the
         // bottom sheet must be hidden.
         if (layoutType != LayoutType.BROWSING) {
-            mBottomSheetController.hideContent(mBottomSheetContent, /* animate= */ true);
+            mModel.set(VISIBLE, false);
         }
     }
 }

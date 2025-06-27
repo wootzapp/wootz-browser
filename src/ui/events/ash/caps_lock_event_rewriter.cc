@@ -6,7 +6,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "base/check.h"
-#include "ui/base/accelerators/ash/right_alt_event_property.h"
+#include "ui/base/accelerators/ash/quick_insert_event_property.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/events/ash/event_property.h"
 #include "ui/events/event_constants.h"
@@ -31,11 +31,11 @@ EventDispatchDetails CapsLockEventRewriter::RewriteEvent(
     const Continuation continuation) {
   std::unique_ptr<Event> rewritten_event;
   switch (event.type()) {
-    case ET_KEY_PRESSED: {
+    case EventType::kKeyPressed: {
       rewritten_event = RewritePressKeyEvent(*event.AsKeyEvent());
       break;
     }
-    case ET_KEY_RELEASED: {
+    case EventType::kKeyReleased: {
       rewritten_event = RewriteReleaseKeyEvent(*event.AsKeyEvent());
       break;
     }
@@ -45,6 +45,14 @@ EventDispatchDetails CapsLockEventRewriter::RewriteEvent(
       const int rewritten_flags = RewriteModifierFlags(event.flags());
       if (flags != rewritten_flags) {
         rewritten_event = event.Clone();
+
+        // SetNativeEvent must be called explicitly as native events are not
+        // copied on ChromeOS by default. This is because `PlatformEvent` is a
+        // pointer by default, so its lifetime can not be guaranteed in general.
+        // In this case, the lifetime of  `rewritten_event` is guaranteed to be
+        // less than the original `event`.
+        SetNativeEvent(*rewritten_event, event.native_event());
+
         // Note: this updates DomKey to reflect the new flags.
         rewritten_event->SetFlags(rewritten_flags);
       }
@@ -69,10 +77,11 @@ std::unique_ptr<KeyEvent> CapsLockEventRewriter::RewritePressKeyEvent(
   RemappedKey remapped_key = {key_event.code(), key_event.GetDomKey(),
                               key_event.key_code()};
 
-  const bool is_right_alt_key = key_event.code() == DomCode::LAUNCH_ASSISTANT &&
-                                HasRightAltProperty(key_event);
+  const bool is_quick_insert_key =
+      key_event.code() == DomCode::LAUNCH_ASSISTANT &&
+      HasQuickInsertProperty(key_event);
   const bool is_function_down = (key_event.flags() & EF_FUNCTION_DOWN) != 0;
-  if (is_right_alt_key && is_function_down) {
+  if (is_quick_insert_key && is_function_down) {
     // Update DomKey and KeyboardCode respecting the current keyboard layout.
     const DomCode remapped_dom_code = DomCode::CAPS_LOCK;
     DomKey dom_key;

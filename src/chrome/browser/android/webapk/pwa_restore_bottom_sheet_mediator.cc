@@ -10,10 +10,13 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/feature_list.h"
 #include "chrome/browser/android/webapk/webapk_sync_service.h"
+#include "chrome/browser/android/webapk/webapk_sync_service_factory.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "components/sync/base/features.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/webapps/browser/android/pwa_restore_bottom_sheet_mediator_jni_headers/PwaRestoreBottomSheetMediator_jni.h"
 
 using base::android::JavaParamRef;
@@ -30,7 +33,8 @@ jlong JNI_PwaRestoreBottomSheetMediator_Initialize(
   }
 
   WebApkRestoreManager* restore_manager =
-      WebApkSyncService::GetForProfile(profile)->GetWebApkRestoreManager();
+      WebApkSyncServiceFactory::GetForProfile(profile)
+          ->GetWebApkRestoreManager();
 
   return reinterpret_cast<intptr_t>(
       new PwaRestoreBottomSheetMediator(java_ref, restore_manager));

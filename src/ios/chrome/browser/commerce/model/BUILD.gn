@@ -14,21 +14,22 @@ source_set("model") {
     "//components/commerce/core:feature_list",
     "//components/commerce/core:proto",
     "//components/optimization_guide/core:core",
-    "//components/payments/core:core",
+    "//components/payments/core:currency_formatter",
     "//components/prefs:prefs",
     "//components/unified_consent:unified_consent",
     "//ios/chrome/browser/optimization_guide/model",
     "//ios/chrome/browser/shared/model/application_context",
-    "//ios/chrome/browser/shared/model/browser_state",
     "//ios/chrome/browser/shared/model/prefs:pref_names",
+    "//ios/chrome/browser/shared/model/profile",
     "//ios/chrome/browser/shared/public/features",
-    "//ios/chrome/browser/signin/model",
+    "//ios/chrome/browser/signin/model:authentication_service",
+    "//ios/chrome/browser/signin/model:authentication_service_factory",
     "//ios/web",
     "//ios/web/public",
   ]
 }
 
-static_library("shopping_service") {
+source_set("shopping_service") {
   sources = [
     "shopping_service_factory.h",
     "shopping_service_factory.mm",
@@ -42,7 +43,6 @@ static_library("shopping_service") {
     "//components/commerce/core:parcel_tracking_db_content_proto",
     "//components/commerce/core:shopping_service",
     "//components/commerce/ios/browser:browser",
-    "//components/keyed_service/ios",
     "//components/leveldb_proto",
     "//components/prefs",
     "//components/sync/base:features",
@@ -50,9 +50,12 @@ static_library("shopping_service") {
     "//ios/chrome/browser/bookmarks/model",
     "//ios/chrome/browser/history/model",
     "//ios/chrome/browser/optimization_guide/model",
+    "//ios/chrome/browser/parcel_tracking:features",
     "//ios/chrome/browser/power_bookmarks/model",
+    "//ios/chrome/browser/sessions/model",
     "//ios/chrome/browser/shared/model/application_context",
-    "//ios/chrome/browser/shared/model/browser_state",
+    "//ios/chrome/browser/shared/model/profile",
+    "//ios/chrome/browser/shared/model/profile:profile_keyed_service_factory",
     "//ios/chrome/browser/signin/model",
     "//ios/chrome/browser/sync/model",
     "//ios/web",
@@ -60,7 +63,7 @@ static_library("shopping_service") {
   ]
 }
 
-static_library("session_proto_db") {
+source_set("session_proto_db") {
   sources = [
     "session_proto_db_factory.h",
     "session_proto_db_factory.mm",
@@ -69,9 +72,10 @@ static_library("session_proto_db") {
   deps = [
     "//components/commerce/core:commerce_subscription_db_content_proto",
     "//components/commerce/core:parcel_tracking_db_content_proto",
-    "//components/keyed_service/ios:ios",
     "//components/leveldb_proto:leveldb_proto",
     "//components/session_proto_db:session_proto_db",
+    "//ios/chrome/browser/shared/model/profile",
+    "//ios/chrome/browser/shared/model/profile:profile_keyed_service_factory",
     "//ios/web/public:public",
   ]
 }
@@ -97,10 +101,11 @@ source_set("unit_tests") {
     "//ios/chrome/browser/optimization_guide/model",
     "//ios/chrome/browser/optimization_guide/model:unit_tests",
     "//ios/chrome/browser/shared/model/application_context",
-    "//ios/chrome/browser/shared/model/browser_state:test_support",
     "//ios/chrome/browser/shared/model/prefs:pref_names",
+    "//ios/chrome/browser/shared/model/profile/test",
     "//ios/chrome/browser/shared/public/features",
-    "//ios/chrome/browser/signin/model",
+    "//ios/chrome/browser/signin/model:authentication_service",
+    "//ios/chrome/browser/signin/model:authentication_service_factory",
     "//ios/chrome/browser/signin/model:fake_system_identity",
     "//ios/chrome/browser/signin/model:fake_system_identity_manager",
     "//ios/chrome/browser/signin/model:test_support",

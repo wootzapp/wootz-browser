@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/cert/x509_certificate.h"
 
 #include <limits.h>
@@ -48,10 +53,9 @@ namespace {
 
 // Indicates the order to use when trying to decode binary data, which is
 // based on (speculation) as to what will be most common -> least common
-const X509Certificate::Format kFormatDecodePriority[] = {
-  X509Certificate::FORMAT_SINGLE_CERTIFICATE,
-  X509Certificate::FORMAT_PKCS7
-};
+constexpr auto kFormatDecodePriority = std::to_array<X509Certificate::Format>(
+    {X509Certificate::FORMAT_SINGLE_CERTIFICATE,
+     X509Certificate::FORMAT_PKCS7});
 
 // The PEM block header used for DER certificates
 const char kCertificateHeader[] = "CERTIFICATE";
@@ -91,7 +95,7 @@ bool GetNormalizedCertIssuer(CRYPTO_BUFFER* cert,
   bssl::der::Input signature_algorithm_tlv;
   bssl::der::BitString signature_value;
   if (!bssl::ParseCertificate(
-          bssl::der::Input(CRYPTO_BUFFER_data(cert), CRYPTO_BUFFER_len(cert)),
+          bssl::der::Input(x509_util::CryptoBufferAsSpan(cert)),
           &tbs_certificate_tlv, &signature_algorithm_tlv, &signature_value,
           nullptr)) {
     return false;
@@ -225,8 +229,6 @@ CertificateList X509Certificate::CreateCertificateListFromBytes(
   // Check to see if it is in a PEM-encoded form. This check is performed
   // first, as both OS X and NSS will both try to convert if they detect
   // PEM encoding, except they don't do it consistently between the two.
-  std::string_view data_string(reinterpret_cast<const char*>(data.data()),
-                               data.size());
   std::vector<std::string> pem_headers;
 
   // To maintain compatibility with NSS/Firefox, CERTIFICATE is a universally
@@ -235,7 +237,7 @@ CertificateList X509Certificate::CreateCertificateListFromBytes(
   if (format & FORMAT_PKCS7)
     pem_headers.push_back(kPKCS7Header);
 
-  bssl::PEMTokenizer pem_tokenizer(data_string, pem_headers);
+  bssl::PEMTokenizer pem_tokenizer(base::as_string_view(data), pem_headers);
   while (pem_tokenizer.GetNext()) {
     std::string decoded(pem_tokenizer.data());
 
@@ -314,8 +316,7 @@ void X509Certificate::Persist(base::Pickle* pickle) const {
   DCHECK(cert_buffer_);
   // This would be an absolutely insane number of intermediates.
   if (intermediate_ca_certs_.size() > static_cast<size_t>(INT_MAX) - 1) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
   pickle->WriteInt(static_cast<int>(intermediate_ca_certs_.size() + 1));
   pickle->WriteString(x509_util::CryptoBufferAsStringPiece(cert_buffer_.get()));
@@ -336,11 +337,9 @@ bool X509Certificate::GetSubjectAltName(
   bssl::der::Input tbs_certificate_tlv;
   bssl::der::Input signature_algorithm_tlv;
   bssl::der::BitString signature_value;
-  if (!bssl::ParseCertificate(
-          bssl::der::Input(CRYPTO_BUFFER_data(cert_buffer_.get()),
-                           CRYPTO_BUFFER_len(cert_buffer_.get())),
-          &tbs_certificate_tlv, &signature_algorithm_tlv, &signature_value,
-          nullptr)) {
+  if (!bssl::ParseCertificate(bssl::der::Input(cert_span()),
+                              &tbs_certificate_tlv, &signature_algorithm_tlv,
+                              &signature_value, nullptr)) {
     return false;
   }
 
@@ -453,12 +452,9 @@ bool X509Certificate::VerifyHostname(
   //                         access, i.e. the thing displayed in the URL bar.
   // Presented identifier(s) == name(s) the server knows itself as, in its cert.
 
-  // CanonicalizeHost requires surrounding brackets to parse an IPv6 address.
-  const std::string host_or_ip = hostname.find(':') != std::string::npos
-                                     ? base::StrCat({"[", hostname, "]"})
-                                     : std::string(hostname);
   url::CanonHostInfo host_info;
-  std::string reference_name = CanonicalizeHost(host_or_ip, &host_info);
+  std::string reference_name =
+      CanonicalizeHostSupportsBareIPV6(hostname, &host_info);
 
   // If the host cannot be canonicalized, fail fast.
   if (reference_name.empty())
@@ -616,10 +612,7 @@ void X509Certificate::GetPublicKeyInfo(const CRYPTO_BUFFER* cert_buffer,
 
   std::string_view spki;
   if (!asn1::ExtractSPKIFromDERCert(
-          std::string_view(
-              reinterpret_cast<const char*>(CRYPTO_BUFFER_data(cert_buffer)),
-              CRYPTO_BUFFER_len(cert_buffer)),
-          &spki)) {
+          x509_util::CryptoBufferAsStringPiece(cert_buffer), &spki)) {
     return;
   }
 
@@ -661,9 +654,7 @@ X509Certificate::CreateCertBuffersFromBytes(base::span<const uint8_t> data,
       break;
     }
     default: {
-      NOTREACHED_IN_MIGRATION()
-          << "Certificate format " << format << " unimplemented";
-      break;
+      NOTREACHED() << "Certificate format " << format << " unimplemented";
     }
   }
 
@@ -675,13 +666,12 @@ SHA256HashValue X509Certificate::CalculateFingerprint256(
     const CRYPTO_BUFFER* cert) {
   SHA256HashValue sha256;
 
-  SHA256(CRYPTO_BUFFER_data(cert), CRYPTO_BUFFER_len(cert), sha256.data);
+  SHA256(CRYPTO_BUFFER_data(cert), CRYPTO_BUFFER_len(cert), sha256.data());
   return sha256;
 }
 
 SHA256HashValue X509Certificate::CalculateChainFingerprint256() const {
-  SHA256HashValue sha256;
-  memset(sha256.data, 0, sizeof(sha256.data));
+  SHA256HashValue sha256 = {0};
 
   SHA256_CTX sha256_ctx;
   SHA256_Init(&sha256_ctx);
@@ -691,7 +681,7 @@ SHA256HashValue X509Certificate::CalculateChainFingerprint256() const {
     SHA256_Update(&sha256_ctx, CRYPTO_BUFFER_data(cert.get()),
                   CRYPTO_BUFFER_len(cert.get()));
   }
-  SHA256_Final(sha256.data, &sha256_ctx);
+  SHA256_Final(sha256.data(), &sha256_ctx);
 
   return sha256;
 }
@@ -726,6 +716,10 @@ X509Certificate::X509Certificate(
 
 X509Certificate::~X509Certificate() = default;
 
+base::span<const uint8_t> X509Certificate::cert_span() const {
+  return x509_util::CryptoBufferAsSpan(cert_buffer_.get());
+}
+
 X509Certificate::ParsedFields::ParsedFields() = default;
 X509Certificate::ParsedFields::ParsedFields(const ParsedFields&) = default;
 X509Certificate::ParsedFields::ParsedFields(ParsedFields&&) = default;
@@ -738,10 +732,10 @@ bool X509Certificate::ParsedFields::Initialize(
   bssl::der::Input signature_algorithm_tlv;
   bssl::der::BitString signature_value;
 
-  if (!bssl::ParseCertificate(bssl::der::Input(CRYPTO_BUFFER_data(cert_buffer),
-                                               CRYPTO_BUFFER_len(cert_buffer)),
-                              &tbs_certificate_tlv, &signature_algorithm_tlv,
-                              &signature_value, nullptr)) {
+  if (!bssl::ParseCertificate(
+          bssl::der::Input(x509_util::CryptoBufferAsSpan(cert_buffer)),
+          &tbs_certificate_tlv, &signature_algorithm_tlv, &signature_value,
+          nullptr)) {
     return false;
   }
 

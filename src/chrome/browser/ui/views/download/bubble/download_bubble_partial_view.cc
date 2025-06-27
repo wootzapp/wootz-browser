@@ -13,8 +13,8 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
+#include "chrome/browser/ui/views/download/bubble/download_bubble_navigation_handler.h"
 #include "chrome/browser/ui/views/download/bubble/download_bubble_row_list_view.h"
-#include "chrome/browser/ui/views/download/bubble/download_toolbar_button_view.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -22,6 +22,7 @@
 #include "ui/compositor/compositor.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/link_fragment.h"
@@ -31,9 +32,6 @@
 #include "ui/views/layout/table_layout.h"
 
 namespace {
-
-constexpr char kPartialBubbleVisibleHistogramName[] =
-    "Download.Bubble.PartialView.VisibleTime";
 
 // We want the checkbox to accept gestures when users click on the label text,
 // like all other Chrome checkboxes. This ViewTargeterDelegate achieves that.
@@ -89,7 +87,7 @@ class SuppressBubbleSettingRow : public views::View,
         std::u16string(),
         base::BindRepeating(&SuppressBubbleSettingRow::CheckboxClicked,
                             base::Unretained(this))));
-    checkbox_->SetAccessibleName(
+    checkbox_->GetViewAccessibility().SetName(
         l10n_util::GetStringUTF16(IDS_DOWNLOAD_BUBBLE_SUPPRESS_PARTIAL_VIEW));
     checkbox_->SetChecked(
         !download::IsDownloadBubblePartialViewEnabled(browser_->profile()));
@@ -143,8 +141,7 @@ class SuppressBubbleSettingRow : public views::View,
         views::ViewTargeterDelegate::TargetForRect(root, rect);
     // Links should operate as expected, but all other gestures on this view
     // should be forwarded to the checkbox.
-    if (std::string_view(target->GetClassName()) ==
-        std::string_view(views::LinkFragment::kViewClassName)) {
+    if (target->GetClassName() == views::LinkFragment::kViewClassName) {
       return target;
     }
 
@@ -247,18 +244,7 @@ DownloadBubblePartialView::DownloadBubblePartialView(
   MaybeRecordImpression(profile, impressions);
 }
 
-DownloadBubblePartialView::~DownloadBubblePartialView() {
-  LogVisibleTimeMetrics();
-}
-
-std::string_view DownloadBubblePartialView::GetVisibleTimeHistogramName()
-    const {
-  return kPartialBubbleVisibleHistogramName;
-}
-
-bool DownloadBubblePartialView::IsPartialView() const {
-  return true;
-}
+DownloadBubblePartialView::~DownloadBubblePartialView() = default;
 
 void DownloadBubblePartialView::AddedToWidget() {
   auto* focus_manager = GetFocusManager();
@@ -297,6 +283,11 @@ void DownloadBubblePartialView::OnInteracted() {
 
 void DownloadBubblePartialView::OnWillChangeFocus(views::View* before,
                                                   views::View* now) {
+  // Check 'before' to make sure this is not the first focus change.
+  // This will happen when the bubble is first shown inside Mac PWA.
+  if (!before) {
+    return;
+  }
   if (now && Contains(now)) {
     OnInteracted();
   }

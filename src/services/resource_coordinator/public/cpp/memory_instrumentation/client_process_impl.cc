@@ -7,6 +7,8 @@
 #include "base/containers/flat_map.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "base/not_fatal_until.h"
+#include "base/process/process.h"
 #include "base/synchronization/lock.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/memory_dump_request_args.h"
@@ -34,7 +36,7 @@ void ClientProcessImpl::CreateInstance(
         std::move(receiver), std::move(coordinator), is_browser_process,
         /*initialize_memory_instrumentation=*/true);
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -91,7 +93,8 @@ void ClientProcessImpl::OnChromeMemoryDumpDone(
   DCHECK(success || !process_memory_dump);
 
   auto callback_it = pending_chrome_callbacks_.find(dump_guid);
-  DCHECK(callback_it != pending_chrome_callbacks_.end());
+  CHECK(callback_it != pending_chrome_callbacks_.end(),
+        base::NotFatalUntil::M130);
 
   auto callback = std::move(callback_it->second);
   pending_chrome_callbacks_.erase(callback_it);
@@ -167,12 +170,13 @@ void ClientProcessImpl::PerformOSMemoryDump(OSMemoryDumpArgs args) {
   bool global_success = true;
   base::flat_map<base::ProcessId, mojom::RawOSMemDumpPtr> results;
   for (const base::ProcessId& pid : args.pids) {
+    auto handle = base::Process::Open(pid).Handle();
     mojom::RawOSMemDumpPtr result = mojom::RawOSMemDump::New();
     result->platform_private_footprint = mojom::PlatformPrivateFootprint::New();
-    bool success = OSMetrics::FillOSMemoryDump(pid, result.get());
+    bool success = OSMetrics::FillOSMemoryDump(handle, result.get());
     if (args.mmap_option != mojom::MemoryMapOption::NONE) {
       success = success && OSMetrics::FillProcessMemoryMaps(
-                               pid, args.mmap_option, result.get());
+                               handle, args.mmap_option, result.get());
     }
     if (success) {
       results[pid] = std::move(result);

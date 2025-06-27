@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SeaPenImageId} from './constants.js';
-import {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
+import type {SeaPenImageId} from './constants.js';
+import type {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail, TextQueryHistoryEntry} from './sea_pen.mojom-webui.js';
 
 export interface SeaPenLoadingState {
   recentImageData: Record<SeaPenImageId, boolean>;
@@ -23,7 +23,9 @@ export interface SeaPenState {
   pendingSelected: SeaPenImageId|SeaPenThumbnail|null;
   thumbnailResponseStatusCode: MantaStatusCode|null;
   shouldShowSeaPenIntroductionDialog: boolean;
+  shouldShowSeaPenFreeformIntroductionDialog: boolean;
   error: string|null;
+  textQueryHistory: TextQueryHistoryEntry[]|null;
 }
 
 export function emptyState(): SeaPenState {
@@ -43,6 +45,8 @@ export function emptyState(): SeaPenState {
     currentSelected: null,
     pendingSelected: null,
     shouldShowSeaPenIntroductionDialog: false,
+    shouldShowSeaPenFreeformIntroductionDialog: false,
     error: null,
+    textQueryHistory: null,
   };
 }

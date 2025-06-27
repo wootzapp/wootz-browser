@@ -28,7 +28,6 @@ class CancellingSelectFileDialog : public ui::SelectFileDialog {
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
                       const GURL* caller) override {
     if (out_params_) {
       out_params_->type = type;
@@ -51,8 +50,16 @@ class CancellingSelectFileDialog : public ui::SelectFileDialog {
       // once.
       out_params_ = nullptr;
     }
-    listener_->FileSelectionCanceled(params);
+    listener_->FileSelectionCanceled();
   }
+
+#if BUILDFLAG(IS_ANDROID)
+  void SetAcceptTypes(std::vector<std::u16string> types) override {
+    if (out_params_) {
+      out_params_->accept_types = std::move(types);
+    }
+  }
+#endif
 
   bool IsRunning(gfx::NativeWindow owning_window) const override {
     return false;
@@ -87,7 +94,6 @@ class FakeSelectFileDialog : public ui::SelectFileDialog {
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
                       const GURL* caller) override {
     if (out_params_) {
       out_params_->type = type;
@@ -114,9 +120,9 @@ class FakeSelectFileDialog : public ui::SelectFileDialog {
     std::vector<ui::SelectedFileInfo> result = std::move(result_);
     result_.clear();
     if (result.size() == 1) {
-      listener_->FileSelected(result[0], 0, params);
+      listener_->FileSelected(result[0], 0);
     } else {
-      listener_->MultiFilesSelected(result, params);
+      listener_->MultiFilesSelected(result);
     }
   }
 

@@ -42,6 +42,7 @@
 #include "components/sessions/core/tab_restore_types.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/window_open_disposition.h"
 
 namespace sessions {
@@ -70,8 +71,9 @@ void AddSerializedNavigationEntries(
   const int delta =
       (behavior == AddBehavior::kCurrentAndPreceedingEntries) ? -1 : 1;
   int current_index = live_tab->GetCurrentEntryIndex();
-  if (behavior == AddBehavior::kEntriesFollowingCurrentEntry)
+  if (behavior == AddBehavior::kEntriesFollowingCurrentEntry) {
     ++current_index;
+  }
   int added_count = 0;
   while (current_index >= 0 && current_index < max_index &&
          added_count <= gMaxPersistNavigationCount) {
@@ -112,7 +114,7 @@ void AddSerializedNavigationEntries(
 
 // TabRestoreServiceHelper::Observer -------------------------------------------
 
-TabRestoreServiceHelper::Observer::~Observer() {}
+TabRestoreServiceHelper::Observer::~Observer() = default;
 
 void TabRestoreServiceHelper::Observer::OnClearEntries() {}
 
@@ -146,8 +148,9 @@ void TabRestoreServiceHelper::SetHelperObserver(Observer* observer) {
 }
 
 TabRestoreServiceHelper::~TabRestoreServiceHelper() {
-  for (auto& observer : observer_list_)
+  for (auto& observer : observer_list_) {
     observer.TabRestoreServiceDestroyed(tab_restore_service_);
+  }
   base::trace_event::MemoryDumpManager::GetInstance()->UnregisterDumpProvider(
       this);
 }
@@ -192,8 +195,9 @@ std::optional<SessionID> TabRestoreServiceHelper::CreateHistoricalTab(
 
   auto local_tab = std::make_unique<Tab>();
   PopulateTab(local_tab.get(), index, context, live_tab);
-  if (local_tab->navigations.empty())
+  if (local_tab->navigations.empty()) {
     return std::nullopt;
+  }
 
   SessionID id = local_tab->id;
   AddEntry(std::move(local_tab), true, true);
@@ -233,15 +237,14 @@ void TabRestoreServiceHelper::BrowserClosing(LiveTabContext* context) {
     window->tabs.push_back(std::move(tab));
   }
 
-  if (window->tabs.size() == 1 && window->app_name.empty()) {
-    // Short-circuit creating a Window if only 1 tab was present. This fixes
-    // http://crbug.com/56744.
-    AddEntry(std::move(window->tabs[0]), true, true);
-  } else if (!window->tabs.empty()) {
-    window->selected_tab_index = std::min(
-        static_cast<int>(window->tabs.size() - 1), window->selected_tab_index);
-    AddEntry(std::move(window), true, true);
+  if (window->tabs.empty()) {
+    // This can happen in tests.
+    return;
   }
+
+  window->selected_tab_index = std::min(
+      static_cast<int>(window->tabs.size() - 1), window->selected_tab_index);
+  AddEntry(std::move(window), true, true);
 }
 
 void TabRestoreServiceHelper::BrowserClosed(LiveTabContext* context) {
@@ -457,8 +460,7 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
     LiveTabContext* context,
     WindowOpenDisposition disposition,
     std::vector<LiveTab*>* live_tabs) {
-  // Restore a single tab from the window. Find the tab that matches the
-  // ID in the window and restore it.
+  // 1. Determine if `id` corresponds to a tab. If so, restore the tab.
   bool found_tab_to_delete = false;
   SessionID::id_type restored_tab_browser_id;
   for (size_t tab_i = 0; tab_i < window.tabs.size() && !found_tab_to_delete;
@@ -471,9 +473,12 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
     // Restore the tab.
     restored_tab_browser_id = tab.browser_id;
     LiveTab* restored_tab = nullptr;
-    context = RestoreTab(tab, context, disposition, &restored_tab);
+    context = RestoreTab(tab, context, disposition,
+                         sessions::tab_restore::WINDOW, &restored_tab,
+                         /*is_restoring_group_or_window=*/false);
     live_tabs->push_back(restored_tab);
 
+    // Cleanup.
     std::optional<tab_groups::TabGroupId> group_id = tab.group;
     window.tabs.erase(window.tabs.begin() + tab_i);
 
@@ -498,7 +503,8 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
     found_tab_to_delete = true;
   }
 
-  // Check the groups for the id if we didn't find the tab.
+  // 2. Determine if `id` corresponds to a group if we haven't restored a tab
+  // yet. If so, restore the group.
   if (!found_tab_to_delete) {
     for (auto& group_pair : window.tab_groups) {
       auto& group = group_pair.second;
@@ -509,7 +515,7 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
       restored_tab_browser_id = group->browser_id;
       tab_groups::TabGroupId group_id = group->group_id;
 
-      // Restore tabs in the window that belong to `group_id`.
+      // Restore the grouped tabs that belong to `group_id`.
       for (size_t tab_i = 0; tab_i < window.tabs.size();) {
         const Tab& tab = *window.tabs[tab_i];
         if (!tab.group.has_value() || tab.group.value() != group_id) {
@@ -518,10 +524,11 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
           continue;
         }
 
-        // Restore the tab.
+        // Restore the grouped tab.
         LiveTab* restored_tab = nullptr;
         LiveTabContext* new_context =
-            RestoreTab(tab, context, disposition, &restored_tab);
+            RestoreTab(tab, context, disposition, sessions::tab_restore::WINDOW,
+                       &restored_tab, /*is_restoring_group_or_window=*/true);
         if (tab_i != 0) {
           // CHECK that the context should be the same except for the first tab.
           DCHECK_EQ(new_context, context);
@@ -532,7 +539,7 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
         window.tabs.erase(window.tabs.begin() + tab_i);
       }
 
-      // Clear group from mapping.
+      // Clean up.
       window.tab_groups.erase(group_id);
 
       if (!window.tabs.empty()) {
@@ -557,6 +564,31 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
   }
 
   return context;
+}
+
+void TabRestoreServiceHelper::UpdateSavedGroupIDsForTabEntries(
+    std::vector<std::unique_ptr<tab_restore::Tab>>& tabs,
+    const std::map<tab_groups::TabGroupId, base::Uuid>& group_mapping) {
+  for (auto& tab : tabs) {
+    if (tab->group.has_value() && group_mapping.contains(tab->group.value())) {
+      tab->saved_group_id = group_mapping.at(tab->group.value());
+    }
+  }
+}
+
+std::map<tab_groups::TabGroupId, base::Uuid>
+TabRestoreServiceHelper::CreateLocalSavedGroupIDMapping(
+    const std::map<tab_groups::TabGroupId, std::unique_ptr<tab_restore::Group>>&
+        groups) {
+  std::map<tab_groups::TabGroupId, base::Uuid> group_mapping;
+
+  for (const auto& [group_id, group] : groups) {
+    if (group->saved_group_id.has_value()) {
+      group_mapping[group_id] = group->saved_group_id.value();
+    }
+  }
+
+  return group_mapping;
 }
 
 std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
@@ -596,7 +628,8 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
       }
 
       LiveTab* restored_tab = nullptr;
-      context = RestoreTab(tab, context, disposition, &restored_tab);
+      context = RestoreTab(tab, context, disposition, entry.type, &restored_tab,
+                           /*is_restoring_group_or_window=*/false);
       live_tabs.push_back(restored_tab);
       context->ShowBrowserWindow();
       break;
@@ -612,6 +645,12 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
             TimeNow() - window.timestamp);
       }
 
+      // In cases where restoring from a tab restore entry that was created
+      // through session service, or in other cases, the tab objects saved group
+      // information may be missing. Add it in before repopulating tabs.
+      UpdateSavedGroupIDsForTabEntries(
+          window.tabs, CreateLocalSavedGroupIDMapping(window.tab_groups));
+
       // When restoring a window, either the entire window can be restored, or a
       // single tab within it. If the entry's ID matches the one to restore, or
       // the entry corresponds to an application, then the entire window will be
@@ -622,10 +661,20 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
             window.show_state, window.workspace, window.user_title,
             window.extra_data);
 
+        CHECK(!window.tabs.empty());
+        const int selected_tab_index =
+            window.selected_tab_index >= 0 &&
+                    window.selected_tab_index <
+                        static_cast<int>(window.tabs.size())
+                ? window.selected_tab_index
+                : 0;
+        const SessionID selected_tab_id = window.tabs[selected_tab_index]->id;
+
         for (const auto& tab : window.tabs) {
-          const bool first_tab = window.tabs[0]->id == tab->id;
+          const bool select_tab = tab->id == selected_tab_id;
           LiveTab* restored_tab = context->AddRestoredTab(
-              *tab.get(), context->GetTabCount(), first_tab);
+              *tab.get(), context->GetTabCount(), select_tab,
+              /*restored_from_group_or_window_context=*/true, entry.type);
 
           if (restored_tab) {
             client_->OnTabRestored(
@@ -647,7 +696,10 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
 
         if (window.tabs.empty()) {
           // Remove the entry if there is nothing left to restore.
-          entries_.erase(entry_iterator);
+          // The entries_ may by changed after the tabs restored and the
+          // entry_iterator may be no longer valid. So call RemoveEntryById here
+          // instead of entries_.erase(entry_iterator).
+          RemoveEntryById(window.id);
         }
       }
 
@@ -669,13 +721,22 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
             TimeNow() - group.timestamp);
       }
 
+      // In cases where restoring from a tab restore entry that was created
+      // through session service, or in other cases, the tab objects saved group
+      // information may be missing. Add it in before repopulating tabs.
+      if (group.saved_group_id.has_value()) {
+        UpdateSavedGroupIDsForTabEntries(
+            group.tabs, {{group.group_id, group.saved_group_id.value()}});
+      }
+
       // When restoring a group, either the entire group can be restored, or a
       // single tab within it. If the entry's ID matches the one to restore,
       // then the entire group will be restored.
       if (entry_id_matches_restore_id) {
         for (const auto& tab : group.tabs) {
           LiveTab* restored_tab = context->AddRestoredTab(
-              *tab.get(), context->GetTabCount(), group.tabs[0]->id == tab->id);
+              *tab.get(), context->GetTabCount(), group.tabs[0]->id == tab->id,
+              /*restored_from_group_or_window_context=*/true, entry.type);
           live_tabs.push_back(restored_tab);
         }
       } else {
@@ -685,12 +746,17 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
           const Tab& tab = *group.tabs[i];
           if (tab.id == id) {
             LiveTab* restored_tab = nullptr;
-            context = RestoreTab(tab, context, disposition, &restored_tab);
+            context =
+                RestoreTab(tab, context, disposition, entry.type, &restored_tab,
+                           /*is_restoring_group_or_window=*/false);
             live_tabs.push_back(restored_tab);
             CHECK(ValidateGroup(group));
             group.tabs.erase(group.tabs.begin() + i);
             if (group.tabs.empty()) {
-              entries_.erase(entry_iterator);
+              // The entries_ may by changed after the tabs restored and the
+              // entry_iterator may be no longer valid. So call RemoveEntryById
+              // here instead of entries_.erase(entry_iterator).
+              RemoveEntryById(group.id);
             }
 
             break;
@@ -704,7 +770,10 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
   }
 
   if (entry_id_matches_restore_id) {
-    entries_.erase(entry_iterator);
+    // The entries_ may by changed after the tabs restored and the
+    // entry_iterator may be no longer valid. So call RemoveEntryById here
+    // instead of entries_.erase(entry_iterator).
+    RemoveEntryById(id);
   }
 
   restoring_ = false;
@@ -717,13 +786,15 @@ bool TabRestoreServiceHelper::IsRestoring() const {
 }
 
 void TabRestoreServiceHelper::NotifyEntriesChanged() {
-  for (auto& observer : observer_list_)
+  for (auto& observer : observer_list_) {
     observer.TabRestoreServiceChanged(tab_restore_service_);
+  }
 }
 
 void TabRestoreServiceHelper::NotifyLoaded() {
-  for (auto& observer : observer_list_)
+  for (auto& observer : observer_list_) {
     observer.TabRestoreServiceLoaded(tab_restore_service_);
+  }
 }
 
 void TabRestoreServiceHelper::AddEntry(std::unique_ptr<Entry> entry,
@@ -883,8 +954,7 @@ bool TabRestoreServiceHelper::ValidateEntry(const Entry& entry) {
     case tab_restore::Type::GROUP:
       return ValidateGroup(static_cast<const Group&>(entry));
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void TabRestoreServiceHelper::PopulateTab(Tab* tab,
@@ -931,7 +1001,9 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTab(
     const Tab& tab,
     LiveTabContext* context,
     WindowOpenDisposition disposition,
-    LiveTab** live_tab) {
+    sessions::tab_restore::Type session_restore_type,
+    LiveTab** live_tab,
+    bool is_restoring_group_or_window) {
   LiveTab* restored_tab;
   if (disposition == WindowOpenDisposition::CURRENT_TAB && context) {
     restored_tab = context->ReplaceRestoredTab(tab);
@@ -964,7 +1036,7 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTab(
     } else {
       context = client_->CreateLiveTabContext(
           context, SessionWindow::TYPE_NORMAL, std::string(), gfx::Rect(),
-          ui::SHOW_STATE_NORMAL, std::string(), std::string(),
+          ui::mojom::WindowShowState::kNormal, std::string(), std::string(),
           std::map<std::string, std::string>());
       if (tab.browser_id) {
         UpdateTabBrowserIDs(tab.browser_id, context->GetSessionID());
@@ -980,7 +1052,8 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTab(
 
     restored_tab = context->AddRestoredTab(
         tab, tab_index,
-        /*select=*/disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB);
+        /*select=*/disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        is_restoring_group_or_window, session_restore_type);
   }
 
   client_->OnTabRestored(
@@ -1064,8 +1137,7 @@ bool TabRestoreServiceHelper::FilterEntry(const Entry& entry) {
     case tab_restore::Type::GROUP:
       return IsGroupInteresting(static_cast<const Group&>(entry));
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void TabRestoreServiceHelper::UpdateTabBrowserIDs(SessionID::id_type old_id,

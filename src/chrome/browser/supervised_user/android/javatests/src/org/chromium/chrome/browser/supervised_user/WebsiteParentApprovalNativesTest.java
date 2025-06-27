@@ -22,6 +22,7 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
@@ -35,7 +36,6 @@ import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
@@ -87,7 +87,7 @@ public class WebsiteParentApprovalNativesTest {
         mTestServer = mTabbedActivityTestRule.getEmbeddedTestServerRule().getServer();
         mBlockedUrl = mTestServer.getURL(TEST_PAGE);
         mTabbedActivityTestRule.startMainActivityOnBlankPage();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeTabbedActivity activity = mTabbedActivityTestRule.getActivity();
                     mBottomSheetController =
@@ -96,7 +96,7 @@ public class WebsiteParentApprovalNativesTest {
                 });
 
         mSigninTestRule.addChildTestAccountThenWaitForSignin();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     SupervisedUserSettingsTestBridge.setFilteringBehavior(
                             mTabbedActivityTestRule.getProfile(/* incognito= */ false),
@@ -129,7 +129,7 @@ public class WebsiteParentApprovalNativesTest {
                 HistogramWatcher.newBuilder()
                         .expectAnyRecord(
                                 "FamilyLinkUser.LocalWebApprovalCompleteRequestTotalDuration")
-                        .expectIntRecord("FamilyLinkUser.LocalWebApprovalResult", /* Approved= */ 0)
+                        .expectIntRecord("FamilyLinkUser.LocalWebApprovalResult", /* value= */ 0)
                         .build();
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);
@@ -151,7 +151,7 @@ public class WebsiteParentApprovalNativesTest {
                 HistogramWatcher.newBuilder()
                         .expectAnyRecord(
                                 "FamilyLinkUser.LocalWebApprovalCompleteRequestTotalDuration")
-                        .expectIntRecord("FamilyLinkUser.LocalWebApprovalResult", /* Declined= */ 1)
+                        .expectIntRecord("FamilyLinkUser.LocalWebApprovalResult", /* value= */ 1)
                         .build();
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);
@@ -171,7 +171,7 @@ public class WebsiteParentApprovalNativesTest {
         mTabbedActivityTestRule.loadUrl(mBlockedUrl);
         var histograms =
                 HistogramWatcher.newSingleRecordWatcher(
-                        "FamilyLinkUser.LocalWebApprovalResult", /* Cancelled= */ 2);
+                        "FamilyLinkUser.LocalWebApprovalResult", /* value= */ 2);
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);
 
@@ -191,8 +191,8 @@ public class WebsiteParentApprovalNativesTest {
                 HistogramWatcher.newBuilder()
                         .expectIntRecords(
                                 "FamilyLinkUser.LocalWebApprovalResult",
-                                /* Approved= */ 0,
-                                /* Cancelled= */ 2)
+                                /* values...= */ 0,
+                                /* Cancelled */ 2)
                         .build();
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);

@@ -110,12 +110,6 @@ using testing::_;
 
 @synthesize unhandledWheelEventReceived = _unhandledWheelEventReceived;
 
-- (void)rendererHandledWheelEvent:(const blink::WebMouseWheelEvent&)event
-                         consumed:(BOOL)consumed {
-  if (!consumed)
-    _unhandledWheelEventReceived = true;
-}
-
 - (void)rendererHandledGestureScrollEvent:(const blink::WebGestureEvent&)event
                                  consumed:(BOOL)consumed {
   if (!consumed &&
@@ -414,6 +408,8 @@ class MockRenderWidgetHostOwnerDelegate
 
 class MockRenderWidgetHostImpl : public RenderWidgetHostImpl {
  public:
+  using RenderWidgetHostImpl::render_input_router_;
+
   MockRenderWidgetHostImpl(RenderWidgetHostDelegate* delegate,
                            base::SafeRef<SiteInstanceGroup> site_instance_group,
                            int32_t routing_id,
@@ -466,16 +462,20 @@ class MockRenderWidgetHostImpl : public RenderWidgetHostImpl {
   MOCK_METHOD0(Focus, void());
   MOCK_METHOD0(Blur, void());
 
+  MockRenderInputRouter* mock_render_input_router() {
+    return static_cast<MockRenderInputRouter*>(render_input_router_.get());
+  }
+
   MockWidgetInputHandler* input_handler() {
-    return mock_render_input_router_->mock_widget_input_handler_.get();
+    return mock_render_input_router()->mock_widget_input_handler_.get();
   }
 
   MockWidgetInputHandler::MessageVector GetAndResetDispatchedMessages() {
     return input_handler()->GetAndResetDispatchedMessages();
   }
 
-  RenderInputRouter* GetRenderInputRouter() override {
-    return mock_render_input_router_.get();
+  input::RenderInputRouter* GetRenderInputRouter() override {
+    return render_input_router_.get();
   }
 
   const ui::LatencyInfo& LastWheelEventLatencyInfo() const {
@@ -487,13 +487,12 @@ class MockRenderWidgetHostImpl : public RenderWidgetHostImpl {
   void BlurImpl() { RenderWidgetHostImpl::Blur(); }
 
   void SetupMockRenderInputRouter() {
-    mock_render_input_router_ = std::make_unique<MockRenderInputRouter>(
-        this, this, MakeFlingScheduler(), this,
+    render_input_router_ = std::make_unique<MockRenderInputRouter>(
+        this, MakeFlingScheduler(), this,
         base::SingleThreadTaskRunner::GetCurrentDefault());
     SetupInputRouter();
   }
 
-  std::unique_ptr<MockRenderInputRouter> mock_render_input_router_;
   ui::LatencyInfo last_wheel_event_latency_info_;
 };
 
@@ -761,7 +760,7 @@ TEST_F(RenderWidgetHostViewMacTest, UpdateCompositionSinglelineCase) {
   // If the firstRectForCharacterRange is failed in renderer, empty rect vector
   // is sent. Make sure this does not crash.
   rwhv_mac_->ImeCompositionRangeChanged(gfx::Range(10, 12),
-                                        std::vector<gfx::Rect>(), std::nullopt);
+                                        std::vector<gfx::Rect>());
   EXPECT_FALSE(rwhv_mac_->GetCachedFirstRectForCharacterRange(
       gfx::Range(10, 11), &rect, nullptr));
 
@@ -775,8 +774,7 @@ TEST_F(RenderWidgetHostViewMacTest, UpdateCompositionSinglelineCase) {
                                kCompositionLength,
                                std::vector<size_t>(),
                                &composition_bounds);
-  rwhv_mac_->ImeCompositionRangeChanged(kCompositionRange, composition_bounds,
-                                        std::nullopt);
+  rwhv_mac_->ImeCompositionRangeChanged(kCompositionRange, composition_bounds);
 
   // Out of range requests will return caret position.
   EXPECT_FALSE(rwhv_mac_->GetCachedFirstRectForCharacterRange(
@@ -834,8 +832,7 @@ TEST_F(RenderWidgetHostViewMacTest, UpdateCompositionMultilineCase) {
                                kCompositionLength,
                                break_points,
                                &composition_bounds);
-  rwhv_mac_->ImeCompositionRangeChanged(kCompositionRange, composition_bounds,
-                                        std::nullopt);
+  rwhv_mac_->ImeCompositionRangeChanged(kCompositionRange, composition_bounds);
 
   // Range doesn't contain line breaking point.
   gfx::Range range;
@@ -920,7 +917,7 @@ TEST_F(RenderWidgetHostViewMacTest, CompositionEventAfterDestroy) {
   const gfx::Rect composition_bounds(0, 0, 30, 40);
   const gfx::Range range(0, 1);
   rwhv_mac_->ImeCompositionRangeChanged(
-      range, std::vector<gfx::Rect>(1, composition_bounds), std::nullopt);
+      range, std::vector<gfx::Rect>(1, composition_bounds));
 
   NSRange actual_range = NSMakeRange(0, 0);
 
@@ -997,24 +994,6 @@ TEST_F(RenderWidgetHostViewMacTest, LastWheelEventLatencyInfoExists) {
 
   events = host_->GetAndResetDispatchedMessages();
   EXPECT_EQ("GestureScrollBegin GestureScrollUpdate", GetMessageNames(events));
-}
-
-TEST_F(RenderWidgetHostViewMacTest, SourceEventTypeExistsInLatencyInfo) {
-  process_host_->sink().ClearMessages();
-
-  // Send a wheel event for scrolling by 3 lines.
-  // Verifies that SourceEventType exists in forwarded LatencyInfo object.
-  NSEvent* wheelEvent = MockScrollWheelEventWithPhase(@selector(phaseBegan), 3);
-  [rwhv_mac_->GetInProcessNSView() scrollWheel:wheelEvent];
-
-  MockWidgetInputHandler::MessageVector events =
-      host_->GetAndResetDispatchedMessages();
-  EXPECT_EQ("MouseWheel", GetMessageNames(events));
-  events[0]->ToEvent()->CallCallback(
-      blink::mojom::InputEventResultState::kConsumed);
-
-  ASSERT_TRUE(host_->LastWheelEventLatencyInfo().source_event_type() ==
-              ui::SourceEventType::WHEEL);
 }
 
 TEST_F(RenderWidgetHostViewMacTest, ScrollWheelEndEventDelivery) {

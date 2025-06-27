@@ -120,9 +120,8 @@ SSLErrorAssistantComponentInstallerPolicy::GetRelativeInstallDir() const {
 
 void SSLErrorAssistantComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(kSslErrorAssistantPublicKeySHA256,
-               kSslErrorAssistantPublicKeySHA256 +
-                   std::size(kSslErrorAssistantPublicKeySHA256));
+  hash->assign(std::begin(kSslErrorAssistantPublicKeySHA256),
+               std::end(kSslErrorAssistantPublicKeySHA256));
 }
 
 std::string SSLErrorAssistantComponentInstallerPolicy::GetName() const {

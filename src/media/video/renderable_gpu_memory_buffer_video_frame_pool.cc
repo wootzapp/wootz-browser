@@ -20,9 +20,8 @@
 #include "components/viz/common/resources/shared_image_format_utils.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/client_shared_image.h"
-#include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
 #include "gpu/command_buffer/client/shared_image_interface.h"
-#include "gpu/command_buffer/common/gpu_memory_buffer_support.h"
+#include "gpu/command_buffer/common/shared_image_capabilities.h"
 #include "gpu/command_buffer/common/shared_image_usage.h"
 #include "media/base/format_utils.h"
 #include "media/base/media_switches.h"
@@ -35,8 +34,8 @@ namespace {
 class InternalRefCountedPool;
 
 // The VideoFrame-backing resources that are reused by the pool, namely, a
-// GpuMemoryBuffer and a per-plane SharedImage. This retains a reference to
-// the InternalRefCountedPool that created it. Not safe for concurrent use.
+// GpuMemoryBuffer and a SharedImage. This retains a reference to the
+// InternalRefCountedPool that created it. Not safe for concurrent use.
 class FrameResources {
  public:
   FrameResources(scoped_refptr<InternalRefCountedPool> pool,
@@ -47,7 +46,8 @@ class FrameResources {
   FrameResources(const FrameResources& other) = delete;
   FrameResources& operator=(const FrameResources& other) = delete;
 
-  // Allocate GpuMemoryBuffer and create SharedImages. Returns false on failure.
+  // Allocate GpuMemoryBuffer and create SharedImage. Returns false on failure
+  // to do so.
   bool Initialize();
 
   // Return true if these resources can be reused for a frame with the specified
@@ -55,27 +55,23 @@ class FrameResources {
   bool IsCompatibleWith(const gfx::Size& coded_size,
                         const gfx::ColorSpace& color_space) const;
 
-  // Create a VideoFrame using these resources. This will transfer ownership of
-  // the GpuMemoryBuffer to the VideoFrame.
-  scoped_refptr<VideoFrame> CreateVideoFrameAndTakeGpuMemoryBuffer();
+  // Create a VideoFrame using these resources.
+  scoped_refptr<VideoFrame> CreateVideoFrame();
 
-  // Return ownership of the GpuMemory to `this`, and update the sync tokens
-  // of the MailboxHolders to `sync_token`.
-  void ReturnGpuMemoryBufferFromFrame(
-      std::unique_ptr<gfx::GpuMemoryBuffer> gpu_memory_buffer,
-      const gpu::SyncToken& sync_token);
+  // Update the |sync_token_| to |sync_token|. The |shared_image_| can be
+  // re-used or destroyed after this |sync_token_| has passed.
+  void SetSharedImageReleaseSyncToken(const gpu::SyncToken& sync_token);
 
  private:
   // This reference ensures that the creating InternalRefCountedPool (and,
   // critically, its interface through which `this` can destroy its
-  // SharedImages) will not be destroyed until after `this` is destroyed.
+  // SharedImage) will not be destroyed until after `this` is destroyed.
   const scoped_refptr<InternalRefCountedPool> pool_;
 
   const VideoPixelFormat format_;
   const gfx::Size coded_size_;
   const gfx::ColorSpace color_space_;
-  std::unique_ptr<gfx::GpuMemoryBuffer> gpu_memory_buffer_;
-  scoped_refptr<gpu::ClientSharedImage> shared_images_[VideoFrame::kMaxPlanes];
+  scoped_refptr<gpu::ClientSharedImage> shared_image_;
   gpu::SyncToken sync_token_;
 };
 
@@ -90,6 +86,8 @@ class FrameResources {
 class InternalRefCountedPool
     : public base::RefCountedThreadSafe<InternalRefCountedPool> {
  public:
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
   explicit InternalRefCountedPool(
       std::unique_ptr<RenderableGpuMemoryBufferVideoFramePool::Context> context,
       VideoPixelFormat format);
@@ -114,9 +112,13 @@ class InternalRefCountedPool
   friend class base::RefCountedThreadSafe<InternalRefCountedPool>;
   ~InternalRefCountedPool();
 
-  // Callback made when a created VideoFrame is destroyed. Returns
-  // `gpu_memory_buffer` to `frame_resources`, and then either returns
-  // `frame_resources` to `available_frame_resources_` or destroys it.
+  // Callback made when the VideoFrame is destroyed. This callback then either
+  // returns |frame_resources| to |available_frame_resources_| or destroys it.
+  // TODO(crbug.com/40263579): Remove |gpu_memory_buffer| from this method once
+  // VideoFrame and all its clients are fully converted to use MappableSI
+  // instead of GpuMemoryBuffer. Currently for this client, VideoFrame runs
+  // this callback with null |gpu_memory_buffer| always as this client uses
+  // MappableSI.
   void OnVideoFrameDestroyed(
       std::unique_ptr<FrameResources> frame_resources,
       const gpu::SyncToken& sync_token,
@@ -165,12 +167,9 @@ FrameResources::FrameResources(scoped_refptr<InternalRefCountedPool> pool,
 }
 
 FrameResources::~FrameResources() {
-  auto* context = pool_->GetContext();
-  for (unsigned int i = 0; i < VideoFrame::kMaxPlanes; ++i) {
-    if (!shared_images_[i]) {
-      continue;
-    }
-    context->DestroySharedImage(sync_token_, std::move(shared_images_[i]));
+  if (shared_image_) {
+    pool_->GetContext()->DestroySharedImage(sync_token_,
+                                            std::move(shared_image_));
   }
 }
 
@@ -190,7 +189,7 @@ gfx::Size GetBufferSizeInPixelsForVideoPixelFormat(
       return {cc::MathUtil::CheckedRoundUp(coded_size.width(), 4),
               cc::MathUtil::CheckedRoundUp(coded_size.height(), 2)};
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -211,21 +210,7 @@ bool FrameResources::Initialize() {
   const gfx::Size buffer_size_in_pixels =
       GetBufferSizeInPixelsForVideoPixelFormat(format_, coded_size_);
 
-  // Create the GpuMemoryBuffer.
-  gpu_memory_buffer_ = context->CreateGpuMemoryBuffer(
-      buffer_size_in_pixels, buffer_format, kBufferUsage);
-  if (!gpu_memory_buffer_) {
-    DLOG(ERROR) << "Failed to allocate GpuMemoryBuffer for frame: coded_size="
-                << coded_size_.ToString()
-                << ", usage=" << static_cast<int>(kBufferUsage);
-    return false;
-  }
-
-#if BUILDFLAG(IS_MAC)
-  gpu_memory_buffer_->SetColorSpace(color_space_);
-#endif
-
-  constexpr uint32_t kSharedImageUsage =
+  gpu::SharedImageUsageSet usage =
 #if BUILDFLAG(IS_MAC)
       gpu::SHARED_IMAGE_USAGE_MACOS_VIDEO_TOOLBOX |
 #endif
@@ -240,47 +225,40 @@ bool FrameResources::Initialize() {
       gpu::SHARED_IMAGE_USAGE_GLES2_READ | gpu::SHARED_IMAGE_USAGE_GLES2_WRITE |
       gpu::SHARED_IMAGE_USAGE_RASTER_READ |
       gpu::SHARED_IMAGE_USAGE_RASTER_WRITE |
-      gpu::SHARED_IMAGE_USAGE_DISPLAY_READ | gpu::SHARED_IMAGE_USAGE_SCANOUT;
+      gpu::SHARED_IMAGE_USAGE_DISPLAY_READ;
 
-  switch (format_) {
-    case PIXEL_FORMAT_NV12: {
-      // TODO(crbug.com/40239769): Merge with ARGB code after multi-planar
-      // shared image launch.
-      if (IsMultiPlaneFormatForHardwareVideoEnabled()) {
-        shared_images_[0] = context->CreateSharedImage(
-            gpu_memory_buffer_.get(), viz::MultiPlaneFormat::kNV12,
-            color_space_, kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType,
-            kSharedImageUsage, sync_token_);
-        return true;
-      }
-
-      // Bind SharedImages to each plane.
-      constexpr size_t kNumPlanes = 2;
-      constexpr gfx::BufferPlane kPlanes[kNumPlanes] = {gfx::BufferPlane::Y,
-                                                        gfx::BufferPlane::UV};
-
-      for (size_t plane = 0; plane < kNumPlanes; ++plane) {
-        shared_images_[plane] = context->CreateSharedImage(
-            gpu_memory_buffer_.get(), kPlanes[plane], color_space_,
-            kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType, kSharedImageUsage,
-            sync_token_);
-      }
-
-      return true;
-    }
-    case PIXEL_FORMAT_ABGR:
-    case PIXEL_FORMAT_ARGB: {
-      const viz::SharedImageFormat image_format =
-          viz::GetSinglePlaneSharedImageFormat(buffer_format);
-      shared_images_[0] = context->CreateSharedImage(
-          gpu_memory_buffer_.get(), image_format, color_space_,
-          kTopLeft_GrSurfaceOrigin, kPremul_SkAlphaType, kSharedImageUsage,
-          sync_token_);
-      return true;
-    }
-    default:
-      NOTREACHED_NORETURN();
+  auto si_caps = context->GetCapabilities();
+#if BUILDFLAG(IS_WIN)
+  // On Windows, overlays are in general not supported. However, in some
+  // cases they are supported for the software video frame use case in
+  // particular. This cap details whether that support is present.
+  const bool add_scanout_usage =
+      si_caps.supports_scanout_shared_images_for_software_video_frames;
+#else
+  // On all other platforms, whether scanout for SharedImages is supported
+  // for this particular use case is no different than the general case.
+  const bool add_scanout_usage = si_caps.supports_scanout_shared_images;
+#endif
+  if (add_scanout_usage) {
+    usage |= gpu::SHARED_IMAGE_USAGE_SCANOUT;
   }
+
+  CHECK(format_ == PIXEL_FORMAT_NV12 || format_ == PIXEL_FORMAT_ABGR ||
+        format_ == PIXEL_FORMAT_ARGB)
+      << format_;
+  const viz::SharedImageFormat si_format =
+      viz::GetSharedImageFormat(buffer_format);
+
+  shared_image_ =
+      context->CreateSharedImage(buffer_size_in_pixels, kBufferUsage, si_format,
+                                 color_space_, usage, sync_token_);
+  if (!shared_image_) {
+    DLOG(ERROR) << "Failed to allocate shared image for frame: coded_size="
+                << coded_size_.ToString()
+                << ", si_format=" << si_format.ToString();
+    return false;
+  }
+  return true;
 }
 
 bool FrameResources::IsCompatibleWith(
@@ -289,34 +267,22 @@ bool FrameResources::IsCompatibleWith(
   return coded_size_ == coded_size && color_space_ == color_space;
 }
 
-scoped_refptr<VideoFrame>
-FrameResources::CreateVideoFrameAndTakeGpuMemoryBuffer() {
+scoped_refptr<VideoFrame> FrameResources::CreateVideoFrame() {
   const gfx::Rect visible_rect(coded_size_);
   const gfx::Size natural_size = coded_size_;
-  auto video_frame = VideoFrame::WrapExternalGpuMemoryBuffer(
-      visible_rect, natural_size, std::move(gpu_memory_buffer_), shared_images_,
-      sync_token_,
-      shared_images_[0] ? shared_images_[0]->GetTextureTargetForOverlays()
-                        : GL_TEXTURE_2D,
-      VideoFrame::ReleaseMailboxAndGpuMemoryBufferCB(), base::TimeDelta());
+
+  CHECK(shared_image_);
+  auto video_frame = VideoFrame::WrapMappableSharedImage(
+      shared_image_, sync_token_,
+      VideoFrame::ReleaseMailboxAndGpuMemoryBufferCB(), visible_rect,
+      natural_size, base::TimeDelta());
   if (!video_frame) {
     return nullptr;
   }
 
   video_frame->set_color_space(color_space_);
-
-  // TODO(crbug.com/40174702): This should depend on the platform and
-  // format.
-  video_frame->metadata().allow_overlay = true;
-
-  if (IsMultiPlaneFormatForHardwareVideoEnabled()) {
-    // Tag this frame as having used a single SharedImage for multiplanar
-    // formats (by default it sets this field to `kLegacy`, which causes the
-    // rest of the system to assume that this frame has been created with one
-    // SharedImage per plane for multiplanar formats).
-    video_frame->set_shared_image_format_type(
-        SharedImageFormatType::kSharedImageFormat);
-  }
+  video_frame->metadata().allow_overlay =
+      shared_image_->usage().Has(gpu::SHARED_IMAGE_USAGE_SCANOUT);
 
   // Only native (non shared memory) GMBs require waiting on GPU fences.
   const bool has_native_gmb = video_frame->HasNativeGpuMemoryBuffer();
@@ -325,11 +291,8 @@ FrameResources::CreateVideoFrameAndTakeGpuMemoryBuffer() {
   return video_frame;
 }
 
-void FrameResources::ReturnGpuMemoryBufferFromFrame(
-    std::unique_ptr<gfx::GpuMemoryBuffer> gpu_memory_buffer,
+void FrameResources::SetSharedImageReleaseSyncToken(
     const gpu::SyncToken& sync_token) {
-  DCHECK(!gpu_memory_buffer_);
-  gpu_memory_buffer_ = std::move(gpu_memory_buffer);
   sync_token_ = sync_token;
 }
 
@@ -365,7 +328,7 @@ scoped_refptr<VideoFrame> InternalRefCountedPool::MaybeCreateVideoFrame(
   DCHECK(frame_resources);
 
   // Create a VideoFrame from the FrameResources.
-  auto video_frame = frame_resources->CreateVideoFrameAndTakeGpuMemoryBuffer();
+  auto video_frame = frame_resources->CreateVideoFrame();
   if (!video_frame) {
     DLOG(ERROR) << "Failed to create VideoFrame from FrameResources.";
     return nullptr;
@@ -385,8 +348,10 @@ void InternalRefCountedPool::OnVideoFrameDestroyed(
     std::unique_ptr<FrameResources> frame_resources,
     const gpu::SyncToken& sync_token,
     std::unique_ptr<gfx::GpuMemoryBuffer> gpu_memory_buffer) {
-  frame_resources->ReturnGpuMemoryBufferFromFrame(std::move(gpu_memory_buffer),
-                                                  sync_token);
+  // |gpu_memory_buffer| returned here by VideoFrame should always be null
+  // since we use MappableSI.
+  CHECK(!gpu_memory_buffer);
+  frame_resources->SetSharedImageReleaseSyncToken(sync_token);
 
   if (shutting_down_) {
     return;

@@ -22,7 +22,7 @@
 #include "content/browser/bad_message.h"
 #include "content/browser/renderer_host/back_forward_cache_metrics.h"
 #include "content/browser/renderer_host/navigation_type.h"
-#include "content/browser/renderer_host/render_frame_host_impl.h"
+#include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/javascript_dialog_manager.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -47,6 +47,7 @@ class RenderFrameHostImpl;
 class RenderWidgetHostImpl;
 class Shell;
 class SiteInstance;
+class SiteInstanceGroup;
 class ToRenderFrameHost;
 
 // Navigates the frame represented by |node| to |url|, blocking until the
@@ -80,11 +81,24 @@ RenderFrameHost* ConvertToRenderFrameHost(FrameTreeNode* frame_tree_node);
 // the main frame's document, waiting until the RenderFrameHostCreated
 // notification is received by the browser. If |wait_for_navigation| is true,
 // will also wait for the first navigation in the iframe to finish. Returns the
-// RenderFrameHost of the iframe.
+// RenderFrameHost of the iframe. |extra_params| is a struct that allows
+// for optional parameters to be specified for the subframe.
+struct ExtraParams {
+  std::string sandbox_flags = "";
+};
 RenderFrameHost* CreateSubframe(WebContentsImpl* web_contents,
                                 std::string frame_id,
                                 const GURL& url,
                                 bool wait_for_navigation);
+RenderFrameHost* CreateSubframe(RenderFrameHost* parent,
+                                std::string frame_id,
+                                const GURL& url,
+                                bool wait_for_navigation);
+RenderFrameHost* CreateSubframe(RenderFrameHost* parent,
+                                std::string frame_id,
+                                const GURL& url,
+                                bool wait_for_navigation,
+                                ExtraParams extra_params);
 
 // Returns the frames visited by |RenderFrameHostImpl::ForEachRenderFrameHost|
 // in the same order.
@@ -114,24 +128,37 @@ Shell* OpenWindow(WebContentsImpl* web_contents, const GURL& url);
 // is appropriate for use in assertions.
 //
 // The diagrams show frame tree structure, the SiteInstance of current frames,
-// presence of pending frames, and the SiteInstances of any and all proxies.
-// They look like this:
+// presence of pending frames, and the SiteInstanceGroups of any and all
+// proxies. They look like this:
 //
-//        Site A (D pending) -- proxies for B C
-//          |--Site B --------- proxies for A C
+//        Site A (D pending) -- proxies for B {C,E}
+//          |--Site B --------- proxies for A {C,E}
 //          +--Site C --------- proxies for B A
-//               |--Site A ---- proxies for B
-//               +--Site A ---- proxies for B
-//                    +--Site A -- proxies for B
+//               |--Site A ---- proxies for B {C,E}
+//               +--Site A ---- proxies for B {C,E}
+//                    +--Site E -- proxies for A B
 //       Where A = http://127.0.0.1/
 //             B = http://foo.com/ (no process)
 //             C = http://bar.com/
 //             D = http://next.com/
+//             E = data:nonce_E
 //
 // SiteInstances are assigned single-letter names (A, B, C) which are remembered
 // across invocations of the pretty-printer. Port numbers are excluded from the
 // descriptions by default for DepictFrameTree. Isolated sandboxed SiteInstances
 // are denoted with "(sandboxed)".
+//
+// SiteInstanceGroups with more than once SiteInstance are denoted as a set of
+// the SiteInstances in the group. See comment for `GetGroupName`. In this case,
+// E is in C's SiteInstanceGroup, denoted {C,E}. Note that SiteInstanceGroups
+// may show SiteInstances that are no longer in the FrameTree. For example, if a
+// subframe B does a same-SiteInstanceGroup navigation to data:nonce_C, B's
+// SiteInstance is kept alive by a FrameNavigationEntry, and it retains its
+// group and process because the active frame count is tracked on the
+// SiteInstanceGroup (shared with data:nonce_C) and not the B SiteInstance
+// itself. (This is not necessary but has no impact outside of DepictFrameTree
+// output). That means it still exists from the perspective
+// of DepictFrameTree.
 class FrameTreeVisualizer {
  public:
   FrameTreeVisualizer();
@@ -147,6 +174,18 @@ class FrameTreeVisualizer {
  private:
   // Assign or retrive the abbreviated short name (A, B, C) for a site instance.
   std::string GetName(SiteInstance* site_instance);
+
+  // Assign the name for a SiteInstanceGroup. A group's name is denoted as a set
+  // containing all the SiteInstances in the group, using their abbreviated
+  // names. For example, if a group contains foo.com and bar.com, which are
+  // assigned A and B respectively, the group name will be {A,B}. If there is
+  // only one SiteInstance in the group, it is directly depicted as the short
+  // name without set notation to minimize changes to existing tests. E.g.
+  // SiteInstanceGroup that contains only SiteInstance A is depicted as A rather
+  // than {A}.
+  // TODO(crbug.com/40176090): Always use set notation, to indicate that proxies
+  // are associated with SiteInstanceGroups rather than SiteInstances.
+  std::string GetGroupName(SiteInstanceGroup* group);
 
   // Returns an identical URL except the port, if any, has been removed.
   GURL GetUrlWithoutPort(const GURL& url);
@@ -214,7 +253,7 @@ class FileChooserDelegate : public WebContentsDelegate {
 // the given frame tree node.
 class FrameTestNavigationManager : public TestNavigationManager {
  public:
-  FrameTestNavigationManager(int frame_tree_node_id,
+  FrameTestNavigationManager(FrameTreeNodeId frame_tree_node_id,
                              WebContents* web_contents,
                              const GURL& url);
 
@@ -227,7 +266,7 @@ class FrameTestNavigationManager : public TestNavigationManager {
   bool ShouldMonitorNavigation(NavigationHandle* handle) override;
 
   // Notifications are filtered so only this frame is monitored.
-  int filtering_frame_tree_node_id_;
+  FrameTreeNodeId filtering_frame_tree_node_id_;
 };
 
 // An observer that can wait for a specific URL to be committed in a specific
@@ -248,7 +287,7 @@ class UrlCommitObserver : WebContentsObserver {
   void DidFinishNavigation(NavigationHandle* navigation_handle) override;
 
   // The id of the FrameTreeNode in which navigations are peformed.
-  int frame_tree_node_id_;
+  FrameTreeNodeId frame_tree_node_id_;
 
   // The URL this observer is expecting to be committed.
   GURL url_;
@@ -351,7 +390,6 @@ class ShowPopupWidgetWaiter
     void ShowPopupMenu(
         mojo::PendingRemote<blink::mojom::PopupMenuClient> popup_client,
         const gfx::Rect& bounds,
-        int32_t item_height,
         double font_size,
         int32_t selected_item,
         std::vector<blink::mojom::MenuItemPtr> menu_items,
@@ -431,7 +469,7 @@ class BeforeUnloadBlockingDelegate : public JavaScriptDialogManager,
   JavaScriptDialogManager* GetJavaScriptDialogManager(
       WebContents* source) override;
 
-  bool IsBackForwardCacheSupported() override;
+  bool IsBackForwardCacheSupported(WebContents& web_contents) override;
 
   // JavaScriptDialogManager
 
@@ -548,7 +586,7 @@ class FrameNavigateParamsCapturer : public WebContentsObserver {
   // The id of the FrameTreeNode whose navigations to observe. If this is not
   // set, then this FrameNavigateParamsCapturer observes all navigations that
   // happen in the observed WebContents.
-  std::optional<int> frame_tree_node_id_;
+  std::optional<FrameTreeNodeId> frame_tree_node_id_;
 
   // How many navigations remain to capture.
   int navigations_remaining_ = 1;
@@ -788,20 +826,54 @@ void WaitForCopyableViewInWebContents(WebContents* web_contents);
 // against its view.
 void WaitForCopyableViewInFrame(RenderFrameHost* render_frame_host);
 
-// Blocks the current execution until the frame submitted via the browser's
-// compositor is presented on the screen.
-void WaitForBrowserCompositorFramePresented(WebContents* web_contents);
-
-// Forces the browser to submit a compositor frame, even if nothing has changed
-// in the viewport. Use `WaitForBrowserCompositorFramePresented()` to wait for
-// the frame's presentation.
-void ForceNewCompositorFrameFromBrowser(WebContents* web_contents);
-
 // Sets up a /redirect-on-second-navigation?url endpoint on the provided
 // `server`, which will return a 200 OK response for the first request, and
 // redirect the second request to `url` provided in the query param. This should
 // be called before starting `server`.
 void AddRedirectOnSecondNavigationHandler(net::EmbeddedTestServer* server);
+
+// Forwards DidStartLoading calls to the provided callback.
+class LoadingStartObserver : public WebContentsObserver {
+ public:
+  using Callback = base::RepeatingCallback<void()>;
+
+  LoadingStartObserver(WebContents* web_contents, Callback callback);
+  ~LoadingStartObserver() override;
+
+ private:
+  void DidStartLoading() override;
+
+  Callback callback_;
+};
+
+// Forwards DidStopLoading calls to the provided callback.
+class LoadingStopObserver : public WebContentsObserver {
+ public:
+  using Callback = base::RepeatingCallback<void()>;
+
+  LoadingStopObserver(WebContents* web_contents, Callback callback);
+  ~LoadingStopObserver() override;
+
+ private:
+  void DidStopLoading() override;
+
+  Callback callback_;
+};
+
+// Forwards DidFinishLoad calls to the provided callback.
+class LoadFinishObserver : public WebContentsObserver {
+ public:
+  using Callback = base::RepeatingCallback<void(RenderFrameHost*, const GURL&)>;
+
+  LoadFinishObserver(WebContents* web_contents, Callback callback);
+  ~LoadFinishObserver() override;
+
+ private:
+  void DidFinishLoad(RenderFrameHost* render_frame_host,
+                     const GURL& validated_url) override;
+
+  Callback callback_;
+};
 
 }  // namespace content
 

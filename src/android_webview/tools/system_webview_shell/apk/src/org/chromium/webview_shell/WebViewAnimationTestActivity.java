@@ -4,7 +4,6 @@
 
 package org.chromium.webview_shell;
 
-import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -14,8 +13,10 @@ import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 /** Activity to exercise transform animations on WebView. */
-public class WebViewAnimationTestActivity extends Activity {
+public class WebViewAnimationTestActivity extends AppCompatActivity {
     private static final String HTML =
             "<html>"
                     + "  <head>"
@@ -71,6 +72,7 @@ public class WebViewAnimationTestActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        EdgeToEdgeUtil.setupEdgeToEdge(this);
         setContentView(R.layout.activity_webview_animation_test);
         mWebView = (WebViewWithClipPath) findViewById(R.id.webview);
 
@@ -111,14 +113,14 @@ public class WebViewAnimationTestActivity extends Activity {
                             @Override
                             public void onStopTrackingTouch(SeekBar seekBar) {}
                         });
-        CheckBox layerCheckBox = ((CheckBox) findViewById(R.id.use_layer));
+        CheckBox layerCheckBox = findViewById(R.id.use_layer);
         layerCheckBox.setOnCheckedChangeListener(
                 (CompoundButton arg0, boolean checked) -> {
                     setWebViewLayer(checked);
                 });
         setWebViewLayer(layerCheckBox.isChecked());
 
-        CheckBox stencilCheckBox = ((CheckBox) findViewById(R.id.use_stencil));
+        CheckBox stencilCheckBox = findViewById(R.id.use_stencil);
         stencilCheckBox.setOnCheckedChangeListener(
                 (CompoundButton arg0, boolean checked) -> {
                     setUseExternalStencil(checked);

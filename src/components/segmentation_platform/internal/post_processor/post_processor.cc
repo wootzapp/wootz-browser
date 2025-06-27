@@ -91,8 +91,7 @@ std::vector<std::string> PostProcessor::GetClassifierResults(
       return GetBinnedClassifierResults(model_scores,
                                         predictor.binned_classifier());
     default:
-      NOTREACHED_IN_MIGRATION();
-      return std::vector<std::string>();
+      NOTREACHED();
   }
 }
 
@@ -208,8 +207,7 @@ int PostProcessor::GetIndexOfTopLabel(
           return i;
         }
       }
-      NOTREACHED_IN_MIGRATION();
-      return kInvalidResult;
+      NOTREACHED();
     }
     case proto::Predictor::kBinnedClassifier: {
       const auto& binned_classifier = predictor.binned_classifier();
@@ -222,12 +220,10 @@ int PostProcessor::GetIndexOfTopLabel(
           return i;
         }
       }
-      NOTREACHED_IN_MIGRATION();
-      return kInvalidResult;
+      NOTREACHED();
     }
     default:
-      NOTREACHED_IN_MIGRATION();
-      return kInvalidResult;
+      NOTREACHED();
   }
 }
 
@@ -236,7 +232,9 @@ base::TimeDelta PostProcessor::GetTTLForPredictedResult(
   std::vector<std::string> ordered_labels;
   if (prediction_result.result_size() > 0 &&
       prediction_result.has_output_config()) {
-    ordered_labels = GetClassifierResults(prediction_result);
+    if (IsClassificationResult(prediction_result)) {
+      ordered_labels = GetClassifierResults(prediction_result);
+    }
     if (!prediction_result.output_config().has_predicted_result_ttl()) {
       LOG(ERROR) << "Prediction result has no `predicted_result_ttl` on its "
                     "`output_config`, returning empty TTL.";

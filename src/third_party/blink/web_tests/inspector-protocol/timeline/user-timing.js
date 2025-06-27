@@ -31,9 +31,13 @@
         '@1000 to @1200',
         {detail: 'its @1000 to @1200', start: '@1000', end: '@1200'});
     performance.measure('@2000 for 300', {end: zero + 2300, duration: 300});
+    // On the timeline the clearMarks() and clearMeasures() happen at time |zeroMark|.
+    performance.clearMarks('@1000');
     performance.measure(
         '@1500 for 200',
         {detail: {key: 'val', num: 123}, start: '@1500', end: zero + 1700});
+    performance.clearMeasures('@1500 for 200');
+    performance.clearMeasures();
   }
 
   await session.evaluateAsync(`(${pageFunction.toString()})();`);
@@ -70,6 +74,25 @@
     }
     if (e.args.startTime) {
       e.args.startTime = roundForFlakes(e.args.startTime - zeroHighRes);
+    }
+    if (e.args.sampleTraceId) {
+      e.args.sampleTraceId = 0;
+    }
+
+    if (e.args.data?.callTime) {
+      e.args.data.callTime = 0;
+    }
+
+    if (e.args.data?.sampleTraceId) {
+      e.args.data.sampleTraceId = 0;
+    }
+
+    if (e.args?.traceId) {
+      e.args.traceId = 0;
+    }
+
+    if (e.args.callTime) {
+      e.args.callTime = 0;
     }
 
     const line = [

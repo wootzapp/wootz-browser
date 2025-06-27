@@ -150,9 +150,8 @@ TrustTokenKeyCommitmentsComponentInstallerPolicy::GetInstallerAttributes()
 void TrustTokenKeyCommitmentsComponentInstallerPolicy::GetPublicKeyHash(
     std::vector<uint8_t>* hash) {
   DCHECK(hash);
-  hash->assign(kTrustTokenKeyCommitmentsPublicKeySHA256,
-               kTrustTokenKeyCommitmentsPublicKeySHA256 +
-                   std::size(kTrustTokenKeyCommitmentsPublicKeySHA256));
+  hash->assign(std::begin(kTrustTokenKeyCommitmentsPublicKeySHA256),
+               std::end(kTrustTokenKeyCommitmentsPublicKeySHA256));
 }
 
 // static

@@ -53,24 +53,9 @@ public class CronetTestUtil {
         return new JSONObject().put("host_resolver_rules", rules);
     }
 
-    /** Prepare {@code cronetEngine}'s network thread so libcronet_test code can run on it. */
-    public static class NetworkThreadTestConnector {
-        private final CronetUrlRequestContext mRequestContext;
-
-        public NetworkThreadTestConnector(CronetEngine cronetEngine) {
-            mRequestContext = (CronetUrlRequestContext) cronetEngine;
-            CronetTestUtilJni.get()
-                    .prepareNetworkThread(mRequestContext.getUrlRequestContextAdapter());
-        }
-
-        public void shutdown() {
-            CronetTestUtilJni.get()
-                    .cleanupNetworkThread(mRequestContext.getUrlRequestContextAdapter());
-        }
-    }
-
     /**
      * Returns the value of load flags in |urlRequest|.
+     *
      * @param urlRequest is the UrlRequest object of interest.
      */
     public static int getLoadFlags(UrlRequest urlRequest) {
@@ -93,9 +78,7 @@ public class CronetTestUtil {
 
     static CronetEngineBuilderImpl getCronetEngineBuilderImpl(
             ExperimentalCronetEngine.Builder builder) {
-        return (CronetEngineBuilderImpl)
-                ((ExperimentalOptionsTranslatingCronetEngineBuilder) builder.getBuilderDelegate())
-                        .getDelegate();
+        return (CronetEngineBuilderImpl) builder.getBuilderDelegate();
     }
 
     /** Returns whether the device supports calling nativeGetTaggedBytes(). */
@@ -103,9 +86,21 @@ public class CronetTestUtil {
         return CronetTestUtilJni.get().canGetTaggedBytes();
     }
 
+    public static String[] nativeGetClientConnectionOptions(CronetEngine engine) {
+        CronetUrlRequestContext context = (CronetUrlRequestContext) engine;
+        return CronetTestUtilJni.get()
+                .getClientConnectionOptions(context.getUrlRequestContextAdapter());
+    }
+
+    public static String[] nativeGetConnectionOptions(CronetEngine engine) {
+        CronetUrlRequestContext context = (CronetUrlRequestContext) engine;
+        return CronetTestUtilJni.get().getConnectionOptions(context.getUrlRequestContextAdapter());
+    }
+
     /**
-     * Query the system to find out how many bytes were received with tag
-     * {@code expectedTag} for our UID.
+     * Query the system to find out how many bytes were received with tag {@code expectedTag} for
+     * our UID.
+     *
      * @param expectedTag the tag to query for.
      * @return the count of received bytes.
      */
@@ -126,5 +121,9 @@ public class CronetTestUtil {
         void cleanupNetworkThread(long contextAdapter);
 
         boolean uRLRequestContextExistsForTesting(long contextAdapter, long networkHandle);
+
+        String[] getClientConnectionOptions(long contextAdapter);
+
+        String[] getConnectionOptions(long contextAdapter);
     }
 }

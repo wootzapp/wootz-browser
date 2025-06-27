@@ -13,10 +13,12 @@ namespace content {
 
 ClientMetadata::ClientMetadata(const GURL& terms_of_service_url,
                                const GURL& privacy_policy_url,
-                               const GURL& brand_icon_url)
+                               const GURL& brand_icon_url,
+                               const gfx::Image& brand_decoded_icon)
     : terms_of_service_url{terms_of_service_url},
       privacy_policy_url(privacy_policy_url),
-      brand_icon_url(brand_icon_url) {}
+      brand_icon_url(brand_icon_url),
+      brand_decoded_icon(brand_decoded_icon) {}
 ClientMetadata::ClientMetadata(const ClientMetadata& other) = default;
 ClientMetadata::~ClientMetadata() = default;
 
@@ -27,29 +29,32 @@ IdentityProviderMetadata::IdentityProviderMetadata(
 
 IdentityProviderData::IdentityProviderData(
     const std::string& idp_for_display,
-    const std::vector<IdentityRequestAccount>& accounts,
     const IdentityProviderMetadata& idp_metadata,
     const ClientMetadata& client_metadata,
     blink::mojom::RpContext rp_context,
-    bool request_permission,
+    const std::vector<IdentityRequestDialogDisclosureField>& disclosure_fields,
     bool has_login_status_mismatch)
     : idp_for_display{idp_for_display},
-      accounts{accounts},
       idp_metadata{idp_metadata},
       client_metadata{client_metadata},
       rp_context(rp_context),
-      request_permission(request_permission),
+      disclosure_fields(disclosure_fields),
       has_login_status_mismatch(has_login_status_mismatch) {}
 
-IdentityProviderData::IdentityProviderData(const IdentityProviderData& other) =
-    default;
 IdentityProviderData::~IdentityProviderData() = default;
 
-int IdentityRequestDialogController::GetBrandIconIdealSize() {
+RelyingPartyData::RelyingPartyData(const std::string& rp_for_display)
+    : rp_for_display(rp_for_display) {}
+RelyingPartyData::RelyingPartyData(const RelyingPartyData& other) = default;
+RelyingPartyData::~RelyingPartyData() = default;
+
+int IdentityRequestDialogController::GetBrandIconIdealSize(
+    blink::mojom::RpMode rp_mode) {
   return 0;
 }
 
-int IdentityRequestDialogController::GetBrandIconMinimumSize() {
+int IdentityRequestDialogController::GetBrandIconMinimumSize(
+    blink::mojom::RpMode rp_mode) {
   return 0;
 }
 
@@ -57,25 +62,27 @@ void IdentityRequestDialogController::SetIsInterceptionEnabled(bool enabled) {
   is_interception_enabled_ = enabled;
 }
 
-void IdentityRequestDialogController::ShowAccountsDialog(
-    const std::string& top_frame_for_display,
-    const std::optional<std::string>& iframe_for_display,
-    const std::vector<IdentityProviderData>& identity_provider_data,
-    IdentityRequestAccount::SignInMode sign_in_mode,
+bool IdentityRequestDialogController::ShowAccountsDialog(
+    content::RelyingPartyData rp_data,
+    const std::vector<scoped_refptr<content::IdentityProviderData>>& idp_list,
+    const std::vector<scoped_refptr<content::IdentityRequestAccount>>& accounts,
+    content::IdentityRequestAccount::SignInMode sign_in_mode,
     blink::mojom::RpMode rp_mode,
-    const std::optional<content::IdentityProviderData>& new_account_idp,
+    const std::vector<scoped_refptr<content::IdentityRequestAccount>>&
+        new_accounts,
     AccountSelectionCallback on_selected,
     LoginToIdPCallback on_add_account,
     DismissCallback dismiss_callback,
     AccountsDisplayedCallback accounts_displayed_callback) {
   if (!is_interception_enabled_) {
     std::move(dismiss_callback).Run(DismissReason::kOther);
+    return false;
   }
+  return true;
 }
 
-void IdentityRequestDialogController::ShowFailureDialog(
-    const std::string& top_frame_for_display,
-    const std::optional<std::string>& iframe_for_display,
+bool IdentityRequestDialogController::ShowFailureDialog(
+    const std::string& rp_for_display,
     const std::string& idp_for_display,
     blink::mojom::RpContext rp_context,
     blink::mojom::RpMode rp_mode,
@@ -84,12 +91,13 @@ void IdentityRequestDialogController::ShowFailureDialog(
     LoginToIdPCallback login_callback) {
   if (!is_interception_enabled_) {
     std::move(dismiss_callback).Run(DismissReason::kOther);
+    return false;
   }
+  return true;
 }
 
-void IdentityRequestDialogController::ShowErrorDialog(
-    const std::string& top_frame_for_display,
-    const std::optional<std::string>& iframe_for_display,
+bool IdentityRequestDialogController::ShowErrorDialog(
+    const std::string& rp_for_display,
     const std::string& idp_for_display,
     blink::mojom::RpContext rp_context,
     blink::mojom::RpMode rp_mode,
@@ -99,18 +107,22 @@ void IdentityRequestDialogController::ShowErrorDialog(
     MoreDetailsCallback more_details_callback) {
   if (!is_interception_enabled_) {
     std::move(dismiss_callback).Run(DismissReason::kOther);
+    return false;
   }
+  return true;
 }
 
-void IdentityRequestDialogController::ShowLoadingDialog(
-    const std::string& top_frame_for_display,
+bool IdentityRequestDialogController::ShowLoadingDialog(
+    const std::string& rp_for_display,
     const std::string& idp_for_display,
     blink::mojom::RpContext rp_context,
     blink::mojom::RpMode rp_mode,
     DismissCallback dismiss_callback) {
   if (!is_interception_enabled_) {
     std::move(dismiss_callback).Run(DismissReason::kOther);
+    return false;
   }
+  return true;
 }
 
 std::string IdentityRequestDialogController::GetTitle() const {
@@ -126,6 +138,7 @@ void IdentityRequestDialogController::ShowUrl(LinkType type, const GURL& url) {}
 
 WebContents* IdentityRequestDialogController::ShowModalDialog(
     const GURL& url,
+    blink::mojom::RpMode rp_mode,
     DismissCallback dismiss_callback) {
   if (!is_interception_enabled_) {
     std::move(dismiss_callback).Run(DismissReason::kOther);
@@ -135,10 +148,16 @@ WebContents* IdentityRequestDialogController::ShowModalDialog(
 
 void IdentityRequestDialogController::CloseModalDialog() {}
 
+WebContents* IdentityRequestDialogController::GetRpWebContents() {
+  return nullptr;
+}
+
 void IdentityRequestDialogController::RequestIdPRegistrationPermision(
     const url::Origin& origin,
     base::OnceCallback<void(bool accepted)> callback) {
   std::move(callback).Run(false);
 }
+
+void IdentityRequestDialogController::NotifyAutofillSourceReadyForTesting() {}
 
 }  // namespace content

@@ -10,13 +10,28 @@ namespace tts {
 using CreateOutputStreamCallback =
     base::OnceCallback<void(media::mojom::ReadWriteAudioDataPipePtr)>;
 using CreateLoopbackStreamCallback =
-    base::OnceCallback<void(media::mojom::ReadOnlyAudioDataPipePtr)>;
+    base::OnceCallback<void(media::mojom::ReadWriteAudioDataPipePtr)>;
 
 MockAudioStreamFactory::MockAudioStreamFactory() = default;
 MockAudioStreamFactory::~MockAudioStreamFactory() = default;
 
 void MockAudioStreamFactory::CreateOutputStream(
     mojo::PendingReceiver<media::mojom::AudioOutputStream> stream,
+    mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
+        observer,
+    mojo::PendingRemote<media::mojom::AudioLog> log,
+    const std::string& device_id,
+    const media::AudioParameters& params,
+    const base::UnguessableToken& group_id,
+    CreateOutputStreamCallback callback) {
+  audio_output_stream_ = std::move(stream);
+  std::move(callback).Run(nullptr);
+}
+
+void MockAudioStreamFactory::CreateSwitchableOutputStream(
+    mojo::PendingReceiver<media::mojom::AudioOutputStream> stream,
+    mojo::PendingReceiver<media::mojom::DeviceSwitchInterface>
+        device_switch_receiver,
     mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
         observer,
     mojo::PendingRemote<media::mojom::AudioLog> log,

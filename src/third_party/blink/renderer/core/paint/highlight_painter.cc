@@ -4,11 +4,14 @@
 
 #include "third_party/blink/renderer/core/paint/highlight_painter.h"
 
+#include "base/auto_reset.h"
+#include "base/not_fatal_until.h"
 #include "third_party/blink/renderer/core/dom/node.h"
 #include "third_party/blink/renderer/core/editing/editor.h"
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
 #include "third_party/blink/renderer/core/editing/markers/custom_highlight_marker.h"
 #include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
+#include "third_party/blink/renderer/core/editing/markers/glic_marker.h"
 #include "third_party/blink/renderer/core/editing/markers/styleable_marker.h"
 #include "third_party/blink/renderer/core/editing/markers/text_match_marker.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -19,6 +22,7 @@
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
 #include "third_party/blink/renderer/core/layout/inline/text_offset_range.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
+#include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_inline_text.h"
 #include "third_party/blink/renderer/core/layout/text_decoration_offset.h"
 #include "third_party/blink/renderer/core/paint/highlight_overlay.h"
@@ -41,6 +45,8 @@ using HighlightLayerType = HighlightOverlay::HighlightLayerType;
 using HighlightRange = HighlightOverlay::HighlightRange;
 using HighlightEdge = HighlightOverlay::HighlightEdge;
 using HighlightDecoration = HighlightOverlay::HighlightDecoration;
+using HighlightBackground = HighlightOverlay::HighlightBackground;
+using HighlightTextShadow = HighlightOverlay::HighlightTextShadow;
 
 LineRelativeRect LineRelativeLocalRect(const FragmentItem& text_fragment,
                                        StringView text,
@@ -91,21 +97,23 @@ bool HasNonTrivialSpellingGrammarStyles(const FragmentItem& fragment_item,
     // or ‘-webkit-text-stroke-width’ differs from the originating style.
     Color pseudo_color = HighlightStyleUtils::ResolveColor(
         document, originating_style, pseudo_style, pseudo,
-        GetCSSPropertyColor(), {});
+        GetCSSPropertyColor(), {}, SearchTextIsActiveMatch::kNo);
     if (pseudo_color !=
         originating_style.VisitedDependentColor(GetCSSPropertyColor())) {
       return true;
     }
-    if (HighlightStyleUtils::ResolveColor(
-            document, originating_style, pseudo_style, pseudo,
-            GetCSSPropertyWebkitTextFillColor(), {}) !=
+    if (HighlightStyleUtils::ResolveColor(document, originating_style,
+                                          pseudo_style, pseudo,
+                                          GetCSSPropertyWebkitTextFillColor(),
+                                          {}, SearchTextIsActiveMatch::kNo) !=
         originating_style.VisitedDependentColor(
             GetCSSPropertyWebkitTextFillColor())) {
       return true;
     }
-    if (HighlightStyleUtils::ResolveColor(
-            document, originating_style, pseudo_style, pseudo,
-            GetCSSPropertyWebkitTextStrokeColor(), {}) !=
+    if (HighlightStyleUtils::ResolveColor(document, originating_style,
+                                          pseudo_style, pseudo,
+                                          GetCSSPropertyWebkitTextStrokeColor(),
+                                          {}, SearchTextIsActiveMatch::kNo) !=
         originating_style.VisitedDependentColor(
             GetCSSPropertyWebkitTextStrokeColor())) {
       return true;
@@ -113,9 +121,9 @@ bool HasNonTrivialSpellingGrammarStyles(const FragmentItem& fragment_item,
     if (pseudo_style->TextStrokeWidth() != originating_style.TextStrokeWidth())
       return true;
     // If there is a background color.
-    if (!HighlightStyleUtils::ResolveColor(document, originating_style,
-                                           pseudo_style, pseudo,
-                                           GetCSSPropertyBackgroundColor(), {})
+    if (!HighlightStyleUtils::ResolveColor(
+             document, originating_style, pseudo_style, pseudo,
+             GetCSSPropertyBackgroundColor(), {}, SearchTextIsActiveMatch::kNo)
              .IsFullyTransparent()) {
       return true;
     }
@@ -147,9 +155,10 @@ bool HasNonTrivialSpellingGrammarStyles(const FragmentItem& fragment_item,
     // TODO(crbug.com/1147859) clean up when spec issue is resolved again
     // https://github.com/w3c/csswg-drafts/issues/7101
     if (originating_style.GetTextEmphasisMark() != TextEmphasisMark::kNone &&
-        HighlightStyleUtils::ResolveColor(
-            document, originating_style, pseudo_style, pseudo,
-            GetCSSPropertyTextEmphasisColor(), {}) !=
+        HighlightStyleUtils::ResolveColor(document, originating_style,
+                                          pseudo_style, pseudo,
+                                          GetCSSPropertyTextEmphasisColor(), {},
+                                          SearchTextIsActiveMatch::kNo) !=
             originating_style.VisitedDependentColor(
                 GetCSSPropertyTextEmphasisColor())) {
       return true;
@@ -190,7 +199,8 @@ TextPaintStyle TextPaintStyleForTextMatch(const TextMatchMarker& marker,
   const Color platform_text_color =
       LayoutTheme::GetTheme().PlatformTextSearchColor(
           marker.IsActiveMatch(), document.InForcedColorsMode(), color_scheme,
-          document.GetColorProviderForPainting(color_scheme));
+          document.GetColorProviderForPainting(color_scheme),
+          document.IsInWebAppScope());
   // Comparing against the value of the 'color' property doesn't always make
   // sense (for example for SVG <text> which paints using 'fill' and 'stroke').
   if (!ignore_current_color) {
@@ -209,6 +219,57 @@ TextPaintStyle TextPaintStyleForTextMatch(const TextMatchMarker& marker,
   text_style.paint_order = style.PaintOrder();
   return text_style;
 }
+
+// A contiguous run of parts that can have ‘background-color’ or ‘text-shadow’
+// of some active overlay painted at once.
+//
+// These properties can often be painted a whole highlighted range at a time,
+// and only need to be split into parts when affected by ‘currentColor’. By
+// merging parts where possible, we avoid creating unnecessary “seams” in
+// ‘background-color’, and avoid splitting ligatures in ‘text-shadow’.
+//
+// Inner’s operator== must return true iff the two operands come from the same
+// layer and can be painted at once.
+template <typename Inner>
+struct MergedHighlightPart {
+ public:
+  struct Merged {
+   public:
+    const Inner& inner;
+    unsigned from;
+    unsigned to;
+  };
+
+  // Merge |next| and |next_part| into |merged| if possible, otherwise start a
+  // new run and return the old |merged| if any.
+  std::optional<Merged> Merge(const Inner& next,
+                              const HighlightPart& next_part) {
+    std::optional<Merged> result{};
+    if (merged.has_value()) {
+      if (merged->inner == next && merged->to == next_part.range.from) {
+        merged->to = next_part.range.to;
+        return {};
+      } else {
+        result.emplace(*merged);
+      }
+    }
+    merged.emplace(Merged{next, next_part.range.from, next_part.range.to});
+    return result;
+  }
+
+  // Take and return the last |merged| if any, leaving it empty.
+  std::optional<Merged> Take() {
+    if (!merged.has_value()) {
+      return {};
+    }
+    std::optional<Merged> result{};
+    result.emplace(*merged);
+    merged.reset();
+    return result;
+  }
+
+  std::optional<Merged> merged;
+};
 
 }  // namespace
 
@@ -243,9 +304,11 @@ void HighlightPainter::SelectionPaintState::ComputeSelectionStyle(
     Node* node,
     const PaintInfo& paint_info,
     const TextPaintStyle& text_style) {
-  selection_style_ =
-      HighlightStyleUtils::HighlightPaintingStyle(
-          document, style, node, kPseudoIdSelection, text_style, paint_info);
+  const ComputedStyle* pseudo_style = HighlightStyleUtils::HighlightPseudoStyle(
+      node, style, kPseudoIdSelection);
+  selection_style_ = HighlightStyleUtils::HighlightPaintingStyle(
+      document, style, pseudo_style, node, kPseudoIdSelection, text_style,
+      paint_info, SearchTextIsActiveMatch::kNo);
   paint_selected_text_only_ =
       (paint_info.phase == PaintPhase::kSelectionDragImage);
 }
@@ -283,7 +346,7 @@ void HighlightPainter::SelectionPaintState::PaintSelectionBackground(
     const std::optional<AffineTransform>& rotation) {
   const Color color = HighlightStyleUtils::HighlightBackgroundColor(
       document, style, node, selection_style_.style.current_color,
-      kPseudoIdSelection);
+      kPseudoIdSelection, SearchTextIsActiveMatch::kNo);
   HighlightPainter::PaintHighlightBackground(context, style, color,
                                              PhysicalSelectionRect(), rotation);
 }
@@ -295,10 +358,10 @@ void HighlightPainter::SelectionPaintState::PaintSelectedText(
     const TextPaintStyle& text_style,
     DOMNodeId node_id,
     const AutoDarkMode& auto_dark_mode) {
-  text_painter.PaintSelectedText(fragment_paint_info, selection_status_.start,
-                                 selection_status_.end, text_style,
-                                 selection_style_.style, LineRelativeSelectionRect(),
-                                 node_id, auto_dark_mode);
+  text_painter.PaintSelectedText(
+      fragment_paint_info, selection_status_.start, selection_status_.end,
+      text_style, selection_style_.style, LineRelativeSelectionRect(), node_id,
+      auto_dark_mode);
 }
 
 // Paint the given text range in the given style, suppressing the text proper
@@ -330,6 +393,18 @@ void HighlightPainter::SelectionPaintState::
   }
 }
 
+// GetNode() for first-letter fragment returns null because it is anonymous.
+// Use AssociatedTextNode() of LayoutTextFragment to get the associated node.
+static Node* AssociatedNode(const LayoutObject* layout_object) {
+  if (RuntimeEnabledFeatures::PaintHighlightsForFirstLetterEnabled()) {
+    if (auto* layout_text_fragment =
+            DynamicTo<LayoutTextFragment>(layout_object)) {
+      return layout_text_fragment->AssociatedTextNode();
+    }
+  }
+  return layout_object->GetNode();
+}
+
 HighlightPainter::HighlightPainter(
     const TextFragmentPaintInfo& fragment_paint_info,
     TextPainter& text_painter,
@@ -346,19 +421,22 @@ HighlightPainter::HighlightPainter(
       decoration_painter_(decoration_painter),
       paint_info_(paint_info),
       cursor_(cursor),
+      root_inline_cursor_(cursor),
       fragment_item_(fragment_item),
       box_origin_(box_origin),
       originating_style_(style),
       originating_text_style_(text_style),
       selection_(selection),
       layout_object_(fragment_item_.GetLayoutObject()),
-      node_(layout_object_->GetNode()),
+      node_(AssociatedNode(layout_object_)),
       foreground_auto_dark_mode_(
           PaintAutoDarkMode(originating_style_,
                             DarkModeFilter::ElementRole::kForeground)),
       background_auto_dark_mode_(
           PaintAutoDarkMode(originating_style_,
                             DarkModeFilter::ElementRole::kBackground)) {
+  root_inline_cursor_.ExpandRootToContainingBlock();
+
   // Custom highlights and marker-based highlights are defined in terms of
   // DOM ranges in a Text node. Generated text either has no Text node or does
   // not derive its content from the Text node (e.g. ellipsis, soft hyphens).
@@ -372,6 +450,12 @@ HighlightPainter::HighlightPainter(
             *text_node, fragment_paint_info_.from, fragment_paint_info_.to);
         DCHECK(fragment_dom_offsets_);
         markers_ = controller.ComputeMarkersToPaint(*text_node);
+        if (RuntimeEnabledFeatures::SearchTextHighlightPseudoEnabled() &&
+            !fragment_item_.IsSvgText()) {
+          search_ = controller.MarkersFor(
+              *text_node, DocumentMarker::kTextMatch,
+              fragment_dom_offsets_->start, fragment_dom_offsets_->end);
+        }
         target_ = controller.MarkersFor(
             *text_node, DocumentMarker::kTextFragment,
             fragment_dom_offsets_->start, fragment_dom_offsets_->end);
@@ -400,10 +484,10 @@ HighlightPainter::HighlightPainter(
     layers_ = HighlightOverlay::ComputeLayers(
         layout_object_->GetDocument(), node_, originating_style_,
         originating_text_style_, paint_info_, selection_status, custom_,
-        grammar_, spelling_, target_);
+        grammar_, spelling_, target_, search_);
     Vector<HighlightEdge> edges = HighlightOverlay::ComputeEdges(
         node_, fragment_item_.IsGeneratedText(), fragment_dom_offsets_, layers_,
-        selection_status, custom_, grammar_, spelling_, target_);
+        selection_status, custom_, grammar_, spelling_, target_, search_);
     parts_ =
         HighlightOverlay::ComputeParts(fragment_paint_info_, layers_, edges);
 
@@ -446,7 +530,7 @@ void HighlightPainter::PaintNonCssMarkers(Phase phase) {
   if (markers_.empty())
     return;
 
-  DCHECK(fragment_item_.GetNode());
+  CHECK(node_);
   const StringView text = cursor_.CurrentText();
 
   const auto* text_node = DynamicTo<Text>(node_);
@@ -466,9 +550,11 @@ void HighlightPainter::PaintNonCssMarkers(Phase phase) {
 
     switch (marker->GetType()) {
       case DocumentMarker::kTextMatch: {
-        const Document& document = node_->GetDocument();
-        if (!document.GetFrame()->GetEditor().MarkedTextMatchesAreHighlighted())
+        if (RuntimeEnabledFeatures::SearchTextHighlightPseudoEnabled() &&
+            !fragment_item_->IsSvgText()) {
           break;
+        }
+        const Document& document = node_->GetDocument();
         const auto& text_match_marker = To<TextMatchMarker>(*marker);
         if (phase == kBackground) {
           Color color =
@@ -477,7 +563,8 @@ void HighlightPainter::PaintNonCssMarkers(Phase phase) {
                   document.InForcedColorsMode(),
                   originating_style_.UsedColorScheme(),
                   document.GetColorProviderForPainting(
-                      originating_style_.UsedColorScheme()));
+                      originating_style_.UsedColorScheme()),
+                  document.IsInWebAppScope());
           PaintRect(
               paint_info_.context,
               ComputeBackgroundRect(text, paint_start_offset, paint_end_offset),
@@ -511,14 +598,14 @@ void HighlightPainter::PaintNonCssMarkers(Phase phase) {
         }
         if (StyleableMarkerPainter::ShouldPaintUnderline(styleable_marker)) {
           const SimpleFontData* font_data =
-              originating_style_.GetFont().PrimaryFont();
+              originating_style_.GetFont()->PrimaryFont();
           StyleableMarkerPainter::PaintUnderline(
               styleable_marker, paint_info_.context, box_origin_,
               originating_style_,
               LineRelativeLocalRect(fragment_item_, text, paint_start_offset,
                                     paint_end_offset),
               LayoutUnit(font_data->GetFontMetrics().Height()),
-              fragment_item_.GetNode()->GetDocument().InDarkMode());
+              node_->GetDocument().InDarkMode());
         }
         if (marker->GetType() == DocumentMarker::kComposition &&
             !styleable_marker.TextColor().IsFullyTransparent() &&
@@ -528,12 +615,17 @@ void HighlightPainter::PaintNonCssMarkers(Phase phase) {
         }
         break;
       }
+      case DocumentMarker::kGlic: {
+        if (phase == kBackground) {
+          PaintBackgroundForGlicMarker(marker, text, paint_start_offset,
+                                       paint_end_offset);
+        }
+      } break;
       case DocumentMarker::kSpelling:
       case DocumentMarker::kGrammar:
       case DocumentMarker::kTextFragment:
       case DocumentMarker::kCustomHighlight:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 }
@@ -548,8 +640,9 @@ HighlightPainter::Case HighlightPainter::ComputePaintCase() const {
 
   // This can yield false positives (weakening the optimisations below) if all
   // non-spelling/grammar/selection highlights are outside the text fragment.
-  if (!target_.empty() || !custom_.empty())
+  if (!target_.empty() || !search_.empty() || !custom_.empty()) {
     return kOverlay;
+  }
 
   if (selection_ && spelling_.empty() && grammar_.empty()) {
     const ComputedStyle* pseudo_style =
@@ -590,8 +683,8 @@ HighlightPainter::Case HighlightPainter::ComputePaintCase() const {
 
 void HighlightPainter::FastPaintSpellingGrammarDecorations() {
   DCHECK_EQ(paint_case_, kFastSpellingGrammar);
-  DCHECK(fragment_item_.GetNode());
-  const auto& text_node = To<Text>(*fragment_item_.GetNode());
+  CHECK(node_);
+  const auto& text_node = To<Text>(*node_);
   const StringView text = cursor_.CurrentText();
 
   // ::spelling-error overlay is drawn on top of ::grammar-error overlay.
@@ -622,16 +715,18 @@ void HighlightPainter::PaintOneSpellingGrammarDecoration(
     const StringView& text,
     unsigned paint_start_offset,
     unsigned paint_end_offset) {
-  if (fragment_item_.GetNode()->GetDocument().Printing())
+  if (node_->GetDocument().Printing()) {
     return;
+  }
 
   if (!text_painter_.GetSvgState()) {
     if (const auto* pseudo_style = HighlightStyleUtils::HighlightPseudoStyle(
             node_, originating_style_, PseudoFor(type))) {
       const TextPaintStyle text_style =
           HighlightStyleUtils::HighlightPaintingStyle(
-              node_->GetDocument(), originating_style_, node_, PseudoFor(type),
-              originating_text_style_, paint_info_)
+              node_->GetDocument(), originating_style_, pseudo_style, node_,
+              PseudoFor(type), originating_text_style_, paint_info_,
+              SearchTextIsActiveMatch::kNo)
               .style;
       PaintOneSpellingGrammarDecoration(type, text, paint_start_offset,
                                         paint_end_offset, *pseudo_style,
@@ -689,93 +784,11 @@ void HighlightPainter::PaintOneSpellingGrammarDecoration(
 
 void HighlightPainter::PaintOriginatingShadow(const TextPaintStyle& text_style,
                                               DOMNodeId node_id) {
-  DCHECK_EQ(paint_case_, kOverlay);
-
-  // First paint the shadows for the whole range.
+  // Paint the shadows for the whole range.
   if (text_style.shadow) {
     text_painter_.Paint(fragment_paint_info_, text_style, node_id,
                         foreground_auto_dark_mode_, TextPainter::kShadowsOnly);
   }
-}
-
-Vector<LayoutSelectionStatus> HighlightPainter::GetHighlights(
-    const HighlightLayer& layer) {
-  Vector<LayoutSelectionStatus> result{};
-  const auto* text_node = DynamicTo<Text>(fragment_item_.GetNode());
-  switch (layer.type) {
-    case HighlightLayerType::kOriginating:
-      NOTREACHED_IN_MIGRATION();
-      break;
-    case HighlightLayerType::kCustom: {
-      DCHECK(text_node);
-      const MarkerRangeMappingContext mapping_context(*text_node,
-                                                      *fragment_dom_offsets_);
-      for (const auto& marker : custom_) {
-        // Filter custom highlight markers to one highlight at a time.
-        auto* custom = To<CustomHighlightMarker>(marker.Get());
-        if (custom->GetHighlightName() != layer.PseudoArgument()) {
-          continue;
-        }
-        std::optional<TextOffsetRange> marker_offsets =
-            mapping_context.GetTextContentOffsets(*marker);
-        if (marker_offsets && (marker_offsets->start != marker_offsets->end)) {
-          result.push_back(
-              LayoutSelectionStatus{marker_offsets->start, marker_offsets->end,
-                                    SelectSoftLineBreak::kNotSelected});
-        }
-      }
-      break;
-    }
-    case HighlightLayerType::kGrammar: {
-      DCHECK(text_node);
-      const MarkerRangeMappingContext mapping_context(*text_node,
-                                                      *fragment_dom_offsets_);
-      for (const auto& marker : grammar_) {
-        std::optional<TextOffsetRange> marker_offsets =
-            mapping_context.GetTextContentOffsets(*marker);
-        if (marker_offsets && (marker_offsets->start != marker_offsets->end)) {
-          result.push_back(
-              LayoutSelectionStatus{marker_offsets->start, marker_offsets->end,
-                                    SelectSoftLineBreak::kNotSelected});
-        }
-      }
-      break;
-    }
-    case HighlightLayerType::kSpelling: {
-      DCHECK(text_node);
-      const MarkerRangeMappingContext mapping_context(*text_node,
-                                                      *fragment_dom_offsets_);
-      for (const auto& marker : spelling_) {
-        std::optional<TextOffsetRange> marker_offsets =
-            mapping_context.GetTextContentOffsets(*marker);
-        if (marker_offsets && (marker_offsets->start != marker_offsets->end)) {
-          result.push_back(
-              LayoutSelectionStatus{marker_offsets->start, marker_offsets->end,
-                                    SelectSoftLineBreak::kNotSelected});
-        }
-      }
-      break;
-    }
-    case HighlightLayerType::kTargetText: {
-      DCHECK(text_node);
-      const MarkerRangeMappingContext mapping_context(*text_node,
-                                                      *fragment_dom_offsets_);
-      for (const auto& marker : target_) {
-        std::optional<TextOffsetRange> marker_offsets =
-            mapping_context.GetTextContentOffsets(*marker);
-        if (marker_offsets && (marker_offsets->start != marker_offsets->end)) {
-          result.push_back(
-              LayoutSelectionStatus{marker_offsets->start, marker_offsets->end,
-                                    SelectSoftLineBreak::kNotSelected});
-        }
-      }
-      break;
-    }
-    case HighlightLayerType::kSelection:
-      result.push_back(*GetSelectionStatus(selection_));
-      break;
-  }
-  return result;
 }
 
 TextOffsetRange HighlightPainter::GetFragmentDOMOffsets(const Text& text,
@@ -794,6 +807,17 @@ const PhysicalRect HighlightPainter::ComputeBackgroundRect(
   return fragment_item_.LocalRect(text, start_offset, end_offset) + box_origin_;
 }
 
+const PhysicalRect HighlightPainter::ComputeBackgroundRectForSelection(
+    unsigned start_offset,
+    unsigned end_offset) {
+  LayoutSelectionStatus selection_status{selection_->Status()};
+  selection_status.start = start_offset;
+  selection_status.end = end_offset;
+  return root_inline_cursor_.CurrentLocalSelectionRectForText(
+             selection_status) +
+         box_origin_;
+}
+
 void HighlightPainter::PaintHighlightOverlays(
     const TextPaintStyle& originating_text_style,
     DOMNodeId node_id,
@@ -806,11 +830,12 @@ void HighlightPainter::PaintHighlightOverlays(
   // and kSelection if necessary, but we can’t paint marker-based highlights,
   // because GetTextContentOffset requires a Text node. Markers are defined and
   // stored in terms of Text nodes anyway, so this should never be a problem.
-  const Document& document = layout_object_->GetDocument();
 
-  // For each overlay, paint its backgrounds and shadows over every highlighted
-  // range in full.
-  for (const HighlightLayer& layer : layers_) {
+  // For each overlay, paint ‘background-color’ and ‘text-shadow’ one part at a
+  // time, since both of them may vary in color when ‘color’ is ‘currentColor’.
+  for (wtf_size_t i = 0; i < layers_.size(); i++) {
+    const HighlightLayer& layer = layers_[i];
+
     if (layer.type == HighlightLayerType::kOriginating) {
       continue;
     }
@@ -820,46 +845,74 @@ void HighlightPainter::PaintHighlightOverlays(
       continue;
     }
 
-    Vector<LayoutSelectionStatus> highlights = GetHighlights(layer);
-
-    for (const auto& highlight : highlights) {
-      if (highlight.end == highlight.start) {
-        continue;
+    // Paint ‘background-color’ while trying to merge parts if possible,
+    // to avoid creating unnecessary “seams”.
+    MergedHighlightPart<HighlightBackground> merged_background{};
+    const auto& paint_background =
+        [&](const MergedHighlightPart<HighlightBackground>::Merged& merged) {
+          if (merged.inner.color.IsFullyTransparent()) {
+            return;
+          }
+          // TODO(crbug.com/40281215) ComputeBackgroundRect should use the same
+          // logic as ComputeBackgroundRectForSelection, that is, it should
+          // expand selection to the line height and extend for line breaks.
+          PhysicalRect part_rect =
+              layer.type == HighlightLayerType::kSelection
+                  ? ComputeBackgroundRectForSelection(merged.from, merged.to)
+                  : ComputeBackgroundRect(cursor_.CurrentText(), merged.from,
+                                          merged.to);
+          PaintHighlightBackground(paint_info_.context, originating_style_,
+                                   merged.inner.color, part_rect, rotation);
+        };
+    for (const HighlightPart& part : parts_) {
+      for (const HighlightBackground& background : part.backgrounds) {
+        if (background.layer_index == i) {
+          if (const auto& merged = merged_background.Merge(background, part)) {
+            paint_background(*merged);
+          }
+          break;
+        }
       }
+    }
+    if (const auto& merged = merged_background.Take()) {
+      paint_background(*merged);
+    }
 
-      const StringView text = cursor_.CurrentText();
-
-      // TODO(crbug.com/1480139) ComputeBackgroundRect should use the same logic
-      // as CurrentLocalSelectionRectForText, that is, it should expand
-      // selection to the line height and extend for line breaks.
-      const PhysicalRect& rect =
-          layer.type == HighlightLayerType::kSelection
-              ? selection_->PhysicalSelectionRect()
-              : ComputeBackgroundRect(text, highlight.start, highlight.end);
-
-      Color background_color = HighlightStyleUtils::HighlightBackgroundColor(
-          document, originating_style_, node_,
-          layer.text_style.style.current_color, layer.PseudoId(),
-          layer.PseudoArgument());
-
-      PaintHighlightBackground(paint_info_.context, originating_style_,
-                               background_color, rect, rotation);
-
-      if (layer.text_style.style.shadow) {
-        text_painter_.Paint(
-            fragment_paint_info_.Slice(highlight.start, highlight.end),
-            layer.text_style.style, node_id, foreground_auto_dark_mode_,
-            TextPainter::kShadowsOnly);
+    // Paint ‘text-shadow’ while trying to merge parts if possible,
+    // to avoid unnecessarily splitting ligatures.
+    MergedHighlightPart<HighlightTextShadow> merged_text_shadow{};
+    const auto& paint_text_shadow =
+        [&](const MergedHighlightPart<HighlightTextShadow>::Merged& merged) {
+          if (!layer.text_style.style.shadow) {
+            return;
+          }
+          TextPaintStyle text_shadow_style{};
+          text_shadow_style.shadow = layer.text_style.style.shadow;
+          text_shadow_style.current_color = merged.inner.current_color;
+          text_painter_.Paint(
+              fragment_paint_info_.Slice(merged.from, merged.to),
+              text_shadow_style, node_id, foreground_auto_dark_mode_,
+              TextPainter::kShadowsOnly);
+        };
+    for (const HighlightPart& part : parts_) {
+      for (const HighlightTextShadow& text_shadow : part.text_shadows) {
+        if (text_shadow.layer_index == i) {
+          if (const auto& merged =
+                  merged_text_shadow.Merge(text_shadow, part)) {
+            paint_text_shadow(*merged);
+          }
+          break;
+        }
       }
+    }
+    if (const auto& merged = merged_text_shadow.Take()) {
+      paint_text_shadow(*merged);
     }
   }
 
   // For each part, paint the text proper over every highlighted range,
   for (auto& part : parts_) {
     LineRelativeRect part_rect = LineRelativeWorldRect(part.range);
-    if (part.type == HighlightLayerType::kSelection) {
-      part_rect.Unite(selection_->LineRelativeSelectionRect());
-    }
 
     PaintDecorationsExceptLineThrough(part, part_rect);
 
@@ -873,7 +926,8 @@ void HighlightPainter::PaintHighlightOverlays(
       // transformed text (include text paths). This might be fixable by
       // transforming the ink overflow before using it to expamd the clip.
       TextPainter::SvgTextPaintState* svg_state = text_painter_.GetSvgState();
-      if (UNLIKELY(svg_state) && part.type == HighlightLayerType::kSelection) {
+      if (svg_state && part.type == HighlightLayerType::kSelection)
+          [[unlikely]] {
         // SVG text painting needs to know it is painting selection.
         is_painting_selection_reset.emplace(&svg_state->is_painting_selection_,
                                             true);
@@ -902,8 +956,8 @@ void HighlightPainter::PaintHighlightOverlays(
       fragment_paint_info_.shape_result->ExpandRangeToIncludePartialGlyphs(
           &start, &end);
 
-      text_painter_.Paint(fragment_paint_info_.Slice(start, end),
-                          part.style, node_id, foreground_auto_dark_mode_,
+      text_painter_.Paint(fragment_paint_info_.Slice(start, end), part.style,
+                          node_id, foreground_auto_dark_mode_,
                           TextPainter::kTextProperOnly);
     }
 
@@ -944,8 +998,7 @@ PseudoId HighlightPainter::PseudoFor(DocumentMarker::MarkerType type) {
     case DocumentMarker::kTextFragment:
       return kPseudoIdTargetText;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return {};
+      NOTREACHED();
   }
 }
 
@@ -956,8 +1009,7 @@ TextDecorationLine HighlightPainter::LineFor(DocumentMarker::MarkerType type) {
     case DocumentMarker::kGrammar:
       return TextDecorationLine::kGrammarError;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return {};
+      NOTREACHED();
   }
 }
 
@@ -968,8 +1020,7 @@ Color HighlightPainter::ColorFor(DocumentMarker::MarkerType type) {
     case DocumentMarker::kGrammar:
       return LayoutTheme::GetTheme().PlatformGrammarMarkerUnderlineColor();
     default:
-      NOTREACHED_IN_MIGRATION();
-      return {};
+      NOTREACHED();
   }
 }
 
@@ -987,18 +1038,18 @@ LineRelativeRect HighlightPainter::LocalRectInWritingModeSpace(
     return LineRelativeLocalRect(fragment_item_, text, from, to);
   }
 
-  const HighlightEdgeInfo* from_info =
+  auto from_info =
       std::lower_bound(edges_info_.begin(), edges_info_.end(), from,
                        [](const HighlightEdgeInfo& info, unsigned offset) {
                          return info.offset < offset;
                        });
-  const HighlightEdgeInfo* to_info =
+  auto to_info =
       std::lower_bound(from_info, edges_info_.end(), to,
                        [](const HighlightEdgeInfo& info, unsigned offset) {
                          return info.offset < offset;
                        });
-  DCHECK_NE(from_info, edges_info_.end());
-  DCHECK_NE(to_info, edges_info_.end());
+  CHECK_NE(from_info, edges_info_.end(), base::NotFatalUntil::M130);
+  CHECK_NE(to_info, edges_info_.end(), base::NotFatalUntil::M130);
 
   // This rect is used for 2 purposes: To set the offset and width for
   // text decoration painting, and the set the clip. The former uses the
@@ -1022,7 +1073,7 @@ LineRelativeRect HighlightPainter::LocalRectInWritingModeSpace(
 
 void HighlightPainter::ClipToPartRect(const LineRelativeRect& part_rect) {
   gfx::RectF clip_rect{part_rect};
-  if (UNLIKELY(fragment_item_.IsSvgText())) {
+  if (fragment_item_.IsSvgText()) [[unlikely]] {
     clip_rect = TextDecorationPainter::ExpandRectForSVGDecorations(part_rect);
   } else {
     clip_rect.Offset(0, fragment_item_.InkOverflowRect().Y());
@@ -1184,6 +1235,20 @@ void HighlightPainter::PaintTextForCompositionMarker(
       text_style, kInvalidDOMNodeId, foreground_auto_dark_mode_);
 
   decoration_painter.PaintOnlyLineThrough();
+}
+
+void HighlightPainter::PaintBackgroundForGlicMarker(
+    const DocumentMarker* marker,
+    const StringView& text,
+    unsigned paint_start_offset,
+    unsigned paint_end_offset) {
+  const auto& glic_highlight = To<GlicMarker>(*marker);
+  gfx::RectF text_box(
+      ComputeBackgroundRect(text, paint_start_offset, paint_end_offset));
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  flags.setColor(glic_highlight.BackgroundColor().toSkColor4f());
+  paint_info_.context.Canvas()->drawRect(RectFToSkRect(text_box), flags);
 }
 
 }  // namespace blink

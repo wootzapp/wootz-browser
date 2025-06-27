@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/task/sequenced_task_runner.h"
@@ -84,8 +85,9 @@ void AudioRendererMixerInput::Start() {
   CHECK_EQ(device_info_->device_status(), media::OUTPUT_DEVICE_STATUS_OK);
 
   started_ = true;
-  mixer_ = mixer_pool_->GetMixer(main_frame_token_, params_, latency_,
-                                 *device_info_, std::move(sink_));
+  mixer_ =
+      mixer_pool_->GetMixer(source_frame_token_, main_frame_token_, params_,
+                            latency_, *device_info_, std::move(sink_));
 
   // Note: OnRenderError() may be called immediately after this call returns.
   mixer_->AddErrorCallback(this);
@@ -137,9 +139,7 @@ bool AudioRendererMixerInput::SetVolume(double volume) {
 }
 
 media::OutputDeviceInfo AudioRendererMixerInput::GetOutputDeviceInfo() {
-  NOTREACHED_IN_MIGRATION();  // The blocking API is intentionally not
-                              // supported.
-  return media::OutputDeviceInfo();
+  NOTREACHED();  // The blocking API is intentionally not supported.
 }
 
 void AudioRendererMixerInput::GetOutputDeviceInfoAsync(
@@ -166,7 +166,8 @@ void AudioRendererMixerInput::GetOutputDeviceInfoAsync(
   device_info_.reset();
 
   // If we don't have a sink yet start the process of getting one.
-  sink_ = mixer_pool_->GetSink(source_frame_token_, device_id_);
+  sink_ =
+      mixer_pool_->GetSink(source_frame_token_, main_frame_token_, device_id_);
 
   // Retain a ref to this sink to ensure it is not destructed while this occurs.
   // The callback is guaranteed to execute on this thread, so there are no
@@ -216,7 +217,8 @@ void AudioRendererMixerInput::SwitchOutputDevice(
   // Request a new sink using the new device id. This process may fail, so to
   // avoid interrupting working audio, don't set any class variables until we
   // know it's a success.
-  auto new_sink = mixer_pool_->GetSink(source_frame_token_, device_id);
+  auto new_sink =
+      mixer_pool_->GetSink(source_frame_token_, main_frame_token_, device_id);
 
   // Retain a ref to this sink to ensure it is not destructed while this occurs.
   // The callback is guaranteed to execute on this thread, so there are no
@@ -230,7 +232,8 @@ double AudioRendererMixerInput::ProvideInput(
     media::AudioBus* audio_bus,
     uint32_t frames_delayed,
     const media::AudioGlitchInfo& glitch_info) {
-  TRACE_EVENT0("audio", "AudioRendererMixerInput::ProvideInput");
+  TRACE_EVENT("audio", "AudioRendererMixerInput::ProvideInput",
+              "delay (frames)", frames_delayed);
   const base::TimeDelta delay = media::AudioTimestampHelper::FramesToTime(
       frames_delayed, params_.sample_rate());
 
@@ -258,7 +261,8 @@ double AudioRendererMixerInput::ProvideInput(
       float* data = audio_bus->channel(ch);
 
       for (int i = 0; i < frames; ++i) {
-        data[i] *= static_cast<float>(start_volume + i) / total_fade_in_frames_;
+        UNSAFE_TODO(data[i]) *=
+            static_cast<float>(start_volume + i) / total_fade_in_frames_;
       }
     }
 

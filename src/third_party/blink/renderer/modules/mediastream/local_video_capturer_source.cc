@@ -29,8 +29,7 @@ LocalVideoCapturerSource::LocalVideoCapturerSource(
       manager_(Platform::Current()->GetVideoCaptureImplManager()),
       frame_token_(frame->GetLocalFrameToken()),
       release_device_cb_(
-          manager_->UseDevice(session_id_,
-                              &frame->GetBrowserInterfaceBroker())),
+          manager_->UseDevice(session_id_, frame->GetBrowserInterfaceBroker())),
       task_runner_(std::move(task_runner)) {}
 
 LocalVideoCapturerSource::~LocalVideoCapturerSource() {
@@ -112,6 +111,9 @@ void LocalVideoCapturerSource::OnStateUpdate(blink::VideoCaptureState state) {
     case VIDEO_CAPTURE_STATE_ERROR_CAMERA_BUSY:
       run_state = RunState::kCameraBusyError;
       break;
+    case VIDEO_CAPTURE_STATE_ERROR_START_TIMEOUT:
+      run_state = RunState::kStartTimeoutError;
+      break;
     default:
       run_state = RunState::kStopped;
   }
@@ -131,11 +133,12 @@ void LocalVideoCapturerSource::OnStateUpdate(blink::VideoCaptureState state) {
     case VIDEO_CAPTURE_STATE_ERROR_SYSTEM_PERMISSIONS_DENIED:
     case VIDEO_CAPTURE_STATE_ERROR_CAMERA_BUSY:
     case VIDEO_CAPTURE_STATE_ENDED:
+    case VIDEO_CAPTURE_STATE_ERROR_START_TIMEOUT:
       std::move(release_device_cb_).Run();
       release_device_cb_ =
           frame && frame->Client()
               ? manager_->UseDevice(session_id_,
-                                    &frame->GetBrowserInterfaceBroker())
+                                    frame->GetBrowserInterfaceBroker())
               : base::DoNothing();
       OnLog(
           "LocalVideoCapturerSource::OnStateUpdate signaling to "

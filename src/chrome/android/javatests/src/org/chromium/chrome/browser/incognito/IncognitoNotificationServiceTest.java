@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
@@ -40,9 +41,9 @@ import org.chromium.chrome.browser.tabmodel.TestTabModelDirectory.TabStateInfo;
 import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
 import org.chromium.chrome.browser.tabpersistence.TabStateFileManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.io.File;
 import java.util.concurrent.Callable;
@@ -52,14 +53,15 @@ import java.util.concurrent.Callable;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class IncognitoNotificationServiceTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule
     public IncognitoCustomTabActivityTestRule mCustomTabActivityTestRule =
             new IncognitoCustomTabActivityTestRule();
 
     private void createTabOnUiThread() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 (Runnable)
                         () ->
                                 mActivityTestRule
@@ -80,7 +82,7 @@ public class IncognitoNotificationServiceTest {
     }
 
     private void launchIncognitoTabAndEnsureNotificationDisplayed() {
-        mActivityTestRule.startMainActivityOnBlankPage();
+        mActivityTestRule.startOnBlankPage();
         createTabOnUiThread();
         CriteriaHelper.pollUiThread(
                 () -> {
@@ -111,7 +113,7 @@ public class IncognitoNotificationServiceTest {
     @MediumTest
     public void testSingleRunningChromeTabbedActivity()
             throws InterruptedException, CanceledException {
-        mActivityTestRule.startMainActivityOnBlankPage();
+        mActivityTestRule.startOnBlankPage();
 
         createTabOnUiThread();
         createTabOnUiThread();
@@ -119,7 +121,7 @@ public class IncognitoNotificationServiceTest {
         pollUiThreadForChromeActivityIncognitoTabCount(2);
 
         final Profile incognitoProfile =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         new Callable<Profile>() {
                             @Override
                             public Profile call() {
@@ -130,7 +132,7 @@ public class IncognitoNotificationServiceTest {
                                         .getProfile();
                             }
                         });
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     assertTrue(incognitoProfile.isOffTheRecord());
                     assertTrue(incognitoProfile.isNativeInitialized());
@@ -217,7 +219,7 @@ public class IncognitoNotificationServiceTest {
                     Criteria.checkThat(actualNormalCount, Matchers.is(2));
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> Assert.assertFalse(LibraryLoader.getInstance().isInitialized()));
     }
 
@@ -231,7 +233,7 @@ public class IncognitoNotificationServiceTest {
     @Test
     @MediumTest
     @Feature("Incognito")
-    public void testCloseAllIncognitoNotificationForIncognitoCCT_DoesNotCloseCCT()
+    public void testCloseAllIncognitoNotificationForIncognitoCct_DoesNotCloseCct()
             throws PendingIntent.CanceledException {
         launchIncognitoTabAndEnsureNotificationDisplayed();
 

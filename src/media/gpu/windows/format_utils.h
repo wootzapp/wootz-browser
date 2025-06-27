@@ -7,12 +7,18 @@
 
 #include <dxgi.h>
 
+#include "media/base/video_types.h"
 #include "media/gpu/media_gpu_export.h"
 
 namespace media {
 
 // Get the number of planes that a D3D12Resource of |format| has.
 MEDIA_GPU_EXPORT size_t GetFormatPlaneCount(DXGI_FORMAT format);
+
+MEDIA_GPU_EXPORT const char* DxgiFormatToString(DXGI_FORMAT format);
+
+MEDIA_GPU_EXPORT DXGI_FORMAT
+VideoPixelFormatToDxgiFormat(VideoPixelFormat format);
 
 }  // namespace media
 

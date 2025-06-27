@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/views/chrome_views_export.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/base/theme_provider.h"
 #include "ui/base/ui_base_features.h"
@@ -39,7 +40,7 @@ class MenuModel;
 namespace views {
 class MenuModelAdapter;
 class MenuRunner;
-}
+}  // namespace views
 
 // This class provides basic drawing and mouse-over behavior for buttons
 // appearing in the toolbar.
@@ -115,6 +116,9 @@ class ToolbarButton : public views::LabelButton,
   std::optional<gfx::Insets> GetLayoutInsets() const;
   void SetLayoutInsets(const std::optional<gfx::Insets>& insets);
 
+  // Sets |layout_inset_delta_|, see comment there.
+  void SetLayoutInsetDelta(const gfx::Insets& insets);
+
   // views::LabelButton:
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
   void OnThemeChanged() override;
@@ -126,14 +130,23 @@ class ToolbarButton : public views::LabelButton,
   void OnMouseCaptureLost() override;
   void OnMouseExited(const ui::MouseEvent& event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
   std::unique_ptr<views::ActionViewInterface> GetActionViewInterface() override;
+  void AddLayerToRegion(ui::Layer* new_layer,
+                        views::LayerRegion region) override;
+  void RemoveLayerFromRegions(ui::Layer* old_layer) override;
+
+  // When IPH is showing we suppress the tooltip text. This means that we must
+  // provide an alternative accessible name, when this is the case. This is
+  // because `Button::AdjustAccessibleName` will use the tooltip text when the
+  // accessible name is empty, and if the tooltip text is also empty then the
+  // button will have no accessible name.
+  std::u16string GetAlternativeAccessibleName() const override;
 
   // views::ContextMenuController:
-  void ShowContextMenuForViewImpl(View* source,
-                                  const gfx::Point& point,
-                                  ui::MenuSourceType source_type) override;
+  void ShowContextMenuForViewImpl(
+      View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override;
 
   // ui::PropertyHandler:
   void AfterPropertyChange(const void* key, int64_t old_value) override;
@@ -148,6 +161,13 @@ class ToolbarButton : public views::LabelButton,
   bool GetVectorIconsHasValueForTesting() { return vector_icons_.has_value(); }
 
  protected:
+  struct VectorIcons {
+    // RAW_PTR_EXCLUSION: Never allocated by PartitionAlloc (always points to a
+    // global), so there is no benefit to using a raw_ptr, only cost.
+    RAW_PTR_EXCLUSION const gfx::VectorIcon& icon;
+    RAW_PTR_EXCLUSION const gfx::VectorIcon& touch_icon;
+  };
+
   // Returns if menu should be shown. Override this to change default behavior.
   virtual bool ShouldShowMenu();
 
@@ -158,10 +178,7 @@ class ToolbarButton : public views::LabelButton,
   virtual bool ShouldShowInkdropAfterIphInteraction();
 
   // Function to show the dropdown menu.
-  virtual void ShowDropDownMenu(ui::MenuSourceType source_type);
-
-  // Sets |layout_inset_delta_|, see comment there.
-  void SetLayoutInsetDelta(const gfx::Insets& insets);
+  virtual void ShowDropDownMenu(ui::mojom::MenuSourceType source_type);
 
   // Updates the button's background and border.
   virtual void UpdateColorsAndInsets();
@@ -192,6 +209,10 @@ class ToolbarButton : public views::LabelButton,
   // Virtual method to explicitly set the highlighted border color instead of
   // the default behavior of the HighlightColorAnimation.
   virtual std::optional<SkColor> GetHighlightBorderColor() const;
+
+  const std::optional<VectorIcons>& GetVectorIcons() const {
+    return vector_icons_;
+  }
 
   // Sets the spacing on the outer side of the label (not the side where the
   // image is). The spacing is applied only when the label is non-empty.
@@ -270,13 +291,6 @@ class ToolbarButton : public views::LabelButton,
     gfx::SlideAnimation highlight_color_animation_;
   };
 
-  struct VectorIcons {
-    // RAW_PTR_EXCLUSION: Never allocated by PartitionAlloc (always points to a
-    // global), so there is no benefit to using a raw_ptr, only cost.
-    RAW_PTR_EXCLUSION const gfx::VectorIcon& icon;
-    RAW_PTR_EXCLUSION const gfx::VectorIcon& touch_icon;
-  };
-
   void TouchUiChanged();
 
   // Clears the current highlight, i.e. it sets the label to an empty string and
@@ -291,7 +305,7 @@ class ToolbarButton : public views::LabelButton,
   // views::LabelButton:
   // This is private to avoid a foot-shooter. Callers should use SetHighlight()
   // instead which sets an optional color as well.
-  void SetText(const std::u16string& text) override;
+  void SetText(std::u16string_view text) override;
 
   // Sets the in product help promo. Called after the kHasInProductHelpPromoKey
   // property changes. When this button has an in product help promo, the button
@@ -326,13 +340,6 @@ class ToolbarButton : public views::LabelButton,
   // Optional identifier for the menu when it runs.
   ui::ElementIdentifier menu_identifier_;
 
-  // Used to ensure the button remains highlighted while the menu is active.
-  std::optional<Button::ScopedAnchorHighlight> menu_anchor_higlight_;
-
-  // Vector icons for the ToolbarButton. The icon is chosen based on touch-ui.
-  // Reacts to theme changes using default colors.
-  std::optional<VectorIcons> vector_icons_;
-
   // Layout insets to use. This is used when the ToolbarButton is not actually
   // hosted inside the toolbar. If not supplied,
   // |GetLayoutInsets(TOOLBAR_BUTTON)| is used instead which is not appropriate
@@ -341,19 +348,23 @@ class ToolbarButton : public views::LabelButton,
 
   // Delta from regular toolbar-button insets. This is necessary for buttons
   // that use smaller or larger icons than regular ToolbarButton instances.
-  // AvatarToolbarButton for instance uses smaller insets to accommodate for a
-  // larger-than-16dp avatar avatar icon outside of touchable mode.
+  // CastToolbarButton for instance uses larger insets for touchable mode to
+  // match the expected touchable UI.
   gfx::Insets layout_inset_delta_;
+
+  // Used to ensure the button remains highlighted while the menu is active.
+  std::optional<Button::ScopedAnchorHighlight> menu_anchor_higlight_;
+
+  // Vector icons for the ToolbarButton. The icon is chosen based on touch-ui.
+  // Reacts to theme changes using default colors.
+  std::optional<VectorIcons> vector_icons_;
 
   // Class responsible for animating highlight color (calling a callback on
   // |this| to refresh UI).
   HighlightColorAnimation highlight_color_animation_;
 
-  // If either |last_border_color_| or |last_paint_insets_| have changed since
-  // the last update to |border_| it must be recalculated  to match current
-  // values.
-  std::optional<SkColor> last_border_color_;
-  gfx::Insets last_paint_insets_;
+  // Suppress tooltip when IPH is showing.
+  std::u16string suppressed_tooltip_text_;
 
   base::CallbackListSubscription subscription_ =
       ui::TouchUiController::Get()->RegisterCallback(

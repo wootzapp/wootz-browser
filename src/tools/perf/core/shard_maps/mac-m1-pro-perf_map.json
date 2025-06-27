@@ -1,26 +1,102 @@
 {
     "0": {
         "benchmarks": {
+            "speedometer3": {
+                "abridged": false
+            },
             "jetstream2": {
+                "abridged": false
+            }
+        },
+        "crossbench": {
+            "speedometer_3.0": {
+                "display_name": "speedometer3.crossbench",
+                "arguments": []
+            },
+            "speedometer_3.1": {
+                "display_name": "speedometer3.1.crossbench",
+                "arguments": []
+            },
+            "jetstream_2.2": {
+                "display_name": "jetstream2.crossbench",
+                "arguments": []
+            }
+        }
+    },
+    "1": {
+        "benchmarks": {
+            "speedometer3": {
+                "abridged": false
+            }
+        },
+        "crossbench": {
+            "speedometer_3.0": {
+                "display_name": "speedometer3.crossbench",
+                "arguments": []
+            },
+            "speedometer_3.1": {
+                "display_name": "speedometer3.1.crossbench",
+                "arguments": []
+            },
+            "motionmark_1.3": {
+                "display_name": "motionmark1.3.crossbench",
+                "arguments": []
+            }
+        }
+    },
+    "2": {
+        "benchmarks": {
+            "speedometer3": {
                 "abridged": false
             },
             "rendering.desktop.notracing": {
                 "abridged": false
+            }
+        },
+        "crossbench": {
+            "speedometer_3.0": {
+                "display_name": "speedometer3.crossbench",
+                "arguments": []
+            },
+            "speedometer_3.1": {
+                "display_name": "speedometer3.1.crossbench",
+                "arguments": []
+            }
+        }
+    },
+    "3": {
+        "benchmarks": {
+            "speedometer3": {
+                "abridged": false
             },
             "speedometer2": {
                 "abridged": false
+            }
+        },
+        "crossbench": {
+            "speedometer_3.0": {
+                "display_name": "speedometer3.crossbench",
+                "arguments": []
             },
-            "speedometer3": {
-                "abridged": false
+            "speedometer_3.1": {
+                "display_name": "speedometer3.1.crossbench",
+                "arguments": []
+            },
+            "speedometer_2.1": {
+                "display_name": "speedometer2.1.crossbench",
+                "arguments": []
             }
         }
     },
     "extra_infos": {
-        "num_stories": 4,
-        "predicted_min_shard_time": 441.0,
-        "predicted_min_shard_index": 0,
-        "predicted_max_shard_time": 441.0,
-        "predicted_max_shard_index": 0,
-        "shard #0": 441.0
+        "num_stories": 18,
+        "predicted_min_shard_time": 233.0,
+        "predicted_min_shard_index": 3,
+        "predicted_max_shard_time": 509.0,
+        "predicted_max_shard_index": 1,
+        "shard #0": 390.0,
+        "shard #1": 509.0,
+        "shard #2": 476.0,
+        "shard #3": 233.0
     }
 }

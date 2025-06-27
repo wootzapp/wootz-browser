@@ -49,6 +49,8 @@ void FakeLocalFrame::NotifyUserActivation(
 
 void FakeLocalFrame::NotifyVirtualKeyboardOverlayRect(const gfx::Rect&) {}
 
+void FakeLocalFrame::NotifyContextMenuInsetsObservers(const gfx::Rect&) {}
+
 void FakeLocalFrame::AddMessageToConsole(
     blink::mojom::ConsoleMessageLevel level,
     const std::string& message,
@@ -86,11 +88,11 @@ void FakeLocalFrame::MediaPlayerActionAt(
     const gfx::Point& location,
     blink::mojom::MediaPlayerActionPtr action) {}
 
-void FakeLocalFrame::RequestVideoFrameAt(const gfx::Point& window_point,
-                                         const gfx::Size& max_size,
-                                         int max_area,
-                                         RequestVideoFrameAtCallback callback) {
-}
+void FakeLocalFrame::RequestVideoFrameAtWithBoundsHint(
+    const gfx::Point& window_point,
+    const gfx::Size& max_size,
+    int max_area,
+    RequestVideoFrameAtWithBoundsHintCallback callback) {}
 
 void FakeLocalFrame::PluginActionAt(const gfx::Point& location,
                                     blink::mojom::PluginActionType action) {}
@@ -106,6 +108,9 @@ void FakeLocalFrame::ReportContentSecurityPolicyViolation(
 
 void FakeLocalFrame::DidUpdateFramePolicy(
     const blink::FramePolicy& frame_policy) {}
+
+void FakeLocalFrame::OnFrameVisibilityChanged(
+    blink::mojom::FrameVisibility visibility) {}
 
 void FakeLocalFrame::PostMessageEvent(
     const std::optional<blink::RemoteFrameToken>& source_frame_token,
@@ -127,8 +132,9 @@ void FakeLocalFrame::JavaScriptExecuteRequest(
 
 void FakeLocalFrame::JavaScriptExecuteRequestForTests(
     const std::u16string& javascript,
-    bool wants_result,
     bool has_user_gesture,
+    bool resolve_promises,
+    bool honor_js_content_settings,
     int32_t world_id,
     JavaScriptExecuteRequestForTestsCallback callback) {}
 
@@ -227,8 +233,6 @@ void FakeLocalFrame::AddResourceTimingEntryForFailedSubframeNavigation(
     const std::string& normalized_server_timing,
     const ::network::URLLoaderCompletionStatus& completion_status) {}
 
-void FakeLocalFrame::RequestFullscreenDocumentElement() {}
-
 void FakeLocalFrame::BindFrameHostReceiver(
     mojo::ScopedInterfaceEndpointHandle handle) {
   receiver_.Bind(mojo::PendingAssociatedReceiver<blink::mojom::LocalFrame>(
@@ -238,6 +242,10 @@ void FakeLocalFrame::BindFrameHostReceiver(
 void FakeLocalFrame::UpdatePrerenderURL(const ::GURL& matched_url,
                                         UpdatePrerenderURLCallback callback) {
   std::move(callback).Run();
+}
+
+void FakeLocalFrame::GetScrollPosition(GetScrollPositionCallback callback) {
+  std::move(callback).Run(gfx::Point(0, 0));
 }
 
 }  // namespace content

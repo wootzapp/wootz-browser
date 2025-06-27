@@ -23,6 +23,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
 import org.chromium.android_webview.AwContents;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -34,7 +35,6 @@ import org.chromium.components.content_capture.ContentCaptureTestSupport;
 import org.chromium.components.content_capture.FrameSession;
 import org.chromium.components.content_capture.OnscreenContentProvider;
 import org.chromium.components.content_capture.UrlAllowlist;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.util.TestWebServer;
 import org.chromium.url.GURL;
 
@@ -63,6 +63,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
         public static final int SESSION_REMOVED = 4;
         public static final int TITLE_UPDATED = 5;
         public static final int FAVICON_UPDATED = 6;
+        public static final int CONTENT_CAPTURE_FLUSHED = 7;
 
         public TestAwContentCaptureConsumer() {
             mCapturedContentIds = new HashSet<Long>();
@@ -72,6 +73,13 @@ public class AwContentCaptureTest extends AwParameterizedTest {
             HashSet<String> allowedUrls = new HashSet<>();
             allowedUrls.add(host);
             mUrlAllowlist = new UrlAllowlist(allowedUrls, null);
+        }
+
+        @Override
+        public void onContentCaptureFlushed(
+                FrameSession parentFrame, ContentCaptureFrame contentCaptureFrame) {
+            mCallbacks.add(CONTENT_CAPTURE_FLUSHED);
+            mCallbackHelper.notifyCalled();
         }
 
         @Override
@@ -171,10 +179,6 @@ public class AwContentCaptureTest extends AwParameterizedTest {
             mCallbacks.clear();
         }
 
-        public void waitForCallback(int currentCallCount) throws Exception {
-            waitForCallback(currentCallCount, 1);
-        }
-
         public void waitForCallback(int currentCallCount, int numberOfCallsToWaitFor)
                 throws Exception {
             mCallbackHelper.waitForCallback(
@@ -259,7 +263,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
         mContainerView = mRule.createAwTestContainerViewOnMainSync(mContentsClient);
         mAwContents = mContainerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(mAwContents);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mConsumer = new TestAwContentCaptureConsumer();
                     mOnscreenContentProvider =
@@ -313,14 +317,14 @@ public class AwContentCaptureTest extends AwParameterizedTest {
     }
 
     private void destroyAwContents() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAwContents.destroy();
                 });
     }
 
     private void scrollToBottom() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mContainerView.scrollTo(0, mContainerView.getHeight());
                 });
@@ -338,7 +342,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
     }
 
     private void scrollToTop() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mContainerView.scrollTo(0, 0);
                 });
@@ -542,7 +546,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.
@@ -562,7 +567,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     scrollToBottom();
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyCapturedContent(
                 null,
                 frameId,
@@ -582,7 +588,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                     insertElement(newContentId, newContent);
                     scrollToTop();
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyCapturedContent(
                 null,
                 frameId,
@@ -603,7 +610,9 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 },
                 toIntArray(
                         TestAwContentCaptureConsumer.CONTENT_REMOVED,
-                        TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyRemovedContent(
                 frameId,
                 url,
@@ -627,7 +636,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     removeElement(newContentId);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_REMOVED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_REMOVED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyRemovedContent(
                 frameId,
                 url,
@@ -652,7 +662,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.
@@ -677,7 +688,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 },
                 toIntArray(
                         TestAwContentCaptureConsumer.CONTENT_CAPTURED,
-                        TestAwContentCaptureConsumer.CONTENT_REMOVED));
+                        TestAwContentCaptureConsumer.CONTENT_REMOVED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyCapturedContent(
                 null,
                 frameId,
@@ -706,7 +718,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 },
                 toIntArray(
                         TestAwContentCaptureConsumer.CONTENT_CAPTURED,
-                        TestAwContentCaptureConsumer.CONTENT_REMOVED));
+                        TestAwContentCaptureConsumer.CONTENT_REMOVED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyCapturedContent(
                 null,
                 frameId,
@@ -737,7 +750,9 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 },
                 toIntArray(
                         TestAwContentCaptureConsumer.CONTENT_REMOVED,
-                        TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyRemovedContent(
                 frameId,
                 url,
@@ -761,7 +776,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     removeElement(newContentId);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_REMOVED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_REMOVED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyRemovedContent(
                 frameId,
                 url,
@@ -783,7 +799,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.
@@ -805,7 +822,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     changeContent("editable_id", changeContent);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_UPDATED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_UPDATED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         verifyUpdatedContent(
                 null,
                 frameId,
@@ -835,7 +853,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         verifyCapturedContent(
@@ -854,7 +873,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
         int[] expectedCallbacks =
                 toIntArray(
                         TestAwContentCaptureConsumer.SESSION_REMOVED,
-                        TestAwContentCaptureConsumer.CONTENT_CAPTURED);
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                        TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED);
         runAndVerifyCallbacks(
                 () -> {
                     loadUrlSync(url2);
@@ -901,7 +921,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(mainFrameUrl);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
 
         FrameSession expectedParentFrameSession = createFrameSession(mainFrameUrl);
         Long frameId = null;
@@ -932,7 +953,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
     @SmallTest
     @Feature({"AndroidWebView"})
     public void testMultipleConsumers() throws Throwable {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSecondConsumer = new TestAwContentCaptureConsumer();
                     mOnscreenContentProvider.addConsumer(mSecondConsumer);
@@ -949,10 +970,12 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         // Verify the other one also get the content.
         waitAndVerifyCallbacks(
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED),
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED),
                 callCount,
                 mSecondConsumer);
     }
@@ -962,7 +985,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
     @Feature({"AndroidWebView"})
     @CommandLineFlags.Add({"enable-features=ContentCaptureTriggeringForExperiment"})
     public void testHostNotAllowed() throws Throwable {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSecondConsumer = new TestAwContentCaptureConsumer();
                 });
@@ -978,7 +1001,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         // Verify the other one didn't get the content.
         Assert.assertEquals(0, mSecondConsumer.getCallbacks().length);
     }
@@ -996,7 +1020,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
     }
 
     @Test
@@ -1038,24 +1063,26 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
 
         // Hides and shows the WebContent and verifies the content is captured again.
         runAndVerifyCallbacks(
                 () -> {
-                    TestThreadUtils.runOnUiThreadBlocking(
+                    ThreadUtils.runOnUiThreadBlocking(
                             () -> {
                                 mContainerView.onWindowVisibilityChanged(View.INVISIBLE);
                             });
                     AwActivityTestRule.pollInstrumentationThread(
                             () -> !mAwContents.isPageVisible());
-                    TestThreadUtils.runOnUiThreadBlocking(
+                    ThreadUtils.runOnUiThreadBlocking(
                             () -> {
                                 mContainerView.onWindowVisibilityChanged(View.VISIBLE);
                             });
                     AwActivityTestRule.pollInstrumentationThread(() -> mAwContents.isPageVisible());
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
     }
 
     @Test
@@ -1069,7 +1096,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.
@@ -1095,7 +1123,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.
@@ -1139,7 +1168,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     runScript("document.getElementById('place_holder').innerHTML = 'world';");
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         GURL gurl = new GURL(url);
         String origin = gurl.getOrigin().getSpec();
         // Blink attaches the default favicon if it is not specified in page.
@@ -1171,7 +1201,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
         final String url = mWebServer.setResponse(MAIN_FRAME_FILE, response, null);
         // Direct ContentCaptureReveiver and OnscreenContentProvider not to get the favicon
         // from Webontents, because there is no way to control the time of favicon update.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ContentCaptureTestSupport.disableGetFaviconFromWebContents();
                 });
@@ -1179,7 +1209,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         GURL gurl = new GURL(url);
         String origin = gurl.getOrigin().getSpec();
         final String expectedJson =
@@ -1198,7 +1229,7 @@ public class AwContentCaptureTest extends AwParameterizedTest {
         // Simulates favicon update by calling OnscreenContentProvider's test method.
         runAndVerifyCallbacks(
                 () -> {
-                    TestThreadUtils.runOnUiThreadBlocking(
+                    ThreadUtils.runOnUiThreadBlocking(
                             () -> {
                                 ContentCaptureTestSupport.simulateDidUpdateFaviconURL(
                                         mAwContents.getWebContents(), expectedJson);
@@ -1221,7 +1252,8 @@ public class AwContentCaptureTest extends AwParameterizedTest {
                 () -> {
                     loadUrlSync(url);
                 },
-                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED));
+                toIntArray(TestAwContentCaptureConsumer.CONTENT_CAPTURED,
+                    TestAwContentCaptureConsumer.CONTENT_CAPTURE_FLUSHED));
         Long frameId = null;
         Set<Long> capturedContentIds = null;
         // Verify only on-screen content is captured.

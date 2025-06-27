@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -23,10 +24,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.IBinder;
 import android.view.ContextThemeWrapper;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
-import android.view.WindowInsets;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
@@ -36,35 +37,47 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
+import org.chromium.base.InputHintChecker;
+import org.chromium.base.InputHintCheckerJni;
+import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsUtils;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.layouts.EventFilter.EventType;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObserver;
+import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer;
 import org.chromium.chrome.test.util.browser.tabmodel.MockTabModelSelector;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
+import org.chromium.components.content_capture.ContentCaptureFeatures;
+import org.chromium.components.content_capture.ContentCaptureFeaturesJni;
+import org.chromium.components.content_capture.OnscreenContentProvider;
+import org.chromium.components.content_capture.OnscreenContentProviderJni;
 import org.chromium.components.embedder_support.view.ContentView;
+import org.chromium.components.prefs.PrefService;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.ApplicationViewportInsetSupplier;
@@ -80,6 +93,7 @@ import java.util.List;
 
 /** Unit tests for {@link CompositorViewHolder}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@EnableFeatures({ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END})
 @DisableFeatures({
     ChromeFeatureList.FULLSCREEN_INSETS_API_MIGRATION,
     ChromeFeatureList.FULLSCREEN_INSETS_API_MIGRATION_ON_AUTOMOTIVE
@@ -98,18 +112,48 @@ public class CompositorViewHolderUnitTest {
     private static final MotionEvent MOTION_ACTION_HOVER_ENTER =
             MotionEvent.obtain(TOUCH_TIME, TOUCH_TIME, MotionEvent.ACTION_HOVER_ENTER, 1, 1, 0);
 
+    private static final MotionEvent MOTION_ACTION_BUTTON_RELEASE_MOUSE;
+
     private static final WindowInsetsCompat VISIBLE_SYSTEM_BARS_WINDOW_INSETS =
             new WindowInsetsCompat.Builder()
                     .setInsets(WindowInsetsCompat.Type.systemBars(), Insets.of(0, 100, 0, 100))
                     .build();
+
+    static {
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[1];
+        coords[0] = new MotionEvent.PointerCoords();
+        coords[0].x = 1f;
+        coords[0].y = 1f;
+
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[1];
+        properties[0] = new MotionEvent.PointerProperties();
+        properties[0].id = 0;
+        properties[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
+
+        MOTION_ACTION_BUTTON_RELEASE_MOUSE =
+                MotionEvent.obtain(
+                        0,
+                        0,
+                        MotionEvent.ACTION_BUTTON_RELEASE,
+                        1,
+                        properties,
+                        coords,
+                        0,
+                        0,
+                        1f,
+                        1f,
+                        0,
+                        0,
+                        InputDevice.SOURCE_CLASS_POINTER,
+                        0);
+    }
 
     enum EventSource {
         IN_MOTION,
         TOUCH_EVENT_OBSERVER;
     }
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Activity mActivity;
     @Mock private Profile mProfile;
     @Mock private Profile mIncognitoProfile;
@@ -117,30 +161,38 @@ public class CompositorViewHolderUnitTest {
     @Mock private View mContainerView;
     @Mock private ActivityTabProvider mActivityTabProvider;
     @Mock private android.content.res.Resources mResources;
-    @Mock private Tab mTab;
     @Mock private WebContents mWebContents;
     @Mock private ContentView mContentView;
     @Mock private CompositorView mCompositorView;
     @Mock private ResourceManager mResourceManager;
     @Mock private LayoutManagerImpl mLayoutManager;
     @Mock private KeyboardVisibilityDelegate mMockKeyboard;
-    @Mock private WindowInsets mRootWindowInsets;
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private Window mWindow;
     @Mock private View mDecorView;
     @Mock private DynamicResourceLoader mDynamicResourceLoader;
+    @Mock private PrefService mPrefService;
+    @Mock private OnscreenContentProvider.Natives mOnscreenContentProviderJni;
+    @Mock private ContentCaptureFeatures.Natives mContentCaptureFeaturesJni;
+    @Mock private InputHintChecker.Natives mInputHintCheckerJni;
+
+    @Captor private ArgumentCaptor<TabObserver> mTabObserverCaptor;
 
     private Context mContext;
     private MockTabModelSelector mTabModelSelector;
+    private Tab mTab;
     private CompositorViewHolder mCompositorViewHolder;
     private BrowserControlsManager mBrowserControlsManager;
     private ApplicationViewportInsetSupplier mViewportInsets;
     private ObservableSupplierImpl<Integer> mKeyboardInsetSupplier;
     private ObservableSupplierImpl<Integer> mKeyboardAccessoryInsetSupplier;
+    private final UserDataHost mUserDataHost = new UserDataHost();
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
+        OnscreenContentProviderJni.setInstanceForTesting(mOnscreenContentProviderJni);
+        ContentCaptureFeaturesJni.setInstanceForTesting(mContentCaptureFeaturesJni);
+        InputHintCheckerJni.setInstanceForTesting(mInputHintCheckerJni);
 
         ApplicationStatus.onStateChangeForTesting(mActivity, ActivityState.CREATED);
 
@@ -156,7 +208,16 @@ public class CompositorViewHolderUnitTest {
         when(mIncognitoProfile.isOffTheRecord()).thenReturn(true);
 
         // Setup the TabModelSelector.
-        mTabModelSelector = new MockTabModelSelector(mProfile, mIncognitoProfile, 0, 0, null);
+        mTabModelSelector =
+                new MockTabModelSelector(
+                        mProfile,
+                        mIncognitoProfile,
+                        0,
+                        0,
+                        (id, incognito) ->
+                                spy(new MockTab(id, incognito ? mIncognitoProfile : mProfile)));
+        mTab = mTabModelSelector.addMockTab();
+        mTabModelSelector.getModel(false).setIndex(0, TabSelectionType.FROM_NEW);
 
         // Setup for BrowserControlsManager which initiates content/control offset changes
         // for CompositorViewHolder.
@@ -167,7 +228,8 @@ public class CompositorViewHolderUnitTest {
         when(mTab.isUserInteractable()).thenReturn(true);
 
         BrowserControlsManager browserControlsManager =
-                new BrowserControlsManager(mActivity, BrowserControlsManager.ControlsPosition.TOP);
+                new BrowserControlsManager(
+                        mActivity, BrowserControlsStateProvider.ControlsPosition.TOP);
         mBrowserControlsManager = spy(browserControlsManager);
         mBrowserControlsManager.initialize(
                 mControlContainer,
@@ -191,13 +253,15 @@ public class CompositorViewHolderUnitTest {
         mCompositorViewHolder.setCompositorViewForTesting(mCompositorView);
         mCompositorViewHolder.setBrowserControlsManager(mBrowserControlsManager);
         mCompositorViewHolder.setApplicationViewportInsetSupplier(mViewportInsets);
-        mCompositorViewHolder.onFinishNativeInitialization(mTabModelSelector, null);
+        mCompositorViewHolder.onFinishNativeInitialization(
+                mTabModelSelector, null, new ObservableSupplierImpl<>(0));
         when(mCompositorViewHolder.getCurrentTab()).thenReturn(mTab);
         when(mCompositorViewHolder.getRootWindowInsets())
                 .thenReturn(VISIBLE_SYSTEM_BARS_WINDOW_INSETS.toWindowInsets());
         when(mTab.getWebContents()).thenReturn(mWebContents);
         when(mTab.getContentView()).thenReturn(mContentView);
         when(mTab.getView()).thenReturn(mContentView);
+        when(mTab.getUserDataHost()).thenReturn(mUserDataHost);
 
         when(mActivity.getWindow()).thenReturn(mWindow);
         when(mWindow.getDecorView()).thenReturn(mDecorView);
@@ -624,7 +688,7 @@ public class CompositorViewHolderUnitTest {
         int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
 
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(true);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
 
@@ -642,7 +706,7 @@ public class CompositorViewHolderUnitTest {
 
         // Hide the keyboard.
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(false);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(0);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
         mKeyboardInsetSupplier.set(0);
@@ -663,7 +727,7 @@ public class CompositorViewHolderUnitTest {
 
         // Simulate the keyboard being hidden
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(false);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(0);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
         when(mCompositorViewHolder.getWidth()).thenReturn(viewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(viewportHeight);
         mKeyboardInsetSupplier.set(0);
@@ -691,7 +755,7 @@ public class CompositorViewHolderUnitTest {
         int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
 
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(true);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
         mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
@@ -719,7 +783,7 @@ public class CompositorViewHolderUnitTest {
         int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
 
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(true);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
         mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
@@ -766,7 +830,7 @@ public class CompositorViewHolderUnitTest {
         int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
 
         when(mMockKeyboard.isKeyboardShowing(any(), any())).thenReturn(true);
-        when(mMockKeyboard.calculateKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
         mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
@@ -806,6 +870,7 @@ public class CompositorViewHolderUnitTest {
     }
 
     @Test
+    @DisableFeatures(ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END)
     public void testInMotionSupplier() {
         mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
         mCompositorViewHolder.onInterceptTouchEvent(MOTION_EVENT_DOWN);
@@ -824,6 +889,22 @@ public class CompositorViewHolderUnitTest {
         // still cause our motion status to correctly update.
         mCompositorViewHolder.requestDisallowInterceptTouchEvent(true);
         mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_UP);
+        Assert.assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
+    }
+
+    @Test
+    public void testGestureBeginEndInMotionSupplier() {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(
+                mWindowAndroid, /* tabContentManager= */ null, mPrefService);
+
+        mCompositorViewHolder.onContentChanged();
+        verify(mTab, atLeast(1)).addObserver(mTabObserverCaptor.capture());
+
+        mTabObserverCaptor.getAllValues().forEach((obs) -> obs.onGestureBegin());
+        Assert.assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
+
+        mTabObserverCaptor.getAllValues().forEach((obs) -> obs.onGestureEnd());
         Assert.assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
     }
 
@@ -854,6 +935,20 @@ public class CompositorViewHolderUnitTest {
     }
 
     @Test
+    public void testDispatchGenericMotionEvent() {
+        when(mLayoutManager.dispatchGenericMotionEvent(MOTION_ACTION_BUTTON_RELEASE_MOUSE))
+                .thenReturn(true);
+        boolean consumed =
+                mCompositorViewHolder.dispatchGenericMotionEvent(
+                        MOTION_ACTION_BUTTON_RELEASE_MOUSE);
+        verify(mLayoutManager).dispatchGenericMotionEvent(MOTION_ACTION_BUTTON_RELEASE_MOUSE);
+        Assert.assertTrue(
+                "#dispatchGenericMotionEvent should return true if the LayoutManager consumes the"
+                        + " event.",
+                consumed);
+    }
+
+    @Test
     public void testInMotionOrdering() {
         // With the 'defer in motion' experiment enabled, touch events are routed to android UI
         // after being sent to native/web content.
@@ -866,14 +961,10 @@ public class CompositorViewHolderUnitTest {
 
     @Test
     @Config(qualifiers = "sw600dp")
-    @DisableFeatures(ChromeFeatureList.DELAY_TEMP_STRIP_REMOVAL)
-    public void testSetBackgroundRunnable_NoDelay() {
+    public void testSetBackgroundRunnable() {
         int pendingFrameCount = 0;
         int framesUntilHideBackground = 1;
         boolean swappedCurrentSize = true;
-        HistogramWatcher histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.TabStrip.TimeToInitializeTabStateAfterBufferSwap");
 
         // Mark that a frame has swapped, and the buffer has swapped once (still waiting on one).
         mCompositorViewHolder.didSwapFrame(pendingFrameCount);
@@ -884,108 +975,10 @@ public class CompositorViewHolderUnitTest {
         framesUntilHideBackground = 0;
         mCompositorViewHolder.didSwapBuffers(swappedCurrentSize, framesUntilHideBackground);
         verifyBackgroundRemoved();
-
-        // Verify the relevant histogram is recorded.
-        mTabModelSelector.markTabStateInitialized();
-        histogramWatcher.assertExpected(
-                "Should have recorded time to initialize tab state after buffer swap.");
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ChromeFeatureList.DELAY_TEMP_STRIP_REMOVAL)
-    public void testSetBackgroundRunnable_Delay_TabStateInitialized() {
-        int pendingFrameCount = 0;
-        int framesUntilHideBackground = 0;
-        boolean swappedCurrentSize = true;
-        HistogramWatcher histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.TabStrip.TimeToInitializeTabStateAfterBufferSwap");
-
-        // Mark a tab has restored, a frame has swapped, and the buffer has swapped enough times.
-        notifyTabRestored();
-        mCompositorViewHolder.didSwapFrame(pendingFrameCount);
-        mCompositorViewHolder.didSwapBuffers(swappedCurrentSize, framesUntilHideBackground);
-        verifyBackgroundNotRemoved();
-
-        // Mark the tab state as initialized and verify that the temp background is now removed.
-        mTabModelSelector.markTabStateInitialized();
-        verifyBackgroundRemoved();
-
-        // Verify the relevant histogram is recorded.
-        histogramWatcher.assertExpected(
-                "Should have recorded time to initialize tab state after buffer swap.");
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ChromeFeatureList.DELAY_TEMP_STRIP_REMOVAL)
-    public void testSetBackgroundRunnable_Delay_TimedOut() {
-        int pendingFrameCount = 0;
-        int framesUntilHideBackground = 0;
-        boolean swappedCurrentSize = true;
-        HistogramWatcher histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.TabStrip.TimeToInitializeTabStateAfterBufferSwap");
-
-        // Mark a tab has restored, a frame has swapped, and the buffer has swapped enough times.
-        notifyTabRestored();
-        mCompositorViewHolder.didSwapFrame(pendingFrameCount);
-        mCompositorViewHolder.didSwapBuffers(swappedCurrentSize, framesUntilHideBackground);
-        verifyBackgroundNotRemoved();
-
-        // Fake the timeout and verify that the temp background is now removed.
-        timeoutRunnable();
-        verifyBackgroundRemoved();
-
-        // Verify the relevant histogram is recorded.
-        mTabModelSelector.markTabStateInitialized();
-        histogramWatcher.assertExpected(
-                "Should have recorded time to initialize tab state after buffer swap.");
-    }
-
-    @Test
-    @Config(qualifiers = "sw600dp")
-    @EnableFeatures(ChromeFeatureList.DELAY_TEMP_STRIP_REMOVAL)
-    public void testSetBackgroundRunnable_Delay_CompositorNotReady() {
-        int pendingFrameCount = 0;
-        int framesUntilHideBackground = 1;
-        boolean swappedCurrentSize = true;
-        HistogramWatcher histogramWatcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        "Android.TabStrip.TimeToBufferSwapAfterInitializeTabState");
-
-        // Mark the tab state as initialized and one frame has been swapped.
-        notifyTabRestored();
-        mTabModelSelector.markTabStateInitialized();
-        mCompositorViewHolder.didSwapFrame(pendingFrameCount);
-        mCompositorViewHolder.didSwapBuffers(swappedCurrentSize, framesUntilHideBackground);
-        timeoutRunnable();
-        verifyBackgroundNotRemoved();
-
-        // Mark the buffer has swapped enough times and verify the temp background is now removed.
-        framesUntilHideBackground = 0;
-        mCompositorViewHolder.didSwapBuffers(swappedCurrentSize, framesUntilHideBackground);
-        verifyBackgroundRemoved();
-
-        // Verify the relevant histogram is recorded.
-        histogramWatcher.assertExpected(
-                "Should have recorded time to buffer swap after initializing tab state.");
-    }
-
-    private void notifyTabRestored() {
-        // To avoid some complexities, we don't actually add a tab to the MockTabModel(Selector) and
-        // instead use the method called whenever the CompositorViewHolder is notified of a new tab.
-        mCompositorViewHolder.maybeInitializeSetBackgroundRunnableTimeout();
     }
 
     private static void runCurrentTasks() {
         ShadowLooper.runUiThreadTasks();
-    }
-
-    private static void timeoutRunnable() {
-        // The timeout is implemented as a delayed task.
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
     }
 
     private void verifyBackgroundNotRemoved() {

@@ -18,7 +18,7 @@ namespace x11 {
 
 namespace {
 
-constexpr const char* kAtomsToCache[] = {
+constexpr auto kAtomsToCache = std::to_array<const char* const>({
     "ATOM_PAIR",
     "Abs Dbl End Timestamp",
     "Abs Dbl Fling X Velocity",
@@ -78,6 +78,7 @@ constexpr const char* kAtomsToCache[] = {
     "Touch Timestamp",
     "UTF8_STRING",
     "Undesired",
+    "WM_CHANGE_STATE",
     "WM_DELETE_WINDOW",
     "WM_PROTOCOLS",
     "WM_WINDOW_ROLE",
@@ -105,6 +106,7 @@ constexpr const char* kAtomsToCache[] = {
     "_CHROMIUM_DRAG_RECEIVER",
     "_GTK_FRAME_EXTENTS",
     "_GTK_HIDE_TITLEBAR_WHEN_MAXIMIZED",
+    "_GTK_SHOW_WINDOW_MENU",
     "_GTK_THEME_VARIANT",
     "_ICC_PROFILE",
     "_MOTIF_WM_HINTS",
@@ -158,8 +160,10 @@ constexpr const char* kAtomsToCache[] = {
     "chromium/x-bookmark-entries",
     "chromium/x-browser-actions",
     "chromium/x-file-system-files",
+    "chromium/x-internal-source-rfh-token",
     "chromium/x-pepper-custom-data",
     "chromium/x-renderer-taint",
+    "chromium/x-source-url",
     "chromium/x-web-custom-data",
     "chromium/x-webkit-paste",
     "image/png",
@@ -175,9 +179,7 @@ constexpr const char* kAtomsToCache[] = {
     "xwayland-keyboard",
     "xwayland-pointer",
     "xwayland-touch",
-};
-
-constexpr int kCacheCount = std::size(kAtomsToCache);
+});
 
 }  // namespace
 
@@ -187,7 +189,7 @@ Atom GetAtom(const char* name) {
 
 AtomCache::AtomCache(Connection* connection) : connection_(connection) {
   std::vector<Future<InternAtomReply>> requests;
-  requests.reserve(kCacheCount);
+  requests.reserve(kAtomsToCache.size());
   for (const char* name : kAtomsToCache) {
     requests.push_back(
         connection_->InternAtom(InternAtomRequest{.name = name}));
@@ -198,8 +200,8 @@ AtomCache::AtomCache(Connection* connection) : connection_(connection) {
   std::vector<std::pair<const char*, Atom>> atoms;
   // Reserve a little extra space in case unexpected atoms are cached,
   // to prevent reallocating the buffer.
-  atoms.reserve(kCacheCount + 3);
-  for (size_t i = 0; i < kCacheCount; ++i) {
+  atoms.reserve(kAtomsToCache.size() + 3);
+  for (size_t i = 0; i < kAtomsToCache.size(); ++i) {
     if (auto response = requests[i].Sync()) {
       atoms.emplace_back(kAtomsToCache[i], static_cast<Atom>(response->atom));
     }
@@ -223,16 +225,15 @@ Atom AtomCache::GetAtom(const char* name) {
         << " Use x11::Atom::" << name << " instead of x11::GetAtom(\"" << name
         << "\")";
 
+    auto owned_name = std::make_unique<std::string>(name);
+
     // Don't log an error if the atom is dynamically named (ends with a digit).
-    size_t len = strlen(name);
-    if (!len || !absl::ascii_isdigit(name[len - 1])) {
+    if (owned_name->empty() || !absl::ascii_isdigit(owned_name->back())) {
       LOG(ERROR) << "Add " << name << " to kAtomsToCache";
     }
 
     cached_atoms_.emplace(
-        owned_strings_.emplace_back(std::make_unique<std::string>(name))
-            ->c_str(),
-        atom);
+        owned_strings_.emplace_back(std::move(owned_name))->c_str(), atom);
   }
   return atom;
 }

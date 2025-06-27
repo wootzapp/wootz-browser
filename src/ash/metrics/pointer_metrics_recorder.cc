@@ -26,12 +26,7 @@ chromeos::AppType GetDestination(views::Widget* target) {
 
   aura::Window* window = target->GetNativeWindow();
   DCHECK(window);
-  chromeos::AppType app_type = window->GetProperty(chromeos::kAppTypeKey);
-  // Use "BROWSER" for Lacros Chrome's pointer metrics.
-  if (app_type == chromeos::AppType::LACROS) {
-    return chromeos::AppType::BROWSER;
-  }
-  return app_type;
+  return window->GetProperty(chromeos::kAppTypeKey);
 }
 
 DownEventMetric2 FindCombination(chromeos::AppType destination,
@@ -99,13 +94,15 @@ PointerMetricsRecorder::~PointerMetricsRecorder() {
 }
 
 void PointerMetricsRecorder::OnMouseEvent(ui::MouseEvent* event) {
-  if (event->type() == ui::ET_MOUSE_PRESSED)
+  if (event->type() == ui::EventType::kMousePressed) {
     RecordUMA(event->pointer_details().pointer_type, event->target());
+  }
 }
 
 void PointerMetricsRecorder::OnTouchEvent(ui::TouchEvent* event) {
-  if (event->type() == ui::ET_TOUCH_PRESSED)
+  if (event->type() == ui::EventType::kTouchPressed) {
     RecordUMA(event->pointer_details().pointer_type, event->target());
+  }
 }
 
 }  // namespace ash

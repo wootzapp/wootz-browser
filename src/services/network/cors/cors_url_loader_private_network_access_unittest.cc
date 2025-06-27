@@ -36,8 +36,8 @@ constexpr char kPreflightWarningHistogramName[] =
     "Net.Cors.PreflightCheckWarning";
 
 base::Bucket MakeBucket(mojom::CorsError error,
-                        base::HistogramBase::Count count) {
-  return base::Bucket(static_cast<base::HistogramBase::Sample>(error), count);
+                        base::HistogramBase::Count32 count) {
+  return base::Bucket(static_cast<base::HistogramBase::Sample32>(error), count);
 }
 
 std::vector<std::pair<std::string, std::string>> MakeHeaderPairs(
@@ -884,6 +884,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyWarnSimpleNetError) {
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -962,6 +963,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyWarnSimpleTimeout) {
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -1115,6 +1117,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyBlockPreflightNoTimeout) {
                   .WithIPAddressSpace(mojom::IPAddressSpace::kPublic)
                   .Build())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -1424,6 +1427,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyWarnPreflightCorsError) {
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -1902,6 +1906,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyBlockCorsError) {
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -1983,6 +1988,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest,
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -2065,6 +2071,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest,
                   .Build())
           .WithDevToolsObserver(devtools_observer.Bind())
           .Build();
+  request.devtools_request_id = "devtools";
 
   base::HistogramTester histogram_tester;
 
@@ -2196,11 +2203,11 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyOnFactoryOnly) {
 
 // This test verifies that when both the `ResourceRequest`  and the loader
 // factory params carry a client security state, the private network request
-// policy is taken from the factory.
+// policy is taken from the `ResourceRequest`.
 //
-// This is achieved by setting the factory policy to `kPreflightBlock`,
-// the request policy to `kPreflightWarn, and checking that preflight results
-// are respected.
+// This is achieved by setting the factory policy to `kPreflightWarn`,
+// the request policy to `kPreflightBlock`, and checking that the latter takes
+// precedence.
 TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyOnFactoryAndRequest) {
   auto initiator_origin = url::Origin::Create(GURL("https://example.com"));
 
@@ -2209,7 +2216,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyOnFactoryAndRequest) {
   factory_params.client_security_state =
       ClientSecurityStateBuilder()
           .WithPrivateNetworkRequestPolicy(
-              mojom::PrivateNetworkRequestPolicy::kPreflightBlock)
+              mojom::PrivateNetworkRequestPolicy::kPreflightWarn)
           .Build();
   ResetFactory(initiator_origin, kRendererProcessId, factory_params);
 
@@ -2221,7 +2228,7 @@ TEST_F(CorsURLLoaderPrivateNetworkAccessTest, PolicyOnFactoryAndRequest) {
   request.trusted_params =
       RequestTrustedParamsBuilder()
           .WithPrivateNetworkRequestPolicy(
-              mojom::PrivateNetworkRequestPolicy::kPreflightWarn)
+              mojom::PrivateNetworkRequestPolicy::kPreflightBlock)
           .Build();
 
   CreateLoaderAndStart(request);

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromeos/ash/components/dbus/shill/shill_third_party_vpn_driver_client.h"
 
 #include <stddef.h>
@@ -100,7 +105,7 @@ class ShillThirdPartyVpnDriverClientImpl
 
     base::WeakPtrFactory<HelperInfo> weak_ptr_factory_{this};
   };
-  using HelperMap = std::map<std::string, HelperInfo*>;
+  using HelperMap = std::map<std::string, raw_ptr<HelperInfo, CtnExperimental>>;
 
   static void OnPacketReceived(base::WeakPtr<HelperInfo> helper_info,
                                dbus::Signal* signal);

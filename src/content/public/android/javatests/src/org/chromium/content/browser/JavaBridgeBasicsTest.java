@@ -30,6 +30,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.ref.WeakReference;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -40,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
  */
 @RunWith(BaseJUnit4ClassRunner.class)
 @Batch(JavaBridgeActivityTestRule.BATCH)
+@SuppressWarnings("UnusedMethod") // Private methods to test JavascriptInterface
 public class JavaBridgeBasicsTest {
     @Rule public JavaBridgeActivityTestRule mActivityTestRule = new JavaBridgeActivityTestRule();
 
@@ -161,7 +163,7 @@ public class JavaBridgeBasicsTest {
                                 mActivityTestRule
                                         .getJavascriptInjector()
                                         .addPossiblyUnsafeInterface(
-                                                new Object(), "testObject", null);
+                                                new Object(), "testObject", null, List.of("*"));
                             }
                         });
         Assert.assertEquals("undefined", executeJavaScriptAndGetStringResult("typeof testObject"));
@@ -199,7 +201,8 @@ public class JavaBridgeBasicsTest {
                                                     }
                                                 },
                                                 "testObject",
-                                                null);
+                                                null,
+                                                List.of("*"));
                             }
                         });
         mActivityTestRule.executeJavaScript("testObject.method()");

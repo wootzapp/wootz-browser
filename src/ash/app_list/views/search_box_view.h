@@ -24,6 +24,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
+#include "ui/accessibility/platform/ax_platform_node_id.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 
 namespace views {
@@ -39,6 +40,7 @@ class FilterMenuAdapter;
 class ResultSelectionController;
 class SearchBoxViewDelegate;
 class SearchResultBaseView;
+using QueryChangedCallback = base::RepeatingCallback<void()>;
 
 // Subclass of SearchBoxViewBase. SearchBoxModel is its data model
 // that controls what icon to display, what placeholder text to use for
@@ -89,10 +91,9 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   static int GetFocusRingSpacing();
 
   // Overridden from SearchBoxViewBase:
-  void UpdateSearchTextfieldAccessibleNodeData(
-      ui::AXNodeData* node_data) override;
+  void UpdateSearchTextfieldAccessibleActiveDescendantId() override;
   void UpdateKeyboardVisibility() override;
-  void HandleQueryChange(const std::u16string& query,
+  void HandleQueryChange(std::u16string_view query,
                          bool initiated_by_user) override;
   void UpdatePlaceholderTextStyle() override;
   void UpdateSearchBoxBorder() override;
@@ -106,7 +107,6 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
 
   // Overridden from views::View:
   void OnKeyEvent(ui::KeyEvent* event) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void OnPaintBackground(gfx::Canvas* canvas) override;
   void OnPaintBorder(gfx::Canvas* canvas) override;
   void OnThemeChanged() override;
@@ -114,11 +114,11 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   void AddedToWidget() override;
 
   // LauncherSearchIphView::Delegate:
-  void RunLauncherSearchQuery(const std::u16string& query) override;
+  void RunLauncherSearchQuery(std::u16string_view query) override;
   void OpenAssistantPage() override;
 
   // AssistantViewDelegateObserver:
-  void OnLauncherSearchChipPressed(const std::u16string& query) override;
+  void OnLauncherSearchChipPressed(std::u16string_view query) override;
 
   // Shows the category filter menu that allows users to enable/disable specific
   // search categories.
@@ -161,7 +161,7 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   void ClearAutocompleteText();
 
   // Updates the search box with |new_query| and starts a new search.
-  void UpdateQuery(const std::u16string& new_query);
+  void UpdateQuery(std::u16string_view new_query);
 
   // Moves the focus back to search box and find a search result to select.
   void EnterSearchResultSelection(const ui::KeyEvent& event);
@@ -173,7 +173,8 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   // The active descendant should be the currently selected result view in the
   // search results list.
   // `nullopt` indicates no active descendant, i.e. that no result is selected.
-  void SetA11yActiveDescendant(const std::optional<int32_t>& active_descendant);
+  void SetA11yActiveDescendant(
+      const std::optional<ui::AXPlatformNodeId>& active_descendant);
 
   // Refreshes the placeholder text with a fixed one rather than the one picked
   // up randomly
@@ -198,6 +199,8 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   int GetSearchBoxIconSize();
   int GetSearchBoxButtonSize();
 
+  void SetQueryChangedCallback(QueryChangedCallback callback);
+
  private:
   class FocusRingLayer;
 
@@ -206,6 +209,13 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
 
   // Called when the assistant button within the search box gets pressed.
   void AssistantButtonPressed();
+
+  // Called when the assistant new entry point button within the search box gets
+  // pressed.
+  void AssistantNewEntryPointButtonPressed();
+
+  // Called when the sunfish launcher button within the search box gets pressed.
+  void SunfishButtonPressed();
 
   // Updates the icon shown left of the search box texfield.
   void UpdateSearchIcon();
@@ -250,6 +260,9 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   // Overridden from SearchBoxModelObserver:
   void SearchEngineChanged() override;
   void ShowAssistantChanged() override;
+  void ShowAssistantNewEntryPointChanged() override;
+  // Updates the visibility and the icon of the Sunfish-session button.
+  void SunfishButtonVisibilityChanged() override;
 
   // Updates the visibility of an IPH view.
   // If `can_show_iph` is false, delete the IPH view if it is visible.
@@ -261,6 +274,12 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
 
   // Clear highlight range.
   void ResetHighlightRange();
+
+  // Updates the kValue attribute of the search box textfield for accessibility.
+  void UpdateAccessibleValue();
+
+  // Updates the search box's text value.
+  void SetText(std::u16string_view text);
 
   // Builds the menu model for the category filter menu. This returns a vector
   // of AppListSearchControlCategory that is shown in the filter menu.
@@ -284,6 +303,8 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
 
   std::u16string current_query_;
 
+  QueryChangedCallback query_changed_callback_;
+
   // The range of highlighted text for autocomplete.
   gfx::Range highlight_range_;
 
@@ -306,9 +327,6 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   // The corner radius of the search box background.
   int corner_radius_ = 0;
 
-  // Whether an IPH is allowed to be shown or not.
-  bool is_iph_allowed_ = false;
-
   // The category filter menu adapter and model that handles the menu life cycle
   // and command execution.
   std::unique_ptr<ui::SimpleMenuModel> filter_menu_model_;
@@ -317,10 +335,9 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   // Set by SearchResultPageView when the accessibility selection moves to a
   // search result view - the value is the ID of the currently selected result
   // view.
-  std::optional<int32_t> a11y_active_descendant_;
+  std::optional<ui::AXPlatformNodeId> a11y_active_descendant_;
 
-  // Owned by SearchResultPageView (for fullscreen launcher) or
-  // ProductivityLauncherSearchPage (for bubble launcher).
+  // Owned by AppListSearchView.
   raw_ptr<ResultSelectionController, DanglingUntriaged>
       result_selection_controller_ = nullptr;
 
@@ -332,8 +349,6 @@ class ASH_EXPORT SearchBoxView : public SearchBoxViewBase,
   // If true, `SelectPlaceholderText()` always returns a fixed placeholder text
   // instead of the one picked randomly.
   bool use_fixed_placeholder_text_for_test_ = false;
-
-  const bool is_jelly_enabled_ = false;
 
   base::ScopedObservation<SearchBoxModel, SearchBoxModelObserver>
       search_box_model_observer_{this};

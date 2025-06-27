@@ -14,6 +14,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_samples.h"
+#include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -21,7 +22,6 @@
 #include "base/test/simple_test_tick_clock.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/browser/media/session/audio_focus_delegate.h"
 #include "content/browser/media/session/mock_media_session_player_observer.h"
 #include "content/browser/media/session/mock_media_session_service_impl.h"
@@ -38,6 +38,7 @@
 #include "content/shell/browser/shell.h"
 #include "content/test/content_browser_test_utils_internal.h"
 #include "media/base/media_content_type.h"
+#include "media/base/media_switches.h"
 #include "net/base/filename_util.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/http_request.h"
@@ -78,6 +79,9 @@ class MockAudioFocusDelegate : public content::AudioFocusDelegate {
 
   AudioFocusDelegate::AudioFocusResult RequestAudioFocus(
       AudioFocusType audio_focus_type) override {
+    if (audio_focus_request_waiter_) {
+      audio_focus_request_waiter_->Quit();
+    }
     if (async_mode_) {
       requests_.push_back(audio_focus_type);
       return AudioFocusDelegate::AudioFocusResult::kDelayed;
@@ -116,6 +120,14 @@ class MockAudioFocusDelegate : public content::AudioFocusDelegate {
     sync_result_ = result;
   }
 
+  void WaitForAudioFocusRequested() {
+    if (audio_focus_type_.has_value() || !requests_.empty()) {
+      return;
+    }
+    audio_focus_request_waiter_ = std::make_unique<base::RunLoop>();
+    audio_focus_request_waiter_->Run();
+  }
+
  private:
   AudioFocusDelegate::AudioFocusResult sync_result_ =
       AudioFocusDelegate::AudioFocusResult::kSuccess;
@@ -123,8 +135,56 @@ class MockAudioFocusDelegate : public content::AudioFocusDelegate {
   raw_ptr<content::MediaSessionImpl> media_session_ = nullptr;
   const bool async_mode_ = false;
 
+  std::unique_ptr<base::RunLoop> audio_focus_request_waiter_;
+
   std::list<AudioFocusType> requests_;
   std::optional<AudioFocusType> audio_focus_type_;
+};
+
+// Helper class to mock `GetVisibility` callbacks.
+class GetVisibilityWaiter {
+ public:
+  using GetVisibilityCallback = base::OnceCallback<void(bool)>;
+
+  GetVisibilityWaiter() = default;
+  GetVisibilityWaiter(const GetVisibilityWaiter&) = delete;
+  GetVisibilityWaiter(GetVisibilityWaiter&&) = delete;
+  GetVisibilityWaiter& operator=(const GetVisibilityWaiter&) = delete;
+
+  GetVisibilityCallback VisibilityCallback() {
+    meets_visibility_ = std::nullopt;
+    weak_factory_.InvalidateWeakPtrs();
+
+    // base::Unretained() is safe since no further tasks can run after
+    // RunLoop::Run() returns.
+    return base::BindOnce(&GetVisibilityWaiter::GetVisibility,
+                          weak_factory_.GetWeakPtr());
+  }
+
+  void WaitUntilDone() {
+    if (meets_visibility_) {
+      return;
+    }
+    run_loop_ = std::make_unique<base::RunLoop>();
+    run_loop_->Run();
+  }
+
+  bool MeetsVisibility() {
+    DCHECK(meets_visibility_);
+    return meets_visibility_.value();
+  }
+
+ private:
+  void GetVisibility(bool meets_visibility) {
+    meets_visibility_ = meets_visibility;
+    if (run_loop_) {
+      run_loop_->Quit();
+    }
+  }
+
+  std::unique_ptr<base::RunLoop> run_loop_;
+  std::optional<bool> meets_visibility_;
+  base::WeakPtrFactory<GetVisibilityWaiter> weak_factory_{this};
 };
 
 }  // namespace
@@ -163,6 +223,12 @@ class MediaSessionImplBrowserTest : public ContentBrowserTest {
     media_session_->SetDelegateForTests(
         base::WrapUnique(mock_audio_focus_delegate_.get()));
     ASSERT_TRUE(media_session_);
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    command_line->AppendSwitchASCII(
+        switches::kAutoplayPolicy,
+        switches::autoplay::kNoUserGestureRequiredPolicy);
   }
 
   void TearDownOnMainThread() override {
@@ -242,6 +308,11 @@ class MediaSessionImplBrowserTest : public ContentBrowserTest {
 
   void UISetAudioSink(const std::string& sink_id) {
     media_session_->SetAudioSinkId(sink_id);
+  }
+
+  void UIGetVisibility(
+      MediaSessionImpl::GetVisibilityCallback get_visibility_callback) {
+    media_session_->GetVisibility(std::move(get_visibility_callback));
   }
 
   void SystemStartDucking() { media_session_->StartDucking(); }
@@ -474,12 +545,15 @@ IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
   StartNewPlayer(player_observer.get());
   SystemStartDucking();
 
-  EXPECT_EQ(kDuckingVolumeMultiplier, player_observer->GetVolumeMultiplier(0));
-  EXPECT_EQ(kDuckingVolumeMultiplier, player_observer->GetVolumeMultiplier(1));
+  EXPECT_FLOAT_EQ(kDuckingVolumeMultiplier,
+                  player_observer->GetVolumeMultiplier(0));
+  EXPECT_FLOAT_EQ(kDuckingVolumeMultiplier,
+                  player_observer->GetVolumeMultiplier(1));
 
   StartNewPlayer(player_observer.get());
 
-  EXPECT_EQ(kDuckingVolumeMultiplier, player_observer->GetVolumeMultiplier(2));
+  EXPECT_FLOAT_EQ(kDuckingVolumeMultiplier,
+                  player_observer->GetVolumeMultiplier(2));
 }
 
 IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
@@ -535,8 +609,8 @@ IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
   EXPECT_FALSE(IsActive());
 
   SystemStartDucking();
-  EXPECT_EQ(kDuckingVolumeMultiplier,
-            player_observer->GetVolumeMultiplier(player_id));
+  EXPECT_FLOAT_EQ(kDuckingVolumeMultiplier,
+                  player_observer->GetVolumeMultiplier(player_id));
 
   // On resume, ducking should stop.
   UIResume();
@@ -2063,135 +2137,6 @@ IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
-                       UMA_Suspended_SystemTransient) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-  SystemSuspend(true);
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(1, samples->TotalCount());
-  EXPECT_EQ(1, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(0, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(0, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
-                       UMA_Suspended_SystemPermantent) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-  SystemSuspend(false);
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(1, samples->TotalCount());
-  EXPECT_EQ(0, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(1, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(0, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest, UMA_Suspended_UI) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-  UISuspend();
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(1, samples->TotalCount());
-  EXPECT_EQ(0, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(0, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(1, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
-                       UMA_Suspended_Multiple) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-
-  UISuspend();
-  UIResume();
-  ResolveAudioFocusSuccess();
-
-  SystemSuspend(true);
-  SystemResume();
-
-  UISuspend();
-  UIResume();
-  ResolveAudioFocusSuccess();
-
-  SystemSuspend(false);
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(4, samples->TotalCount());
-  EXPECT_EQ(1, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(1, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(2, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
-                       UMA_Suspended_Crossing) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-
-  UISuspend();
-  SystemSuspend(true);
-  SystemSuspend(false);
-  UIResume();
-  ResolveAudioFocusSuccess();
-
-  SystemSuspend(true);
-  SystemSuspend(true);
-  SystemSuspend(false);
-  SystemResume();
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(2, samples->TotalCount());
-  EXPECT_EQ(1, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(0, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(1, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest, UMA_Suspended_Stop) {
-  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
-      media::MediaContentType::kPersistent);
-  base::HistogramTester tester;
-
-  StartNewPlayer(player_observer.get());
-  ResolveAudioFocusSuccess();
-  media_session_->Stop(MediaSession::SuspendType::kUI);
-
-  std::unique_ptr<base::HistogramSamples> samples(
-      tester.GetHistogramSamplesSinceCreation("Media.Session.Suspended"));
-  EXPECT_EQ(1, samples->TotalCount());
-  EXPECT_EQ(0, samples->GetCount(0));  // System Transient
-  EXPECT_EQ(0, samples->GetCount(1));  // System Permanent
-  EXPECT_EQ(1, samples->GetCount(2));  // UI
-}
-
-IN_PROC_BROWSER_TEST_P(MediaSessionImplParamBrowserTest,
                        UMA_ActiveTime_NoActivation) {
   base::HistogramTester tester;
 
@@ -2636,15 +2581,51 @@ IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest, Async_Unducking_Success) {
   auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
       media::MediaContentType::kPersistent);
 
+  // Start a player and duck it.
   StartNewPlayer(player_observer.get());
   EXPECT_TRUE(IsActive());
   EXPECT_TRUE(player_observer->IsPlaying(0));
-
+  ResolveAudioFocusSuccess();
   SystemStartDucking();
   EXPECT_TRUE(IsDucking());
 
+  // Pause and then play the player. This should re-request audio focus. Before
+  // audio focus is granted, this should still be ducked.
+  UISuspend();
+  UIResume();
+  EXPECT_TRUE(IsDucking());
+
+  // Once audio focus is gained, it should no longer be ducked.
   ResolveAudioFocusSuccess();
   EXPECT_FALSE(IsDucking());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       Async_Unducking_Success_Reduck) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+
+  // Start a player and duck it.
+  StartNewPlayer(player_observer.get());
+  EXPECT_TRUE(IsActive());
+  EXPECT_TRUE(player_observer->IsPlaying(0));
+  ResolveAudioFocusSuccess();
+  SystemStartDucking();
+  EXPECT_TRUE(IsDucking());
+
+  // Pause and then play the player. This should re-request audio focus. Before
+  // audio focus is granted, this should still be ducked.
+  UISuspend();
+  UIResume();
+  EXPECT_TRUE(IsDucking());
+
+  // Re-enforce ducking.
+  SystemStartDucking();
+
+  // Once audio focus is gained, it should still be ducked since it was ducked
+  // after the request started.
+  ResolveAudioFocusSuccess();
+  EXPECT_TRUE(IsDucking());
 }
 
 IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest, Async_Unducking_Suspended) {
@@ -2990,7 +2971,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
 // TODO(crbug.com/40097218): Re-enable this test.
 #define MAYBE_PositionStateRouteWithOnePlayer \
   DISABLED_PositionStateRouteWithOnePlayer
@@ -3180,6 +3161,171 @@ IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest, CacheFaviconImages) {
   }
 }
 
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       GetVisibilityNotifiesObservers) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  StartNewPlayer(player_observer.get());
+  UIGetVisibility(base::DoNothing());
+  EXPECT_EQ(1, player_observer->received_request_visibility_calls());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       GetVisibilityMultiplePlayersMeetsVisibility) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Set expectations, create waiter and start waiting.
+  player_observer->SetHasSufficientlyVisibleVideo(1, true);
+  GetVisibilityWaiter waiter;
+  UIGetVisibility(waiter.VisibilityCallback());
+  waiter.WaitUntilDone();
+
+  // Verify that the player observer received the corresponding request
+  // visibility calls.
+  EXPECT_EQ(3, player_observer->received_request_visibility_calls());
+
+  // Verify that the waiter meets visibility.
+  EXPECT_TRUE(waiter.MeetsVisibility());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       GetVisibilityMultiplePlayersDoesNotMeetVisibility) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Create waiter and start waiting. Since we do not set any visibility
+  // expectations, default is false.
+  GetVisibilityWaiter waiter;
+  UIGetVisibility(waiter.VisibilityCallback());
+  waiter.WaitUntilDone();
+
+  // Verify that the player observer received the corresponding request
+  // visibility calls.
+  EXPECT_EQ(3, player_observer->received_request_visibility_calls());
+
+  // Verify that the waiter does not meet visibility.
+  EXPECT_FALSE(waiter.MeetsVisibility());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       GetVisibilityMultiplePlayersEarlyCancelDoesNotCrash) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Set expectations and create waiter.
+  player_observer->SetHasSufficientlyVisibleVideo(1, true);
+  GetVisibilityWaiter waiter;
+
+  // Simulate the creation of two callbacks and start waiting.
+  auto callback_to_drop = waiter.VisibilityCallback();
+  UIGetVisibility(waiter.VisibilityCallback());
+  waiter.WaitUntilDone();
+
+  // Running this callback should be a no-op.
+  std::move(callback_to_drop).Run(false);
+
+  // Verify that the player observer received the corresponding request
+  // visibility calls.
+  EXPECT_EQ(3, player_observer->received_request_visibility_calls());
+
+  // Verify that the waiter meets visibility, despite running `callback_to_drop`
+  // with false.
+  EXPECT_TRUE(waiter.MeetsVisibility());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest, GetVisibilityNoPlayers) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Create waiter and start waiting.
+  GetVisibilityWaiter waiter;
+  UIGetVisibility(waiter.VisibilityCallback());
+  waiter.WaitUntilDone();
+
+  // Verify the player observer did not receive any request visibility calls.
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Verify that the waiter meets visibility, despite running `callback_to_drop`
+  // with false.
+  EXPECT_FALSE(waiter.MeetsVisibility());
+}
+
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       GetVisibilityPlayersPausedDoesNotMeetVisibility) {
+  auto player_observer = std::make_unique<MockMediaSessionPlayerObserver>(
+      media::MediaContentType::kPersistent);
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+  StartNewPlayer(player_observer.get());
+
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Set one of the players to have a sufficiently visible video, and suspend
+  // the MediaSession.
+  player_observer->SetHasSufficientlyVisibleVideo(1, true);
+  SystemSuspend(true);
+
+  // Verify that all players were paused.
+  EXPECT_FALSE(player_observer->IsPlaying(0));
+  EXPECT_FALSE(player_observer->IsPlaying(1));
+  EXPECT_FALSE(player_observer->IsPlaying(2));
+
+  // Create waiter and start waiting.
+  GetVisibilityWaiter waiter;
+  UIGetVisibility(waiter.VisibilityCallback());
+  waiter.WaitUntilDone();
+
+  // Verify the player observer did not receive any request visibility calls,
+  // since all players are paused.
+  EXPECT_EQ(0, player_observer->received_request_visibility_calls());
+
+  // Verify that the waiter does not meet visibility.
+  EXPECT_FALSE(waiter.MeetsVisibility());
+}
+
+#if !BUILDFLAG(IS_ANDROID)
+IN_PROC_BROWSER_TEST_F(MediaSessionImplBrowserTest,
+                       WebAudioPlayersAreRegisteredAsAmbientPlayers) {
+  // Start WebAudio playback.
+  EXPECT_TRUE(NavigateToURL(
+      shell(), content::GetTestUrl("media/webaudio/", "playback-test.html")));
+  ASSERT_TRUE(ExecJs(shell()->web_contents(), "gain.gain.value = 1"));
+
+  // The WebAudio playback should request ambient audio focus.
+  mock_audio_focus_delegate()->WaitForAudioFocusRequested();
+  ResolveAudioFocusSuccess();
+  ASSERT_TRUE(GetSessionAudioFocusType().has_value());
+  EXPECT_EQ(AudioFocusType::kAmbient, *GetSessionAudioFocusType());
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
+
 class MediaSessionImplPrerenderingBrowserTest
     : public MediaSessionImplBrowserTest {
  public:
@@ -3311,7 +3457,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionImplPrerenderingBrowserTest,
   // Prerender the next page.
   auto prerender_url =
       embedded_test_server()->GetURL("example.com", "/title2.html");
-  int host_id = prerender_helper_.AddPrerender(prerender_url);
+  FrameTreeNodeId host_id = prerender_helper_.AddPrerender(prerender_url);
   content::RenderFrameHost* prerender_rfh =
       prerender_helper_.GetPrerenderedMainFrameHost(host_id);
   EXPECT_NE(prerender_rfh, nullptr);

@@ -11,12 +11,12 @@
 #include "chromeos/ash/services/libassistant/grpc/grpc_http_connection_delegate.h"
 #include "chromeos/assistant/internal/grpc_transport/streaming/bidi_streaming_rpc_call.h"
 #include "chromeos/assistant/internal/grpc_transport/streaming/streaming_write_queue.h"
-#include "third_party/grpc/src/include/grpc/grpc_security_constants.h"
-#include "third_party/grpc/src/include/grpc/impl/codegen/grpc_types.h"
-#include "third_party/grpc/src/include/grpcpp/create_channel.h"
-#include "third_party/grpc/src/include/grpcpp/security/credentials.h"
-#include "third_party/grpc/src/include/grpcpp/security/server_credentials.h"
-#include "third_party/grpc/src/include/grpcpp/support/channel_arguments.h"
+#include "third_party/grpc/source/include/grpc/grpc_security_constants.h"
+#include "third_party/grpc/source/include/grpc/impl/codegen/grpc_types.h"
+#include "third_party/grpc/source/include/grpcpp/create_channel.h"
+#include "third_party/grpc/source/include/grpcpp/security/credentials.h"
+#include "third_party/grpc/source/include/grpcpp/security/server_credentials.h"
+#include "third_party/grpc/source/include/grpcpp/support/channel_arguments.h"
 
 namespace ash::libassistant {
 
@@ -44,8 +44,7 @@ HttpConnection::Method ConvertToHttpConnectionMethod(
     case StreamHttpConnectionResponse::DELETE:
       return HttpConnection::DELETE;
     case StreamHttpConnectionResponse::METHOD_UNSPECIFIED:
-      NOTREACHED_IN_MIGRATION();
-      return HttpConnection::GET;
+      NOTREACHED();
   }
 }
 
@@ -232,7 +231,7 @@ void GrpcHttpConnectionClient::OnRpcReadAvailable(
       DVLOG(1) << "StreamHttpConnectionResponse::START";
       DCHECK(response.has_parameters());
       const auto& param = response.parameters();
-      auto* http_connection = iter->second;
+      auto* http_connection = iter->second.get();
       http_connection->SetRequest(
           param.url(), ConvertToHttpConnectionMethod(param.method()));
       for (const auto& header : param.headers()) {
@@ -280,7 +279,7 @@ void GrpcHttpConnectionClient::OnRpcReadAvailable(
                                response.chunked_data().is_last_chunk());
       break;
     case StreamHttpConnectionResponse::COMMAND_UNSPECIFIED:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 

@@ -33,10 +33,12 @@
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "net/base/features.h"
 #include "net/base/network_change_notifier.h"
 #include "services/network/public/cpp/network_switches.h"
 #include "services/network/public/mojom/network_change_manager.mojom-forward.h"
 #include "services/network/public/mojom/network_context.mojom.h"
+#include "services/network/public/mojom/shared_storage.mojom.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -286,7 +288,7 @@ void NetworkServiceClient::OnCertificateRequested(
 
 void NetworkServiceClient::OnAuthRequired(
     const std::optional<base::UnguessableToken>& window_id,
-    uint32_t request_id,
+    int32_t request_id,
     const GURL& url,
     bool first_auth_attempt,
     const net::AuthChallengeInfo& auth_info,
@@ -304,6 +306,11 @@ void NetworkServiceClient::OnPrivateNetworkAccessPermissionRequired(
     const std::optional<std::string>& private_network_device_id,
     const std::optional<std::string>& private_network_device_name,
     OnPrivateNetworkAccessPermissionRequiredCallback callback) {
+  std::move(callback).Run(false);
+}
+
+void NetworkServiceClient::OnLocalNetworkAccessPermissionRequired(
+    OnLocalNetworkAccessPermissionRequiredCallback callback) {
   std::move(callback).Run(false);
 }
 
@@ -334,10 +341,16 @@ void NetworkServiceClient::OnDataUseUpdate(
 
 void NetworkServiceClient::OnSharedStorageHeaderReceived(
     const url::Origin& request_origin,
-    std::vector<network::mojom::SharedStorageOperationPtr> operations,
+    std::vector<network::mojom::SharedStorageModifierMethodWithOptionsPtr>
+        methods_with_options,
+    const std::optional<std::string>& with_lock,
     OnSharedStorageHeaderReceivedCallback callback) {
   std::move(callback).Run();
 }
+
+void NetworkServiceClient::OnAdAuctionEventRecordHeaderReceived(
+    network::AdAuctionEventRecord event_record,
+    const std::optional<url::Origin>& top_frame_origin) {}
 
 void NetworkServiceClient::Clone(
     mojo::PendingReceiver<network::mojom::URLLoaderNetworkServiceObserver>
@@ -347,5 +360,11 @@ void NetworkServiceClient::Clone(
 
 void NetworkServiceClient::OnWebSocketConnectedToPrivateNetwork(
     network::mojom::IPAddressSpace ip_address_space) {}
+
+void NetworkServiceClient::OnUrlLoaderConnectedToPrivateNetwork(
+    const GURL& request_url,
+    network::mojom::IPAddressSpace response_address_space,
+    network::mojom::IPAddressSpace client_address_space,
+    network::mojom::IPAddressSpace target_address_space) {}
 
 }  // namespace content

@@ -20,7 +20,6 @@
 #include "third_party/blink/renderer/core/streams/miscellaneous_operations.h"
 #include "third_party/blink/renderer/core/streams/pipe_options.h"
 #include "third_party/blink/renderer/core/streams/pipe_to_engine.h"
-#include "third_party/blink/renderer/core/streams/promise_handler.h"
 #include "third_party/blink/renderer/core/streams/read_into_request.h"
 #include "third_party/blink/renderer/core/streams/read_request.h"
 #include "third_party/blink/renderer/core/streams/readable_byte_stream_controller.h"
@@ -30,7 +29,6 @@
 #include "third_party/blink/renderer/core/streams/readable_stream_generic_reader.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_transferring_optimizer.h"
 #include "third_party/blink/renderer/core/streams/stream_algorithms.h"
-#include "third_party/blink/renderer/core/streams/stream_promise_resolver.h"
 #include "third_party/blink/renderer/core/streams/tee_engine.h"
 #include "third_party/blink/renderer/core/streams/transferable_streams.h"
 #include "third_party/blink/renderer/core/streams/underlying_byte_source_base.h"
@@ -48,7 +46,6 @@
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 #include "third_party/blink/renderer/platform/wtf/deque.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
@@ -62,31 +59,32 @@ class ReadableStream::PullAlgorithm final : public StreamAlgorithm {
   explicit PullAlgorithm(UnderlyingByteSourceBase* underlying_byte_source)
       : underlying_byte_source_(underlying_byte_source) {}
 
-  v8::Local<v8::Promise> Run(ScriptState* script_state,
-                             int argc,
-                             v8::Local<v8::Value> argv[]) override {
+  ScriptPromise<IDLUndefined> Run(ScriptState* script_state,
+                                  int argc,
+                                  v8::Local<v8::Value> argv[]) override {
     DCHECK_EQ(argc, 0);
     DCHECK(controller_);
-    ExceptionState exception_state(script_state->GetIsolate(),
-                                   ExceptionContextType::kUnknown, "", "");
-    ScriptPromiseUntyped promise;
+    ScriptPromise<IDLUndefined> promise;
     if (script_state->ContextIsValid()) {
-      // This is needed because the realm of the underlying source can be
-      // different from the realm of the readable stream.
-      ScriptState::Scope scope(underlying_byte_source_->GetScriptState());
-      promise = underlying_byte_source_->Pull(controller_, exception_state);
+      v8::TryCatch try_catch(script_state->GetIsolate());
+      {
+        // This is needed because the realm of the underlying source can be
+        // different from the realm of the readable stream.
+        ScriptState::Scope scope(underlying_byte_source_->GetScriptState());
+        promise = underlying_byte_source_->Pull(
+            controller_, PassThroughException(script_state->GetIsolate()));
+      }
+      if (try_catch.HasCaught()) {
+        return ScriptPromise<IDLUndefined>::Reject(script_state,
+                                                   try_catch.Exception());
+      }
     } else {
-      return PromiseReject(script_state,
-                           V8ThrowException::CreateTypeError(
-                               script_state->GetIsolate(), "invalid realm"));
-    }
-    if (exception_state.HadException()) {
-      auto exception = exception_state.GetException();
-      exception_state.ClearException();
-      return PromiseReject(script_state, exception);
+      return ScriptPromise<IDLUndefined>::Reject(
+          script_state, V8ThrowException::CreateTypeError(
+                            script_state->GetIsolate(), "invalid realm"));
     }
 
-    return promise.V8Promise();
+    return promise;
   }
 
   // SetController() must be called before Run() is.
@@ -111,30 +109,30 @@ class ReadableStream::CancelAlgorithm final : public StreamAlgorithm {
   explicit CancelAlgorithm(UnderlyingByteSourceBase* underlying_byte_source)
       : underlying_byte_source_(underlying_byte_source) {}
 
-  v8::Local<v8::Promise> Run(ScriptState* script_state,
-                             int argc,
-                             v8::Local<v8::Value> argv[]) override {
+  ScriptPromise<IDLUndefined> Run(ScriptState* script_state,
+                                  int argc,
+                                  v8::Local<v8::Value> argv[]) override {
     DCHECK_EQ(argc, 1);
-    ExceptionState exception_state(script_state->GetIsolate(),
-                                   ExceptionContextType::kUnknown, "", "");
-    ScriptPromiseUntyped promise;
+    ScriptPromise<IDLUndefined> promise;
     if (script_state->ContextIsValid()) {
-      // This is needed because the realm of the underlying source can be
-      // different from the realm of the readable stream.
-      ScriptState::Scope scope(underlying_byte_source_->GetScriptState());
-      promise = underlying_byte_source_->Cancel(argv[0], exception_state);
+      v8::TryCatch try_catch(script_state->GetIsolate());
+      {
+        // This is needed because the realm of the underlying source can be
+        // different from the realm of the readable stream.
+        ScriptState::Scope scope(underlying_byte_source_->GetScriptState());
+        promise = underlying_byte_source_->Cancel(argv[0]);
+      }
+      if (try_catch.HasCaught()) {
+        return ScriptPromise<IDLUndefined>::Reject(script_state,
+                                                   try_catch.Exception());
+      }
     } else {
-      return PromiseReject(script_state,
-                           V8ThrowException::CreateTypeError(
-                               script_state->GetIsolate(), "invalid realm"));
-    }
-    if (exception_state.HadException()) {
-      auto exception = exception_state.GetException();
-      exception_state.ClearException();
-      return PromiseReject(script_state, exception);
+      return ScriptPromise<IDLUndefined>::Reject(
+          script_state, V8ThrowException::CreateTypeError(
+                            script_state->GetIsolate(), "invalid realm"));
     }
 
-    return promise.V8Promise();
+    return promise;
   }
 
   void Trace(Visitor* visitor) const override {
@@ -227,11 +225,9 @@ void ReadableStream::IterationSource::GetNextIterationResult() {
   auto* read_request = MakeGarbageCollected<IterationReadRequest>(this);
 
   // 5. Perform ! ReadableStreamDefaultReaderRead(this, readRequest).
-  ScriptState* script_state = GetScriptState();
-  ExceptionState exception_state(script_state->GetIsolate(),
-                                 ExceptionContextType::kUnknown, "", "");
-  ReadableStreamDefaultReader::Read(script_state, reader_, read_request,
-                                    exception_state);
+  ReadableStreamDefaultReader::Read(
+      GetScriptState(), reader_, read_request,
+      PassThroughException(GetScriptState()->GetIsolate()));
 }
 
 void ReadableStream::IterationSource::AsyncIteratorReturn(ScriptValue arg) {
@@ -254,7 +250,7 @@ void ReadableStream::IterationSource::AsyncIteratorReturn(ScriptValue arg) {
     // 4.2. Perform ! ReadableStreamDefaultReaderRelease(reader).
     ReadableStreamDefaultReader::Release(script_state, reader_);
     // 4.3. Return result.
-    TakePendingPromiseResolver()->Resolve(result.V8Value());
+    TakePendingPromiseResolver()->Resolve(result.V8Promise());
     return;
   }
 
@@ -316,9 +312,6 @@ ReadableStream* ReadableStream::CreateWithCountQueueingStrategy(
     AllowPerChunkTransferring allow_per_chunk_transferring,
     std::unique_ptr<ReadableStreamTransferringOptimizer> optimizer) {
   auto* isolate = script_state->GetIsolate();
-  ExceptionState exception_state(
-      isolate, ExceptionContextType::kConstructorOperationInvoke,
-      "ReadableStream");
   v8::MicrotasksScope microtasks_scope(
       isolate, ToMicrotaskQueue(script_state),
       v8::MicrotasksScope::kDoNotRunMicrotasks);
@@ -326,12 +319,8 @@ ReadableStream* ReadableStream::CreateWithCountQueueingStrategy(
   auto* stream = MakeGarbageCollected<ReadableStream>();
   stream->InitWithCountQueueingStrategy(
       script_state, underlying_source, high_water_mark,
-      allow_per_chunk_transferring, std::move(optimizer), exception_state);
-  if (exception_state.HadException()) {
-    exception_state.ClearException();
-    DLOG(WARNING)
-        << "Ignoring an exception in CreateWithCountQueuingStrategy().";
-  }
+      allow_per_chunk_transferring, std::move(optimizer),
+      IgnoreException(isolate));
   return stream;
 }
 
@@ -437,8 +426,8 @@ ReadableStream* ReadableStream::CreateByteStream(
 
   // Construction of the byte stream cannot fail because the trivial start
   // algorithm will not throw.
-  NonThrowableExceptionState exception_state;
-  InitByteStream(script_state, stream, underlying_byte_source, exception_state);
+  InitByteStream(script_state, stream, underlying_byte_source,
+                 ASSERT_NO_EXCEPTION);
 
   // 5. Return stream.
   return stream;
@@ -517,7 +506,7 @@ ScriptPromise<IDLUndefined> ReadableStream::cancel(
   //    with a TypeError exception.
   if (IsLocked(this)) {
     exception_state.ThrowTypeError("Cannot cancel a locked stream");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   // 3. Return ! ReadableStreamCancel(this, reason).
@@ -644,14 +633,14 @@ ScriptPromise<IDLUndefined> ReadableStream::pipeTo(
   //    with a TypeError exception.
   if (IsLocked(this)) {
     exception_state.ThrowTypeError("Cannot pipe a locked stream");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   // 2. If ! IsWritableStreamLocked(destination) is true, return a promise
   //    rejected with a TypeError exception.
   if (WritableStream::IsLocked(destination)) {
     exception_state.ThrowTypeError("Cannot pipe to a locked stream");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   // 3. Let signal be options["signal"] if it exists, or undefined otherwise.
@@ -713,11 +702,10 @@ void ReadableStream::InitInternal(ScriptState* script_state,
   }
 
   // 4. Let type be ? GetV(underlyingSource, "type").
-  v8::TryCatch try_catch(isolate);
+  TryRethrowScope rethrow_scope(isolate, exception_state);
   v8::Local<v8::Value> type;
   if (!underlying_source->Get(context, V8AtomicString(isolate, "type"))
            .ToLocal(&type)) {
-    exception_state.RethrowV8Exception(try_catch.Exception());
     return;
   }
 
@@ -725,7 +713,6 @@ void ReadableStream::InitInternal(ScriptState* script_state,
     // 5. Let typeString be ? ToString(type).
     v8::Local<v8::String> type_string;
     if (!type->ToString(context).ToLocal(&type_string)) {
-      exception_state.RethrowV8Exception(try_catch.Exception());
       return;
     }
 
@@ -877,9 +864,8 @@ void ReadableStream::LockAndDisturb(ScriptState* script_state) {
   DCHECK(!IsLocked(this));
 
   // Since the stream is not locked, AcquireDefaultReader cannot fail.
-  NonThrowableExceptionState exception_state(__FILE__, __LINE__);
   ReadableStreamGenericReader* reader =
-      AcquireDefaultReader(script_state, this, exception_state);
+      AcquireDefaultReader(script_state, this, ASSERT_NO_EXCEPTION);
   DCHECK(reader);
 
   is_disturbed_ = true;
@@ -893,9 +879,10 @@ void ReadableStream::CloseStream(ScriptState* script_state,
           DynamicTo<ReadableByteStreamController>(
               readable_stream_controller_.Get())) {
     // 1. Perform ! ReadableByteStreamControllerClose(stream.[[controller]]).
-    readable_byte_stream_controller->Close(
-        script_state, readable_byte_stream_controller, exception_state);
-    if (exception_state.HadException()) {
+    TryRethrowScope rethrow_scope(script_state->GetIsolate(), exception_state);
+    readable_byte_stream_controller->Close(script_state,
+                                           readable_byte_stream_controller);
+    if (rethrow_scope.HasCaught()) {
       return;
     }
 
@@ -1097,48 +1084,20 @@ ScriptPromise<IDLUndefined> ReadableStream::Cancel(
 
   // 7. Let sourceCancelPromise be !
   // stream.[[controller]].[[CancelSteps]](reason).
-  v8::Local<v8::Promise> source_cancel_promise =
+  ScriptPromise<IDLUndefined> source_cancel_promise =
       stream->readable_stream_controller_->CancelSteps(script_state, reason);
 
-  enum FunctionType { kResolve, kReject };
-  class ResolveUndefinedFunction final : public PromiseHandler {
+  class ResolveUndefinedFunction final
+      : public ThenCallable<IDLUndefined, ResolveUndefinedFunction> {
    public:
-    ResolveUndefinedFunction(ScriptPromiseResolver<IDLUndefined>* resolver,
-                             FunctionType type)
-        : resolver_(resolver), type_(type) {}
-
-    void CallWithLocal(ScriptState* script_state,
-                       v8::Local<v8::Value> value) override {
-      if (type_ == kResolve) {
-        resolver_->Resolve();
-      } else {
-        resolver_->Reject(value);
-      }
-    }
-
-    void Trace(Visitor* visitor) const override {
-      PromiseHandler::Trace(visitor);
-      visitor->Trace(resolver_);
-    }
-
-   private:
-    Member<ScriptPromiseResolver<IDLUndefined>> resolver_;
-    FunctionType type_;
+    // Dummy callable to insert a reaction step.
+    void React(ScriptState*) {}
   };
 
   // 8. Return the result of reacting to sourceCancelPromise with a
   //    fulfillment step that returns undefined.
-  auto* resolver =
-      MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(script_state);
-  StreamThenPromise(
-      script_state->GetContext(), source_cancel_promise,
-      MakeGarbageCollected<ScriptFunction>(
-          script_state,
-          MakeGarbageCollected<ResolveUndefinedFunction>(resolver, kResolve)),
-      MakeGarbageCollected<ScriptFunction>(
-          script_state,
-          MakeGarbageCollected<ResolveUndefinedFunction>(resolver, kReject)));
-  return resolver->Promise();
+  return source_cancel_promise.Then(
+      script_state, MakeGarbageCollected<ResolveUndefinedFunction>());
 }
 
 void ReadableStream::Close(ScriptState* script_state, ReadableStream* stream) {
@@ -1365,6 +1324,9 @@ ReadableStream::IterationSourceBase* ReadableStream::CreateIterationSource(
     ReadableStream::IterationSourceBase::Kind kind,
     ReadableStreamIteratorOptions* options,
     ExceptionState& exception_state) {
+  UseCounter::CountWebDXFeature(ExecutionContext::From(script_state),
+                                WebDXFeature::kAsyncIterableStreams);
+
   // 1. Let reader be ? AcquireReadableStreamDefaultReader(stream).
   ReadableStreamDefaultReader* reader =
       AcquireDefaultReader(script_state, this, exception_state);

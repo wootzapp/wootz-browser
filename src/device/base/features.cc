@@ -19,6 +19,7 @@ BASE_FEATURE(kNewBLEGattSessionHandling,
 #endif  // BUILDFLAG(IS_WIN)
 
 namespace features {
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 // Controls whether Web Bluetooth should support confirm-only and confirm-PIN
 // pairing mode on Win/Linux
@@ -27,10 +28,21 @@ BASE_FEATURE(kWebBluetoothConfirmPairingSupport,
              base::FEATURE_DISABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 
-#if defined(USE_UDEV)
-BASE_FEATURE(kUdevUsbSubsystemFilter,
-             "UdevUsbSubsystemFilter",
+#if BUILDFLAG(IS_WIN)
+// Controls whether to use uncached mode when triggering GATT discovery for
+// creating a GATT connection.
+BASE_FEATURE(kUncachedGattDiscoveryForGattConnection,
+             "UncachedGattDiscoveryForGattConnection",
              base::FEATURE_ENABLED_BY_DEFAULT);
-#endif  // defined(USE_UDEV)
+#endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(IS_ANDROID)
+// Controls whether to enable Bluetooth RFCOMM support on Android for Web
+// Serial.
+BASE_FEATURE(kBluetoothRfcommAndroid,
+             "BluetoothRfcommAndroid",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(IS_ANDROID)
+
 }  // namespace features
 }  // namespace device

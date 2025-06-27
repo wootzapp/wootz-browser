@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 
+#include "base/containers/flat_set.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/task/sequenced_task_runner.h"
@@ -20,6 +21,7 @@
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace network {
 
@@ -38,15 +40,8 @@ HttpCacheDataRemover::HttpCacheDataRemover(
     return;
   }
 
-  // Use the filter to create the |url_matcher_| callback.
-  std::set<std::string> domains;
-  domains.insert(url_filter->domains.begin(), url_filter->domains.end());
-
-  std::set<url::Origin> origins;
-  origins.insert(url_filter->origins.begin(), url_filter->origins.end());
-
-  url_matcher_ = base::BindRepeating(&DoesUrlMatchFilter, url_filter->type,
-                                     origins, domains);
+  url_matcher_ = BindDoesUrlMatchFilter(url_filter->type, url_filter->origins,
+                                        url_filter->domains);
 }
 
 HttpCacheDataRemover::~HttpCacheDataRemover() = default;
@@ -58,6 +53,22 @@ std::unique_ptr<HttpCacheDataRemover> HttpCacheDataRemover::CreateAndStart(
     base::Time delete_begin,
     base::Time delete_end,
     HttpCacheDataRemoverCallback done_callback) {
+  // Store data from `url_filter` needed by ClearNoVarySearchCache() before we
+  // move `url_filter` into HttpCacheDataRemover.
+  base::flat_set<url::Origin> origins;
+  base::flat_set<std::string> domains;
+  // Default to deleting everything in the specified time range if `url_filter`
+  // was not supplied.
+  net::UrlFilterType url_filter_type = net::UrlFilterType::kFalseIfMatches;
+  if (url_filter) {
+    const mojom::ClearDataFilter& filter = *url_filter;
+    url_filter_type = ConvertClearDataFilterType(filter.type);
+    origins = base::flat_set<url::Origin>(filter.origins.begin(),
+                                          filter.origins.end());
+    domains = base::flat_set<std::string>(filter.domains.begin(),
+                                          filter.domains.end());
+  }
+
   DCHECK(done_callback);
   std::unique_ptr<HttpCacheDataRemover> remover(
       new HttpCacheDataRemover(std::move(url_filter), delete_begin, delete_end,
@@ -82,19 +93,27 @@ std::unique_ptr<HttpCacheDataRemover> HttpCacheDataRemover::CreateAndStart(
       ->quic_session_pool()
       ->ClearCachedStatesInCryptoConfig(remover->url_matcher_);
 
-  net::CompletionOnceCallback callback =
-      base::BindOnce(&HttpCacheDataRemover::CacheRetrieved,
-                     remover->weak_factory_.GetWeakPtr());
-  int rv = http_cache->GetBackend(&remover->backend_, std::move(callback));
-  if (rv != net::ERR_IO_PENDING) {
-    remover->CacheRetrieved(rv);
+  // Clear the in-memory mapping of URLs using the No-Vary-Search response
+  // header, and its persisted version on disk.
+  http_cache->ClearNoVarySearchCache(url_filter_type, origins, domains,
+                                     delete_begin, delete_end);
+
+  auto callback = base::BindOnce(&HttpCacheDataRemover::CacheRetrieved,
+                                 remover->weak_factory_.GetWeakPtr());
+  net::HttpCache::GetBackendResult result =
+      http_cache->GetBackend(std::move(callback));
+  if (result.first != net::ERR_IO_PENDING) {
+    remover->CacheRetrieved(result);
   }
   return remover;
 }
 
-void HttpCacheDataRemover::CacheRetrieved(int rv) {
+void HttpCacheDataRemover::CacheRetrieved(
+    std::pair<int, raw_ptr<disk_cache::Backend>> result) {
   DCHECK(done_callback_);
 
+  int rv = result.first;
+  backend_ = result.second;
   // |backend_| can be null if it cannot be initialized.
   if (rv != net::OK || !backend_) {
     backend_ = nullptr;

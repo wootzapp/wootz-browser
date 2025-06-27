@@ -7,42 +7,40 @@ package org.chromium.chrome.browser.readaloud.player.mini;
 import android.app.Activity;
 import android.content.Context;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewStub;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.chrome.browser.browser_controls.BrowserControlsSizer;
+import org.chromium.chrome.browser.browser_controls.BottomControlsStacker;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.readaloud.ReadAloudMiniPlayerSceneLayer;
 import org.chromium.chrome.browser.readaloud.player.PlayerCoordinator;
 import org.chromium.chrome.browser.readaloud.player.R;
 import org.chromium.chrome.browser.readaloud.player.VisibilityState;
-import org.chromium.ui.modelutil.PropertyKey;
+import org.chromium.chrome.browser.user_education.IphCommandBuilder;
+import org.chromium.chrome.browser.user_education.UserEducationHelper;
+import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 /** Coordinator responsible for Read Aloud mini player lifecycle. */
 public class MiniPlayerCoordinator {
     private static ViewStub sViewStubForTesting;
-    private final PropertyModelChangeProcessor<PropertyModel, MiniPlayerLayout, PropertyKey>
-            mPlayerModelChangeProcessor;
-    private final PropertyModelChangeProcessor<
-                    PropertyModel, MiniPlayerViewBinder.ViewHolder, PropertyKey>
-            mMiniPlayerModelChangeProcessor;
     private final MiniPlayerMediator mMediator;
     private final MiniPlayerLayout mLayout;
-    // Compositor layer to be shown during show and hide while browser controls are
-    // resizing.
-    private final ReadAloudMiniPlayerSceneLayer mSceneLayer;
     private final PlayerCoordinator mPlayerCoordinator;
+    private final UserEducationHelper mUserEducationHelper;
+    /*  View-inflation-capable Context for read_aloud_playback isolated split */
+    private final Context mContext;
 
     /**
      * @param activity App activity containing a placeholder FrameLayout with ID
      *     R.id.readaloud_mini_player.
      * @param context View-inflation-capable Context for read_aloud_playback isolated split.
      * @param sharedModel Player UI property model for properties shared with expanded player.
-     * @param browserControlsSizer Allows observing and changing browser controls heights.
+     * @param bottomControlsStacker Allows observing and changing browser controls heights.
      * @param layoutManager Involved in showing the compositor view.
      * @param playerCoordinator PlayerCoordinator to be notified of mini player updates.
      */
@@ -50,16 +48,19 @@ public class MiniPlayerCoordinator {
             Activity activity,
             Context context,
             PropertyModel sharedModel,
-            BrowserControlsSizer browserControlsSizer,
+            BottomControlsStacker bottomControlsStacker,
             @Nullable LayoutManager layoutManager,
-            PlayerCoordinator playerCoordinator) {
+            PlayerCoordinator playerCoordinator,
+            UserEducationHelper userEducationHelper) {
         this(
+                context,
                 sharedModel,
-                new MiniPlayerMediator(browserControlsSizer),
+                new MiniPlayerMediator(bottomControlsStacker),
                 inflateLayout(activity, context),
-                new ReadAloudMiniPlayerSceneLayer(browserControlsSizer),
+                new ReadAloudMiniPlayerSceneLayer(bottomControlsStacker.getBrowserControls()),
                 layoutManager,
-                playerCoordinator);
+                playerCoordinator,
+                userEducationHelper);
     }
 
     private static MiniPlayerLayout inflateLayout(Activity activity, Context context) {
@@ -75,31 +76,35 @@ public class MiniPlayerCoordinator {
 
     @VisibleForTesting
     MiniPlayerCoordinator(
+            Context context,
             PropertyModel sharedModel,
             MiniPlayerMediator mediator,
             MiniPlayerLayout layout,
             ReadAloudMiniPlayerSceneLayer sceneLayer,
             @Nullable LayoutManager layoutManager,
-            PlayerCoordinator playerCoordinator) {
+            PlayerCoordinator playerCoordinator,
+            UserEducationHelper userEducationHelper) {
+        mContext = context;
         mMediator = mediator;
         mMediator.setCoordinator(this);
         mLayout = layout;
         assert layout != null;
-        mSceneLayer = sceneLayer;
         sceneLayer.setIsVisible(true);
         if (layoutManager != null) {
             layoutManager.addSceneOverlay(sceneLayer);
         }
         mPlayerCoordinator = playerCoordinator;
+        mUserEducationHelper = userEducationHelper;
 
-        mPlayerModelChangeProcessor =
-                PropertyModelChangeProcessor.create(
-                        sharedModel, mLayout, MiniPlayerViewBinder::bindPlayerProperties);
-        mMiniPlayerModelChangeProcessor =
-                PropertyModelChangeProcessor.create(
-                        mMediator.getModel(),
-                        new MiniPlayerViewBinder.ViewHolder(layout, sceneLayer),
-                        MiniPlayerViewBinder::bindMiniPlayerProperties);
+        // TODO(crbug.com/383544537) These should be CompositorModelChangeProcessors. The miniplayer
+        // currently relies on other objects to request a new frame. If no new frame is requested,
+        // changes to these models won't be reflected on the screen.
+        PropertyModelChangeProcessor.create(
+                sharedModel, mLayout, MiniPlayerViewBinder::bindPlayerProperties);
+        PropertyModelChangeProcessor.create(
+                mMediator.getModel(),
+                new MiniPlayerViewBinder.ViewHolder(layout, sceneLayer),
+                MiniPlayerViewBinder::bindMiniPlayerProperties);
     }
 
     public void destroy() {
@@ -132,7 +137,19 @@ public class MiniPlayerCoordinator {
         mMediator.dismiss(animate);
     }
 
-    void onShown() {
+    void onShown(@Nullable View iphAnchorView) {
+        if (iphAnchorView != null) {
+
+            mUserEducationHelper.requestShowIph(
+                    new IphCommandBuilder(
+                                    mContext.getResources(),
+                                    FeatureConstants.READ_ALOUD_EXPANDED_PLAYER_FEATURE,
+                                    /* stringId= */ R.string.readaloud_expanded_player_iph,
+                                    /* accessibilityStringId= */ R.string
+                                            .readaloud_expanded_player_iph)
+                            .setAnchorView(iphAnchorView)
+                            .build());
+        }
         mPlayerCoordinator.onMiniPlayerShown();
     }
 

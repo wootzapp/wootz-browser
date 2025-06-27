@@ -34,7 +34,7 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_OSAUTH) ScopedSessionRefresher {
 };
 
 // Helper class that stores and manages lifetime of authenticated UserContext.
-// Main usa cases for this class are the situations where authenticated
+// Main use cases for this class are the situations where authenticated
 // operations do not happen immediately after authentication, but require some
 // user input, e.g. setting up additional factors during user onboarding on a
 // first run, or entering authentication-related section of
@@ -120,6 +120,11 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_OSAUTH) AuthSessionStorage {
   // refreshed only upon returning.
   virtual std::unique_ptr<ScopedSessionRefresher> KeepAlive(
       const AuthProofToken& token) = 0;
+
+  // Checks whether there is a keep alive for the given token. Used by tests
+  // that verify the usage of ScopedSessionRefresher on certain screens.
+  virtual bool CheckHasKeepAliveForTesting(
+      const AuthProofToken& token) const = 0;
 };
 
 }  // namespace ash

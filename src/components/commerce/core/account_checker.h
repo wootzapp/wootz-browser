@@ -10,7 +10,8 @@
 #include "base/memory/scoped_refptr.h"
 #include "components/endpoint_fetcher/endpoint_fetcher.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/signin/public/identity_manager/primary_account_change_event.h"
+#include "components/sync/base/data_type.h"
+#include "components/sync/base/user_selectable_type.h"
 #include "components/sync/service/sync_service.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
@@ -36,14 +37,20 @@ class AccountChecker {
 
   virtual bool IsSignedIn();
 
-  // Returns whether bookmarks is currently syncing. This will return true in
-  // cases where sync is still initializing, but the sync feature itself is
-  // enabled.
-  virtual bool IsSyncingBookmarks();
+  // Check whether a specific sync entity is enabled by the user. This means
+  // the user has chosen to sync the provided model type and does not
+  // necessarily mean sync is active.
+  virtual bool IsSyncTypeEnabled(syncer::UserSelectableType type);
+
+  // Check whether sync is available for the user.
+  virtual bool IsSyncAvailable();
 
   virtual bool IsAnonymizedUrlDataCollectionEnabled();
 
   virtual bool IsSubjectToParentalControls();
+
+  // Whether a user is allowed to use model execution features.
+  virtual bool CanUseModelExecutionFeatures();
 
   // Gets the user's country as determined at startup.
   virtual std::string GetCountry();

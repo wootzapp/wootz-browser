@@ -7,24 +7,29 @@
 #include <memory>
 #include <optional>
 
+#include "base/command_line.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/to_string.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/task_environment.h"
 #include "components/optimization_guide/core/hints_processing_util.h"
+#include "components/optimization_guide/core/optimization_guide_constants.h"
 #include "components/optimization_guide/core/optimization_guide_enums.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/variations/scoped_variations_ids_provider.h"
 #include "net/base/url_util.h"
+#include "net/http/http_request_headers.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
@@ -47,7 +52,7 @@ class HintsFetcherTest : public testing::Test,
         {{features::kRemoteOptimizationGuideFetching, {}},
          {features::kOptimizationHints,
           {{"persist_hints_to_disk",
-            ShouldPersistHintsToDisk() ? "true" : "false"}}}},
+            base::ToString(ShouldPersistHintsToDisk())}}}},
         {});
 
     pref_service_ = std::make_unique<TestingPrefServiceSimple>();
@@ -138,6 +143,7 @@ class HintsFetcherTest : public testing::Test,
       }
       last_request_body_ =
           std::string(element.As<network::DataElementBytes>().AsStringPiece());
+      last_request_headers_ = pending_request.request.headers;
     }
   }
 
@@ -149,6 +155,10 @@ class HintsFetcherTest : public testing::Test,
   void ResetHintsFetcher() { hints_fetcher_.reset(); }
 
   std::string last_request_body() const { return last_request_body_; }
+
+  net::HttpRequestHeaders last_request_headers() const {
+    return last_request_headers_;
+  }
 
  private:
   void RunUntilIdle() {
@@ -170,6 +180,7 @@ class HintsFetcherTest : public testing::Test,
   network::TestURLLoaderFactory test_url_loader_factory_;
 
   std::string last_request_body_;
+  net::HttpRequestHeaders last_request_headers_;
 };
 
 INSTANTIATE_TEST_SUITE_P(WithPersistentStore,
@@ -722,6 +733,30 @@ TEST_P(HintsFetcherTest, NoHostsOrURLsToFetch) {
       "OptimizationGuide.HintsFetcher.GetHintsRequest.RequestStatus."
       "BatchUpdateActiveTabs",
       static_cast<int>(FetcherRequestStatus::kNoHostsOrURLsToFetchHints), 1);
+}
+
+TEST_P(HintsFetcherTest, HintsLanguageOverrideHeader) {
+  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+      switches::kOptimizationGuideLanguageOverride, "en-CA");
+  EXPECT_TRUE(FetchHints({"foo.com"}, /*urls=*/{}));
+  VerifyHasPendingFetchRequests();
+  ResetHintsFetcher();
+
+  auto headers = last_request_headers();
+  EXPECT_TRUE(headers.HasHeader(kOptimizationGuideLanguageOverrideHeaderKey));
+
+  EXPECT_EQ(headers.GetHeader(kOptimizationGuideLanguageOverrideHeaderKey)
+                .value_or(std::string()),
+            "en-CA");
+}
+
+TEST_P(HintsFetcherTest, HintsLanguageOverrideDisabledByDefault) {
+  EXPECT_TRUE(FetchHints({"foo.com"}, /*urls=*/{}));
+  VerifyHasPendingFetchRequests();
+  ResetHintsFetcher();
+
+  auto headers = last_request_headers();
+  EXPECT_FALSE(headers.HasHeader(kOptimizationGuideLanguageOverrideHeaderKey));
 }
 
 }  // namespace optimization_guide

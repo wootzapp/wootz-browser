@@ -71,7 +71,7 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
                                                int item_id);
 
   // MenuModelDelegate:
-  void OnIconChanged(int command_id) override {}
+  void OnIconChanged(int command_id) override;
   void OnMenuStructureChanged() override;
   void OnMenuClearingDelegate() override;
 
@@ -97,6 +97,7 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   void WillHideMenu(MenuItemView* menu) override;
   void OnMenuClosed(MenuItemView* menu) override;
   std::optional<SkColor> GetLabelColor(int command_id) const override;
+  bool IsTearingDown() const override;
 
  private:
   // Implementation of BuildMenu().
@@ -115,7 +116,7 @@ class VIEWS_EXPORT MenuModelAdapter : public MenuDelegate,
   int triggerable_event_flags_;
 
   // Map MenuItems to MenuModels.  Used to implement WillShowMenu().
-  std::map<MenuItemView*, ui::MenuModel*> menu_map_;
+  std::map<MenuItemView*, raw_ptr<ui::MenuModel, CtnExperimental>> menu_map_;
 
   // Optional callback triggered during OnMenuClosed().
   base::RepeatingClosure on_menu_closed_callback_;

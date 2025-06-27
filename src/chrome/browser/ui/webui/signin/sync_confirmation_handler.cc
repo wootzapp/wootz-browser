@@ -14,7 +14,6 @@
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
 #include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/consent_auditor/consent_auditor_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
@@ -38,13 +37,6 @@
 #include "content/public/browser/web_ui.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "ash/webui/settings/public/constants/routes.mojom.h"
-#include "chrome/browser/lacros/lacros_url_handling.h"
-#include "chrome/common/webui_url_constants.h"
-#include "components/sync/base/features.h"
-#endif
-
 using signin::ConsentLevel;
 
 namespace {
@@ -52,26 +44,12 @@ const int kProfileImageSize = 128;
 
 // Derives screen mode of sync opt in screen from the
 // CanShowHistorySyncOptInsWithoutMinorModeRestrictions capability.
-bool UseMinorModeRestrictions() {
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+constexpr bool UseMinorModeRestrictions() {
+#if BUILDFLAG(IS_CHROMEOS)
   // ChromeOS handles minor modes separately.
   return false;
 #else
-  return base::FeatureList::IsEnabled(
-      ::switches::kMinorModeRestrictionsForHistorySyncOptIn);
-#endif
-}
-
-// After this time delta, user must see a screen. If it was impossible to get
-// the CanShowHistorySyncOptInsWithoutMinorModeRestrictions capability before
-// the deadline, the screen should be configured in minor-safe way.
-base::TimeDelta GetMinorModeRestrictionsDeadline() {
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Not implemented for those platforms.
-  NOTREACHED_NORETURN();
-#else
-  return base::Milliseconds(
-      ::switches::kMinorModeRestrictionsFetchDeadlineMs.Get());
+  return true;
 #endif
 }
 
@@ -115,7 +93,7 @@ void RecordButtonClicked(SyncConfirmationScreenMode mode,
           signin_metrics::SyncButtonClicked::kSyncSettingsUnknownWeighted;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   base::UmaHistogramEnumeration("Signin.SyncButtons.Clicked", *button_clicked);
@@ -136,7 +114,7 @@ signin_metrics::SyncButtonsType GetButtonTypeMetricValue(
     // Metric is not emitted for these cases:
     case SyncConfirmationScreenMode::kUnsupported:
     case SyncConfirmationScreenMode::kPending:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 }  // namespace
@@ -178,8 +156,9 @@ SyncConfirmationHandler::~SyncConfirmationHandler() {
 }
 
 void SyncConfirmationHandler::OnBrowserRemoved(Browser* browser) {
-  if (browser_ == browser)
+  if (browser_ == browser) {
     browser_ = nullptr;
+  }
 }
 
 void SyncConfirmationHandler::RegisterMessages() {
@@ -201,13 +180,6 @@ void SyncConfirmationHandler::RegisterMessages() {
       "accountInfoRequest",
       base::BindRepeating(&SyncConfirmationHandler::HandleAccountInfoRequest,
                           base::Unretained(this)));
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  web_ui()->RegisterMessageCallback(
-      "openDeviceSyncSettings",
-      base::BindRepeating(
-          &SyncConfirmationHandler::HandleOpenDeviceSyncSettings,
-          base::Unretained(this)));
-#endif
 }
 
 void SyncConfirmationHandler::HandleConfirm(const base::Value::List& args) {
@@ -259,15 +231,6 @@ void SyncConfirmationHandler::HandleAccountInfoRequest(
   // yet, the listener will be fired again through `OnAccountUpdated()`.
   DispatchAccountInfoUpdate(primary_account_info);
 }
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-void SyncConfirmationHandler::HandleOpenDeviceSyncSettings(
-    const base::Value::List& args) {
-  std::string os_sync_settings_url = chrome::kChromeUIOSSettingsURL;
-  os_sync_settings_url.append(chromeos::settings::mojom::kSyncSubpagePath);
-  lacros_url_handling::NavigateInAsh(GURL(os_sync_settings_url));
-}
-#endif
 
 void SyncConfirmationHandler::RecordConsent(
     const base::Value::List& consent_description,
@@ -470,10 +433,12 @@ void SyncConfirmationHandler::HandleInitializedWithSize(
 
   if (!screen_mode_notified_ && UseMinorModeRestrictions()) {
     // Deadline timer for the case when screen mode doesn't arrive in time.
-    screen_mode_deadline_.Start(FROM_HERE, GetMinorModeRestrictionsDeadline(),
+    screen_mode_deadline_.Start(FROM_HERE,
+                                signin::GetMinorModeRestrictionsDeadline(),
                                 this, &SyncConfirmationHandler::OnDeadline);
   }
 
-  if (browser_)
+  if (browser_) {
     signin::SetInitializedModalHeight(browser_, web_ui(), args);
+  }
 }

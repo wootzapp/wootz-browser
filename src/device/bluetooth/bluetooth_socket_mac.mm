@@ -15,16 +15,19 @@
 #include <utility>
 
 #include "base/apple/scoped_cftyperef.h"
+#include "base/compiler_specific.h"
 #include "base/containers/queue.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
+#include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/time/time.h"
 #include "device/bluetooth/bluetooth_adapter_mac.h"
 #include "device/bluetooth/bluetooth_channel_mac.h"
 #include "device/bluetooth/bluetooth_classic_device_mac.h"
@@ -57,6 +60,7 @@ using device::BluetoothSocket;
                 error_callback:
                     (BluetoothSocket::ErrorCompletionCallback)error_callback;
 - (void)sdpQueryComplete:(IOBluetoothDevice*)device status:(IOReturn)status;
+- (BluetoothSocket::ErrorCompletionCallback)takeErrorCallback;
 
 @end
 
@@ -87,8 +91,16 @@ using device::BluetoothSocket;
 
 - (void)sdpQueryComplete:(IOBluetoothDevice*)device status:(IOReturn)status {
   DCHECK_EQ(device, _device);
+  if (!_error_callback) {
+    // This can happen when the target is called after SDP query timeout.
+    return;
+  }
   _socket->OnSDPQueryComplete(status, device, std::move(_success_callback),
                               std::move(_error_callback));
+}
+
+- (BluetoothSocket::ErrorCompletionCallback)takeErrorCallback {
+  return std::move(_error_callback);
 }
 
 @end
@@ -232,6 +244,13 @@ const char kSocketConnecting[] = "The socket is currently connecting";
 const char kSocketAlreadyConnected[] = "The socket is already connected";
 const char kSocketNotConnected[] = "The socket is not connected";
 const char kReceivePending[] = "A Receive operation is pending";
+const char kChannelOpeningTimeout[] = "Channel opening timeout";
+const char kSDPQueryTimeout[] = "SDP query timeout";
+
+// The timeout (in ms) for SDP query.
+const int kSDPQueryTimeoutInterval = 10000;
+// The timeout (in ms) for channel opening.
+const int kChannelOpeningTimeoutInterval = 10000;
 
 template <class T>
 void empty_queue(base::queue<T>& queue) {
@@ -434,12 +453,14 @@ void BluetoothSocketMac::Connect(IOBluetoothDevice* device,
   // query.
   DVLOG(1) << BluetoothClassicDeviceMac::GetDeviceAddress(device) << " "
            << uuid_.canonical_value() << ": Sending SDP query.";
-  SDPQueryListener* listener =
+  sdp_query_listener_ =
       [[SDPQueryListener alloc] initWithSocket:this
                                         device:device
                               success_callback:std::move(success_callback)
                                 error_callback:std::move(error_callback)];
-  [device performSDPQuery:listener];
+  [device performSDPQuery:sdp_query_listener_];
+  timer_.Start(FROM_HERE, base::Milliseconds(kSDPQueryTimeoutInterval),
+               base::BindOnce(&BluetoothSocketMac::OnSDPQueryTimeout, this));
 }
 
 void BluetoothSocketMac::ListenUsingRfcomm(
@@ -504,6 +525,8 @@ void BluetoothSocketMac::OnSDPQueryComplete(
   DVLOG(1) << BluetoothClassicDeviceMac::GetDeviceAddress(device) << " "
            << uuid_.canonical_value() << ": SDP query complete.";
 
+  timer_.Stop();
+  sdp_query_listener_ = nil;
   if (status != kIOReturnSuccess) {
     std::move(error_callback).Run(kSDPQueryFailed);
     return;
@@ -580,6 +603,10 @@ void BluetoothSocketMac::OnSDPQueryComplete(
 
   DVLOG(1) << BluetoothClassicDeviceMac::GetDeviceAddress(device) << " "
            << uuid_.canonical_value() << ": channel opening in background.";
+
+  timer_.Start(
+      FROM_HERE, base::Milliseconds(kChannelOpeningTimeoutInterval),
+      base::BindOnce(&BluetoothSocketMac::OnChannelOpeningTimeout, this));
 }
 
 void BluetoothSocketMac::OnChannelOpened(
@@ -610,6 +637,7 @@ void BluetoothSocketMac::OnChannelOpenComplete(
   DVLOG(1) << device_address << " " << uuid_.canonical_value()
            << ": channel open complete.";
 
+  timer_.Stop();
   std::unique_ptr<ConnectCallbacks> temp = std::move(connect_callbacks_);
   if (status != kIOReturnSuccess) {
     ReleaseChannel();
@@ -621,6 +649,28 @@ void BluetoothSocketMac::OnChannelOpenComplete(
   }
 
   std::move(temp->success_callback).Run();
+}
+
+void BluetoothSocketMac::OnChannelOpeningTimeout() {
+  DCHECK(thread_checker_.CalledOnValidThread());
+  if (!is_connecting()) {
+    return;
+  }
+  std::unique_ptr<ConnectCallbacks> temp = std::move(connect_callbacks_);
+  ReleaseChannel();
+  std::move(temp->error_callback).Run(kChannelOpeningTimeout);
+}
+
+void BluetoothSocketMac::OnSDPQueryTimeout() {
+  DCHECK(thread_checker_.CalledOnValidThread());
+  if (!sdp_query_listener_) {
+    return;
+  }
+  auto error_callback = [sdp_query_listener_ takeErrorCallback];
+  if (error_callback) {
+    std::move(error_callback).Run(kSDPQueryTimeout);
+  }
+  sdp_query_listener_ = nil;
 }
 
 void BluetoothSocketMac::Disconnect(base::OnceClosure callback) {
@@ -679,7 +729,7 @@ void BluetoothSocketMac::OnChannelDataReceived(void* data, size_t length) {
 
   int data_size = base::checked_cast<int>(length);
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(data_size);
-  memcpy(buffer->data(), data, buffer->size());
+  UNSAFE_TODO(memcpy(buffer->data(), data, buffer->size()));
 
   // If there is a pending read callback, call it now.
   if (receive_callbacks_) {
@@ -826,7 +876,8 @@ void BluetoothSocketMac::AcceptConnectionRequest() {
       std::move(accept_queue_.front());
   accept_queue_.pop();
 
-  adapter_->DeviceConnected(channel->GetDevice());
+  adapter_->DeviceConnected(std::make_unique<device::BluetoothClassicDeviceMac>(
+      adapter_.get(), channel->GetDevice()));
   BluetoothDevice* device = adapter_->GetDevice(channel->GetDeviceAddress());
   DCHECK(device);
 

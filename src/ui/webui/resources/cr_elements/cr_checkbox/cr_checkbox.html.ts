@@ -2,14 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html} from '//resources/lit/v3_0/lit.rollup.js';
+import {html, nothing} from '//resources/lit/v3_0/lit.rollup.js';
+
 import type {CrCheckboxElement} from './cr_checkbox.js';
-import {nothing} from '//resources/lit/v3_0/lit.rollup.js';
 
 export function getHtml(this: CrCheckboxElement) {
   return html`
 <div id="checkbox" tabindex="${this.tabIndex}" role="checkbox"
     @keydown="${this.onKeyDown_}" @keyup="${this.onKeyUp_}"
+<if expr="is_win">
+    @click="${this.onCheckboxClick_}"
+</if>
     aria-disabled="${this.getAriaDisabled_()}"
     aria-checked="${this.getAriaChecked_()}"
     aria-labelledby="labelContainer"

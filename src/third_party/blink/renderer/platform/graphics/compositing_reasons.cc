@@ -4,6 +4,8 @@
 
 #include "third_party/blink/renderer/platform/graphics/compositing_reasons.h"
 
+#include <array>
+
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
@@ -12,14 +14,15 @@ namespace blink {
 namespace {
 
 #define V(name) #name,
-constexpr const char* kShortNames[] = {FOR_EACH_COMPOSITING_REASON(V)};
+constexpr auto kShortNames =
+    std::to_array<const char* const>({FOR_EACH_COMPOSITING_REASON(V)});
 #undef V
 
 struct ReasonAndDescription {
   CompositingReasons reason;
   const char* description;
 };
-constexpr ReasonAndDescription kReasonDescriptionMap[] = {
+constexpr auto kReasonDescriptionMap = std::to_array<ReasonAndDescription>({
     {CompositingReason::k3DTransform, "Has a 3d transform."},
     {CompositingReason::k3DScale, "Has a 3d scale."},
     {CompositingReason::k3DRotate, "Has a 3d rotate."},
@@ -42,6 +45,8 @@ constexpr ReasonAndDescription kReasonDescriptionMap[] = {
      "Has an active accelerated backdrop filter animation or transition."},
     {CompositingReason::kAffectedByOuterViewportBoundsDelta,
      "Is fixed position affected by outer viewport bounds delta."},
+    {CompositingReason::kAffectedBySafeAreaBottom,
+     "Is fixed position affected by safe area bottom."},
     {CompositingReason::kFixedPosition,
      "Is fixed position in a scrollable view."},
     {CompositingReason::kUndoOverscroll,
@@ -109,7 +114,7 @@ constexpr ReasonAndDescription kReasonDescriptionMap[] = {
     {CompositingReason::kDevToolsOverlay, "Is DevTools overlay."},
     {CompositingReason::kViewTransitionContent,
      "The layer containing the contents of a view transition element."},
-};
+});
 
 }  // anonymous namespace
 

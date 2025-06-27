@@ -2,7 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "third_party/blink/renderer/core/content_capture/content_capture_manager.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include <array>
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -10,6 +15,7 @@
 #include "third_party/blink/public/web/web_content_capture_client.h"
 #include "third_party/blink/public/web/web_content_holder.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_gc_controller.h"
+#include "third_party/blink/renderer/core/content_capture/content_capture_manager.h"
 #include "third_party/blink/renderer/core/dom/dom_node_ids.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/node.h"
@@ -19,7 +25,7 @@
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
-#include "third_party/blink/renderer/core/testing/page_test_base.h"
+#include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -31,7 +37,7 @@ namespace blink {
 namespace {
 
 gfx::Rect GetRect(LayoutObject* layout_object) {
-  return ToEnclosingRect(layout_object->VisualRectInDocument());
+  return ToEnclosingRect(VisualRectInDocument(*layout_object));
 }
 
 void FindNodeVectorsDiff(const Vector<Persistent<Node>>& a,
@@ -84,7 +90,9 @@ class WebContentCaptureClientTestHelper : public WebContentCaptureClient {
     return base::Milliseconds(500);
   }
 
-  void DidCaptureContent(const WebVector<WebContentHolder>& data,
+  void DidCompleteBatchCaptureContent() override {}
+
+  void DidCaptureContent(const std::vector<WebContentHolder>& data,
                          bool first_data) override {
     data_ = data;
     first_data_ = first_data;
@@ -95,21 +103,21 @@ class WebContentCaptureClientTestHelper : public WebContentCaptureClient {
     }
   }
 
-  void DidUpdateContent(const WebVector<WebContentHolder>& data) override {
+  void DidUpdateContent(const std::vector<WebContentHolder>& data) override {
     updated_data_ = data;
     for (auto& d : data)
       updated_text_.push_back(d.GetValue());
   }
 
-  void DidRemoveContent(WebVector<int64_t> data) override {
+  void DidRemoveContent(std::vector<int64_t> data) override {
     removed_data_ = data;
   }
 
   bool FirstData() const { return first_data_; }
 
-  const WebVector<WebContentHolder>& Data() const { return data_; }
+  const std::vector<WebContentHolder>& Data() const { return data_; }
 
-  const WebVector<WebContentHolder>& UpdatedData() const {
+  const std::vector<WebContentHolder>& UpdatedData() const {
     return updated_data_;
   }
 
@@ -119,7 +127,7 @@ class WebContentCaptureClientTestHelper : public WebContentCaptureClient {
 
   const Vector<String>& UpdatedText() const { return updated_text_; }
 
-  const WebVector<int64_t>& RemovedData() const { return removed_data_; }
+  const std::vector<int64_t>& RemovedData() const { return removed_data_; }
 
   void ResetResults() {
     first_data_ = false;
@@ -131,9 +139,9 @@ class WebContentCaptureClientTestHelper : public WebContentCaptureClient {
 
  private:
   bool first_data_ = false;
-  WebVector<WebContentHolder> data_;
-  WebVector<WebContentHolder> updated_data_;
-  WebVector<int64_t> removed_data_;
+  std::vector<WebContentHolder> data_;
+  std::vector<WebContentHolder> updated_data_;
+  std::vector<int64_t> removed_data_;
   Vector<String> all_text_;
   Vector<String> updated_text_;
   Vector<String> captured_text_;
@@ -248,7 +256,7 @@ class ContentCaptureTest : public PageTestBase,
     GetOrResetContentCaptureManager()->OnLayoutTextWillBeDestroyed(*node);
   }
 
-  void RemoveUnsentNode(const WebVector<WebContentHolder>& sent_nodes) {
+  void RemoveUnsentNode(const std::vector<WebContentHolder>& sent_nodes) {
     // Find a node isn't in sent_nodes
     for (auto node : nodes_) {
       bool found_in_sent = false;
@@ -263,7 +271,7 @@ class ContentCaptureTest : public PageTestBase,
       }
     }
     // Didn't find unsent nodes.
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   size_t GetExpectedFirstResultSize() { return ContentCaptureTask::kBatchSize; }
@@ -573,15 +581,7 @@ TEST_P(ContentCaptureTest, TaskHistogramReporter) {
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 0u);
   histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 0u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 0u);
-  histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 0u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture, 0u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskDelayInMs, 1u);
 
   // The task stops before sends the captured content out.
   GetContentCaptureTask()->SetTaskStopForTesting(
@@ -591,10 +591,6 @@ TEST_P(ContentCaptureTest, TaskHistogramReporter) {
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 1u);
   histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 0u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 0u);
-  histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 0u);
 
   // The task stops at kProcessRetryTask because the captured content
@@ -602,14 +598,9 @@ TEST_P(ContentCaptureTest, TaskHistogramReporter) {
   GetContentCaptureTask()->SetTaskStopForTesting(
       ContentCaptureTask::TaskState::kProcessRetryTask);
   RunContentCaptureTask();
-  // Verify has one CaptureContentTime, one SendContentTime and one
-  // CaptureContentDelayTime record.
+  // Verify has one CaptureContentTime record.
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 1u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 1u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 1u);
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 0u);
 
@@ -618,26 +609,10 @@ TEST_P(ContentCaptureTest, TaskHistogramReporter) {
   GetContentCaptureTask()->SetTaskStopForTesting(
       ContentCaptureTask::TaskState::kStop);
   RunContentCaptureTask();
-  // Verify has two SendContentTime records.
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 1u);
   histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 2u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 1u);
-  histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 0u);
-
-  // Verify retry task won't count to TaskDelay metrics.
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskDelayInMs, 1u);
-
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture, 1u);
-  // Verify the task ran 4 times, first run stopped before capturing content
-  // and 2nd run captured content, 3rd and 4th run sent the content out.
-  histograms.ExpectBucketCount(
-      ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture, 4u, 1u);
 
   // Create a node and run task until it stops.
   CreateTextNodeAndNotifyManager();
@@ -647,36 +622,14 @@ TEST_P(ContentCaptureTest, TaskHistogramReporter) {
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 2u);
   histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 3u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 2u);
-  histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 0u);
-
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture, 2u);
-  // Verify the task ran 1 times for this session because we didn't explicitly
-  // stop it.
-  histograms.ExpectBucketCount(
-      ContentCaptureTaskHistogramReporter::kTaskRunsPerCapture, 1u, 1u);
 
   GetContentCaptureTask()->ClearDocumentSessionsForTesting();
   ThreadState::Current()->CollectAllGarbageForTesting();
   histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kCaptureContentTime, 2u);
   histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kSendContentTime, 3u);
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kCaptureContentDelayTime, 2u);
-  histograms.ExpectTotalCount(
       ContentCaptureTaskHistogramReporter::kSentContentCount, 1u);
-  // Verify total content has been sent.
-  histograms.ExpectBucketCount(
-      ContentCaptureTaskHistogramReporter::kSentContentCount, 9u, 1u);
-
-  // Verify TaskDelay was recorded again for node change.
-  histograms.ExpectTotalCount(
-      ContentCaptureTaskHistogramReporter::kTaskDelayInMs, 2u);
 }
 
 TEST_P(ContentCaptureTest, RescheduleTask) {
@@ -1096,10 +1049,17 @@ TEST_F(ContentCaptureSimTest, DeleteNodeContent) {
 }
 
 TEST_F(ContentCaptureSimTest, UserActivatedDelay) {
-  base::TimeDelta expected_delays[] = {
-      base::Milliseconds(500), base::Seconds(1),  base::Seconds(2),
-      base::Seconds(4),        base::Seconds(8),  base::Seconds(16),
-      base::Seconds(32),       base::Seconds(64), base::Seconds(128)};
+  auto expected_delays = std::to_array<base::TimeDelta>({
+      base::Milliseconds(500),
+      base::Seconds(1),
+      base::Seconds(2),
+      base::Seconds(4),
+      base::Seconds(8),
+      base::Seconds(16),
+      base::Seconds(32),
+      base::Seconds(64),
+      base::Seconds(128),
+  });
   size_t expected_delays_size = std::size(expected_delays);
   // The first task has been scheduled but not run yet, the delay will be
   // increased until current task starts to run. Verifies the value is

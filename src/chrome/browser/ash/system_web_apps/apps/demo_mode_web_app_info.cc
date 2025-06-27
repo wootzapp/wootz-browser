@@ -22,15 +22,22 @@ constexpr int kDemoModeAppMinimumWidth = 800;
 constexpr int kDemoModeAppMinimumHeight = 600;
 }  // namespace
 
-std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForDemoModeApp() {
-  std::unique_ptr<web_app::WebAppInstallInfo> info =
-      std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(ash::kChromeUntrustedUIDemoModeAppIndexURL);
+DemoModeSystemAppDelegate::DemoModeSystemAppDelegate(Profile* profile)
+    : ash::SystemWebAppDelegate(ash::SystemWebAppType::DEMO_MODE,
+                                "DemoMode",
+                                GURL(ash::kChromeUntrustedUIDemoModeAppURL),
+                                profile) {}
+
+std::unique_ptr<web_app::WebAppInstallInfo>
+DemoModeSystemAppDelegate::GetWebAppInfo() const {
+  GURL start_url = GURL(ash::kChromeUntrustedUIDemoModeAppIndexURL);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
   info->scope = GURL(ash::kChromeUntrustedUIDemoModeAppURL);
   // TODO(b/323002417): Convert the title to a localized string
   info->title = u"ChromeOS Highlights";
   web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
+      info->start_url(),
       {{"app_icon_192.png", 192, IDR_ASH_DEMO_MODE_APP_APP_ICON_192_PNG}},
       *info);
   info->theme_color =
@@ -40,19 +47,7 @@ std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForDemoModeApp() {
   info->background_color = info->theme_color;
   info->display_mode = blink::mojom::DisplayMode::kStandalone;
   info->user_display_mode = web_app::mojom::UserDisplayMode::kStandalone;
-
   return info;
-}
-
-DemoModeSystemAppDelegate::DemoModeSystemAppDelegate(Profile* profile)
-    : ash::SystemWebAppDelegate(ash::SystemWebAppType::DEMO_MODE,
-                                "DemoMode",
-                                GURL(ash::kChromeUntrustedUIDemoModeAppURL),
-                                profile) {}
-
-std::unique_ptr<web_app::WebAppInstallInfo>
-DemoModeSystemAppDelegate::GetWebAppInfo() const {
-  return CreateWebAppInfoForDemoModeApp();
 }
 
 bool DemoModeSystemAppDelegate::ShouldCaptureNavigations() const {

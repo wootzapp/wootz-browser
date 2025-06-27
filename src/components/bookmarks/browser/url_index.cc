@@ -9,6 +9,7 @@
 #include "base/containers/adapters.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/uuid.h"
 #include "components/bookmarks/browser/url_and_title.h"
 #include "components/bookmarks/common/url_load_stats.h"
@@ -58,12 +59,13 @@ void UrlIndex::Add(BookmarkNode* parent,
   AddImpl(parent->Add(std::move(node), index));
 }
 
-std::unique_ptr<BookmarkNode> UrlIndex::Remove(BookmarkNode* node,
-                                               std::set<GURL>* removed_urls) {
+std::unique_ptr<BookmarkNode> UrlIndex::RemoveChildAt(
+    BookmarkNode* parent,
+    size_t index,
+    std::set<GURL>* removed_urls) {
   base::AutoLock url_lock(url_lock_);
-  RemoveImpl(node, removed_urls);
-  BookmarkNode* parent = node->parent();
-  return parent->Remove(parent->GetIndexOf(node).value());
+  RemoveImpl(parent->children()[index].get(), removed_urls);
+  return parent->Remove(index);
 }
 
 void UrlIndex::SetUrl(BookmarkNode* node, const GURL& url) {
@@ -167,7 +169,7 @@ void UrlIndex::RemoveImpl(BookmarkNode* node, std::set<GURL>* removed_urls) {
   url_lock_.AssertAcquired();
   if (node->is_url()) {
     auto i = nodes_ordered_by_url_set_.find(node);
-    DCHECK(i != nodes_ordered_by_url_set_.end());
+    CHECK(i != nodes_ordered_by_url_set_.end(), base::NotFatalUntil::M130);
     // i points to the first node with the URL, advance until we find the
     // node we're removing.
     while (*i != node) {

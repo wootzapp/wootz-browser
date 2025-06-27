@@ -24,14 +24,15 @@
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_utils.h"
 #include "chrome/browser/ash/login/screens/hid_detection_screen.h"
 #include "chrome/browser/ash/login/screens/network_screen.h"
+#include "chrome/browser/ash/login/screens/split_modifier_keyboard_info_screen.h"
 #include "chrome/browser/ash/login/startup_utils.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/ash/policy/enrollment/enrollment_requisition_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
-#include "chrome/browser/ui/ash/login_screen_client_impl.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/ash/login/login_screen_client_impl.h"
 #include "chrome/browser/ui/webui/ash/login/hid_detection_screen_handler.h"
 #include "chromeos/ash/components/assistant/buildflags.h"
 #include "chromeos/ash/components/login/auth/public/saml_password_attributes.h"
@@ -41,6 +42,7 @@
 #include "components/metrics/metrics_pref_names.h"
 #include "components/metrics/metrics_service.h"
 #include "components/user_manager/user_manager.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "services/device/public/mojom/input_service.mojom.h"
 #include "ui/display/screen.h"
 
@@ -80,12 +82,14 @@ void OobeTestAPIHandler::DeclareJSCallbacks() {
               &OobeTestAPIHandler::HandleGetShouldSkipTouchpadScroll);
   AddCallback("OobeTestApi.getMetricsClientID",
               &OobeTestAPIHandler::HandleGetMetricsClientID);
+  AddCallback("OobeTestApi.getShouldSkipSplitModifierScreen",
+              &OobeTestAPIHandler::HandleGetShouldSkipSplitModifierScreen);
 }
 
 void OobeTestAPIHandler::GetAdditionalParameters(base::Value::Dict* dict) {
   login::NetworkStateHelper helper_;
   dict->Set("testapi_shouldSkipNetworkFirstShow",
-                !switches::IsOOBENetworkScreenSkippingDisabledForTesting() &&
+            !switches::IsOOBENetworkScreenSkippingDisabledForTesting() &&
                 helper_.IsConnectedToEthernet());
 
   dict->Set(
@@ -97,7 +101,12 @@ void OobeTestAPIHandler::GetAdditionalParameters(base::Value::Dict* dict) {
 
   dict->Set("testapi_shouldSkipAiIntro", AiIntroScreen::ShouldBeSkipped());
 
-  dict->Set("testapi_shouldSkipTuna", TunaScreen::ShouldBeSkipped());
+  dict->Set("testapi_shouldSkipGeminiIntro",
+            GeminiIntroScreen::ShouldBeSkipped());
+
+  // TODO(bohdanty): Remove in a follow-up CL to prevent CQ from breaking.
+  dict->Set("testapi_shouldSkipSplitModifierKeyboardInfo",
+            SplitModifierKeyboardInfoScreen::ShouldBeSkipped());
 
   dict->Set("testapi_shouldSkipAssistant",
             features::IsOobeSkipAssistantEnabled() ||
@@ -117,40 +126,24 @@ void OobeTestAPIHandler::GetAdditionalParameters(base::Value::Dict* dict) {
   dict->Set("testapi_shouldSkipConsolidatedConsent",
             !BUILDFLAG(GOOGLE_CHROME_BRANDING));
   dict->Set("testapi_isHPSEnabled", ash::features::IsQuickDimEnabled());
-
-  bool skip_touchpad_scroll =
-      !features::IsOobeTouchpadScrollEnabled() ||
-      InputDeviceSettingsController::Get()->GetConnectedTouchpads().empty();
-  // TODO(b/327270907) Remove `testapi_shouldSkipTouchpadScroll`.
-  dict->Set("testapi_shouldSkipTouchpadScroll", skip_touchpad_scroll);
-
-  bool skip_display_size = !features::IsOobeDisplaySizeEnabled();
-  dict->Set("testapi_shouldSkipDisplaySize", skip_display_size);
-
-  // CHOOBE screen is only skipped if the number of optional screens is less
-  // than 3, since theme selection is always shown, CHOOBE should be skipped
-  // when display size Screen or touchpad scroll screen is skipped.
-  bool skip_choobe = !features::IsOobeChoobeEnabled() || skip_touchpad_scroll ||
-                     skip_display_size;
-  // TODO(b/327270907) Remove `testapi_shouldSkipChoobe`.
-  dict->Set("testapi_shouldSkipChoobe", skip_choobe);
-
+  dict->Set("testapi_shouldSkipDisplaySize",
+            !features::IsOobeDisplaySizeEnabled());
   dict->Set("testapi_shouldSkipGaiaInfoScreen",
             !features::IsOobeGaiaInfoScreenEnabled());
-  dict->Set("testapi_isOobeQuickStartEnabled",
-            features::IsOobeQuickStartEnabled());
+  dict->Set("testapi_isCrossDeviceFeatureSuiteAllowed",
+            features::IsCrossDeviceFeatureSuiteAllowed());
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   // The current method is called early, before the user logs-in,
   // If Chrome was launched in OOBE, `is_owner` will be set to true since
-  // `user_manager->GetUsers().size()` would return 0.
+  // `user_manager->GetPersistedUsers().size()` would return 0.
   // If it's launched in the login screen to test the add person flow, then
   // the number of existing users before the new user logs-in should be > 0.
   policy::BrowserPolicyConnectorAsh* connector =
       g_browser_process->platform_part()->browser_policy_connector_ash();
   auto* user_manager = user_manager::UserManager::Get();
   bool is_owner = !connector->IsDeviceEnterpriseManaged() &&
-                  user_manager->GetUsers().size() == 0;
+                  user_manager->GetPersistedUsers().size() == 0;
   dict->Set("testapi_shouldSkipHwDataCollection",
             !is_owner || !switches::IsRevenBranding());
 #else
@@ -300,6 +293,12 @@ void OobeTestAPIHandler::HandleGetMetricsClientID(
         metrics::prefs::kMetricsProvisionalClientID);
   }
   ResolveJavascriptCallback(base::Value(callback_id), client_id);
+}
+
+void OobeTestAPIHandler::HandleGetShouldSkipSplitModifierScreen(
+    const std::string& callback_id) {
+  ResolveJavascriptCallback(base::Value(callback_id),
+                            SplitModifierKeyboardInfoScreen::ShouldBeSkipped());
 }
 
 }  // namespace ash

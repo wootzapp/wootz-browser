@@ -71,6 +71,10 @@
       ],
       "mirroring_builder_group_and_names": [
         {
+          "builder": "mac-rel",
+          "group": "tryserver.chromium.mac"
+        },
+        {
           "builder": "mac14-tests",
           "group": "tryserver.chromium.mac"
         },
@@ -78,7 +82,9 @@
           "builder": "mac_chromium_compile_rel_ng",
           "group": "tryserver.chromium.mac"
         }
-      ]
+      ],
+      "retry_failed_shards": true,
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/mac14-tests/targets"
     }
   },
   "$recipe_engine/resultdb/test_presentation": {

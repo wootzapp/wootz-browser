@@ -9,7 +9,6 @@
 
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -24,7 +23,6 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/base/theme_provider.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/compositor/compositor.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/scoped_canvas.h"
@@ -120,13 +118,9 @@ void NewTabButton::RemoveLayerFromRegions(ui::Layer* old_layer) {
 }
 
 SkColor NewTabButton::GetForegroundColor() const {
-  if (features::IsChromeRefresh2023()) {
-    return GetColorProvider()->GetColor(
-        GetWidget()->ShouldPaintAsActive()
-            ? foreground_frame_active_color_id_
-            : foreground_frame_inactive_color_id_);
-  }
-  return tab_strip_->GetTabForegroundColor(TabActive::kInactive);
+  return GetColorProvider()->GetColor(
+      GetWidget()->ShouldPaintAsActive() ? foreground_frame_active_color_id_
+                                         : foreground_frame_inactive_color_id_);
 }
 
 int NewTabButton::GetCornerRadius() const {
@@ -184,7 +178,7 @@ void NewTabButton::OnMouseReleased(const ui::MouseEvent& event) {
   // this event was not handled, it seems like things would Just Work.
   gfx::Point point = event.location();
   views::View::ConvertPointToScreen(this, &point);
-  point = display::win::ScreenWin::DIPToScreenPoint(point);
+  point = display::win::GetScreenWin()->DIPToScreenPoint(point);
   auto weak_this = weak_factory_.GetWeakPtr();
   views::ShowSystemMenuAtScreenPixelLocation(views::HWNDForView(this), point);
   if (!weak_this) {

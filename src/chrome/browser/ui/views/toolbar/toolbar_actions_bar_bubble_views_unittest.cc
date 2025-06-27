@@ -15,6 +15,7 @@
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/events/event_utils.h"
 #include "ui/gfx/color_palette.h"
@@ -25,6 +26,7 @@
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/link.h"
 #include "ui/views/test/test_widget_observer.h"
+#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -40,12 +42,14 @@ const char16_t kExtraViewText[] = u"Learn";
 }  // namespace
 
 class ToolbarActionsBarBubbleViewsTest : public ChromeViewsTestBase {
- protected:
-  ToolbarActionsBarBubbleViewsTest() {}
+ public:
   ToolbarActionsBarBubbleViewsTest(const ToolbarActionsBarBubbleViewsTest&) =
       delete;
   ToolbarActionsBarBubbleViewsTest& operator=(
       const ToolbarActionsBarBubbleViewsTest&) = delete;
+
+ protected:
+  ToolbarActionsBarBubbleViewsTest() = default;
   ~ToolbarActionsBarBubbleViewsTest() override = default;
 
   void TearDown() override {
@@ -55,7 +59,8 @@ class ToolbarActionsBarBubbleViewsTest : public ChromeViewsTestBase {
 
   std::unique_ptr<views::Widget> CreateAnchorWidget() {
     std::unique_ptr<views::Widget> anchor_widget =
-        CreateTestWidget(views::Widget::InitParams::TYPE_WINDOW);
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                         views::Widget::InitParams::TYPE_WINDOW);
     anchor_widget->Show();
     return anchor_widget;
   }
@@ -86,7 +91,7 @@ class ToolbarActionsBarBubbleViewsTest : public ChromeViewsTestBase {
 
     ASSERT_TRUE(button);
     const gfx::Point point(10, 10);
-    const ui::MouseEvent event(ui::ET_MOUSE_PRESSED, point, point,
+    const ui::MouseEvent event(ui::EventType::kMousePressed, point, point,
                                ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON,
                                ui::EF_LEFT_MOUSE_BUTTON);
     button->OnMousePressed(event);
@@ -162,8 +167,9 @@ TEST_F(ToolbarActionsBarBubbleViewsTest,
   EXPECT_TRUE(bubble()->GetCancelButton());
   EXPECT_EQ(bubble()->GetCancelButton()->GetText(), kDismissButtonText);
   EXPECT_TRUE(bubble()->learn_more_button());
-  EXPECT_EQ(bubble()->learn_more_button()->GetTooltipText(gfx::Point(0, 0)),
-            kExtraViewText);
+  EXPECT_EQ(
+      bubble()->learn_more_button()->GetRenderedTooltipText(gfx::Point(0, 0)),
+      kExtraViewText);
   EXPECT_FALSE(bubble()->item_list());
 
   CloseBubble();
@@ -187,7 +193,7 @@ TEST_F(ToolbarActionsBarBubbleViewsTest, TestBubbleLayoutNoBodyText) {
 TEST_F(ToolbarActionsBarBubbleViewsTest, TestBubbleDefaultDialogButtons) {
   TestToolbarActionsBarBubbleDelegate delegate(
       kHeadingText, kBodyText, kActionButtonText, kDismissButtonText);
-  delegate.set_default_dialog_button(ui::DIALOG_BUTTON_OK);
+  delegate.set_default_dialog_button(ui::mojom::DialogButton::kOk);
   ShowBubble(&delegate);
 
   ASSERT_TRUE(bubble()->GetOkButton());
@@ -304,7 +310,7 @@ TEST_F(ToolbarActionsBarBubbleViewsTest, TestCreateExtraViewIconOnly) {
   ShowBubble(&delegate);
   const views::View* const extra_view = bubble()->GetExtraView();
   ASSERT_TRUE(extra_view);
-  ASSERT_EQ(std::string(extra_view->GetClassName()), "ImageView");
+  ASSERT_EQ(extra_view->GetClassName(), "ImageView");
   EXPECT_TRUE(gfx::test::AreImagesEqual(
       gfx::Image(static_cast<const views::ImageView*>(extra_view)->GetImage()),
       gfx::Image(gfx::CreateVectorIcon(
@@ -326,8 +332,9 @@ TEST_F(ToolbarActionsBarBubbleViewsTest, TestCreateExtraViewLinkedTextOnly) {
 
   const views::View* const extra_view = bubble()->GetExtraView();
   ASSERT_TRUE(extra_view);
-  ASSERT_EQ(std::string(extra_view->GetClassName()), "ImageButton");
-  EXPECT_EQ(extra_view->GetTooltipText(gfx::Point(0, 0)), kExtraViewText);
+  ASSERT_EQ(extra_view->GetClassName(), "ImageButton");
+  EXPECT_EQ(extra_view->GetRenderedTooltipText(gfx::Point(0, 0)),
+            kExtraViewText);
   CloseBubble();
 }
 
@@ -344,7 +351,7 @@ TEST_F(ToolbarActionsBarBubbleViewsTest, TestCreateExtraViewLabelTextOnly) {
 
   const views::View* const extra_view = bubble()->GetExtraView();
   ASSERT_TRUE(extra_view);
-  EXPECT_EQ(std::string(extra_view->GetClassName()), "Label");
+  EXPECT_EQ(extra_view->GetClassName(), "Label");
   EXPECT_EQ(static_cast<const views::Label*>(extra_view)->GetText(),
             kExtraViewText);
   CloseBubble();
@@ -364,17 +371,17 @@ TEST_F(ToolbarActionsBarBubbleViewsTest, TestCreateExtraViewImageAndText) {
 
   const views::View* const extra_view = bubble()->GetExtraView();
   ASSERT_TRUE(extra_view);
-  EXPECT_STREQ(extra_view->GetClassName(), "View");
+  EXPECT_EQ(extra_view->GetClassName(), "View");
   EXPECT_EQ(extra_view->children().size(), 2u);
 
   for (const views::View* v : extra_view->children()) {
-    std::string class_name = v->GetClassName();
-    if (class_name == "Label") {
-      EXPECT_EQ(static_cast<const views::Label*>(v)->GetText(), kExtraViewText);
+    if (const auto* label = views::AsViewClass<views::Label>(v)) {
+      EXPECT_EQ(label->GetText(), kExtraViewText);
     } else {
-      ASSERT_EQ(class_name, "ImageView");
+      const auto* image = views::AsViewClass<views::ImageView>(v);
+      ASSERT_TRUE(image);
       EXPECT_TRUE(gfx::test::AreImagesEqual(
-          gfx::Image(static_cast<const views::ImageView*>(v)->GetImage()),
+          gfx::Image(image->GetImage()),
           gfx::Image(gfx::CreateVectorIcon(
               vector_icons::kBusinessIcon, kIconSize,
               v->GetColorProvider()->GetColor(ui::kColorIcon)))));

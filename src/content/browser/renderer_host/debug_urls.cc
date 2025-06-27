@@ -8,9 +8,11 @@
 
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
+#include "base/debug/alias.h"
 #include "base/debug/asan_invalid_access.h"
 #include "base/debug/profiler.h"
 #include "base/functional/bind.h"
+#include "base/immediate_crash.h"
 #include "base/memory/memory_pressure_listener.h"
 #include "base/sanitizer_buildflags.h"
 #include "base/strings/utf_string_conversions.h"
@@ -23,14 +25,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/url_constants.h"
-#include "ppapi/buildflags/buildflags.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "url/gurl.h"
-
-#if BUILDFLAG(ENABLE_PLUGINS)
-#include "content/browser/ppapi_plugin_process_host.h"  // nogncheck
-#include "ppapi/proxy/ppapi_messages.h"                 // nogncheck
-#endif
 
 #if BUILDFLAG(IS_WIN)
 #include "base/debug/invalid_access_win.h"
@@ -112,8 +108,11 @@ NOINLINE void HangCurrentThread() {
 }
 
 NOINLINE void CrashBrowserProcessIntentionally() {
+  // Don't fold so that crash reports will clearly show this method. This helps
+  // with crash triage.
+  NO_CODE_FOLDING();
   // Induce an intentional crash in the browser process.
-  CHECK(false);
+  base::ImmediateCrash();
 }
 
 }  // namespace
@@ -125,7 +124,7 @@ bool HandleDebugURL(const GURL& url,
   // URL, unless kEnableGpuBenchmarking is enabled by Telemetry.
   bool is_telemetry_navigation =
       base::CommandLine::ForCurrentProcess()->HasSwitch(
-          cc::switches::kEnableGpuBenchmarking) &&
+          switches::kEnableGpuBenchmarking) &&
       (PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_TYPED));
 
   if (!is_explicit_navigation && !is_telemetry_navigation)

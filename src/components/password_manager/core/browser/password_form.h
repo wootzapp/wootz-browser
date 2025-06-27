@@ -15,13 +15,13 @@
 #include "base/containers/flat_map.h"
 #include "base/time/time.h"
 #include "base/types/strong_alias.h"
-#include "components/autofill/core/browser/autofill_client.h"
+#include "components/autofill/core/browser/integrators/password_form_classification.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/signin/public/base/gaia_id_hash.h"
 #include "url/gurl.h"
-#include "url/origin.h"
+#include "url/scheme_host_port.h"
 
 namespace password_manager {
 
@@ -38,8 +38,8 @@ struct AlternativeElement {
       base::StrongAlias<class AlternativeElementNameTag, std::u16string>;
 
   AlternativeElement(const Value& value,
-               autofill::FieldRendererId field_renderer_id,
-               const Name& name);
+                     autofill::FieldRendererId field_renderer_id,
+                     const Name& name);
   explicit AlternativeElement(const Value& value);
   AlternativeElement(const AlternativeElement& rhs);
   AlternativeElement(AlternativeElement&& rhs);
@@ -109,7 +109,6 @@ struct InsecurityMetadata {
   TriggerBackendNotification trigger_notification_from_backend{false};
 };
 
-
 // Represents a note attached to a particular credential.
 struct PasswordNote {
   PasswordNote();
@@ -126,6 +125,7 @@ struct PasswordNote {
 
   friend bool operator==(const PasswordNote& lhs,
                          const PasswordNote& rhs) = default;
+  friend auto operator<=>(const PasswordNote&, const PasswordNote&) = default;
 
   // The name displayed in the UI labeling this note. Currently unused and added
   // for future compatibility.
@@ -191,8 +191,10 @@ struct PasswordForm {
     kManuallyAdded = 3,
     kImported = 4,
     kReceivedViaSharing = 5,
+    kImportedViaCredentialExchange = 6,
+    kChangeSubmission = 7,
     kMinValue = kFormSubmission,
-    kMaxValue = kReceivedViaSharing,
+    kMaxValue = kChangeSubmission,
   };
 
   // Enum to keep track of what information has been sent to the server about
@@ -290,14 +292,6 @@ struct PasswordForm {
   // The renderer id of the username input element. It is set during the new
   // form parsing and not persisted.
   autofill::FieldRendererId username_element_renderer_id;
-
-  // True if the server-side classification was successful.
-  bool server_side_classification_successful = false;
-
-  // True if the server-side classification believes that the field may be
-  // pre-filled with a placeholder in the value attribute. It is set during
-  // form parsing and not persisted.
-  bool username_may_use_prefilled_placeholder = false;
 
   // When parsing an HTML form, this is typically empty unless the site
   // has implemented some form of autofill.
@@ -418,7 +412,7 @@ struct PasswordForm {
   GURL icon_url;
 
   // The origin of identity provider used for federated login.
-  url::Origin federation_origin;
+  url::SchemeHostPort federation_origin;
 
   // If true, Chrome will not return this credential to a site in response to
   // 'navigator.credentials.request()' without user interaction.
@@ -442,12 +436,6 @@ struct PasswordForm {
   // filling (e.g. only credit card fields were found). But this form can be
   // saved or filled only with the fallback.
   bool only_for_fallback = false;
-
-  // True iff the new password field was found with server hints or autocomplete
-  // attributes.
-  // Only set on form parsing for filling, and not persisted. Used as signal for
-  // password generation eligibility.
-  bool is_new_password_reliable = false;
 
   // True iff the form may be filled with webauthn credentials from an active
   // webauthn request.
@@ -526,10 +514,10 @@ struct PasswordForm {
   // It's based on heuristics and may be inaccurate.
   bool IsLikelyResetPasswordForm() const;
 
-  // Returns the `PasswordFormType` classification of this form. Note that just
-  // as `IsLikelyLoginForm()`, `IsLikelySignupForm()`, etc. this prediction is
-  // based on heuristics and may be inaccurate.
-  autofill::AutofillClient::PasswordFormType GetPasswordFormType() const;
+  // Returns the `PasswordFormClassification::Type` classification of this form.
+  // Note that just as `IsLikelyLoginForm()`, `IsLikelySignupForm()`, etc. this
+  // prediction is based on heuristics and may be inaccurate.
+  autofill::PasswordFormClassification::Type GetPasswordFormType() const;
 
   // Returns true if current password element is set.
   bool HasUsernameElement() const;
@@ -570,6 +558,14 @@ struct PasswordForm {
 
   PasswordForm& operator=(const PasswordForm& form);
   PasswordForm& operator=(PasswordForm&& form);
+
+#if defined(UNIT_TEST)
+  // An exact equality comparison of all the fields is only useful for tests.
+  // Production code should be using `ArePasswordFormUniqueKeysEqual` instead.
+  friend bool operator==(const PasswordForm&, const PasswordForm&) = default;
+  friend bool operator!=(const PasswordForm& lhs,
+                         const PasswordForm& rhs) = default;
+#endif
 };
 
 // True if the unique keys for the forms are the same. The unique key is
@@ -583,14 +579,10 @@ bool ArePasswordFormUniqueKeysEqual(const PasswordForm& left,
 
 // For testing.
 #if defined(UNIT_TEST)
-// An exact equality comparison of all the fields is only useful for tests.
-// Production code should be using `ArePasswordFormUniqueKeysEqual` instead.
-bool operator==(const PasswordForm& lhs, const PasswordForm& rhs);
-
 std::ostream& operator<<(std::ostream& os, PasswordForm::Scheme scheme);
 std::ostream& operator<<(std::ostream& os, const PasswordForm& form);
 std::ostream& operator<<(std::ostream& os, PasswordForm* form);
-#endif
+#endif  // defined(UNIT_TEST)
 
 constexpr PasswordForm::Store operator&(PasswordForm::Store lhs,
                                         PasswordForm::Store rhs) {

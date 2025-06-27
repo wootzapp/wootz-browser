@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "base/synchronization/lock.h"
+#include "base/time/time.h"
 #include "base/types/expected.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
@@ -28,11 +29,11 @@ class RTCEncodedAudioFrameDelegate
  public:
   explicit RTCEncodedAudioFrameDelegate(
       std::unique_ptr<webrtc::TransformableAudioFrameInterface> webrtc_frame,
-      rtc::ArrayView<const unsigned int> contributing_sources,
+      webrtc::ArrayView<const unsigned int> contributing_sources,
       std::optional<uint16_t> sequence_number);
 
   uint32_t RtpTimestamp() const;
-  DOMArrayBuffer* CreateDataBuffer() const;
+  DOMArrayBuffer* CreateDataBuffer(v8::Isolate* isolate) const;
   void SetData(const DOMArrayBuffer* data);
   base::expected<void, String> SetRtpTimestamp(uint32_t timestamp);
   std::optional<uint32_t> Ssrc() const;
@@ -41,6 +42,9 @@ class RTCEncodedAudioFrameDelegate
   std::optional<uint16_t> SequenceNumber() const;
   Vector<uint32_t> ContributingSources() const;
   std::optional<uint64_t> AbsCaptureTime() const;
+  std::optional<base::TimeTicks> ReceiveTime() const;
+  std::optional<base::TimeTicks> CaptureTime() const;
+  std::optional<base::TimeDelta> SenderCaptureTimeOffset() const;
   std::unique_ptr<webrtc::TransformableAudioFrameInterface> PassWebRtcFrame();
   std::unique_ptr<webrtc::TransformableAudioFrameInterface> CloneWebRtcFrame();
 
@@ -48,8 +52,8 @@ class RTCEncodedAudioFrameDelegate
   mutable base::Lock lock_;
   std::unique_ptr<webrtc::TransformableAudioFrameInterface> webrtc_frame_
       GUARDED_BY(lock_);
-  Vector<uint32_t> contributing_sources_ GUARDED_BY(lock_);
-  std::optional<uint16_t> sequence_number_ GUARDED_BY(lock_);
+  const Vector<uint32_t> contributing_sources_;
+  const std::optional<uint16_t> sequence_number_;
 };
 
 class MODULES_EXPORT RTCEncodedAudioFramesAttachment

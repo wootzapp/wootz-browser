@@ -8,6 +8,9 @@ import android.view.View;
 
 import androidx.annotation.ColorInt;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+
 /**
  * A empty stand-in for a native page. An inactive NativePage may be replaced with a
  * FrozenNativePage to free up resources.
@@ -15,13 +18,15 @@ import androidx.annotation.ColorInt;
  * Any method may be called on this object, except for getView(), which will trigger an assert and
  * return null.
  */
+@NullMarked
 public class FrozenNativePage implements NativePage {
     private final String mUrl;
     private final String mHost;
     private final String mTitle;
     private final int mBackgroundColor;
     private final boolean mIsPdf;
-    private final String mCanonicalFilepath;
+    private final @Nullable String mCanonicalFilepath;
+    private final boolean mIsDownloadSafe;
 
     /** Creates a FrozenNativePage to replace the given NativePage and destroys the NativePage. */
     public static FrozenNativePage freeze(NativePage nativePage) {
@@ -37,10 +42,11 @@ public class FrozenNativePage implements NativePage {
         mBackgroundColor = nativePage.getBackgroundColor();
         mIsPdf = nativePage.isPdf();
         mCanonicalFilepath = nativePage.getCanonicalFilepath();
+        mIsDownloadSafe = nativePage.isDownloadSafe();
     }
 
     @Override
-    public View getView() {
+    public @Nullable View getView() {
         assert false;
         return null;
     }
@@ -89,8 +95,13 @@ public class FrozenNativePage implements NativePage {
     }
 
     @Override
-    public String getCanonicalFilepath() {
+    public @Nullable String getCanonicalFilepath() {
         return mCanonicalFilepath;
+    }
+
+    @Override
+    public boolean isDownloadSafe() {
+        return mIsDownloadSafe;
     }
 
     @Override

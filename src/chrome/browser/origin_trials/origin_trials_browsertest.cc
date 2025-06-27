@@ -56,18 +56,16 @@ const char kPageWithEmbeddedFramePath[] = "/has-embedded-frame";
 
 const char kOriginTrialResourceJavascriptPath[] = "/origin-trial-script.js";
 
-class OriginTrialsBrowserTest : public PlatformBrowserTest {
+class OriginTrialsBrowserTest : public InProcessBrowserTest {
  public:
-  OriginTrialsBrowserTest() {
-    test_features_.InitAndEnableFeature(::features::kPersistentOriginTrials);
-  }
+  OriginTrialsBrowserTest() = default;
 
   OriginTrialsBrowserTest(const OriginTrialsBrowserTest&) = delete;
   OriginTrialsBrowserTest& operator=(const OriginTrialsBrowserTest&) = delete;
   ~OriginTrialsBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
-    PlatformBrowserTest::SetUpOnMainThread();
+    InProcessBrowserTest::SetUpOnMainThread();
     url_loader_interceptor_ = std::make_unique<content::URLLoaderInterceptor>(
         base::BindRepeating(&OriginTrialsBrowserTest::InterceptRequest,
                             base::Unretained(this)));
@@ -127,7 +125,7 @@ class OriginTrialsBrowserTest : public PlatformBrowserTest {
         ->ClearPersistedTokens();
 
     url_loader_interceptor_.reset();
-    PlatformBrowserTest::TearDownOnMainThread();
+    InProcessBrowserTest::TearDownOnMainThread();
   }
 
   base::flat_set<std::string> GetOriginTrialsForEnabledOrigin(

@@ -36,7 +36,7 @@ using test::TestDataSourceDelegate;
 
 class MockTouchDelegate : public TouchDelegate {
  public:
-  MockTouchDelegate() {}
+  MockTouchDelegate() = default;
 
   // Overridden from TouchDelegate:
   MOCK_METHOD1(OnTouchDestroying, void(Touch*));
@@ -52,7 +52,7 @@ class MockTouchDelegate : public TouchDelegate {
 
 class MockTouchStylusDelegate : public TouchStylusDelegate {
  public:
-  MockTouchStylusDelegate() {}
+  MockTouchStylusDelegate() = default;
 
   // Overridden from TouchStylusDelegate:
   MOCK_METHOD1(OnTouchDestroying, void(Touch*));
@@ -239,7 +239,7 @@ TEST_F(TouchTest, OnTouchCancel) {
   EXPECT_CALL(delegate, OnTouchCancel());
   EXPECT_CALL(delegate, OnTouchFrame());
   ui::TouchEvent cancel_event(
-      ui::ET_TOUCH_CANCELLED, gfx::Point(), ui::EventTimeForNow(),
+      ui::EventType::kTouchCancelled, gfx::Point(), ui::EventTimeForNow(),
       ui::PointerDetails(ui::EventPointerType::kTouch, 1));
   generator.Dispatch(&cancel_event);
 

@@ -7,7 +7,6 @@
 #include <algorithm>
 
 #include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_inline_text.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_text_path.h"
@@ -29,7 +28,9 @@ SvgTextLayoutAlgorithm::SvgTextLayoutAlgorithm(InlineNode node,
     : inline_node_(node),
       // 1.5. Let "horizontal" be a flag, true if the writing mode of ‘text’
       // is horizontal, false otherwise.
-      horizontal_(IsHorizontalWritingMode(writing_mode)) {
+      horizontal_(IsHorizontalWritingMode(writing_mode)),
+      inline_direction_(
+          WritingDirectionMode(writing_mode, TextDirection::kLtr).InlineEnd()) {
   DCHECK(node.IsSvgText());
 }
 
@@ -124,11 +125,9 @@ void SvgTextLayoutAlgorithm::SetFlags(
     }
   }
   if (inline_node_.IsBidiEnabled()) {
-    std::sort(sorted_item_indexes.data(),
-              sorted_item_indexes.data() + sorted_item_indexes.size(),
-              [&](wtf_size_t a, wtf_size_t b) {
-                return items[a]->StartOffset() < items[b]->StartOffset();
-              });
+    std::ranges::sort(sorted_item_indexes, [&](wtf_size_t a, wtf_size_t b) {
+      return items[a]->StartOffset() < items[b]->StartOffset();
+    });
   }
 
   bool found_first_character = false;
@@ -156,10 +155,16 @@ void SvgTextLayoutAlgorithm::SetFlags(
       ascent = font_data->GetFontMetrics().FixedAscent(
           item.Style().GetFontBaseline());
     }
-    gfx::PointF offset(logical_offset.inline_offset,
-                       logical_offset.block_offset + ascent);
-    if (!horizontal_) {
-      offset.SetPoint(-offset.y(), offset.x());
+    gfx::PointF offset;
+    if (IsHorizontal()) {
+      offset.SetPoint(logical_offset.inline_offset,
+                      logical_offset.block_offset + ascent);
+    } else if (IsVerticalDownward()) {
+      offset.SetPoint(-(logical_offset.block_offset + ascent),
+                      logical_offset.inline_offset);
+    } else {
+      offset.SetPoint(logical_offset.block_offset + ascent,
+                      -logical_offset.inline_offset);
     }
     css_positions_.push_back(offset);
 
@@ -281,7 +286,9 @@ void SvgTextLayoutAlgorithm::ResolveTextLength(
 
     // 2.3.2. Let pos = the x coordinate of the position in result[k], if the
     // "horizontal" flag is true, and the y coordinate otherwise.
-    float min_char_pos = horizontal_ ? *result_[k].x : *result_[k].y;
+    float min_char_pos = IsHorizontal()         ? *result_[k].x
+                         : IsVerticalDownward() ? *result_[k].y
+                                                : -*result_[k].y;
 
     // 2.3.3. Let advance = the advance of the typographic character
     // corresponding to character k.
@@ -309,10 +316,13 @@ void SvgTextLayoutAlgorithm::ResolveTextLength(
       SvgPerCharacterInfo& info = result_[k];
       float original_x = *info.x;
       float original_y = *info.y;
-      if (horizontal_) {
+      if (IsHorizontal()) {
         *info.x = min_position + (*info.x - min_position) * length_adjust_scale;
-      } else {
+      } else if (IsVerticalDownward()) {
         *info.y = min_position + (*info.y - min_position) * length_adjust_scale;
+      } else {
+        *info.y =
+            -min_position + (*info.y + min_position) * length_adjust_scale;
       }
       info.text_length_shift_x += *info.x - original_x;
       info.text_length_shift_y += *info.y - original_y;
@@ -327,16 +337,16 @@ void SvgTextLayoutAlgorithm::ResolveTextLength(
     // 2.4.2. Find n, the total number of typographic characters in this node
     // including any descendant nodes that are not resolved descendant nodes or
     // within a resolved descendant node.
-    auto n = std::count_if(result_.begin() + i, result_.begin() + j_plus_1,
-                           [](const auto& info) {
-                             return !info.middle && !info.text_length_resolved;
-                           });
+    auto n = std::ranges::count_if(
+        base::span(result_).subspan(i, j_plus_1 - i), [](const auto& info) {
+          return !info.middle && !info.text_length_resolved;
+        });
     // 2.4.3. Let n = n + number of resolved descendant nodes − 1.
-    n += base::ranges::count_if(resolved_descendant_node_starts,
-                                [i, j_plus_1](const auto& start_index) {
-                                  return i <= start_index &&
-                                         start_index < j_plus_1;
-                                }) -
+    n += std::ranges::count_if(resolved_descendant_node_starts,
+                               [i, j_plus_1](const auto& start_index) {
+                                 return i <= start_index &&
+                                        start_index < j_plus_1;
+                               }) -
          1;
     // 2.4.4. Find the per-character adjustment small-delta = delta/n.
     // character_delta should be 0 if n==0 because it means we have no
@@ -362,12 +372,15 @@ void SvgTextLayoutAlgorithm::ResolveTextLength(
       SvgPerCharacterInfo& info = result_[k];
       // 2.4.6.1. Add shift to the x coordinate of the position in result[k], if
       // the "horizontal" flag is true, and to the y coordinate otherwise.
-      if (horizontal_) {
+      if (IsHorizontal()) {
         *info.x += shift;
         info.text_length_shift_x += shift;
-      } else {
+      } else if (IsVerticalDownward()) {
         *info.y += shift;
         info.text_length_shift_y += shift;
+      } else {
+        *info.y -= shift;
+        info.text_length_shift_y -= shift;
       }
       // 2.4.6.2. If the "middle" flag for result[k] is not true and k is not a
       // character in a resolved descendant node other than the first character
@@ -386,16 +399,18 @@ void SvgTextLayoutAlgorithm::ResolveTextLength(
     if (result_[k].anchored_chunk) {
       break;
     }
-    if (horizontal_) {
+    if (IsHorizontal()) {
       *result_[k].x += shift;
-    } else {
+    } else if (IsVerticalDownward()) {
       *result_[k].y += shift;
+    } else {
+      *result_[k].y -= shift;
     }
   }
 
   // Remove resolved_descendant_node_starts entries for descendant nodes,
   // and register an entry for this node.
-  auto* new_end =
+  auto new_end =
       std::remove_if(resolved_descendant_node_starts.begin(),
                      resolved_descendant_node_starts.end(),
                      [i, j_plus_1](const auto& start_index) {
@@ -490,15 +505,17 @@ void SvgTextLayoutAlgorithm::ApplyAnchoring(
   //  * j = count − 1 or the "anchored chunk" flag of result[j + 1] is true;
   wtf_size_t i = 0;
   while (i < result_.size()) {
-    auto* next_anchor =
-        std::find_if(result_.begin() + i + 1, result_.end(),
-                     [](const auto& info) { return info.anchored_chunk; });
-    wtf_size_t j = static_cast<wtf_size_t>(
-        std::distance(result_.begin(), next_anchor) - 1);
+    const wtf_size_t start_index = i + 1;
+    auto result_range = base::span(result_).subspan(start_index);
+    auto next_anchor = std::ranges::find_if(
+        result_range, [](const auto& info) { return info.anchored_chunk; });
+    wtf_size_t j =
+        start_index + static_cast<wtf_size_t>(
+                          std::distance(result_range.begin(), next_anchor) - 1);
 
     const auto& text_path_ranges = inline_node_.SvgTextPathRangeList();
-    const auto* text_path_iter =
-        base::ranges::find_if(text_path_ranges, [i](const auto& range) {
+    const auto text_path_iter =
+        std::ranges::find_if(text_path_ranges, [i](const auto& range) {
           return range.start_index <= i && i <= range.end_index;
         });
     if (text_path_iter != text_path_ranges.end()) {
@@ -522,7 +539,9 @@ void SvgTextLayoutAlgorithm::ApplyAnchoring(
 
       // 1.2.1. Let pos = the x coordinate of the position in result[k], if
       // the "horizontal" flag is true, and the y coordinate otherwise.
-      const float min_char_pos = horizontal_ ? *result_[k].x : *result_[k].y;
+      const float min_char_pos = IsHorizontal()         ? *result_[k].x
+                                 : IsVerticalDownward() ? *result_[k].y
+                                                        : -*result_[k].y;
       // 2.2.2. Let advance = the advance of the typographic character
       // corresponding to character k.
       const float inline_size = result_[k].inline_size;
@@ -536,7 +555,9 @@ void SvgTextLayoutAlgorithm::ApplyAnchoring(
     if (min_position != std::numeric_limits<float>::infinity()) {
       // 1.3.1. Let shift be the x coordinate of result[i], if the "horizontal"
       // flag is true, and the y coordinate otherwise.
-      float shift = horizontal_ ? *result_[i].x : *result_[i].y;
+      float shift = IsHorizontal()         ? *result_[i].x
+                    : IsVerticalDownward() ? *result_[i].y
+                                           : -*result_[i].y;
 
       // 1.3.2. Adjust shift based on the value of text-anchor and direction
       // of the element the character at index i is in:
@@ -550,8 +571,7 @@ void SvgTextLayoutAlgorithm::ApplyAnchoring(
       const bool is_ltr = style.IsLeftToRightDirection();
       switch (style.TextAnchor()) {
         default:
-          NOTREACHED_IN_MIGRATION();
-          [[fallthrough]];
+          NOTREACHED();
         case ETextAnchor::kStart:
           shift = is_ltr ? shift - min_position : shift - max_position;
           break;
@@ -567,10 +587,12 @@ void SvgTextLayoutAlgorithm::ApplyAnchoring(
       for (wtf_size_t k = i; k <= j; ++k) {
         // 1.3.3.1. Add shift to the x coordinate of the position in result[k],
         // if the "horizontal" flag is true, and to the y coordinate otherwise.
-        if (horizontal_) {
+        if (IsHorizontal()) {
           *result_[k].x += shift;
-        } else {
+        } else if (IsVerticalDownward()) {
           *result_[k].y += shift;
+        } else {
+          *result_[k].y -= shift;
         }
       }
     }
@@ -644,10 +666,11 @@ void SvgTextLayoutAlgorithm::PositionOnPath(
           //      mid is x + advance / 2 + offset
           //   -> false
           //      mid is y + advance / 2 + offset
+          const float char_offset = IsHorizontal()         ? *info.x
+                                    : IsVerticalDownward() ? *info.y
+                                                           : -*info.y;
           const float mid =
-              ((horizontal_ ? *info.x : *info.y) + info.inline_size / 2) /
-                  scaling_factor +
-              offset;
+              (char_offset + info.inline_size / 2) / scaling_factor + offset;
 
           // 5.1.2.3. Let length be the length of path.
           // 5.1.2.9. If path is a closed subpath depending on the values of
@@ -675,18 +698,24 @@ void SvgTextLayoutAlgorithm::PositionOnPath(
               info.hidden = true;
             }
             point_tangent.tangent_in_degrees += info.rotate.value_or(0.0f);
-            if (!horizontal_) {
+            if (IsVerticalDownward()) {
               point_tangent.tangent_in_degrees -= 90;
+            } else if (IsVerticalUpward()) {
+              point_tangent.tangent_in_degrees += 90;
             }
             info.rotate = point_tangent.tangent_in_degrees;
             if (*info.rotate == 0.0f) {
-              if (horizontal_) {
+              if (IsHorizontal()) {
                 info.x = point_tangent.point.x() * scaling_factor -
                          info.inline_size / 2;
                 info.y = point_tangent.point.y() * scaling_factor + *info.y;
-              } else {
+              } else if (IsVerticalDownward()) {
                 info.x = point_tangent.point.x() * scaling_factor + *info.x;
                 info.y = point_tangent.point.y() * scaling_factor -
+                         info.inline_size / 2;
+              } else {
+                info.x = point_tangent.point.x() * scaling_factor + *info.x;
+                info.y = point_tangent.point.y() * scaling_factor +
                          info.inline_size / 2;
               }
             } else {
@@ -694,7 +723,9 @@ void SvgTextLayoutAlgorithm::PositionOnPath(
               // point along the path. The character is moved by an
               // AffineTransform produced from baseline_shift and inline_size/2.
               // See |FragmentItem::BuildSVGTransformForTextPath()|.
-              info.baseline_shift = horizontal_ ? *info.y : *info.x;
+              info.baseline_shift = IsHorizontal()         ? *info.y
+                                    : IsVerticalDownward() ? *info.x
+                                                           : -*info.x;
               info.x = point_tangent.point.x() * scaling_factor;
               info.y = point_tangent.point.y() * scaling_factor;
             }
@@ -740,19 +771,21 @@ void SvgTextLayoutAlgorithm::PositionOnPath(
         } else {
           // The 'current text position' should be at the next to the last
           // drawn character.
-          const auto rbegin =
-              std::make_reverse_iterator(result_.begin() + index);
-          const auto rend = std::make_reverse_iterator(result_.begin());
-          const auto iter = std::find_if(rbegin, rend, [](const auto& info) {
-            return !info.hidden && !info.middle;
-          });
-          if (iter != rend) {
-            if (horizontal_) {
+          auto result_range = base::span(result_).subspan(index);
+          auto reverse_result_range = base::Reversed(result_range);
+          const auto iter = std::ranges::find_if(
+              reverse_result_range,
+              [](const auto& info) { return !info.hidden && !info.middle; });
+          if (iter != reverse_result_range.end()) {
+            if (IsHorizontal()) {
               path_end_x = *iter->x + iter->inline_size;
               path_end_y = *iter->y;
-            } else {
+            } else if (IsVerticalDownward()) {
               path_end_x = *iter->x;
               path_end_y = *iter->y + iter->inline_size;
+            } else {
+              path_end_x = *iter->x;
+              path_end_y = *iter->y - iter->inline_size;
             }
           } else {
             path_end_x = 0.0f;
@@ -804,12 +837,17 @@ PhysicalSize SvgTextLayoutAlgorithm::WriteBackToFragmentItems(
     float y = *info.y;
     float width;
     float height;
-    if (horizontal_) {
+    if (IsHorizontal()) {
       y -= ascent;
       width = info.inline_size;
       height = item->Size().height;
-    } else {
+    } else if (IsVerticalDownward()) {
       x -= descent;
+      width = item->Size().width;
+      height = info.inline_size;
+    } else {
+      x -= ascent;
+      y -= info.inline_size;
       width = item->Size().width;
       height = info.inline_size;
     }
@@ -840,10 +878,6 @@ PhysicalSize SvgTextLayoutAlgorithm::WriteBackToFragmentItems(
     items[0].item.SetSvgLineLocalRect(
         PhysicalRect(gfx::ToEnclosingRect(unscaled_visual_rect)));
   }
-  // |items| should not have kLine items other than the first one.
-  DCHECK_EQ(base::ranges::find(items.begin() + 1, items.end(),
-                               FragmentItem::kLine, &FragmentItem::Type),
-            items.end());
   return {LayoutUnit(unscaled_visual_rect.right()),
           LayoutUnit(unscaled_visual_rect.bottom())};
 }

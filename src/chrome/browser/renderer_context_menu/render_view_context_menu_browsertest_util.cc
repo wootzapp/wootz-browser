@@ -4,6 +4,8 @@
 
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_browsertest_util.h"
 
+#include <memory>
+#include <optional>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -73,6 +75,14 @@ void ContextMenuWaiter::MenuShown(RenderViewContextMenu* context_menu) {
                                 base::Unretained(this), context_menu));
 }
 
+std::optional<bool> ContextMenuWaiter::IsCommandExecuted() const {
+  if (!execution_observer_) {
+    return std::nullopt;
+  }
+
+  return execution_observer_->IsCommandExecuted();
+}
+
 void ContextMenuWaiter::WaitForMenuOpenAndClose() {
   run_loop_.Run();
 }
@@ -85,20 +95,60 @@ const std::vector<int>& ContextMenuWaiter::GetCapturedCommandIds() const {
   return captured_command_ids_;
 }
 
+const std::vector<int>& ContextMenuWaiter::GetCapturedEnabledCommandIds()
+    const {
+  return captured_enabled_command_ids_;
+}
+
 void ContextMenuWaiter::Cancel(RenderViewContextMenu* context_menu) {
   params_ = context_menu->params();
 
   const ui::SimpleMenuModel& menu_model = context_menu->menu_model();
   captured_command_ids_.reserve(menu_model.GetItemCount());
-  for (size_t i = 0; i < menu_model.GetItemCount(); ++i)
+  captured_enabled_command_ids_.reserve(menu_model.GetItemCount());
+  for (size_t i = 0; i < menu_model.GetItemCount(); ++i) {
     captured_command_ids_.push_back(menu_model.GetCommandIdAt(i));
+    if (menu_model.IsEnabledAt(i)) {
+      captured_enabled_command_ids_.push_back(menu_model.GetCommandIdAt(i));
+    }
+  }
 
   if (maybe_command_to_execute_) {
     if (before_execute_) {
       std::move(before_execute_).Run();
     }
+
+    execution_observer_ = std::make_unique<CommandExecutionObserver>(
+        context_menu, *maybe_command_to_execute_);
     context_menu->ExecuteCommand(*maybe_command_to_execute_, 0);
   }
   context_menu->Cancel();
   run_loop_.Quit();
+}
+
+CommandExecutionObserver::CommandExecutionObserver(
+    RenderViewContextMenu* context_menu,
+    int command_id)
+    : context_menu_(context_menu), command_id_(command_id) {
+  context_menu_->AddObserverForTesting(this);
+}
+
+CommandExecutionObserver::~CommandExecutionObserver() {
+  context_menu_->RemoveObserverForTesting(this);
+}
+
+void CommandExecutionObserver::CommandWillBeExecuted(int command_id) {
+  if (command_id == command_id_) {
+    executed_ = true;
+  }
+}
+
+void CommandExecutionObserver::CommandBlocked(int command_id) {
+  if (command_id == command_id_) {
+    executed_ = false;
+  }
+}
+
+std::optional<bool> CommandExecutionObserver::IsCommandExecuted() const {
+  return executed_;
 }

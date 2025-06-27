@@ -4,17 +4,21 @@
 
 package org.chromium.chrome.browser.autofill;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
 import android.os.Build;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.MediumTest;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
@@ -27,7 +31,6 @@ import org.chromium.components.infobars.InfoBar;
 import org.chromium.components.infobars.InfoBarLayout;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.widget.ButtonCompat;
@@ -53,7 +56,7 @@ public class AutofillUpstreamTest {
 
     @Before
     public void setUp() {
-        mActivityTestRule.setUpAccountAndEnableSyncForTesting();
+        mActivityTestRule.setUpAccountAndSignInForTesting();
         mServer = new EmbeddedTestServer();
         mServer.initializeNative(
                 ApplicationProvider.getApplicationContext(),
@@ -65,7 +68,7 @@ public class AutofillUpstreamTest {
     private void assertInfoBarPrimaryButtonLabel(String buttonLabel) {
         InfoBarLayout view = (InfoBarLayout) getAutofillSaveCardInfoBar().getView();
         ButtonCompat primaryButton = view.getPrimaryButton();
-        Assert.assertEquals(buttonLabel, primaryButton.getText().toString());
+        assertEquals(buttonLabel, primaryButton.getText().toString());
     }
 
     private void waitForSaveCardInfoBar() {
@@ -85,12 +88,12 @@ public class AutofillUpstreamTest {
         if (hasAutofillSaveCardInfobar(infobars)) {
             return (AutofillSaveCardInfoBar) infobars.get(0);
         }
-        Assert.fail("Save card infobar not found");
+        fail("Save card infobar not found");
         return null;
     }
 
     private PropertyModel getPropertyModelForDialog() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityTestRule
                                 .getActivity()
@@ -176,12 +179,11 @@ public class AutofillUpstreamTest {
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
         // Click on the continue button.
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> getAutofillSaveCardInfoBar().onButtonClicked(true));
+        ThreadUtils.runOnUiThreadBlocking(() -> getAutofillSaveCardInfoBar().onButtonClicked(true));
         PropertyModel fixflowPromptPropertyModel = getPropertyModelForDialog();
 
         // Verify that dialog is not null.
-        Assert.assertNotNull(fixflowPromptPropertyModel);
+        assertNotNull(fixflowPromptPropertyModel);
     }
 
     @Test
@@ -217,11 +219,10 @@ public class AutofillUpstreamTest {
         DOMUtils.clickNode(webContents, "submit");
         waitForSaveCardInfoBar();
         // Click on the continue button.
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> getAutofillSaveCardInfoBar().onButtonClicked(true));
+        ThreadUtils.runOnUiThreadBlocking(() -> getAutofillSaveCardInfoBar().onButtonClicked(true));
         PropertyModel fixflowPromptPropertyModel = getPropertyModelForDialog();
 
         // Verify that dialog is not null.
-        Assert.assertNotNull(fixflowPromptPropertyModel);
+        assertNotNull(fixflowPromptPropertyModel);
     }
 }

@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/sync/model/syncable_service.h"
 #include "extensions/browser/api/storage/settings_observer.h"
@@ -45,7 +45,7 @@ class SyncValueStoreCache : public ValueStoreCache {
   ~SyncValueStoreCache() override;
 
   base::WeakPtr<SyncValueStoreCache> AsWeakPtr();
-  syncer::SyncableService* GetSyncableService(syncer::ModelType type);
+  syncer::SyncableService* GetSyncableService(syncer::DataType type);
 
   // ValueStoreCache implementation:
   void RunWithValueStoreForExtension(

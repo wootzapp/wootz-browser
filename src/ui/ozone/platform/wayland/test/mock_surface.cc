@@ -6,6 +6,7 @@
 
 #include <linux-explicit-synchronization-unstable-v1-client-protocol.h>
 
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "ui/ozone/platform/wayland/test/test_region.h"
 #include "ui/ozone/platform/wayland/test/test_wayland_server_thread.h"
@@ -134,8 +135,6 @@ MockSurface::~MockSurface() {
     wl_resource_destroy(blending_->resource());
   if (prioritized_surface_ && prioritized_surface_->resource())
     wl_resource_destroy(prioritized_surface_->resource());
-  if (augmented_surface_ && augmented_surface_->resource())
-    wl_resource_destroy(augmented_surface_->resource());
 }
 
 MockSurface* MockSurface::FromResource(wl_resource* resource) {
@@ -219,8 +218,8 @@ void MockSurface::ReleaseBufferFenced(wl_resource* buffer,
                                       gfx::GpuFenceHandle release_fence) {
   DCHECK(buffer);
   auto iter = linux_buffer_releases_.find(buffer);
-  DCHECK(iter != linux_buffer_releases_.end());
-  auto* linux_buffer_release = iter->second;
+  CHECK(iter != linux_buffer_releases_.end(), base::NotFatalUntil::M130);
+  auto* linux_buffer_release = iter->second.get();
   if (!release_fence.is_null()) {
     zwp_linux_buffer_release_v1_send_fenced_release(linux_buffer_release,
                                                     release_fence.Peek());

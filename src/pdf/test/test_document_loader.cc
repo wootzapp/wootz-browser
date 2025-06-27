@@ -6,14 +6,16 @@
 
 #include <stdint.h>
 
-#include "base/base_paths.h"
+#include <utility>
+
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/files/file_util.h"
 #include "base/notreached.h"
-#include "base/path_service.h"
 #include "pdf/loader/range_set.h"
 #include "pdf/loader/url_loader_wrapper.h"
+#include "pdf/test/test_helpers.h"
 #include "ui/gfx/range/range.h"
 
 namespace chrome_pdf {
@@ -21,13 +23,8 @@ namespace chrome_pdf {
 namespace {
 
 std::vector<uint8_t> ReadTestData(const base::FilePath::StringType& pdf_name) {
-  base::FilePath pdf_path =
-      base::PathService::CheckedGet(base::DIR_SRC_TEST_DATA_ROOT)
-          .Append(FILE_PATH_LITERAL("pdf"))
-          .Append(FILE_PATH_LITERAL("test"))
-          .Append(FILE_PATH_LITERAL("data"))
-          .Append(pdf_name);
-  auto result = base::ReadFileToBytes(pdf_path);
+  auto result =
+      base::ReadFileToBytes(GetTestDataFilePath(base::FilePath(pdf_name)));
   CHECK(result.has_value());
   return result.value();
 }
@@ -37,7 +34,11 @@ std::vector<uint8_t> ReadTestData(const base::FilePath::StringType& pdf_name) {
 TestDocumentLoader::TestDocumentLoader(
     Client* client,
     const base::FilePath::StringType& pdf_name)
-    : client_(client), pdf_data_(ReadTestData(pdf_name)) {}
+    : TestDocumentLoader(client, ReadTestData(pdf_name)) {}
+
+TestDocumentLoader::TestDocumentLoader(Client* client,
+                                       std::vector<uint8_t> pdf_data)
+    : client_(client), pdf_data_(std::move(pdf_data)) {}
 
 TestDocumentLoader::~TestDocumentLoader() = default;
 
@@ -78,8 +79,7 @@ bool TestDocumentLoader::SimulateLoadData(uint32_t max_bytes) {
 
 bool TestDocumentLoader::Init(std::unique_ptr<URLLoaderWrapper> loader,
                               const std::string& url) {
-  NOTREACHED_IN_MIGRATION() << "PDFiumEngine skips this call when testing";
-  return false;
+  NOTREACHED() << "PDFiumEngine skips this call when testing";
 }
 
 bool TestDocumentLoader::GetBlock(uint32_t position,
@@ -88,8 +88,9 @@ bool TestDocumentLoader::GetBlock(uint32_t position,
   if (!IsDataAvailable(position, size))
     return false;
 
-  auto dest_span = base::make_span(static_cast<uint8_t*>(buf), size);
-  dest_span.copy_from(base::make_span(pdf_data_).subspan(position, size));
+  // TODO(crbug.com/40284755): spanify function signature to fix the errors.
+  auto dest_span = UNSAFE_TODO(base::span(static_cast<uint8_t*>(buf), size));
+  dest_span.copy_from(base::span(pdf_data_).subspan(position, size));
   return true;
 }
 

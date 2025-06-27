@@ -31,8 +31,9 @@ const size_t kConfirmBlockButtonIndex = 2;
 std::unique_ptr<OverlayResponse> CreateDialogResponse(
     std::unique_ptr<OverlayResponse> response) {
   AlertResponse* alert_response = response->GetInfo<AlertResponse>();
-  if (!alert_response)
+  if (!alert_response) {
     return nullptr;
+  }
 
   JavaScriptConfirmDialogResponse::Action action =
       JavaScriptConfirmDialogResponse::Action::kCancel;
@@ -50,8 +51,6 @@ std::unique_ptr<OverlayResponse> CreateDialogResponse(
 }  // namespace
 
 #pragma mark - JavaScriptConfirmDialogRequest
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptConfirmDialogRequest);
 
 JavaScriptConfirmDialogRequest::JavaScriptConfirmDialogRequest(
     web::WebState* web_state,
@@ -86,8 +85,6 @@ void JavaScriptConfirmDialogRequest::CreateAuxiliaryData(
 }
 
 #pragma mark - JavaScriptConfirmDialogResponse
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptConfirmDialogResponse);
 
 JavaScriptConfirmDialogResponse::JavaScriptConfirmDialogResponse(Action action)
     : action_(action) {}

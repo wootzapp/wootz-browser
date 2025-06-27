@@ -35,6 +35,7 @@
 #include "chromeos/crosapi/mojom/video_conference.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/geometry/vector2d.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_state.h"
 #include "ui/views/widget/widget.h"
@@ -167,7 +168,8 @@ class VideoConferenceTrayTest : public AshTestBase {
     Shelf* shelf = Shell::GetPrimaryRootWindowController()->shelf();
     shelf->SetAutoHideBehavior(ShelfAutoHideBehavior::kAlways);
     // Create a normal unmaximized window; the shelf should then hide.
-    std::unique_ptr<views::Widget> widget = CreateTestWidget();
+    std::unique_ptr<views::Widget> widget =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     widget->SetBounds(gfx::Rect(0, 0, 100, 100));
 
     EXPECT_EQ(SHELF_AUTO_HIDE, shelf->GetVisibilityState());
@@ -643,7 +645,7 @@ TEST_F(VideoConferenceTrayTest, AutoHiddenShelfTimerRestarted) {
   // Fast forward for 2/3rds of the timer duration, then simulate a second app
   // capturing. The timer should extend for another 6s.
   task_environment()->FastForwardBy(base::Seconds(4));
-  ModifyAppsCapturing(/*add-*/ true);
+  ModifyAppsCapturing(/*add=*/true);
   controller()->UpdateWithMediaState(state);
 
   auto* shelf = Shell::GetPrimaryRootWindowController()->shelf();
@@ -668,7 +670,7 @@ TEST_F(VideoConferenceTrayTest, DecreasedAppCountDoesNotShowShelf) {
   auto widget = ForceShelfToAutoHideOnPrimaryDisplay();
   // Update the list of media apps in the mock controller so the
   // VideoConferenceTray sees that a new app has begun capturing.
-  ModifyAppsCapturing(/*add-*/ true);
+  ModifyAppsCapturing(/*add=*/true);
 
   // Update the `VideoConferenceMediaState` to force the `VideoConferenceTray`
   // to show. The shelf should also show, since the number of apps capturing has
@@ -694,8 +696,8 @@ TEST_F(VideoConferenceTrayTest, DecreasedAppCountDoesNotHideShelf) {
   auto widget = ForceShelfToAutoHideOnPrimaryDisplay();
   // Update the list of media apps in the mock controller so the
   // VideoConferenceTray sees that a new app has begun capturing.
-  ModifyAppsCapturing(/*add-*/ true);
-  ModifyAppsCapturing(/*add-*/ true);
+  ModifyAppsCapturing(/*add=*/true);
+  ModifyAppsCapturing(/*add=*/true);
   // Update the `VideoConferenceMediaState` to force the `VideoConferenceTray`
   // to show. The shelf should also show, since the number of apps capturing has
   // increased.
@@ -707,7 +709,7 @@ TEST_F(VideoConferenceTrayTest, DecreasedAppCountDoesNotHideShelf) {
 
   // Simulate a decrease in number of apps capturing, the shelf should still be
   // shown.
-  ModifyAppsCapturing(/*add-*/ false);
+  ModifyAppsCapturing(/*add=*/false);
   controller()->UpdateWithMediaState(state);
   // Fast forward the timer to 2/3rds, the shelf should still be shown.
   task_environment()->FastForwardBy(base::Seconds(2));
@@ -759,7 +761,8 @@ TEST_F(VideoConferenceTrayTest, AutoHiddenShelfTwoDisplays) {
 
   // Create a second window on the secondary display, the shelf should hide on
   // the secondary display as well.
-  auto secondary_display_window = CreateTestWidget();
+  auto secondary_display_window =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   secondary_display_window->SetBounds(gfx::Rect(900, 0, 100, 100));
 
   auto* secondary_shelf =
@@ -1103,6 +1106,30 @@ TEST_F(VideoConferenceTrayTest, BubbleWithOnlyLinuxApps) {
 
   EXPECT_EQ(video_conference::BubbleViewID::kMainBubbleView,
             bubble_view->GetID());
+}
+
+TEST_F(VideoConferenceTrayTest, AccessibleNames) {
+  SetTrayAndButtonsVisible();
+  ASSERT_TRUE(video_conference_tray());
+  {
+    ui::AXNodeData node_data;
+    video_conference_tray()->GetViewAccessibility().GetAccessibleNodeData(
+        &node_data);
+    EXPECT_EQ(
+        node_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+        l10n_util::GetStringUTF16(IDS_ASH_VIDEO_CONFERENCE_ACCESSIBLE_NAME));
+  }
+
+  LeftClickOn(toggle_bubble_button());
+  auto* bubble_view = video_conference_tray()->GetBubbleView();
+  ASSERT_TRUE(bubble_view);
+
+  {
+    ui::AXNodeData node_data;
+    bubble_view->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+    EXPECT_EQ(node_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+              video_conference_tray()->GetAccessibleNameForBubble());
+  }
 }
 
 // Tests the tray when there's a delay in `GetMediaApps()`.

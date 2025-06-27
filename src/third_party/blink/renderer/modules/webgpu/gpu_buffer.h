@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/core/typed_arrays/array_buffer_view_helpers.h"
-#include "third_party/blink/renderer/core/typed_arrays/flexible_array_buffer_view.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_object.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 
@@ -21,6 +20,7 @@ class GPUBufferDescriptor;
 class GPUMappedDOMArrayBuffer;
 struct BoxedMappableWGPUBufferHandles;
 class ScriptState;
+class V8GPUBufferMapState;
 
 class GPUBuffer : public DawnObject<wgpu::Buffer> {
   DEFINE_WRAPPERTYPEINFO();
@@ -40,7 +40,7 @@ class GPUBuffer : public DawnObject<wgpu::Buffer> {
 
   void Trace(Visitor* visitor) const override;
 
-  // gpu_buffer.idl
+  // gpu_buffer.idl {{{
   ScriptPromise<IDLUndefined> mapAsync(ScriptState* script_state,
                                        uint32_t mode,
                                        uint64_t offset,
@@ -61,7 +61,8 @@ class GPUBuffer : public DawnObject<wgpu::Buffer> {
   void destroy(v8::Isolate* isolate);
   uint64_t size() const;
   uint32_t usage() const;
-  String mapState() const;
+  V8GPUBufferMapState mapState() const;
+  // }}} End of WebIDL binding implementation.
 
   void DetachMappedArrayBuffers(v8::Isolate* isolate);
 
@@ -77,14 +78,15 @@ class GPUBuffer : public DawnObject<wgpu::Buffer> {
                                      ExceptionState& exception_state);
 
   void OnMapAsyncCallback(ScriptPromiseResolver<IDLUndefined>* resolver,
-                          WGPUBufferMapAsyncStatus status);
+                          wgpu::MapAsyncStatus status,
+                          wgpu::StringView message);
 
   DOMArrayBuffer* CreateArrayBufferForMappedData(v8::Isolate* isolate,
                                                  void* data,
                                                  size_t data_length);
   void ResetMappingState(v8::Isolate* isolate);
 
-  void setLabelImpl(const String& value) override {
+  void SetLabelImpl(const String& value) override {
     std::string utf8_label = value.Utf8();
     GetHandle().SetLabel(utf8_label.c_str());
   }

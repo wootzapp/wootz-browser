@@ -28,16 +28,11 @@ inline constexpr char kDefaultSearchProviderGUID[] =
 inline constexpr char kSyncedDefaultSearchProviderGUID[] =
     "default_search_provider.synced_guid";
 
-// Whether this profile should potentially show the search engine choice
-// dialog before the user can proceed. Actual eligiblity is still determined
-// by the `SearchEngineChoiceDialogService`.
-// Note that this has effect only if the `kSearchEngineChoiceTrigger` feature
-// is enabled and if its `kSearchEngineChoiceTriggerForTaggedProfilesOnly`
-// param is set to `true`.
-// This pref is the replacement for "default_search_provider.choice_pending",
-// that was wrongly populated due to a bug and was deprecated.
-inline constexpr char kDefaultSearchProviderChoicePending[] =
-    "default_search_provider.engine_choice_pending";
+// Epoch timestamp in seconds of when the user's search engine choice was
+// invalidated. We do this for example when they detect that a choice has
+// been transferred to a different device.
+inline constexpr char kDefaultSearchProviderChoiceInvalidationTimestamp[] =
+    "default_search_provider.choice_invalidation_timestamp";
 
 // Epoch timestamp in seconds of when the user chose a search engine in
 // the choice screen.
@@ -53,6 +48,15 @@ inline constexpr char kDefaultSearchProviderChoiceScreenCompletionTimestamp[] =
 inline constexpr char kDefaultSearchProviderChoiceScreenCompletionVersion[] =
     "default_search_provider.choice_screen_completion_version";
 
+// Prepopulated id of the search engine chosen in a guest session if the user
+// decides to propagate the default search engine to all guest sessions. The
+// prepopulated id indicates that the search engine choice dialog should not be
+// displayed in the next guest sessions and should be used to set the guest
+// sessions default search engine.
+// Defaults to 0;
+inline constexpr char kDefaultSearchProviderGuestModePrepopulatedId[] =
+    "default_search_provider.guest_mode_prepopulated_id";
+
 // Display state of the choice screen from which the user selected their
 // default search engine. It is stored for logging purposes, only for a limited
 // time, and cleared when that time runs out, or when we are able to report
@@ -67,22 +71,9 @@ inline constexpr char kDefaultSearchProviderPendingChoiceScreenDisplayState[] =
 inline constexpr char kDefaultSearchProviderChoiceScreenRandomShuffleSeed[] =
     "default_search_provider.choice_screen_random_shuffle_seed";
 
-// The Chrome milestone number at which the random seed was last set.
-inline constexpr char kDefaultSearchProviderChoiceScreenShuffleMilestone[] =
-    "default_search_provider.choice_screen_shuffle_milestone";
-
 // Whether a search context menu item is allowed.
 inline constexpr char kDefaultSearchProviderContextMenuAccessAllowed[] =
     "default_search_provider.context_menu_access_allowed";
-
-// Whether the prepopulated data from which the keywords were loaded is the
-// extended list that is not limited to just 5 engines.
-// This pref helps versioning the keyword data in an orthogonal way from the
-// prepopulated data version numbers, as this is dependent on runtime feature
-// state.
-// TODO(b/304947278): Deprecate when the SearchEngineChoice feature launches.
-inline constexpr char kDefaultSearchProviderKeywordsUseExtendedList[] =
-    "default_search_provider.keywords_use_extended_list";
 
 // Whether having a default search provider is enabled.
 inline constexpr char kDefaultSearchProviderEnabled[] =

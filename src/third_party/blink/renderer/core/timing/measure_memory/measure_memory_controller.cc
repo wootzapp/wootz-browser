@@ -99,10 +99,11 @@ bool IsAttached(ExecutionContext* execution_context) {
 void StartMemoryMeasurement(LocalDOMWindow* window,
                             MeasureMemoryController* controller,
                             WebMemoryMeasurement::Mode mode) {
-  Document* document = window->document();
-  document->GetResourceCoordinator()->OnWebMemoryMeasurementRequested(
-      mode, WTF::BindOnce(&MeasureMemoryController::MeasurementComplete,
-                          WrapPersistent(controller)));
+  if (auto* coordinator = window->document()->GetResourceCoordinator()) {
+    coordinator->OnWebMemoryMeasurementRequested(
+        mode, WTF::BindOnce(&MeasureMemoryController::MeasurementComplete,
+                            WrapPersistent(controller)));
+  }
 }
 
 void StartMemoryMeasurement(WorkerGlobalScope* worker,
@@ -138,17 +139,17 @@ ScriptPromise<MemoryMeasurement> MeasureMemoryController::StartMeasurement(
     case ApiStatus::kNotAvailableDueToResourceCoordinator:
       exception_state.ThrowSecurityError(
           "performance.measureUserAgentSpecificMemory is not available.");
-      return ScriptPromise<MemoryMeasurement>();
+      return EmptyPromise();
     case ApiStatus::kNotAvailableDueToDetachedContext:
       exception_state.ThrowSecurityError(
           "performance.measureUserAgentSpecificMemory is not supported"
           " in detached iframes.");
-      return ScriptPromise<MemoryMeasurement>();
+      return EmptyPromise();
     case ApiStatus::kNotAvailableDueToCrossOriginContext:
       exception_state.ThrowSecurityError(
           "performance.measureUserAgentSpecificMemory is not supported"
           " in cross-origin iframes.");
-      return ScriptPromise<MemoryMeasurement>();
+      return EmptyPromise();
   }
   v8::Isolate* isolate = script_state->GetIsolate();
   v8::Local<v8::Context> context = script_state->GetContext();

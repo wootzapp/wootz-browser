@@ -5,12 +5,11 @@
 #include "components/sync_bookmarks/bookmark_model_observer_impl.h"
 
 #include <utility>
+#include <variant>
 
 #include "base/check.h"
 #include "base/no_destructor.h"
-#include "base/uuid.h"
 #include "components/bookmarks/browser/bookmark_node.h"
-#include "components/sync/base/hash_util.h"
 #include "components/sync/base/unique_position.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
@@ -18,7 +17,6 @@
 #include "components/sync_bookmarks/bookmark_model_view.h"
 #include "components/sync_bookmarks/bookmark_specifics_conversions.h"
 #include "components/sync_bookmarks/synced_bookmark_tracker_entity.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace sync_bookmarks {
 
@@ -51,7 +49,7 @@ class UniquePositionWrapper {
     static const base::NoDestructor<syncer::UniquePosition>
         kEmptyUniquePosition;
     if (HoldsUniquePosition()) {
-      return absl::get<syncer::UniquePosition>(value_);
+      return std::get<syncer::UniquePosition>(value_);
     }
     return *kEmptyUniquePosition;
   }
@@ -72,17 +70,17 @@ class UniquePositionWrapper {
   struct MinUniquePosition {};
   struct MaxUniquePosition {};
 
-  explicit UniquePositionWrapper(absl::variant<MinUniquePosition,
-                                               syncer::UniquePosition,
-                                               MaxUniquePosition> value)
+  explicit UniquePositionWrapper(
+      std::variant<MinUniquePosition, syncer::UniquePosition, MaxUniquePosition>
+          value)
       : value_(std::move(value)) {}
 
   bool HoldsUniquePosition() const {
-    return absl::holds_alternative<syncer::UniquePosition>(value_);
+    return std::holds_alternative<syncer::UniquePosition>(value_);
   }
 
   // The order is used to compare positions.
-  absl::variant<MinUniquePosition, syncer::UniquePosition, MaxUniquePosition>
+  std::variant<MinUniquePosition, syncer::UniquePosition, MaxUniquePosition>
       value_;
 };
 
@@ -104,8 +102,7 @@ BookmarkModelObserverImpl::BookmarkModelObserverImpl(
 
 BookmarkModelObserverImpl::~BookmarkModelObserverImpl() = default;
 
-void BookmarkModelObserverImpl::BookmarkModelLoaded(
-    bool ids_reassigned) {
+void BookmarkModelObserverImpl::BookmarkModelLoaded(bool ids_reassigned) {
   // This class isn't responsible for any loading-related logic.
 }
 
@@ -152,12 +149,11 @@ void BookmarkModelObserverImpl::BookmarkNodeMoved(
 
   const SyncedBookmarkTrackerEntity* entity =
       bookmark_tracker_->GetEntityForBookmarkNode(node);
-  DCHECK(entity);
+  CHECK(entity);
 
-  const std::string& sync_id = entity->metadata().server_id();
   const base::Time modification_time = base::Time::Now();
   const syncer::UniquePosition unique_position =
-      ComputePosition(*new_parent, new_index, sync_id);
+      ComputePosition(*new_parent, new_index);
 
   sync_pb::EntitySpecifics specifics = CreateSpecificsFromBookmarkNode(
       node, bookmark_model_, unique_position.ToProto(),
@@ -187,7 +183,7 @@ void BookmarkModelObserverImpl::BookmarkNodeAdded(
   DCHECK(parent_entity);
 
   const syncer::UniquePosition unique_position =
-      ComputePosition(*parent, index, node->uuid().AsLowercaseString());
+      ComputePosition(*parent, index);
 
   sync_pb::EntitySpecifics specifics = CreateSpecificsFromBookmarkNode(
       node, bookmark_model_, unique_position.ToProto(),
@@ -340,7 +336,7 @@ void BookmarkModelObserverImpl::BookmarkNodeFaviconChanged(
       /*force_favicon_load=*/false);
 
   // TODO(crbug.com/40699726): implement |base_specifics_hash| similar to
-  // ClientTagBasedModelTypeProcessor.
+  // ClientTagBasedDataTypeProcessor.
   if (!entity->MatchesFaviconHash(specifics.bookmark().favicon())) {
     ProcessUpdate(entity, specifics);
     return;
@@ -462,11 +458,14 @@ void BookmarkModelObserverImpl::BookmarkNodeChildrenReordered(
 
 syncer::UniquePosition BookmarkModelObserverImpl::ComputePosition(
     const bookmarks::BookmarkNode& parent,
-    size_t index,
-    const std::string& sync_id) {
-  const std::string& suffix = syncer::GenerateSyncableBookmarkHash(
-      bookmark_tracker_->model_type_state().cache_guid(), sync_id);
-  DCHECK(!parent.children().empty());
+    size_t index) const {
+  CHECK_LT(index, parent.children().size());
+
+  const bookmarks::BookmarkNode* node = parent.children()[index].get();
+  const syncer::UniquePosition::Suffix suffix =
+      syncer::UniquePosition::GenerateSuffix(
+          SyncedBookmarkTracker::GetClientTagHashFromUuid(node->uuid()));
+
   const SyncedBookmarkTrackerEntity* predecessor_entity = nullptr;
   const SyncedBookmarkTrackerEntity* successor_entity = nullptr;
 
@@ -591,15 +590,14 @@ syncer::UniquePosition BookmarkModelObserverImpl::UpdateUniquePositionForNode(
     const bookmarks::BookmarkNode* node,
     const syncer::UniquePosition& prev,
     const syncer::UniquePosition& next) {
-  DCHECK(bookmark_tracker_);
-  DCHECK(node);
+  CHECK(bookmark_tracker_);
+  CHECK(node);
 
   const SyncedBookmarkTrackerEntity* entity =
       bookmark_tracker_->GetEntityForBookmarkNode(node);
-  DCHECK(entity);
-  const std::string suffix = syncer::GenerateSyncableBookmarkHash(
-      bookmark_tracker_->model_type_state().cache_guid(),
-      entity->metadata().server_id());
+  CHECK(entity);
+  const syncer::UniquePosition::Suffix suffix =
+      syncer::UniquePosition::GenerateSuffix(entity->GetClientTagHash());
   const base::Time modification_time = base::Time::Now();
 
   syncer::UniquePosition new_unique_position;

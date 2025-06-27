@@ -64,7 +64,60 @@ std::optional<GroupConfig> GetClientSideGroupConfig(
                     feature_engagement::kMaxStoragePeriod);
     return config;
   }
+
+  if (kiOSTailoredNonModalDefaultBrowserPromosGroup.name == group->name) {
+    std::optional<GroupConfig> config = GroupConfig();
+    config->valid = true;
+    config->session_rate = Comparator(ANY, 0);
+
+    // No more than 1 promo across all variants per day.
+    config->trigger =
+        EventConfig("tailored_non_modal_default_browser_promos_group_trigger",
+                    Comparator(LESS_THAN, 1), 1, 365);
+
+    // No more than 4 promos across all variants per 6 months
+    config->event_configs.insert(
+        EventConfig("tailored_non_modal_default_browser_promos_group_trigger",
+                    Comparator(LESS_THAN, 4), 180, 365));
+
+    return config;
+  }
+
+  if (kiOSNonModalSigninPromosGroup.name == group->name) {
+    GroupConfig config = GroupConfig();
+    config.valid = true;
+    config.session_rate = Comparator(ANY, 0);
+
+    // No more than 1 promo across all variants per day.
+    config.trigger = EventConfig("non_modal_signin_promos_group_trigger",
+                                 Comparator(LESS_THAN, 1), 1, 365);
+
+    // No more than 2 promos across all variants per 6 months
+    config.event_configs.insert(
+        EventConfig("non_modal_signin_promos_group_trigger",
+                    Comparator(LESS_THAN, 2), 180, 365));
+
+    return config;
+  }
 #endif  // BUILDFLAG(IS_IOS)
+
+#if BUILDFLAG(IS_ANDROID)
+  if (kClankDefaultBrowserPromosGroup.name == group->name) {
+    // Default browser promos in this groups can only be shown once every seven
+    // days.
+    std::optional<GroupConfig> config = GroupConfig();
+    config->valid = true;
+    config->session_rate = Comparator(EQUAL, 0);
+    config->trigger = EventConfig("default_browser_promos_group_trigger",
+                                  Comparator(EQUAL, 0), 7, kMaxStoragePeriod);
+    // Default Browser promos in this groups can be shown only if the Role
+    // Manager promo is not shown in the 7 days period.
+    config->event_configs.insert(
+        EventConfig("role_manager_default_browser_promos_shown",
+                    Comparator(EQUAL, 0), 7, kMaxStoragePeriod));
+    return config;
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
 
   if (kIPHDummyGroup.name == group->name) {
     // Only used for tests. Various magic tricks are used below to ensure this

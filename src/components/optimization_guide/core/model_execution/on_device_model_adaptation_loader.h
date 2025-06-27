@@ -1,16 +1,21 @@
 // Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-#ifndef COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_ADAPTATION_MODEL_LOADER_H_
-#define COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_ADAPTATION_MODEL_LOADER_H_
+#ifndef COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_MODEL_ADAPTATION_LOADER_H_
+#define COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_MODEL_ADAPTATION_LOADER_H_
+
+#include <optional>
 
 #include "base/memory/scoped_refptr.h"
 #include "base/scoped_observation.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/types/expected.h"
+#include "base/types/optional_util.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_component.h"
+#include "components/optimization_guide/core/model_execution/on_device_model_feature_adapter.h"
 #include "components/optimization_guide/core/optimization_target_model_observer.h"
+#include "components/optimization_guide/proto/models.pb.h"
 #include "components/optimization_guide/proto/on_device_model_execution_config.pb.h"
 #include "services/on_device_model/public/cpp/model_assets.h"
 
@@ -24,27 +29,34 @@ enum class OnDeviceModelAdaptationAvailability;
 class OnDeviceModelAdaptationMetadata {
  public:
   static std::unique_ptr<OnDeviceModelAdaptationMetadata> New(
-      const on_device_model::AdaptationAssetPaths& asset_paths,
+      on_device_model::AdaptationAssetPaths* asset_paths,
+      int64_t version,
       scoped_refptr<OnDeviceModelFeatureAdapter> adapter);
 
   OnDeviceModelAdaptationMetadata(const OnDeviceModelAdaptationMetadata&);
   ~OnDeviceModelAdaptationMetadata();
 
-  const on_device_model::AdaptationAssetPaths& asset_paths() const {
-    return asset_paths_;
+  bool operator==(const OnDeviceModelAdaptationMetadata& other) const;
+
+  const on_device_model::AdaptationAssetPaths* asset_paths() const {
+    return base::OptionalToPtr(asset_paths_);
   }
 
   scoped_refptr<const OnDeviceModelFeatureAdapter> adapter() const {
     return adapter_;
   }
 
+  int64_t version() const { return version_; }
+
  private:
   friend class OnDeviceModelServiceControllerTest;
 
   OnDeviceModelAdaptationMetadata(
-      const on_device_model::AdaptationAssetPaths& asset_paths,
+      on_device_model::AdaptationAssetPaths* asset_paths,
+      int64_t version,
       scoped_refptr<OnDeviceModelFeatureAdapter> adapter);
-  on_device_model::AdaptationAssetPaths asset_paths_;
+  std::optional<on_device_model::AdaptationAssetPaths> asset_paths_;
+  int64_t version_;
   scoped_refptr<OnDeviceModelFeatureAdapter> adapter_;
 };
 
@@ -63,6 +75,7 @@ class OnDeviceModelAdaptationLoader
       OptimizationGuideModelProvider* model_provider,
       base::WeakPtr<OnDeviceModelComponentStateManager>
           on_device_component_state_manager,
+      PrefService* local_state,
       OnLoadFn on_load_fn);
   ~OnDeviceModelAdaptationLoader() override;
 
@@ -73,6 +86,9 @@ class OnDeviceModelAdaptationLoader
  private:
   friend class OnDeviceModelAdaptationLoaderTest;
 
+  // Removes any registration for model updates.
+  void Unregister();
+
   // OptimizationTargetModelObserver:
   void OnModelUpdated(
       optimization_guide::proto::OptimizationTarget optimization_target,
@@ -80,6 +96,11 @@ class OnDeviceModelAdaptationLoader
 
   // OnDeviceModelComponentStateManager::Observer.
   void StateChanged(const OnDeviceModelComponentState* state) final;
+  void OnDeviceEligibleFeatureFirstUsed(ModelBasedCapabilityKey feature) final;
+
+  // Registers for adaptation model download, if the conditions are right.
+  void MaybeRegisterModelDownload(const OnDeviceModelComponentState* state,
+                                  bool was_feature_recently_used);
 
   base::expected<std::unique_ptr<on_device_model::AdaptationAssetPaths>,
                  OnDeviceModelAdaptationAvailability>
@@ -87,20 +108,21 @@ class OnDeviceModelAdaptationLoader
       base::optional_ref<const optimization_guide::ModelInfo> model_info);
 
   ModelBasedCapabilityKey feature_;
+  proto::OptimizationTarget target_;
 
-  // The model spec of the latest base model, received from the component
-  // state manager.
-  std::optional<OnDeviceBaseModelSpec> base_model_spec_;
-
+  // The model provider to observe for updates to model adaptations.
+  raw_ptr<OptimizationGuideModelProvider> model_provider_;
+  base::WeakPtr<OnDeviceModelComponentStateManager>
+      on_device_component_state_manager_;
+  raw_ptr<PrefService> local_state_;
   OnLoadFn on_load_fn_;
 
   base::ScopedObservation<OnDeviceModelComponentStateManager,
                           OnDeviceModelComponentStateManager::Observer>
       component_state_manager_observation_{this};
 
-  // The model provider to observe for updates to model adaptations.
-  raw_ptr<OptimizationGuideModelProvider> model_provider_;
-  bool registered_with_model_provider_ = false;
+  // The compatibility spec that we've registered for adaptations with.
+  std::optional<OnDeviceBaseModelSpec> registered_spec_;
 
   // Background thread where file processing should be performed.
   scoped_refptr<base::SequencedTaskRunner> background_task_runner_;
@@ -108,4 +130,4 @@ class OnDeviceModelAdaptationLoader
 
 }  // namespace optimization_guide
 
-#endif  // COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_ADAPTATION_MODEL_LOADER_H_
+#endif  // COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_ON_DEVICE_MODEL_ADAPTATION_LOADER_H_

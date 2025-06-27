@@ -5,12 +5,13 @@
 #ifndef CHROME_BROWSER_UI_PERFORMANCE_CONTROLS_TEST_SUPPORT_MEMORY_SAVER_BROWSER_TEST_MIXIN_H_
 #define CHROME_BROWSER_UI_PERFORMANCE_CONTROLS_TEST_SUPPORT_MEMORY_SAVER_BROWSER_TEST_MIXIN_H_
 
+#include <concepts>
 #include <string_view>
-#include <type_traits>
 #include <vector>
 
 #include "base/json/values_util.h"
 #include "base/test/bind.h"
+#include "base/test/simple_test_clock.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
@@ -30,18 +31,17 @@ constexpr base::TimeDelta kShortDelay = base::Seconds(1);
 
 // Template to be used as a mixin class for memory saver tests extending
 // InProcessBrowserTest.
-template <typename T,
-          typename =
-              std::enable_if_t<std::is_base_of_v<InProcessBrowserTest, T>>>
+template <typename T>
+  requires(std::derived_from<T, InProcessBrowserTest>)
 class MemorySaverBrowserTestMixin : public T {
  public:
   template <class... Args>
   explicit MemorySaverBrowserTestMixin(Args&&... args)
       : T(std::forward<Args>(args)...),
-        scoped_set_tick_clock_for_testing_(&test_clock_) {
+        scoped_set_clocks_for_testing_(&test_clock_, &test_tick_clock_) {
     // Start with a non-null TimeTicks, as there is no discard protection for
     // a tab with a null focused timestamp.
-    test_clock_.Advance(kShortDelay);
+    test_tick_clock_.Advance(kShortDelay);
   }
 
   ~MemorySaverBrowserTestMixin() override = default;
@@ -106,9 +106,10 @@ class MemorySaverBrowserTestMixin : public T {
   }
 
  private:
-  base::SimpleTestTickClock test_clock_;
-  resource_coordinator::ScopedSetTickClockForTesting
-      scoped_set_tick_clock_for_testing_;
+  base::SimpleTestClock test_clock_;
+  base::SimpleTestTickClock test_tick_clock_;
+  resource_coordinator::ScopedSetClocksForTesting
+      scoped_set_clocks_for_testing_;
 };
 
 #endif  // CHROME_BROWSER_UI_PERFORMANCE_CONTROLS_TEST_SUPPORT_MEMORY_SAVER_BROWSER_TEST_MIXIN_H_

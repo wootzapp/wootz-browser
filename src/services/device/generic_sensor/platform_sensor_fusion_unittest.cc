@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/device/generic_sensor/platform_sensor_fusion.h"
 
 #include <memory>
@@ -476,6 +481,9 @@ TEST_F(PlatformSensorFusionTest, OnSensorReadingChanged) {
   // Accelerometer is selected as low-level sensor.
   CreateAccelerometer();
   EXPECT_TRUE(accelerometer_);
+
+  ON_CALL(*accelerometer_, StartSensor(_)).WillByDefault(Return(true));
+
   auto client_low_level_ =
       std::make_unique<NiceMock<MockPlatformSensorClient>>(accelerometer_);
 

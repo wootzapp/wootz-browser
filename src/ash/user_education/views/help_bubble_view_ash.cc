@@ -27,7 +27,7 @@
 #include "base/time/time.h"
 #include "base/types/pass_key.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/user_education/common/help_bubble_params.h"
+#include "components/user_education/common/help_bubble/help_bubble_params.h"
 #include "components/vector_icons/vector_icons.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/aura/window.h"
@@ -37,6 +37,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_provider.h"
@@ -47,7 +48,6 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/skia_conversions.h"
-#include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/gfx/text_utils.h"
 #include "ui/gfx/vector_icon_types.h"
@@ -145,14 +145,14 @@ class ClosePromoButton : public views::ImageButton {
   METADATA_HEADER(ClosePromoButton, views::ImageButton)
 
  public:
-  ClosePromoButton(const std::u16string accessible_name,
+  ClosePromoButton(const std::u16string& accessible_name,
                    PressedCallback callback) {
     SetCallback(std::move(callback));
     views::ConfigureVectorImageButton(this);
     views::HighlightPathGenerator::Install(
         this,
         std::make_unique<views::CircleHighlightPathGenerator>(gfx::Insets()));
-    SetAccessibleName(accessible_name);
+    GetViewAccessibility().SetName(accessible_name);
     SetTooltipText(accessible_name);
 
     constexpr int kIconSize = 16;
@@ -281,11 +281,9 @@ HelpBubbleViewAsh::HelpBubbleViewAsh(
     : BubbleDialogDelegateView(anchor.view,
                                TranslateArrow(params.arrow),
                                views::BubbleBorder::STANDARD_SHADOW),
-      id_(id),
-      style_(user_education_util::GetHelpBubbleStyle(params.extended_properties)
-                 .value_or(HelpBubbleStyle::kDialog)) {
-  // NOTE: Nudge style help bubbles cannot activate.
-  SetCanActivate(style_ != HelpBubbleStyle::kNudge);
+      id_(id) {
+  set_background_color(cros_tokens::kCrosSysDialogContainer);
+  SetCanActivate(true);
 
   // When hosted within a `views::ScrollView`, the anchor view may be
   // (partially) outside the viewport. Ensure that the anchor view is visible.
@@ -388,7 +386,7 @@ HelpBubbleViewAsh::HelpBubbleViewAsh(
   // Add the body icon (optional).
   constexpr int kBodyIconSize = 20;
   constexpr int kBodyIconBackgroundSize = 24;
-  if (body_icon && (body_icon != &gfx::kNoneIcon)) {
+  if (body_icon && (body_icon != &gfx::VectorIcon::EmptyIcon())) {
     icon_view_ = top_text_container->AddChildViewAt(
         views::Builder<views::ImageView>()
             .SetAccessibleName(params.body_icon_alt_text)
@@ -427,30 +425,24 @@ HelpBubbleViewAsh::HelpBubbleViewAsh(
   }
 
   // Add close button.
-  // NOTE: Nudge style help bubbles do not have buttons.
-  if (style_ != HelpBubbleStyle::kNudge) {
-    std::u16string alt_text = params.close_button_alt_text;
+  std::u16string alt_text = params.close_button_alt_text;
 
-    // This can be empty if a test doesn't set it. Set a reasonable default to
-    // avoid an assertion (generated when a button with no text has no
-    // accessible name).
-    if (alt_text.empty()) {
-      alt_text = l10n_util::GetStringUTF16(IDS_CLOSE);
-    }
-
-    // Since we set the cancel callback, we will use CancelDialog() to dismiss.
-    close_button_ =
-        (params.progress ? progress_container : top_text_container)
-            ->AddChildView(std::make_unique<ClosePromoButton>(
-                alt_text, base::BindRepeating(&DialogDelegate::CancelDialog,
-                                              base::Unretained(this))));
+  // This can be empty if a test doesn't set it. Set a reasonable default to
+  // avoid an assertion (generated when a button with no text has no
+  // accessible name).
+  if (alt_text.empty()) {
+    alt_text = l10n_util::GetStringUTF16(IDS_CLOSE);
   }
 
-  // Add other buttons.
-  // NOTE: Nudge style help bubbles do not have buttons.
-  if (!params.buttons.empty()) {
-    CHECK_NE(style_, HelpBubbleStyle::kNudge);
+  // Since we set the cancel callback, we will use CancelDialog() to dismiss.
+  close_button_ =
+      (params.progress ? progress_container : top_text_container)
+          ->AddChildView(std::make_unique<ClosePromoButton>(
+              alt_text, base::BindRepeating(&DialogDelegate::CancelDialog,
+                                            base::Unretained(this))));
 
+  // Add other buttons.
+  if (!params.buttons.empty()) {
     auto run_callback_and_close = [](HelpBubbleViewAsh* bubble_view,
                                      base::OnceClosure callback) {
       // We want to call the button callback before deleting the bubble in case
@@ -644,7 +636,7 @@ HelpBubbleViewAsh::HelpBubbleViewAsh(
   SetProperty(views::kElementIdentifierKey, kHelpBubbleElementIdForTesting);
   set_margins(gfx::Insets());
   set_title_margins(gfx::Insets());
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   set_close_on_deactivate(false);
   set_focus_traversable_from_anchor_view(false);
   set_parent_window(
@@ -748,7 +740,8 @@ void HelpBubbleViewAsh::OnWidgetActivationChanged(views::Widget* widget,
   if (widget == GetWidget()) {
     if (active) {
       ++activate_count_;
-      auto_close_timer_.AbandonAndStop();
+      auto_close_timer_.Stop();
+      GetWidget()->UpdateAccessibleNameForRootView();
     } else {
       MaybeStartAutoCloseTimer();
     }
@@ -765,11 +758,6 @@ void HelpBubbleViewAsh::OnThemeChanged() {
   views::BubbleDialogDelegateView::OnThemeChanged();
 
   const auto* color_provider = GetColorProvider();
-  const SkColor background_color = color_provider->GetColor(
-      style_ == HelpBubbleStyle::kDialog ? cros_tokens::kCrosSysDialogContainer
-                                         : cros_tokens::kCrosSysBaseElevated);
-  set_color(background_color);
-
   const SkColor foreground_color =
       color_provider->GetColor(cros_tokens::kCrosSysOnSurface);
   if (icon_view_) {
@@ -777,6 +765,8 @@ void HelpBubbleViewAsh::OnThemeChanged() {
         foreground_color, icon_view_->GetPreferredSize().height() / 2));
   }
 
+  const SkColor background_color =
+      color_provider->GetColor(cros_tokens::kCrosSysDialogContainer);
   for (views::Label* label : labels_) {
     label->SetBackgroundColor(background_color);
     label->SetEnabledColor(foreground_color);

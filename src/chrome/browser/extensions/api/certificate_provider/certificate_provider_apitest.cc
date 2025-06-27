@@ -49,6 +49,7 @@
 #include "components/policy/policy_constants.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
@@ -87,10 +88,6 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/lacros/cert/cert_db_initializer_factory.h"
-#endif
 
 using testing::Return;
 using testing::_;
@@ -168,10 +165,7 @@ std::string GetPageTextContent(content::WebContents* web_contents) {
 }
 
 std::string GetCertFingerprint1(const net::X509Certificate& cert) {
-  uint8_t hash[base::kSHA1Length];
-  base::SHA1HashBytes(CRYPTO_BUFFER_data(cert.cert_buffer()),
-                      CRYPTO_BUFFER_len(cert.cert_buffer()), hash);
-  return base::ToLowerASCII(base::HexEncode(hash));
+  return base::ToLowerASCII(base::HexEncode(base::SHA1Hash(cert.cert_span())));
 }
 
 // Generates a gtest failure whenever extension JS reports failure.
@@ -197,7 +191,7 @@ class JsFailureObserver : public extensions::TestApiObserver {
 
 class CertificateProviderApiTest : public extensions::ExtensionApiTest {
  public:
-  CertificateProviderApiTest() {}
+  CertificateProviderApiTest() = default;
 
   void SetUpInProcessBrowserTestFixture() override {
     provider_.SetDefaultReturns(
@@ -323,15 +317,6 @@ class CertificateProviderApiTest : public extensions::ExtensionApiTest {
 class CertificateProviderApiMockedExtensionTest
     : public CertificateProviderApiTest {
  public:
-  void SetUpInProcessBrowserTestFixture() override {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)  // Needed for ClientCertStoreLacros
-    CertDbInitializerFactory::GetInstance()
-        ->SetCreateWithBrowserContextForTesting(
-            /*should_create=*/true);
-#endif
-    CertificateProviderApiTest::SetUpInProcessBrowserTestFixture();
-  }
-
   void SetUpOnMainThread() override {
     CertificateProviderApiTest::SetUpOnMainThread();
 
@@ -378,7 +363,7 @@ class CertificateProviderApiMockedExtensionTest
   scoped_refptr<net::X509Certificate> GetCertificate() const {
     std::string raw_certificate = GetCertificateData();
     return net::X509Certificate::CreateFromBytes(
-        base::as_bytes(base::make_span(raw_certificate)));
+        base::as_byte_span(raw_certificate));
   }
 
   // Tests the api by navigating to a webpage that requests to perform a
@@ -423,14 +408,15 @@ class CertificateProviderApiMockedExtensionTest
 
     base::test::TestFuture<base::Value> exec_js_future;
     GetExtensionMainFrame()->ExecuteJavaScriptForTests(
-        u"signatureRequestData;", exec_js_future.GetCallback());
+        u"signatureRequestData;", exec_js_future.GetCallback(),
+        content::ISOLATED_WORLD_ID_GLOBAL);
     std::vector<uint8_t> request_data(exec_js_future.Get().GetBlob());
 
     // Load the private key.
     std::string key_pk8 = GetKeyPk8();
     std::unique_ptr<crypto::RSAPrivateKey> key(
         crypto::RSAPrivateKey::CreateFromPrivateKeyInfo(
-            base::as_bytes(base::make_span(key_pk8))));
+            base::as_byte_span(key_pk8)));
     ASSERT_TRUE(key);
 
     // Sign using the private key.

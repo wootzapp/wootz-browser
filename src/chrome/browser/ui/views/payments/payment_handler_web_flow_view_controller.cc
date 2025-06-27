@@ -68,8 +68,9 @@ namespace {
 
 std::u16string GetPaymentHandlerDialogTitle(
     content::WebContents* web_contents) {
-  if (!web_contents)
+  if (!web_contents) {
     return std::u16string();
+  }
 
   // If a page has no explicit <title> set or if it is still loading, the title
   // may be the URL of the page. We don't wish to show that to a user as the
@@ -115,7 +116,8 @@ class PaymentHandlerCloseButton : public views::ImageButton {
     SetSize(gfx::Size(kCloseButtonSize, kCloseButtonSize));
     SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
     SetID(static_cast<int>(DialogViewID::CANCEL_BUTTON));
-    SetAccessibleName(l10n_util::GetStringUTF16(IDS_PAYMENTS_CLOSE));
+    GetViewAccessibility().SetName(
+        l10n_util::GetStringUTF16(IDS_PAYMENTS_CLOSE));
 
     // This view does not set its color using the browser theme color, as this
     // may differ from the header color, which is based on the web view theme.
@@ -147,11 +149,47 @@ PaymentHandlerWebFlowViewController::~PaymentHandlerWebFlowViewController() {
   if (web_contents()) {
     auto* manager = web_modal::WebContentsModalDialogManager::FromWebContents(
         web_contents());
-    if (manager)
+    if (manager) {
       manager->SetDelegate(nullptr);
+    }
   }
   state()->OnPaymentAppWindowClosed();
 }
+
+// Ensures that the views::WebView created by this class has its corners
+// properly rounded. This class is a ViewsObserver that waits until the view
+// attaches to the widget, then manually sets its corner radii to match those of
+// the dialog.
+//
+// TODO(crbug.com/344626785): Remove once WebViews obey parent clips.
+class PaymentHandlerWebFlowViewController::RoundedCornerViewClipper
+    : public views::ViewObserver {
+ public:
+  RoundedCornerViewClipper(views::WebView* web_view,
+                           base::WeakPtr<PaymentRequestDialogView> dialog)
+      : web_view_(web_view), dialog_(dialog) {
+    view_observation_.Observe(web_view);
+  }
+
+  void OnViewAddedToWidget(views::View* observed_view) override {
+    CHECK_EQ(web_view_, observed_view);
+    // The PaymentHandler dialog has a header above the WebView, so only the
+    // bottom corners should be clipped to be rounded.
+    web_view_->holder()->SetCornerRadii(gfx::RoundedCornersF(
+        0.f, 0.f, dialog_->GetCornerRadius(), dialog_->GetCornerRadius()));
+  }
+
+  void OnViewIsDeleting(views::View* observed_view) override {
+    CHECK_EQ(web_view_, observed_view);
+    view_observation_.Reset();
+    web_view_ = nullptr;
+  }
+
+ private:
+  base::ScopedObservation<views::View, ViewObserver> view_observation_{this};
+  raw_ptr<views::WebView> web_view_;
+  base::WeakPtr<PaymentRequestDialogView> dialog_;
+};
 
 std::u16string PaymentHandlerWebFlowViewController::GetSheetTitle() {
   return GetPaymentHandlerDialogTitle(web_contents());
@@ -173,8 +211,14 @@ void PaymentHandlerWebFlowViewController::FillContentView(
   }
 
   content_view->SetLayoutManager(std::make_unique<views::FillLayout>());
+
   auto* web_view =
       content_view->AddChildView(std::make_unique<views::WebView>(profile_));
+  rounded_corner_clipper_ =
+      std::make_unique<RoundedCornerViewClipper>(web_view, dialog());
+
+  // Set up the WebContents that is inside the views::WebView, which hosts the
+  // payment app.
   Observe(web_view->GetWebContents());
   PaymentHandlerNavigationThrottle::MarkPaymentHandlerWebContents(
       web_contents());
@@ -184,13 +228,11 @@ void PaymentHandlerWebFlowViewController::FillContentView(
       /*payment_request_web_contents=*/log_.web_contents())
       ->SetOpenedWindow(
           /*payment_handler_web_contents=*/web_contents());
+
   web_view->LoadInitialURL(target_);
 
-  if (base::FeatureList::IsEnabled(
-          features::kPaymentHandlerWindowInTaskManager)) {
-    // Make the web view show up in the task manager.
-    task_manager::WebContentsTags::CreateForTabContents(web_contents());
-  }
+  // Make the web view show up in the task manager.
+  task_manager::WebContentsTags::CreateForTabContents(web_contents());
 
   // Enable modal dialogs for web-based payment handlers.
   dialog_manager_delegate_.SetWebContents(web_contents());
@@ -301,9 +343,16 @@ void PaymentHandlerWebFlowViewController::PopulateSheetHeaderView(
   origin_label->SetElideBehavior(gfx::ELIDE_HEAD);
   origin_label->SetID(static_cast<int>(DialogViewID::SHEET_TITLE));
   origin_label->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
-  // Turn off autoreadability because the computed foreground color takes
+
+  // Turn off auto-readability because the computed foreground color takes
   // contrast into account.
-  SkColor background_color = container->background()->get_color();
+  SkColor background_color = gfx::kPlaceholderColor;
+  if (container->GetWidget()) {
+    const auto* background = container->background();
+    background_color =
+        background->color().ResolveToSkColor(container->GetColorProvider());
+  }
+
   // Get the closest label color to kColorPrimaryForeground, with a minimum
   // readable contrast ratio.
   SkColor foreground = GetContrastingGoogleColor(
@@ -380,7 +429,7 @@ void PaymentHandlerWebFlowViewController::VisibleSecurityStateChanged(
   }
 }
 
-void PaymentHandlerWebFlowViewController::AddNewContents(
+content::WebContents* PaymentHandlerWebFlowViewController::AddNewContents(
     content::WebContents* source,
     std::unique_ptr<content::WebContents> new_contents,
     const GURL& target_url,
@@ -397,11 +446,12 @@ void PaymentHandlerWebFlowViewController::AddNewContents(
     chrome::AddWebContents(browser, source, std::move(new_contents), target_url,
                            disposition, window_features);
   }
+  return nullptr;
 }
 
 bool PaymentHandlerWebFlowViewController::HandleKeyboardEvent(
     content::WebContents* source,
-    const content::NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   return content_view() && content_view()->GetFocusManager() &&
          unhandled_keyboard_event_handler_.HandleKeyboardEvent(
              event, content_view()->GetFocusManager());
@@ -409,14 +459,16 @@ bool PaymentHandlerWebFlowViewController::HandleKeyboardEvent(
 
 void PaymentHandlerWebFlowViewController::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  if (!is_active())
+  if (!is_active()) {
     return;
+  }
 
   // Ignore non-primary main frame or same page navigations which aren't
   // relevant to below.
   if (navigation_handle->IsSameDocument() ||
-      !navigation_handle->IsInPrimaryMainFrame())
+      !navigation_handle->IsInPrimaryMainFrame()) {
     return;
+  }
 
   // Checking uncommitted navigations (e.g., Network errors) is unnecessary
   // because the new pages have no chance to be loaded, rendered nor execute js.
@@ -432,7 +484,11 @@ void PaymentHandlerWebFlowViewController::DidFinishNavigation(
 
   if (first_navigation_complete_callback_) {
     std::move(first_navigation_complete_callback_)
-        .Run(true, web_contents()->GetPrimaryMainFrame()->GetProcess()->GetID(),
+        .Run(true,
+             web_contents()
+                 ->GetPrimaryMainFrame()
+                 ->GetProcess()
+                 ->GetDeprecatedID(),
              web_contents()->GetPrimaryMainFrame()->GetRoutingID());
   }
 
@@ -455,13 +511,15 @@ void PaymentHandlerWebFlowViewController::TitleWasSet(
   UpdateHeaderView();
 
   std::u16string title = GetPaymentHandlerDialogTitle(web_contents());
-  if (!title.empty())
+  if (!title.empty()) {
     dialog()->OnPaymentHandlerTitleSet();
+  }
 }
 
 void PaymentHandlerWebFlowViewController::AbortPayment() {
-  if (web_contents())
+  if (web_contents()) {
     web_contents()->Close();
+  }
 
   state()->OnPaymentResponseError(errors::kPaymentHandlerInsecureNavigation);
 }
@@ -471,13 +529,12 @@ PaymentHandlerWebFlowViewController::GetHeaderBackground(
     views::View* header_view) {
   DCHECK(header_view);
   auto default_header_background =
-      views::CreateThemedSolidBackground(ui::kColorDialogBackground);
+      views::CreateSolidBackground(ui::kColorDialogBackground);
   if (web_contents() && header_view->GetWidget()) {
-    // Make sure the color is actually set before using it.
-    default_header_background->OnViewThemeChanged(header_view);
+    auto* color_provider = header_view->GetColorProvider();
     return views::CreateSolidBackground(color_utils::GetResultingPaintColor(
         web_contents()->GetThemeColor().value_or(SK_ColorTRANSPARENT),
-        default_header_background->get_color()));
+        color_provider->GetColor(ui::kColorDialogBackground)));
   }
   return default_header_background;
 }

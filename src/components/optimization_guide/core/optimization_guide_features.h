@@ -5,9 +5,12 @@
 #ifndef COMPONENTS_OPTIMIZATION_GUIDE_CORE_OPTIMIZATION_GUIDE_FEATURES_H_
 #define COMPONENTS_OPTIMIZATION_GUIDE_CORE_OPTIMIZATION_GUIDE_FEATURES_H_
 
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/component_export.h"
 #include "base/containers/enum_set.h"
@@ -15,6 +18,7 @@
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
 #include "components/optimization_guide/core/optimization_guide_enums.h"
 #include "components/optimization_guide/proto/hints.pb.h"
@@ -24,6 +28,8 @@
 #include "url/gurl.h"
 
 namespace optimization_guide {
+
+class MqlsFeatureMetadata;
 namespace features {
 
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
@@ -34,8 +40,6 @@ COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kRemoteOptimizationGuideFetchingAnonymousDataConsent);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kOptimizationGuideFetchingForSRP);
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-BASE_DECLARE_FEATURE(kContextMenuPerformanceInfoAndRemoteHintFetching);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kOptimizationTargetPrediction);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
@@ -53,8 +57,6 @@ BASE_DECLARE_FEATURE(kOverrideNumThreadsForModelExecution);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kOptGuideEnableXNNPACKDelegateWithTFLite);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-BASE_DECLARE_FEATURE(kOptimizationHintsComponent);
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kOptimizationGuidePersonalizedFetching);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kOptimizationGuidePredictionModelKillswitch);
@@ -71,7 +73,46 @@ BASE_DECLARE_FEATURE(kLogOnDeviceMetricsOnStartup);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 BASE_DECLARE_FEATURE(kTextSafetyClassifier);
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-BASE_DECLARE_FEATURE(kTextSafetyRemoteFallback);
+BASE_DECLARE_FEATURE(kTextSafetyScanLanguageDetection);
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kOnDeviceModelValidation);
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kOnDeviceModelFetchPerformanceClassEveryStartup);
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kAiSettingsPageRefresh);
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kPrivacyGuideAiSettings);
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kAnnotatedPageContentWithActionableElements);
+
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const base::FeatureParam<bool> kShowAiSettingsForTesting;
+
+// Allows setting feature params for model download configuration, such as
+// minimum performance class for download.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kOnDeviceModelPerformanceParams);
+
+// Comma-separated list of performance classes (e.g. "3,4,5") that should
+// download the base model. Use "*" if there is no performance class
+// requirement.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const base::FeatureParam<std::string>
+    kPerformanceClassListForOnDeviceModel;
+
+// Comma-separated list of performance classes that should use a smaller model
+// if available. This should be a subset of
+// kPerformanceClassListForOnDeviceModel.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const base::FeatureParam<std::string>
+    kLowTierPerformanceClassListForOnDeviceModel;
+
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kOptimizationGuideIconView);
+
+// Whether model sessions may be brokered to untrusted processes.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kBrokerModelSessionsForUntrustedProcesses);
 
 typedef base::EnumSet<proto::RequestContext,
                       proto::RequestContext_MIN,
@@ -145,11 +186,6 @@ bool IsRemoteFetchingEnabled();
 // anonymous data collection is enabled but are not Data Saver users.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool IsRemoteFetchingForAnonymousDataConsentEnabled();
-
-// Returns true if a feature that explicitly allows remote fetching has been
-// enabled.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool IsRemoteFetchingExplicitlyAllowedForPerformanceInfo();
 
 // Returns true if the feature to use push notifications is enabled.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
@@ -281,11 +317,11 @@ base::TimeDelta PredictionModelFetchStartupDelay();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 base::TimeDelta PredictionModelFetchInterval();
 
-// Returns the time to wait for starting a model fetch when a new optimization
-// target observer registration happens, after the initial model fetch is
-// completed.
+// Returns the random delay time to wait for starting a model fetch when a new
+// optimization target observer registration happens, after the initial model
+// fetch is completed.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-base::TimeDelta PredictionModelNewRegistrationFetchDelay();
+base::TimeDelta PredictionModelNewRegistrationFetchRandomDelay();
 
 // Whether to use the model execution watchdog.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
@@ -329,17 +365,13 @@ std::optional<int> OverrideNumThreadsForOptTarget(
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool TFLiteXNNPACKDelegateEnabled();
 
-// Whether to check the pref for whether a previous component version failed.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool ShouldCheckFailedComponentVersionPref();
-
 // Whether logging of model quality is enabled.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool IsModelQualityLoggingEnabled();
 
 // Whether model quality logging is enabled for a feature.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool IsModelQualityLoggingEnabledForFeature(UserVisibleFeatureKey feature);
+bool IsModelQualityLoggingEnabledForFeature(const MqlsFeatureMetadata*);
 
 // Returns whether the `model_version` for `opt_target` is part of emergency
 // killswitch, and this model should be stopped serving immediately.
@@ -381,35 +413,28 @@ int GetOnDeviceModelMaxTokensForExecute();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 int GetOnDeviceModelMaxTokensForOutput();
 
+// The maximum total tokens, for input and output combined.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+uint32_t GetOnDeviceModelMaxTokens();
+
 // Returns the number of crashes without a successful response before the
 // on-device model won't be used.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 int GetOnDeviceModelCrashCountBeforeDisable();
 
-// Returns the number of sessions that timed out before the on-device model
-// won't be used.
+// Feature params for handling exponential backoff after crashes.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-int GetOnDeviceModelTimeoutCountBeforeDisable();
+base::TimeDelta GetOnDeviceModelMaxCrashBackoffTime();
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+base::TimeDelta GetOnDeviceModelCrashBackoffBaseTime();
 
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 base::TimeDelta GetOnDeviceStartupMetricDelay();
-
-// Returns the amount of time before the initial response needs to be received
-// from the on-device model before falling back to the server.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-base::TimeDelta GetOnDeviceModelTimeForInitialResponse();
 
 // Returns true if during execution a disconnect is received (which generally
 // means a crash) the message should be sent to the server for processing.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool GetOnDeviceFallbackToServerOnDisconnect();
-
-// Returns whether the performance class is compatible with executing the
-// on-device model. Used to determine whether or not to fetch the on-device
-// model.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool IsPerformanceClassCompatibleWithOnDeviceModel(
-    OnDeviceModelPerformanceClass performance_class);
 
 // Whether any features are enabled that allow launching the on-device
 // service.
@@ -420,6 +445,12 @@ bool CanLaunchOnDeviceModelService();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool IsOnDeviceExecutionEnabled();
 
+// The amount of grace period to use from the last time the feature was used to
+// consider it as recently used. Recent usage is one of the criteria for the
+// base and adaptation on-device models to be downloaded.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+base::TimeDelta GetOnDeviceEligibleModelFeatureRecentUsePeriod();
+
 // The on-device model is fetched when the device is considered eligible for
 // on-device execution. When the device stops being eligible, the model is
 // retained for this amount of time. This protects the user from repeatedly
@@ -428,6 +459,10 @@ bool IsOnDeviceExecutionEnabled();
 // See on_device_model_component.cc for how eligibility is computed.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 base::TimeDelta GetOnDeviceModelRetentionTime();
+
+// Return the disk space (in MiB) required for on device model install.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+int GetDiskSpaceRequiredInMbForOnDeviceModelInstall();
 
 // Whether there is enough free disk space to allow on-device model
 // installation.
@@ -449,20 +484,11 @@ bool GetOnDeviceModelRetractUnsafeContent();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool ShouldUseTextSafetyClassifierModel();
 
-// Number of tokens between each text safety update.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-uint32_t GetOnDeviceModelTextSafetyTokenInterval();
-
 // This is the minimum required reliability threshold for language detection to
 // be considered reliable enough for the text safety classifier. Clamped to the
 // range [0, 1].
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 double GetOnDeviceModelLanguageDetectionMinimumReliability();
-
-// Whether to use text safety remote fallback for on-device text safety
-// evaluation.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool ShouldUseTextSafetyRemoteFallbackForEligibleFeatures();
 
 // These params configure the repetition checker. See HasRepeatingSuffix() in
 // repetition_checker.h for explanation. A value of 2 for num repeats and 16 for
@@ -481,10 +507,55 @@ bool GetOnDeviceModelRetractRepeats();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 int GetOnDeviceModelDefaultTopK();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+int GetOnDeviceModelMaxTopK();
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 double GetOnDeviceModelDefaultTemperature();
 
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 std::vector<uint32_t> GetOnDeviceModelAllowedAdaptationRanks();
+
+// Whether the on-device model should be limited to running only on the CPU.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ForceCpuBackendForOnDeviceModel();
+
+// Whether the on-device model will be validated when updated using a set of
+// prompts with expected output.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool IsOnDeviceModelValidationEnabled();
+
+// Whether on-device sessions should be blocked on validation failures.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ShouldOnDeviceModelBlockOnValidationFailure();
+
+// Whether the validation result for a model should be cleared if Chrome's
+// version changes.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ShouldOnDeviceModelClearValidationOnVersionChange();
+
+// The delay from when a new model is received (or startup if validation has not
+// completed) until the validation is run.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+base::TimeDelta GetOnDeviceModelValidationDelay();
+
+// The maximum number of attempts model validation will be retried.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+int GetOnDeviceModelValidationAttemptCount();
+
+// Returns whether the icon view should be enabled.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ShouldEnableOptimizationGuideIconView();
+
+// Whether Ai settings page refresh or any dependent feature is enabled.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool IsAiSettingsPageRefreshEnabled();
+
+// Whether Ai settings page integration with Privacy Guide is enabled.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool IsPrivacyGuideAiSettingsEnabled();
+
+// Whether policy-disabled AI settings are visible.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+BASE_DECLARE_FEATURE(kAiSettingsPageEnterpriseDisabledUi);
 
 }  // namespace features
 }  // namespace optimization_guide

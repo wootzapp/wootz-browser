@@ -18,6 +18,7 @@
 #include "net/quic/quic_crypto_client_config_handle.h"
 #include "net/quic/quic_http_stream.h"
 #include "net/quic/quic_session_pool.h"
+#include "net/spdy/multiplexed_session_creation_initiator.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_versions.h"
 
 namespace net {
@@ -26,17 +27,19 @@ QuicSessionPool::DirectJob::DirectJob(
     QuicSessionPool* pool,
     quic::ParsedQuicVersion quic_version,
     HostResolver* host_resolver,
-    const QuicSessionAliasKey& key,
+    QuicSessionAliasKey key,
     std::unique_ptr<CryptoClientConfigHandle> client_config_handle,
     bool retry_on_alternate_network_before_handshake,
     RequestPriority priority,
     bool use_dns_aliases,
     bool require_dns_https_alpn,
     int cert_verify_flags,
+    MultiplexedSessionCreationInitiator session_creation_initiator,
+    std::optional<ConnectionManagementConfig> connection_management_config,
     const NetLogWithSource& net_log)
     : QuicSessionPool::Job::Job(
           pool,
-          key,
+          std::move(key),
           std::move(client_config_handle),
           priority,
           NetLogWithSource::Make(
@@ -48,7 +51,9 @@ QuicSessionPool::DirectJob::DirectJob(
       require_dns_https_alpn_(require_dns_https_alpn),
       cert_verify_flags_(cert_verify_flags),
       retry_on_alternate_network_before_handshake_(
-          retry_on_alternate_network_before_handshake) {
+          retry_on_alternate_network_before_handshake),
+      session_creation_initiator_(session_creation_initiator),
+      connection_management_config_(connection_management_config) {
   // TODO(davidben): `require_dns_https_alpn_` only exists to be `DCHECK`ed
   // for consistency against `quic_version_`. Remove the parameter?
   DCHECK_EQ(quic_version_.IsKnown(), !require_dns_https_alpn_);
@@ -94,12 +99,9 @@ void QuicSessionPool::DirectJob::UpdatePriority(RequestPriority old_priority,
 
 void QuicSessionPool::DirectJob::PopulateNetErrorDetails(
     NetErrorDetails* details) const {
-  if (!session_attempt_ || !session_attempt_->session()) {
-    return;
+  if (session_attempt_) {
+    session_attempt_->PopulateNetErrorDetails(details);
   }
-  details->connection_info = QuicHttpStream::ConnectionInfoFromQuicVersion(
-      session_attempt_->session()->connection()->version());
-  details->quic_connection_error = session_attempt_->session()->error();
 }
 
 int QuicSessionPool::DirectJob::DoLoop(int rv) {
@@ -120,8 +122,7 @@ int QuicSessionPool::DirectJob::DoLoop(int rv) {
         rv = DoAttemptSession();
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "io_state_: " << io_state_;
-        break;
+        NOTREACHED() << "io_state_: " << io_state_;
     }
   } while (io_state_ != STATE_NONE && rv != ERR_IO_PENDING);
   return rv;
@@ -203,12 +204,15 @@ int QuicSessionPool::DirectJob::DoAttemptSession() {
       use_dns_aliases_ && resolve_host_request_->GetDnsAliasResults()
           ? *resolve_host_request_->GetDnsAliasResults()
           : std::set<std::string>();
-  session_attempt_ = std::make_unique<SessionAttempt>(
+  // Passing an empty `crypto_client_config_handle` is safe because this job
+  // already owns a handle.
+  session_attempt_ = std::make_unique<QuicSessionAttempt>(
       this, endpoint_result.ip_endpoints.front(), endpoint_result.metadata,
       std::move(quic_version_used), cert_verify_flags_,
       dns_resolution_start_time_, dns_resolution_end_time_,
       retry_on_alternate_network_before_handshake_, use_dns_aliases_,
-      std::move(dns_aliases));
+      std::move(dns_aliases), /*crypto_client_config_handle=*/nullptr,
+      session_creation_initiator_, connection_management_config_);
 
   return session_attempt_->Start(
       base::BindOnce(&DirectJob::OnSessionAttemptComplete, GetWeakPtr()));
@@ -220,7 +224,8 @@ void QuicSessionPool::DirectJob::OnResolveHostComplete(int rv) {
   rv = DoLoop(rv);
 
   for (QuicSessionRequest* request : requests()) {
-    request->OnHostResolutionComplete(rv);
+    request->OnHostResolutionComplete(rv, dns_resolution_start_time_,
+                                      dns_resolution_end_time_);
   }
 
   if (rv != ERR_IO_PENDING && !callback_.is_null()) {

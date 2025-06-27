@@ -5,12 +5,13 @@
 #include "components/safe_browsing/core/browser/db/v4_store.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <string_view>
 #include <utility>
 
 #include "base/base64.h"
-#include "base/debug/crash_logging.h"
+#include "base/compiler_specific.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
@@ -21,6 +22,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/timer/elapsed_timer.h"
+#include "base/types/to_address.h"
 #include "components/safe_browsing/core/browser/db/prefix_iterator.h"
 #include "components/safe_browsing/core/browser/db/v4_rice.h"
 #include "components/safe_browsing/core/browser/db/v4_store.pb.h"
@@ -182,15 +184,6 @@ const base::FilePath TemporaryFileForFilename(const base::FilePath& filename) {
   return base::FilePath(filename.value() + FILE_PATH_LITERAL("_new"));
 }
 
-std::unique_ptr<HashPrefixMap> CreateHashPrefixMap(
-    const base::FilePath& store_path,
-    scoped_refptr<base::SequencedTaskRunner> task_runner) {
-  if (base::FeatureList::IsEnabled(kMmapSafeBrowsingDatabase))
-    return std::make_unique<MmapHashPrefixMap>(store_path,
-                                               std::move(task_runner));
-  return std::make_unique<InMemoryHashPrefixMap>();
-}
-
 // Cleans up files that are no longer needed after a successful write. These are
 // hash files that may be left behind in the event of a crash or other failure
 // which fails to clean up.
@@ -199,7 +192,7 @@ void CleanupExtraFiles(const base::FilePath& store_path,
   std::set<base::FilePath> paths_in_use{store_path};
   for (const auto& hash_file : file_format.hash_files()) {
     paths_in_use.insert(
-        MmapHashPrefixMap::GetPath(store_path, hash_file.extension()));
+        HashPrefixMap::GetPath(store_path, hash_file.extension()));
   }
 
   // Iterate through all files that start with the store path name. All hash
@@ -253,8 +246,8 @@ class BaseFileOutputStream
       if (!file_.IsValid()) {
         return false;
       }
-      int bytes_written =
-          file_.WriteAtCurrentPos(reinterpret_cast<const char*>(buffer), size);
+      int bytes_written = UNSAFE_TODO(
+          file_.WriteAtCurrentPos(reinterpret_cast<const char*>(buffer), size));
       if (bytes_written == size) {
         return true;
       }
@@ -315,8 +308,8 @@ class BaseFileInputStream : public google::protobuf::io::ZeroCopyInputStream {
       if (!file_.IsValid()) {
         return -1;
       }
-      const int bytes_read =
-          file_.ReadAtCurrentPos(reinterpret_cast<char*>(buffer), size);
+      const int bytes_read = UNSAFE_TODO(
+          file_.ReadAtCurrentPos(reinterpret_cast<char*>(buffer), size));
       if (bytes_read >= 0) {
         return bytes_read;
       }
@@ -339,24 +332,8 @@ class BaseFileInputStream : public google::protobuf::io::ZeroCopyInputStream {
   google::protobuf::io::CopyingInputStreamAdaptor impl_;
 };
 
-size_t GetIterationCount(const HashPrefixMap& hash_prefix_map,
-                         const IteratorMap& iterator_map) {
-  size_t max_iterations = 0;
-  for (const auto& iterator_pair : iterator_map) {
-    PrefixSize prefix_size = iterator_pair.first;
-    HashPrefixesView::const_iterator start = iterator_pair.second;
-
-    size_t distance =
-        std::distance(start, hash_prefix_map.at(prefix_size).end());
-    max_iterations += distance / prefix_size;
-  }
-
-  return max_iterations;
-}
-
 }  // namespace
 
-using ::google::protobuf::int32;
 using ::google::protobuf::RepeatedField;
 using ::google::protobuf::RepeatedPtrField;
 
@@ -368,10 +345,8 @@ std::ostream& operator<<(std::ostream& os, const V4Store& store) {
 V4StorePtr V4StoreFactory::CreateV4Store(
     const scoped_refptr<base::SequencedTaskRunner>& task_runner,
     const base::FilePath& store_path) {
-  V4StorePtr new_store(
-      new V4Store(task_runner, store_path,
-                  CreateHashPrefixMap(store_path, task_runner)),
-      V4StoreDeleter(task_runner));
+  V4StorePtr new_store(new V4Store(task_runner, store_path),
+                       V4StoreDeleter(task_runner));
   new_store->Initialize();
   return new_store;
 }
@@ -396,9 +371,9 @@ bool V4Store::HasValidData() {
 
 V4Store::V4Store(const scoped_refptr<base::SequencedTaskRunner>& task_runner,
                  const base::FilePath& store_path,
-                 std::unique_ptr<HashPrefixMap> hash_prefix_map,
                  const int64_t old_file_size)
-    : hash_prefix_map_(std::move(hash_prefix_map)),
+    : hash_prefix_map_(
+          std::make_unique<HashPrefixMap>(store_path, task_runner)),
       file_size_(old_file_size),
       has_valid_data_(false),
       store_path_(store_path),
@@ -421,7 +396,7 @@ void V4Store::Reset() {
 
 ApplyUpdateResult V4Store::ProcessPartialUpdateAndWriteToDisk(
     const std::string& metric,
-    const HashPrefixMap& hash_prefix_map_old,
+    const HashPrefixMapView& hash_prefix_map_old,
     std::unique_ptr<ListUpdateResponse> response) {
   DCHECK(response->has_response_type());
   DCHECK_EQ(ListUpdateResponse::PARTIAL_UPDATE, response->response_type());
@@ -462,17 +437,17 @@ ApplyUpdateResult V4Store::ProcessFullUpdate(
   // checksum. It might save some CPU cycles to store the full update as-is and
   // walk the list of hash prefixes in lexographical order only for checksum
   // calculation.
-  return ProcessUpdate(metric, InMemoryHashPrefixMap(), response,
+  return ProcessUpdate(metric, HashPrefixMapView(), response,
                        delay_checksum_check);
 }
 
 ApplyUpdateResult V4Store::ProcessUpdate(
     const std::string& metric,
-    const HashPrefixMap& hash_prefix_map_old,
+    const HashPrefixMapView& hash_prefix_map_old,
     const std::unique_ptr<ListUpdateResponse>& response,
     bool delay_checksum_check) {
-  const RepeatedField<int32>* raw_removals = nullptr;
-  RepeatedField<int32> rice_removals;
+  const RepeatedField<int32_t>* raw_removals = nullptr;
+  RepeatedField<int32_t> rice_removals;
   size_t removals_size = response->removals_size();
   DCHECK_LE(removals_size, 1u);
   if (removals_size == 1) {
@@ -495,8 +470,6 @@ ApplyUpdateResult V4Store::ProcessUpdate(
       }
       raw_removals = &rice_removals;
     } else {
-      NOTREACHED_IN_MIGRATION()
-          << "Unexpected compression_type type: " << compression_type;
       return UNEXPECTED_COMPRESSION_TYPE_REMOVALS_FAILURE;
     }
   }
@@ -504,7 +477,7 @@ ApplyUpdateResult V4Store::ProcessUpdate(
     RecordRemovalsHashesCount(metric, raw_removals->size(), store_path_);
   }
 
-  InMemoryHashPrefixMap hash_prefix_map;
+  std::unordered_map<PrefixSize, HashPrefixes> hash_prefix_map;
   ApplyUpdateResult apply_update_result = UpdateHashPrefixMapFromAdditions(
       metric, response->additions(), &hash_prefix_map);
   if (apply_update_result != APPLY_UPDATE_SUCCESS) {
@@ -517,19 +490,22 @@ ApplyUpdateResult V4Store::ProcessUpdate(
   }
 
   if (delay_checksum_check) {
-    DCHECK(hash_prefix_map_old.view().empty());
+    DCHECK(hash_prefix_map_old.empty());
     DCHECK(!raw_removals);
     // We delay the checksum check at startup to be able to load the DB
     // quickly. In this case, the |hash_prefix_map_old| should be empty, so just
     // copy over the |hash_prefix_map|.
-    for (const auto& kv : hash_prefix_map.view())
+    for (const auto& kv : hash_prefix_map) {
       hash_prefix_map_->Append(kv.first, kv.second);
+    }
 
     // Calculate the checksum asynchronously later and if it doesn't match,
     // reset the store.
     expected_checksum_ = expected_checksum;
   } else {
-    apply_update_result = MergeUpdate(hash_prefix_map_old, hash_prefix_map,
+    HashPrefixMapView hash_prefix_map_view(hash_prefix_map.begin(),
+                                           hash_prefix_map.end());
+    apply_update_result = MergeUpdate(hash_prefix_map_old, hash_prefix_map_view,
                                       raw_removals, expected_checksum);
     if (apply_update_result != APPLY_UPDATE_SUCCESS) {
       return apply_update_result;
@@ -545,24 +521,24 @@ void V4Store::ApplyUpdate(
     const scoped_refptr<base::SequencedTaskRunner>& callback_task_runner,
     UpdatedStoreReadyCallback callback) {
   base::ElapsedThreadTimer thread_timer;
-  V4StorePtr new_store(
-      new V4Store(task_runner_, store_path_,
-                  CreateHashPrefixMap(store_path_, task_runner_), file_size_),
-      V4StoreDeleter(task_runner_));
+  V4StorePtr new_store(new V4Store(task_runner_, store_path_, file_size_),
+                       V4StoreDeleter(task_runner_));
   ApplyUpdateResult apply_update_result;
-  std::string metric;
+  std::optional<std::string> metric;
+  ApplyUpdateType apply_update_type;
   if (response->response_type() == ListUpdateResponse::PARTIAL_UPDATE) {
     metric = kProcessPartialUpdate;
+    apply_update_type = ApplyUpdateType::kPartial;
     apply_update_result = new_store->ProcessPartialUpdateAndWriteToDisk(
-        metric, *hash_prefix_map_, std::move(response));
+        metric.value(), hash_prefix_map_->view(), std::move(response));
   } else if (response->response_type() == ListUpdateResponse::FULL_UPDATE) {
+    apply_update_type = ApplyUpdateType::kFull;
     metric = kProcessFullUpdate;
-    apply_update_result =
-        new_store->ProcessFullUpdateAndWriteToDisk(metric, std::move(response));
+    apply_update_result = new_store->ProcessFullUpdateAndWriteToDisk(
+        metric.value(), std::move(response));
   } else {
+    apply_update_type = ApplyUpdateType::kInvalid;
     apply_update_result = UNEXPECTED_RESPONSE_TYPE_FAILURE;
-    NOTREACHED_IN_MIGRATION()
-        << "Failure: Unexpected response type: " << response->response_type();
   }
 
   if (apply_update_result == APPLY_UPDATE_SUCCESS) {
@@ -579,8 +555,13 @@ void V4Store::ApplyUpdate(
   // Record the state of the update to be shown in the Safe Browsing page.
   last_apply_update_result_ = apply_update_result;
 
-  RecordApplyUpdateResult(metric, apply_update_result, store_path_);
-  RecordApplyUpdateDuration(metric, thread_timer.Elapsed(), store_path_);
+  base::UmaHistogramEnumeration("SafeBrowsing.V4ProcessUpdate.UpdateType",
+                                apply_update_type);
+  if (metric.has_value()) {
+    RecordApplyUpdateResult(metric.value(), apply_update_result, store_path_);
+    RecordApplyUpdateDuration(metric.value(), thread_timer.Elapsed(),
+                              store_path_);
+  }
 
   // Posting the task should be the last thing to do in this function.
   // Otherwise, the posted task can end up running in parallel. If that
@@ -593,7 +574,7 @@ void V4Store::ApplyUpdate(
 ApplyUpdateResult V4Store::UpdateHashPrefixMapFromAdditions(
     const std::string& metric,
     const RepeatedPtrField<ThreatEntrySet>& additions,
-    HashPrefixMap* additions_map) {
+    std::unordered_map<PrefixSize, HashPrefixes>* additions_map) {
   for (const auto& addition : additions) {
     ApplyUpdateResult apply_update_result = APPLY_UPDATE_SUCCESS;
     const CompressionType compression_type = addition.compression_type();
@@ -629,8 +610,6 @@ ApplyUpdateResult V4Store::UpdateHashPrefixMapFromAdditions(
                                                 raw_hashes_size, additions_map);
       }
     } else {
-      NOTREACHED_IN_MIGRATION()
-          << "Unexpected compression_type type: " << compression_type;
       return UNEXPECTED_COMPRESSION_TYPE_ADDITIONS_FAILURE;
     }
 
@@ -644,24 +623,24 @@ ApplyUpdateResult V4Store::UpdateHashPrefixMapFromAdditions(
 }
 
 // static
-ApplyUpdateResult V4Store::AddUnlumpedHashes(PrefixSize prefix_size,
-                                             const std::string& raw_hashes,
-                                             HashPrefixMap* additions_map) {
+ApplyUpdateResult V4Store::AddUnlumpedHashes(
+    PrefixSize prefix_size,
+    const std::string& raw_hashes,
+    std::unordered_map<PrefixSize, HashPrefixes>* additions_map) {
   return AddUnlumpedHashes(prefix_size, raw_hashes.data(), raw_hashes.size(),
                            additions_map);
 }
 
 // static
-ApplyUpdateResult V4Store::AddUnlumpedHashes(PrefixSize prefix_size,
-                                             const char* raw_hashes_begin,
-                                             const size_t raw_hashes_length,
-                                             HashPrefixMap* additions_map) {
+ApplyUpdateResult V4Store::AddUnlumpedHashes(
+    PrefixSize prefix_size,
+    const char* raw_hashes_begin,
+    const size_t raw_hashes_length,
+    std::unordered_map<PrefixSize, HashPrefixes>* additions_map) {
   if (prefix_size < kMinHashPrefixLength) {
-    NOTREACHED_IN_MIGRATION();
     return PREFIX_SIZE_TOO_SMALL_FAILURE;
   }
   if (prefix_size > kMaxHashPrefixLength) {
-    NOTREACHED_IN_MIGRATION();
     return PREFIX_SIZE_TOO_LARGE_FAILURE;
   }
   if (raw_hashes_length % prefix_size != 0) {
@@ -669,14 +648,14 @@ ApplyUpdateResult V4Store::AddUnlumpedHashes(PrefixSize prefix_size,
   }
 
   // TODO(vakh): Figure out a way to avoid the following copy operation.
-  additions_map->Append(prefix_size,
-                        HashPrefixesView(raw_hashes_begin, raw_hashes_length));
+  (*additions_map)[prefix_size].append(
+      HashPrefixesView(raw_hashes_begin, raw_hashes_length));
   return APPLY_UPDATE_SUCCESS;
 }
 
 // static
 bool V4Store::GetNextSmallestUnmergedPrefix(
-    const HashPrefixMap& hash_prefix_map,
+    const HashPrefixMapView& hash_prefix_map,
     const IteratorMap& iterator_map,
     HashPrefixStr* smallest_hash_prefix) {
   HashPrefixStr current_hash_prefix;
@@ -701,38 +680,18 @@ bool V4Store::GetNextSmallestUnmergedPrefix(
 }
 
 // static
-void V4Store::InitializeIteratorMap(const HashPrefixMap& hash_prefix_map,
+void V4Store::InitializeIteratorMap(const HashPrefixMapView& hash_prefix_map,
                                     IteratorMap* iterator_map) {
-  for (const auto& map_pair : hash_prefix_map.view()) {
+  for (const auto& map_pair : hash_prefix_map) {
     (*iterator_map)[map_pair.first] = map_pair.second.begin();
   }
 }
 
-// static
-void V4Store::ReserveSpaceInPrefixMap(const HashPrefixMap& old_map,
-                                      const HashPrefixMap& additions_map,
-                                      size_t removals_count,
-                                      HashPrefixMap* prefix_map_to_update) {
-  std::unordered_map<PrefixSize, size_t> size_to_reserve;
-  for (const auto& [prefix_size, prefixes] : old_map.view())
-    size_to_reserve[prefix_size] += prefixes.size();
-  for (const auto& [prefix_size, prefixes] : additions_map.view())
-    size_to_reserve[prefix_size] += prefixes.size();
-
-  for (const auto& [prefix_size, capacity] : size_to_reserve) {
-    // Subtract the removals from capacity. Note this probably overcounts the
-    // removals since we subtract from all prefix sizes, but this shouldn't
-    // matter in practice since we usually only use a single prefix size per
-    // store.
-    size_t removals_size = std::min(capacity, removals_count * prefix_size);
-    prefix_map_to_update->Reserve(prefix_size, capacity - removals_size);
-  }
-}
-
-ApplyUpdateResult V4Store::MergeUpdate(const HashPrefixMap& old_prefixes_map,
-                                       const HashPrefixMap& additions_map,
-                                       const RepeatedField<int32>* raw_removals,
-                                       const std::string& expected_checksum) {
+ApplyUpdateResult V4Store::MergeUpdate(
+    const HashPrefixMapView& old_prefixes_map,
+    const HashPrefixMapView& additions_map,
+    const RepeatedField<int32_t>* raw_removals,
+    const std::string& expected_checksum) {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK(hash_prefix_map_->view().empty());
 
@@ -743,9 +702,6 @@ ApplyUpdateResult V4Store::MergeUpdate(const HashPrefixMap& old_prefixes_map,
   }
 
   hash_prefix_map_->Clear();
-  ReserveSpaceInPrefixMap(old_prefixes_map, additions_map,
-                          raw_removals ? raw_removals->size() : 0,
-                          hash_prefix_map_.get());
 
   IteratorMap old_iterator_map;
   HashPrefixStr next_smallest_prefix_old;
@@ -846,8 +802,8 @@ ApplyUpdateResult V4Store::MergeUpdate(const HashPrefixMap& old_prefixes_map,
   }
 
   if (calculate_checksum) {
-    char checksum[crypto::kSHA256Length];
-    checksum_ctx->Finish(checksum, sizeof(checksum));
+    std::array<char, crypto::kSHA256Length> checksum;
+    checksum_ctx->Finish(checksum.data(), checksum.size());
     for (size_t i = 0; i < crypto::kSHA256Length; i++) {
       if (checksum[i] != expected_checksum[i]) {
 #if DCHECK_IS_ON()
@@ -962,7 +918,7 @@ StoreWriteResult V4Store::WriteToDisk(V4StoreFileFormat* file_format) {
     base::DeleteFile(new_filename);
     for (const auto& hash_file : file_format->hash_files()) {
       base::DeleteFile(
-          MmapHashPrefixMap::GetPath(store_path_, hash_file.extension()));
+          HashPrefixMap::GetPath(store_path_, hash_file.extension()));
     }
   };
 
@@ -1026,21 +982,45 @@ bool V4Store::VerifyChecksum() {
 
   IteratorMap iterator_map;
   HashPrefixStr next_smallest_prefix;
-  InitializeIteratorMap(*hash_prefix_map_, &iterator_map);
-  CHECK_EQ(hash_prefix_map_->view().size(), iterator_map.size());
-
-  // Crash keys added to investigate http://crbug.com/331054795
-  SCOPED_CRASH_KEY_NUMBER("SafeBrowsing", "VerifyChecksumSizeCount",
-                          iterator_map.size());
-  SCOPED_CRASH_KEY_NUMBER("SafeBrowsing", "VerifyChecksumIterations",
-                          GetIterationCount(*hash_prefix_map_, iterator_map));
-
-  bool has_unmerged = GetNextSmallestUnmergedPrefix(
-      *hash_prefix_map_, iterator_map, &next_smallest_prefix);
+  const HashPrefixMapView map_view = hash_prefix_map_->view();
+  InitializeIteratorMap(map_view, &iterator_map);
+  CHECK_EQ(map_view.size(), iterator_map.size());
+  bool has_unmerged = GetNextSmallestUnmergedPrefix(map_view, iterator_map,
+                                                    &next_smallest_prefix);
 
   std::unique_ptr<crypto::SecureHash> checksum_ctx(
       crypto::SecureHash::Create(crypto::SecureHash::SHA256));
   while (has_unmerged) {
+#if DCHECK_IS_ON()
+    // This is expensive (see https://crbug.com/373928217), but it's
+    // useful to validate that the DB hasn't changed to debug
+    // https://crbug.com/390144275
+    const HashPrefixMapView recomputed_map_view = hash_prefix_map_->view();
+
+    for (const auto& iterator_pair : iterator_map) {
+      PrefixSize prefix_size = iterator_pair.first;
+      HashPrefixesView::const_iterator start = iterator_pair.second;
+
+      HashPrefixesView hash_prefixes = map_view.at(prefix_size);
+      HashPrefixesView recomputed_hash_prefixes =
+          recomputed_map_view.at(prefix_size);
+
+      // Both regions should be the same.
+      DCHECK_EQ(hash_prefixes.data(), recomputed_hash_prefixes.data());
+      DCHECK_EQ(hash_prefixes.size(), recomputed_hash_prefixes.size());
+
+      // And the iterator map should be pointing into the region and
+      // properly aligned.
+      DCHECK_LE(base::to_address(recomputed_hash_prefixes.begin()),
+                base::to_address(start));
+      DCHECK_LE(base::to_address(start),
+                base::to_address(recomputed_hash_prefixes.end()));
+      DCHECK_EQ(
+          std::distance(recomputed_hash_prefixes.begin(), start) % prefix_size,
+          0u);
+    }
+#endif
+
     PrefixSize next_smallest_prefix_size = next_smallest_prefix.size();
 
     // Update the iterator map, which means that we have read one hash
@@ -1051,12 +1031,12 @@ bool V4Store::VerifyChecksum() {
                          next_smallest_prefix_size);
 
     // Find the next smallest unmerged element in the map.
-    has_unmerged = GetNextSmallestUnmergedPrefix(
-        *hash_prefix_map_, iterator_map, &next_smallest_prefix);
+    has_unmerged = GetNextSmallestUnmergedPrefix(map_view, iterator_map,
+                                                 &next_smallest_prefix);
   }
 
-  char checksum[crypto::kSHA256Length];
-  checksum_ctx->Finish(checksum, sizeof(checksum));
+  std::array<char, crypto::kSHA256Length> checksum;
+  checksum_ctx->Finish(checksum.data(), checksum.size());
   for (size_t i = 0; i < crypto::kSHA256Length; i++) {
     if (checksum[i] != expected_checksum_[i]) {
       RecordApplyUpdateResult(kReadFromDisk, CHECKSUM_MISMATCH_FAILURE,

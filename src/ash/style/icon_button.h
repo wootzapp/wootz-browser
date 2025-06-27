@@ -6,12 +6,14 @@
 #define ASH_STYLE_ICON_BUTTON_H_
 
 #include <optional>
+#include <variant>
 
 #include "ash/ash_export.h"
 #include "base/memory/raw_ptr.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
+#include "base/third_party/icu/icu_utf.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/color/color_id.h"
+#include "ui/color/color_variant.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/views/controls/button/image_button.h"
 
@@ -40,8 +42,6 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   METADATA_HEADER(IconButton, views::ImageButton)
 
  public:
-  using ColorVariant = absl::variant<SkColor, ui::ColorId>;
-
   enum class Type {
     kXSmall,
     kSmall,
@@ -91,6 +91,10 @@ class ASH_EXPORT IconButton : public views::ImageButton {
     // a crash.
     Builder& SetVectorIcon(const gfx::VectorIcon* icon);
 
+    // Set a symbol for display. This is only used if icon is not set.
+    // `character` must contain exactly one unicode character or this will fail.
+    Builder& SetSymbol(base_icu::UChar32 character);
+
     Builder& SetAccessibleNameId(int accessible_name_id);
     Builder& SetAccessibleName(const std::u16string& accessible_name);
     Builder& SetTogglable(bool is_togglable);
@@ -105,7 +109,8 @@ class ASH_EXPORT IconButton : public views::ImageButton {
     PressedCallback callback_;
     Type type_;
     raw_ptr<const gfx::VectorIcon> icon_;
-    absl::variant<int, std::u16string> accessible_name_;
+    std::optional<base_icu::UChar32> character_;
+    std::variant<int, std::u16string> accessible_name_;
     bool is_togglable_;
     bool has_border_;
     std::optional<int> view_id_;
@@ -149,6 +154,8 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   // states.
   void SetVectorIcon(const gfx::VectorIcon& icon);
 
+  void SetSymbol(base_icu::UChar32 character);
+
   // Sets the vector icon used when the button is toggled. If the button does
   // not specify a toggled vector icon, it will use the same vector icon for
   // all states.
@@ -158,8 +165,8 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   // color ID when the button wants to have a different background color from
   // the default one. When both color value and color ID are set, color ID takes
   // the precedence.
-  void SetBackgroundColor(ColorVariant background_color);
-  void SetBackgroundToggledColor(ColorVariant background_toggled_color);
+  void SetBackgroundColor(ui::ColorVariant background_color);
+  void SetBackgroundToggledColor(ui::ColorVariant background_toggled_color);
 
   // Sets the button's background image. The |background_image| is resized to
   // fit the button. Note, if set, |background_image| is painted on top of
@@ -169,8 +176,8 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   // Sets the button's icon color or toggled color with color value and color ID
   // when the button wants to have a different icon color from the default one.
   // When both color value and color ID are set, color ID takes the precedence.
-  void SetIconColor(ColorVariant icon_color);
-  void SetIconToggledColor(ColorVariant icon_toggled_color);
+  void SetIconColor(ui::ColorVariant icon_color);
+  void SetIconToggledColor(ui::ColorVariant icon_toggled_color);
 
   // Sets the size to use for the vector icon in DIPs.
   void SetIconSize(int size);
@@ -188,7 +195,6 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   void OnFocus() override;
   void OnBlur() override;
   void PaintButtonContents(gfx::Canvas* canvas) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void NotifyClick(const ui::Event& event) override;
 
  protected:
@@ -197,9 +203,6 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   void UpdateVectorIcon(bool color_changes_only = false);
 
   void OnEnabledStateChanged();
-
-  // Gets the background color of the icon button.
-  SkColor GetBackgroundColor() const;
 
  private:
   // For unit tests.
@@ -213,9 +216,15 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   // and the toggle state.
   void UpdateAccessibilityProperties();
 
+  std::pair<ui::ImageModel, ui::ImageModel> VectorImages(const bool is_toggled,
+                                                         ui::ColorVariant color,
+                                                         const int size);
+
   const Type type_;
   raw_ptr<const gfx::VectorIcon> icon_ = nullptr;
   raw_ptr<const gfx::VectorIcon> toggled_icon_ = nullptr;
+
+  std::optional<base_icu::UChar32> character_;
 
   // True if this button is togglable.
   const bool is_togglable_ = false;
@@ -224,10 +233,10 @@ class ASH_EXPORT IconButton : public views::ImageButton {
   bool toggled_ = false;
 
   // Background colors and icon colors.
-  ColorVariant background_color_ = gfx::kPlaceholderColor;
-  ColorVariant background_toggled_color_ = gfx::kPlaceholderColor;
-  ColorVariant icon_color_ = gfx::kPlaceholderColor;
-  ColorVariant icon_toggled_color_ = gfx::kPlaceholderColor;
+  ui::ColorVariant background_color_;
+  ui::ColorVariant background_toggled_color_;
+  ui::ColorVariant icon_color_;
+  ui::ColorVariant icon_toggled_color_;
 
   bool blurred_background_shield_enabled_ = false;
   // Note: the blurred background shield will still be null if the button type

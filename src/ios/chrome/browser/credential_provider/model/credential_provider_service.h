@@ -14,7 +14,9 @@
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/prefs/pref_member.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/sync/protocol/webauthn_credential_specifics.pb.h"
 #include "components/sync/service/sync_service_observer.h"
+#include "components/webauthn/core/browser/passkey_model.h"
 #include "ios/chrome/common/credential_provider/memory_credential_store.h"
 
 class FaviconLoader;
@@ -23,7 +25,7 @@ class FaviconLoader;
 
 namespace affiliations {
 class AffiliationService;
-}
+}  // namespace affiliations
 
 namespace password_manager {
 class AffiliatedMatchHelper;
@@ -31,7 +33,7 @@ class AffiliatedMatchHelper;
 
 namespace syncer {
 class SyncService;
-}
+}  // namespace syncer
 
 // A browser-context keyed service that is used to keep the Credential Provider
 // Extension data up to date.
@@ -40,15 +42,19 @@ class CredentialProviderService
       public password_manager::PasswordStoreConsumer,
       public password_manager::PasswordStoreInterface::Observer,
       public signin::IdentityManager::Observer,
-      public syncer::SyncServiceObserver {
+      public syncer::SyncServiceObserver,
+      public webauthn::PasskeyModel::Observer {
  public:
   // Initializes the service.
   CredentialProviderService(
+      const std::string& profile_name,
       PrefService* prefs,
+      PrefService* local_state,
       scoped_refptr<password_manager::PasswordStoreInterface>
           profile_password_store,
       scoped_refptr<password_manager::PasswordStoreInterface>
           account_password_store,
+      webauthn::PasskeyModel* passkey_model,
       id<MutableCredentialStore> credential_store,
       signin::IdentityManager* identity_manager,
       syncer::SyncService* sync_service,
@@ -89,6 +95,12 @@ class CredentialProviderService
   // Syncs the credential store to disk.
   void SyncStore();
 
+  // Helper function for asynchronous portion of `SyncStore`.
+  void CompleteSync(NSArray<id<Credential>>* credentials);
+
+  // Returns the primary account's gaia id.
+  NSString* PrimaryAccountId() const;
+
   // Add credentials from `forms`. Currently simply calls either the legacy or
   // refactored version of this function.
   void AddCredentials(MemoryCredentialStore* store,
@@ -104,9 +116,19 @@ class CredentialProviderService
       MemoryCredentialStore* store,
       std::vector<password_manager::PasswordForm> forms);
 
+  // Add credentials from passkeys.
+  void AddCredentials(
+      MemoryCredentialStore* store,
+      std::vector<sync_pb::WebauthnCredentialSpecifics> passkeys);
+
   // Removes credentials from `forms`.
   void RemoveCredentials(MemoryCredentialStore* store,
                          std::vector<password_manager::PasswordForm> forms);
+
+  // Removes credentials from `passkeys`.
+  void RemoveCredentials(
+      MemoryCredentialStore* store,
+      std::vector<sync_pb::WebauthnCredentialSpecifics> passkeys);
 
   // Syncs account id for validation.
   void UpdateAccountId();
@@ -114,6 +136,19 @@ class CredentialProviderService
   // Syncs the current logged in user's email to the extension if they are
   // syncing passwords.
   void UpdateUserEmail();
+
+  // Syncs whether or not the user is currently syncing passwords. (This
+  // includes account storage.)
+  void UpdatePasswordSyncSetting();
+
+  // Syncs whether or not automatic passkey upgrade is enabled.
+  void UpdateAutomaticPasskeyUpgradeSetting();
+
+  // Syncs whether or not PRF is enabled.
+  void UpdatePasskeyPRFSetting();
+
+  // Syncs whether or not the Passkeys M2 feature is enabled.
+  void UpdatePasskeysM2Availability();
 
   // PasswordStoreConsumer:
   void OnGetPasswordStoreResultsOrErrorFrom(
@@ -127,11 +162,18 @@ class CredentialProviderService
       password_manager::PasswordStoreInterface* store,
       password_manager::LoginsResultOrError results_or_error);
 
+  // PasskeyModel::Observer:
+  void OnPasskeysChanged(
+      const std::vector<webauthn::PasskeyModelChange>& changes) override;
+  void OnPasskeyModelShuttingDown() override;
+  void OnPasskeyModelIsReady(bool is_ready) override;
+
   // syncer::SyncServiceObserver:
   void OnStateChanged(syncer::SyncService* sync) override;
 
-  // Observer for when `saving_passwords_enabled_` changes.
-  void OnSavingPasswordsEnabledChanged();
+  // Observer for change in enabled or managed state of prefs that govern the
+  // CPE.
+  void OnPrefOrPolicyStatusChanged();
 
   // For each of the 2 PasswordStoreInterfaces (profile and account), returns
   // the corresponding in-memory store used for password deduplication. See
@@ -139,14 +181,28 @@ class CredentialProviderService
   MemoryCredentialStore* GetCredentialStore(
       password_manager::PasswordStoreInterface* store) const;
 
+  // Returns whether the profile used to create this CredentialProviderService
+  // is the last used profile. Always return true if the user isn't using multi
+  // profile.
+  bool IsLastUsedProfile() const;
+
+  // The name of the profile used to create this CredentialProviderService.
+  const std::string profile_name_;
+
   // The pref service.
   const raw_ptr<PrefService> prefs_;
+
+  // The local state. Used to query the last used profile.
+  const raw_ptr<PrefService> local_state_;
 
   // The interfaces for getting and manipulating a user's saved passwords.
   const scoped_refptr<password_manager::PasswordStoreInterface>
       profile_password_store_;
   const scoped_refptr<password_manager::PasswordStoreInterface>
       account_password_store_;
+
+  // Passkey store.
+  raw_ptr<webauthn::PasskeyModel> passkey_model_;
 
   // Identity manager to observe.
   const raw_ptr<signin::IdentityManager> identity_manager_;
@@ -178,6 +234,16 @@ class CredentialProviderService
   // The preference associated with
   // password_manager::prefs::kCredentialsEnableService.
   BooleanPrefMember saving_passwords_enabled_;
+
+  // The preference associated with
+  // password_manager::prefs::kCredentialsEnablePasskeys. See
+  // `AppGroupUserDefaultsCredentialProviderSavingPasskeysEnabled` documentation
+  // for important caveats.
+  BooleanPrefMember saving_passkeys_enabled_;
+
+  // The preference associated with
+  // password_manager::prefs::kAutomaticPasskeyUpgrades.
+  BooleanPrefMember automatic_passkey_upgrades_enabled_;
 
   // Weak pointer factory.
   base::WeakPtrFactory<CredentialProviderService> weak_ptr_factory_{this};

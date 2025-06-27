@@ -7,6 +7,7 @@
 
 #include "components/lens/proto/server/lens_overlay_response.pb.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
+#include "components/sessions/core/session_id.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "url/gurl.h"
 
@@ -20,6 +21,9 @@ class LensSearchboxClient {
   // Returns the URL of the current page in the WebContents.
   virtual const GURL& GetPageURL() const = 0;
 
+  // Returns the current tab ID.
+  virtual SessionID GetTabId() const = 0;
+
   // Returns the appropriate classification based on the current mode.
   virtual metrics::OmniboxEventProto::PageClassification GetPageClassification()
       const = 0;
@@ -27,8 +31,9 @@ class LensSearchboxClient {
   // Returns the thumbnail data (data:image/) or address (chrome://image/).
   virtual std::string& GetThumbnail() = 0;
 
-  // Returns the Lens response. Used to report iil= in the Suggest requests.
-  virtual const lens::proto::LensOverlayInteractionResponse& GetLensResponse()
+  // Returns the Lens autocomplete inputs. Used to report iil=, vsrid=,
+  // gsessionid=, and vsint= in the Suggest requests.
+  virtual const lens::proto::LensOverlaySuggestInputs& GetLensSuggestInputs()
       const = 0;
 
   // Called when the user modifies the text in any way (add, delete, paste,
@@ -43,8 +48,18 @@ class LensSearchboxClient {
                                     AutocompleteMatchType::Type match_type,
                                     bool is_zero_prefix_suggestion) = 0;
 
+  // Called when the user focuses or unfocuses the searchbox.
+  virtual void OnFocusChanged(bool focused) = 0;
+
   // Called when the handler binds to the remote page, aka when SetPage is set.
   virtual void OnPageBound() = 0;
+
+  // Called when autocomplete returns empty results on the last update or when
+  // the autocomplete stop timer triggers.
+  virtual void ShowGhostLoaderErrorState() = 0;
+
+  // Called when autocomplete returns zero suggest results.
+  virtual void OnZeroSuggestShown() = 0;
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_SEARCHBOX_LENS_SEARCHBOX_CLIENT_H_

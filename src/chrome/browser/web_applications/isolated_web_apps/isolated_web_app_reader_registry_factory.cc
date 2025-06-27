@@ -46,20 +46,16 @@ IsolatedWebAppReaderRegistryFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile& profile = CHECK_DEREF(Profile::FromBrowserContext(context));
 
-  auto validator = std::make_unique<IsolatedWebAppValidator>();
-  auto reader_factory = std::make_unique<IsolatedWebAppResponseReaderFactory>(
-      profile, std::move(validator), base::BindRepeating([]() {
-        return std::make_unique<
-            web_package::SignedWebBundleSignatureVerifier>();
-      }));
+  auto reader_factory =
+      std::make_unique<IsolatedWebAppResponseReaderFactory>(profile);
   return std::make_unique<IsolatedWebAppReaderRegistry>(
-      std::move(reader_factory));
+      profile, std::move(reader_factory));
 }
 
 content::BrowserContext*
 IsolatedWebAppReaderRegistryFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
-  if (!content::IsolatedWebAppsPolicy::AreIsolatedWebAppsEnabled(context)) {
+  if (!content::AreIsolatedWebAppsEnabled(context)) {
     return nullptr;
   }
 

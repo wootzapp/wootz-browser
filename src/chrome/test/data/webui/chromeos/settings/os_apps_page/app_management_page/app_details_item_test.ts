@@ -4,14 +4,15 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {AppManagementAppDetailsItem} from 'chrome://os-settings/lazy_load.js';
+import type {AppManagementAppDetailsItem} from 'chrome://os-settings/lazy_load.js';
 import {AppManagementStore, updateSelectedAppId} from 'chrome://os-settings/os_settings.js';
-import {App, AppType, InstallReason, InstallSource} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
+import type {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
+import {AppType, InstallReason, InstallSource} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals, assertNull, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
-import {FakePageHandler} from '../../app_management/fake_page_handler.js';
+import type {FakePageHandler} from '../../app_management/fake_page_handler.js';
 import {replaceBody, replaceStore, setupFakeHandler} from '../../app_management/test_util.js';
 
 suite('<app-management-app-details-item>', () => {
@@ -82,7 +83,7 @@ suite('<app-management-app-details-item>', () => {
     const infoIconTooltip =
         appDetailsItem.shadowRoot!.querySelector('cr-tooltip-icon');
     assertTrue(!!infoIconTooltip);
-    assertEquals(publisherId, infoIconTooltip.tooltipText!.trim());
+    assertEquals(publisherId, infoIconTooltip.tooltipText.trim());
   });
 
   test('Android type', async () => {
@@ -107,6 +108,18 @@ suite('<app-management-app-details-item>', () => {
         appDetailsItem.shadowRoot!.querySelector('#typeAndSource');
     assertTrue(!!typeAndSource);
     assertEquals('Chrome App', typeAndSource.textContent!.trim());
+  });
+
+  test('Unknown type', async () => {
+    await addApp({
+      type: AppType.kUnknown,
+      installSource: InstallSource.kUnknown,
+    });
+
+    const typeAndSource =
+        appDetailsItem.shadowRoot!.querySelector('#typeAndSource');
+    assertTrue(!!typeAndSource);
+    assertEquals('', typeAndSource.textContent!.trim());
   });
 
   test('Chrome App from web store', async () => {
@@ -173,6 +186,60 @@ suite('<app-management-app-details-item>', () => {
         typeAndSourceText.textContent!.trim());
   });
 
+  test('Android App Install reason policy', async function() {
+    await addApp({
+      installReason: InstallReason.kPolicy,
+      type: AppType.kArc,
+    });
+
+    const typeAndSourceText =
+        appDetailsItem.shadowRoot!.querySelector('#typeAndSourceText');
+    assertTrue(!!typeAndSourceText);
+    assertEquals(
+        'Android app installed by your device administrator.',
+        typeAndSourceText.textContent!.trim());
+  });
+
+  test('Chrome App Install reason policy', async function() {
+    await addApp({
+      installReason: InstallReason.kPolicy,
+      type: AppType.kChromeApp,
+    });
+
+    const typeAndSourceText =
+        appDetailsItem.shadowRoot!.querySelector('#typeAndSourceText');
+    assertTrue(!!typeAndSourceText);
+    assertEquals(
+        'Chrome app installed by your device administrator.',
+        typeAndSourceText.textContent!.trim());
+  });
+
+  test('Web App Install reason policy', async function() {
+    await addApp({
+      installReason: InstallReason.kPolicy,
+      type: AppType.kWeb,
+    });
+
+    const typeAndSourceText =
+        appDetailsItem.shadowRoot!.querySelector('#typeAndSourceText');
+    assertTrue(!!typeAndSourceText);
+    assertEquals(
+        'Web app installed by your device administrator.',
+        typeAndSourceText.textContent!.trim());
+  });
+
+  test('No app type Install reason policy', async function() {
+    await addApp({
+      installReason: InstallReason.kPolicy,
+      type: AppType.kUnknown,
+    });
+
+    const typeAndSourceText =
+        appDetailsItem.shadowRoot!.querySelector('#typeAndSourceText');
+    assertTrue(!!typeAndSourceText);
+    assertEquals('', typeAndSourceText.textContent!.trim());
+  });
+
   test('Chrome app version', async () => {
     await addApp({
       type: AppType.kChromeApp,
@@ -193,7 +260,7 @@ suite('<app-management-app-details-item>', () => {
     const version =
         appDetailsItem.shadowRoot!.querySelector<HTMLElement>('#version');
     assertTrue(!!version);
-    assertEquals('Version: 13.1.52', version.innerText!.trim());
+    assertEquals('Version: 13.1.52', version.innerText.trim());
   });
 
   test('Android type storage', async () => {

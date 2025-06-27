@@ -23,7 +23,6 @@
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/extension_icon_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -444,7 +443,7 @@ class MenuManager : public ProfileObserver,
   // This lets us make lookup by id fast. It maps id to MenuItem* for
   // all items the menu manager knows about, including all children of top-level
   // items.
-  std::map<MenuItem::Id, MenuItem*> items_by_id_;
+  std::map<MenuItem::Id, raw_ptr<MenuItem, CtnExperimental>> items_by_id_;
 
   // The scheduled tasks to write the menu items to storage.
   std::map<MenuItem::ExtensionKey, base::OneShotTimer> write_tasks_;

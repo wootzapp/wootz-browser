@@ -19,6 +19,7 @@ import org.junit.Assert;
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Log;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -36,7 +37,6 @@ import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.chrome.test.util.NewTabPageTestUtils;
 import org.chromium.chrome.test.util.WaitForFocusHelper;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.concurrent.TimeoutException;
 
@@ -161,7 +161,7 @@ public class ChromeTabbedActivityTestRule extends ChromeActivityTestRule<ChromeT
                         selectedCallback.notifyCalled();
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> incognitoTabModel.addObserver(observer));
+        ThreadUtils.runOnUiThreadBlocking(() -> incognitoTabModel.addObserver(observer));
 
         MenuUtils.invokeCustomMenuActionSync(
                 InstrumentationRegistry.getInstrumentation(),
@@ -171,14 +171,14 @@ public class ChromeTabbedActivityTestRule extends ChromeActivityTestRule<ChromeT
         try {
             createdCallback.waitForCallback(0);
         } catch (TimeoutException ex) {
-            Assert.fail("Never received tab created event");
+            throw new AssertionError("Never received tab created event", ex);
         }
         try {
             selectedCallback.waitForCallback(0);
         } catch (TimeoutException ex) {
-            Assert.fail("Never received tab selected event");
+            throw new AssertionError("Never received tab selected event", ex);
         }
-        TestThreadUtils.runOnUiThreadBlocking(() -> incognitoTabModel.removeObserver(observer));
+        ThreadUtils.runOnUiThreadBlocking(() -> incognitoTabModel.removeObserver(observer));
 
         Tab tab = getActivity().getActivityTab();
 
@@ -201,13 +201,10 @@ public class ChromeTabbedActivityTestRule extends ChromeActivityTestRule<ChromeT
     }
 
     /**
-     * Looks up the Omnibox in the view hierarchy and types the specified
-     * text into it, requesting focus and using an inter-character delay of
-     * 200ms.
+     * Looks up the Omnibox in the view hierarchy and types the specified text into it, requesting
+     * focus and using an inter-character delay of 200ms.
      *
      * @param oneCharAtATime Whether to type text one character at a time or all at once.
-     *
-     * @throws InterruptedException
      */
     public void typeInOmnibox(String text, boolean oneCharAtATime) throws InterruptedException {
         final UrlBar urlBar = getActivity().findViewById(R.id.url_bar);
@@ -215,7 +212,7 @@ public class ChromeTabbedActivityTestRule extends ChromeActivityTestRule<ChromeT
 
         WaitForFocusHelper.acquireFocusForView(urlBar);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (!oneCharAtATime) {
                         urlBar.setText(text);

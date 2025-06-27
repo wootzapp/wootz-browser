@@ -10,12 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/json/values_util.h"
-#include "base/strings/string_piece.h"
 #include "base/values.h"
-#include "components/performance_manager/public/features.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -37,6 +34,11 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
       static_cast<int>(BatterySaverModeState::kEnabledBelowThreshold));
   registry->RegisterTimePref(kLastBatteryUseTimestamp, base::Time());
   registry->RegisterBooleanPref(kDiscardRingTreatmentEnabled, true);
+  registry->RegisterBooleanPref(kPerformanceInterventionNotificationEnabled,
+                                true);
+  registry->RegisterTimePref(kPerformanceInterventionNotificationLastShown,
+                             base::Time());
+  registry->RegisterListPref(kPerformanceInterventionNotificationAcceptHistory);
 }
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
@@ -103,11 +105,15 @@ bool ShouldShowDiscardRingTreatment(PrefService* pref_service) {
 #if BUILDFLAG(IS_ANDROID)
   return false;
 #else
-  if (!base::FeatureList::IsEnabled(
-          performance_manager::features::kDiscardRingImprovements)) {
-    return true;
-  }
   return pref_service->GetBoolean(kDiscardRingTreatmentEnabled);
+#endif
+}
+
+bool ShouldShowPerformanceInterventionNotification(PrefService* pref_service) {
+#if BUILDFLAG(IS_ANDROID)
+  return false;
+#else
+  return pref_service->GetBoolean(kPerformanceInterventionNotificationEnabled);
 #endif
 }
 
@@ -150,50 +156,6 @@ void MigrateMultiStateMemorySaverModePref(PrefService* pref_service) {
   }
 
   pref_service->ClearPref(kMemorySaverModeTimeBeforeDiscardInMinutes);
-}
-
-void MigrateTabDiscardingExceptionsPref(PrefService* pref_service) {
-  const PrefService::Preference* exceptions_with_time_pref =
-      pref_service->FindPreference(kTabDiscardingExceptionsWithTime);
-  if (!exceptions_with_time_pref->IsDefaultValue()) {
-    // The user has changed the new pref, no migration needed. Clear the old
-    // pref because it won't be used anymore.
-    pref_service->ClearPref(kTabDiscardingExceptions);
-    return;
-  }
-
-  const PrefService::Preference* exceptions_pref =
-      pref_service->FindPreference(kTabDiscardingExceptions);
-
-  if (exceptions_pref->IsDefaultValue()) {
-    // The old pref is the default value so no migration is needed.
-    return;
-  }
-
-  // The user has changed the old pref, but the new pref is still set to the
-  // default value. This means the old pref's state needs to be migrated into
-  // the new pref.
-  std::vector<std::pair<std::string, base::Value>> migrated_exceptions;
-  migrated_exceptions.reserve(exceptions_pref->GetValue()->GetList().size());
-
-  for (const base::Value& value : exceptions_pref->GetValue()->GetList()) {
-    CHECK(value.is_string());
-    // Set the timestamp to now when performing the migration. When these prefs
-    // are cleared, it is based on a time window that ends at the present time
-    // and goes back some number of hours. Setting the time to the time of
-    // migration ensures that every entry that was migrated during the last N
-    // hours will be cleared properly and as time passes the number of entries
-    // that will be cleared despite the last edit being before the time window
-    // will decreased.
-    migrated_exceptions.emplace_back(value.GetString(),
-                                     base::TimeToValue(base::Time::Now()));
-  }
-  pref_service->SetDict(
-      kTabDiscardingExceptionsWithTime,
-      base::Value::Dict(std::make_move_iterator(migrated_exceptions.begin()),
-                        std::make_move_iterator(migrated_exceptions.end())));
-  // Clear the old pref because it won't be used anymore.
-  pref_service->ClearPref(kTabDiscardingExceptions);
 }
 
 bool IsSiteInTabDiscardExceptionsList(PrefService* pref_service,

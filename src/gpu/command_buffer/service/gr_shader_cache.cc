@@ -2,20 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/command_buffer/service/gr_shader_cache.h"
 
 #include <inttypes.h>
 
-#include "base/auto_reset.h"
 #include "base/base64.h"
+#include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/trace_event.h"
+#include "build/build_config.h"
+#include "gpu/command_buffer/service/service_utils.h"
 #include "gpu/config/gpu_finch_features.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
+#include "skia/ext/skia_utils_base.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
 
 namespace gpu {
 namespace raster {
@@ -165,18 +173,10 @@ void GrShaderCache::PurgeMemory(
   base::AutoLock auto_lock(lock_);
   size_t original_limit = cache_size_limit_;
 
-  switch (memory_pressure_level) {
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE:
-      return;
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE:
-      cache_size_limit_ = cache_size_limit_ / 4;
-      break;
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL:
-      cache_size_limit_ = 0;
-      break;
-  }
-
+  cache_size_limit_ = gpu::UpdateShaderCacheSizeOnMemoryPressure(
+      cache_size_limit_, memory_pressure_level);
   EnforceLimits(0u);
+
   cache_size_limit_ = original_limit;
 }
 
@@ -190,6 +190,8 @@ bool GrShaderCache::OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
   MemoryAllocatorDump* dump = pmd->CreateAllocatorDump(dump_name);
   dump->AddScalar(MemoryAllocatorDump::kNameSize,
                   MemoryAllocatorDump::kUnitsBytes, curr_size_bytes_);
+  dump->AddScalar(MemoryAllocatorDump::kNameObjectCount,
+                  MemoryAllocatorDump::kUnitsObjects, store_.size());
 
   return true;
 }
@@ -276,7 +278,7 @@ GrShaderCache::ScopedCacheUse::~ScopedCacheUse() {
 }
 
 GrShaderCache::CacheKey::CacheKey(sk_sp<SkData> data) : data(std::move(data)) {
-  hash = base::FastHash(base::span(this->data->bytes(), this->data->size()));
+  hash = base::FastHash(skia::as_byte_span(*this->data));
 }
 GrShaderCache::CacheKey::CacheKey(const CacheKey& other) = default;
 GrShaderCache::CacheKey::CacheKey(CacheKey&& other) = default;

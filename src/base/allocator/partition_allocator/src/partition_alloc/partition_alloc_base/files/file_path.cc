@@ -4,14 +4,14 @@
 
 #include "partition_alloc/partition_alloc_base/files/file_path.h"
 
-#include <algorithm>
 #include <cstring>
 
 #include "partition_alloc/partition_alloc_base/check.h"
+#include "partition_alloc/partition_alloc_base/cxx_wrapper/algorithm.h"
 
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
 #include <windows.h>
-#elif BUILDFLAG(IS_APPLE)
+#elif PA_BUILDFLAG(IS_APPLE)
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 

@@ -43,6 +43,12 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::InterestGroupAdDataView,
     return ad.buyer_and_seller_reporting_id;
   }
 
+  static const std::optional<std::vector<std::string>>&
+  selectable_buyer_and_seller_reporting_ids(
+      const blink::InterestGroup::Ad& ad) {
+    return ad.selectable_buyer_and_seller_reporting_ids;
+  }
+
   static const std::optional<std::string>& metadata(
       const blink::InterestGroup::Ad& ad) {
     return ad.metadata;
@@ -56,6 +62,11 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::InterestGroupAdDataView,
   static const std::optional<std::vector<url::Origin>>&
   allowed_reporting_origins(const blink::InterestGroup::Ad& ad) {
     return ad.allowed_reporting_origins;
+  }
+
+  static const std::optional<std::string>& creative_scanning_metadata(
+      const blink::InterestGroup::Ad& ad) {
+    return ad.creative_scanning_metadata;
   }
 
   static bool Read(blink::mojom::InterestGroupAdDataView data,
@@ -92,6 +103,12 @@ struct BLINK_COMMON_EXPORT
       const blink::AuctionServerRequestFlags& capabilities) {
     return capabilities.Has(
         blink::AuctionServerRequestFlagsEnum::kIncludeFullAds);
+  }
+
+  static bool omit_user_bidding_signals(
+      const blink::AuctionServerRequestFlags& capabilities) {
+    return capabilities.Has(
+        blink::AuctionServerRequestFlagsEnum::kOmitUserBiddingSignals);
   }
 
   static bool Read(blink::mojom::AuctionServerRequestFlagsDataView data,
@@ -182,6 +199,16 @@ struct BLINK_COMMON_EXPORT
   static int32_t max_trusted_bidding_signals_url_length(
       const blink::InterestGroup& interest_group) {
     return interest_group.max_trusted_bidding_signals_url_length;
+  }
+
+  static const std::optional<url::Origin>& trusted_bidding_signals_coordinator(
+      const blink::InterestGroup& interest_group) {
+    return interest_group.trusted_bidding_signals_coordinator;
+  }
+
+  static const std::optional<std::vector<url::Origin>>&
+  view_and_click_counts_providers(const blink::InterestGroup& interest_group) {
+    return interest_group.view_and_click_counts_providers;
   }
 
   static const std::optional<std::string>& user_bidding_signals(

@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "base/check_op.h"
 #include "chrome/browser/ash/login/wizard_context.h"
@@ -71,7 +70,7 @@ bool HWDataCollectionScreen::MaybeSkip(WizardContext& context) {
     auto* user_manager = user_manager::UserManager::Get();
     is_owner = !ash::InstallAttributes::Get()->IsEnterpriseManaged() &&
                (user_manager->IsCurrentUserOwner() ||
-                user_manager->GetUsers().size() == 1);
+                user_manager->GetPersistedUsers().size() == 1);
   }
   if (!is_owner) {
     exit_callback_.Run(Result::NOT_APPLICABLE);
@@ -94,11 +93,9 @@ void HWDataCollectionScreen::ShowImpl() {
   if (view_) {
     view_->Show(hw_data_usage_enabled_);
   }
-  if (ash::features::AreLocalPasswordsEnabledForConsumers()) {
-    if (context()->extra_factors_token) {
-      session_refresher_ = AuthSessionStorage::Get()->KeepAlive(
-          context()->extra_factors_token.value());
-    }
+  if (context()->extra_factors_token) {
+    session_refresher_ = AuthSessionStorage::Get()->KeepAlive(
+        context()->extra_factors_token.value());
   }
 }
 

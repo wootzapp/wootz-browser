@@ -116,7 +116,6 @@ class HTMLToken {
     AtomicString GetValue() const { return value_.AsAtomicString(); }
 
     const UCharLiteralBuffer<32>& NameBuffer() const { return name_; }
-    const UCharLiteralBuffer<32>& ValueBuffer() const { return value_; }
 
     String NameAttemptStaticStringCreation() const {
       return AttemptStaticStringCreation(name_);
@@ -190,8 +189,6 @@ class HTMLToken {
            type_ == kEndTag);
     return data_;
   }
-
-  ALWAYS_INLINE bool IsAll8BitData() const { return data_.Is8Bit(); }
 
   const DataVector& GetName() const {
     DCHECK(type_ == kStartTag || type_ == kEndTag || type_ == DOCTYPE);

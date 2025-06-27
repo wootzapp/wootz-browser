@@ -4,6 +4,7 @@
 
 #include "net/proxy_resolution/multi_threaded_proxy_resolver.h"
 
+#include <array>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -605,9 +606,9 @@ TEST_F(MultiThreadedProxyResolverTest, ThreeThreads_Basic) {
 
   const int kNumRequests = 8;
   int rv;
-  TestCompletionCallback callback[kNumRequests];
-  ProxyInfo results[kNumRequests];
-  std::unique_ptr<ProxyResolver::Request> request[kNumRequests];
+  std::array<TestCompletionCallback, kNumRequests> callback;
+  std::array<ProxyInfo, kNumRequests> results;
+  std::array<std::unique_ptr<ProxyResolver::Request>, kNumRequests> request;
 
   // Start request 0 -- this should run on thread 0 as there is nothing else
   // going on right now.
@@ -715,9 +716,9 @@ TEST_F(MultiThreadedProxyResolverTest, OneThreadBlocked) {
   EXPECT_EQ(u"pac script bytes", factory().script_data()[0]->utf16());
 
   const int kNumRequests = 4;
-  TestCompletionCallback callback[kNumRequests];
-  ProxyInfo results[kNumRequests];
-  std::unique_ptr<ProxyResolver::Request> request[kNumRequests];
+  std::array<TestCompletionCallback, kNumRequests> callback;
+  std::array<ProxyInfo, kNumRequests> results;
+  std::array<std::unique_ptr<ProxyResolver::Request>, kNumRequests> request;
 
   // Start a request that will block the first thread.
 

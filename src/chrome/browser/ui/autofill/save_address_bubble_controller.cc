@@ -15,8 +15,8 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
-#include "components/autofill/core/browser/autofill_address_util.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/core/browser/ui/addresses/autofill_address_util.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/strings/grit/components_strings.h"
 #include "skia/ext/image_operations.h"
@@ -81,11 +81,14 @@ void MigrationHeaderImageSource::Draw(gfx::Canvas* canvas) {
   canvas->ClipPath(avatar_bound, /*do_anti_alias=*/true);
 
   // Finally draw the avatar, above the background and cropped.
-  gfx::ImageSkia avatar = gfx::ImageSkiaOperations::CreateResizedImage(
-      avatar_.GetImage().AsImageSkia(),
-      skia::ImageOperations::ResizeMethod::RESIZE_BEST,
-      gfx::Size(avatar_size_, avatar_size_));
-  canvas->DrawImageInt(avatar, avatar_position_.x(), avatar_position_.y());
+  // Note that some testing profiles do not have an avatar.
+  if (!avatar_.IsEmpty()) {
+    gfx::ImageSkia avatar = gfx::ImageSkiaOperations::CreateResizedImage(
+        avatar_.GetImage().AsImageSkia(),
+        skia::ImageOperations::ResizeMethod::RESIZE_BEST,
+        gfx::Size(avatar_size_, avatar_size_));
+    canvas->DrawImageInt(avatar, avatar_position_.x(), avatar_position_.y());
+  }
 }
 
 ui::ImageModel EmbedAvatar(int background_id,
@@ -146,7 +149,7 @@ SaveAddressBubbleController::GetHeaderImages() const {
 
 std::u16string SaveAddressBubbleController::GetBodyText() const {
   if (is_migration_to_account_ && web_contents()) {
-    PersonalDataManager* pdm =
+    PersonalDataManager& pdm =
         ContentAutofillClient::FromWebContents(web_contents())
             ->GetPersonalDataManager();
 
@@ -154,10 +157,9 @@ std::u16string SaveAddressBubbleController::GetBodyText() const {
         GetPrimaryAccountInfoFromBrowserContext(
             web_contents()->GetBrowserContext());
 
-    int string_id =
-        pdm->address_data_manager().IsSyncFeatureEnabledForAutofill()
-            ? IDS_AUTOFILL_SYNCABLE_PROFILE_MIGRATION_PROMPT_NOTICE
-            : IDS_AUTOFILL_LOCAL_PROFILE_MIGRATION_PROMPT_NOTICE;
+    int string_id = pdm.address_data_manager().IsSyncFeatureEnabledForAutofill()
+                        ? IDS_AUTOFILL_SYNCABLE_PROFILE_MIGRATION_PROMPT_NOTICE
+                        : IDS_AUTOFILL_LOCAL_PROFILE_MIGRATION_PROMPT_NOTICE;
 
     return l10n_util::GetStringFUTF16(string_id,
                                       base::UTF8ToUTF16(account->email));
@@ -231,8 +233,7 @@ SaveAddressBubbleController::GetCancelCallbackValue() const {
 }
 
 std::u16string SaveAddressBubbleController::GetFooterMessage() const {
-  if (address_profile_.source() == AutofillProfile::Source::kAccount &&
-      web_contents()) {
+  if (address_profile_.IsAccountProfile() && web_contents()) {
     std::optional<AccountInfo> account =
         GetPrimaryAccountInfoFromBrowserContext(
             web_contents()->GetBrowserContext());

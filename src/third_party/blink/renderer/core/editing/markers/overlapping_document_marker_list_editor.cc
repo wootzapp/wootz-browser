@@ -4,7 +4,8 @@
 
 #include "third_party/blink/renderer/core/editing/markers/overlapping_document_marker_list_editor.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "third_party/blink/renderer/core/editing/markers/spell_check_marker_list_impl.h"
 
 namespace blink {
@@ -17,7 +18,7 @@ void OverlappingDocumentMarkerListEditor::AddMarker(
     return;
   }
 
-  auto* const pos = std::lower_bound(
+  auto const pos = std::lower_bound(
       list->begin(), list->end(), marker,
       [](const Member<DocumentMarker>& marker_in_list,
          const DocumentMarker* marker_to_insert) {
@@ -122,14 +123,14 @@ OverlappingDocumentMarkerListEditor::MarkersIntersectingRange(
   // Optimize finding the last possible overlapping marker, then iterate
   // only to there. We can't do better because overlaps may be nested, and
   // sorted on start does not imply sorted on end.
-  auto* const end_it =
+  auto const end_it =
       std::upper_bound(list.begin(), list.end(), end_offset,
                        [](unsigned end_offset, const DocumentMarker* marker) {
                          return end_offset <= marker->StartOffset();
                        });
 
   HeapVector<Member<DocumentMarker>> results;
-  base::ranges::copy_if(
+  std::ranges::copy_if(
       list.begin(), end_it, std::back_inserter(results),
       [start_offset, end_offset](const DocumentMarker* marker) {
         return marker->StartOffset() < end_offset &&

@@ -8,6 +8,7 @@ The pipeline module orchestrates the entire signing process, which includes:
     3. Signing the DMG.
 """
 
+import asyncio
 import os.path
 
 from signing import commands, model, notarize, parts, signing
@@ -23,13 +24,16 @@ def _sign_app(paths, config, dest_dir):
             the operations are completed.
     """
     commands.copy_files(os.path.join(paths.input, config.app_dir), paths.work)
-    commands.copy_files(os.path.join(paths.input, "UpdaterSetup"), paths.work)
+    commands.copy_files(
+        os.path.join(paths.input, "{.app_product}Util".format(config)),
+        paths.work)
     parts.sign_all(paths, config)
     commands.make_dir(dest_dir)
     commands.move_file(os.path.join(paths.work, config.app_dir),
                        os.path.join(dest_dir, config.app_dir))
-    commands.move_file(os.path.join(paths.work, "UpdaterSetup"),
-                       os.path.dirname(dest_dir))
+    commands.move_file(
+        os.path.join(paths.work, "{.app_product}Util".format(config)),
+        os.path.dirname(dest_dir))
 
 
 def _package_and_sign_dmg(paths, config):
@@ -101,7 +105,7 @@ def _package_and_sign_pkg(paths, config):
     """
     pkg_path = os.path.join(paths.output,
                             '{}.pkg'.format(config.packaging_basename))
-    commands.run_command([
+    args = [
         'pkgbuild',
         '--root',
         os.path.join(paths.work, config.app_dir),
@@ -111,11 +115,17 @@ def _package_and_sign_pkg(paths, config):
                      '%s.app' % config.app_product),
         '--scripts',
         os.path.join(paths.input, config.packaging_dir, 'signing', 'pkg'),
-        '--sign',
-        config.installer_identity,
+        '--version',
+        config.version,
         '--timestamp',
         pkg_path,
-    ])
+    ]
+    if config.installer_identity:
+        args.extend([
+            '--sign',
+            config.installer_identity,
+        ])
+    commands.run_command(args)
     return pkg_path
 
 
@@ -158,7 +168,6 @@ def sign_all(orig_paths,
     """
     with commands.WorkDirectory(orig_paths) as notary_paths:
         # First, sign and optionally submit the notarization requests.
-        uuid = None
         with commands.WorkDirectory(orig_paths) as paths:
             dest_dir = os.path.join(notary_paths.work,
                                     config.packaging_basename)
@@ -172,23 +181,21 @@ def sign_all(orig_paths,
                     zip_file, config.app_dir
                 ],
                                      cwd=dest_dir)
-                uuid = notarize.submit(zip_file, config)
+                uuid = asyncio.run(notarize.submit(zip_file, config))
 
-        # Wait for the app notarization result to come back and staple.
-        if config.notarize.should_wait():
-            for _ in notarize.wait_for_results([uuid], config):
-                pass  # We are only waiting for a single notarization.
-            if config.notarize.should_staple():
-                notarize.staple_bundled_parts(
-                    # Only staple to the outermost app.
-                    parts.get_parts(config)[-1:],
-                    notary_paths.replace_work(
-                        os.path.join(notary_paths.work,
-                                     config.packaging_basename)))
+        if config.notarize.should_staple():
+            notarize.staple_bundled_parts(
+                # Only staple to the outermost app.
+                parts.get_parts(config)[-1:],
+                notary_paths.replace_work(
+                    os.path.join(notary_paths.work,
+                                 config.packaging_basename)))
 
         # Package.
-        commands.move_file(os.path.join(notary_paths.work, "UpdaterSetup"),
-                           orig_paths.output)
+        commands.move_file(
+            os.path.join(notary_paths.work,
+                         "{.app_product}Util".format(config)),
+            orig_paths.output)
         package_paths = orig_paths.replace_work(
             os.path.join(notary_paths.work, config.packaging_basename))
         _package_zip(package_paths, config)
@@ -196,8 +203,8 @@ def sign_all(orig_paths,
         pkg_path = _package_and_sign_pkg(package_paths, config)
 
         # Notarize the packages, then staple.
-        uuid_to_path = {}
-        uuid_to_path[notarize.submit(pkg_path, config)] = pkg_path
-        uuid_to_path[notarize.submit(dmg_path, config)] = dmg_path
-        for uuid in notarize.wait_for_results(uuid_to_path.keys(), config):
-            notarize.staple(uuid_to_path[uuid])
+        if config.notarize.should_notarize():
+            asyncio.run(notarize.submit(pkg_path, config))
+            asyncio.run(notarize.submit(dmg_path, config))
+            notarize.staple(dmg_path)
+            notarize.staple(pkg_path)

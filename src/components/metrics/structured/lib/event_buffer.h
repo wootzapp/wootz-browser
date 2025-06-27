@@ -8,27 +8,15 @@
 #include <concepts>
 #include <type_traits>
 
+#include "base/files/file_path.h"
+#include "base/functional/callback.h"
+#include "base/time/time.h"
+#include "base/types/expected.h"
+#include "components/metrics/structured/lib/resource_info.h"
 #include "third_party/protobuf/src/google/protobuf/message_lite.h"
 
 namespace metrics::structured {
-
-// The current usage and limits of some recourse.
-//
-// These resources could be disk space or memory consumption.
-struct ResourceInfo {
-  int32_t used_size_bytes;
-  int32_t max_size_bytes;
-
-  explicit ResourceInfo(int32_t max_size_bytes);
-  ResourceInfo(int32_t used_size_bytes, int32_t max_size_bytes);
-
-  // Check whether |this| can accommodate |size|.
-  bool HasRoom(int32_t size) const;
-
-  // Increases currently used space with |size|.
-  bool Consume(int32_t size);
-};
-
+// The result of adding an event to a buffer.
 enum class Result {
   // Event was added successfully.
   kOk = 0,
@@ -39,6 +27,27 @@ enum class Result {
   // Any error that occurred.
   kError = 3,
 };
+
+// Errors of flushing a buffer to disk.
+enum FlushError {
+  kQuotaExceeded = 1,
+  kWriteError = 2,
+  kDiskFull = 3,
+  kSerializationFailed = 4,
+};
+
+// Represents a flushed buffer.
+struct FlushedKey {
+  // The size of the file flushed.
+  int64_t size;
+  // Path of the file.
+  base::FilePath path;
+  // When the flushed file was created.
+  base::Time creation_time;
+};
+
+using FlushedCallback =
+    base::OnceCallback<void(base::expected<FlushedKey, FlushError>)>;
 
 // Abstraction for how in-memory events are managed on device.
 template <typename T>
@@ -57,6 +66,13 @@ class EventBuffer {
 
   // The number of events stored in the buffer.
   virtual uint64_t Size() = 0;
+
+  // Serialize the contents of |this|.
+  virtual google::protobuf::RepeatedPtrField<T> Serialize() = 0;
+
+  // Flushes the buffer to |path|, once the flush is complete |callback| is
+  // executed.
+  virtual void Flush(const base::FilePath& path, FlushedCallback callback) = 0;
 
   const ResourceInfo& resource_info() const { return resource_info_; }
 

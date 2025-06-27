@@ -49,8 +49,9 @@ base::ScopedFD WaylandDataOffer::Receive(const std::string& mime_type) {
   // mimetype, then it is safer to "read" the clipboard data with
   // a mimetype mime_type known to be available.
   std::string effective_mime_type = mime_type;
-  if (mime_type == kMimeTypeText && text_plain_mime_type_inserted())
-    effective_mime_type = kMimeTypeTextUtf8;
+  if (mime_type == kMimeTypePlainText && text_plain_mime_type_inserted()) {
+    effective_mime_type = kMimeTypeUtf8PlainText;
+  }
 
   wl_data_offer_receive(data_offer_.get(), effective_mime_type.data(),
                         write_fd.get());
@@ -83,6 +84,15 @@ void WaylandDataOffer::SetDndActions(uint32_t dnd_actions) {
     preferred_action = WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
 
   wl_data_offer_set_actions(data_offer_.get(), dnd_actions, preferred_action);
+
+  // Some compositors might take too long to send the "action" event, so that we
+  // never reset `dnd_action_` before the drop happens. However, calling finish
+  // in that case still leads to a protocol error. To prevent that, perform the
+  // reset now already. See also
+  // https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/202.
+  if (dnd_actions == 0) {
+    dnd_action_ = 0;
+  }
 }
 
 // static

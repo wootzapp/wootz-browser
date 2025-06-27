@@ -13,7 +13,6 @@
 #include "base/debug/asan_invalid_access.h"
 #include "base/memory/raw_ref.h"
 #include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -101,7 +100,7 @@ TEST_F(AsanServiceTest, MAYBE_ShouldExitCleanly) {
 
 class AsanTaskTraceTest {
  public:
-  AsanTaskTraceTest() {}
+  AsanTaskTraceTest() = default;
 
   void Run() {
     task_runner_->PostTask(

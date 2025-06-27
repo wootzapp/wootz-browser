@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 
 namespace blink {
 
@@ -81,8 +80,6 @@ void PostStyleUpdateScope::ApplyAnimations() {
       continue;
     }
     element_animations->CssAnimations().MaybeApplyPendingUpdate(element.Get());
-    element_animations->InvalidatePaintForCompositedAnimationsIfNecessary(
-        element.Get());
   }
 
   DCHECK(animation_data_.elements_with_pending_updates_.empty())

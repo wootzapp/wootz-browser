@@ -199,7 +199,9 @@ class PLATFORM_EXPORT HeapAllocator {
   }
 
   template <typename T, typename Traits>
-  static void NotifyNewObjects(T* first_element, size_t length) {
+  static void NotifyNewObjects(base::span<T> objects) {
+    T* first_element = &objects.front();
+    size_t length = objects.size();
     HeapConsistency::WriteBarrierParams params;
     // `first_element` points into a backing store and T is not necessarily a
     // garbage collected type but may be kept inline.
@@ -247,10 +249,13 @@ class PLATFORM_EXPORT HeapAllocator {
   static void TraceHashTableBackingStrongly(Visitor* visitor,
                                             const T* backing,
                                             const T* const* backing_slot) {
-    visitor->RegisterMovableReference(
-        const_cast<const HeapHashTableBacking<HashTable>**>(
-            reinterpret_cast<const HeapHashTableBacking<HashTable>* const*>(
-                backing_slot)));
+    if constexpr (internal::CompactionTraits<
+                      HeapHashTableBacking<HashTable>>::SupportsCompaction()) {
+      visitor->RegisterMovableReference(
+          const_cast<const HeapHashTableBacking<HashTable>**>(
+              reinterpret_cast<const HeapHashTableBacking<HashTable>* const*>(
+                  backing_slot)));
+    }
     visitor->TraceStrongContainer(
         reinterpret_cast<const HeapHashTableBacking<HashTable>*>(backing));
   }
@@ -261,10 +266,13 @@ class PLATFORM_EXPORT HeapAllocator {
                                           const T* const* backing_slot,
                                           WeakCallback callback,
                                           const void* parameter) {
-    visitor->RegisterMovableReference(
-        const_cast<const HeapHashTableBacking<HashTable>**>(
-            reinterpret_cast<const HeapHashTableBacking<HashTable>* const*>(
-                backing_slot)));
+    if constexpr (internal::CompactionTraits<
+                      HeapHashTableBacking<HashTable>>::SupportsCompaction()) {
+      visitor->RegisterMovableReference(
+          const_cast<const HeapHashTableBacking<HashTable>**>(
+              reinterpret_cast<const HeapHashTableBacking<HashTable>* const*>(
+                  backing_slot)));
+    }
     visitor->TraceWeakContainer(
         reinterpret_cast<const HeapHashTableBacking<HashTable>*>(backing),
         callback, parameter);

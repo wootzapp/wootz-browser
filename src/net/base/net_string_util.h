@@ -6,8 +6,8 @@
 #define NET_BASE_NET_STRING_UTIL_H__
 
 #include <string>
+#include <string_view>
 
-#include "base/strings/string_piece.h"
 #include "net/base/net_export.h"
 
 // String conversion functions.  By default, they're implemented with ICU, but
@@ -43,8 +43,8 @@ bool ConvertToUTF16WithSubstitutions(std::string_view text,
 
 // Converts |str| to uppercase using the default locale, and writes it to
 // |output|. On failure returns false and |output| is cleared.
-NET_EXPORT_PRIVATE bool ToUpper(std::u16string_view str,
-                                std::u16string* output);
+NET_EXPORT_PRIVATE bool ToUpperUsingLocale(std::u16string_view str,
+                                           std::u16string* output);
 
 }  // namespace net
 

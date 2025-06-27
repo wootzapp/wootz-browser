@@ -31,10 +31,6 @@ namespace ash {
 
 class HoldingSpaceImage;
 
-namespace holding_space_metrics {
-enum class EventSource;
-}  // namespace holding_space_metrics
-
 // Contains data needed to display a single item in the holding space UI.
 class ASH_PUBLIC_EXPORT HoldingSpaceItem {
  public:
@@ -43,10 +39,9 @@ class ASH_PUBLIC_EXPORT HoldingSpaceItem {
   // secondary actions on the item's view itself.
   struct InProgressCommand {
    public:
-    using Handler = base::RepeatingCallback<void(
-        const HoldingSpaceItem* item,
-        HoldingSpaceCommandId command_id,
-        holding_space_metrics::EventSource event_source)>;
+    using Handler =
+        base::RepeatingCallback<void(const HoldingSpaceItem* item,
+                                     HoldingSpaceCommandId command_id)>;
 
     InProgressCommand(HoldingSpaceCommandId command_id,
                       int label_id,
@@ -86,17 +81,17 @@ class ASH_PUBLIC_EXPORT HoldingSpaceItem {
     kArcDownload = 5,
     kPrintedPdf = 6,
     kDiagnosticsLog = 7,
-    kLacrosDownload = 8,
+    // kLacrosDownload = 8, Deprecated.
     kScan = 9,
     kPhoneHubCameraRoll = 10,
     kDriveSuggestion = 11,
     kLocalSuggestion = 12,
     kScreenRecordingGif = 13,
-    kCameraAppPhoto = 14,
-    kCameraAppScanJpg = 15,
-    kCameraAppScanPdf = 16,
-    kCameraAppVideoGif = 17,
-    kCameraAppVideoMp4 = 18,
+    // kCameraAppPhoto = 14, Deprecated.
+    // kCameraAppScanJpg = 15, Deprecated.
+    // kCameraAppScanPdf = 16, Deprecated.
+    // kCameraAppVideoGif = 17, Deprecated.
+    // kCameraAppVideoMp4 = 18, Deprecated.
     kPhotoshopWeb = 19,
     kMaxValue = kPhotoshopWeb,
   };
@@ -125,9 +120,6 @@ class ASH_PUBLIC_EXPORT HoldingSpaceItem {
       const HoldingSpaceFile& file,
       const HoldingSpaceProgress& progress,
       ImageResolver image_resolver);
-
-  // Returns `true` if `type` is a Camera app type, `false` otherwise.
-  static bool IsCameraAppType(HoldingSpaceItem::Type type);
 
   // Returns `true` if `type` is a download type, `false` otherwise.
   static bool IsDownloadType(HoldingSpaceItem::Type type);

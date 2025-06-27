@@ -28,7 +28,7 @@ BackgroundLoaderContents::BackgroundLoaderContents(
   web_contents_->SetDelegate(this);
 }
 
-BackgroundLoaderContents::~BackgroundLoaderContents() {}
+BackgroundLoaderContents::~BackgroundLoaderContents() = default;
 
 void BackgroundLoaderContents::LoadPage(const GURL& url) {
   web_contents_->GetController().LoadURL(
@@ -54,7 +54,11 @@ bool BackgroundLoaderContents::IsNeverComposited(
 
 void BackgroundLoaderContents::CloseContents(content::WebContents* source) {
   // Do nothing. Other pages should not be able to close a background page.
-  NOTREACHED_IN_MIGRATION();
+  //
+  // TODO(crbug.com/374382473): This used to be NOTREACHED() but is reachable as
+  // of 2024-11-20. It should either be made not reachable (and the NOTREACHED()
+  // added back) or document why this should be reachable (as opposed to the
+  // "should not be able to close" in the comment above).
 }
 
 bool BackgroundLoaderContents::ShouldSuppressDialogs(
@@ -91,7 +95,7 @@ bool BackgroundLoaderContents::IsWebContentsCreationOverridden(
   return true;
 }
 
-void BackgroundLoaderContents::AddNewContents(
+content::WebContents* BackgroundLoaderContents::AddNewContents(
     content::WebContents* source,
     std::unique_ptr<content::WebContents> new_contents,
     const GURL& target_url,
@@ -101,8 +105,10 @@ void BackgroundLoaderContents::AddNewContents(
     bool* was_blocked) {
   // Pop-ups should be blocked;
   // background pages should not create other contents
-  if (was_blocked != nullptr)
+  if (was_blocked != nullptr) {
     *was_blocked = true;
+  }
+  return nullptr;
 }
 
 #if BUILDFLAG(IS_ANDROID)

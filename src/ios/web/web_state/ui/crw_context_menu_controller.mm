@@ -4,6 +4,7 @@
 
 #import "ios/web/web_state/ui/crw_context_menu_controller.h"
 
+#import "base/auto_reset.h"
 #import "base/values.h"
 #import "ios/web/common/crw_viewport_adjustment.h"
 #import "ios/web/common/crw_viewport_adjustment_container.h"
@@ -45,18 +46,25 @@ void __attribute__((noinline)) ContextMenuNestedCFRunLoop() {
 
 @end
 
-@implementation CRWContextMenuController
+@implementation CRWContextMenuController {
+  // Whether params are already being fetched.
+  BOOL _fetchingParams;
+}
 
 @synthesize screenshotView = _screenshotView;
 
 - (instancetype)initWithWebView:(WKWebView*)webView
-                       webState:(web::WebState*)webState {
+                       webState:(web::WebState*)webState
+                  containerView:(UIView*)containerView {
   self = [super init];
   if (self) {
     _contextMenu = [[UIContextMenuInteraction alloc] initWithDelegate:self];
 
     _webView = webView;
-    [webView addInteraction:_contextMenu];
+
+    // Do not add the interaction to the WKWebView itself as this may interfer
+    // with the JS touch event. see crbug/351696381.
+    [containerView addInteraction:_contextMenu];
 
     _webState = webState;
 
@@ -172,7 +180,8 @@ void __attribute__((noinline)) ContextMenuNestedCFRunLoop() {
     willPerformPreviewActionForMenuWithConfiguration:
         (UIContextMenuConfiguration*)configuration
                                             animator:
-        (id<UIContextMenuInteractionCommitAnimating>)animator {
+                                                (id<UIContextMenuInteractionCommitAnimating>)
+                                                    animator {
   if (self.webState && self.webState->GetDelegate()) {
     self.webState->GetDelegate()->ContextMenuWillCommitWithAnimator(
         self.webState, animator);
@@ -211,6 +220,14 @@ void __attribute__((noinline)) ContextMenuNestedCFRunLoop() {
 // returned params can be empty.
 - (std::optional<web::ContextMenuParams>)fetchContextMenuParamsAtLocation:
     (CGPoint)locationInWebView {
+  if (_fetchingParams) {
+    // Fetching params is done synchronously and spins the runloop, so it is
+    // possible that a second context menu is triggered.
+    // Add a guard to avoid this.
+    return std::nullopt;
+  }
+  base::AutoReset<BOOL> reentrancyGuard(&_fetchingParams, YES);
+
   // While traditionally using dispatch_async would be used here, we have to
   // instead use CFRunLoop because dispatch_async blocks the thread. As this
   // function is called by iOS when it detects the user's force touch, it is on

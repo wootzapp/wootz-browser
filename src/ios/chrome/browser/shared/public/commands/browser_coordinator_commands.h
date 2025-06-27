@@ -8,6 +8,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+namespace base {
+class ScopedClosureRunner;
+}
 @protocol BadgeItem;
 class GURL;
 
@@ -32,14 +35,6 @@ class GURL;
 // Shows the Reading List UI.
 - (void)showReadingList;
 
-// Shows an IPH pointing to where the Follow entry point is, if
-// applicable.
-- (void)showFollowWhileBrowsingIPH;
-
-// Shows an IPH to explain to the user how to change the default site view, if
-// applicable.
-- (void)showDefaultSiteViewIPH;
-
 // Shows bookmarks manager.
 - (void)showBookmarksManager;
 
@@ -63,11 +58,8 @@ class GURL;
 - (void)showHelpPage;
 
 // Shows the activity indicator overlay that appears over the view to prevent
-// interaction with the web page.
-- (void)showActivityOverlay;
-
-// Hides the activity indicator overlay.
-- (void)hideActivityOverlay;
+// interaction with the web page until the returned value is destructed.
+- (base::ScopedClosureRunner)showActivityOverlay;
 
 #if !defined(NDEBUG)
 // Inserts a new tab showing the HTML source of the current page.
@@ -82,15 +74,6 @@ class GURL;
 // TODO(crbug.com/40806293): Refactor this command away; call sites should close
 // via the WebStateList.
 - (void)closeCurrentTab;
-
-// Shows what's new.
-- (void)showWhatsNew;
-
-// Dismisses what's new.
-- (void)dismissWhatsNew;
-
-// Shows what's new IPH.
-- (void)showWhatsNewIPH;
 
 // Shows the spotlight debugger.
 - (void)showSpotlightDebugger;
@@ -118,6 +101,17 @@ class GURL;
 
 // Dismisses the omnibox position choice screen.
 - (void)dismissOmniboxPositionChoice;
+
+// Shows and dismisses the Lens Promo.
+- (void)showLensPromo;
+- (void)dismissLensPromo;
+
+// Shows and dismisses the Enhanced Safe Browsing Promo.
+- (void)showEnhancedSafeBrowsingPromo;
+- (void)dismissEnhancedSafeBrowsingPromo;
+
+// Shows the page action menu.
+- (void)showPageActionMenu;
 
 @end
 

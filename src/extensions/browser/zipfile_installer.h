@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
@@ -20,7 +21,7 @@
 
 namespace extensions {
 
-using ZipResultVariant = absl::variant<base::FilePath, std::string>;
+using ZipResultVariant = std::variant<base::FilePath, std::string>;
 
 // ZipFileInstaller unzips an extension safely using the Unzipper and
 // SafeJSONParser services.
@@ -42,9 +43,6 @@ class ZipFileInstaller : public base::RefCountedThreadSafe<ZipFileInstaller> {
   static scoped_refptr<ZipFileInstaller> Create(
       const scoped_refptr<base::SequencedTaskRunner>& io_task_runner,
       DoneCallback done_callback);
-
-  // Creates a temporary directory and unzips the extension in it.
-  void InstallZipFileToTempDir(const base::FilePath& zip_file);
 
   // First attempts to create `unpacked_extensions_dir` and does not load the
   // extension if unsuccessful. If successful, then unzips the extension into a

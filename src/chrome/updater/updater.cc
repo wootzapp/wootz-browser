@@ -4,6 +4,7 @@
 
 #include "chrome/updater/updater.h"
 
+#include <algorithm>
 #include <iterator>
 
 #include "base/at_exit.h"
@@ -15,7 +16,6 @@
 #include "base/logging.h"
 #include "base/process/memory.h"
 #include "base/process/process_handle.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
 #include "base/task/single_thread_task_executor.h"
@@ -24,6 +24,7 @@
 #include "build/build_config.h"
 #include "chrome/updater/app/app.h"
 #include "chrome/updater/app/app_install.h"
+#include "chrome/updater/app/app_net_worker.h"
 #include "chrome/updater/app/app_recover.h"
 #include "chrome/updater/app/app_server.h"
 #include "chrome/updater/app/app_uninstall.h"
@@ -35,6 +36,7 @@
 #include "chrome/updater/constants.h"
 #include "chrome/updater/crash_client.h"
 #include "chrome/updater/crash_reporter.h"
+#include "chrome/updater/ipc/ipc_support.h"
 #include "chrome/updater/update_usage_stats_task.h"
 #include "chrome/updater/updater_scope.h"
 #include "chrome/updater/updater_version.h"
@@ -44,16 +46,12 @@
 #include "third_party/crashpad/crashpad/client/crash_report_database.h"
 #include "third_party/crashpad/crashpad/client/settings.h"
 
-#if BUILDFLAG(IS_POSIX)
-#include "chrome/updater/ipc/ipc_support.h"
-#endif
-
 #if BUILDFLAG(IS_WIN)
 #include "base/debug/alias.h"
 #include "base/win/process_startup_helper.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/windows_version.h"
-#include "chrome/updater/app/server/win/service_main.h"
+#include "chrome/updater/app/server/win/updater_service_delegate.h"
 #include "chrome/updater/util/win_util.h"
 #endif
 
@@ -81,23 +79,14 @@ void ReinitializeLoggingAfterCrashHandler(UpdaterScope updater_scope) {
   InitLogging(updater_scope);
 }
 
-void InitializeCrashKeys(const base::CommandLine& command_line) {
-  crash_reporter::InitializeCrashKeys();
-  static crash_reporter::CrashKeyString<16> crash_key_process_type(
-      "process_type");
-  crash_key_process_type.Set("updater");
-  crash_keys::SetSwitchesFromCommandLine(command_line, nullptr);
-}
-
 void InitializeCrashReporting(UpdaterScope updater_scope) {
   if (!CrashClient::GetInstance()->InitializeCrashReporting(updater_scope)) {
     VLOG(1) << "Crash reporting is not available.";
     return;
   }
-  if (AreRawUsageStatsEnabled(updater_scope)) {
-    CrashClient::GetInstance()->database()->GetSettings()->SetUploadsEnabled(
-        true);
-  }
+  crash_reporter::InitializeCrashKeys();
+  crash_keys::SetSwitchesFromCommandLine(
+      *base::CommandLine::ForCurrentProcess(), nullptr);
   VLOG(1) << "Crash reporting initialized.";
 }
 
@@ -125,6 +114,7 @@ int HandleUpdaterCommands(UpdaterScope updater_scope,
   // Make the process more resilient to memory allocation issues.
   base::EnableTerminationOnHeapCorruption();
   base::EnableTerminationOnOutOfMemory();
+  logging::RegisterAbslAbortHook();
 
   InitializeThreadPool("updater");
   const base::ScopedClosureRunner shutdown_thread_pool(base::BindOnce([] {
@@ -159,12 +149,10 @@ int HandleUpdaterCommands(UpdaterScope updater_scope,
   // and reports the crash.
   CHECK(!command_line->HasSwitch(kCrashMeSwitch)) << "--crash-me was used.";
 
-#if BUILDFLAG(IS_POSIX)
   // As long as this object is alive, all Mojo API surface relevant to IPC
   // connections is usable, and message pipes which span a process boundary will
   // continue to function.
   ScopedIPCSupportWrapper ipc_support;
-#endif
 
   // Only tasks and timers are supported on the main sequence.
   base::SingleThreadTaskExecutor main_task_executor;
@@ -184,7 +172,7 @@ int HandleUpdaterCommands(UpdaterScope updater_scope,
 
 #if BUILDFLAG(IS_WIN)
   if (command_line->HasSwitch(kWindowsServiceSwitch)) {
-    return ServiceMain::RunWindowsService(command_line);
+    return UpdaterServiceDelegate::RunWindowsService();
   }
 
   if (command_line->HasSwitch(kHealthCheckSwitch)) {
@@ -214,6 +202,12 @@ int HandleUpdaterCommands(UpdaterScope updater_scope,
     return MakeAppWakeAll()->Run();
   }
 
+#if BUILDFLAG(IS_MAC)
+  if (command_line->HasSwitch(kNetWorkerSwitch)) {
+    return MakeAppNetWorker()->Run();
+  }
+#endif  // BUILDFLAG(IS_MAC)
+
   VLOG(1) << "Unknown command line switch.";
   return kErrorUnknownCommandLine;
 }
@@ -238,8 +232,9 @@ const char* GetUpdaterCommand(const base::CommandLine* command_line) {
       kWakeAllSwitch,
       kHealthCheckSwitch,
       kHandoffSwitch,
+      kNetWorkerSwitch,
   };
-  const auto it = base::ranges::find_if(commands, [command_line](auto cmd) {
+  const auto it = std::ranges::find_if(commands, [command_line](auto cmd) {
     return command_line->HasSwitch(cmd);
   });
   // Return the command. As a workaround for recovery component invocations
@@ -259,10 +254,12 @@ constexpr const char* BuildFlavor() {
 }
 
 constexpr const char* BuildArch() {
-#if defined(ARCH_CPU_64_BITS)
-  return "64 bits";
-#elif defined(ARCH_CPU_32_BITS)
-  return "32 bits";
+#if defined(ARCH_CPU_ARM64)
+  return "64 bit (ARM)";
+#elif defined(ARCH_CPU_X86_64)
+  return "64 bit (x64)";
+#elif defined(ARCH_CPU_X86)
+  return "32 bit (x86)";
 #else
 #error CPU architecture is unknown.
 #endif
@@ -295,8 +292,8 @@ void EnableLoggingByDefault() {
     command_line->AppendSwitch(kEnableLoggingSwitch);
   }
   if (!command_line->HasSwitch(kLoggingModuleSwitch)) {
-    command_line->AppendSwitchASCII(kLoggingModuleSwitch,
-                                    kLoggingModuleSwitchValue);
+    command_line->AppendSwitchUTF8(kLoggingModuleSwitch,
+                                   kLoggingModuleSwitchValue);
   }
 }
 
@@ -317,7 +314,6 @@ int UpdaterMain(int argc, const char* const* argv) {
   *command_line = GetCommandLineLegacyCompatible();
 #endif
   EnableLoggingByDefault();
-  InitializeCrashKeys(*command_line);
   const UpdaterScope updater_scope = GetUpdaterScope();
   InitLogging(updater_scope);
   VLOG(1) << "Version: " << kUpdaterVersion << ", " << BuildFlavor() << ", "

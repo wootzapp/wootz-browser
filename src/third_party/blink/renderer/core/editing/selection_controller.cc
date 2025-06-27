@@ -34,7 +34,6 @@
 #include "third_party/blink/public/platform/web_input_event_result.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/editing/bidi_adjustment.h"
 #include "third_party/blink/renderer/core/editing/editing_behavior.h"
 #include "third_party/blink/renderer/core/editing/editing_boundary.h"
@@ -61,6 +60,7 @@
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "ui/gfx/geometry/point_conversions.h"
 
 namespace blink {
@@ -237,16 +237,9 @@ SelectionInFlatTree AdjustSelectionByUserSelect(
     }
   }
 
-  if (RuntimeEnabledFeatures::AvoidCaretVisibleSelectionAdjusterEnabled()) {
-    return SelectionInFlatTree::Builder()
-        .SetBaseAndExtent(new_start_pos, new_end_pos)
-        .Build();
-  } else {
-    return SelectionInFlatTree::Builder()
-        .SetBaseAndExtent(MostBackwardCaretPosition(new_start_pos),
-                          MostForwardCaretPosition(new_end_pos))
-        .Build();
-  }
+  return SelectionInFlatTree::Builder()
+      .SetBaseAndExtent(new_start_pos, new_end_pos)
+      .Build();
 }
 
 SelectionController::~SelectionController() = default;
@@ -670,7 +663,7 @@ WebInputEventResult SelectionController::UpdateSelectionForMouseDrag(
     return WebInputEventResult::kNotHandled;
   }
   const bool selection_is_directional =
-      should_extend_selection ? Selection().IsDirectional() : false;
+      should_extend_selection && Selection().IsDirectional();
   SetNonDirectionalSelectionIfNeeded(
       new_visible_selection,
       SetSelectionOptions::Builder()
@@ -1279,8 +1272,10 @@ bool SelectionController::HandleGestureLongPress(
 
   if (!Selection().IsAvailable())
     return false;
-  if (hit_test_result.IsLiveLink())
+  if (!RuntimeEnabledFeatures::LongPressLinkSelectTextEnabled() &&
+      hit_test_result.IsLiveLink()) {
     return false;
+  }
 
   Node* inner_node = hit_test_result.InnerPossiblyPseudoNode();
   inner_node->GetDocument().UpdateStyleAndLayoutTree();
@@ -1451,11 +1446,13 @@ bool IsUserNodeDraggable(const MouseEventWithHitTestResults& event) {
   // tests WebFrameTest.FrameWidgetTest and WebViewTest.ClientTapHandling fail
   // without a nullptr check, as they don't set the InnerNode() appropriately.
   // Remove the if statement nullptr check when those tests are fixed.
-  if (!inner_node)
+  if (!inner_node) {
     return false;
+  }
 
-  const ComputedStyle* kStyle = inner_node->GetComputedStyle();
-  return kStyle && kStyle->UserDrag() == EUserDrag::kElement;
+  const ComputedStyle* style =
+      GetComputedStyleForElementOrLayoutObject(*inner_node);
+  return style && style->UserDrag() == EUserDrag::kElement;
 }
 
 bool IsExtendingSelection(const MouseEventWithHitTestResults& event) {

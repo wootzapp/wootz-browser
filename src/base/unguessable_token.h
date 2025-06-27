@@ -7,14 +7,15 @@
 
 #include <stdint.h>
 #include <string.h>
+
 #include <compare>
 #include <iosfwd>
-#include <tuple>
+#include <string_view>
+#include <utility>
 
 #include "base/base_export.h"
 #include "base/check.h"
 #include "base/containers/span.h"
-#include "base/strings/string_piece.h"
 #include "base/token.h"
 
 namespace base {
@@ -74,7 +75,7 @@ class BASE_EXPORT UnguessableToken {
   // the given string does not represent a valid serialized `UnguessableToken`.
   // This should be handled as a security issue.
   static std::optional<UnguessableToken> DeserializeFromString(
-      StringPiece string_representation);
+      std::string_view string_representation);
 
   // Creates an empty UnguessableToken.
   // Assign to it with Create() before using it.
@@ -112,6 +113,11 @@ class BASE_EXPORT UnguessableToken {
   // operator== uses constant-time comparison for security where available.
   friend BASE_EXPORT bool operator==(const UnguessableToken& lhs,
                                      const UnguessableToken& rhs);
+
+  template <typename H>
+  friend H AbslHashValue(H h, const UnguessableToken& token) {
+    return H::combine(std::move(h), token.token_);
+  }
 
 #if defined(UNIT_TEST)
   static UnguessableToken CreateForTesting(uint64_t high, uint64_t low) {

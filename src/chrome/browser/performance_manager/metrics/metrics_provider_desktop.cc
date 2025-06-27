@@ -6,11 +6,17 @@
 
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/power_monitor/cpu_frequency_utils.h"
 #include "base/process/process_metrics.h"
 #include "base/system/sys_info.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/task/thread_pool.h"
 #include "base/timer/timer.h"
+#include "base/trace_event/base_tracing.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "components/performance_manager/public/user_tuning/prefs.h"
 #include "components/prefs/pref_service.h"
 #include "ui/accessibility/ax_mode.h"
@@ -27,9 +33,172 @@ MetricsProviderDesktop* g_metrics_provider = nullptr;
 
 uint64_t kBytesPerMb = 1024 * 1024;
 
-#if BUILDFLAG(IS_MAC)
-uint64_t kKilobytesPerMb = 1024;
-#endif
+#if SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
+enum class CpuThroughputEstimatedStatus {
+  kNormal,
+  kUnknown,
+  kThrottled,
+  kDescheduled,
+  kMigrated,
+};
+
+CpuThroughputEstimatedStatus EstimateCpuThroughputStatus(
+    bool migrated,
+    std::optional<double> cpu_frequency_percent,
+    std::optional<double> thread_time_percent,
+    base::TimeDelta queued_time) {
+  if (migrated) {
+    // If the task migrated from one CPU to the other, report the status as
+    // such. It's not relevant to check the thread time % in this instance,
+    // since a migrated task has by definition been descheduled. Likewise,
+    // checking the estimate vs nominal frequencies is also irrelevant, since
+    // the frequency of the original and migrated cores might be different.
+    return CpuThroughputEstimatedStatus::kMigrated;
+  }
+
+  if (!thread_time_percent) {
+    return CpuThroughputEstimatedStatus::kUnknown;
+  } else if (*thread_time_percent < 75.0) {
+    // If the task is actually running for only 75% of its wall time or less, we
+    // report it as having been descheduled
+    return CpuThroughputEstimatedStatus::kDescheduled;
+  }
+
+  if (!cpu_frequency_percent) {
+    return CpuThroughputEstimatedStatus::kUnknown;
+  } else if (*cpu_frequency_percent < 75.0) {
+    // If the task had a thread time close to its wall time, but we estimate its
+    // CPU frequency as 75% of nominal or less, we report the CPU as being
+    // throttled.
+    return CpuThroughputEstimatedStatus::kThrottled;
+  }
+
+  return CpuThroughputEstimatedStatus::kNormal;
+}
+
+constexpr char kCpuEstimationEventCategory[] = "power";
+constexpr char kCpuEstimationEvent[] = "CpuStatusSampling";
+
+constexpr char kCpuEstimationStatusNormalEvent[] =
+    "CpuStatusSampling.Status.Normal";
+constexpr char kCpuEstimationStatusUnknownEvent[] =
+    "CpuStatusSampling.Status.Unknown";
+constexpr char kCpuEstimationStatusThrottledEvent[] =
+    "CpuStatusSampling.Status.Throttled";
+constexpr char kCpuEstimationStatusDescheduledEvent[] =
+    "CpuStatusSampling.Status.Descheduled";
+constexpr char kCpuEstimationStatusMigratedEvent[] =
+    "CpuStatusSampling.Status.Migrated";
+
+constexpr char kCpuEstimationQueuedEvent[] = "CpuStatusSampling.Queued";
+constexpr char kCpuEstimationRunningEvent[] = "CpuStatusSampling.Running";
+constexpr char kCpuEstimationThreadTimeEvent[] = "CpuStatusSampling.ThreadTime";
+constexpr char kCpuEstimationDescheduledEvent[] =
+    "CpuStatusSampling.Descheduled";
+
+// This function emits trace events related to the status of the CPU throughput
+// estimation task. In a trace, these events might look like this (where CSS is
+// CpuStatusSampling):
+//
+// +-----------------------------------------------+
+// |               CpuStatusSampling               |
+// +-----------------------------------------------+
+// |          CSS.Status.{estimated_status}        |
+// +------------+----------------------------------+
+// | CSS.Queued |          CSS.Running             |
+// +------------+----------------+-----------------+
+//              | CSS.ThreadTime | CSS.Descheduled |
+//              +----------------+-----------------+
+//
+// CpuStatusSampling.Status.{estimated_status} will reflect what the estimation
+// code thinks the status of the CPU is, between Normal, Unknown, Throttled,
+// Descheduled, Migrated.
+//
+// CpuStatusSampling.Queued is the time between when the estimation task was
+// posted and when it started running.
+//
+// CpuStatusSampling.Running is the time between when the task started running
+// and when it finished
+//
+// CpuStatusSampling.ThreadTime is the CPU time of the running task
+//
+// CpuStatusSampling.Descheduled is the wall time the task spent off-cpu
+void EmitCpuStatusSamplingTraceEvents(base::TimeTicks posted_at_time,
+                                      base::TimeTicks started_running_time,
+                                      base::TimeDelta thread_time,
+                                      base::TimeDelta wall_time,
+                                      CpuThroughputEstimatedStatus status) {
+  void* id = g_metrics_provider;
+
+  base::TimeTicks end_time = started_running_time + wall_time;
+
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationEvent, TRACE_ID_LOCAL(id),
+      posted_at_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(kCpuEstimationEventCategory,
+                                                 kCpuEstimationEvent,
+                                                 TRACE_ID_LOCAL(id), end_time);
+
+  const char* selected;
+  switch (status) {
+    case CpuThroughputEstimatedStatus::kNormal:
+      selected = kCpuEstimationStatusNormalEvent;
+      break;
+
+    case CpuThroughputEstimatedStatus::kUnknown:
+      selected = kCpuEstimationStatusUnknownEvent;
+      break;
+
+    case CpuThroughputEstimatedStatus::kThrottled:
+      selected = kCpuEstimationStatusThrottledEvent;
+      break;
+
+    case CpuThroughputEstimatedStatus::kDescheduled:
+      selected = kCpuEstimationStatusDescheduledEvent;
+      break;
+
+    case CpuThroughputEstimatedStatus::kMigrated:
+      selected = kCpuEstimationStatusMigratedEvent;
+      break;
+  }
+
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(kCpuEstimationEventCategory,
+                                                   selected, TRACE_ID_LOCAL(id),
+                                                   posted_at_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, selected, TRACE_ID_LOCAL(id), end_time);
+
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationQueuedEvent,
+      TRACE_ID_LOCAL(id), posted_at_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationQueuedEvent,
+      TRACE_ID_LOCAL(id), started_running_time);
+
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationRunningEvent,
+      TRACE_ID_LOCAL(id), started_running_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(kCpuEstimationEventCategory,
+                                                 kCpuEstimationRunningEvent,
+                                                 TRACE_ID_LOCAL(id), end_time);
+
+  // Emit a block for the running thread time
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationThreadTimeEvent,
+      TRACE_ID_LOCAL(id), started_running_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationThreadTimeEvent,
+      TRACE_ID_LOCAL(id), started_running_time + thread_time);
+
+  // And then one of the wall time spent descheduled
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationDescheduledEvent,
+      TRACE_ID_LOCAL(id), started_running_time + thread_time);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
+      kCpuEstimationEventCategory, kCpuEstimationDescheduledEvent,
+      TRACE_ID_LOCAL(id), started_running_time + wall_time);
+}
+#endif  // SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
 
 }  // namespace
 
@@ -149,6 +318,8 @@ void MetricsProviderDesktop::Initialize() {
   current_mode_ = ComputeCurrentMode();
 
   ResetTrackers();
+
+  PostDiskMetricsTask();
 }
 
 void MetricsProviderDesktop::ProvideCurrentSessionData(
@@ -168,24 +339,23 @@ void MetricsProviderDesktop::ProvideCurrentSessionData(
   // that this mode is what is adequately reported at the next report, unless it
   // changes in the meantime.
   current_mode_ = ComputeCurrentMode();
+
+  RecordDiskMetrics();
+
+  // Request a disk measurement so it's ready for the next interval
+  PostDiskMetricsTask();
 }
 
 MetricsProviderDesktop::MetricsProviderDesktop(PrefService* local_state)
-    : local_state_(local_state) {
+    : local_state_(local_state),
+      disk_metrics_getter_(
+          base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()})) {
   DCHECK(!g_metrics_provider);
   g_metrics_provider = this;
 
-  available_memory_metrics_timer_.Start(
-      FROM_HERE, base::Minutes(2),
-      base::BindRepeating(&MetricsProviderDesktop::RecordAvailableMemoryMetrics,
-                          base::Unretained(this)));
-
-  if constexpr (ShouldCollectCpuFrequencyMetrics()) {
-    cpu_frequency_metrics_timer_.Start(
-        FROM_HERE, base::Minutes(5),
-        base::BindRepeating(&MetricsProviderDesktop::RecordCpuFrequencyMetrics,
-                            base::Unretained(this)));
-  }
+#if SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
+  ScheduleCpuFrequencyTask();
+#endif  // SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
 }
 
 void MetricsProviderDesktop::OnBatterySaverActiveChanged(bool is_active) {
@@ -246,30 +416,6 @@ bool MetricsProviderDesktop::IsMemorySaverEnabled() const {
          static_cast<int>(MemorySaverModeState::kDisabled);
 }
 
-void MetricsProviderDesktop::RecordAvailableMemoryMetrics() {
-  auto available_bytes = base::SysInfo::AmountOfAvailablePhysicalMemory();
-  auto total_bytes = base::SysInfo::AmountOfPhysicalMemory();
-
-  base::UmaHistogramMemoryLargeMB("Memory.Experimental.AvailableMemoryMB",
-                                  available_bytes / kBytesPerMb);
-  base::UmaHistogramPercentage("Memory.Experimental.AvailableMemoryPercent",
-                               available_bytes * 100 / total_bytes);
-
-#if BUILDFLAG(IS_MAC)
-  base::SystemMemoryInfoKB info;
-  if (base::GetSystemMemoryInfo(&info)) {
-    base::UmaHistogramMemoryLargeMB(
-        "Memory.Experimental.MacFileBackedMemoryMB2",
-        info.file_backed / kKilobytesPerMb);
-    // `info.file_backed` is in kb, so multiply it by 1024 to get the amount of
-    // bytes
-    base::UmaHistogramPercentage(
-        "Memory.Experimental.MacAvailableMemoryPercentFreePageCache2",
-        (available_bytes + (info.file_backed * 1024)) * 100 / total_bytes);
-  }
-#endif
-}
-
 void MetricsProviderDesktop::ResetTrackers() {
   battery_saver_mode_tracker_ = std::make_unique<ScopedTimeInModeTracker>(
       battery_saver_enabled_,
@@ -279,8 +425,12 @@ void MetricsProviderDesktop::ResetTrackers() {
       "PerformanceManager.UserTuning.MemorySaverModeEnabledPercent");
 }
 
-void MetricsProviderDesktop::RecordCpuFrequencyMetrics() {
-  CHECK(ShouldCollectCpuFrequencyMetrics());
+#if SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
+// static
+void MetricsProviderDesktop::RecordCpuFrequencyMetrics(
+    base::TimeTicks posted_at_time) {
+  auto started_running_time = base::TimeTicks::Now();
+  auto queued_time = started_running_time - posted_at_time;
 
   static const double kHzInMhz = 1000 * 1000;
 
@@ -292,38 +442,167 @@ void MetricsProviderDesktop::RecordCpuFrequencyMetrics() {
     return;
   }
 
-  if (cpu_throughput->migrated) {
-    // Don't record these metrics if the code migrated from one CPU to another
-    // in the middle of the estimation loop.
+  std::string_view core_type_suffix = "Performance";
+  if (cpu_frequency_info.type == base::CpuFrequencyInfo::CoreType::kBalanced) {
+    core_type_suffix = "Balanced";
+  } else if (cpu_frequency_info.type ==
+             base::CpuFrequencyInfo::CoreType::kEfficiency) {
+    core_type_suffix = "Efficiency";
+  }
+
+  base::UmaHistogramCustomMicrosecondsTimes(
+      base::StrCat(
+          {"CPU.Experimental.CpuEstimationTaskQueuedTime.", core_type_suffix}),
+      queued_time, base::Microseconds(1), base::Seconds(1), 50);
+
+  base::UmaHistogramCustomMicrosecondsTimes(
+      base::StrCat(
+          {"CPU.Experimental.CpuEstimationTaskTotalTime.", core_type_suffix}),
+      queued_time + cpu_throughput->wall_time, base::Microseconds(1),
+      base::Seconds(1), 50);
+
+  base::UmaHistogramCustomMicrosecondsTimes(
+      base::StrCat(
+          {"CPU.Experimental.CpuEstimationTaskThreadTime.", core_type_suffix}),
+      cpu_throughput->thread_time, base::Microseconds(1), base::Seconds(1), 50);
+
+  base::UmaHistogramCustomMicrosecondsTimes(
+      base::StrCat(
+          {"CPU.Experimental.CpuEstimationTaskWallTime.", core_type_suffix}),
+      cpu_throughput->wall_time, base::Microseconds(1), base::Seconds(1), 50);
+
+  base::UmaHistogramBoolean("CPU.Experimental.CpuEstimationTaskMigrated",
+                            cpu_throughput->migrated);
+
+  std::optional<double> cpu_frequency_percent = std::nullopt;
+  if (!cpu_throughput->migrated) {
+    // Don't record frequency metrics if the code migrated from one CPU to
+    // another in the middle of the estimation loop. This is because the nominal
+    // frequency of the start and end cores might be different.
+
+    double estimated_mhz = cpu_throughput->estimated_frequency / kHzInMhz;
+
+    // Max/Limit can (rarely) be 0 in the field, perhaps in virtualized or
+    // sandboxed environments.
+    if (cpu_frequency_info.max_mhz > 0UL) {
+      cpu_frequency_percent = estimated_mhz * 100.0 /
+                              static_cast<double>(cpu_frequency_info.max_mhz);
+
+      base::UmaHistogramPercentage(
+          base::StrCat({"CPU.Experimental.EstimatedFrequencyAsPercentOfMax.",
+                        core_type_suffix}),
+          static_cast<int>(*cpu_frequency_percent));
+    }
+
+    if (cpu_frequency_info.mhz_limit > 0UL) {
+      base::UmaHistogramPercentage(
+          base::StrCat({"CPU.Experimental.EstimatedFrequencyAsPercentOfLimit.",
+                        core_type_suffix}),
+          static_cast<int>(estimated_mhz * 100.0 /
+                           static_cast<double>(cpu_frequency_info.mhz_limit)));
+    }
+  }
+
+  // These can be 0 in tests
+  if (!cpu_throughput->thread_time.is_zero() &&
+      !cpu_throughput->wall_time.is_zero()) {
+    std::optional<double> thread_time_percent =
+        cpu_throughput->thread_time / cpu_throughput->wall_time * 100.0;
+    base::UmaHistogramPercentage(
+        base::StrCat({"CPU.Experimental.CpuEstimationThreadTimePercent.",
+                      core_type_suffix}),
+        static_cast<int>(*thread_time_percent));
+
+    CpuThroughputEstimatedStatus status = EstimateCpuThroughputStatus(
+        cpu_throughput->migrated, cpu_frequency_percent, thread_time_percent,
+        queued_time);
+    EmitCpuStatusSamplingTraceEvents(posted_at_time, started_running_time,
+                                     cpu_throughput->thread_time,
+                                     cpu_throughput->wall_time, status);
+  }
+
+  ScheduleCpuFrequencyTask();
+}
+
+// static
+void MetricsProviderDesktop::ScheduleCpuFrequencyTask() {
+  static constexpr base::TimeDelta kCpuThroughputSamplingInterval =
+      base::Minutes(5);
+  base::ThreadPool::PostDelayedTask(
+      FROM_HERE,
+      {base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
+      base::BindOnce(&MetricsProviderDesktop::PostCpuFrequencyEstimation),
+      kCpuThroughputSamplingInterval);
+}
+
+// static
+void MetricsProviderDesktop::PostCpuFrequencyEstimation() {
+  base::ThreadPool::PostTask(
+      FROM_HERE,
+      {base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
+      base::BindOnce(&MetricsProviderDesktop::RecordCpuFrequencyMetrics,
+                     base::TimeTicks::Now()));
+}
+#endif  // SHOULD_COLLECT_CPU_FREQUENCY_METRICS()
+
+void MetricsProviderDesktop::RecordDiskMetrics() {
+  if (!pending_disk_metrics_) {
+    // The measurements aren't ready yet, don't report anything.
     return;
   }
 
-  double estimated_mhz = cpu_throughput->estimated_frequency / kHzInMhz;
-
-  std::string_view suffix = "Performance";
-  if (cpu_frequency_info.type == base::CpuFrequencyInfo::CoreType::kBalanced) {
-    suffix = "Balanced";
-  } else if (cpu_frequency_info.type ==
-             base::CpuFrequencyInfo::CoreType::kEfficiency) {
-    suffix = "Efficiency";
+  if (pending_disk_metrics_->free_bytes == -1 ||
+      pending_disk_metrics_->total_bytes == -1) {
+    return;
   }
 
-  // Max/Limit can (rarely) be 0 in the field, perhaps in virtualized or
-  // sandboxed environments.
-  if (cpu_frequency_info.max_mhz > 0UL) {
-    base::UmaHistogramPercentage(
-        base::StrCat(
-            {"CPU.Experimental.EstimatedFrequencyAsPercentOfMax.", suffix}),
-        static_cast<int>(estimated_mhz * 100.0 /
-                         static_cast<double>(cpu_frequency_info.max_mhz)));
-  }
+  base::UmaHistogramCustomCounts(
+      "PerformanceManager.DiskStats.UserDataDirFreeSpaceMb",
+      pending_disk_metrics_->free_bytes /
+          kBytesPerMb,  // space_info is bytes, convert to Mb
+      0, 10240,  // It's fine to bucket everything >10Gb as "large enough"
+      100);
+  // Also report as a percentage of capacity
+  base::UmaHistogramPercentage(
+      "PerformanceManager.DiskStats.UserDataDirFreeSpacePercent",
+      pending_disk_metrics_->free_bytes * 100 /
+          pending_disk_metrics_->total_bytes);
 
-  if (cpu_frequency_info.mhz_limit > 0UL) {
-    base::UmaHistogramPercentage(
-        base::StrCat(
-            {"CPU.Experimental.EstimatedFrequencyAsPercentOfLimit.", suffix}),
-        static_cast<int>(estimated_mhz * 100.0 /
-                         static_cast<double>(cpu_frequency_info.mhz_limit)));
-  }
+  pending_disk_metrics_ = std::nullopt;
 }
+
+void MetricsProviderDesktop::PostDiskMetricsTask() {
+  if (!g_browser_process || !g_browser_process->profile_manager()) {
+    // It's possible to have a null browser process or a null profile manager in
+    // unit tests.
+    return;
+  }
+
+  // Records the free/available space on the disk that hosts the user data dir.
+  ProfileManager* profile_manager = g_browser_process->profile_manager();
+  const base::FilePath& user_data_dir = profile_manager->user_data_dir();
+
+  disk_metrics_getter_
+      .AsyncCall(&MetricsProviderDesktop::DiskMetricsThreadPoolGetter::
+                     ComputeDiskMetrics)
+      .WithArgs(user_data_dir)
+      .Then(base::BindOnce(&MetricsProviderDesktop::SavePendingDiskMetrics,
+                           base::Unretained(this)));
+}
+
+MetricsProviderDesktop::DiskMetrics
+MetricsProviderDesktop::DiskMetricsThreadPoolGetter::ComputeDiskMetrics(
+    const base::FilePath& user_data_dir) {
+  return {
+      .free_bytes = base::SysInfo::AmountOfFreeDiskSpace(user_data_dir),
+      .total_bytes = base::SysInfo::AmountOfTotalDiskSpace(user_data_dir),
+  };
+}
+
+void MetricsProviderDesktop::SavePendingDiskMetrics(DiskMetrics metrics) {
+  pending_disk_metrics_ = metrics;
+}
+
 }  // namespace performance_manager

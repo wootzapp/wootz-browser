@@ -5,10 +5,11 @@
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_UI_PAYMENTS_CARD_UNMASK_PROMPT_OPTIONS_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_UI_PAYMENTS_CARD_UNMASK_PROMPT_OPTIONS_H_
 
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/browser/payments/card_unmask_challenge_option.h"
 #include "components/autofill/core/browser/payments/card_unmask_delegate.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 
 namespace autofill {
 
@@ -18,7 +19,7 @@ struct CardUnmaskPromptOptions {
   CardUnmaskPromptOptions();
   CardUnmaskPromptOptions(
       const std::optional<CardUnmaskChallengeOption>& challenge_option,
-      AutofillClient::UnmaskCardReason reason);
+      payments::PaymentsAutofillClient::UnmaskCardReason reason);
   CardUnmaskPromptOptions(const CardUnmaskPromptOptions&);
   ~CardUnmaskPromptOptions();
 
@@ -29,7 +30,7 @@ struct CardUnmaskPromptOptions {
   std::optional<CardUnmaskChallengeOption> challenge_option;
 
   // The origin of the unmask request.
-  AutofillClient::UnmaskCardReason reason;
+  payments::PaymentsAutofillClient::UnmaskCardReason reason;
 };
 
 }  // namespace autofill

@@ -5,6 +5,7 @@
 #include "extensions/browser/json_file_sanitizer.h"
 
 #include <memory>
+#include <optional>
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -73,8 +74,9 @@ class JsonFileSanitizerTest : public testing::Test {
                         const std::string& error_msg) {
     last_status_ = status;
     last_error_ = error_msg;
-    if (done_callback_)
+    if (done_callback_) {
       std::move(done_callback_).Run();
+    }
   }
 
   content::BrowserTaskEnvironment task_environment_;
@@ -115,9 +117,9 @@ TEST_F(JsonFileSanitizerTest, ValidCase) {
   EXPECT_TRUE(last_reported_error().empty());
   // Make sure the JSON files are there and non empty.
   for (const auto& path : paths) {
-    int64_t file_size = 0;
-    EXPECT_TRUE(base::GetFileSize(path, &file_size));
-    EXPECT_GT(file_size, 0);
+    std::optional<int64_t> file_size = base::GetFileSize(path);
+    ASSERT_TRUE(file_size.has_value());
+    EXPECT_GT(file_size.value(), 0);
   }
 }
 

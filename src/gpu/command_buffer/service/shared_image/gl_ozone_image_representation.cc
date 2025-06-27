@@ -74,10 +74,7 @@ bool GLTexturePassthroughOzoneImageRepresentation::BeginAccess(GLenum mode) {
       gl_fence->ServerWait();
     }
   }
-
-  // We must call VaapiWrapper::SyncSurface() to ensure all VA-API work is done
-  // prior to using the buffer in a graphics API.
-  return ozone_backing->VaSync();
+  return true;
 }
 
 void GLTexturePassthroughOzoneImageRepresentation::EndAccess() {
@@ -85,9 +82,11 @@ void GLTexturePassthroughOzoneImageRepresentation::EndAccess() {
   // ChromeOS VMs don't support gpu fences, so there is no good way to
   // synchronize with GL.
   if (gl::GLFence::IsGpuFenceSupported() && need_end_fence_) {
-    auto gl_fence = gl::GLFence::CreateForGpuFence();
-    DCHECK(gl_fence);
-    fence = gl_fence->GetGpuFence()->GetGpuFenceHandle().Clone();
+    if (auto gl_fence = gl::GLFence::CreateForGpuFence()) {
+      fence = gl_fence->GetGpuFence()->GetGpuFenceHandle().Clone();
+    } else {
+      DLOG(ERROR) << "Failed to create GPU fence";
+    }
   }
   bool readonly =
       current_access_mode_ != GL_SHARED_IMAGE_ACCESS_MODE_READWRITE_CHROMIUM;

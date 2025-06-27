@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-
 #import <Accessibility/Accessibility.h>
 #import <Cocoa/Cocoa.h>
+
+#include <memory>
 
 #include "base/mac/mac_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -19,6 +19,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/combobox_model.h"
 #import "ui/gfx/mac/coordinate_conversion.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/label.h"
@@ -53,27 +54,21 @@ class FlexibleRoleTestView : public View {
   METADATA_HEADER(FlexibleRoleTestView, View)
 
  public:
-  explicit FlexibleRoleTestView(ax::mojom::Role role) : role_(role) {}
+  explicit FlexibleRoleTestView(ax::mojom::Role role) {
+    GetViewAccessibility().SetRole(role);
+  }
 
   FlexibleRoleTestView(const FlexibleRoleTestView&) = delete;
   FlexibleRoleTestView& operator=(const FlexibleRoleTestView&) = delete;
 
-  void set_role(ax::mojom::Role role) { role_ = role; }
-
   // Add a child view and resize to fit the child.
   void FitBoundsToNewChild(View* view) {
-    AddChildView(view);
+    AddChildViewRaw(view);
     // Fit the parent widget to the size of the child for accurate hit tests.
     SetBoundsRect(view->bounds());
   }
 
   bool mouse_was_pressed() const { return mouse_was_pressed_; }
-
-  // View:
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
-    View::GetAccessibleNodeData(node_data);
-    node_data->role = role_;
-  }
 
   bool OnMousePressed(const ui::MouseEvent& event) override {
     mouse_was_pressed_ = true;
@@ -81,7 +76,6 @@ class FlexibleRoleTestView : public View {
   }
 
  private:
-  ax::mojom::Role role_;
   bool mouse_was_pressed_ = false;
 };
 
@@ -135,7 +129,9 @@ class AXNativeWidgetMacTest : public test::WidgetTest {
 
   void SetUp() override {
     test::WidgetTest::SetUp();
-    widget_delegate_.InitWidget(CreateParams(Widget::InitParams::TYPE_WINDOW));
+    widget_delegate_.InitWidget(
+        CreateParams(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                     Widget::InitParams::TYPE_WINDOW));
     widget()->Show();
   }
 
@@ -155,9 +151,10 @@ class AXNativeWidgetMacTest : public test::WidgetTest {
   Textfield* AddChildTextfield(const gfx::Size& size) {
     Textfield* textfield = new Textfield;
     textfield->SetText(base::SysNSStringToUTF16(kTestStringValue));
-    textfield->SetAccessibleName(base::SysNSStringToUTF16(kTestTitle));
+    textfield->GetViewAccessibility().SetName(
+        base::SysNSStringToUTF16(kTestTitle));
     textfield->SetSize(size);
-    widget()->GetContentsView()->AddChildView(textfield);
+    widget()->GetContentsView()->AddChildViewRaw(textfield);
     return textfield;
   }
 
@@ -176,7 +173,7 @@ class AXNativeWidgetMacTest : public test::WidgetTest {
 // on a retained accessibility object after the source view is deleted.
 TEST_F(AXNativeWidgetMacTest, Lifetime) {
   Textfield* view = AddChildTextfield(widget()->GetContentsView()->size());
-  NSObject* ax_node = view->GetNativeViewAccessible();
+  id ax_node = view->GetNativeViewAccessible().Get();
   id<NSAccessibility> ax_obj = ToNSAccessibility(ax_node);
 
   EXPECT_TRUE(AXObjectHandlesSelector(ax_obj, @selector(accessibilityValue)));
@@ -252,10 +249,10 @@ TEST_F(AXNativeWidgetMacTest, FocusableElementsAreLeafNodes) {
   widget()->GetContentsView()->AddChildView(button);
 
   id<NSAccessibility> ax_button =
-      ToNSAccessibility(button->GetNativeViewAccessible());
+      ToNSAccessibility(button->GetNativeViewAccessible().Get());
   EXPECT_NSEQ(NSAccessibilityButtonRole, ax_button.accessibilityRole);
   id<NSAccessibility> ax_label =
-      ToNSAccessibility(button->label()->GetNativeViewAccessible());
+      ToNSAccessibility(button->label()->GetNativeViewAccessible().Get());
 
   EXPECT_EQ(0u, ax_button.accessibilityChildren.count);
 
@@ -275,7 +272,7 @@ TEST_F(AXNativeWidgetMacTest, FocusableElementsAreLeafNodes) {
 TEST_F(AXNativeWidgetMacTest, ChildrenAttribute) {
   // The ContentsView initially has a single child, a NativeFrameView.
   id<NSAccessibility> ax_node =
-      widget()->GetContentsView()->GetNativeViewAccessible();
+      widget()->GetContentsView()->GetNativeViewAccessible().Get();
   EXPECT_EQ(1u, ax_node.accessibilityChildren.count);
 
   const size_t kNumChildren = 3;
@@ -321,7 +318,7 @@ TEST_F(AXNativeWidgetMacTest, ParentAttribute) {
   EXPECT_NSEQ(NSAccessibilityGroupRole, ax_parent.accessibilityRole);
 
   // Test an ignored role parent is skipped in favor of the grandparent.
-  parent->set_role(ax::mojom::Role::kNone);
+  parent->GetViewAccessibility().SetRole(ax::mojom::Role::kNone);
   ASSERT_NSNE(nil, AXParentOf(ax_child));
   EXPECT_NSEQ(NSAccessibilityGroupRole, AXParentOf(ax_child).accessibilityRole);
 }
@@ -345,34 +342,27 @@ TEST_F(AXNativeWidgetMacTest, TooltipText) {
   Label* label = new Label(base::SysNSStringToUTF16(kTestStringValue));
   label->SetSize(GetWidgetBounds().size());
   EXPECT_NSEQ(nil, A11yElementAtMidpoint().accessibilityHelp);
-  label->SetTooltipText(base::SysNSStringToUTF16(kTestPlaceholderText));
-  widget()->GetContentsView()->AddChildView(label);
+  label->SetCustomTooltipText(base::SysNSStringToUTF16(kTestPlaceholderText));
+  widget()->GetContentsView()->AddChildViewRaw(label);
 
-  // The tooltip is exposed in accessibilityHelp only before macOS 11. After,
-  // it is accessibilityCustomContent. This is because the DescriptionFrom
-  // for the ToolTip string has been been set to kAriaDescription, and
-  // `aria-description` is exposed in AXCustomContent.
+  // The tooltip is exposed in accessibilityCustomContent. This is because the
+  // DescriptionFrom for the ToolTip string has been been set to
+  // kAriaDescription, and `aria-description` is exposed in AXCustomContent.
   id<NSAccessibility> element = A11yElementAtMidpoint();
 
-  if (@available(macOS 11.0, *)) {
-    NSString* description = nil;
-    ASSERT_TRUE(
-        [element conformsToProtocol:@protocol(AXCustomContentProvider)]);
-    auto element_with_content =
-        static_cast<id<AXCustomContentProvider>>(element);
-    for (AXCustomContent* content in element_with_content
-             .accessibilityCustomContent) {
-      if ([content.label isEqualToString:@"description"]) {
-        // There should be only one AXCustomContent with the label
-        // "description".
-        EXPECT_EQ(description, nil);
-        description = content.value;
-      }
+  NSString* description = nil;
+  ASSERT_TRUE([element conformsToProtocol:@protocol(AXCustomContentProvider)]);
+  auto element_with_content = static_cast<id<AXCustomContentProvider>>(element);
+  for (AXCustomContent* content in element_with_content
+           .accessibilityCustomContent) {
+    if ([content.label isEqualToString:@"description"]) {
+      // There should be only one AXCustomContent with the label
+      // "description".
+      EXPECT_EQ(description, nil);
+      description = content.value;
     }
-    EXPECT_NSEQ(kTestPlaceholderText, description);
-  } else {
-    EXPECT_NSEQ(kTestPlaceholderText, element.accessibilityHelp);
   }
+  EXPECT_NSEQ(kTestPlaceholderText, description);
 }
 
 // Test view properties that should report the native NSWindow, and test
@@ -420,9 +410,10 @@ TEST_F(AXNativeWidgetMacTest, TextfieldGenericAttributes) {
   // * accessibilityLabel() returns a short description of the accessibility
   //   element.
   // Textfield::SetAssociatedLabel() is what should be used if the textfield
-  // has a visible label. Because AddChildTextfield() uses SetAccessibleName()
-  // to set the accessible name to a flat string, the title should be exposed
-  // via accessibilityLabel() instead of accessibilityTitle();
+  // has a visible label. Because AddChildTextfield() uses
+  // GetViewAccessibility().SetName() to set the accessible name to a
+  // flat string, the title should be exposed via accessibilityLabel() instead
+  // of accessibilityTitle();
   EXPECT_NSEQ(@"", ax_obj.accessibilityTitle);
   EXPECT_NSEQ(kTestTitle, ax_obj.accessibilityLabel);
   EXPECT_NSEQ(kTestStringValue, ax_obj.accessibilityValue);
@@ -726,9 +717,8 @@ TEST_F(AXNativeWidgetMacTest, ProtectedTextfields) {
       AXObjectHandlesSelector(ax_node, @selector(setAccessibilityValue:)));
   EXPECT_NSEQ(NSAccessibilityTextFieldRole, ax_node.accessibilityRole);
 
-  NSString* kShownValue =
-      @"•"
-      @"••••••••••••••••";
+  NSString* kShownValue = @"•"
+                          @"••••••••••••••••";
   // Sanity check.
   EXPECT_EQ(static_cast<NSUInteger>(kTestStringLength), [kShownValue length]);
   EXPECT_NSEQ(kShownValue, ax_node.accessibilityValue);
@@ -762,7 +752,7 @@ TEST_F(AXNativeWidgetMacTest, Label) {
   Label* label = new Label;
   label->SetText(base::SysNSStringToUTF16(kTestStringValue));
   label->SetSize(GetWidgetBounds().size());
-  widget()->GetContentsView()->AddChildView(label);
+  widget()->GetContentsView()->AddChildViewRaw(label);
 
   // Get the Label's accessibility object.
   id<NSAccessibility> ax_node = A11yElementAtMidpoint();
@@ -805,7 +795,7 @@ TEST_F(AXNativeWidgetMacTest, LabelUsedAsTitleBar) {
   Label* label = new Label(base::SysNSStringToUTF16(kTestStringValue),
                            style::CONTEXT_DIALOG_TITLE, style::STYLE_PRIMARY);
   label->SetSize(GetWidgetBounds().size());
-  widget()->GetContentsView()->AddChildView(label);
+  widget()->GetContentsView()->AddChildViewRaw(label);
 
   // Get the Label's accessibility object.
   id<NSAccessibility> ax_node = A11yElementAtMidpoint();
@@ -834,7 +824,7 @@ class TestComboboxModel : public ui::ComboboxModel {
 TEST_F(AXNativeWidgetMacTest, Combobox) {
   Combobox* combobox = new Combobox(std::make_unique<TestComboboxModel>());
   combobox->SetSize(GetWidgetBounds().size());
-  widget()->GetContentsView()->AddChildView(combobox);
+  widget()->GetContentsView()->AddChildViewRaw(combobox);
 
   id<NSAccessibility> ax_node = A11yElementAtMidpoint();
   EXPECT_TRUE(ax_node);

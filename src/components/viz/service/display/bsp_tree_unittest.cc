@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "base/containers/circular_deque.h"
 #include "base/memory/raw_ptr.h"
@@ -28,7 +29,7 @@ namespace {
   } while (false);
 
 #define INT_VECTOR_FROM_ARRAY(array) \
-  std::vector<int>(array, array + std::size(array))
+  std::vector<int>(std::begin(array), std::end(array))
 
 #define CREATE_DRAW_POLYGON(vertex_vector, normal, polygon_id) \
   new DrawPolygon(NULL, vertex_vector, normal, polygon_id)

@@ -6,12 +6,12 @@
 #define CHROME_SERVICES_PDF_PDF_SERVICE_H_
 
 #include "base/memory/scoped_refptr.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/services/pdf/public/mojom/pdf_service.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
-static_assert(BUILDFLAG(IS_CHROMEOS_ASH), "For ChromeOS ash-chrome only");
+static_assert(BUILDFLAG(IS_CHROMEOS), "For ChromeOS only");
 
 namespace discardable_memory {
 class ClientDiscardableSharedMemoryManager;
@@ -30,8 +30,11 @@ class PdfService : public mojom::PdfService {
 
  private:
   // mojom::PdfService:
-  void BindPdfSearchifier(
-      mojo::PendingReceiver<mojom::PdfSearchifier> receiver) override;
+  void BindPdfProgressiveSearchifier(
+      mojo::PendingReceiver<mojom::PdfProgressiveSearchifier> receiver,
+      mojo::PendingRemote<mojom::Ocr> ocr) override;
+  void BindPdfSearchifier(mojo::PendingReceiver<mojom::PdfSearchifier> receiver,
+                          mojo::PendingRemote<mojom::Ocr> ocr) override;
   void BindPdfThumbnailer(
       mojo::PendingReceiver<mojom::PdfThumbnailer> receiver) override;
 

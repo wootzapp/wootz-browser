@@ -82,7 +82,7 @@ void InkDropExample::CreateExampleView(View* container) {
               .AddChildren(
                   Builder<InkDropView>()
                       .CopyAddressTo(&ink_drop_view_)
-                      .SetBorder(CreateThemedRoundedRectBorder(
+                      .SetBorder(CreateRoundedRectBorder(
                           1, 4, ExamplesColorIds::kColorInkDropExampleBorder))
                       .SetProperty(kMarginsKey, gfx::Insets(10)),
                   Builder<BoxLayoutView>()
@@ -146,7 +146,7 @@ void InkDropExample::CreateInkDrop() {
 
 void InkDropExample::SetInkDropState(InkDropState state) {
   ui::MouseEvent event(
-      ui::ET_MOUSE_PRESSED,
+      ui::EventType::kMousePressed,
       gfx::PointF(ink_drop_view_->GetLocalBounds().CenterPoint()),
       gfx::PointF(ink_drop_view_->origin()), base::TimeTicks(), 0, 0);
   ui::ScopedAnimationDurationScaleMode scale(

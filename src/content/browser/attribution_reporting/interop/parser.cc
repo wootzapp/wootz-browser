@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "base/check.h"
@@ -21,6 +22,7 @@
 #include "base/json/json_writer.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/abseil_string_number_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
@@ -37,7 +39,6 @@
 #include "net/http/structured_headers.h"
 #include "services/network/public/mojom/attribution.mojom.h"
 #include "third_party/abseil-cpp/absl/numeric/int128.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -57,7 +58,7 @@ constexpr char kResponseKey[] = "response";
 constexpr char kResponsesKey[] = "responses";
 constexpr char kTimestampKey[] = "timestamp";
 
-using Context = absl::variant<std::string_view, size_t>;
+using Context = std::variant<std::string_view, size_t>;
 using ContextPath = std::vector<Context>;
 
 std::string TimeAsUnixMillisecondString(base::Time time) {
@@ -89,11 +90,11 @@ std::ostream& operator<<(std::ostream& out, const ContextPath& path) {
   }
 
   for (Context context : path) {
-    absl::visit(base::Overloaded{
-                    [&](std::string_view key) { out << "[\"" << key << "\"]"; },
-                    [&](size_t index) { out << '[' << index << ']'; },
-                },
-                context);
+    std::visit(base::Overloaded{
+                   [&](std::string_view key) { out << "[\"" << key << "\"]"; },
+                   [&](size_t index) { out << '[' << index << ']'; },
+               },
+               context);
   }
   return out;
 }
@@ -172,6 +173,8 @@ class AttributionInteropParser {
       bool required) && {
     interop_config.needs_cross_app_web =
         ParseBool(dict, "needs_cross_app_web").value_or(false);
+    interop_config.needs_delivery_after_new_navigation =
+        ParseBool(dict, "needs_delivery_after_new_navigation").value_or(false);
 
     AttributionConfig& config = interop_config.attribution_config;
 
@@ -194,14 +197,26 @@ class AttributionInteropParser {
           base::Minutes(destination_rate_limit_window_in_minutes);
     }
 
-    ParseDouble(dict, "max_navigation_info_gain",
-                config.event_level_limit.max_navigation_info_gain, required);
-    ParseDouble(dict, "max_event_info_gain",
-                config.event_level_limit.max_event_info_gain, required);
+    ParseInt(dict, "max_destinations_per_reporting_site_per_day",
+             config.destination_rate_limit.max_per_reporting_site_per_day,
+             required);
 
-    ParseUInt128(dict, "max_trigger_state_cardinality",
-                 config.event_level_limit.max_trigger_state_cardinality,
-                 required);
+    ParseDouble(dict, "max_event_level_channel_capacity_navigation",
+                config.privacy_math_config.max_channel_capacity_navigation,
+                required);
+    ParseDouble(dict, "max_event_level_channel_capacity_event",
+                config.privacy_math_config.max_channel_capacity_event,
+                required);
+    ParseDouble(
+        dict, "max_event_level_channel_capacity_scopes_navigation",
+        config.privacy_math_config.max_channel_capacity_scopes_navigation,
+        required);
+    ParseDouble(dict, "max_event_level_channel_capacity_scopes_event",
+                config.privacy_math_config.max_channel_capacity_scopes_event,
+                required);
+
+    ParseUInt32(dict, "max_trigger_state_cardinality",
+                interop_config.max_trigger_state_cardinality, required);
 
     int rate_limit_time_window_in_days;
     if (ParseInt(dict, "rate_limit_time_window_in_days",
@@ -251,6 +266,30 @@ class AttributionInteropParser {
           base::Minutes(aggregatable_report_delay_span);
     }
 
+    int max_aggregatable_debug_budget_per_context_site;
+    if (ParseInt(dict, "max_aggregatable_debug_budget_per_context_site",
+                 max_aggregatable_debug_budget_per_context_site, required,
+                 /*allow_zero=*/false)) {
+      config.aggregatable_debug_rate_limit.max_budget_per_context_site =
+          max_aggregatable_debug_budget_per_context_site;
+    }
+
+    int max_aggregatable_debug_reports_per_source;
+    if (ParseInt(dict, "max_aggregatable_debug_reports_per_source",
+                 max_aggregatable_debug_reports_per_source, required,
+                 /*allow_zero=*/false)) {
+      config.aggregatable_debug_rate_limit.max_reports_per_source =
+          max_aggregatable_debug_reports_per_source;
+    }
+
+    if (int max_aggregatable_reports_per_source;
+        ParseInt(dict, "max_aggregatable_reports_per_source",
+                 max_aggregatable_reports_per_source, required,
+                 /*allow_zero=*/false)) {
+      config.aggregate_limit.max_aggregatable_reports_per_source =
+          max_aggregatable_reports_per_source;
+    }
+
     {
       static constexpr char kAggregationCoordinatorOrigins[] =
           "aggregation_coordinator_origins";
@@ -266,7 +305,7 @@ class AttributionInteropParser {
           [&](base::Value v) {
             if (std::optional<SuitableOrigin> origin = ParseOrigin(&v)) {
               interop_config.aggregation_coordinator_origins.emplace_back(
-                  std::move(*origin));
+                  *std::move(origin));
             }
           },
           required,
@@ -274,7 +313,7 @@ class AttributionInteropParser {
     }
 
     if (has_error_) {
-      return base::unexpected(error_stream_.str());
+      return base::unexpected(std::move(error_stream_).str());
     }
     return base::ok();
   }
@@ -342,6 +381,10 @@ class AttributionInteropParser {
                   /*previous_time=*/events.empty() ? base::Time::Min()
                                                    : events.back().time,
                   /*strictly_greater=*/true);
+    if (dict.FindBool("navigation").value_or(false)) {
+      events.emplace_back(time, AttributionSimulationEvent::Navigation());
+      return;
+    }
 
     std::optional<SuitableOrigin> context_origin;
     AttributionReportingEligibility eligibility;
@@ -359,7 +402,7 @@ class AttributionInteropParser {
 
     events.emplace_back(
         time, AttributionSimulationEvent::StartRequest(
-                  request_id, std::move(*context_origin), eligibility, fenced));
+                  request_id, *std::move(context_origin), eligibility, fenced));
 
     std::optional<base::Time> default_response_time = time;
 
@@ -405,7 +448,7 @@ class AttributionInteropParser {
                       // The string must outlive the call to
                       // `net::HttpResponseHeaders::Build()`, so put it back in
                       // the dict.
-                      value = base::Value(std::move(*json));
+                      value = base::Value(*std::move(json));
                       builder.AddHeader(header, value.GetString());
                     }
                   }
@@ -417,7 +460,6 @@ class AttributionInteropParser {
                           std::move(randomized_response),
                           std::move(null_aggregatable_reports_days),
                           debug_permission));
-
                 });
           });
     }
@@ -447,7 +489,7 @@ class AttributionInteropParser {
     }
 
     if (std::optional<base::Value> payload = dict.Extract(kPayloadKey)) {
-      report.payload = std::move(*payload);
+      report.payload = *std::move(payload);
     } else {
       auto context = PushContext(kPayloadKey);
       *Error() << "required";
@@ -740,13 +782,25 @@ class AttributionInteropParser {
                         allow_zero);
   }
 
-  bool ParseUInt128(const base::Value::Dict& dict,
-                    std::string_view key,
-                    absl::uint128& result,
-                    bool required,
-                    bool allow_zero = false) {
-    return ParseInteger(dict, key, result, &base::StringToUint128, required,
-                        allow_zero);
+  bool ParseUInt32(const base::Value::Dict& dict,
+                   std::string_view key,
+                   uint32_t& result,
+                   bool required,
+                   bool allow_zero = false) {
+    int64_t result_64;
+    // This works because `ParseInteger()` only accepts positive values, and
+    // uint32 and [0, INT64_MAX] encompasses the same values.
+    if (ParseInteger(dict, key, result_64, &base::StringToInt64, required,
+                     allow_zero)) {
+      if (base::internal::IsValueInRangeForNumericType<uint32_t>(result_64)) {
+        result = static_cast<uint32_t>(result_64);
+        return true;
+      } else {
+        auto context = PushContext(key);
+        *Error() << "must be representable by an unsigned 32-bit integer";
+      }
+    }
+    return false;
   }
 
   void ParseDouble(const base::Value::Dict& dict,

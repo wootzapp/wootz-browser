@@ -4,7 +4,6 @@
 
 #include "components/signin/public/identity_manager/access_token_restriction.h"
 
-#include "build/chromeos_buildflags.h"
 #include "google_apis/gaia/gaia_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -25,12 +24,12 @@ const AccessTokenRestrictionTestParam kTestParams[] = {
  {GaiaConstants::kGoogleUserInfoProfile, OAuth2ScopeRestriction::kNoRestriction},
  {GaiaConstants::kDeviceManagementServiceOAuth, OAuth2ScopeRestriction::kNoRestriction},
  {GaiaConstants::kSecureConnectOAuth2Scope, OAuth2ScopeRestriction::kNoRestriction},
- {GaiaConstants::kChromeSyncOAuth2Scope, OAuth2ScopeRestriction::kNoRestriction},
  {GaiaConstants::kFCMOAuthScope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kPaymentsOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kPasswordsLeakCheckOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kCryptAuthOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kChromeSafeBrowsingOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+ {GaiaConstants::kChromeSyncOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kClassifyUrlKidPermissionOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kIpProtectionAuthScope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kSupportContentOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
@@ -44,24 +43,26 @@ const AccessTokenRestrictionTestParam kTestParams[] = {
  {GaiaConstants::kOptimizationGuideServiceGetHintsOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kOptimizationGuideServiceModelExecutionOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kCloudSearchQueryOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+ {GaiaConstants::kDiscoveryEngineCompleteQueryOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kOAuth1LoginScope, OAuth2ScopeRestriction::kSignedIn},
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+ {GaiaConstants::kCalendarReadOnlyOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+ {GaiaConstants::kDriveReadOnlyOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+#if BUILDFLAG(IS_CHROMEOS)
  {GaiaConstants::kAssistantOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kAuditRecordingOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
- {GaiaConstants::kCalendarReadOnlyOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kCastBackdropOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kClearCutOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kDriveOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
- {GaiaConstants::kDriveReadOnlyOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kExperimentsAndConfigsOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kGCMGroupServerOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
- {GaiaConstants::kCloudPlatformProjectsOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+ {GaiaConstants::kNearbyDevicesOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kNearbyShareOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kNearbyPresenceOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kPeopleApiReadOnlyOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
+ {GaiaConstants::kContactsOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kPhotosOAuth2Scope, OAuth2ScopeRestriction::kSignedIn},
  {GaiaConstants::kTachyonOAuthScope, OAuth2ScopeRestriction::kSignedIn},
- #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ #endif  // BUILDFLAG(IS_CHROMEOS)
  {GaiaConstants::kAnyApiOAuth2Scope, OAuth2ScopeRestriction::kPrivilegedOAuth2Consumer},
  {GaiaConstants::kChromeSyncSupervisedOAuth2Scope, OAuth2ScopeRestriction::kExplicitConsent},
  {GaiaConstants::kKidManagementPrivilegedOAuth2Scope, OAuth2ScopeRestriction::kExplicitConsent},

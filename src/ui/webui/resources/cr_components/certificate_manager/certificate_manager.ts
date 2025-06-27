@@ -7,7 +7,7 @@
  */
 import '//resources/cr_elements/cr_tabs/cr_tabs.js';
 import '//resources/cr_elements/cr_hidden_style.css.js';
-import '//resources/polymer/v3_0/iron-pages/iron-pages.js';
+import '//resources/cr_elements/cr_page_selector/cr_page_selector.js';
 import './ca_trust_edit_dialog.js';
 import './certificate_delete_confirmation_dialog.js';
 import './certificate_list.js';
@@ -146,23 +146,25 @@ export class CertificateManagerElement extends CertificateManagerElementBase {
     };
   }
 
-  selected: number;
-  personalCerts: CertificatesOrgGroup[];
-  serverCerts: CertificatesOrgGroup[];
-  caCerts: CertificatesOrgGroup[];
-  otherCerts: CertificatesOrgGroup[];
-  clientImportAllowed: boolean;
-  caImportAllowed: boolean;
-  private showCaTrustEditDialog_: boolean;
-  private showDeleteConfirmationDialog_: boolean;
-  private showPasswordEncryptionDialog_: boolean;
-  private showPasswordDecryptionDialog_: boolean;
-  private showErrorDialog_: boolean;
-  private dialogModel_: CertificateSubnode|NewCertificateSubNode|null;
-  private dialogModelCertificateType_: CertificateType|null;
-  private errorDialogModel_: CertificatesError|CertificatesImportError|null;
-  private activeDialogAnchor_: HTMLElement|null;
-  private isKiosk_: boolean;
+  declare selected: number;
+  declare personalCerts: CertificatesOrgGroup[];
+  declare serverCerts: CertificatesOrgGroup[];
+  declare caCerts: CertificatesOrgGroup[];
+  declare otherCerts: CertificatesOrgGroup[];
+  declare clientImportAllowed: boolean;
+  declare caImportAllowed: boolean;
+  declare private showCaTrustEditDialog_: boolean;
+  declare private showDeleteConfirmationDialog_: boolean;
+  declare private showPasswordEncryptionDialog_: boolean;
+  declare private showPasswordDecryptionDialog_: boolean;
+  declare private showErrorDialog_: boolean;
+  declare private dialogModel_: CertificateSubnode|NewCertificateSubNode|null;
+  declare private dialogModelCertificateType_: CertificateType|null;
+  declare private errorDialogModel_: CertificatesError|CertificatesImportError|
+      null;
+  declare private activeDialogAnchor_: HTMLElement|null;
+  declare private isKiosk_: boolean;
+  declare private tabNames_: string[];
 
 
   override connectedCallback() {

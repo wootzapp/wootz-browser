@@ -7,20 +7,24 @@
  * 'settings-basic-page' is the settings page containing the actual settings.
  */
 import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
+import 'chrome://resources/cr_elements/cr_icons.css.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../ai_page/ai_page.js';
+// <if expr="enable_glic">
+import '../glic_page/glic_page.js';
+// </if>
 import '../appearance_page/appearance_page.js';
 import '../privacy_page/privacy_guide/privacy_guide_promo.js';
 import '../privacy_page/privacy_page.js';
-import '../safety_check_page/safety_check_page.js';
 import '../safety_hub/safety_hub_entry_point.js';
 import '../autofill_page/autofill_page.js';
 import '../controls/settings_idle_load.js';
 import '../on_startup_page/on_startup_page.js';
 import '../people_page/people_page.js';
 import '../performance_page/battery_page.js';
+import '../performance_page/memory_page.js';
 import '../performance_page/performance_page.js';
 import '../performance_page/speed_page.js';
 import '../reset_page/reset_profile_banner.js';
@@ -55,7 +59,7 @@ import type {LanguageHelper, LanguagesModel} from '../languages_page/languages_t
 // </if>
 import type {PageVisibility} from '../page_visibility.js';
 import type {PerformanceBrowserProxy} from '../performance_page/performance_browser_proxy.js';
-import {PerformanceBrowserProxyImpl} from '../performance_page/performance_browser_proxy.js';
+import {PerformanceBrowserProxyImpl, PerformanceFeedbackCategory} from '../performance_page/performance_browser_proxy.js';
 import {PrivacyGuideAvailabilityMixin} from '../privacy_page/privacy_guide/privacy_guide_availability_mixin.js';
 import type {PrivacyGuideBrowserProxy} from '../privacy_page/privacy_guide/privacy_guide_browser_proxy.js';
 import {MAX_PRIVACY_GUIDE_PROMO_IMPRESSION, PrivacyGuideBrowserProxyImpl} from '../privacy_page/privacy_guide/privacy_guide_browser_proxy.js';
@@ -83,12 +87,6 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
 
   static get properties() {
     return {
-      /** Preferences state. */
-      prefs: {
-        type: Object,
-        notify: true,
-      },
-
       // <if expr="not chromeos_ash">
       /**
        * Read-only reference to the languages model provided by the
@@ -165,6 +163,23 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
         type: Boolean,
         value: () => loadTimeData.getBoolean('showAdvancedFeaturesMainControl'),
       },
+
+      enableAiSettingsPageRefresh_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('enableAiSettingsPageRefresh'),
+      },
+
+      aiPageTitle_: {
+        type: String,
+        computed: 'computeAiPageTitle_(enableAiSettingsPageRefresh_)',
+      },
+
+      // <if expr="enable_glic">
+      showGlicSection_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('showGlicSettings'),
+      },
+      // </if>
     };
   }
 
@@ -175,19 +190,23 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
   }
 
   // <if expr="not chromeos_ash">
-  languages?: LanguagesModel;
-  languageHelper: LanguageHelper;
+  declare languages?: LanguagesModel;
+  declare languageHelper: LanguageHelper;
   // </if>
-  pageVisibility: PageVisibility;
-  inSearchMode: boolean;
-  private showResetProfileBanner_: boolean;
+  declare pageVisibility: PageVisibility;
+  declare inSearchMode: boolean;
+  declare private showResetProfileBanner_: boolean;
 
-  private currentRoute_: Route;
-  private advancedTogglingInProgress_: boolean;
-  private showBatterySettings_: boolean;
-  private showAdvancedFeaturesMainControl_: boolean;
-
-  private showPrivacyGuidePromo_: boolean;
+  declare private currentRoute_: Route;
+  declare private advancedTogglingInProgress_: boolean;
+  declare private showBatterySettings_: boolean;
+  declare private showAdvancedFeaturesMainControl_: boolean;
+  declare private enableAiSettingsPageRefresh_: boolean;
+  declare private aiPageTitle_: string;
+  // <if expr="enable_glic">
+  declare private showGlicSection_: boolean;
+  // </if>
+  declare private showPrivacyGuidePromo_: boolean;
   private privacyGuidePromoWasShown_: boolean;
   private privacyGuideBrowserProxy_: PrivacyGuideBrowserProxy =
       PrivacyGuideBrowserProxyImpl.getInstance();
@@ -337,14 +356,9 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
     return this.showPage_(visibility);
   }
 
-  private showSafetyCheckPage_(visibility?: boolean): boolean {
-    return !loadTimeData.getBoolean('enableSafetyHub') &&
-        this.showPage_(visibility);
-  }
-
-  private showSafetyHubEntryPointPage_(visibility?: boolean): boolean {
-    return loadTimeData.getBoolean('enableSafetyHub') &&
-        this.showPage_(visibility);
+  private showAiInfoCard_(visibility?: boolean): boolean {
+    return loadTimeData.getBoolean('enableAiSettingsPageRefresh') &&
+        this.showExperimentalAdvancedPage_(visibility);
   }
 
   private showExperimentalAdvancedPage_(visibility?: boolean): boolean {
@@ -352,25 +366,35 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
         this.showPage_(visibility);
   }
 
+  private computeAiPageTitle_(): string {
+    return loadTimeData.getString(
+        this.enableAiSettingsPageRefresh_ ? 'aiInnovationsPageTitle' :
+                                            'aiPageTitle');
+  }
+
   // <if expr="_google_chrome">
-  private showGetMostChrome_(visibility?: boolean): boolean {
-    return loadTimeData.getBoolean('showGetTheMostOutOfChromeSection') &&
-        this.showPage_(visibility);
+  private onSendPerformanceFeedbackClick_(e: Event) {
+    e.stopPropagation();
+    this.performanceBrowserProxy_.openFeedbackDialog(
+        PerformanceFeedbackCategory.NOTIFICATIONS);
   }
 
   private onSendMemorySaverFeedbackClick_(e: Event) {
     e.stopPropagation();
-    this.performanceBrowserProxy_.openMemorySaverFeedbackDialog();
+    this.performanceBrowserProxy_.openFeedbackDialog(
+        PerformanceFeedbackCategory.TABS);
   }
 
   private onSendBatterySaverFeedbackClick_(e: Event) {
     e.stopPropagation();
-    this.performanceBrowserProxy_.openBatterySaverFeedbackDialog();
+    this.performanceBrowserProxy_.openFeedbackDialog(
+        PerformanceFeedbackCategory.BATTERY);
   }
 
   private onSendSpeedFeedbackClick_(e: Event) {
     e.stopPropagation();
-    this.performanceBrowserProxy_.openSpeedFeedbackDialog();
+    this.performanceBrowserProxy_.openFeedbackDialog(
+        PerformanceFeedbackCategory.SPEED);
   }
   // </if>
 }

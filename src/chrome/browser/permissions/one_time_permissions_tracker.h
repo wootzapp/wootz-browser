@@ -74,6 +74,10 @@ class OneTimePermissionsTracker : public KeyedService {
 
  protected:
   void NotifyLastPageFromOriginClosed(const url::Origin& origin);
+  void NotifyBackgroundTimerExpired(
+      const url::Origin& origin,
+      const OneTimePermissionsTrackerObserver::BackgroundExpiryType&
+          expiry_type);
 
  private:
   // Struct to hold the state of an origin
@@ -98,11 +102,10 @@ class OneTimePermissionsTracker : public KeyedService {
     // for this origin.
     std::set<ContentSettingsType> used_content_settings_set;
 
-    // One shot timer for expiring permissions that are
-    // temporarily disabled by backgrounding. Currently this is only
-    // geolocation. This is intentionally not merged with
-    // content_setting_specific_expiration_timer_map, since future one-time
-    // permissions which behave this way would all use the same timer.
+    // One shot timer for expiring permissions that are temporarily disabled by
+    // backgrounding. This is intentionally not merged with
+    // `content_setting_specific_expiration_timer_map`, which is used by
+    // permissions that aren't disabled by backgrounding.
     std::unique_ptr<base::OneShotTimer> background_expiration_timer =
         std::make_unique<base::OneShotTimer>();
 
@@ -129,10 +132,6 @@ class OneTimePermissionsTracker : public KeyedService {
                                            ContentSettingsType content_setting,
                                            NotifyFunction notify_callback);
 
-  void NotifyBackgroundTimerExpired(
-      const url::Origin& origin,
-      const OneTimePermissionsTrackerObserver::BackgroundExpiryType&
-          expiry_type);
   void NotifyCapturingVideoExpired(const url::Origin& origin);
   void NotifyCapturingAudioExpired(const url::Origin& origin);
 

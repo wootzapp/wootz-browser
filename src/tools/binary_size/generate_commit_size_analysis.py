@@ -56,7 +56,6 @@ def _generate_resource_sizes(to_resource_sizes_py, make_chromium_output_path,
 def _generate_supersize_archive(supersize_input_file, make_chromium_output_path,
                                 make_staging_path):
   """Creates a .size file for the given .apk or .minimal.apks"""
-  subprocess.run([_CLANG_UPDATE_PATH, '--package=objdump'], check=True)
   supersize_input_path = make_chromium_output_path(supersize_input_file)
   size_path = make_staging_path(supersize_input_file) + '.size'
 
@@ -134,9 +133,10 @@ def main():
     files_to_copy.append(args.size_config_json)
   _copy_files_to_staging_dir(files_to_copy, make_staging_path)
 
-  config_32 = config['to_resource_sizes_py']
-  _generate_resource_sizes(config_32, make_chromium_output_path,
-                           make_staging_path, 'resource_sizes_32.json')
+  config_32 = config.get('to_resource_sizes_py')
+  if config_32:
+    _generate_resource_sizes(config_32, make_chromium_output_path,
+                             make_staging_path, 'resource_sizes_32.json')
   config_64 = config.get('to_resource_sizes_py_64')
   if config_64:
     _generate_resource_sizes(config_64, make_chromium_output_path,

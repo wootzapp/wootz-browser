@@ -10,18 +10,18 @@ import android.view.View;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
+import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.ui.resources.ResourceManager;
 
 /** Integration tests for {@link org.chromium.chrome.browser.compositor.CompositorView}. */
@@ -29,13 +29,9 @@ import org.chromium.ui.resources.ResourceManager;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
 public class CompositorVisibilityTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public AutoResetCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.fastAutoResetCtaActivityRule();
 
     private CompositorView mCompositorView;
 
@@ -69,12 +65,12 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testSetVisibilityHidesSurfaces() throws Throwable {
-        sActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
                     @Override
                     public void run() {
                         mCompositorView =
-                                new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
+                                new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
                         mCompositorView.setVisibility(View.VISIBLE);
                         Assert.assertEquals(
                                 View.VISIBLE, mCompositorView.getChildAt(0).getVisibility());
@@ -92,13 +88,13 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testSurfaceViewIsAttachedImmediately() throws Throwable {
-        sActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
                     @Override
                     public void run() {
                         mCompositorView =
-                                new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
-                        Assert.assertEquals(mCompositorView.getChildCount(), 1);
+                                new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
+                        Assert.assertEquals(1, mCompositorView.getChildCount());
                         Assert.assertTrue(mCompositorView.getChildAt(0) instanceof SurfaceView);
                     }
                 });
@@ -110,12 +106,12 @@ public class CompositorVisibilityTest {
     @Test
     @SmallTest
     public void testInitialVisibility() throws Throwable {
-        sActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
                     @Override
                     public void run() {
                         mCompositorView =
-                                new CompositorView(sActivityTestRule.getActivity(), mRenderHost);
+                                new CompositorView(mActivityTestRule.getActivity(), mRenderHost);
                         Assert.assertEquals(View.VISIBLE, mCompositorView.getVisibility());
                         Assert.assertEquals(
                                 View.INVISIBLE, mCompositorView.getChildAt(0).getVisibility());

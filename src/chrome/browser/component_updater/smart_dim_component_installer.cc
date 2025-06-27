@@ -75,7 +75,7 @@ std::optional<ComponentFileContents> ReadComponentFiles(
                          std::move(model_flatbuffer));
 }
 
-void UpdateSmartDimMlAgent(const std::optional<ComponentFileContents>& result) {
+void UpdateSmartDimMlAgent(std::optional<ComponentFileContents> result) {
   if (result == std::nullopt) {
     LogLoadComponentEvent(LoadComponentEvent::kReadComponentFilesError);
     return;
@@ -173,8 +173,8 @@ base::FilePath SmartDimComponentInstallerPolicy::GetRelativeInstallDir() const {
 void SmartDimComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
   DCHECK(hash);
-  hash->assign(kSmartDimPublicKeySHA256,
-               kSmartDimPublicKeySHA256 + std::size(kSmartDimPublicKeySHA256));
+  hash->assign(std::begin(kSmartDimPublicKeySHA256),
+               std::end(kSmartDimPublicKeySHA256));
 }
 
 std::string SmartDimComponentInstallerPolicy::GetName() const {

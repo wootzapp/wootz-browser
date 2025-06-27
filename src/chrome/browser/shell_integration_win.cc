@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/shell_integration_win.h"
 
 #include <objbase.h>
@@ -227,8 +232,7 @@ DefaultWebClientState GetDefaultWebClientStateFromShellUtilDefaultState(
     case ShellUtil::OTHER_MODE_IS_DEFAULT:
       return DefaultWebClientState::OTHER_MODE_IS_DEFAULT;
   }
-  NOTREACHED_IN_MIGRATION();
-  return DefaultWebClientState::UNKNOWN_DEFAULT;
+  NOTREACHED();
 }
 
 // A recorder of user actions in the Windows Settings app.
@@ -737,6 +741,13 @@ DefaultWebClientState IsDefaultClientForScheme(const std::string& scheme) {
       ShellUtil::GetChromeDefaultProtocolClientState(base::UTF8ToWide(scheme)));
 }
 
+DefaultWebClientState IsDefaultHandlerForFileExtension(
+    const std::string& file_extension) {
+  return GetDefaultWebClientStateFromShellUtilDefaultState(
+      ShellUtil::GetChromeDefaultFileHandlerState(
+          base::UTF8ToWide(file_extension)));
+}
+
 namespace internal {
 
 DefaultWebClientSetPermission GetPlatformSpecificDefaultWebClientSetPermission(
@@ -760,9 +771,7 @@ void SetAsDefaultBrowserUsingSystemSettings(
     base::OnceClosure on_finished_callback) {
   base::FilePath chrome_exe;
   if (!base::PathService::Get(base::FILE_EXE, &chrome_exe)) {
-    NOTREACHED_IN_MIGRATION() << "Error getting app exe path";
-    std::move(on_finished_callback).Run();
-    return;
+    NOTREACHED() << "Error getting app exe path";
   }
 
   // Create an action recorder that will open the settings app once it has
@@ -786,9 +795,7 @@ void SetAsDefaultClientForSchemeUsingSystemSettings(
     base::OnceClosure on_finished_callback) {
   base::FilePath chrome_exe;
   if (!base::PathService::Get(base::FILE_EXE, &chrome_exe)) {
-    NOTREACHED_IN_MIGRATION() << "Error getting app exe path";
-    std::move(on_finished_callback).Run();
-    return;
+    NOTREACHED() << "Error getting app exe path";
   }
 
   // The helper manages its own lifetime.
@@ -942,8 +949,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
         property_store->GetValue(PKEY_AppUserModel_ID, propvariant.Receive()) !=
             S_OK) {
       // When in doubt, prefer not updating the shortcut.
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     } else {
       switch (propvariant.get().vt) {
         case VT_EMPTY:
@@ -956,8 +962,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
             updated_properties.set_app_id(expected_app_id);
           break;
         default:
-          NOTREACHED_IN_MIGRATION();
-          continue;
+          NOTREACHED();
       }
     }
 
@@ -971,8 +976,7 @@ int MigrateShortcutsInPathInternal(const base::FilePath& chrome_exe,
       if (property_store->GetValue(PKEY_AppUserModel_IsDualMode,
                                    propvariant.Receive()) != S_OK) {
         // When in doubt, prefer to not update the shortcut.
-        NOTREACHED_IN_MIGRATION();
-        continue;
+        NOTREACHED();
       }
       if (propvariant.get().vt == VT_BOOL &&
                  !!propvariant.get().boolVal) {

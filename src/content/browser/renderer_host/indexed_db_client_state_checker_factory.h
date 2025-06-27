@@ -13,6 +13,10 @@
 #include "content/public/browser/global_routing_id.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 
+namespace storage {
+struct BucketClientInfo;
+}
+
 namespace content {
 
 class CONTENT_EXPORT IndexedDBClientStateCheckerFactory {
@@ -21,11 +25,13 @@ class CONTENT_EXPORT IndexedDBClientStateCheckerFactory {
   ~IndexedDBClientStateCheckerFactory() = delete;
 
   // Factory method that creates and returns a client state checker for the
-  // given render frame (which is null for worker contexts). This method is
-  // called on the browser UI thread and the remote it returns is suitable for
-  // use from other (privileged) threads or processes.
+  // client represented by `client_info`. Callers must check the validity of the
+  // returned `PendingRemote` before consuming it since it will be bound only if
+  // the client is in a valid state.
+  // This method is called on the browser UI thread and the object it returns is
+  // suitable for use from other (privileged) threads or processes.
   static mojo::PendingRemote<storage::mojom::IndexedDBClientStateChecker>
-  InitializePendingRemote(const GlobalRenderFrameHostId& rfh_id);
+  InitializePendingRemote(const storage::BucketClientInfo& client_info);
 
   // Factory method that returns the pointer to the implementation of
   // `storage::mojom::IndexedDBClientStateChecker`. `rfh_id` should be a valid

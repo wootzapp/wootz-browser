@@ -7,4 +7,8 @@
 
 constexpr int kPipWindowIconPadding = 8;
 
+constexpr int kPipWindowIconPadding2024 = 4;
+
+constexpr int kCenterButtonSize = 48;
+
 #endif  // CHROME_BROWSER_UI_VIEWS_OVERLAY_CONSTANTS_H_

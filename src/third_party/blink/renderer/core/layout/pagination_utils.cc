@@ -15,7 +15,7 @@
 #include "third_party/blink/renderer/core/layout/constraint_space_builder.h"
 #include "third_party/blink/renderer/core/layout/geometry/box_strut.h"
 #include "third_party/blink/renderer/core/layout/geometry/fragment_geometry.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
@@ -46,7 +46,7 @@ LogicalSize PageBoxDefaultSizeWithSourceOrientation(const Document& document,
                                                     LogicalSize layout_size) {
   DCHECK(ShouldCenterPageOnPaper(document.GetFrame()->GetPrintParams()));
   LogicalSize target_size =
-      PageBoxDefaultSize(document).ConvertToLogical(style.GetWritingMode());
+      ToLogicalSize(PageBoxDefaultSize(document), style.GetWritingMode());
   if (layout_size.inline_size != layout_size.block_size &&
       (target_size.inline_size > target_size.block_size) !=
           (layout_size.inline_size > layout_size.block_size)) {
@@ -121,7 +121,7 @@ LogicalSize DesiredPageContainingBlockSize(const Document& document,
     }
   }
 
-  return layout_size.ConvertToLogical(style.GetWritingMode());
+  return ToLogicalSize(layout_size, style.GetWritingMode());
 }
 
 void ResolvePageBoxGeometry(const BlockNode& page_box,
@@ -148,33 +148,15 @@ void ResolvePageBoxGeometry(const BlockNode& page_box,
   // size (the 'size' property). See
   // https://github.com/w3c/csswg-drafts/issues/8508 for discussion around
   // negative page margins in general.
-  auto ResolveAutoMargin =
-      [](Length start_length, Length end_length, LayoutUnit additional_space,
-         LayoutUnit* start_result, LayoutUnit* end_result) {
-        bool start_is_auto = start_length.IsAuto();
-        bool end_is_auto = end_length.IsAuto();
-        if (start_is_auto) {
-          if (end_is_auto) {
-            *start_result = additional_space / 2;
-            additional_space -= *start_result;
-          } else {
-            *start_result = additional_space;
-          }
-        }
-        if (end_is_auto) {
-          *end_result = additional_space;
-        }
-      };
   LayoutUnit additional_inline_space =
-      space.AvailableSize().inline_size - geometry->border_box_size.inline_size;
-  ResolveAutoMargin(style.MarginInlineStartUsing(style),
-                    style.MarginInlineEndUsing(style), additional_inline_space,
-                    &margins->inline_start, &margins->inline_end);
+      space.AvailableSize().inline_size -
+      (geometry->border_box_size.inline_size + margins->InlineSum());
   LayoutUnit additional_block_space =
-      space.AvailableSize().block_size - geometry->border_box_size.block_size;
-  ResolveAutoMargin(style.MarginBlockStartUsing(style),
-                    style.MarginBlockEndUsing(style), additional_block_space,
-                    &margins->block_start, &margins->block_end);
+      space.AvailableSize().block_size -
+      (geometry->border_box_size.block_size + margins->BlockSum());
+  ResolveAutoMargins(style.MarginInlineStart(), style.MarginInlineEnd(),
+                     style.MarginBlockStart(), style.MarginBlockEnd(),
+                     additional_inline_space, additional_block_space, margins);
 }
 
 PhysicalSize CalculateInitialContainingBlockSizeForPagination(
@@ -201,7 +183,7 @@ PhysicalSize CalculateInitialContainingBlockSizeForPagination(
   // (to resolve viewport units) are set up before entering layout (and, after
   // layout, the sizes may need to be adjusted, if the initial estimate turned
   // out to be wrong). Create a temporary node and resolve the size.
-  auto* page_box = LayoutNGBlockFlow::CreateAnonymous(&document, page_style);
+  auto* page_box = LayoutBlockFlow::CreateAnonymous(&document, page_style);
   BlockNode temporary_page_node(page_box);
 
   FragmentGeometry geometry;
@@ -246,7 +228,7 @@ float TargetScaleForPage(const PhysicalBoxFragment& page_container) {
                          &geometry, &margins);
   LogicalSize source_size = geometry.border_box_size + margins;
   LogicalSize target_size =
-      page_container.Size().ConvertToLogical(style.GetWritingMode());
+      ToLogicalSize(page_container.Size(), style.GetWritingMode());
 
   return layout_scale * TargetShrinkScaleFactor(target_size, source_size);
 }
@@ -302,21 +284,21 @@ LogicalRect TargetPageBorderBoxLogicalRect(
 }
 
 wtf_size_t PageCount(const LayoutView& view) {
-  DCHECK(view.ShouldUsePrintingLayout());
+  DCHECK(view.ShouldUsePaginatedLayout());
   const auto& fragments = view.GetPhysicalFragment(0)->Children();
   return ClampTo<wtf_size_t>(fragments.size());
 }
 
 const PhysicalBoxFragment* GetPageContainer(const LayoutView& view,
-                                            wtf_size_t page_number) {
+                                            wtf_size_t page_index) {
   if (!view.PhysicalFragmentCount()) {
     return nullptr;
   }
   const auto& pages = view.GetPhysicalFragment(0)->Children();
-  if (page_number >= pages.size()) {
+  if (page_index >= pages.size()) {
     return nullptr;
   }
-  const auto* child = To<PhysicalBoxFragment>(pages[page_number].get());
+  const auto* child = To<PhysicalBoxFragment>(pages[page_index].get());
   if (child->GetBoxType() != PhysicalFragment::kPageContainer) {
     // Not paginated, at least not yet.
     return nullptr;
@@ -325,8 +307,8 @@ const PhysicalBoxFragment* GetPageContainer(const LayoutView& view,
 }
 
 const PhysicalBoxFragment* GetPageArea(const LayoutView& view,
-                                       wtf_size_t page_number) {
-  const auto* page_container = GetPageContainer(view, page_number);
+                                       wtf_size_t page_index) {
+  const auto* page_container = GetPageContainer(view, page_index);
   if (!page_container) {
     return nullptr;
   }
@@ -342,7 +324,7 @@ const PhysicalFragmentLink& GetPageBorderBoxLink(
     }
   }
   // A page container will never be laid out without a page border box child.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 const PhysicalBoxFragment& GetPageBorderBox(
@@ -361,8 +343,8 @@ const PhysicalBoxFragment& GetPageArea(
 }
 
 PhysicalRect StitchedPageContentRect(const LayoutView& layout_view,
-                                     wtf_size_t page_number) {
-  return StitchedPageContentRect(*GetPageContainer(layout_view, page_number));
+                                     wtf_size_t page_index) {
+  return StitchedPageContentRect(*GetPageContainer(layout_view, page_index));
 }
 
 PhysicalRect StitchedPageContentRect(
@@ -375,16 +357,18 @@ PhysicalRect StitchedPageContentRect(
   if (const BlockBreakToken* previous_break_token =
           FindPreviousBreakTokenForPageArea(page_area)) {
     LayoutUnit consumed_block_size = previous_break_token->ConsumedBlockSize();
-    WritingMode writing_mode = page_container.Style().GetWritingMode();
-    if (writing_mode == WritingMode::kVerticalRl) {
+    PhysicalDirection block_end =
+        page_container.Style().GetWritingDirection().BlockEnd();
+    if (block_end == PhysicalDirection::kLeft) {
       const LayoutView& view = *page_container.GetDocument().GetLayoutView();
       const PhysicalBoxFragment& first_page_area = *GetPageArea(view, 0);
       physical_page_rect.offset.left += first_page_area.Size().width;
       physical_page_rect.offset.left -=
           consumed_block_size + page_area.Size().width;
-    } else if (writing_mode == WritingMode::kVerticalLr) {
+    } else if (block_end == PhysicalDirection::kRight) {
       physical_page_rect.offset.left += consumed_block_size;
     } else {
+      CHECK_EQ(block_end, PhysicalDirection::kDown);
       physical_page_rect.offset.top += consumed_block_size;
     }
   }
@@ -447,6 +431,39 @@ WebPrintPageDescription GetPageDescriptionFromLayout(const Document& document,
                                     border_box->Size() * scale);
 
   PhysicalBoxStrut insets(page_container.Size(), page_border_box_rect);
+
+  // Go through all page margin boxes, and see which page edges they intersect
+  // with. Set margins to zero for those edges, to suppress browser-generated
+  // headers and footers, so that they don't overlap with the page margin boxes.
+  PhysicalRect top_edge_rect(LayoutUnit(), LayoutUnit(),
+                             page_container.Size().width, insets.top);
+  PhysicalRect right_edge_rect(insets.left + page_border_box_rect.Width(),
+                               LayoutUnit(), insets.right,
+                               page_container.Size().height);
+  PhysicalRect bottom_edge_rect(LayoutUnit(),
+                                insets.top + page_border_box_rect.Height(),
+                                page_container.Size().width, insets.bottom);
+  PhysicalRect left_edge_rect(LayoutUnit(), LayoutUnit(), insets.left,
+                              page_container.Size().height);
+  for (const PhysicalFragmentLink& child_link : page_container.Children()) {
+    if (child_link->GetBoxType() != PhysicalFragment::kPageMargin) {
+      continue;
+    }
+    PhysicalRect box_rect(child_link.offset, child_link->Size());
+    if (box_rect.Intersects(top_edge_rect)) {
+      insets.top = LayoutUnit();
+    }
+    if (box_rect.Intersects(right_edge_rect)) {
+      insets.right = LayoutUnit();
+    }
+    if (box_rect.Intersects(bottom_edge_rect)) {
+      insets.bottom = LayoutUnit();
+    }
+    if (box_rect.Intersects(left_edge_rect)) {
+      insets.left = LayoutUnit();
+    }
+  }
+
   WebPrintPageDescription description(gfx::SizeF(page_container.Size()));
   description.margin_top = insets.top.ToFloat();
   description.margin_right = insets.right.ToFloat();

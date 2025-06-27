@@ -2,22 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SeaPenActionName, SeaPenActions} from 'chrome://resources/ash/common/sea_pen/sea_pen_actions.js';
+import {FullscreenPreviewState} from 'chrome://resources/ash/common/personalization/wallpaper_state.js';
+import type {SeaPenActions} from 'chrome://resources/ash/common/sea_pen/sea_pen_actions.js';
+import {SeaPenActionName} from 'chrome://resources/ash/common/sea_pen/sea_pen_actions.js';
 import {seaPenReducer} from 'chrome://resources/ash/common/sea_pen/sea_pen_reducer.js';
-import {SeaPenState} from 'chrome://resources/ash/common/sea_pen/sea_pen_state.js';
+import type {SeaPenState} from 'chrome://resources/ash/common/sea_pen/sea_pen_state.js';
 import {isImageDataUrl, isNonEmptyArray, isNonEmptyFilePath} from 'chrome://resources/ash/common/sea_pen/sea_pen_utils.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import type {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
-import {WallpaperCollection} from '../../personalization_app.mojom-webui.js';
-import {Actions} from '../personalization_actions.js';
-import {ReducerFunction} from '../personalization_reducers.js';
-import {PersonalizationState} from '../personalization_state.js';
+import type {WallpaperCollection} from '../../personalization_app.mojom-webui.js';
+import type {Actions} from '../personalization_actions.js';
+import type {ReducerFunction} from '../personalization_reducers.js';
+import type {PersonalizationState} from '../personalization_state.js';
 
-import {DefaultImageSymbol, kDefaultImageSymbol} from './constants.js';
+import type {DefaultImageSymbol} from './constants.js';
+import {kDefaultImageSymbol} from './constants.js';
 import {findAlbumById, isDefaultImage, isImageEqualToSelected} from './utils.js';
 import {WallpaperActionName} from './wallpaper_actions.js';
-import {DailyRefreshType, FullscreenPreviewState, WallpaperState} from './wallpaper_state.js';
+import type {WallpaperState} from './wallpaper_state.js';
+import {DailyRefreshType} from './wallpaper_state.js';
 
 function backdropReducer(
     state: WallpaperState['backdrop'], action: Actions,

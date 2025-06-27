@@ -15,7 +15,8 @@ import {fakeDeviceCustomLabels, fakeDeviceRegions, fakeDeviceSkuDescriptions, fa
 import {FakeShimlessRmaService} from 'chrome://shimless-rma/fake_shimless_rma_service.js';
 import {setShimlessRmaServiceForTesting} from 'chrome://shimless-rma/mojo_interface_provider.js';
 import {BooleanOrDefaultOptions, ReimagingDeviceInformationPage} from 'chrome://shimless-rma/reimaging_device_information_page.js';
-import {FeatureLevel, StateResult} from 'chrome://shimless-rma/shimless_rma.mojom-webui.js';
+import type {StateResult} from 'chrome://shimless-rma/shimless_rma.mojom-webui.js';
+import {FeatureLevel} from 'chrome://shimless-rma/shimless_rma.mojom-webui.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chromeos/chai_assert.js';
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise, isVisible} from 'chrome://webui-test/test_util.js';
@@ -419,10 +420,6 @@ suite('reimagingDeviceInformationPageTest', function() {
   // Verify the next button gets disabled when the compliance questions are set
   // to their default options.
   test('NextButtonDisabledDefaultCompliance', async () => {
-    // Set the compliance check flag so that the additional questions show
-    // up.
-    loadTimeData.overrideValues({complianceCheckEnabled: true});
-
     await initializeReimagingDeviceInformationPage();
     // Set the feature level so that the additional questions show up.
     await setFeatureLevelAndReinitialize(FeatureLevel.kRmadFeatureLevelUnknown);
@@ -474,10 +471,6 @@ suite('reimagingDeviceInformationPageTest', function() {
   // Verify the correct info is sent based on the current compliance questions
   // values.
   test('ResultsForComplianceCheckQuestions', async () => {
-    // Set the compliance check flag so that the additional questions show
-    // up.
-    loadTimeData.overrideValues({complianceCheckEnabled: true});
-
     await initializeReimagingDeviceInformationPage();
     // Set the feature level so that the additional questions show up.
     await setFeatureLevelAndReinitialize(FeatureLevel.kRmadFeatureLevelUnknown);
@@ -529,8 +522,6 @@ suite('reimagingDeviceInformationPageTest', function() {
   // Verify the correct warnings and text are displayed based on the current
   // feature level.
   test('WarningsByFeatureLevel', async () => {
-    loadTimeData.overrideValues({complianceCheckEnabled: true});
-
     await initializeReimagingDeviceInformationPage();
     // Set the feature level so no compliance info shows.
     await setFeatureLevelAndReinitialize(

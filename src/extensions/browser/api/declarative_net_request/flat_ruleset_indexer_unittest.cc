@@ -6,13 +6,15 @@
 
 #include <stdint.h>
 
+#include <algorithm>
+#include <array>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 
-#include "base/format_macros.h"
+#include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/values_test_util.h"
 #include "components/url_pattern_index/flat/url_pattern_index_generated.h"
@@ -21,6 +23,7 @@
 #include "extensions/browser/api/declarative_net_request/indexed_rule.h"
 #include "extensions/browser/api/declarative_net_request/test_utils.h"
 #include "extensions/browser/api/declarative_net_request/utils.h"
+#include "extensions/common/api/declarative_net_request.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace extensions::declarative_net_request {
@@ -40,12 +43,14 @@ std::string ToString(const flatbuffers::String* string) {
 std::vector<std::string> ToVector(
     const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>*
         vec) {
-  if (!vec)
+  if (!vec) {
     return std::vector<std::string>();
+  }
   std::vector<std::string> result;
   result.reserve(vec->size());
-  for (auto* str : *vec)
+  for (auto* str : *vec) {
     result.push_back(ToString(str));
+  }
   return result;
 }
 
@@ -54,8 +59,9 @@ std::vector<std::string> ToVector(
 std::vector<dnr_api::ModifyHeaderInfo> ToVector(
     const ::flatbuffers::Vector<::flatbuffers::Offset<flat::ModifyHeaderInfo>>*
         vec) {
-  if (!vec)
+  if (!vec) {
     return std::vector<dnr_api::ModifyHeaderInfo>();
+  }
   std::vector<dnr_api::ModifyHeaderInfo> result;
   result.reserve(vec->size());
 
@@ -83,6 +89,23 @@ std::vector<dnr_api::ModifyHeaderInfo> ToVector(
     const flatbuffers::String* flat_header = flat_header_info->header();
     DCHECK(flat_header);
     header_info.header = ToString(flat_header);
+
+    const flatbuffers::String* flat_regex_filter =
+        flat_header_info->regex_filter();
+    if (flat_regex_filter) {
+      header_info.regex_filter = ToString(flat_regex_filter);
+    }
+
+    const flatbuffers::String* flat_regex_substitution =
+        flat_header_info->regex_substitution();
+    if (flat_regex_substitution) {
+      header_info.regex_substitution = ToString(flat_regex_substitution);
+    }
+
+    DCHECK(flat_header_info->regex_options());
+    header_info.regex_options = dnr_api::HeaderRegexOptions();
+    header_info.regex_options->match_all =
+        flat_header_info->regex_options()->match_all();
 
     result.push_back(std::move(header_info));
   }
@@ -243,15 +266,18 @@ std::vector<const flat_rule::UrlRule*> GetAllRulesFromIndex(
 
   // Iterate over all ngrams and add their corresponding rules.
   for (auto* ngram_to_rules : *index->ngram_index()) {
-    if (ngram_to_rules == index->ngram_index_empty_slot())
+    if (ngram_to_rules == index->ngram_index_empty_slot()) {
       continue;
-    for (const auto* rule : *ngram_to_rules->rule_list())
+    }
+    for (const auto* rule : *ngram_to_rules->rule_list()) {
       result.push_back(rule);
+    }
   }
 
   // Add all fallback rules.
-  for (const auto* rule : *index->fallback_rules())
+  for (const auto* rule : *index->fallback_rules()) {
     result.push_back(rule);
+  }
 
   return result;
 }
@@ -335,15 +361,17 @@ void VerifyExtensionMetadata(
                  pair.indexed_rule->url_transform);
 
     if (pair.indexed_rule->redirect_url) {
-      if (!pair.metadata->redirect_url())
+      if (!pair.metadata->redirect_url()) {
         return false;
+      }
       return pair.indexed_rule->redirect_url ==
              ToString(pair.metadata->redirect_url());
     }
 
     if (pair.indexed_rule->url_transform) {
-      if (!pair.metadata->transform())
+      if (!pair.metadata->transform()) {
         return false;
+      }
       return VerifyUrlTransform(*pair.metadata->transform());
     }
 
@@ -351,8 +379,8 @@ void VerifyExtensionMetadata(
         [](const ::flatbuffers::Vector<
                ::flatbuffers::Offset<flat::ModifyHeaderInfo>>* metadata_headers,
            const std::vector<dnr_api::ModifyHeaderInfo>& indexed_headers) {
-          return base::ranges::equal(
-              indexed_headers, ToVector(metadata_headers), EqualsForTesting);
+          return std::ranges::equal(indexed_headers, ToVector(metadata_headers),
+                                    EqualsForTesting);
         };
 
     EXPECT_TRUE(are_header_modifications_equal(
@@ -376,14 +404,16 @@ const flat::ExtensionIndexedRuleset* AddRuleAndGetRuleset(
     const std::vector<IndexedRule>& rules_to_index,
     flatbuffers::DetachedBuffer* buffer) {
   FlatRulesetIndexer indexer;
-  for (const auto& rule : rules_to_index)
+  for (const auto& rule : rules_to_index) {
     indexer.AddUrlRule(rule);
+  }
   *buffer = indexer.FinishAndReleaseBuffer();
 
   EXPECT_EQ(rules_to_index.size(), indexer.indexed_rules_count());
   flatbuffers::Verifier verifier(buffer->data(), buffer->size());
-  if (!flat::VerifyExtensionIndexedRulesetBuffer(verifier))
+  if (!flat::VerifyExtensionIndexedRulesetBuffer(verifier)) {
     return nullptr;
+  }
 
   return flat::GetExtensionIndexedRuleset(buffer->data());
 }
@@ -394,19 +424,18 @@ const flat::ExtensionIndexedRuleset* AddRuleAndGetRuleset(
 //    - Verifies that the ExtensionIndexedRuleset created is valid.
 // Note: this does not test regex rules which are part of the
 // ExtensionIndexedRuleset.
-void AddRulesAndVerifyIndex(
-    const std::vector<IndexedRule>& rules_to_index,
-    const std::vector<const IndexedRule*>
-        before_request_expected_index_lists[flat::IndexType_count],
-    const std::vector<const IndexedRule*>
-        headers_received_expected_index_lists[flat::IndexType_count]) {
+void AddRulesAndVerifyIndex(const std::vector<IndexedRule>& rules_to_index,
+                            base::span<const std::vector<const IndexedRule*>>
+                                before_request_expected_index_lists,
+                            base::span<const std::vector<const IndexedRule*>>
+                                headers_received_expected_index_lists) {
   flatbuffers::DetachedBuffer buffer;
   const flat::ExtensionIndexedRuleset* ruleset =
       AddRuleAndGetRuleset(rules_to_index, &buffer);
   ASSERT_TRUE(ruleset);
 
   for (size_t i = 0; i < flat::IndexType_count; ++i) {
-    SCOPED_TRACE(base::StringPrintf("Testing index %" PRIuS, i));
+    SCOPED_TRACE(base::StringPrintf("Testing index %zu", i));
     VerifyIndexEquality(before_request_expected_index_lists[i],
                         ruleset->before_request_index_list()->Get(i));
     VerifyIndexEquality(headers_received_expected_index_lists[i],
@@ -541,6 +570,23 @@ TEST_F(FlatRulesetIndexerTest, MultipleRules) {
   request_headers_2.push_back(CreateModifyHeaderInfo(
       dnr_api::HeaderOperation::kRemove, "referer", std::nullopt));
 
+  request_headers_2.push_back(
+      CreateModifyHeaderInfo(dnr_api::HeaderOperation::kRemove, "cookie",
+                             std::nullopt, "bad-cookie", std::nullopt));
+
+  {
+    std::optional<dnr_api::HeaderRegexOptions> regex_options =
+        std::make_optional(dnr_api::HeaderRegexOptions());
+    regex_options->match_all = true;
+
+    // TODO(crbug.com/352093575): Make the header operation null when feature
+    // launches to avoid the documentation labelling it as optional when all
+    // current ModifyHeader actions require an operation to be specified.
+    request_headers_2.push_back(CreateModifyHeaderInfo(
+        dnr_api::HeaderOperation::kRemove, "cookie", std::nullopt,
+        "worst-cookie", "best-cookie=phew", std::move(regex_options)));
+  }
+
   rules_to_index.push_back(CreateIndexedRule(
       24, kMinValidPriority, flat_rule::OptionFlag_IS_CASE_INSENSITIVE,
       flat_rule::ElementType_SUBDOCUMENT, flat_rule::ActivationType_NONE,
@@ -580,8 +626,8 @@ TEST_F(FlatRulesetIndexerTest, MultipleRules) {
   // Hence we build `expected_before_request_index_lists` and
   // `expected_headers_received_index_lists` once the vector `rules_to_index` is
   // finalized.
-  std::vector<const IndexedRule*>
-      expected_before_request_index_lists[flat::IndexType_count];
+  std::array<std::vector<const IndexedRule*>, flat::IndexType_count>
+      expected_before_request_index_lists;
   expected_before_request_index_lists
       [flat::IndexType_before_request_except_allow_all_requests] = {
           &rules_to_index[0], &rules_to_index[1], &rules_to_index[2],
@@ -594,8 +640,8 @@ TEST_F(FlatRulesetIndexerTest, MultipleRules) {
   expected_before_request_index_lists[flat::IndexType_modify_headers] = {
       &rules_to_index[9], &rules_to_index[10]};
 
-  std::vector<const IndexedRule*>
-      expected_headers_received_index_lists[flat::IndexType_count];
+  std::array<std::vector<const IndexedRule*>, flat::IndexType_count>
+      expected_headers_received_index_lists;
   expected_headers_received_index_lists
       [flat::IndexType_before_request_except_allow_all_requests] = {
           &rules_to_index[11]};
@@ -669,7 +715,7 @@ TEST_F(FlatRulesetIndexerTest, RegexRules) {
 
   // All the indices should be empty, since we only have regex rules.
   for (size_t i = 0; i < flat::IndexType_count; ++i) {
-    SCOPED_TRACE(base::StringPrintf("Testing index %" PRIuS, i));
+    SCOPED_TRACE(base::StringPrintf("Testing index %zu", i));
     VerifyIndexEquality({}, ruleset->before_request_index_list()->Get(i));
     VerifyIndexEquality({}, ruleset->headers_received_index_list()->Get(i));
   }
@@ -677,8 +723,9 @@ TEST_F(FlatRulesetIndexerTest, RegexRules) {
   {
     SCOPED_TRACE("Testing extension metadata");
     std::vector<const IndexedRule*> all_rules;
-    for (IndexedRule& rule : rules_to_index)
+    for (const IndexedRule& rule : rules_to_index) {
       all_rules.push_back(&rule);
+    }
     VerifyExtensionMetadata(all_rules, ruleset->extension_metadata());
   }
 
@@ -690,15 +737,17 @@ TEST_F(FlatRulesetIndexerTest, RegexRules) {
   const flat::RegexRule* regex_substitution_rule = nullptr;
   const flat::RegexRule* modify_header_rule = nullptr;
   for (const auto* regex_rule : *ruleset->before_request_regex_rules()) {
-    if (regex_rule->action_type() == flat::ActionType_block)
+    if (regex_rule->action_type() == flat::ActionType_block) {
       blocking_rule = regex_rule;
-    else if (regex_rule->action_type() == flat::ActionType_redirect) {
-      if (regex_rule->regex_substitution())
+    } else if (regex_rule->action_type() == flat::ActionType_redirect) {
+      if (regex_rule->regex_substitution()) {
         regex_substitution_rule = regex_rule;
-      else
+      } else {
         redirect_rule = regex_rule;
-    } else if (regex_rule->action_type() == flat::ActionType_modify_headers)
+      }
+    } else if (regex_rule->action_type() == flat::ActionType_modify_headers) {
       modify_header_rule = regex_rule;
+    }
   }
 
   ASSERT_TRUE(blocking_rule);

@@ -9,6 +9,11 @@ import static org.junit.Assert.assertEquals;
 import static org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule.LONG_TIMEOUT_MS;
 
 import android.content.ComponentName;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -25,16 +30,20 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 import org.junit.Assert;
 
+import org.chromium.base.ContextUtils;
+import org.chromium.base.PackageManagerUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.PackageManagerWrapper;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
 import org.chromium.chrome.test.util.ChromeTabUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
+import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -65,8 +74,8 @@ public class CustomTabsTestUtils {
         return connection;
     }
 
-    public static void cleanupSessions(final CustomTabsConnection connection) {
-        TestThreadUtils.runOnUiThreadBlocking(connection::cleanupAllForTesting);
+    public static void cleanupSessions() {
+        ThreadUtils.runOnUiThreadBlocking(CustomTabsConnection.getInstance()::cleanupAllForTesting);
     }
 
     public static ClientAndSession bindWithCallback(final CustomTabsCallback callback)
@@ -97,20 +106,17 @@ public class CustomTabsTestUtils {
     public static CustomTabsConnection warmUpAndWait() throws TimeoutException {
         CustomTabsConnection connection = setUpConnection();
         final CallbackHelper startupCallbackHelper = new CallbackHelper();
-        CustomTabsSession session =
-                bindWithCallback(
-                                new CustomTabsCallback() {
-                                    @Override
-                                    public void extraCallback(String callbackName, Bundle args) {
-                                        if (callbackName.equals(
-                                                CustomTabsConnection.ON_WARMUP_COMPLETED)) {
-                                            startupCallbackHelper.notifyCalled();
-                                        }
-                                    }
-                                })
-                        .session;
+        bindWithCallback(
+                new CustomTabsCallback() {
+                    @Override
+                    public void extraCallback(String callbackName, Bundle args) {
+                        if (callbackName.equals(CustomTabsConnection.ON_WARMUP_COMPLETED)) {
+                            startupCallbackHelper.notifyCalled();
+                        }
+                    }
+                });
         Assert.assertTrue(connection.warmup(0));
-        startupCallbackHelper.waitForCallback(0, 1, 10, TimeUnit.SECONDS);
+        startupCallbackHelper.waitForCallback(0, 1, 20, TimeUnit.SECONDS);
         return connection;
     }
 
@@ -147,19 +153,20 @@ public class CustomTabsTestUtils {
         return CustomTabsTestUtilsJni.get().hasVariationId(id);
     }
 
-    /** Waits for the speculation of |url| for the |connection| to complete. */
-    public static void ensureCompletedSpeculationForUrl(
-            final CustomTabsConnection connection, final String url) {
+    /** Waits for the speculation of |url| to complete. */
+    public static void ensureCompletedSpeculationForUrl(final String url) {
         CriteriaHelper.pollUiThread(
                 () -> {
                     Criteria.checkThat(
                             "Tab was not created",
-                            connection.getSpeculationParamsForTesting(),
+                            CustomTabsConnection.getInstance().getSpeculationParamsForTesting(),
                             Matchers.notNullValue());
                 },
                 LONG_TIMEOUT_MS,
                 CriteriaHelper.DEFAULT_POLLING_INTERVAL);
-        ChromeTabUtils.waitForTabPageLoaded(connection.getSpeculationParamsForTesting().tab, url);
+        ChromeTabUtils.waitForTabPageLoaded(
+                CustomTabsConnection.getInstance().getSpeculationParamsForTesting().hiddenTab.tab,
+                url);
     }
 
     /**
@@ -179,9 +186,40 @@ public class CustomTabsTestUtils {
     public static String getMenuTitles(ModelList list) {
         StringBuilder items = new StringBuilder();
         for (int i = 0; i < list.size(); i++) {
-            items.append("\n").append(list.get(i).model.get(AppMenuItemProperties.TITLE));
+            PropertyModel model = list.get(i).model;
+            items.append("\n").append(model.get(AppMenuItemProperties.TITLE));
+            if (model.get(AppMenuItemProperties.SUBMENU) != null) {
+                for (var submenu : model.get(AppMenuItemProperties.SUBMENU)) {
+                    items.append("\n - ").append(submenu.model.get(AppMenuItemProperties.TITLE));
+                }
+            }
         }
         return items.toString();
+    }
+
+    public static PackageManagerWrapper getDefaultBrowserOverridingPackageManager(
+            String browserPackage, PackageManager wrapped) {
+        return new PackageManagerWrapper(wrapped) {
+            @Override
+            public ResolveInfo resolveActivity(Intent intent, int flags) {
+                // Set ourselves as the default browser.
+                if (intent.filterEquals(PackageManagerUtils.BROWSER_INTENT)) {
+                    return newResolveInfo(ContextUtils.getApplicationContext().getPackageName());
+                }
+                return super.resolveActivity(intent, flags);
+            }
+        };
+    }
+
+    public static ResolveInfo newResolveInfo(String packageName) {
+        ActivityInfo ai = new ActivityInfo();
+        ai.packageName = packageName;
+        ai.name = "Name: " + packageName;
+        ai.applicationInfo = new ApplicationInfo();
+        ai.exported = true;
+        ResolveInfo ri = new ResolveInfo();
+        ri.activityInfo = ai;
+        return ri;
     }
 
     @NativeMethods

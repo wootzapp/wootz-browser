@@ -23,11 +23,6 @@
 #include "sql/init_status.h"
 #include "sql/meta_table.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#include "components/history/core/browser/android/android_cache_database.h"
-#include "components/history/core/browser/android/android_urls_database.h"
-#endif
-
 namespace base {
 class FilePath;
 }
@@ -48,10 +43,6 @@ namespace history {
 // as the storage interface. Logic for manipulating this storage layer should
 // be in HistoryBackend.cc.
 class HistoryDatabase : public DownloadDatabase,
-#if BUILDFLAG(IS_ANDROID)
-                        public AndroidURLsDatabase,
-                        public AndroidCacheDatabase,
-#endif
                         public URLDatabase,
                         public VisitDatabase,
                         public VisitAnnotationsDatabase,
@@ -88,13 +79,13 @@ class HistoryDatabase : public DownloadDatabase,
   // Counts the number of unique Hosts visited in the last month.
   int CountUniqueHostsVisitedLastMonth();
 
-  // Gets unique domains (eLTD+1) visited within the time range
+  // Gets unique domains (eTLD+1) visited within the time range
   // [`begin_time`, `end_time`) for local and synced visits sorted in
   // reverse-chronological order.
   DomainsVisitedResult GetUniqueDomainsVisited(base::Time begin_time,
                                                base::Time end_time);
 
-  // Counts the number of unique domains (eLTD+1) visited within
+  // Counts the number of unique domains (eTLD+1) visited within
   // [`begin_time`, `end_time`).
   // The return value is a pair of (local, all), where "local" only counts
   // domains that were visited on this device, whereas "all" also counts
@@ -202,11 +193,6 @@ class HistoryDatabase : public DownloadDatabase,
   sql::Database& GetDBForTesting();
 
  private:
-#if BUILDFLAG(IS_ANDROID)
-  // AndroidProviderBackend uses the `db_`.
-  friend class AndroidProviderBackend;
-  FRIEND_TEST_ALL_PREFIXES(AndroidURLsMigrationTest, MigrateToVersion22);
-#endif
   friend class ::InMemoryURLIndexTest;
 
   // Overridden from URLDatabase, DownloadDatabase, VisitDatabase, and
@@ -230,6 +216,12 @@ class HistoryDatabase : public DownloadDatabase,
 #endif
 
   bool MigrateRemoveTypedUrlMetadata();
+
+#if BUILDFLAG(IS_ANDROID)
+  // The android_urls table ceased usage in 91.0.4438.0. This method drops the
+  // table if it exists.
+  bool DropAndroidUrlsTable();
+#endif
 
   // ---------------------------------------------------------------------------
 

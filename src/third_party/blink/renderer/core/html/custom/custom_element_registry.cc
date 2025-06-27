@@ -88,6 +88,14 @@ CustomElementRegistry::CustomElementRegistry(const LocalDOMWindow* owner)
       upgrade_candidates_(MakeGarbageCollected<UpgradeCandidateMap>()),
       associated_documents_(MakeGarbageCollected<AssociatedDocumentSet>()) {}
 
+Vector<AtomicString> CustomElementRegistry::DefinedNames() const {
+  Vector<AtomicString> names;
+  for (const auto& name : name_map_.Keys()) {
+    names.push_back(name);
+  }
+  return names;
+}
+
 void CustomElementRegistry::Trace(Visitor* visitor) const {
   visitor->Trace(constructor_map_);
   visitor->Trace(name_map_);
@@ -334,7 +342,7 @@ ScriptPromise<V8CustomElementConstructor> CustomElementRegistry::whenDefined(
     const AtomicString& name,
     ExceptionState& exception_state) {
   if (ThrowIfInvalidName(name, false, exception_state))
-    return ScriptPromise<V8CustomElementConstructor>();
+    return EmptyPromise();
   if (CustomElementDefinition* definition = DefinitionForName(name)) {
     return ToResolvedPromise<V8CustomElementConstructor>(
         script_state, definition->GetV8CustomElementConstructor());

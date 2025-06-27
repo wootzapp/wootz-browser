@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.LocaleUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.UserActionTester;
@@ -35,7 +36,7 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.net.NetworkChangeNotifier;
 
 import java.io.IOException;
@@ -64,7 +65,7 @@ public final class FeedManagementTest {
         mActivityTestRule.startMainActivityOnBlankPage();
         // EULA must be accepted, and internet connectivity is required, or the Feed will not
         // attempt to load.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     NetworkChangeNotifier.forceConnectivityState(true);
                     FirstRunUtils.setEulaAccepted();
@@ -84,7 +85,7 @@ public final class FeedManagementTest {
     @MediumTest
     public void launchNtp_launchFeedManagement() throws IOException, InterruptedException {
         // The web feed requires login to enable, so we must log in first.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
         // Load the NTP.
         mActivityTestRule.loadUrlInNewTab(UrlConstants.NTP_URL);
         // Bring up the gear icon menu.
@@ -97,7 +98,7 @@ public final class FeedManagementTest {
     @MediumTest
     public void launchNtp_launchActivitySettings() throws IOException, InterruptedException {
         // The web feed requires login to enable, so we must log in first.
-        mSigninTestRule.addTestAccountThenSigninAndEnableSync();
+        mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
         // Load the NTP.
         mActivityTestRule.loadUrlInNewTab(UrlConstants.NTP_URL);
 

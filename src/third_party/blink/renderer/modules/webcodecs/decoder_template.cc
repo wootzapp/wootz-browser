@@ -42,7 +42,6 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/heap/cross_thread_handle.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
@@ -127,6 +126,9 @@ template <typename Traits>
 void DecoderTemplate<Traits>::SetHardwarePreference(HardwarePreference) {}
 
 template <typename Traits>
+void DecoderTemplate<Traits>::OnActiveConfigChanged(const MediaConfigType&) {}
+
+template <typename Traits>
 void DecoderTemplate<Traits>::configure(const ConfigType* config,
                                         ExceptionState& exception_state) {
   DVLOG(1) << __func__;
@@ -208,10 +210,10 @@ ScriptPromise<IDLUndefined> DecoderTemplate<Traits>::flush(
   DVLOG(3) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (ThrowIfCodecStateClosed(state_, "flush", exception_state))
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
 
   if (ThrowIfCodecStateUnconfigured(state_, "flush", exception_state))
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
 
   MarkCodecActive();
 
@@ -675,6 +677,7 @@ void DecoderTemplate<Traits>::OnInitializeDone(media::DecoderStatus status) {
 
     low_delay_ = pending_request_->low_delay.value();
     active_config_ = std::move(pending_request_->media_config);
+    OnActiveConfigChanged(*active_config_);
   }
 
   pending_request_.Release()->EndTracing();

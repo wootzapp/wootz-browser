@@ -32,11 +32,8 @@
 #include "third_party/blink/renderer/core/svg/svg_path_byte_stream_builder.h"
 #include "third_party/blink/renderer/core/svg/svg_path_byte_stream_source.h"
 #include "third_party/blink/renderer/core/svg/svg_path_utilities.h"
-#include "third_party/blink/renderer/platform/graphics/path.h"
-#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
+#include "third_party/blink/renderer/platform/geometry/path.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
-#include "third_party/blink/renderer/platform/wtf/text/atomic_string_hash.h"
 
 namespace blink {
 
@@ -44,52 +41,36 @@ using cssvalue::CSSPathValue;
 
 namespace {
 
-std::unique_ptr<SVGPathByteStream> BlendPathByteStreams(
-    const SVGPathByteStream& from_stream,
-    const SVGPathByteStream& to_stream,
-    float progress) {
-  auto result_stream = std::make_unique<SVGPathByteStream>();
-  SVGPathByteStreamBuilder builder(*result_stream);
+SVGPathByteStream BlendPathByteStreams(const SVGPathByteStream& from_stream,
+                                       const SVGPathByteStream& to_stream,
+                                       float progress) {
+  SVGPathByteStreamBuilder builder;
   SVGPathByteStreamSource from_source(from_stream);
   SVGPathByteStreamSource to_source(to_stream);
   SVGPathBlender blender(&from_source, &to_source, &builder);
   blender.BlendAnimatedPath(progress);
-  return result_stream;
+  return builder.CopyByteStream();
 }
 
-std::unique_ptr<SVGPathByteStream> AddPathByteStreams(
-    const SVGPathByteStream& from_stream,
-    const SVGPathByteStream& by_stream,
-    unsigned repeat_count = 1) {
-  auto result_stream = std::make_unique<SVGPathByteStream>();
-  SVGPathByteStreamBuilder builder(*result_stream);
+SVGPathByteStream AddPathByteStreams(const SVGPathByteStream& from_stream,
+                                     const SVGPathByteStream& by_stream,
+                                     unsigned repeat_count = 1) {
+  SVGPathByteStreamBuilder builder;
   SVGPathByteStreamSource from_source(from_stream);
   SVGPathByteStreamSource by_source(by_stream);
   SVGPathBlender blender(&from_source, &by_source, &builder);
   blender.AddAnimatedPath(repeat_count);
-  return result_stream;
+  return builder.CopyByteStream();
 }
 
-std::unique_ptr<SVGPathByteStream> ConditionallyAddPathByteStreams(
-    std::unique_ptr<SVGPathByteStream> from_stream,
+SVGPathByteStream ConditionallyAddPathByteStreams(
+    SVGPathByteStream from_stream,
     const SVGPathByteStream& by_stream,
     unsigned repeat_count = 1) {
-  if (from_stream->IsEmpty() || by_stream.IsEmpty())
+  if (from_stream.IsEmpty() || by_stream.IsEmpty()) {
     return from_stream;
-  return AddPathByteStreams(*from_stream, by_stream, repeat_count);
-}
-
-// Entries in this cache are kept with a WeakMember. They'll be removed from
-// the map if nothing is referencing them - as such this doesn't grow
-// unbounded in size.
-// NOTE: This cache exists for a relatively minor gain in MotionMark. If at any
-// point it becomes burdensome please re-evaluate its existence.
-using CSSPathValueCache =
-    HeapHashMap<AtomicString, WeakMember<const cssvalue::CSSPathValue>>;
-static CSSPathValueCache& GetCSSPathValueCache() {
-  DEFINE_STATIC_LOCAL(Persistent<CSSPathValueCache>, cache,
-                      (MakeGarbageCollected<CSSPathValueCache>()));
-  return *cache;
+  }
+  return AddPathByteStreams(from_stream, by_stream, repeat_count);
 }
 
 }  // namespace
@@ -108,35 +89,11 @@ SVGPath* SVGPath::Clone() const {
   return MakeGarbageCollected<SVGPath>(*path_value_);
 }
 
-SVGParsingError SVGPath::SetValueAsString(const AtomicString& string) {
-  // Special-case for "" or a removed attribute (string.IsNull()).
-  if (string.empty()) {
-    path_value_ = CSSPathValue::EmptyPathValue();
-    return SVGParseStatus::kNoError;
-  }
-  CSSPathValueCache& cache = GetCSSPathValueCache();
-  auto it = cache.find(string);
-  if (it != cache.end()) {
-    path_value_ = it->value;
-    return SVGParseStatus::kNoError;
-  }
-
-  auto byte_stream = std::make_unique<SVGPathByteStream>();
-  SVGParsingError parse_status =
-      BuildByteStreamFromString(string, *byte_stream);
-  path_value_ = MakeGarbageCollected<CSSPathValue>(std::move(byte_stream));
-
-  if (parse_status == SVGParseStatus::kNoError) {
-    cache.insert(string, path_value_);
-  }
+SVGParsingError SVGPath::SetValueAsString(const String& string) {
+  SVGPathByteStreamBuilder builder;
+  SVGParsingError parse_status = BuildByteStreamFromString(string, builder);
+  path_value_ = MakeGarbageCollected<CSSPathValue>(builder.CopyByteStream());
   return parse_status;
-}
-
-SVGPropertyBase* SVGPath::CloneForAnimation(const String& value) const {
-  auto byte_stream = std::make_unique<SVGPathByteStream>();
-  BuildByteStreamFromString(value, *byte_stream);
-  return MakeGarbageCollected<SVGPath>(
-      *MakeGarbageCollected<CSSPathValue>(std::move(byte_stream)));
 }
 
 void SVGPath::Add(const SVGPropertyBase* other, const SVGElement*) {
@@ -182,7 +139,7 @@ void SVGPath::CalculateAnimatedValue(
   // object as the last thing to avoid clobbering the result. As long
   // as all intermediate results are computed into |new_stream| that
   // should be unproblematic.
-  std::unique_ptr<SVGPathByteStream> new_stream =
+  SVGPathByteStream new_stream =
       BlendPathByteStreams(from_stream, to_stream, percentage);
 
   // Handle accumulate='sum'.

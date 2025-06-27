@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/web_view/internal/autofill/cwv_autofill_suggestion_internal.h"
-
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
+#import "ios/web_view/internal/autofill/cwv_autofill_suggestion_internal.h"
 
 @implementation CWVAutofillSuggestion {
   BOOL _isPasswordSuggestion;
@@ -15,6 +14,7 @@
 @synthesize formName = _formName;
 @synthesize fieldIdentifier = _fieldIdentifier;
 @synthesize frameID = _frameID;
+@synthesize suggestionType = _suggestionType;
 
 - (instancetype)initWithFormSuggestion:(FormSuggestion*)formSuggestion
                               formName:(NSString*)formName
@@ -28,6 +28,7 @@
     _fieldIdentifier = [fieldIdentifier copy];
     _frameID = [frameID copy];
     _isPasswordSuggestion = isPasswordSuggestion;
+    _suggestionType = CWVSuggestionType(static_cast<long>(formSuggestion.type));
   }
   return self;
 }

@@ -17,15 +17,14 @@ namespace blink {
 
 class BasicShapeNonInterpolableValue : public NonInterpolableValue {
  public:
-  static scoped_refptr<const NonInterpolableValue> Create(
-      BasicShape::ShapeType type) {
-    return base::AdoptRef(new BasicShapeNonInterpolableValue(type));
+  explicit BasicShapeNonInterpolableValue(BasicShape::ShapeType type)
+      : type_(type), wind_rule_(RULE_NONZERO), size_(0) {
+    DCHECK_NE(type, BasicShape::kBasicShapePolygonType);
   }
-  static scoped_refptr<const NonInterpolableValue> CreatePolygon(
-      WindRule wind_rule,
-      wtf_size_t size) {
-    return base::AdoptRef(new BasicShapeNonInterpolableValue(wind_rule, size));
-  }
+  BasicShapeNonInterpolableValue(WindRule wind_rule, wtf_size_t size)
+      : type_(BasicShape::kBasicShapePolygonType),
+        wind_rule_(wind_rule),
+        size_(size) {}
 
   BasicShape::ShapeType GetShapeType() const { return type_; }
 
@@ -50,23 +49,13 @@ class BasicShapeNonInterpolableValue : public NonInterpolableValue {
       case BasicShape::kBasicShapePolygonType:
         return GetWindRule() == other.GetWindRule() && size() == other.size();
       default:
-        NOTREACHED_IN_MIGRATION();
-        return false;
+        NOTREACHED();
     }
   }
 
   DECLARE_NON_INTERPOLABLE_VALUE_TYPE();
 
  private:
-  BasicShapeNonInterpolableValue(BasicShape::ShapeType type)
-      : type_(type), wind_rule_(RULE_NONZERO), size_(0) {
-    DCHECK_NE(type, BasicShape::kBasicShapePolygonType);
-  }
-  BasicShapeNonInterpolableValue(WindRule wind_rule, wtf_size_t size)
-      : type_(BasicShape::kBasicShapePolygonType),
-        wind_rule_(wind_rule),
-        size_(size) {}
-
   const BasicShape::ShapeType type_;
   const WindRule wind_rule_;
   const wtf_size_t size_;
@@ -90,20 +79,24 @@ InterpolableValue* Unwrap(InterpolationValue&& value) {
   return std::move(value.interpolable_value);
 }
 
-InterpolableValue* ConvertCSSCoordinate(const CSSValue* coordinate) {
+InterpolableValue* ConvertCSSCoordinate(const CSSValue* coordinate,
+                                        const CSSProperty& property) {
   if (coordinate) {
     return Unwrap(
         CSSPositionAxisListInterpolationType::ConvertPositionAxisCSSValue(
             *coordinate));
   }
-  return InterpolableLength::MaybeConvertLength(Length::Percent(50), 1);
+  return InterpolableLength::MaybeConvertLength(
+      Length::Percent(50), property, 1, /*interpolate_size=*/std::nullopt);
 }
 
 InterpolableValue* ConvertCoordinate(
     const BasicShapeCenterCoordinate& coordinate,
+    const CSSProperty& property,
     double zoom) {
-  return InterpolableLength::MaybeConvertLength(coordinate.ComputedLength(),
-                                                zoom);
+  return InterpolableLength::MaybeConvertLength(
+      coordinate.ComputedLength(), property, zoom,
+      /*interpolate_size=*/std::nullopt);
 }
 
 InterpolableValue* CreateNeutralInterpolableCoordinate() {
@@ -126,11 +119,15 @@ InterpolableValue* ConvertCSSRadius(const CSSValue* radius) {
   return InterpolableLength::MaybeConvertCSSValue(*radius);
 }
 
-InterpolableValue* ConvertRadius(const BasicShapeRadius& radius, double zoom) {
+InterpolableValue* ConvertRadius(const BasicShapeRadius& radius,
+                                 const CSSProperty& property,
+                                 double zoom) {
   if (radius.GetType() != BasicShapeRadius::kValue) {
     return nullptr;
   }
-  return InterpolableLength::MaybeConvertLength(radius.Value(), zoom);
+  return InterpolableLength::MaybeConvertLength(
+      radius.Value(), property, zoom,
+      /*interpolate_size=*/std::nullopt);
 }
 
 InterpolableValue* CreateNeutralInterpolableRadius() {
@@ -219,8 +216,12 @@ InterpolableLength* ConvertCSSLengthOrAutoSubtractedFrom100Percent(
       To<CSSPrimitiveValue>(length));
 }
 
-InterpolableValue* ConvertLength(const Length& length, double zoom) {
-  return InterpolableLength::MaybeConvertLength(length, zoom);
+InterpolableValue* ConvertLength(const Length& length,
+                                 const CSSProperty& property,
+                                 double zoom) {
+  return InterpolableLength::MaybeConvertLength(
+      length, property, zoom,
+      /*interpolate_size=*/std::nullopt);
 }
 
 InterpolableValue* ConvertCSSBorderRadiusWidth(const CSSValuePair* pair) {
@@ -252,11 +253,14 @@ enum CircleComponentIndex : unsigned {
 };
 
 InterpolationValue ConvertCSSValue(
-    const cssvalue::CSSBasicShapeCircleValue& circle) {
+    const cssvalue::CSSBasicShapeCircleValue& circle,
+    const CSSProperty& property) {
   auto* list =
       MakeGarbageCollected<InterpolableList>(kCircleComponentIndexCount);
-  list->Set(kCircleCenterXIndex, ConvertCSSCoordinate(circle.CenterX()));
-  list->Set(kCircleCenterYIndex, ConvertCSSCoordinate(circle.CenterY()));
+  list->Set(kCircleCenterXIndex,
+            ConvertCSSCoordinate(circle.CenterX(), property));
+  list->Set(kCircleCenterYIndex,
+            ConvertCSSCoordinate(circle.CenterY(), property));
   list->Set(kCircleHasExplicitCenterIndex,
             MakeGarbageCollected<InterpolableNumber>(!!circle.CenterX()));
 
@@ -266,30 +270,33 @@ InterpolationValue ConvertCSSValue(
   }
   list->Set(kCircleRadiusIndex, radius);
 
-  return InterpolationValue(std::move(list),
-                            BasicShapeNonInterpolableValue::Create(
-                                BasicShape::kBasicShapeCircleType));
+  return InterpolationValue(
+      std::move(list), MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                           BasicShape::kBasicShapeCircleType));
 }
 
 InterpolationValue ConvertBasicShape(const BasicShapeCircle& circle,
+                                     const CSSProperty& property,
                                      double zoom) {
   auto* list =
       MakeGarbageCollected<InterpolableList>(kCircleComponentIndexCount);
-  list->Set(kCircleCenterXIndex, ConvertCoordinate(circle.CenterX(), zoom));
-  list->Set(kCircleCenterYIndex, ConvertCoordinate(circle.CenterY(), zoom));
+  list->Set(kCircleCenterXIndex,
+            ConvertCoordinate(circle.CenterX(), property, zoom));
+  list->Set(kCircleCenterYIndex,
+            ConvertCoordinate(circle.CenterY(), property, zoom));
   list->Set(
       kCircleHasExplicitCenterIndex,
       MakeGarbageCollected<InterpolableNumber>(circle.HasExplicitCenter()));
 
   InterpolableValue* radius = nullptr;
-  if (!(radius = ConvertRadius(circle.Radius(), zoom))) {
+  if (!(radius = ConvertRadius(circle.Radius(), property, zoom))) {
     return nullptr;
   }
   list->Set(kCircleRadiusIndex, radius);
 
-  return InterpolationValue(std::move(list),
-                            BasicShapeNonInterpolableValue::Create(
-                                BasicShape::kBasicShapeCircleType));
+  return InterpolationValue(
+      std::move(list), MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                           BasicShape::kBasicShapeCircleType));
 }
 
 InterpolableValue* CreateNeutralValue() {
@@ -303,10 +310,9 @@ InterpolableValue* CreateNeutralValue() {
   return list;
 }
 
-scoped_refptr<BasicShape> CreateBasicShape(
-    const InterpolableValue& interpolable_value,
-    const CSSToLengthConversionData& conversion_data) {
-  scoped_refptr<BasicShapeCircle> circle = BasicShapeCircle::Create();
+BasicShape* CreateBasicShape(const InterpolableValue& interpolable_value,
+                             const CSSToLengthConversionData& conversion_data) {
+  BasicShapeCircle* circle = MakeGarbageCollected<BasicShapeCircle>();
   const auto& list = To<InterpolableList>(interpolable_value);
   circle->SetCenterX(
       CreateCoordinate(*list.Get(kCircleCenterXIndex), conversion_data));
@@ -334,11 +340,14 @@ enum EllipseComponentIndex : unsigned {
 };
 
 InterpolationValue ConvertCSSValue(
-    const cssvalue::CSSBasicShapeEllipseValue& ellipse) {
+    const cssvalue::CSSBasicShapeEllipseValue& ellipse,
+    const CSSProperty& property) {
   auto* list =
       MakeGarbageCollected<InterpolableList>(kEllipseComponentIndexCount);
-  list->Set(kEllipseCenterXIndex, ConvertCSSCoordinate(ellipse.CenterX()));
-  list->Set(kEllipseCenterYIndex, ConvertCSSCoordinate(ellipse.CenterY()));
+  list->Set(kEllipseCenterXIndex,
+            ConvertCSSCoordinate(ellipse.CenterX(), property));
+  list->Set(kEllipseCenterYIndex,
+            ConvertCSSCoordinate(ellipse.CenterY(), property));
   list->Set(kEllipseHasExplicitCenter,
             MakeGarbageCollected<InterpolableNumber>(!!ellipse.CenterX()));
 
@@ -352,31 +361,36 @@ InterpolationValue ConvertCSSValue(
   }
   list->Set(kEllipseRadiusYIndex, radius);
 
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::Create(
-                                      BasicShape::kBasicShapeEllipseType));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                BasicShape::kBasicShapeEllipseType));
 }
 
 InterpolationValue ConvertBasicShape(const BasicShapeEllipse& ellipse,
+                                     const CSSProperty& property,
                                      double zoom) {
   auto* list =
       MakeGarbageCollected<InterpolableList>(kEllipseComponentIndexCount);
-  list->Set(kEllipseCenterXIndex, ConvertCoordinate(ellipse.CenterX(), zoom));
-  list->Set(kEllipseCenterYIndex, ConvertCoordinate(ellipse.CenterY(), zoom));
+  list->Set(kEllipseCenterXIndex,
+            ConvertCoordinate(ellipse.CenterX(), property, zoom));
+  list->Set(kEllipseCenterYIndex,
+            ConvertCoordinate(ellipse.CenterY(), property, zoom));
   list->Set(kEllipseHasExplicitCenter, MakeGarbageCollected<InterpolableNumber>(
                                            ellipse.HasExplicitCenter()));
 
   InterpolableValue* radius = nullptr;
-  if (!(radius = ConvertRadius(ellipse.RadiusX(), zoom))) {
+  if (!(radius = ConvertRadius(ellipse.RadiusX(), property, zoom))) {
     return nullptr;
   }
   list->Set(kEllipseRadiusXIndex, radius);
-  if (!(radius = ConvertRadius(ellipse.RadiusY(), zoom))) {
+  if (!(radius = ConvertRadius(ellipse.RadiusY(), property, zoom))) {
     return nullptr;
   }
   list->Set(kEllipseRadiusYIndex, radius);
 
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::Create(
-                                      BasicShape::kBasicShapeEllipseType));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                BasicShape::kBasicShapeEllipseType));
 }
 
 InterpolableValue* CreateNeutralValue() {
@@ -391,10 +405,9 @@ InterpolableValue* CreateNeutralValue() {
   return list;
 }
 
-scoped_refptr<BasicShape> CreateBasicShape(
-    const InterpolableValue& interpolable_value,
-    const CSSToLengthConversionData& conversion_data) {
-  scoped_refptr<BasicShapeEllipse> ellipse = BasicShapeEllipse::Create();
+BasicShape* CreateBasicShape(const InterpolableValue& interpolable_value,
+                             const CSSToLengthConversionData& conversion_data) {
+  BasicShapeEllipse* ellipse = MakeGarbageCollected<BasicShapeEllipse>();
   const auto& list = To<InterpolableList>(interpolable_value);
   ellipse->SetCenterX(
       CreateCoordinate(*list.Get(kEllipseCenterXIndex), conversion_data));
@@ -455,8 +468,9 @@ InterpolationValue ConvertCSSValue(
             ConvertCSSBorderRadiusWidth(inset.BottomLeftRadius()));
   list->Set(kInsetBorderBottomLeftHeightIndex,
             ConvertCSSBorderRadiusHeight(inset.BottomLeftRadius()));
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::Create(
-                                      BasicShape::kBasicShapeInsetType));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                BasicShape::kBasicShapeInsetType));
 }
 
 void FillCanonicalRect(InterpolableList* list,
@@ -514,37 +528,40 @@ InterpolationValue ConvertCSSValueToInset(const BasicShapeCSSValueClass& rect) {
             ConvertCSSBorderRadiusWidth(rect.BottomLeftRadius()));
   list->Set(kInsetBorderBottomLeftHeightIndex,
             ConvertCSSBorderRadiusHeight(rect.BottomLeftRadius()));
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::Create(
-                                      BasicShape::kBasicShapeInsetType));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                BasicShape::kBasicShapeInsetType));
 }
 
 InterpolationValue ConvertBasicShape(const BasicShapeInset& inset,
+                                     const CSSProperty& property,
                                      double zoom) {
   auto* list =
       MakeGarbageCollected<InterpolableList>(kInsetComponentIndexCount);
-  list->Set(kInsetTopIndex, ConvertLength(inset.Top(), zoom));
-  list->Set(kInsetRightIndex, ConvertLength(inset.Right(), zoom));
-  list->Set(kInsetBottomIndex, ConvertLength(inset.Bottom(), zoom));
-  list->Set(kInsetLeftIndex, ConvertLength(inset.Left(), zoom));
+  list->Set(kInsetTopIndex, ConvertLength(inset.Top(), property, zoom));
+  list->Set(kInsetRightIndex, ConvertLength(inset.Right(), property, zoom));
+  list->Set(kInsetBottomIndex, ConvertLength(inset.Bottom(), property, zoom));
+  list->Set(kInsetLeftIndex, ConvertLength(inset.Left(), property, zoom));
 
   list->Set(kInsetBorderTopLeftWidthIndex,
-            ConvertLength(inset.TopLeftRadius().Width(), zoom));
+            ConvertLength(inset.TopLeftRadius().Width(), property, zoom));
   list->Set(kInsetBorderTopLeftHeightIndex,
-            ConvertLength(inset.TopLeftRadius().Height(), zoom));
+            ConvertLength(inset.TopLeftRadius().Height(), property, zoom));
   list->Set(kInsetBorderTopRightWidthIndex,
-            ConvertLength(inset.TopRightRadius().Width(), zoom));
+            ConvertLength(inset.TopRightRadius().Width(), property, zoom));
   list->Set(kInsetBorderTopRightHeightIndex,
-            ConvertLength(inset.TopRightRadius().Height(), zoom));
+            ConvertLength(inset.TopRightRadius().Height(), property, zoom));
   list->Set(kInsetBorderBottomRightWidthIndex,
-            ConvertLength(inset.BottomRightRadius().Width(), zoom));
+            ConvertLength(inset.BottomRightRadius().Width(), property, zoom));
   list->Set(kInsetBorderBottomRightHeightIndex,
-            ConvertLength(inset.BottomRightRadius().Height(), zoom));
+            ConvertLength(inset.BottomRightRadius().Height(), property, zoom));
   list->Set(kInsetBorderBottomLeftWidthIndex,
-            ConvertLength(inset.BottomLeftRadius().Width(), zoom));
+            ConvertLength(inset.BottomLeftRadius().Width(), property, zoom));
   list->Set(kInsetBorderBottomLeftHeightIndex,
-            ConvertLength(inset.BottomLeftRadius().Height(), zoom));
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::Create(
-                                      BasicShape::kBasicShapeInsetType));
+            ConvertLength(inset.BottomLeftRadius().Height(), property, zoom));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                BasicShape::kBasicShapeInsetType));
 }
 
 InterpolableValue* CreateNeutralValue() {
@@ -573,12 +590,11 @@ InterpolableValue* CreateNeutralValue() {
   return list;
 }
 
-scoped_refptr<BasicShape> CreateBasicShape(
-    const InterpolableValue& interpolable_value,
-    const CSSToLengthConversionData& conversion_data) {
+BasicShape* CreateBasicShape(const InterpolableValue& interpolable_value,
+                             const CSSToLengthConversionData& conversion_data) {
   const auto& list = To<InterpolableList>(interpolable_value);
 
-  scoped_refptr<BasicShapeInset> inset = BasicShapeInset::Create();
+  BasicShapeInset* inset = MakeGarbageCollected<BasicShapeInset>();
   inset->SetTop(To<InterpolableLength>(*list.Get(kInsetTopIndex))
                     .CreateLength(conversion_data, Length::ValueRange::kAll));
   inset->SetRight(To<InterpolableLength>(*list.Get(kInsetRightIndex))
@@ -615,19 +631,22 @@ InterpolationValue ConvertCSSValue(
   for (wtf_size_t i = 0; i < size; i++) {
     list->Set(i, ConvertCSSLength(polygon.Values()[i].Get()));
   }
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::CreatePolygon(
-                                      polygon.GetWindRule(), size));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                polygon.GetWindRule(), size));
 }
 
 InterpolationValue ConvertBasicShape(const BasicShapePolygon& polygon,
+                                     const CSSProperty& property,
                                      double zoom) {
   wtf_size_t size = polygon.Values().size();
   auto* list = MakeGarbageCollected<InterpolableList>(size);
   for (wtf_size_t i = 0; i < size; i++) {
-    list->Set(i, ConvertLength(polygon.Values()[i], zoom));
+    list->Set(i, ConvertLength(polygon.Values()[i], property, zoom));
   }
-  return InterpolationValue(list, BasicShapeNonInterpolableValue::CreatePolygon(
-                                      polygon.GetWindRule(), size));
+  return InterpolationValue(
+      list, MakeGarbageCollected<BasicShapeNonInterpolableValue>(
+                polygon.GetWindRule(), size));
 }
 
 InterpolableValue* CreateNeutralValue(
@@ -640,11 +659,11 @@ InterpolableValue* CreateNeutralValue(
   return list;
 }
 
-scoped_refptr<BasicShape> CreateBasicShape(
+BasicShape* CreateBasicShape(
     const InterpolableValue& interpolable_value,
     const BasicShapeNonInterpolableValue& non_interpolable_value,
     const CSSToLengthConversionData& conversion_data) {
-  scoped_refptr<BasicShapePolygon> polygon = BasicShapePolygon::Create();
+  BasicShapePolygon* polygon = MakeGarbageCollected<BasicShapePolygon>();
   polygon->SetWindRule(non_interpolable_value.GetWindRule());
   const auto& list = To<InterpolableList>(interpolable_value);
   wtf_size_t size = non_interpolable_value.size();
@@ -665,15 +684,16 @@ scoped_refptr<BasicShape> CreateBasicShape(
 }  // namespace
 
 InterpolationValue basic_shape_interpolation_functions::MaybeConvertCSSValue(
-    const CSSValue& value) {
+    const CSSValue& value,
+    const CSSProperty& property) {
   if (auto* circle_value =
           DynamicTo<cssvalue::CSSBasicShapeCircleValue>(value)) {
-    return circle_functions::ConvertCSSValue(*circle_value);
+    return circle_functions::ConvertCSSValue(*circle_value, property);
   }
 
   if (auto* ellipse_value =
           DynamicTo<cssvalue::CSSBasicShapeEllipseValue>(value)) {
-    return ellipse_functions::ConvertCSSValue(*ellipse_value);
+    return ellipse_functions::ConvertCSSValue(*ellipse_value, property);
   }
   if (auto* inset_value = DynamicTo<cssvalue::CSSBasicShapeInsetValue>(value)) {
     return inset_functions::ConvertCSSValue(*inset_value);
@@ -693,6 +713,7 @@ InterpolationValue basic_shape_interpolation_functions::MaybeConvertCSSValue(
 
 InterpolationValue basic_shape_interpolation_functions::MaybeConvertBasicShape(
     const BasicShape* shape,
+    const CSSProperty& property,
     double zoom) {
   if (!shape) {
     return nullptr;
@@ -700,22 +721,22 @@ InterpolationValue basic_shape_interpolation_functions::MaybeConvertBasicShape(
   switch (shape->GetType()) {
     case BasicShape::kBasicShapeCircleType:
       return circle_functions::ConvertBasicShape(To<BasicShapeCircle>(*shape),
-                                                 zoom);
+                                                 property, zoom);
     case BasicShape::kBasicShapeEllipseType:
       return ellipse_functions::ConvertBasicShape(To<BasicShapeEllipse>(*shape),
-                                                  zoom);
+                                                  property, zoom);
     case BasicShape::kBasicShapeInsetType:
       return inset_functions::ConvertBasicShape(To<BasicShapeInset>(*shape),
-                                                zoom);
+                                                property, zoom);
     case BasicShape::kBasicShapePolygonType:
       return polygon_functions::ConvertBasicShape(To<BasicShapePolygon>(*shape),
-                                                  zoom);
+                                                  property, zoom);
     // Handled by PathInterpolationFunction.
     case BasicShape::kStylePathType:
+    case BasicShape::kStyleShapeType:
       return nullptr;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 
@@ -733,8 +754,7 @@ InterpolableValue* basic_shape_interpolation_functions::CreateNeutralValue(
     case BasicShape::kBasicShapePolygonType:
       return polygon_functions::CreateNeutralValue(non_interpolable_value);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 
@@ -745,7 +765,7 @@ bool basic_shape_interpolation_functions::ShapesAreCompatible(
       To<BasicShapeNonInterpolableValue>(b));
 }
 
-scoped_refptr<BasicShape> basic_shape_interpolation_functions::CreateBasicShape(
+BasicShape* basic_shape_interpolation_functions::CreateBasicShape(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue& untyped_non_interpolable_value,
     const CSSToLengthConversionData& conversion_data) {
@@ -765,8 +785,7 @@ scoped_refptr<BasicShape> basic_shape_interpolation_functions::CreateBasicShape(
       return polygon_functions::CreateBasicShape(
           interpolable_value, non_interpolable_value, conversion_data);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 

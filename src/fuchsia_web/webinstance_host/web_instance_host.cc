@@ -214,7 +214,7 @@ class InstanceBuilder {
   // be offered statically to the `web_instances` collection.
   void ServeOptionalDirectory(
       OptionalDirectory directory,
-      std::unique_ptr<vfs::internal::Directory> fs_directory,
+      std::unique_ptr<vfs::Node> fs_directory,
       fuchsia::io::Operations rights);
 
   // Offers the directory `directory` from `void`.
@@ -223,7 +223,7 @@ class InstanceBuilder {
   // Serves the directory `name` as `offer` in the instance's subtree as a
   // read-only or a read-write (if `writeable`) directory.
   void ServeDirectory(std::string_view name,
-                      std::unique_ptr<vfs::internal::Directory> fs_directory,
+                      std::unique_ptr<vfs::Node> fs_directory,
                       fuchsia::io::Operations rights);
 
   const raw_ref<sys::OutgoingDirectory> outgoing_directory_;
@@ -305,10 +305,9 @@ void InstanceBuilder::AppendOffersForServices(
 void InstanceBuilder::ServeServiceDirectory(
     fidl::InterfaceHandle<fuchsia::io::Directory> service_directory) {
   DCHECK(instance_dir_);
-  ServeDirectory(
-      "svc", std::make_unique<vfs::RemoteDir>(std::move(service_directory)),
-      fuchsia::io::Operations::CONNECT | fuchsia::io::Operations::ENUMERATE |
-          fuchsia::io::Operations::TRAVERSE);
+  ServeDirectory("svc",
+                 std::make_unique<vfs::RemoteDir>(std::move(service_directory)),
+                 fuchsia::io::R_STAR_DIR);
 }
 
 void InstanceBuilder::ServeDataDirectory(
@@ -466,7 +465,7 @@ std::string_view InstanceBuilder::GetDirectoryName(
 
 void InstanceBuilder::ServeOptionalDirectory(
     OptionalDirectory directory,
-    std::unique_ptr<vfs::internal::Directory> fs_directory,
+    std::unique_ptr<vfs::Node> fs_directory,
     fuchsia::io::Operations rights) {
   DCHECK(instance_dir_);
   DCHECK(!is_directory_served(directory));
@@ -491,7 +490,7 @@ void InstanceBuilder::OfferOptionalDirectoryFromVoid(
 
 void InstanceBuilder::ServeDirectory(
     std::string_view name,
-    std::unique_ptr<vfs::internal::Directory> fs_directory,
+    std::unique_ptr<vfs::Node> fs_directory,
     fuchsia::io::Operations rights) {
   DCHECK(instance_dir_);
   zx_status_t status =

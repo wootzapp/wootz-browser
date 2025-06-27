@@ -6,12 +6,18 @@
 #define CHROME_BROWSER_UI_VIEWS_WEBAUTHN_PIN_TEXTFIELD_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
-#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/gfx/geometry/size.h"
 #include "ui/gfx/render_text.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/view.h"
+
+namespace ui {
+struct AXNodeData;
+}  // namespace ui
 
 // Implements textfield for entering a PIN number with custom drawing logic for
 // displaying each digit in a separate cell.
@@ -43,10 +49,23 @@ class PinTextfield : public views::Textfield {
       const views::SizeBounds& available_size) const override;
   void OnThemeChanged() override;
 
+ protected:
+  // views::Textfield:
+  void UpdateAccessibleTextSelection() override;
+
  private:
   // Returns true for the first empty cell or the last cell when the full pin is
   // typed (when the whole view has focus).
   bool HasCellFocus(int cell) const;
+
+  // Updates the current selection and notifies that it changed along with the
+  // pin value.
+  void UpdateAccessibilityAfterPinChange();
+
+  void UpdatePinAccessibleValue();
+
+  // Updates text color based on the current state of `disabled_`.
+  void UpdateTextColor();
 
   // Render text for each of the pin cells.
   std::vector<std::unique_ptr<gfx::RenderText>> render_texts_;
@@ -59,6 +78,9 @@ class PinTextfield : public views::Textfield {
 
   // Whether entering pin is currently disabled.
   bool disabled_ = false;
+
+  // Whether the pin characters are currently obscured.
+  bool obscured_ = true;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_WEBAUTHN_PIN_TEXTFIELD_H_

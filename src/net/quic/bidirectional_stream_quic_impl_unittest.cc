@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/quic/bidirectional_stream_quic_impl.h"
 
 #include <memory>
@@ -44,6 +49,7 @@
 #include "net/quic/quic_crypto_client_config_handle.h"
 #include "net/quic/quic_http_utils.h"
 #include "net/quic/quic_server_info.h"
+#include "net/quic/quic_session_alias_key.h"
 #include "net/quic/quic_session_key.h"
 #include "net/quic/quic_session_pool.h"
 #include "net/quic/quic_test_packet_maker.h"
@@ -54,6 +60,7 @@
 #include "net/ssl/ssl_config_service_defaults.h"
 #include "net/test/gtest_util.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/common/quiche_text_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/core/crypto/crypto_protocol.h"
 #include "net/third_party/quiche/src/quiche/quic/core/crypto/quic_decrypter.h"
@@ -125,7 +132,7 @@ class TestDelegateBase : public BidirectionalStreamImpl::Delegate {
   }
 
   void OnHeadersReceived(
-      const spdy::Http2HeaderBlock& response_headers) override {
+      const quiche::HttpHeaderBlock& response_headers) override {
     CHECK(!on_failed_called_);
     CHECK(!not_expect_callback_);
 
@@ -156,7 +163,7 @@ class TestDelegateBase : public BidirectionalStreamImpl::Delegate {
     loop_->Quit();
   }
 
-  void OnTrailersReceived(const spdy::Http2HeaderBlock& trailers) override {
+  void OnTrailersReceived(const quiche::HttpHeaderBlock& trailers) override {
     CHECK(!on_failed_called_);
     CHECK(!not_expect_callback_);
 
@@ -292,10 +299,10 @@ class TestDelegateBase : public BidirectionalStreamImpl::Delegate {
   // Const getters for internal states.
   const std::string& data_received() const { return data_received_; }
   int error() const { return error_; }
-  const spdy::Http2HeaderBlock& response_headers() const {
+  const quiche::HttpHeaderBlock& response_headers() const {
     return response_headers_;
   }
-  const spdy::Http2HeaderBlock& trailers() const { return trailers_; }
+  const quiche::HttpHeaderBlock& trailers() const { return trailers_; }
   int on_data_read_count() const { return on_data_read_count_; }
   int on_data_sent_count() const { return on_data_sent_count_; }
   bool on_failed_called() const { return on_failed_called_; }
@@ -312,9 +319,9 @@ class TestDelegateBase : public BidirectionalStreamImpl::Delegate {
   std::unique_ptr<base::OneShotTimer> timer_;
   std::string data_received_;
   std::unique_ptr<base::RunLoop> loop_;
-  spdy::Http2HeaderBlock response_headers_;
-  spdy::Http2HeaderBlock trailers_;
-  NextProto next_proto_ = kProtoUnknown;
+  quiche::HttpHeaderBlock response_headers_;
+  quiche::HttpHeaderBlock trailers_;
+  NextProto next_proto_ = NextProto::kProtoUnknown;
   int64_t received_bytes_ = 0;
   int64_t sent_bytes_ = 0;
   bool has_load_timing_info_ = false;
@@ -361,17 +368,17 @@ class DeleteStreamDelegate : public TestDelegateBase {
   }
 
   void OnHeadersReceived(
-      const spdy::Http2HeaderBlock& response_headers) override {
+      const quiche::HttpHeaderBlock& response_headers) override {
     // Make a copy of |response_headers| before the stream is deleted, since
     // the headers are owned by the stream.
-    spdy::Http2HeaderBlock headers_copy = response_headers.Clone();
+    quiche::HttpHeaderBlock headers_copy = response_headers.Clone();
     if (phase_ == ON_HEADERS_RECEIVED) {
       DeleteStream();
     }
     TestDelegateBase::OnHeadersReceived(headers_copy);
   }
 
-  void OnDataSent() override { NOTREACHED_IN_MIGRATION(); }
+  void OnDataSent() override { NOTREACHED(); }
 
   void OnDataRead(int bytes_read) override {
     DCHECK_NE(ON_HEADERS_RECEIVED, phase_);
@@ -381,12 +388,12 @@ class DeleteStreamDelegate : public TestDelegateBase {
     TestDelegateBase::OnDataRead(bytes_read);
   }
 
-  void OnTrailersReceived(const spdy::Http2HeaderBlock& trailers) override {
+  void OnTrailersReceived(const quiche::HttpHeaderBlock& trailers) override {
     DCHECK_NE(ON_HEADERS_RECEIVED, phase_);
     DCHECK_NE(ON_DATA_READ, phase_);
     // Make a copy of |response_headers| before the stream is deleted, since
     // the headers are owned by the stream.
-    spdy::Http2HeaderBlock trailers_copy = trailers.Clone();
+    quiche::HttpHeaderBlock trailers_copy = trailers.Clone();
     if (phase_ == ON_TRAILERS_RECEIVED) {
       DeleteStream();
     }
@@ -500,8 +507,7 @@ class BidirectionalStreamQuicImplTest
     }
 
     socket_data_ = std::make_unique<StaticSocketDataProvider>(
-        base::span<MockRead>(),
-        base::make_span(mock_writes_.get(), writes_.size()));
+        base::span<MockRead>(), base::span(mock_writes_.get(), writes_.size()));
     socket_data_->set_printer(&printer_);
 
     auto socket = std::make_unique<MockUDPClientSocket>(socket_data_.get(),
@@ -532,11 +538,13 @@ class BidirectionalStreamQuicImplTest
         /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
         &transport_security_state_, &ssl_config_service_,
         base::WrapUnique(static_cast<QuicServerInfo*>(nullptr)),
-        QuicSessionKey(kDefaultServerHostName, kDefaultServerPort,
-                       PRIVACY_MODE_DISABLED, ProxyChain::Direct(),
-                       SessionUsage::kDestination, SocketTag(),
-                       NetworkAnonymizationKey(), SecureDnsPolicy::kAllow,
-                       /*require_dns_https_alpn=*/false),
+        QuicSessionAliasKey(
+            url::SchemeHostPort(),
+            QuicSessionKey(kDefaultServerHostName, kDefaultServerPort,
+                           PRIVACY_MODE_DISABLED, ProxyChain::Direct(),
+                           SessionUsage::kDestination, SocketTag(),
+                           NetworkAnonymizationKey(), SecureDnsPolicy::kAllow,
+                           /*require_dns_https_alpn=*/false)),
         /*require_confirmation=*/false,
         /*migrate_session_early_v2=*/false,
         /*migrate_session_on_network_change_v2=*/false,
@@ -557,7 +565,9 @@ class BidirectionalStreamQuicImplTest
         base::DefaultTickClock::GetInstance(),
         base::SingleThreadTaskRunner::GetCurrentDefault().get(),
         /*socket_performance_watcher=*/nullptr, ConnectionEndpointMetadata(),
-        /*report_ecn=*/true, NetLogWithSource::Make(NetLogSourceType::NONE));
+        /*enable_origin_frame=*/true, /*server_preferred_address=*/true,
+        MultiplexedSessionCreationInitiator::kUnknown,
+        NetLogWithSource::Make(NetLogSourceType::NONE));
     session_->Initialize();
 
     // Blackhole QPACK decoder stream instead of constructing mock writes.
@@ -580,7 +590,7 @@ class BidirectionalStreamQuicImplTest
     request_headers_ = client_maker_.GetRequestHeaders(method, "http", path);
   }
 
-  spdy::Http2HeaderBlock ConstructResponseHeaders(
+  quiche::HttpHeaderBlock ConstructResponseHeaders(
       const std::string& response_code) {
     return server_maker_.GetResponseHeaders(response_code);
   }
@@ -590,7 +600,9 @@ class BidirectionalStreamQuicImplTest
       bool fin,
       std::string_view data) {
     std::unique_ptr<quic::QuicReceivedPacket> packet(
-        server_maker_.MakeDataPacket(packet_number, stream_id_, fin, data));
+        server_maker_.Packet(packet_number)
+            .AddStreamFrame(stream_id_, fin, data)
+            .Build());
     DVLOG(2) << "packet(" << packet_number << "): " << std::endl
              << quiche::QuicheTextUtils::HexDump(packet->AsStringPiece());
     return packet;
@@ -599,8 +611,9 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket> ConstructClientDataPacket(
       bool fin,
       std::string_view data) {
-    return client_maker_.MakeDataPacket(++packet_number_, stream_id_, fin,
-                                        data);
+    return client_maker_.Packet(++packet_number_)
+        .AddStreamFrame(stream_id_, fin, data)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructRequestHeadersPacket(
@@ -647,7 +660,7 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket> ConstructResponseHeadersPacket(
       uint64_t packet_number,
       bool fin,
-      spdy::Http2HeaderBlock response_headers,
+      quiche::HttpHeaderBlock response_headers,
       size_t* spdy_headers_frame_length) {
     return ConstructResponseHeadersPacketInner(packet_number, stream_id_, fin,
                                                std::move(response_headers),
@@ -658,7 +671,7 @@ class BidirectionalStreamQuicImplTest
       uint64_t packet_number,
       quic::QuicStreamId stream_id,
       bool fin,
-      spdy::Http2HeaderBlock response_headers,
+      quiche::HttpHeaderBlock response_headers,
       size_t* spdy_headers_frame_length) {
     return server_maker_.MakeResponseHeadersPacket(
         packet_number, stream_id, fin, std::move(response_headers),
@@ -668,7 +681,7 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket> ConstructResponseTrailersPacket(
       uint64_t packet_number,
       bool fin,
-      spdy::Http2HeaderBlock trailers,
+      quiche::HttpHeaderBlock trailers,
       size_t* spdy_headers_frame_length) {
     return server_maker_.MakeResponseHeadersPacket(packet_number, stream_id_,
                                                    fin, std::move(trailers),
@@ -692,9 +705,11 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket> ConstructRstStreamCancelledPacket(
       uint64_t packet_number,
       QuicTestPacketMaker* maker) {
-    std::unique_ptr<quic::QuicReceivedPacket> packet(maker->MakeRstPacket(
-        packet_number, stream_id_, quic::QUIC_STREAM_CANCELLED,
-        /*include_stop_sending_if_v99=*/true));
+    std::unique_ptr<quic::QuicReceivedPacket> packet(
+        client_maker_.Packet(packet_number)
+            .AddStopSendingFrame(stream_id_, quic::QUIC_STREAM_CANCELLED)
+            .AddRstStreamFrame(stream_id_, quic::QUIC_STREAM_CANCELLED)
+            .Build());
     DVLOG(2) << "packet(" << packet_number << "): " << std::endl
              << quiche::QuicheTextUtils::HexDump(packet->AsStringPiece());
     return packet;
@@ -703,9 +718,11 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket>
   ConstructClientAckAndRstStreamPacket(uint64_t largest_received,
                                        uint64_t smallest_received) {
-    return client_maker_.MakeAckAndRstPacket(
-        ++packet_number_, stream_id_, quic::QUIC_STREAM_CANCELLED,
-        largest_received, smallest_received);
+    return client_maker_.Packet(++packet_number_)
+        .AddAckFrame(/*first_received=*/1, largest_received, smallest_received)
+        .AddStopSendingFrame(stream_id_, quic::QUIC_STREAM_CANCELLED)
+        .AddRstStreamFrame(stream_id_, quic::QUIC_STREAM_CANCELLED)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructAckAndDataPacket(
@@ -716,8 +733,11 @@ class BidirectionalStreamQuicImplTest
       std::string_view data,
       QuicTestPacketMaker* maker) {
     std::unique_ptr<quic::QuicReceivedPacket> packet(
-        maker->MakeAckAndDataPacket(packet_number, stream_id_, largest_received,
-                                    smallest_received, fin, data));
+        maker->Packet(packet_number)
+            .AddAckFrame(/*first_received=*/1, largest_received,
+                         smallest_received)
+            .AddStreamFrame(stream_id_, fin, data)
+            .Build());
     DVLOG(2) << "packet(" << packet_number << "): " << std::endl
              << quiche::QuicheTextUtils::HexDump(packet->AsStringPiece());
     return packet;
@@ -726,8 +746,9 @@ class BidirectionalStreamQuicImplTest
   std::unique_ptr<quic::QuicReceivedPacket> ConstructClientAckPacket(
       uint64_t largest_received,
       uint64_t smallest_received) {
-    return client_maker_.MakeAckPacket(++packet_number_, largest_received,
-                                       smallest_received);
+    return client_maker_.Packet(++packet_number_)
+        .AddAckFrame(1, largest_received, smallest_received)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructServerAckPacket(
@@ -735,8 +756,9 @@ class BidirectionalStreamQuicImplTest
       uint64_t largest_received,
       uint64_t smallest_received,
       uint64_t least_unacked) {
-    return server_maker_.MakeAckPacket(packet_number, largest_received,
-                                       smallest_received, least_unacked);
+    return server_maker_.Packet(packet_number)
+        .AddAckFrame(largest_received, smallest_received, least_unacked)
+        .Build();
   }
 
   std::unique_ptr<quic::QuicReceivedPacket> ConstructInitialSettingsPacket() {
@@ -797,7 +819,7 @@ class BidirectionalStreamQuicImplTest
   HttpRequestHeaders headers_;
   HttpResponseInfo response_;
   scoped_refptr<IOBufferWithSize> read_buffer_;
-  spdy::Http2HeaderBlock request_headers_;
+  quiche::HttpHeaderBlock request_headers_;
   const quic::QuicConnectionId connection_id_;
   const quic::QuicStreamId stream_id_;
   QuicTestPacketMaker client_maker_;
@@ -852,7 +874,7 @@ TEST_P(BidirectionalStreamQuicImplTest, GetRequest) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -877,7 +899,7 @@ TEST_P(BidirectionalStreamQuicImplTest, GetRequest) {
   TestCompletionCallback cb2;
   EXPECT_THAT(delegate->ReadData(cb2.callback()), IsError(ERR_IO_PENDING));
 
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   size_t spdy_trailers_frame_length;
   trailers["foo"] = "bar";
   // Server sends trailers.
@@ -893,7 +915,7 @@ TEST_P(BidirectionalStreamQuicImplTest, GetRequest) {
 
   EXPECT_EQ(2, delegate->on_data_read_count());
   EXPECT_EQ(0, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length),
             delegate->GetTotalSentBytes());
   EXPECT_EQ(static_cast<int64_t>(spdy_response_headers_frame_length +
@@ -1051,7 +1073,7 @@ TEST_P(BidirectionalStreamQuicImplTest, CoalesceDataBuffersNotHeadersFrame) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -1082,7 +1104,7 @@ TEST_P(BidirectionalStreamQuicImplTest, CoalesceDataBuffersNotHeadersFrame) {
   delegate->WaitUntilNextCallback(kOnDataSent);
 
   size_t spdy_trailers_frame_length;
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   trailers["foo"] = "bar";
   // Server sends trailers.
   ProcessPacket(ConstructResponseTrailersPacket(4, kFin, trailers.Clone(),
@@ -1094,7 +1116,7 @@ TEST_P(BidirectionalStreamQuicImplTest, CoalesceDataBuffersNotHeadersFrame) {
 
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(2, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(
                 spdy_request_headers_frame_length + kBody1.length() +
                 kBody2.length() + kBody3.length() + kBody4.length() +
@@ -1156,7 +1178,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -1182,7 +1204,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
   delegate->WaitUntilNextCallback(kOnDataSent);
 
   size_t spdy_trailers_frame_length;
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   trailers["foo"] = "bar";
   // Server sends trailers.
   ProcessPacket(ConstructResponseTrailersPacket(4, kFin, trailers.Clone(),
@@ -1194,7 +1216,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
 
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(2, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(
       static_cast<int64_t>(spdy_request_headers_frame_length + strlen(kBody1) +
                            strlen(kBody2) + header.length() + header2.length()),
@@ -1265,7 +1287,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -1296,7 +1318,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
   delegate->WaitUntilNextCallback(kOnDataSent);
 
   size_t spdy_trailers_frame_length;
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   trailers["foo"] = "bar";
   // Server sends trailers.
   ProcessPacket(ConstructResponseTrailersPacket(4, kFin, trailers.Clone(),
@@ -1308,7 +1330,7 @@ TEST_P(BidirectionalStreamQuicImplTest,
 
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(2, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(
                 spdy_request_headers_frame_length + kBody1.length() +
                 kBody2.length() + kBody3.length() + kBody4.length() +
@@ -1436,7 +1458,7 @@ TEST_P(BidirectionalStreamQuicImplTest, PostRequest) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -1455,7 +1477,7 @@ TEST_P(BidirectionalStreamQuicImplTest, PostRequest) {
   EXPECT_EQ(static_cast<int>(strlen(kResponseBody)), cb.WaitForResult());
 
   size_t spdy_trailers_frame_length;
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   trailers["foo"] = "bar";
   // Server sends trailers.
   ProcessPacket(ConstructResponseTrailersPacket(4, kFin, trailers.Clone(),
@@ -1467,7 +1489,7 @@ TEST_P(BidirectionalStreamQuicImplTest, PostRequest) {
 
   EXPECT_EQ(1, delegate->on_data_read_count());
   EXPECT_EQ(1, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length +
                                  strlen(kUploadData) + header.length()),
             delegate->GetTotalSentBytes());
@@ -1510,7 +1532,7 @@ TEST_P(BidirectionalStreamQuicImplTest, EarlyDataOverrideRequest) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -1535,7 +1557,7 @@ TEST_P(BidirectionalStreamQuicImplTest, EarlyDataOverrideRequest) {
   TestCompletionCallback cb2;
   EXPECT_THAT(delegate->ReadData(cb2.callback()), IsError(ERR_IO_PENDING));
 
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   size_t spdy_trailers_frame_length;
   trailers["foo"] = "bar";
   // Server sends trailers.
@@ -1551,7 +1573,7 @@ TEST_P(BidirectionalStreamQuicImplTest, EarlyDataOverrideRequest) {
 
   EXPECT_EQ(2, delegate->on_data_read_count());
   EXPECT_EQ(0, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length),
             delegate->GetTotalSentBytes());
   EXPECT_EQ(static_cast<int64_t>(spdy_response_headers_frame_length +
@@ -1611,7 +1633,7 @@ TEST_P(BidirectionalStreamQuicImplTest, InterleaveReadDataAndSendData) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -1662,7 +1684,7 @@ TEST_P(BidirectionalStreamQuicImplTest, InterleaveReadDataAndSendData) {
   EXPECT_THAT(delegate->ReadData(cb.callback()), IsOk());
   EXPECT_EQ(2, delegate->on_data_read_count());
   EXPECT_EQ(2, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length +
                                  2 * strlen(kUploadData) + 2 * header.length()),
             delegate->GetTotalSentBytes());
@@ -1699,10 +1721,11 @@ TEST_P(BidirectionalStreamQuicImplTest, ServerSendsRstAfterHeaders) {
 
   // Server sends a Rst. Since the stream has sent fin, the rst is one way in
   // IETF QUIC.
-  ProcessPacket(server_maker_.MakeRstPacket(
-      1, GetNthClientInitiatedBidirectionalStreamId(0),
-      quic::QUIC_STREAM_CANCELLED,
-      /*include_stop_sending_if_v99=*/false));
+  ProcessPacket(
+      server_maker_.Packet(1)
+          .AddRstStreamFrame(GetNthClientInitiatedBidirectionalStreamId(0),
+                             quic::QUIC_STREAM_CANCELLED)
+          .Build());
 
   delegate->WaitUntilNextCallback(kOnFailed);
 
@@ -1752,7 +1775,7 @@ TEST_P(BidirectionalStreamQuicImplTest, ServerSendsRstAfterReadData) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -1768,10 +1791,11 @@ TEST_P(BidirectionalStreamQuicImplTest, ServerSendsRstAfterReadData) {
 
   // Server sends a Rst. Since the stream has sent fin, the rst is one way in
   // IETF QUIC.
-  ProcessPacket(server_maker_.MakeRstPacket(
-      3, GetNthClientInitiatedBidirectionalStreamId(0),
-      quic::QUIC_STREAM_CANCELLED,
-      /*include_stop_sending_if_v99=*/false));
+  ProcessPacket(
+      server_maker_.Packet(3)
+          .AddRstStreamFrame(GetNthClientInitiatedBidirectionalStreamId(0),
+                             quic::QUIC_STREAM_CANCELLED)
+          .Build());
 
   delegate->WaitUntilNextCallback(kOnFailed);
 
@@ -1815,7 +1839,7 @@ TEST_P(BidirectionalStreamQuicImplTest, SessionClosedBeforeReadData) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -1840,7 +1864,7 @@ TEST_P(BidirectionalStreamQuicImplTest, SessionClosedBeforeReadData) {
   EXPECT_THAT(delegate->error(), IsError(ERR_QUIC_PROTOCOL_ERROR));
   EXPECT_EQ(0, delegate->on_data_read_count());
   EXPECT_EQ(0, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length),
             delegate->GetTotalSentBytes());
   EXPECT_EQ(static_cast<int64_t>(spdy_response_headers_frame_length),
@@ -1983,7 +2007,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamAfterReadData) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
       ConstructResponseHeadersPacket(2, !kFin, std::move(response_headers),
@@ -2001,7 +2025,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamAfterReadData) {
 
   EXPECT_EQ(0, delegate->on_data_read_count());
   EXPECT_EQ(0, delegate->on_data_sent_count());
-  EXPECT_EQ(kProtoQUIC, delegate->GetProtocol());
+  EXPECT_EQ(NextProto::kProtoQUIC, delegate->GetProtocol());
   EXPECT_EQ(static_cast<int64_t>(spdy_request_headers_frame_length),
             delegate->GetTotalSentBytes());
   EXPECT_EQ(static_cast<int64_t>(spdy_response_headers_frame_length),
@@ -2040,7 +2064,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamDuringOnHeadersReceived) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -2088,7 +2112,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamDuringOnDataRead) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -2155,7 +2179,7 @@ TEST_P(BidirectionalStreamQuicImplTest, AsyncFinRead) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -2216,7 +2240,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamDuringOnTrailersReceived) {
   ProcessPacket(ConstructServerAckPacket(1, 1, 1, 1));
 
   // Server sends the response headers.
-  spdy::Http2HeaderBlock response_headers = ConstructResponseHeaders("200");
+  quiche::HttpHeaderBlock response_headers = ConstructResponseHeaders("200");
 
   size_t spdy_response_headers_frame_length;
   ProcessPacket(
@@ -2240,7 +2264,7 @@ TEST_P(BidirectionalStreamQuicImplTest, DeleteStreamDuringOnTrailersReceived) {
   EXPECT_EQ(std::string(kResponseBody), delegate->data_received());
 
   size_t spdy_trailers_frame_length;
-  spdy::Http2HeaderBlock trailers;
+  quiche::HttpHeaderBlock trailers;
   trailers["foo"] = "bar";
   // Server sends trailers.
   ProcessPacket(ConstructResponseTrailersPacket(4, kFin, trailers.Clone(),

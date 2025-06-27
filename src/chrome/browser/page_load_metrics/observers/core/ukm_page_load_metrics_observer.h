@@ -11,6 +11,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/trace_event/typed_macros.h"
+#include "components/page_load_metrics/browser/navigation_handle_user_data.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer.h"
 #include "content/public/browser/navigation_handle_timing.h"
 #include "content/public/browser/site_instance_process_assignment.h"
@@ -20,6 +21,17 @@
 #include "services/metrics/public/cpp/ukm_source.h"
 #include "third_party/perfetto/include/perfetto/tracing/event_context.h"
 #include "ui/base/page_transition_types.h"
+
+namespace internal {
+
+extern const char
+    kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2
+        [];
+extern const char
+    kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2Incognito
+        [];
+
+}  // namespace internal
 
 namespace content {
 class BrowserContext;
@@ -42,10 +54,11 @@ class UkmPageLoadMetricsObserver
  public:
   // Returns a UkmPageLoadMetricsObserver, or nullptr if it is not needed.
   static std::unique_ptr<page_load_metrics::PageLoadMetricsObserver>
-  CreateIfNeeded();
+  CreateIfNeeded(bool is_incognito);
 
   explicit UkmPageLoadMetricsObserver(
-      network::NetworkQualityTracker* network_quality_tracker);
+      network::NetworkQualityTracker* network_quality_tracker,
+      bool is_incognito);
 
   UkmPageLoadMetricsObserver(const UkmPageLoadMetricsObserver&) = delete;
   UkmPageLoadMetricsObserver& operator=(const UkmPageLoadMetricsObserver&) =
@@ -98,8 +111,9 @@ class UkmPageLoadMetricsObserver
       content::RenderFrameHost* subframe_rfh,
       const page_load_metrics::mojom::PageLoadTiming& timing) override;
 
-  void SetUpSharedMemoryForSmoothness(
-      const base::ReadOnlySharedMemoryRegion& shared_memory) override;
+  void SetUpSharedMemoryForUkms(
+      const base::ReadOnlySharedMemoryRegion& smoothness_memory,
+      const base::ReadOnlySharedMemoryRegion& dropped_frames_memory) override;
 
   void OnCpuTimingUpdate(
       content::RenderFrameHost* subframe_rfh,
@@ -174,6 +188,7 @@ class UkmPageLoadMetricsObserver
       ukm::builders::PageLoad& builder,
       const page_load_metrics::PageEndReason page_end_reason);
 
+  void RecordDroppedFramesMetrics();
   void RecordSmoothnessMetrics();
   void RecordResponsivenessMetrics();
 
@@ -349,6 +364,7 @@ class UkmPageLoadMetricsObserver
   std::optional<net::HttpConnectionInfo> connection_info_;
 
   base::ReadOnlySharedMemoryMapping ukm_smoothness_data_;
+  base::ReadOnlySharedMemoryMapping ukm_dropped_frames_data_;
 
   // Only true if the page became hidden after the first time it was shown in
   // the foreground, no matter how it started.
@@ -363,6 +379,15 @@ class UkmPageLoadMetricsObserver
   // navigation, for instance due to a change by the user in settings or the
   // battery being recharged above 20%.
   bool refresh_rate_throttled_ = false;
+
+  // The type of initiator starts the navigation, for more details, please refer
+  // to `page_load_metrics::NavigationHandleUserData::InitiatorLocation`.
+  page_load_metrics::NavigationHandleUserData::InitiatorLocation
+      navigation_trigger_type_ = page_load_metrics::NavigationHandleUserData::
+          InitiatorLocation::kOther;
+
+  // Whether the WebContents being observed is for an Incognito profile.
+  bool is_incognito_;
 
   base::WeakPtrFactory<UkmPageLoadMetricsObserver> weak_factory_{this};
 };

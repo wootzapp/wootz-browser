@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/user_education/recent_session_policy.h"
 
+#include <sstream>
 #include <vector>
 
 #include "base/containers/map_util.h"
@@ -11,7 +12,7 @@
 #include "base/metrics/field_trial_params.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/user_education/browser_feature_promo_storage_service.h"
+#include "chrome/browser/user_education/browser_user_education_storage_service.h"
 #include "chrome/browser/user_education/user_education_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -412,48 +413,26 @@ TEST_F(RecentSessionPolicyTest,
   EXPECT_FALSE(policy_->ShouldEnableLowUsagePromoMode(data));
 
   // Not enough in any threshold, enabled at the longer threshold.
-  data = CreateSessionData({base::Days(2), base::Days(10)});
+  data = CreateSessionData({base::Days(10)});
   EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
 }
 
 TEST_F(RecentSessionPolicyTest,
-       ShouldEnableLowUsagePromoMode_OffMoreThanTwoActiveWeeks) {
-  // Only current week.
+       ShouldEnableLowUsagePromoMode_OffMoreThanTwoActiveDays) {
+  // Two days, same week.
   auto data = CreateSessionData({base::Days(1)});
   EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
 
-  // Two weeks.
+  // Two days, different weeks.
   data = CreateSessionData({base::Days(8)});
   EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
 
-  // Two different weeks with multiple sessions.
-  data = CreateSessionData({base::Days(2), base::Days(22), base::Days(23),
-                            base::Days(24), base::Days(25)});
-  EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
-
-  // Three weeks.
-  data = CreateSessionData(
-      {base::Days(2), base::Days(12), base::Days(23), base::Days(24)});
-  EXPECT_FALSE(policy_->ShouldEnableLowUsagePromoMode(data));
-}
-
-TEST_F(RecentSessionPolicyTest,
-       ShouldEnableLowUsagePromoMode_OffMoreThanFourActiveDaysThisWeek) {
-  // Only current week.
-  auto data = CreateSessionData({base::Days(1)});
-  EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
-
-  // Two weeks, three this week.
-  data = CreateSessionData({base::Days(1), base::Days(2), base::Days(8)});
-  EXPECT_TRUE(policy_->ShouldEnableLowUsagePromoMode(data));
-
-  // Two weeks, four this week.
-  data = CreateSessionData(
-      {base::Days(1), base::Days(2), base::Days(3), base::Days(8)});
+  // Three days one week.
+  data = CreateSessionData({base::Days(1), base::Days(3)});
   EXPECT_FALSE(policy_->ShouldEnableLowUsagePromoMode(data));
 
-  // One week, four this week.
-  data = CreateSessionData({base::Days(1), base::Days(2), base::Days(3)});
+  // Three days multiple weeks.
+  data = CreateSessionData({base::Days(2), base::Days(22)});
   EXPECT_FALSE(policy_->ShouldEnableLowUsagePromoMode(data));
 }
 
@@ -462,6 +441,7 @@ TEST_F(RecentSessionPolicyTest, RecordRecentUsageMetrics_LessThanOneWeek) {
       CreateSessionData({base::Days(1), base::Days(2)}, base::Days(4)));
   EnsureBucketCounts("UserEducation.Session.ShortTermCount", {});
   EnsureBucketCounts("UserEducation.Session.LongTermCount", {});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {});
   EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {});
   EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {});
   EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {});
@@ -474,6 +454,7 @@ TEST_F(RecentSessionPolicyTest, RecordRecentUsageMetrics_MoreThanOneWeek) {
                         base::Days(8)));
   EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{5, 1}});
   EnsureBucketCounts("UserEducation.Session.LongTermCount", {});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {});
   EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 1}});
   EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {});
   EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {});
@@ -485,9 +466,72 @@ TEST_F(RecentSessionPolicyTest, RecordRecentUsageMetrics_FullPeriod) {
        base::Days(6), base::Days(15), base::Days(20)}));
   EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{5, 1}});
   EnsureBucketCounts("UserEducation.Session.LongTermCount", {{7, 1}});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {{6, 1}});
   EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 1}});
   EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {{2, 1}});
   EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {{1, 1}});
+}
+
+TEST_F(RecentSessionPolicyTest,
+       RecordRecentUsageMetrics_SuperActiveCountsDaysNotSessions) {
+  policy_->RecordRecentUsageMetrics(CreateSessionData(
+      {// Initial week with four active days (counting day zero) and no
+       // additional sessions.
+       base::Days(1), base::Days(2), base::Days(6),
+       // Second week with three active days but four sessions.
+       base::Days(15), base::Days(15) + base::Minutes(5),
+       base::Days(15) + base::Minutes(10),
+       base::Days(15) + base::Minutes(15)}));
+  EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{4, 1}});
+  EnsureBucketCounts("UserEducation.Session.LongTermCount", {{8, 1}});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {{5, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {{2, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {{1, 1}});
+}
+
+TEST_F(RecentSessionPolicyTest, RecordRecentUsageMetrics_DailyLimit) {
+  auto data = CreateSessionData(
+      {base::Days(1), base::Days(1) + base::Minutes(5), base::Days(2),
+       base::Days(6), base::Days(15), base::Days(20)});
+  policy_->RecordRecentUsageMetrics(data);
+  EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{5, 1}});
+  EnsureBucketCounts("UserEducation.Session.LongTermCount", {{7, 1}});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {{6, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {{2, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {{1, 1}});
+
+  // Start another session almost right away, so it's in the same day.
+  data.recent_session_start_times.insert(
+      data.recent_session_start_times.begin(),
+      data.recent_session_start_times.front() + base::Seconds(5));
+  policy_->RecordRecentUsageMetrics(data);
+  // Session-based metrics should still be recorded.
+  EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{5, 1}, {6, 1}});
+  EnsureBucketCounts("UserEducation.Session.LongTermCount", {{7, 1}, {8, 1}});
+  // Daily and weekly metrics, however, should not.
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays", {{6, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks", {{2, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {{1, 1}});
+
+  // Start another session on the next calendar day.
+  data.recent_session_start_times.insert(
+      data.recent_session_start_times.begin(),
+      data.recent_session_start_times.front() + base::Days(1));
+  policy_->RecordRecentUsageMetrics(data);
+  // All metrics should now be recorded. Some days will have shifted to the next
+  // week.
+  EnsureBucketCounts("UserEducation.Session.ShortTermCount", {{5, 1}, {6, 2}});
+  EnsureBucketCounts("UserEducation.Session.LongTermCount",
+                     {{7, 1}, {8, 1}, {9, 1}});
+  EnsureBucketCounts("UserEducation.Session.MonthlyActiveDays",
+                     {{6, 1}, {7, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveDays", {{4, 2}});
+  EnsureBucketCounts("UserEducation.Session.RecentActiveWeeks",
+                     {{2, 1}, {4, 1}});
+  EnsureBucketCounts("UserEducation.Session.RecentSuperActiveWeeks", {{1, 2}});
 }
 
 class RecentSessionPolicyFinchTest : public RecentSessionPolicyTest {
@@ -522,6 +566,7 @@ TEST_F(RecentSessionPolicyFinchTest, ChangeExistingThresholds) {
 TEST_F(RecentSessionPolicyFinchTest, SwitchToNewThresholds) {
   Init({{"max_active_weeks", "0"},
         {"max_active_days", "0"},
+        {"max_monthly_active_days", "0"},
         {"max_weekly_sessions", "2"},
         {"max_monthly_sessions", "5"}});
 
@@ -544,8 +589,9 @@ TEST_F(RecentSessionPolicyFinchTest, SwitchToNewThresholds) {
 }
 
 TEST_F(RecentSessionPolicyFinchTest, EnableSuperActiveThreshold) {
-  Init({{"max_active_weeks", "0"},
-        {"max_active_days", "0"},
+  Init({{"max_active_days", "0"},
+        {"max_active_weeks", "0"},
+        {"max_monthly_active_days", "0"},
         {"super_active_days", "3"},
         {"max_super_active_weeks", "1"}});
 

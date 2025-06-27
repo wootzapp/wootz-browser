@@ -34,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterizedRunner;
@@ -48,7 +49,6 @@ import org.chromium.chrome.browser.ui.signin.fullscreen_signin.UMADialogCoordina
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.test.util.BlankUiTestActivity;
@@ -72,7 +72,7 @@ public class UMADialogTest {
     public final ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_FIRST_RUN)
-                    .setRevision(1)
+                    .setRevision(2)
                     .build();
 
     @Mock private Listener mListenerMock;
@@ -81,7 +81,7 @@ public class UMADialogTest {
 
     @ParameterAnnotations.UseMethodParameterBefore(NightModeTestUtils.NightModeParams.class)
     public void setupNightMode(boolean nightModeEnabled) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeNightModeTestUtils.setUpNightModeForChromeActivity(nightModeEnabled);
                 });
@@ -105,13 +105,13 @@ public class UMADialogTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(mCoordinator::dismissDialogForTesting);
+        ThreadUtils.runOnUiThreadBlocking(mCoordinator::dismissDialogForTesting);
     }
 
     @Test
     @MediumTest
-    public void testTurningOnAllowCrashUploadWhenCrashUploadByNotAllowedDefault() {
-        showFreUMADialog(/* allowMetricsAndCrashUploading= */ false);
+    public void testTurningOnAllowCrashUploadWhenCrashUploadNotAllowedByDefault() {
+        showFreUmaDialog(/* allowMetricsAndCrashUploading= */ false);
 
         onView(withId(R.id.fre_uma_dialog_switch))
                 .inRoot(isDialog())
@@ -126,7 +126,7 @@ public class UMADialogTest {
     @Test
     @MediumTest
     public void testTurningOffAllowCrashUploadWhenCrashUploadAllowedByDefault() {
-        showFreUMADialog(/* allowMetricsAndCrashUploading= */ true);
+        showFreUmaDialog(/* allowMetricsAndCrashUploading= */ true);
 
         onView(withId(R.id.fre_uma_dialog_switch)).inRoot(isDialog()).perform(click());
 
@@ -138,7 +138,7 @@ public class UMADialogTest {
     @Test
     @MediumTest
     public void testLeavingAllowCrashUploadOn() {
-        showFreUMADialog(/* allowMetricsAndCrashUploading= */ true);
+        showFreUmaDialog(/* allowMetricsAndCrashUploading= */ true);
         onView(withId(R.id.fre_uma_dialog_switch)).inRoot(isDialog()).check(matches(isChecked()));
 
         onView(withText(R.string.done)).perform(click());
@@ -151,8 +151,8 @@ public class UMADialogTest {
     @LargeTest
     @Feature("RenderTest")
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
-    public void testFreUMADialogView(boolean nightModeEnabled) throws IOException {
-        showFreUMADialog(/* allowMetricsAndCrashUploading= */ true);
+    public void testFreUmaDialogView(boolean nightModeEnabled) throws IOException {
+        showFreUmaDialog(/* allowMetricsAndCrashUploading= */ true);
 
         CriteriaHelper.pollUiThread(
                 () -> {
@@ -164,8 +164,8 @@ public class UMADialogTest {
         mRenderTestRule.render(mCoordinator.getDialogViewForTesting(), "fre_uma_dialog");
     }
 
-    private void showFreUMADialog(boolean allowMetricsAndCrashUploading) {
-        TestThreadUtils.runOnUiThreadBlocking(
+    private void showFreUmaDialog(boolean allowMetricsAndCrashUploading) {
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     final Activity activity = activityTestRule.getActivity();
                     mCoordinator =

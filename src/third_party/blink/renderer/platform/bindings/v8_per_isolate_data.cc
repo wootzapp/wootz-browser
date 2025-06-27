@@ -25,18 +25,18 @@
 
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/oom.h"
 #include "base/debug/crash_logging.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
 #include "base/trace_event/trace_event.h"
 #include "gin/public/v8_idle_task_runner.h"
+#include "partition_alloc/oom.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/renderer/platform/bindings/active_script_wrappable_base.h"
@@ -120,10 +120,12 @@ static bool AllowAtomicWaits(
 
 V8PerIsolateData::V8PerIsolateData(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    scoped_refptr<base::SingleThreadTaskRunner> low_priority_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> user_visible_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> best_effort_task_runner,
     V8ContextSnapshotMode v8_context_snapshot_mode,
     v8::CreateHistogramCallback create_histogram_callback,
-    v8::AddHistogramSampleCallback add_histogram_sample_callback)
+    v8::AddHistogramSampleCallback add_histogram_sample_callback,
+    std::unique_ptr<v8::CppHeap> cpp_heap)
     : v8_context_snapshot_mode_(v8_context_snapshot_mode),
       isolate_holder_(
           std::move(task_runner),
@@ -139,7 +141,9 @@ V8PerIsolateData::V8PerIsolateData(
               : gin::IsolateHolder::IsolateCreationMode::kNormal,
           create_histogram_callback,
           add_histogram_sample_callback,
-          std::move(low_priority_task_runner)),
+          std::move(user_visible_task_runner),
+          std::move(best_effort_task_runner),
+          std::move(cpp_heap)),
       string_cache_(std::make_unique<StringCache>(GetIsolate())),
       private_property_(std::make_unique<V8PrivateProperty>()),
       constructor_mode_(ConstructorMode::kCreateNewObject),
@@ -171,15 +175,19 @@ V8PerIsolateData::~V8PerIsolateData() = default;
 
 v8::Isolate* V8PerIsolateData::Initialize(
     scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    scoped_refptr<base::SingleThreadTaskRunner> low_priority_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> user_visible_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> best_effort_task_runner,
     V8ContextSnapshotMode context_mode,
     v8::CreateHistogramCallback create_histogram_callback,
-    v8::AddHistogramSampleCallback add_histogram_sample_callback) {
+    v8::AddHistogramSampleCallback add_histogram_sample_callback,
+    std::unique_ptr<v8::CppHeap> cpp_heap) {
   TRACE_EVENT1("v8", "V8PerIsolateData::Initialize", "V8ContextSnapshotMode",
                context_mode);
   V8PerIsolateData* data = new V8PerIsolateData(
-      std::move(task_runner), std::move(low_priority_task_runner), context_mode,
-      create_histogram_callback, add_histogram_sample_callback);
+      std::move(task_runner), std::move(user_visible_task_runner),
+      std::move(best_effort_task_runner), context_mode,
+      create_histogram_callback, add_histogram_sample_callback,
+      std::move(cpp_heap));
   DCHECK(data);
 
   v8::Isolate* isolate = data->GetIsolate();
@@ -349,17 +357,15 @@ V8PerIsolateData::FindOrCreateEternalNameCache(
     base::span<const std::string_view> names) {
   auto it = eternal_name_cache_.find(lookup_key);
   const Vector<v8::Eternal<v8::Name>>* vector = nullptr;
-  if (UNLIKELY(it == eternal_name_cache_.end())) {
+  if (it == eternal_name_cache_.end()) [[unlikely]] {
     v8::Isolate* isolate = GetIsolate();
     Vector<v8::Eternal<v8::Name>> new_vector(
         base::checked_cast<wtf_size_t>(names.size()));
-    base::ranges::transform(
+    std::ranges::transform(
         names, new_vector.begin(), [isolate](std::string_view name) {
           return v8::Eternal<v8::Name>(
               isolate,
-              V8AtomicString(
-                  isolate,
-                  StringView(name.data(), static_cast<unsigned>(name.size()))));
+              V8AtomicString(isolate, StringView(base::as_byte_span(name))));
         });
     vector = &eternal_name_cache_.Set(lookup_key, std::move(new_vector))
                   .stored_value->value;
@@ -367,8 +373,7 @@ V8PerIsolateData::FindOrCreateEternalNameCache(
     vector = &it->value;
   }
   DCHECK_EQ(vector->size(), names.size());
-  return base::span<const v8::Eternal<v8::Name>>(vector->data(),
-                                                 vector->size());
+  return *vector;
 }
 
 v8::Local<v8::Context> V8PerIsolateData::EnsureScriptRegexpContext() {

@@ -21,18 +21,22 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_observer.h"
-#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
-#include "chrome/browser/resource_coordinator/tab_manager.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
+#include "chrome/browser/resource_coordinator/utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_group.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/pref_names.h"
+#include "components/keep_alive_registry/keep_alive_registry.h"
+#include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/metrics/daily_event.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -42,10 +46,6 @@
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
-
-#if BUILDFLAG(ENABLE_BACKGROUND_MODE)
-#include "chrome/browser/background/background_mode_manager.h"
-#endif  // BUILDFLAG(ENABLE_BACKGROUND_MODE)
 
 namespace metrics {
 
@@ -63,12 +63,13 @@ TabStatsTracker* g_tab_stats_tracker_instance = nullptr;
 
 void UmaHistogramCounts10000WithBatteryStateVariant(const char* histogram_name,
                                                     size_t value) {
-  DCHECK(base::PowerMonitor::IsInitialized());
+  auto* power_monitor = base::PowerMonitor::GetInstance();
+  DCHECK(power_monitor->IsInitialized());
 
   base::UmaHistogramCounts10000(histogram_name, value);
 
   const char* suffix =
-      base::PowerMonitor::IsOnBatteryPower() ? ".OnBattery" : ".PluggedIn";
+      power_monitor->IsOnBatteryPower() ? ".OnBattery" : ".PluggedIn";
 
   base::UmaHistogramCounts10000(base::StrCat({histogram_name, suffix}), value);
 }
@@ -107,6 +108,9 @@ const char TabStatsTracker::UmaStatsReportingDelegate::
     kDailyDiscardsSuggestedHistogramName[] =
         "Discarding.DailyDiscards.Suggested";
 const char TabStatsTracker::UmaStatsReportingDelegate::
+    kDailyDiscardsFrozenWithGrowingMemoryHistogramName[] =
+        "Discarding.DailyDiscards.FrozenWithGrowingMemory";
+const char TabStatsTracker::UmaStatsReportingDelegate::
     kDailyReloadsExternalHistogramName[] = "Discarding.DailyReloads.External";
 const char TabStatsTracker::UmaStatsReportingDelegate::
     kDailyReloadsUrgentHistogramName[] = "Discarding.DailyReloads.Urgent";
@@ -114,6 +118,35 @@ const char TabStatsTracker::UmaStatsReportingDelegate::
     kDailyReloadsProactiveHistogramName[] = "Discarding.DailyReloads.Proactive";
 const char TabStatsTracker::UmaStatsReportingDelegate::
     kDailyReloadsSuggestedHistogramName[] = "Discarding.DailyReloads.Suggested";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kDailyReloadsFrozenWithGrowingMemoryHistogramName[] =
+        "Discarding.DailyReloads.FrozenWithGrowingMemory";
+
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateCountSingleWindowHistogramName[] =
+        "Tabs.Duplicates.Count.SingleWindow";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateCountAllProfileWindowsHistogramName[] =
+        "Tabs.Duplicates.Count.AllProfileWindows";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicatePercentageSingleWindowHistogramName[] =
+        "Tabs.Duplicates.Percentage.SingleWindow";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicatePercentageAllProfileWindowsHistogramName[] =
+        "Tabs.Duplicates.Percentage.AllProfileWindows";
+
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateExcludingFragmentsCountSingleWindowHistogramName[] =
+        "Tabs.DuplicatesExcludingFragments.Count.SingleWindow";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateExcludingFragmentsCountAllProfileWindowsHistogramName[] =
+        "Tabs.DuplicatesExcludingFragments.Count.AllProfileWindows";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateExcludingFragmentsPercentageSingleWindowHistogramName[] =
+        "Tabs.DuplicatesExcludingFragments.Percentage.SingleWindow";
+const char TabStatsTracker::UmaStatsReportingDelegate::
+    kTabDuplicateExcludingFragmentsPercentageAllProfileWindowsHistogramName[] =
+        "Tabs.DuplicatesExcludingFragments.Percentage.AllProfileWindows";
 
 const TabStatsDataStore::TabsStats& TabStatsTracker::tab_stats() const {
   return tab_stats_data_store_->tab_stats();
@@ -147,7 +180,7 @@ TabStatsTracker::TabStatsTracker(PrefService* pref_service)
   }
 
   browser_list->AddObserver(this);
-  base::PowerMonitor::AddPowerSuspendObserver(this);
+  base::PowerMonitor::GetInstance()->AddPowerSuspendObserver(this);
 
   // Setup daily reporting of the stats aggregated in |tab_stats_data_store|.
   daily_event_->AddObserver(std::make_unique<TabStatsDailyObserver>(
@@ -163,14 +196,15 @@ TabStatsTracker::TabStatsTracker(PrefService* pref_service)
                          base::BindRepeating(&TabStatsTracker::OnHeartbeatEvent,
                                              base::Unretained(this)));
 
-  g_browser_process->GetTabManager()->AddObserver(this);
+  resource_coordinator::GetTabLifecycleUnitSource()->AddLifecycleObserver(this);
 }
 
 TabStatsTracker::~TabStatsTracker() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   BrowserList::GetInstance()->RemoveObserver(this);
-  base::PowerMonitor::RemovePowerSuspendObserver(this);
-  g_browser_process->GetTabManager()->RemoveObserver(this);
+  base::PowerMonitor::GetInstance()->RemovePowerSuspendObserver(this);
+  resource_coordinator::GetTabLifecycleUnitSource()->RemoveLifecycleObserver(
+      this);
 }
 
 // static
@@ -232,10 +266,14 @@ void TabStatsTracker::RegisterPrefs(PrefRegistrySimple* registry) {
   registry->RegisterIntegerPref(::prefs::kTabStatsDiscardsUrgent, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsDiscardsProactive, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsDiscardsSuggested, 0);
+  registry->RegisterIntegerPref(
+      ::prefs::kTabStatsDiscardsFrozenWithGrowingMemory, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsReloadsExternal, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsReloadsUrgent, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsReloadsProactive, 0);
   registry->RegisterIntegerPref(::prefs::kTabStatsReloadsSuggested, 0);
+  registry->RegisterIntegerPref(
+      ::prefs::kTabStatsReloadsFrozenWithGrowingMemory, 0);
 }
 
 void TabStatsTracker::TabStatsDailyObserver::OnDailyEvent(
@@ -358,6 +396,21 @@ class TabStatsTracker::WebContentsUsageObserver
       tab_stats_observer.OnMediaDestroyed(web_contents());
   }
 
+  void WasDiscarded() override {
+    if (ukm_source_id_) {
+      ukm::builders::TabManager_TabLifetime(ukm_source_id_)
+          .SetTimeSinceNavigation(
+              (base::TimeTicks::Now() - navigation_time_).InMilliseconds())
+          .Record(ukm::UkmRecorder::Get());
+      ukm_source_id_ = 0;
+    }
+
+    for (TabStatsObserver& tab_stats_observer :
+         tab_stats_tracker_->tab_stats_observers_) {
+      tab_stats_observer.OnTabDiscarded(web_contents());
+    }
+  }
+
  private:
   raw_ptr<TabStatsTracker> tab_stats_tracker_;
   // The last navigation time associated with this tab.
@@ -418,18 +471,19 @@ void TabStatsTracker::OnResume() {
       tab_stats_data_store_->tab_stats().total_tab_count);
 }
 
-// resource_coordinator::TabLifecycleObserver:
-void TabStatsTracker::OnDiscardedStateChange(
-    content::WebContents* contents,
-    ::mojom::LifecycleUnitDiscardReason reason,
-    bool is_discarded) {
-  // Increment the count in the data store for tabs metrics reporting.
-  tab_stats_data_store_->OnTabDiscardStateChange(reason, is_discarded);
+// resource_coordinator::LifecycleUnitObserver:
+void TabStatsTracker::OnLifecycleUnitStateChanged(
+    resource_coordinator::LifecycleUnit* lifecycle_unit,
+    ::mojom::LifecycleUnitState previous_state,
+    ::mojom::LifecycleUnitStateChangeReason reason) {
+  const ::mojom::LifecycleUnitState new_state = lifecycle_unit->GetState();
+  if (previous_state == ::mojom::LifecycleUnitState::DISCARDED ||
+      new_state == ::mojom::LifecycleUnitState::DISCARDED) {
+    tab_stats_data_store_->OnTabDiscardStateChange(
+        lifecycle_unit->GetDiscardReason(),
+        new_state == ::mojom::LifecycleUnitState::DISCARDED);
+  }
 }
-
-void TabStatsTracker::OnAutoDiscardableStateChange(
-    content::WebContents* contents,
-    bool is_auto_discardable) {}
 
 void TabStatsTracker::OnInitialOrInsertedTab(
     content::WebContents* web_contents) {
@@ -496,6 +550,8 @@ void TabStatsTracker::UmaStatsReportingDelegate::ReportDailyMetrics(
       static_cast<size_t>(LifecycleUnitDiscardReason::PROACTIVE);
   const size_t suggested_index =
       static_cast<size_t>(LifecycleUnitDiscardReason::SUGGESTED);
+  const size_t frozen_with_growing_memory_index = static_cast<size_t>(
+      LifecycleUnitDiscardReason::FROZEN_WITH_GROWING_MEMORY);
   base::UmaHistogramCounts10000(kDailyDiscardsExternalHistogramName,
                                 tab_stats.tab_discard_counts[external_index]);
   base::UmaHistogramCounts10000(kDailyDiscardsUrgentHistogramName,
@@ -504,6 +560,9 @@ void TabStatsTracker::UmaStatsReportingDelegate::ReportDailyMetrics(
                                 tab_stats.tab_discard_counts[proactive_index]);
   base::UmaHistogramCounts10000(kDailyDiscardsSuggestedHistogramName,
                                 tab_stats.tab_discard_counts[suggested_index]);
+  base::UmaHistogramCounts10000(
+      kDailyDiscardsFrozenWithGrowingMemoryHistogramName,
+      tab_stats.tab_discard_counts[frozen_with_growing_memory_index]);
   base::UmaHistogramCounts10000(kDailyReloadsExternalHistogramName,
                                 tab_stats.tab_reload_counts[external_index]);
   base::UmaHistogramCounts10000(kDailyReloadsUrgentHistogramName,
@@ -512,6 +571,9 @@ void TabStatsTracker::UmaStatsReportingDelegate::ReportDailyMetrics(
                                 tab_stats.tab_reload_counts[proactive_index]);
   base::UmaHistogramCounts10000(kDailyReloadsSuggestedHistogramName,
                                 tab_stats.tab_reload_counts[suggested_index]);
+  base::UmaHistogramCounts10000(
+      kDailyReloadsFrozenWithGrowingMemoryHistogramName,
+      tab_stats.tab_reload_counts[frozen_with_growing_memory_index]);
 }
 
 void TabStatsTracker::UmaStatsReportingDelegate::ReportHeartbeatMetrics(
@@ -525,6 +587,10 @@ void TabStatsTracker::UmaStatsReportingDelegate::ReportHeartbeatMetrics(
                                                  tab_stats.total_tab_count);
   UmaHistogramCounts10000WithBatteryStateVariant(kWindowCountHistogramName,
                                                  tab_stats.window_count);
+  if (base::FeatureList::IsEnabled(features::kTabDuplicateMetrics)) {
+    ReportTabDuplicateMetrics(true);
+    ReportTabDuplicateMetrics(false);
+  }
   // Record the width of all open browser windows with tabs.
   for (Browser* browser : *BrowserList::GetInstance()) {
     if (browser->type() != Browser::TYPE_NORMAL)
@@ -553,15 +619,120 @@ void TabStatsTracker::UmaStatsReportingDelegate::ReportHeartbeatMetrics(
   }
 }
 
+void TabStatsTracker::UmaStatsReportingDelegate::ReportTabDuplicateMetrics(
+    bool exclude_fragments) {
+  std::map<Profile*, DuplicateData> duplicate_data_per_profile;
+  for (Browser* const browser : *BrowserList::GetInstance()) {
+    if (browser->type() != Browser::TYPE_NORMAL) {
+      continue;
+    }
+
+    Profile* const profile = browser->profile();
+    DuplicateData duplicate_data_multi_window =
+        duplicate_data_per_profile[profile];
+    DuplicateData duplicate_data_single_window = DuplicateData();
+
+    const int tab_count = browser->tab_strip_model()->count();
+    duplicate_data_multi_window.tab_count += tab_count;
+    duplicate_data_single_window.tab_count = tab_count;
+
+    for (int index = 0; index < tab_count; index++) {
+      content::WebContents* const web_contents =
+          browser->tab_strip_model()->GetWebContentsAt(index);
+      const GURL full_url = web_contents->GetURL();
+      const GURL url = exclude_fragments ? full_url.GetWithoutRef() : full_url;
+      auto seen_urls_single_window_result =
+          duplicate_data_single_window.seen_urls.insert(url);
+      if (!seen_urls_single_window_result.second) {
+        duplicate_data_single_window.duplicate_count++;
+      }
+      // Guest mode and incognito should not count for the per-profile metrics
+      if (profile->IsOffTheRecord()) {
+        continue;
+      }
+      auto seen_urls_multi_window_result =
+          duplicate_data_multi_window.seen_urls.insert(url);
+      if (!seen_urls_multi_window_result.second) {
+        duplicate_data_multi_window.duplicate_count++;
+      }
+    }
+    duplicate_data_per_profile[profile] = duplicate_data_multi_window;
+
+    base::UmaHistogramCounts100(
+        exclude_fragments
+            ? kTabDuplicateExcludingFragmentsCountSingleWindowHistogramName
+            : kTabDuplicateCountSingleWindowHistogramName,
+        duplicate_data_single_window.duplicate_count);
+    if (duplicate_data_single_window.tab_count > 0) {
+      base::UmaHistogramPercentage(
+          exclude_fragments
+              ? kTabDuplicateExcludingFragmentsPercentageSingleWindowHistogramName
+              : kTabDuplicatePercentageSingleWindowHistogramName,
+          duplicate_data_single_window.duplicate_count * 100 /
+              duplicate_data_single_window.tab_count);
+    }
+  }
+  for (const auto& duplicate_data : duplicate_data_per_profile) {
+    // Guest mode and incognito should not count for the per-profile metrics
+    Profile* const profile = duplicate_data.first;
+    if (profile->IsOffTheRecord()) {
+      continue;
+    }
+
+    base::UmaHistogramCounts100(
+        exclude_fragments
+            ? kTabDuplicateExcludingFragmentsCountAllProfileWindowsHistogramName
+            : kTabDuplicateCountAllProfileWindowsHistogramName,
+        duplicate_data.second.duplicate_count);
+    if (duplicate_data.second.tab_count > 0) {
+      base::UmaHistogramPercentage(
+          exclude_fragments
+              ? kTabDuplicateExcludingFragmentsPercentageAllProfileWindowsHistogramName
+              : kTabDuplicatePercentageAllProfileWindowsHistogramName,
+          duplicate_data.second.duplicate_count * 100 /
+              duplicate_data.second.tab_count);
+    }
+  }
+}
+
 bool TabStatsTracker::UmaStatsReportingDelegate::
     IsChromeBackgroundedWithoutWindows() {
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
-  if (g_browser_process && g_browser_process->background_mode_manager()
-                               ->IsBackgroundWithoutWindows()) {
-    return true;
-  }
-#endif  // BUILDFLAG(ENABLE_BACKGROUND_MODE)
+  return KeepAliveRegistry::GetInstance()->WouldRestartWithout({
+      // Transient startup related KeepAlives, not related to any UI.
+      KeepAliveOrigin::SESSION_RESTORE,
+      KeepAliveOrigin::BACKGROUND_MODE_MANAGER_STARTUP,
+
+      KeepAliveOrigin::BACKGROUND_SYNC,
+
+      // Notification KeepAlives are not dependent on the Chrome UI being
+      // loaded, and can be registered when we were in pure background mode.
+      // They just block it to avoid issues. Ignore them when determining if we
+      // are in that mode.
+      KeepAliveOrigin::NOTIFICATION,
+      KeepAliveOrigin::PENDING_NOTIFICATION_CLICK_EVENT,
+      KeepAliveOrigin::PENDING_NOTIFICATION_CLOSE_EVENT,
+      KeepAliveOrigin::IN_FLIGHT_PUSH_MESSAGE,
+  });
+#else
   return false;
+#endif  // BUILDFLAG(ENABLE_BACKGROUND_MODE)
 }
+
+TabStatsTracker::UmaStatsReportingDelegate::DuplicateData::DuplicateData() {
+  duplicate_count = 0;
+  tab_count = 0;
+  seen_urls = {};
+}
+
+TabStatsTracker::UmaStatsReportingDelegate::DuplicateData::DuplicateData(
+    const DuplicateData& other) {
+  duplicate_count = other.duplicate_count;
+  tab_count = other.tab_count;
+  seen_urls = std::set(other.seen_urls);
+}
+
+TabStatsTracker::UmaStatsReportingDelegate::DuplicateData::~DuplicateData() =
+    default;
 
 }  // namespace metrics

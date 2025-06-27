@@ -6,27 +6,29 @@
 #define IOS_WEB_WEB_STATE_WEB_STATE_IMPL_H_
 
 #import <Foundation/Foundation.h>
-#include <stddef.h>
-#include <stdint.h>
+#import <stddef.h>
+#import <stdint.h>
 
-#include <map>
-#include <memory>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <vector>
+#import <map>
+#import <memory>
+#import <optional>
+#import <string>
+#import <string_view>
+#import <vector>
 
-#include "base/memory/weak_ptr.h"
-#include "base/observer_list.h"
-#include "base/time/time.h"
-#include "base/values.h"
+#import "base/memory/weak_ptr.h"
+#import "base/observer_list.h"
+#import "base/sequence_checker.h"
+#import "base/time/time.h"
+#import "base/values.h"
 #import "ios/web/navigation/navigation_manager_delegate.h"
 #import "ios/web/navigation/navigation_manager_impl.h"
 #import "ios/web/public/navigation/form_warning_type.h"
 #import "ios/web/public/navigation/web_state_policy_decider.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_delegate.h"
-#include "url/gurl.h"
+#import "url/gurl.h"
+#import "url/origin.h"
 
 @class CRWSessionStorage;
 @class CRWWebController;
@@ -74,7 +76,9 @@ class WebStateImpl final : public WebState {
   explicit WebStateImpl(const CreateParams& params);
 
   // Constructor for WebStateImpls created for deserialized sessions
-  WebStateImpl(const CreateParams& params, CRWSessionStorage* session_storage);
+  WebStateImpl(const CreateParams& params,
+               CRWSessionStorage* session_storage,
+               NativeSessionFetcher session_fetcher);
 
   // Constructor for WebStateImpls created for deserialized sessions. The
   // callbacks are used to load the complete serialized data from disk when
@@ -229,21 +233,21 @@ class WebStateImpl final : public WebState {
                                    base::OnceCallback<void(bool)> callback);
 
   // Notifies the delegate that a JavaScript alert dialog needs to be presented.
-  void RunJavaScriptAlertDialog(const GURL& origin_url,
+  void RunJavaScriptAlertDialog(const url::Origin& origin,
                                 NSString* message_text,
                                 base::OnceClosure callback);
 
   // Notifies the delegate that a JavaScript confirmation dialog needs to be
   // presented.
   void RunJavaScriptConfirmDialog(
-      const GURL& origin_url,
+      const url::Origin& origin,
       NSString* message_text,
       base::OnceCallback<void(bool success)> callback);
 
   // Notifies the delegate that a JavaScript prompt dialog needs to be
   // presented.
   void RunJavaScriptPromptDialog(
-      const GURL& origin_url,
+      const url::Origin& origin,
       NSString* message_text,
       NSString* default_prompt_text,
       base::OnceCallback<void(NSString* user_input)> callback);
@@ -396,6 +400,9 @@ class WebStateImpl final : public WebState {
   // the constructor.
   void SendGlobalCreationEvent();
 
+  // WebState is sequence-affine.
+  SEQUENCE_CHECKER(sequence_checker_);
+
   // Stores whether the web state is currently being destroyed. This is not
   // stored in RealizedWebState/SerializedData as a WebState can be destroyed
   // before becoming realized.
@@ -419,10 +426,9 @@ class WebStateImpl final : public WebState {
   WebStatePolicyDeciderList policy_deciders_;
 
   // The instances of the two internal classes used to implement the
-  // "unrealized" state of the WebState. One important invariant is
-  // that except at all point either `pimpl_` or `saved_` is valid
-  // and not null (except right at the end of the destructor or at
-  // the beginning of the constructor).
+  // "unrealized" state of the WebState. One important invariant is that at all
+  // point either `pimpl_` or `saved_` is valid and not null (except right at
+  // the end of the destructor or at the beginning of the constructor).
   std::unique_ptr<RealizedWebState> pimpl_;
   std::unique_ptr<SerializedData> saved_;
 

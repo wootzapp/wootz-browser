@@ -47,14 +47,19 @@ class CallbackCookieSettings : public CookieSettingsBase {
   explicit CallbackCookieSettings(GetSettingCallback callback)
       : callback_(std::move(callback)) {}
 
-  // A simple constructor that returns a specified setting for COOKIES and BLOCK
-  // otherwise.
+  // A simple constructor that returns a specified setting for COOKIES, ALLOW
+  // for TOP_LEVEL_TPCD_ORIGIN_TRIAL, and BLOCK otherwise.
   explicit CallbackCookieSettings(ContentSetting setting)
       : callback_(base::BindLambdaForTesting(
             [setting](const GURL&, ContentSettingsType type, SettingInfo*) {
               if (type == ContentSettingsType::COOKIES) {
                 return setting;
               }
+
+              if (type == ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL) {
+                return CONTENT_SETTING_ALLOW;
+              }
+
               return CONTENT_SETTING_BLOCK;
             })) {}
 
@@ -75,7 +80,12 @@ class CallbackCookieSettings : public CookieSettingsBase {
     return false;
   }
 
-  bool ShouldBlockThirdPartyCookies() const override { return false; }
+  bool ShouldBlockThirdPartyCookies(
+      base::optional_ref<const url::Origin> top_frame_origin,
+      net::CookieSettingOverrides overrides) const override {
+    return MaybeBlockThirdPartyCookiesPerModifiers(top_frame_origin, overrides)
+        .value_or(false);
+  }
   bool MitigationsEnabledFor3pcd() const override { return false; }
 
   bool IsThirdPartyCookiesAllowedScheme(
@@ -86,13 +96,11 @@ class CallbackCookieSettings : public CookieSettingsBase {
   bool ShouldIgnoreSameSiteRestrictions(
       const GURL& url,
       const net::SiteForCookies& site_for_cookies) const override {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
  private:
   GetSettingCallback callback_;
-  ContentSettingsType type_;
 };
 
 class CookieSettingsBaseTest : public testing::Test {
@@ -218,8 +226,30 @@ TEST_F(CookieSettingsBaseTest, CookieAccessAllowedWithAllowSetting) {
       url_, site_for_cookies_, origin_, net::CookieSettingOverrides()));
 }
 
+TEST_F(CookieSettingsBaseTest, CookieAccessAllowedWithNonNoncePartitionKey) {
+  CallbackCookieSettings settings(CONTENT_SETTING_ALLOW);
+  net::CookiePartitionKey cookie_partition_key =
+      net::CookiePartitionKey::FromURLForTesting(url_);
+
+  EXPECT_TRUE(settings.IsFullCookieAccessAllowed(
+      url_, site_for_cookies_, origin_, net::CookieSettingOverrides(),
+      cookie_partition_key));
+}
+
+TEST_F(CookieSettingsBaseTest, CookieAccessNotAllowedWithNoncePartitionKey) {
+  CallbackCookieSettings settings(CONTENT_SETTING_ALLOW);
+  net::CookiePartitionKey cookie_partition_key =
+      net::CookiePartitionKey::FromURLForTesting(
+          url_, net::CookiePartitionKey::AncestorChainBit::kCrossSite,
+          base::UnguessableToken::Create());
+
+  EXPECT_FALSE(settings.IsFullCookieAccessAllowed(
+      url_, site_for_cookies_, origin_, net::CookieSettingOverrides(),
+      cookie_partition_key));
+}
+
 TEST_F(CookieSettingsBaseTest, ThirdPartyCookiesOverriden) {
-  GURL thirdPartyURL = GURL("https://3p.com");
+  const GURL kThirdPartyURL = GURL("https://3p.com");
 
   CallbackCookieSettings settings(CONTENT_SETTING_ALLOW);
   net::CookieSettingOverrides overrides{};
@@ -228,9 +258,9 @@ TEST_F(CookieSettingsBaseTest, ThirdPartyCookiesOverriden) {
   EXPECT_TRUE(settings.IsFullCookieAccessAllowed(url_, site_for_cookies_,
                                                  origin_, overrides));
   EXPECT_FALSE(settings.IsFullCookieAccessAllowed(
-      thirdPartyURL, site_for_cookies_, origin_, overrides));
+      kThirdPartyURL, site_for_cookies_, origin_, overrides));
   EXPECT_TRUE(settings.IsFullCookieAccessAllowed(
-      thirdPartyURL, site_for_cookies_, origin_,
+      kThirdPartyURL, site_for_cookies_, origin_,
       net::CookieSettingOverrides()));
 }
 
@@ -296,6 +326,10 @@ TEST_F(CookieSettingsBaseTest, IsValidLegacyAccessSetting) {
   EXPECT_FALSE(CookieSettingsBase::IsValidSettingForLegacyAccess(
       CONTENT_SETTING_SESSION_ONLY));
 }
+
+// `GetStorageAccessStatus` is tested in
+// components/content_settings/core/browser/cookie_settings_unittest.cc and
+// services/network/cookie_settings_unittest.cc
 
 class CookieSettingsBaseStorageAccessAPITest
     : public testing::TestWithParam<std::tuple<bool, bool>> {

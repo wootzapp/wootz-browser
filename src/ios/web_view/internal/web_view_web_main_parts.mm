@@ -4,40 +4,41 @@
 
 #import "ios/web_view/internal/web_view_web_main_parts.h"
 
-#include "base/base_paths.h"
-#include "base/check.h"
-#include "base/feature_list.h"
-#include "base/path_service.h"
-#include "base/strings/string_util.h"
-#include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_payments_features.h"
-#include "components/component_updater/installer_policies/safety_tips_component_installer.h"
-#include "components/password_manager/core/common/password_manager_features.h"
+#import "base/base_paths.h"
+#import "base/check.h"
+#import "base/feature_list.h"
+#import "base/path_service.h"
+#import "base/strings/string_util.h"
+#import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/core/common/autofill_payments_features.h"
+#import "components/component_updater/installer_policies/safety_tips_component_installer.h"
+#import "components/password_manager/core/common/password_manager_features.h"
 #import "components/signin/public/base/signin_switches.h"
-#include "components/sync/base/features.h"
-#include "components/variations/variations_ids_provider.h"
-#include "ios/web/public/webui/web_ui_ios_controller_factory.h"
-#include "ios/web_view/internal/app/application_context.h"
+#import "components/sync/base/features.h"
+#import "components/variations/variations_ids_provider.h"
+#import "ios/web/public/webui/web_ui_ios_controller_factory.h"
+#import "ios/web_view/internal/app/application_context.h"
 #import "ios/web_view/internal/cwv_flags_internal.h"
 #import "ios/web_view/internal/cwv_web_view_configuration_internal.h"
-#include "ios/web_view/internal/translate/web_view_translate_service.h"
-#include "ios/web_view/internal/webui/web_view_web_ui_ios_controller_factory.h"
-#include "ui/base/l10n/l10n_util_mac.h"
-#include "ui/base/resource/resource_bundle.h"
+#import "ios/web_view/internal/translate/web_view_translate_service.h"
+#import "ios/web_view/internal/webui/web_view_web_ui_ios_controller_factory.h"
+#import "ui/base/l10n/l10n_util_mac.h"
+#import "ui/base/resource/resource_bundle.h"
 #import "ui/base/resource/resource_scale_factor.h"
+#import "ui/display/screen.h"
 
 #if DCHECK_IS_ON()
-#include "ui/display/screen_base.h"
+#import "ui/display/screen_base.h"
 #endif
 
 namespace ios_web_view {
 
-WebViewWebMainParts::WebViewWebMainParts() = default;
+WebViewWebMainParts::WebViewWebMainParts()
+    : screen_(std::make_unique<display::ScopedNativeScreen>()) {}
 
 WebViewWebMainParts::~WebViewWebMainParts() {
 #if DCHECK_IS_ON()
-  // The screen object is never deleted on IOS. Make sure that all display
-  // observers are removed at the end.
+  // Make sure that all display observers are removed at the end.
   display::ScreenBase* screen =
       static_cast<display::ScreenBase*>(display::Screen::GetScreen());
   DCHECK(!screen->HasDisplayObservers());
@@ -72,11 +73,7 @@ void WebViewWebMainParts::PreCreateThreads() {
           syncer::kSyncPasswordCleanUpAccidentalBatchDeletions.name,
       },
       ",");
-  std::string disabled_features = base::JoinString(
-      {
-          switches::kEnableFetchingAccountCapabilities.name,
-      },
-      ",");
+  std::string disabled_features;
   feature_list->InitFromCommandLine(
       /*enable_features=*/enable_features,
       /*disable_features=*/disabled_features);

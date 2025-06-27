@@ -12,6 +12,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/proto/web_app_os_integration_state.pb.h"
 #include "chrome/browser/web_applications/test/fake_web_app_provider.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -19,10 +20,13 @@
 #include "chrome/browser/web_applications/test/web_app_test.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
+#include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_icon_generator.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chrome_features.h"
 #include "components/sync/base/time.h"
 #include "components/webapps/browser/install_result_code.h"
@@ -52,10 +56,8 @@ class InstallAppLocallyCommandTest : public WebAppTest {
         std::make_unique<WebAppFileHandlerManager>(profile());
     auto protocol_handler_manager =
         std::make_unique<WebAppProtocolHandlerManager>(profile());
-    auto shortcut_manager = std::make_unique<WebAppShortcutManager>(
-        profile(), file_handler_manager.get(), protocol_handler_manager.get());
     auto os_integration_manager = std::make_unique<OsIntegrationManager>(
-        profile(), std::move(shortcut_manager), std::move(file_handler_manager),
+        profile(), std::move(file_handler_manager),
         std::move(protocol_handler_manager));
 
     provider_->SetOsIntegrationManager(std::move(os_integration_manager));
@@ -84,7 +86,7 @@ class InstallAppLocallyCommandTest : public WebAppTest {
         result;
 
     web_app::WebAppInstallParams params;
-    params.locally_installed = false;
+    params.install_state = proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE;
     params.add_to_applications_menu = false;
     params.add_to_desktop = false;
     params.add_to_quick_launch_bar = false;
@@ -154,8 +156,7 @@ class InstallAppLocallyCommandTest : public WebAppTest {
     EXPECT_TRUE(icon_color.has_value());
     return icon_color.value();
 #else
-    NOTREACHED_IN_MIGRATION() << "Shortcuts not supported for other OS";
-    return SK_ColorTRANSPARENT;
+    NOTREACHED() << "Shortcuts not supported for other OS";
 #endif
   }
 
@@ -180,7 +181,8 @@ TEST_F(InstallAppLocallyCommandTest, BasicBehavior) {
   auto state =
       provider().registrar_unsafe().GetAppCurrentOsIntegrationState(app_id);
   ASSERT_TRUE(state.has_value());
-  const proto::WebAppOsIntegrationState& os_integration_state = state.value();
+  const proto::os_state::WebAppOsIntegration& os_integration_state =
+      state.value();
 
   if (HasShortcutsOsIntegration()) {
     ASSERT_FALSE(os_integration_state.has_shortcut());
@@ -194,9 +196,13 @@ TEST_F(InstallAppLocallyCommandTest, BasicBehavior) {
   auto updated_state =
       provider().registrar_unsafe().GetAppCurrentOsIntegrationState(app_id);
   ASSERT_TRUE(updated_state.has_value());
-  const proto::WebAppOsIntegrationState& updated_os_states =
+  const proto::os_state::WebAppOsIntegration& updated_os_states =
       updated_state.value();
   ASSERT_TRUE(updated_os_states.has_shortcut());
+
+  EXPECT_TRUE(
+      provider().registrar_unsafe().GetAppById(app_id)->GetSources().Has(
+          WebAppManagement::kUserInstalled));
 
   // OS integration should be triggered now.
   if (HasShortcutsOsIntegration()) {
@@ -220,7 +226,7 @@ TEST_F(InstallAppLocallyCommandTest, AppNotInRegistrar) {
   base::test::TestFuture<void> test_future;
   provider().scheduler().InstallAppLocally(app_id, test_future.GetCallback());
   EXPECT_TRUE(test_future.Wait());
-  EXPECT_FALSE(provider().registrar_unsafe().IsLocallyInstalled(app_id));
+  EXPECT_FALSE(provider().registrar_unsafe().IsInRegistrar(app_id));
 }
 
 }  // namespace

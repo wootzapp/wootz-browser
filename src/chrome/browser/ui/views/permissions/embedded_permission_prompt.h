@@ -5,17 +5,21 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_PERMISSIONS_EMBEDDED_PERMISSION_PROMPT_H_
 #define CHROME_BROWSER_UI_VIEWS_PERMISSIONS_EMBEDDED_PERMISSION_PROMPT_H_
 
+#include <optional>
+
+#include "base/containers/fixed_flat_map.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_base_view.h"
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_content_scrim_view.h"
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_view_delegate.h"
 #include "chrome/browser/ui/views/permissions/permission_prompt_desktop.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/permissions/embedded_permission_prompt_flow_model.h"
 #include "components/permissions/permission_prompt.h"
 #include "components/permissions/permission_request.h"
 #include "components/permissions/request_type.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 
 class Browser;
 
@@ -35,33 +39,6 @@ class EmbeddedPermissionPrompt
   EmbeddedPermissionPrompt(const EmbeddedPermissionPrompt&) = delete;
   EmbeddedPermissionPrompt& operator=(const EmbeddedPermissionPrompt&) = delete;
 
-  // Prompt views shown after the user clicks on the embedded permission prompt.
-  // The values represent the priority of each variant, higher number means
-  // higher priority.
-  enum class Variant {
-    // Default when conditions are not met to show any of the permission views.
-    kUninitialized = 0,
-    // Informs the user that the permission was allowed by their administrator.
-    kAdministratorGranted = 1,
-    // Permission prompt that informs the user they already granted permission.
-    // Offers additional options to modify the permission decision.
-    kPreviouslyGranted = 2,
-    // Informs the user that Chrome needs permission from the OS level, in order
-    // for the site to be able to access a permission.
-    kOsPrompt = 3,
-    // Permission prompt that asks the user for site-level permission.
-    kAsk = 4,
-    // Permission prompt that additionally informs the user that they have
-    // previously denied permission to the site. May offer different options
-    // (buttons) to the site-level prompt |kAsk|.
-    kPreviouslyDenied = 5,
-    // Informs the user that they need to go to OS system settings to grant
-    // access to Chrome.
-    kOsSystemSettings = 6,
-    // Informs the user that the permission was denied by their administrator.
-    kAdministratorDenied = 7,
-  };
-
   // A delegate for handling system permission requests such as requesting new
   // system permission or querying for current system permission settings.
   class SystemPermissionDelegate;
@@ -76,6 +53,9 @@ class EmbeddedPermissionPrompt
   std::vector<permissions::ElementAnchoredBubbleVariant> GetPromptVariants()
       const override;
   bool IsAskPrompt() const override;
+  std::optional<permissions::feature_params::PermissionElementPromptPosition>
+  GetPromptPosition() const override;
+  std::optional<gfx::Rect> GetViewBoundsInScreen() const override;
 
   // EmbeddedPermissionPromptViewDelegate:
   void Allow() override;
@@ -84,6 +64,7 @@ class EmbeddedPermissionPrompt
   void Acknowledge() override;
   void StopAllowing() override;
   void ShowSystemSettings() override;
+  void SystemPermissionsNoLongerDenied() override;
   base::WeakPtr<permissions::PermissionPrompt::Delegate>
   GetPermissionPromptDelegate() const override;
   const std::vector<
@@ -94,51 +75,43 @@ class EmbeddedPermissionPrompt
   void DismissScrim() override;
 
  private:
-  static Variant DeterminePromptVariant(
-      ContentSetting setting,
-      const content_settings::SettingInfo& info,
-      ContentSettingsType type);
-  void PrecalculateVariantsForMetrics();
-  void PrioritizeAndMergeNewVariant(Variant new_variant,
-                                    ContentSettingsType type);
-
-  void RebuildRequests();
-
-  void RecordOsMetrics(permissions::OsScreenAction action);
-
-  void RecordPermissionActionUKM(
-      permissions::ElementAnchoredBubbleAction action);
+  enum class Action {
+    kAllow,
+    kAllowThisTime,
+    kDeny,
+    kDismiss,
+  };
 
   void PromptForOsPermission();
 
-#if BUILDFLAG(IS_MAC)
-  void OnRequestSystemMediaPermissionResponse(
+  void OnRequestSystemPermissionResponse(
       const ContentSettingsType request_type,
-      bool grouped_permissions);
-  void RequestMacOSMediaSystemPermission(const ContentSettingsType request_type,
-                                         bool grouped_permissions);
-#endif
+      const ContentSettingsType other_request_type);
 
   void CloseView();
+  void CloseViewAndScrim();
 
-  // Store precalculated OS variants for metrics
-  Variant site_level_prompt_variant_ = Variant::kUninitialized;
-  Variant os_prompt_variant_ = Variant::kUninitialized;
-  Variant os_system_settings_variant_ = Variant::kUninitialized;
+  void FinalizePrompt();
+  void SendDelegateAction(Action action);
 
-  Variant embedded_prompt_variant_ = Variant::kUninitialized;
-  views::UniqueWidgetPtr content_scrim_widget_;
+  permissions::EmbeddedPermissionPromptFlowModel::Variant prompt_variant()
+      const {
+    return prompt_model_->prompt_variant();
+  }
+
+  std::unique_ptr<views::Widget> content_scrim_widget_;
   views::ViewTracker prompt_view_tracker_;
-
-  base::Time current_variant_first_display_time_;
+  std::unique_ptr<tabs::ScopedTabModalUI> scoped_tab_modal_ui_;
+  std::optional<content::WebContents::ScopedIgnoreInputEvents>
+      scoped_ignore_input_events_;
 
   raw_ptr<permissions::PermissionPrompt::Delegate> delegate_;
 
   std::set<ContentSettingsType> prompt_types_;
   std::vector<raw_ptr<permissions::PermissionRequest, VectorExperimental>>
       requests_;
-  int prompt_screen_counter_for_metrics_ = 0;
 
+  std::unique_ptr<permissions::EmbeddedPermissionPromptFlowModel> prompt_model_;
   base::WeakPtrFactory<EmbeddedPermissionPrompt> weak_factory_{this};
 };
 

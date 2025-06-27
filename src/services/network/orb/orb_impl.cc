@@ -4,6 +4,7 @@
 
 #include "services/network/orb/orb_impl.h"
 
+#include "base/check.h"
 #include "base/containers/contains.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
@@ -147,15 +148,18 @@ bool IsRangeResponseWithMiddleOfResource(
   if (!IsHttpStatus(response, 206))
     return false;
 
-  std::string range;
-  if (!response.headers->GetNormalizedHeader("content-range", &range))
+  std::optional<std::string> range =
+      response.headers->GetNormalizedHeader("content-range");
+  if (!range) {
     return false;
+  }
 
   int64_t first_byte_position = -1;
   int64_t last_byte_position = -1;
   int64_t instance_length = -1;
   if (!net::HttpUtil::ParseContentRangeHeaderFor206(
-          range, &first_byte_position, &last_byte_position, &instance_length)) {
+          *range, &first_byte_position, &last_byte_position,
+          &instance_length)) {
     return false;
   }
 
@@ -208,17 +212,19 @@ bool HasNoSniff(
   if (!response.headers) {
     return false;
   }
-  std::string nosniff_header;
-  response.headers->GetNormalizedHeader("x-content-type-options",
-                                        &nosniff_header);
+  std::string nosniff_header =
+      response.headers->GetNormalizedHeader("x-content-type-options")
+          .value_or(std::string());
   return base::EqualsCaseInsensitiveASCII(nosniff_header, "nosniff");
 }
 
 }  // namespace
 
 OpaqueResponseBlockingAnalyzer::OpaqueResponseBlockingAnalyzer(
-    PerFactoryState& state)
-    : per_factory_state_(&state) {}
+    PerFactoryState* state)
+    : per_factory_state_(*state) {
+  CHECK(state);
+}
 
 OpaqueResponseBlockingAnalyzer::~OpaqueResponseBlockingAnalyzer() {
   // TODO(crbug.com/40169301): Add UMA tracking the size of ORB state
@@ -495,8 +501,7 @@ OpaqueResponseBlockingAnalyzer::ShouldHandleBlockedResponseAs() const {
     return BlockedResponseHandling::kNetworkError;
   }
 
-  if (base::FeatureList::IsEnabled(features::kOpaqueResponseBlockingV02) &&
-      request_destination_from_renderer_ != mojom::RequestDestination::kEmpty) {
+  if (request_destination_from_renderer_ != mojom::RequestDestination::kEmpty) {
     return BlockedResponseHandling::kNetworkError;
   }
 

@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "content/public/browser/browser_thread.h"
@@ -175,12 +176,14 @@ void BluetoothSocketEventDispatcher::StartReceive(const SocketParams& params) {
       << "Socket has wrong owner.";
 
   // Don't start another read if the socket has been paused.
-  if (socket->paused())
+  if (socket->paused()) {
     return;
+  }
 
   int buffer_size = socket->buffer_size();
-  if (buffer_size <= 0)
+  if (buffer_size <= 0) {
     buffer_size = kDefaultBufferSize;
+  }
   socket->Receive(
       buffer_size,
       base::BindOnce(&BluetoothSocketEventDispatcher::ReceiveCallback, params),
@@ -198,7 +201,8 @@ void BluetoothSocketEventDispatcher::ReceiveCallback(
   // Dispatch "onReceive" event.
   bluetooth_socket::ReceiveInfo receive_info;
   receive_info.socket_id = params.socket_id;
-  receive_info.data.assign(io_buffer->data(), io_buffer->data() + bytes_read);
+  receive_info.data =
+      base::ToVector(io_buffer->first(static_cast<size_t>(bytes_read)));
   auto args = bluetooth_socket::OnReceive::Create(receive_info);
   std::unique_ptr<Event> event(
       new Event(events::BLUETOOTH_SOCKET_ON_RECEIVE,
@@ -262,8 +266,9 @@ void BluetoothSocketEventDispatcher::StartAccept(const SocketParams& params) {
       << "Socket has wrong owner.";
 
   // Don't start another accept if the socket has been paused.
-  if (socket->paused())
+  if (socket->paused()) {
     return;
+  }
 
   socket->Accept(
       base::BindOnce(&BluetoothSocketEventDispatcher::AcceptCallback, params),
@@ -359,14 +364,17 @@ void BluetoothSocketEventDispatcher::DispatchEvent(
     std::unique_ptr<Event> event) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+  if (!ExtensionsBrowserClient::Get()->IsValidContext(browser_context_id)) {
+    return;
+  }
+
   content::BrowserContext* context =
       reinterpret_cast<content::BrowserContext*>(browser_context_id);
-  if (!extensions::ExtensionsBrowserClient::Get()->IsValidContext(context))
-    return;
 
   EventRouter* router = EventRouter::Get(context);
-  if (router)
+  if (router) {
     router->DispatchEventToExtension(extension_id, std::move(event));
+  }
 }
 
 }  // namespace api

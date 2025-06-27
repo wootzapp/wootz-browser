@@ -7,6 +7,7 @@
 #include "media/base/key_systems.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
+#include "third_party/blink/public/platform/web_content_decryption_module.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -43,7 +44,7 @@ void WebCdmExceptionToPromiseRejection(
       return;
   }
 
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 ContentDecryptionModuleResultPromise::ContentDecryptionModuleResultPromise(
@@ -56,32 +57,17 @@ ContentDecryptionModuleResultPromise::~ContentDecryptionModuleResultPromise() =
     default;
 
 void ContentDecryptionModuleResultPromise::Complete() {
-  NOTREACHED_IN_MIGRATION();
-  if (!IsValidToFulfillPromise())
-    return;
-  resolver_->RejectWithDOMException(DOMExceptionCode::kInvalidStateError,
-                                    "Unexpected completion.");
-  resolver_.Clear();
+  NOTREACHED();
 }
 
 void ContentDecryptionModuleResultPromise::CompleteWithContentDecryptionModule(
-    WebContentDecryptionModule* cdm) {
-  NOTREACHED_IN_MIGRATION();
-  if (!IsValidToFulfillPromise())
-    return;
-  resolver_->RejectWithDOMException(DOMExceptionCode::kInvalidStateError,
-                                    "Unexpected completion.");
-  resolver_.Clear();
+    std::unique_ptr<WebContentDecryptionModule> cdm) {
+  NOTREACHED();
 }
 
 void ContentDecryptionModuleResultPromise::CompleteWithSession(
     WebContentDecryptionModuleResult::SessionStatus status) {
-  NOTREACHED_IN_MIGRATION();
-  if (!IsValidToFulfillPromise())
-    return;
-  resolver_->RejectWithDOMException(DOMExceptionCode::kInvalidStateError,
-                                    "Unexpected completion.");
-  resolver_.Clear();
+  NOTREACHED();
 }
 
 void ContentDecryptionModuleResultPromise::CompleteWithKeyStatus(

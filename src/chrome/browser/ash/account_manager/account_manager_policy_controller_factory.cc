@@ -40,6 +40,7 @@ AccountManagerPolicyControllerFactory::AccountManagerPolicyControllerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              .WithAshInternals(ProfileSelection::kNone)
               .Build()) {}
 
 AccountManagerPolicyControllerFactory::

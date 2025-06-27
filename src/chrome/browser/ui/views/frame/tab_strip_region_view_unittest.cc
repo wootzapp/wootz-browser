@@ -9,8 +9,11 @@
 
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/tab_strip_prefs.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/tabs/fake_base_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/new_tab_button.h"
@@ -20,8 +23,8 @@
 #include "chrome/browser/ui/views/tabs/tab_strip_scroll_container.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
 #include "chrome/test/views/chrome_views_test_base.h"
+#include "tab_strip_region_view.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/test/views_test_utils.h"
@@ -37,12 +40,10 @@ class TabStripRegionViewTestBase : public ChromeViewsTestBase {
             gfx::Animation::RichAnimationRenderMode::FORCE_ENABLED)) {
     if (has_scrolling) {
       scoped_feature_list_.InitWithFeatures(
-          {features::kScrollableTabStrip,
-           features::kTabScrollingButtonPosition},
+          {tabs::kScrollableTabStrip, features::kTabScrollingButtonPosition},
           {});
     } else {
-      scoped_feature_list_.InitWithFeatures({},
-                                            {features::kScrollableTabStrip});
+      scoped_feature_list_.InitWithFeatures({}, {tabs::kScrollableTabStrip});
     }
   }
   TabStripRegionViewTestBase(const TabStripRegionViewTestBase&) = delete;
@@ -53,20 +54,25 @@ class TabStripRegionViewTestBase : public ChromeViewsTestBase {
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
 
+    BuildTabStripRegionView();
+
+    // Prevent hover cards from appearing when the mouse is over the tab. Tests
+    // don't typically account for this possibly, so it can cause unrelated
+    // tests to fail due to tab data not being set. See crbug.com/1050012.
+    Tab::SetShowHoverCardOnMouseHoverForTesting(false);
+  }
+
+  void BuildTabStripRegionView() {
     auto controller = std::make_unique<FakeBaseTabStripController>();
     controller_ = controller.get();
     auto tab_strip = std::make_unique<TabStrip>(
         std::unique_ptr<TabStripController>(controller.release()));
     tab_strip_ = tab_strip.get();
     controller_->set_tab_strip(tab_strip_);
-    widget_ = CreateTestWidget();
+    widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     tab_strip_region_view_ = widget_->SetContentsView(
         std::make_unique<TabStripRegionView>(std::move(tab_strip)));
-
-    // Prevent hover cards from appearing when the mouse is over the tab. Tests
-    // don't typically account for this possibly, so it can cause unrelated
-    // tests to fail due to tab data not being set. See crbug.com/1050012.
-    Tab::SetShowHoverCardOnMouseHoverForTesting(false);
   }
 
   void TearDown() override {
@@ -103,11 +109,8 @@ class TabStripRegionViewTest : public TabStripRegionViewTestBase,
   ~TabStripRegionViewTest() override = default;
 };
 
-TEST_P(TabStripRegionViewTest, GrabHandleSpaceStaysVisible) {
-  // TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
-  if (features::IsChromeRefresh2023()) {
-    GTEST_SKIP();
-  }
+// TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
+TEST_P(TabStripRegionViewTest, DISABLED_GrabHandleSpaceStaysVisible) {
   const int kTabStripRegionViewWidth = 500;
   tab_strip_region_view_->SetBounds(0, 0, kTabStripRegionViewWidth, 20);
 
@@ -122,11 +125,8 @@ TEST_P(TabStripRegionViewTest, GrabHandleSpaceStaysVisible) {
   }
 }
 
-TEST_P(TabStripRegionViewTest, NewTabButtonStaysVisible) {
-  // TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
-  if (features::IsChromeRefresh2023()) {
-    GTEST_SKIP();
-  }
+// TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
+TEST_P(TabStripRegionViewTest, DISABLED_NewTabButtonStaysVisible) {
   const int kTabStripRegionViewWidth = 500;
   tab_strip_region_view_->SetBounds(0, 0, kTabStripRegionViewWidth, 20);
 
@@ -134,16 +134,13 @@ TEST_P(TabStripRegionViewTest, NewTabButtonStaysVisible) {
     controller_->AddTab(i,
                         (i == 0) ? TabActive::kActive : TabActive::kInactive);
     CompleteAnimationAndLayout();
-    EXPECT_LE(tab_strip_region_view_->new_tab_button()->bounds().right(),
+    EXPECT_LE(tab_strip_region_view_->GetNewTabButton()->bounds().right(),
               kTabStripRegionViewWidth);
   }
 }
 
-TEST_P(TabStripRegionViewTest, NewTabButtonRightOfTabs) {
-  // TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
-  if (features::IsChromeRefresh2023()) {
-    GTEST_SKIP();
-  }
+// TODO (crbug/1520595): Skip for now due to test failing when CR2023 enabled.
+TEST_P(TabStripRegionViewTest, DISABLED_NewTabButtonRightOfTabs) {
   const int kTabStripRegionViewWidth = 500;
   tab_strip_region_view_->SetBounds(0, 0, kTabStripRegionViewWidth, 20);
 
@@ -151,43 +148,27 @@ TEST_P(TabStripRegionViewTest, NewTabButtonRightOfTabs) {
 
   CompleteAnimationAndLayout();
 
-  EXPECT_EQ(tab_strip_region_view_->new_tab_button()->bounds().x(),
+  EXPECT_EQ(tab_strip_region_view_->GetNewTabButton()->bounds().x(),
             tab_strip_->tab_at(0)->bounds().right());
 }
 
-TEST_P(TabStripRegionViewTest, NewTabButtonInkDrop) {
-  // TODO (crbug/1523257): Skip for now due to test failing when CR2023 enabled.
-  if (features::IsChromeRefresh2023()) {
-    GTEST_SKIP();
-  }
+// TODO (crbug/1523257): Skip for now due to test failing when CR2023 enabled.
+TEST_P(TabStripRegionViewTest, DISABLED_NewTabButtonInkDrop) {
   constexpr int kTabStripRegionViewWidth = 500;
   tab_strip_region_view_->SetBounds(0, 0, kTabStripRegionViewWidth,
                                     GetLayoutConstant(TAB_STRIP_HEIGHT));
 
-  // CR2023 has a different button type for the new tab button. While both
-  // versions are supported make sure that tests handle both.
   // Add a few tabs and simulate the new tab button's ink drop animation. This
   // should not cause any crashes since the ink drop layer size as well as the
   // ink drop container size should remain equal to the new tab button visible
   // bounds size. https://crbug.com/814105.
-  if (features::IsChromeRefresh2023()) {
-    auto* button = static_cast<TabStripControlButton*>(
-        tab_strip_region_view_->new_tab_button());
-    for (int i = 0; i < 10; ++i) {
-      button->AnimateToStateForTesting(views::InkDropState::ACTION_TRIGGERED);
-      controller_->AddTab(i, TabActive::kActive);
-      CompleteAnimationAndLayout();
-      button->AnimateToStateForTesting(views::InkDropState::HIDDEN);
-    }
-  } else {
-    auto* button =
-        static_cast<NewTabButton*>(tab_strip_region_view_->new_tab_button());
-    for (int i = 0; i < 10; ++i) {
-      button->AnimateToStateForTesting(views::InkDropState::ACTION_TRIGGERED);
-      controller_->AddTab(i, TabActive::kActive);
-      CompleteAnimationAndLayout();
-      button->AnimateToStateForTesting(views::InkDropState::HIDDEN);
-    }
+  auto* button = static_cast<TabStripControlButton*>(
+      tab_strip_region_view_->GetNewTabButton());
+  for (int i = 0; i < 10; ++i) {
+    button->AnimateToStateForTesting(views::InkDropState::ACTION_TRIGGERED);
+    controller_->AddTab(i, TabActive::kActive);
+    CompleteAnimationAndLayout();
+    button->AnimateToStateForTesting(views::InkDropState::HIDDEN);
   }
 }
 
@@ -214,10 +195,35 @@ TEST_P(TabStripRegionViewTest, ChildrenAreFlushWithTopOfTabStripRegionView) {
   // The new tab button should sit flush with the top of the
   // |tab_strip_region_view_|.
   gfx::Point new_tab_button_origin(
-      tab_strip_region_view_->new_tab_button()->bounds().origin());
+      tab_strip_region_view_->GetNewTabButton()->bounds().origin());
   views::View::ConvertPointToTarget(tab_strip_, tab_strip_region_view_,
                                     &new_tab_button_origin);
   EXPECT_EQ(0, new_tab_button_origin.y());
+}
+
+TEST_P(TabStripRegionViewTest, TabSearchPositionLoggedOnConstruction) {
+  using TabSearchPositionEnum = TabStripRegionView::TabSearchPositionEnum;
+  const bool tab_search_trailing_tabstrip =
+      tabs::GetTabSearchTrailingTabstrip(tab_strip_region_view_->profile());
+  TabSearchPositionEnum expected_enum_val =
+      tab_search_trailing_tabstrip ? TabSearchPositionEnum::kTrailing
+                                   : TabSearchPositionEnum::kLeading;
+
+  base::HistogramTester histogram_tester;
+  histogram_tester.ExpectBucketCount("Tabs.TabSearch.PositionInTabstrip",
+                                     TabSearchPositionEnum::kLeading, 0);
+  histogram_tester.ExpectBucketCount("Tabs.TabSearch.PositionInTabstrip",
+                                     TabSearchPositionEnum::kTrailing, 0);
+  BuildTabStripRegionView();
+  histogram_tester.ExpectBucketCount("Tabs.TabSearch.PositionInTabstrip",
+                                     expected_enum_val, 1);
+}
+
+TEST_P(TabStripRegionViewTest, HasMultiselectableState) {
+  ui::AXNodeData ax_node_data;
+  tab_strip_region_view_->GetViewAccessibility().GetAccessibleNodeData(
+      &ax_node_data);
+  EXPECT_TRUE(ax_node_data.HasState(ax::mojom::State::kMultiselectable));
 }
 
 class TabStripRegionViewTestWithScrollingDisabled

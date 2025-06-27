@@ -7,7 +7,10 @@
 #include <optional>
 #include <vector>
 
+#include "ash/constants/ash_features.h"
+#include "base/containers/span.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/types/fixed_array.h"
 
 namespace {
 
@@ -46,7 +49,10 @@ bool IsIdLengthValid(const std::vector<uint8_t>* service_data) {
          id_length + kHeaderLength <= static_cast<int>(service_data->size());
 }
 
+// TODO(399163998): Remove deprecated code after feature launch.
 bool HasModelId(const std::vector<uint8_t>* service_data) {
+  CHECK(!features::IsFastPairAdvertisingFormat2025Enabled());
+
   return service_data != nullptr &&
          (service_data->size() == kMinModelIdLength ||
           // Header byte exists. We support only format version 0. (A different
@@ -77,13 +83,13 @@ std::optional<std::string> GetHexModelIdFromServiceData(
 
   // Copy appropriate bytes to new array.
   int bytes_size = end - id_index;
-  uint8_t bytes[bytes_size];
+  base::FixedArray<uint8_t> bytes(bytes_size);
 
   for (int i = 0; i < bytes_size; i++) {
     bytes[i] = (*service_data)[i + id_index];
   }
 
-  return base::HexEncode(bytes, bytes_size);
+  return base::HexEncode(base::span<uint8_t>(bytes));
 }
 
 }  // namespace fast_pair_decoder

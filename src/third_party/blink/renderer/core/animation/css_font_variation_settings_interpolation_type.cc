@@ -19,24 +19,17 @@ namespace blink {
 class CSSFontVariationSettingsNonInterpolableValue final
     : public NonInterpolableValue {
  public:
-  ~CSSFontVariationSettingsNonInterpolableValue() final = default;
-
-  static scoped_refptr<CSSFontVariationSettingsNonInterpolableValue> Create(
-      Vector<uint32_t> tags) {
-    return base::AdoptRef(
-        new CSSFontVariationSettingsNonInterpolableValue(std::move(tags)));
+  explicit CSSFontVariationSettingsNonInterpolableValue(Vector<uint32_t>&& tags)
+      : tags_(tags) {
+    DCHECK_GT(tags_.size(), 0u);
   }
+  ~CSSFontVariationSettingsNonInterpolableValue() final = default;
 
   const Vector<uint32_t>& Tags() const { return tags_; }
 
   DECLARE_NON_INTERPOLABLE_VALUE_TYPE();
 
  private:
-  explicit CSSFontVariationSettingsNonInterpolableValue(Vector<uint32_t> tags)
-      : tags_(std::move(tags)) {
-    DCHECK_GT(tags_.size(), 0u);
-  }
-
   const Vector<uint32_t> tags_;
 };
 
@@ -53,7 +46,7 @@ struct DowncastTraits<CSSFontVariationSettingsNonInterpolableValue> {
   }
 };
 
-static const Vector<uint32_t> GetTags(
+static Vector<uint32_t> GetTags(
     const NonInterpolableValue& non_interpolable_value) {
   return To<CSSFontVariationSettingsNonInterpolableValue>(
              non_interpolable_value)
@@ -72,7 +65,7 @@ class UnderlyingTagsChecker final
   ~UnderlyingTagsChecker() final = default;
 
  private:
-  bool IsValid(const InterpolationEnvironment&,
+  bool IsValid(const CSSInterpolationEnvironment&,
                const InterpolationValue& underlying) const final {
     return tags_ == GetTags(*underlying.non_interpolable_value);
   }
@@ -115,7 +108,8 @@ static InterpolationValue ConvertFontVariationSettings(
   }
   return InterpolationValue(
       numbers,
-      CSSFontVariationSettingsNonInterpolableValue::Create(std::move(tags)));
+      MakeGarbageCollected<CSSFontVariationSettingsNonInterpolableValue>(
+          std::move(tags)));
 }
 
 InterpolationValue
@@ -148,10 +142,10 @@ CSSFontVariationSettingsInterpolationType::MaybeConvertInherit(
 
 InterpolationValue CSSFontVariationSettingsInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers&) const {
   scoped_refptr<FontVariationSettings> settings =
-      StyleBuilderConverter::ConvertFontVariationSettings(*state, value);
+      StyleBuilderConverter::ConvertFontVariationSettings(state, value);
   return ConvertFontVariationSettings(settings.get());
 }
 

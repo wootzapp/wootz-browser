@@ -2,6 +2,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("//build/config/sanitizers/sanitizers.gni")
+
 #~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 # BEFORE ADDING A TEST HERE: If this is a consistent failure in Chrome on
 # ChromeOS CI builders, you should try to find and revert CLs causing new
@@ -30,20 +32,6 @@
 # WARNING: This may cause unexpected disablement and is strongly discouraged.
 # You should specify the tests one-by-one in most cases, instead of this.
 tast_disabled_tests_from_chrome_all = [
-  # https://crbug.com/1379756
-  "inputs.VirtualKeyboardHandwriting.floating",
-
-  # https://crbug.com/1282372
-  "security.SELinuxFilesARC",
-  "security.NetworkListenersARC",
-  "security.SELinuxProcessesARC",
-
-  # http://b/212644512
-  "security.SELinuxFilesDataDir",
-
-  # https://crbug.com/1309331
-  "policy.CookiesAllowedForUrls",
-
   # https://crbug.com/1307940
   "policy.URLCheck.blocklist",
 
@@ -53,21 +41,8 @@ tast_disabled_tests_from_chrome_all = [
   # http://crbug.com/1335213
   "arc.WindowState.clamshell",
 
-  # http://crbug.com/1363667
-  "apps.CalculatorSmoke",
-
   # b/241122961
   "policy.BlockThirdPartyCookies",
-
-  # https://crbug.com/1350880
-  "arc.PIPRoundedCornersUnderlay",
-
-  # https://crbug.com/1368859
-  "arc.Drivefs",
-  "arc.Drivefs.vm",
-
-  # https://crbug.com/1392911
-  "login.RestrictSignin",
 
   # b/287525851
   "arc.AudioValidity.playback",
@@ -76,11 +51,7 @@ tast_disabled_tests_from_chrome_all = [
 
   # https://crbug.com/1455848
   "arc.CheckAndroidVersion",
-  "arc.ContainerMount",
   "arc.Downloads",
-
-  # b/296913657
-  "secagentd.ProcessEvents@amd64-generic",
 
   # b/293976130, NaCl issues on arm64 boards
   "nacl.Pnacl@jacuzzi",
@@ -88,102 +59,91 @@ tast_disabled_tests_from_chrome_all = [
   "terminal.SSH@jacuzzi",
   "terminal.SSH@trogdor",
 
-  # b/314989173
-  "platform.FlexHWIS@reven-vmtest",
-
-  # b/288933829, matched with CrOS exoneration (as of Dec 5)
-  "inputs.VirtualKeyboardHandwriting.floating_lacros@jacuzzi",
-  "inputs.VirtualKeyboardHandwriting.floating_lacros@octopus",
-
-  # b/314004675
-  "filemanager.DrivefsUI.fieldtrial_testing_config_on@reven-vmtest",
-  "filemanager.DrivefsUI.fieldtrial_testing_config_on@betty-pi-arc",
-  "filemanager.DrivefsUI.fieldtrial_testing_config_off@reven-vmtest",
-  "filemanager.DrivefsUI.fieldtrial_testing_config_off@betty-pi-arc",
-  "platform.Drivefs@reven-vmtest",
-  "platform.Drivefs@betty-pi-arc",
-
   # b/338111076
   "crostini.AppAndroidStudio.bookworm_clamshell_stable@octopus",
 
-  # b/339349824, temporarily until LKGM uprev with crrev.com/c/5516014
-  "arc.Print.container_p",
-  "inputs.PhysicalKeyboardKoreanTyping",
+  # b/346793249, b/330290054
+  "videoconferencing.OpenCLCacher",
 
-  # b/307328625
-  "login.ChangePassword.consumer_update",
-  "login.ChangePassword.no_consumer_update",
+  # b/352753237, Pnacl and terminal.SSH failing only on brya, blocking LKGM
+  "nacl.Pnacl@brya",
+  "terminal.SSH@brya",
 
-  # b/336585651
-  "ui.ChromeCrashEarly.loose@reven-vmtest",
-  "ui.ChromeCrashEarly.strict@reven-vmtest",
+  # b/352703668: tests failing on trogdor.
+  "security.SELinuxFilesDataDir.arcvm_user@trogdor",
+
+  # b/384060114
+  "inputs.InputMethodShelfInputs@reven-vmtest",
+  "inputs.VirtualKeyboardHandwriting.docked@reven-vmtest",
+  "inputs.VirtualKeyboardHandwriting.floating@reven-vmtest",
+
+  # b/394108883
+  "security.NetworkListenersNonARC@jacuzzi",
+  "security.NetworkListenersNonARC@octopus",
+
+  # https://crbug.com/394821952
+  "ui.WebUIJSErrors",
+  "ui.WebUIJSErrors.field_trial_off",
+  "ui.WebUIJSErrors.field_trial_on",
+
+  # b/394409115
+  "network.AllowCACertificateManagement",
+  "network.AllowClientCertificateManagement",
+
+  #b/400849446
+  "network.ARCCreateWifiInShillByCmd.manual_proxy",
+
+  # b/408102591
+  "network.ARCEAPWifiProvisioning.eap_wifi_tls",
+
+  # b/409064294
+  "apps.SystemWebAppsInstallGuest",
+  "peripherals.LaunchAppFromGuestSession.diagnostics",
+  "health.MonitorKeyboardDiagnosticEvent.non_tablet_mode_form_factors",
+
+  # b/408523771
+  "diagnostics.CheckCPURoutine@jacuzzi",
+  "diagnostics.CheckCPURoutine@octopus",
+
+  # b/409349162
+  "inputs.PhysicalKeyboardKoreanTyping@jacuzzi",
 
   # READ COMMENT AT TOP BEFORE ADDING NEW TESTS HERE.
 ]
 
-# To create filters to be used on specific builders add them like this:
-# tast_disabled_tests_from_lacros_example = [ "lacros.Basic" ]
-# and add the name (i.e. 'tast_disabled_tests_from_lacros_example') to the
-# test config as 'tast_expr_key'
-# To disable a specific test in lacros_all_tast_tests, add it the following
-# list and cite a bug.
-# The test disabled here will not impact it running in chrome on chromeOS
-# pipeline.
-tast_disabled_tests_from_lacros_all = [
-  # https://crbug.com/1329764
-  "policy.HistoryClustersVisible",
-
-  # https://crbug.com/1361163
-  "lacros.AudioPinnedStream.play",
-  "lacros.AudioPinnedStream.record",
-
-  # https://crbug.com/1236234
-  "lacros.AudioPlay",
-
-  # https://crbug.com/1376638
-  "lacros.AudioRecord",
-
-  # https://crbug.com/1440735
-  "mlservice.WebHandwritingRecognition.lacros",
-
-  # https://crbug.com/1446233
-  "arc.IntentForward.lacros_vm",
-
-  # https://b/294268366
-  "ui.ForceRegion.lacros",
-
-  # https://crbug.com/1470305
-  "inputs.VirtualKeyboardTypingOmnibox.a11y_lacros",
-
-  # https:/b/322119286
-  "crostini.LaunchBrowser.bookworm_stable_lacros",
-  "crostini.LaunchBrowser.bullseye_stable_lacros",
-  "crostini.VerifyAppWayland.bookworm_stable_lacros",
-  "crostini.VerifyAppWayland.bullseye_stable_lacros",
-
-  # On branch day, Lacros is +3 newer than ash which break the test.
-  "lacros.CompareVersionWithAsh",
-
-  # b/269177409: This is flaky on the Chromium builders, but works on the
-  # ChromeOS builders.
-  "nacl.Pnacl.lacros",
-
-  # THIS IS THE LACROS LIST, SCROLL UP FOR CHROME/CHROMEOS.
-]
-
-if (!is_official_build) {
-  # b/322444880 Should be fixed by the next LKGM uprev.
-  tast_disabled_tests_from_chrome_all += [ "terminal.SSH@octopus" ]
-
-  # b/324521903 temporary disabled until the test fixes
-  tast_disabled_tests_from_chrome_all +=
-      [ "secagentd.AuthenticationEvents.mainline@octopus" ]
-
-  # b/336365285 disabled until bug is fixed.
-  tast_disabled_tests_from_chrome_all +=
-      [ "secagentd.AuthenticationEvents.mainline@jacuzzi" ]
-
-  # b/274341001: By design, ui.ChromeCrashEarly.strict fails on non-official
-  # builds.
-  tast_disabled_tests_from_lacros_all += [ "ui.ChromeCrashEarly.strict_lacros" ]
+# Entries only for the public builders (chromeos-XXX-rel)
+if (!is_chrome_branded) {
+  tast_disabled_tests_from_chrome_all += [
+    # b/377802615: "runtime variable XXX is missing" error
+    "bruschetta.AppVscodeWindowOperations.minimize",
+    "crostini.AppAudacity.bookworm_clamshell_stable",
+    "crostini.AppAudacityWindowOperations.maximize_bookworm_clamshell_stable",
+    "crostini.AppAudacityWindowOperations.minimize_bookworm_clamshell_stable",
+    "crostini.AppAudacityWindowOperations.switch_tablet_bookworm_clamshell_stable",
+    "crostini.AppEmacs.bookworm_clamshell_stable",
+    "crostini.AppEmacsWindowOperations.maximize_bookworm_clamshell_stable",
+    "crostini.AppEmacsWindowOperations.minimize_bookworm_clamshell_stable",
+    "crostini.AppEmacsWindowOperations.switch_tablet_bookworm_clamshell_stable",
+    "crostini.AppFirefox.bookworm_clamshell_stable",
+    "crostini.AppFirefoxNonalphanumericInput.bookworm_clamshell_stable",
+    "crostini.AppFirefoxWindowOperations.maximize_bookworm_clamshell_stable",
+    "crostini.AppFirefoxWindowOperations.minimize_bookworm_clamshell_stable",
+    "crostini.AppFirefoxWindowOperations.switch_tablet_bookworm_clamshell_stable",
+    "crostini.AppGedit.bookworm_clamshell_stable",
+    "crostini.AppGedit.bullseye_clamshell_stable",
+    "crostini.AppGeditFilesharing.bookworm_clamshell_stable",
+    "crostini.AppGeditUnshareFolder.bookworm_clamshell_stable",
+    "crostini.AppGeditNonalphanumericInput.bookworm_clamshell_stable",
+    "crostini.AppVSCodeNonalphanumericInput.bookworm_clamshell_stable",
+    "crostini.AppVscode.bookworm_clamshell_stable",
+    "crostini.AppVscode.bullseye_clamshell_stable",
+    "crostini.AppVscodeFromFileManager.bookworm_clamshell_stable",
+    "crostini.AppVscodeWindowOperations.maximize_bookworm_clamshell_stable",
+    "crostini.AppVscodeWindowOperations.minimize_bookworm_clamshell_stable",
+    "crostini.AppVscodeWindowOperations.switch_tablet_bookworm_clamshell_stable",
+    "crostini.RestartApp.bookworm_clamshell_stable",
+    "shimlessrma.SelectComponentsNoneNextCancel.critical",
+    "shimlessrma.WelcomeCancel.critical",
+    "shimlessrma.WelcomeNextCancel.critical",
+  ]
 }

@@ -29,14 +29,8 @@ BASE_FEATURE(kDynamicSearchUpdateAnimation,
 BASE_FEATURE(kLauncherPlayStoreSearch,
              "LauncherPlayStoreSearch",
              base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kDragAndDropRefactor,
-             "AppListDragAndDropRefactor",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kAppsCollections,
              "AppsCollections",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kForceShowAppsCollections,
-             "ForceShowAppsCollections",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsAppReinstallZeroStateEnabled() {
@@ -70,10 +64,6 @@ bool IsLauncherPlayStoreSearchEnabled() {
   return base::FeatureList::IsEnabled(kLauncherPlayStoreSearch);
 }
 
-bool IsDragAndDropRefactorEnabled() {
-  return base::FeatureList::IsEnabled(kDragAndDropRefactor);
-}
-
 bool IsAppsCollectionsEnabled() {
   return base::FeatureList::IsEnabled(kAppsCollections);
 }
@@ -83,8 +73,9 @@ bool IsAppsCollectionsEnabledCounterfactually() {
          kAppsCollectionsEnabledCounterfactually.Get();
 }
 
-bool IsForceShowAppsCollectionsEnabled() {
-  return base::FeatureList::IsEnabled(kForceShowAppsCollections);
+bool IsAppsCollectionsEnabledWithModifiedOrder() {
+  return IsAppsCollectionsEnabled() &&
+         kAppsCollectionsEnabledWithModifiedOrder.Get();
 }
 
 }  // namespace app_list_features

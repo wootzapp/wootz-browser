@@ -39,8 +39,6 @@ class CONTENT_EXPORT BrowsingDataFilterBuilderImpl
   void SetStorageKey(
       const std::optional<blink::StorageKey>& storage_key) override;
   bool HasStorageKey() const override;
-  bool MatchesWithSavedStorageKey(
-      const blink::StorageKey& other_key) const override;
   bool MatchesAllOriginsAndDomains() override;
   bool MatchesMostOriginsAndDomains() override;
   bool MatchesNothing() override;
@@ -57,15 +55,11 @@ class CONTENT_EXPORT BrowsingDataFilterBuilderImpl
   base::RepeatingCallback<bool(const std::string& site)> BuildPluginFilter()
       override;
   Mode GetMode() override;
+  const std::set<url::Origin>& GetOrigins() const override;
+  const std::set<std::string>& GetRegisterableDomains() const override;
   std::unique_ptr<BrowsingDataFilterBuilder> Copy() override;
 
   OriginMatchingMode GetOriginModeForTesting() const;
-
-  // The origins targeted by the filter.
-  const std::set<url::Origin>& GetOrigins() const;
-
-  // The domains targeted by the filter.
-  const std::set<std::string>& GetRegisterableDomains() const;
 
   const net::CookiePartitionKeyCollection&
   GetCookiePartitionKeyCollectionForTesting() const;

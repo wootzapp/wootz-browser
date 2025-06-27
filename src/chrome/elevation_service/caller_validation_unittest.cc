@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/elevation_service/caller_validation.h"
 
 #include "base/files/file_path.h"
@@ -275,8 +280,8 @@ TEST_F(CallerValidationTest, DISABLED_PathValidationNetwork) {
 
 TEST_F(CallerValidationTest, TrimProcessPath) {
   struct TestData {
-    base::FilePath::StringPieceType input;
-    base::FilePath::StringPieceType expected;
+    base::FilePath::StringViewType input;
+    base::FilePath::StringViewType expected;
   } cases[] = {
       {L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
        L"C:\\Program Files\\Google\\Chrome"},

@@ -4,54 +4,9 @@
 
 #include "base/android/unguessable_token_android.h"
 
-#include "build/robolectric_buildflags.h"
-
-#if BUILDFLAG(IS_ROBOLECTRIC)
-#include "base/base_robolectric_jni/TokenBase_jni.h"  // nogncheck
-#include "base/base_robolectric_jni/UnguessableToken_jni.h"  // nogncheck
-#else
-#include "base/base_jni/TokenBase_jni.h"
-#include "base/base_jni/UnguessableToken_jni.h"
-#endif
-
-namespace jni_zero {
-template <>
-BASE_EXPORT base::UnguessableToken FromJniType<base::UnguessableToken>(
-    JNIEnv* env,
-    const JavaRef<jobject>& j_object) {
-  return base::android::UnguessableTokenAndroid::FromJavaUnguessableToken(
-      env, j_object);
-}
-
-template <>
-BASE_EXPORT std::optional<base::UnguessableToken>
-FromJniType<std::optional<base::UnguessableToken>>(
-    JNIEnv* env,
-    const JavaRef<jobject>& j_object) {
-  if (!j_object) {
-    return std::nullopt;
-  }
-  return base::android::UnguessableTokenAndroid::FromJavaUnguessableToken(
-      env, j_object);
-}
-
-template <>
-BASE_EXPORT ScopedJavaLocalRef<jobject> ToJniType<base::UnguessableToken>(
-    JNIEnv* env,
-    const base::UnguessableToken& token) {
-  return base::android::UnguessableTokenAndroid::Create(env, token);
-}
-template <>
-BASE_EXPORT ScopedJavaLocalRef<jobject>
-ToJniType<std::optional<base::UnguessableToken>>(
-    JNIEnv* env,
-    const std::optional<base::UnguessableToken>& token) {
-  if (!token) {
-    return nullptr;
-  }
-  return base::android::UnguessableTokenAndroid::Create(env, token.value());
-}
-}  // namespace jni_zero
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "base/base_minimal_jni/TokenBase_jni.h"
+#include "base/base_minimal_jni/UnguessableToken_jni.h"
 
 namespace base {
 namespace android {
@@ -88,3 +43,5 @@ UnguessableTokenAndroid::ParcelAndUnparcelForTesting(
 
 }  // namespace android
 }  // namespace base
+
+DEFINE_JNI_FOR_UnguessableToken()

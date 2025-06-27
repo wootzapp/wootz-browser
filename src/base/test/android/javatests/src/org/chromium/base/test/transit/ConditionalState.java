@@ -8,15 +8,19 @@ import static org.junit.Assert.fail;
 
 import androidx.annotation.IntDef;
 
+import org.chromium.build.annotations.EnsuresNonNull;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Base class for states with conditions for entering and exiting them.
+ * Base class representing a state with conditions for entering and exiting.
  *
- * <p>Conditions include the existence of {@link Elements}, e.g. Views.
+ * <p>Conditions include the existence of {@link Element}s, e.g. Views.
  *
  * <pre>ConditionalStates can be in the following phases:
  * - NEW: Inactive, just created. No transition has started.
@@ -36,9 +40,10 @@ import java.util.List;
  *
  * <p>This is the base class for {@link Station} and {@link Facility}.
  */
+@NullMarked
 public abstract class ConditionalState {
     @Phase private int mLifecyclePhase = Phase.NEW;
-    private Elements mElements;
+    private @Nullable Elements mElements;
 
     /** Lifecycle phases of ConditionalState. */
     @IntDef({
@@ -58,7 +63,7 @@ public abstract class ConditionalState {
     }
 
     /**
-     * Declare the {@link Elements} that define this ConditionalState, such as Views.
+     * Declare the {@link BaseElements} that define this ConditionalState, such as Views.
      *
      * <p>Transit-layer {@link Station}s and {@link Facility}s should override this and use the
      * |elements| param to declare what elements need to be waited for for the state to be
@@ -73,11 +78,13 @@ public abstract class ConditionalState {
         return mElements;
     }
 
+    @EnsuresNonNull("mElements")
     private void initElements() {
         if (mElements == null) {
-            Elements.Builder builder = Elements.newBuilder();
+            mElements = new Elements(this);
+            Elements.Builder builder = mElements.newBuilder();
             declareElements(builder);
-            mElements = builder.build();
+            builder.consolidate();
         }
     }
 
@@ -145,7 +152,7 @@ public abstract class ConditionalState {
 
         List<Condition> enterConditions = new ArrayList<>();
         Elements elements = getElements();
-        for (ElementInState element : elements.getElementsInState()) {
+        for (Element<?> element : elements.getElements()) {
             Condition enterCondition = element.getEnterCondition();
             if (enterCondition != null) {
                 enterConditions.add(enterCondition);
@@ -196,5 +203,25 @@ public abstract class ConditionalState {
     /** Should be used only by {@link EntryPointSentinelStation}. */
     void setStateActiveWithoutTransition() {
         mLifecyclePhase = Phase.ACTIVE;
+    }
+
+    /**
+     * Assert this ConditionalState is in the ACTIVE, TRANSITIONING_FROM or TRANSITIONING_TO phase,
+     * and thus it makes sense to use its {@link Element}s as Suppliers.
+     *
+     * <p>This avoids getting an out-of-date object from a state that was already transitioned away
+     * from, or getting an object from a state before transitioning to it.
+     */
+    void assertSuppliersMightBeValid() {
+        int phase = getPhase();
+        if (phase != Phase.ACTIVE
+                && phase != Phase.TRANSITIONING_FROM
+                && phase != Phase.TRANSITIONING_TO) {
+            fail(
+                    String.format(
+                            "%s should have been ACTIVE or TRANSITIONING_FROM or TRANSITIONING_TO,"
+                                    + " but was %s",
+                            this, phaseToString(phase)));
+        }
     }
 }

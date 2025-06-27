@@ -31,17 +31,18 @@
 namespace blink {
 
 WebGLBuffer::WebGLBuffer(WebGLRenderingContextBase* ctx)
-    : WebGLSharedPlatform3DObject(ctx), initial_target_(0), size_(0) {
-  GLuint buffer;
-  ctx->ContextGL()->GenBuffers(1, &buffer);
-  SetObject(buffer);
+    : WebGLObject(ctx), initial_target_(0), size_(0) {
+  if (!ctx->isContextLost()) {
+    GLuint buffer;
+    ctx->ContextGL()->GenBuffers(1, &buffer);
+    SetObject(buffer);
+  }
 }
 
 WebGLBuffer::~WebGLBuffer() = default;
 
 void WebGLBuffer::DeleteObjectImpl(gpu::gles2::GLES2Interface* gl) {
-  gl->DeleteBuffers(1, &object_);
-  object_ = 0;
+  gl->DeleteBuffers(1, &Object());
 }
 
 void WebGLBuffer::SetInitialTarget(GLenum target) {

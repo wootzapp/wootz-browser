@@ -12,10 +12,10 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
+import android.os.Build;
 import android.os.Environment;
 import android.view.View;
 
-import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -26,11 +26,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations.UseMethodParameter;
 import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
 import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.chrome.browser.customtabs.IncognitoCustomTabActivityTestRule;
 import org.chromium.chrome.browser.download.DownloadItem;
 import org.chromium.chrome.browser.download.DownloadManagerService;
@@ -43,15 +45,15 @@ import org.chromium.chrome.browser.profiles.ProfileKey;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.OfflineContentProvider;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.offline_items_collection.UpdateDelta;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -131,8 +133,8 @@ public class IncognitoDownloadLeakageTest {
             };
 
     @Rule
-    public ChromeTabbedActivityTestRule mChromeActivityTestRule =
-            new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mChromeActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule
     public IncognitoCustomTabActivityTestRule mCustomTabActivityTestRule =
@@ -140,23 +142,21 @@ public class IncognitoDownloadLeakageTest {
 
     @Before
     public void setUp() throws Exception {
-        mTestServer =
-                EmbeddedTestServer.createAndStartServer(
-                        ApplicationProvider.getApplicationContext());
+        mTestServer = mChromeActivityTestRule.getTestServer();
         mDownloadTestPage = mTestServer.getURL(DOWNLOAD_TEST_PAGE_PATH);
 
         // Ensuring native is initialized, as code below requires it.
         IncognitoDataTestUtils.fireAndWaitForCctWarmup();
 
         // Download related setUp steps.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     DownloadManagerService.getDownloadManagerService()
                             .addDownloadObserver(mTestDownloadManagerServiceObserver);
                     OfflineContentAggregatorFactory.get().addObserver(mTestDownloadBackendObserver);
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // This skips the download prompt dialog for tests.
                     UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
@@ -171,11 +171,11 @@ public class IncognitoDownloadLeakageTest {
     @After
     public void tearDown() {
         deleteFilesInDownloadDirectory(mDownloadedFileName);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         DownloadManagerService.getDownloadManagerService()
                                 .removeDownloadObserver(mTestDownloadManagerServiceObserver));
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> IncognitoDataTestUtils.closeTabs(mChromeActivityTestRule));
     }
 
@@ -233,11 +233,11 @@ public class IncognitoDownloadLeakageTest {
         assertTrue(hasFileDownloaded(mDownloadedFileName));
 
         // Retrieve downloads from the incognito DownloadService.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Profile profile = incognitoTab.getProfile();
                     DownloadManagerService.getDownloadManagerService()
-                            .getAllDownloads(profile.getOTRProfileID());
+                            .getAllDownloads(profile.getOtrProfileId());
                 });
         mRetrieveDownloadsCallback.waitForCallback(0);
 
@@ -249,7 +249,7 @@ public class IncognitoDownloadLeakageTest {
                 mChromeActivityTestRule, mCustomTabActivityTestRule, "about:blank");
 
         // Retrieve downloads for regular Profile.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> DownloadManagerService.getDownloadManagerService().getAllDownloads(null));
         mRetrieveDownloadsCallback.waitForCallback(1);
 
@@ -260,6 +260,9 @@ public class IncognitoDownloadLeakageTest {
     @Test
     @LargeTest
     @UseMethodParameter(IncognitoDataTestUtils.TestParams.IncognitoToIncognito.class)
+    @DisableIf.Build(
+            sdk_is_less_than = Build.VERSION_CODES.S,
+            message = "crbug.com/391749002, crbug.com/40935094")
     public void testIncognitoDowloadEntriesNotVisibleInAnotherIncognito(
             String incognitoActivityType1, String incognitoActivityType2) throws Exception {
         IncognitoDataTestUtils.ActivityType incognitoActivity1 =
@@ -279,11 +282,11 @@ public class IncognitoDownloadLeakageTest {
         assertTrue(hasFileDownloaded(mDownloadedFileName));
 
         // Retrieve downloads from the incognito DownloadService.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Profile profile = incognitoTab1.getProfile();
                     DownloadManagerService.getDownloadManagerService()
-                            .getAllDownloads(profile.getOTRProfileID());
+                            .getAllDownloads(profile.getOtrProfileId());
                 });
         mRetrieveDownloadsCallback.waitForCallback(0);
 
@@ -296,11 +299,11 @@ public class IncognitoDownloadLeakageTest {
                         mChromeActivityTestRule, mCustomTabActivityTestRule, "about:blank");
 
         // Retrieve downloads for the second incognito profile.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Profile profile = incognitoTab2.getProfile();
                     DownloadManagerService.getDownloadManagerService()
-                            .getAllDownloads(profile.getOTRProfileID());
+                            .getAllDownloads(profile.getOtrProfileId());
                 });
         mRetrieveDownloadsCallback.waitForCallback(1);
 

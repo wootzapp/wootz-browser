@@ -4,10 +4,11 @@
 
 #include "ash/system/notification_center/notification_center_test_api.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "ash/constants/ash_features.h"
-#include "ash/focus_cycler.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/root_window_controller.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
@@ -20,7 +21,6 @@
 #include "ash/system/notification_center/views/notification_list_view.h"
 #include "ash/system/unified/notification_counter_view.h"
 #include "ash/system/unified/unified_system_tray.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "ui/base/models/image_model.h"
@@ -79,6 +79,15 @@ std::string NotificationCenterTestApi::AddNotification() {
                                /*message=*/u"test_message");
 }
 
+std::string NotificationCenterTestApi::AddPinnedNotification() {
+  message_center::RichNotificationData optional_fields;
+  optional_fields.pinned = true;
+  return AddCustomNotification(
+      /*title=*/u"test_title",
+      /*message=*/u"test_message", ui::ImageModel(), std::u16string(), GURL(),
+      message_center::NotifierId(), optional_fields);
+}
+
 std::string NotificationCenterTestApi::AddNotificationWithSourceUrl(
     const std::string& url) {
   const std::string id = GenerateNotificationId();
@@ -92,13 +101,15 @@ std::string NotificationCenterTestApi::AddNotificationWithSourceUrl(
   return id;
 }
 
-std::string NotificationCenterTestApi::AddPinnedNotification() {
+std::string NotificationCenterTestApi::AddPinnedNotificationWithSourceUrl(
+    const std::string& url) {
   message_center::RichNotificationData optional_fields;
   optional_fields.pinned = true;
+  GURL gurl = GURL(url);
   return AddCustomNotification(
       /*title=*/u"test_title",
-      /*message=*/u"test_message", ui::ImageModel(), std::u16string(), GURL(),
-      message_center::NotifierId(), optional_fields);
+      /*message=*/u"test_message", ui::ImageModel(), std::u16string(), gurl,
+      message_center::NotifierId(gurl), optional_fields);
 }
 
 std::string NotificationCenterTestApi::AddSystemNotification() {
@@ -241,7 +252,7 @@ bool NotificationCenterTestApi::IsDoNotDisturbIconShown() {
 NotificationIconTrayItemView*
 NotificationCenterTestApi::GetNotificationIconForId(const std::string& id) {
   auto tray_items = GetTray()->notification_icons_controller_->tray_items();
-  auto tray_item_iter = base::ranges::find_if(
+  auto tray_item_iter = std::ranges::find_if(
       tray_items, [&id](NotificationIconTrayItemView* tray_item) {
         return tray_item->GetNotificationId() == id;
       });

@@ -21,7 +21,9 @@ std::string_view DefaultBrowserSettingsPageSourceToString(
       return "ExternalAction";
     case DefaultBrowserSettingsPageSource::kTipsNotification:
       return "TipsNotification";
+    case DefaultBrowserSettingsPageSource::kBannerPromo:
+      return "BannerPromo";
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }

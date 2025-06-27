@@ -572,7 +572,7 @@ void FrameProcessor::OnPossibleAudioConfigUpdate(
 MseTrackBuffer* FrameProcessor::FindTrack(StreamParser::TrackId id) {
   auto itr = track_buffers_.find(id);
   if (itr == track_buffers_.end())
-    return NULL;
+    return nullptr;
 
   return itr->second.get();
 }
@@ -1187,8 +1187,6 @@ bool FrameProcessor::ProcessFrame(scoped_refptr<StreamParserBuffer> frame,
 
     return true;
   }
-
-  NOTREACHED_NORETURN();
 }
 
 }  // namespace media

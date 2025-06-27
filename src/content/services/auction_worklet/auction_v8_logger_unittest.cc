@@ -107,7 +107,9 @@ class AuctionV8LoggerTest : public testing::Test {
           {
             v8::Context::Scope ctx(helper_->scratch_context());
             std::optional<std::string> error_msg;
-            ASSERT_TRUE(helper_->Compile(body, url_, debug_id.get(), error_msg)
+            ASSERT_TRUE(helper_
+                            ->Compile(body, url_, debug_id.get(),
+                                      /*cached_data=*/nullptr, error_msg)
                             .ToLocal(&script));
             EXPECT_FALSE(error_msg.has_value());
           }
@@ -121,16 +123,18 @@ class AuctionV8LoggerTest : public testing::Test {
           auto timeout =
               helper_->CreateTimeLimit(/*script_timeout=*/std::nullopt);
           bool success = helper_->RunScript(context, script, debug_id.get(),
-                                            timeout.get(), error_msgs);
+                                            timeout.get(), error_msgs) ==
+                         AuctionV8Helper::Result::kSuccess;
           if (success) {
             v8::Local<v8::Value> result;
-            success = helper_
-                          ->CallFunction(context, debug_id.get(),
-                                         helper_->FormatScriptName(script),
-                                         function_name,
-                                         base::span<v8::Local<v8::Value>>(),
-                                         timeout.get(), error_msgs)
-                          .ToLocal(&result);
+            v8::MaybeLocal<v8::Value> maybe_result;
+            success =
+                helper_->CallFunction(
+                    context, debug_id.get(), helper_->FormatScriptName(script),
+                    function_name, base::span<v8::Local<v8::Value>>(),
+                    timeout.get(), maybe_result,
+                    error_msgs) == AuctionV8Helper::Result::kSuccess &&
+                maybe_result.ToLocal(&result);
           }
           EXPECT_TRUE(success);
           run_loop.Quit();

@@ -5,10 +5,13 @@ package org.chromium.chrome.browser.layouts.components;
 
 import android.graphics.RectF;
 
+import org.chromium.build.annotations.NullMarked;
+
 /**
  * {@link VirtualView} is the minimal interface that provides information for
  * building accessibility events.
  */
+@NullMarked
 public interface VirtualView {
     /**
      * @return A string with a description of the object for accessibility events.
@@ -47,4 +50,14 @@ public interface VirtualView {
      * @param time The time of the click action.
      */
     void handleClick(long time);
+
+    /**
+     * Set keyboard focus state of {@link VirtualView} to {@param isFocused}.
+     *
+     * @param isFocused Whether this {@link VirtualView} is focused.
+     */
+    void setKeyboardFocused(boolean isFocused);
+
+    /** Returns whether this {@link VirtualView} is keyboard focused. */
+    boolean isKeyboardFocused();
 }

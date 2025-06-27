@@ -3,13 +3,14 @@
 // found in the LICENSE file.
 
 #include "components/constrained_window/constrained_window_views.h"
-#include "base/memory/raw_ptr.h"
 
 #include <memory>
 
+#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "components/constrained_window/constrained_window_views_client.h"
 #include "components/web_modal/test_web_contents_modal_dialog_host.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/point.h"
@@ -43,7 +44,7 @@ class TestConstrainedWindowViewsClient
     return nullptr;
   }
   gfx::NativeView GetDialogHostView(gfx::NativeWindow parent) override {
-    return nullptr;
+    return gfx::NativeView();
   }
 };
 
@@ -95,12 +96,13 @@ class ConstrainedWindowViewsTest : public views::ViewsTestBase {
     auto contents = std::make_unique<views::StaticSizedView>();
     contents_ = delegate_->SetContentsView(std::move(contents));
 
-    dialog_ = views::DialogDelegate::CreateDialogWidget(delegate_.get(),
-                                                        GetContext(), nullptr);
+    dialog_ = views::DialogDelegate::CreateDialogWidget(
+        delegate_.get(), GetContext(), gfx::NativeView());
 
     // Create a dialog host sufficiently large enough to accommodate dialog
     // size changes during testing.
-    dialog_host_widget_ = CreateTestWidget();
+    dialog_host_widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     dialog_host_widget_->SetBounds(GetPrimaryDisplayWorkArea());
     dialog_host_ = std::make_unique<web_modal::TestWebContentsModalDialogHost>(
         dialog_host_widget_->GetNativeView());
@@ -225,9 +227,9 @@ TEST_F(ConstrainedWindowViewsTest, MAYBE_NullModalParent) {
   SetConstrainedWindowViewsClient(
       std::make_unique<TestConstrainedWindowViewsClient>());
   auto delegate = std::make_unique<views::DialogDelegate>();
-  delegate->SetModalType(ui::MODAL_TYPE_WINDOW);
+  delegate->SetModalType(ui::mojom::ModalType::kWindow);
   views::Widget* widget =
-      CreateBrowserModalDialogViews(delegate.get(), nullptr);
+      CreateBrowserModalDialogViews(delegate.get(), gfx::NativeWindow());
   widget->Show();
   EXPECT_TRUE(widget->IsVisible());
   widget->CloseNow();

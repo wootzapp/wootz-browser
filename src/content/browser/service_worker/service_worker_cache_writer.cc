@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
@@ -151,9 +152,7 @@ int ServiceWorkerCacheWriter::DoLoop(int status) {
         status = DoDone(status);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "Unknown state in DoLoop";
-        state_ = STATE_DONE;
-        break;
+        NOTREACHED() << "Unknown state in DoLoop";
     }
   } while (status != net::ERR_IO_PENDING && state_ != STATE_DONE);
   io_pending_ = (status == net::ERR_IO_PENDING);
@@ -493,10 +492,13 @@ int ServiceWorkerCacheWriter::DoReadDataForCompareDone(int result) {
   DCHECK(data_to_read_);
   DCHECK(data_to_write_);
 
+  const size_t result_as_size = base::checked_cast<size_t>(result);
+
   // Compare the data from the ServiceWorker script cache to the data from the
   // network.
-  if (!std::equal(data_to_read_->data(), data_to_read_->data() + result,
-                  data_to_write_->data() + compare_offset_)) {
+  if (!std::ranges::equal(
+          data_to_read_->span().first(result_as_size),
+          data_to_write_->span().subspan(compare_offset_, result_as_size))) {
     // Data mismatched. This method already validated that all the bytes through
     // |bytes_compared_| were identical, so copy the first |bytes_compared_|
     // over, then start writing network data back after the changed point.
@@ -739,8 +741,9 @@ class ServiceWorkerCacheWriter::DataPipeReader {
 
  private:
   void ReadInternal(MojoResult) {
-    MojoResult result = data_->ReadData(buffer_->data(), &num_bytes_to_read_,
-                                        MOJO_READ_DATA_FLAG_NONE);
+    MojoResult result =
+        data_->ReadData(MOJO_READ_DATA_FLAG_NONE,
+                        buffer_->first(num_bytes_to_read_), num_bytes_to_read_);
     if (result == MOJO_RESULT_SHOULD_WAIT) {
       watcher_.ArmOrNotify();
       return;
@@ -863,8 +866,7 @@ int ServiceWorkerCacheWriter::WriteDataToResponseWriter(
     checksum_->Update(data->data(), length);
   }
 
-  mojo_base::BigBuffer big_buffer(
-      base::as_bytes(base::make_span(data->data(), length)));
+  mojo_base::BigBuffer big_buffer(base::as_bytes(data->span().first(length)));
   writer_->WriteData(
       std::move(big_buffer),
       base::BindOnce(&AsyncOnlyCompletionCallbackAdaptor::WrappedCallback,

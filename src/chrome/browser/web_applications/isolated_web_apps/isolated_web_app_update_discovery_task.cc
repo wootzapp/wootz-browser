@@ -4,9 +4,16 @@
 
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_update_discovery_task.h"
 
+#include <cstdint>
 #include <optional>
 #include <ostream>
+#include <string>
+#include <vector>
 
+#include "base/containers/contains.h"
+#include "base/containers/span.h"
+#include "base/containers/to_value_list.h"
+#include "base/containers/to_vector.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -19,8 +26,10 @@
 #include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "base/version.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_install_command_helper.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_prepare_and_store_update_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_downloader.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_prepare_and_store_update_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update_manifest/update_manifest.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update_manifest/update_manifest_fetcher.h"
@@ -33,6 +42,84 @@
 #include "net/base/net_errors.h"
 
 namespace web_app {
+
+namespace {
+
+// TODO(crbug.com/40274186): Once we support updating IWAs not installed via
+// policy, we need to update this annotation.
+constexpr auto kUpdateManifestFetchTrafficAnnotation =
+    net::DefinePartialNetworkTrafficAnnotation(
+        "iwa_update_discovery_update_manifest",
+        "iwa_update_manifest_fetcher",
+        R"(
+  semantics {
+    sender: "Isolated Web App Update Manager"
+    description:
+      "Downloads the Update Manifest of an Isolated Web App that is "
+      "policy-installed. The Update Manifest contains at least the list of "
+      "the available versions of the IWA and the URL to the Signed Web "
+      "Bundles that correspond to each version."
+    trigger:
+      "The browser automatically checks for updates of all policy-installed "
+      "Isolated Web Apps after startup and in regular time intervals."
+  }
+  policy {
+    setting: "This feature cannot be disabled in settings."
+    chrome_policy {
+      IsolatedWebAppInstallForceList {
+        IsolatedWebAppInstallForceList: ""
+      }
+    }
+  })");
+
+// TODO(crbug.com/40274186): Once we support updating IWAs not installed via
+// policy, we need to update this annotation.
+constexpr auto kWebBundleDownloadTrafficAnnotation =
+    net::DefinePartialNetworkTrafficAnnotation(
+        "iwa_update_discovery_web_bundle",
+        "iwa_bundle_downloader",
+        R"(
+  semantics {
+    sender: "Isolated Web App Update Manager"
+    description:
+      "Downloads an updated Signed Web Bundle of an Isolated Web App that is "
+      "policy-installed, after an update has been discovered for it. The "
+      "Signed Web Bundle contains code and other resources of the IWA."
+    trigger:
+      "The browser automatically checks for updates of all policy-installed "
+      "Isolated Web Apps after startup and in regular time intervals. If an "
+      "update is found, then the corresponding Signed Web Bundle is "
+      "downloaded."
+  }
+  policy {
+    setting: "This feature cannot be disabled in settings."
+    chrome_policy {
+      IsolatedWebAppInstallForceList {
+        IsolatedWebAppInstallForceList: ""
+      }
+    }
+  })");
+
+}  // namespace
+
+IwaUpdateDiscoveryTaskParams::IwaUpdateDiscoveryTaskParams(
+    const GURL& update_manifest_url,
+    const UpdateChannel& update_channel,
+    bool allow_downgrades,
+    const std::optional<base::Version>& pinned_version,
+    const IsolatedWebAppUrlInfo& url_info,
+    bool dev_mode)
+    : update_manifest_url_(update_manifest_url),
+      update_channel_(update_channel),
+      allow_downgrades_(allow_downgrades),
+      pinned_version_(pinned_version),
+      url_info_(url_info),
+      dev_mode_(dev_mode) {}
+
+IwaUpdateDiscoveryTaskParams::IwaUpdateDiscoveryTaskParams(
+    IwaUpdateDiscoveryTaskParams&& other) = default;
+
+IwaUpdateDiscoveryTaskParams::~IwaUpdateDiscoveryTaskParams() = default;
 
 // static
 std::string IsolatedWebAppUpdateDiscoveryTask::SuccessToString(
@@ -74,21 +161,31 @@ std::string IsolatedWebAppUpdateDiscoveryTask::ErrorToString(Error error) {
 }
 
 IsolatedWebAppUpdateDiscoveryTask::IsolatedWebAppUpdateDiscoveryTask(
-    GURL update_manifest_url,
-    IsolatedWebAppUrlInfo url_info,
+    IwaUpdateDiscoveryTaskParams task_params,
     WebAppCommandScheduler& command_scheduler,
     WebAppRegistrar& registrar,
-    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
-    : update_manifest_url_(std::move(update_manifest_url)),
-      url_info_(std::move(url_info)),
+    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+    std::unique_ptr<ScopedKeepAlive> optional_keep_alive,
+    std::unique_ptr<ScopedProfileKeepAlive> optional_profile_keep_alive)
+    : task_params_(std::move(task_params)),
       command_scheduler_(command_scheduler),
       registrar_(registrar),
-      url_loader_factory_(std::move(url_loader_factory)) {
+      url_loader_factory_(std::move(url_loader_factory)),
+      optional_keep_alive_(std::move(optional_keep_alive)),
+      optional_profile_keep_alive_(std::move(optional_profile_keep_alive)) {
   CHECK(url_loader_factory_);
-  debug_log_ = base::Value::Dict()
-                   .Set("bundle_id", url_info_.web_bundle_id().id())
-                   .Set("app_id", url_info_.app_id())
-                   .Set("update_manifest_url", update_manifest_url_.spec());
+  debug_log_ =
+      base::Value::Dict()
+          .Set("bundle_id", task_params_.url_info().web_bundle_id().id())
+          .Set("update_channel", task_params_.update_channel().ToString())
+          .Set("allow_downgrades", task_params_.allow_downgrades())
+          .Set("app_id", task_params_.url_info().app_id())
+          .Set("update_manifest_url",
+               task_params_.update_manifest_url().spec());
+  if (task_params_.pinned_version()) {
+    debug_log_.Set("pinned_version",
+                   task_params_.pinned_version()->GetString());
+  }
 }
 
 IsolatedWebAppUpdateDiscoveryTask::~IsolatedWebAppUpdateDiscoveryTask() =
@@ -101,34 +198,8 @@ void IsolatedWebAppUpdateDiscoveryTask::Start(CompletionCallback callback) {
 
   debug_log_.Set("start_time", base::TimeToValue(base::Time::Now()));
 
-  // TODO(crbug.com/40274186): Once we support updating IWAs not installed via
-  // policy, we need to update this annotation.
-  net::PartialNetworkTrafficAnnotationTag update_manifest_traffic_annotation =
-      net::DefinePartialNetworkTrafficAnnotation(
-          "iwa_update_discovery_update_manifest", "iwa_update_manifest_fetcher",
-          R"(
-    semantics {
-      sender: "Isolated Web App Update Manager"
-      description:
-        "Downloads the Update Manifest of an Isolated Web App that is "
-        "policy-installed. The Update Manifest contains at least the list of "
-        "the available versions of the IWA and the URL to the Signed Web "
-        "Bundles that correspond to each version."
-      trigger:
-        "The browser automatically checks for updates of all policy-installed "
-        "Isolated Web Apps after startup and in regular time intervals."
-    }
-    policy {
-      setting: "This feature cannot be disabled in settings."
-      chrome_policy {
-        IsolatedWebAppInstallForceList {
-          IsolatedWebAppInstallForceList: ""
-        }
-      }
-    })");
-
   update_manifest_fetcher_ = std::make_unique<UpdateManifestFetcher>(
-      update_manifest_url_, update_manifest_traffic_annotation,
+      task_params_.update_manifest_url(), kUpdateManifestFetchTrafficAnnotation,
       url_loader_factory_);
   update_manifest_fetcher_->FetchUpdateManifest(base::BindOnce(
       &IsolatedWebAppUpdateDiscoveryTask::OnUpdateManifestFetched,
@@ -152,128 +223,152 @@ void IsolatedWebAppUpdateDiscoveryTask::OnUpdateManifestFetched(
                      }
                    });
 
-  std::optional<UpdateManifest::VersionEntry> latest_version_entry =
-      update_manifest.GetLatestVersion(
-          // TODO(b/294481776): In the future, we will support channel selection
-          // via policy and by the end user for unmanaged users. For now, we
-          // always use the "default" channel.
-          UpdateChannelId::default_id());
-  if (!latest_version_entry.has_value()) {
+  std::optional<UpdateManifest::VersionEntry> version_entry =
+      task_params_.pinned_version()
+          ? update_manifest.GetVersion(task_params_.pinned_version().value(),
+                                       task_params_.update_channel())
+          : update_manifest.GetLatestVersion(task_params_.update_channel());
+
+  if (!version_entry.has_value()) {
     FailWith(Error::kUpdateManifestNoApplicableVersion);
     return;
   }
 
-  base::Value::List available_versions;
-  for (const auto& version_entry : update_manifest.versions()) {
-    available_versions.Append(version_entry.version().GetString());
-  }
-  debug_log_.Set("available_versions", std::move(available_versions));
   debug_log_.Set(
-      "latest_version",
+      "available_versions",
+      base::ToValueList(update_manifest.versions(), [](const auto& entry) {
+        return base::Value::Dict()
+            .Set("version", entry.version().GetString())
+            .Set("update_channels",
+                 base::ToValueList(entry.channels(), [](const auto& channel) {
+                   return channel.ToString();
+                 }));
+      }));
+
+  debug_log_.Set(
+      "version_entry",
       base::Value::Dict()
-          .Set("version", latest_version_entry->version().GetString())
-          .Set("src", latest_version_entry->src().spec()));
+          .Set("version", version_entry->version().GetString())
+          .Set("src", version_entry->src().spec())
+          .Set("update_channel", task_params_.update_channel().ToString()));
 
-  const WebApp* web_app = registrar_->GetAppById(url_info_.app_id());
-  if (!web_app) {
-    FailWith(Error::kIwaNotInstalled);
-    return;
-  }
-  std::optional<WebApp::IsolationData> isolation_data =
-      web_app->isolation_data();
-  if (!isolation_data) {
-    FailWith(Error::kIwaNotInstalled);
-    return;
-  }
-  base::Version currently_installed_version = isolation_data->version;
-
+  ASSIGN_OR_RETURN(
+      const WebApp& iwa,
+      GetIsolatedWebAppById(*registrar_, task_params_.url_info().app_id()),
+      [&](const std::string&) { FailWith(Error::kIwaNotInstalled); });
+  const auto& isolation_data = *iwa.isolation_data();
+  base::Version currently_installed_version = isolation_data.version();
   debug_log_.Set("currently_installed_version",
                  currently_installed_version.GetString());
 
-  if (isolation_data->pending_update_info().has_value() &&
-      isolation_data->pending_update_info()->version ==
-          latest_version_entry->version()) {
-    // If we already have a pending update for this version, stop. However, we
-    // do allow overwriting a pending update with a different pending update
-    // version.
+  const auto& pending_update = isolation_data.pending_update_info();
+
+  bool same_version_update_allowed_by_key_rotation = false;
+  bool pending_info_overwrite_allowed_by_key_rotation = false;
+  std::optional<std::vector<uint8_t>> rotated_key;
+  switch (
+      LookupRotatedKey(task_params_.url_info().web_bundle_id(), debug_log_)) {
+    case KeyRotationLookupResult::kNoKeyRotation:
+      break;
+    case KeyRotationLookupResult::kKeyFound: {
+      KeyRotationData data = GetKeyRotationData(
+          task_params_.url_info().web_bundle_id(), isolation_data);
+      rotated_key = base::ToVector(data.rotated_key);
+      if (!data.current_installation_has_rk) {
+        same_version_update_allowed_by_key_rotation = true;
+      }
+      if (!data.pending_update_has_rk) {
+        pending_info_overwrite_allowed_by_key_rotation = true;
+      }
+    } break;
+    case KeyRotationLookupResult::kKeyBlocked: {
+      FailWith(Error::kUpdateManifestNoApplicableVersion);
+      return;
+    }
+  }
+
+  if (pending_update && pending_update->version == version_entry->version() &&
+      !pending_info_overwrite_allowed_by_key_rotation) {
+    // If we already have a pending update for this version, stop. However,
+    // we do allow overwriting a pending update with a different pending
+    // update version or if there's a chance that this will yield a bundle
+    // signed by a rotated key.
     SucceedWith(Success::kUpdateAlreadyPending);
     return;
   }
 
   // Since this task is not holding any `WebAppLock`s, there is no guarantee
-  // that the installed version of the IWA won't change in the time between now
-  // and when we schedule the `IsolatedWebAppUpdatePrepareAndStoreCommand`. This
-  // is not an issue, as `IsolatedWebAppUpdatePrepareAndStoreCommand` will
-  // re-check that the new version is indeed newer than the currently installed
-  // version.
-  if (currently_installed_version >= latest_version_entry->version()) {
-    // Never downgrade apps for now.
+  // that the installed version of the IWA won't change in the time between
+  // now and when we schedule the
+  // `IsolatedWebAppUpdatePrepareAndStoreCommand`. This is not an issue, as
+  // `IsolatedWebAppUpdatePrepareAndStoreCommand` will re-check that the new
+  // version can be applied.
+  if (ShouldPreventVersionChange(version_entry->version(),
+                                 currently_installed_version,
+                                 task_params_.allow_downgrades(),
+                                 same_version_update_allowed_by_key_rotation)) {
     SucceedWith(Success::kNoUpdateFound);
     return;
   }
 
-  GetDownloadPath(std::move(*latest_version_entry));
+  bundle_downloader_ = IsolatedWebAppDownloader::Create(url_loader_factory_);
+  if (!rotated_key) {
+    CreateTempFile(std::move(*version_entry));
+    return;
+  }
+  bundle_downloader_->DownloadInitialBytes(
+      version_entry->src(), kWebBundleDownloadTrafficAnnotation,
+      base::BindOnce(
+          &IsolatedWebAppUpdateDiscoveryTask::CheckIntegrityBundleForRotatedKey,
+          weak_factory_.GetWeakPtr(), std::move(*version_entry),
+          std::move(*rotated_key)));
 }
 
-void IsolatedWebAppUpdateDiscoveryTask::GetDownloadPath(
+void IsolatedWebAppUpdateDiscoveryTask::CheckIntegrityBundleForRotatedKey(
+    UpdateManifest::VersionEntry version_entry,
+    std::vector<uint8_t> rotated_key,
+    std::optional<std::string> initial_bytes) {
+  // If it contains at least 2 of "📦", it means that both the beginning of the
+  // integrity block and the beginning of the web bundle itself are in the
+  // downloaded chunk - hence, the chunk contains the whole integrity block and
+  // all the public keys. This is a heuristic to skip downloading the entire,
+  // potentially big, bundle if it is not signed by the appropriate rotated key.
+  if (initial_bytes &&
+      initial_bytes->rfind("📦") != initial_bytes->find("📦") &&
+      !base::Contains(initial_bytes.value(),
+                      base::as_string_view(rotated_key))) {
+    FailWith(Error::kUpdateManifestNoApplicableVersion);
+    return;
+  }
+  CreateTempFile(version_entry);
+}
+
+void IsolatedWebAppUpdateDiscoveryTask::CreateTempFile(
     UpdateManifest::VersionEntry version_entry) {
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock()},
-      base::BindOnce([]() -> std::optional<base::FilePath> {
-        base::FilePath download_path;
-        bool success = base::CreateTemporaryFile(&download_path);
-        return success ? std::make_optional(download_path) : std::nullopt;
-      }),
-      base::BindOnce(&IsolatedWebAppUpdateDiscoveryTask::OnGetDownloadPath,
+  ScopedTempWebBundleFile::Create(
+      base::BindOnce(&IsolatedWebAppUpdateDiscoveryTask::OnTempFileCreated,
                      weak_factory_.GetWeakPtr(), std::move(version_entry)));
 }
 
-void IsolatedWebAppUpdateDiscoveryTask::OnGetDownloadPath(
+void IsolatedWebAppUpdateDiscoveryTask::OnTempFileCreated(
     UpdateManifest::VersionEntry version_entry,
-    std::optional<base::FilePath> download_path) {
-  if (!download_path.has_value()) {
+    ScopedTempWebBundleFile bundle) {
+  if (!bundle) {
     FailWith(Error::kDownloadPathCreationFailed);
     return;
   }
+  bundle_ = std::move(bundle);
 
-  // TODO(crbug.com/40274186): Once we support updating IWAs not installed via
-  // policy, we need to update this annotation.
-  net::PartialNetworkTrafficAnnotationTag web_bundle_traffic_annotation =
-      net::DefinePartialNetworkTrafficAnnotation(
-          "iwa_update_discovery_web_bundle", "iwa_bundle_downloader",
-          R"(
-    semantics {
-      sender: "Isolated Web App Update Manager"
-      description:
-        "Downloads an updated Signed Web Bundle of an Isolated Web App that is "
-        "policy-installed, after an update has been discovered for it. The "
-        "Signed Web Bundle contains code and other resources of the IWA."
-      trigger:
-        "The browser automatically checks for updates of all policy-installed "
-        "Isolated Web Apps after startup and in regular time intervals. If an "
-        "update is found, then the corresponding Signed Web Bundle is "
-        "downloaded."
-    }
-    policy {
-      setting: "This feature cannot be disabled in settings."
-      chrome_policy {
-        IsolatedWebAppInstallForceList {
-          IsolatedWebAppInstallForceList: ""
-        }
-      }
-    })");
+  debug_log_.Set("bundle_download_path", bundle_.path().LossyDisplayName());
 
-  debug_log_.Set("bundle_download_path", download_path->LossyDisplayName());
-  bundle_downloader_ = IsolatedWebAppDownloader::CreateAndStartDownloading(
-      version_entry.src(), *download_path, web_bundle_traffic_annotation,
-      url_loader_factory_,
+  CHECK(bundle_downloader_);
+  bundle_downloader_->DownloadSignedWebBundle(
+      version_entry.src(), bundle_.path(), kWebBundleDownloadTrafficAnnotation,
       base::BindOnce(&IsolatedWebAppUpdateDiscoveryTask::OnWebBundleDownloaded,
-                     weak_factory_.GetWeakPtr(), *download_path,
-                     version_entry.version()));
+                     weak_factory_.GetWeakPtr(), version_entry.version()));
 }
 
 void IsolatedWebAppUpdateDiscoveryTask::OnWebBundleDownloaded(
-    const base::FilePath& download_path,
     const base::Version& expected_version,
     int32_t net_error) {
   if (net_error != net::OK) {
@@ -282,14 +377,23 @@ void IsolatedWebAppUpdateDiscoveryTask::OnWebBundleDownloaded(
     return;
   }
 
+  // Both prepare-update and apply-update tasks expect that the location type
+  // (dev mode / prod mode) stays unchanged between updates. For this reason,
+  // the update info is wrapped accordingly depending on `dev_mode`.
+  auto update_info =
+      task_params_.dev_mode()
+          ? IsolatedWebAppUpdatePrepareAndStoreCommand::UpdateInfo(
+                IwaSourceBundleDevModeWithFileOp(
+                    bundle_.path(), IwaSourceBundleDevFileOp::kMove),
+                expected_version, task_params_.allow_downgrades())
+          : IsolatedWebAppUpdatePrepareAndStoreCommand::UpdateInfo(
+                IwaSourceBundleProdModeWithFileOp(
+                    bundle_.path(), IwaSourceBundleProdFileOp::kMove),
+                expected_version, task_params_.allow_downgrades());
+
   command_scheduler_->PrepareAndStoreIsolatedWebAppUpdate(
-      IsolatedWebAppUpdatePrepareAndStoreCommand::UpdateInfo(
-          IwaSourceBundleProdModeWithFileOp(download_path,
-                                            IwaSourceBundleProdFileOp::kMove),
-          expected_version),
-      url_info_,
-      /*optional_keep_alive=*/nullptr,
-      /*optional_profile_keep_alive=*/nullptr,
+      update_info, task_params_.url_info(), std::move(optional_keep_alive_),
+      std::move(optional_profile_keep_alive_),
       base::BindOnce(&IsolatedWebAppUpdateDiscoveryTask::OnUpdateDryRunDone,
                      weak_factory_.GetWeakPtr()));
 }

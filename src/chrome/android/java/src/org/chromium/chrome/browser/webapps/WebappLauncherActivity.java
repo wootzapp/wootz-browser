@@ -36,9 +36,11 @@ import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabLocator;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.intents.BrowserIntentUtils;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
 import org.chromium.components.webapps.ShortcutSource;
+import org.chromium.webapk.lib.common.WebApkConstants;
 
 import java.lang.ref.WeakReference;
 
@@ -217,7 +219,10 @@ public class WebappLauncherActivity extends Activity {
             // filter for the URL.
             if (!TextUtils.isEmpty(launchData.url)
                     && WebApkValidator.canWebApkHandleUrl(
-                            appContext, launchData.webApkPackageName, launchData.url)) {
+                            appContext,
+                            launchData.webApkPackageName,
+                            launchData.url,
+                            ChromeFeatureList.sWebApkMinShellApkVersionValue.getValue())) {
                 return true;
             }
 

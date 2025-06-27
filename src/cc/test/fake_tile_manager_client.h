@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "cc/tiles/tile_manager.h"
+#include "cc/tiles/tile_manager_client.h"
 
 namespace cc {
 
@@ -30,13 +30,14 @@ class FakeTileManagerClient : public TileManagerClient {
   std::unique_ptr<TilesWithResourceIterator> CreateTilesWithResourceIterator()
       override;
   void SetIsLikelyToRequireADraw(bool is_likely_to_require_a_draw) override {}
+  viz::SharedImageFormat GetTileFormat() const override;
   TargetColorParams GetTargetColorParams(
       gfx::ContentColorUsage content_color_usage) const override;
   void RequestImplSideInvalidationForCheckerImagedTiles() override {}
   size_t GetFrameIndexForImage(const PaintImage& paint_image,
                                WhichTree tree) const override;
   int GetMSAASampleCountForRaster(
-      const scoped_refptr<DisplayItemList>& display_list) override;
+      const DisplayItemList& display_list) const override;
   bool HasPendingTree() override;
 
  private:

@@ -9,9 +9,12 @@
 #include <memory>
 #include <utility>
 
+#include "base/debug/dump_without_crashing.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
+#include "base/win/windows_version.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
 namespace gl {
@@ -90,6 +93,12 @@ bool DelegatedInkPointRendererGpu::Initialize(
 
 bool DelegatedInkPointRendererGpu::DelegatedInkIsSupported(
     const Microsoft::WRL::ComPtr<IDCompositionDevice2>& dcomp_device) const {
+  // Issues related to the delegated ink trail API, such as flickering in the
+  // top 3rd of the screen are addressed in 24H2.
+  if (base::win::GetVersion() < base::win::Version::WIN11_24H2) {
+    return false;
+  }
+
   Microsoft::WRL::ComPtr<IDCompositionInkTrailDevice> ink_trail_device;
   HRESULT hr = dcomp_device.As(&ink_trail_device);
   return hr == S_OK;
@@ -97,18 +106,56 @@ bool DelegatedInkPointRendererGpu::DelegatedInkIsSupported(
 
 uint64_t DelegatedInkPointRendererGpu::GetMaximumNumberOfPointerIdsForTesting()
     const {
+  CHECK_IS_TEST();
   return kMaximumNumberOfPointerIds;
 }
 
 void DelegatedInkPointRendererGpu::ReportPointsDrawn() {
+  const base::TimeTicks now = base::TimeTicks::Now();
+  // If there is a point that matches the metadata and the histogram has not yet
+  // been fired, then this is the first frame that the metadata point will be
+  // painted via the JS API.
+  if (metadata_paint_time_.has_value()) {
+    base::UmaHistogramCustomTimes(
+        "Renderer.DelegatedInkTrail.OS.TimeFromDelegatedInkToApiPaint",
+        now - metadata_paint_time_.value(), base::Milliseconds(1),
+        base::Seconds(1), 50);
+    metadata_paint_time_ = std::nullopt;
+  }
+
   if (points_to_be_drawn_.empty()) {
     return;
   }
-  const base::TimeTicks now = base::TimeTicks::Now();
-  for (const auto& timestamp : points_to_be_drawn_) {
+
+  CHECK(metadata_);
+  base::TimeTicks most_recent_timestamp = base::TimeTicks::Min();
+  for (const auto& point : points_to_be_drawn_) {
     UMA_HISTOGRAM_TIMES("Renderer.DelegatedInkTrail.OS.TimeToDrawPointsMillis",
-                        now - timestamp);
+                        now - point.timestamp());
+    most_recent_timestamp = std::max(point.timestamp(), most_recent_timestamp);
+
+    // Update the point's `paint_timestamp` if this is the first time it is
+    // being painted so that it can later be compared with the metadata's first
+    // paint time.
+    DelegatedInkPointRendererGpu::DelegatedInkPointTokenMap& token_map =
+        delegated_ink_points_[point.pointer_id()];
+    auto trail_point_it = token_map.find(point);
+    if (trail_point_it != token_map.end()) {
+      gfx::DelegatedInkPoint& trail_point = trail_point_it->first;
+      if (!trail_point.paint_timestamp().has_value()) {
+        trail_point.set_paint_timestamp(now);
+      }
+    }
   }
+
+  CHECK_GE(most_recent_timestamp, metadata_->timestamp());
+  base::UmaHistogramTimes(
+      "Renderer.DelegatedInkTrail.LatencyImprovement.OS.WithoutPrediction",
+      most_recent_timestamp - metadata_->timestamp());
+  base::UmaHistogramCounts100(
+      "Renderer.DelegatedInkTrail.OS.OutstandingPointsToDraw",
+      points_to_be_drawn_.size());
+
   points_to_be_drawn_.clear();
 }
 
@@ -160,6 +207,7 @@ void DelegatedInkPointRendererGpu::SetDelegatedInkTrailStartPoint(
       // altogether.
       if (point_matching_metadata.MatchesDelegatedInkMetadata(metadata.get()) &&
           token) {
+        metadata_paint_time_ = point_matching_metadata.paint_timestamp();
         bool remove_trail_points_failed = TraceEventOnFailure(
             delegated_ink_trail_->RemoveTrailPoints(token.value()),
             "DelegatedInkPointRendererGpu::SetDelegatedInkTrailStartPoint - "
@@ -171,6 +219,15 @@ void DelegatedInkPointRendererGpu::SetDelegatedInkTrailStartPoint(
           // the next valid |metadata| is guaranteed to be after it.
           token_map.erase(token_map.begin(),
                           std::next(point_matching_metadata_it));
+          // Ensure that points that are being removed from the trail are not
+          // being reported as painted in `ReportPointsDrawn()`.
+          points_to_be_drawn_.erase(
+              std::remove_if(points_to_be_drawn_.begin(),
+                             points_to_be_drawn_.end(),
+                             [&](const gfx::DelegatedInkPoint& x) {
+                               return metadata->timestamp() > x.timestamp();
+                             }),
+              points_to_be_drawn_.end());
           metadata_ = std::move(metadata);
           return;
         }
@@ -191,6 +248,7 @@ void DelegatedInkPointRendererGpu::SetDelegatedInkTrailStartPoint(
     return;
   }
 
+  points_to_be_drawn_.clear();
   wait_for_new_trail_to_draw_ = false;
   metadata_ = std::move(metadata);
   DrawSavedTrailPoints();
@@ -207,14 +265,11 @@ void DelegatedInkPointRendererGpu::StoreDelegatedInkPoint(
 
   const int32_t pointer_id = point.pointer_id();
 
-  // TODO(crbug.com/40784171): Understand why we are being sent points from
-  // browser process that break this assertion so frequently and prevent it from
-  // happening.
-  // DCHECK(delegated_ink_points_.find(pointer_id) ==
-  //            delegated_ink_points_.end() ||
-  //        point.timestamp() >
-  //            delegated_ink_points_[pointer_id].rbegin()->
-  //                first.timestamp());
+  DCHECK(delegated_ink_points_.find(pointer_id) ==
+             delegated_ink_points_.end() ||
+         delegated_ink_points_[pointer_id].empty() ||
+         point.timestamp() >
+             delegated_ink_points_[pointer_id].rbegin()->first.timestamp());
 
   if (metadata_ && point.timestamp() < metadata_->timestamp()) {
     return;
@@ -249,6 +304,7 @@ void DelegatedInkPointRendererGpu::ResetPrediction() {
 }
 
 uint64_t DelegatedInkPointRendererGpu::InkTrailTokenCountForTesting() const {
+  CHECK_IS_TEST();
   DCHECK_EQ(delegated_ink_points_.size(), 1u);
   uint64_t valid_tokens = 0u;
   for (const auto& it : delegated_ink_points_.begin()->second) {
@@ -261,6 +317,7 @@ uint64_t DelegatedInkPointRendererGpu::InkTrailTokenCountForTesting() const {
 
 bool DelegatedInkPointRendererGpu::CheckForPointerIdForTesting(
     int32_t pointer_id) const {
+  CHECK_IS_TEST();
   return delegated_ink_points_.find(pointer_id) != delegated_ink_points_.end();
 }
 
@@ -397,33 +454,35 @@ void DelegatedInkPointRendererGpu::DrawSavedTrailPoints() {
   }
 }
 
-std::unique_ptr<DCLayerOverlayParams>
+std::optional<DCLayerOverlayParams>
 DelegatedInkPointRendererGpu::MakeDelegatedInkOverlay(
     IDCompositionDevice2* dcomp_device2,
     IDXGISwapChain1* root_swap_chain,
     std::unique_ptr<gfx::DelegatedInkMetadata> metadata) {
   if (!Initialize(dcomp_device2, root_swap_chain)) {
-    return nullptr;
+    return std::nullopt;
   }
-  auto ink_layer = std::make_unique<DCLayerOverlayParams>();
+  DCLayerOverlayParams ink_layer;
   // Ink trail should be rendered on top of all content.
-  ink_layer->z_order = INT_MAX;
+  ink_layer.z_order = INT_MAX;
   const gfx::Rect presentation_rect =
       gfx::ToEnclosedRect(metadata->presentation_area());
   const gfx::Size presentation_area_enclosed_size =
       gfx::Size(presentation_rect.width(), presentation_rect.height());
-  ink_layer->quad_rect = gfx::Rect(presentation_area_enclosed_size);
-  ink_layer->content_rect = gfx::RectF(presentation_area_enclosed_size);
+  ink_layer.quad_rect = gfx::Rect(presentation_area_enclosed_size);
+  ink_layer.content_rect = gfx::RectF(presentation_area_enclosed_size);
   // If (0,0) of a visual is clipped out, it can result in delegated ink not
   // being drawn at all. This is more common when DComp Surfaces are enabled,
   // but doesn't negatively impact things when the swapchain is used, so just
   // offset the visual instead of clipping the top left corner in all cases.
-  ink_layer->clip_rect = std::make_optional<gfx::Rect>(
+  ink_layer.clip_rect = std::make_optional<gfx::Rect>(
       0, 0, presentation_rect.right(), presentation_rect.bottom());
-  ink_layer->transform = gfx::Transform::MakeTranslation(
+  ink_layer.transform = gfx::Transform::MakeTranslation(
       metadata->presentation_area().OffsetFromOrigin());
-  ink_layer->overlay_image = DCLayerOverlayImage(
-      presentation_area_enclosed_size, delegated_ink_trail_);
+  ink_layer.overlay_image = DCLayerOverlayImage(presentation_area_enclosed_size,
+                                                delegated_ink_trail_);
+  ink_layer.layer_id = gfx::OverlayLayerId::MakeVizInternal(
+      gfx::OverlayLayerId::VizInternalId::kDelegatedInkTrail);
   SetDelegatedInkTrailStartPoint(std::move(metadata));
   return ink_layer;
 }
@@ -474,7 +533,7 @@ bool DelegatedInkPointRendererGpu::DrawDelegatedInkPoint(
 
   if (point.timestamp().IsHighResolution() &&
       point.timestamp().IsConsistentAcrossProcesses()) {
-    points_to_be_drawn_.push_back(point.timestamp());
+    points_to_be_drawn_.push_back(point);
   }
   delegated_ink_points_[point.pointer_id()][point] = token;
   return true;

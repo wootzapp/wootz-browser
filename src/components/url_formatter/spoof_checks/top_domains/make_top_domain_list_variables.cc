@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This binary generates two C arrays of useful information related to top
 // domains, which we embed directly into
 // the final Chrome binary.  The input is a list of the top domains. The first
@@ -19,6 +24,7 @@
 // IMPORTANT: This binary asserts that there are at least enough sites in the
 // input file to generate 500 skeletons and 500 keywords.
 
+#include <algorithm>
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -30,7 +36,6 @@
 #include "base/i18n/icu_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -74,7 +79,7 @@ std::string GetSkeleton(const std::string& domain,
 }
 
 bool ContainsOnlyDigits(const std::string& text) {
-  return base::ranges::all_of(text.begin(), text.end(), ::isdigit);
+  return std::ranges::all_of(text.begin(), text.end(), ::isdigit);
 }
 
 }  // namespace

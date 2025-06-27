@@ -19,7 +19,6 @@
 #include "chrome/browser/ash/nearby/bluetooth_adapter_manager.h"
 #include "chrome/browser/ash/nearby/nearby_dependencies_provider.h"
 #include "chrome/browser/ash/nearby/nearby_process_manager_factory.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_prefs.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
@@ -27,12 +26,14 @@
 #include "chrome/services/sharing/nearby/test_support/fake_nearby_presence_credential_storage.h"
 #include "chrome/services/sharing/nearby/test_support/mock_webrtc_dependencies.h"
 #include "chromeos/ash/services/nearby/public/cpp/fake_firewall_hole_factory.h"
+#include "chromeos/ash/services/nearby/public/cpp/fake_mdns_manager.h"
 #include "chromeos/ash/services/nearby/public/cpp/fake_nearby_presence.h"
 #include "chromeos/ash/services/nearby/public/cpp/fake_tcp_socket_factory.h"
 #include "chromeos/ash/services/nearby/public/cpp/mock_nearby_connections.h"
 #include "chromeos/ash/services/nearby/public/cpp/mock_nearby_sharing_decoder.h"
 #include "chromeos/ash/services/nearby/public/cpp/mock_quick_start_decoder.h"
 #include "chromeos/ash/services/nearby/public/mojom/firewall_hole.mojom.h"
+#include "chromeos/ash/services/nearby/public/mojom/mdns.mojom.h"
 #include "chromeos/ash/services/nearby/public/mojom/nearby_connections.mojom.h"
 #include "chromeos/ash/services/nearby/public/mojom/nearby_decoder.mojom.h"
 #include "chromeos/ash/services/nearby/public/mojom/nearby_presence.mojom.h"
@@ -182,6 +183,12 @@ class NearbyProcessManagerImplTest : public testing::Test {
                   net::IPAddress(192, 168, 86, 75), 44444)),
           tcp_socket_factory_remote.InitWithNewPipeAndPassReceiver());
 
+      // Set up Mdns Manager mojo service.
+      mojo::PendingRemote<sharing::mojom::MdnsManager> mdns_manager_remote;
+      mojo::MakeSelfOwnedReceiver(
+          std::make_unique<ash::nearby::FakeMdnsManager>(),
+          mdns_manager_remote.InitWithNewPipeAndPassReceiver());
+
       // Set up fake WiFiDirect mojo services.
       mojo::PendingRemote<ash::wifi_direct::mojom::WifiDirectManager>
           wifi_direct_manager_remote;
@@ -207,7 +214,8 @@ class NearbyProcessManagerImplTest : public testing::Test {
           sharing::mojom::WifiLanDependencies::New(
               std::move(cros_network_config_remote),
               std::move(firewall_hole_factory_remote),
-              std::move(tcp_socket_factory_remote)),
+              std::move(tcp_socket_factory_remote),
+              std::move(mdns_manager_remote)),
           ::sharing::mojom::WifiDirectDependencies::New(
               std::move(wifi_direct_manager_remote),
               std::move(wifi_direct_firewall_hole_factory_remote)),

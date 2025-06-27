@@ -9,6 +9,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.view.View;
@@ -18,16 +19,21 @@ import android.widget.TextView;
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.SmallTest;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /**
  * Tests for ContextMenu item view, {@link ContextMenuItemViewBinder}, and {@link
@@ -35,9 +41,15 @@ import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.UNIT_TESTS)
-public class ContextMenuItemViewTest extends BlankUiTestActivityTestCase {
+public class ContextMenuItemViewTest {
     private static final String TEXT = "Useful menu item";
     private static final String APP = "Some app";
+
+    @ClassRule
+    public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+
+    private static Activity sActivity;
 
     private View mShareItemView;
     private TextView mText;
@@ -47,20 +59,24 @@ public class ContextMenuItemViewTest extends BlankUiTestActivityTestCase {
 
     private boolean mIsClicked;
 
-    @Override
-    public void setUpTest() throws Exception {
-        super.setUpTest();
+    @BeforeClass
+    public static void setupSuite() {
+        sActivity = sActivityTestRule.launchActivity(null);
+    }
 
-        TestThreadUtils.runOnUiThreadBlocking(
+    @Before
+    public void setUp() throws Exception {
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    getActivity().setContentView(R.layout.context_menu_share_row);
-                    mShareItemView = getActivity().findViewById(android.R.id.content);
+                    sActivity.setContentView(R.layout.context_menu_share_row);
+                    mShareItemView = sActivity.findViewById(android.R.id.content);
                     mText = mShareItemView.findViewById(R.id.menu_row_text);
                     mIcon = mShareItemView.findViewById(R.id.menu_row_share_icon);
                     mModel =
                             new PropertyModel.Builder(
                                             ContextMenuItemWithIconButtonProperties.ALL_KEYS)
                                     .with(ContextMenuItemWithIconButtonProperties.TEXT, "")
+                                    .with(ContextMenuItemWithIconButtonProperties.ENABLED, true)
                                     .with(
                                             ContextMenuItemWithIconButtonProperties.BUTTON_IMAGE,
                                             null)
@@ -81,17 +97,16 @@ public class ContextMenuItemViewTest extends BlankUiTestActivityTestCase {
                 });
     }
 
-    @Override
-    public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
-        super.tearDownTest();
+    @After
+    public void tearDown() throws Exception {
+        ThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
     }
 
     @Test
     @SmallTest
     @UiThreadTest
     public void testText() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mModel.set(ContextMenuItemWithIconButtonProperties.TEXT, TEXT));
         assertThat("Incorrect item text.", mText.getText(), equalTo(TEXT));
     }
@@ -103,7 +118,7 @@ public class ContextMenuItemViewTest extends BlankUiTestActivityTestCase {
         assertThat("Incorrect initial icon visibility.", mIcon.getVisibility(), equalTo(View.GONE));
         final Bitmap bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888);
         final BitmapDrawable drawable = new BitmapDrawable(mIcon.getResources(), bitmap);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(ContextMenuItemWithIconButtonProperties.BUTTON_IMAGE, drawable);
                     mModel.set(ContextMenuItemWithIconButtonProperties.BUTTON_CONTENT_DESC, APP);
@@ -126,7 +141,7 @@ public class ContextMenuItemViewTest extends BlankUiTestActivityTestCase {
         assertFalse(
                 "Icon has onClickListeners when it shouldn't, yet, have.",
                 mIcon.hasOnClickListeners());
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(
                             ContextMenuItemWithIconButtonProperties.BUTTON_CLICK_LISTENER,

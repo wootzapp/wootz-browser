@@ -12,7 +12,6 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/app_menu_button.h"
 #include "chrome/browser/ui/views/frame/browser_caption_button_container_win.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view_win.h"
@@ -34,10 +33,12 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_utils.h"
 
 class BrowserFrameViewWinTest : public InProcessBrowserTest {
@@ -139,6 +140,48 @@ IN_PROC_BROWSER_TEST_F(BrowserFrameViewWinTest,
   EXPECT_TRUE(maximize_button->GetEnabled());
 }
 
+class CaptionButtonContainerTest : public BrowserFrameViewWinTest,
+                                   public ::testing::WithParamInterface<bool> {
+ public:
+  CaptionButtonContainerTest() = default;
+  CaptionButtonContainerTest(const CaptionButtonContainerTest&) = delete;
+  CaptionButtonContainerTest& operator=(const CaptionButtonContainerTest&) =
+      delete;
+  ~CaptionButtonContainerTest() override = default;
+};
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         CaptionButtonContainerTest,
+                         ::testing::Values(false, true));
+
+// Test that the caption button hit tests returns the correct non-client
+// hit test result in LTR/RTL mode.
+IN_PROC_BROWSER_TEST_P(CaptionButtonContainerTest,
+                       VerifyCaptionButtonHitTestResults) {
+  const bool is_rtl = GetParam();
+  base::i18n::SetRTLForTesting(is_rtl);
+
+  auto* frame_view = GetBrowserFrameViewWin();
+  auto* maximize_button = GetMaximizeButton();
+
+  // Hit test maximize button.
+  const gfx::Point maximize_button_center =
+      maximize_button->GetBoundsInScreen().CenterPoint();
+  EXPECT_EQ(frame_view->NonClientHitTest(maximize_button_center), HTMAXBUTTON);
+
+  const int button_width = maximize_button->width();
+
+  EXPECT_EQ(frame_view->NonClientHitTest(
+                gfx::Point(maximize_button_center.x() + button_width,
+                           maximize_button_center.y())),
+            is_rtl ? HTMINBUTTON : HTCLOSE);
+
+  EXPECT_EQ(frame_view->NonClientHitTest(
+                gfx::Point(maximize_button_center.x() - button_width,
+                           maximize_button_center.y())),
+            is_rtl ? HTCLOSE : HTMINBUTTON);
+}
+
 class WebAppBrowserFrameViewWinTest : public InProcessBrowserTest {
  public:
   WebAppBrowserFrameViewWinTest() = default;
@@ -147,20 +190,26 @@ class WebAppBrowserFrameViewWinTest : public InProcessBrowserTest {
       const WebAppBrowserFrameViewWinTest&) = delete;
   ~WebAppBrowserFrameViewWinTest() override = default;
 
-  GURL GetStartURL() { return GURL("https://test.org"); }
+  GURL GetStartURL() {
+    return embedded_test_server()->GetURL("/web_apps/no_manifest.html");
+  }
 
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
-
+    CHECK(embedded_test_server()->Start());
     WebAppToolbarButtonContainer::DisableAnimationForTesting(true);
   }
 
   void InstallAndLaunchWebApp() {
     auto web_app_info =
         web_app::WebAppInstallInfo::CreateWithStartUrlForTesting(GetStartURL());
-    web_app_info->scope = GetStartURL().GetWithoutFilename();
     if (theme_color_) {
       web_app_info->theme_color = *theme_color_;
+    }
+    if (!display_override_.empty()) {
+      web_app_info->user_display_mode =
+          web_app::mojom::UserDisplayMode::kStandalone;
+      web_app_info->display_override = display_override_;
     }
 
     webapps::AppId app_id = web_app::test::InstallWebApp(
@@ -182,6 +231,7 @@ class WebAppBrowserFrameViewWinTest : public InProcessBrowserTest {
   }
 
   std::optional<SkColor> theme_color_ = SK_ColorBLUE;
+  std::vector<blink::mojom::DisplayMode> display_override_ = {};
   raw_ptr<Browser, AcrossTasksDanglingUntriaged> app_browser_ = nullptr;
   raw_ptr<BrowserView, AcrossTasksDanglingUntriaged> browser_view_ = nullptr;
   raw_ptr<BrowserFrameViewWin, AcrossTasksDanglingUntriaged> frame_view_ =
@@ -258,6 +308,36 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinTest, ContainerHeight) {
 
   EXPECT_EQ(web_app_frame_toolbar_->height(),
             frame_view_->caption_button_container_for_testing()->height());
+}
+
+IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinTest, WebAppIconInTitlebar) {
+  InstallAndLaunchWebApp();
+  ASSERT_EQ(true, frame_view_->window_icon_for_testing()->GetVisible());
+}
+
+class TabbedWebAppBrowserFrameViewWinTest
+    : public WebAppBrowserFrameViewWinTest {
+ public:
+  TabbedWebAppBrowserFrameViewWinTest() = default;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_{
+      blink::features::kDesktopPWAsTabStrip};
+};
+
+IN_PROC_BROWSER_TEST_F(TabbedWebAppBrowserFrameViewWinTest,
+                       TabbedWebAppIconInTitlebar) {
+  display_override_ = {blink::mojom::DisplayMode::kTabbed};
+  InstallAndLaunchWebApp();
+
+  ASSERT_FALSE(frame_view_->window_icon_for_testing()->GetVisible());
+}
+
+IN_PROC_BROWSER_TEST_F(TabbedWebAppBrowserFrameViewWinTest,
+                       NonTabbedWebAppIconInTitlebar) {
+  InstallAndLaunchWebApp();
+
+  ASSERT_TRUE(frame_view_->window_icon_for_testing()->GetVisible());
 }
 
 class WebAppBrowserFrameViewWinWindowControlsOverlayTest
@@ -369,6 +449,9 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
 
   // ClientView should be covering the entire screen.
   EXPECT_EQ(frame_view_->GetBoundsForClientView().y(), 0);
+
+  // Exit full screen.
+  frame_view_->frame()->SetFullscreen(false);
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
@@ -395,12 +478,13 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
 
   // Verify tooltip text has been updated.
   EXPECT_EQ(minimize_button->GetTooltipText(),
-            minimize_button->GetAccessibleName());
+            minimize_button->GetViewAccessibility().GetCachedName());
   EXPECT_EQ(maximize_button->GetTooltipText(),
-            maximize_button->GetAccessibleName());
+            maximize_button->GetViewAccessibility().GetCachedName());
   EXPECT_EQ(restore_button->GetTooltipText(),
-            restore_button->GetAccessibleName());
-  EXPECT_EQ(close_button->GetTooltipText(), close_button->GetAccessibleName());
+            restore_button->GetViewAccessibility().GetCachedName());
+  EXPECT_EQ(close_button->GetTooltipText(),
+            close_button->GetViewAccessibility().GetCachedName());
 
   ToggleWindowControlsOverlayEnabledAndWait();
 
@@ -411,8 +495,14 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
   EXPECT_EQ(close_button->GetTooltipText(), u"");
 }
 
+// TODO(crbug.com/361780162): This test has been flaky on Windows ASan testers.
+#if BUILDFLAG(IS_WIN) && defined(ADDRESS_SANITIZER)
+#define MAYBE_CaptionButtonHitTest DISABLED_CaptionButtonHitTest
+#else
+#define MAYBE_CaptionButtonHitTest CaptionButtonHitTest
+#endif
 IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
-                       CaptionButtonHitTest) {
+                       MAYBE_CaptionButtonHitTest) {
   InstallAndLaunchWebAppWithWindowControlsOverlay();
   frame_view_->GetWidget()->LayoutRootViewIfNecessary();
 
@@ -449,43 +539,3 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserFrameViewWinWindowControlsOverlayTest,
   EXPECT_EQ(web_app_frame_toolbar->width(),
             web_app_frame_toolbar->get_right_container_for_testing()->width());
 }
-
-class WebAppBrowserFrameViewWinWebAppIconInTitlebarTest
-    : public WebAppBrowserFrameViewWinTest,
-      public testing::WithParamInterface<bool> {
- public:
-  WebAppBrowserFrameViewWinWebAppIconInTitlebarTest() {
-    if (GetParam()) {
-      feature_list_.InitAndEnableFeature(features::kWebAppIconInTitlebar);
-    } else {
-      feature_list_.InitAndDisableFeature(features::kWebAppIconInTitlebar);
-    }
-  }
-  WebAppBrowserFrameViewWinWebAppIconInTitlebarTest(
-      const WebAppBrowserFrameViewWinWebAppIconInTitlebarTest&) = delete;
-  WebAppBrowserFrameViewWinWebAppIconInTitlebarTest& operator=(
-      const WebAppBrowserFrameViewWinWebAppIconInTitlebarTest&) = delete;
-
-  ~WebAppBrowserFrameViewWinWebAppIconInTitlebarTest() override = default;
-  static std::string DescribeParams(
-      const testing::TestParamInfo<ParamType>& info) {
-    return info.param ? "Enabled" : "Disabled";
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-// Verify that the icon is present if the feature is enabled.
-IN_PROC_BROWSER_TEST_P(WebAppBrowserFrameViewWinWebAppIconInTitlebarTest,
-                       WebAppIconInTitlebar) {
-  InstallAndLaunchWebApp();
-
-  ASSERT_EQ(GetParam(), frame_view_->window_icon_for_testing()->GetVisible());
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    WebAppBrowserFrameViewWinWebAppIconInTitlebarTest,
-    testing::Bool(),
-    WebAppBrowserFrameViewWinWebAppIconInTitlebarTest::DescribeParams);

@@ -32,30 +32,28 @@ FormFieldData CreateFormField(autofill::FormControlType form_control_type,
 TEST(PasswordsManagerUtilTest,
      IsRendererRecognizedCredentialFormWithPasswordField) {
   FormData form;
-  form.fields.push_back(
-      CreateFormField(autofill::FormControlType::kInputPassword,
-                      /*autocomplete_attribute=*/""));
+  form.set_fields({CreateFormField(autofill::FormControlType::kInputPassword,
+                                   /*autocomplete_attribute=*/"")});
   EXPECT_TRUE(IsRendererRecognizedCredentialForm(form));
 }
 
 TEST(PasswordsManagerUtilTest,
      IsRendererRecognizedCredentialFormWithUsernameAutocompleteAttribute) {
   FormData form;
-  form.fields.push_back(CreateFormField(autofill::FormControlType::kInputText,
-                                        /*autocomplete_attribute=*/""));
-  form.fields.push_back(CreateFormField(autofill::FormControlType::kInputText,
-                                        /*autocomplete_attribute=*/"username"));
+  form.set_fields({CreateFormField(autofill::FormControlType::kInputText,
+                                   /*autocomplete_attribute=*/""),
+                   CreateFormField(autofill::FormControlType::kInputText,
+                                   /*autocomplete_attribute=*/"username")});
   EXPECT_TRUE(IsRendererRecognizedCredentialForm(form));
 }
 
 TEST(PasswordsManagerUtilTest,
      IsRendererRecognizedCredentialFormWithFamilyNameAutocompleteAttribute) {
   FormData form;
-  form.fields.push_back(CreateFormField(autofill::FormControlType::kInputText,
-                                        /*autocomplete_attribute=*/""));
-  form.fields.push_back(
-      CreateFormField(autofill::FormControlType::kInputText,
-                      /*autocomplete_attribute=*/"family-name"));
+  form.set_fields({CreateFormField(autofill::FormControlType::kInputText,
+                                   /*autocomplete_attribute=*/""),
+                   CreateFormField(autofill::FormControlType::kInputText,
+                                   /*autocomplete_attribute=*/"family-name")});
   EXPECT_FALSE(IsRendererRecognizedCredentialForm(form));
 }
 
@@ -82,42 +80,53 @@ TEST(PasswordsManagerUtilTest,
 
 // Test that a valid username field is considered as such.
 TEST(PasswordsManagerUtilTest, CanFieldBeConsideredAsSingleUsername_Valid) {
-  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(/*name=*/u"username",
-                                                   /*id=*/u"username1",
-                                                   /*label=*/u"username"));
+  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"username",
+      /*id=*/u"username1",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
 }
 
 // Test that a field with a too short id and name attribute isn't considered as
 // a valid username.
 TEST(PasswordsManagerUtilTest,
      CanFieldBeConsideredAsSingleUsername_IdAndNameTooShort) {
-  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(/*name=*/u"u",
-                                                    /*id=*/u"u",
-                                                    /*label=*/u"username"));
+  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"u",
+      /*id=*/u"u",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
 
   // Verify that the rule only applies if the 2 attributes are too short.
-  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(/*name=*/u"u",
-                                                   /*id=*/u"username1",
-                                                   /*label=*/u"username"));
-  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(/*name=*/u"username",
-                                                   /*id=*/u"u",
-                                                   /*label=*/u"username"));
+  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"u",
+      /*id=*/u"username1",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
+  EXPECT_TRUE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"username",
+      /*id=*/u"u",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
 }
 
 // Test that a field that looks like a search field isn't considered as a valid
 // username.
 TEST(PasswordsManagerUtilTest,
      CanFieldBeConsideredAsSingleUsername_IsSearchField) {
-  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(/*name=*/constants::kSearch,
-                                                    /*id=*/u"username1",
-                                                    /*label=*/u"username"));
-  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(/*name=*/u"username",
-                                                    /*id=*/constants::kSearch,
-                                                    /*label=*/u"username"));
-  EXPECT_FALSE(
-      CanFieldBeConsideredAsSingleUsername(/*name=*/u"username",
-                                           /*id=*/u"username1",
-                                           /*label=*/constants::kSearch));
+  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/constants::kSearch,
+      /*id=*/u"username1",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
+  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"username",
+      /*id=*/constants::kSearch,
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputText));
+  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"username",
+      /*id=*/u"username1",
+      /*label=*/constants::kSearch,
+      autofill::mojom::FormControlType::kInputText));
+  EXPECT_FALSE(CanFieldBeConsideredAsSingleUsername(
+      /*name=*/u"username",
+      /*id=*/u"username1",
+      /*label=*/u"username", autofill::mojom::FormControlType::kInputSearch));
 }
 
 // Tests that a field that looks like an OTP is considered as such.

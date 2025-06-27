@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/auto_reset.h"
 #include "base/clang_profiling_buildflags.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
@@ -19,7 +20,6 @@
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "build/config/compiler/compiler_buildflags.h"
 #include "chrome/browser/about_flags.h"
 #include "chrome/browser/browser_process.h"
@@ -46,25 +46,25 @@
 #include "chrome/browser/win/browser_util.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/first_run/upgrade_util.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/boot_times_recorder.h"
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/boot_times_recorder/boot_times_recorder.h"
 #include "chrome/browser/lifetime/application_lifetime_chromeos.h"
 #include "chrome/browser/lifetime/termination_notification.h"
 #endif
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
-#include "chrome/browser/background/background_mode_manager.h"
+#include "chrome/browser/background/extensions/background_mode_manager.h"
 #endif
 
 #if BUILDFLAG(ENABLE_RLZ)
 #include "components/rlz/rlz_tracker.h"  // nogncheck crbug.com/1125897
 #endif
 
-#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO)
+#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO_PROFILING)
 #include "base/run_loop.h"
 #include "content/public/browser/profiling_utils.h"
 #endif
@@ -83,8 +83,7 @@ int g_shutdown_num_processes_slow;
 const char* ToShutdownTypeString(ShutdownType type) {
   switch (type) {
     case ShutdownType::kNotValid:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case ShutdownType::kWindowClose:
       return "close";
     case ShutdownType::kBrowserExit:
@@ -116,8 +115,9 @@ void RegisterPrefs(PrefRegistrySimple* registry) {
 
 void OnShutdownStarting(ShutdownType type) {
   CheckAccessedOnCorrectThread();
-  if (g_shutdown_type != ShutdownType::kNotValid)
+  if (g_shutdown_type != ShutdownType::kNotValid) {
     return;
+  }
 
   static crash_reporter::CrashKeyString<11> shutdown_type_key("shutdown-type");
   shutdown_type_key.Set(ToShutdownTypeString(type));
@@ -132,13 +132,13 @@ void OnShutdownStarting(ShutdownType type) {
 
   // TODO(crbug.com/40685224): Check if this should also be enabled for
   // coverage builds.
-#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO)
+#if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO_PROFILING)
   // Wait for all the child processes to dump their profiling data without
   // blocking the main thread.
   base::RunLoop nested_run_loop(base::RunLoop::Type::kNestableTasksAllowed);
   content::AskAllChildrenToDumpProfilingData(nested_run_loop.QuitClosure());
   nested_run_loop.Run();
-#endif  // BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX) && BUILDFLAG(CLANG_PGO)
+#endif
 
   // Call FastShutdown on all of the RenderProcessHosts.  This will be
   // a no-op in some cases, so we still need to go through the normal
@@ -150,8 +150,9 @@ void OnShutdownStarting(ShutdownType type) {
              content::RenderProcessHost::AllHostsIterator());
          !i.IsAtEnd(); i.Advance()) {
       ++g_shutdown_num_processes;
-      if (!i.GetCurrentValue()->FastShutdownIfPossible())
+      if (!i.GetCurrentValue()->FastShutdownIfPossible()) {
         ++g_shutdown_num_processes_slow;
+      }
     }
   }
 }
@@ -174,7 +175,7 @@ ShutdownType GetShutdownType() {
 
 #if !BUILDFLAG(IS_ANDROID)
 bool ShutdownPreThreadsStop() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ash::BootTimesRecorder::Get()->AddLogoutTimeMarker("BrowserShutdownStarted",
                                                      false);
 #endif
@@ -193,8 +194,6 @@ bool ShutdownPreThreadsStop() {
   g_browser_process->local_state()->CommitPendingWrite();
 
 #if BUILDFLAG(ENABLE_RLZ)
-  // Cleanup any statics created by RLZ. Must be done before NotificationService
-  // is destroyed.
   rlz::RLZTracker::CleanupRlz();
 #endif
 
@@ -266,8 +265,9 @@ void ShutdownPostThreadsStop(RestartMode restart_mode) {
   // goes away.
   NukeDeletedProfilesFromDisk();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  ash::BootTimesRecorder::Get()->AddLogoutTimeMarker("BrowserDeleted", true);
+#if BUILDFLAG(IS_CHROMEOS)
+  ash::BootTimesRecorder::Get()->AddLogoutTimeMarker("BrowserDeleted",
+                                                     /*send_to_uma=*/false);
 #endif
 
 #if BUILDFLAG(IS_WIN)
@@ -278,7 +278,7 @@ void ShutdownPostThreadsStop(RestartMode restart_mode) {
 #endif
 
   if (restart_mode != RestartMode::kNoRestart) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     NOTIMPLEMENTED();
 #else
     const base::CommandLine& old_cl(*base::CommandLine::ForCurrentProcess());
@@ -290,8 +290,7 @@ void ShutdownPostThreadsStop(RestartMode restart_mode) {
 
     switch (restart_mode) {
       case RestartMode::kNoRestart:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
 
       case RestartMode::kRestartInBackground:
         new_cl.AppendSwitch(switches::kNoStartupWindow);
@@ -305,24 +304,26 @@ void ShutdownPostThreadsStop(RestartMode restart_mode) {
 
       case RestartMode::kRestartThisSession:
         // Copy URLs and other arguments to the new command line.
-        for (const auto& arg : old_cl.GetArgs())
+        for (const auto& arg : old_cl.GetArgs()) {
           new_cl.AppendArgNative(arg);
+        }
         break;
     }
 
     // Append the old switches to the new command line.
-    for (const auto& it : switches)
+    for (const auto& it : switches) {
       new_cl.AppendSwitchNative(it.first, it.second);
+    }
 
     if (restart_mode == RestartMode::kRestartLastSession ||
         restart_mode == RestartMode::kRestartThisSession) {
       new_cl.AppendSwitch(switches::kRestart);
     }
     upgrade_util::RelaunchChromeBrowser(new_cl);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   chrome::StopSession();
 #endif
 }
@@ -332,8 +333,9 @@ void SetTryingToQuit(bool quitting) {
   CheckAccessedOnCorrectThread();
   g_trying_to_quit = quitting;
 
-  if (quitting)
+  if (quitting) {
     return;
+  }
 
   // Reset the restart-related preferences. They get set unconditionally through
   // calls such as chrome::AttemptRestart(), and need to be reset if the restart

@@ -266,7 +266,7 @@ class DeviceCloudPolicyManagerAshTest
     }
     ShutdownManager();
 
-    manager_->OnUserManagerWillBeDestroyed(user_manager_.get());
+    manager_->OnUserManagerWillBeDestroyed();
     user_manager_.reset();
 
     manager_.reset();
@@ -300,6 +300,10 @@ class DeviceCloudPolicyManagerAshTest
     state_keys.push_back("2");
     state_keys.push_back("3");
     session_manager_client_.set_server_backed_state_keys(state_keys);
+  }
+
+  void RemoveStateKeys() {
+    session_manager_client_.set_server_backed_state_keys(/*state_keys=*/{});
   }
 
   void ConnectManager(bool expectExternalDataManagerConnectCall = true) {
@@ -449,6 +453,36 @@ TEST_F(DeviceCloudPolicyManagerAshTest, EnrolledDevice) {
             PolicyBuilder::kFakeServiceAccountIdentity);
 }
 
+TEST_F(DeviceCloudPolicyManagerAshTest, EnrolledDevicePolicyFetchSHA256) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(policy::kPolicyFetchWithSha256);
+  device_policy_->SetSignatureType(em::PolicyFetchRequest::SHA256_RSA);
+  device_policy_->Build();
+  session_manager_client_.set_device_policy(device_policy_->GetBlob());
+  LockDevice();
+  // Normally this happens at signin screen profile creation. But
+  // TestingProfile doesn't do that.
+  device_settings_service_->LoadImmediately();
+  FlushDeviceSettings();
+  EXPECT_EQ(CloudPolicyStore::STATUS_OK, store_->status());
+  EXPECT_TRUE(manager_->IsInitializationComplete(POLICY_DOMAIN_CHROME));
+  VerifyPolicyPopulated();
+
+  // Trigger a policy refresh - this triggers a policy update.
+  DeviceManagementService::JobForTesting policy_job;
+  DeviceManagementService::JobConfiguration::JobType job_type;
+  EXPECT_CALL(job_creation_handler_, OnJobCreation)
+      .WillOnce(DoAll(device_management_service_.CaptureJobType(&job_type),
+                      SaveArg<0>(&policy_job)));
+  AllowUninterestingRemoteCommandFetches();
+  ConnectManager();
+  Mock::VerifyAndClearExpectations(&device_management_service_);
+  ASSERT_TRUE(policy_job.IsActive());
+  ASSERT_EQ(DeviceManagementService::JobConfiguration::TYPE_POLICY_FETCH,
+            job_type);
+  VerifyPolicyPopulated();
+}
+
 TEST_F(DeviceCloudPolicyManagerAshTest, UnmanagedDevice) {
   device_policy_->policy_data().set_state(em::PolicyData::UNMANAGED);
   device_policy_->Build();
@@ -526,10 +560,8 @@ TEST_F(DeviceCloudPolicyManagerAshTest, ConsumerDevice) {
 }
 
 TEST_F(DeviceCloudPolicyManagerAshTest, EnrolledDeviceNoStateKeysGenerated) {
-  base::test::ScopedCommandLine scoped_command_line;
-  scoped_command_line.GetProcessCommandLine()->AppendSwitchASCII(
-      ash::switches::kEnterpriseEnableForcedReEnrollment,
-      AutoEnrollmentTypeChecker::kForcedReEnrollmentAlways);
+  RemoveStateKeys();  // This is the crucial part of this test: no state keys.
+  EXPECT_FALSE(state_keys_broker_.available());
 
   LockDevice();
   device_settings_service_->LoadImmediately();
@@ -538,18 +570,33 @@ TEST_F(DeviceCloudPolicyManagerAshTest, EnrolledDeviceNoStateKeysGenerated) {
   EXPECT_TRUE(manager_->IsInitializationComplete(POLICY_DOMAIN_CHROME));
   VerifyPolicyPopulated();
 
-  EXPECT_CALL(job_creation_handler_, OnJobCreation).Times(0);
   AllowUninterestingRemoteCommandFetches();
 
   EXPECT_FALSE(manager_->GetManagedSessionService());
   EXPECT_FALSE(manager_->GetLoginLogoutReporter());
   EXPECT_FALSE(manager_->GetUserAddedRemovedReporter());
 
+  if (AutoEnrollmentTypeChecker::AreFREStateKeysSupported()) {
+    EXPECT_CALL(job_creation_handler_, OnJobCreation).Times(0);
+  } else {
+    // If state keys aren't supported (as in ChromeOS Flex),
+    // `DeviceCloudPolicyInitializer` will start the connection to DMServer even
+    // when state keys are missing, see
+    // `DeviceCloudPolicyInitializer::TryToStartConnection`.
+    EXPECT_CALL(job_creation_handler_, OnJobCreation)
+        .Times(testing::AtLeast(1));
+  }
+
   InitDeviceCloudPolicyInitializer();
 
   // Status uploader for reporting on enrolled devices is only created on
   // connect call.
-  EXPECT_FALSE(manager_->GetStatusUploader());
+  if (AutoEnrollmentTypeChecker::AreFREStateKeysSupported()) {
+    EXPECT_FALSE(manager_->GetStatusUploader());
+  } else {
+    EXPECT_TRUE(manager_->GetStatusUploader());
+  }
+
   // Managed session service and reporters are created when notified by
   // |DeviceCloudPolicyInitializer| that the policy store is ready.
   EXPECT_TRUE(manager_->GetManagedSessionService());
@@ -566,7 +613,7 @@ class DeviceCloudPolicyManagerAshObserverTest
     : public DeviceCloudPolicyManagerAshTest,
       public DeviceCloudPolicyManagerAsh::Observer {
  protected:
-  DeviceCloudPolicyManagerAshObserverTest() {}
+  DeviceCloudPolicyManagerAshObserverTest() = default;
 
   void SetUp() override {
     DeviceCloudPolicyManagerAshTest::SetUp();
@@ -721,8 +768,6 @@ class DeviceCloudPolicyManagerAshEnrollmentTest
     ASSERT_TRUE(owner_settings_service);
 
     EnrollmentConfig enrollment_config;
-    enrollment_config.auth_mechanism =
-        EnrollmentConfig::AUTH_MECHANISM_ATTESTATION_PREFERRED;
     enrollment_config.mode = with_cert ? EnrollmentConfig::MODE_ATTESTATION
                                        : EnrollmentConfig::MODE_MANUAL;
     DMAuth auth =
@@ -737,8 +782,7 @@ class DeviceCloudPolicyManagerAshEnrollmentTest
         store_, install_attributes_.get(), &state_keys_broker_,
         &mock_attestation_flow_, std::move(client),
         base::SingleThreadTaskRunner::GetCurrentDefault(), enrollment_config,
-        policy::LicenseType::kEnterprise, std::move(auth),
-        install_attributes_->GetDeviceId(),
+        std::move(auth), install_attributes_->GetDeviceId(),
         EnrollmentRequisitionManager::GetDeviceRequisition(),
         EnrollmentRequisitionManager::GetSubOrganization(),
 
@@ -955,15 +999,16 @@ TEST_P(DeviceCloudPolicyManagerAshEnrollmentTest, Success) {
 
 TEST_P(DeviceCloudPolicyManagerAshEnrollmentTest,
        EnabledKioskHeartbeatsViaERP) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(chromeos::features::kKioskHeartbeatsViaERP);
-
   RunTest();
   EXPECT_FALSE(manager_->GetHeartbeatSchedulerForTesting());
 }
 
 TEST_P(DeviceCloudPolicyManagerAshEnrollmentTest,
        DisabledKioskHeartbeatsViaERP) {
+    base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
+      chromeos::features::kKioskHeartbeatsViaERP);
+
   RunTest();
   EXPECT_EQ(manager_->GetHeartbeatSchedulerForTesting()->last_heartbeat(),
             base::Time());

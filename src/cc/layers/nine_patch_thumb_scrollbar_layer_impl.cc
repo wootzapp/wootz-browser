@@ -32,15 +32,13 @@ NinePatchThumbScrollbarLayerImpl::NinePatchThumbScrollbarLayerImpl(
                              id,
                              orientation,
                              is_left_side_vertical_scrollbar,
-                             true),
-      thumb_ui_resource_id_(0),
-      track_ui_resource_id_(0),
-      thumb_thickness_(0),
-      thumb_length_(0),
-      track_start_(0),
-      track_length_(0) {}
+                             true) {}
 
 NinePatchThumbScrollbarLayerImpl::~NinePatchThumbScrollbarLayerImpl() = default;
+
+mojom::LayerType NinePatchThumbScrollbarLayerImpl::GetLayerType() const {
+  return mojom::LayerType::kNinePatchThumbScrollbar;
+}
 
 std::unique_ptr<LayerImpl> NinePatchThumbScrollbarLayerImpl::CreateLayerImpl(
     LayerTreeImpl* tree_impl) const {
@@ -63,7 +61,8 @@ void NinePatchThumbScrollbarLayerImpl::PushPropertiesTo(LayerImpl* layer) {
   scrollbar_layer->SetAperture(aperture_);
 
   scrollbar_layer->set_thumb_ui_resource_id(thumb_ui_resource_id_);
-  scrollbar_layer->set_track_ui_resource_id(track_ui_resource_id_);
+  scrollbar_layer->set_track_and_buttons_ui_resource_id(
+      track_and_buttons_ui_resource_id_);
 }
 
 bool NinePatchThumbScrollbarLayerImpl::WillDraw(
@@ -74,12 +73,13 @@ bool NinePatchThumbScrollbarLayerImpl::WillDraw(
 }
 
 void NinePatchThumbScrollbarLayerImpl::AppendQuads(
+    const AppendQuadsContext& context,
     viz::CompositorRenderPass* render_pass,
     AppendQuadsData* append_quads_data) {
   viz::SharedQuadState* shared_quad_state =
       render_pass->CreateAndAppendSharedQuadState();
   AppendThumbQuads(render_pass, append_quads_data, shared_quad_state);
-  AppendTrackQuads(render_pass, append_quads_data, shared_quad_state);
+  AppendTrackAndButtonsQuads(render_pass, append_quads_data, shared_quad_state);
 }
 
 void NinePatchThumbScrollbarLayerImpl::AppendThumbQuads(
@@ -119,28 +119,26 @@ void NinePatchThumbScrollbarLayerImpl::AppendThumbQuads(
       thumb_quad_rect.width() < border.width())
     return;
 
-  quad_generator_.SetLayout(image_bounds_, thumb_quad_rect.size(), aperture_,
-                            border, layer_occlusion, fill_center,
-                            nearest_neighbor);
-  quad_generator_.CheckGeometryLimitations();
-
-  std::vector<NinePatchGenerator::Patch> patches =
-      quad_generator_.GeneratePatches();
-
-  gfx::Vector2dF offset = thumb_quad_rect.OffsetFromOrigin();
-  for (auto& patch : patches)
-    patch.output_rect += offset;
+  const bool layout_changed = quad_generator_.SetLayout(
+      image_bounds_, thumb_quad_rect.size(), aperture_, border, layer_occlusion,
+      fill_center, nearest_neighbor);
+  if (layout_changed) {
+    quad_generator_.CheckGeometryLimitations();
+    patches_ = quad_generator_.GeneratePatches();
+  }
 
   quad_generator_.AppendQuadsForCc(this, thumb_ui_resource_id_, render_pass,
-                                   shared_quad_state, patches);
+                                   shared_quad_state, patches_,
+                                   thumb_quad_rect.OffsetFromOrigin());
 }
 
-void NinePatchThumbScrollbarLayerImpl::AppendTrackQuads(
+void NinePatchThumbScrollbarLayerImpl::AppendTrackAndButtonsQuads(
     viz::CompositorRenderPass* render_pass,
     AppendQuadsData* append_quads_data,
     viz::SharedQuadState* shared_quad_state) {
   viz::ResourceId track_resource_id =
-      layer_tree_impl()->ResourceIdForUIResource(track_ui_resource_id_);
+      layer_tree_impl()->ResourceIdForUIResource(
+          track_and_buttons_ui_resource_id_);
   if (!track_resource_id)
     return;
 
@@ -156,16 +154,15 @@ void NinePatchThumbScrollbarLayerImpl::AppendTrackQuads(
 
   bool needs_blending = !contents_opaque();
   bool premultipled_alpha = true;
-  bool flipped = false;
   gfx::PointF uv_top_left(0.f, 0.f);
   gfx::PointF uv_bottom_right(1.f, 1.f);
   viz::TextureDrawQuad* quad =
       render_pass->CreateAndAppendDrawQuad<viz::TextureDrawQuad>();
-  quad->SetNew(
-      shared_quad_state, scaled_track_quad_rect, scaled_visible_track_quad_rect,
-      needs_blending, track_resource_id, premultipled_alpha, uv_top_left,
-      uv_bottom_right, SkColors::kTransparent, flipped, nearest_neighbor,
-      /*secure_output_only=*/false, gfx::ProtectedVideoType::kClear);
+  quad->SetNew(shared_quad_state, scaled_track_quad_rect,
+               scaled_visible_track_quad_rect, needs_blending,
+               track_resource_id, premultipled_alpha, uv_top_left,
+               uv_bottom_right, SkColors::kTransparent, nearest_neighbor,
+               /*secure_output_only=*/false, gfx::ProtectedVideoType::kClear);
   ValidateQuadResources(quad);
 }
 
@@ -231,10 +228,6 @@ float NinePatchThumbScrollbarLayerImpl::TrackLength() const {
 
 bool NinePatchThumbScrollbarLayerImpl::IsThumbResizable() const {
   return false;
-}
-
-const char* NinePatchThumbScrollbarLayerImpl::LayerTypeAsString() const {
-  return "cc::NinePatchThumbScrollbarLayerImpl";
 }
 
 }  // namespace cc

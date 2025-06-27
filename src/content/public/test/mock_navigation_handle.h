@@ -17,6 +17,7 @@
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/isolation_info.h"
 #include "net/http/http_connection_info.h"
@@ -62,6 +63,9 @@ class MockNavigationHandle : public NavigationHandle {
     return is_prerendered_page_activation_;
   }
   bool IsInFencedFrameTree() const override { return is_in_fenced_frame_tree_; }
+  bool IsGuestViewMainFrame() const override {
+    return GetNavigatingFrameType() == FrameType::kGuestMainFrame;
+  }
   FrameType GetNavigatingFrameType() const override {
     NOTIMPLEMENTED();
     return FrameType::kPrimaryMainFrame;
@@ -83,9 +87,16 @@ class MockNavigationHandle : public NavigationHandle {
   bool IsInOutermostMainFrame() override {
     return !GetParentFrameOrOuterDocument();
   }
-  MOCK_METHOD0(GetFrameTreeNodeId, int());
+  content::FrameTreeNodeId GetFrameTreeNodeId() override {
+    if (IsInPrimaryMainFrame()) {
+      CHECK(web_contents_);
+      return web_contents_->GetPrimaryMainFrame()->GetFrameTreeNodeId();
+    }
+    CHECK(render_frame_host_);
+    return render_frame_host_->GetFrameTreeNodeId();
+  }
   MOCK_METHOD0(GetPreviousRenderFrameHostId, GlobalRenderFrameHostId());
-  MOCK_METHOD(int, GetExpectedRenderProcessHostId, ());
+  MOCK_METHOD(ChildProcessId, GetExpectedRenderProcessHostId, ());
   bool IsServedFromBackForwardCache() override {
     return is_served_from_bfcache_;
   }
@@ -116,6 +127,7 @@ class MockNavigationHandle : public NavigationHandle {
   }
   const GURL& GetBaseURLForDataURL() override { return base_url_for_data_url_; }
   MOCK_METHOD0(IsPost, bool());
+  MOCK_METHOD0(GetRequestMethod, std::string());
   const blink::mojom::Referrer& GetReferrer() override { return referrer_; }
   void SetReferrer(blink::mojom::ReferrerPtr referrer) override {
     referrer_ = *referrer;
@@ -208,7 +220,7 @@ class MockNavigationHandle : public NavigationHandle {
               (blink::mojom::TransferrableURLLoaderPtr));
   MOCK_METHOD(bool, IsSameProcess, ());
   MOCK_METHOD(NavigationEntry*, GetNavigationEntry, (), (const, override));
-  MOCK_METHOD(int, GetNavigationEntryOffset, ());
+  MOCK_METHOD(int, GetNavigationEntryOffset, (), (const, override));
   MOCK_METHOD(void,
               ForceEnableOriginTrials,
               (const std::vector<std::string>& trials));
@@ -223,10 +235,14 @@ class MockNavigationHandle : public NavigationHandle {
   MOCK_METHOD(bool, IsPdf, ());
   void WriteIntoTrace(perfetto::TracedProto<TraceProto>) const override {}
   MOCK_METHOD(bool, SetNavigationTimeout, (base::TimeDelta));
+  MOCK_METHOD(void, CancelNavigationTimeout, ());
   MOCK_METHOD(PreloadingTriggerType, GetPrerenderTriggerType, ());
   MOCK_METHOD(std::string, GetPrerenderEmbedderHistogramSuffix, ());
   MOCK_METHOD(void, SetAllowCookiesFromBrowser, (bool));
   MOCK_METHOD(void, GetResponseBody, (ResponseBodyCallback));
+  MOCK_METHOD(std::optional<NavigationDiscardReason>,
+              GetNavigationDiscardReason,
+              ());
 
 #if BUILDFLAG(IS_ANDROID)
   MOCK_METHOD(const base::android::JavaRef<jobject>&,

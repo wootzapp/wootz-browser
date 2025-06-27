@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "storage/browser/blob/blob_memory_controller.h"
 
 #include <algorithm>
@@ -30,7 +35,6 @@
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "storage/browser/blob/blob_data_builder.h"
 #include "storage/browser/blob/blob_data_item.h"
 #include "storage/browser/blob/shareable_blob_data_item.h"
@@ -87,7 +91,7 @@ BlobStorageLimits CalculateBlobStorageLimitsImpl(
 
   // Don't do specialty configuration for error size (-1).
   if (memory_size > 0) {
-#if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_ANDROID) && \
+#if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID) && \
     defined(ARCH_CPU_64_BITS)
     constexpr size_t kTwoGigabytes = 2ull * 1024 * 1024 * 1024;
     limits.max_blob_in_memory_space = kTwoGigabytes;
@@ -105,7 +109,7 @@ BlobStorageLimits CalculateBlobStorageLimitsImpl(
 
   // Don't do specialty configuration for error size (-1). Allow no disk.
   if (disk_size >= 0) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     limits.desired_max_disk_space = static_cast<uint64_t>(disk_size / 2ll);
 #elif BUILDFLAG(IS_ANDROID)
     limits.desired_max_disk_space = static_cast<uint64_t>(3ll * disk_size / 50);
@@ -400,8 +404,8 @@ class BlobMemoryController::FileQuotaAllocationTask
 // check when we have a custom file transportation trigger.
 #if DCHECK_IS_ON()
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-    if (LIKELY(
-            !command_line->HasSwitch(kBlobFileTransportByFileTriggerSwitch))) {
+    if (!command_line->HasSwitch(kBlobFileTransportByFileTriggerSwitch))
+        [[likely]] {
       DCHECK_LE(total_size, controller_->GetAvailableFileSpaceForBlobs());
     }
 #endif
@@ -598,9 +602,9 @@ BlobMemoryController::Strategy BlobMemoryController::DetermineStrategy(
     return Strategy::NONE_NEEDED;
   }
 
-  if (UNLIKELY(limits_.override_file_transport_min_size > 0) &&
-      file_paging_enabled_ &&
-      total_transportation_bytes >= limits_.override_file_transport_min_size) {
+  if (limits_.override_file_transport_min_size > 0 && file_paging_enabled_ &&
+      total_transportation_bytes >= limits_.override_file_transport_min_size)
+      [[unlikely]] {
     return Strategy::FILE;
   }
 

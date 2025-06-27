@@ -35,18 +35,25 @@
 #include "components/paint_preview/common/paint_preview_tracker.h"
 #include "skia/ext/platform_canvas.h"
 #include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink.h"
+#include "third_party/blink/renderer/platform/fonts/plain_text_painter.h"
 #include "third_party/blink/renderer/platform/fonts/text_run_paint_info.h"
+#include "third_party/blink/renderer/platform/geometry/contoured_rect.h"
 #include "third_party/blink/renderer/platform/geometry/float_rounded_rect.h"
+#include "third_party/blink/renderer/platform/geometry/path.h"
+#include "third_party/blink/renderer/platform/geometry/path_builder.h"
+#include "third_party/blink/renderer/platform/geometry/skia_geometry_utils.h"
+#include "third_party/blink/renderer/platform/geometry/stroke_data.h"
 #include "third_party/blink/renderer/platform/graphics/dark_mode_settings_builder.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context_state_saver.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_recorder.h"
-#include "third_party/blink/renderer/platform/graphics/path.h"
-#include "third_party/blink/renderer/platform/graphics/stroke_data.h"
+#include "third_party/blink/renderer/platform/graphics/platform_focus_ring.h"
+#include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/blink/renderer/platform/graphics/styled_stroke_data.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
+#include "third_party/blink/renderer/platform/transforms/affine_transform.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/skia/include/core/SkAnnotation.h"
@@ -299,33 +306,6 @@ void GraphicsContext::DrawRecord(PaintRecord record) {
   canvas_->drawPicture(std::move(record));
 }
 
-void GraphicsContext::CompositeRecord(PaintRecord record,
-                                      const gfx::RectF& dest,
-                                      const gfx::RectF& src,
-                                      SkBlendMode op) {
-  if (record.empty()) {
-    return;
-  }
-  DCHECK(canvas_);
-
-  cc::PaintFlags flags;
-  flags.setBlendMode(op);
-
-  SkSamplingOptions sampling(cc::PaintFlags::FilterQualityToSkSamplingOptions(
-      static_cast<cc::PaintFlags::FilterQuality>(ImageInterpolationQuality())));
-  canvas_->save();
-  canvas_->concat(
-      SkM44::RectToRect(gfx::RectFToSkRect(src), gfx::RectFToSkRect(dest)));
-  canvas_->drawImage(
-      PaintImageBuilder::WithDefault()
-          .set_paint_record(std::move(record), gfx::ToRoundedRect(src),
-                            PaintImage::GetNextContentId())
-          .set_id(PaintImage::GetNextId())
-          .TakePaintImage(),
-      0, 0, sampling, &flags);
-  canvas_->restore();
-}
-
 void GraphicsContext::DrawFocusRingPath(const SkPath& path,
                                         const Color& color,
                                         float width,
@@ -553,47 +533,38 @@ void GraphicsContext::DrawText(const Font& font,
   });
 }
 
-template <typename TextPaintInfo>
-void GraphicsContext::DrawEmphasisMarksInternal(
-    const Font& font,
-    const TextPaintInfo& text_info,
-    const AtomicString& mark,
-    const gfx::PointF& point,
-    const AutoDarkMode& auto_dark_mode) {
+void GraphicsContext::DrawEmphasisMarks(const Font& font,
+                                        const TextFragmentPaintInfo& text_info,
+                                        const AtomicString& mark,
+                                        const gfx::PointF& point,
+                                        const AutoDarkMode& auto_dark_mode) {
   DrawTextPasses([&](const cc::PaintFlags& flags) {
     font.DrawEmphasisMarks(canvas_, text_info, mark, point,
                            DarkModeFlags(this, auto_dark_mode, flags));
   });
 }
 
-void GraphicsContext::DrawEmphasisMarks(const Font& font,
-                                        const TextRunPaintInfo& text_info,
-                                        const AtomicString& mark,
-                                        const gfx::PointF& point,
-                                        const AutoDarkMode& auto_dark_mode) {
-  DrawEmphasisMarksInternal(font, text_info, mark, point, auto_dark_mode);
-}
-
-void GraphicsContext::DrawEmphasisMarks(const Font& font,
-                                        const TextFragmentPaintInfo& text_info,
-                                        const AtomicString& mark,
-                                        const gfx::PointF& point,
-                                        const AutoDarkMode& auto_dark_mode) {
-  DrawEmphasisMarksInternal(font, text_info, mark, point, auto_dark_mode);
-}
-
-void GraphicsContext::DrawBidiText(
-    const Font& font,
-    const TextRunPaintInfo& run_info,
-    const gfx::PointF& point,
-    const AutoDarkMode& auto_dark_mode,
-    Font::CustomFontNotReadyAction custom_font_not_ready_action) {
+void GraphicsContext::DrawBidiText(const Font& font,
+                                   const TextRun& run,
+                                   const gfx::PointF& point,
+                                   const AutoDarkMode& auto_dark_mode) {
   DrawTextPasses([&](const cc::PaintFlags& flags) {
-    if (font.DrawBidiText(canvas_, run_info, point,
-                          custom_font_not_ready_action,
-                          DarkModeFlags(this, auto_dark_mode, flags),
-                          printing_ ? Font::DrawType::kGlyphsAndClusters
-                                    : Font::DrawType::kGlyphsOnly)) {
+    if (RuntimeEnabledFeatures::PlainTextPainterEnabled()) {
+      if (PlainTextPainter::Shared().DrawWithBidiReorder(
+              run, 0, run.length(), font, Font::kDoNotPaintIfFontNotReady,
+              *canvas_, point, DarkModeFlags(this, auto_dark_mode, flags),
+              printing_ ? Font::DrawType::kGlyphsAndClusters
+                        : Font::DrawType::kGlyphsOnly)) {
+        paint_controller_.SetTextPainted();
+      }
+      return;
+    }
+    if (font.DeprecatedDrawBidiText(canvas_, TextRunPaintInfo(run), point,
+                                    Font::kDoNotPaintIfFontNotReady,
+                                    DarkModeFlags(this, auto_dark_mode, flags),
+                                    printing_
+                                        ? Font::DrawType::kGlyphsAndClusters
+                                        : Font::DrawType::kGlyphsOnly)) {
       paint_controller_.SetTextPainted();
     }
   });
@@ -702,7 +673,7 @@ cc::PaintFlags::FilterQuality GraphicsContext::ComputeFilterQuality(
   if (printing_) {
     resampling = kInterpolationNone;
   } else if (image.CurrentFrameIsLazyDecoded()) {
-    resampling = kInterpolationDefault;
+    resampling = GetDefaultInterpolationQuality();
   } else {
     resampling = ComputeInterpolationQuality(
         SkScalarToFloat(src.width()), SkScalarToFloat(src.height()),
@@ -826,6 +797,27 @@ void GraphicsContext::FillRect(const gfx::RectF& rect,
   DrawRect(gfx::RectFToSkRect(rect), flags, auto_dark_mode);
 }
 
+void GraphicsContext::FillContouredRect(const ContouredRect& crect,
+                                        const Color& color,
+                                        const AutoDarkMode& auto_dark_mode) {
+  if (crect.HasRoundCurvature()) {
+    FillRoundedRect(crect.AsRoundedRect(), color, auto_dark_mode);
+    return;
+  }
+  const cc::PaintFlags& fill_flags = ImmutableState()->FillFlags();
+  Path path = crect.GetPath();
+  const SkColor4f sk_color = color.toSkColor4f();
+  if (sk_color == fill_flags.getColor4f()) {
+    DrawPath(path.GetSkPath(), fill_flags, auto_dark_mode);
+    return;
+  }
+
+  cc::PaintFlags flags = fill_flags;
+  flags.setColor(sk_color);
+
+  DrawPath(path.GetSkPath(), flags, auto_dark_mode);
+}
+
 void GraphicsContext::FillRoundedRect(const FloatRoundedRect& rrect,
                                       const Color& color,
                                       const AutoDarkMode& auto_dark_mode) {
@@ -925,16 +917,25 @@ void GraphicsContext::FillDRRect(const FloatRoundedRect& outer,
                      DarkModeFlags(this, auto_dark_mode, stroke_flags));
 }
 
-void GraphicsContext::FillRectWithRoundedHole(
+void GraphicsContext::FillRectWithContouredHole(
     const gfx::RectF& rect,
-    const FloatRoundedRect& rounded_hole_rect,
+    const ContouredRect& contoured_hole_rect,
     const Color& color,
     const AutoDarkMode& auto_dark_mode) {
   cc::PaintFlags flags(ImmutableState()->FillFlags());
   flags.setColor(color.toSkColor4f());
-  canvas_->drawDRRect(SkRRect::MakeRect(gfx::RectFToSkRect(rect)),
-                      SkRRect(rounded_hole_rect),
-                      DarkModeFlags(this, auto_dark_mode, flags));
+  const DarkModeFlags dark_mode_flags(this, auto_dark_mode, flags);
+  if (contoured_hole_rect.HasRoundCurvature()) {
+    canvas_->drawDRRect(SkRRect::MakeRect(gfx::RectFToSkRect(rect)),
+                        SkRRect(contoured_hole_rect.AsRoundedRect()),
+                        dark_mode_flags);
+  } else {
+    SkPath path;
+    CHECK(Op(SkPath::Rect(gfx::RectFToSkRect(rect)),
+             contoured_hole_rect.GetPath().GetSkPath(), kDifference_SkPathOp,
+             &path));
+    canvas_->drawPath(path, dark_mode_flags);
+  }
 }
 
 void GraphicsContext::FillEllipse(const gfx::RectF& ellipse,
@@ -971,28 +972,26 @@ void GraphicsContext::StrokeRect(const gfx::RectF& rect,
   }
 }
 
-void GraphicsContext::ClipRoundedRect(const FloatRoundedRect& rrect,
-                                      SkClipOp clip_op,
-                                      AntiAliasingMode should_antialias) {
-  if (!rrect.IsRounded()) {
-    ClipRect(gfx::RectFToSkRect(rrect.Rect()), should_antialias, clip_op);
+void GraphicsContext::ClipContouredRect(const ContouredRect& contoured_rect,
+                                        SkClipOp clip_op,
+                                        AntiAliasingMode should_antialias) {
+  if (!contoured_rect.IsRounded()) {
+    ClipRect(gfx::RectFToSkRect(contoured_rect.Rect()), should_antialias,
+             clip_op);
     return;
   }
 
-  ClipRRect(SkRRect(rrect), should_antialias, clip_op);
+  if (contoured_rect.HasRoundCurvature()) {
+    ClipRRect(SkRRect(contoured_rect.AsRoundedRect()), should_antialias,
+              clip_op);
+    return;
+  }
+
+  ClipPath(contoured_rect.GetPath().GetSkPath(), should_antialias, clip_op);
 }
 
-void GraphicsContext::ClipOut(const Path& path_to_clip) {
-  // Use const_cast and temporarily toggle the inverse fill type instead of
-  // copying the path.
-  SkPath& path = const_cast<SkPath&>(path_to_clip.GetSkPath());
-  path.toggleInverseFillType();
-  ClipPath(path, kAntiAliased);
-  path.toggleInverseFillType();
-}
-
-void GraphicsContext::ClipOutRoundedRect(const FloatRoundedRect& rect) {
-  ClipRoundedRect(rect, SkClipOp::kDifference);
+void GraphicsContext::ClipOutContouredRect(const ContouredRect& rect) {
+  ClipContouredRect(rect, SkClipOp::kDifference);
 }
 
 void GraphicsContext::ClipRect(const SkRect& rect,
@@ -1016,24 +1015,18 @@ void GraphicsContext::ClipRRect(const SkRRect& rect,
   canvas_->clipRRect(rect, op, aa == kAntiAliased);
 }
 
-void GraphicsContext::Rotate(float angle_in_radians) {
-  DCHECK(canvas_);
-  canvas_->rotate(
-      WebCoreFloatToSkScalar(angle_in_radians * (180.0f / 3.14159265f)));
-}
-
 void GraphicsContext::Translate(float x, float y) {
   DCHECK(canvas_);
 
   if (!x && !y)
     return;
 
-  canvas_->translate(WebCoreFloatToSkScalar(x), WebCoreFloatToSkScalar(y));
+  canvas_->translate(ClampNonFiniteToZero(x), ClampNonFiniteToZero(y));
 }
 
 void GraphicsContext::Scale(float x, float y) {
   DCHECK(canvas_);
-  canvas_->scale(WebCoreFloatToSkScalar(x), WebCoreFloatToSkScalar(y));
+  canvas_->scale(ClampNonFiniteToZero(x), ClampNonFiniteToZero(y));
 }
 
 void GraphicsContext::SetURLForRect(const KURL& link,
@@ -1069,7 +1062,7 @@ void GraphicsContext::SetURLDestinationLocation(const String& name,
 }
 
 void GraphicsContext::ConcatCTM(const AffineTransform& affine) {
-  Concat(AffineTransformToSkM44(affine));
+  Concat(affine.ToSkM44());
 }
 
 void GraphicsContext::AdjustLineToPixelBoundaries(gfx::PointF& p1,

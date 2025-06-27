@@ -6,6 +6,7 @@
 #define COMPONENTS_GWP_ASAN_CLIENT_THREAD_LOCAL_RANDOM_BIT_GENERATOR_H_
 
 #include <limits>
+#include <random>
 
 #include "base/compiler_specific.h"
 #include "base/rand_util.h"
@@ -72,7 +73,7 @@ class ThreadLocalRandomBitGenerator
 
   result_type operator()() const {
     result_type x = static_cast<result_type>(TLS::GetState());
-    if (UNLIKELY(!x)) {
+    if (!x) [[unlikely]] {
       std::uniform_int_distribution<result_type> distribution;
       base::NonAllocatingRandomBitGenerator generator;
       x = distribution(generator);

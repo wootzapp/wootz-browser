@@ -6,27 +6,37 @@ package org.chromium.chrome.browser.app.tabmodel;
 
 import android.content.Context;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ApplicationState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.ApplicationStateListener;
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackController;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.lifetime.Destroyable;
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.Supplier;
 import org.chromium.base.task.PostTask;
-import org.chromium.base.task.TaskRunner;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
+import org.chromium.chrome.browser.crypto.CipherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileKeyedMap;
 import org.chromium.chrome.browser.tab.TabArchiveSettings;
 import org.chromium.chrome.browser.tab.TabArchiver;
+import org.chromium.chrome.browser.tab.TabArchiverImpl;
+import org.chromium.chrome.browser.tab.tab_restore.HistoricalTabModelObserver;
+import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.ArchivedTabCreator;
+import org.chromium.chrome.browser.tabmodel.ArchivedTabModelSelectorHolder;
 import org.chromium.chrome.browser.tabmodel.ArchivedTabModelSelectorImpl;
 import org.chromium.chrome.browser.tabmodel.AsyncTabParamsManager;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy;
@@ -34,10 +44,17 @@ import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabmodel.TabModelSelectorBase;
+import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
 import org.chromium.chrome.browser.tabmodel.TabbedModeTabPersistencePolicy;
+import org.chromium.chrome.browser.tabwindow.TabWindowManager;
+import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.ui.base.WindowAndroid;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,18 +65,22 @@ import java.util.concurrent.TimeUnit;
  */
 public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implements Destroyable {
     public static final String ARCHIVED_TAB_SELECTOR_UNIQUE_TAG = "archived";
+    // Time delay on running declutter passes to allow the local sync db and remote sync service to
+    // synchronize, ensuring local {@link SavedTabGroup}s have the most up-to-date information.
+    public static final long LOCAL_SYNC_DB_SYNCHRONIZATION_DELAY = 5000;
 
     /** Observer for the ArchivedTabModelOrchestrator class. */
     public interface Observer {
         /**
          * Called when the archived {@link TabModel} is created.
          *
-         * @param TabModel The {@link TabModel} that was created.
+         * @param archivedTabModel The {@link TabModel} that was created.
          */
         public void onTabModelCreated(TabModel archivedTabModel);
     }
 
     private static ProfileKeyedMap<ArchivedTabModelOrchestrator> sProfileMap;
+    private static ArchivedTabModelOrchestrator sInstanceForTesting;
 
     // TODO(crbug.com/333572160): Rely on PKM destroy infra when it's working.
     @VisibleForTesting
@@ -73,6 +94,36 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
                 }
             };
 
+    private final TabArchiveSettings.Observer mTabArchiveSettingsObserver =
+            new TabArchiveSettings.Observer() {
+                @Override
+                public void onSettingChanged() {
+                    // In the case where CTA was destroyed in the background, skip rescuing
+                    // archived tabs. It will be picked up when CTA is re-created, and the tab
+                    // model orchestrator is re-registered.
+                    if (!mTabArchiveSettings.getArchiveEnabled()
+                            && mActivityTabModelOrchestrators.size() > 0) {
+                        rescueArchivedTabs(mActivityTabModelOrchestrators.get(0));
+                    }
+                }
+            };
+
+    private final TabArchiver.Observer mTabArchiverObserver =
+            new TabArchiver.Observer() {
+                @Override
+                public void onDeclutterPassCompleted() {
+                    saveState();
+                }
+
+                @Override
+                public void onArchivePersistedTabDataCreated() {
+                    if (mTriggerAutodeleteAfterDataCreated) {
+                        mTabArchiver.doAutodeletePass();
+                        mTriggerAutodeleteAfterDataCreated = false;
+                    }
+                }
+            };
+
     private final Profile mProfile;
     // TODO(crbug.com/331689555): Figure out how to do synchronization. Only one instance should
     // really be using this at a time and it makes things like undo messy if it is supported in
@@ -80,8 +131,15 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
     private final TabCreatorManager mArchivedTabCreatorManager;
     private final AsyncTabParamsManager mAsyncTabParamsManager;
     private final ObserverList<Observer> mObservers = new ObserverList<>();
+    private final TabWindowManager mTabWindowManager;
+    private final ObservableSupplierImpl<Integer> mTabCountSupplier =
+            new ObservableSupplierImpl<>();
+    private final Callback<Integer> mTabCountSupplierObserver = mTabCountSupplier::set;
+    // The set of {@link TabModelOrchestrators}  which have registered themselves as active for
+    // declutter.
+    private final List<TabbedModeTabModelOrchestrator> mActivityTabModelOrchestrators =
+            new ArrayList<>();
 
-    private TaskRunner mTaskRunner;
     private WindowAndroid mWindow;
     private TabArchiver mTabArchiver;
     private TabArchiveSettings mTabArchiveSettings;
@@ -90,8 +148,11 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
     private boolean mNativeLibraryReadyCalled;
     private boolean mLoadStateCalled;
     private boolean mRestoreTabsCalled;
-    private boolean mDeclutterInitializationCalled;
     private boolean mRescueTabsCalled;
+    private CallbackController mCallbackController = new CallbackController();
+    private ObservableSupplier<Integer> mUnderlyingTabCountSupplier;
+    private @Nullable HistoricalTabModelObserver mHistoricalTabModelObserver;
+    private boolean mTriggerAutodeleteAfterDataCreated;
 
     /**
      * Returns the ArchivedTabModelOrchestrator that corresponds to the given profile. Must be
@@ -101,6 +162,10 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
      * @return The corresponding {@link ArchivedTabModelOrchestrator}.
      */
     public static ArchivedTabModelOrchestrator getForProfile(Profile profile) {
+        if (sInstanceForTesting != null) {
+            return sInstanceForTesting;
+        }
+
         if (sProfileMap == null) {
             ThreadUtils.assertOnUiThread();
             sProfileMap =
@@ -108,12 +173,9 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
                             ProfileKeyedMap.ProfileSelection.REDIRECTED_TO_ORIGINAL);
             ApplicationStatus.registerApplicationStateListener(sApplicationStateListener);
         }
+
         return sProfileMap.getForProfile(
-                profile,
-                (originalProfile) ->
-                        new ArchivedTabModelOrchestrator(
-                                originalProfile,
-                                PostTask.createTaskRunner(TaskTraits.UI_BEST_EFFORT)));
+                profile, (originalProfile) -> new ArchivedTabModelOrchestrator(originalProfile));
     }
 
     /** Destroys the singleton profile keyed map. */
@@ -129,9 +191,8 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         ApplicationStatus.unregisterApplicationStateListener(sApplicationStateListener);
     }
 
-    private ArchivedTabModelOrchestrator(Profile profile, TaskRunner taskRunner) {
+    private ArchivedTabModelOrchestrator(Profile profile) {
         mProfile = profile;
-        mTaskRunner = taskRunner;
         mArchivedTabCreatorManager =
                 new TabCreatorManager() {
                     @Override
@@ -141,13 +202,56 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
                     }
                 };
         mAsyncTabParamsManager = AsyncTabParamsManagerSingleton.getInstance();
+        mTabWindowManager = TabWindowManagerSingleton.getInstance();
+        // TODO(crbug.com/359875260): This is a temporary solution to get the
+        // ArchivedTabModelSelector from within the tabmodel package.
+        ArchivedTabModelSelectorHolder.setInstanceFn(
+                (profileQuery) -> {
+                    ArchivedTabModelOrchestrator archivedTabModelOrchestrator =
+                            getForProfile(profileQuery);
+                    return archivedTabModelOrchestrator.mTabModelSelector;
+                });
     }
 
     @Override
     public void destroy() {
+        if (mCallbackController != null) {
+            mCallbackController.destroy();
+            mCallbackController = null;
+        }
+
         if (mWindow != null) {
             mWindow.destroy();
             mWindow = null;
+        }
+
+        if (mTabArchiveSettings != null) {
+            mTabArchiveSettings.removeObserver(mTabArchiveSettingsObserver);
+            mTabArchiveSettings.destroy();
+            mTabArchiveSettings = null;
+        }
+
+        if (mTabArchiver != null) {
+            mTabArchiver.removeObserver(mTabArchiverObserver);
+        }
+
+        // Null out TabWindowManager's reference so TabState isn't cleared.
+        if (mTabWindowManager != null) {
+            mTabWindowManager.setArchivedTabModelSelector(null);
+        }
+
+        if (mUnderlyingTabCountSupplier != null) {
+            mUnderlyingTabCountSupplier.removeObserver(mTabCountSupplierObserver);
+        }
+
+        if (mHistoricalTabModelObserver != null) {
+            mHistoricalTabModelObserver.destroy();
+            mHistoricalTabModelObserver = null;
+        }
+
+        if (mTabArchiver != null) {
+            mTabArchiver.destroy();
+            mTabArchiver = null;
         }
 
         super.destroy();
@@ -163,13 +267,56 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         mObservers.removeObserver(observer);
     }
 
+    /**
+     * Registers an orchestrator as active for declutter. Runs a declutter pass, and schedules a
+     * recurring pass for long-running chrome instances (e.g. chrome is open but in the background
+     * for weeks).
+     */
+    public void registerTabModelOrchestrator(TabbedModeTabModelOrchestrator orchestrator) {
+        mActivityTabModelOrchestrators.add(orchestrator);
+        if (ChromeFeatureList.sAndroidTabDeclutter.isEnabled()
+                && mTabArchiveSettings.getArchiveEnabled()) {
+            // To account for the local tab group sync database synchronizing with the sync service
+            // on startup, a delay must be included when initiating a declutter pass that involves
+            // archiving tab groups. Unfortunately, there is no particular synchronization step that
+            // can be waited on, so the indicated delay is the best that can be done.
+            if (ChromeFeatureList.sAndroidTabDeclutterArchiveTabGroups.isEnabled()) {
+                // TODO(crbug.com/410035913): Find a better step to wait on rather than a set delay.
+                PostTask.postDelayedTask(
+                        TaskTraits.UI_DEFAULT,
+                        () -> doDeclutterPassAndScheduleNext(new WeakReference<>(orchestrator)),
+                        LOCAL_SYNC_DB_SYNCHRONIZATION_DELAY);
+            } else {
+                doDeclutterPassAndScheduleNext(new WeakReference<>(orchestrator));
+            }
+        } else {
+            rescueArchivedTabs(orchestrator);
+        }
+    }
+
+    /** Unregisters an orchestrator when it's destroyed. */
+    public void unregisterTabModelOrchestrator(TabbedModeTabModelOrchestrator orchestrator) {
+        mActivityTabModelOrchestrators.remove(orchestrator);
+    }
+
+    /** Returns a supplier for the archive tab count. */
+    public ObservableSupplier<Integer> getTabCountSupplier() {
+        return mTabCountSupplier;
+    }
+
+    public TabModel getTabModel() {
+        // If the tab model selector isn't ready yet, then return a placeholder supplier
+        if (getTabModelSelector() == null) return null;
+        return getTabModelSelector().getModel(/* incognito= */ false);
+    }
+
     /** Returns whether the archived tab model has been initialized. */
     public boolean isTabModelInitialized() {
         return mInitCalled;
     }
 
     /**
-     * Creates and initiailzes the class and fields, this must be called in the UI thread and can be
+     * Creates and initializes the class and fields, this must be called in the UI thread and can be
      * expensive therefore it should be called from DeferredStartupHandler. Although the lifecycle
      * methods inherited from {@link TabModelOrchestrator} are public, they aren't meant to be
      * called directly. - The {@link TabModelSelector} and the {@link TabPersistentStore} are
@@ -180,7 +327,8 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
      * <p>Calling this multiple times (e.g. from separate chrome windows) has no effect and is safe
      * to do.
      */
-    public void maybeCreateAndInitTabModels(TabContentManager tabContentManager) {
+    public void maybeCreateAndInitTabModels(
+            TabContentManager tabContentManager, CipherFactory cipherFactory) {
         if (mInitCalled) return;
         ThreadUtils.assertOnUiThread();
         assert tabContentManager != null;
@@ -188,26 +336,42 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         Context context = ContextUtils.getApplicationContext();
         // TODO(crbug.com/331841977): Investigate removing the WindowAndroid requirement when
         // creating tabs.
-        mWindow = new WindowAndroid(context);
+        mWindow = new WindowAndroid(context, /* trackOcclusion= */ false);
         mArchivedTabCreator = new ArchivedTabCreator(mWindow);
 
         mTabModelSelector =
                 new ArchivedTabModelSelectorImpl(
                         mProfile,
                         mArchivedTabCreatorManager,
-                        new ChromeTabModelFilterFactory(context),
                         () -> NextTabPolicy.LOCATIONAL,
                         mAsyncTabParamsManager);
+        mTabWindowManager.setArchivedTabModelSelector(mTabModelSelector);
 
         mTabPersistencePolicy =
                 new TabbedModeTabPersistencePolicy(
                         TabPersistentStore.getMetadataFileName(ARCHIVED_TAB_SELECTOR_UNIQUE_TAG),
                         /* otherMetadataFileName= */ null,
                         /* mergeTabsOnStartup= */ false,
-                        /* tabMergingEnabled= */ false);
+                        /* tabMergingEnabled= */ false) {
+
+                    @Override
+                    public void notifyStateLoaded(int tabCountAtStartup) {
+                        // Intentional no-op.
+                    }
+                };
         mTabPersistentStore =
                 new TabPersistentStore(
-                        mTabPersistencePolicy, mTabModelSelector, mArchivedTabCreatorManager);
+                        TabPersistentStore.CLIENT_TAG_ARCHIVED,
+                        mTabPersistencePolicy,
+                        mTabModelSelector,
+                        mArchivedTabCreatorManager,
+                        mTabWindowManager,
+                        cipherFactory) {
+                    @Override
+                    protected void recordLegacyTabCountMetrics() {
+                        // Intentional no-op.
+                    }
+                };
 
         wireSelectorAndStore();
         markTabModelsInitialized();
@@ -217,37 +381,119 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         onNativeLibraryReady(tabContentManager);
         loadState(/* ignoreIncognitoFiles= */ true, /* onStandardActiveIndexRead= */ null);
         restoreTabs(/* setActiveTab= */ false);
+
         mInitCalled = true;
 
+        TabModel model = mTabModelSelector.getModel(/* incognito= */ false);
         for (Observer observer : mObservers) {
-            observer.onTabModelCreated(mTabModelSelector.getModel(/* incognito= */ false));
+            observer.onTabModelCreated(model);
         }
+
+        mUnderlyingTabCountSupplier = model.getTabCountSupplier();
+        mTabCountSupplier.set(mUnderlyingTabCountSupplier.get());
+        mUnderlyingTabCountSupplier.addObserver(mTabCountSupplierObserver);
+
+        mHistoricalTabModelObserver =
+                new HistoricalTabModelObserver(
+                        getTabModelSelector()
+                                .getTabGroupModelFilterProvider()
+                                .getTabGroupModelFilter(/* isIncognito= */ false));
     }
 
-    /** Begins the process of decluttering tabs if it hasn't been started already. */
-    public void maybeBeginDeclutter() {
-        if (mDeclutterInitializationCalled) return;
+    private void doDeclutterPassAndScheduleNext(
+            WeakReference<TabbedModeTabModelOrchestrator> orchestratorRef) {
+        // If the orcehstrator has been unregistered since the last scheduled declutter pass, return
+        // immediately.
+        TabbedModeTabModelOrchestrator orchestrator = orchestratorRef.get();
+        if (orchestrator == null || !mActivityTabModelOrchestrators.contains(orchestrator)) {
+            return;
+        }
+        doDeclutterPass(orchestrator);
+        PostTask.postDelayedTask(
+                TaskTraits.UI_DEFAULT,
+                mCallbackController.makeCancelable(
+                        () -> doDeclutterPassAndScheduleNext(orchestratorRef)),
+                TimeUnit.HOURS.toMillis(mTabArchiveSettings.getDeclutterIntervalTimeDeltaHours()));
+    }
 
+    /**
+     * Begins the process of decluttering tabs if it hasn't been started already.
+     *
+     * @param regularSelector The regular {@link TabModelSelecltor} to do a declutter pass for.
+     */
+    public void doDeclutterPass(TabbedModeTabModelOrchestrator orchestrator) {
+        ThreadUtils.assertOnUiThread();
+        TabModelUtils.runOnTabStateInitialized(
+                mCallbackController.makeCancelable(() -> doDeclutterPassImpl(orchestrator)),
+                getTabModelSelector(),
+                orchestrator.getTabModelSelector());
+    }
+
+    private void doDeclutterPassImpl(TabbedModeTabModelOrchestrator orchestrator) {
+        if (!mTabArchiveSettings.getArchiveEnabled()) return;
         assert ChromeFeatureList.sAndroidTabDeclutter.isEnabled();
-        assert mTabArchiver != null;
-        mTabArchiver.initDeclutter();
-        runDeclutterAndScheduleNext();
+        pauseSaveTabList(orchestrator);
 
-        mDeclutterInitializationCalled = true;
+        int archiveTimeHours = mTabArchiveSettings.getArchiveTimeDeltaHours();
+        if (ChromeFeatureList.sAndroidTabDeclutterArchiveAllButActiveTab.isEnabled()) {
+            mTabArchiveSettings.setArchiveTimeDeltaHours(0);
+        }
+
+        mTabArchiver.addObserver(
+                new TabArchiver.Observer() {
+                    @Override
+                    public void onDeclutterPassCompleted() {
+                        if (ChromeFeatureList.sAndroidTabDeclutterArchiveAllButActiveTab
+                                .isEnabled()) {
+                            mTabArchiveSettings.setArchiveTimeDeltaHours(archiveTimeHours);
+                        }
+                        resumeSaveTabList(orchestrator);
+                        mTabArchiver.removeObserver(this);
+                    }
+                });
+
+        mTriggerAutodeleteAfterDataCreated = true;
+        mTabArchiver.doArchivePass(orchestrator.getTabModelSelector());
     }
 
     /**
      * Begins the process of rescuing archived tabs if it hasn't been started already. Rescuing tabs
      * will move them from the archived tab model into the normal tab model of the context this is
      * called from.
+     *
+     * @param orchestrator The orchestrator to save the rescued archived tabs.
      */
-    public void maybeRescueArchivedTabs(TabCreator regularTabCreator) {
+    public void rescueArchivedTabs(TabbedModeTabModelOrchestrator orchestrator) {
+        ThreadUtils.assertOnUiThread();
         if (mRescueTabsCalled) return;
-
-        assert ChromeFeatureList.sAndroidTabDeclutterRescueKillSwitch.isEnabled();
-        mTabArchiver.rescueArchivedTabs(regularTabCreator);
-
         mRescueTabsCalled = true;
+        TabModelUtils.runOnTabStateInitialized(
+                mCallbackController.makeCancelable(() -> rescueArchivedTabsImpl(orchestrator)),
+                getTabModelSelector(),
+                orchestrator.getTabModelSelector());
+    }
+
+    private void rescueArchivedTabsImpl(TabbedModeTabModelOrchestrator orchestrator) {
+        assert ChromeFeatureList.sAndroidTabDeclutterRescueKillSwitch.isEnabled();
+        pauseSaveTabList(orchestrator);
+        mTabArchiver.rescueArchivedTabs(
+                orchestrator
+                        .getTabModelSelector()
+                        .getTabCreatorManager()
+                        .getTabCreator(/* incognito= */ false));
+        resumeSaveTabList(orchestrator);
+    }
+
+    public void initializeHistoricalTabModelObserver(Supplier<TabModel> regularTabModelSupplier) {
+        if (mHistoricalTabModelObserver != null) {
+            mHistoricalTabModelObserver.addSecondaryTabModelSupplier(regularTabModelSupplier);
+        }
+    }
+
+    public void removeHistoricalTabModelObserver(Supplier<TabModel> regularTabModelSupplier) {
+        if (mHistoricalTabModelObserver != null) {
+            mHistoricalTabModelObserver.removeSecondaryTabModelSupplier(regularTabModelSupplier);
+        }
     }
 
     // TabModelOrchestrator lifecycle methods.
@@ -260,14 +506,19 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         super.onNativeLibraryReady(tabContentManager);
 
         mTabArchiveSettings = new TabArchiveSettings(ChromeSharedPreferences.getInstance());
+        mTabArchiveSettings.addObserver(mTabArchiveSettingsObserver);
+        TabGroupSyncService tabGroupSyncService =
+                TabGroupSyncServiceFactory.getForProfile(mProfile);
         mTabArchiver =
-                new TabArchiver(
-                        mTabModelSelector.getModel(false),
+                new TabArchiverImpl(
+                        mTabModelSelector
+                                .getTabGroupModelFilterProvider()
+                                .getTabGroupModelFilter(/* isIncognito= */ false),
                         mArchivedTabCreator,
-                        mAsyncTabParamsManager,
-                        TabWindowManagerSingleton.getInstance(),
                         mTabArchiveSettings,
-                        System::currentTimeMillis);
+                        System::currentTimeMillis,
+                        tabGroupSyncService);
+        mTabArchiver.addObserver(mTabArchiverObserver);
     }
 
     @Override
@@ -298,17 +549,22 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         return mTabArchiveSettings;
     }
 
+    public TabArchiver getTabArchiver() {
+        return mTabArchiver;
+    }
+
     // Private methods
 
-    /**
-     * Schedules a declutter event to happen after a certain interval. See {@link
-     * TabArchiveSettings#getDeclutterIntervalTimeDeltaHours} for details.
-     */
-    private void runDeclutterAndScheduleNext() {
-        mTabArchiver.triggerScheduledDeclutter();
-        mTaskRunner.postDelayedTask(
-                this::runDeclutterAndScheduleNext,
-                TimeUnit.HOURS.toMillis(mTabArchiveSettings.getDeclutterIntervalTimeDeltaHours()));
+    private void pauseSaveTabList(TabbedModeTabModelOrchestrator orchestrator) {
+        // Temporarily disable #saveTabListAsynchronously while running a bulk operation.
+        orchestrator.getTabPersistentStore().pauseSaveTabList();
+        mTabPersistentStore.pauseSaveTabList();
+    }
+
+    private void resumeSaveTabList(TabbedModeTabModelOrchestrator orchestrator) {
+        // Re-enable #saveTabListAsynchronously after running a bulk operation.
+        orchestrator.getTabPersistentStore().resumeSaveTabList();
+        mTabPersistentStore.resumeSaveTabList();
     }
 
     // Testing-specific methods
@@ -318,11 +574,15 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         return mArchivedTabCreatorManager.getTabCreator(false);
     }
 
-    public void resetBeginDeclutterForTesting() {
-        mDeclutterInitializationCalled = false;
+    public void resetRescueArchivedTabsForTesting() {
+        mRescueTabsCalled = false;
     }
 
-    public void setTaskRunnerForTesting(TaskRunner taskRunner) {
-        mTaskRunner = taskRunner;
+    public void setTabModelSelectorForTesting(TabModelSelectorBase tabModelSelector) {
+        mTabModelSelector = tabModelSelector;
+    }
+
+    public static void setInstanceForTesting(ArchivedTabModelOrchestrator instance) {
+        sInstanceForTesting = instance;
     }
 }

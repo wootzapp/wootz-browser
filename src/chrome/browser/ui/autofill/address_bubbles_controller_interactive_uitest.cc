@@ -2,19 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
-
 #include "base/functional/bind.h"
 #include "build/buildflag.h"
-#include "chrome/browser/ui/views/autofill/add_new_address_bubble_view.h"
+#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
 #include "chrome/browser/ui/views/autofill/edit_address_profile_view.h"
 #include "chrome/browser/ui/views/autofill/save_address_profile_view.h"
 #include "chrome/browser/ui/views/autofill/update_address_profile_view.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/views/bubble/bubble_frame_view.h"
@@ -25,8 +25,7 @@ namespace autofill {
 constexpr char kSuppressedScreenshotError[] =
     "Screenshot can only run in pixel_tests on Windows.";
 
-class BaseAddressBubblesControllerTest
-    : public InteractiveBrowserTest {
+class BaseAddressBubblesControllerTest : public InteractiveBrowserTest {
  protected:
   content::WebContents* web_contents() {
     return browser()->tab_strip_model()->GetActiveWebContents();
@@ -62,16 +61,18 @@ class BaseAddressBubblesControllerTest
   // or Cancel the prompt, it is set in the AddressProfileSavePromptCallback
   // passed to the prompt.
   AutofillClient::AddressPromptUserDecision user_decision_;
+  base::test::ScopedFeatureList feature_list_{
+      features::kAutofillSupportLastNamePrefix};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // SaveAddressProfileTest
 
-class SaveAddressProfileTest: public BaseAddressBubblesControllerTest {
+class SaveAddressProfileTest : public BaseAddressBubblesControllerTest {
   void TriggerBubble() override {
     autofill_client()->ConfirmSaveAddressProfile(
         test::GetFullProfile(), nullptr,
-        /*options=*/{},
+        /*is_migration_to_account=*/{},
         base::BindOnce(&SaveAddressProfileTest::OnUserDecision,
                        base::Unretained(this)));
   }
@@ -105,7 +106,7 @@ IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveWithEdit) {
                  /*screenshot_name=*/"edit_popup",
                  /*baseline_cl=*/"4535916"),
       PressButton(views::DialogClientView::kCancelButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
+      WaitForHide(EditAddressProfileView::kTopViewId),
 
       WaitForShow(SaveAddressProfileView::kTopViewId),
       PressButton(views::DialogClientView::kOkButtonElementId),
@@ -122,7 +123,7 @@ IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveInEdit) {
 
       WaitForShow(EditAddressProfileView::kTopViewId),
       PressButton(views::DialogClientView::kOkButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
+      WaitForHide(EditAddressProfileView::kTopViewId),
 
       EnsureClosedWithDecision(
           AutofillClient::AddressPromptUserDecision::kEditAccepted));
@@ -157,12 +158,12 @@ IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, NoCrashesOnTabClose) {
 ///////////////////////////////////////////////////////////////////////////////
 // UpdateAddressProfileTest
 
-class UpdateAddressProfileTest: public BaseAddressBubblesControllerTest {
+class UpdateAddressProfileTest : public BaseAddressBubblesControllerTest {
  protected:
   void TriggerBubble() override {
     autofill_client()->ConfirmSaveAddressProfile(
         test::GetFullProfile(), &original_profile_,
-        /*options=*/{},
+        /*is_migration_to_account=*/{},
         base::BindOnce(&UpdateAddressProfileTest::OnUserDecision,
                        base::Unretained(this)));
   }
@@ -185,7 +186,7 @@ IN_PROC_BROWSER_TEST_F(UpdateAddressProfileTest, UpdateThroughEdit) {
                  /*screenshot_name=*/"edit_popup",
                  /*baseline_cl=*/"4535916"),
       PressButton(views::DialogClientView::kCancelButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
+      WaitForHide(EditAddressProfileView::kTopViewId),
 
       WaitForShow(UpdateAddressProfileView::kTopViewId),
       PressButton(views::DialogClientView::kOkButtonElementId),
@@ -199,10 +200,11 @@ IN_PROC_BROWSER_TEST_F(UpdateAddressProfileTest, UpdateThroughEdit) {
 
 class UpdateAccountAddressProfileTest : public UpdateAddressProfileTest {
   void TriggerBubble() override {
-    original_profile_.set_source_for_testing(AutofillProfile::Source::kAccount);
+    test_api(original_profile_)
+        .set_record_type(AutofillProfile::RecordType::kAccount);
     autofill_client()->ConfirmSaveAddressProfile(
         test::GetFullProfile(), &original_profile_,
-        /*options=*/{},
+        /*is_migration_to_account=*/{},
         base::BindOnce(&UpdateAccountAddressProfileTest::OnUserDecision,
                        base::Unretained(this)));
   }
@@ -223,7 +225,7 @@ IN_PROC_BROWSER_TEST_F(UpdateAccountAddressProfileTest, UpdateThroughEdit) {
                  /*screenshot_name=*/"edit_popup",
                  /*baseline_cl=*/"4535916"),
       PressButton(views::DialogClientView::kCancelButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
+      WaitForHide(EditAddressProfileView::kTopViewId),
 
       WaitForShow(UpdateAddressProfileView::kTopViewId),
       PressButton(views::DialogClientView::kOkButtonElementId),
@@ -235,11 +237,12 @@ IN_PROC_BROWSER_TEST_F(UpdateAccountAddressProfileTest, UpdateThroughEdit) {
 ///////////////////////////////////////////////////////////////////////////////
 // SaveAddressProfileTest
 
-class MigrateToProfileAddressProfileTest: public BaseAddressBubblesControllerTest {
+class MigrateToProfileAddressProfileTest
+    : public BaseAddressBubblesControllerTest {
   void TriggerBubble() override {
     autofill_client()->ConfirmSaveAddressProfile(
         test::GetFullProfile(), nullptr,
-        /*options=*/{.is_migration_to_account = true},
+        /*is_migration_to_account=*/true,
         base::BindOnce(&MigrateToProfileAddressProfileTest::OnUserDecision,
                        base::Unretained(this)));
   }
@@ -265,62 +268,13 @@ IN_PROC_BROWSER_TEST_F(MigrateToProfileAddressProfileTest, SaveWithEdit) {
                  /*screenshot_name=*/"edit_popup",
                  /*baseline_cl=*/"4535916"),
       PressButton(views::DialogClientView::kCancelButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
+      WaitForHide(EditAddressProfileView::kTopViewId),
 
       WaitForShow(SaveAddressProfileView::kTopViewId),
       PressButton(views::DialogClientView::kOkButtonElementId),
       WaitForHide(SaveAddressProfileView::kTopViewId),
       EnsureClosedWithDecision(
           AutofillClient::AddressPromptUserDecision::kAccepted));
-}
-//////////////////////////////////////////////////////////////////////////////
-// AddNewAddressProfileTest
-
-class AddNewAddressProfileTest : public BaseAddressBubblesControllerTest {
-  void TriggerBubble() override {
-    AddressBubblesController::SetUpAndShowAddNewAddressBubble(
-        web_contents(),
-        base::BindOnce(&AddNewAddressProfileTest::OnUserDecision,
-                       base::Unretained(this)));
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(AddNewAddressProfileTest, SaveDecline) {
-  RunTestSequence(ShowInitBubble(),
-                  PressButton(views::DialogClientView::kCancelButtonElementId),
-                  EnsureClosedWithDecision(
-                      AutofillClient::AddressPromptUserDecision::kDeclined));
-}
-
-IN_PROC_BROWSER_TEST_F(AddNewAddressProfileTest, EditorCancel) {
-  RunTestSequence(ShowInitBubble(),
-                  PressButton(views::DialogClientView::kOkButtonElementId),
-                  WaitForShow(EditAddressProfileView::kTopViewId),
-                  PressButton(views::DialogClientView::kCancelButtonElementId),
-                  WaitForHide(EditAddressProfileView::kTopViewId),
-                  FlushEvents(),
-                  WaitForShow(AddNewAddressBubbleView::kTopViewId));
-}
-
-IN_PROC_BROWSER_TEST_F(AddNewAddressProfileTest, AddAddressAccept) {
-  RunTestSequence(
-      ShowInitBubble(),
-      SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
-                              kSuppressedScreenshotError),
-      Screenshot(AddNewAddressBubbleView::kTopViewId,
-                 /*screenshot_name=*/"add_new_address_popup",
-                 /*baseline_cl=*/"5358737"),
-      PressButton(views::DialogClientView::kOkButtonElementId),
-
-      WaitForShow(EditAddressProfileView::kTopViewId),
-      Screenshot(EditAddressProfileView::kTopViewId,
-                 /*screenshot_name=*/"edit_popup",
-                 /*baseline_cl=*/"5358737"),
-      PressButton(views::DialogClientView::kOkButtonElementId),
-      WaitForHide(EditAddressProfileView::kTopViewId), FlushEvents(),
-
-      EnsureClosedWithDecision(
-          AutofillClient::AddressPromptUserDecision::kEditAccepted));
 }
 
 }  // namespace autofill

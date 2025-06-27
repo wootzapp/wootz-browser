@@ -25,6 +25,19 @@ class MockVideoCaptureProvider : public VideoCaptureProvider {
               CreateDeviceLauncher,
               (),
               (override));
+  MOCK_METHOD(void,
+              OpenNativeScreenCapturePicker,
+              (DesktopMediaID::Type type,
+               base::OnceCallback<void(DesktopMediaID::Id)> created_callback,
+               base::OnceCallback<void(webrtc::DesktopCapturer::Source)>
+                   picker_callback,
+               base::OnceCallback<void()> cancel_callback,
+               base::OnceCallback<void()> error_callback),
+              (override));
+  MOCK_METHOD(void,
+              CloseNativeScreenCapturePicker,
+              (DesktopMediaID device_id),
+              (override));
 };
 
 class MockVideoCaptureDeviceLauncher : public VideoCaptureDeviceLauncher {
@@ -42,7 +55,9 @@ class MockVideoCaptureDeviceLauncher : public VideoCaptureDeviceLauncher {
                Callbacks* callbacks,
                base::OnceClosure done_cb,
                mojo::PendingRemote<video_effects::mojom::VideoEffectsProcessor>
-                   video_effects_processor),
+                   video_effects_processor,
+               mojo::PendingRemote<media::mojom::ReadonlyVideoEffectsManager>
+                   readonly_video_effects_manager),
               (override));
 
   MOCK_METHOD(void, AbortLaunch, ());

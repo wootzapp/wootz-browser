@@ -34,6 +34,8 @@ class ShoppingServiceAndroid : public base::SupportsUserData::Data,
   ShoppingServiceAndroid(ShoppingService* service);
   ~ShoppingServiceAndroid() override;
 
+  ShoppingService* GetShoppingService();
+
   void GetProductInfoForUrl(JNIEnv* env,
                             const JavaParamRef<jobject>& obj,
                             const JavaParamRef<jobject>& j_gurl,
@@ -54,6 +56,11 @@ class ShoppingServiceAndroid : public base::SupportsUserData::Data,
                                   const JavaParamRef<jobject>& j_gurl,
                                   const JavaParamRef<jobject>& j_callback);
 
+  void GetDiscountInfoForUrl(JNIEnv* env,
+                             const JavaParamRef<jobject>& obj,
+                             const JavaParamRef<jobject>& j_gurl,
+                             const JavaParamRef<jobject>& j_callback);
+
   void FetchPriceEmailPref(JNIEnv* env, const JavaParamRef<jobject>& obj);
 
   void ScheduleSavedProductUpdate(JNIEnv* env,
@@ -68,6 +75,7 @@ class ShoppingServiceAndroid : public base::SupportsUserData::Data,
                  const JavaParamRef<jstring>& j_seen_offer_id,
                  jlong j_seen_price,
                  const JavaParamRef<jstring>& j_seen_country,
+                 const JavaParamRef<jstring>& j_seen_locale,
                  const JavaParamRef<jobject>& j_callback);
 
   void Unsubscribe(JNIEnv* env,
@@ -101,10 +109,10 @@ class ShoppingServiceAndroid : public base::SupportsUserData::Data,
 
   bool IsMerchantViewerEnabled(JNIEnv* env, const JavaParamRef<jobject>& obj);
 
-  bool IsCommercePriceTrackingEnabled(JNIEnv* env,
-                                      const JavaParamRef<jobject>& obj);
-
   bool IsPriceInsightsEligible(JNIEnv* env, const JavaParamRef<jobject>& obj);
+
+  bool IsDiscountEligibleToShowOnNavigation(JNIEnv* env,
+                                            const JavaParamRef<jobject>& obj);
 
   ScopedJavaGlobalRef<jobject> java_ref() { return java_ref_; }
 
@@ -124,6 +132,11 @@ class ShoppingServiceAndroid : public base::SupportsUserData::Data,
       const ScopedJavaGlobalRef<jobject>& callback,
       const GURL& url,
       const std::optional<PriceInsightsInfo>& info);
+
+  void HandleDiscountInfoCallback(JNIEnv* env,
+                                  const ScopedJavaGlobalRef<jobject>& callback,
+                                  const GURL& url,
+                                  const std::vector<DiscountInfo> info);
 
   void OnSubscribe(const CommerceSubscription& sub, bool succeeded) override;
   void OnUnsubscribe(const CommerceSubscription& sub, bool succeeded) override;

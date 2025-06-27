@@ -5,7 +5,10 @@
 #ifndef IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_SETTINGS_COMMANDS_H_
 #define IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_SETTINGS_COMMANDS_H_
 
+#import <UIKit/UIKit.h>
+
 namespace autofill {
+class AutofillProfile;
 class CreditCard;
 }  // namespace autofill
 enum class DefaultBrowserSettingsPageSource;
@@ -40,22 +43,26 @@ enum class PasswordCheckReferrer;
 // TODO(crbug.com/41352590) : Do not pass baseViewController through dispatcher.
 // Shows the sync encryption passphrase UI, presenting from
 // `baseViewController`.
+// Does nothing if the current scene is blocked.
 - (void)showSyncPassphraseSettingsFromViewController:
     (UIViewController*)baseViewController;
 
-// Shows the list of saved passwords in the settings. `showCancelButton`
-// indicates whether a cancel button should be added as the left navigation item
-// of the saved passwords view.
+// Shows the list of saved passwords in the settings.
 - (void)showSavedPasswordsSettingsFromViewController:
-            (UIViewController*)baseViewController
-                                    showCancelButton:(BOOL)showCancelButton;
+    (UIViewController*)baseViewController;
 
-// Shows the password details page for a credential.
-// `showCancelButton` indicates whether a cancel button should be added as the
-// left navigation item of the password details view.
+// Shows the password details page for a credential. `editMode` indicates
+// whether the details page should be opened in edit mode.
 - (void)showPasswordDetailsForCredential:
             (password_manager::CredentialUIEntry)credential
-                        showCancelButton:(BOOL)showCancelButton;
+                              inEditMode:(BOOL)editMode;
+
+// Shows the address details view. `editMode` indicates whether the details page
+// should be opened in edit mode. `offerMigrateToAccount` indicates whether or
+// not the option to migrate the address to the account should be available.
+- (void)showAddressDetails:(autofill::AutofillProfile)address
+                inEditMode:(BOOL)editMode
+     offerMigrateToAccount:(BOOL)offerMigrateToAccount;
 
 // Shows the list of profiles (addresses) in the settings.
 - (void)showProfileSettingsFromViewController:
@@ -64,8 +71,10 @@ enum class PasswordCheckReferrer;
 // Shows the list of credit cards in the settings.
 - (void)showCreditCardSettings;
 
-// Shows the credit card details view.
-- (void)showCreditCardDetails:(const autofill::CreditCard*)creditCard;
+// Shows the credit card details view. `editMode` indicates whether the details
+// page should be opened in edit mode.
+- (void)showCreditCardDetails:(autofill::CreditCard)creditCard
+                   inEditMode:(BOOL)editMode;
 
 // Shows the settings page informing the user how to set Chrome as the default
 // browser.
@@ -79,15 +88,15 @@ enum class PasswordCheckReferrer;
 - (void)showClearBrowsingDataSettings;
 
 // Shows the Safety Check page and starts the Safety Check for `referrer`.
-// `showHalfSheet` determines whether the Safety Check will be displayed as a
-// half-sheet, or full-page modal.
-- (void)showAndStartSafetyCheckInHalfSheet:(BOOL)showHalfSheet
-                                  referrer:
-                                      (password_manager::PasswordCheckReferrer)
-                                          referrer;
+- (void)showAndStartSafetyCheckForReferrer:
+    (password_manager::PasswordCheckReferrer)referrer;
 
 // Shows the Safe Browsing page.
 - (void)showSafeBrowsingSettings;
+
+// Navigates the user to the Safe Browsing settings menu page when the user
+// clicks the inline promo's primary button.
+- (void)showSafeBrowsingSettingsFromPromoInteraction;
 
 // Shows the Password Manager's search page.
 - (void)showPasswordSearchPage;

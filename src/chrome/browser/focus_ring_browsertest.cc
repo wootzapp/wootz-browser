@@ -5,7 +5,6 @@
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/test/pixel_comparator.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
@@ -16,7 +15,6 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/base/ui_base_switches.h"
 
 // TODO(crbug.com/40625383): Move the baselines to skia gold for easier
@@ -53,14 +51,13 @@ const auto mac_loose_comparator = cc::FuzzyPixelComparator()
 // so having a separate golden file to rebaseline is not good enough. This fuzzy
 // comparator accounts for this and still make sure that the output is sane.
 // TODO(http://crbug.com/1443584): Remove this fuzzy matcher when
-// ChromeRefresh2023 is enabled by default.
-const auto cr23_comparator = cc::FuzzyPixelComparator()
-                                 .DiscardAlpha()
-                                 .SetErrorPixelsPercentageLimit(3.f)
-                                 .SetAvgAbsErrorLimit(20.f)
-                                 .SetAbsErrorLimit(49);
-
-const auto exact_comparator = cc::AlphaDiscardingExactPixelComparator();
+// ChromeRefresh2023 is enabled by default, and replace it with a standard
+// cc::AlphaDiscardingExactPixelComparator.
+const auto fuzzy_comparator = cc::FuzzyPixelComparator()
+                                  .DiscardAlpha()
+                                  .SetErrorPixelsPercentageLimit(3.f)
+                                  .SetAvgAbsErrorLimit(20.f)
+                                  .SetAbsErrorLimit(49);
 
 class FocusRingBrowserTest : public InProcessBrowserTest {
  public:
@@ -95,7 +92,7 @@ class FocusRingBrowserTest : public InProcessBrowserTest {
     platform_suffix = "_win";
 #elif BUILDFLAG(IS_LINUX)
     platform_suffix = "_linux";
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+#elif BUILDFLAG(IS_CHROMEOS)
     platform_suffix = "_chromeos";
 #endif
 
@@ -131,10 +128,7 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Checkbox) {
 #if BUILDFLAG(IS_MAC)
   auto* comparator = &mac_strict_comparator;
 #else
-  const cc::PixelComparator* comparator = &exact_comparator;
-  if (features::IsChromeRefresh2023()) {
-    comparator = &cr23_comparator;
-  }
+  const cc::PixelComparator* comparator = &fuzzy_comparator;
 #endif
   RunTest("focus_ring_browsertest_checkbox",
           "<input type=checkbox autofocus>"
@@ -154,10 +148,7 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Radio) {
 #if BUILDFLAG(IS_MAC)
   auto* comparator = &mac_loose_comparator;
 #else
-  const cc::PixelComparator* comparator = &exact_comparator;
-  if (features::IsChromeRefresh2023()) {
-    comparator = &cr23_comparator;
-  }
+  const cc::PixelComparator* comparator = &fuzzy_comparator;
 #endif
   RunTest("focus_ring_browsertest_radio",
           "<input type=radio autofocus>"
@@ -176,10 +167,7 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Button) {
 #if BUILDFLAG(IS_MAC)
   auto* comparator = &mac_strict_comparator;
 #else
-  const cc::PixelComparator* comparator = &exact_comparator;
-  if (features::IsChromeRefresh2023()) {
-    comparator = &cr23_comparator;
-  }
+  const cc::PixelComparator* comparator = &fuzzy_comparator;
 #endif
   RunTest("focus_ring_browsertest_button",
           "<button autofocus style=\"width:40px;height:20px;\"></button>"
@@ -201,10 +189,7 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Anchor) {
 #if BUILDFLAG(IS_MAC)
   auto* comparator = &mac_strict_comparator;
 #else
-  const cc::PixelComparator* comparator = &exact_comparator;
-  if (features::IsChromeRefresh2023()) {
-    comparator = &cr23_comparator;
-  }
+  const cc::PixelComparator* comparator = &fuzzy_comparator;
 #endif
   RunTest("focus_ring_browsertest_anchor",
           "<div style='text-align: center; width: 80px;'>"
@@ -228,10 +213,7 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_DarkModeButton) {
 #if BUILDFLAG(IS_MAC)
   auto* comparator = &mac_strict_comparator;
 #else
-  const cc::PixelComparator* comparator = &exact_comparator;
-  if (features::IsChromeRefresh2023()) {
-    comparator = &cr23_comparator;
-  }
+  const cc::PixelComparator* comparator = &fuzzy_comparator;
 #endif
   RunTest("focus_ring_browsertest_dark_mode_button",
           "<meta name=\"color-scheme\" content=\"dark\">"

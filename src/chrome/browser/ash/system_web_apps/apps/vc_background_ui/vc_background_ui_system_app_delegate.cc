@@ -13,10 +13,10 @@
 #include "ash/webui/vc_background_ui/url_constants.h"
 #include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_utils.h"
 #include "chrome/browser/ash/system_web_apps/apps/system_web_app_install_utils.h"
-#include "chrome/browser/ash/system_web_apps/types/system_web_app_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "components/manta/features.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-shared.h"
@@ -36,15 +36,15 @@ VcBackgroundUISystemAppDelegate::VcBackgroundUISystemAppDelegate(
 
 std::unique_ptr<web_app::WebAppInstallInfo>
 VcBackgroundUISystemAppDelegate::GetWebAppInfo() const {
-  std::unique_ptr<web_app::WebAppInstallInfo> info =
-      std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(kChromeUIVcBackgroundURL);
+  GURL start_url = GURL(kChromeUIVcBackgroundURL);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
   info->scope = GURL(kChromeUIVcBackgroundURL);
   // TODO(b/311416410) real title and icon.
   info->title = l10n_util::GetStringUTF16(IDS_VC_BACKGROUND_APP_TITLE);
 
   web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
+      info->start_url(),
       {
           {
               .icon_name = "vc_background_ui_app_icon_128.png",
@@ -71,7 +71,7 @@ gfx::Size VcBackgroundUISystemAppDelegate::GetMinimumWindowSize() const {
 }
 
 gfx::Rect VcBackgroundUISystemAppDelegate::GetDefaultBounds(
-    Browser* browser) const {
+    BrowserDelegate*) const {
   gfx::Rect bounds =
       display::Screen::GetScreen()->GetDisplayForNewWindows().work_area();
   bounds.ClampToCenteredSize({826, 608});
@@ -81,7 +81,7 @@ gfx::Rect VcBackgroundUISystemAppDelegate::GetDefaultBounds(
 bool VcBackgroundUISystemAppDelegate::IsAppEnabled() const {
   return ::ash::features::IsVcBackgroundReplaceEnabled() &&
          manta::features::IsMantaServiceEnabled() &&
-         personalization_app::IsEligibleForSeaPen(profile());
+         personalization_app::IsAllowedToInstallSeaPen(profile());
 }
 
 bool VcBackgroundUISystemAppDelegate::ShouldShowInLauncher() const {

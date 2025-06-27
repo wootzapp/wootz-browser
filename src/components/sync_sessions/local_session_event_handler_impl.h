@@ -61,7 +61,8 @@ class LocalSessionEventHandlerImpl : public LocalSessionEventHandler {
   // changes).
   LocalSessionEventHandlerImpl(Delegate* delegate,
                                SyncSessionsClient* sessions_client,
-                               SyncedSessionTracker* session_tracker);
+                               SyncedSessionTracker* session_tracker,
+                               bool is_new_session);
 
   LocalSessionEventHandlerImpl(const LocalSessionEventHandlerImpl&) = delete;
   LocalSessionEventHandlerImpl& operator=(const LocalSessionEventHandlerImpl&) =
@@ -72,6 +73,7 @@ class LocalSessionEventHandlerImpl : public LocalSessionEventHandler {
   // LocalSessionEventHandler implementation.
   void OnSessionRestoreComplete() override;
   void OnLocalTabModified(SyncedTabDelegate* modified_tab) override;
+  void OnLocalTabClosed() override;
 
   // Returns tab specifics from |tab_delegate|. Exposed publicly for testing.
   sync_pb::SessionTab GetTabSpecificsFromDelegateForTest(

@@ -16,7 +16,6 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/webui/feedback/feedback_ui.h"
 #include "chrome/browser/ui/webui/metrics_handler.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -35,6 +34,7 @@
 #include "extensions/common/features/feature.h"
 #include "extensions/common/features/feature_provider.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/webui/webui_util.h"
 
 namespace media_router {
 
@@ -156,37 +156,14 @@ CastFeedbackUI::CastFeedbackUI(content::WebUI* web_ui)
     source->AddString("logData", log_data);
   }
 
-  // Determine the category tag to use for the feedback report.  As the name
-  // suggests, this value is used to categorize feedback reports for easier
-  // analysis and triage.
-  const char* categoryTag = nullptr;
-  switch (chrome::GetChannel()) {
-    case version_info::Channel::CANARY:
-      categoryTag = "canary";
-      break;
-    case version_info::Channel::DEV:
-      categoryTag = "dev";
-      break;
-    case version_info::Channel::BETA:
-      categoryTag = "beta";
-      break;
-    case version_info::Channel::STABLE:
-      categoryTag = "stable";
-      break;
-    case version_info::Channel::UNKNOWN:
-      categoryTag = "unknown";
-      break;
-  }
-  source->AddString("categoryTag", categoryTag);
+  // As the name suggests, this value is used to categorize feedback reports for
+  // easier analysis and triage.
+  source->AddString(
+      "categoryTag",
+      std::string(version_info::GetChannelString(chrome::GetChannel())));
 
-  source->AddBoolean("globalMediaControlsCastStartStop",
-                     GlobalMediaControlsCastStartStopEnabled(profile_));
-
-  webui::SetupWebUIDataSource(
-      source,
-      base::make_span(kMediaRouterFeedbackResources,
-                      kMediaRouterFeedbackResourcesSize),
-      IDR_MEDIA_ROUTER_FEEDBACK_FEEDBACK_HTML);
+  webui::SetupWebUIDataSource(source, kMediaRouterFeedbackResources,
+                              IDR_MEDIA_ROUTER_FEEDBACK_FEEDBACK_HTML);
 
   web_ui->RegisterMessageCallback(
       "close", base::BindRepeating(&CastFeedbackUI::OnCloseMessage,

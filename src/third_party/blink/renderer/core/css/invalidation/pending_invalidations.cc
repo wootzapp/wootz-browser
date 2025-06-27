@@ -11,10 +11,10 @@
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/html/html_slot_element.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
+#include "third_party/blink/renderer/core/inspector/invalidation_set_to_selector_map.h"
 
 namespace blink {
 
@@ -26,10 +26,25 @@ void PendingInvalidations::ScheduleInvalidationSetsForNode(
   bool requires_descendant_invalidation = false;
 
   if (node.GetStyleChangeType() < kSubtreeStyleChange) {
+    // In addition to scheduling invalidation sets, we may immediately call
+    // SetNeedsStyleRecalc(), so make sure we're set up to trace invalidations
+    // if necessary.
+    InvalidationSetToSelectorMap::StartOrStopTrackingIfNeeded(
+        node.GetTreeScope(), node.GetDocument().GetStyleEngine());
+
     for (auto& invalidation_set : invalidation_lists.descendants) {
+      if (invalidation_set->InvalidatesNth()) {
+        PossiblyScheduleNthPseudoInvalidations(node);
+      }
+
       if (invalidation_set->WholeSubtreeInvalid()) {
         auto* shadow_root = DynamicTo<ShadowRoot>(node);
         auto* subtree_root = shadow_root ? &shadow_root->host() : &node;
+        if (subtree_root->IsElementNode()) {
+          TRACE_STYLE_INVALIDATOR_INVALIDATION_SET(
+              To<Element>(*subtree_root), kInvalidationSetInvalidatesSubtree,
+              *invalidation_set);
+        }
         subtree_root->SetNeedsStyleRecalc(
             kSubtreeStyleChange, StyleChangeReasonForTracing::Create(
                                      style_change_reason::kRelatedStyleRule));
@@ -38,13 +53,12 @@ void PendingInvalidations::ScheduleInvalidationSetsForNode(
       }
 
       if (invalidation_set->InvalidatesSelf() && node.IsElementNode()) {
+        TRACE_STYLE_INVALIDATOR_INVALIDATION_SET(
+            To<Element>(node), kInvalidationSetInvalidatesSelf,
+            *invalidation_set);
         node.SetNeedsStyleRecalc(kLocalStyleChange,
                                  StyleChangeReasonForTracing::Create(
                                      style_change_reason::kRelatedStyleRule));
-      }
-
-      if (invalidation_set->InvalidatesNth()) {
-        PossiblyScheduleNthPseudoInvalidations(node);
       }
 
       if (!invalidation_set->IsEmpty()) {
@@ -123,11 +137,27 @@ void PendingInvalidations::ScheduleSiblingInvalidationsAsDescendants(
     subtree_root = &To<ShadowRoot>(scheduling_parent).host();
   }
 
+  // In addition to scheduling invalidation sets, we may immediately call
+  // SetNeedsStyleRecalc(), so make sure we're set up to trace invalidations
+  // if necessary.
+  InvalidationSetToSelectorMap::StartOrStopTrackingIfNeeded(
+      scheduling_parent.GetTreeScope(),
+      scheduling_parent.GetDocument().GetStyleEngine());
+
   for (auto& invalidation_set : invalidation_lists.siblings) {
     DescendantInvalidationSet* descendants =
         To<SiblingInvalidationSet>(*invalidation_set).SiblingDescendants();
-    if (invalidation_set->WholeSubtreeInvalid() ||
-        (descendants && descendants->WholeSubtreeInvalid())) {
+    bool whole_subtree_invalid = false;
+    if (invalidation_set->WholeSubtreeInvalid()) {
+      TRACE_STYLE_INVALIDATOR_INVALIDATION_SET(
+          *subtree_root, kInvalidationSetInvalidatesSubtree, *invalidation_set);
+      whole_subtree_invalid = true;
+    } else if (descendants && descendants->WholeSubtreeInvalid()) {
+      TRACE_STYLE_INVALIDATOR_INVALIDATION_SET(
+          *subtree_root, kInvalidationSetInvalidatesSubtree, *descendants);
+      whole_subtree_invalid = true;
+    }
+    if (whole_subtree_invalid) {
       subtree_root->SetNeedsStyleRecalc(
           kSubtreeStyleChange, StyleChangeReasonForTracing::Create(
                                    style_change_reason::kRelatedStyleRule));

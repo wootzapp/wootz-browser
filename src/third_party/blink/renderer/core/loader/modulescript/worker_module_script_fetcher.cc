@@ -12,6 +12,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_source_location_type.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/origin_trials/origin_trial_context.h"
+#include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/workers/worker_global_scope.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_client_settings_object.h"
@@ -48,7 +49,7 @@ void WorkerModuleScriptFetcher::Fetch(
   expected_module_type_ = expected_module_type;
 
   // Use WorkerMainScriptLoader to load the main script when
-  // dedicated workers (PlzDedicatedWorker) and shared workers.
+  // dedicated workers and shared workers.
   std::unique_ptr<WorkerMainScriptLoadParameters>
       worker_main_script_load_params =
           global_scope_->TakeWorkerMainScriptLoadingParametersForModules();
@@ -56,10 +57,9 @@ void WorkerModuleScriptFetcher::Fetch(
     DCHECK_EQ(level_, ModuleGraphLevel::kTopLevelModuleFetch);
 
     auto identifier = CreateUniqueIdentifier();
-    if (global_scope_->IsServiceWorkerGlobalScope()) {
-      global_scope_->SetMainResoureIdentifier(identifier);
-    }
-
+    global_scope_->SetMainResoureIdentifier(identifier);
+    probe::WillSendWorkerMainRequest(global_scope_.Get(), identifier,
+                                     fetch_params.Url());
     fetch_params.MutableResourceRequest().SetInspectorId(identifier);
     worker_main_script_loader_ = MakeGarbageCollected<WorkerMainScriptLoader>();
     worker_main_script_loader_->Start(
@@ -88,7 +88,8 @@ void WorkerModuleScriptFetcher::Fetch(
   ScriptResource::Fetch(fetch_params, fetch_client_settings_object_fetcher,
                         this, global_scope_->GetIsolate(),
                         ScriptResource::kNoStreaming, kNoCompileHintsProducer,
-                        kNoCompileHintsConsumer);
+                        kNoCompileHintsConsumer,
+                        v8_compile_hints::MagicCommentMode::kNone);
 }
 
 void WorkerModuleScriptFetcher::Trace(Visitor* visitor) const {
@@ -104,24 +105,26 @@ void WorkerModuleScriptFetcher::NotifyFinished(Resource* resource) {
   DCHECK(global_scope_->IsContextThread());
   ClearResource();
 
+  std::optional<ResolvedModuleType> resolved_module_type;
   auto* script_resource = To<ScriptResource>(resource);
   {
     HeapVector<Member<ConsoleMessage>> error_messages;
-    if (!WasModuleLoadSuccessful(script_resource, expected_module_type_,
-                                 &error_messages)) {
+    resolved_module_type = WasModuleLoadSuccessful(
+        script_resource, expected_module_type_, &error_messages);
+    if (!resolved_module_type) {
       client_->NotifyFetchFinishedError(error_messages);
       return;
     }
   }
 
-  NotifyClient(resource->Url(), expected_module_type_,
+  NotifyClient(resource->Url(), resolved_module_type.value(),
                script_resource->SourceText(), resource->GetResponse(),
                script_resource->CacheHandler());
 }
 
 void WorkerModuleScriptFetcher::NotifyClient(
     const KURL& request_url,
-    ModuleType module_type,
+    ResolvedModuleType module_type,
     const ParkableString& source_text,
     const ResourceResponse& response,
     CachedMetadataHandler* cache_handler) {
@@ -209,7 +212,7 @@ void WorkerModuleScriptFetcher::DidReceiveDataWorkerMainScript(
   if (!span.size()) {
     return;
   }
-  source_text_.Append(decoder_->Decode(span.data(), span.size()));
+  source_text_.Append(decoder_->Decode(span));
 }
 
 void WorkerModuleScriptFetcher::OnStartLoadingBodyWorkerMainScript(
@@ -237,8 +240,11 @@ void WorkerModuleScriptFetcher::OnFinishedLoadingWorkerMainScript() {
   const ResourceResponse& response = worker_main_script_loader_->GetResponse();
   if (decoder_)
     source_text_.Append(decoder_->Flush());
+  // Pass the disambiguated `ResolvedModuleType:kJavaScript` to NotifyClient()
+  // because the main script of a worker is always a JavaScript script and
+  // won't go through `WasModuleLoadSuccessful` for the MIME type check.
   NotifyClient(worker_main_script_loader_->GetRequestURL(),
-               ModuleType::kJavaScript,
+               ResolvedModuleType::kJavaScript,
                ParkableString(source_text_.ToString().ReleaseImpl()), response,
                worker_main_script_loader_->CreateCachedMetadataHandler());
 }

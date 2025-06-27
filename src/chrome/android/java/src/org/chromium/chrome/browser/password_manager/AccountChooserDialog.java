@@ -146,7 +146,7 @@ public class AccountChooserDialog
 
                 Credential credential = getItem(position);
 
-                ImageView avatarView = (ImageView) convertView.findViewById(R.id.profile_image);
+                ImageView avatarView = convertView.findViewById(R.id.profile_image);
                 Drawable avatar = credential.getAvatar();
                 if (avatar == null) {
                     avatar =
@@ -155,9 +155,8 @@ public class AccountChooserDialog
                 }
                 avatarView.setImageDrawable(avatar);
 
-                TextView mainNameView = (TextView) convertView.findViewById(R.id.main_name);
-                TextView secondaryNameView =
-                        (TextView) convertView.findViewById(R.id.secondary_name);
+                TextView mainNameView = convertView.findViewById(R.id.main_name);
+                TextView secondaryNameView = convertView.findViewById(R.id.secondary_name);
                 if (credential.getFederation().isEmpty()) {
                     // Not federated credentials case
                     if (credential.getDisplayName().isEmpty()) {
@@ -174,8 +173,7 @@ public class AccountChooserDialog
                     secondaryNameView.setVisibility(View.VISIBLE);
                 }
 
-                ImageButton pslInfoButton =
-                        (ImageButton) convertView.findViewById(R.id.psl_info_btn);
+                ImageButton pslInfoButton = convertView.findViewById(R.id.psl_info_btn);
                 final String originUrl = credential.getOriginUrl();
 
                 if (!originUrl.isEmpty()) {
@@ -200,9 +198,9 @@ public class AccountChooserDialog
     private void show() {
         View titleView =
                 LayoutInflater.from(mContext).inflate(R.layout.account_chooser_dialog_title, null);
-        TextView origin = (TextView) titleView.findViewById(R.id.origin);
+        TextView origin = titleView.findViewById(R.id.origin);
         origin.setText(mOrigin);
-        TextView titleMessageText = (TextView) titleView.findViewById(R.id.title);
+        TextView titleMessageText = titleView.findViewById(R.id.title);
         if (mTitleLinkStart != 0 && mTitleLinkEnd != 0) {
             SpannableString spanableTitle = new SpannableString(mTitle);
             spanableTitle.setSpan(
@@ -256,8 +254,6 @@ public class AccountChooserDialog
 
         TextView text = (TextView) inflater.inflate(layoutId, null);
         text.setText(message);
-        text.announceForAccessibility(message);
-
         // The tooltip should be shown above and to the left (right for RTL) of the info button.
         // In order to do so the tooltip's location on the screen is determined. This location is
         // specified with regard to the top left corner and ignores RTL layouts. For this reason the
@@ -321,7 +317,7 @@ public class AccountChooserDialog
             // Profile image is in the visible range.
             View credentialView = view.getChildAt(index - view.getFirstVisiblePosition());
             if (credentialView == null) return;
-            ImageView avatarView = (ImageView) credentialView.findViewById(R.id.profile_image);
+            ImageView avatarView = credentialView.findViewById(R.id.profile_image);
             avatarView.setImageDrawable(avatar);
         }
     }

@@ -5,19 +5,19 @@
 #include "chrome/browser/performance_manager/public/user_tuning/performance_detection_manager.h"
 
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "base/check_op.h"
-#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
-#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/task/bind_post_task.h"
+#include "base/time/time.h"
 #include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
 #include "chrome/browser/performance_manager/user_tuning/cpu_health_tracker.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom-shared.h"
+#include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "components/performance_manager/public/performance_manager.h"
@@ -64,32 +64,93 @@ void PerformanceDetectionManager::RemoveActionableTabsObserver(
   }
 }
 
-void PerformanceDetectionManager::DiscardTabs(
-    std::vector<resource_attribution::PageContext> tabs,
-    base::OnceCallback<void(bool)> post_discard_cb) {
-  PerformanceManager::CallOnGraph(
-      FROM_HERE,
-      base::BindOnce(
-          [](std::vector<resource_attribution::PageContext> tabs,
-             base::OnceCallback<void(bool)> post_discard_cb, Graph* graph) {
-            std::vector<const PageNode*> eligible_nodes;
-            for (resource_attribution::PageContext context : tabs) {
-              const PageNode* page_node = context.GetPageNode();
-              if (page_node) {
-                eligible_nodes.emplace_back(page_node);
-              }
-            }
-            policies::PageDiscardingHelper* const helper =
-                policies::PageDiscardingHelper::GetFromGraph(graph);
-            helper->ImmediatelyDiscardMultiplePages(
-                eligible_nodes, ::mojom::LifecycleUnitDiscardReason::SUGGESTED,
-                std::move(post_discard_cb));
-          },
-          std::move(tabs),
-          post_discard_cb.is_null()
-              ? base::DoNothing()
-              : base::BindPostTask(content::GetUIThreadTaskRunner({}),
-                                   std::move(post_discard_cb))));
+bool PerformanceDetectionManager::DiscardTabs(
+    std::vector<resource_attribution::PageContext> tabs) {
+  Graph* graph = PerformanceManager::GetGraph();
+
+  std::vector<const PageNode*> eligible_nodes;
+  std::vector<resource_attribution::PageContext> eligible_page_contexts;
+  for (resource_attribution::PageContext context : tabs) {
+    const PageNode* page_node = context.GetPageNode();
+    if (page_node) {
+      eligible_nodes.emplace_back(page_node);
+      eligible_page_contexts.emplace_back(context);
+    }
+  }
+
+  performance_manager::user_tuning::CpuHealthTracker* const health_tracker =
+      performance_manager::user_tuning::CpuHealthTracker::GetFromGraph(graph);
+
+  RecordCpuUsageBeforeDiscard(
+      health_tracker->GetTotalCpuPercentUsage(eligible_page_contexts));
+  health_level_before_discard_ = health_tracker->GetCurrentHealthLevel();
+
+  policies::PageDiscardingHelper* const helper =
+      policies::PageDiscardingHelper::GetFromGraph(graph);
+  CHECK(helper);
+  std::optional<base::TimeTicks> first_discarded_at =
+      helper->ImmediatelyDiscardMultiplePages(
+          eligible_nodes, ::mojom::LifecycleUnitDiscardReason::SUGGESTED);
+
+  OnDiscardComplete();
+  return first_discarded_at.has_value();
+}
+
+void PerformanceDetectionManager::ForceTabCpuDataRefresh() {
+  Graph* graph = PerformanceManager::GetGraph();
+  CpuHealthTracker* const health_tracker =
+      CpuHealthTracker::GetFromGraph(graph);
+  health_tracker->QueryAndProcessTabActionability(std::nullopt);
+}
+
+void PerformanceDetectionManager::OnDiscardComplete() {
+  // base::Unretained(this) is safe here because the timers are owned by the
+  // PerformanceDetectionManager so the callback will not be invoked after this
+  // is destroyed.
+  // If a timer is still running and another discard occurs, we will restart the
+  // timer instead to record the health status after the most recent discard.
+  // This may cause different counts for the one, two, and four minute timers.
+  discard_timer_.Start(
+      FROM_HERE, base::Minutes(1),
+      base::BindRepeating(&PerformanceDetectionManager::RecordCpuHealthStatus,
+                          base::Unretained(this), base::Minutes(1)));
+}
+
+void PerformanceDetectionManager::RecordCpuHealthStatus(
+    base::TimeDelta time_after_discard) {
+  if (time_after_discard == base::Minutes(1)) {
+    // Start the timer for another minute to record health status 2 minutes
+    // after discard
+    discard_timer_.Start(
+        FROM_HERE, base::Minutes(1),
+        base::BindRepeating(&PerformanceDetectionManager::RecordCpuHealthStatus,
+                            base::Unretained(this), base::Minutes(2)));
+  } else if (time_after_discard == base::Minutes(2)) {
+    // Start the timer for another 2 minutes to record health status 4 minutes
+    // after discard
+    discard_timer_.Start(
+        FROM_HERE, base::Minutes(2),
+        base::BindRepeating(&PerformanceDetectionManager::RecordCpuHealthStatus,
+                            base::Unretained(this), base::Minutes(4)));
+  }
+
+  Graph* const graph = PerformanceManager::GetGraph();
+  CpuHealthTracker* const health_tracker =
+      performance_manager::user_tuning::CpuHealthTracker::GetFromGraph(graph);
+  PerformanceDetectionManager::HealthLevel current_health_level =
+      health_tracker->GetCurrentHealthLevel();
+
+  CHECK(health_level_before_discard_.has_value());
+  RecordCpuHealthStatusChange(time_after_discard,
+                              health_level_before_discard_.value(),
+                              current_health_level);
+  RecordCpuHealthStatusAfterDiscard(time_after_discard, current_health_level);
+}
+
+void PerformanceDetectionManager::NotifyActionableTabObserversForTesting(
+    ResourceType resource_type,
+    const ActionableTabsResult& tabs) {
+  NotifyActionableTabObservers(resource_type, tabs);
 }
 
 // static
@@ -112,8 +173,7 @@ PerformanceDetectionManager::PerformanceDetectionManager() {
   CHECK(!g_performance_detection_manager);
   g_performance_detection_manager = this;
 
-  const std::vector<ResourceType> resource_types =
-      base::ToVector(ResourceTypeSet::All());
+  const auto resource_types = ResourceTypeSet::All();
   current_health_status_ = base::MakeFlatMap<ResourceType, HealthLevel>(
       resource_types, {}, [](ResourceType type) {
         return std::make_pair(type, HealthLevel::kHealthy);
@@ -136,21 +196,12 @@ PerformanceDetectionManager::PerformanceDetectionManager() {
               &PerformanceDetectionManager::NotifyActionableTabObservers,
               weak_ptr_factory_.GetWeakPtr()));
 
-  performance_manager::PerformanceManager::CallOnGraph(
-      FROM_HERE,
-      base::BindOnce(
-          [](CpuHealthTracker::StatusChangeCallback on_status_change,
-             CpuHealthTracker::ActionableTabResultCallback
-                 on_actionable_list_change,
-             Graph* graph) {
-            std::unique_ptr<CpuHealthTracker> cpu_health_tracker =
-                std::make_unique<CpuHealthTracker>(
-                    std::move(on_status_change),
-                    std::move(on_actionable_list_change));
+  Graph* graph = PerformanceManager::GetGraph();
 
-            graph->PassToGraph(std::move(cpu_health_tracker));
-          },
-          std::move(on_status_change), std::move(on_actionable_list_change)));
+  std::unique_ptr<CpuHealthTracker> cpu_health_tracker =
+      std::make_unique<CpuHealthTracker>(std::move(on_status_change),
+                                         std::move(on_actionable_list_change));
+  graph->PassToGraph(std::move(cpu_health_tracker));
 }
 
 void PerformanceDetectionManager::NotifyStatusObservers(
@@ -174,7 +225,13 @@ void PerformanceDetectionManager::NotifyActionableTabObservers(
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   auto& actionable_tabs = actionable_tabs_[resource_type];
-  CHECK(actionable_tabs != tabs);
+
+  // It is possible for the same actionable tabs to be surfaced again while in
+  // demo mode.
+  if (!base::FeatureList::IsEnabled(
+          features::kPerformanceInterventionDemoMode)) {
+    CHECK(actionable_tabs != tabs);
+  }
   actionable_tabs = tabs;
   for (auto& obs : actionable_tab_observers_[resource_type]) {
     obs.OnActionableTabListChanged(resource_type,

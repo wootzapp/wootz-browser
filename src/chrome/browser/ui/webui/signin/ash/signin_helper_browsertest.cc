@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/functional/callback_forward.h"
 #include "chrome/browser/ui/webui/signin/ash/signin_helper.h"
 
 #include "ash/constants/ash_features.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
@@ -27,13 +27,13 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/ash/components/account_manager/account_manager_factory.h"
-#include "chromeos/ash/components/standalone_browser/feature_refs.h"
 #include "components/account_manager_core/account.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/account_manager_core/chromeos/account_manager_mojo_service.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
@@ -45,14 +45,14 @@ class SigninHelperTest;
 
 namespace {
 
-const char kFakePrimaryGaiaId[] = "primary_account_gaia";
+const GaiaId::Literal kFakePrimaryGaiaId("primary_account_gaia");
 const char kFakePrimaryEmail[] = "primary@example.com";
-const char kFakeGaiaId[] = "fake_gaia_id";
+const GaiaId::Literal kFakeGaiaId("fake_gaia_id");
 const char kFakeEmail[] = "fake_email@gmail.com";
 const char kFakeAuthCode[] = "fake_auth_code";
 const char kFakeDeviceId[] = "fake_device_id";
 const char kFakeRefreshToken[] = "fake_refresh_token";
-const char kFakeEnterpriseGaiaId[] = "fake_enterprise_gaia_id";
+const GaiaId::Literal kFakeEnterpriseGaiaId("fake_enterprise_gaia_id");
 const char kFakeEnterpriseEmail[] = "fake_enterprise@example.com";
 const char kFakeEnterpriseDomain[] = "example.com";
 
@@ -60,6 +60,11 @@ const char kSecureConnectApiGetSecondaryGoogleAccountUsageURL[] =
     "https://secureconnect-pa.clients6.google.com/"
     "v1:getManagedAccountsSigninRestriction?policy_name="
     "SecondaryGoogleAccountUsage";
+
+const char kSecureConnectApiGetSecondaryAccountAllowedInArcPolicyURL[] =
+    "https://secureconnect-pa.clients6.google.com/"
+    "v1:getManagedAccountsSigninRestriction?policy_name="
+    "SecondaryAccountAllowedInArcPolicy";
 
 // Fake responses for the URL requests that are part of the sign-in flow.
 const char kOnClientOAuthSuccessBody[] =
@@ -79,7 +84,7 @@ constexpr char kSecondaryGoogleAccountUsageLatencyHistogramName[] =
     "Enterprise.SecondaryGoogleAccountUsage.PolicyFetch.ResponseLatency";
 
 void NotReached() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 class TestSigninHelper : public SigninHelper {
@@ -93,7 +98,7 @@ class TestSigninHelper : public SigninHelper {
           void(const std::string&, const std::string&)>& show_signin_error,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       std::unique_ptr<ArcHelper> arc_helper,
-      const std::string& gaia_id,
+      const GaiaId& gaia_id,
       const std::string& email,
       const std::string& auth_code,
       const std::string& signin_scoped_device_id)
@@ -141,8 +146,8 @@ class SigninHelperTest : public InProcessBrowserTest,
     account_manager_->AddObserver(this);
 
     // Setup the main account:
-    account_manager::AccountKey kPrimaryAccountKey{
-        kFakePrimaryGaiaId, account_manager::AccountType::kGaia};
+    account_manager::AccountKey kPrimaryAccountKey =
+        account_manager::AccountKey::FromGaiaId(kFakePrimaryGaiaId);
     account_manager()->UpsertAccount(kPrimaryAccountKey, kFakePrimaryEmail,
                                      "access_token");
     base::RunLoop().RunUntilIdle();
@@ -158,25 +163,31 @@ class SigninHelperTest : public InProcessBrowserTest,
 
   void CreateSigninHelper(const base::RepeatingClosure& exit_closure,
                           const base::RepeatingClosure& close_dialog_closure) {
+    std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
+        std::make_unique<SigninHelper::ArcHelper>(
+            /*is_available_in_arc=*/false, /*is_account_addition=*/false,
+            /*account_apps_availability=*/nullptr);
     new TestSigninHelper(exit_closure, account_manager(),
                          account_manager_mojo_service(), close_dialog_closure,
                          /*show_signin_error=*/base::DoNothing(),
-                         shared_url_loader_factory(),
-                         /*arc_helper=*/nullptr, kFakeGaiaId, kFakeEmail,
-                         kFakeAuthCode, kFakeDeviceId);
+                         shared_url_loader_factory(), std::move(arc_helper),
+                         kFakeGaiaId, kFakeEmail, kFakeAuthCode, kFakeDeviceId);
   }
 
   void CreateSigninHelperWithSiginErrorClosure(
       const base::RepeatingClosure& exit_closure,
       const base::RepeatingClosure& show_signin_error) {
+    std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
+        std::make_unique<SigninHelper::ArcHelper>(
+            /*is_available_in_arc=*/false, /*is_account_addition=*/false,
+            /*account_apps_availability=*/nullptr);
     new TestSigninHelper(
         exit_closure, account_manager(), account_manager_mojo_service(),
         /*close_dialog_closure=*/base::DoNothing(),
         base::IgnoreArgs<const std::string&, const std::string&>(
             show_signin_error),
-        shared_url_loader_factory(),
-        /*arc_helper=*/nullptr, kFakeGaiaId, kFakeEmail, kFakeAuthCode,
-        kFakeDeviceId);
+        shared_url_loader_factory(), std::move(arc_helper), kFakeGaiaId,
+        kFakeEmail, kFakeAuthCode, kFakeDeviceId);
   }
 
   GaiaAuthConsumer::ClientOAuthResult GetFakeOAuthResult() {
@@ -221,6 +232,17 @@ class SigninHelperTest : public InProcessBrowserTest,
       const std::string& policy_value) {
     loader_factory().AddResponse(
         kSecureConnectApiGetSecondaryGoogleAccountUsageURL,
+        /*content=*/
+        base::StringPrintf(
+            kSecureConnectApiGetSecondaryGoogleAccountUsageURLBody,
+            policy_value.c_str()),
+        net::HTTP_OK);
+  }
+
+  void AddResponseGetSecondaryAccountAllowedInArcPolicy(
+      const std::string& policy_value) {
+    loader_factory().AddResponse(
+        kSecureConnectApiGetSecondaryAccountAllowedInArcPolicyURL,
         /*content=*/
         base::StringPrintf(
             kSecureConnectApiGetSecondaryGoogleAccountUsageURLBody,
@@ -305,237 +327,34 @@ IN_PROC_BROWSER_TEST_F(SigninHelperTest,
   EXPECT_EQ(account.value().raw_email, kFakeEmail);
 }
 
-class SigninHelperTestWithArcAccountRestrictions
-    : public SigninHelperTest,
-      public ::ash::AccountAppsAvailability::Observer {
- public:
-  SigninHelperTestWithArcAccountRestrictions() {
-    feature_list_.InitWithFeatures(ash::standalone_browser::GetFeatureRefs(),
-                                   {});
-  }
-
-  ~SigninHelperTestWithArcAccountRestrictions() override = default;
-
-  void SetUpOnMainThread() override {
-    if (browser() == nullptr) {
-      // Create a new Ash browser window so test code using browser() can work
-      // even when Lacros is the only browser.
-      // TODO(crbug.com/40270051): Remove uses of browser() from such tests.
-      chrome::NewEmptyWindow(ProfileManager::GetActiveUserProfile());
-      SelectFirstBrowser();
-    }
-
-    SigninHelperTest::SetUpOnMainThread();
-    account_apps_availability_ =
-        ash::AccountAppsAvailabilityFactory::GetForProfile(
-            browser()->profile());
-    // In-session account addition happens when `AccountAppsAvailability` is
-    // already initialized.
-    EXPECT_TRUE(account_apps_availability()->IsInitialized());
-    account_apps_availability()->AddObserver(this);
-  }
-
-  void TearDownOnMainThread() override {
-    account_apps_availability()->RemoveObserver(this);
-    on_account_available_in_arc_call_count_ = 0;
-    on_account_unavailable_in_arc_call_count_ = 0;
-    on_account_available_in_arc_account_ = std::nullopt;
-    on_account_unavailable_in_arc_account_ = std::nullopt;
-    SigninHelperTest::TearDownOnMainThread();
-  }
-
-  void CreateSigninHelper(std::unique_ptr<SigninHelper::ArcHelper> arc_helper,
-                          const base::RepeatingClosure& exit_closure,
-                          const base::RepeatingClosure& close_dialog_closure) {
-    new TestSigninHelper(exit_closure, account_manager(),
-                         account_manager_mojo_service(), close_dialog_closure,
-                         /*show_signin_error=*/base::DoNothing(),
-                         shared_url_loader_factory(), std::move(arc_helper),
-                         kFakeGaiaId, kFakeEmail, kFakeAuthCode, kFakeDeviceId);
-  }
-
-  bool IsAccountAvailableInArc(account_manager::Account account) {
-    base::test::TestFuture<const base::flat_set<account_manager::Account>&>
-        future;
-    account_apps_availability()->GetAccountsAvailableInArc(
-        future.GetCallback());
-    return base::Contains(future.Get(), account.raw_email,
-                          [](const account_manager::Account& account_in_arc) {
-                            return account_in_arc.raw_email;
-                          });
-  }
-
-  ash::AccountAppsAvailability* account_apps_availability() {
-    return account_apps_availability_;
-  }
-
-  int on_account_available_in_arc_call_count() {
-    return on_account_available_in_arc_call_count_;
-  }
-
-  int on_account_unavailable_in_arc_call_count() {
-    return on_account_unavailable_in_arc_call_count_;
-  }
-
-  std::optional<account_manager::Account>
-  on_account_available_in_arc_account() {
-    return on_account_available_in_arc_account_;
-  }
-
-  std::optional<account_manager::Account>
-  on_account_unavailable_in_arc_account() {
-    return on_account_unavailable_in_arc_account_;
-  }
-
- private:
-  void OnAccountAvailableInArc(
-      const account_manager::Account& account) override {
-    ++on_account_available_in_arc_call_count_;
-    on_account_available_in_arc_account_ = account;
-  }
-
-  void OnAccountUnavailableInArc(
-      const account_manager::Account& account) override {
-    ++on_account_unavailable_in_arc_call_count_;
-    on_account_unavailable_in_arc_account_ = account;
-  }
-
-  int on_account_available_in_arc_call_count_ = 0;
-  int on_account_unavailable_in_arc_call_count_ = 0;
-  std::optional<account_manager::Account> on_account_available_in_arc_account_;
-  std::optional<account_manager::Account>
-      on_account_unavailable_in_arc_account_;
-  raw_ptr<ash::AccountAppsAvailability, DanglingUntriaged>
-      account_apps_availability_;
-  base::test::ScopedFeatureList feature_list_;
-};
-
-// Account is available in ARC after account addition if `is_available_in_arc`
-// is set to `true`.
-IN_PROC_BROWSER_TEST_F(SigninHelperTestWithArcAccountRestrictions,
-                       AccountIsAvailableInArcAfterAddition) {
-  std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
-      std::make_unique<SigninHelper::ArcHelper>(
-          /*is_available_in_arc=*/true, /*is_account_addition=*/true,
-          account_apps_availability());
-  base::test::RepeatingTestFuture exit_future, close_dialog_future;
-  // Set auth token fetch to succeed.
-  AddResponseClientOAuthSuccess();
-  CreateSigninHelper(std::move(arc_helper), exit_future.GetCallback(),
-                     close_dialog_future.GetCallback());
-  // Make sure the close_dialog_closure was called.
-  EXPECT_TRUE(close_dialog_future.Wait());
-  // Wait until SigninHelper finishes and deletes itself.
-  EXPECT_TRUE(exit_future.Wait());
-  // 1 account should be added.
-  EXPECT_EQ(on_token_upserted_call_count(), 1);
-  auto account = on_token_upserted_account();
-  ASSERT_TRUE(account.has_value());
-  EXPECT_EQ(account.value().raw_email, kFakeEmail);
-  // 0 account should be available in ARC.
-  EXPECT_EQ(on_account_unavailable_in_arc_call_count(), 0);
-  // Note: after we receive one `OnAccountAvailableInArc` call - we may get
-  // another call after the refresh token is updated for account.
-  EXPECT_GT(on_account_available_in_arc_call_count(), 0);
-  auto arc_account = on_account_available_in_arc_account();
-  ASSERT_TRUE(arc_account.has_value());
-  EXPECT_EQ(arc_account.value().raw_email, kFakeEmail);
-  // `AccountAppsAvailability::GetAccountsAvailableInArc` should return account
-  // list containing this account.
-  EXPECT_TRUE(IsAccountAvailableInArc(account.value()));
-}
-
-// Account is not available in ARC after account addition if
-// `is_available_in_arc` is set to `false`.
-IN_PROC_BROWSER_TEST_F(SigninHelperTestWithArcAccountRestrictions,
-                       AccountIsNotAvailableInArcAfterAddition) {
-  std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
-      std::make_unique<SigninHelper::ArcHelper>(
-          /*is_available_in_arc=*/false, /*is_account_addition=*/true,
-          account_apps_availability());
-  base::test::RepeatingTestFuture exit_future, close_dialog_future;
-  // Set auth token fetch to succeed.
-  AddResponseClientOAuthSuccess();
-  CreateSigninHelper(std::move(arc_helper), exit_future.GetCallback(),
-                     close_dialog_future.GetCallback());
-  // Make sure the close_dialog_closure was called.
-  EXPECT_TRUE(close_dialog_future.Wait());
-  // Wait until SigninHelper finishes and deletes itself.
-  EXPECT_TRUE(exit_future.Wait());
-  // 1 account should be added.
-  EXPECT_EQ(on_token_upserted_call_count(), 1);
-  auto account = on_token_upserted_account();
-  ASSERT_TRUE(account.has_value());
-  EXPECT_EQ(account.value().raw_email, kFakeEmail);
-
-  // The account didn't exist (and therefore wasn't available in ARC) before, so
-  // no `OnAccountUnavailableInArc` calls are expected.
-  EXPECT_EQ(on_account_available_in_arc_call_count(), 0);
-  EXPECT_EQ(on_account_unavailable_in_arc_call_count(), 0);
-  // `AccountAppsAvailability::GetAccountsAvailableInArc` should return account
-  // list not containing this account.
-  EXPECT_FALSE(IsAccountAvailableInArc(account.value()));
-}
-
-IN_PROC_BROWSER_TEST_F(SigninHelperTestWithArcAccountRestrictions,
-                       ArcAvailabilityIsNotSetAfterReauthentication) {
-  account_manager::AccountKey kAccountKey{kFakeGaiaId,
-                                          account_manager::AccountType::kGaia};
-  account_manager()->UpsertAccount(kAccountKey, kFakeEmail, "access_token");
-  base::RunLoop().RunUntilIdle();
-  // 1 account should be added.
-  const int initial_upserted_calls = 1;
-  EXPECT_EQ(on_token_upserted_call_count(), initial_upserted_calls);
-
-  // Go through a reauthentication flow.
-  std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
-      std::make_unique<SigninHelper::ArcHelper>(
-          /*is_available_in_arc=*/true, /*is_account_addition=*/false,
-          account_apps_availability());
-  base::test::RepeatingTestFuture exit_future, close_dialog_future;
-  // Set auth token fetch to succeed.
-  AddResponseClientOAuthSuccess();
-  CreateSigninHelper(std::move(arc_helper), exit_future.GetCallback(),
-                     close_dialog_future.GetCallback());
-  // Make sure the close_dialog_closure was called.
-  EXPECT_TRUE(close_dialog_future.Wait());
-  // Wait until SigninHelper finishes and deletes itself.
-  EXPECT_TRUE(exit_future.Wait());
-  // 1 account should be updated.
-  EXPECT_EQ(on_token_upserted_call_count(), initial_upserted_calls + 1);
-  auto account = on_token_upserted_account();
-  ASSERT_TRUE(account.has_value());
-  EXPECT_EQ(account.value().raw_email, kFakeEmail);
-  // 0 accounts should be added as "available in ARC".
-  EXPECT_EQ(on_account_available_in_arc_call_count(), 0);
-  EXPECT_EQ(on_account_unavailable_in_arc_call_count(), 0);
-}
-
-IN_PROC_BROWSER_TEST_F(SigninHelperTestWithArcAccountRestrictions,
-                       AccountAvailabilityDoesntChangeAfterReauthentication) {}
-
 class SigninHelperTestSecondaryGoogleAccountUsage : public SigninHelperTest {
  public:
   SigninHelperTestSecondaryGoogleAccountUsage() {
-    feature_list_.InitWithFeatures({},
-                                   ash::standalone_browser::GetFeatureRefs());
+    feature_list_.InitWithFeatures(
+        /*enabled_features=*/{},
+        /*disabled_features=*/{});
   }
 
   ~SigninHelperTestSecondaryGoogleAccountUsage() override = default;
 
-  void CreateSigninHelper(const base::RepeatingClosure& exit_closure,
-                          const base::RepeatingClosure& close_dialog_closure,
-                          const base::RepeatingClosure& show_signin_error,
-                          const std::string& gaia_id,
-                          const std::string& email) {
+  TestSigninHelper* CreateSigninHelper(
+      const base::RepeatingClosure& exit_closure,
+      const base::RepeatingClosure& close_dialog_closure,
+      const base::RepeatingClosure& show_signin_error,
+      const GaiaId& gaia_id,
+      const std::string& email) {
+    std::unique_ptr<SigninHelper::ArcHelper> arc_helper =
+        std::make_unique<SigninHelper::ArcHelper>(
+            /*is_available_in_arc=*/false, /*is_account_addition=*/false,
+            /*account_apps_availability=*/nullptr);
     // The `TestSigninHelper` deletes itself after its work is complete.
-    new TestSigninHelper(
+    return new TestSigninHelper(
         exit_closure, account_manager(), account_manager_mojo_service(),
         /*close_dialog_closure=*/close_dialog_closure,
         /*show_signin_error=*/
         base::IgnoreArgs<const std::string&, const std::string&>(
             show_signin_error),
-        shared_url_loader_factory(), /*arc_helper=*/nullptr, gaia_id, email,
+        shared_url_loader_factory(), std::move(arc_helper), gaia_id, email,
         kFakeAuthCode, kFakeDeviceId);
   }
 
@@ -586,16 +405,22 @@ IN_PROC_BROWSER_TEST_F(SigninHelperTestSecondaryGoogleAccountUsage,
   AddResponseGetUserInfoWithHostedDomain(kFakeEnterpriseDomain);
   // Set SecondaryGoogleAccountUsage policy fetch to unset.
   AddResponseGetSecondaryGoogleAccountUsage("unset");
+  // Set SecondaryAccountAllowedInArcPolicy fetch to true.
+  AddResponseGetSecondaryAccountAllowedInArcPolicy("true");
 
   base::test::RepeatingTestFuture exit_future, close_dialog_future;
   // Enterprise account tries to sign in.
-  CreateSigninHelper(exit_future.GetCallback(),
-                     close_dialog_future.GetCallback(),
-                     /*show_signin_error=*/
-                     base::BindRepeating(&NotReached), kFakeEnterpriseGaiaId,
-                     kFakeEnterpriseEmail);
+  raw_ptr<TestSigninHelper> signin_helper = CreateSigninHelper(
+      exit_future.GetCallback(), close_dialog_future.GetCallback(),
+      /*show_signin_error=*/
+      base::BindRepeating(&NotReached), kFakeEnterpriseGaiaId,
+      kFakeEnterpriseEmail);
   // Make sure the close_dialog_closure was called.
   EXPECT_TRUE(close_dialog_future.Wait());
+
+  EXPECT_TRUE(signin_helper->IsAvailableInArc());
+
+  signin_helper = nullptr;
   // Wait until SigninHelper finishes and deletes itself.
   EXPECT_TRUE(exit_future.Wait());
 
@@ -621,16 +446,22 @@ IN_PROC_BROWSER_TEST_F(
   AddResponseGetUserInfoWithHostedDomain(kFakeEnterpriseDomain);
   // Set SecondaryGoogleAccountUsage policy fetch to all.
   AddResponseGetSecondaryGoogleAccountUsage("all");
+  // Set SecondaryAccountAllowedInArcPolicy fetch to true.
+  AddResponseGetSecondaryAccountAllowedInArcPolicy("false");
 
   base::test::RepeatingTestFuture exit_future, close_dialog_future;
   // Enterprise account tries to sign in.
-  CreateSigninHelper(exit_future.GetCallback(),
-                     close_dialog_future.GetCallback(),
-                     /*show_signin_error=*/
-                     base::BindRepeating(&NotReached), kFakeEnterpriseGaiaId,
-                     kFakeEnterpriseEmail);
+  raw_ptr<TestSigninHelper> signin_helper = CreateSigninHelper(
+      exit_future.GetCallback(), close_dialog_future.GetCallback(),
+      /*show_signin_error=*/
+      base::BindRepeating(&NotReached), kFakeEnterpriseGaiaId,
+      kFakeEnterpriseEmail);
   // Make sure the close_dialog_closure was called.
   EXPECT_TRUE(close_dialog_future.Wait());
+
+  EXPECT_FALSE(signin_helper->IsAvailableInArc());
+
+  signin_helper = nullptr;
   // Wait until SigninHelper finishes and deletes itself.
   EXPECT_TRUE(exit_future.Wait());
 

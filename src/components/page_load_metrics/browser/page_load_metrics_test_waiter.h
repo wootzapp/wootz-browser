@@ -51,9 +51,6 @@ class PageLoadMetricsTestWaiter : public MetricsLifecycleObserver {
     NoLayoutShift,
   };
 
-  using FrameTreeNodeId =
-      page_load_metrics::PageLoadMetricsObserver::FrameTreeNodeId;
-
   explicit PageLoadMetricsTestWaiter(content::WebContents* web_contents);
   explicit PageLoadMetricsTestWaiter(content::WebContents* web_contents,
                                      const char* observer_name_);
@@ -189,7 +186,7 @@ class PageLoadMetricsTestWaiter : public MetricsLifecycleObserver {
   // Manages a bitset of TimingFields.
   class TimingFieldBitSet {
    public:
-    TimingFieldBitSet() {}
+    TimingFieldBitSet() = default;
 
     // Returns whether this bitset has all bits unset.
     bool Empty() const { return bitmask_ == 0; }

@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "android_webview/browser/aw_contents.h"
-#include "android_webview/browser_jni_headers/AwHttpAuthHandler_jni.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/functional/bind.h"
@@ -17,16 +16,20 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/auth.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/browser_jni_headers/AwHttpAuthHandler_jni.h"
+
 using base::android::ConvertJavaStringToUTF16;
 using base::android::JavaParamRef;
 using content::BrowserThread;
 
 namespace android_webview {
 
-AwHttpAuthHandler::AwHttpAuthHandler(const net::AuthChallengeInfo& auth_info,
-                                     content::WebContents* web_contents,
-                                     bool first_auth_attempt,
-                                     LoginAuthRequiredCallback callback)
+AwHttpAuthHandler::AwHttpAuthHandler(
+    const net::AuthChallengeInfo& auth_info,
+    content::WebContents* web_contents,
+    bool first_auth_attempt,
+    content::LoginDelegate::LoginAuthRequiredCallback callback)
     : host_(auth_info.challenger.host()),
       realm_(auth_info.realm),
       callback_(std::move(callback)) {

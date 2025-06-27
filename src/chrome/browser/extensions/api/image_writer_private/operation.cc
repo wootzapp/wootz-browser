@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/containers/heap_array.h"
+#include "base/containers/span.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/task/thread_pool.h"
@@ -15,6 +16,7 @@
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/image_writer_private/error_constants.h"
 #include "chrome/browser/extensions/api/image_writer_private/extraction_properties.h"
+#include "chrome/browser/extensions/api/image_writer_private/image_writer_utility_client.h"
 #include "chrome/browser/extensions/api/image_writer_private/operation_manager.h"
 #include "chrome/browser/extensions/api/image_writer_private/tar_extractor.h"
 #include "chrome/browser/extensions/api/image_writer_private/xz_extractor.h"
@@ -46,7 +48,7 @@ void ExtractArchive(ExtractionProperties properties) {
   } else if (XzExtractor::IsXzFile(properties.image_path)) {
     XzExtractor::Extract(std::move(properties));
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -105,7 +107,7 @@ void Operation::PostTask(base::OnceClosure task) {
 
 void Operation::Start() {
   DCHECK(IsRunningInCorrectSequence());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   if (download_folder_.empty() ||
       !temp_dir_->CreateUniqueTempDirUnderPath(download_folder_)) {
 #else
@@ -224,7 +226,7 @@ void Operation::CompleteAndContinue(base::OnceClosure continuation) {
   PostTask(std::move(continuation));
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 void Operation::StartUtilityClient() {
   DCHECK(IsRunningInCorrectSequence());
   if (!image_writer_client_.get()) {
@@ -301,7 +303,6 @@ void Operation::MD5Chunk(
 
   CHECK_LE(bytes_processed, bytes_total);
 
-  auto buffer = base::HeapArray<char>::Uninit(kMD5BufferSize);
   int read_size = std::min(bytes_total - bytes_processed,
                            static_cast<int64_t>(kMD5BufferSize));
 
@@ -311,7 +312,10 @@ void Operation::MD5Chunk(
     base::MD5Final(&digest, &md5_context_);
     std::move(callback).Run(base::MD5DigestToBase16(digest));
   } else {
-    int len = file.Read(bytes_processed, buffer.data(), read_size);
+    auto buffer = base::HeapArray<char>::Uninit(kMD5BufferSize);
+    int len =
+        file.Read(bytes_processed, base::as_writable_bytes(buffer.as_span()))
+            .value_or(0);
 
     if (len == read_size) {
       // Process data.

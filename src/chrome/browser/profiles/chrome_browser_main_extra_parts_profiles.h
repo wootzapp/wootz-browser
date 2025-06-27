@@ -9,9 +9,7 @@
 
 class ChromeBrowserMainParts;
 
-namespace chrome {
 void AddProfilesExtraParts(ChromeBrowserMainParts* main_parts);
-}
 
 class ChromeBrowserMainExtraPartsProfiles : public ChromeBrowserMainExtraParts {
  public:
@@ -26,7 +24,6 @@ class ChromeBrowserMainExtraPartsProfiles : public ChromeBrowserMainExtraParts {
   // especially important for services that should be created at profile
   // creation time as compared to lazily on first access.
   static void EnsureBrowserContextKeyedServiceFactoriesBuilt(bool full_init = true);
-
   // Overridden from ChromeBrowserMainExtraParts:
   void PreProfileInit() override;
 };

@@ -21,7 +21,7 @@
     padding-block-end: var(--cr-section-vertical-padding);
   }
 
-  #learnMoreLink {
+  #learnMoreLink, #learnMoreLinkV2 {
     background: none;
     border: none;
     color: var(--cr-link-color);
@@ -66,7 +66,7 @@
     padding: 16px var(--cr-section-padding);
   }
 
-  #secondDescription {
+  #secondDescription, #secondDescriptionV2 {
     padding: 0 var(--cr-section-padding) var(--cr-section-vertical-padding);
   }
 
@@ -75,17 +75,34 @@
   }
 </style>
 
-<settings-toggle-button
-    id="fledgeToggle"
-    pref="{{prefs.privacy_sandbox.m1.fledge_enabled}}"
-    label="$i18n{fledgePageToggleLabel}"
-    sub-label="$i18n{fledgePageToggleSubLabel}"
-    on-settings-boolean-control-change="onToggleChange_">
-</settings-toggle-button>
-<div id="secondDescription" class="cr-secondary-text"
-    hidden="[[!shouldShowV2_]]">
-  $i18n{fledgePageExplanation}
-</div>
+<template is="dom-if" if="[[!shouldShowV2_]]">
+  <settings-toggle-button
+      id="fledgeToggle"
+      pref="{{prefs.privacy_sandbox.m1.fledge_enabled}}"
+      label="$i18n{fledgePageToggleLabel}"
+      sub-label="$i18n{fledgePageToggleSubLabel}"
+      on-settings-boolean-control-change="onToggleChange_">
+  </settings-toggle-button>
+  <div id="secondDescription" class="cr-secondary-text">
+    $i18n{fledgePageExplanation}
+  </div>
+</template>
+<template is="dom-if" if="[[shouldShowV2_]]">
+  <settings-toggle-button
+      id="siteSuggestedAdsToggleV2"
+      pref="{{prefs.privacy_sandbox.m1.fledge_enabled}}"
+      label="$i18n{fledgePageToggleLabel}"
+      sub-label="$i18n{siteSuggestedAdsPageToggleSubLabelV2}"
+      on-settings-boolean-control-change="onToggleChange_">
+  </settings-toggle-button>
+  <div id="secondDescriptionV2" class="cr-secondary-text">
+    $i18n{siteSuggestedAdsPageExplanationV2}
+    <button id="learnMoreLinkV2" on-click="onLearnMoreClick_"
+        aria-label="$i18n{siteSuggestedAdsPageExplanationV2LinkAriaDescription}">
+      $i18n{siteSuggestedAdsPageExplanationV2LinkText}
+    </button>
+  </div>
+</template>
 <template is="dom-if" if="[[!isFledgePrefManaged_(
     prefs.privacy_sandbox.m1.fledge_enabled.enforcement)]]" restamp>
   <div id="currentSitesSection">
@@ -98,7 +115,7 @@
         <!-- TODO(b/264024469): Add "Learn more" into current sites description
              string. -->
         <button id="learnMoreLink" on-click="onLearnMoreClick_" aria-label=
-            "$i18n{fledgePageCurrentSitesDescriptionLearnMoreA11yLabel}">
+            "$i18n{fledgePageCurrentSitesDescriptionLearnMoreA11yLabel}" hidden$="[[shouldShowV2_]]">
           $i18n{fledgePageCurrentSitesDescriptionLearnMore}
         </button>
       </div>
@@ -119,7 +136,7 @@
               expanded="{{seeAllSitesExpanded_}}">
             $i18n{fledgePageSeeAllSitesLabel}
           </cr-expand-button>
-          <iron-collapse opened="[[seeAllSitesExpanded_]]">
+          <cr-collapse opened="[[seeAllSitesExpanded_]]">
             <div role="region"
                 aria-label="$i18n{fledgePageCurrentSitesRegionA11yDescription}">
               <template is="dom-repeat" items="[[remainingSitesList_]]">
@@ -128,7 +145,7 @@
                 </privacy-sandbox-interest-item>
               </template>
             </div>
-          </iron-collapse>
+          </cr-collapse>
         </template>
         <div id="currentSitesDescriptionEmpty"
             class="no-sites cr-secondary-text"
@@ -148,7 +165,7 @@
     expanded="{{blockedSitesExpanded_}}">
   $i18n{fledgePageBlockedSitesHeading}
 </cr-expand-button>
-<iron-collapse opened="[[blockedSitesExpanded_]]">
+<cr-collapse opened="[[blockedSitesExpanded_]]">
   <div id="blockedSitesDescription"
       class$="[[getBlockedSitesDescriptionClass_(blockedSitesList_.length)]]">
     [[computeBlockedSitesDescription_(blockedSitesList_.length)]]
@@ -161,23 +178,38 @@
       </privacy-sandbox-interest-item>
     </template>
   </div>
-</iron-collapse>
-<div id="footer" class="cr-secondary-text hr footer"
-    hidden="[[shouldShowV2_]]">
-  $i18nRaw{fledgePageFooter}
-</div>
-<div id="footerV2" class="cr-secondary-text hr footer"
-    hidden="[[!shouldShowV2_]]">
-  $i18nRaw{fledgePageFooterV2}
-</div>
+</cr-collapse>
+
+<template is="dom-if" if="[[!shouldShowV2_]]">
+  <div id="footer" class="cr-secondary-text hr footer">
+    $i18nRaw{fledgePageFooter}
+  </div>
+</template>
+<template is="dom-if" if="[[shouldShowV2_]]">
+  <div id="footerV2" class="cr-secondary-text hr footer">
+    $i18nRaw{siteSuggestedAdsFooterV2Desktop}
+  </div>
+  <div id="disclaimer" class="cr-secondary-text footer">
+    $i18nRaw{siteSuggestedAdsPageDisclaimer}
+  </div>
+</template>
 <template is="dom-if" if="[[isLearnMoreDialogOpen_]]" restamp>
   <cr-dialog id="dialog" on-close="onCloseDialog_" show-on-attach>
     <div slot="title">$i18n{fledgePageLearnMoreHeading}</div>
-    <div slot="body">
-      <p>$i18n{fledgePageLearnMoreBullet1}</p>
-      <p>$i18n{fledgePageLearnMoreBullet2}</p>
-      <p>$i18nRaw{fledgePageLearnMoreBullet3}</p>
-    </div>
+    <template is="dom-if" if="[[!shouldShowV2_]]">
+      <div id="body" slot="body">
+        <p>$i18n{fledgePageLearnMoreBullet1}</p>
+        <p>$i18n{fledgePageLearnMoreBullet2}</p>
+        <p>$i18nRaw{fledgePageLearnMoreBullet3}</p>
+      </div>
+    </template>
+    <template is="dom-if" if="[[shouldShowV2_]]">
+      <div id="bodyV2" slot="body">
+        <p>$i18n{siteSuggestedAdsPageLearnMoreBullet1V2}</p>
+        <p>$i18n{siteSuggestedAdsPageLearnMoreBullet2V2}</p>
+        <p>$i18nRaw{siteSuggestedAdsPageLearnMoreBullet3V2}</p>
+      </div>
+    </template>
     <div slot="button-container">
       <cr-button id="closeButton" class="cancel-button" autofocus
           on-click="onCloseDialog_">

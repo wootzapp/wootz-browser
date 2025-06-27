@@ -61,7 +61,7 @@ class TestSearchResult : public ChromeSearchResult {
   TestSearchResult(const TestSearchResult&) = delete;
   TestSearchResult& operator=(const TestSearchResult&) = delete;
 
-  ~TestSearchResult() override {}
+  ~TestSearchResult() override = default;
 
   // ChromeSearchResult overrides:
   void Open(int event_flags) override {}
@@ -179,8 +179,7 @@ TEST_F(AppDiscoveryMetricsManagerTest, OnOpenAppResultAppSyncDisabled) {
       ash::SearchResultType::PLAY_STORE_UNINSTALLED_APP;
 
   // Disable app-sync.
-  sync_service()->SetDisableReasons(
-      {syncer::SyncService::DISABLE_REASON_ENTERPRISE_POLICY});
+  sync_service()->SetAllowedByEnterprisePolicy(false);
 
   TestSearchResult search_result(app_id, app_name, search_result_type);
 

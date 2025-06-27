@@ -47,10 +47,6 @@ found in the LICENSE file.
         <item android:id="@+id/open_history_menu_id"
             android:title="@string/chrome_history"
             android:orderInCategory="2" />
-        <item android:id="@+id/page_insights_id"
-            android:title="@string/menu_page_insights"
-            android:visible="false"
-            android:orderInCategory="2" />
         <item android:id="@+id/find_in_page_id"
             android:title="@string/menu_find_in_page"
             android:orderInCategory="2" />
@@ -59,12 +55,12 @@ found in the LICENSE file.
             android:icon="@drawable/reader_mode_prefs_icon"
             android:visible="false"
             android:orderInCategory="2" />
-        <item android:id="@+id/add_to_homescreen_id"
-            android:title="@string/menu_add_to_homescreen"
-            android:orderInCategory="2" />
-        <item android:id="@+id/install_webapp_id"
-            android:title="@string/menu_install_webapp"
-            android:orderInCategory="2" />
+        <item android:id="@+id/enable_price_tracking_menu_id"
+            android:title="@string/enable_price_tracking_menu_item"
+            android:icon="@drawable/price_tracking_disabled" />
+        <item android:id="@+id/disable_price_tracking_menu_id"
+            android:title="@string/disable_price_tracking_menu_item"
+            android:icon="@drawable/price_tracking_enabled_filled" />
         <item android:id="@+id/universal_install"
             android:title="@string/menu_add_to_homescreen"
             android:orderInCategory="2" />
@@ -85,6 +81,9 @@ found in the LICENSE file.
         <item android:id="@+id/translate_id"
           android:title="@string/menu_translate"
           android:orderInCategory="2"/>
+        <item android:id="@+id/open_with_id"
+          android:title="@string/menu_open_with"
+          android:orderInCategory="2" />
         <!-- Title is intentionally left blank in xml and will be set in java. -->
         <item android:id="@+id/open_in_browser_id"
             android:title=""

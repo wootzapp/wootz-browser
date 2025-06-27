@@ -7,12 +7,16 @@
 
 #include <iosfwd>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
 #include "partition_alloc/partition_alloc_base/immediate_crash.h"
 #include "partition_alloc/partition_alloc_base/log_message.h"
 #include "partition_alloc/partition_alloc_base/strings/cstring_builder.h"
+
+#if PA_BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
+#include "partition_alloc/partition_alloc_base/strings/safe_sprintf.h"
+#endif  // PA_BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
 
 #define PA_STRINGIFY_IMPL(s) #s
 #define PA_STRINGIFY(s) PA_STRINGIFY_IMPL(s)
@@ -20,11 +24,12 @@
 // This header defines the CHECK, DCHECK, and DPCHECK macros.
 //
 // CHECK dies with a fatal error if its condition is not true. It is not
-// controlled by NDEBUG, so the check will be executed regardless of compilation
-// mode.
+// controlled by PA_BUILDFLAG(IS_DEBUG), so the check will be executed
+// regardless of compilation mode.
 //
-// DCHECK, the "debug mode" check, is enabled depending on NDEBUG and
-// DCHECK_ALWAYS_ON, and its severity depends on DCHECK_IS_CONFIGURABLE.
+// DCHECK, the "debug mode" check, is enabled depending on
+// PA_BUILDFLAG(IS_DEBUG) and PA_BUILDFLAG(DCHECK_ALWAYS_ON), and its severity
+// depends on PA_BUILDFLAG(DCHECK_IS_CONFIGURABLE).
 //
 // (D)PCHECK is like (D)CHECK, but includes the system error code (c.f.
 // perror(3)).
@@ -93,7 +98,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC_BASE) CheckError {
 
   union {
     LogMessage log_message_;
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
     Win32ErrorLogMessage errno_log_message_;
 #else
     ErrnoLogMessage errno_log_message_;
@@ -141,29 +146,37 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC_BASE) NotImplemented
 
 }  // namespace check_error
 
-#if defined(OFFICIAL_BUILD) && !defined(NDEBUG)
+#if defined(OFFICIAL_BUILD) && PA_BUILDFLAG(IS_DEBUG)
 #error "Debug builds are not expected to be optimized as official builds."
-#endif  // defined(OFFICIAL_BUILD) && !defined(NDEBUG)
+#endif  // defined(OFFICIAL_BUILD) && BUILDFLAG(IS_DEBUG)
 
-#if defined(OFFICIAL_BUILD) && !PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if defined(OFFICIAL_BUILD) && !PA_BUILDFLAG(DCHECKS_ARE_ON)
 
+// TODO(crbug.com/357081797): Use `[[unlikely]]` instead when there's a way to
+// switch the expression below to a statement without breaking
+// -Wthread-safety-analysis.
+#if PA_HAS_BUILTIN(__builtin_expect)
+#define PA_BASE_INTERNAL_EXPECT_FALSE(cond) __builtin_expect(!(cond), 0)
+#else
+#define PA_BASE_INTERNAL_EXPECT_FALSE(cond) !(cond)
+#endif
 // Discard log strings to reduce code bloat.
 //
 // This is not calling BreakDebugger since this is called frequently, and
 // calling an out-of-line function instead of a noreturn inline macro prevents
 // compiler optimizations.
-#define PA_BASE_CHECK(condition)                   \
-  PA_UNLIKELY(!(condition)) ? PA_IMMEDIATE_CRASH() \
-                            : PA_EAT_CHECK_STREAM_PARAMS()
+#define PA_BASE_CHECK(cond)                                  \
+  PA_BASE_INTERNAL_EXPECT_FALSE(cond) ? PA_IMMEDIATE_CRASH() \
+                                      : PA_EAT_CHECK_STREAM_PARAMS()
 
 #define PA_BASE_CHECK_WILL_STREAM() false
 
-#define PA_BASE_PCHECK(condition)                                         \
+#define PA_BASE_PCHECK(cond)                                              \
   PA_LAZY_CHECK_STREAM(                                                   \
       ::partition_alloc::internal::logging::check_error::PCheck(__FILE__, \
                                                                 __LINE__) \
           .stream(),                                                      \
-      PA_UNLIKELY(!(condition)))
+      PA_BASE_INTERNAL_EXPECT_FALSE(cond))
 
 #else
 
@@ -185,7 +198,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC_BASE) NotImplemented
 
 #endif
 
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON)
 
 #define PA_BASE_DCHECK(condition)                                \
   PA_LAZY_CHECK_STREAM(                                          \
@@ -217,6 +230,17 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC_BASE) NotImplemented
       ::partition_alloc::internal::logging::RawCheckFailure( \
           "Check failed: " #condition "\n");                 \
   } while (0)
+
+#if PA_BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
+template <typename... Args>
+[[noreturn]] void RawCheckFailureFormat(const char* fmt, Args... args) {
+  constexpr size_t kRawCheckFailureFormatBufferSize = 256u;
+  char buffer[kRawCheckFailureFormatBufferSize];
+  (void)::partition_alloc::internal::base::strings::SafeSPrintf(buffer, fmt,
+                                                                args...);
+  ::partition_alloc::internal::logging::RawCheckFailure(buffer);
+}
+#endif  // PA_BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
 
 }  // namespace partition_alloc::internal::logging
 

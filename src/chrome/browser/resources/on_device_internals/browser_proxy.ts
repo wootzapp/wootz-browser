@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {OnDeviceInternalsPageRemote} from './on_device_internals_page.mojom-webui.js';
-import {OnDeviceInternalsPage} from './on_device_internals_page.mojom-webui.js';
+import {PageCallbackRouter, PageHandlerFactory, PageHandlerRemote} from './on_device_internals_page.mojom-webui.js';
 
 let instance: BrowserProxy|null = null;
 
@@ -11,14 +10,22 @@ let instance: BrowserProxy|null = null;
 export class BrowserProxy {
   static getInstance(): BrowserProxy {
     if (!instance) {
-      instance = new BrowserProxy(OnDeviceInternalsPage.getRemote());
+      const callbackRouter = new PageCallbackRouter();
+      const handler = new PageHandlerRemote();
+      PageHandlerFactory.getRemote().createPageHandler(
+          callbackRouter.$.bindNewPipeAndPassRemote(),
+          handler.$.bindNewPipeAndPassReceiver());
+      instance = new BrowserProxy(handler, callbackRouter);
     }
     return instance;
   }
 
-  handler: OnDeviceInternalsPageRemote;
+  handler: PageHandlerRemote;
+  callbackRouter: PageCallbackRouter;
 
-  private constructor(handler: OnDeviceInternalsPageRemote) {
+  private constructor(
+      handler: PageHandlerRemote, callbackRouter: PageCallbackRouter) {
     this.handler = handler;
+    this.callbackRouter = callbackRouter;
   }
 }

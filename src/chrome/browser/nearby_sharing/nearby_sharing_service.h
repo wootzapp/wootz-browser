@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/functional/callback.h"
-#include "chrome/browser/nearby_sharing/nearby_share_settings.h"
 #include "chrome/browser/nearby_sharing/share_target_discovered_callback.h"
 #include "chrome/browser/nearby_sharing/transfer_metadata.h"
 #include "chrome/browser/nearby_sharing/transfer_update_callback.h"
@@ -23,6 +22,7 @@ class NearbyShareContactManager;
 class NearbyShareCertificateManager;
 class NearbyShareHttpNotifier;
 class NearbyShareLocalDeviceDataManager;
+class NearbyShareSettings;
 
 // This service implements Nearby Sharing on top of the Nearby Connections mojo.
 // Currently only single profile will be allowed to be bound at a time and only
@@ -31,7 +31,10 @@ class NearbySharingService : public KeyedService {
  public:
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused. If entries are added, kMaxValue
-  // should be updated.
+  // should be updated. Keep in sync with the NearbyShareServiceStatusCode UMA
+  // enum defined in //tools/metrics/histograms/metadata/nearby/enums.xml.
+  //
+  // LINT.IfChange(NearbyShareServiceStatusCode)
   enum class StatusCodes {
     // The operation was successful.
     kOk = 0,
@@ -51,6 +54,7 @@ class NearbySharingService : public KeyedService {
     kNoAvailableConnectionMedium = 5,
     kMaxValue = kNoAvailableConnectionMedium
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/nearby/enums.xml:NearbyShareServiceStatusCode)
 
   enum class ReceiveSurfaceState {
     // Default, invalid state.
@@ -107,6 +111,8 @@ class NearbySharingService : public KeyedService {
                                    float percentage_complete) {}
     virtual void OnTransferCompleted(const ShareTarget& share_target,
                                      TransferMetadata::Status status) {}
+    virtual void OnInitialMedium(const ShareTarget& share_target,
+                                 nearby::connections::mojom::Medium medium) {}
     virtual void OnBandwidthUpgrade(const ShareTarget& share_target,
                                     nearby::connections::mojom::Medium medium) {
     }

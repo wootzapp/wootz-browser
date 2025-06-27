@@ -6,6 +6,7 @@
 #define GPU_COMMAND_BUFFER_SERVICE_SERVICE_UTILS_H_
 
 #include "base/command_line.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "gpu/config/gpu_preferences.h"
 #include "gpu/gpu_gles2_export.h"
 #include "ui/gl/gl_context.h"
@@ -28,9 +29,6 @@ GPU_GLES2_EXPORT gl::GLContextAttribs GenerateGLContextAttribsForCompositor(
 GPU_GLES2_EXPORT bool UsePassthroughCommandDecoder(
     const base::CommandLine* command_line);
 
-// Returns true if the driver supports creating passthrough command decoders
-GPU_GLES2_EXPORT bool PassthroughCommandDecoderSupported();
-
 GPU_GLES2_EXPORT GpuPreferences
 ParseGpuPreferences(const base::CommandLine* command_line);
 
@@ -43,18 +41,6 @@ ParseGpuPreferences(const base::CommandLine* command_line);
 GPU_GLES2_EXPORT GrContextType
 ParseGrContextType(const base::CommandLine* command_line);
 
-// Parse the value of --use-vulkan from the command line. If unspecified and
-// features::kVulkan is enabled (GrContext is going to use vulkan), default to
-// the native implementation.
-GPU_GLES2_EXPORT VulkanImplementationName
-ParseVulkanImplementationName(const base::CommandLine* command_line);
-
-GPU_GLES2_EXPORT WebGPUAdapterName
-ParseWebGPUAdapterName(const base::CommandLine* command_line);
-
-GPU_GLES2_EXPORT WebGPUPowerPreference
-ParseWebGPUPowerPreference(const base::CommandLine* command_line);
-
 bool MSAAIsSlow(const GpuDriverBugWorkarounds& workarounds);
 
 }  // namespace gles2
@@ -62,14 +48,12 @@ bool MSAAIsSlow(const GpuDriverBugWorkarounds& workarounds);
 #if BUILDFLAG(IS_MAC)
 // Gets the texture target to use with MacOS native GpuMemoryBuffers based on
 // the current GL implementation.
-GPU_GLES2_EXPORT uint32_t
-GetMacOSSpecificTextureTargetForCurrentGLImplementation();
-
-// Set the texture target to use with MacOS native GpuMemoryBuffers based on the
-// current GL implementation.
-GPU_GLES2_EXPORT void
-SetMacOSSpecificTextureTargetFromCurrentGLImplementation();
+GPU_GLES2_EXPORT uint32_t GetTextureTargetForIOSurfaces();
 #endif  // BUILDFLAG(IS_MAC)
+
+GPU_GLES2_EXPORT size_t UpdateShaderCacheSizeOnMemoryPressure(
+    size_t max_cache_size,
+    base::MemoryPressureListener::MemoryPressureLevel memory_pressure_level);
 
 }  // namespace gpu
 

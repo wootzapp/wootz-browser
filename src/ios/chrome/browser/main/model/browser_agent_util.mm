@@ -7,34 +7,32 @@
 #import "base/feature_list.h"
 #import "components/breadcrumbs/core/breadcrumbs_status.h"
 #import "ios/chrome/browser/app_launcher/model/app_launcher_browser_agent.h"
-#import "ios/chrome/browser/contextual_panel/model/contextual_panel_browser_agent.h"
+#import "ios/chrome/browser/browser_view/model/browser_view_visibility_notifier_browser_agent.h"
+#import "ios/chrome/browser/bubble/model/tab_based_iph_browser_agent.h"
 #import "ios/chrome/browser/crash_report/model/breadcrumbs/breadcrumb_manager_browser_agent.h"
+#import "ios/chrome/browser/credential_provider/model/credential_provider_buildflags.h"
 #import "ios/chrome/browser/device_sharing/model/device_sharing_browser_agent.h"
 #import "ios/chrome/browser/favicon/model/favicon_browser_agent.h"
 #import "ios/chrome/browser/follow/model/follow_browser_agent.h"
 #import "ios/chrome/browser/infobars/model/overlays/browser_agent/infobar_overlay_browser_agent_util.h"
-#import "ios/chrome/browser/intents/user_activity_browser_agent.h"
-#import "ios/chrome/browser/iph_for_new_chrome_user/model/tab_based_iph_browser_agent.h"
+#import "ios/chrome/browser/intents/model/user_activity_browser_agent.h"
 #import "ios/chrome/browser/lens/model/lens_browser_agent.h"
 #import "ios/chrome/browser/metrics/model/tab_usage_recorder_browser_agent.h"
 #import "ios/chrome/browser/metrics/model/web_state_list_metrics_browser_agent.h"
+#import "ios/chrome/browser/omnibox/model/omnibox_position/omnibox_position_browser_agent.h"
 #import "ios/chrome/browser/policy/model/policy_watcher_browser_agent.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_browser_agent.h"
 #import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_browser_agent.h"
-#import "ios/chrome/browser/sessions/live_tab_context_browser_agent.h"
+#import "ios/chrome/browser/sessions/model/live_tab_context_browser_agent.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_browser_agent.h"
+#import "ios/chrome/browser/start_surface/ui_bundled/start_surface_recent_tab_browser_agent.h"
 #import "ios/chrome/browser/sync/model/sync_error_browser_agent.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
 #import "ios/chrome/browser/tabs/model/closing_web_state_observer_browser_agent.h"
 #import "ios/chrome/browser/tabs/model/synced_window_delegate_browser_agent.h"
-#import "ios/chrome/browser/tabs/model/tab_parenting_browser_agent.h"
-#import "ios/chrome/browser/tabs/model/tab_pickup/tab_pickup_browser_agent.h"
-#import "ios/chrome/browser/ui/start_surface/start_surface_recent_tab_browser_agent.h"
-#import "ios/chrome/browser/upgrade/model/upgrade_center.h"
-#import "ios/chrome/browser/upgrade/model/upgrade_center_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_notifier_browser_agent.h"
 #import "ios/chrome/browser/view_source/model/view_source_browser_agent.h"
@@ -46,13 +44,16 @@
 #import "ios/chrome/browser/web_state_list/model/web_usage_enabler/web_usage_enabler_browser_agent.h"
 #import "ios/public/provider/chrome/browser/app_utils/app_utils_api.h"
 
+#if BUILDFLAG(IOS_CREDENTIAL_PROVIDER_ENABLED)
+#import "ios/chrome/browser/credential_provider/model/credential_provider_browser_agent.h"
+#endif
+
 void AttachBrowserAgents(Browser* browser) {
   if (breadcrumbs::IsEnabled(GetApplicationContext()->GetLocalState())) {
     BreadcrumbManagerBrowserAgent::CreateForBrowser(browser);
   }
 
-  const bool browser_is_off_record =
-      browser->GetBrowserState()->IsOffTheRecord();
+  const bool browser_is_off_record = browser->GetProfile()->IsOffTheRecord();
   const bool browser_is_inactive = browser->IsInactive();
 
   LiveTabContextBrowserAgent::CreateForBrowser(browser);
@@ -63,21 +64,17 @@ void AttachBrowserAgents(Browser* browser) {
   DeviceSharingBrowserAgent::CreateForBrowser(browser);
   UrlLoadingNotifierBrowserAgent::CreateForBrowser(browser);
   AppLauncherBrowserAgent::CreateForBrowser(browser);
+  OmniboxPositionBrowserAgent::CreateForBrowser(browser);
 
   // LensBrowserAgent must be created before WebNavigationBrowserAgent.
   LensBrowserAgent::CreateForBrowser(browser);
   WebNavigationBrowserAgent::CreateForBrowser(browser);
-  TabParentingBrowserAgent::CreateForBrowser(browser);
 
   if (!browser_is_off_record) {
     ClosingWebStateObserverBrowserAgent::CreateForBrowser(browser);
   }
 
   SnapshotBrowserAgent::CreateForBrowser(browser);
-
-  if (!browser_is_off_record && !browser_is_inactive) {
-    TabPickupBrowserAgent::CreateForBrowser(browser);
-  }
 
   if (IsWebChannelsEnabled() && !browser_is_off_record) {
     FollowBrowserAgent::CreateForBrowser(browser);
@@ -109,9 +106,9 @@ void AttachBrowserAgents(Browser* browser) {
   // the SessionRestorationBrowserAgent, so they should be created after the the
   // SessionRestorationBrowserAgent is created.
   WebStateListMetricsBrowserAgent::CreateForBrowser(
-      browser, SessionMetrics::FromBrowserState(browser->GetBrowserState()));
+      browser, SessionMetrics::FromProfile(browser->GetProfile()));
 
-  // Normal browser states are the only ones to get tab usage recorder.
+  // Normal profiles are the only ones to get tab usage recorder.
   if (!browser_is_off_record) {
     TabUsageRecorderBrowserAgent::CreateForBrowser(browser);
   }
@@ -124,13 +121,6 @@ void AttachBrowserAgents(Browser* browser) {
     SyncErrorBrowserAgent::CreateForBrowser(browser);
   }
 
-  // The UpgradeCenter may be null (e.g. in unit tests). Do not create the
-  // UpgradeCenterBrowserAgent in that case.
-  if (UpgradeCenter* upgrade_center =
-          GetApplicationContext()->GetUpgradeCenter()) {
-    UpgradeCenterBrowserAgent::CreateForBrowser(browser, upgrade_center);
-  }
-
   WebStateUpdateBrowserAgent::CreateForBrowser(browser);
   ReadingListBrowserAgent::CreateForBrowser(browser);
 
@@ -140,13 +130,13 @@ void AttachBrowserAgents(Browser* browser) {
   UserActivityBrowserAgent::CreateForBrowser(browser);
 
   if (!browser_is_inactive) {
+    BrowserViewVisibilityNotifierBrowserAgent::CreateForBrowser(browser);
     TabBasedIPHBrowserAgent::CreateForBrowser(browser);
   }
 
-  // Contextual Panel is non-OTR only.
-  if (!browser_is_off_record && IsContextualPanelEnabled()) {
-    ContextualPanelBrowserAgent::CreateForBrowser(browser);
-  }
+#if BUILDFLAG(IOS_CREDENTIAL_PROVIDER_ENABLED)
+  CredentialProviderBrowserAgent::CreateForBrowser(browser);
+#endif
 
   // This needs to be called last in case any downstream browser agents need to
   // access upstream agents created earlier in this function.

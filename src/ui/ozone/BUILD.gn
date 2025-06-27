@@ -83,8 +83,8 @@ component("ozone_base") {
     "public/gl_ozone.h",
     "public/gpu_platform_support_host.cc",
     "public/gpu_platform_support_host.h",
+    "public/hardware_capabilities.cc",
     "public/hardware_capabilities.h",
-    "public/input_controller.cc",
     "public/input_controller.h",
     "public/native_pixmap_gl_binding.cc",
     "public/native_pixmap_gl_binding.h",
@@ -108,10 +108,13 @@ component("ozone_base") {
     "public/platform_menu_utils.h",
     "public/platform_screen.cc",
     "public/platform_screen.h",
+    "public/platform_session_manager.h",
     "public/platform_user_input_monitor.cc",
     "public/platform_user_input_monitor.h",
     "public/platform_utils.h",
     "public/platform_window_surface.h",
+    "public/stub_input_controller.cc",
+    "public/stub_input_controller.h",
     "public/surface_factory_ozone.cc",
     "public/surface_factory_ozone.h",
     "public/surface_ozone_canvas.cc",
@@ -169,8 +172,6 @@ component("ozone_base") {
     "//ui/ozone/common/*",
     "//ui/ozone/platform/*",
   ]
-
-  configs += [ "//third_party/khronos:khronos_headers" ]
 
   # Out of tree platforms can depend on this.
   visibility += ozone_external_platform_visibility
@@ -414,10 +415,6 @@ action("generate_test_support_constructor_list") {
 }
 
 test("ozone_unittests") {
-  if (is_chromeos_lacros && is_chromeos_device) {
-    configs += [ "//build/lacros:optional_shared_libgcc" ]
-  }
-
   deps = [
     ":test_support",
     "//mojo/core/test:run_all_unittests",

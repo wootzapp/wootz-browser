@@ -9,6 +9,7 @@
 
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/platform/fonts/character_range.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -80,7 +81,8 @@ TEST_F(InlineTextAutoSpaceTest, InsertSpacing) {
   inline_node.PrepareLayoutIfNeeded();
 
   Vector<CharacterRange> final_ranges;
-  for (const InlineItem& item : node_data->items) {
+  for (const Member<InlineItem>& item_ptr : node_data->items) {
+    const InlineItem& item = *item_ptr;
     const auto* shape_result = item.TextShapeResult();
     Vector<CharacterRange> ranges;
     shape_result->IndividualCharacterRanges(&ranges);

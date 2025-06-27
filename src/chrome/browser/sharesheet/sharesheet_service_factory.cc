@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "base/command_line.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
@@ -37,6 +37,9 @@ SharesheetServiceFactory::SharesheetServiceFactory()
               // Some tests need the service to exist in guest profiles.
               .WithGuest(ProfileSelection::kOffTheRecordOnly)
               .WithSystem(ProfileSelection::kNone)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
   DependsOn(apps::AppServiceProxyFactory::GetInstance());
 }

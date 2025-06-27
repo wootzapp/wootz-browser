@@ -13,7 +13,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
 #include "chrome/browser/ash/file_manager/volume_manager.h"
-#include "chrome/browser/enterprise/connectors/analysis/analysis_settings.h"
 #include "chrome/browser/enterprise/connectors/analysis/files_request_handler.h"
 #include "chrome/browser/enterprise/connectors/analysis/source_destination_matcher_ash.h"
 #include "chrome/browser/enterprise/connectors/connectors_service.h"
@@ -21,6 +20,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
+#include "components/enterprise/connectors/core/analysis_settings.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "storage/browser/file_system/file_system_context.h"
@@ -48,7 +48,7 @@ enterprise_connectors::FileTransferAnalysisDelegate::
 // a file, the vector will only contain `root`. If `root` is a directory all
 // files lying in that directory or any descended subdirectory are passed to
 // `callback`.
-class GetFileURLsDelegate : public storage::RecursiveOperationDelegate {
+class GetFileURLsDelegate final : public storage::RecursiveOperationDelegate {
  public:
   using FileURLsCallback =
       base::OnceCallback<void(std::vector<storage::FileSystemURL>)>;
@@ -66,7 +66,7 @@ class GetFileURLsDelegate : public storage::RecursiveOperationDelegate {
   ~GetFileURLsDelegate() override = default;
 
   // RecursiveOperationDelegate:
-  void Run() override { NOTREACHED_IN_MIGRATION(); }
+  void Run() override { NOTREACHED(); }
   void RunRecursively() override {
     DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
     StartRecursiveOperation(root_,
@@ -94,6 +94,9 @@ class GetFileURLsDelegate : public storage::RecursiveOperationDelegate {
   void PostProcessDirectory(const storage::FileSystemURL& url,
                             StatusCallback callback) override {
     std::move(callback).Run(base::File::FILE_OK);
+  }
+  base::WeakPtr<storage::RecursiveOperationDelegate> AsWeakPtr() override {
+    return weak_ptr_factory_.GetWeakPtr();
   }
 
  private:
@@ -422,6 +425,38 @@ FileTransferAnalysisDelegate::GetFilesRequestHandlerForTesting() {
   return request_handler_.get();
 }
 
+const AnalysisSettings& FileTransferAnalysisDelegate::settings() const {
+  return settings_;
+}
+
+int FileTransferAnalysisDelegate::user_action_requests_count() const {
+  return scanning_urls_.size();
+}
+
+std::string FileTransferAnalysisDelegate::tab_title() const {
+  return "";
+}
+
+std::string FileTransferAnalysisDelegate::user_action_id() const {
+  return "";
+}
+
+std::string FileTransferAnalysisDelegate::email() const {
+  return GetProfileEmail(profile_);
+}
+
+std::string FileTransferAnalysisDelegate::url() const {
+  return "";
+}
+
+const GURL& FileTransferAnalysisDelegate::tab_url() const {
+  return GURL::EmptyGURL();
+}
+
+ContentAnalysisRequest::Reason FileTransferAnalysisDelegate::reason() const {
+  return ContentAnalysisRequest::UNKNOWN;
+}
+
 void FileTransferAnalysisDelegate::OnGotFileURLs(
     std::vector<storage::FileSystemURL> scanning_urls) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -438,17 +473,15 @@ void FileTransferAnalysisDelegate::OnGotFileURLs(
   }
 
   request_handler_ = FilesRequestHandler::Create(
+      this,
       safe_browsing::BinaryUploadService::GetForProfile(profile_, settings_),
-      profile_, settings_, GURL{},
+      profile_, GURL{},
       SourceDestinationMatcherAsh::GetVolumeDescriptionFromPath(
           profile_, source_url_.path()),
       SourceDestinationMatcherAsh::GetVolumeDescriptionFromPath(
           profile_, destination_url_.path()),
-      // User action id and tab title are only needed for local content
-      // analysis, leave them empty here.
-      /*user_action_id=*/std::string(), /*tab_title=*/std::string(),
       /*content_transfer_method=*/std::string(), access_point_,
-      ContentAnalysisRequest::UNKNOWN, std::move(paths),
+      std::move(paths),
       base::BindOnce(&FileTransferAnalysisDelegate::ContentAnalysisCompleted,
                      weak_ptr_factory_.GetWeakPtr()));
   request_handler_->UploadData();

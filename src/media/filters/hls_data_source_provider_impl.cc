@@ -4,8 +4,9 @@
 
 #include "media/filters/hls_data_source_provider_impl.h"
 
+#include <algorithm>
+
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/bind_post_task.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/pass_key.h"
@@ -50,8 +51,6 @@ void OnMultiBufferReadComplete(
 }
 
 }  // namespace
-
-HlsDataSourceProviderImpl::DataSourceFactory::~DataSourceFactory() = default;
 
 HlsDataSourceProviderImpl::HlsDataSourceProviderImpl(
     std::unique_ptr<DataSourceFactory> factory)
@@ -105,11 +104,11 @@ void HlsDataSourceProviderImpl::ReadFromExistingStream(
   // try to make one. Creating a new data source will re-enter this function to
   // complete `callback`.
   if (stream->RequiresNextDataSource()) {
-    auto new_uri = stream->GetNextSegmentURI();
+    auto [new_uri, bypass_cache] = stream->GetNextSegmentURIAndCacheStatus();
     TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("media", "HLS::CreateDataSource", this,
                                       "uri", new_uri);
     data_source_factory_->CreateDataSource(
-        std::move(new_uri),
+        std::move(new_uri), bypass_cache,
         base::BindOnce(&HlsDataSourceProviderImpl::OnDataSourceCreated,
                        weak_factory_.GetWeakPtr(), std::move(stream),
                        std::move(callback)));

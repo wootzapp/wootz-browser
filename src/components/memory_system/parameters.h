@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-#include "components/metrics/call_stacks/call_stack_profile_params.h"
+#include "components/sampling_profiler/process_type.h"
 #include "components/version_info/channel.h"
 
 namespace memory_system {
@@ -32,10 +32,10 @@ struct GwpAsanParameters {
 struct ProfilingClientParameters {
   ProfilingClientParameters(
       version_info::Channel channel,
-      metrics::CallStackProfileParams::Process process_type);
+      sampling_profiler::ProfilerProcessType process_type);
 
   version_info::Channel channel;
-  metrics::CallStackProfileParams::Process process_type;
+  sampling_profiler::ProfilerProcessType process_type;
 };
 
 // Dispatcher specific parameters, please see

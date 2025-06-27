@@ -87,6 +87,9 @@ class ParserTest : public ::testing::Test {
 #if BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_X86)
     return base::android::BuildInfo::GetInstance()->sdk_int() <=
            base::android::SDK_VERSION_NOUGAT;
+    // This test type are also unreliable on Fuchsia.
+#elif BUILDFLAG(IS_FUCHSIA)
+    return true;
 #else
     return false;
 #endif
@@ -164,7 +167,8 @@ TEST_F(ParserDeathTest, ParseMetadataFromFeatureParam_InvalidProto) {
   }
 
   std::string compressed;
-  compression::GzipCompress("clearly not a proto", &compressed);
+  compression::GzipCompress(base::span_from_cstring("clearly not a proto"),
+                            &compressed);
   std::string encoded = base::Base64Encode(compressed);
   const base::FieldTrialParams params = {
       {Parser::kMetadataFeatureParamName, encoded}};

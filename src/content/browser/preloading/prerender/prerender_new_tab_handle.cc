@@ -31,7 +31,7 @@ PrerenderNewTabHandle::PrerenderNewTabHandle(
   // TODO(crbug.com/40234240): Pass the same creation parameters as
   // WebContentsImpl::CreateNewWindow().
   web_contents_create_params_.opener_render_process_id =
-      initiator_render_frame_host->GetProcess()->GetID();
+      initiator_render_frame_host->GetProcess()->GetDeprecatedID();
   web_contents_create_params_.opener_render_frame_id =
       initiator_render_frame_host->GetRoutingID();
   web_contents_create_params_.opener_suppressed = true;
@@ -65,7 +65,7 @@ PrerenderNewTabHandle::~PrerenderNewTabHandle() {
     web_contents_->SetDelegate(nullptr);
 }
 
-int PrerenderNewTabHandle::StartPrerendering(
+FrameTreeNodeId PrerenderNewTabHandle::StartPrerendering(
     const PreloadingPredictor& creating_predictor,
     const PreloadingPredictor& enacting_predictor,
     PreloadingConfidence confidence) {
@@ -84,7 +84,8 @@ int PrerenderNewTabHandle::StartPrerendering(
   auto* preloading_attempt =
       static_cast<PreloadingAttemptImpl*>(preloading_data->AddPreloadingAttempt(
           creating_predictor, enacting_predictor, PreloadingType::kPrerender,
-          std::move(same_url_matcher), triggered_primary_page_source_id));
+          std::move(same_url_matcher),
+          triggered_primary_page_source_id));
   preloading_data->AddPreloadingPrediction(
       enacting_predictor, confidence,
       PreloadingData::GetSameURLMatcher(attributes_.prerendering_url),
@@ -93,8 +94,8 @@ int PrerenderNewTabHandle::StartPrerendering(
       *PreloadingDataImpl::GetOrCreateForWebContents(
           attributes_.initiator_web_contents.get()),
       {creating_predictor, enacting_predictor});
-  CHECK(attributes_.eagerness.has_value());
-  preloading_attempt->SetSpeculationEagerness(attributes_.eagerness.value());
+  CHECK(eagerness().has_value());
+  preloading_attempt->SetSpeculationEagerness(eagerness().value());
 
   prerender_host_id_ = GetPrerenderHostRegistry().CreateAndStartHost(
       attributes_, preloading_attempt);

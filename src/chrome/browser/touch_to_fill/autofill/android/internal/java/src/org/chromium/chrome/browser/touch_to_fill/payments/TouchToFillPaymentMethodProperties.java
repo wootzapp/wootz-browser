@@ -45,6 +45,9 @@ class TouchToFillPaymentMethodProperties {
 
         // A footer section containing additional actions.
         int FOOTER = 4;
+
+        // A section with a terms label is present when card benefits are available.
+        int TERMS_LABEL = 5;
     }
 
     /** Metadata associated with a card's image. */
@@ -65,39 +68,42 @@ class TouchToFillPaymentMethodProperties {
         }
     }
 
-    /** Properties for a credit card entry in the TouchToFill sheet for payments. */
-    static class CreditCardProperties {
+    /** Properties for a credit card suggestion entry in the TouchToFill sheet for payments. */
+    static class CreditCardSuggestionProperties {
         static final PropertyModel.ReadableTransformingObjectPropertyKey<
                         CardImageMetaData, Drawable>
                 CARD_IMAGE =
                         new PropertyModel.ReadableTransformingObjectPropertyKey<>("card_image");
-        static final PropertyModel.ReadableObjectPropertyKey<String> NETWORK_NAME =
-                new PropertyModel.ReadableObjectPropertyKey<>("network_name");
-        static final PropertyModel.ReadableObjectPropertyKey<String> CARD_NAME =
-                new PropertyModel.ReadableObjectPropertyKey<>("card_name");
-        static final PropertyModel.ReadableObjectPropertyKey<String> CARD_NUMBER =
-                new PropertyModel.ReadableObjectPropertyKey<>("card_number");
-        static final PropertyModel.ReadableObjectPropertyKey<String> CARD_EXPIRATION =
-                new PropertyModel.ReadableObjectPropertyKey<>("card_expiration");
-        static final PropertyModel.ReadableObjectPropertyKey<String> VIRTUAL_CARD_LABEL =
-                new PropertyModel.ReadableObjectPropertyKey<>("virtual_card_label");
+        static final PropertyModel.ReadableObjectPropertyKey<String> MAIN_TEXT =
+                new PropertyModel.ReadableObjectPropertyKey<>("main_text");
+        static final PropertyModel.ReadableObjectPropertyKey<String> MAIN_TEXT_CONTENT_DESCRIPTION =
+                new PropertyModel.ReadableObjectPropertyKey<>("main_text_content_description");
+        static final PropertyModel.ReadableObjectPropertyKey<String> MINOR_TEXT =
+                new PropertyModel.ReadableObjectPropertyKey<>("minor_text");
+        static final PropertyModel.ReadableObjectPropertyKey<String> FIRST_LINE_LABEL =
+                new PropertyModel.ReadableObjectPropertyKey<>("first_line_label");
+        static final PropertyModel.ReadableObjectPropertyKey<String> SECOND_LINE_LABEL =
+                new PropertyModel.ReadableObjectPropertyKey<>("second_line_label");
         static final PropertyModel.ReadableObjectPropertyKey<Runnable> ON_CREDIT_CARD_CLICK_ACTION =
                 new PropertyModel.ReadableObjectPropertyKey<>("on_credit_card_click_action");
+        static final PropertyModel.ReadableBooleanPropertyKey APPLY_DEACTIVATED_STYLE =
+                new PropertyModel.ReadableBooleanPropertyKey("apply_deactivated_style");
         static final PropertyModel.ReadableObjectPropertyKey<FillableItemCollectionInfo>
                 ITEM_COLLECTION_INFO =
                         new PropertyModel.ReadableObjectPropertyKey<>("item_collection_info");
 
-        static final PropertyKey[] NON_TRANSFORMING_CREDIT_CARD_KEYS = {
-            NETWORK_NAME,
-            CARD_NAME,
-            CARD_NUMBER,
-            CARD_EXPIRATION,
-            VIRTUAL_CARD_LABEL,
+        static final PropertyKey[] NON_TRANSFORMING_CREDIT_CARD_SUGGESTION_KEYS = {
+            MAIN_TEXT,
+            MAIN_TEXT_CONTENT_DESCRIPTION,
+            MINOR_TEXT,
+            FIRST_LINE_LABEL,
+            SECOND_LINE_LABEL,
             ON_CREDIT_CARD_CLICK_ACTION,
+            APPLY_DEACTIVATED_STYLE,
             ITEM_COLLECTION_INFO
         };
 
-        private CreditCardProperties() {}
+        private CreditCardSuggestionProperties() {}
     }
 
     /** Properties for an IBAN entry in the TouchToFill sheet for payments. */
@@ -114,6 +120,19 @@ class TouchToFillPaymentMethodProperties {
         };
 
         private IbanProperties() {}
+    }
+
+    /**
+     * Properties defined here reflect the visible state of the terms message in the TouchToFill
+     * sheet for payments.
+     */
+    static class TermsLabelProperties {
+        static final PropertyModel.WritableBooleanPropertyKey CARD_BENEFITS_TERMS_AVAILABLE =
+                new PropertyModel.WritableBooleanPropertyKey("card_benefits_terms_available");
+
+        static final PropertyKey[] ALL_TERMS_LABEL_KEYS = {CARD_BENEFITS_TERMS_AVAILABLE};
+
+        private TermsLabelProperties() {}
     }
 
     /**

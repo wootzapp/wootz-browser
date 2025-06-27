@@ -4,6 +4,8 @@
 
 #include "ash/wallpaper/online_wallpaper_variant_info_fetcher.h"
 
+#include <algorithm>
+
 #include "ash/public/cpp/schedule_enums.h"
 #include "ash/public/cpp/wallpaper/online_wallpaper_params.h"
 #include "ash/public/cpp/wallpaper/online_wallpaper_variant.h"
@@ -17,12 +19,12 @@
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_piece.h"
 #include "base/task/sequenced_task_runner.h"
 
 namespace ash {
 namespace {
+
+OnlineWallpaperVariantInfoFetcher* g_instance = nullptr;
 
 // The filtered results from a set of backdrop::Images for a given |location|
 // and |unit_id| value.
@@ -41,7 +43,7 @@ class VariantMatches {
       const std::vector<backdrop::Image>& images) {
     // Find the exact image in the |images| collection.
     auto image_iter =
-        base::ranges::find(images, location, &backdrop::Image::image_url);
+        std::ranges::find(images, location, &backdrop::Image::image_url);
 
     if (image_iter == images.end()) {
       return std::nullopt;
@@ -102,10 +104,22 @@ OnlineWallpaperVariantInfoFetcher::OnlineWallpaperRequest::
 OnlineWallpaperVariantInfoFetcher::OnlineWallpaperRequest::
     ~OnlineWallpaperRequest() = default;
 
-OnlineWallpaperVariantInfoFetcher::OnlineWallpaperVariantInfoFetcher() =
-    default;
-OnlineWallpaperVariantInfoFetcher::~OnlineWallpaperVariantInfoFetcher() =
-    default;
+OnlineWallpaperVariantInfoFetcher::OnlineWallpaperVariantInfoFetcher() {
+  DCHECK_EQ(nullptr, g_instance);
+  g_instance = this;
+}
+
+OnlineWallpaperVariantInfoFetcher::~OnlineWallpaperVariantInfoFetcher() {
+  DCHECK_EQ(g_instance, this);
+  g_instance = nullptr;
+}
+
+// static
+OnlineWallpaperVariantInfoFetcher*
+OnlineWallpaperVariantInfoFetcher::GetInstance() {
+  DCHECK(g_instance);
+  return g_instance;
+}
 
 void OnlineWallpaperVariantInfoFetcher::SetClient(
     WallpaperControllerClient* client) {

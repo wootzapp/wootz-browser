@@ -57,6 +57,26 @@ const char kPermissionsPromptSurveyHadGestureKey[] = "HadGesture";
 // restriction to specific channels (typically to stable).
 const char kPermissionsPromptSurveyReleaseChannelKey[] = "ReleaseChannel";
 
+const char kPermissionPromptSurveyPepcPromptPositionKey[] =
+    "PepcPromptPosition";
+
+const char kPermissionPromptSurveyInitialPermissionStatusKey[] =
+    "InitialPermissionStatus";
+
+const char kPermissionPromptSurveyPreviewVisibleKey[] = "Preview was visible";
+
+const char kPermissionPromptSurveyPreviewDropdownInteractedKey[] =
+    "Preview dropdown was interacted";
+
+const char kPermissionPromptSurveyPreviewWasCombinedKey[] =
+    "Preview prompt was combined";
+
+const char kPermissionPromptSurveyPreviewTimeToDecisionKey[] =
+    "Preview time to decision";
+
+const char kPermissionPromptSurveyPreviewTimeToVisibleKey[] =
+    "Preview time to visible";
+
 // TODO(crbug.com/40254381): Remove the code related to unused site permissions
 // from Android builds.
 

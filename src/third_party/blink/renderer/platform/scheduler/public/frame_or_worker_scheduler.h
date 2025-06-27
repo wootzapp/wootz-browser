@@ -88,6 +88,7 @@ class PLATFORM_EXPORT FrameOrWorkerScheduler {
     }
 
     SchedulingPolicy GetPolicy() const;
+    SchedulingPolicy::Feature GetFeature() const;
 
     const FeatureAndJSLocationBlockingBFCache&
     GetFeatureAndJSLocationBlockingBFCache() const;
@@ -158,10 +159,6 @@ class PLATFORM_EXPORT FrameOrWorkerScheduler {
   };
 
   virtual ~FrameOrWorkerScheduler();
-
-  using Preempted = base::StrongAlias<class PreemptedTag, bool>;
-  // Stops any tasks from running while we yield and run a nested loop.
-  virtual void SetPreemptedForCooperativeScheduling(Preempted) = 0;
 
   // Notifies scheduler that this execution context has started using a feature
   // which impacts scheduling decisions.

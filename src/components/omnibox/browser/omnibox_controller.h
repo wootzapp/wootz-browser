@@ -12,6 +12,7 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/omnibox_edit_model.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "components/search_engines/template_url_starter_pack_data.h"
 
 class OmniboxClient;
 class OmniboxView;
@@ -20,7 +21,10 @@ class OmniboxView;
 // omnibox, including `AutocompleteController` and `OmniboxEditModel`.
 class OmniboxController : public AutocompleteController::Observer {
  public:
-  OmniboxController(OmniboxView* view, std::unique_ptr<OmniboxClient> client);
+  OmniboxController(OmniboxView* view,
+                    std::unique_ptr<OmniboxClient> client,
+                    base::TimeDelta autocomplete_stop_timer_duration =
+                        kAutocompleteDefaultStopTimerDuration);
   ~OmniboxController() override;
   OmniboxController(const OmniboxController&) = delete;
   OmniboxController& operator=(const OmniboxController&) = delete;
@@ -72,7 +76,7 @@ class OmniboxController : public AutocompleteController::Observer {
       omnibox::GroupId suggestion_group_id) const;
 
   // Returns whether or not the row for a particular match should be hidden in
-  // the UI. This is currently used to hide suggestions in the 'AskGoogle' scope
+  // the UI. This is currently used to hide suggestions in the 'Gemini' scope
   // when the starter pack expansion feature is enabled.
   bool IsSuggestionHidden(const AutocompleteMatch& match) const;
 
@@ -89,8 +93,12 @@ class OmniboxController : public AutocompleteController::Observer {
                                 bool hidden) const;
 
  private:
-  // Stores the bitmap in the OmniboxPopupModel.
-  void SetRichSuggestionBitmap(int result_index, const SkBitmap& bitmap);
+  // Stores the bitmap, using `icon_url` as the key in
+  // `edit_model_->icon_bitmaps_` if provided, or `result_index` in
+  // `edit_model_->rich_suggestion_bitmaps_` otherwise.
+  void SetRichSuggestionBitmap(int result_index,
+                               const GURL& icon_url,
+                               const SkBitmap& bitmap);
 
   // Called when the prefs for the visibility of groups changes.
   void OnSuggestionGroupVisibilityPrefChanged();

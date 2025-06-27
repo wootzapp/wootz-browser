@@ -8,6 +8,8 @@
 #include <unicode/ubidi.h>
 #include <unicode/uscript.h>
 
+#include <bit>
+
 #include "base/check_op.h"
 #include "base/dcheck_is_on.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -50,7 +52,18 @@ class CORE_EXPORT InlineItemSegment {
   unsigned EndOffset() const { return end_offset_; }
 
   // Pack/unpack utility functions to store in bit fields.
-  static constexpr unsigned kSegmentDataBits = 11;
+  // UScriptCode is -1 (USCRIPT_INVALID_CODE) to 199 as of ICU 74.
+  // `USCRIPT_CODE_LIMIT` is the max value plus 1, but the plus 1 is necessary
+  // to represent -1 (USCRIPT_INVALID_CODE), which is handled separately.
+  static constexpr unsigned kScriptBits =
+      std::bit_width(static_cast<unsigned>(USCRIPT_CODE_LIMIT));
+  static constexpr unsigned kFontFallbackPriorityBits = std::bit_width(
+      static_cast<unsigned>(FontFallbackPriority::kMaxEnumValue));
+  static constexpr unsigned kRenderOrientationBits =
+      std::bit_width(static_cast<unsigned>(
+          OrientationIterator::RenderOrientation::kMaxEnumValue));
+  static constexpr unsigned kSegmentDataBits =
+      kScriptBits + kFontFallbackPriorityBits + kRenderOrientationBits;
 
   static unsigned PackSegmentData(const RunSegmenter::RunSegmenterRange& range);
   static RunSegmenter::RunSegmenterRange
@@ -108,7 +121,7 @@ class CORE_EXPORT InlineItemSegments {
                                       unsigned segment_index);
 
   // Compute an internal items-to-segments index for faster access.
-  void ComputeItemIndex(const HeapVector<InlineItem>& items);
+  void ComputeItemIndex(const HeapVector<Member<InlineItem>>& items);
 
   using RunSegmenterRanges = Vector<RunSegmenter::RunSegmenterRange, 16>;
   void ToRanges(RunSegmenterRanges& ranges) const;
@@ -120,7 +133,8 @@ class CORE_EXPORT InlineItemSegments {
    public:
     Iterator(unsigned start_offset,
              unsigned end_offset,
-             const InlineItemSegment* segment);
+             base::span<const InlineItemSegment> span,
+             unsigned segment_index);
 
     bool IsDone() const { return range_.start == end_offset_; }
 
@@ -134,7 +148,8 @@ class CORE_EXPORT InlineItemSegments {
 
    private:
     RunSegmenter::RunSegmenterRange range_;
-    const InlineItemSegment* segment_;
+    base::raw_span<const InlineItemSegment> span_;
+    unsigned segment_index_;
     unsigned start_offset_;
     unsigned end_offset_;
   };
@@ -174,13 +189,18 @@ class CORE_EXPORT InlineItemSegments {
   Vector<unsigned> items_to_segments_;
 };
 
-inline InlineItemSegments::Iterator::Iterator(unsigned start_offset,
-                                              unsigned end_offset,
-                                              const InlineItemSegment* segment)
-    : segment_(segment), start_offset_(start_offset), end_offset_(end_offset) {
+inline InlineItemSegments::Iterator::Iterator(
+    unsigned start_offset,
+    unsigned end_offset,
+    base::span<const InlineItemSegment> span,
+    unsigned segment_index)
+    : span_(span),
+      segment_index_(segment_index),
+      start_offset_(start_offset),
+      end_offset_(end_offset) {
   DCHECK_LT(start_offset, end_offset);
-  DCHECK_LT(start_offset, segment->EndOffset());
-  range_ = segment->ToRunSegmenterRange(start_offset_, end_offset_);
+  DCHECK_LT(start_offset, span[segment_index].EndOffset());
+  range_ = span[segment_index].ToRunSegmenterRange(start_offset_, end_offset_);
 }
 
 inline void InlineItemSegments::Iterator::operator++() {
@@ -190,8 +210,9 @@ inline void InlineItemSegments::Iterator::operator++() {
     return;
   }
   start_offset_ = range_.end;
-  ++segment_;
-  range_ = segment_->ToRunSegmenterRange(start_offset_, end_offset_);
+  ++segment_index_;
+  range_ =
+      span_[segment_index_].ToRunSegmenterRange(start_offset_, end_offset_);
 }
 
 }  // namespace blink

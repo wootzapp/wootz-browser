@@ -4,6 +4,7 @@
 
 package org.chromium.components.browser_ui.site_settings;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.content_public.browser.BrowserContextHandle;
 
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Encapsulates clearing the data of {@link Website}s and {@link WebsiteGroup}s.
  * Requires native library to be initialized.
  */
+@NullMarked
 public class SiteDataCleaner {
     /**
      * Clears the data of the specified site.
@@ -24,9 +26,9 @@ public class SiteDataCleaner {
             SiteSettingsDelegate siteSettingsDelegate, Website site, Runnable finishCallback) {
         String origin = site.getAddress().getOrigin();
         var browserContextHandle = siteSettingsDelegate.getBrowserContextHandle();
+        WebsitePreferenceBridgeJni.get().clearCookieData(browserContextHandle, origin);
 
         if (!siteSettingsDelegate.isBrowsingDataModelFeatureEnabled()) {
-            WebsitePreferenceBridgeJni.get().clearCookieData(browserContextHandle, origin);
             WebsitePreferenceBridgeJni.get().clearMediaLicenses(browserContextHandle, origin);
         }
 

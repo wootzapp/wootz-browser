@@ -34,8 +34,7 @@ const StylePropertyShorthand& transitionShorthandForParsing() {
       &GetCSSPropertyTransitionTimingFunction(),
       &GetCSSPropertyTransitionDelay(), &GetCSSPropertyTransitionProperty()};
   static StylePropertyShorthand transition_longhands_with_animation_type(
-      CSSPropertyID::kTransition, kTransitionPropertiesWithAnimationType,
-      std::size(kTransitionPropertiesWithAnimationType));
+      CSSPropertyID::kTransition, kTransitionPropertiesWithAnimationType);
 
   return transition_longhands_with_animation_type;
 }
@@ -48,8 +47,7 @@ unsigned indexOfShorthandForLonghand(
       return i;
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 }  // namespace blink

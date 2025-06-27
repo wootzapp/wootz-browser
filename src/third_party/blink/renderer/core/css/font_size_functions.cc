@@ -38,6 +38,126 @@
 
 namespace blink {
 
+namespace {
+
+const int kFontSizeTableMax = 16;
+const int kDefaultMediumFontSize = 12;
+const int kFontSizeTableMin = 9;
+const int kTotalKeywords = 8;
+
+constexpr auto kFontSizeTableSize = kFontSizeTableMax - kFontSizeTableMin + 1;
+
+using FontSizeTableType =
+    std::array<std::array<int, kTotalKeywords>, kFontSizeTableSize>;
+
+// WinIE/Nav4 table for font sizes. Designed to match the legacy font mapping
+// system of HTML.
+const FontSizeTableType kQuirksFontSizeTable{{
+    {9, 9, 9, 9, 11, 14, 18, 28},
+    {9, 9, 9, 10, 12, 15, 20, 31},
+    {9, 9, 9, 11, 13, 17, 22, 34},
+    {9, 9, 10, 12, 14, 18, 24, 37},
+    {9, 9, 10, 13, 16, 20, 26, 40},  // fixed font default (13)
+    {9, 9, 11, 14, 17, 21, 28, 42},
+    {9, 10, 12, 15, 17, 23, 30, 45},
+    {9, 10, 13, 16, 18, 24, 32, 48}  // proportional font default (16)
+}};
+// HTML       1      2      3      4      5      6      7
+// CSS  xxs   xs     s      m      l     xl     xxl
+//                          |
+//                      user pref
+
+// Strict mode table matches MacIE and Mozilla's settings exactly.
+const FontSizeTableType kStrictFontSizeTable{{
+    {9, 9, 9, 9, 11, 14, 18, 27},
+    {9, 9, 9, 10, 12, 15, 20, 30},
+    {9, 9, 10, 11, 13, 17, 22, 33},
+    {9, 9, 10, 12, 14, 18, 24, 36},
+    {9, 10, 12, 13, 16, 20, 26, 39},  // fixed font default (13)
+    {9, 10, 12, 14, 17, 21, 28, 42},
+    {9, 10, 13, 15, 18, 23, 30, 45},
+    {9, 10, 13, 16, 18, 24, 32, 48}  // proportional font default (16)
+}};
+// HTML       1      2      3      4      5      6      7
+// CSS  xxs   xs     s      m      l     xl     xxl
+//                          |
+//                      user pref
+
+// For values outside the range of the table, we use Todd Fahrner's suggested
+// scale factors for each keyword value.
+const std::array<float, kTotalKeywords> kFontSizeFactors{
+    0.60f, 0.75f, 0.89f, 1.0f, 1.2f, 1.5f, 2.0f, 3.0f};
+
+int inline RowFromMediumFontSizeInRange(const Settings* settings,
+                                        bool quirks_mode,
+                                        bool is_monospace,
+                                        int& medium_size) {
+  medium_size = settings ? (is_monospace ? settings->GetDefaultFixedFontSize()
+                                         : settings->GetDefaultFontSize())
+                         : kDefaultMediumFontSize;
+  if (medium_size >= kFontSizeTableMin && medium_size <= kFontSizeTableMax) {
+    return medium_size - kFontSizeTableMin;
+  }
+  return -1;
+}
+
+template <typename T>
+int FindNearestLegacyFontSize(int pixel_font_size,
+                              const std::array<T, kTotalKeywords>& table,
+                              int multiplier) {
+  // Ignore table[0] because xx-small does not correspond to any legacy font
+  // size.
+  for (int i = 1; i < kTotalKeywords - 1; i++) {
+    if (pixel_font_size * 2 < (table[i] + table[i + 1]) * multiplier) {
+      return i;
+    }
+  }
+  return kTotalKeywords - 1;
+}
+
+float AspectValue(const SimpleFontData& font_data,
+                  FontSizeAdjust::Metric metric,
+                  float computed_size) {
+  DCHECK(computed_size);
+  const FontMetrics& font_metrics = font_data.GetFontMetrics();
+  // We return fallback values for missing font metrics.
+  // https://github.com/w3c/csswg-drafts/issues/6384
+  float aspect_value = 1.0;
+  switch (metric) {
+    case FontSizeAdjust::Metric::kCapHeight:
+      if (font_metrics.CapHeight() > 0) {
+        aspect_value = font_metrics.CapHeight() / computed_size;
+      }
+      break;
+    case FontSizeAdjust::Metric::kChWidth:
+      if (font_metrics.HasZeroWidth()) {
+        aspect_value = font_metrics.ZeroWidth() / computed_size;
+      }
+      break;
+    case FontSizeAdjust::Metric::kIcWidth:
+      if (const std::optional<float>& size =
+              font_data.IdeographicAdvanceWidth()) {
+        aspect_value = *size / computed_size;
+      }
+      break;
+    case FontSizeAdjust::Metric::kIcHeight: {
+      if (const std::optional<float>& size =
+              font_data.IdeographicAdvanceHeight()) {
+        aspect_value = *size / computed_size;
+      }
+      break;
+    }
+    case FontSizeAdjust::Metric::kExHeight:
+    default:
+      if (font_metrics.HasXHeight()) {
+        aspect_value = font_metrics.XHeight() / computed_size;
+      }
+  }
+  return aspect_value;
+}
+
+}  // namespace
+
 float FontSizeFunctions::GetComputedSizeFromSpecifiedSize(
     const Document* document,
     float zoom_factor,
@@ -87,65 +207,13 @@ float FontSizeFunctions::GetComputedSizeFromSpecifiedSize(
   return std::min(kMaximumAllowedFontSize, specified_size * zoom_factor);
 }
 
-const int kFontSizeTableMax = 16;
-const int kDefaultMediumFontSize = 12;
-const int kFontSizeTableMin = 9;
-const int kTotalKeywords = 8;
-
-// WinIE/Nav4 table for font sizes. Designed to match the legacy font mapping
-// system of HTML.
-static const int kQuirksFontSizeTable[kFontSizeTableMax - kFontSizeTableMin +
-                                      1][kTotalKeywords] = {
-    {9, 9, 9, 9, 11, 14, 18, 28},   {9, 9, 9, 10, 12, 15, 20, 31},
-    {9, 9, 9, 11, 13, 17, 22, 34},  {9, 9, 10, 12, 14, 18, 24, 37},
-    {9, 9, 10, 13, 16, 20, 26, 40},  // fixed font default (13)
-    {9, 9, 11, 14, 17, 21, 28, 42}, {9, 10, 12, 15, 17, 23, 30, 45},
-    {9, 10, 13, 16, 18, 24, 32, 48}  // proportional font default (16)
-};
-// HTML       1      2      3      4      5      6      7
-// CSS  xxs   xs     s      m      l     xl     xxl
-//                          |
-//                      user pref
-
-// Strict mode table matches MacIE and Mozilla's settings exactly.
-static const int kStrictFontSizeTable[kFontSizeTableMax - kFontSizeTableMin +
-                                      1][kTotalKeywords] = {
-    {9, 9, 9, 9, 11, 14, 18, 27},    {9, 9, 9, 10, 12, 15, 20, 30},
-    {9, 9, 10, 11, 13, 17, 22, 33},  {9, 9, 10, 12, 14, 18, 24, 36},
-    {9, 10, 12, 13, 16, 20, 26, 39},  // fixed font default (13)
-    {9, 10, 12, 14, 17, 21, 28, 42}, {9, 10, 13, 15, 18, 23, 30, 45},
-    {9, 10, 13, 16, 18, 24, 32, 48}  // proportional font default (16)
-};
-// HTML       1      2      3      4      5      6      7
-// CSS  xxs   xs     s      m      l     xl     xxl
-//                          |
-//                      user pref
-
-// For values outside the range of the table, we use Todd Fahrner's suggested
-// scale factors for each keyword value.
-static const float kFontSizeFactors[kTotalKeywords] = {
-    0.60f, 0.75f, 0.89f, 1.0f, 1.2f, 1.5f, 2.0f, 3.0f};
-
-static int inline RowFromMediumFontSizeInRange(const Settings* settings,
-                                               bool quirks_mode,
-                                               bool is_monospace,
-                                               int& medium_size) {
-  medium_size = settings ? (is_monospace ? settings->GetDefaultFixedFontSize()
-                                         : settings->GetDefaultFontSize())
-                         : kDefaultMediumFontSize;
-  if (medium_size >= kFontSizeTableMin && medium_size <= kFontSizeTableMax) {
-    return medium_size - kFontSizeTableMin;
-  }
-  return -1;
-}
-
 float FontSizeFunctions::FontSizeForKeyword(const Document* document,
                                             unsigned keyword,
                                             bool is_monospace) {
   DCHECK_GE(keyword, 1u);
   DCHECK_LE(keyword, 8u);
   const Settings* settings = document ? document->GetSettings() : nullptr;
-  bool quirks_mode = document ? document->InQuirksMode() : false;
+  bool quirks_mode = document && document->InQuirksMode();
 
   int medium_size = 0;
   int row = RowFromMediumFontSizeInRange(settings, quirks_mode, is_monospace,
@@ -161,20 +229,6 @@ float FontSizeFunctions::FontSizeForKeyword(const Document* document,
       settings ? std::max(settings->GetMinimumLogicalFontSize(), 1) : 1;
   return std::max(kFontSizeFactors[keyword - 1] * medium_size,
                   min_logical_size);
-}
-
-template <typename T>
-static int FindNearestLegacyFontSize(int pixel_font_size,
-                                     const T* table,
-                                     int multiplier) {
-  // Ignore table[0] because xx-small does not correspond to any legacy font
-  // size.
-  for (int i = 1; i < kTotalKeywords - 1; i++) {
-    if (pixel_font_size * 2 < (table[i] + table[i + 1]) * multiplier) {
-      return i;
-    }
-  }
-  return kTotalKeywords - 1;
 }
 
 int FontSizeFunctions::LegacyFontSize(const Document* document,
@@ -199,47 +253,6 @@ int FontSizeFunctions::LegacyFontSize(const Document* document,
                                           medium_size);
 }
 
-static std::optional<float> AspectValue(const SimpleFontData& font_data,
-                                        FontSizeAdjust::Metric metric,
-                                        float computed_size) {
-  DCHECK(computed_size);
-  const FontMetrics& font_metrics = font_data.GetFontMetrics();
-  // FIXME: The behavior for missing metrics has yet to be defined.
-  // https://github.com/w3c/csswg-drafts/issues/6384
-  std::optional<float> aspect_value = 1.0;
-  switch (metric) {
-    case FontSizeAdjust::Metric::kCapHeight:
-      if (font_metrics.CapHeight() > 0) {
-        aspect_value = font_metrics.CapHeight() / computed_size;
-      }
-      break;
-    case FontSizeAdjust::Metric::kChWidth:
-      if (font_metrics.HasZeroWidth()) {
-        aspect_value = font_metrics.ZeroWidth() / computed_size;
-      }
-      break;
-    case FontSizeAdjust::Metric::kIcWidth:
-      if (const std::optional<float>& size =
-              font_data.IdeographicAdvanceWidth()) {
-        aspect_value = *size / computed_size;
-      }
-      break;
-    case FontSizeAdjust::Metric::kIcHeight: {
-      const std::optional<float>& size = font_data.IdeographicAdvanceHeight();
-      aspect_value = font_data.HasVerticalMetrics()
-                         ? std::make_optional<float>(*size / computed_size)
-                         : std::nullopt;
-      break;
-    }
-    case FontSizeAdjust::Metric::kExHeight:
-    default:
-      if (font_metrics.HasXHeight()) {
-        aspect_value = font_metrics.XHeight() / computed_size;
-      }
-  }
-  return aspect_value;
-}
-
 std::optional<float> FontSizeFunctions::FontAspectValue(
     const SimpleFontData* font_data,
     FontSizeAdjust::Metric metric,
@@ -248,9 +261,8 @@ std::optional<float> FontSizeFunctions::FontAspectValue(
     return std::nullopt;
   }
 
-  std::optional<float> aspect_value =
-      AspectValue(*font_data, metric, computed_size);
-  if (!aspect_value || !aspect_value.value()) {
+  float aspect_value = AspectValue(*font_data, metric, computed_size);
+  if (!aspect_value) {
     return std::nullopt;
   }
   return aspect_value;
@@ -267,12 +279,12 @@ std::optional<float> FontSizeFunctions::MetricsMultiplierAdjustedFontSize(
     return std::nullopt;
   }
 
-  std::optional<float> aspect_value =
+  float aspect_value =
       AspectValue(*font_data, size_adjust.GetMetric(), computed_size);
-  if (!aspect_value || !aspect_value.value()) {
+  if (!aspect_value) {
     return std::nullopt;
   }
-  return (size_adjust.Value() / aspect_value.value()) * computed_size;
+  return (size_adjust.Value() / aspect_value) * computed_size;
 }
 
 }  // namespace blink

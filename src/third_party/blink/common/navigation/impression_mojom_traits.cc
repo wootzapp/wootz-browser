@@ -4,16 +4,14 @@
 
 #include "third_party/blink/public/common/navigation/impression_mojom_traits.h"
 
-#include "services/network/public/cpp/attribution_mojom_traits.h"
-
 namespace mojo {
 
 // static
 bool StructTraits<blink::mojom::ImpressionDataView, blink::Impression>::Read(
     blink::mojom::ImpressionDataView data,
     blink::Impression* out) {
-  return data.ReadAttributionSrcToken(&out->attribution_src_token) &&
-         data.ReadRuntimeFeatures(&out->runtime_features);
+  out->is_empty_attribution_src_tag = data.is_empty_attribution_src_tag();
+  return data.ReadAttributionSrcToken(&out->attribution_src_token);
 }
 
 }  // namespace mojo

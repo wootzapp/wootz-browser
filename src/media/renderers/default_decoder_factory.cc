@@ -15,6 +15,7 @@
 #include "media/base/decoder_factory.h"
 #include "media/base/media_log.h"
 #include "media/base/media_switches.h"
+#include "media/base/supported_types.h"
 #include "media/media_buildflags.h"
 #include "media/video/gpu_video_accelerator_factories.h"
 

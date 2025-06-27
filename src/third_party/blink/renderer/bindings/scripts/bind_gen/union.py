@@ -203,8 +203,6 @@ def make_check_assignment_value(cg_context, union_member, assignment_value):
     assert isinstance(union_member, _UnionMember)
     assert isinstance(assignment_value, str)
 
-    if union_member.idl_type and union_member.idl_type.is_object:
-        return TextNode("DCHECK({}.IsObject());".format(assignment_value))
     if union_member.type_info.is_gc_type:
         return TextNode("DCHECK({});".format(assignment_value))
 
@@ -305,7 +303,16 @@ def make_factory_methods(cg_context):
             target_node.append(CxxBlockNode(body=scope_node))
         else:
             target_node.append(
-                CxxUnlikelyIfNode(cond=cond_text, body=scope_node))
+                CxxUnlikelyIfNode(cond=cond_text,
+                                  attribute=None,
+                                  body=scope_node))
+
+    # 1. If the union type includes undefined and V is undefined, then return
+    # the unique undefined value.
+    member = find_by_type(lambda t: t.is_undefined)
+    if member:
+        dispatch_if("${v8_value}->IsUndefined()",
+                    S("blink_value", "ToV8UndefinedGenerator ${blink_value};"))
 
     # 2. If the union type includes a nullable type and V is null or undefined,
     #   ...
@@ -379,7 +386,7 @@ def make_factory_methods(cg_context):
     typed_array_types = ("Int8Array", "Int16Array", "Int32Array",
                          "BigInt64Array", "Uint8Array", "Uint16Array",
                          "Uint32Array", "BigUint64Array", "Uint8ClampedArray",
-                         "Float32Array", "Float64Array")
+                         "Float16Array", "Float32Array", "Float64Array")
     for typed_array_type in typed_array_types:
         member = find_by_type(lambda t: t.keyword_typename == typed_array_type)
         if member:
@@ -408,14 +415,16 @@ def make_factory_methods(cg_context):
         # Create an IDL sequence from an iterable object.
         scope_node = SymbolScopeNode()
         body.append(
-            CxxUnlikelyIfNode(cond="${v8_value}->IsObject()", body=scope_node))
+            CxxUnlikelyIfNode(cond="${v8_value}->IsObject()",
+                              attribute=None,
+                              body=scope_node))
         scope_node.extend([
             T("ScriptIterator script_iterator = ScriptIterator::FromIterable("
               "${isolate}, ${v8_value}.As<v8::Object>(), "
-              "${exception_state});"),
-            CxxUnlikelyIfNode(
-                cond="UNLIKELY(${exception_state}.HadException())",
-                body=T("return nullptr;")),
+              "${exception_state}, ScriptIterator::Kind::kSync);"),
+            CxxUnlikelyIfNode(cond="${exception_state}.HadException()",
+                              attribute="[[unlikely]]",
+                              body=T("return nullptr;")),
         ])
 
         def blink_value_from_iterator(union_member):
@@ -428,9 +437,9 @@ def make_factory_methods(cg_context):
                        "${exception_state});"),
                       native_value_tag(
                           union_member.idl_type.unwrap().element_type)),
-                    CxxUnlikelyIfNode(
-                        cond="UNLIKELY(${exception_state}.HadException())",
-                        body=T("return nullptr;")),
+                    CxxUnlikelyIfNode(cond="${exception_state}.HadException()",
+                                      attribute="[[unlikely]]",
+                                      body=T("return nullptr;")),
                 ])
                 return node
 
@@ -470,7 +479,7 @@ def make_factory_methods(cg_context):
             # Shortcut to reduce the binary size
             S("blink_value",
               (_format("auto&& ${blink_value} = "
-                       "ScriptValue(${isolate}, ${v8_value});"))))
+                       "ScriptObject(${isolate}, ${v8_value});"))))
 
     # 11. If Type(V) is Boolean, then:
     # 11.1. If types includes boolean, ...
@@ -715,11 +724,9 @@ def make_accessor_functions(cg_context):
                                   class_name=cg_context.class_name)
         func_def.set_base_template_vars(cg_context.template_bindings())
         node = CxxSwitchNode(cond="content_type_")
-        node.append(
-            case=None,
-            body=[T("NOTREACHED_IN_MIGRATION();"),
-                  T("return nullptr;")],
-            should_add_break=False)
+        node.append(case=None,
+                    body=[T("NOTREACHED();")],
+                    should_add_break=False)
         for member in subunion_members:
             node.append(case=member.content_type(),
                         body=F("return MakeGarbageCollected<{}>({}());",
@@ -808,8 +815,7 @@ def make_tov8_function(cg_context):
     func_decl = CxxFuncDeclNode(name="ToV8",
                                 arg_decls=["ScriptState* script_state"],
                                 return_type="v8::Local<v8::Value>",
-                                const=True,
-                                override=True)
+                                const=True)
 
     func_def = CxxFuncDefNode(name="ToV8",
                               arg_decls=["ScriptState* script_state"],
@@ -836,8 +842,7 @@ def make_tov8_function(cg_context):
     body.extend([
         branches,
         EmptyNode(),
-        TextNode("NOTREACHED_IN_MIGRATION();"),
-        TextNode("return v8::Local<v8::Value>();"),
+        TextNode("NOTREACHED();"),
     ])
 
     return func_decl, func_def
@@ -863,9 +868,9 @@ def make_trace_function(cg_context):
     for member in cg_context.union_members:
         if member.is_null:
             continue
-        body.append(
-            TextNode("TraceIfNeeded<{}>::Trace(visitor, {});".format(
-                member.type_info.member_t, member.var_name)))
+        if not member.type_info.is_traceable:
+            continue
+        body.append(TextNode("visitor->Trace({});".format(member.var_name)))
     body.append(TextNode("${base_class_name}::Trace(visitor);"))
 
     return func_decl, func_def
@@ -1026,9 +1031,7 @@ def generate_union(union_identifier):
     ])
 
     # Assemble the parts.
-    header_node.accumulator.add_class_decls([
-        "ExceptionState",
-    ])
+    header_node.accumulator.add_class_decls(["ExceptionState", "ScriptState"])
     header_node.accumulator.add_include_headers([
         component_export_header(api_component, for_testing),
         "base/check_op.h",
@@ -1081,10 +1084,11 @@ def generate_union(union_identifier):
     source_blink_ns.body.append(accessor_defs)
     source_blink_ns.body.append(EmptyNode())
 
-    class_def.public_section.append(tov8_func_decls)
-    class_def.public_section.append(EmptyNode())
-    source_blink_ns.body.append(tov8_func_defs)
-    source_blink_ns.body.append(EmptyNode())
+    if union.usage & web_idl.idl_type.UnionType.Usage.OUTPUT:
+        class_def.public_section.append(tov8_func_decls)
+        class_def.public_section.append(EmptyNode())
+        source_blink_ns.body.append(tov8_func_defs)
+        source_blink_ns.body.append(EmptyNode())
 
     class_def.public_section.append(trace_func_decls)
     class_def.public_section.append(EmptyNode())

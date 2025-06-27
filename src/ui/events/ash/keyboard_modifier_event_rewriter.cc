@@ -9,7 +9,7 @@
 #include "ash/constants/ash_features.h"
 #include "base/containers/fixed_flat_map.h"
 #include "base/notreached.h"
-#include "ui/base/accelerators/ash/right_alt_event_property.h"
+#include "ui/base/accelerators/ash/quick_insert_event_property.h"
 #include "ui/base/ime/ash/extension_ime_util.h"
 #include "ui/base/ime/ash/ime_keyboard.h"
 #include "ui/base/ime/ash/input_method_manager.h"
@@ -49,7 +49,7 @@ DomCode GetDomCodeFromPhysicalCode(const PhysicalCode& physical_code) {
   if (const UnmappedCode* unmapped_code =
           std::get_if<UnmappedCode>(&physical_code)) {
     switch (*unmapped_code) {
-      case UnmappedCode::kRightAlt:
+      case UnmappedCode::kQuickInsert:
         return DomCode::LAUNCH_ASSISTANT;
     }
   }
@@ -76,7 +76,7 @@ EventDispatchDetails KeyboardModifierEventRewriter::RewriteEvent(
     const Continuation continuation) {
   std::unique_ptr<Event> rewritten_event;
   switch (event.type()) {
-    case ET_KEY_PRESSED: {
+    case EventType::kKeyPressed: {
       bool should_record_metrics = !(event.flags() & EF_IS_REPEAT);
       if (should_record_metrics) {
         RecordModifierKeyPressedBeforeRemapping(
@@ -93,11 +93,12 @@ EventDispatchDetails KeyboardModifierEventRewriter::RewriteEvent(
         RecordModifierKeyPressedAfterRemapping(
             *keyboard_capability_,
             GetKeyboardDeviceIdProperty(*event_for_record),
-            event_for_record->code());
+            event_for_record->code(), event.AsKeyEvent()->code(),
+            HasQuickInsertProperty(*event_for_record));
       }
       break;
     }
-    case ET_KEY_RELEASED:
+    case EventType::kKeyReleased:
       rewritten_event = RewriteReleaseKeyEvent(*event.AsKeyEvent());
       break;
     default: {
@@ -106,6 +107,14 @@ EventDispatchDetails KeyboardModifierEventRewriter::RewriteEvent(
       int rewritten_flags = RewriteModifierFlags(event.flags());
       if (flags != rewritten_flags) {
         rewritten_event = event.Clone();
+
+        // SetNativeEvent must be called explicitly as native events are not
+        // copied on ChromeOS by default. This is because `PlatformEvent` is a
+        // pointer by default, so its lifetime can not be guaranteed in general.
+        // In this case, the lifetime of  `rewritten_event` is guaranteed to be
+        // less than the original `event`.
+        SetNativeEvent(*rewritten_event, event.native_event());
+
         // Note: this updates DomKey to reflect the new flags.
         rewritten_event->SetFlags(rewritten_flags);
       }
@@ -150,6 +159,12 @@ std::unique_ptr<Event> KeyboardModifierEventRewriter::RewritePressKeyEvent(
       // This is to be consistent with KeyboardEvdev::UpdateModifier.
       modifier_flag = EF_MOD3_DOWN;
     }
+    // Short term workaround for Neo-2 keyboard. See b/349505909 for details.
+    // TODO: Get rid of this once we support level3-shift properly.
+    if (keyboard_layout_engine_->GetLayoutName() == "de(neo)" &&
+        remapped.key == DomKey::ALT_GRAPH) {
+      modifier_flag |= EF_MOD3_DOWN;
+    }
     if (pressed_modifier_keys_.insert_or_assign(physical_key, modifier_flag)
             .second) {
       // Flip capslock state if needed. Note: do not on repeated events.
@@ -192,6 +207,11 @@ KeyboardModifierEventRewriter::RemapPressKey(const KeyEvent& event) {
   // TODO(b/311333438, b/311327069): Implement a complete solution to deal
   // with modifier remapping.
   if (event.GetDomKey() == DomKey::HANGUL_MODE && IsFirstPartyKoreanIME()) {
+    return std::nullopt;
+  }
+
+  // TODO(b/369892786): Do not use VKEY as source of truth in events.
+  if (event.key_code() >= VKEY_BUTTON_0 && event.key_code() <= VKEY_BUTTON_Z) {
     return std::nullopt;
   }
 
@@ -265,12 +285,12 @@ std::unique_ptr<KeyEvent> KeyboardModifierEventRewriter::BuildRewrittenEvent(
   if (const auto* properties = event.properties()) {
     rewritten_event->SetProperties(*properties);
   }
-  // Set property if the unmapped code is Right Alt.
+  // Set property if the unmapped code is Quick Insert.
   if (const UnmappedCode* unmapped_code =
           std::get_if<UnmappedCode>(&remapped.code)) {
     if (*unmapped_code ==
-        KeyboardModifierEventRewriter::UnmappedCode::kRightAlt) {
-      SetRightAltProperty(rewritten_event.get());
+        KeyboardModifierEventRewriter::UnmappedCode::kQuickInsert) {
+      SetQuickInsertProperty(rewritten_event.get());
     }
   }
   return rewritten_event;
@@ -378,8 +398,8 @@ KeyboardModifierEventRewriter::GetRemappedPhysicalCode(DomCode code,
     case DomCode::LAUNCH_ASSISTANT:
       // Right alt key must be checked explicitly on a per-device basis as it
       // shares the dom code.
-      if (keyboard_capability_->HasRightAltKey(device_id)) {
-        modifier_key = mojom::ModifierKey::kRightAlt;
+      if (keyboard_capability_->HasQuickInsertKey(device_id)) {
+        modifier_key = mojom::ModifierKey::kQuickInsert;
         break;
       }
       modifier_key = mojom::ModifierKey::kAssistant;
@@ -421,8 +441,8 @@ KeyboardModifierEventRewriter::GetRemappedPhysicalCode(DomCode code,
       LOG(FATAL) << "Unexpected IsoLevel5ShiftMod3 config";
     case mojom::ModifierKey::kFunction:
       return DomCode::FN;
-    case mojom::ModifierKey::kRightAlt:
-      return UnmappedCode::kRightAlt;
+    case mojom::ModifierKey::kQuickInsert:
+      return UnmappedCode::kQuickInsert;
   }
 }
 

@@ -9,10 +9,10 @@
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/vector_icon_types.h"
+#include "ui/views/controls/image_view.h"
 #include "ui/views/view.h"
 
 class RichControlsContainerView;
-
 namespace views {
 class Label;
 class ToggleButton;
@@ -28,6 +28,7 @@ class CookieControlsContentView : public views::View {
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDescription);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToggleButton);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToggleLabel);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kThirdPartyCookiesLabel);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kFeedbackButton);
   CookieControlsContentView();
 
@@ -41,9 +42,10 @@ class CookieControlsContentView : public views::View {
   virtual void SetToggleIcon(const gfx::VectorIcon& icon);
 
   virtual void SetToggleVisible(bool visible);
-  virtual void SetToggleLabel(const std::u16string& label);
+  virtual void SetCookiesLabel(const std::u16string& label);
   virtual void SetEnforcedIcon(const gfx::VectorIcon& icon,
                                const std::u16string& tooltip);
+
   virtual void SetEnforcedIconVisible(bool visible);
 
   virtual void SetFeedbackSectionVisibility(bool visible);
@@ -53,28 +55,32 @@ class CookieControlsContentView : public views::View {
   base::CallbackListSubscription RegisterFeedbackButtonPressedCallback(
       base::RepeatingClosureList::CallbackType callback);
 
+  void PreferredSizeChanged() override;
+
  protected:
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
 
  private:
   friend class CookieControlsContentViewUnitTest;
+  friend class CookieControlsContentViewTrackingProtectionUnitTest;
 
   void NotifyToggleButtonPressedCallback();
   void NotifyFeedbackButtonPressedCallback();
 
+  // Used for 3PC-only UI.
   void AddContentLabels();
   void AddToggleRow();
   void AddFeedbackSection();
+  raw_ptr<RichControlsContainerView> cookies_row_ = nullptr;
+  raw_ptr<views::View> feedback_section_ = nullptr;
   raw_ptr<views::View> label_wrapper_ = nullptr;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::Label> description_ = nullptr;
-  raw_ptr<RichControlsContainerView> toggle_row_ = nullptr;
-  raw_ptr<views::Label> toggle_label_ = nullptr;
-  raw_ptr<views::ToggleButton> toggle_button_ = nullptr;
+  raw_ptr<views::Label> cookies_label_ = nullptr;
   raw_ptr<views::ImageView> enforced_icon_ = nullptr;
-  raw_ptr<views::View> feedback_section_ = nullptr;
 
+  raw_ptr<views::ToggleButton> toggle_button_ = nullptr;
   base::RepeatingCallbackList<void(bool)> toggle_button_callback_list_;
   base::RepeatingClosureList feedback_button_callback_list_;
 };

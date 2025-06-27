@@ -72,15 +72,13 @@ class TestModuleRecordResolver final : public ModuleRecordResolver {
 
   const ModuleScript* GetModuleScriptFromModuleRecord(
       v8::Local<v8::Module>) const override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   v8::Local<v8::Module> Resolve(const ModuleRequest& module_request,
                                 v8::Local<v8::Module> referrer,
                                 ExceptionState&) override {
-    NOTREACHED_IN_MIGRATION();
-    return v8::Local<v8::Module>();
+    NOTREACHED();
   }
 
  private:
@@ -151,8 +149,9 @@ class ModuleMapTestModulator final : public DummyModulator {
     void NotifyFetchFinished() {
       client_->NotifyFetchFinishedSuccess(ModuleScriptCreationParams(
           url_, url_, ScriptSourceLocationType::kExternalFile,
-          ModuleType::kJavaScript, ParkableString(String("").ReleaseImpl()),
-          nullptr, network::mojom::ReferrerPolicy::kDefault));
+          ResolvedModuleType::kJavaScript,
+          ParkableString(String("").ReleaseImpl()), nullptr,
+          network::mojom::ReferrerPolicy::kDefault));
     }
     void Trace(Visitor* visitor) const { visitor->Trace(client_); }
 
@@ -222,10 +221,11 @@ TEST_F(ModuleMapTest, sequentialRequests) {
   // First request
   TestSingleModuleClient* client =
       MakeGarbageCollected<TestSingleModuleClient>();
-  Map()->FetchSingleModuleScript(
-      ModuleScriptFetchRequest::CreateForTest(url, ModuleType::kJavaScript),
-      GetDocument().Fetcher(), ModuleGraphLevel::kTopLevelModuleFetch,
-      ModuleScriptCustomFetchType::kNone, client);
+  Map()->FetchSingleModuleScript(ModuleScriptFetchRequest::CreateForTest(
+                                     url, ModuleType::kJavaScriptOrWasm),
+                                 GetDocument().Fetcher(),
+                                 ModuleGraphLevel::kTopLevelModuleFetch,
+                                 ModuleScriptCustomFetchType::kNone, client);
   Modulator()->ResolveFetches();
   EXPECT_FALSE(client->WasNotifyFinished())
       << "fetchSingleModuleScript shouldn't complete synchronously";
@@ -241,10 +241,11 @@ TEST_F(ModuleMapTest, sequentialRequests) {
   // Secondary request
   TestSingleModuleClient* client2 =
       MakeGarbageCollected<TestSingleModuleClient>();
-  Map()->FetchSingleModuleScript(
-      ModuleScriptFetchRequest::CreateForTest(url, ModuleType::kJavaScript),
-      GetDocument().Fetcher(), ModuleGraphLevel::kTopLevelModuleFetch,
-      ModuleScriptCustomFetchType::kNone, client2);
+  Map()->FetchSingleModuleScript(ModuleScriptFetchRequest::CreateForTest(
+                                     url, ModuleType::kJavaScriptOrWasm),
+                                 GetDocument().Fetcher(),
+                                 ModuleGraphLevel::kTopLevelModuleFetch,
+                                 ModuleScriptCustomFetchType::kNone, client2);
   Modulator()->ResolveFetches();
   EXPECT_FALSE(client2->WasNotifyFinished())
       << "fetchSingleModuleScript shouldn't complete synchronously";
@@ -265,18 +266,20 @@ TEST_F(ModuleMapTest, concurrentRequestsShouldJoin) {
   // First request
   TestSingleModuleClient* client =
       MakeGarbageCollected<TestSingleModuleClient>();
-  Map()->FetchSingleModuleScript(
-      ModuleScriptFetchRequest::CreateForTest(url, ModuleType::kJavaScript),
-      GetDocument().Fetcher(), ModuleGraphLevel::kTopLevelModuleFetch,
-      ModuleScriptCustomFetchType::kNone, client);
+  Map()->FetchSingleModuleScript(ModuleScriptFetchRequest::CreateForTest(
+                                     url, ModuleType::kJavaScriptOrWasm),
+                                 GetDocument().Fetcher(),
+                                 ModuleGraphLevel::kTopLevelModuleFetch,
+                                 ModuleScriptCustomFetchType::kNone, client);
 
   // Secondary request (which should join the first request)
   TestSingleModuleClient* client2 =
       MakeGarbageCollected<TestSingleModuleClient>();
-  Map()->FetchSingleModuleScript(
-      ModuleScriptFetchRequest::CreateForTest(url, ModuleType::kJavaScript),
-      GetDocument().Fetcher(), ModuleGraphLevel::kTopLevelModuleFetch,
-      ModuleScriptCustomFetchType::kNone, client2);
+  Map()->FetchSingleModuleScript(ModuleScriptFetchRequest::CreateForTest(
+                                     url, ModuleType::kJavaScriptOrWasm),
+                                 GetDocument().Fetcher(),
+                                 ModuleGraphLevel::kTopLevelModuleFetch,
+                                 ModuleScriptCustomFetchType::kNone, client2);
 
   Modulator()->ResolveFetches();
   EXPECT_FALSE(client->WasNotifyFinished())

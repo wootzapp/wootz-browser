@@ -8,9 +8,9 @@
 #include <utility>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/logging.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_for_testing.h"
 #include "partition_alloc/shim/allocator_shim_default_dispatch_to_partition_alloc.h"
@@ -45,7 +45,6 @@ class MemoryReclaimerTest : public ::testing::Test {
     MemoryReclaimer::Instance()->ResetForTesting();
 
     PartitionOptions opts;
-    opts.star_scan_quarantine = PartitionOptions::kAllowed;
     allocator_ = std::make_unique<PartitionAllocatorForTesting>(opts);
     allocator_->root()->UncapEmptySlotSpanMemoryForTesting();
     PartitionAllocGlobalInit(HandleOOM);
@@ -124,6 +123,9 @@ TEST_F(MemoryReclaimerTest, DoNotAlwaysPurgeThreadCache) {
 
   auto* tcache = ThreadCache::Get();
   ASSERT_TRUE(tcache);
+  // ThreadCache must not be tomestone. If so, tcache->CacheMemory() will
+  // cause memory access violation.
+  ASSERT_TRUE(!ThreadCache::IsTombstone(tcache));
   size_t cached_size = tcache->CachedMemory();
 
   Reclaim();

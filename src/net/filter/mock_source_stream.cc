@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/filter/mock_source_stream.h"
 
 #include <algorithm>
@@ -9,11 +14,12 @@
 
 #include "base/check_op.h"
 #include "net/base/io_buffer.h"
+#include "net/filter/source_stream_type.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace net {
 
-MockSourceStream::MockSourceStream() : SourceStream(SourceStream::TYPE_NONE) {}
+MockSourceStream::MockSourceStream() : SourceStream(SourceStreamType::kNone) {}
 
 MockSourceStream::~MockSourceStream() {
   DCHECK(!awaiting_completion_);

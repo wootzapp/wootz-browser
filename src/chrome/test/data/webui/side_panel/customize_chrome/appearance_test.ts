@@ -25,7 +25,7 @@ suite('AppearanceTest', () => {
   let handler: TestMock<CustomizeChromePageHandlerRemote>;
   let metrics: MetricsTracker;
 
-  setup(async () => {
+  setup(() => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     handler = installMock(
         CustomizeChromePageHandlerRemote,
@@ -77,6 +77,141 @@ suite('AppearanceTest', () => {
     assertEquals(1, handler.getCallCount('setDefaultColor'));
   });
 
+  test('announce default theme starting with non-default theme', async () => {
+    loadTimeData.overrideValues({
+      updatedToClassicChrome: 'Theme updated to Classic Chrome',
+    });
+
+    // Add listener to count announcements.
+    let announcementCount = 0;
+    const updateAnnouncementCount = () => {
+      announcementCount += 1;
+    };
+    document.body.addEventListener(
+        'cr-a11y-announcer-messages-sent', updateAnnouncementCount);
+    const announcementPromise =
+        eventToPromise('cr-a11y-announcer-messages-sent', document.body);
+
+    // Set non-classic chrome theme.
+    let theme = createTheme();
+    theme.backgroundImage = createBackgroundImage('chrome://theme/foo');
+
+    callbackRouterRemote.setTheme(theme);
+    await callbackRouterRemote.$.flushForTesting();
+
+    // Set classic chrome. This should announce.
+    theme = createTheme();
+
+    callbackRouterRemote.setTheme(theme);
+    await callbackRouterRemote.$.flushForTesting();
+
+    const announcement = await announcementPromise;
+    assertEquals(announcementCount, 1);
+    assertTrue(!!announcement);
+    assertTrue(announcement.detail.messages.includes(
+        'Theme updated to Classic Chrome'));
+
+    // Cleanup event listener.
+    document.body.removeEventListener(
+        'cr-a11y-announcer-messages-sent', updateAnnouncementCount);
+  });
+
+  test('announce default theme starting with default theme', async () => {
+    loadTimeData.overrideValues({
+      updatedToClassicChrome: 'Theme updated to Classic Chrome',
+    });
+
+    // Add listener to count announcements.
+    let announcementCount = 0;
+    const updateAnnouncementCount = () => {
+      announcementCount += 1;
+    };
+    document.body.addEventListener(
+        'cr-a11y-announcer-messages-sent', updateAnnouncementCount);
+    const announcementPromise =
+        eventToPromise('cr-a11y-announcer-messages-sent', document.body);
+
+    // Set initial classic chrome, which should not announce, since
+    // it is the initial theme.
+    let theme = createTheme();
+
+    callbackRouterRemote.setTheme(theme);
+    await callbackRouterRemote.$.flushForTesting();
+
+    // Set non-classic chrome theme.
+    theme = createTheme();
+    theme.backgroundImage = createBackgroundImage('chrome://theme/foo');
+
+    callbackRouterRemote.setTheme(theme);
+    await callbackRouterRemote.$.flushForTesting();
+
+    // Set classic chrome. This should announce.
+    theme = createTheme();
+
+    callbackRouterRemote.setTheme(theme);
+    await callbackRouterRemote.$.flushForTesting();
+
+    const announcement = await announcementPromise;
+    assertEquals(announcementCount, 1);
+    assertTrue(!!announcement);
+    assertTrue(announcement.detail.messages.includes(
+        'Theme updated to Classic Chrome'));
+
+    // Cleanup event listener.
+    document.body.removeEventListener(
+        'cr-a11y-announcer-messages-sent', updateAnnouncementCount);
+  });
+
+  test(
+      'move focus to edit theme when classic chrome button disappears',
+      async () => {
+        // Arrange.
+        let theme = createTheme();
+        theme.backgroundImage = createBackgroundImage('chrome://theme/foo');
+
+        callbackRouterRemote.setTheme(theme);
+        await callbackRouterRemote.$.flushForTesting();
+
+        // Act.
+        appearanceElement.$.setClassicChromeButton.focus();
+        assertEquals(
+            appearanceElement.shadowRoot.activeElement,
+            appearanceElement.$.setClassicChromeButton);
+
+        theme = createTheme();
+        callbackRouterRemote.setTheme(theme);
+        await callbackRouterRemote.$.flushForTesting();
+
+        // Assert.
+        assertEquals(
+            appearanceElement.shadowRoot.activeElement,
+            appearanceElement.$.editThemeButton);
+      });
+
+  test(
+      'do not move focus if not on classic chrome button when set',
+      async () => {
+        // Arrange.
+        let theme = createTheme();
+        theme.backgroundImage = createBackgroundImage('chrome://theme/foo');
+
+        callbackRouterRemote.setTheme(theme);
+        await callbackRouterRemote.$.flushForTesting();
+        const focusedElement = appearanceElement.shadowRoot.activeElement;
+        assertNotEquals(
+            focusedElement, appearanceElement.$.setClassicChromeButton);
+
+        // Act.
+        theme = createTheme();
+
+        callbackRouterRemote.setTheme(theme);
+        await callbackRouterRemote.$.flushForTesting();
+
+        // Assert.
+        assertEquals(
+            appearanceElement.shadowRoot.activeElement, focusedElement);
+      });
+
   test('1P view shows when 3P theme info not set', async () => {
     const theme = createTheme();
 
@@ -84,7 +219,8 @@ suite('AppearanceTest', () => {
     await callbackRouterRemote.$.flushForTesting();
     assertNotStyle(appearanceElement.$.themeSnapshot, 'display', 'none');
     assertNotStyle(appearanceElement.$.chromeColors, 'display', 'none');
-    assertStyle(appearanceElement.$.thirdPartyLinkButton, 'display', 'none');
+    assertStyle(
+        appearanceElement.$.thirdPartyThemeLinkButton, 'display', 'none');
   });
 
   test('respects policy for edit theme', async () => {
@@ -232,7 +368,7 @@ suite('AppearanceTest', () => {
                     appearanceElement.$.followThemeToggle.hidden,
                     showDeviceThemeToggle);
                 assertNotEquals(
-                    (appearanceElement.shadowRoot!.querySelectorAll(
+                    (appearanceElement.shadowRoot.querySelectorAll(
                          '.sp-hr')[1]! as HTMLElement)
                         .hidden,
                     showBottomDivider);
@@ -248,7 +384,7 @@ suite('AppearanceTest', () => {
       callbackRouterRemote.setTheme(theme);
       await callbackRouterRemote.$.flushForTesting();
       assertNotStyle(
-          appearanceElement.$.thirdPartyLinkButton, 'display', 'none');
+          appearanceElement.$.thirdPartyThemeLinkButton, 'display', 'none');
       assertNotStyle(
           appearanceElement.$.setClassicChromeButton, 'display', 'none');
       assertStyle(appearanceElement.$.themeSnapshot, 'display', 'none');
@@ -265,7 +401,7 @@ suite('AppearanceTest', () => {
       await callbackRouterRemote.$.flushForTesting();
 
       // Assert.
-      appearanceElement.$.thirdPartyLinkButton.click();
+      appearanceElement.$.thirdPartyThemeLinkButton.click();
       assertEquals(1, handler.getCallCount('openThirdPartyThemePage'));
     });
   });
@@ -278,7 +414,8 @@ suite('AppearanceTest', () => {
     callbackRouterRemote.setTheme(theme);
     await callbackRouterRemote.$.flushForTesting();
 
-    assertStyle(appearanceElement.$.thirdPartyLinkButton, 'display', 'none');
+    assertStyle(
+        appearanceElement.$.thirdPartyThemeLinkButton, 'display', 'none');
     assertNotStyle(appearanceElement.$.uploadedImageButton, 'display', 'none');
     assertStyle(appearanceElement.$.searchedImageButton, 'display', 'none');
     assertNotStyle(
@@ -311,7 +448,8 @@ suite('AppearanceTest', () => {
     callbackRouterRemote.setTheme(theme);
     await callbackRouterRemote.$.flushForTesting();
 
-    assertStyle(appearanceElement.$.thirdPartyLinkButton, 'display', 'none');
+    assertStyle(
+        appearanceElement.$.thirdPartyThemeLinkButton, 'display', 'none');
     assertStyle(appearanceElement.$.uploadedImageButton, 'display', 'none');
     assertNotStyle(appearanceElement.$.searchedImageButton, 'display', 'none');
     assertNotStyle(
@@ -326,7 +464,7 @@ suite('AppearanceTest', () => {
     await clickEvent;
   });
 
-  suite('WallpaperSearch', async () => {
+  suite('WallpaperSearch', () => {
     suiteSetup(() => {
       loadTimeData.overrideValues({
         'wallpaperSearchEnabled': true,
@@ -386,7 +524,7 @@ suite('AppearanceTest', () => {
 
     test('wallpaper search button shows if it is enabled', () => {
       // Both edit buttons show.
-      assertTrue(!!appearanceElement.shadowRoot!.querySelector(
+      assertTrue(!!appearanceElement.shadowRoot.querySelector(
           '#wallpaperSearchButton'));
       assertTrue(!!appearanceElement.$.editThemeButton);
       // Buttons share space in their parent container.
@@ -461,7 +599,7 @@ suite('AppearanceTest', () => {
 
       test('wallpaper search button is not shown if it is disabled', () => {
         // Only edit theme button shows.
-        assertFalse(!!appearanceElement.shadowRoot!.querySelector(
+        assertFalse(!!appearanceElement.shadowRoot.querySelector(
             '#wallpaperSearchButton'));
         assertTrue(!!appearanceElement.$.editThemeButton);
         // Edit theme button takes up the full container.
@@ -478,6 +616,40 @@ suite('AppearanceTest', () => {
                 appearanceElement, '#editThemeButton')!.textContent!.trim(),
             'wallpaper search button disabled');
       });
+    });
+  });
+
+  test('isSourceTabFirstPartyNtp should update the content', async () => {
+    const idsControlledByIsSourceTabFirstPartyNtp = [
+      '#editButtonsContainer',
+      '#themeSnapshot',
+    ];
+
+    const idsNotControlledByIsSourceTabFirstPartyNtp = [
+      '#thirdPartyThemeLinkButton',
+      '#uploadedImageButton',
+      '#searchedImageButton',
+      '#chromeColors',
+      '#followThemeToggle',
+      '#followThemeToggleControl',
+      '#setClassicChromeButton',
+      '#editThemeButton',
+      '#editThemeIcon',
+    ];
+
+    const checkIdsVisibility = (isSourceTabFirstPartyNtp: boolean) => {
+      idsControlledByIsSourceTabFirstPartyNtp.forEach(
+          id => assertEquals(
+              isSourceTabFirstPartyNtp,
+              !!appearanceElement.shadowRoot.querySelector(id)));
+      idsNotControlledByIsSourceTabFirstPartyNtp.forEach(
+          id => assertTrue(!!appearanceElement.shadowRoot.querySelector(id)));
+    };
+
+    await[true, false].forEach(async b => {
+      callbackRouterRemote.attachedTabStateUpdated(b);
+      await microtasksFinished();
+      checkIdsVisibility(b);
     });
   });
 });

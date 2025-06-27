@@ -13,9 +13,12 @@
 #include "base/memory/ref_counted.h"
 #include "base/values.h"
 #include "chrome/browser/bitmap_fetcher/bitmap_fetcher_delegate.h"
+#include "extensions/buildflags/buildflags.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "url/gurl.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 class BitmapFetcher;
 
@@ -36,11 +39,7 @@ class WebstoreInstallHelper : public base::RefCounted<WebstoreInstallHelper>,
  public:
   class Delegate {
    public:
-    enum InstallHelperResultCode {
-      UNKNOWN_ERROR,
-      ICON_ERROR,
-      MANIFEST_ERROR
-    };
+    enum InstallHelperResultCode { UNKNOWN_ERROR, ICON_ERROR, kManifestError };
 
     // Called when we've successfully parsed the manifest and decoded the icon
     // in the utility process.
@@ -56,7 +55,7 @@ class WebstoreInstallHelper : public base::RefCounted<WebstoreInstallHelper>,
         const std::string& error_message) = 0;
 
    protected:
-    virtual ~Delegate() {}
+    virtual ~Delegate() = default;
   };
 
   // It is legal for |icon_url| to be empty.

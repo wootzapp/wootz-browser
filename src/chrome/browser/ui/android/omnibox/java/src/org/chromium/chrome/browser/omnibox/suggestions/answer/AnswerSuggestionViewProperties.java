@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.omnibox.suggestions.answer;
 
 import android.text.Spannable;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -13,6 +14,7 @@ import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 /** The properties associated with rendering the answer suggestion view. */
+@NullMarked
 @interface AnswerSuggestionViewProperties {
     /** The maximum number of lines to be shown for the first line of text. */
     static final WritableIntPropertyKey TEXT_LINE_1_MAX_LINES = new WritableIntPropertyKey();
@@ -36,6 +38,12 @@ import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
     static final WritableObjectPropertyKey<String> TEXT_LINE_2_ACCESSIBILITY_DESCRIPTION =
             new WritableObjectPropertyKey<>();
 
+    /**
+     * The right padding to apply to the answer suggestion content view. This is distinct from the
+     * padding for the containing BaseSuggestionView, which is controlled separately.
+     */
+    WritableIntPropertyKey RIGHT_PADDING = new WritableIntPropertyKey();
+
     static final PropertyKey[] ALL_UNIQUE_KEYS =
             new PropertyKey[] {
                 TEXT_LINE_1_TEXT,
@@ -43,7 +51,8 @@ import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
                 TEXT_LINE_1_ACCESSIBILITY_DESCRIPTION,
                 TEXT_LINE_2_TEXT,
                 TEXT_LINE_2_MAX_LINES,
-                TEXT_LINE_2_ACCESSIBILITY_DESCRIPTION
+                TEXT_LINE_2_ACCESSIBILITY_DESCRIPTION,
+                RIGHT_PADDING,
             };
 
     static final PropertyKey[] ALL_KEYS =

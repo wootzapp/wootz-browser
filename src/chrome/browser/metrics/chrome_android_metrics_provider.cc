@@ -10,15 +10,17 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/android/customtabs/custom_tab_session_state_tracker.h"
-#include "chrome/browser/android/metrics/jni_headers/AppUpdateInfoUtils_jni.h"
 #include "chrome/browser/android/metrics/uma_session_stats.h"
 #include "chrome/browser/flags/android/chrome_session_state.h"
-#include "chrome/browser/notifications/jni_headers/NotificationSystemStatusUtil_jni.h"
 #include "components/metrics/android_metrics_helper.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "system_profile.pb.h"
 #include "third_party/metrics_proto/chrome_user_metrics_extension.pb.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/android/metrics/jni_headers/AppUpdateInfoUtils_jni.h"
+#include "chrome/browser/notifications/jni_headers/NotificationSystemStatusUtil_jni.h"
 
 namespace {
 
@@ -67,7 +69,7 @@ ChromeAndroidMetricsProvider::ChromeAndroidMetricsProvider(
     PrefService* local_state)
     : local_state_(local_state) {}
 
-ChromeAndroidMetricsProvider::~ChromeAndroidMetricsProvider() {}
+ChromeAndroidMetricsProvider::~ChromeAndroidMetricsProvider() = default;
 
 // static
 void ChromeAndroidMetricsProvider::RegisterPrefs(PrefRegistrySimple* registry) {

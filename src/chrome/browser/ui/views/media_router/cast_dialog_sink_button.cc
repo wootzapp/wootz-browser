@@ -131,18 +131,21 @@ void CastDialogSinkButton::RestoreStatusText() {
 }
 
 bool CastDialogSinkButton::OnMousePressed(const ui::MouseEvent& event) {
-  if (event.IsRightMouseButton())
+  if (event.IsRightMouseButton()) {
     return true;
+  }
   return HoverButton::OnMousePressed(event);
 }
 
 void CastDialogSinkButton::OnMouseReleased(const ui::MouseEvent& event) {
-  if (event.IsRightMouseButton())
+  if (event.IsRightMouseButton()) {
     return;
+  }
   HoverButton::OnMouseReleased(event);
 }
 
 void CastDialogSinkButton::OnEnabledChanged() {
+  HoverButton::OnEnabledChanged();
   // Prevent a DCHECK failure seen at https://crbug.com/912687 by not having an
   // InkDrop if the button is disabled.
   views::InkDrop::Get(this)->SetMode(
@@ -150,8 +153,9 @@ void CastDialogSinkButton::OnEnabledChanged() {
                    : views::InkDropHost::InkDropMode::OFF);
   // If the button has a state other than AVAILABLE (e.g. CONNECTED), there is
   // no need to change the status or the icon.
-  if (sink_.state != UIMediaSinkState::AVAILABLE)
+  if (sink_.state != UIMediaSinkState::AVAILABLE) {
     return;
+  }
 
   ui::ImageModel icon;
   if (GetEnabled()) {
@@ -168,8 +172,9 @@ void CastDialogSinkButton::OnEnabledChanged() {
   }
   static_cast<views::ImageView*>(icon_view())->SetImage(icon);
 
-  if (GetWidget())
+  if (GetWidget()) {
     UpdateTitleTextStyle();
+  }
 }
 
 void CastDialogSinkButton::UpdateTitleTextStyle() {
@@ -211,8 +216,9 @@ void CastDialogSinkButton::OnFocus() {
 }
 
 void CastDialogSinkButton::OnBlur() {
-  if (sink_.state == UIMediaSinkState::CONNECTED)
+  if (sink_.state == UIMediaSinkState::CONNECTED) {
     RestoreStatusText();
+  }
 }
 
 void CastDialogSinkButton::OnThemeChanged() {

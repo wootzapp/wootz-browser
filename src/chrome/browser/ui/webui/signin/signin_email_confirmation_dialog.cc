@@ -17,6 +17,7 @@
 #include "base/notreached.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/webui/constrained_web_dialog_ui.h"
 #include "chrome/browser/ui/webui/signin/signin_email_confirmation_ui.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/host_zoom_map.h"
@@ -24,6 +25,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 
 namespace {
 
@@ -54,7 +56,7 @@ class SigninEmailConfirmationDialog::DialogWebContentsObserver
   DialogWebContentsObserver& operator=(const DialogWebContentsObserver&) =
       delete;
 
-  ~DialogWebContentsObserver() override {}
+  ~DialogWebContentsObserver() override = default;
 
  private:
   void WebContentsDestroyed() override {
@@ -82,7 +84,7 @@ SigninEmailConfirmationDialog::SigninEmailConfirmationDialog(
       profile_(profile),
       callback_(std::move(callback)) {
   set_can_close(true);
-  set_dialog_modal_type(ui::MODAL_TYPE_WINDOW);
+  set_dialog_modal_type(ui::mojom::ModalType::kWindow);
   set_dialog_content_url(GURL(chrome::kChromeUISigninEmailConfirmationURL));
   // This dialog chooses its height automatically based on its contents.
   set_dialog_size(gfx::Size(kSigninEmailConfirmationDialogWidth, 0));
@@ -92,7 +94,7 @@ SigninEmailConfirmationDialog::SigninEmailConfirmationDialog(
   set_show_dialog_title(false);
 }
 
-SigninEmailConfirmationDialog::~SigninEmailConfirmationDialog() {}
+SigninEmailConfirmationDialog::~SigninEmailConfirmationDialog() = default;
 
 // static
 SigninEmailConfirmationDialog*
@@ -133,15 +135,17 @@ void SigninEmailConfirmationDialog::ShowDialog() {
 
 void SigninEmailConfirmationDialog::CloseDialog() {
   content::WebContents* dialog_web_contents = GetDialogWebContents();
-  if (!dialog_web_contents)
+  if (!dialog_web_contents) {
     return;
+  }
 
   content::WebUI* web_ui = dialog_web_contents->GetWebUI();
   if (web_ui) {
     SigninEmailConfirmationUI* signin_email_confirmation_ui =
         static_cast<SigninEmailConfirmationUI*>(web_ui->GetController());
-    if (signin_email_confirmation_ui)
+    if (signin_email_confirmation_ui) {
       signin_email_confirmation_ui->Close();
+    }
   }
 }
 
@@ -172,12 +176,10 @@ void SigninEmailConfirmationDialog::OnDialogClosed(
       } else if (*action_string == kSigninEmailConfirmationActionStartSync) {
         action = START_SYNC;
       } else {
-        NOTREACHED_IN_MIGRATION()
-            << "Unexpected action value [" << *action_string << "]";
+        NOTREACHED() << "Unexpected action value [" << *action_string << "]";
       }
     } else {
-      NOTREACHED_IN_MIGRATION()
-          << "No action in the dialog close return arguments";
+      NOTREACHED() << "No action in the dialog close return arguments";
     }
   } else {
     // If the dialog is dismissed without any return value, then simply close
@@ -187,8 +189,9 @@ void SigninEmailConfirmationDialog::OnDialogClosed(
 
   NotifyModalDialogClosed();
 
-  if (callback_)
+  if (callback_) {
     std::move(callback_).Run(action);
+  }
 }
 
 void SigninEmailConfirmationDialog::CloseModalSignin() {

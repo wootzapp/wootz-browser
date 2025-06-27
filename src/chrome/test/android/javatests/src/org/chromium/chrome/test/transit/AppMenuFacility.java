@@ -7,12 +7,16 @@ package org.chromium.chrome.test.transit;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
 import static org.hamcrest.CoreMatchers.allOf;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
-import static org.chromium.base.test.transit.ViewElement.sharedViewElement;
+import static org.chromium.base.test.transit.ViewSpec.viewSpec;
 
 import android.view.View;
+import android.widget.ListView;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.IdRes;
@@ -28,21 +32,33 @@ import org.chromium.base.test.transit.Elements;
 import org.chromium.base.test.transit.Facility;
 import org.chromium.base.test.transit.ScrollableFacility;
 import org.chromium.base.test.transit.Station;
+import org.chromium.base.test.transit.Transition;
+import org.chromium.base.test.transit.ViewElement;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.settings.MainSettings;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuCoordinator;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuTestSupport;
+import org.chromium.chrome.test.transit.ntp.IncognitoNewTabPageStation;
+import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
+import org.chromium.chrome.test.transit.quick_delete.QuickDeleteDialogFacility;
+import org.chromium.chrome.test.transit.settings.SettingsStation;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 /**
  * Base class for app menus shown when pressing ("...").
  *
  * @param <HostStationT> the type of host {@link Station} where this app menu is opened.
  */
-public abstract class AppMenuFacility<HostStationT extends Station>
+public abstract class AppMenuFacility<HostStationT extends Station<?>>
         extends ScrollableFacility<HostStationT> {
+
+    public ViewElement<ListView> menuListElement;
 
     /** Create a new app menu item stub which throws UnsupportedOperationException if selected. */
     protected Item<Void> declareStubMenuItem(ItemsBuilder items, @IdRes int id) {
@@ -51,12 +67,14 @@ public abstract class AppMenuFacility<HostStationT extends Station>
 
     /** Create a new app menu item which runs |selectHandler| when selected. */
     protected <SelectReturnT> Item<SelectReturnT> declareMenuItem(
-            ItemsBuilder items, @IdRes int id, Callable<SelectReturnT> selectHandler) {
+            ItemsBuilder items,
+            @IdRes int id,
+            Function<ItemOnScreenFacility<SelectReturnT>, SelectReturnT> selectHandler) {
         return items.declareItem(itemViewMatcher(id), itemDataMatcher(id), selectHandler);
     }
 
     /** Create a new app menu item which transitions to a |DestinationStationT| when selected. */
-    protected <DestinationStationT extends Station>
+    protected <DestinationStationT extends Station<?>>
             Item<DestinationStationT> declareMenuItemToStation(
                     ItemsBuilder items,
                     @IdRes int id,
@@ -66,11 +84,10 @@ public abstract class AppMenuFacility<HostStationT extends Station>
     }
 
     /** Create a new app menu item which enters a |EnteredFacilityT| when selected. */
-    protected <EnteredFacilityT extends Facility<HostStationT>>
-            Item<EnteredFacilityT> declareMenuItemToFacility(
-                    ItemsBuilder items,
-                    @IdRes int id,
-                    Callable<EnteredFacilityT> destinationFacilityFactory) {
+    protected <EnteredFacilityT extends Facility> Item<EnteredFacilityT> declareMenuItemToFacility(
+            ItemsBuilder items,
+            @IdRes int id,
+            Callable<EnteredFacilityT> destinationFacilityFactory) {
         return items.declareItemToFacility(
                 itemViewMatcher(id), itemDataMatcher(id), destinationFacilityFactory);
     }
@@ -100,11 +117,13 @@ public abstract class AppMenuFacility<HostStationT extends Station>
      * selected.
      */
     protected <SelectReturnT> Item<SelectReturnT> declarePossibleMenuItem(
-            ItemsBuilder items, @IdRes int id, Callable<SelectReturnT> selectHandler) {
+            ItemsBuilder items,
+            @IdRes int id,
+            Function<ItemOnScreenFacility<SelectReturnT>, SelectReturnT> selectHandler) {
         return items.declarePossibleItem(itemViewMatcher(id), itemDataMatcher(id), selectHandler);
     }
 
-    public static final Matcher<View> MENU_LIST = withId(R.id.app_menu_list);
+    public static final Matcher<View> MENU_LIST_MATCHER = withId(R.id.app_menu_list);
 
     public static final @IdRes int NEW_TAB_ID = R.id.new_tab_menu_id;
     public static final @IdRes int NEW_INCOGNITO_TAB_ID = R.id.new_incognito_tab_menu_id;
@@ -116,27 +135,16 @@ public abstract class AppMenuFacility<HostStationT extends Station>
     public static final @IdRes int SHARE_ID = R.id.share_menu_id;
     public static final @IdRes int FIND_IN_PAGE_ID = R.id.find_in_page_id;
     public static final @IdRes int TRANSLATE_ID = R.id.translate_id;
-    public static final @IdRes int ADD_TO_HOME_SCREEN_ID = R.id.add_to_homescreen_id;
-    public static final @IdRes int INSTALL_WEBAPP_ID = R.id.install_webapp_id;
-    public static final @IdRes int ADD_TO_HOME_SCREEN__UNIVERSAL_INSTALL__ID =
-            R.id.universal_install;
+    public static final @IdRes int ADD_TO_HOME_SCREEN_UNIVERSAL_INSTALL_ID = R.id.universal_install;
     public static final @IdRes int OPEN_WEBAPK_ID = R.id.open_webapk_id;
     public static final @IdRes int DESKTOP_SITE_ID = R.id.request_desktop_site_id;
     public static final @IdRes int SETTINGS_ID = R.id.preferences_id;
     public static final @IdRes int HELP_AND_FEEDBACK_ID = R.id.help_id;
 
-    protected final ChromeTabbedActivityTestRule mChromeTabbedActivityTestRule;
-
-    protected AppMenuFacility(
-            HostStationT station, ChromeTabbedActivityTestRule chromeTabbedActivityTestRule) {
-        super(station);
-        mChromeTabbedActivityTestRule = chromeTabbedActivityTestRule;
-    }
-
     @CallSuper
     @Override
     public void declareElements(Elements.Builder elements) {
-        elements.declareView(sharedViewElement(MENU_LIST));
+        menuListElement = elements.declareView(viewSpec(ListView.class, MENU_LIST_MATCHER));
 
         super.declareElements(elements);
     }
@@ -149,9 +157,8 @@ public abstract class AppMenuFacility<HostStationT extends Station>
     }
 
     /** Default behavior for "Open new tab". */
-    protected NewTabPageStation createNewTabPageStation() {
-        return NewTabPageStation.newBuilder()
-                .withActivityTestRule(mChromeTabbedActivityTestRule)
+    protected RegularNewTabPageStation createNewTabPageStation() {
+        return RegularNewTabPageStation.newBuilder()
                 .withIsOpeningTabs(1)
                 .withIsSelectingTabs(1)
                 .build();
@@ -160,26 +167,34 @@ public abstract class AppMenuFacility<HostStationT extends Station>
     /** Default behavior for "Open new Incognito tab". */
     protected IncognitoNewTabPageStation createIncognitoNewTabPageStation() {
         return IncognitoNewTabPageStation.newBuilder()
-                .withActivityTestRule(mChromeTabbedActivityTestRule)
                 .withIsOpeningTabs(1)
                 .withIsSelectingTabs(1)
                 .build();
     }
 
+    /** Default behavior for "Delete browsing data". */
+    protected QuickDeleteDialogFacility createQuickDeleteDialogFacility() {
+        return new QuickDeleteDialogFacility();
+    }
+
     /** Default behavior for "Settings". */
-    protected SettingsStation createSettingsStation() {
-        return new SettingsStation();
+    protected SettingsStation<MainSettings> createSettingsStation() {
+        return new SettingsStation<>(MainSettings.class);
     }
 
-    private static Matcher<View> itemViewMatcher(@IdRes int id) {
-        return allOf(withId(id), isDescendantOfA(MENU_LIST));
+    protected static Matcher<View> itemViewMatcher(@IdRes int id) {
+        return allOf(withId(id), isDescendantOfA(MENU_LIST_MATCHER));
     }
 
-    private static Matcher<ListItem> itemDataMatcher(@IdRes int id) {
+    protected static Matcher<View> itemViewMatcher(String text) {
+        return allOf(withText(text), isDescendantOfA(MENU_LIST_MATCHER));
+    }
+
+    protected static Matcher<ListItem> itemDataMatcher(@IdRes int id) {
         return withMenuItemId(id);
     }
 
-    private static Matcher<MVCListAdapter.ListItem> withMenuItemId(@IdRes int id) {
+    protected static Matcher<MVCListAdapter.ListItem> withMenuItemId(@IdRes int id) {
         return new TypeSafeMatcher<>() {
             @Override
             public void describeTo(Description description) {
@@ -209,6 +224,34 @@ public abstract class AppMenuFacility<HostStationT extends Station>
                         },
                         Press.FINGER);
         mHostStation.exitFacilitySync(
-                this, () -> onView(MENU_LIST).perform(clickBetweenViewAndLeftEdge));
+                this, () -> onView(MENU_LIST_MATCHER).perform(clickBetweenViewAndLeftEdge));
     }
+
+    /** Close the menu programmatically. */
+    public void closeProgrammatically() {
+        mHostStation.exitFacilitySync(
+                this,
+                Transition.runTriggerOnUiThreadOption(),
+                () -> getAppMenuCoordinator().getAppMenuHandler().hideAppMenu());
+    }
+
+    /** Verify that the menu model has the expected menu item ids and nothing beyond them. */
+    public void verifyModelItems(List<Integer> expectedPresentItemIds) {
+        AppMenuCoordinator appMenuCoordinator = getAppMenuCoordinator();
+        for (Integer itemId : expectedPresentItemIds) {
+            assertNotNull(
+                    "Expected item with id "
+                            + mHostStation.getActivity().getResources().getResourceName(itemId),
+                    AppMenuTestSupport.getMenuItemPropertyModel(appMenuCoordinator, itemId));
+        }
+
+        MVCListAdapter.ModelList menuItemsModelList =
+                AppMenuTestSupport.getMenuModelList(appMenuCoordinator);
+        assertEquals(
+                "Menu model has more items than expected",
+                expectedPresentItemIds.size(),
+                menuItemsModelList.size());
+    }
+
+    public abstract AppMenuCoordinator getAppMenuCoordinator();
 }

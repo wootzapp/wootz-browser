@@ -21,6 +21,8 @@
 extern const char kNewOperatorName[];
 extern const char kCreateName[];
 extern const char kTraceName[];
+extern const char kTraceMultipleName[];
+extern const char kTraceEphemeronName[];
 extern const char kFinalizeName[];
 extern const char kTraceAfterDispatchName[];
 extern const char kRegisterWeakMembersName[];
@@ -28,8 +30,6 @@ extern const char kHeapAllocatorName[];
 extern const char kTraceIfNeededName[];
 extern const char kVisitorDispatcherName[];
 extern const char kVisitorVarName[];
-extern const char kAdjustAndMarkName[];
-extern const char kIsHeapObjectAliveName[];
 extern const char kConstIteratorName[];
 extern const char kIteratorName[];
 extern const char kConstReverseIteratorName[];
@@ -135,7 +135,8 @@ class Config {
   static bool IsGCCollection(llvm::StringRef name) {
     return name == "HeapVector" || name == "HeapDeque" ||
            name == "HeapHashSet" || name == "HeapLinkedHashSet" ||
-           name == "HeapHashCountedSet" || name == "HeapHashMap";
+           name == "HeapHashCountedSet" || name == "HeapHashMap" ||
+           name == "HeapLinkedStack";
   }
 
   static bool IsHashMap(llvm::StringRef name) {
@@ -188,6 +189,10 @@ class Config {
 
   static bool IsIgnoreAnnotated(const clang::Decl* decl) {
     return IsAnnotated(decl, "blink_gc_plugin_ignore");
+  }
+
+  static bool IsStackAllocatedIgnoreAnnotated(const clang::Decl* decl) {
+    return IsAnnotated(decl, "stack_allocated_ignore");
   }
 
   static bool IsVisitor(llvm::StringRef name) { return name == "Visitor"; }

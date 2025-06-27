@@ -19,7 +19,6 @@ import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 /** The properties required to build the fake search box on new tab page. */
 interface SearchBoxProperties {
     WritableFloatPropertyKey ALPHA = new WritableFloatPropertyKey();
-    WritableObjectPropertyKey<Drawable> BACKGROUND = new WritableObjectPropertyKey<>();
     WritableBooleanPropertyKey VISIBILITY = new WritableBooleanPropertyKey();
     WritableBooleanPropertyKey VOICE_SEARCH_VISIBILITY = new WritableBooleanPropertyKey();
     WritableObjectPropertyKey<Drawable> VOICE_SEARCH_DRAWABLE = new WritableObjectPropertyKey<>();
@@ -38,20 +37,15 @@ interface SearchBoxProperties {
             new WritableObjectPropertyKey<>();
     WritableObjectPropertyKey<TextWatcher> SEARCH_BOX_TEXT_WATCHER =
             new WritableObjectPropertyKey<>();
-    WritableIntPropertyKey SEARCH_BOX_HINT_COLOR = new WritableIntPropertyKey();
     WritableIntPropertyKey SEARCH_BOX_HEIGHT = new WritableIntPropertyKey();
     WritableIntPropertyKey SEARCH_BOX_TOP_MARGIN = new WritableIntPropertyKey();
     WritableIntPropertyKey SEARCH_BOX_END_PADDING = new WritableIntPropertyKey();
     WritableFloatPropertyKey SEARCH_TEXT_TRANSLATION_X = new WritableFloatPropertyKey();
     WritableFloatPropertyKey SEARCH_BOX_TEXT_SIZE = new WritableFloatPropertyKey();
-    WritableIntPropertyKey BUTTONS_HEIGHT = new WritableIntPropertyKey();
-    WritableIntPropertyKey BUTTONS_WIDTH = new WritableIntPropertyKey();
-    WritableIntPropertyKey LENS_BUTTON_LEFT_MARGIN = new WritableIntPropertyKey();
 
     PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 ALPHA,
-                BACKGROUND,
                 VISIBILITY,
                 VOICE_SEARCH_VISIBILITY,
                 VOICE_SEARCH_DRAWABLE,
@@ -64,14 +58,10 @@ interface SearchBoxProperties {
                 SEARCH_BOX_CLICK_CALLBACK,
                 SEARCH_BOX_DRAG_CALLBACK,
                 SEARCH_BOX_TEXT_WATCHER,
-                SEARCH_BOX_HINT_COLOR,
                 SEARCH_BOX_HEIGHT,
                 SEARCH_BOX_TOP_MARGIN,
                 SEARCH_BOX_END_PADDING,
                 SEARCH_TEXT_TRANSLATION_X,
-                SEARCH_BOX_TEXT_SIZE,
-                BUTTONS_HEIGHT,
-                BUTTONS_WIDTH,
-                LENS_BUTTON_LEFT_MARGIN
+                SEARCH_BOX_TEXT_SIZE
             };
 }

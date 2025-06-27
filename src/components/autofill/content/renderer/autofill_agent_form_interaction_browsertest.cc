@@ -24,7 +24,6 @@
 #include "ui/gfx/geometry/rect.h"
 
 namespace autofill {
-
 namespace {
 
 using ::testing::_;
@@ -36,39 +35,25 @@ using ::testing::MockFunction;
 using ::testing::Not;
 using ::testing::Property;
 
-// Returns a matcher that matches a `FormFieldData::id_attribute`.
-auto HasFieldIdAttribute(std::u16string id_attribute) {
-  return Property("id_attribute", &FormFieldData::id_attribute, id_attribute);
-}
-
 // Returns a matcher that matches a `FormFieldData::form_control_type`.
 auto HasType(FormControlType type) {
-  return Property(&FormFieldData::form_control_type, type);
+  return Property("FormFieldData::form_control_type",
+                  &FormFieldData::form_control_type, type);
 }
 
 auto IsContentEditable() {
   return HasType(FormControlType::kContentEditable);
 }
 
+template <typename... Args>
+auto FieldsAre(Args&&... matchers) {
+  return Property("FormData::fields", &FormData::fields,
+                  ElementsAre(std::forward<Args>(matchers)...));
+}
+
 // TODO(crbug.com/40286775): Clean up these functions once
 // `kAutofillAndroidDisableSuggestionsOnJSFocus` is launched and Android and
 // Desktop behave identically.
-
-// Returns the expected number of calls to AskForValuesToFill when left
-// clicking or tapping a previously unfocused field.
-int NumCallsToAskForValuesToFillOnInitialLeftClick() {
-  if constexpr (BUILDFLAG(IS_ANDROID)) {
-    return base::FeatureList::IsEnabled(
-               features::kAutofillAndroidDisableSuggestionsOnJSFocus)
-               // Called solely by
-               // `AutofillAgent::DidReceiveLeftMouseDownOrGestureTapInNode`:
-               ? 1
-               // Called also by `AutofillAgent::FocusElementChanged`.
-               : 2;
-  }
-  // Called solely by `AutofillAgent::DidCompleteFocusChangeInFrame`.
-  return 1;
-}
 
 // Returns the expected number of calls to AskForValuesToFill when focusing a
 // text field without left clicking or tapping it.
@@ -90,8 +75,6 @@ int NumCallsToHidePopupOnFocusLoss() {
   }
   return 1;  // Any dropdown should disappear on focus loss.
 }
-
-}  // namespace
 
 class AutofillAgentFormInteractionTest : public test::AutofillRendererTest {
  public:
@@ -117,6 +100,20 @@ class AutofillAgentFormInteractionTest : public test::AutofillRendererTest {
     // gesture has been processed since load.
     EXPECT_TRUE(SimulateElementClick("button"));
   }
+
+  FieldRendererId GetFieldRendererIdById(std::string_view id) {
+    return form_util::GetFieldRendererId(
+        GetMainFrame()->GetDocument().GetElementById(
+            blink::WebString::FromUTF8(id)));
+  }
+
+  // Makes sure the next AskForValuesToFill() event is not throttled in
+  // AutofillAgent.
+  void SkipThrottle() { task_environment_.FastForwardBy(base::Seconds(1)); }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_{
+      features::kAutofillThrottleAskForValuesToFill};
 };
 
 // Tests that (repeatedly) clicking a text input field calls AskForValuesToFill
@@ -128,27 +125,37 @@ TEST_F(AutofillAgentFormInteractionTest, TextInputLeftClick) {
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"text"), _,
-            AutofillSuggestionTriggerSource::kFormControlElementClicked))
-        .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+            _, GetFieldRendererIdById("text"), _,
+            AutofillSuggestionTriggerSource::kFormControlElementClicked));
     EXPECT_CALL(check, Call(1));
-    // The second click only triggers a single call, regardless of OS.
+
+    // The second click triggers no call because it's throttled.
+    EXPECT_CALL(autofill_driver(), AskForValuesToFill).Times(0);
+    EXPECT_CALL(check, Call(2));
+
+    // The third click only triggers a single call, regardless of OS.
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"text"), _,
+            _, GetFieldRendererIdById("text"), _,
             AutofillSuggestionTriggerSource::kFormControlElementClicked));
-    EXPECT_CALL(check, Call(2));
+    EXPECT_CALL(check, Call(3));
   }
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("text"));
   check.Call(1);
 
   EXPECT_TRUE(SimulateElementClickAndWait("text"));
-  task_environment_.RunUntilIdle();
   check.Call(2);
 
+  SkipThrottle();
+  EXPECT_TRUE(SimulateElementClickAndWait("text"));
+  task_environment_.RunUntilIdle();  // nocheck
+  check.Call(3);
+
   // No notification should be sent on clicking the button.
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("button"));
 }
 
@@ -157,7 +164,7 @@ TEST_F(AutofillAgentFormInteractionTest, TextInputLeftClick) {
 TEST_F(AutofillAgentFormInteractionTest, TextInputRightClick) {
   EXPECT_CALL(autofill_driver(),
               AskForValuesToFill(
-                  _, HasFieldIdAttribute(u"text"), _,
+                  _, GetFieldRendererIdById("text"), _,
                   AutofillSuggestionTriggerSource::kFormControlElementClicked))
       .Times(NumCallsToAskForValuesToFillOnTextfieldFocusWithoutLeftClick());
   EXPECT_TRUE(SimulateElementRightClick("text"));
@@ -172,7 +179,7 @@ TEST_F(AutofillAgentFormInteractionTest, TextInputFocusAndLeftClick) {
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"text"), _,
+            _, GetFieldRendererIdById("text"), _,
             AutofillSuggestionTriggerSource::kFormControlElementClicked))
         .Times(NumCallsToAskForValuesToFillOnTextfieldFocusWithoutLeftClick());
     InSequence s;
@@ -180,14 +187,16 @@ TEST_F(AutofillAgentFormInteractionTest, TextInputFocusAndLeftClick) {
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"text"), _,
+            _, GetFieldRendererIdById("text"), _,
             AutofillSuggestionTriggerSource::kFormControlElementClicked));
     EXPECT_CALL(check, Call(2));
   }
 
+  SkipThrottle();
   SimulateElementFocusAndWait("text");
   check.Call(1);
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("text"));
   check.Call(2);
 }
@@ -200,24 +209,26 @@ TEST_F(AutofillAgentFormInteractionTest, TextAreaLeftClick) {
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"textarea"), _,
-            AutofillSuggestionTriggerSource::kFormControlElementClicked))
-        .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+            _, GetFieldRendererIdById("textarea"), _,
+            AutofillSuggestionTriggerSource::kFormControlElementClicked));
     EXPECT_CALL(check, Call(1));
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            _, HasFieldIdAttribute(u"textarea"), _,
+            _, GetFieldRendererIdById("textarea"), _,
             AutofillSuggestionTriggerSource::kFormControlElementClicked));
     EXPECT_CALL(check, Call(2));
   }
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("textarea"));
   check.Call(1);
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("textarea"));
   check.Call(2);
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("button"));
 }
 
@@ -232,25 +243,27 @@ TEST_F(AutofillAgentFormInteractionTest, TextareaFocusAndLeftClick) {
     using enum AutofillSuggestionTriggerSource;
     if constexpr (!BUILDFLAG(IS_ANDROID)) {
       EXPECT_CALL(autofill_driver(),
-                  AskForValuesToFill(_, HasFieldIdAttribute(u"textarea"), _,
+                  AskForValuesToFill(_, GetFieldRendererIdById("textarea"), _,
                                      kTextareaFocusedWithoutClick));
     } else {
       EXPECT_CALL(autofill_driver(),
-                  AskForValuesToFill(_, HasFieldIdAttribute(u"textarea"), _,
+                  AskForValuesToFill(_, GetFieldRendererIdById("textarea"), _,
                                      kFormControlElementClicked))
           .Times(
               NumCallsToAskForValuesToFillOnTextfieldFocusWithoutLeftClick());
     }
     EXPECT_CALL(check, Call(1));
     EXPECT_CALL(autofill_driver(),
-                AskForValuesToFill(_, HasFieldIdAttribute(u"textarea"), _,
+                AskForValuesToFill(_, GetFieldRendererIdById("textarea"), _,
                                    kFormControlElementClicked));
     EXPECT_CALL(check, Call(2));
   }
 
+  SkipThrottle();
   SimulateElementFocusAndWait("textarea");
   check.Call(1);
 
+  SkipThrottle();
   EXPECT_TRUE(SimulateElementClickAndWait("textarea"));
   check.Call(2);
 }
@@ -259,9 +272,8 @@ TEST_F(AutofillAgentFormInteractionTest, TextareaFocusAndLeftClick) {
 TEST_F(AutofillAgentFormInteractionTest, ScaledTextareaLeftClick) {
   EXPECT_CALL(autofill_driver(),
               AskForValuesToFill(
-                  _, HasFieldIdAttribute(u"textarea"), _,
-                  AutofillSuggestionTriggerSource::kFormControlElementClicked))
-      .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+                  _, GetFieldRendererIdById("textarea"), _,
+                  AutofillSuggestionTriggerSource::kFormControlElementClicked));
 
   web_view_->SetPageScaleFactor(3);
   web_view_->SetVisualViewportOffset(gfx::PointF(50, 50));
@@ -272,15 +284,14 @@ TEST_F(AutofillAgentFormInteractionTest, ScaledTextareaLeftClick) {
 TEST_F(AutofillAgentFormInteractionTest, ScaledTextareaTapped) {
   EXPECT_CALL(autofill_driver(),
               AskForValuesToFill(
-                  _, HasFieldIdAttribute(u"textarea"), _,
-                  AutofillSuggestionTriggerSource::kFormControlElementClicked))
-      .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+                  _, GetFieldRendererIdById("textarea"), _,
+                  AutofillSuggestionTriggerSource::kFormControlElementClicked));
 
   web_view_->SetPageScaleFactor(3);
   web_view_->SetVisualViewportOffset(gfx::PointF(50, 50));
   gfx::Point center = GetElementBounds("textarea").CenterPoint();
   SimulateRectTap(gfx::Rect(center, gfx::Size(30, 30)));
-  task_environment_.RunUntilIdle();
+  task_environment_.RunUntilIdle();  // nocheck
 }
 
 // Tests that left clicking a disabled input field does not trigger
@@ -343,9 +354,8 @@ TEST_F(AutofillAgentFormInteractionTest, ReadonlyTextareaFocusWithoutClick) {
 TEST_F(AutofillAgentFormInteractionTest, TapNearEdge) {
   EXPECT_CALL(autofill_driver(),
               AskForValuesToFill(
-                  _, HasFieldIdAttribute(u"text"), _,
-                  AutofillSuggestionTriggerSource::kFormControlElementClicked))
-      .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+                  _, GetFieldRendererIdById("text"), _,
+                  AutofillSuggestionTriggerSource::kFormControlElementClicked));
 
   gfx::Rect element_bounds = GetElementBounds("text");
   SimulateRectTap(element_bounds -
@@ -359,10 +369,8 @@ TEST_F(AutofillAgentContentEditableInteractionTest, LeftClick) {
   EXPECT_CALL(
       autofill_driver(),
       AskForValuesToFill(
-          Field(&FormData::fields, ElementsAre(IsContentEditable())),
-          IsContentEditable(), _,
-          mojom::AutofillSuggestionTriggerSource::kContentEditableClicked))
-      .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+          FieldsAre(IsContentEditable()), _, _,
+          mojom::AutofillSuggestionTriggerSource::kContentEditableClicked));
 
   LoadHTML("<body><div id=ce contenteditable></body>");
   WaitForFormsSeen();
@@ -379,10 +387,8 @@ TEST_F(AutofillAgentContentEditableInteractionTest,
     EXPECT_CALL(
         autofill_driver(),
         AskForValuesToFill(
-            Field(&FormData::fields, ElementsAre(IsContentEditable())),
-            IsContentEditable(), _,
-            mojom::AutofillSuggestionTriggerSource::kContentEditableClicked))
-        .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+            FieldsAre(IsContentEditable()), _, _,
+            mojom::AutofillSuggestionTriggerSource::kContentEditableClicked));
     EXPECT_CALL(check, Call);
     EXPECT_CALL(autofill_driver(), HidePopup)
         .Times(NumCallsToHidePopupOnFocusLoss());
@@ -430,9 +436,9 @@ TEST_F(AutofillAgentContentEditableInteractionTest,
     InSequence s;
     EXPECT_CALL(autofill_driver(), FormsSeen);
     EXPECT_CALL(check, Call);
-    EXPECT_CALL(autofill_driver(),
-                AskForValuesToFill(_, Not(IsContentEditable()), _, _))
-        .Times(NumCallsToAskForValuesToFillOnInitialLeftClick());
+    EXPECT_CALL(
+        autofill_driver(),
+        AskForValuesToFill(FieldsAre(Not(IsContentEditable())), _, _, _));
   }
 
   LoadHTML("<body><textarea id=ce contenteditable></textarea>");
@@ -441,4 +447,5 @@ TEST_F(AutofillAgentContentEditableInteractionTest,
   SimulateElementClickAndWait("ce");
 }
 
+}  // namespace
 }  // namespace autofill

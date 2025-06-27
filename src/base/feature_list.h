@@ -26,17 +26,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace base {
 
 class FieldTrial;
 class FieldTrialList;
 class PersistentMemoryAllocator;
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 class FeatureVisitor;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 // Specifies whether a given feature is enabled or disabled by default.
 // NOTE: The actual runtime state may be different, due to a field trial or a
@@ -46,7 +42,7 @@ enum FeatureState {
   FEATURE_ENABLED_BY_DEFAULT,
 };
 
-// Recommended macros for declaring and defining features:
+// Recommended macros for declaring and defining features and parameters:
 //
 // - `kFeature` is the C++ identifier that will be used for the `base::Feature`.
 // - `name` is the feature name, which must be globally unique. This name is
@@ -77,6 +73,76 @@ enum FeatureState {
 #define BASE_FEATURE(feature, name, default_state) \
   constinit const base::Feature feature(           \
       name, default_state, base::internal::FeatureMacroHandshake::kSecret)
+
+// Provides a forward declaration for `feature_object_name` in a header file,
+// e.g.
+//
+//   BASE_DECLARE_FEATURE_PARAM(int, kMyFeatureParam);
+//
+// If the feature needs to be marked as exported, i.e. it is referenced by
+// multiple components, then write:
+//
+//   COMPONENT_EXPORT(MY_COMPONENT)
+//   BASE_DECLARE_FEATURE_PARAM(int, kMyFeatureParam);
+//
+// This macro enables optimizations to make the second and later calls faster,
+// but requires additional memory uses. If you obtain the parameter only once,
+// you can instantiate base::FeatureParam directly, or can call
+// base::GetFieldTrialParamByFeatureAsInt or equivalent functions for other
+// types directly.
+#define BASE_DECLARE_FEATURE_PARAM(T, feature_object_name) \
+  extern constinit const base::FeatureParam<T> feature_object_name
+
+// Provides a definition for `feature_object_name` with `T`, `feature`, `name`
+// and `default_value`, with an internal parsed value cache, e.g.
+//
+//   BASE_FEATURE_PARAM(int, kMyFeatureParam, &kMyFeature, "my_feature_param",
+//                      0);
+//
+// `T` is a parameter type, one of bool, int, size_t, double, std::string, and
+// base::TimeDelta. Enum types are not supported for now.
+//
+// It should *not* be defined in header files; do not use this macro in header
+// files.
+//
+// WARNING: If the feature is not enabled, the parameter is not set, or set to
+// an invalid value (per the param type), then Get() will return the default
+// value passed to this C++ macro. In particular this will typically return the
+// default value regardless of the server-side config in control groups.
+#define BASE_FEATURE_PARAM(T, feature_object_name, feature, name,       \
+                           default_value)                               \
+  namespace field_trial_params_internal {                               \
+  T GetFeatureParamWithCacheFor##feature_object_name(                   \
+      const base::FeatureParam<T>* feature_param) {                     \
+    static const typename base::internal::FeatureParamTraits<           \
+        T>::CacheStorageType storage =                                  \
+        base::internal::FeatureParamTraits<T>::ToCacheStorageType(      \
+            feature_param->GetWithoutCache());                          \
+    return base::internal::FeatureParamTraits<T>::FromCacheStorageType( \
+        storage);                                                       \
+  }                                                                     \
+  } /* field_trial_params_internal */                                   \
+  constinit const base::FeatureParam<T> feature_object_name(            \
+      feature, name, default_value,                                     \
+      &field_trial_params_internal::                                    \
+          GetFeatureParamWithCacheFor##feature_object_name)
+
+// Same as BASE_FEATURE_PARAM() but used for enum type parameters with on extra
+// argument, `options`. See base::FeatureParam<Enum> template declaration in
+// //base/metrics/field_trial_params.h for `options`' details.
+#define BASE_FEATURE_ENUM_PARAM(T, feature_object_name, feature, name, \
+                                default_value, options)                \
+  namespace field_trial_params_internal {                              \
+  T GetFeatureParamWithCacheFor##feature_object_name(                  \
+      const base::FeatureParam<T>* feature_param) {                    \
+    static const T param = feature_param->GetWithoutCache();           \
+    return param;                                                      \
+  }                                                                    \
+  } /* field_trial_params_internal */                                  \
+  constinit const base::FeatureParam<T> feature_object_name(           \
+      feature, name, default_value, options,                           \
+      &field_trial_params_internal::                                   \
+          GetFeatureParamWithCacheFor##feature_object_name)
 
 // Secret handshake to (try to) ensure all places that construct a base::Feature
 // go through the helper `BASE_FEATURE()` macro above.
@@ -325,7 +391,7 @@ class BASE_EXPORT FeatureList {
                                     FieldTrial* field_trial);
 
   // Registers a field trial to override the enabled state of the specified
-  // feature to |override_state|. Command-line overrides still take precedence
+  // feature to `override_state`. Command-line overrides still take precedence
   // over field trials, so this will have no effect if the feature is being
   // overridden from the command-line. The associated field trial will be
   // activated when the feature state for this feature is queried. This should
@@ -339,10 +405,14 @@ class BASE_EXPORT FeatureList {
   // before SetInstance().
   // The ordering of calls with respect to InitFromCommandLine(),
   // RegisterFieldTrialOverride(), etc. matters. The first call wins out,
-  // because the |overrides_| map uses insert(), which retains the first
-  // inserted entry and does not overwrite it on subsequent calls to insert().
+  // because the `overrides_` map uses emplace(), which retains the first
+  // inserted entry and does not overwrite it on subsequent calls to emplace().
+  //
+  // If `replace_use_default_overrides` is true, if there is an existing entry
+  // with type OVERRIDE_USE_DEFAULT, that entry will be replaced.
   void RegisterExtraFeatureOverrides(
-      const std::vector<FeatureOverrideInfo>& extra_overrides);
+      const std::vector<FeatureOverrideInfo>& extra_overrides,
+      bool replace_use_default_overrides = false);
 
   // Loops through feature overrides and serializes them all into |allocator|.
   void AddFeaturesToAllocator(PersistentMemoryAllocator* allocator);
@@ -436,7 +506,7 @@ class BASE_EXPORT FeatureList {
       std::string_view input);
 
   // Checks and parses the |enable_feature| (e.g.
-  // FeatureName<Study.Group:Param1/value1/) obtained by applying
+  // FeatureName<Study.Group:param1/value1/) obtained by applying
   // SplitFeatureListString() to the |enable_features| flag, and sets
   // |feature_name| to be the feature's name, |study_name| and |group_name| to
   // be the field trial name and its group name if the field trial is specified
@@ -517,15 +587,15 @@ class BASE_EXPORT FeatureList {
   // only be called on a FeatureList that was set with SetEarlyAccessInstance().
   void AddEarlyAllowedFeatureForTesting(std::string feature_name);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   // Allows a visitor to record override state, parameters, and field trial
-  // associated with each feature.
+  // associated with each feature. Optionally, provide a prefix which filters
+  // the visited features.
   //
   // NOTE: This is intended only for the special case of needing to get all
-  // overrides. This use case is specific to CrOS-Ash. Most users should call
-  // IsEnabled() to query a feature's state.
-  static void VisitFeaturesAndParams(FeatureVisitor& visitor);
-#endif  // BULDFLAG(IS_CHROMEOS_ASH)
+  // overrides. This use case is specific to CrOS-Ash and V8. Most users should
+  // call IsEnabled() to query a feature's state.
+  static void VisitFeaturesAndParams(FeatureVisitor& visitor,
+                                     std::string_view filter_prefix = "");
 
  private:
   FRIEND_TEST_ALL_PREFIXES(FeatureListTest, CheckFeatureIdentity);
@@ -607,11 +677,15 @@ class BASE_EXPORT FeatureList {
   // will take precedence over the feature's default state. If |field_trial| is
   // not null, registers the specified field trial object to be associated with
   // the feature, which will activate the field trial when the feature state is
-  // queried. If an override is already registered for the given feature, it
-  // will not be changed.
+  // queried.
+  //
+  // If an override is already registered for the given feature, it will not be
+  // changed, unless `replace_use_default_overrides` is true and the existing
+  // entry has type OVERRIDE_USE_DEFAULT.
   void RegisterOverride(std::string_view feature_name,
                         OverrideState overridden_state,
-                        FieldTrial* field_trial);
+                        FieldTrial* field_trial,
+                        bool replace_use_default_overrides = false);
 
   // Implementation of GetFeatureOverrides() with a parameter that specifies
   // whether only command-line enabled overrides should be emitted. See that
@@ -646,8 +720,8 @@ class BASE_EXPORT FeatureList {
   // enabled. This is mutable as it's not externally visible and needs to be
   // usable from const getters.
   mutable Lock feature_identity_tracker_lock_;
-  mutable std::map<std::string, const Feature*> feature_identity_tracker_
-      GUARDED_BY(feature_identity_tracker_lock_);
+  mutable std::map<std::string, const Feature*, std::less<>>
+      feature_identity_tracker_ GUARDED_BY(feature_identity_tracker_lock_);
 
   // Tracks the associated FieldTrialList for DCHECKs. This is used to catch
   // the scenario where multiple FieldTrialList are used with the same

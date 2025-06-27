@@ -37,8 +37,8 @@ class CC_EXPORT EventMetrics {
     kMousePressed,
     kMouseReleased,
     kMouseWheel,
-    // TODO(crbug.com/40126863): Currently, all ET_KEY_PRESSED events are
-    // reported under EventLatency.KeyPressed histogram. This includes both
+    // TODO(crbug.com/40126863): Currently, all EventType::kKeyPressed events
+    // are reported under EventLatency.KeyPressed histogram. This includes both
     // key-down and key-char events. Consider reporting them separately.
     kKeyPressed,
     kKeyReleased,
@@ -452,6 +452,13 @@ class CC_EXPORT ScrollUpdateEventMetrics : public ScrollEventMetrics {
     return is_janky_scrolled_frame_;
   }
 
+  void set_is_janky_scrolled_frame_v3(std::optional<bool> is_janky) {
+    is_janky_scrolled_frame_v3_ = is_janky;
+  }
+  std::optional<bool> is_janky_scrolled_frame_v3() const {
+    return is_janky_scrolled_frame_v3_;
+  }
+
  protected:
   ScrollUpdateEventMetrics(EventType type,
                            ScrollType scroll_type,
@@ -485,6 +492,7 @@ class CC_EXPORT ScrollUpdateEventMetrics : public ScrollEventMetrics {
   int32_t coalesced_event_count_ = 1;
 
   std::optional<bool> is_janky_scrolled_frame_ = std::nullopt;
+  std::optional<bool> is_janky_scrolled_frame_v3_ = std::nullopt;
 };
 
 class CC_EXPORT PinchEventMetrics : public EventMetrics {

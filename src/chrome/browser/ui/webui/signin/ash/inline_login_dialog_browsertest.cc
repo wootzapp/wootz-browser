@@ -11,6 +11,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/test/browser_test.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/view.h"
@@ -27,14 +28,14 @@ class TestInlineLoginDialog : public InlineLoginDialog {
   using SystemWebDialogDelegate::dialog_window;
 };
 
+}  // namespace
+
 // A simulated modal dialog. Taking focus seems important to repro the crash,
 // but I'm not sure why.
 class ChildModalDialogDelegate : public views::DialogDelegateView {
  public:
   ChildModalDialogDelegate() {
-    // Our views::Widget will delete us.
-    DCHECK(owned_by_widget());
-    SetModalType(ui::MODAL_TYPE_CHILD);
+    SetModalType(ui::mojom::ModalType::kChild);
     SetFocusBehavior(FocusBehavior::ALWAYS);
     // Dialogs that take focus must have a name and role to pass accessibility
     // checks.
@@ -46,8 +47,6 @@ class ChildModalDialogDelegate : public views::DialogDelegateView {
   ChildModalDialogDelegate& operator=(const ChildModalDialogDelegate&) = delete;
   ~ChildModalDialogDelegate() override = default;
 };
-
-}  // namespace
 
 using InlineLoginDialogTest = InProcessBrowserTest;
 

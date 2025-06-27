@@ -84,7 +84,7 @@ class PartitionedOriginValueMap {
                 const ContentSettingsPattern& secondary_pattern,
                 ContentSettingsType content_type,
                 base::Value value,
-                const RuleMetaData& metadata,
+                RuleMetaData metadata,
                 const PartitionKey& partition_key)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
@@ -102,14 +102,14 @@ class PartitionedOriginValueMap {
   // Clears all values.
   void clear() EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  void SetClockForTesting(base::Clock* clock);
+  void SetClockForTesting(const base::Clock* clock);
 
  private:
   mutable base::Lock lock_;
   std::map<PartitionKey, OriginValueMap> partitions_
       GUARDED_BY(lock_);
 
-  raw_ptr<base::Clock> clock_;
+  raw_ptr<const base::Clock> clock_;
 };
 
 }  // namespace content_settings

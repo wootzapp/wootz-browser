@@ -17,6 +17,7 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/optimization_guide/core/model_util.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/optimization_guide/core/prediction_model_override.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
@@ -133,8 +134,8 @@ IN_PROC_BROWSER_TEST_F(PreloadingModelKeyedServiceTest, Score) {
   inputs.navigation_start_to_link_logged = base::TimeDelta();
   inputs.path_depth = 0;
   inputs.path_length = 0;
-  inputs.percent_clickable_area = 0.0;
-  inputs.percent_vertical_distance = 0.0;
+  inputs.percent_clickable_area = 0;
+  inputs.percent_vertical_distance = 0;
   inputs.is_same_host = false;
   inputs.is_in_viewport = false;
   inputs.is_pointer_hovering_over = false;

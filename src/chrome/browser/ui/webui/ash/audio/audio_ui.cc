@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "ash/constants/ash_features.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/audio_resources.h"
 #include "chrome/grit/audio_resources_map.h"
@@ -16,6 +15,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "ui/webui/webui_util.h"
 
 namespace ash {
 
@@ -30,9 +30,8 @@ AudioUI::AudioUI(content::WebUI* web_ui) : ui::MojoWebUIController(web_ui) {
           web_ui->GetWebContents()->GetBrowserContext(),
           chrome::kChromeUIAudioHost);
 
-  webui::SetupWebUIDataSource(
-      html_source, base::make_span(kAudioResources, kAudioResourcesSize),
-      IDR_AUDIO_AUDIO_HTML);
+  webui::SetupWebUIDataSource(html_source, kAudioResources,
+                              IDR_AUDIO_AUDIO_HTML);
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(AudioUI)

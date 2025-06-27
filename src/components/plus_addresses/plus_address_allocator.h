@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_PLUS_ADDRESSES_PLUS_ADDRESS_ALLOCATOR_H_
 #define COMPONENTS_PLUS_ADDRESSES_PLUS_ADDRESS_ALLOCATOR_H_
 
+#include <optional>
+
 #include "components/plus_addresses/plus_address_types.h"
 
 namespace url {
@@ -26,11 +28,11 @@ class PlusAddressAllocator {
   static constexpr int kMaxPlusAddressRefreshesPerOrigin = 10;
 
   enum class AllocationMode {
-    // The requested plus address can be any (unused) plus address, regardless
-    // of whether it has been shown to the user before.
+    // The requested plus address should be the first one that's available for
+    // use.
     kAny = 0,
-    // The requested plus address should be one that the user has never seen
-    // before.
+    // The requested plus address should be the next one in the preallocation
+    // queue.
     kNewPlusAddress = 1
   };
 
@@ -39,8 +41,19 @@ class PlusAddressAllocator {
                                    AllocationMode mode,
                                    PlusAddressRequestCallback callback) = 0;
 
+  // Attempts to allocate a plus address for `origin` synchronously. If none is
+  // available synchronously, it returns `std::nullopt` and does no further
+  // work.
+  virtual std::optional<PlusProfile> AllocatePlusAddressSynchronously(
+      const url::Origin& origin,
+      AllocationMode mode) = 0;
+
   // Returns whether a plus address for `origin` may be refreshed.
   virtual bool IsRefreshingSupported(const url::Origin& origin) const = 0;
+
+  // Removes `plus_address` from the allocation pool. Depending on the
+  // implementation, this may be a no-op.
+  virtual void RemoveAllocatedPlusAddress(const PlusAddress& plus_address) = 0;
 };
 
 }  // namespace plus_addresses

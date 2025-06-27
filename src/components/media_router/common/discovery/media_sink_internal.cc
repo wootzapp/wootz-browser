@@ -53,11 +53,13 @@ MediaSinkInternal& MediaSinkInternal::operator=(
 }
 
 bool MediaSinkInternal::operator==(const MediaSinkInternal& other) const {
-  if (sink_type_ != other.sink_type_)
+  if (sink_type_ != other.sink_type_) {
     return false;
+  }
 
-  if (sink_ != other.sink_)
+  if (sink_ != other.sink_) {
     return false;
+  }
 
   switch (sink_type_) {
     case SinkType::DIAL:
@@ -67,8 +69,7 @@ bool MediaSinkInternal::operator==(const MediaSinkInternal& other) const {
     case SinkType::GENERIC:
       return true;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool MediaSinkInternal::operator!=(const MediaSinkInternal& other) const {
@@ -127,12 +128,14 @@ bool MediaSinkInternal::IsValidSinkId(const std::string& sink_id) {
 // static
 std::string MediaSinkInternal::ProcessDeviceUUID(
     const std::string& device_uuid) {
-  if (device_uuid.empty())
+  if (device_uuid.empty()) {
     return std::string();
+  }
 
   std::string result = device_uuid;
-  if (base::StartsWith(device_uuid, "uuid:", base::CompareCase::SENSITIVE))
+  if (base::StartsWith(device_uuid, "uuid:", base::CompareCase::SENSITIVE)) {
     result = device_uuid.substr(5);
+  }
 
   base::RemoveChars(result, "-", &result);
   return base::ToLowerASCII(result);
@@ -153,7 +156,7 @@ void MediaSinkInternal::InternalCopyConstructFrom(
     case SinkType::GENERIC:
       return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void MediaSinkInternal::InternalMoveConstructFrom(MediaSinkInternal&& other) {
@@ -170,7 +173,7 @@ void MediaSinkInternal::InternalMoveConstructFrom(MediaSinkInternal&& other) {
     case SinkType::GENERIC:
       return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void MediaSinkInternal::InternalCleanup() {
@@ -184,7 +187,7 @@ void MediaSinkInternal::InternalCleanup() {
     case SinkType::GENERIC:
       return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 DialSinkExtraData::DialSinkExtraData() = default;

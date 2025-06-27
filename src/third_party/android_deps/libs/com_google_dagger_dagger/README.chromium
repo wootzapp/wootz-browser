@@ -1,8 +1,8 @@
 Name: Dagger
 Short Name: dagger
 URL: https://github.com/google/dagger
-Version: 2.30
-License: Apache 2.0
+Version: 2.52
+License: Apache-2.0
 License File: LICENSE
 CPEPrefix: unknown
 Security Critical: yes

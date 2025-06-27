@@ -9,7 +9,6 @@
 
 #include "base/command_line.h"
 #include "base/memory/ptr_util.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "components/embedder_support/origin_trials/features.h"
@@ -293,7 +292,7 @@ TEST_F(OriginTrialPolicyImplTest, DisableFeatureForUserAfterCheck) {
 class OriginTrialPolicyImplInitializationTest
     : public OriginTrialPolicyImplTest {
  protected:
-  OriginTrialPolicyImplInitializationTest() {}
+  OriginTrialPolicyImplInitializationTest() = default;
 
   OriginTrialPolicyImpl* initialized_manager() {
     return initialized_manager_.get();

@@ -13,10 +13,8 @@
 #include "base/containers/unique_ptr_adapters.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ash/arc/fileapi/arc_file_system_bridge.h"
-#include "chrome/browser/ash/crosapi/download_controller_ash.h"
 #include "chrome/browser/download/notification/multi_profile_download_notifier.h"
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service_delegate.h"
-#include "chromeos/crosapi/mojom/download_controller.mojom-forward.h"
 
 namespace content {
 class DownloadManager;
@@ -24,17 +22,12 @@ class DownloadManager;
 
 namespace ash {
 
-namespace holding_space_metrics {
-enum class EventSource;
-}  // namespace holding_space_metrics
-
 // A delegate of `HoldingSpaceKeyedService` tasked with monitoring the status of
 // of downloads on its behalf.
 class HoldingSpaceDownloadsDelegate
     : public HoldingSpaceKeyedServiceDelegate,
       public MultiProfileDownloadNotifier::Client,
-      public arc::ArcFileSystemBridge::Observer,
-      public crosapi::DownloadControllerAsh::DownloadControllerObserver {
+      public arc::ArcFileSystemBridge::Observer {
  public:
   HoldingSpaceDownloadsDelegate(HoldingSpaceKeyedService* service,
                                 HoldingSpaceModel* model);
@@ -51,8 +44,6 @@ class HoldingSpaceDownloadsDelegate
 
  private:
   class InProgressDownload;
-  class InProgressAshDownload;
-  class InProgressLacrosDownload;
 
   // HoldingSpaceKeyedServiceDelegate:
   void OnPersistenceRestored() override;
@@ -71,17 +62,6 @@ class HoldingSpaceDownloadsDelegate
   void OnMediaStoreUriAdded(
       const GURL& uri,
       const arc::mojom::MediaStoreMetadata& metadata) override;
-
-  // crosapi::DownloadControllerAsh::DownloadControllerObserver:
-  void OnLacrosDownloadCreated(
-      const crosapi::mojom::DownloadItem& mojo_download_item) override;
-  void OnLacrosDownloadUpdated(
-      const crosapi::mojom::DownloadItem& mojo_download_item) override;
-
-  // Invoked when the initial collection of `mojo_download_items` are synced
-  // from Lacros. Downloads are sorted chronologically by start time.
-  void OnLacrosDownloadsSynced(
-      std::vector<crosapi::mojom::DownloadItemPtr> mojo_download_items);
 
   // Invoked when the specified `in_progress_download` is updated. If
   // `invalidate_image` is `true`, the image for the associated holding space
@@ -110,15 +90,9 @@ class HoldingSpaceDownloadsDelegate
                                       bool invalidate_image);
 
   // Attempts to cancel/pause/resume the download underlying the given `item`.
-  void Cancel(const HoldingSpaceItem* item,
-              HoldingSpaceCommandId command_id,
-              holding_space_metrics::EventSource event_source);
-  void Pause(const HoldingSpaceItem* item,
-             HoldingSpaceCommandId command_id,
-             holding_space_metrics::EventSource event_source);
-  void Resume(const HoldingSpaceItem* item,
-              HoldingSpaceCommandId command_id,
-              holding_space_metrics::EventSource event_source);
+  void Cancel(const HoldingSpaceItem* item, HoldingSpaceCommandId command_id);
+  void Pause(const HoldingSpaceItem* item, HoldingSpaceCommandId command_id);
+  void Resume(const HoldingSpaceItem* item, HoldingSpaceCommandId command_id);
 
   // The collection of currently in-progress downloads.
   std::set<std::unique_ptr<InProgressDownload>, base::UniquePtrComparator>

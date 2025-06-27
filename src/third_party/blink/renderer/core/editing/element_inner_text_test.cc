@@ -9,7 +9,6 @@
 #include "third_party/blink/renderer/core/dom/text_visitor.h"
 #include "third_party/blink/renderer/core/editing/testing/editing_test_base.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
 namespace blink {
@@ -59,6 +58,14 @@ TEST_F(ElementInnerTest, GetInnerTextWithoutUpdate) {
   Element& target = *GetDocument().getElementById(AtomicString("target"));
   EXPECT_EQ("abc", target.innerText());
   EXPECT_EQ("abc", target.GetInnerTextWithoutUpdate());
+}
+
+// https://crbug.com/41399234
+TEST_F(ElementInnerTest, FirstLineWithTextTransform) {
+  InsertStyleElement("div::first-line { text-transform: uppercase; }");
+  SetBodyContent("<div id=target>abc<br/>def</div>");
+  Element& target = *GetDocument().getElementById(AtomicString("target"));
+  EXPECT_EQ("ABC\ndef", target.innerText());
 }
 
 using VisitedNodes = HeapHashSet<Member<const Node>>;

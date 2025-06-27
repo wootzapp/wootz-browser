@@ -30,7 +30,6 @@
 #include "third_party/blink/renderer/core/dom/layout_tree_builder.h"
 #include "third_party/blink/renderer/core/dom/layout_tree_builder_traversal.h"
 #include "third_party/blink/renderer/core/dom/node_cloning_data.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/node_traversal.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/dom/text_diff_range.h"
@@ -270,11 +269,6 @@ static inline bool CanHaveWhitespaceChildren(
     const ComputedStyle& style,
     const Text::AttachContext& context) {
   const LayoutObject& parent = *context.parent;
-  // <button> should allow whitespace even though LayoutFlexibleBox doesn't.
-  if (parent.IsButton()) {
-    return true;
-  }
-
   if (parent.IsTable() || parent.IsTableRow() || parent.IsTableSection() ||
       parent.IsLayoutTableCol() || parent.IsFrameSet() ||
       parent.IsFlexibleBox() || parent.IsLayoutGrid() || parent.IsSVGRoot() ||

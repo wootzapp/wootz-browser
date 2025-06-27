@@ -35,7 +35,6 @@ class OverlayRequestQueueImpl : public OverlayRequestQueue {
 
    private:
     friend class web::WebStateUserData<Container>;
-    WEB_STATE_USER_DATA_KEY_DECL();
     Container(web::WebState* web_state);
 
     raw_ptr<web::WebState> web_state_ = nullptr;
@@ -71,6 +70,9 @@ class OverlayRequestQueueImpl : public OverlayRequestQueue {
   // Returns the request queue implementation for `web_state` at `modality`.
   static OverlayRequestQueueImpl* FromWebState(web::WebState* web_state,
                                                OverlayModality modality);
+
+  // Create the request queue implementation for `web_state`.
+  static void CreateForWebState(web::WebState* web_state);
 
   // Sets the delegate.
   void SetDelegate(Delegate* delegate);

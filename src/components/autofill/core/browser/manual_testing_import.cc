@@ -18,12 +18,12 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "components/autofill/core/browser/address_data_manager.h"
 #include "components/autofill/core/browser/autofill_type.h"
-#include "components/autofill/core/browser/data_model/autofill_structured_address_component.h"
+#include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
+#include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_structured_address_component.h"
 #include "components/autofill/core/browser/field_type_utils.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/browser/payments_data_manager.h"
 
 namespace autofill {
 
@@ -43,12 +43,12 @@ struct AutofillProfilesAndCreditCards {
 
 constexpr std::string_view kKeyProfiles = "profiles";
 constexpr std::string_view kKeyCreditCards = "credit-cards";
-constexpr std::string_view kKeySource = "source";
+constexpr std::string_view kKeyRecordType = "record_type";
 constexpr std::string_view kKeyNickname = "nickname";
-constexpr auto kSourceMapping =
-    base::MakeFixedFlatMap<std::string_view, AutofillProfile::Source>(
-        {{"account", AutofillProfile::Source::kAccount},
-         {"localOrSyncable", AutofillProfile::Source::kLocalOrSyncable}});
+constexpr auto kRecordTypeMapping =
+    base::MakeFixedFlatMap<std::string_view, AutofillProfile::RecordType>(
+        {{"account", AutofillProfile::RecordType::kAccount},
+         {"localOrSyncable", AutofillProfile::RecordType::kLocalOrSyncable}});
 constexpr std::string_view kKeyInitialCreatorId = "initial_creator_id";
 
 // Checks if the `profile` is changed by `FinalizeAfterImport()`. See
@@ -63,22 +63,22 @@ bool IsFullyStructuredProfile(const AutofillProfile& profile) {
   return true;
 }
 
-// Extracts the `kKeySource` value of the `dict` and translates it into an
-// AutofillProfile::Source. If no source is present, Source::kLocalOrSyncable is
-// returned. If a source with invalid value is specified, an error message is
-// logged and std::nullopt is returned.
-std::optional<AutofillProfile::Source> GetProfileSourceFromDict(
+// Extracts the `kKeyRecordType` value of the `dict` and translates it into an
+// AutofillProfile::RecordType. If no value is present,
+// RecordType::kLocalOrSyncable is returned. If a record type with invalid value
+// is specified, an error message is logged and std::nullopt is returned.
+std::optional<AutofillProfile::RecordType> GetRecordTypeFromDict(
     const base::Value::Dict& dict) {
-  if (!dict.contains(kKeySource)) {
-    return AutofillProfile::Source::kLocalOrSyncable;
+  if (!dict.contains(kKeyRecordType)) {
+    return AutofillProfile::RecordType::kLocalOrSyncable;
   }
-  if (const std::string* source_value = dict.FindString(kKeySource)) {
-    if (auto it = kSourceMapping.find(*source_value);
-        it != kSourceMapping.end()) {
+  if (const std::string* record_type_value = dict.FindString(kKeyRecordType)) {
+    if (auto it = kRecordTypeMapping.find(*record_type_value);
+        it != kRecordTypeMapping.end()) {
       return it->second;
     }
   }
-  LOG(ERROR) << "Invalid " << kKeySource << " value.";
+  LOG(ERROR) << "Invalid " << kKeyRecordType << " value.";
   return std::nullopt;
 }
 
@@ -90,9 +90,9 @@ std::optional<AutofillProfile::Source> GetProfileSourceFromDict(
 // If a field type cannot be mapped, or if the resulting profile is not
 // `IsFullyStructuredProfile()`, std::nullopt is returned.
 std::optional<AutofillProfile> MakeProfile(const base::Value::Dict& dict) {
-  std::optional<AutofillProfile::Source> source =
-      GetProfileSourceFromDict(dict);
-  if (!source.has_value()) {
+  std::optional<AutofillProfile::RecordType> record_type =
+      GetRecordTypeFromDict(dict);
+  if (!record_type.has_value()) {
     return std::nullopt;
   }
   const std::string* country_code =
@@ -100,10 +100,10 @@ std::optional<AutofillProfile> MakeProfile(const base::Value::Dict& dict) {
   AddressCountryCode address_country_code =
       country_code ? AddressCountryCode(*country_code) : AddressCountryCode("");
 
-  AutofillProfile profile(*source, address_country_code);
+  AutofillProfile profile(*record_type, address_country_code);
   // `dict` is a dictionary of std::string -> base::Value.
   for (const auto [key, value] : dict) {
-    if (key == kKeySource) {
+    if (key == kKeyRecordType) {
       continue;
     }
     if (key == kKeyInitialCreatorId) {
@@ -154,16 +154,15 @@ std::optional<CreditCard> MakeCard(const base::Value::Dict& dict) {
   return card;
 }
 
-// Removes all AutofillProfiles from the `pdm`. Since `PDM::RemoveByGUID()`
-// invalidates the pointers returned by `PDM::GetProfiles()`, this is done by
+// Removes all AutofillProfiles from the `adm`. Since `ADM::RemoveProfile()`
+// invalidates the pointers returned by `ADM::GetProfiles()`, this is done by
 // collecting all GUIDs to remove first.
-void RemoveAllExistingProfiles(PersonalDataManager& pdm) {
+void RemoveAllExistingProfiles(AddressDataManager& adm) {
   std::vector<std::string> existing_guids;
-  base::ranges::transform(pdm.address_data_manager().GetProfiles(),
-                          std::back_inserter(existing_guids),
-                          &AutofillProfile::guid);
+  std::ranges::transform(adm.GetProfiles(), std::back_inserter(existing_guids),
+                         &AutofillProfile::guid);
   for (const std::string& guid : existing_guids) {
-    pdm.RemoveByGUID(guid);
+    adm.RemoveProfile(guid);
   }
 }
 
@@ -184,7 +183,7 @@ void SetData(
   // If a list in `profiles_or_credit_cards` is empty, do not trigger the PDM
   // because this will clear all corresponding existing data.
   if (!profiles_or_credit_cards->profiles->empty()) {
-    RemoveAllExistingProfiles(*pdm);
+    RemoveAllExistingProfiles(pdm->address_data_manager());
     for (const AutofillProfile& profile : *profiles_or_credit_cards->profiles) {
       pdm->address_data_manager().AddProfile(profile);
     }
@@ -225,19 +224,14 @@ std::optional<std::vector<T>> DataModelsFromJSON(
 // If parsing fails the error is logged and std::nullopt is returned.
 std::optional<AutofillProfilesAndCreditCards> LoadDataFromJSONContent(
     const std::string& file_content) {
-  std::optional<base::Value> json = base::JSONReader::Read(file_content);
-  if (!json.has_value()) {
+  std::optional<base::Value::Dict> json =
+      base::JSONReader::ReadDict(file_content);
+  if (!json) {
     LOG(ERROR) << "Failed to parse JSON file.";
     return std::nullopt;
   }
-  if (!json->is_dict()) {
-    LOG(ERROR) << "JSON is not a dictionary at it's top level.";
-    return std::nullopt;
-  }
-  const base::Value::List* const profiles_json =
-      json->GetDict().FindList(kKeyProfiles);
-  const base::Value::List* const cards_json =
-      json->GetDict().FindList(kKeyCreditCards);
+  const base::Value::List* const profiles_json = json->FindList(kKeyProfiles);
+  const base::Value::List* const cards_json = json->FindList(kKeyCreditCards);
   if (!cards_json && !profiles_json) {
     LOG(ERROR) << "JSON has no " << kKeyProfiles << " or " << kKeyCreditCards
                << " keys.";

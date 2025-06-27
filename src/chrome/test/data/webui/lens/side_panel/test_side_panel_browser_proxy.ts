@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {LensSidePanelPageCallbackRouter, type LensSidePanelPageHandlerInterface, type LensSidePanelPageRemote} from 'chrome-untrusted://lens/lens.mojom-webui.js';
+import {LensSidePanelPageCallbackRouter, type LensSidePanelPageHandlerInterface, type LensSidePanelPageRemote} from 'chrome-untrusted://lens/lens_side_panel.mojom-webui.js';
 import type {SidePanelBrowserProxy} from 'chrome-untrusted://lens/side_panel/side_panel_browser_proxy.js';
 import {TestBrowserProxy} from 'chrome-untrusted://webui-test/test_browser_proxy.js';
 
@@ -13,18 +13,16 @@ import {TestBrowserProxy} from 'chrome-untrusted://webui-test/test_browser_proxy
 export class TestLensSidePanelPageHandler extends TestBrowserProxy implements
     LensSidePanelPageHandlerInterface {
   constructor() {
-    super([
-      'closeRequestedBySidePanelEscapeKeyPress',
-      'popAndLoadQueryFromHistory',
-    ]);
-  }
-
-  closeRequestedBySidePanelEscapeKeyPress() {
-    this.methodCalled('closeRequestedBySidePanelEscapeKeyPress');
+    super(['popAndLoadQueryFromHistory', 'getIsContextualSearchbox']);
   }
 
   popAndLoadQueryFromHistory() {
     this.methodCalled('popAndLoadQueryFromHistory');
+  }
+
+  getIsContextualSearchbox(): Promise<{isContextualSearchbox: boolean}> {
+    this.methodCalled('getIsContextualSearchbox');
+    return Promise.resolve({isContextualSearchbox: false});
   }
 }
 

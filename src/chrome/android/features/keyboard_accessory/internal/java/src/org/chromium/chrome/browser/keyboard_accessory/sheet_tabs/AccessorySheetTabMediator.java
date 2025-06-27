@@ -18,8 +18,10 @@ import org.chromium.chrome.browser.keyboard_accessory.ManualFillingMetricsRecord
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.AccessorySheetData;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.FooterCommand;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.IbanInfo;
+import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.LoyaltyCardInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.OptionToggle;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PasskeySection;
+import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PlusAddressInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PromoCodeInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.Provider;
@@ -33,13 +35,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This class contains the logic for the simple accessory sheets. Changes to its internal
- * {@link PropertyModel} are observed by a {@link PropertyModelChangeProcessor} and affect the
- * accessory sheet tab view.
+ * This class contains the logic for the simple accessory sheets. Changes to its internal {@link
+ * PropertyModel} are observed by a {@link PropertyModelChangeProcessor} and affect the accessory
+ * sheet tab view.
  */
 class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData> {
     private final PropertyModel mModel;
-    private final @AccessoryTabType int mTabType;
     private final @Type int mUserInfoType;
     private final @AccessoryAction int mManageActionToRecord;
     private final ToggleChangeDelegate mToggleChangeDelegate;
@@ -69,12 +70,10 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
 
     AccessorySheetTabMediator(
             PropertyModel model,
-            @AccessoryTabType int tabType,
             @Type int userInfoType,
             @AccessoryAction int manageActionToRecord,
             @Nullable ToggleChangeDelegate toggleChangeDelegate) {
         mModel = model;
-        mTabType = tabType;
         mUserInfoType = userInfoType;
         mManageActionToRecord = manageActionToRecord;
         mToggleChangeDelegate = toggleChangeDelegate;
@@ -112,11 +111,16 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
         for (PromoCodeInfo promoCodeInfo : accessorySheetData.getPromoCodeInfoList()) {
             items.add(new AccessorySheetDataPiece(promoCodeInfo, Type.PROMO_CODE_INFO));
         }
-        if (shouldShowTitle(accessorySheetData.getUserInfoList())) {
-            items.add(new AccessorySheetDataPiece(accessorySheetData.getTitle(), Type.TITLE));
+        if (!accessorySheetData.getUserInfoTitle().isEmpty()) {
+            items.add(
+                    new AccessorySheetDataPiece(accessorySheetData.getUserInfoTitle(), Type.TITLE));
         }
         if (!accessorySheetData.getWarning().isEmpty()) {
             items.add(new AccessorySheetDataPiece(accessorySheetData.getWarning(), Type.WARNING));
+        }
+        if (accessorySheetData.getSheetType() == AccessoryTabType.ADDRESSES) {
+            // Plus address section is displayed at the top for addresses tab.
+            addPlusAddressSection(accessorySheetData, items);
         }
         for (PasskeySection passkey : accessorySheetData.getPasskeySectionList()) {
             items.add(new AccessorySheetDataPiece(passkey, Type.PASSKEY_SECTION));
@@ -124,14 +128,31 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
         for (UserInfo userInfo : accessorySheetData.getUserInfoList()) {
             items.add(new AccessorySheetDataPiece(userInfo, mUserInfoType));
         }
+        if (accessorySheetData.getSheetType() == AccessoryTabType.PASSWORDS) {
+            // Plus address section is displayed at the bottom for passwords tab.
+            addPlusAddressSection(accessorySheetData, items);
+        }
         for (IbanInfo ibanInfo : accessorySheetData.getIbanInfoList()) {
             items.add(new AccessorySheetDataPiece(ibanInfo, Type.IBAN_INFO));
+        }
+        for (LoyaltyCardInfo loyaltyCardInfo : accessorySheetData.getLoyaltyCardInfoList()) {
+            items.add(new AccessorySheetDataPiece(loyaltyCardInfo, Type.LOYALTY_CARD_INFO));
         }
         for (FooterCommand command : accessorySheetData.getFooterCommands()) {
             items.add(new AccessorySheetDataPiece(command, Type.FOOTER_COMMAND));
         }
 
         return items.toArray(new AccessorySheetDataPiece[0]);
+    }
+
+    private void addPlusAddressSection(
+            AccessorySheetData data, List<AccessorySheetDataPiece> items) {
+        if (!data.getPlusAddressSectionTitle().isEmpty()) {
+            items.add(new AccessorySheetDataPiece(data.getPlusAddressSectionTitle(), Type.TITLE));
+        }
+        for (PlusAddressInfo plusAddress : data.getPlusAddressInfoList()) {
+            items.add(new AccessorySheetDataPiece(plusAddress, Type.PLUS_ADDRESS_SECTION));
+        }
     }
 
     private AccessorySheetDataPiece createDataPieceForToggle(OptionToggle toggle) {
@@ -192,9 +213,5 @@ class AccessorySheetTabMediator implements Provider.Observer<AccessorySheetData>
         assert false
                 : "Recording type for toggle of type " + toggle.getActionType() + "is not known.";
         return AccessoryToggleType.COUNT;
-    }
-
-    private boolean shouldShowTitle(List<UserInfo> userInfoList) {
-        return userInfoList.isEmpty();
     }
 }

@@ -61,19 +61,18 @@ GameDashboardWelcomeDialog::GameDashboardWelcomeDialog() {
   SetDefault(views::kMarginsKey, gfx::Insets::TLBR(kRowPadding, 0, 0, 0));
   SetInteriorMargin(
       gfx::Insets::VH(kPrimaryLayoutInsideBorder, kPrimaryLayoutInsideBorder));
-  SetBackground(views::CreateThemedRoundedRectBackground(
+  SetBackground(views::CreateRoundedRectBackground(
       cros_tokens::kCrosSysSystemBaseElevatedOpaque, kDialogCornerRadius));
-  SetBorder(views::CreateThemedRoundedRectBorder(
+  SetBorder(views::CreateRoundedRectBorder(
       game_dashboard::kWelcomeDialogBorderThickness, kDialogCornerRadius,
       ui::ColorIds::kColorHighlightBorderHighlight1));
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
       this, SystemShadow::Type::kElevation12);
   shadow_->SetRoundedCornerRadius(kDialogCornerRadius);
 
-  SetAccessibilityProperties(
-      ax::mojom::Role::kDialog,
-      l10n_util::GetStringUTF16(
-          IDS_ASH_GAME_DASHBOARD_WELCOME_DIALOG_A11Y_LABEL));
+  GetViewAccessibility().SetRole(ax::mojom::Role::kDialog);
+  GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
+      IDS_ASH_GAME_DASHBOARD_WELCOME_DIALOG_A11Y_LABEL));
 
   AddTitleAndIconRow();
   AddShortcutInfoRow();
@@ -166,7 +165,7 @@ void GameDashboardWelcomeDialog::AddTitleAndIconRow() {
           kIconSize)));
   icon->SetPreferredSize(
       gfx::Size(kIconBackgroundRadius, kIconBackgroundRadius));
-  icon->SetBackground(views::CreateThemedRoundedRectBackground(
+  icon->SetBackground(views::CreateRoundedRectBackground(
       cros_tokens::kCrosSysPrimary, kIconBackgroundRadius));
 }
 
@@ -183,13 +182,13 @@ void GameDashboardWelcomeDialog::AddShortcutInfoRow() {
   styled_label->SetText(
       l10n_util::GetStringFUTF16(IDS_ASH_GAME_DASHBOARD_WELCOME_DIALOG_SHORTCUT,
                                  u"", &inline_icon_offset));
-  styled_label->SetBackground(views::CreateThemedRoundedRectBackground(
+  styled_label->SetBackground(views::CreateRoundedRectBackground(
       cros_tokens::kCrosSysSystemOnBase, /*radius=*/16.0f));
   styled_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(14, 18)));
 
   const bool has_launcher_keyboard_button =
       Shell::Get()->keyboard_capability()->HasLauncherButtonOnAnyKeyboard();
-  styled_label->SetAccessibleName(l10n_util::GetStringFUTF16(
+  styled_label->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
       IDS_ASH_GAME_DASHBOARD_WELCOME_DIALOG_SHORTCUT,
       l10n_util::GetStringUTF16(has_launcher_keyboard_button
                                     ? IDS_ASH_SHORTCUT_MODIFIER_LAUNCHER

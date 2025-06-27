@@ -4,6 +4,11 @@
 
 #include "media/gpu/h264_rate_controller.h"
 
+#include <algorithm>
+#include <array>
+#include <limits>
+#include <memory>
+
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "media/gpu/h264_rate_control_util.h"
@@ -11,10 +16,7 @@
 namespace media {
 namespace {
 // Base temporal layer index.
-constexpr int kBaseLayerIndex = 0;
-
-// Delta QP between layers in Fixed Delta QP mode. It is arbitrary chosen value.
-constexpr int kFixedLayerDeltaQP = 4;
+constexpr size_t kBaseLayerIndex = 0;
 
 // Maximum FPS used in the tradeoff calculation between FPS and maximum QP.
 constexpr float kFpsMax = 60;
@@ -32,9 +34,6 @@ constexpr float kInitQPSize = 100000.0f;
 // over a set of frames with a common complexity level.
 constexpr float kIntraFrameMAD = 768.0f;
 
-// The maximum number of temporal layers in the stream.
-constexpr size_t kMaxNumTemporalLayers = 2u;
-
 // Arbitrarily chosen value for the minimum QP of the first encoded intra frame.
 constexpr uint32_t kMinFirstFrameQP = 34u;
 
@@ -50,16 +49,19 @@ constexpr float kRDYIntercept = -6.0f;
 
 // The arrays define line segments in the tradeoff function between FPS and
 // maximum QP .
-constexpr struct {
+struct FPS2QPTradeoffs {
   float fps;
   float qp;
-} kFPS2QPTradeoffs[] = {{0.0f, 51.0f},
-                        {5.0f, 42.0f},
-                        {10.0f, 41.0f},
-                        {15.0f, 40.0f},
-                        {30.0f, 37.0f},
-                        {kFpsMax, 37.0f},
-                        {std::numeric_limits<float>::max(), 20.0f}};
+};
+constexpr auto kFPS2QPTradeoffs = std::to_array<FPS2QPTradeoffs>({
+    {0.0f, 51.0f},
+    {5.0f, 42.0f},
+    {10.0f, 41.0f},
+    {15.0f, 40.0f},
+    {30.0f, 37.0f},
+    {kFpsMax, 37.0f},
+    {std::numeric_limits<float>::max(), 20.0f},
+});
 
 // Window size in number of frames for the Moving Window. The average framerate
 // is based on the last received frames within the window.
@@ -75,35 +77,65 @@ size_t GetRateBudget(float frame_rate, uint32_t avg_bitrate) {
 // Returns the FPS value related to the Max QP value. The function is
 // represented by line segments defined in the array `kFPS2QPTradeoffs`.
 float Fps2MaxQP(float fps) {
-  size_t num_elems = sizeof(kFPS2QPTradeoffs) / sizeof(kFPS2QPTradeoffs[0]);
-  for (size_t i = 0; i < num_elems - 1; ++i) {
+  for (size_t i = 0; i < kFPS2QPTradeoffs.size() - 1; ++i) {
     if (fps >= kFPS2QPTradeoffs[i].fps && fps < kFPS2QPTradeoffs[i + 1].fps) {
       return h264_rate_control_util::ClampedLinearInterpolation(
           fps, kFPS2QPTradeoffs[i].fps, kFPS2QPTradeoffs[i + 1].fps,
           kFPS2QPTradeoffs[i].qp, kFPS2QPTradeoffs[i + 1].qp);
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return 0.0f;
+  NOTREACHED();
 }
 
 // Returns the FPS value related to the Max QP value. The returned value is
 // a constant value obtained from the `kFPS2QPTradeoffs` array.
 float MaxQP2Fps(int max_qp) {
-  size_t num_elems = sizeof(kFPS2QPTradeoffs) / sizeof(kFPS2QPTradeoffs[0]);
-  for (size_t i = 0; i < num_elems - 1; ++i) {
+  for (size_t i = 0; i < kFPS2QPTradeoffs.size() - 1; ++i) {
     if (max_qp <= kFPS2QPTradeoffs[i].qp &&
         max_qp > kFPS2QPTradeoffs[i + 1].qp) {
       // Do not use linear interpolation to be less aggressive on FPS changes.
       return kFPS2QPTradeoffs[i + 1].fps;
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return 0.0f;
+  NOTREACHED();
 }
 }  // namespace
 
-H264RateController::Layer::Layer(LayerSettings settings,
+H264RateControllerSettings::H264RateControllerSettings() = default;
+H264RateControllerSettings::~H264RateControllerSettings() = default;
+H264RateControllerSettings::H264RateControllerSettings(
+    const H264RateControllerSettings&) = default;
+H264RateControllerSettings& H264RateControllerSettings::operator=(
+    const H264RateControllerSettings&) = default;
+
+std::partial_ordering H264RateControllerSettings::operator<=>(
+    const H264RateControllerSettings& other) const {
+  if (auto res = frame_size.width() <=> other.frame_size.width(); res != 0) {
+    return res;
+  }
+  if (auto res = frame_size.height() <=> other.frame_size.height(); res != 0) {
+    return res;
+  }
+  if (auto res = fixed_delta_qp <=> other.fixed_delta_qp; res != 0) {
+    return res;
+  }
+  if (auto res = frame_rate_max <=> other.frame_rate_max; res != 0) {
+    return res;
+  }
+  if (auto res = num_temporal_layers <=> other.num_temporal_layers; res != 0) {
+    return res;
+  }
+  if (auto res = gop_max_duration.InMilliseconds() <=>
+                 other.gop_max_duration.InMilliseconds();
+      res != 0) {
+    return res;
+  }
+  return std::lexicographical_compare_three_way(
+      layer_settings.begin(), layer_settings.end(),
+      other.layer_settings.begin(), other.layer_settings.end());
+}
+
+H264RateController::Layer::Layer(H264RateControllerLayerSettings settings,
                                  float expected_fps,
                                  base::TimeDelta short_term_window_size,
                                  base::TimeDelta long_term_window_size)
@@ -219,22 +251,14 @@ void H264RateController::Layer::UpdateFrameSizeEstimator(
 }
 
 float H264RateController::Layer::GetInitialSizeCorrection(
-    LayerSettings settings) const {
+    H264RateControllerLayerSettings settings) const {
   // The initial size correction is set to 0.3 x frame budget. The multiplier is
   // chosen arbitrarily.
   float bytes_per_frame_avg = settings.avg_bitrate / (8 * settings.frame_rate);
   return 0.3f * bytes_per_frame_avg;
 }
 
-H264RateController::ControllerSettings::ControllerSettings() = default;
-H264RateController::ControllerSettings::~ControllerSettings() = default;
-H264RateController::ControllerSettings::ControllerSettings(
-    const ControllerSettings&) = default;
-H264RateController::ControllerSettings&
-H264RateController::ControllerSettings::operator=(const ControllerSettings&) =
-    default;
-
-H264RateController::H264RateController(ControllerSettings settings)
+H264RateController::H264RateController(H264RateControllerSettings settings)
     : target_fps_(GetTargetFps(settings)),
       frame_rate_max_(settings.frame_rate_max),
       frame_size_(settings.frame_size),
@@ -243,7 +267,8 @@ H264RateController::H264RateController(ControllerSettings settings)
       gop_max_duration_(settings.gop_max_duration),
       content_type_(settings.content_type) {
   DCHECK_GT(settings.num_temporal_layers, 0u);
-  DCHECK_LE(settings.num_temporal_layers, kMaxNumTemporalLayers);
+  DCHECK_LE(settings.num_temporal_layers,
+            h264_rate_control_util::kMaxNumTemporalLayers);
   DCHECK_GT(target_fps_, 1.0f);
   DCHECK_GT(frame_rate_max_, 1.0f);
   // Short-term window is 5 x frame duration with the lowest value limited at
@@ -314,7 +339,7 @@ void H264RateController::EstimateIntraFrameQP(base::TimeDelta frame_timestamp) {
                H264RateController::FrameType::kPFrame) {
       // Limit QP for IDR frames based on the QP estimated for the previous P
       // frame. The offset for the minimum value is a constant, while the offset
-      // for the maximum value is calclated as a linear function of the frame
+      // for the maximum value is calculated as a linear function of the frame
       // rate. The constants are chosen arbitrarily, based on the analysis of
       // the real use cases.
       constexpr float kMinQPOffsetForIDR = -3.0f;
@@ -367,7 +392,7 @@ void H264RateController::EstimateInterFrameQP(size_t temporal_id,
     base_layer.update_long_term_qp(GetInterFrameLongTermQP(temporal_id));
   }
 
-  curr_layer.update_long_term_qp(std::clamp(curr_layer.long_term_qp(),
+  curr_layer.update_long_term_qp(std::clamp(base_layer.long_term_qp(),
                                             curr_layer.min_qp(),
                                             h264_rate_control_util::kQPMax));
 
@@ -376,11 +401,12 @@ void H264RateController::EstimateInterFrameQP(size_t temporal_id,
   // statistical model is employed for QP estimation.
   if (fixed_delta_qp_ && temporal_id > kBaseLayerIndex &&
       !curr_layer.is_buffer_full()) {
-    int delta_qp = kFixedLayerDeltaQP;
+    int delta_qp = fixed_delta_qp_.value();
     // delta_qp is reduced if the QP estimation for the last base layer frame is
     // lower than the minimum QP.
     if (base_layer.undershoot_delta_qp() > 0) {
-      delta_qp = std::max(delta_qp - base_layer.undershoot_delta_qp(), 0);
+      delta_qp = std::max(
+          fixed_delta_qp_.value() - base_layer.undershoot_delta_qp(), 0);
     }
     curr_layer.update_curr_frame_qp(base_layer.curr_frame_qp() + delta_qp);
     return;
@@ -490,7 +516,7 @@ void H264RateController::FinishLayerData(size_t temporal_id,
                                          FrameType frame_type,
                                          size_t frame_bytes,
                                          base::TimeDelta frame_timestamp) {
-  // Update HRDs for all temporal leyars.
+  // Update HRDs for all temporal layers.
   for (size_t tl = temporal_id; tl < num_temporal_layers_; ++tl) {
     temporal_layers_[tl]->AddFrameBytes(frame_bytes, frame_timestamp);
     temporal_layers_[tl]->update_last_frame_qp(
@@ -502,7 +528,7 @@ void H264RateController::FinishLayerData(size_t temporal_id,
 void H264RateController::FinishLayerPreviousFrameTimestamp(
     size_t temporal_id,
     base::TimeDelta frame_timestamp) {
-  // Update timestamps for all tamporal layers.
+  // Update timestamps for all temporal layers.
   for (size_t tl = temporal_id; tl < num_temporal_layers_; ++tl) {
     temporal_layers_[tl]->update_previous_frame_timestamp(frame_timestamp);
   }
@@ -594,7 +620,8 @@ size_t H264RateController::GetTargetBytesForInterFrame(
   // the bitrate ratio between layers is fixed.
   uint32_t curr_layer_bitrate;
   if (fixed_delta_qp_ && num_temporal_layers_ > 1) {
-    DCHECK_EQ(num_temporal_layers_, kMaxNumTemporalLayers);
+    DCHECK_EQ(num_temporal_layers_,
+              h264_rate_control_util::kMaxNumTemporalLayers);
     curr_layer_bitrate = static_cast<uint32_t>(
         temporal_layers_[kBaseLayerIndex + 1]->average_bitrate() *
         kLayerRateRatio);
@@ -824,12 +851,13 @@ uint32_t H264RateController::ClipInterFrameQP(uint32_t curr_qp,
   } else if (num_temporal_layers_ > 1 && temporal_id == kBaseLayerIndex) {
     if (temporal_layers_[kBaseLayerIndex + 1]->curr_frame_qp() >
         temporal_layers_[kBaseLayerIndex]->curr_frame_qp() +
-            kFixedLayerDeltaQP) {
-      // Delta QP more than 4 means enhancement layer QP has been raised due to
-      // HRD overflow. Make sure the following base layer QP follows.
+            fixed_delta_qp_.value_or(0)) {
+      // Delta QP greater than `fixed_delta_qp_` const means enhancement layer
+      // QP has been raised due to HRD overflow. Make sure the following base
+      // layer QP follows.
       min_qp = std::max(min_qp,
                         temporal_layers_[kBaseLayerIndex + 1]->curr_frame_qp() -
-                            kFixedLayerDeltaQP);
+                            fixed_delta_qp_.value_or(0));
     }
   }
 
@@ -869,7 +897,8 @@ uint32_t H264RateController::ClipInterFrameQP(uint32_t curr_qp,
   return std::clamp(curr_qp, min_qp, max_qp);
 }
 
-float H264RateController::GetTargetFps(ControllerSettings settings) const {
+float H264RateController::GetTargetFps(
+    H264RateControllerSettings settings) const {
   DCHECK_EQ(settings.layer_settings.size(), settings.num_temporal_layers);
   return settings.layer_settings[settings.num_temporal_layers - 1].frame_rate;
 }

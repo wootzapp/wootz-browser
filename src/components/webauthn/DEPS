@@ -1,4 +1,5 @@
 include_rules = [
+  "+components/cbor/writer.h",
   "+components/keyed_service",
   "+components/payments/content/android/java/src/org/chromium/components/payments",
   "+components/sync",
@@ -6,6 +7,7 @@ include_rules = [
   "+content/public/browser",
   "+crypto",
   "+device/fido",
+  "+net/base",
   "+mojo/public/cpp/bindings",
   "+services/device/public/java/src/org/chromium/device/DeviceFeatureList.java",
   "+services/device/public/java/src/org/chromium/device/DeviceFeatureMap.java",

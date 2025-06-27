@@ -29,6 +29,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/button/button_controller.h"
 
@@ -38,6 +39,8 @@ namespace {
 constexpr char kLoggerComponent[] = "CastToolbarButton";
 }
 
+using Severity = media_router::IssueInfo::Severity;
+
 // static
 std::unique_ptr<CastToolbarButton> CastToolbarButton::Create(Browser* browser) {
   // These objects may be null in tests.
@@ -46,10 +49,9 @@ std::unique_ptr<CastToolbarButton> CastToolbarButton::Create(Browser* browser) {
     return nullptr;
   }
 
-  std::unique_ptr<MediaRouterContextualMenu> context_menu =
-      MediaRouterContextualMenu::Create(
-          browser,
-          MediaRouterUIService::Get(browser->profile())->action_controller());
+  std::unique_ptr<CastContextualMenu> context_menu = CastContextualMenu::Create(
+      browser,
+      MediaRouterUIService::Get(browser->profile())->action_controller());
   return std::make_unique<CastToolbarButton>(
       browser, MediaRouterFactory::GetApiForBrowserContext(browser->profile()),
       std::move(context_menu));
@@ -58,7 +60,7 @@ std::unique_ptr<CastToolbarButton> CastToolbarButton::Create(Browser* browser) {
 CastToolbarButton::CastToolbarButton(
     Browser* browser,
     MediaRouter* media_router,
-    std::unique_ptr<MediaRouterContextualMenu> context_menu)
+    std::unique_ptr<CastContextualMenu> context_menu)
     : ToolbarButton(base::BindRepeating(&CastToolbarButton::ButtonPressed,
                                         base::Unretained(this)),
                     context_menu->CreateMenuModel(),
@@ -81,12 +83,17 @@ CastToolbarButton::CastToolbarButton(
   DCHECK(GetActionController());
   GetActionController()->AddObserver(this);
   SetVisible(GetActionController()->ShouldEnableAction());
+
+  if (menu_model()) {
+    GetViewAccessibility().SetHasPopup(ax::mojom::HasPopup::kMenu);
+  }
 }
 
 CastToolbarButton::~CastToolbarButton() {
   StopObservingMirroringMediaControllerHosts();
-  if (GetActionController())
+  if (GetActionController()) {
     GetActionController()->RemoveObserver(this);
+  }
 }
 
 void CastToolbarButton::ShowIcon() {
@@ -110,13 +117,12 @@ void CastToolbarButton::DeactivateIcon() {
 }
 
 void CastToolbarButton::OnIssue(const media_router::Issue& issue) {
-  current_issue_ = std::make_unique<media_router::IssueInfo>(issue.info());
+  issue_severity_ = issue.info().severity;
   UpdateIcon();
 }
 
 void CastToolbarButton::OnIssuesCleared() {
-  if (current_issue_)
-    current_issue_.reset();
+  issue_severity_.reset();
   UpdateIcon();
 }
 
@@ -143,24 +149,26 @@ void CastToolbarButton::OnFreezeInfoChanged() {
 }
 
 bool CastToolbarButton::OnMousePressed(const ui::MouseEvent& event) {
-  if (event.IsRightMouseButton() && GetActionController())
+  if (event.IsRightMouseButton() && GetActionController()) {
     GetActionController()->KeepIconShownOnPressed();
+  }
   return ToolbarButton::OnMousePressed(event);
 }
 
 void CastToolbarButton::OnMouseReleased(const ui::MouseEvent& event) {
   ToolbarButton::OnMouseReleased(event);
-  if (event.IsRightMouseButton() && GetActionController())
+  if (event.IsRightMouseButton() && GetActionController()) {
     GetActionController()->MaybeHideIconOnReleased();
+  }
 }
 
 void CastToolbarButton::OnGestureEvent(ui::GestureEvent* event) {
   switch (event->type()) {
-    case ui::ET_GESTURE_TAP_DOWN:
+    case ui::EventType::kGestureTapDown:
       GetActionController()->KeepIconShownOnPressed();
       break;
-    case ui::ET_GESTURE_END:
-    case ui::ET_GESTURE_TAP_CANCEL:
+    case ui::EventType::kGestureEnd:
+    case ui::EventType::kGestureTapCancel:
       GetActionController()->MaybeHideIconOnReleased();
       break;
     default:
@@ -175,11 +183,9 @@ void CastToolbarButton::OnThemeChanged() {
 }
 
 void CastToolbarButton::UpdateIcon() {
-  if (!GetWidget())
+  if (!GetWidget()) {
     return;
-  using Severity = media_router::IssueInfo::Severity;
-  const auto severity =
-      current_issue_ ? current_issue_->severity : Severity::NOTIFICATION;
+  }
   bool is_frozen = false;
   for (const auto& route_id : tracked_mirroring_routes_) {
     MirroringMediaControllerHost* mirroring_controller_host =
@@ -193,10 +199,11 @@ void CastToolbarButton::UpdateIcon() {
   SkColor icon_color;
 
   const auto* const color_provider = GetColorProvider();
-  if (severity == Severity::NOTIFICATION && !has_local_route_) {
+  if ((!issue_severity_ || issue_severity_ == Severity::NOTIFICATION) &&
+      !has_local_route_) {
     new_icon = &vector_icons::kMediaRouterIdleChromeRefreshIcon;
     icon_color = gfx::kPlaceholderColor;
-  } else if (severity == Severity::WARNING) {
+  } else if (issue_severity_ == Severity::WARNING) {
     new_icon = &vector_icons::kMediaRouterWarningChromeRefreshIcon;
     icon_color = gfx::kPlaceholderColor;
   } else if (is_frozen) {
@@ -215,27 +222,21 @@ void CastToolbarButton::UpdateIcon() {
                                *new_icon, GetForegroundColor(state)));
     }
   }
-  if (icon_ == new_icon)
+  if (icon_ == new_icon) {
     return;
+  }
 
   icon_ = new_icon;
   LogIconChange(icon_);
   if (icon_color != gfx::kPlaceholderColor) {
-    for (auto state : kButtonStates)
+    for (auto state : kButtonStates) {
       SetImageModel(state, ui::ImageModel::FromVectorIcon(*icon_, icon_color));
+    }
   }
-  UpdateLayoutInsetDelta();
 }
 
-MediaRouterActionController* CastToolbarButton::GetActionController() const {
+CastToolbarButtonController* CastToolbarButton::GetActionController() const {
   return MediaRouterUIService::Get(profile_)->action_controller();
-}
-
-void CastToolbarButton::UpdateLayoutInsetDelta() {
-  // This icon is smaller than the touchable-UI expected 24dp, so we need to pad
-  // the insets to match.
-  SetLayoutInsetDelta(
-      gfx::Insets(ui::TouchUiController::Get()->touch_ui() ? 4 : 0));
 }
 
 void CastToolbarButton::ButtonPressed() {

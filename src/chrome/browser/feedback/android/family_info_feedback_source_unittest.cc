@@ -19,18 +19,21 @@
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/signin/test_signin_client_builder.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
-#include "chrome/test/test_support_jni_headers/FamilyInfoFeedbackSourceTestBridge_jni.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/supervised_user/core/browser/proto/families_common.pb.h"
 #include "components/supervised_user/core/browser/proto/kidsmanagement_messages.pb.h"
-#include "components/supervised_user/core/browser/proto_fetcher.h"
+#include "components/supervised_user/core/browser/proto_fetcher_status.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
 #include "components/supervised_user/core/browser/supervised_user_url_filter.h"
 #include "components/supervised_user/core/browser/supervised_user_utils.h"
 #include "components/supervised_user/core/common/supervised_user_constants.h"
 #include "content/public/test/browser_task_environment.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/test/test_support_jni_headers/FamilyInfoFeedbackSourceTestBridge_jni.h"
 
 using base::android::ConvertUTF8ToJavaString;
 using base::android::ScopedJavaLocalRef;
@@ -43,12 +46,12 @@ const char kFeedbackTagParentalControlSitesChild[] =
     "Parental_Control_Sites_Child";
 
 kidsmanagement::ListMembersResponse CreateFamilyWithOneMember(
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     kidsmanagement::FamilyRole role) {
   kidsmanagement::ListMembersResponse response;
   kidsmanagement::FamilyMember* member = response.add_members();
 
-  member->set_user_id(gaia_id);
+  member->set_user_id(gaia_id.ToString());
   member->set_role(role);
   member->mutable_profile()->set_display_name("Name");
   member->mutable_profile()->set_email(kTestEmail);
@@ -161,7 +164,7 @@ TEST_P(FamilyInfoFeedbackSourceForChildFilterBehaviorTest,
       break;
     default:
       // Remaining combinations are not tested.
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -299,7 +302,7 @@ TEST_P(FamilyInfoFeedbackSourceTest, GetFamilyMembersSignedIn) {
       EXPECT_EQ("child", GetFeedbackValue());
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 

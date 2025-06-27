@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/trusted_vault/test/fake_security_domains_server.h"
 
 #include "base/base64url.h"
@@ -96,6 +101,14 @@ bool ValidateJoinSecurityDomainsRequest(
                   "wrapped key";
       return false;
     }
+  }
+
+  if (member.member_type() !=
+          trusted_vault_pb::SecurityDomainMember::MEMBER_TYPE_UNSPECIFIED &&
+      request.member_type_hint() != 0 &&
+      static_cast<int>(member.member_type()) != request.member_type_hint()) {
+    DVLOG(1) << "JoinSecurityDomains request has inconsistent member type hint";
+    return false;
   }
 
   return true;

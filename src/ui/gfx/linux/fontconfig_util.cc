@@ -13,13 +13,14 @@
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/trace_event/trace_event.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/gfx/font_render_params.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
+#include "base/check_deref.h"
+#include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace gfx {
 
@@ -30,20 +31,18 @@ constexpr base::FilePath::CharType kGoogleSansVariablePath[] =
     FILE_PATH_LITERAL("/usr/share/fonts/google-sans/variable");
 constexpr base::FilePath::CharType kGoogleSansStaticPath[] =
     FILE_PATH_LITERAL("/usr/share/fonts/google-sans/static");
-#endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 // This should match `imageloader::kImageloaderMountBase` from
 // //third_party/cros_system_api/constants/imageloader.h.
 constexpr base::FilePath::CharType kImageloaderMountBase[] =
     FILE_PATH_LITERAL("/run/imageloader/");
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // A singleton class to wrap a global font-config configuration. The
 // configuration reference counter is incremented to avoid the deletion of the
 // structure while being used. This class is single-threaded and should only be
 // used on the UI-Thread.
-class GFX_EXPORT GlobalFontConfig {
+class COMPONENT_EXPORT(GFX) GlobalFontConfig {
  public:
   GlobalFontConfig() {
     TRACE_EVENT0("ui", "GlobalFontConfig::GlobalFontConfig");
@@ -77,7 +76,7 @@ class GFX_EXPORT GlobalFontConfig {
           reinterpret_cast<const FcChar8*>(kGoogleSansStaticPath);
       CHECK(FcConfigAppFontAddDir(fc_config_, kStaticFontPath));
     }
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
     // Set rescan interval to 0 to disable re-scan. Re-scanning in the
     // background is a source of thread safety issues.
@@ -97,6 +96,33 @@ class GFX_EXPORT GlobalFontConfig {
     return fc_config_;
   }
 
+#if BUILDFLAG(IS_CHROMEOS)
+  bool AddAppFontDir(const base::FilePath& dir) {
+    if (dir.ReferencesParent()) {
+      // Possible path traversal.
+      return false;
+    }
+    if (!base::FilePath(kImageloaderMountBase).IsParent(dir)) {
+      // Not a DLC path.
+      return false;
+    }
+    if (app_font_dirs_added_.contains(dir)) {
+      // Added before.
+      return false;
+    }
+    app_font_dirs_added_.insert(dir);
+
+    // Points to memory owned by `dir`.
+    const FcChar8* dir_fcstring =
+        reinterpret_cast<const FcChar8*>(dir.value().c_str());
+
+    // Adds the folder to the available fonts in the application. Returns
+    // false only when fonts cannot be added due to "allocation failure".
+    // https://www.freedesktop.org/software/fontconfig/fontconfig-devel/fcconfigappfontadddir.html
+    return FcConfigAppFontAddDir(fc_config_, dir_fcstring);
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
   // Override the font-config configuration.
   void OverrideForTesting(FcConfig* config) {
     FcConfigSetCurrent(config);
@@ -111,6 +137,9 @@ class GFX_EXPORT GlobalFontConfig {
 
  private:
   raw_ptr<FcConfig> fc_config_ = nullptr;
+#if BUILDFLAG(IS_CHROMEOS)
+  base::flat_set<base::FilePath> app_font_dirs_added_;
+#endif  // BUILDFLAG(IS_CHROMEOS)
 };
 
 // Converts Fontconfig FC_HINT_STYLE to FontRenderParams::Hinting.
@@ -286,28 +315,10 @@ void GetFontRenderParamsFromFcPattern(FcPattern* pattern,
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-bool AddAppFontDir(base::FilePath dir) {
-  if (dir.ReferencesParent()) {
-    // Possible path traversal.
-    return false;
-  }
-  if (!base::FilePath(kImageloaderMountBase).IsParent(dir)) {
-    // Not a DLC path.
-    return false;
-  }
-
-  FcConfig* config = GetGlobalFontConfig();
-
-  // Points to memory owned by `dir`.
-  const FcChar8* dir_fcstring =
-      reinterpret_cast<const FcChar8*>(dir.value().c_str());
-
-  // Adds the folder to the available fonts in the application. Returns
-  // false only when fonts cannot be added due to "allocation failure".
-  // https://www.freedesktop.org/software/fontconfig/fontconfig-devel/fcconfigappfontadddir.html
-  return FcConfigAppFontAddDir(config, dir_fcstring);
+#if BUILDFLAG(IS_CHROMEOS)
+bool AddAppFontDir(const base::FilePath& dir) {
+  return CHECK_DEREF(GlobalFontConfig::GetInstance()).AddAppFontDir(dir);
 }
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace gfx

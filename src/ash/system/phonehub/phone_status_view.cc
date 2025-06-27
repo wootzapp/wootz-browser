@@ -33,6 +33,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_elider.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -226,7 +227,7 @@ void PhoneStatusView::UpdateMobileStatus() {
       break;
   }
 
-  signal_icon_->SetImage(signal_image);
+  signal_icon_->SetImage(ui::ImageModel::FromImageSkia(signal_image));
   signal_icon_->SetTooltipText(tooltip_text);
 }
 
@@ -239,13 +240,14 @@ void PhoneStatusView::UpdateBatteryStatus() {
           ? AshColorProvider::ContentLayerType::kIconColorWarning
           : AshColorProvider::ContentLayerType::kIconColorPrimary);
 
-  battery_icon_->SetImage(PowerStatus::GetBatteryImage(
-      CalculateBatteryInfo(icon_fg_color), kUnifiedTrayBatteryIconSize,
-      battery_icon_->GetColorProvider()));
+  battery_icon_->SetImage(
+      ui::ImageModel::FromImageSkia(PowerStatus::GetBatteryImage(
+          CalculateBatteryInfo(icon_fg_color), kUnifiedTrayBatteryIconSize,
+          battery_icon_->GetColorProvider())));
   SetBatteryTooltipText();
   battery_label_->SetText(
       base::FormatPercent(phone_status.battery_percentage()));
-  battery_label_->SetAccessibleName(l10n_util::GetStringFUTF16(
+  battery_label_->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
       IDS_ASH_PHONE_HUB_BATTERY_PERCENTAGE_ACCESSIBLE_TEXT,
       base::NumberToString16(phone_status.battery_percentage())));
 }
@@ -317,10 +319,10 @@ void PhoneStatusView::SetBatteryTooltipText() {
 
 void PhoneStatusView::ClearExistingStatus() {
   // Clear mobile status.
-  signal_icon_->SetImage(gfx::ImageSkia());
+  signal_icon_->SetImage(ui::ImageModel());
 
   // Clear battery status.
-  battery_icon_->SetImage(gfx::ImageSkia());
+  battery_icon_->SetImage(ui::ImageModel());
   battery_label_->SetText(std::u16string());
 
   // TODO(b/281844561): When the phone is disconnected the |phone_name_label_|

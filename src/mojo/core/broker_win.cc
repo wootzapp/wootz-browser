@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/core/broker.h"
 
 #include <windows.h>
@@ -12,6 +17,7 @@
 #include "base/debug/alias.h"
 #include "base/logging.h"
 #include "base/memory/platform_shared_memory_region.h"
+#include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "mojo/core/broker_messages.h"
 #include "mojo/core/channel.h"
@@ -65,8 +71,7 @@ Channel::MessagePtr WaitForBrokerMessage(HANDLE pipe_handle,
 
     base::debug::Alias(&buffer[0]);
     base::debug::Alias(&bytes_read);
-    CHECK(false);
-    return nullptr;
+    NOTREACHED();
   }
 
   const BrokerMessageHeader* header =
@@ -76,8 +81,7 @@ Channel::MessagePtr WaitForBrokerMessage(HANDLE pipe_handle,
 
     base::debug::Alias(&buffer[0]);
     base::debug::Alias(&bytes_read);
-    CHECK(false);
-    return nullptr;
+    NOTREACHED();
   }
 
   return message;

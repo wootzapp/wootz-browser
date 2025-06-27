@@ -19,7 +19,10 @@ t.step(function() {
   const kTexts = [
     'UNAVAILABLE',
     '🏁🎶🏁',
-    '）（あ）（'
+    '）（あ）（',
+    '-abcd_',
+    'اين المكتبة؟',
+    'bidiالرياضيات'
   ]
 
   for (const text of kTexts) {
@@ -30,11 +33,11 @@ t.step(function() {
     assert_throws_js(TypeError, () => tm.getSelectionRects(-1, -1) );
     // Thrown in TextMetrics.
     assert_throws_dom("IndexSizeError",
-                      () => tm.getSelectionRects(text.length, 0) );
+                      () => tm.getSelectionRects(text.length + 1, 0) );
     assert_throws_dom("IndexSizeError",
-                      () => tm.getSelectionRects(0, text.length) );
+                      () => tm.getSelectionRects(0, text.length + 1) );
     assert_throws_dom("IndexSizeError",
-                      () => tm.getSelectionRects(text.length, text.length) );
+                      () => tm.getSelectionRects(text.length + 1, text.length + 1) );
   }
   t.done();
 });

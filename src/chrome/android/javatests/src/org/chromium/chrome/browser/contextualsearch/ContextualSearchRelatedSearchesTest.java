@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
@@ -27,7 +28,6 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.widget.chips.ChipProperties;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +63,7 @@ public class ContextualSearchRelatedSearchesTest extends ContextualSearchInstrum
                 !resolvedSearchTerm.relatedSearchesJson().isEmpty());
         // Select a chip in the Bar, which should expand the panel.
         final int chipToSelect = 1;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mPanel.getRelatedSearchesInBarControl().selectChipForTest(chipToSelect));
         waitForPanelToExpand();
 
@@ -75,8 +75,6 @@ public class ContextualSearchRelatedSearchesTest extends ContextualSearchInstrum
     /**
      * Tests that the offset of the SERP is unaffected by whether we are showing Related Searches in
      * the Bar or not. See https://crbug.com/1250546.
-     *
-     * @throws Exception
      */
     @Test
     @SmallTest
@@ -121,7 +119,7 @@ public class ContextualSearchRelatedSearchesTest extends ContextualSearchInstrum
                 !resolvedSearchTerm.relatedSearchesJson().isEmpty());
         // Select a chip in the Bar, which should expand the panel.
         final int chipToSelect = 0;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mPanel.getRelatedSearchesInBarControl().selectChipForTest(chipToSelect));
         waitForPanelToExpand();
 
@@ -207,7 +205,7 @@ public class ContextualSearchRelatedSearchesTest extends ContextualSearchInstrum
         List<String> inBarSuggestions = new ArrayList<String>();
         inBarSuggestions.add("Related Suggestion 1");
         inBarSuggestions.add("Related Suggestion 2");
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mPanel.onSearchTermResolved(
                                 "obscure · əbˈskyo͝or",

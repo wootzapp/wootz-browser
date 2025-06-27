@@ -16,10 +16,17 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
+#include "base/types/pass_key.h"
+#include "chrome/browser/android/tab_android_data_provider.h"
 #include "chrome/browser/sync/glue/synced_tab_delegate_android.h"
 #include "chrome/browser/tab/web_contents_state.h"
 #include "components/infobars/core/infobar_manager.h"
 #include "components/sessions/core/session_id.h"
+#include "components/tab_groups/tab_group_id.h"
+#include "components/tab_groups/token_id.h"
+#include "components/tabs/public/split_tab_id.h"
+#include "components/tabs/public/tab_interface.h"
+#include "tab_android_data_provider.h"
 
 class GURL;
 class Profile;
@@ -37,7 +44,14 @@ class DevToolsAgentHost;
 class WebContents;
 }  // namespace content
 
-class TabAndroid : public base::SupportsUserData {
+namespace tabs {
+class TabCollection;
+class TabFeatures;
+}  // namespace tabs
+
+class TabAndroid : public tabs::TabInterface,
+                   public TabAndroidDataProvider,
+                   public base::SupportsUserData {
  public:
   class Observer : public base::CheckedObserver {
    public:
@@ -73,6 +87,17 @@ class TabAndroid : public base::SupportsUserData {
 
   ~TabAndroid() override;
 
+  static std::unique_ptr<TabAndroid> CreateForTesting(
+      Profile* profile,
+      int tab_id,
+      std::unique_ptr<content::WebContents> web_contents);
+
+  // TabAndroidDataProvider
+  SessionID GetWindowId() const override;
+  int GetAndroidId() const override;
+  std::unique_ptr<WebContentsStateByteBuffer> GetWebContentsByteBuffer()
+      override;
+
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
   // Return the WebContents, if any, currently owned by this TabAndroid.
@@ -88,10 +113,6 @@ class TabAndroid : public base::SupportsUserData {
   // the Tab object held by caller is likely also not valid.
   Profile* profile() const { return profile_.get(); }
 
-  // Return specific id information regarding this TabAndroid.
-  SessionID window_id() const { return session_window_id_; }
-
-  int GetAndroidId() const;
   bool IsNativePage() const;
   int GetLaunchType() const;
   int GetUserAgent() const;
@@ -117,6 +138,12 @@ class TabAndroid : public base::SupportsUserData {
   // view.
   base::Time GetLastShownTimestamp() const;
 
+  // Returns launch type at creation. May be TabLaunchType::UNSET if unknown.
+  int GetTabLaunchTypeAtCreation() const;
+
+  // Returns the parent tab identifier for the tab.
+  int GetParentId() const;
+
   // Delete navigation entries matching predicate from frozen state.
   void DeleteFrozenNavigationEntries(
       const WebContentsState::DeletionPredicate& predicate);
@@ -128,8 +155,10 @@ class TabAndroid : public base::SupportsUserData {
       bool did_start_load,
       bool did_finish_load);
 
-  bool IsCustomTab();
-  bool IsHidden();
+  bool IsCustomTab() const;
+  bool IsHidden() const;
+
+  bool IsTrustedWebActivity() const;
 
   // Observers -----------------------------------------------------------------
 
@@ -156,15 +185,17 @@ class TabAndroid : public base::SupportsUserData {
           jcontext_menu_populator_factory);
   void DestroyWebContents(JNIEnv* env);
   void ReleaseWebContents(JNIEnv* env);
+  bool IsPhysicalBackingSizeEmpty(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& jweb_contents);
   void OnPhysicalBackingSizeChanged(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& jweb_contents,
       jint width,
       jint height);
-  void SetActiveNavigationEntryTitleForUrl(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& jurl,
-      const base::android::JavaParamRef<jstring>& jtitle);
+  void SetActiveNavigationEntryTitleForUrl(JNIEnv* env,
+                                           std::string& jurl,
+                                           std::u16string& jtitle);
 
   void LoadOriginalImage(JNIEnv* env);
   void OnShow(JNIEnv* env);
@@ -173,13 +204,51 @@ class TabAndroid : public base::SupportsUserData {
 
   void SetDevToolsAgentHost(scoped_refptr<content::DevToolsAgentHost> host);
 
-  // This should never return null, unless it is called in a state where no
-  // tabs exist (such as on FRE), which should never happen. If it is called
-  // then, a nullptr will be returned and must be handled accordingly.
-  std::unique_ptr<WebContentsStateByteBuffer> GetWebContentsByteBuffer();
-  base::WeakPtr<TabAndroid> GetWeakPtr();
+  base::WeakPtr<TabAndroid> GetTabAndroidWeakPtr();
+
+  // TabInterface overrides:
+  base::WeakPtr<tabs::TabInterface> GetWeakPtr() override;
+  content::WebContents* GetContents() const override;
+  void Close() override;
+  base::CallbackListSubscription RegisterWillDiscardContents(
+      WillDiscardContentsCallback callback) override;
+  bool IsActivated() const override;
+  base::CallbackListSubscription RegisterDidActivate(
+      DidActivateCallback callback) override;
+  base::CallbackListSubscription RegisterWillDeactivate(
+      WillDeactivateCallback callback) override;
+  bool IsVisible() const override;
+  base::CallbackListSubscription RegisterDidBecomeVisible(
+      DidBecomeVisibleCallback callback) override;
+  base::CallbackListSubscription RegisterWillBecomeHidden(
+      WillBecomeHiddenCallback callback) override;
+  base::CallbackListSubscription RegisterWillDetach(
+      WillDetach callback) override;
+  base::CallbackListSubscription RegisterDidInsert(
+      DidInsertCallback callback) override;
+  base::CallbackListSubscription RegisterPinnedStateChanged(
+      PinnedStateChangedCallback callback) override;
+  base::CallbackListSubscription RegisterGroupChanged(
+      GroupChangedCallback callback) override;
+  bool CanShowModalUI() const override;
+  std::unique_ptr<tabs::ScopedTabModalUI> ShowModalUI() override;
+  base::CallbackListSubscription RegisterModalUIChanged(
+      TabInterfaceCallback callback) override;
+  bool IsInNormalWindow() const override;
+  tabs::TabFeatures* GetTabFeatures() override;
+  bool IsPinned() const override;
+  bool IsSplit() const override;
+  std::optional<tab_groups::TabGroupId> GetGroup() const override;
+  std::optional<split_tabs::SplitTabId> GetSplit() const override;
+  tabs::TabCollection* GetParentCollection(
+      base::PassKey<tabs::TabCollection>) const override;
+  void OnReparented(tabs::TabCollection* parent,
+                    base::PassKey<tabs::TabCollection>) override;
+  void OnAncestorChanged(base::PassKey<tabs::TabCollection>) override;
 
  private:
+  // This constructor bypassing JVM setup is for CreateForTesting only.
+  TabAndroid(Profile* profile, int tab_id);
   JavaObjectWeakGlobalRef weak_java_tab_;
 
   int tab_id_;
@@ -194,6 +263,10 @@ class TabAndroid : public base::SupportsUserData {
       web_contents_delegate_;
   scoped_refptr<content::DevToolsAgentHost> devtools_host_;
   std::unique_ptr<browser_sync::SyncedTabDelegateAndroid> synced_tab_delegate_;
+
+  // Holds tab-scoped state. Constructed after tab_helpers.
+  std::unique_ptr<tabs::TabFeatures> tab_features_;
+
   base::ObserverList<Observer> observers_;
 
   const base::WeakPtr<Profile> profile_;

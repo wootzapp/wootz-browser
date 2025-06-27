@@ -98,10 +98,11 @@ class OcclusionTrackerTest : public testing::Test {
       : opaque_layers_(opaque_layers),
         layer_tree_frame_sink_(FakeLayerTreeFrameSink::Create3d()),
         animation_host_(AnimationHost::CreateForTesting(ThreadInstance::kMain)),
-        host_(FakeLayerTreeHost::Create(&client_,
-                                        &task_graph_runner_,
-                                        animation_host_.get(),
-                                        LayerListSettings())),
+        host_(
+            FakeLayerTreeHost::Create(&client_,
+                                      &task_graph_runner_,
+                                      animation_host_.get(),
+                                      CommitToPendingTreeLayerListSettings())),
         next_layer_impl_id_(1) {
     scoped_feature_list_.InitAndDisableFeature(
         features::kAllowUndamagedNonrootRenderPassToSkip);
@@ -209,7 +210,6 @@ class OcclusionTrackerTest : public testing::Test {
     LayerImpl* layer = CreateSurface(parent, transform, position, bounds);
     auto* effect_node = GetEffectNode(layer);
     effect_node->render_surface_reason = RenderSurfaceReason::kCopyRequest;
-    effect_node->has_copy_request = true;
     effect_node->closest_ancestor_with_copy_request_id = effect_node->id;
     auto& effect_tree = GetPropertyTrees(layer)->effect_tree_mutable();
     effect_tree.AddCopyRequest(effect_node->id,

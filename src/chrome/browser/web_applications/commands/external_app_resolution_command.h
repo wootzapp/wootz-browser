@@ -56,9 +56,9 @@ struct WebAppInstallInfo;
 // command.
 class ExternalAppResolutionCommand
     : public WebAppCommand<SharedWebContentsLock,
-                           ExternallyManagedAppManager::InstallResult> {
+                           ExternallyManagedAppManagerInstallResult> {
  public:
-  using InstallResult = ExternallyManagedAppManager::InstallResult;
+  using InstallResult = ExternallyManagedAppManagerInstallResult;
   using InstalledCallback = base::OnceCallback<void(InstallResult)>;
 
   ExternalAppResolutionCommand(Profile& profile,
@@ -96,7 +96,6 @@ class ExternalAppResolutionCommand
   void OnGetWebAppInstallInfoInCommand(
       std::unique_ptr<WebAppInstallInfo> web_app_info);
   void OnDidPerformInstallableCheck(blink::mojom::ManifestPtr opt_manifest,
-                                    const GURL& manifest_url,
                                     bool valid_manifest_for_web_app,
                                     webapps::InstallableStatusCode error_code);
   void OnPreparedForIconRetrieving(IconUrlSizeSet icon_urls,
@@ -106,14 +105,12 @@ class ExternalAppResolutionCommand
       IconsDownloadedResult result,
       IconsMap icons_map,
       DownloadedIconsHttpResults icons_http_results);
-  void OnLockUpgradedFinalizeInstall(
-      bool icon_download_failed,
-      std::unique_ptr<SharedWebContentsWithAppLock> apps_lock);
+  void OnLockUpgradedFinalizeInstall(bool icon_download_failed);
   void OnInstallFinalized(const webapps::AppId& app_id,
                           webapps::InstallResultCode code);
   void OnUninstallAndReplaceCompletedUninstallPlaceholder(
       bool uninstall_triggered);
-  void OnAllAppsLockGrantedRemovePlaceholder(std::unique_ptr<AllAppsLock> lock);
+  void OnAllAppsLockGrantedRemovePlaceholder();
   void OnPlaceholderUninstalledMaybeRelaunch(
       webapps::UninstallResultCode result);
 
@@ -123,15 +120,13 @@ class ExternalAppResolutionCommand
                 base::Value debug_value);
 
   // Placeholder installation path:
-  void OnPlaceHolderAppLockAcquired(
-      std::unique_ptr<SharedWebContentsWithAppLock> apps_lock);
+  void OnPlaceHolderAppLockAcquired();
   void OnPlaceHolderInstalled(webapps::InstallResultCode code,
                               webapps::AppId app_id);
 
   // Offline installation path:
   void InstallFromInfo();
-  void OnInstallFromInfoAppLockAcquired(
-      std::unique_ptr<SharedWebContentsWithAppLock> apps_lock);
+  void OnInstallFromInfoAppLockAcquired();
   void OnInstallFromInfoCompleted(webapps::AppId app_id,
                                   webapps::InstallResultCode code);
   void OnUninstallAndReplaceCompleted(bool is_offline_install,

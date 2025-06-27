@@ -6,6 +6,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/chrome_app_icon.h"
@@ -22,7 +23,7 @@ ChromeAppIconService* ChromeAppIconService::Get(
 
 ChromeAppIconService::ChromeAppIconService(content::BrowserContext* context)
     : context_(context) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   app_updater_ = std::make_unique<ShelfExtensionAppUpdater>(
       this, context, false /* extensions_only */);
 #endif
@@ -33,7 +34,7 @@ ChromeAppIconService::ChromeAppIconService(content::BrowserContext* context)
 ChromeAppIconService::~ChromeAppIconService() = default;
 
 void ChromeAppIconService::Shutdown() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   app_updater_.reset();
 #endif
 }
@@ -73,7 +74,7 @@ void ChromeAppIconService::OnExtensionUnloaded(
   OnAppUpdated(extension->id());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 void ChromeAppIconService::OnAppUpdated(
     content::BrowserContext* browser_context,
     const std::string& app_id,
@@ -101,7 +102,7 @@ void ChromeAppIconService::OnAppUpdated(const std::string& app_id) {
 void ChromeAppIconService::OnIconDestroyed(ChromeAppIcon* icon) {
   DCHECK(icon);
   auto it = icon_map_.find(icon->app_id());
-  DCHECK(it != icon_map_.end());
+  CHECK(it != icon_map_.end(), base::NotFatalUntil::M130);
   it->second.erase(icon);
   if (it->second.empty()) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(

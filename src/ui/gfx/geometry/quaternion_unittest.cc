@@ -4,6 +4,7 @@
 
 #include "ui/gfx/geometry/quaternion.h"
 
+#include <array>
 #include <cmath>
 #include <numbers>
 
@@ -61,7 +62,7 @@ TEST(QuatTest, AxisAngleWithZeroLengthAxis) {
 }
 
 TEST(QuatTest, Addition) {
-  double values[] = {0, 1, 100};
+  auto values = std::to_array<double>({0, 1, 100});
   for (size_t i = 0; i < std::size(values); ++i) {
     float t = values[i];
     Quaternion a(t, 2 * t, 3 * t, 4 * t);
@@ -72,11 +73,12 @@ TEST(QuatTest, Addition) {
 }
 
 TEST(QuatTest, Multiplication) {
-  struct {
+  struct Cases {
     Quaternion a;
     Quaternion b;
     Quaternion expected;
-  } cases[] = {
+  };
+  auto cases = std::to_array<Cases>({
       {Quaternion(1, 0, 0, 0), Quaternion(1, 0, 0, 0), Quaternion(0, 0, 0, -1)},
       {Quaternion(0, 1, 0, 0), Quaternion(0, 1, 0, 0), Quaternion(0, 0, 0, -1)},
       {Quaternion(0, 0, 1, 0), Quaternion(0, 0, 1, 0), Quaternion(0, 0, 0, -1)},
@@ -85,7 +87,7 @@ TEST(QuatTest, Multiplication) {
        Quaternion(24, 48, 48, -6)},
       {Quaternion(5, 6, 7, 8), Quaternion(1, 2, 3, 4),
        Quaternion(32, 32, 56, -6)},
-  };
+  });
 
   for (size_t i = 0; i < std::size(cases); ++i) {
     Quaternion product = cases[i].a * cases[i].b;
@@ -94,7 +96,7 @@ TEST(QuatTest, Multiplication) {
 }
 
 TEST(QuatTest, Scaling) {
-  double values[] = {0, 10, 100};
+  auto values = std::to_array<double>({0, 10, 100});
   for (size_t i = 0; i < std::size(values); ++i) {
     double s = values[i];
     Quaternion q(1, 2, 3, 4);

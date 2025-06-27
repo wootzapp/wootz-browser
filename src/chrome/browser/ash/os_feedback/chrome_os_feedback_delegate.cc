@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/os_feedback/chrome_os_feedback_delegate.h"
 
 #include <optional>
@@ -23,6 +28,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/multidevice_setup/multidevice_setup_client_factory.h"
 #include "chrome/browser/ash/os_feedback/os_feedback_screenshot_manager.h"
 #include "chrome/browser/browser_process.h"
@@ -36,8 +42,8 @@
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/webui/ash/diagnostics_dialog.h"
-#include "chrome/browser/ui/webui/ash/os_feedback_dialog.h"
+#include "chrome/browser/ui/webui/ash/diagnostics_dialog/diagnostics_dialog.h"
+#include "chrome/browser/ui/webui/ash/os_feedback_dialog/os_feedback_dialog.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chromeos/ash/services/multidevice_setup/public/cpp/multidevice_setup_client.h"
 #include "components/feedback/content/content_tracing_manager.h"
@@ -100,13 +106,11 @@ bool ShouldAddAttachment(const AttachedFilePtr& attached_file) {
 
 // Find the native window of feedback SWA or dialog.
 gfx::NativeWindow FindFeedbackWindow(Profile* profile) {
-  Browser* feedback_browser =
-      ash::FindSystemWebAppBrowser(profile, ash::SystemWebAppType::OS_FEEDBACK);
-
+  BrowserDelegate* feedback_browser = ash::FindSystemWebAppBrowser(
+      profile, ash::SystemWebAppType::OS_FEEDBACK, ash::BrowserType::kApp);
   if (feedback_browser) {
-    return feedback_browser->window()->GetNativeWindow();
+    return feedback_browser->GetNativeWindow();
   }
-
   return OsFeedbackDialog::FindDialogWindow();
 }
 
@@ -411,8 +415,8 @@ void ChromeOsFeedbackDelegate::OnSendFeedbackDone(SendReportCallback callback,
 // - Open the diagnostics app as SWA when feedback SWA exists.
 // - Otherwise, open it as a dialog.
 void ChromeOsFeedbackDelegate::OpenDiagnosticsApp() {
-  if (ash::FindSystemWebAppBrowser(profile_,
-                                   ash::SystemWebAppType::OS_FEEDBACK)) {
+  if (ash::FindSystemWebAppBrowser(profile_, ash::SystemWebAppType::OS_FEEDBACK,
+                                   ash::BrowserType::kApp)) {
     ash::LaunchSystemWebAppAsync(profile_, ash::SystemWebAppType::DIAGNOSTICS);
     return;
   }

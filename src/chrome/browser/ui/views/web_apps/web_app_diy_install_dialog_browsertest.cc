@@ -4,21 +4,33 @@
 
 #include <memory>
 
+#include "base/files/file_path.h"
 #include "base/functional/callback_helpers.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/test_future.h"
+#include "chrome/browser/picture_in_picture/document_picture_in_picture_mixin_test_base.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/web_apps/web_app_dialog_test_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/webapps/browser/installable/ml_install_operation_tracker.h"
 #include "components/webapps/browser/installable/ml_installability_promoter.h"
+#include "content/public/browser/document_picture_in_picture_window_controller.h"
+#include "content/public/browser/picture_in_picture_window_controller.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/views/test/dialog_test.h"
 #include "ui/views/test/widget_test.h"
@@ -34,32 +46,45 @@ namespace {
 
 class WebAppDiyInstallDialogBrowserTest : public DialogBrowserTest {
  public:
-  // DialogBrowserTest overrides:
-  void ShowUi(const std::string& name) override {
-    auto install_info = std::make_unique<WebAppInstallInfo>(
-        GenerateManifestIdFromStartUrlOnly(GURL("https://example.com")));
+  // Creates a dummy WebAppInstallInfo instance used to populate details on the
+  // install dialog.
+  std::unique_ptr<WebAppInstallInfo> GetAppInfo(const std::string& name) {
+    auto app_info = WebAppInstallInfo::CreateWithStartUrlForTesting(
+        GURL("https://example.com"));
 
     if (name == "name_with_spaces") {
-      install_info->title = u"       trimmed app    ";
+      app_info->title = u"       trimmed app    ";
     } else if (name != "empty_name") {
-      install_info->title = u"test";
+      app_info->title = u"test";
     }
 
-    install_info->description = u"This is a test app";
-    install_info->start_url = GURL("https://example.com");
-    install_info->is_diy_app = true;
+    app_info->description = u"This is a test app";
+    app_info->is_diy_app = true;
+    return app_info;
+  }
 
-    content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetActiveWebContents();
+  // DialogBrowserTest overrides:
+  void ShowUi(const std::string& name) override {
+    auto install_info = GetAppInfo(name);
+
     std::unique_ptr<webapps::MlInstallOperationTracker> install_tracker =
-        webapps::MLInstallabilityPromoter::FromWebContents(web_contents)
-            ->RegisterCurrentInstallForWebContents(
-                webapps::WebappInstallSource::MENU_CREATE_SHORTCUT);
+        GetInstallTracker(browser());
 
     ShowDiyAppInstallDialog(browser()->tab_strip_model()->GetWebContentsAt(0),
                             std::move(install_info), std::move(install_tracker),
                             std::move(install_callback_),
                             PwaInProductHelpState::kNotShown);
+  }
+
+  // Creates an installation tracker for ML installability promoter required by
+  // the install dialog.
+  std::unique_ptr<webapps::MlInstallOperationTracker> GetInstallTracker(
+      Browser* browser) {
+    content::WebContents* web_contents =
+        browser->tab_strip_model()->GetActiveWebContents();
+    return webapps::MLInstallabilityPromoter::FromWebContents(web_contents)
+        ->RegisterCurrentInstallForWebContents(
+            webapps::WebappInstallSource::MENU_BROWSER_TAB);
   }
 
   void OverrideDialogCallback(
@@ -208,6 +233,130 @@ IN_PROC_BROWSER_TEST_F(WebAppDiyInstallDialogBrowserTest,
   EXPECT_TRUE(std::get<bool>(dialog_results));
   EXPECT_EQ(std::get<std::unique_ptr<WebAppInstallInfo>>(dialog_results)->title,
             u"trimmed app");
+}
+
+IN_PROC_BROWSER_TEST_F(WebAppDiyInstallDialogBrowserTest,
+                       WindowSizeLoweringClosesDialog) {
+  auto popup_value =
+      OpenPopupOfSize(browser()->tab_strip_model()->GetActiveWebContents(),
+                      GURL("https://www.example.com"),
+                      /*width=*/500, /*height=*/500);
+  content::WebContents* popup_contents = popup_value.value();
+  Browser* popup_browser = chrome::FindBrowserWithTab(popup_contents);
+
+  std::unique_ptr<webapps::MlInstallOperationTracker> install_tracker =
+      GetInstallTracker(popup_browser);
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppDiyInstallDialog");
+  base::test::TestFuture<bool, std::unique_ptr<WebAppInstallInfo>>
+      dialog_future;
+  OverrideDialogCallback(dialog_future.GetCallback());
+  ShowDiyAppInstallDialog(
+      popup_browser->tab_strip_model()->GetActiveWebContents(),
+      GetAppInfo("empty_name"), std::move(install_tracker),
+      dialog_future.GetCallback());
+
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+
+  base::HistogramTester histograms;
+  views::test::WidgetDestroyedWaiter destroy_waiter(widget);
+  // Make the size of the popup window to be too small for the dialog.
+  ui_test_utils::SetAndWaitForBounds(*popup_browser, gfx::Rect(100, 100));
+  destroy_waiter.Wait();
+
+  ASSERT_TRUE(dialog_future.Wait());
+  EXPECT_FALSE(dialog_future.Get<bool>());
+  histograms.ExpectUniqueSample(
+      "WebApp.InstallConfirmation.CloseReason",
+      views::Widget::ClosedReason::kCloseButtonClicked, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(WebAppDiyInstallDialogBrowserTest,
+                       SmallWindowClosesDialogAutomatically) {
+  auto popup_value =
+      OpenPopupOfSize(browser()->tab_strip_model()->GetActiveWebContents(),
+                      GURL("https://example.com"));
+  EXPECT_TRUE(popup_value.has_value());
+
+  content::WebContents* popup_contents = popup_value.value();
+  Browser* popup_browser = chrome::FindBrowserWithTab(popup_contents);
+
+  std::unique_ptr<webapps::MlInstallOperationTracker> install_tracker =
+      GetInstallTracker(popup_browser);
+  base::HistogramTester histograms;
+  views::AnyWidgetObserver widget_observer(views::test::AnyWidgetTestPasskey{});
+
+  base::RunLoop run_loop;
+  widget_observer.set_closing_callback(
+      base::BindLambdaForTesting([&](views::Widget* widget) {
+        if (widget->GetName() == "WebAppDiyInstallDialog") {
+          run_loop.Quit();
+        }
+      }));
+
+  ShowDiyAppInstallDialog(popup_contents, GetAppInfo("empty_name"),
+                          std::move(install_tracker), base::DoNothing());
+
+  run_loop.Run();
+
+  histograms.ExpectUniqueSample(
+      "WebApp.InstallConfirmation.CloseReason",
+      views::Widget::ClosedReason::kCloseButtonClicked, 1);
+}
+
+class PictureInPictureDiyDialogOcclusionTest
+    : public MixinBasedInProcessBrowserTest {
+ protected:
+  void ShowDialogUi() {
+    auto install_info = WebAppInstallInfo::CreateWithStartUrlForTesting(
+        GURL("https://example.com"));
+    install_info->title = u"test";
+    install_info->description = u"This is a test app";
+    install_info->is_diy_app = true;
+
+    content::WebContents* web_contents =
+        browser()->tab_strip_model()->GetActiveWebContents();
+    std::unique_ptr<webapps::MlInstallOperationTracker> install_tracker =
+        webapps::MLInstallabilityPromoter::FromWebContents(web_contents)
+            ->RegisterCurrentInstallForWebContents(
+                webapps::WebappInstallSource::MENU_CREATE_SHORTCUT);
+
+    ShowDiyAppInstallDialog(browser()->tab_strip_model()->GetWebContentsAt(0),
+                            std::move(install_info), std::move(install_tracker),
+                            base::DoNothing(),
+                            PwaInProductHelpState::kNotShown);
+  }
+  DocumentPictureInPictureMixinTestBase picture_in_picture_test_base_{
+      &mixin_host_};
+};
+
+IN_PROC_BROWSER_TEST_F(PictureInPictureDiyDialogOcclusionTest,
+                       PipWindowCloses) {
+  picture_in_picture_test_base_.NavigateToURLAndEnterPictureInPicture(
+      browser());
+  auto* pip_web_contents =
+      picture_in_picture_test_base_.window_controller()->GetChildWebContents();
+  ASSERT_NE(nullptr, pip_web_contents);
+  picture_in_picture_test_base_.WaitForPageLoad(pip_web_contents);
+
+  // Show dialog.
+  base::UserActionTester action_tester;
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppDiyInstallDialog");
+  ShowDialogUi();
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  EXPECT_NE(nullptr, widget);
+
+  // Occlude dialog with picture in picture web contents, verify window is
+  // closed but dialog stays open.
+  PictureInPictureWindowManager::GetInstance()
+      ->GetOcclusionTracker()
+      ->SetWidgetOcclusionStateForTesting(widget, /*occluded=*/true);
+  EXPECT_TRUE(picture_in_picture_test_base_.AwaitPipWindowClosedSuccessfully());
+  EXPECT_NE(nullptr, widget);
+  EXPECT_TRUE(widget->IsVisible());
 }
 
 }  // namespace

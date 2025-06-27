@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/contextual_panel/sample/model/sample_panel_model.h"
 
 #import "base/test/task_environment.h"
+#import "components/feature_engagement/public/feature_constants.h"
 #import "ios/chrome/browser/contextual_panel/model/contextual_panel_item_configuration.h"
 #import "ios/chrome/browser/contextual_panel/sample/model/sample_panel_item_configuration.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
@@ -48,9 +49,19 @@ TEST_F(SamplePanelModelTest, TestFetchConfiguration) {
   SamplePanelItemConfiguration* config =
       static_cast<SamplePanelItemConfiguration*>(returned_configuration_.get());
   EXPECT_EQ("sample_config", config->sample_name);
-  EXPECT_EQ("Large entrypoint", config->entrypoint_message);
+  EXPECT_EQ("Large entry point", config->entrypoint_message);
   EXPECT_EQ("chrome_product", config->entrypoint_image_name);
-  EXPECT_EQ("Sample entrypoint", config->accessibility_label);
+  EXPECT_EQ("Large entry point", config->accessibility_label);
+  EXPECT_EQ("Sample bubble", config->iph_title);
+  EXPECT_EQ("Sample rich in-product help for the Contextual Panel, which "
+            "should appear multiple times a day.",
+            config->iph_text);
+  EXPECT_EQ("ios_contextual_panel_sample_model_entrypoint_used",
+            config->iph_entrypoint_used_event_name);
+  EXPECT_EQ("ios_contextual_panel_sample_model_entrypoint_explicitly_dismissed",
+            config->iph_entrypoint_explicitly_dismissed);
+  EXPECT_EQ(&feature_engagement::kIPHiOSContextualPanelSampleModelFeature,
+            config->iph_feature);
   EXPECT_EQ(ContextualPanelItemConfiguration::high_relevance,
             config->relevance);
   EXPECT_EQ(ContextualPanelItemConfiguration::EntrypointImageType::SFSymbol,

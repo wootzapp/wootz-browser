@@ -30,6 +30,7 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.StrictModeContext;
 import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.base.version_info.VersionConstants;
+import org.chromium.build.annotations.NullUnmarked;
 import org.chromium.components.autofill.AutofillRequest.FocusField;
 import org.chromium.content_public.browser.RenderCoordinates;
 import org.chromium.content_public.browser.WebContents;
@@ -51,6 +52,7 @@ import org.chromium.ui.display.DisplayAndroid;
  * AwContents.java in //android_webview), and AndroidAutofillProvider is owned by the
  * embedder-specific C++ WebContents wrapper (e.g., native AwContents in //android_webview).
  */
+@NullUnmarked
 @JNINamespace("autofill")
 public class AutofillProvider {
     /**
@@ -71,7 +73,7 @@ public class AutofillProvider {
     private AutofillRequest mRequest;
     private long mNativeAutofillProvider;
     private AutofillProviderUMA mAutofillUMA;
-    private AutofillManagerWrapper.InputUIObserver mInputUIObserver;
+    private AutofillManagerWrapper.InputUiObserver mInputUiObserver;
     private long mAutofillTriggeredTimeMillis;
     private Context mContext;
     private AutofillPopup mDatalistPopup;
@@ -102,10 +104,10 @@ public class AutofillProvider {
                             context,
                             mAutofillManager.isAwGCurrentAutofillService(),
                             mAutofillManager.getPackageName());
-            mInputUIObserver =
-                    new AutofillManagerWrapper.InputUIObserver() {
+            mInputUiObserver =
+                    new AutofillManagerWrapper.InputUiObserver() {
                         @Override
-                        public void onInputUIShown() {
+                        public void onInputUiShown() {
                             // Not need to report suggestion window displayed if there is no live
                             // autofill session.
                             if (mRequest == null) return;
@@ -113,7 +115,7 @@ public class AutofillProvider {
                                     System.currentTimeMillis() - mAutofillTriggeredTimeMillis);
                         }
                     };
-            mAutofillManager.addInputUIObserver(mInputUIObserver);
+            mAutofillManager.addInputUiObserver(mInputUiObserver);
             mContext = context;
         }
         initializeNativeAutofillProvider(webContents);
@@ -160,14 +162,17 @@ public class AutofillProvider {
         // We should have one of them available here, we start with AutofillRequest as it should be
         // available only if we started a session.
         FormData form;
+        short focusFieldIndex = -1;
         if (mRequest != null) {
             form = mRequest.getForm();
+            focusFieldIndex =
+                    mRequest.getFocusField() != null ? mRequest.getFocusField().fieldIndex : -1;
             mAutofillUMA.onVirtualStructureProvided();
         } else {
             form = mPrefillRequest.getForm();
             mStructureProvidedForPrefillRequest = true;
         }
-        form.fillViewStructure(structure);
+        form.fillViewStructure(structure, focusFieldIndex);
         if (AutofillManagerWrapper.isLoggable()) {
             AutofillManagerWrapper.log(
                     "onProvideAutoFillVirtualStructure fields:" + structure.getChildCount());
@@ -175,14 +180,13 @@ public class AutofillProvider {
     }
 
     /**
-     * Invoked when autofill value is available, AutofillProvider shall fill the
-     * form with the provided values.
+     * Invoked when autofill value is available, AutofillProvider shall fill the form with the
+     * provided values.
      *
-     * @param values the array of autofill values, the key is virtual id of form
-     *            field.
+     * @param values the array of autofill values, the key is virtual id of form field.
      */
     public void autofill(final SparseArray<AutofillValue> values) {
-        if (mNativeAutofillProvider != 0 && mRequest != null && mRequest.autofill((values))) {
+        if (mNativeAutofillProvider != 0 && mRequest != null && mRequest.autofill(values)) {
             autofill(mNativeAutofillProvider);
             if (AutofillManagerWrapper.isLoggable()) {
                 AutofillManagerWrapper.log("autofill values:" + values.size());
@@ -195,7 +199,7 @@ public class AutofillProvider {
     public boolean shouldQueryAutofillSuggestion() {
         return mRequest != null
                 && mRequest.getFocusField() != null
-                && !mAutofillManager.isAutofillInputUIShowing();
+                && !mAutofillManager.isAutofillInputUiShowing();
     }
 
     public void queryAutofillSuggestion() {
@@ -573,9 +577,8 @@ public class AutofillProvider {
                     new AutofillSuggestion.Builder()
                             .setLabel(datalistValues[i])
                             .setSubLabel(datalistLabels[i])
-                            .setItemTag("")
                             .setSuggestionType(SuggestionType.DATALIST_ENTRY)
-                            .setFeatureForIPH("")
+                            .setFeatureForIph("")
                             .build();
         }
         if (mWebContentsAccessibility == null) {

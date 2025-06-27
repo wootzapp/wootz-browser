@@ -78,10 +78,6 @@ String SubmitInputType::DefaultLabel() const {
   return GetLocale().QueryString(IDS_FORM_SUBMIT_LABEL);
 }
 
-bool SubmitInputType::IsTextButton() const {
-  return true;
-}
-
 void SubmitInputType::ValueAttributeChanged() {
   UseCounter::Count(GetElement().GetDocument(),
                     WebFeature::kInputTypeSubmitWithValue);
@@ -89,10 +85,8 @@ void SubmitInputType::ValueAttributeChanged() {
 }
 
 void SubmitInputType::AdjustStyle(ComputedStyleBuilder& builder) {
-  if (RuntimeEnabledFeatures::LayoutBaselineFixEnabled()) {
-    builder.SetShouldIgnoreOverflowPropertyForInlineBlockBaseline();
-    builder.SetInlineBlockBaselineEdge(EInlineBlockBaselineEdge::kContentBox);
-  }
+  builder.SetShouldIgnoreOverflowPropertyForInlineBlockBaseline();
+  builder.SetInlineBlockBaselineEdge(EInlineBlockBaselineEdge::kContentBox);
   BaseButtonInputType::AdjustStyle(builder);
 }
 

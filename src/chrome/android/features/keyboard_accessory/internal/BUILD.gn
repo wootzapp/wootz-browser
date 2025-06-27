@@ -13,6 +13,7 @@ generate_jni("jni") {
     "java/src/org/chromium/chrome/browser/keyboard_accessory/AutofillKeyboardAccessoryViewBridge.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/ManualFillingComponentBridge.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/all_passwords_bottom_sheet/AllPasswordsBottomSheetBridge.java",
+    "java/src/org/chromium/chrome/browser/keyboard_accessory/all_passwords_bottom_sheet/Credential.java",
   ]
 }
 
@@ -26,12 +27,12 @@ android_library("internal_java") {
 
     # TODO(crbug.com/41452318): Cyclic dependency. Depend on public only when ready.
     "//chrome/android:chrome_java",
-    "//chrome/android/features/keyboard_accessory/public:public_java",
     "//chrome/browser/autofill/android:java",
     "//chrome/browser/back_press/android:java",
     "//chrome/browser/feature_engagement:java",
     "//chrome/browser/flags:java",
     "//chrome/browser/fullscreen/android:java",
+    "//chrome/browser/keyboard_accessory/android/java",
     "//chrome/browser/password_manager/android:java",
     "//chrome/browser/profiles/android:java",
     "//chrome/browser/tab:java",
@@ -82,7 +83,7 @@ android_library("internal_java") {
     "java/src/org/chromium/chrome/browser/keyboard_accessory/all_passwords_bottom_sheet/Credential.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/all_passwords_bottom_sheet/CredentialFillRequest.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryCoordinator.java",
-    "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryIPHUtils.java",
+    "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryIphUtils.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryMediator.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryMetricsRecorder.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/bar_component/KeyboardAccessoryProperties.java",
@@ -96,7 +97,6 @@ android_library("internal_java") {
     "java/src/org/chromium/chrome/browser/keyboard_accessory/button_group_component/KeyboardAccessoryButtonGroupViewBinder.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/data/CachedProviderAdapter.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/data/ConditionalProviderAdapter.java",
-    "java/src/org/chromium/chrome/browser/keyboard_accessory/helper/FaviconHelper.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_component/AccessoryPagerAdapter.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_component/AccessorySheetCoordinator.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_component/AccessorySheetMediator.java",
@@ -119,10 +119,12 @@ android_library("internal_java") {
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/CreditCardAccessorySheetViewBinder.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/DynamicInfoViewBottomSpacer.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/IbanAccessoryInfoView.java",
+    "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/LoyaltyCardInfoView.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PasswordAccessoryInfoView.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PasswordAccessorySheetCoordinator.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PasswordAccessorySheetMediator.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PasswordAccessorySheetViewBinder.java",
+    "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PlusAddressInfoView.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/sheet_tabs/PromoCodeAccessoryInfoView.java",
     "java/src/org/chromium/chrome/browser/keyboard_accessory/utils/InsecureFillingDialogUtils.java",
   ]
@@ -132,7 +134,6 @@ android_library("internal_java") {
 
 android_resources("java_resources") {
   sources = [
-    "java/res/drawable/ic_password_manager_key_off.xml",
     "java/res/layout/accessory_sheet_header.xml",
     "java/res/layout/address_accessory_sheet.xml",
     "java/res/layout/all_passwords_bottom_sheet.xml",
@@ -144,9 +145,10 @@ android_resources("java_resources") {
     "java/res/layout/keyboard_accessory_sheet_tab_address_info.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_credit_card_info.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_iban_info.xml",
-    "java/res/layout/keyboard_accessory_sheet_tab_legacy_title.xml",
+    "java/res/layout/keyboard_accessory_sheet_tab_loyalty_card_info.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_option_toggle.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_password_info.xml",
+    "java/res/layout/keyboard_accessory_sheet_tab_plus_address_info.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_promo_code_info.xml",
     "java/res/layout/keyboard_accessory_sheet_tab_title.xml",
     "java/res/layout/keyboard_accessory_suggestion.xml",

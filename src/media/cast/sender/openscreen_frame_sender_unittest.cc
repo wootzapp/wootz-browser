@@ -17,10 +17,11 @@
 #include "media/cast/cast_config.h"
 #include "media/cast/cast_environment.h"
 #include "media/cast/common/openscreen_conversion_helpers.h"
+#include "media/cast/test/test_with_cast_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/openscreen/src/cast/streaming/environment.h"
-#include "third_party/openscreen/src/cast/streaming/sender.h"
+#include "third_party/openscreen/src/cast/streaming/public/environment.h"
+#include "third_party/openscreen/src/cast/streaming/public/sender.h"
 #include "third_party/openscreen/src/cast/streaming/sender_packet_router.h"
 #include "third_party/openscreen/src/platform/api/time.h"
 #include "third_party/openscreen/src/platform/base/trivial_clock_traits.h"
@@ -39,7 +40,6 @@ static const FrameSenderConfig kAudioConfig{
     kFirstSsrc + 1,
     base::Milliseconds(100),
     kDefaultTargetPlayoutDelay,
-    RtpPayloadType::AUDIO_OPUS,
     /* use_hardware_encoder= */ false,
     kDefaultAudioSamplingRate,
     /* channels= */ 2,
@@ -59,7 +59,6 @@ static const FrameSenderConfig kVideoConfig{
     kFirstSsrc + 3,
     base::Milliseconds(100),
     kDefaultTargetPlayoutDelay,
-    RtpPayloadType::VIDEO_VP8,
     /* use_hardware_encoder= */ false,
     kRtpTimebase,
     /* channels = */ 1,
@@ -76,7 +75,7 @@ static const openscreen::cast::SessionConfig kOpenscreenVideoConfig =
 
 }  // namespace
 
-class OpenscreenFrameSenderTest : public ::testing::Test,
+class OpenscreenFrameSenderTest : public TestWithCastEnvironment,
                                   public FrameSender::Client {
  public:
   // FrameSender::Client overrides.
@@ -84,49 +83,31 @@ class OpenscreenFrameSenderTest : public ::testing::Test,
   base::TimeDelta GetEncoderBacklogDuration() const override { return {}; }
   void OnFrameCanceled(FrameId frame_id) override {}
 
-  int get_suggested_bitrate() { return suggested_bitrate_; }
-
  protected:
   OpenscreenFrameSenderTest()
-      : task_runner_(
-            base::MakeRefCounted<FakeSingleThreadTaskRunner>(&testing_clock_)),
-        cast_environment_(base::MakeRefCounted<CastEnvironment>(&testing_clock_,
-                                                                task_runner_,
-                                                                task_runner_,
-                                                                task_runner_)),
-        openscreen_task_runner_(task_runner_),
+      : openscreen_task_runner_(GetMainThreadTaskRunner()),
         openscreen_environment_(openscreen::Clock::now,
                                 openscreen_task_runner_,
                                 openscreen::IPEndpoint::kAnyV4()),
-        openscreen_packet_router_(openscreen_environment_,
-                                  20,
-                                  std::chrono::milliseconds(10)) {
+        openscreen_packet_router_(
+            std::make_unique<openscreen::cast::SenderPacketRouter>(
+                openscreen_environment_,
+                20,
+                std::chrono::milliseconds(10))) {
     auto openscreen_audio_sender = std::make_unique<openscreen::cast::Sender>(
-        openscreen_environment_, openscreen_packet_router_,
+        openscreen_environment_, *openscreen_packet_router_,
         kOpenscreenAudioConfig, openscreen::cast::RtpPayloadType::kAudioOpus);
     auto openscreen_video_sender = std::make_unique<openscreen::cast::Sender>(
-        openscreen_environment_, openscreen_packet_router_,
+        openscreen_environment_, *openscreen_packet_router_,
         kOpenscreenVideoConfig, openscreen::cast::RtpPayloadType::kVideoVp8);
 
     audio_sender_ = std::make_unique<OpenscreenFrameSender>(
-        cast_environment_, kAudioConfig, std::move(openscreen_audio_sender),
-        *this,
-        base::BindRepeating(&OpenscreenFrameSenderTest::get_suggested_bitrate,
-                            // Safe because we destroy the audio sender before
-                            // destroying `this`.
-                            base::Unretained(this)));
+        cast_environment(), kAudioConfig, std::move(openscreen_audio_sender),
+        *this);
 
     video_sender_ = std::make_unique<OpenscreenFrameSender>(
-        cast_environment_, kVideoConfig, std::move(openscreen_video_sender),
-        *this,
-        base::BindRepeating(&OpenscreenFrameSenderTest::get_suggested_bitrate,
-                            // Safe because we destroy the audio sender before
-                            // destroying `this`.
-                            base::Unretained(this)));
-  }
-
-  void RecordShouldDropNextFrame(bool should_drop) {
-    video_sender_->RecordShouldDropNextFrame(should_drop);
+        cast_environment(), kVideoConfig, std::move(openscreen_video_sender),
+        *this);
   }
 
   void set_suggested_bitrate(int bitrate) { suggested_bitrate_ = bitrate; }
@@ -136,14 +117,11 @@ class OpenscreenFrameSenderTest : public ::testing::Test,
   OpenscreenFrameSender& video_sender() { return *video_sender_; }
 
  private:
-  base::SimpleTestTickClock testing_clock_;
-  const scoped_refptr<FakeSingleThreadTaskRunner> task_runner_;
-  const scoped_refptr<CastEnvironment> cast_environment_;
-
   // openscreen::Sender related classes.
   openscreen_platform::TaskRunner openscreen_task_runner_;
   openscreen::cast::Environment openscreen_environment_;
-  openscreen::cast::SenderPacketRouter openscreen_packet_router_;
+  std::unique_ptr<openscreen::cast::SenderPacketRouter>
+      openscreen_packet_router_;
   std::unique_ptr<openscreen::cast::Sender> openscreen_video_sender_;
   std::unique_ptr<openscreen::cast::Sender> openscreen_audio_sender_;
 
@@ -183,6 +161,7 @@ TEST_F(OpenscreenFrameSenderTest, CanEnqueueFirstFrame) {
   audio_frame->frame_id = openscreen::cast::FrameId(1);
   audio_frame->referenced_frame_id = audio_frame->frame_id;
   audio_frame->reference_time = base::TimeTicks::Now();
+  audio_frame->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             audio_sender().EnqueueFrame(std::move(audio_frame)));
 
@@ -190,6 +169,7 @@ TEST_F(OpenscreenFrameSenderTest, CanEnqueueFirstFrame) {
   video_frame->frame_id = openscreen::cast::FrameId(1);
   video_frame->referenced_frame_id = video_frame->frame_id;
   video_frame->reference_time = base::TimeTicks::Now();
+  video_frame->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             video_sender().EnqueueFrame(std::move(video_frame)));
 }
@@ -201,6 +181,8 @@ TEST_F(OpenscreenFrameSenderTest, RecordsRtpTimestamps) {
   audio_frame->referenced_frame_id = audio_frame->frame_id;
   audio_frame->reference_time = base::TimeTicks::Now();
   audio_frame->rtp_timestamp = kAudioRtpTimestamp;
+  audio_frame->data = base::HeapArray<uint8_t>::WithSize(10);
+
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             audio_sender().EnqueueFrame(std::move(audio_frame)));
   EXPECT_EQ(kAudioRtpTimestamp, audio_sender().GetRecordedRtpTimestamp(
@@ -212,6 +194,7 @@ TEST_F(OpenscreenFrameSenderTest, RecordsRtpTimestamps) {
   video_frame->referenced_frame_id = video_frame->frame_id;
   video_frame->reference_time = base::TimeTicks::Now();
   video_frame->rtp_timestamp = kVideoRtpTimestamp;
+  video_frame->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             video_sender().EnqueueFrame(std::move(video_frame)));
   EXPECT_EQ(kVideoRtpTimestamp, video_sender().GetRecordedRtpTimestamp(
@@ -232,6 +215,7 @@ TEST_F(OpenscreenFrameSenderTest, HandlesReferencingUnknownFrameIds) {
   audio_frame->referenced_frame_id = openscreen::cast::FrameId(1);
   audio_frame->reference_time = base::TimeTicks::Now();
   audio_frame->rtp_timestamp = kAudioRtpTimestamp;
+  audio_frame->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             audio_sender().EnqueueFrame(std::move(audio_frame)));
   EXPECT_EQ(kAudioRtpTimestamp, audio_sender().GetRecordedRtpTimestamp(
@@ -243,6 +227,7 @@ TEST_F(OpenscreenFrameSenderTest, HandlesReferencingUnknownFrameIds) {
   video_frame->referenced_frame_id = openscreen::cast::FrameId(1);
   video_frame->reference_time = base::TimeTicks::Now();
   video_frame->rtp_timestamp = kVideoRtpTimestamp;
+  video_frame->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kNotDropped,
             video_sender().EnqueueFrame(std::move(video_frame)));
   EXPECT_EQ(kVideoRtpTimestamp, video_sender().GetRecordedRtpTimestamp(
@@ -255,6 +240,7 @@ TEST_F(OpenscreenFrameSenderTest, HandlesReferencingUnknownFrameIds) {
   audio_frame_two->referenced_frame_id = openscreen::cast::FrameId(9);
   audio_frame_two->reference_time = base::TimeTicks::Now();
   audio_frame_two->rtp_timestamp = kAudioRtpTimestampTwo;
+  audio_frame_two->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kInvalidReferencedFrameId,
             audio_sender().EnqueueFrame(std::move(audio_frame_two)));
 
@@ -264,22 +250,9 @@ TEST_F(OpenscreenFrameSenderTest, HandlesReferencingUnknownFrameIds) {
   video_frame_two->referenced_frame_id = openscreen::cast::FrameId(2);
   video_frame_two->reference_time = base::TimeTicks::Now();
   video_frame_two->rtp_timestamp = kVideoRtpTimestampTwo;
+  video_frame_two->data = base::HeapArray<uint8_t>::WithSize(10);
   EXPECT_EQ(CastStreamingFrameDropReason::kInvalidReferencedFrameId,
             video_sender().EnqueueFrame(std::move(video_frame_two)));
-}
-
-TEST_F(OpenscreenFrameSenderTest, HandlesSuggestedBitratesCorrectly) {
-  // NOTE: the VideoBitrateSuggester tests this workflow more thoroughly.
-
-  // We should start with the maximum video bitrate.
-  set_suggested_bitrate(5000001);
-  EXPECT_EQ(5000000, video_sender().GetSuggestedBitrate(base::TimeTicks{},
-                                                        base::TimeDelta{}));
-
-  // It should cap at the bitrate suggested by Open Screen.
-  set_suggested_bitrate(4998374);
-  EXPECT_EQ(4998374, video_sender().GetSuggestedBitrate(base::TimeTicks{},
-                                                        base::TimeDelta{}));
 }
 
 }  // namespace media::cast

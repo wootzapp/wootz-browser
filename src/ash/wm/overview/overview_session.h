@@ -15,13 +15,16 @@
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/shell_observer.h"
 #include "ash/wm/desks/desks_controller.h"
+#include "ash/wm/overview/overview_focus_cycler.h"
 #include "ash/wm/overview/overview_types.h"
 #include "ash/wm/overview/scoped_overview_hide_windows.h"
+#include "ash/wm/snap_group/snap_group_observer.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/splitview/split_view_drag_indicators.h"
 #include "ash/wm/splitview/split_view_observer.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/uuid.h"
@@ -51,14 +54,13 @@ namespace ash {
 class BirchBarController;
 class OverviewDelegate;
 class OverviewGrid;
-class OverviewFocusCycler;
-class OverviewFocusCyclerOld;
 class OverviewItem;
 class OverviewItemBase;
 class OverviewWindowDragController;
 class SavedDeskDialogController;
 class SavedDeskPresenter;
 class ScopedFloatContainerStacker;
+class WindowOcclusionCalculator;
 
 // The Overview shows a grid of all of your windows, allowing to select
 // one by clicking or tapping on it.
@@ -67,7 +69,8 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
                                    public ui::EventHandler,
                                    public ShellObserver,
                                    public SplitViewObserver,
-                                   public DesksController::Observer {
+                                   public DesksController::Observer,
+                                   public SnapGroupObserver {
  public:
   explicit OverviewSession(OverviewDelegate* delegate);
 
@@ -77,8 +80,10 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   ~OverviewSession() override;
 
   // Initialize with the windows that can be selected.
-  void Init(const aura::Window::Windows& windows,
-            const aura::Window::Windows& hide_windows);
+  void Init(
+      const aura::Window::Windows& windows,
+      const aura::Window::Windows& hide_windows,
+      base::WeakPtr<WindowOcclusionCalculator> window_occlusion_calculator);
 
   // Perform cleanup that cannot be done in the destructor.
   void Shutdown();
@@ -235,10 +240,9 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   // Called when windows are being activated/deactivated during
   // overview mode.
-  void OnWindowActivating(
-      ::wm::ActivationChangeObserver::ActivationReason reason,
-      aura::Window* gained_active,
-      aura::Window* lost_active);
+  void OnWindowActivating(wm::ActivationChangeObserver::ActivationReason reason,
+                          aura::Window* gained_active,
+                          aura::Window* lost_active);
 
   // Returns true when either the `SavedDeskLibraryView` or
   // `SavedDeskDialog` is the window that is losing activation.
@@ -249,7 +253,7 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   // Returns the window associated with the focused item. Returns null if no
   // item has focus (i.e. desk mini view is focused, or nothing is focused).
-  aura::Window* GetFocusedWindow() const;
+  aura::Window* GetFocusedWindow();
 
   // Suspends/Resumes window re-positiong in overview.
   void SuspendReposition();
@@ -329,6 +333,8 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   void UpdateFrameThrottling();
 
+  base::WeakPtr<OverviewSession> GetWeakPtr();
+
   // DesksController::Observer:
   void OnDeskActivationChanged(const Desk* activated,
                                const Desk* deactivated) override;
@@ -359,7 +365,15 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
                                SplitViewController::State state) override;
   void OnSplitViewDividerPositionChanged() override;
 
+  // SnapGroupObserver:
+  void OnSnapGroupRemoving(SnapGroup* snap_group,
+                           SnapGroupExitPoint exit_pint) override;
+
   OverviewDelegate* delegate() { return delegate_; }
+
+  views::Widget* overview_focus_widget() {
+    return overview_focus_widget_.get();
+  }
 
   bool ignore_activations() const { return ignore_activations_; }
   void set_ignore_activations(bool ignore_activations) {
@@ -397,7 +411,7 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
     return hide_windows_for_saved_desks_grid_.get();
   }
 
-  OverviewFocusCyclerOld* focus_cycler_old() { return focus_cycler_old_.get(); }
+  OverviewFocusCycler* focus_cycler() { return &focus_cycler_; }
 
   SavedDeskPresenter* saved_desk_presenter() {
     return saved_desk_presenter_.get();
@@ -467,9 +481,9 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // because accessibility needs something focused for it to work and we cannot
   // use one of the overview windows otherwise wm::ActivateWindow will not
   // work.
-  // TODO(sammiequon): Focus the grid desks widget if it is always available, or
-  // we may be able to add some mechanism to trigger accessibility events
-  // without a focused window.
+  // TODO: Focus the grid desks widget if it is always available, or we may be
+  // able to add some mechanism to trigger accessibility events without a
+  // focused window.
   std::unique_ptr<views::Widget> overview_focus_widget_;
 
   // True when performing operations that may cause window activations. This is
@@ -485,9 +499,6 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   // The following variables are used for metric collection purposes. All of
   // them refer to this particular overview session and are not cumulative:
-  // The time when overview was started.
-  base::Time overview_start_time_;
-
   // The number of arrow and tab key presses.
   size_t num_key_presses_ = 0;
 
@@ -520,10 +531,7 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
   // windows are not shown via other events for saved desks grid.
   std::unique_ptr<ScopedOverviewHideWindows> hide_windows_for_saved_desks_grid_;
 
-  // A refactor on the focus cycler is underway. See http://b/325335020 for more
-  // details.
-  std::unique_ptr<OverviewFocusCycler> focus_cycler_;
-  std::unique_ptr<OverviewFocusCyclerOld> focus_cycler_old_;
+  OverviewFocusCycler focus_cycler_{this};
 
   // The object responsible to talking to the desk model.
   std::unique_ptr<SavedDeskPresenter> saved_desk_presenter_;
@@ -565,6 +573,7 @@ class ASH_EXPORT OverviewSession : public display::DisplayObserver,
 
   base::ScopedObservation<aura::Window, aura::WindowObserver>
       active_window_before_overview_observation_{this};
+  base::WeakPtrFactory<OverviewSession> weak_ptr_factory_{this};
 };
 
 }  // namespace ash

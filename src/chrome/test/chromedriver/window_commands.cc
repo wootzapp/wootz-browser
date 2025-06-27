@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "base/containers/adapters.h"
+#include "base/containers/flat_set.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -31,7 +32,6 @@
 #include "chrome/test/chromedriver/chrome/chrome_desktop_impl.h"
 #include "chrome/test/chromedriver/chrome/devtools_client.h"
 #include "chrome/test/chromedriver/chrome/geoposition.h"
-#include "chrome/test/chromedriver/chrome/javascript_dialog_manager.h"
 #include "chrome/test/chromedriver/chrome/mobile_emulation_override_manager.h"
 #include "chrome/test/chromedriver/chrome/network_conditions.h"
 #include "chrome/test/chromedriver/chrome/status.h"
@@ -66,6 +66,11 @@ const double kDefaultCookieExpiryTime = 20*365*24*60*60;
 
 // for pointer actions
 enum class PointerActionType { NOT_INITIALIZED, PRESS, MOVE, RELEASE, IDLE };
+
+const base::flat_set<StatusCode> kNavigationHints = {
+    kNoSuchExecutionContext,
+    kAbortedByNavigation,
+};
 
 Status GetMouseButton(const base::Value::Dict& params, MouseButton* button) {
   // Default to left mouse button.
@@ -666,33 +671,36 @@ Status ExecuteWindowCommand(const WindowCommand& command,
   if (status.IsError())
     return status;
 
-  JavaScriptDialogManager* dialog_manager =
-      web_view->GetJavaScriptDialogManager();
-  if (dialog_manager->IsDialogOpen()) {
+  if (web_view->IsDialogOpen()) {
     std::string alert_text;
-    status = dialog_manager->GetDialogMessage(&alert_text);
+    status = web_view->GetDialogMessage(alert_text);
     if (status.IsError())
       return status;
 
-    // Close the dialog depending on the unexpectedalert behaviour set by user
-    // before returning an error, so that subsequent commands do not fail.
-    const std::string& prompt_behavior = session->unhandled_prompt_behavior;
-
-    if (prompt_behavior == ::prompt_behavior::kAccept ||
-        prompt_behavior == ::prompt_behavior::kAcceptAndNotify) {
-      status = dialog_manager->HandleDialog(true, session->prompt_text.get());
-    } else if (prompt_behavior == ::prompt_behavior::kDismiss ||
-               prompt_behavior == ::prompt_behavior::kDismissAndNotify) {
-      status = dialog_manager->HandleDialog(false, session->prompt_text.get());
+    std::string dialog_type;
+    status = web_view->GetTypeOfDialog(dialog_type);
+    if (status.IsError()) {
+      return status;
     }
-    if (status.IsError())
-      return status;
 
-    // For backward compatibility, in legacy mode we always notify.
-    if (!session->w3c_compliant ||
-        prompt_behavior == ::prompt_behavior::kAcceptAndNotify ||
-        prompt_behavior == ::prompt_behavior::kDismissAndNotify ||
-        prompt_behavior == ::prompt_behavior::kIgnore) {
+    PromptHandlerConfiguration prompt_handler_configuration;
+    status = session->unhandled_prompt_behavior.GetConfiguration(
+        dialog_type, prompt_handler_configuration);
+    if (status.IsError()) {
+      return status;
+    }
+
+    if (prompt_handler_configuration.type == PromptHandlerType::kAccept ||
+        prompt_handler_configuration.type == PromptHandlerType::kDismiss) {
+      status = web_view->HandleDialog(
+          prompt_handler_configuration.type == PromptHandlerType::kAccept,
+          session->prompt_text);
+      if (status.IsError()) {
+        return status;
+      }
+    }
+
+    if (prompt_handler_configuration.notify) {
       return Status(kUnexpectedAlertOpen, "{Alert text : " + alert_text + "}");
     }
   }
@@ -719,13 +727,13 @@ Status ExecuteWindowCommand(const WindowCommand& command,
     }
 
     status = command.Run(session, web_view, params, value, &timeout);
-    if (status.code() == kNoSuchExecutionContext) {
+    if (kNavigationHints.contains(status.code())) {
       // Navigation was detected while running the command. Retry.
       continue;
     }
     if (status.code() == kTimeout) {
       // If the command timed out, let WaitForPendingNavigations cancel
-      // the navigation if there is one.
+      // the navigation if there is any.
       continue;
     } else if (status.code() == kUnknownError && web_view->IsNonBlocking() &&
                status.message().find(kTargetClosedMessage) !=
@@ -733,10 +741,11 @@ Status ExecuteWindowCommand(const WindowCommand& command,
       // When pageload strategy is None, new navigation can occur during
       // execution of a command. Retry the command.
       continue;
-    } else if (status.code() == kDisconnected) {
+    } else if (status.code() == kDisconnected ||
+               status.code() == kTargetDetached) {
       // Some commands, like clicking a button or link which closes the window,
-      // may result in a kDisconnected error code. |web_view| may be invalid at
-      // at this point.
+      // may result in a kDisconnected or kTargetDetached error code.
+      // |web_view| may be invalid at this point.
       return status;
     } else if (status.IsError()) {
       // If the command failed while a new page or frame started loading, retry
@@ -765,10 +774,11 @@ Status ExecuteWindowCommand(const WindowCommand& command,
   if (status.code() == kUnexpectedAlertOpen_Keep) {
     return Status(kUnexpectedAlertOpen, status.message());
   }
-  if (status.code() == kNoSuchExecutionContext) {
+  if (kNavigationHints.contains(status.code())) {
     // The command has failed to run due to pending navigation three times.
-    // Giving up with an appropriate standard error.
-    return Status{kUnknownError, status};
+    // Returning a "timeout" error because infinite retries would, presumably,
+    // never end.
+    return Status{kTimeout, status};
   }
   return status;
 }
@@ -818,9 +828,8 @@ Status ExecuteExecuteScript(Session* session,
                                    session->script_timeout, value);
   switch (status.code()) {
     case kTimeout:
-    // Navigation has happened during script execution. Further wait would lead
-    // to timeout.
-    case kNavigationDetectedByRemoteEnd:
+    // If the target has been detached the script will never return
+    case kTargetDetached:
       return Status(kScriptTimeout);
     default:
       return status;
@@ -852,7 +861,7 @@ Status ExecuteExecuteAsyncScript(Session* session,
     case kTimeout:
     // Navigation has happened during script execution. Further wait would lead
     // to timeout.
-    case kNavigationDetectedByRemoteEnd:
+    case kAbortedByNavigation:
       return Status(kScriptTimeout);
     default:
       return status;
@@ -881,8 +890,8 @@ Status ExecuteNewWindow(Session* session,
                                        : Chrome::WindowType::kTab;
 
   std::string handle;
-  Status status =
-      session->chrome->NewWindow(session->window, window_type, &handle);
+  Status status = session->chrome->NewWindow(session->window, window_type, true,
+                                             session->w3c_compliant, &handle);
 
   if (status.IsError())
     return status;
@@ -914,7 +923,8 @@ Status ExecuteSwitchToFrame(Session* session,
   base::Value::List args;
   const base::Value::Dict* id_dict = id->GetIfDict();
   if (id_dict) {
-    const std::string* element_id = id_dict->FindString(GetElementKey());
+    const std::string* element_id =
+        id_dict->FindString(GetElementKey(session->w3c_compliant));
     if (!element_id)
       return Status(kInvalidArgument, "missing 'ELEMENT'");
     bool is_displayed = false;
@@ -1495,14 +1505,29 @@ Status ProcessInputActionSequence(Session* session,
           action_dict.Set("button", button_str);
         }
       } else if (*subtype == "pointerMove" || *subtype == "scroll") {
-        std::optional<int> x = action_item.FindInt("x");
-        if (!x.has_value())
-          return Status(kInvalidArgument, "'x' must be an int");
-        std::optional<int> y = action_item.FindInt("y");
-        if (!y.has_value())
-          return Status(kInvalidArgument, "'y' must be an int");
-        action_dict.Set("x", *x);
-        action_dict.Set("y", *y);
+        if (*subtype == "scroll") {
+          std::optional<int> x = action_item.FindInt("x");
+          if (!x.has_value()) {
+            return Status(kInvalidArgument, "'x' must be an int");
+          }
+          std::optional<int> y = action_item.FindInt("y");
+          if (!y.has_value()) {
+            return Status(kInvalidArgument, "'y' must be an int");
+          }
+          action_dict.Set("x", *x);
+          action_dict.Set("y", *y);
+        } else {
+          std::optional<double> x = action_item.FindDouble("x");
+          if (!x.has_value()) {
+            return Status(kInvalidArgument, "'x' must be a number");
+          }
+          std::optional<double> y = action_item.FindDouble("y");
+          if (!y.has_value()) {
+            return Status(kInvalidArgument, "'y' must be a number");
+          }
+          action_dict.Set("x", *x);
+          action_dict.Set("y", *y);
+        }
 
         const base::Value* origin_val = action_item.Find("origin");
         if (origin_val) {
@@ -1512,13 +1537,13 @@ Status ProcessInputActionSequence(Session* session,
               return Status(kInvalidArgument,
                             "'origin' must be either a string or a dictionary");
             const std::string* element_id =
-                origin_dict->FindString(GetElementKey());
+                origin_dict->FindString(GetElementKey(session->w3c_compliant));
             if (!element_id)
               return Status(kInvalidArgument, "'element' is missing");
             base::Value* origin_result =
                 action_dict.Set("origin", base::Value(base::Value::Type::DICT));
-            origin_result->GetDict().SetByDottedPath(GetElementKey(),
-                                                     *element_id);
+            origin_result->GetDict().SetByDottedPath(
+                GetElementKey(session->w3c_compliant), *element_id);
           } else {
             const std::string& origin = origin_val->GetString();
             if (origin != "viewport" && origin != "pointer")
@@ -1777,7 +1802,9 @@ Status ExecutePerformActions(Session* session,
               if (const base::Value* origin_val = action.Find("origin")) {
                 if (const base::Value::Dict* origin_dict =
                         origin_val->GetIfDict()) {
-                  GetOptionalString(*origin_dict, GetElementKey(), &element_id);
+                  GetOptionalString(*origin_dict,
+                                    GetElementKey(session->w3c_compliant),
+                                    &element_id);
                   if (!element_id.empty()) {
                     int center_x = 0, center_y = 0;
                     Status status = ElementInViewCenter(
@@ -2950,5 +2977,61 @@ Status ExecuteClearDevicePosture(Session* session,
                                  std::unique_ptr<base::Value>* value,
                                  Timeout* timeout) {
   return web_view->SendCommand("Emulation.clearDevicePostureOverride",
+                               base::Value::Dict());
+}
+
+Status ExecuteSetDisplayFeatures(Session* session,
+                                 WebView* web_view,
+                                 const base::Value::Dict& params,
+                                 std::unique_ptr<base::Value>* value,
+                                 Timeout* timeout) {
+  bool has_value;
+  const base::Value::List* features_list = nullptr;
+  if (!GetOptionalList(params, "features", &features_list, &has_value)) {
+    return Status(kInvalidArgument, "'features' must be an array");
+  }
+
+  if (!has_value) {
+    return Status(kInvalidArgument, "'features' must have a value");
+  }
+
+  for (const base::Value& feature : *features_list) {
+    if (!feature.is_dict()) {
+      return Status(kInvalidArgument, "a feature must be a dictionary");
+    }
+    const auto& feature_dict = feature.GetDict();
+    std::optional<int> mask = feature_dict.FindInt("maskLength");
+    if (!mask) {
+      return Status(kInvalidArgument,
+                    "a feature must contain the maskLength attribute");
+    } else if (mask.value() < 0) {
+      return Status(kInvalidArgument,
+                    "a feature must have a positive maskLength attribute");
+    }
+
+    std::optional<int> offset = feature_dict.FindInt("offset");
+    if (!offset) {
+      return Status(kInvalidArgument,
+                    "a feature must contain the offset attribute");
+    } else if (offset.value() < 0) {
+      return Status(kInvalidArgument,
+                    "a feature must have a positive offset attribute");
+    }
+
+    const std::string* orientation = feature_dict.FindString("orientation");
+    if (!orientation) {
+      return Status(kInvalidArgument,
+                    "a feature must contain the orientation attribute");
+    }
+  }
+  return web_view->SendCommand("Emulation.setDisplayFeaturesOverride", params);
+}
+
+Status ExecuteClearDisplayFeatures(Session* session,
+                                   WebView* web_view,
+                                   const base::Value::Dict& params,
+                                   std::unique_ptr<base::Value>* value,
+                                   Timeout* timeout) {
+  return web_view->SendCommand("Emulation.clearDisplayFeaturesOverride",
                                base::Value::Dict());
 }

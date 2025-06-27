@@ -34,9 +34,12 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.view.MarginLayoutParamsCompat;
 
+import org.chromium.base.ResettersForTesting;
 import org.chromium.chrome.browser.autofill.R;
 import org.chromium.chrome.browser.autofill.editors.EditorProperties.FieldItem;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
@@ -55,7 +58,6 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * The editor dialog. Can be used for editing contact information, shipping address, billing
@@ -79,7 +81,7 @@ public class EditorDialogView extends AlwaysDismissedDialog
     @Nullable private static EditorObserverForTest sObserverForTest;
 
     private final Activity mActivity;
-    private final HelpAndFeedbackLauncher mHelpLauncher;
+    private final Profile mProfile;
     private final Handler mHandler;
     private final int mHalfRowMargin;
     private final List<FieldView> mFieldViews;
@@ -113,15 +115,18 @@ public class EditorDialogView extends AlwaysDismissedDialog
     /**
      * Builds the editor dialog.
      *
-     * @param activity             The activity on top of which the UI should be displayed.
-     * @param helpLauncher         The launcher of user help activity.
+     * @param activity The activity on top of which the UI should be displayed.
+     * @param profile The Profile being edited.
      */
-    public EditorDialogView(Activity activity, HelpAndFeedbackLauncher helpLauncher) {
-        super(activity, R.style.ThemeOverlay_BrowserUI_Fullscreen);
+    public EditorDialogView(Activity activity, Profile profile) {
+        super(
+                activity,
+                R.style.ThemeOverlay_BrowserUI_Fullscreen,
+                EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled());
         // Sets transparent background for animating content view.
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         mActivity = activity;
-        mHelpLauncher = helpLauncher;
+        mProfile = profile;
         mHandler = new Handler();
         mIsDismissed = false;
 
@@ -278,10 +283,11 @@ public class EditorDialogView extends AlwaysDismissedDialog
                             handleDelete();
                         }
                     } else if (item.getItemId() == R.id.help_menu_id) {
-                        mHelpLauncher.show(
-                                mActivity,
-                                mActivity.getString(R.string.help_context_autofill),
-                                null);
+                        HelpAndFeedbackLauncherFactory.getForProfile(mProfile)
+                                .show(
+                                        mActivity,
+                                        mActivity.getString(R.string.help_context_autofill),
+                                        null);
                     }
                     return true;
                 });
@@ -305,18 +311,6 @@ public class EditorDialogView extends AlwaysDismissedDialog
                 .getViewTreeObserver()
                 .addOnScrollChangedListener(
                         SettingsUtils.getShowShadowOnScrollListener(scrollView, shadow));
-    }
-
-    /** @return The validatable item for the given view. */
-    @Nullable
-    private FieldView getTextFieldView(View v) {
-        if (v instanceof TextView && v.getParent() != null && v.getParent() instanceof FieldView) {
-            return (FieldView) v.getParent();
-        } else if (v instanceof Spinner && v.getTag() != null) {
-            return (FieldView) v.getTag();
-        } else {
-            return null;
-        }
     }
 
     @Override
@@ -425,15 +419,14 @@ public class EditorDialogView extends AlwaysDismissedDialog
             }
 
             if (useFullLine || isLastField) {
-                addFieldViewToEditor(mContentView, fieldItem, showRequiredIndicator);
+                addFieldViewToEditor(mContentView, fieldItem);
             } else {
                 // Create a LinearLayout to put it and the next view side by side.
                 LinearLayout rowLayout = new LinearLayout(mActivity);
                 mContentView.addView(rowLayout);
 
-                View firstView = addFieldViewToEditor(rowLayout, fieldItem, showRequiredIndicator);
-                View lastView =
-                        addFieldViewToEditor(rowLayout, nextFieldItem, showRequiredIndicator);
+                View firstView = addFieldViewToEditor(rowLayout, fieldItem);
+                View lastView = addFieldViewToEditor(rowLayout, nextFieldItem);
 
                 LinearLayout.LayoutParams firstParams =
                         (LinearLayout.LayoutParams) firstView.getLayoutParams();
@@ -484,8 +477,7 @@ public class EditorDialogView extends AlwaysDismissedDialog
         }
     }
 
-    private View addFieldViewToEditor(
-            ViewGroup parent, final FieldItem fieldItem, boolean showRequiredIndicator) {
+    private View addFieldViewToEditor(ViewGroup parent, final FieldItem fieldItem) {
         View childView = null;
 
         switch (fieldItem.type) {
@@ -579,10 +571,11 @@ public class EditorDialogView extends AlwaysDismissedDialog
                 () -> {
                     List<FieldView> invalidViews = new ArrayList<>();
                     if (mValidateOnShow) {
-                        invalidViews =
-                                mFieldViews.stream()
-                                        .filter(view -> !view.validate())
-                                        .collect(Collectors.toList());
+                        for (FieldView view : mFieldViews) {
+                            if (!view.validate()) {
+                                invalidViews.add(view);
+                            }
+                        }
                     }
 
                     // If TalkBack is enabled, we want to keep the focus at the top
@@ -676,6 +669,7 @@ public class EditorDialogView extends AlwaysDismissedDialog
         sObserverForTest = observerForTest;
         DropdownFieldView.setEditorObserverForTest(sObserverForTest);
         TextFieldView.setEditorObserverForTest(sObserverForTest);
+        ResettersForTesting.register(() -> sObserverForTest = null);
     }
 
     private Drawable getTintedBackIcon() {

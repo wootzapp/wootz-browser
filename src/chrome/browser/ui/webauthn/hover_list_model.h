@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/check.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/vector_icon_types.h"
 
@@ -31,6 +30,7 @@ class HoverListModel {
   // This is distinct from using an empty icon as the latter will still take up
   // as much space as any other icon.
   virtual ui::ImageModel GetItemIcon(int item_tag) const = 0;
+  virtual bool IsButtonEnabled(int item_tag) const = 0;
   virtual void OnListItemSelected(int item_tag) = 0;
   virtual size_t GetPreferredItemCount() const = 0;
 };

@@ -6,8 +6,8 @@
 
 #include <drm_fourcc.h>
 
+#include "base/files/platform_file.h"
 #include "base/logging.h"
-#include "build/chromeos_buildflags.h"
 #include "media/media_buildflags.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/ozone/platform/drm/common/scoped_drm_types.h"
@@ -39,9 +39,8 @@ uint32_t OverlayTransformToDrmRotationPropertyValue(
     case gfx::OVERLAY_TRANSFORM_FLIP_VERTICAL_CLOCKWISE_90:
     case gfx::OVERLAY_TRANSFORM_FLIP_VERTICAL_CLOCKWISE_270:
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  return 0;
 }
 
 // Rotations are dependent on modifiers. Tiled formats can be rotated,
@@ -104,6 +103,7 @@ bool HardwareDisplayPlaneAtomic::AssignPlaneProps(
     const gfx::Rect& src_rect,
     const gfx::Rect& damage_rect,
     const gfx::OverlayTransform transform,
+    const gfx::ColorSpace& color_space,
     int in_fence_fd,
     uint32_t format_fourcc,
     bool is_original_buffer) {
@@ -150,6 +150,13 @@ bool HardwareDisplayPlaneAtomic::AssignPlaneProps(
     assigned_props_.plane_fb_damage_clips.value = dmg_clip_blob->id();
   }
 
+  if (assigned_props_.plane_color_encoding.id) {
+    assigned_props_.plane_color_encoding.value =
+        color_space.GetMatrixID() == gfx::ColorSpace::MatrixID::BT709
+            ? color_encoding_bt709_
+            : color_encoding_bt601_;
+  }
+
   if (assigned_props_.in_fence_fd.id)
     assigned_props_.in_fence_fd.value = static_cast<uint64_t>(in_fence_fd);
 
@@ -185,10 +192,9 @@ bool HardwareDisplayPlaneAtomic::SetPlaneProps(drmModeAtomicReq* property_set) {
   }
 
   if (assigned_props_.plane_color_encoding.id) {
-    // TODO(markyacoub): |color_encoding_bt601_| and |color_range_limited_| are
-    // only set in Initialize(). The properties could be set once in there and
-    // these member variables could be removed.
-    assigned_props_.plane_color_encoding.value = color_encoding_bt601_;
+    // TODO(markyacoub): |color_range_limited_| is only set in Initialize(). The
+    // properties could be set once in there and these member variables could be
+    // removed.
     assigned_props_.plane_color_range.value = color_range_limited_;
     plane_set_succeeded &= AddPropertyIfValid(
         property_set, id_, assigned_props_.plane_color_encoding);
@@ -204,6 +210,14 @@ bool HardwareDisplayPlaneAtomic::SetPlaneProps(drmModeAtomicReq* property_set) {
   // Update properties_ if the setting the props succeeded.
   properties_ = assigned_props_;
   return true;
+}
+
+void HardwareDisplayPlaneAtomic::AssignDisableProps() {
+  set_in_use(false);
+  set_owning_crtc(0);
+  AssignPlaneProps(nullptr, 0, 0, gfx::Rect(), gfx::Rect(), gfx::Rect(),
+                   gfx::OVERLAY_TRANSFORM_NONE, gfx::ColorSpace(),
+                   base::kInvalidPlatformFile, DRM_FORMAT_INVALID, false);
 }
 
 uint32_t HardwareDisplayPlaneAtomic::AssignedCrtcId() const {

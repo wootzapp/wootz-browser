@@ -55,7 +55,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, Sanity) {
   ASSERT_TRUE(SetupSync());
   EXPECT_EQ(
       0u,
-      GetFakeServer()->GetSyncEntitiesByModelType(syncer::USER_EVENTS).size());
+      GetFakeServer()->GetSyncEntitiesByDataType(syncer::USER_EVENTS).size());
   syncer::UserEventService* event_service =
       browser_sync::UserEventServiceFactory::GetForProfile(GetProfile(0));
   const UserEventSpecifics specifics = CreateTestEvent(base::Time());
@@ -86,7 +86,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, RetrySequential) {
   UserEventSpecifics retry_specifics;
   GetFakeServer()->OverrideResponseType(base::BindLambdaForTesting(
       [&](const syncer::LoopbackServerEntity& entity) {
-        if (entity.GetModelType() == syncer::USER_EVENTS) {
+        if (entity.GetDataType() == syncer::USER_EVENTS) {
           retry_specifics = entity.GetSpecifics().user_event();
           run_loop.Quit();
         }
@@ -118,7 +118,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, RetryParallel) {
   bool first_attempt = true;
   GetFakeServer()->OverrideResponseType(base::BindLambdaForTesting(
       [&](const syncer::LoopbackServerEntity& entity) {
-        if (entity.GetModelType() != syncer::USER_EVENTS ||
+        if (entity.GetDataType() != syncer::USER_EVENTS ||
             entity.GetSpecifics().user_event().event_time_usec() !=
                 specifics1.event_time_usec()) {
           return CommitResponse::SUCCESS;
@@ -186,7 +186,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, NoSessions) {
 
   event_service->RecordUserEvent(specifics);
 
-  // PROXY_TABS shouldn't affect us in any way.
+  // UserSelectableType::kTabs shouldn't affect UserEvents in any way.
   EXPECT_TRUE(ExpectUserEvents({specifics}));
 }
 
@@ -210,7 +210,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, Encryption) {
   // something else through the system that we can wait on before checking.
   // Tab/SESSIONS data was picked fairly arbitrarily, note that we expect 2
   // entries, one for the window/header and one for the tab.
-  sessions_helper::OpenTab(0, GURL("http://www.one.com/"));
+  sessions_helper::OpenTab(0, GURL("https://www.one.com/"));
   EXPECT_TRUE(ServerCountMatchStatusChecker(syncer::SESSIONS, 2).Wait());
   EXPECT_TRUE(ExpectUserEvents({test_event1}));
 }
@@ -239,7 +239,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest,
   // because it may simply not have reached the server yet. So let's send
   // something else through the system that we can wait on before checking.
   ASSERT_TRUE(
-      bookmarks_helper::AddURL(0, "What are you syncing about?",
+      bookmarks_helper::AddURL(0, u"What are you syncing about?",
                                GURL("https://google.com/synced-bookmark-1")));
   ASSERT_TRUE(ServerCountMatchStatusChecker(syncer::BOOKMARKS, 1).Wait());
 
@@ -279,7 +279,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserEventsSyncTest, NoQuotaApplied) {
   // Make sure the histogram gets propagated from the sync engine sequence.
   base::StatisticsRecorder::ImportProvidedHistogramsSync();
   // There is no record in the depleted quota histogram.
-  histogram_tester.ExpectTotalCount("Sync.ModelTypeCommitWithDepletedQuota", 0);
+  histogram_tester.ExpectTotalCount("Sync.DataTypeCommitWithDepletedQuota", 0);
 }
 
 }  // namespace

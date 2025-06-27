@@ -33,7 +33,7 @@ void GPUComputePassEncoder::setBindGroup(
 void GPUComputePassEncoder::setBindGroup(
     uint32_t index,
     GPUBindGroup* bind_group,
-    NADCTypedArrayView<uint32_t> dynamic_offsets_data,
+    base::span<const uint32_t> dynamic_offsets_data,
     uint64_t dynamic_offsets_data_start,
     uint32_t dynamic_offsets_data_length,
     ExceptionState& exception_state) {
@@ -43,12 +43,13 @@ void GPUComputePassEncoder::setBindGroup(
     return;
   }
 
-  const uint32_t* data =
-      dynamic_offsets_data.Data() + dynamic_offsets_data_start;
+  const base::span<const uint32_t> data_span = dynamic_offsets_data.subspan(
+      base::checked_cast<size_t>(dynamic_offsets_data_start),
+      dynamic_offsets_data_length);
 
   GetHandle().SetBindGroup(
       index, bind_group ? bind_group->GetHandle() : wgpu::BindGroup(nullptr),
-      dynamic_offsets_data_length, data);
+      data_span.size(), data_span.data());
 }
 
 void GPUComputePassEncoder::writeTimestamp(
@@ -57,12 +58,12 @@ void GPUComputePassEncoder::writeTimestamp(
     ExceptionState& exception_state) {
   V8GPUFeatureName::Enum requiredFeatureEnum =
       V8GPUFeatureName::Enum::kChromiumExperimentalTimestampQueryInsidePasses;
-  if (!device_->features()->has(requiredFeatureEnum)) {
+  if (!device_->features()->Has(requiredFeatureEnum)) {
     exception_state.ThrowTypeError(String::Format(
         "Use of the writeTimestamp() method on compute pass requires the '%s' "
         "feature to be enabled on %s.",
         V8GPUFeatureName(requiredFeatureEnum).AsCStr(),
-        device_->formattedLabel().c_str()));
+        device_->GetFormattedLabel().c_str()));
     return;
   }
   GetHandle().WriteTimestamp(querySet->GetHandle(), queryIndex);

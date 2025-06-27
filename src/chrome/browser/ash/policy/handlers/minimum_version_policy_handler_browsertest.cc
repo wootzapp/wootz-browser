@@ -23,7 +23,7 @@
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "chrome/browser/ash/login/app_mode/kiosk_launch_controller.h"
+#include "chrome/browser/ash/app_mode/kiosk_test_helper.h"
 #include "chrome/browser/ash/login/app_mode/test/kiosk_apps_mixin.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/login_manager_test.h"
@@ -34,7 +34,6 @@
 #include "chrome/browser/ash/login/test/oobe_screen_exit_waiter.h"
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
 #include "chrome/browser/ash/login/test/user_policy_mixin.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/ash/policy/core/device_policy_builder.h"
@@ -48,6 +47,7 @@
 #include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -68,6 +68,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
@@ -90,7 +91,7 @@ constexpr base::TimeDelta kLongWarning = base::Days(kLongWarningInDays);
 constexpr base::TimeDelta kVeryLongWarning = base::Days(kVeryLongWarningInDays);
 const char kPublicSessionId[] = "demo@example.com";
 const char kManagedUserId[] = "user@example.com";
-const char kManagedUserGaiaId[] = "11111";
+const GaiaId::Literal kManagedUserGaiaId("11111");
 const char kUpdateRequiredNotificationId[] = "policy.update_required";
 const char kWifiServicePath[] = "/service/wifi2";
 const char kCellularServicePath[] = "/service/cellular1";
@@ -195,7 +196,7 @@ class MinimumVersionPolicyTest : public MinimumVersionPolicyTestBase {
     display_service_tester_ =
         std::make_unique<NotificationDisplayServiceTester>(nullptr /*profile*/);
     network_state_test_helper_ = std::make_unique<ash::NetworkStateTestHelper>(
-        false /*use_default_devices_and_services*/);
+        /*use_default_devices_and_services=*/false);
     network_state_test_helper_->manager_test()->SetupDefaultEnvironment();
     tray_test_api_ = ash::SystemTrayTestApi::Create();
   }
@@ -762,7 +763,7 @@ IN_PROC_BROWSER_TEST_F(MinimumVersionNoUsersLoginTest,
 
 class MinimumVersionPolicyPresentTest : public MinimumVersionPolicyTestBase {
  public:
-  MinimumVersionPolicyPresentTest() {}
+  MinimumVersionPolicyPresentTest() = default;
   ~MinimumVersionPolicyPresentTest() override = default;
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -807,7 +808,7 @@ IN_PROC_BROWSER_TEST_F(MinimumVersionExistingUserTest, DeadlineReached) {
 
 class MinimumVersionBeforeLoginHost : public MinimumVersionExistingUserTest {
  public:
-  MinimumVersionBeforeLoginHost() {}
+  MinimumVersionBeforeLoginHost() = default;
   ~MinimumVersionBeforeLoginHost() override = default;
 
   bool SetUpUserDataDirectory() override {
@@ -838,7 +839,7 @@ IN_PROC_BROWSER_TEST_F(MinimumVersionBeforeLoginHost, DeadlineReached) {
 class MinimumVersionPublicSessionAutoLoginTest
     : public MinimumVersionExistingUserTest {
  public:
-  MinimumVersionPublicSessionAutoLoginTest() {}
+  MinimumVersionPublicSessionAutoLoginTest() = default;
   ~MinimumVersionPublicSessionAutoLoginTest() override = default;
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -889,7 +890,7 @@ class MinimumVersionKioskAutoLoginTest : public MinimumVersionExistingUserTest {
 
  private:
   base::AutoReset<bool> block_kiosk_launcher_exit_on_failure_ =
-      ash::KioskLaunchController::BlockExitOnFailureForTesting();
+      ash::KioskTestHelper::BlockExitOnFailure();
 };
 
 // Checks kiosk auto launch is not blocked even if immediate update is required
@@ -969,7 +970,7 @@ class MinimumVersionPolicyChildUser : public MinimumVersionPolicyTestBase {
  private:
   const ash::LoginManagerMixin::TestUserInfo child_user{
       AccountId::FromUserEmailGaiaId(ash::test::kTestEmail,
-                                     ash::test::kTestGaiaId)};
+                                     GaiaId(ash::test::kTestGaiaId))};
   ash::UserPolicyMixin user_policy_mixin_{&mixin_host_, child_user.account_id};
   FakeGaiaMixin fake_gaia_{&mixin_host_};
   ash::LoginManagerMixin login_manager_{&mixin_host_, {}, &fake_gaia_};

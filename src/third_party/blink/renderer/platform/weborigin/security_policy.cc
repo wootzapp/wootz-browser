@@ -147,8 +147,7 @@ Referrer SecurityPolicy::GenerateReferrer(
     case network::mojom::ReferrerPolicy::kNoReferrerWhenDowngrade:
       break;
     case network::mojom::ReferrerPolicy::kDefault:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   return Referrer(ShouldHideReferrer(url, referrer_url) ? Referrer::NoReferrer()
@@ -291,8 +290,7 @@ String SecurityPolicy::ReferrerPolicyAsString(
     case network::mojom::ReferrerPolicy::kStrictOriginWhenCrossOrigin:
       return "strict-origin-when-cross-origin";
   }
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 namespace {
@@ -323,11 +321,10 @@ bool SecurityPolicy::ReferrerPolicyFromHeaderValue(
     } else {
       Vector<UChar> characters;
       stripped_token.AppendTo(characters);
-      const UChar* position = characters.data();
-      UChar* end = characters.data() + characters.size();
-      SkipWhile<UChar, IsASCIIAlphaOrHyphen>(position, end);
-      if (position != end)
+      if (SkipWhile<UChar, IsASCIIAlphaOrHyphen>(characters, 0) !=
+          characters.size()) {
         return false;
+      }
     }
   }
 

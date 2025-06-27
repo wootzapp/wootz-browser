@@ -63,7 +63,7 @@ TEST_F(UserMetricsRecorderTest, VerifyIsUserInActiveDesktopEnvironmentValues) {
   EXPECT_FALSE(test_api().IsUserInActiveDesktopEnvironment());
 
   // Environment is active after login.
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   ASSERT_TRUE(session->IsActiveUserSessionStarted());
   EXPECT_TRUE(test_api().IsUserInActiveDesktopEnvironment());
 
@@ -74,17 +74,9 @@ TEST_F(UserMetricsRecorderTest, VerifyIsUserInActiveDesktopEnvironmentValues) {
   EXPECT_FALSE(test_api().IsUserInActiveDesktopEnvironment());
 
   // Kiosk logins are not considered active.
-  client->Reset();
-  client->AddUserSession("app@kiosk-apps.device-local.localhost",
-                         user_manager::UserType::kKioskApp);
-  client->SetSessionState(session_manager::SessionState::ACTIVE);
-  EXPECT_FALSE(test_api().IsUserInActiveDesktopEnvironment());
-
-  // Arc kiosk logins are not considered active.
-  client->Reset();
-  client->AddUserSession("app@arc-kiosk-apps.device-local.localhost",
-                         user_manager::UserType::kArcKioskApp);
-  client->SetSessionState(session_manager::SessionState::ACTIVE);
+  ClearLogin();
+  SimulateUserLogin({"app@kiosk-apps.device-local.localhost",
+                     user_manager::UserType::kKioskApp});
   EXPECT_FALSE(test_api().IsUserInActiveDesktopEnvironment());
 }
 
@@ -104,7 +96,7 @@ TEST_F(UserMetricsRecorderTest,
 // recorded when a user is active in a desktop environment.
 TEST_F(UserMetricsRecorderTest,
        VerifyStatsRecordedWhenUserInActiveDesktopEnvironment) {
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   ASSERT_TRUE(test_api().IsUserInActiveDesktopEnvironment());
   test_api().RecordPeriodicMetrics();
 
@@ -116,7 +108,7 @@ TEST_F(UserMetricsRecorderTest,
 // Verify the shelf item counts recorded by the
 // UserMetricsRecorder::RecordPeriodicMetrics() method.
 TEST_F(UserMetricsRecorderTest, ValuesRecordedByRecordShelfItemCounts) {
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
 
   // Make sure the shelf model is empty at first.
   ShelfModel* shelf_model = ShelfModel::Get();

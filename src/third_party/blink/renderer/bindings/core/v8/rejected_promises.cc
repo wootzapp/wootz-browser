@@ -75,7 +75,7 @@ class RejectedPromises::Message final {
         sanitize_script_errors_ == SanitizeScriptErrors::kDoNotSanitize) {
       PromiseRejectionEventInit* init = PromiseRejectionEventInit::Create();
       init->setPromise(
-          ScriptPromiseUntyped(script_state_->GetIsolate(), promise));
+          MemberScriptPromise<IDLAny>(script_state_->GetIsolate(), promise));
       init->setReason(ScriptValue(script_state_->GetIsolate(), reason));
       init->setCancelable(true);
       PromiseRejectionEvent* event = PromiseRejectionEvent::Create(
@@ -122,7 +122,7 @@ class RejectedPromises::Message final {
         sanitize_script_errors_ == SanitizeScriptErrors::kDoNotSanitize) {
       PromiseRejectionEventInit* init = PromiseRejectionEventInit::Create();
       init->setPromise(
-          ScriptPromiseUntyped(script_state_->GetIsolate(), promise));
+          MemberScriptPromise<IDLAny>(script_state_->GetIsolate(), promise));
       init->setReason(ScriptValue(script_state_->GetIsolate(), reason));
       PromiseRejectionEvent* event = PromiseRejectionEvent::Create(
           script_state_, event_type_names::kRejectionhandled, init);
@@ -203,11 +203,12 @@ void RejectedPromises::RejectedWithNoHandler(
 void RejectedPromises::HandlerAdded(v8::PromiseRejectMessage data) {
   // First look it up in the pending messages and fast return, it'll be covered
   // by processQueue().
-  for (auto* it = queue_.begin(); it != queue_.end(); ++it) {
-    if (!(*it)->IsCollected() && (*it)->HasPromise(data.GetPromise())) {
-      queue_.erase(it);
-      return;
-    }
+  auto it = std::find_if(queue_.begin(), queue_.end(), [&data](auto& message) {
+    return !message->IsCollected() && message->HasPromise(data.GetPromise());
+  });
+  if (it != queue_.end()) {
+    queue_.erase(it);
+    return;
   }
 
   // Then look it up in the reported errors.
@@ -259,7 +260,7 @@ void RejectedPromises::ProcessQueue() {
 
 void RejectedPromises::ProcessQueueNow(MessageQueue queue) {
   // Remove collected handlers.
-  auto* new_end = std::remove_if(
+  auto new_end = std::remove_if(
       reported_as_errors_.begin(), reported_as_errors_.end(),
       [](const auto& message) { return message->IsCollected(); });
   reported_as_errors_.Shrink(

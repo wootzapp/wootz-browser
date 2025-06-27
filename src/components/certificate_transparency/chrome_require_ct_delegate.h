@@ -7,12 +7,13 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/component_export.h"
 #include "components/url_matcher/url_matcher.h"
 #include "net/base/hash_value.h"
-#include "net/http/transport_security_state.h"
+#include "net/cert/require_ct_delegate.h"
 
 namespace net {
 class X509Certificate;
@@ -33,27 +34,29 @@ namespace certificate_transparency {
 // can be provided via |UpdateCTPolicies()|, which uses the configuration
 // syntax documented in pref_names.h for each of the options.
 class COMPONENT_EXPORT(CERTIFICATE_TRANSPARENCY) ChromeRequireCTDelegate
-    : public net::TransportSecurityState::RequireCTDelegate {
+    : public net::RequireCTDelegate {
  public:
   explicit ChromeRequireCTDelegate();
 
   ChromeRequireCTDelegate(const ChromeRequireCTDelegate&) = delete;
   ChromeRequireCTDelegate& operator=(const ChromeRequireCTDelegate&) = delete;
 
-  ~ChromeRequireCTDelegate() override;
-
   // RequireCTDelegate implementation
   CTRequirementLevel IsCTRequiredForHost(
-      const std::string& hostname,
+      std::string_view hostname,
       const net::X509Certificate* chain,
-      const net::HashValueVector& spki_hashes) override;
+      const net::HashValueVector& spki_hashes) const override;
 
-  // Updates the CTDelegate to exclude |excluded_hosts| from CT policies.  In
-  // addition, this method updates |excluded_spkis| and |excluded_legacy_spkis|
-  // intended for use within an Enterprise (see https://crbug.com/824184).
+  // Updates the CTDelegate to exclude |excluded_hosts| from CT policies. In
+  // addition, this method updates |excluded_spkis| intended for use within an
+  // Enterprise (see https://crbug.com/824184).
+  // TODO(crbug.com/41392053): make these constructor params and remove ability
+  // to update existing object.
   void UpdateCTPolicies(const std::vector<std::string>& excluded_hosts,
-                        const std::vector<std::string>& excluded_spkis,
-                        const std::vector<std::string>& excluded_legacy_spkis);
+                        const std::vector<std::string>& excluded_spkis);
+
+ protected:
+  ~ChromeRequireCTDelegate() override;
 
  private:
   struct Filter {
@@ -63,7 +66,7 @@ class COMPONENT_EXPORT(CERTIFICATE_TRANSPARENCY) ChromeRequireCTDelegate
 
   // Returns true if a policy to disable Certificate Transparency for |hostname|
   // is found.
-  bool MatchHostname(const std::string& hostname) const;
+  bool MatchHostname(std::string_view hostname) const;
 
   // Returns true if a policy to disable Certificate Transparency for |chain|,
   // which contains the SPKI hashes |hashes|, is found.
@@ -85,9 +88,8 @@ class COMPONENT_EXPORT(CERTIFICATE_TRANSPARENCY) ChromeRequireCTDelegate
   base::MatcherStringPattern::ID next_id_;
   std::map<base::MatcherStringPattern::ID, Filter> filters_;
 
-  // Both SPKI lists are sorted.
+  // SPKI list is sorted.
   net::HashValueVector spkis_;
-  net::HashValueVector legacy_spkis_;
 };
 
 }  // namespace certificate_transparency

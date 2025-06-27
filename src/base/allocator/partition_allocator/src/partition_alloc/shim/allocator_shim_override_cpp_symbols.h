@@ -9,7 +9,7 @@
 #ifndef PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_CPP_SYMBOLS_H_
 #define PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_CPP_SYMBOLS_H_
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 // Preempt the default new/delete C++ symbols so they call the shim entry
@@ -22,7 +22,7 @@
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/shim/allocator_shim_internals.h"
 
-#if !BUILDFLAG(IS_APPLE)
+#if !PA_BUILDFLAG(IS_APPLE)
 #define SHIM_CPP_SYMBOLS_EXPORT SHIM_ALWAYS_EXPORT
 #else
 // On Apple OSes, prefer not exporting these symbols (as this reverts to the
@@ -102,17 +102,21 @@ SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p,
 #endif
 }
 
-SHIM_CPP_SYMBOLS_EXPORT void operator delete(void* p, size_t) __THROW {
+SHIM_CPP_SYMBOLS_EXPORT void operator delete(void* p, size_t size) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithSize(p, size);
 #else
   ShimCppDelete(p);
 #endif
 }
 
-SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p, size_t) __THROW {
+SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p, size_t size) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithSize(p, size);
 #else
   ShimCppDelete(p);
 #endif
@@ -137,30 +141,36 @@ SHIM_CPP_SYMBOLS_EXPORT void* operator new(std::size_t size,
 #endif
 }
 
-SHIM_CPP_SYMBOLS_EXPORT void operator delete(void* p,
-                                             std::align_val_t) __THROW {
+SHIM_CPP_SYMBOLS_EXPORT void operator delete(
+    void* p,
+    std::align_val_t alignment) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithAlignment(p, static_cast<size_t>(alignment));
+#else
+  ShimCppDelete(p);
+#endif
+}
+
+SHIM_CPP_SYMBOLS_EXPORT void
+operator delete(void* p, std::size_t size, std::align_val_t alignment) __THROW {
+#if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
+  free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithSizeAndAlignment(p, size, static_cast<size_t>(alignment));
 #else
   ShimCppDelete(p);
 #endif
 }
 
 SHIM_CPP_SYMBOLS_EXPORT void operator delete(void* p,
-                                             std::size_t size,
-                                             std::align_val_t) __THROW {
-#if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
-  free(p);
-#else
-  ShimCppDelete(p);
-#endif
-}
-
-SHIM_CPP_SYMBOLS_EXPORT void operator delete(void* p,
-                                             std::align_val_t,
+                                             std::align_val_t alignment,
                                              const std::nothrow_t&) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithAlignment(p, static_cast<size_t>(alignment));
 #else
   ShimCppDelete(p);
 #endif
@@ -185,30 +195,38 @@ SHIM_CPP_SYMBOLS_EXPORT void* operator new[](std::size_t size,
 #endif
 }
 
-SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p,
-                                               std::align_val_t) __THROW {
+SHIM_CPP_SYMBOLS_EXPORT void operator delete[](
+    void* p,
+    std::align_val_t alignment) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithAlignment(p, static_cast<size_t>(alignment));
+#else
+  ShimCppDelete(p);
+#endif
+}
+
+SHIM_CPP_SYMBOLS_EXPORT void operator delete[](
+    void* p,
+    std::size_t size,
+    std::align_val_t alignment) __THROW {
+#if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
+  free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithSizeAndAlignment(p, size, static_cast<size_t>(alignment));
 #else
   ShimCppDelete(p);
 #endif
 }
 
 SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p,
-                                               std::size_t size,
-                                               std::align_val_t) __THROW {
-#if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
-  free(p);
-#else
-  ShimCppDelete(p);
-#endif
-}
-
-SHIM_CPP_SYMBOLS_EXPORT void operator delete[](void* p,
-                                               std::align_val_t,
+                                               std::align_val_t alignment,
                                                const std::nothrow_t&) __THROW {
 #if PA_BUILDFLAG(FORWARD_THROUGH_MALLOC)
   free(p);
+#elif PA_BUILDFLAG(SHIM_SUPPORTS_SIZED_DEALLOC)
+  ShimCppDeleteWithAlignment(p, static_cast<size_t>(alignment));
 #else
   ShimCppDelete(p);
 #endif

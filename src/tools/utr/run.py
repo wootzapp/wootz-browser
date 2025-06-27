@@ -19,6 +19,8 @@ import argparse
 import logging
 import os
 import pathlib
+import random
+import re
 import sys
 
 import builders
@@ -29,6 +31,15 @@ from rich.logging import RichHandler
 
 _THIS_DIR = pathlib.Path(__file__).resolve().parent
 _SRC_DIR = _THIS_DIR.parents[1]
+
+_SURVEY_LINK = 'https://forms.gle/tA41evzW5goqR5WF9'
+
+
+def maybe_print_survey_link():
+  # Only print the link every 100 runs
+  if random.random() < 0.01:
+    logging.info('Help us improve by sharing your feedback in this short '
+                 'survey: %s' % _SURVEY_LINK)
 
 
 def add_common_args(parser):
@@ -45,16 +56,23 @@ def add_common_args(parser):
                       help='Skip all prompts about config mismatches.')
   parser.add_argument('--test',
                       '-t',
-                      required=True,
                       action='append',
                       default=[],
                       dest='tests',
                       help='Name of test suite(s) to replicate. Pass multiple '
-                      'times for multiple tests.')
+                      'times for multiple tests. Optional with the "compile" '
+                      'run mode which will compile "all".')
   parser.add_argument('--builder',
                       '-b',
                       required=True,
                       help='Name of the builder we want to replicate.')
+  parser.add_argument(
+      '--project',
+      '-p',
+      help="Name of the project of the builder. Note: if you're on a release "
+      'branch, you can exclude the milestone part of the name (eg: you can '
+      'pass "chrome" instead of "chrome-m123"). Will attempt to automatically '
+      'determine if not specified.')
   parser.add_argument(
       '--bucket',
       '-B',
@@ -66,8 +84,8 @@ def add_common_args(parser):
       '-o',
       type=pathlib.Path,
       help='Path to the build dir to use for compilation and/or for invoking '
-      'test binaries. Will use the output path used by the builder if not '
-      'specified (likely //out/Release/).')
+      'test binaries. Will use a build dir in //out/ named after the builder '
+      'if not specified: //out/UTR${{builder_name}}')
   parser.add_argument(
       '--recipe-dir',
       '--recipe-path',
@@ -77,6 +95,26 @@ def add_common_args(parser):
       'a bundle locally, run `./recipes.py bundle` in your desired recipe '
       'checkout. This creates a dir called "bundle" that can be pointed to '
       'with this arg.')
+  parser.add_argument('--reuse-task',
+                      type=str,
+                      help='Ruse the cas digest of the provided swarming task')
+  parser.add_argument(
+      '--no-siso',
+      action='store_true',
+      help='Disables the use of siso ("use_siso" GN arg) in the compile, as '
+      "well as the use of siso when isolating tests. Will use the builder's "
+      'settings if not specified.')
+  # This only applies to test commands but making it common lets us avoid
+  # breaking up flag args with positional args
+  parser.add_argument('--dimension',
+                      '-d',
+                      action='append',
+                      default=[],
+                      dest='dimensions',
+                      help='Custom swarming dimensions to apply to all the '
+                      'tests to be run. These should be in the form '
+                      '"{key}={value}". To remove an existing dimension leave '
+                      'the value empty: "{key}="')
 
 
 def add_compile_args(parser):
@@ -86,10 +124,11 @@ def add_compile_args(parser):
       help='Disables the use of rbe ("use_remoteexec" GN arg) in the compile. '
       "Will use the builder's settings if not specified.")
   parser.add_argument(
-      '--no-siso',
+      '--no-coverage-instrumentation',
       action='store_true',
-      help='Disables the use of siso ("use_siso" GN arg) in the compile. '
-      "Will use the builder's settings if not specified.")
+      help='Skips instrumenting code-coverage, even if the builder is '
+      'configured to instrument. Instrumentation can inflate both build sizes '
+      "and runtimes. But some failures may only occur when it's enabled.")
 
 
 def add_test_args(parser):
@@ -114,22 +153,18 @@ def parse_args(args=None):
   add_common_args(parser)
   subparsers = parser.add_subparsers(dest='run_mode')
 
-  compile_subp = subparsers.add_parser(
-      'compile',
-      aliases=['build'],
-      help='Only compiles. WARNING: this mode is not yet supported.')
+  compile_subp = subparsers.add_parser('compile',
+                                       aliases=['build'],
+                                       help='Only compiles.')
   add_compile_args(compile_subp)
 
-  test_subp = subparsers.add_parser(
-      'test',
-      help='Only run/trigger tests. WARNING: this mode is not yet supported.')
+  test_subp = subparsers.add_parser('test', help='Only run/trigger tests.')
   add_test_args(test_subp)
 
   compile_and_test_subp = subparsers.add_parser(
       'compile-and-test',
       aliases=['build-and-test', 'run'],
-      help='Both compile and run/trigger tests. WARNING: this mode is not yet '
-      'supported.')
+      help='Both compile and run/trigger tests.')
   add_compile_args(compile_and_test_subp)
   add_test_args(compile_and_test_subp)
 
@@ -137,6 +172,31 @@ def parse_args(args=None):
   if not args.run_mode:
     parser.print_help()
     parser.error('Please select a run_mode: compile,test,compile-and-test')
+  if args.reuse_task and args.run_mode != 'test':
+    parser.print_help()
+    parser.error('reuse-task is only compatible with "test"')
+  if args.run_mode == 'compile' and args.dimensions:
+    parser.error(
+        'Dimensions flags (-d) are only applicable to run modes that run '
+        'tests: test or compile-and-test.')
+  if args.dimensions and any(not re.match(r'^[^=]+=.*$', d)
+                             for d in args.dimensions):
+    parser.error('Dimensions flags (-d) must be in the format {key}={value} or '
+                 '{key}= to remove an existing dimenion.')
+  if not args.tests:
+    # Only compile mode should default to compile all
+    if args.run_mode != 'compile':
+      parser.print_help()
+      parser.error('Please provide a test to run')
+  if args.project:
+    if re.fullmatch(r'chromium(-m\d+)?', args.project):
+      args.project = 'chromium'
+    elif re.fullmatch(r'chrome(-m\d+)?', args.project):
+      args.project = 'chrome'
+    else:
+      parser.error(
+          f'Unknown project: "{args.project}". Please select "chrome" or '
+          '"chromium".')
   return args
 
 
@@ -158,20 +218,26 @@ def main():
   else:
     os.environ["PATH"] = str(cipd_bin_path) + os.pathsep + os.environ["PATH"]
 
-  if not recipe.check_rdb_auth():
+  if not recipe.check_luci_context_auth():
     return 1
 
-  builder_props, project = builders.find_builder_props(args.bucket,
-                                                       args.builder)
+  builder_props, project = builders.find_builder_props(
+      args.builder, bucket_name=args.bucket, project_name=args.project)
   if not builder_props:
     return 1
+
+  build_dir = args.build_dir
+  if not args.build_dir:
+    build_dir = _SRC_DIR.joinpath('out', 'UTR' + '_'.join(args.builder.split()))
+    logging.info('[cyan]Using the following build dir:[/]')
+    logging.getLogger('basic_logger').info(build_dir)
+    logging.info('')
 
   if not args.recipe_dir:
     recipes_path = cipd.fetch_recipe_bundle(project,
                                             args.verbosity).joinpath('recipes')
   else:
     recipes_path = args.recipe_dir.joinpath('recipes')
-
   skip_compile = args.run_mode == 'test'
   skip_test = args.run_mode == 'compile'
   recipe_runner = recipe.LegacyRunner(
@@ -184,14 +250,20 @@ def main():
       skip_compile,
       skip_test,
       args.force,
-      args.build_dir,
+      build_dir,
       additional_test_args=None if skip_test else args.additional_test_args,
+      swarming_dimensions=args.dimensions,
+      reuse_task=args.reuse_task,
+      skip_coverage=not skip_compile and args.no_coverage_instrumentation,
+      no_rbe=not skip_compile and args.no_rbe,
+      no_siso=args.no_siso,
   )
   exit_code, error_msg = recipe_runner.run_recipe(
       filter_stdout=args.verbosity < 2)
   if error_msg:
     logging.error('\nUTR failure:')
     logging.error(error_msg)
+  maybe_print_survey_link()
   return exit_code
 
 

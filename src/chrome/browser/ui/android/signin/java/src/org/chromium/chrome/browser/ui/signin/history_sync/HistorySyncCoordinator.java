@@ -4,37 +4,45 @@
 
 package org.chromium.chrome.browser.ui.signin.history_sync;
 
-import android.content.Context;
-import android.content.res.Configuration;
+import android.app.Activity;
 import android.view.LayoutInflater;
-import android.view.View;
+import android.widget.ImageView;
 
 import androidx.annotation.Nullable;
 
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
+import org.chromium.chrome.browser.ui.signin.MinorModeHelper;
 import org.chromium.chrome.browser.ui.signin.R;
+import org.chromium.chrome.browser.ui.signin.SigninUtils;
+import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
+import org.chromium.components.signin.metrics.SyncButtonClicked;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 public class HistorySyncCoordinator {
+
     /*Delegate for the History Sync MVC */
     public interface HistorySyncDelegate {
-        void dismissHistorySync();
+        void dismissHistorySync(boolean isHistorySyncAccepted);
 
-        boolean isLargeScreen();
+        void recordHistorySyncOptIn(
+                @SigninAccessPoint int accessPoint, @SyncButtonClicked int syncButtonType);
     }
 
+    private final Activity mActivity;
+    private final Profile mProfile;
+    private @Nullable HistorySyncView mView;
     private final HistorySyncMediator mMediator;
-    private final HistorySyncDelegate mDelegate;
-    private final boolean mUseLandscapeLayout;
-    private HistorySyncView mView;
+    private boolean mUseLandscapeLayout;
     private PropertyModelChangeProcessor mPropertyModelChangeProcessor;
 
     /**
      * Creates an instance of {@link HistorySyncCoordinator} and shows the sign-in bottom sheet.
      *
-     * @param context The Android {@link Context}.
+     * @param activity The Android {@link Activity} holding the fragment.
      * @param delegate The delegate for this coordinator.
      * @param profile The current profile.
      * @param accessPoint The entry point for the opt-in.
@@ -46,65 +54,105 @@ public class HistorySyncCoordinator {
      *     will inflate its own view.
      */
     public HistorySyncCoordinator(
-            Context context,
+            Activity activity,
             HistorySyncDelegate delegate,
             Profile profile,
+            HistorySyncConfig config,
             @SigninAccessPoint int accessPoint,
             boolean showEmailInFooter,
             boolean shouldSignOutOnDecline,
-            @Nullable View view) {
+            @Nullable HistorySyncView view) {
+        mActivity = activity;
+        mProfile = profile;
+        mView = view;
+
+        mUseLandscapeLayout = SigninUtils.shouldShowDualPanesHorizontalLayout(activity);
         mMediator =
                 new HistorySyncMediator(
-                        context,
+                        activity,
                         delegate,
                         profile,
+                        config,
                         accessPoint,
                         showEmailInFooter,
-                        shouldSignOutOnDecline);
-        mDelegate = delegate;
-        LayoutInflater inflater = LayoutInflater.from(context);
-        mUseLandscapeLayout =
-                !delegate.isLargeScreen()
-                        && context.getResources().getConfiguration().orientation
-                                == Configuration.ORIENTATION_LANDSCAPE;
-        if (view == null) {
-            mView = inflateView(inflater);
-        } else {
-            mView = (HistorySyncView) view;
-            mView.createButtons(mDelegate.isLargeScreen() || mUseLandscapeLayout);
-        }
-        mPropertyModelChangeProcessor =
-                PropertyModelChangeProcessor.create(
-                        mMediator.getModel(), mView, HistorySyncViewBinder::bind);
+                        shouldSignOutOnDecline,
+                        mUseLandscapeLayout);
+
+        setView(view, mUseLandscapeLayout);
         RecordHistogram.recordEnumeratedHistogram(
-                "Signin.HistorySyncOptIn.Started", accessPoint, SigninAccessPoint.MAX);
+                "Signin.HistorySyncOptIn.Started", accessPoint, SigninAccessPoint.MAX_VALUE);
+        MinorModeHelper.resolveMinorMode(
+                IdentityServicesProvider.get().getSigninManager(mProfile).getIdentityManager(),
+                IdentityServicesProvider.get()
+                        .getSigninManager(mProfile)
+                        .getIdentityManager()
+                        .getPrimaryAccountInfo(ConsentLevel.SIGNIN),
+                mMediator::onMinorModeRestrictionStatusUpdated);
     }
 
     public void destroy() {
+        setView(null, false);
+        mMediator.destroy();
+    }
+
+    public HistorySyncView getView() {
+        return mView;
+    }
+
+    /**
+     * Sets the view that is controlled by the coordinator.
+     *
+     * @param view the HistorySyncView for the selected account
+     * @param landscapeLayout whether a landscape layout is used.
+     */
+    public void setView(@Nullable HistorySyncView view, boolean landscapeLayout) {
         if (mPropertyModelChangeProcessor != null) {
             mPropertyModelChangeProcessor.destroy();
             mPropertyModelChangeProcessor = null;
         }
-        mMediator.destroy();
+        if (view != null) {
+            boolean useAlternateIllustration =
+                    ChromeFeatureList.isEnabled(
+                            ChromeFeatureList.USE_ALTERNATE_HISTORY_SYNC_ILLUSTRATION);
+            ImageView headerImage = view.findViewById(R.id.history_sync_illustration);
+            headerImage.setImageResource(
+                    useAlternateIllustration
+                            ? R.drawable.history_sync_illustration_alternative
+                            : R.drawable.history_sync_illustration);
+
+            mUseLandscapeLayout = landscapeLayout;
+            mMediator
+                    .getModel()
+                    .set(HistorySyncProperties.USE_LANDSCAPE_LAYOUT, mUseLandscapeLayout);
+            mPropertyModelChangeProcessor =
+                    PropertyModelChangeProcessor.create(
+                            mMediator.getModel(), view, HistorySyncViewBinder::bind);
+            mView = view;
+        }
     }
 
-    public View getView() {
-        return mView;
-    }
+    /** Creates a view if needed and and sets the view that is controlled by the coordinator. */
+    public @Nullable HistorySyncView maybeRecreateView() {
+        HistorySyncView view = null;
+        boolean useLandscapeLayout = SigninUtils.shouldShowDualPanesHorizontalLayout(mActivity);
 
-    private HistorySyncView inflateView(LayoutInflater inflater) {
-        HistorySyncView view =
-                (HistorySyncView)
-                        inflater.inflate(
-                                mUseLandscapeLayout
-                                        ? R.layout.history_sync_landscape_view
-                                        : R.layout.history_sync_portrait_view,
-                                null,
-                                false);
+        if (getView() == null || mUseLandscapeLayout != useLandscapeLayout) {
+            mUseLandscapeLayout = useLandscapeLayout;
+            view = inflateView(mActivity, mUseLandscapeLayout);
+            setView(view, mUseLandscapeLayout);
+        }
 
-        // For phones in portrait mode, the UI shows two vertically stacked full-width buttons. In
-        // other cases, we use a horizontally stacked button bar.
-        view.createButtons(/* isButtonBar= */ mDelegate.isLargeScreen() || mUseLandscapeLayout);
         return view;
+    }
+
+    private static HistorySyncView inflateView(Activity activity, boolean useLandscapeLayout) {
+        LayoutInflater inflater = LayoutInflater.from(activity);
+        return (HistorySyncView)
+                inflater.inflate(
+                        useLandscapeLayout
+                                ? R.layout.history_sync_landscape_view
+                                : R.layout.history_sync_portrait_view,
+                        null,
+                        false);
     }
 }

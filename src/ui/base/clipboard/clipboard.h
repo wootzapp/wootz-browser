@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "base/component_export.h"
@@ -26,9 +27,7 @@
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "mojo/public/cpp/base/big_buffer.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/clipboard/clipboard_buffer.h"
 #include "ui/base/clipboard/clipboard_format_type.h"
@@ -62,7 +61,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
   using ReadRTFCallback = base::OnceCallback<void(std::string result)>;
   using ReadPngCallback =
       base::OnceCallback<void(const std::vector<uint8_t>& result)>;
-  using ReadCustomDataCallback =
+  using ReadDataTransferCustomDataCallback =
       base::OnceCallback<void(std::u16string result)>;
   using ReadFilenamesCallback =
       base::OnceCallback<void(std::vector<ui::FileInfo> result)>;
@@ -222,10 +221,11 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
                        const DataTransferEndpoint* data_dst,
                        ReadPngCallback callback) const = 0;
 
-  virtual void ReadCustomData(ClipboardBuffer buffer,
-                              const std::u16string& type,
-                              const DataTransferEndpoint* data_dst,
-                              ReadCustomDataCallback callback) const;
+  virtual void ReadDataTransferCustomData(
+      ClipboardBuffer buffer,
+      const std::u16string& type,
+      const DataTransferEndpoint* data_dst,
+      ReadDataTransferCustomDataCallback callback) const;
 
   // Reads filenames from the clipboard, if available.
   virtual void ReadFilenames(ClipboardBuffer buffer,
@@ -266,10 +266,10 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
   virtual void ReadRTF(ClipboardBuffer buffer,
                        const DataTransferEndpoint* data_dst,
                        std::string* result) const = 0;
-  virtual void ReadCustomData(ClipboardBuffer buffer,
-                              const std::u16string& type,
-                              const DataTransferEndpoint* data_dst,
-                              std::u16string* result) const = 0;
+  virtual void ReadDataTransferCustomData(ClipboardBuffer buffer,
+                                          const std::u16string& type,
+                                          const DataTransferEndpoint* data_dst,
+                                          std::u16string* result) const = 0;
   virtual void ReadFilenames(ClipboardBuffer buffer,
                              const DataTransferEndpoint* data_dst,
                              std::vector<ui::FileInfo>* result) const = 0;
@@ -308,7 +308,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
 
   // Notify all subscribers of new text pasted to the clipboard when there is a
   // source URL.
-  void NotifyCopyWithUrl(const std::string_view text,
+  void NotifyCopyWithUrl(std::string_view text,
                          const GURL& frame,
                          const GURL& main_frame);
 
@@ -361,11 +361,6 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
     // TODO(dcheng): Describe format here.
     std::string data;
   };
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  struct EncodedDataTransferEndpointData {
-    std::string data;
-  };
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
   // Data is a variant that that represents all types that Chromium supports
   // writing to the clipboard. This representation is OS-agnostic; the
@@ -384,22 +379,15 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
   // programs.  Documentation on motivation for format ordering is also
   // available here:
   // https://docs.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats#multiple-clipboard-formats
-  using Data = absl::variant<BitmapData,
-                             HtmlData,
-                             RtfData,
-                             BookmarkData,
-                             TextData,
-                             WebkitData,
-                             RawData,
-                             SvgData,
-                             FilenamesData,
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-                             WebCustomFormatMapData,
-                             EncodedDataTransferEndpointData
-#else
-                             WebCustomFormatMapData
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-                             >;
+  using Data = std::variant<BitmapData,
+                            HtmlData,
+                            RtfData,
+                            BookmarkData,
+                            TextData,
+                            WebkitData,
+                            SvgData,
+                            FilenamesData,
+                            WebCustomFormatMapData>;
 
   // TODO (https://crbug.com/994928): Rename ObjectMap-related types.
   struct ObjectMapParams {
@@ -443,6 +431,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
   virtual void WritePortableAndPlatformRepresentations(
       ClipboardBuffer buffer,
       const ObjectMap& objects,
+      const std::vector<RawData>& raw_objects,
       std::vector<Clipboard::PlatformRepresentation> platform_representations,
       std::unique_ptr<DataTransferEndpoint> data_src,
       uint32_t privacy_types) = 0;
@@ -474,6 +463,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) Clipboard
   virtual void WriteConfidentialDataForPassword() = 0;
 
   void DispatchPortableRepresentation(const ObjectMapParams& params);
+  void DispatchPortableRepresentation(const RawData& data);
 
   // Write directly to the system clipboard.
   void DispatchPlatformRepresentations(

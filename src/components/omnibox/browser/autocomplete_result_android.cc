@@ -17,10 +17,11 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/omnibox/browser/jni_headers/AutocompleteResult_jni.h"
 #include "components/omnibox/browser/search_suggestion_parser.h"
-#include "components/query_tiles/android/tile_conversion_bridge.h"
 #include "url/android/gurl_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/omnibox/browser/jni_headers/AutocompleteResult_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -74,7 +75,7 @@ const char* MatchVerificationPointToString(int verification_point) {
     case MatchVerificationPoint::INVALID:
       return "Invalid";
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool sInvalidMatchMetricsUploaded = false;

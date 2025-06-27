@@ -8,9 +8,8 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/layout/block_node.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/paint/paint_controller_paint_test.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 using testing::ElementsAre;
 
@@ -34,7 +33,7 @@ TEST_P(TextFragmentPainterTest, TestTextStyle) {
   )HTML");
 
   LayoutObject& container = *GetLayoutObjectByElementId("container");
-  const auto& block_flow = To<LayoutNGBlockFlow>(container);
+  const auto& block_flow = To<LayoutBlockFlow>(container);
   InlineCursor cursor;
   cursor.MoveTo(*block_flow.FirstChild());
   const DisplayItemClient& text_fragment =
@@ -118,14 +117,14 @@ TEST_P(TextFragmentPainterTest, WheelEventListenerOnInlineElement) {
   LoadAhem();
   SetBodyInnerHTML(R"HTML(
     <style>body {margin: 0}</style>
-    <div id="parent" style="width: 100px; height: 100px; position: absolute">
+    <div id="parent" style="width: 100px; height: 100px; will-change: opacity">
       <span id="child" style="font: 50px Ahem">ABC</span>
     </div>
   )HTML");
 
   SetWheelEventListener("child");
-  HitTestData hit_test_data;
-  hit_test_data.wheel_event_rects = {gfx::Rect(0, 0, 150, 50)};
+  auto* hit_test_data = MakeGarbageCollected<HitTestData>();
+  hit_test_data->wheel_event_rects = {gfx::Rect(0, 0, 150, 50)};
   auto* parent = GetLayoutBoxByElementId("parent");
   EXPECT_THAT(
       ContentPaintChunks(),
@@ -134,7 +133,34 @@ TEST_P(TextFragmentPainterTest, WheelEventListenerOnInlineElement) {
                                PaintChunk::Id(parent->Layer()->Id(),
                                               DisplayItem::kLayerChunk),
                                parent->FirstFragment().ContentsProperties(),
-                               &hit_test_data, gfx::Rect(0, 0, 150, 100))));
+                               hit_test_data, gfx::Rect(0, 0, 150, 100))));
+}
+
+TEST_P(TextFragmentPainterTest,
+       WheelEventListenerOnInlineElementUnderBackgroundClipText) {
+  LoadAhem();
+  SetBodyInnerHTML(R"HTML(
+    <div style="background-clip: text; color: transparent;
+                background-color: blue">
+      <div style="overflow: hidden; height: 10px">
+        <span id="child" style="font: 50px Ahem">ABC</span>
+      </div>
+    </div>
+  )HTML");
+
+  SetWheelEventListener("child");
+  GetLayoutView().SetSubtreeShouldDoFullPaintInvalidation();
+  UpdateAllLifecyclePhasesForTest();
+
+  int wheel_hit_test_data_count = 0;
+  for (const auto& chunk : ContentPaintChunks()) {
+    if (chunk.hit_test_data && chunk.hit_test_data->wheel_event_rects.size()) {
+      wheel_hit_test_data_count++;
+      EXPECT_THAT(chunk.hit_test_data->wheel_event_rects,
+                  ElementsAre(gfx::Rect(8, 8, 150, 50)));
+    }
+  }
+  EXPECT_EQ(1, wheel_hit_test_data_count);
 }
 
 }  // namespace blink

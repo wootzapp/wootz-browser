@@ -80,8 +80,7 @@ void TestNativeDisplayDelegate::RelinquishDisplayControl(
 
 void TestNativeDisplayDelegate::GetDisplays(GetDisplaysCallback callback) {
   // This mimics the behavior of Ozone DRM when new display state arrives.
-  for (NativeDisplayObserver& observer : observers_)
-    observer.OnDisplaySnapshotsInvalidated();
+  observers_.Notify(&NativeDisplayObserver::OnDisplaySnapshotsInvalidated);
   cached_outputs_.clear();
 
   if (run_async_) {
@@ -161,9 +160,10 @@ void TestNativeDisplayDelegate::Configure(
 
   if (run_async_) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), config_success));
+        FROM_HERE,
+        base::BindOnce(std::move(callback), config_requests, config_success));
   } else {
-    std::move(callback).Run(config_success);
+    std::move(callback).Run(config_requests, config_success);
   }
 }
 
@@ -220,8 +220,7 @@ void TestNativeDisplayDelegate::DoSetHDCPState(
 
   switch (state) {
     case HDCP_STATE_ENABLED:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
 
     case HDCP_STATE_DESIRED:
       hdcp_state_ =
@@ -257,21 +256,6 @@ void TestNativeDisplayDelegate::SetGammaAdjustment(
     int64_t display_id,
     const GammaAdjustment& gamma) {
   log_->AppendAction(SetGammaAdjustmentAction(display_id, gamma));
-}
-
-bool TestNativeDisplayDelegate::SetColorMatrix(
-    int64_t display_id,
-    const std::vector<float>& color_matrix) {
-  log_->AppendAction(SetColorMatrixAction(display_id, color_matrix));
-  return true;
-}
-
-bool TestNativeDisplayDelegate::SetGammaCorrection(
-    int64_t display_id,
-    const display::GammaCurve& degamma,
-    const display::GammaCurve& gamma) {
-  log_->AppendAction(SetGammaCorrectionAction(display_id, degamma, gamma));
-  return true;
 }
 
 void TestNativeDisplayDelegate::SetPrivacyScreen(

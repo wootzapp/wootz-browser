@@ -41,9 +41,14 @@ extern NSString* const kTableViewRowHighlightColor;
 extern NSString* const kTertiaryBackgroundColor;
 extern NSString* const kUpdatedTertiaryBackgroundColor;
 extern NSString* const kTextPrimaryColor;
+// Primary text color when the background color is inverted.
+extern NSString* const kInvertedTextPrimaryColor;
 extern NSString* const kTextSecondaryColor;
+// Secondary text color when the background color is inverted.
+extern NSString* const kInvertedTextSecondaryColor;
 extern NSString* const kTextTertiaryColor;
 extern NSString* const kTextQuaternaryColor;
+extern NSString* const kTextLightTertiaryDarkPrimaryColor;
 extern NSString* const kTextfieldBackgroundColor;
 extern NSString* const kTextfieldFocusedBackgroundColor;
 extern NSString* const kTextfieldHighlightBackgroundColor;
@@ -62,7 +67,23 @@ extern NSString* const kOmniboxPopoutSuggestionRowSeparatorColor;
 extern NSString* const kTabGroupFaviconBackgroundColor;
 // Color for the omnibox popout overlay.
 extern NSString* const kOmniboxPopoutOverlayColor;
-
+// Color of the Tab Strip.
+extern NSString* const kTabStripBackgroundColor;
+extern NSString* const kTabStripV3BackgroundColor;
+// Color of the symbol of the Tab Strip new tab button.
+extern NSString* const kTabStripNewTabButtonColor;
+// Colors for the TabGroup.
+extern NSString* const kTabGroupPinkColor;
+extern NSString* const kTabGroupCyanColor;
+extern NSString* const kTabGroupPurpleColor;
+extern NSString* const kTabGroupGreenColor;
+extern NSString* const kTabGroupGreyColor;
+// A semi transparent background color that ensures symbols are visible in
+// light and dark modes.
+extern NSString* const kWhiteBlackAlpha50Color;
+// Lens overlay consent dialog description text color.
+extern NSString* const kLensOverlayConsentDialogDescriptionColor;
+extern NSString* const kLensOverlayConsentDialogAnimationPlayerButtonColor;
 // ***************
 // Standard Colors
 // ***************
@@ -80,19 +101,21 @@ extern NSString* const kBlueColor;
 extern NSString* const kBlueHaloColor;
 
 // Blue palette.
+extern NSString* const kBlue100Color;
 extern NSString* const kBlue300Color;
 extern NSString* const kBlue400Color;
 extern NSString* const kBlue500Color;
 extern NSString* const kBlue600Color;
 extern NSString* const kBlue700Color;
+extern NSString* const kBlue900Color;
 // Static blue palette (same color for light and dark modes).
+extern NSString* const kStaticBlueColor;
 extern NSString* const kStaticBlue400Color;
 
 // Standard green color.
 extern NSString* const kGreenColor;
 
 // Green palette.
-extern NSString* const kGreen50Color;
 extern NSString* const kGreen100Color;
 extern NSString* const kGreen300Color;
 extern NSString* const kGreen400Color;
@@ -100,6 +123,9 @@ extern NSString* const kGreen500Color;
 extern NSString* const kGreen600Color;
 extern NSString* const kGreen700Color;
 extern NSString* const kGreen800Color;
+// Static Green palette (same color for light and dark modes).
+extern NSString* const kStaticGreen50Color;
+extern NSString* const kStaticGreen700Color;
 
 // Standard red color. This is most commonly used for the tint color on
 // destructive controls.
@@ -117,6 +143,7 @@ extern NSString* const kRed600Color;
 extern NSString* const kPink400Color;
 extern NSString* const kPink500Color;
 extern NSString* const kPink600Color;
+extern NSString* const kPink700Color;
 
 // Purple palette.
 extern NSString* const kPurple500Color;
@@ -130,8 +157,9 @@ extern NSString* const kYellow600Color;
 extern NSString* const kOrange500Color;
 extern NSString* const kOrange600Color;
 
-// Orange palette.
+// Cyan palette.
 extern NSString* const kCyan600Color;
+extern NSString* const kCyan700Color;
 
 // Grey Color Palette.
 extern NSString* const kGrey50Color;
@@ -146,6 +174,7 @@ extern NSString* const kGrey800Color;
 extern NSString* const kGrey900Color;
 // Static Grey palette (same color for light and dark modes).
 extern NSString* const kStaticGrey300Color;
+extern NSString* const kStaticGrey600Color;
 extern NSString* const kStaticGrey900Color;
 
 // **********************

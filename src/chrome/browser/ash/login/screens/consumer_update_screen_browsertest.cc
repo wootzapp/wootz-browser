@@ -25,13 +25,13 @@
 #include "chrome/browser/ash/login/test/network_portal_detector_mixin.h"
 #include "chrome/browser/ash/login/test/oobe_base_test.h"
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/version_updater/version_updater.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/net/network_portal_detector_test_impl.h"
 #include "chrome/browser/ash/policy/core/device_policy_builder.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/ash/policy/handlers/minimum_version_policy_test_helpers.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/consumer_update_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/error_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_info_screen_handler.h"
@@ -120,7 +120,7 @@ class ConsumerUpdateScreenTest : public OobeBaseTest {
 
     // Set up fake networks.
     network_state_test_helper_ = std::make_unique<NetworkStateTestHelper>(
-        true /*use_default_devices_and_services*/);
+        /*use_default_devices_and_services=*/true);
     network_state_test_helper_->manager_test()->SetupDefaultEnvironment();
     // Fake networks have been set up. Connect to WiFi network.
     SetConnected(kWifiServicePath);
@@ -407,12 +407,7 @@ IN_PROC_BROWSER_TEST_F(ConsumerUpdateScreenTest, LowBatteryStatus) {
 
 // TODO(crbug.com/330761947): Test flaking frequently on linux-chromeos
 // builders.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#define MAYBE_SkipUpdate DISABLED_SkipUpdate
-#else
-#define MAYBE_SkipUpdate SkipUpdate
-#endif
-IN_PROC_BROWSER_TEST_F(ConsumerUpdateScreenTest, MAYBE_SkipUpdate) {
+IN_PROC_BROWSER_TEST_F(ConsumerUpdateScreenTest, DISABLED_SkipUpdate) {
   update_engine::StatusResult status;
   status.set_update_urgency(update_engine::UpdateUrgency::REGULAR);
 

@@ -5,18 +5,21 @@
 """Unit tests for //tools/licenses/licenses.py.
 """
 
+import argparse
+import contextlib
 import csv
 import io
+import itertools
 import os
 import pathlib
 import sys
 import unittest
 
-from unittest import mock
 
 REPOSITORY_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(os.path.join(REPOSITORY_ROOT, 'tools', 'licenses'))
+REL_REPOSITORY_ROOT = os.path.relpath(REPOSITORY_ROOT)
 
 import licenses
 from test_utils import path_from_root
@@ -157,6 +160,36 @@ class LicensesTest(unittest.TestCase):
             os.path.join('external', 'somelib'),
         ]))
 
+  def test_list_license_files_from_metadata(self):
+    license_files = licenses.ListLicenseFiles(
+        itertools.chain.from_iterable(self._get_metadata().values()))
+    expected = [
+        os.path.join('third_party', 'lib1', 'LICENSE'),
+        os.path.join('third_party', 'lib2', 'LICENSE-A'),
+        os.path.join('third_party', 'lib2', 'LICENSE-B'),
+        os.path.join('third_party', 'lib3-v2', 'LICENSE'),
+        os.path.join('third_party', 'lib3', 'LICENSE'),
+        os.path.join('third_party', 'lib_unshipped', 'LICENSE'),
+    ]
+    self.assertEqual(license_files, expected)
+
+  def test_list_license_files_from_template_entries(self):
+    fake_templates = [{
+        'name': m['Name'],
+        'content': '',
+        'license_file': m['License File']
+    } for m in itertools.chain.from_iterable(self._get_metadata().values())]
+    license_files = licenses.ListLicenseFiles(fake_templates)
+    expected = [
+        os.path.join('third_party', 'lib1', 'LICENSE'),
+        os.path.join('third_party', 'lib2', 'LICENSE-A'),
+        os.path.join('third_party', 'lib2', 'LICENSE-B'),
+        os.path.join('third_party', 'lib3-v2', 'LICENSE'),
+        os.path.join('third_party', 'lib3', 'LICENSE'),
+        os.path.join('third_party', 'lib_unshipped', 'LICENSE'),
+    ]
+    self.assertEqual(license_files, expected)
+
   def test_generate_license_file_csv(self):
     # This is the same for all the links and prevents wildly long strings.
     prefix = ("https://source.chromium.org/chromium/chromium/src/+/main:")
@@ -171,7 +204,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'BSD 3-Clause',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }, {
         'Library Name': 'lib1',
@@ -180,7 +213,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'MIT',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }, {
         'Library Name': 'lib2',
@@ -190,7 +223,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'MIT, Apache 2.0',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }, {
         'Library Name': 'lib3',
@@ -199,7 +232,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'UNKNOWN',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }, {
         'Library Name': 'lib3-v1',
@@ -208,7 +241,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'Apache 2.0',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }, {
         'Library Name': 'lib3',
@@ -217,7 +250,7 @@ class LicensesTest(unittest.TestCase):
         'License Name': 'BSD',
         'Binary which uses library': 'Chromium',
         'License text for library included?': 'Yes',
-        'Source code for library includes the mirrored source?': 'No',
+        'Source code for library includes the mirrored source?': 'Yes',
         'Authorization date': 'N/A'
     }]
 
@@ -436,6 +469,93 @@ class LicensesTest(unittest.TestCase):
     ]
 }'''
     self.assertEqual(license_txt, expected)
+
+  def test_generate_notice_file(self):
+    read_file_vals = [
+        'lib1 license text\n',
+        'lib2-a license text\n',
+        'lib2-b license text\n',
+        'lib3 license text\n',
+        'lib3 license text\n',
+        'lib3-v2 license text\n',
+    ]
+
+    license_txt = licenses.GenerateNoticeFilePlainText(
+        self._get_metadata(), read_file=lambda _: read_file_vals.pop(0))
+
+    expected = '\n'.join([
+        '--------------------',
+        'License notice for lib1',
+        '--------------------',
+        'lib1 license text',
+        '',
+        '--------------------',
+        'License notice for lib2',
+        '--------------------',
+        'lib2-a license text',
+        '',
+        '--------------------',
+        'License notice for lib2',
+        '--------------------',
+        'lib2-b license text',
+        '',
+        '--------------------',
+        'License notice for lib3',
+        '--------------------',
+        'lib3 license text',
+        '',
+        '--------------------',
+        'License notice for lib3-v1',
+        '--------------------',
+        'lib3 license text',
+        '',
+        '--------------------',
+        'License notice for lib3',
+        '--------------------',
+        'lib3-v2 license text',
+    ]) + '\n'  # extra new line to account for join not adding one to the end
+    self.assertEqual(license_txt, expected)
+
+  def test_configuring_gen_license_file_warnings(self):
+    """
+    Tests that warnings are silenced in GenerateLicenseFile by default and
+    not logged unless enable_warnings is True.
+    """
+    root_dir = os.path.join(REPOSITORY_ROOT, 'tools', 'licenses')
+    args = argparse.Namespace(format="txt",
+                              gn_target=None,
+                              enable_warnings=True,
+                              output_file=None,
+                              depfile=None)
+
+    # Warnings enabled
+    args.extra_third_party_dirs = ["test_dir_invalid_metadata"]
+    with contextlib.redirect_stdout(io.StringIO()) as captured_output:
+      licenses.GenerateLicenseFile(args, root_dir=root_dir)
+    self.assertRegex(captured_output.getvalue(),
+                     r"Errors in test_dir_invalid_metadata")
+
+    args.extra_third_party_dirs = ["test_dir_with_missing_files"]
+    with contextlib.redirect_stdout(io.StringIO()) as captured_output:
+      licenses.GenerateLicenseFile(args, root_dir=root_dir)
+    self.assertRegex(
+        captured_output.getvalue(),
+        r"Error: missing third party .* test_dir_with_missing_files")
+
+    # # Warnings disabled
+    args.enable_warnings = False
+    args.extra_third_party_dirs = ["test_dir_invalid_metadata"]
+    with contextlib.redirect_stdout(io.StringIO()) as captured_output:
+      licenses.GenerateLicenseFile(args, root_dir=root_dir)
+    self.assertNotRegex(captured_output.getvalue(),
+                        r"Errors in test_dir_invalid_metadata")
+
+    args.extra_third_party_dirs = ["test_dir_with_missing_files"]
+    with contextlib.redirect_stdout(io.StringIO()) as captured_output:
+      licenses.GenerateLicenseFile(args, root_dir=root_dir)
+      self.assertNotRegex(
+          captured_output.getvalue(),
+          r"Error: missing third party .* test_dir_with_missing_files")
 
 
 if __name__ == '__main__':

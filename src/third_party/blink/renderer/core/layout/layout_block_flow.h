@@ -38,6 +38,7 @@
 
 #include "base/dcheck_is_on.h"
 #include "third_party/blink/renderer/core/core_export.h"
+#include "third_party/blink/renderer/core/layout/inline/inline_node_data.h"
 #include "third_party/blink/renderer/core/layout/layout_block.h"
 
 namespace blink {
@@ -123,38 +124,33 @@ class CORE_EXPORT LayoutBlockFlow : public LayoutBlock {
 
   bool ShouldMoveCaretToHorizontalBoundaryWhenPastTopOrBottom() const;
 
-  // If this is an inline formatting context root, this flag is set if the
-  // inline formatting context *may* (false positives are okay) be
-  // non-contiguous. Sometimes an inline formatting context may start in some
-  // fragmentainer, then skip one or more fragmentainers, and then resume
-  // again. This may happen for instance if a culled inline is preceded by a
-  // tall float that's pushed after (due to size/breaking restrictions) the
-  // contents of the culled inline.
-  void SetMayBeNonContiguousIfc(bool b) {
-    NOT_DESTROYED();
-    may_be_non_contiguous_ifc_ = b;
-  }
-  bool MayBeNonContiguousIfc() const {
-    NOT_DESTROYED();
-    DCHECK(HasFragmentItems());
-    return may_be_non_contiguous_ifc_;
-  }
-
   // Returns the associated `InlineNodeData`, or `nullptr` if `this` doesn't
   // have one (i.e., not an NG inline formatting context.)
-  virtual InlineNodeData* GetInlineNodeData() const {
+  InlineNodeData* GetInlineNodeData() const {
     NOT_DESTROYED();
-    return nullptr;
+    return inline_node_data_.Get();
   }
   // Same as `GetInlineNodeData` and then `ClearInlineNodeData`.
-  virtual InlineNodeData* TakeInlineNodeData() {
+  InlineNodeData* TakeInlineNodeData() {
     NOT_DESTROYED();
-    return nullptr;
+    return inline_node_data_.Release();
   }
   // Reset `InlineNodeData` to a new instance.
-  virtual void ResetInlineNodeData() { NOT_DESTROYED(); }
+  void ResetInlineNodeData() {
+    NOT_DESTROYED();
+    inline_node_data_ = MakeGarbageCollected<InlineNodeData>();
+  }
   // Clear `InlineNodeData` to `nullptr`.
-  virtual void ClearInlineNodeData() { NOT_DESTROYED(); }
+  void ClearInlineNodeData() {
+    NOT_DESTROYED();
+    if (inline_node_data_) {
+      // inline_node_data_ is not used from now on but exists until GC happens,
+      // so it is better to eagerly clear HeapVector to improve memory
+      // utilization.
+      inline_node_data_->items.clear();
+      inline_node_data_.Clear();
+    }
+  }
   virtual void WillCollectInlines() { NOT_DESTROYED(); }
 
  protected:
@@ -168,6 +164,13 @@ class CORE_EXPORT LayoutBlockFlow : public LayoutBlock {
                        const HitTestLocation&,
                        const PhysicalOffset& accumulated_offset,
                        HitTestPhase) override;
+
+  void AddOutlineRects(OutlineRectCollector&,
+                       LayoutObject::OutlineInfo*,
+                       const PhysicalOffset& additional_offset,
+                       OutlineType) const override;
+
+  void DirtyLinesFromChangedChild(LayoutObject* child) final;
 
  private:
   void CreateOrDestroyMultiColumnFlowThreadIfNeeded(
@@ -195,6 +198,7 @@ class CORE_EXPORT LayoutBlockFlow : public LayoutBlock {
 
  private:
   Member<LayoutMultiColumnFlowThread> multi_column_flow_thread_;
+  Member<InlineNodeData> inline_node_data_;
 
  protected:
   // LayoutRubyBase objects need to be able to split and merge, moving their

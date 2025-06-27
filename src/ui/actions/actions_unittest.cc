@@ -245,7 +245,7 @@ TEST_F(ActionIdMapTest, MapBetweenEnumAndString) {
 #include "ui/actions/action_id_macros.inc"
 
 TEST_F(ActionIdMapTest, MergeMaps) {
-  auto test_action_map = base::MakeFlatMap<ActionId, std::string>(
+  auto test_action_map = base::flat_map<ActionId, std::string>(
       std::vector<std::pair<ActionId, std::string>>{TEST_ACTION_IDS});
   ActionIdMap::AddActionIdToStringMappings(test_action_map);
 
@@ -320,6 +320,7 @@ TEST_F(ActionItemTest, ActionBuilderChildrenTest) {
               .CopyAddressTo(&child_action2)
               .SetActionId(kActionTest3)
               .SetChecked(true)
+              .SetIsShowingBubble(true)
               .SetText(kChild2Text));
   // clang-format on
   auto& manager = ActionManager::GetForTesting();
@@ -335,12 +336,14 @@ TEST_F(ActionItemTest, ActionBuilderChildrenTest) {
   ASSERT_TRUE(child_action_id1);
   EXPECT_EQ(child_action_id1.value(), kActionTest2);
   EXPECT_FALSE(child_action1->GetChecked());
+  EXPECT_FALSE(child_action1->GetIsShowingBubble());
 
   EXPECT_EQ(child_action2->GetText(), kChild2Text);
   auto child_action_id2 = child_action2->GetActionId();
   ASSERT_TRUE(child_action_id2);
   EXPECT_EQ(child_action_id2.value(), kActionTest3);
   EXPECT_TRUE(child_action2->GetChecked());
+  EXPECT_TRUE(child_action2->GetIsShowingBubble());
 
   EXPECT_FALSE(root_action->GetEnabled());
   EXPECT_EQ(action_invoked_count, 0);
@@ -445,22 +448,31 @@ TEST_F(ActionItemTest, TestActionItemPinnableKey) {
   manager.AddAction(std::move(builder).Build());
   auto* action_test1 = manager.FindAction(kActionTest1);
   ASSERT_TRUE(action_test1);
-  ASSERT_FALSE(action_test1->GetProperty(kActionItemPinnableKey));
+  ASSERT_EQ(action_test1->GetProperty(kActionItemPinnableKey),
+            std::underlying_type_t<actions::ActionPinnableState>(
+                actions::ActionPinnableState::kNotPinnable));
   action_test1->SetProperty(kActionItemPinnableKey, true);
-  ASSERT_TRUE(action_test1->GetProperty(kActionItemPinnableKey));
+  ASSERT_EQ(action_test1->GetProperty(kActionItemPinnableKey),
+            std::underlying_type_t<actions::ActionPinnableState>(
+                actions::ActionPinnableState::kPinnable));
 
   // test using builder
-  builder = ActionItem::Builder()
-                .SetText(kActionText)
-                .SetActionId(kActionTest2)
-                .SetProperty(kActionItemPinnableKey, true)
-                .SetVisible(true)
-                .SetEnabled(true);
+  builder =
+      ActionItem::Builder()
+          .SetText(kActionText)
+          .SetActionId(kActionTest2)
+          .SetProperty(kActionItemPinnableKey,
+                       std::underlying_type_t<actions::ActionPinnableState>(
+                           actions::ActionPinnableState::kPinnable))
+          .SetVisible(true)
+          .SetEnabled(true);
 
   manager.AddAction(std::move(builder).Build());
   auto* action_test2 = manager.FindAction(kActionTest2);
   ASSERT_TRUE(action_test2);
-  ASSERT_TRUE(action_test2->GetProperty(kActionItemPinnableKey));
+  ASSERT_EQ(action_test2->GetProperty(kActionItemPinnableKey),
+            std::underlying_type_t<actions::ActionPinnableState>(
+                actions::ActionPinnableState::kPinnable));
 }
 
 TEST_F(ActionItemTest, TestActionProperties) {

@@ -163,8 +163,8 @@ void SynchronousCompositorProxy::ZeroSharedMemory() {
   if (software_draw_shm_->zeroed)
     return;
 
-  memset(software_draw_shm_->shared_memory.memory(), 0,
-         software_draw_shm_->buffer_size);
+  base::span<uint8_t> mem(software_draw_shm_->shared_memory);
+  std::ranges::fill(mem.first(software_draw_shm_->buffer_size), 0u);
   software_draw_shm_->zeroed = true;
 }
 
@@ -203,9 +203,10 @@ void SynchronousCompositorProxy::DoDemandDrawSw(
   size_t buffer_size = info.computeByteSize(stride);
   DCHECK_EQ(software_draw_shm_->buffer_size, buffer_size);
 
+  base::span<uint8_t> mem(software_draw_shm_->shared_memory);
+  CHECK_GE(mem.size(), buffer_size);
   SkBitmap bitmap;
-  if (!bitmap.installPixels(info, software_draw_shm_->shared_memory.memory(),
-                            stride)) {
+  if (!bitmap.installPixels(info, mem.data(), stride)) {
     return;
   }
   SkCanvas canvas(bitmap);
@@ -239,7 +240,7 @@ void SynchronousCompositorProxy::SubmitCompositorFrame(
         .Run(std::move(common_renderer_params), NextMetadataVersion(),
              std::move(frame->metadata));
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -255,14 +256,14 @@ void SynchronousCompositorProxy::SinkDestroyed() {
   layer_tree_frame_sink_ = nullptr;
 }
 
-void SynchronousCompositorProxy::SetThreadIds(
-    const Vector<base::PlatformThreadId>& thread_ids) {
-  if (thread_ids_ == thread_ids) {
+void SynchronousCompositorProxy::SetThreads(
+    const Vector<viz::Thread>& threads) {
+  if (threads_ == threads) {
     return;
   }
-  thread_ids_ = thread_ids;
+  threads_ = threads;
   if (host_) {
-    host_->SetThreadIds(thread_ids_);
+    host_->SetThreads(threads_);
   }
 }
 
@@ -405,8 +406,8 @@ void SynchronousCompositorProxy::BindChannel(
 
   if (needs_begin_frames_)
     host_->SetNeedsBeginFrames(true);
-  if (!thread_ids_.empty()) {
-    host_->SetThreadIds(thread_ids_);
+  if (!threads_.empty()) {
+    host_->SetThreads(threads_);
   }
 }
 

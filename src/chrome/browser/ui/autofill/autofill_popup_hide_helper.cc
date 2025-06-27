@@ -5,8 +5,10 @@
 #include "chrome/browser/ui/autofill/autofill_popup_hide_helper.h"
 
 #include "base/check_deref.h"
+#include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
-#include "components/autofill/core/browser/ui/suggestion_hiding_reason.h"
+#include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -36,12 +38,6 @@ AutofillPopupHideHelper::AutofillPopupHideHelper(
 
   picture_in_picture_window_observation_.Observe(
       PictureInPictureWindowManager::GetInstance());
-
-  if (hiding_params_.hide_on_text_field_change) {
-    autofill_managers_observation_.Observe(
-        web_contents, ScopedAutofillManagersObservation::InitializationPolicy::
-                          kObservePreexistingManagers);
-  }
 }
 
 AutofillPopupHideHelper::~AutofillPopupHideHelper() = default;
@@ -60,9 +56,7 @@ void AutofillPopupHideHelper::OnWebContentsLostFocus(
 void AutofillPopupHideHelper::PrimaryMainFrameWasResized(bool width_changed) {
   if constexpr (BUILDFLAG(IS_ANDROID)) {
     // Ignore virtual keyboard showing and hiding a strip of suggestions.
-    if (!width_changed) {
-      return;
-    }
+    return;
   }
   hiding_callback_.Run(SuggestionHidingReason::kWidgetChanged);
 }
@@ -111,13 +105,6 @@ void AutofillPopupHideHelper::OnEnterPictureInPicture() {
     hiding_callback_.Run(
         SuggestionHidingReason::kOverlappingWithPictureInPictureWindow);
   }
-}
-
-void AutofillPopupHideHelper::OnBeforeTextFieldDidChange(
-    AutofillManager& manager,
-    FormGlobalId form,
-    FieldGlobalId field) {
-  hiding_callback_.Run(SuggestionHidingReason::kFieldValueChanged);
 }
 
 }  // namespace autofill

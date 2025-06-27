@@ -141,7 +141,7 @@ const base::FilePath& GetCacheRootDir(ambient_photo_cache::Store store) {
     case ambient_photo_cache::Store::kBackup:
       return GetAmbientBackupPhotoCacheRootDir();
   }
-  NOTREACHED_NORETURN() << "Unknown cache store: " << static_cast<int>(store);
+  NOTREACHED() << "Unknown cache store: " << static_cast<int>(store);
 }
 
 base::FilePath GetCachePath(int cache_index, const base::FilePath& root_path) {
@@ -199,7 +199,7 @@ void DownloadPhotoInternal(
     const std::string& url,
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory,
     base::OnceCallback<void(std::string&&)> callback,
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     const std::string& access_token) {
   std::unique_ptr<network::SimpleURLLoader> simple_loader =
       CreateSimpleURLLoader(url, access_token);
@@ -217,7 +217,7 @@ void DownloadPhotoToTempFileInternal(
     const std::string& url,
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory,
     base::OnceCallback<void(base::FilePath)> callback,
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     const std::string& access_token) {
   std::unique_ptr<network::SimpleURLLoader> simple_loader =
       CreateSimpleURLLoader(url, access_token);

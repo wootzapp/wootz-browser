@@ -88,7 +88,9 @@ class VideoCaptureHost::RenderFrameHostDelegateImpl
                        [](GlobalRenderFrameHostId render_frame_host_id) {
                          RenderFrameHostImpl* host =
                              RenderFrameHostImpl::FromID(render_frame_host_id);
-                         if (host) {
+                         if (host && host->HasMediaStreams(
+                                         RenderFrameHostImpl::MediaStreamType::
+                                             kCapturingMediaStream)) {
                            host->OnMediaStreamRemoved(
                                RenderFrameHostImpl::MediaStreamType::
                                    kCapturingMediaStream);
@@ -567,10 +569,11 @@ void VideoCaptureHost::DeleteVideoCaptureController(
     return;
 
   const base::WeakPtr<VideoCaptureController> controller = it->second;
-  controllers_.erase(it);
+
   if (!controller)
     return;
 
+  controllers_.erase(it);
   media_stream_manager_->video_capture_manager()->DisconnectClient(
       controller.get(), controller_id, this, error);
 }
@@ -604,9 +607,11 @@ void VideoCaptureHost::ConnectClient(const base::UnguessableToken session_id,
                                      VideoCaptureControllerID controller_id,
                                      VideoCaptureManager::DoneCB done_cb,
                                      BrowserContext* browser_context) {
+  std::optional<url::Origin> origin =
+      media_stream_manager_->GetOriginByVideoSessionId(session_id);
   media_stream_manager_->video_capture_manager()->ConnectClient(
-      session_id, params, controller_id, this, std::move(done_cb),
-      browser_context);
+      session_id, params, controller_id, this, std::move(origin),
+      std::move(done_cb), browser_context);
 }
 
 }  // namespace content

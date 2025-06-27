@@ -10,9 +10,10 @@
 #include "ash/webui/settings/public/constants/routes.mojom-forward.h"
 #include "ash/webui/shortcut_customization_ui/url_constants.h"
 #include "base/json/json_writer.h"
+#include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/test/base/chromeos/crosier/interactive_ash_test.h"
+#include "chrome/test/base/ash/interactive/interactive_ash_test.h"
 #include "device/udev_linux/fake_udev_loader.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/interaction/interactive_test.h"
@@ -50,8 +51,7 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
     webcontents_id_ = kShortcutAppWebContentsId;
 
     feature_list_.InitWithFeatures(
-        {::features::kShortcutCustomization,
-         ash::features::kInputDeviceSettingsSplit,
+        {ash::features::kInputDeviceSettingsSplit,
          ash::features::kEnableKeyboardBacklightControlInSettings},
         {});
   }
@@ -69,11 +69,8 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
       "shortcut-customization-app",
       "navigation-view-panel#navigationPanel",
       "#category-0",
-      "#container",
-      "accelerator-subsection",
-      "tbody#rowList",
-      // Action 93 corresponds to the "Open/Close Calendar" shortcut.
-      "accelerator-row[action='93']",
+      "#contentWrapper > accelerator-subsection:nth-child(1)",
+      "#open-close-calendar",
   };
 
   const DeepQuery kAddShortcutButtonQuery{
@@ -114,7 +111,7 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
       "#category-3",
       // Text editing subsection
       "#contentWrapper > accelerator-subsection:nth-child(2)",
-      "#rowList > accelerator-row:nth-child(10)",
+      "#redo-last-action",
   };
 
   auto FocusSearchBox() {
@@ -218,13 +215,13 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
 
   auto SendShortcutAccelerator(ui::Accelerator accel) {
     CHECK(webcontents_id_);
-    return Steps(SendAccelerator(webcontents_id_, accel), FlushEvents());
+    return Steps(SendAccelerator(webcontents_id_, accel));
   }
 
   auto AddKeyboard(bool is_external) {
     return Steps(
-        Log(std::format("Adding {0} keyboard",
-                        is_external ? "external" : "internal")),
+        Log(base::StringPrintf("Adding %s keyboard",
+                               is_external ? "external" : "internal")),
         Do([is_external, this]() {
           int id = kDeviceId1++;
           const auto id_string = base::NumberToString(id);
@@ -264,15 +261,14 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
               /*subsystem=*/"input", /*devnode=*/std::nullopt,
               /*devtype=*/std::nullopt, std::move(sysfs_attributes),
               std::move(sysfs_properties));
-        }),
-        FlushEvents());
+        }));
   }
 
   auto WaitForShortcutToContainNumAcceleartors(const DeepQuery& query,
                                                const int expected) {
     return Steps(
-        Log(std::format("Expecting shortcut to contain {0} accelerators",
-                        expected)),
+        Log(base::StringPrintf("Expecting shortcut to contain %d accelerators",
+                               expected)),
         CheckJsResultAt(webcontents_id_, query,
                         "e => e.querySelectorAll('accelerator-view').length",
                         expected));
@@ -318,13 +314,15 @@ class ShortcutCustomizationInteractiveUiTest : public InteractiveAshTest {
       int category_index,
       const std::vector<std::string>& expected_subcategories) {
     return Steps(
-        Log(std::format("Verifying that '{0}' is the active category when "
-                        "the Shortcut Customization app is first launched",
-                        category)),
+        Log(base::StringPrintf(
+            "Verifying that '%s' is the active category when "
+            "the Shortcut Customization app is first launched",
+            category.c_str())),
         WaitForElementTextContains(webcontents_id_, kActiveNavTabQuery,
                                    category),
-        Log(std::format("Verifying subcategories within the '{0}' category",
-                        category)),
+        Log(base::StringPrintf(
+            "Verifying subcategories within the '%s' category",
+            category.c_str())),
         CheckJsResult(
             webcontents_id_,
             base::StringPrintf(
@@ -386,7 +384,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
 
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           SendShortcutAccelerator(new_accel),
           EnsureNotPresent(kCalendarViewElementId),
           Log("Verify that the custom shortcut does not open the calendar "
@@ -411,7 +409,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           Log("Default shortcut still works"),
           SendShortcutAccelerator(new_accel),
           EnsureNotPresent(kCalendarViewElementId),
-          Log("Custom shortcut no longer works"))));
+          Log("Custom shortcut no longer works")));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
@@ -437,7 +435,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
 
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           Log("Focusing search box"), FocusSearchBox(),
           Log("Searching for shortcut 'hxz' which should have no results"),
           EnterLowerCaseText("hxz"),
@@ -459,7 +457,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           WaitForElementTextContains(webcontents_id_, kActiveNavTabQuery,
                                      "Text"),
           ExecuteJsAt(webcontents_id_, kRedoActionAcceleratorRowQuery,
-                      "el => { return !!el;}"))));
+                      "el => { return !!el;}")));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
@@ -490,7 +488,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
 
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           OpenEditShortcutDialog(kCalendarAcceleratorRowQuery),
           EditDefaultShortcut(new_accel),
           Log("Setting Search + Ctrl + n as the default open/close calendar "
@@ -504,7 +502,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           Log("New accelerator closes calendar"),
           SendShortcutAccelerator(default_accel),
           EnsureNotPresent(kCalendarViewElementId),
-          Log("Default accelerator no longer opens the calendar"))));
+          Log("Default accelerator no longer opens the calendar")));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
@@ -514,21 +512,9 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
   ui::Accelerator new_accel(ui::VKEY_N,
                             ui::EF_COMMAND_DOWN | ui::EF_CONTROL_DOWN);
 
-  const DeepQuery kCustomAcceleratorViewQuery{
-      "shortcut-customization-app",
-      "navigation-view-panel#navigationPanel",
-      "#category-0",
-      "#container",
-      "accelerator-subsection",
-      "tbody#rowList",
-      // Action 93 corresponds to the "Open/Close Calendar" shortcut.
-      "accelerator-row[action='93']",
-      "#container > td > accelerator-view:nth-child(2)",
-  };
-
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           SendShortcutAccelerator(new_accel),
           EnsureNotPresent(kCalendarViewElementId),
           Log("Verify that the custom shortcut does not open the calendar "
@@ -538,7 +524,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           EnsureAcceleratorsAreProcessed(),
           Log("Adding Search + Ctrl + n as a custom open/close calendar "
               "shortcut"),
-          EnsurePresent(webcontents_id_, kCustomAcceleratorViewQuery),
+          EnsurePresent(webcontents_id_, kCalendarAcceleratorRowQuery),
           Log("New shortcut is present in the UI"),
           SendShortcutAccelerator(new_accel),
           WaitForShow(kCalendarViewElementId),
@@ -556,7 +542,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           Log("Default shortcut still works"),
           SendShortcutAccelerator(new_accel),
           EnsureNotPresent(kCalendarViewElementId),
-          Log("Custom shortcut no longer works"))));
+          Log("Custom shortcut no longer works")));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
@@ -624,7 +610,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
 
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           OpenEditShortcutDialog(kCalendarAcceleratorRowQuery),
           ClickAddShortcutButton(), SendAccelerator(webcontents_id_, new_accel),
           Log("Attempting to Add Search + Ctrl + s as a custom "
@@ -643,13 +629,11 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           Log("New accelerator closes calendar"),
           SendShortcutAccelerator(default_accel),
           EnsurePresent(kCalendarViewElementId),
-          Log("Default accelerator also opens the calendar"))));
+          Log("Default accelerator also opens the calendar")));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
                        AddAcceleratorDisruptive) {
-  ui::Accelerator default_accel =
-      GetDefaultAcceleratorForAction(AcceleratorAction::kToggleCalendar);
   ui::Accelerator feedback_accel =
       GetDefaultAcceleratorForAction(AcceleratorAction::kOpenFeedbackPage);
 
@@ -668,7 +652,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
 
   RunTestSequence(
       LaunchShortcutCustomizationApp(),
-      InAnyContext(Steps(
+      InAnyContext(
           OpenEditShortcutDialog(kCalendarAcceleratorRowQuery),
           ClickAddShortcutButton(),
           Log("Attempting to Add Alt + Shift + I as a custom open/close "
@@ -682,7 +666,7 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
           InstrumentNextTab(kOsFeedbackWebContentsId, AnyBrowser()),
           SendShortcutAccelerator(feedback_accel),
           Log("Verifying that 'Open feedback tool' accelerator still works"),
-          WaitForShow(kOsFeedbackWebContentsId))));
+          WaitForShow(kOsFeedbackWebContentsId)));
 }
 
 IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
@@ -700,11 +684,8 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
       "shortcut-customization-app",
       "#navigationPanel",
       "#category-0",
-      "#container",
-      "accelerator-subsection",
-      "tbody#rowList",
-      // Action 113 corresponds to the "Open Quick Settings" shortcut.
-      "accelerator-row[action='113']",
+      "#contentWrapper > accelerator-subsection:nth-child(1)",
+      "#open-quick-settings",
   };
   ui::Accelerator custom_calendar_accel(
       ui::VKEY_N, ui::EF_COMMAND_DOWN | ui::EF_CONTROL_DOWN);
@@ -742,16 +723,14 @@ IN_PROC_BROWSER_TEST_F(ShortcutCustomizationInteractiveUiTest,
       SendShortcutAccelerator(custom_open_quick_settings_accel),
       WaitForShow(kQuickSettingsViewElementId),
       SendShortcutAccelerator(custom_open_quick_settings_accel),
-      WaitForHide(kQuickSettingsViewElementId),
-      Steps(ClickDoneButton(),
-            ClickElement(webcontents_id_, kResetAllShortcutsButtonQuery),
-            WaitForElementExists(webcontents_id_, kConfirmButtonQuery),
-            ClickElement(webcontents_id_, kConfirmButtonQuery),
-            SendShortcutAccelerator(default_accel),
-            WaitForShow(kCalendarViewElementId),
-            SendShortcutAccelerator(default_accel),
-            WaitForHide(kCalendarViewElementId),
-            Log("Default shortcut still works"))
+      WaitForHide(kQuickSettingsViewElementId), ClickDoneButton(),
+      ClickElement(webcontents_id_, kResetAllShortcutsButtonQuery),
+      WaitForElementExists(webcontents_id_, kConfirmButtonQuery),
+      ClickElement(webcontents_id_, kConfirmButtonQuery),
+      SendShortcutAccelerator(default_accel),
+      WaitForShow(kCalendarViewElementId),
+      SendShortcutAccelerator(default_accel),
+      WaitForHide(kCalendarViewElementId), Log("Default shortcut still works")
 
   );
 }

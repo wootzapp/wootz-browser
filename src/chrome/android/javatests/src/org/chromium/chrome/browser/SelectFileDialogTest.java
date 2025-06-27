@@ -21,8 +21,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -31,11 +35,12 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.TestContentProvider;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.InsetObserver;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.SelectFileDialog;
@@ -47,29 +52,36 @@ import java.io.File;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class SelectFileDialogTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
+
+    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
+
+    @Mock InsetObserver mInsetObserver;
 
     private static final String DATA_URL =
             UrlUtils.encodeHtmlDataUri(
                     "<html><head><meta name=\"viewport\"content=\"width=device-width,"
-                            + " initial-scale=2.0, maximum-scale=2.0\" /></head><body><form"
-                            + " action=\"about:blank\"><input id=\"input_file\" type=\"file\""
-                            + " /><br/><input id=\"input_text\" type=\"file\" accept=\"text/plain\""
-                            + " /><br/><input id=\"input_any\" type=\"file\" accept=\"*/*\""
-                            + " /><br/><input id=\"input_file_multiple\" type=\"file\" multiple /><br"
-                            + " /><input id=\"input_image\" type=\"file\" accept=\"image/*\" capture"
-                            + " /><br/><input id=\"input_audio\" type=\"file\" accept=\"audio/*\""
-                            + " capture /></form></body></html>");
+                        + " initial-scale=2.0, maximum-scale=2.0\" /></head><body><form"
+                        + " action=\"about:blank\"><input id=\"input_file\" type=\"file\""
+                        + " /><br/><input id=\"input_text\" type=\"file\" accept=\"text/plain\""
+                        + " /><br/><input id=\"input_any\" type=\"file\" accept=\"*/*\""
+                        + " /><br/><input id=\"input_file_multiple\" type=\"file\" multiple /><br"
+                        + " /><input id=\"input_image\" type=\"file\" accept=\"image/*\" capture"
+                        + " /><br/><input id=\"input_audio\" type=\"file\" accept=\"audio/*\""
+                        + " capture /></form></body></html>");
 
     private static class ActivityWindowAndroidForTest extends ActivityWindowAndroid {
         public Intent lastIntent;
         public IntentCallback lastCallback;
 
-        public ActivityWindowAndroidForTest(Activity activity) {
+        public ActivityWindowAndroidForTest(Activity activity, InsetObserver insetObserver) {
             super(
                     activity,
                     /* listenToActivityState= */ true,
-                    IntentRequestTracker.createFromActivity(activity));
+                    IntentRequestTracker.createFromActivity(activity),
+                    insetObserver,
+                    /* trackOcclusion= */ true);
         }
 
         @Override
@@ -100,12 +112,13 @@ public class SelectFileDialogTest {
 
     @Before
     public void setUp() {
-        mActivityTestRule.startMainActivityWithURL(DATA_URL);
+        mActivityTestRule.startOnUrl(DATA_URL);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mActivityWindowAndroidForTest =
-                            new ActivityWindowAndroidForTest(mActivityTestRule.getActivity());
+                            new ActivityWindowAndroidForTest(
+                                    mActivityTestRule.getActivity(), mInsetObserver);
                     SelectFileDialog.setWindowAndroidForTests(mActivityWindowAndroidForTest);
 
                     mWebContents = mActivityTestRule.getActivity().getCurrentWebContents();
@@ -115,7 +128,7 @@ public class SelectFileDialogTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mActivityWindowAndroidForTest.destroy();
                 });
@@ -228,7 +241,7 @@ public class SelectFileDialogTest {
     }
 
     private void resetActivityWindowAndroidForTest() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityWindowAndroidForTest.lastCallback.onIntentCompleted(
                                 Activity.RESULT_CANCELED, null));

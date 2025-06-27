@@ -13,15 +13,13 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Token;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
+import org.chromium.components.tab_groups.TabGroupColorId;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /** This class allows Java code to get and clear the list of recently closed entries. */
@@ -43,9 +41,11 @@ public class RecentlyClosedBridge implements RecentlyClosedTabManager {
             int id,
             long groupTimestamp,
             @JniType("std::u16string") String groupTitle,
-            @JniType("std::vector") Object[] tabsArr) {
-        RecentlyClosedGroup group = new RecentlyClosedGroup(id, groupTimestamp, groupTitle);
-        group.getTabs().addAll((List<RecentlyClosedTab>) (List<?>) Arrays.asList(tabsArr));
+            @TabGroupColorId int groupColor,
+            @JniType("std::vector") List<RecentlyClosedTab> tabs) {
+        RecentlyClosedGroup group =
+                new RecentlyClosedGroup(id, groupTimestamp, groupTitle, groupColor);
+        group.getTabs().addAll(tabs);
         entries.add(group);
     }
 
@@ -56,7 +56,7 @@ public class RecentlyClosedBridge implements RecentlyClosedTabManager {
             long eventTimestamp,
             @JniType("std::vector<std::optional<base::Token>>") Token[] tabGroupIds,
             @JniType("std::vector<const std::u16string*>") String[] groupTitles,
-            @JniType("std::vector") Object[] tabsArr) {
+            @JniType("std::vector") List<RecentlyClosedTab> tabs) {
         RecentlyClosedBulkEvent event = new RecentlyClosedBulkEvent(id, eventTimestamp);
 
         assert tabGroupIds.length == groupTitles.length;
@@ -64,42 +64,32 @@ public class RecentlyClosedBridge implements RecentlyClosedTabManager {
             event.getTabGroupIdToTitleMap().put(tabGroupIds[i], groupTitles[i]);
         }
 
-        event.getTabs().addAll((List<RecentlyClosedTab>) (List<?>) Arrays.asList(tabsArr));
+        event.getTabs().addAll(tabs);
         entries.add(event);
     }
 
     @CalledByNative
     private void restoreTabGroup(
             TabModel tabModel,
-            @JniType("std::string") String savedTabGroupId,
             @JniType("std::u16string") String title,
             int color,
             @JniType("std::vector") int[] tabIds) {
         if (tabIds.length == 0) return;
 
         assert mTabModelSelector.getModel(tabModel.isIncognito()) == tabModel;
-        TabModelFilter filter =
+        TabGroupModelFilter filter =
                 mTabModelSelector
-                        .getTabModelFilterProvider()
-                        .getTabModelFilter(tabModel.isIncognito());
-        assert filter instanceof TabGroupModelFilter;
-        TabGroupModelFilter groupFilter = (TabGroupModelFilter) filter;
+                        .getTabGroupModelFilterProvider()
+                        .getTabGroupModelFilter(tabModel.isIncognito());
+        TabGroupModelFilter groupFilter = filter;
 
         int rootId = tabIds[0];
-
-        // Ensure that the color is set before merging the tabs into a group on restore, to indicate
-        // that this is not going to be a new group creation.
-        if (ChromeFeatureList.sTabGroupParityAndroid.isEnabled()) {
-            groupFilter.setTabGroupColor(rootId, color);
-        }
+        groupFilter.setTabGroupColor(rootId, color);
 
         // TODO(b/336589861): Use savedTabGroupId to reassociate this tab group with a sync entity.
 
         if (tabIds.length == 1) {
-            if (!ChromeFeatureList.sAndroidTabGroupStableIds.isEnabled()) {
-                return;
-            }
-            groupFilter.createSingleTabGroup(tabIds[0], false);
+            groupFilter.createSingleTabGroup(tabIds[0]);
         } else {
             for (int id : tabIds) {
                 if (id == rootId) continue;
@@ -117,7 +107,8 @@ public class RecentlyClosedBridge implements RecentlyClosedTabManager {
      * Initializes this class with the given profile.
      *
      * @param profile The {@link Profile} whose recently closed tabs will be queried.
-     * @param tabModelSelector The {@link TabModelSelector} to use to get {@link TabModelFilter}s.
+     * @param tabModelSelector The {@link TabModelSelector} to use to get {@link
+     *     TabGroupModelFilter}s.
      */
     public RecentlyClosedBridge(Profile profile, TabModelSelector tabModelSelector) {
         mNativeBridge = RecentlyClosedBridgeJni.get().init(RecentlyClosedBridge.this, profile);

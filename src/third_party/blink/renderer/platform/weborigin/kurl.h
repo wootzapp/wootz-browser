@@ -30,8 +30,7 @@
 #include <iosfwd>
 #include <memory>
 
-#include "base/feature_list.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
+#include "base/compiler_specific.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier.h"
@@ -170,8 +169,7 @@ class PLATFORM_EXPORT KURL {
   String ElidedString() const;
 
   String Protocol() const;
-  String Host() const;
-  StringView HostView() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  StringView Host() const LIFETIME_BOUND;
 
   // Returns 0 when there is no port or the default port was specified, or the
   // URL is invalid.
@@ -180,16 +178,18 @@ class PLATFORM_EXPORT KURL {
   // will be rejected by the canonicalizer.
   uint16_t Port() const;
   bool HasPort() const;
-  String User() const;
-  String Pass() const;
-  String GetPath() const;
+  StringView User() const LIFETIME_BOUND;
+  StringView Pass() const LIFETIME_BOUND;
+  StringView GetPath() const LIFETIME_BOUND;
   // This method handles "parameters" separated by a semicolon.
-  String LastPathComponent() const;
-  String Query() const;
-  String FragmentIdentifier() const;
+  StringView LastPathComponent() const LIFETIME_BOUND;
+  StringView Query() const LIFETIME_BOUND;
+  StringView QueryWithLeadingQuestionMark() const LIFETIME_BOUND;
+  StringView FragmentIdentifier() const LIFETIME_BOUND;
+  StringView FragmentIdentifierWithLeadingNumberSign() const LIFETIME_BOUND;
   bool HasFragmentIdentifier() const;
 
-  String BaseAsString() const;
+  StringView BaseAsString() const LIFETIME_BOUND;
 
   // Returns true if the current URL's protocol is the same as the StringView
   // argument. The argument must be lower-case.
@@ -256,8 +256,6 @@ class PLATFORM_EXPORT KURL {
 
   void WriteIntoTrace(perfetto::TracedValue context) const;
 
-  bool HasIDNA2008DeviationCharacter() const;
-
  private:
   friend struct WTF::HashTraits<blink::KURL>;
 
@@ -293,11 +291,6 @@ class PLATFORM_EXPORT KURL {
 
   bool is_valid_;
   bool protocol_is_in_http_family_;
-  // Set to true if any part of the URL string contains an IDNA 2008 deviation
-  // character. Only used for logging. The hostname is decoded to IDN and
-  // checked for deviation characters again before logging.
-  // TODO(crbug.com/1396475): Remove once Non-Transitional mode is shipped.
-  bool has_idna2008_deviation_character_;
 
   // Keep a separate string for the protocol to avoid copious copies for
   // protocol().
@@ -347,10 +340,10 @@ using DecodeURLMode = url::DecodeURLMode;
 //
 // Caution: Specifying kUTF8OrIsomorphic to the second argument doesn't conform
 // to specifications in many cases.
-PLATFORM_EXPORT String DecodeURLEscapeSequences(const String&,
+PLATFORM_EXPORT String DecodeURLEscapeSequences(const StringView&,
                                                 DecodeURLMode mode);
 
-PLATFORM_EXPORT String EncodeWithURLEscapeSequences(const String&);
+PLATFORM_EXPORT String EncodeWithURLEscapeSequences(const StringView&);
 
 // Checks an arbitrary string for invalid escape sequences.
 //
@@ -358,15 +351,6 @@ PLATFORM_EXPORT String EncodeWithURLEscapeSequences(const String&);
 // function returns true if an occurrence of '%' is found and followed by
 // anything other than two hex-digits.
 PLATFORM_EXPORT bool HasInvalidURLEscapeSequences(const String&);
-
-// Some call sites of `KURL::Host` can be made more efficient by not making a
-// string copy and just using a StringView instead. This feature flag is used to
-// investigate how costly the copying is.
-//
-// The disabled cases at the call sites are intentionally inefficient.
-//
-// TODO(crbug.com/339026510): Remove after this investigation.
-PLATFORM_EXPORT BASE_DECLARE_FEATURE(kAvoidWastefulHostCopies);
 
 }  // namespace blink
 

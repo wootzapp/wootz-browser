@@ -22,6 +22,7 @@
 #include "components/crx_file/id_util.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/test_navigation_observer.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/test/test_extension_dir.h"
@@ -63,9 +64,8 @@ ExtensionsToolbarUITest::ForceInstallExtension(const std::string& name) {
           .SetLocation(extensions::mojom::ManifestLocation::kExternalPolicy)
           .SetID(crx_file::id_util::GenerateId(name))
           .Build();
-  extensions::ExtensionSystem::Get(browser()->profile())
-      ->extension_service()
-      ->AddExtension(extension.get());
+  extensions::ExtensionRegistrar::Get(browser()->profile())
+      ->AddExtension(extension);
   return extension;
 }
 
@@ -153,9 +153,7 @@ ExtensionsToolbarUITest::GetExtensionsToolbarContainer() const {
 ExtensionsToolbarContainer*
 ExtensionsToolbarUITest::GetExtensionsToolbarContainerForBrowser(
     Browser* browser) const {
-  return BrowserView::GetBrowserViewForBrowser(browser)
-      ->toolbar()
-      ->extensions_container();
+  return browser->GetBrowserView().toolbar()->extensions_container();
 }
 
 std::vector<ToolbarActionView*> ExtensionsToolbarUITest::GetToolbarActionViews()
@@ -169,8 +167,9 @@ ExtensionsToolbarUITest::GetToolbarActionViewsForBrowser(
   std::vector<ToolbarActionView*> views;
   for (views::View* view :
        GetExtensionsToolbarContainerForBrowser(browser)->children()) {
-    if (views::IsViewClass<ToolbarActionView>(view))
+    if (views::IsViewClass<ToolbarActionView>(view)) {
       views.push_back(static_cast<ToolbarActionView*>(view));
+    }
   }
   return views;
 }
@@ -205,19 +204,20 @@ void ExtensionsToolbarUITest::NavigateTo(const GURL& url) {
   EXPECT_TRUE(observer.last_navigation_succeeded());
 }
 
-void ExtensionsToolbarUITest::AddSiteAccessRequest(
+void ExtensionsToolbarUITest::AddHostAccessRequest(
     const extensions::Extension& extension,
     content::WebContents* web_contents) {
   int tab_id = extensions::ExtensionTabUtil::GetTabId(web_contents);
-  extensions::PermissionsManager::Get(profile())->AddSiteAccessRequest(
+  extensions::PermissionsManager::Get(profile())->AddHostAccessRequest(
       web_contents, tab_id, extension);
 }
 
 void ExtensionsToolbarUITest::ClickButton(views::Button* button) const {
-  ui::MouseEvent press_event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
-                             base::TimeTicks(), ui::EF_LEFT_MOUSE_BUTTON, 0);
+  ui::MouseEvent press_event(ui::EventType::kMousePressed, gfx::Point(),
+                             gfx::Point(), base::TimeTicks(),
+                             ui::EF_LEFT_MOUSE_BUTTON, 0);
   button->OnMousePressed(press_event);
-  ui::MouseEvent release_event(ui::ET_MOUSE_RELEASED, gfx::Point(),
+  ui::MouseEvent release_event(ui::EventType::kMouseReleased, gfx::Point(),
                                gfx::Point(), base::TimeTicks(),
                                ui::EF_LEFT_MOUSE_BUTTON, 0);
   button->OnMouseReleased(release_event);

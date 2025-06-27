@@ -11,6 +11,7 @@
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_registry_update.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
@@ -125,7 +126,7 @@ void RemoveInstallUrlJob::Start(AllAppsLock& lock, Callback callback) {
     // safety.
     app = nullptr;
   }
-  CompleteAndSelfDestruct(webapps::UninstallResultCode::kSuccess);
+  CompleteAndSelfDestruct(webapps::UninstallResultCode::kInstallUrlRemoved);
 }
 
 webapps::WebappUninstallSource RemoveInstallUrlJob::uninstall_source() const {

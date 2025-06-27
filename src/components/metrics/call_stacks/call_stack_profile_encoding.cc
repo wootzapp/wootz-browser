@@ -3,70 +3,76 @@
 // found in the LICENSE file.
 
 #include "components/metrics/call_stacks/call_stack_profile_encoding.h"
+
 #include "base/notreached.h"
+#include "components/sampling_profiler/call_stack_profile_params.h"
+#include "components/sampling_profiler/process_type.h"
+#include "third_party/metrics_proto/sampled_profile.pb.h"
 
 namespace metrics {
 
-Process ToExecutionContextProcess(CallStackProfileParams::Process process) {
+Process ToExecutionContextProcess(
+    sampling_profiler::ProfilerProcessType process) {
   switch (process) {
-    case CallStackProfileParams::Process::kUnknown:
+    case sampling_profiler::ProfilerProcessType::kUnknown:
       return UNKNOWN_PROCESS;
-    case CallStackProfileParams::Process::kBrowser:
+    case sampling_profiler::ProfilerProcessType::kBrowser:
       return BROWSER_PROCESS;
-    case CallStackProfileParams::Process::kRenderer:
+    case sampling_profiler::ProfilerProcessType::kRenderer:
       return RENDERER_PROCESS;
-    case CallStackProfileParams::Process::kGpu:
+    case sampling_profiler::ProfilerProcessType::kGpu:
       return GPU_PROCESS;
-    case CallStackProfileParams::Process::kUtility:
+    case sampling_profiler::ProfilerProcessType::kUtility:
       return UTILITY_PROCESS;
-    case CallStackProfileParams::Process::kNetworkService:
+    case sampling_profiler::ProfilerProcessType::kNetworkService:
       return NETWORK_SERVICE_PROCESS;
-    case CallStackProfileParams::Process::kZygote:
+    case sampling_profiler::ProfilerProcessType::kZygote:
       return ZYGOTE_PROCESS;
-    case CallStackProfileParams::Process::kSandboxHelper:
+    case sampling_profiler::ProfilerProcessType::kSandboxHelper:
       return SANDBOX_HELPER_PROCESS;
-    case CallStackProfileParams::Process::kPpapiPlugin:
+    case sampling_profiler::ProfilerProcessType::kPpapiPlugin:
       return PPAPI_PLUGIN_PROCESS;
   }
-  NOTREACHED_IN_MIGRATION();
-  return UNKNOWN_PROCESS;
+  NOTREACHED();
 }
 
-Thread ToExecutionContextThread(CallStackProfileParams::Thread thread) {
+Thread ToExecutionContextThread(sampling_profiler::ProfilerThreadType thread) {
   switch (thread) {
-    case CallStackProfileParams::Thread::kUnknown:
+    case sampling_profiler::ProfilerThreadType::kUnknown:
       return UNKNOWN_THREAD;
-    case CallStackProfileParams::Thread::kMain:
+    case sampling_profiler::ProfilerThreadType::kMain:
       return MAIN_THREAD;
-    case CallStackProfileParams::Thread::kIo:
+    case sampling_profiler::ProfilerThreadType::kIo:
       return IO_THREAD;
-    case CallStackProfileParams::Thread::kCompositor:
+    case sampling_profiler::ProfilerThreadType::kCompositor:
       return COMPOSITOR_THREAD;
-    case CallStackProfileParams::Thread::kServiceWorker:
+    case sampling_profiler::ProfilerThreadType::kServiceWorker:
       return SERVICE_WORKER_THREAD;
+    case sampling_profiler::ProfilerThreadType::kThreadPoolWorker:
+      return THREAD_POOL_THREAD;
   }
-  NOTREACHED_IN_MIGRATION();
-  return UNKNOWN_THREAD;
+  NOTREACHED();
 }
 
 SampledProfile::TriggerEvent ToSampledProfileTriggerEvent(
-    CallStackProfileParams::Trigger trigger) {
+    sampling_profiler::CallStackProfileParams::Trigger trigger) {
   switch (trigger) {
-    case CallStackProfileParams::Trigger::kUnknown:
+    case sampling_profiler::CallStackProfileParams::Trigger::kUnknown:
       return SampledProfile::UNKNOWN_TRIGGER_EVENT;
-    case CallStackProfileParams::Trigger::kProcessStartup:
+    case sampling_profiler::CallStackProfileParams::Trigger::kProcessStartup:
       return SampledProfile::PROCESS_STARTUP;
-    case CallStackProfileParams::Trigger::kJankyTask:
+    case sampling_profiler::CallStackProfileParams::Trigger::kJankyTask:
       return SampledProfile::JANKY_TASK;
-    case CallStackProfileParams::Trigger::kThreadHung:
+    case sampling_profiler::CallStackProfileParams::Trigger::kThreadHung:
       return SampledProfile::THREAD_HUNG;
-    case CallStackProfileParams::Trigger::kPeriodicCollection:
+    case sampling_profiler::CallStackProfileParams::Trigger::
+        kPeriodicCollection:
       return SampledProfile::PERIODIC_COLLECTION;
-    case CallStackProfileParams::Trigger::kPeriodicHeapCollection:
+    case sampling_profiler::CallStackProfileParams::Trigger::
+        kPeriodicHeapCollection:
       return SampledProfile::PERIODIC_HEAP_COLLECTION;
   }
-  NOTREACHED_IN_MIGRATION();
-  return SampledProfile::UNKNOWN_TRIGGER_EVENT;
+  NOTREACHED();
 }
 
 }  // namespace metrics

@@ -116,7 +116,7 @@ void AnimateView(views::View* view,
 void FadeInView(views::View* view,
                 base::TimeDelta duration,
                 base::TimeDelta delay) {
-  if (!view->GetVisible()) {
+  if (!view || !view->GetVisible()) {
     return;
   }
 
@@ -224,19 +224,19 @@ void AnimateDeskBarBounds(DeskBarViewBase* bar_view) {
   base::OnceClosure ondone = base::BindOnce(
       base::BindOnce([](DeskBarViewBase* bar_view) {
         bar_view->set_pause_layout(false);
-
-        // Updated the desk buttons and layout the desk bar to make sure the
-        // buttons visibility will be updated on desk bar state changes. Also
-        // make sure the button's text will be updated correctly while going
+        // Ensure each button's visibility is accurate on desk bar state
+        // changes and that each button's text is updated correctly while going
         // back to zero state.
         bar_view->UpdateDeskButtonsVisibility();
-        bar_view->DeprecatedLayoutImmediately();
         if (OverviewController* overview_controller =
                 Shell::Get()->overview_controller()) {
           if (overview_controller->InOverviewSession()) {
             overview_controller->overview_session()->UpdateAccessibilityFocus();
           }
         }
+        // Manually call `InvalidateLayout` at the end of the animation to
+        // ensure that all the child views on `bar_view` are correctly painted.
+        bar_view->InvalidateLayout();
 
         bar_view->OnUiUpdateDone();
       }),
@@ -281,7 +281,7 @@ void AnimateDeskIconButtonScale(DeskIconButton* button,
   auto* layer = button->layer();
   layer->SetRoundedCornerRadius(initial_radius);
   button->SetBackground(
-      views::CreateSolidBackground(button->background()->get_color()));
+      views::CreateSolidBackground(button->background()->color()));
 
   layer->SetTransform(scale_transform);
 
@@ -297,7 +297,7 @@ void AnimateDeskIconButtonScale(DeskIconButton* button,
         if (overview_controller->InOverviewSession()) {
           button->layer()->SetRoundedCornerRadius(gfx::RoundedCornersF());
           button->SetBackground(views::CreateRoundedRectBackground(
-              button->background()->get_color(),
+              button->background()->color(),
               DeskIconButton::GetCornerRadiusOnState(button->state())));
         }
       },
@@ -316,10 +316,8 @@ void AnimateDeskIconButtonScale(DeskIconButton* button,
 
 }  // namespace
 
-void PerformAddDeskMiniViewAnimation(std::vector<DeskMiniView*> new_mini_views,
-                                     int shift_x) {
-  gfx::Transform mini_views_left_begin_transform;
-  mini_views_left_begin_transform.Translate(shift_x, 0);
+void PerformAddDeskMiniViewAnimation(
+    std::vector<DeskMiniView*> new_mini_views) {
   for (auto* mini_view : new_mini_views) {
     if (!mini_view->desk()->is_desk_being_removed()) {
       ScaleUpAndFadeInView(mini_view);
@@ -594,7 +592,7 @@ void PerformDeskBarSlideAnimation(std::unique_ptr<views::Widget> desks_widget,
   TRACE_EVENT0("ui", "PerformDeskBarSlideAnimation");
 
   // The desks widget should no longer process events at this point.
-  PrepareWidgetForOverviewShutdown(desks_widget.get());
+  PrepareWidgetForShutdownAnimation(desks_widget.get());
 
   gfx::Transform transform;
   transform.Translate(0, -desks_widget->GetWindowBoundsInScreen().height());

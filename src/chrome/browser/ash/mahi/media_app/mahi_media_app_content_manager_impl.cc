@@ -4,6 +4,10 @@
 
 #include "chrome/browser/ash/mahi/media_app/mahi_media_app_content_manager_impl.h"
 
+#include <string>
+#include <string_view>
+
+#include "base/containers/contains.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/unguessable_token.h"
 #include "chromeos/components/mahi/public/cpp/mahi_manager.h"
@@ -30,47 +34,70 @@ void MahiMediaAppContentManagerImpl::OnPdfGetFocus(
     manager->SetMediaAppPDFFocused();
   } else {
     // TODO(b/335741382): UMA metrics
-    LOG(ERROR) << "No mahi manager to response OnMediaAppPageGetFocus";
+    LOG(ERROR) << "No mahi manager to response OnPdfGetFocus";
   }
 }
 
-std::u16string MahiMediaAppContentManagerImpl::GetFileName(
+void MahiMediaAppContentManagerImpl::OnPdfClosed(
     const base::UnguessableToken client_id) {
-  return base::UTF8ToUTF16(
-      base::StringPrintf("test_%s.pdf", client_id.ToString().c_str()));
+  // Notifies Mahi manager.
+  auto* manager = chromeos::MahiManager::Get();
+  if (manager) {
+    manager->MediaAppPDFClosed(client_id);
+  } else {
+    // TODO(b/335741382): UMA metrics
+    LOG(ERROR) << "No mahi manager to response OnPdfClosed";
+  }
+}
+
+std::optional<std::string> MahiMediaAppContentManagerImpl::GetFileName(
+    const base::UnguessableToken client_id) {
+  auto it = client_id_to_client_.find(client_id);
+  if (it == client_id_to_client_.end()) {
+    LOG(ERROR) << "Invalid client id";
+    return std::nullopt;
+  }
+  return it->second->file_name();
 }
 
 void MahiMediaAppContentManagerImpl::GetContent(
     const base::UnguessableToken client_id,
     chromeos::GetMediaAppContentCallback callback) {
-  if (!client_id_to_client_.contains(client_id)) {
+  auto it = client_id_to_client_.find(client_id);
+  if (it == client_id_to_client_.end()) {
     LOG(ERROR) << "Request content from a removed client";
     std::move(callback).Run(nullptr);
     return;
   }
 
-  // TODO(b/335741382): call client for content.
-  crosapi::mojom::MahiPageContentPtr page_content =
-      crosapi::mojom::MahiPageContent::New(
-          /*client_id=*/client_id,
-          /*page_id=*/client_id,  // MediaApp content doesn't have page id.
-          /*page_content=*/base::UTF8ToUTF16(client_id_to_client_[client_id]));
-
-  std::move(callback).Run(std::move(page_content));
+  it->second->GetPdfContent(std::move(callback));
 }
 
 void MahiMediaAppContentManagerImpl::OnMahiContextMenuClicked(
     int64_t display_id,
     chromeos::mahi::ButtonType button_type,
-    const std::u16string& question) {
+    std::u16string_view question,
+    const gfx::Rect& mahi_menu_bounds) {
+  auto it = client_id_to_client_.find(active_client_id_);
+  if (it == client_id_to_client_.end()) {
+    // This should not happen because the mahi context menu widget should hide
+    // when `active_client_id_` is removed.
+    LOG(ERROR) << "Mahi context menu clicked on a removed media app client";
+    return;
+  }
+
+  // Hides the media app context menu, this will in turn hide the mahi menu
+  // card.
+  it->second->HideMediaAppContextMenu();
+
   // Generates the context menu request.
   crosapi::mojom::MahiContextMenuRequestPtr context_menu_request =
       crosapi::mojom::MahiContextMenuRequest::New(
           /*display_id=*/display_id,
           /*action_type=*/MatchButtonTypeToActionType(button_type),
-          /*question=*/std::nullopt);
+          /*question=*/std::nullopt, mahi_menu_bounds);
   if (button_type == chromeos::mahi::ButtonType::kQA) {
-    context_menu_request->question = question;
+    context_menu_request->question = std::u16string(question);
   }
 
   auto* manager = chromeos::MahiManager::Get();
@@ -80,6 +107,51 @@ void MahiMediaAppContentManagerImpl::OnMahiContextMenuClicked(
     // TODO(b/335741382): UMA
     LOG(ERROR) << "No mahi manager to response OnContextMenuClicked";
   }
+}
+
+void MahiMediaAppContentManagerImpl::AddClient(base::UnguessableToken client_id,
+                                               MahiMediaAppClient* client) {
+  client_id_to_client_[client_id] = client;
+  windows_of_live_clients_.insert(client->media_app_window());
+}
+
+void MahiMediaAppContentManagerImpl::RemoveClient(
+    base::UnguessableToken client_id) {
+  auto it = client_id_to_client_.find(client_id);
+  if (it == client_id_to_client_.end()) {
+    LOG(ERROR) << "Tried to remove a non-existing client id, do nothing";
+    return;
+  }
+
+  windows_of_live_clients_.erase(it->second->media_app_window());
+  client_id_to_client_.erase(it);
+}
+
+bool MahiMediaAppContentManagerImpl::ObservingWindow(
+    const aura::Window* window) const {
+  return windows_of_live_clients_.contains(window);
+}
+
+bool MahiMediaAppContentManagerImpl::ActivateClientWindow(
+    const base::UnguessableToken client_id) {
+  auto it = client_id_to_client_.find(client_id);
+  if (it == client_id_to_client_.end()) {
+    DVLOG(1) << "Tried to activate a removed client, do nothing";
+    return false;
+  }
+  CHECK(it->second->media_app_window());
+
+  it->second->media_app_window()->Focus();
+  return true;
+}
+
+void MahiMediaAppContentManagerImpl::SetSelectedText(
+    const std::string& selected_text) {
+  selected_text_ = selected_text;
+}
+
+std::string MahiMediaAppContentManagerImpl::GetSelectedText() const {
+  return selected_text_;
 }
 
 }  // namespace ash

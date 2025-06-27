@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/omnibox/browser/omnibox_popup_selection.h"
 #include "components/omnibox/browser/omnibox_popup_view.h"
@@ -44,9 +43,7 @@ class OmniboxPopupViewWebUI : public OmniboxPopupView {
   void ProvideButtonFocusHint(size_t line) override;
   void OnMatchIconUpdated(size_t match_index) override;
   void OnDragCanceled() override;
-  void GetPopupAccessibleNodeData(ui::AXNodeData* node_data) override;
-  void AddPopupAccessibleNodeData(ui::AXNodeData* node_data) override;
-  std::u16string GetAccessibleButtonTextForResult(size_t line) override;
+  void GetPopupAccessibleNodeData(ui::AXNodeData* node_data) const override;
 
  protected:
   friend class OmniboxPopupViewWebUITest;

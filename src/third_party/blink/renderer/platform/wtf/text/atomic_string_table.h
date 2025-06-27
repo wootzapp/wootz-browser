@@ -45,12 +45,13 @@ class WTF_EXPORT AtomicStringTable final {
   scoped_refptr<StringImpl> Add(const UChar* chars,
                                 unsigned length,
                                 AtomicStringUCharEncoding encoding);
+  scoped_refptr<StringImpl> Add(const StringView& string_view);
 
   // Adding UTF8.
   // Returns null if the characters contain invalid utf8 sequences.
-  // Pass null for the charactersEnd to automatically detect the length.
-  scoped_refptr<StringImpl> AddUTF8(const char* characters_start,
-                                    const char* characters_end);
+  // Pass null as `characters_end` to automatically detect the length.
+  scoped_refptr<StringImpl> AddUTF8(const uint8_t* characters_start,
+                                    const uint8_t* characters_end);
 
   // Returned as part of the WeakFind*() APIs below. Represents the result of
   // the non-creating lookup within the AtomicStringTable. See the WeakFind*()
@@ -91,11 +92,13 @@ class WTF_EXPORT AtomicStringTable final {
 
   WeakResult WeakFindForTesting(const StringView& string) {
     // Mirror the empty logic in Add().
-    if (UNLIKELY(!string.length()))
+    if (!string.length()) [[unlikely]] {
       return WeakResult(StringImpl::empty_);
+    }
 
-    if (LIKELY(string.IsAtomic()))
+    if (string.IsAtomic()) [[likely]] {
       return WeakResult(string.SharedImpl());
+    }
 
     return WeakFindSlowForTesting(string);
   }

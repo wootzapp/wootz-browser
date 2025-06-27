@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-import 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
+import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
 import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import '../controls/controlled_radio_button.js';
 import '../controls/settings_radio_group.js';
@@ -12,7 +12,6 @@ import '../settings_shared.css.js';
 
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
-import type {IronCollapseElement} from 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {ControlledRadioButtonElement} from '../controls/controlled_radio_button.js';
@@ -31,7 +30,6 @@ export interface SettingsBatteryPageElement {
   $: {
     enabledOnBatteryButton: ControlledRadioButtonElement,
     radioGroup: SettingsRadioGroupElement,
-    radioGroupCollapse: IronCollapseElement,
     toggleButton: SettingsToggleButtonElement,
   };
 }
@@ -55,7 +53,7 @@ export class SettingsBatteryPageElement extends SettingsBatteryPageElementBase {
         value: BatterySaverModeState,
       },
 
-      isBatterySaverModeManagedByOS_: {
+      isBatterySaverModeManagedByOs_: {
         type: Boolean,
         value() {
           return loadTimeData.getBoolean('isBatterySaverModeManagedByOS');
@@ -69,7 +67,8 @@ export class SettingsBatteryPageElement extends SettingsBatteryPageElementBase {
     };
   }
 
-  private numericUncheckedValues_: BatterySaverModeState[];
+  declare private isBatterySaverModeManagedByOs_: boolean;
+  declare private numericUncheckedValues_: BatterySaverModeState[];
   private metricsProxy_: PerformanceMetricsProxy =
       PerformanceMetricsProxyImpl.getInstance();
 
@@ -80,6 +79,11 @@ export class SettingsBatteryPageElement extends SettingsBatteryPageElementBase {
   private onChange_() {
     this.metricsProxy_.recordBatterySaverModeChanged(
         this.getPref<number>(BATTERY_SAVER_MODE_PREF).value);
+  }
+
+  private onBatterySaverLearnMoreLinkClick_() {
+    OpenWindowProxyImpl.getInstance().openUrl(
+        loadTimeData.getString('batterySaverLearnMoreUrl'));
   }
 
   // <if expr="is_chromeos">

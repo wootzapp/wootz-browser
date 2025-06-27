@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/app_list/search/search_controller.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -13,7 +19,6 @@
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "base/containers/to_vector.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/test/bind.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/app_list/search/chrome_search_result.h"
@@ -501,9 +506,6 @@ TEST_F(
   search_controller_->SetResults(Result::kPlayStoreApp,
                                  std::move(play_store_app_results));
   ExpectIdOrder({"a", "b", "c", "d", "e"});
-  search_controller_->SetResults(Result::kInternalApp,
-                                 std::move(internal_app_results));
-  ExpectIdOrder({"a", "b", "c", "d", "e", "f"});
 }
 
 TEST_F(SearchControllerTest, FirstSearchResultsNotShownInSecondSearch) {

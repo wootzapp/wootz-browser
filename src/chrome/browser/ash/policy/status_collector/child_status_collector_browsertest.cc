@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "chrome/browser/ash/policy/status_collector/child_status_collector.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,7 +37,6 @@
 #include "chrome/browser/ash/child_accounts/time_limits/app_types.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/ownership/fake_owner_settings_service.h"
-#include "chrome/browser/ash/policy/status_collector/child_status_collector.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/chrome_content_browser_client.h"
@@ -60,6 +66,7 @@
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/user_manager/scoped_user_manager.h"
+#include "components/user_manager/test_helper.h"
 #include "components/user_manager/user_type.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
@@ -362,8 +369,9 @@ class ChildStatusCollectorTest : public testing::Test {
     auto* user_manager = GetFakeUserManager();
     auto* user = user_manager->AddUserWithAffiliationAndTypeAndProfile(
         account_id, is_affiliated, user_type, testing_profile_.get());
-    user_manager->UserLoggedIn(user->GetAccountId(), user->username_hash(),
-                               /*browser_restart=*/false, /*is_child=*/false);
+    user_manager->UserLoggedIn(
+        user->GetAccountId(),
+        user_manager::TestHelper::GetFakeUsernameHash(user->GetAccountId()));
   }
 
   void AddChildUser(const AccountId& account_id) {

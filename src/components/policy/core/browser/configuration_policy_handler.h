@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/compiler_specific.h"
@@ -285,10 +286,11 @@ class POLICY_EXPORT StringMappingListPolicyHandler
   // matching pref values.
   class POLICY_EXPORT MappingEntry {
    public:
-    MappingEntry(const char* policy_value, std::unique_ptr<base::Value> map);
+    MappingEntry(std::string_view policy_value,
+                 std::unique_ptr<base::Value> map);
     ~MappingEntry();
 
-    const char* enum_value;
+    std::string_view enum_value;
     std::unique_ptr<base::Value> mapped_value;
   };
 
@@ -443,6 +445,16 @@ class POLICY_EXPORT SimpleSchemaValidatingPolicyHandler
   const char* pref_path_;
   const bool allow_recommended_;
   const bool allow_mandatory_;
+};
+
+// Maps a policy to a preference path, validating the schema.
+struct POLICY_EXPORT SchemaValidatingPolicyToPreferenceMapEntry {
+  const char* const policy_name;
+  const char* const preference_path;
+  SchemaOnErrorStrategy strategy;
+  SimpleSchemaValidatingPolicyHandler::RecommendedPermission
+      recommended_permission;
+  SimpleSchemaValidatingPolicyHandler::MandatoryPermission mandatory_permission;
 };
 
 // Maps policy to pref like SimplePolicyHandler. Ensures that the root value

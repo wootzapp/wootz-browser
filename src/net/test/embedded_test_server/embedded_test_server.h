@@ -14,13 +14,16 @@
 #include <string_view>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_checker.h"
+#include "base/types/expected.h"
 #include "net/base/address_list.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/ip_endpoint.h"
@@ -32,7 +35,7 @@
 #include "net/ssl/ssl_server_config.h"
 #include "net/test/cert_builder.h"
 #include "net/test/embedded_test_server/http_connection.h"
-#include "third_party/boringssl/src/pki/ocsp_revocation_status.h"
+#include "third_party/boringssl/src/include/openssl/pki/ocsp.h"
 #include "third_party/boringssl/src/pki/parse_certificate.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -51,6 +54,15 @@ class HttpResponseDelegate;
 struct HttpRequest;
 
 class EmbeddedTestServer;
+
+// Enum representing the possible outcomes of handling an upgrade request.
+// - kUpgraded: The request was successfully upgraded to a WebSocket connection.
+// - kNotHandled: The request was not handled as an upgrade and should be
+// processed as a normal HTTP request.
+enum class UpgradeResult {
+  kUpgraded,
+  kNotHandled,
+};
 
 // Returned by the Start[AcceptingConnections]WithHandle() APIs, to simplify
 // correct shutdown ordering of the EmbeddedTestServer. Shutdown() is invoked
@@ -150,10 +162,6 @@ class EmbeddedTestServer {
 
     // A certificate that is signed by an intermediate certificate.
     CERT_OK_BY_INTERMEDIATE,
-
-    // A certificate with invalid notBefore and notAfter times. Windows'
-    // certificate library will not parse this certificate.
-    CERT_BAD_VALIDITY,
 
     // A certificate that covers a number of test names. See [test_names] in
     // net/data/ssl/scripts/ee.cnf. More may be added by editing this list and
@@ -321,8 +329,20 @@ class EmbeddedTestServer {
     // intermediate cert (if an intermediate is configured).
     std::vector<std::string> policy_oids;
 
+    // QWAC QC types for the QcStatements extension. If non-empty, the
+    // QcStatements extension will be set on the leaf cert containing values
+    // appropriate for a QWAC with the given QC types.
+    std::vector<bssl::der::Input> qwac_qc_types;
+
+    // Value to use for leaf's basicConstraints isCA field
+    bool leaf_is_ca = false;
+
     // A list of DNS names to include in the leaf subjectAltName extension.
     std::vector<std::string> dns_names;
+
+    // A list of DNS names to include in the root subjectAltName extension. Only
+    // used if root = RootType::kUniqueRoot
+    std::vector<std::string> root_dns_names;
 
     // A list of IP addresses to include in the leaf subjectAltName extension.
     std::vector<net::IPAddress> ip_addresses;
@@ -332,13 +352,28 @@ class EmbeddedTestServer {
 
     // Generate embedded SCTList in the certificate for the specified logs.
     std::vector<CertBuilder::SctConfig> embedded_scts;
+
+    // If non-empty, raw bytes to use as the leaf subject. If empty, a random
+    // valid subject will be generated.
+    // (This can be used for testing behavior with invalid or weird encodings,
+    // if we need tests to set specific subjects for more normal cases, we
+    // should consider adding a more ergonomic API for that.)
+    std::vector<uint8_t> subject_tlv;
   };
 
-  typedef base::RepeatingCallback<std::unique_ptr<HttpResponse>(
-      const HttpRequest& request)>
-      HandleRequestCallback;
-  typedef base::RepeatingCallback<void(const HttpRequest& request)>
-      MonitorRequestCallback;
+  using UpgradeResultOrHttpResponse =
+      base::expected<UpgradeResult, std::unique_ptr<HttpResponse>>;
+  using HandleUpgradeRequestCallback =
+      base::RepeatingCallback<UpgradeResultOrHttpResponse(
+          const HttpRequest& request,
+          HttpConnection* connection)>;
+
+  using HandleRequestCallback =
+      base::RepeatingCallback<std::unique_ptr<HttpResponse>(
+          const HttpRequest& request)>;
+
+  using MonitorRequestCallback =
+      base::RepeatingCallback<void(const HttpRequest& request)>;
 
   // Creates a http test server. StartAndReturnHandle() must be called to start
   // the server.
@@ -359,8 +394,9 @@ class EmbeddedTestServer {
 
   //  Send a request to the server to be handled. If a response is created,
   //  SendResponseBytes() should be called on the provided HttpConnection.
-  void HandleRequest(base::WeakPtr<HttpResponseDelegate> connection,
-                     std::unique_ptr<HttpRequest> request);
+  void HandleRequest(base::WeakPtr<HttpResponseDelegate> delegate,
+                     std::unique_ptr<HttpRequest> request,
+                     const StreamSocket* socket);
 
   // Notify the server that a connection is no longer usable and is safe to
   // destroy. For H/1 connections, this means a single request/response
@@ -511,6 +547,30 @@ class EmbeddedTestServer {
   // directory.
   void AddDefaultHandlers();
 
+  // Registers an Auth handler for validating credentials in HTTP requests.
+  // The handler will check the Authorization header and compare the provided
+  // credentials to the expected values. If credentials are valid, the request
+  // processing will proceed; otherwise, the handler will respond with a 401
+  // Unauthorized. Note that:
+  // 1. All handlers must be registered before the server is started.
+  // 2. The server should be shutdown before any variables referred to by
+  //    |callback| (e.g., via base::Unretained(&local)) are deleted. Using the
+  //    Start*WithHandle() API variants is recommended for proper shutdown
+  //    handling.
+  void RegisterAuthHandler(const HandleRequestCallback& callback);
+
+  // Adds a handler callback to process WebSocket upgrade requests.
+  // |callback| will be invoked on the server's IO thread when a request
+  // attempts to upgrade to a WebSocket connection. Note that:
+  // 1. All upgrade request handlers must be registered before the server is
+  //    Start()ed.
+  // 2. This method is not supported for HTTP/2 connections.
+  // 3. The server should be Shutdown() before any variables referred to by
+  //    |callback| (e.g., via base::Unretained(&local)) are deleted. Using the
+  //    Start*WithHandle() API variants is recommended for this reason.
+  void RegisterUpgradeRequestHandler(
+      const HandleUpgradeRequestCallback& callback);
+
   // Adds a request handler that can perform any general-purpose processing.
   // |callback| will be invoked on the server's IO thread. Note that:
   // 1. All handlers must be registered before the server is Start()ed.
@@ -544,6 +604,16 @@ class EmbeddedTestServer {
   // string.
   void SetAlpsAcceptCH(std::string hostname, std::string accept_ch);
 
+  // Registers a shutdown closure for WebSocket connections to safely
+  // disconnect. This method should only be called from handler callbacks and
+  // must be invoked on the server's callback thread.
+  //
+  // The closure registered here will be executed on the callback thread before
+  // the server completes its shutdown. This ensures that any resources specific
+  // to the callback thread are cleaned up safely.
+  base::CallbackListSubscription RegisterShutdownClosure(
+      base::OnceClosure closure);
+
  private:
   // Returns the file name of the certificate the server is using. The test
   // certificates can be found in net/data/ssl/certificates/.
@@ -561,6 +631,8 @@ class EmbeddedTestServer {
   // Resets the SSLServerConfig on the IO thread.
   bool ResetSSLConfigOnIOThread(ServerCertificate cert,
                                 const SSLServerConfig& ssl_config);
+
+  HttpConnection* GetConnectionForSocket(const StreamSocket* socket);
 
   // Upgrade the TCP connection to one over SSL.
   std::unique_ptr<SSLServerSocket> DoSSLUpgrade(
@@ -626,7 +698,13 @@ class EmbeddedTestServer {
 
   std::map<const StreamSocket*, std::unique_ptr<HttpConnection>> connections_;
 
+  // Optional Auth handler to validate HTTP requests. If set, this handler
+  // is checked first; requests without valid credentials return an error
+  // immediately without reaching other handlers.
+  HandleRequestCallback auth_handler_;
+
   // Vector of registered and default request handlers and monitors.
+  std::vector<HandleUpgradeRequestCallback> upgrade_request_handlers_;
   std::vector<HandleRequestCallback> request_handlers_;
   std::vector<MonitorRequestCallback> request_monitors_;
   std::vector<HandleRequestCallback> default_request_handlers_;
@@ -637,6 +715,8 @@ class EmbeddedTestServer {
   net::SSLServerConfig ssl_config_;
   ServerCertificate cert_ = CERT_OK;
   ServerCertificateConfig cert_config_;
+  // If non-empty, will be used instead of `x509_cert_`.
+  std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> cert_chain_;
   scoped_refptr<X509Certificate> x509_cert_;
   // May be null if no intermediate is generated.
   scoped_refptr<X509Certificate> intermediate_;
@@ -648,6 +728,9 @@ class EmbeddedTestServer {
   // HTTP server that handles AIA URLs that are embedded in this test server's
   // certificate when the server certificate is one of the CERT_AUTO variants.
   std::unique_ptr<EmbeddedTestServer> aia_http_server_;
+
+  // Closure list to manage shutdown closures for WebSocket connections.
+  base::OnceClosureList shutdown_closures_;
 
   base::WeakPtrFactory<EmbeddedTestServer> weak_factory_{this};
 };

@@ -6,27 +6,22 @@
 #define PARTITION_ALLOC_IN_SLOT_METADATA_H_
 
 #include <atomic>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
+#include "partition_alloc/partition_alloc_base/bits.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
 #include "partition_alloc/partition_alloc_base/immediate_crash.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_check.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_constants.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/tagging.h"
-
-#if BUILDFLAG(IS_APPLE)
-#include "partition_alloc/partition_alloc_base/bits.h"
-#endif  // BUILDFLAG(IS_APPLE)
 
 namespace partition_alloc::internal {
 
@@ -40,18 +35,17 @@ namespace partition_alloc::internal {
 // Placed outside `PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)`
 // intentionally to accommodate usage in contexts also outside
 // this gating.
-PA_ALWAYS_INLINE size_t
-AlignUpInSlotMetadataSizeForApple(size_t in_slot_metadata_size) {
-#if BUILDFLAG(IS_APPLE)
-  return internal::base::bits::AlignUp<size_t>(in_slot_metadata_size, 8);
+PA_ALWAYS_INLINE constexpr size_t AlignUpInSlotMetadataSizeForApple(
+    size_t in_slot_metadata_size) {
+#if PA_BUILDFLAG(IS_APPLE)
+  return base::bits::AlignUp<size_t>(in_slot_metadata_size, 8);
 #else
   return in_slot_metadata_size;
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // PA_BUILDFLAG(IS_APPLE)
 }
 
 #if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
-namespace {
 // Utility functions to define a bit field.
 template <typename CountType>
 static constexpr CountType SafeShift(CountType lhs, int rhs) {
@@ -69,7 +63,6 @@ struct BitField {
            ~(SafeShift<CountType>(1, lo) - 1);
   }
 };
-}  // namespace
 
 // Special-purpose atomic bit field class mainly used by RawPtrBackupRefImpl.
 // Formerly known as `PartitionRefCount`, but renamed to support usage that is
@@ -171,9 +164,9 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
                 std::numeric_limits<CountType>::max());
 
   static constexpr auto kPtrInc =
-      SafeShift<CountType>(1, std::countr_zero(kPtrCountMask));
+      SafeShift<CountType>(1, base::bits::CountrZero(kPtrCountMask));
   static constexpr auto kUnprotectedPtrInc =
-      SafeShift<CountType>(1, std::countr_zero(kUnprotectedPtrCountMask));
+      SafeShift<CountType>(1, base::bits::CountrZero(kUnprotectedPtrCountMask));
 
   PA_ALWAYS_INLINE explicit InSlotMetadata(bool needs_mac11_malloc_size_hack);
 
@@ -220,8 +213,8 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
 
 #if PA_BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
     // If a dangling raw_ptr<> was detected, report it.
-    if (PA_UNLIKELY((old_count & kDanglingRawPtrDetectedBit) ==
-                    kDanglingRawPtrDetectedBit)) {
+    if ((old_count & kDanglingRawPtrDetectedBit) == kDanglingRawPtrDetectedBit)
+        [[unlikely]] {
       partition_alloc::internal::DanglingRawPtrReleased(
           reinterpret_cast<uintptr_t>(this));
     }
@@ -258,21 +251,26 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
 
   // Returns true if the allocation should be reclaimed.
   // This function should be called by the allocator during Free().
-  PA_ALWAYS_INLINE bool ReleaseFromAllocator() {
+  PA_ALWAYS_INLINE bool ReleaseFromAllocator(
+      uintptr_t slot_start,
+      SlotSpanMetadata<MetadataKind::kReadOnly>* slot_span) {
     CheckCookieIfSupported();
 
-    // TODO(bartekn): Make the double-free check more effective. Once freed, the
-    // in-slot metadata is overwritten by an encoded freelist-next pointer.
     CountType old_count =
         count_.fetch_and(~kMemoryHeldByAllocatorBit, std::memory_order_release);
 
-    if (PA_UNLIKELY(!(old_count & kMemoryHeldByAllocatorBit))) {
-      DoubleFreeOrCorruptionDetected(old_count);
+    // If kMemoryHeldByAllocatorBit was already unset, it indicates a double
+    // free, but it could also be caused by a memory corruption. Note, this
+    // detection mechanism isn't perfect, because in-slot-metadata can be
+    // overwritten by the freelist pointer (or its shadow) for very small slots,
+    // thus masking the error away.
+    if (!(old_count & kMemoryHeldByAllocatorBit)) [[unlikely]] {
+      DoubleFreeOrCorruptionDetected(old_count, slot_start, slot_span);
     }
 
     // Release memory when no raw_ptr<> exists anymore:
     static constexpr CountType mask = kPtrCountMask | kUnprotectedPtrCountMask;
-    if (PA_LIKELY((old_count & mask) == 0)) {
+    if ((old_count & mask) == 0) [[likely]] {
       std::atomic_thread_fence(std::memory_order_acquire);
       // The allocation is about to get freed, so clear the cookie.
       ClearCookieIfSupported();
@@ -305,6 +303,17 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
     return alive;
   }
 
+  // Assertion to allocation which ought to be alive.
+  PA_ALWAYS_INLINE void EnsureAlive(
+      uintptr_t slot_start,
+      SlotSpanMetadata<MetadataKind::kReadOnly>* slot_span) {
+    CountType count = count_.load(std::memory_order_relaxed);
+    if (!(count & kMemoryHeldByAllocatorBit)) {
+      DoubleFreeOrCorruptionDetected(count, slot_start, slot_span);
+    }
+    CheckCookieIfSupported();
+  }
+
   // Called when a raw_ptr is not banning dangling ptrs, but the user still
   // wants to ensure the pointer is not currently dangling. This is currently
   // used in UnretainedWrapper to make sure callbacks are not invoked with
@@ -319,6 +328,8 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
 
   // Request to quarantine this allocation. The request might be ignored if
   // the allocation is already freed.
+  // TODO(crbug.com/329027914) This is an unused function. Start using it in
+  // tests and/or in production code.
   PA_ALWAYS_INLINE void SetQuarantineRequest() {
     CountType old_count =
         count_.fetch_or(kRequestQuarantineBit, std::memory_order_relaxed);
@@ -327,6 +338,8 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
   }
 
   // Get and clear out quarantine request.
+  // TODO(crbug.com/329027914) This is an unused function. Start using it in
+  // tests and/or in production code.
   PA_ALWAYS_INLINE bool PopQuarantineRequest() {
     CountType old_count =
         count_.fetch_and(~kRequestQuarantineBit, std::memory_order_acq_rel);
@@ -339,7 +352,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
   // make sure the `raw_ptr<T>` release operation will never attempt to call the
   // PA `free` on such a slot. GWP-ASan takes the extra reference into account
   // when determining whether the slot can be reused.
-  PA_ALWAYS_INLINE void InitalizeForGwpAsan() {
+  PA_ALWAYS_INLINE void InitializeForGwpAsan() {
 #if PA_CONFIG(IN_SLOT_METADATA_CHECK_COOKIE)
     brp_cookie_ = CalculateCookie();
 #endif
@@ -371,7 +384,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
 #if PA_BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
     // The `kPtrCountMask` counts the number of raw_ptr<T>. It is expected to be
     // zero when there are no unexpected dangling pointers.
-    if (PA_LIKELY((count & kPtrCountMask) == 0)) {
+    if ((count & kPtrCountMask) == 0) [[likely]] {
       return;
     }
 
@@ -406,9 +419,9 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
     // - A raw_ptr<T, DisableDanglingPtrDetection>
     //
     // Assuming this raw_ptr is not dangling, the memory must still be held at
-    // least by the allocator, so this is PA_LIKELY true.
-    if (PA_LIKELY((count & (kMemoryHeldByAllocatorBit | kPtrCountMask |
-                            kUnprotectedPtrCountMask)))) {
+    // least by the allocator, so this is `[[likely]]`.
+    if ((count & (kMemoryHeldByAllocatorBit | kPtrCountMask |
+                  kUnprotectedPtrCountMask))) [[likely]] {
       return false;  // Do not release the memory.
     }
 
@@ -446,12 +459,10 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) InSlotMetadata {
   }
 #endif  // PA_CONFIG(IN_SLOT_METADATA_CHECK_COOKIE)
 
-  [[noreturn]] PA_NOINLINE PA_NOT_TAIL_CALLED void
-  DoubleFreeOrCorruptionDetected(CountType count) {
-    PA_DEBUG_DATA_ON_STACK("refcount", count);
-    PA_NO_CODE_FOLDING();
-    PA_IMMEDIATE_CRASH();
-  }
+  [[noreturn]] PA_NOINLINE PA_NOT_TAIL_CALLED static void
+  DoubleFreeOrCorruptionDetected(CountType count,
+                                 uintptr_t slot_start,
+                                 SlotSpanMetadata<MetadataKind::kReadOnly>*);
 
   // Note that in free slots, this is overwritten by encoded freelist
   // pointer(s). The way the pointers are encoded on 64-bit little-endian
@@ -544,10 +555,10 @@ PA_ALWAYS_INLINE InSlotMetadata* InSlotMetadataPointer(uintptr_t slot_start,
   // the InSlotMetadata object out-of-line in this case, specifically in a
   // special table after the super page metadata (see InSlotMetadataTable in
   // partition_alloc_constants.h).
-  if (PA_LIKELY(slot_start & SystemPageOffsetMask())) {
+  if (slot_start & SystemPageOffsetMask()) [[likely]] {
     uintptr_t refcount_address =
         slot_start + slot_size - sizeof(InSlotMetadata);
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON) || \
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
     PA_CHECK(refcount_address % alignof(InSlotMetadata) == 0);
 #endif
@@ -560,7 +571,7 @@ PA_ALWAYS_INLINE InSlotMetadata* InSlotMetadataPointer(uintptr_t slot_start,
         (slot_start & kSuperPageBaseMask) + SystemPageSize() * 2);
     size_t index = ((slot_start & kSuperPageOffsetMask) >> SystemPageShift())
                    << GetInSlotMetadataIndexMultiplierShift();
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON) || \
+#if PA_BUILDFLAG(DCHECKS_ARE_ON) || \
     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
     PA_CHECK(sizeof(InSlotMetadata) * index <= SystemPageSize());
 #endif
@@ -572,7 +583,7 @@ PA_ALWAYS_INLINE InSlotMetadata* InSlotMetadataPointer(uintptr_t slot_start,
 
 static inline constexpr size_t kInSlotMetadataSizeAdjustment =
 #if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-    sizeof(InSlotMetadata);
+    AlignUpInSlotMetadataSizeForApple(sizeof(InSlotMetadata));
 #else
     0ul;
 #endif

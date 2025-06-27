@@ -6,10 +6,10 @@
 
 #include "base/files/file_path.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/file_system_access/file_system_access_ui_helpers.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "chrome/browser/ui/views/file_system_access/file_system_access_ui_helpers.h"
 #include "components/vector_icons/vector_icons.h"
-#include "ui/base/ui_base_features.h"
+#include "content/public/browser/file_system_access_permission_context.h"
 #include "ui/compositor/layer.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -22,8 +22,7 @@ constexpr int kFolderIconSize = 16;
 constexpr int kFilenameAreaMargin = 12;
 constexpr int kBetweenFilenameSpacing = 6;
 constexpr int kMaxFilenamesInViewPort = 3;
-constexpr float kCornerRadius = 4.0f;
-constexpr float kCornerRadiusForChromeRefresh2023 = 8.0f;
+constexpr float kCornerRadius = 8.0f;
 
 }  // namespace
 
@@ -50,23 +49,23 @@ std::unique_ptr<views::ScrollView> FileSystemAccessScrollPanel::Create(
     icon->SetVerticalAlignment(views::ImageView::Alignment::kCenter);
 
     auto* label = line_container->AddChildView(std::make_unique<views::Label>(
-        file_system_access_ui_helper::GetPathForDisplayAsParagraph(file_path)));
+        file_system_access_ui_helper::GetPathForDisplayAsParagraph(
+            content::PathInfo(file_path))));
     label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   }
   // TODO(crbug.com/40101962): Determine if/how file names should be focused for
   // accessibility.
   auto scroll_view = std::make_unique<views::ScrollView>();
   scroll_view->SetDrawOverflowIndicator(false);
-  scroll_view->SetBackgroundThemeColorId(ui::kColorSubtleEmphasisBackground);
+  scroll_view->SetBackgroundColor(ui::kColorSubtleEmphasisBackground);
   int line_container_height =
       file_list_container->children().empty()
           ? 0
           : file_list_container->children()[0]->GetPreferredSize().height();
   scroll_view->SetContents(std::move(file_list_container));
   scroll_view->SetPaintToLayer();
-  scroll_view->layer()->SetRoundedCornerRadius(gfx::RoundedCornersF(
-      features::IsChromeRefresh2023() ? kCornerRadiusForChromeRefresh2023
-                                      : kCornerRadius));
+  scroll_view->layer()->SetRoundedCornerRadius(
+      gfx::RoundedCornersF(kCornerRadius));
   // 1 pixel correction per item in the `ScrollView` helps avoid showing
   // pixels from the next/previous entry that is outside the viewport.
   int max_scroll_view_height = 2 * kFilenameAreaMargin +

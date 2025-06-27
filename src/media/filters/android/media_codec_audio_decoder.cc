@@ -252,7 +252,7 @@ void MediaCodecAudioDecoder::Reset(base::OnceClosure closure) {
   if (!success)
     success = CreateMediaCodecLoop();
 
-  timestamp_helper_->SetBaseTimestamp(kNoTimestamp);
+  timestamp_helper_->Reset();
 
   SetState(success ? STATE_READY : STATE_ERROR);
 
@@ -336,32 +336,9 @@ bool MediaCodecAudioDecoder::IsAnyInputPending() const {
   return !input_queue_.empty();
 }
 
-MediaCodecLoop::InputData MediaCodecAudioDecoder::ProvideInputData() {
+scoped_refptr<DecoderBuffer> MediaCodecAudioDecoder::ProvideInputData() {
   DVLOG(3) << __func__;
-
-  const DecoderBuffer* decoder_buffer = input_queue_.front().first.get();
-
-  MediaCodecLoop::InputData input_data;
-  if (decoder_buffer->end_of_stream()) {
-    input_data.is_eos = true;
-  } else {
-    input_data.memory = static_cast<const uint8_t*>(decoder_buffer->data());
-    input_data.length = decoder_buffer->size();
-    const DecryptConfig* decrypt_config = decoder_buffer->decrypt_config();
-    if (decrypt_config) {
-      input_data.key_id = decrypt_config->key_id();
-      input_data.iv = decrypt_config->iv();
-      input_data.subsamples = decrypt_config->subsamples();
-      input_data.encryption_scheme = decrypt_config->encryption_scheme();
-      input_data.encryption_pattern = decrypt_config->encryption_pattern();
-    }
-    input_data.presentation_time = decoder_buffer->timestamp();
-  }
-
-  // We do not pop |input_queue_| here.  MediaCodecLoop may refer to data that
-  // it owns until OnInputDataQueued is called.
-
-  return input_data;
+  return input_queue_.front().first;
 }
 
 void MediaCodecAudioDecoder::OnInputDataQueued(bool success) {
@@ -445,8 +422,13 @@ bool MediaCodecAudioDecoder::OnDecodedFrame(
         sample_format_, channel_layout_, channel_count_, sample_rate_,
         frame_count, out.size, pool_);
 
-    MediaCodecResult result = media_codec->CopyFromOutputBuffer(
-        out.index, out.offset, audio_buffer->channel_data()[0], out.size);
+    // TODO(crbug.com/373960632): Use spans from AudioBuffer directly once that
+    // class is spanified.
+    auto dst = UNSAFE_TODO(
+        base::span<uint8_t>(audio_buffer->channel_data()[0], out.size));
+
+    MediaCodecResult result =
+        media_codec->CopyFromOutputBuffer(out.index, out.offset, dst);
 
     if (!result.is_ok()) {
       media_codec->ReleaseOutputBuffer(out.index, false);
@@ -466,7 +448,7 @@ bool MediaCodecAudioDecoder::OnDecodedFrame(
       DVLOG(2) << ": DTS Frame Count = " << frame_count;
 #endif  // BUILDFLAG(ENABLE_PLATFORM_DTS_AUDIO)
     } else {
-      NOTREACHED_IN_MIGRATION() << "Unsupported passthrough format.";
+      NOTREACHED() << "Unsupported passthrough format.";
     }
 
     // Create AudioOutput buffer based on current parameters.
@@ -487,8 +469,13 @@ bool MediaCodecAudioDecoder::OnDecodedFrame(
   // Copy data into AudioBuffer.
   CHECK_LE(out.size, audio_buffer->data_size());
 
-  MediaCodecResult result = media_codec->CopyFromOutputBuffer(
-      out.index, out.offset, audio_buffer->channel_data()[0], out.size);
+  // TODO(crbug.com/373960632): Use spans from AudioBuffer directly once that
+  // class is spanified.
+  auto dst = UNSAFE_TODO(
+      base::span<uint8_t>(audio_buffer->channel_data()[0], out.size));
+
+  MediaCodecResult result =
+      media_codec->CopyFromOutputBuffer(out.index, out.offset, dst);
 
   // Release MediaCodec output buffer.
   media_codec->ReleaseOutputBuffer(out.index, false);
@@ -498,9 +485,7 @@ bool MediaCodecAudioDecoder::OnDecodedFrame(
   }
 
   // Calculate and set buffer timestamp.
-
-  const bool first_buffer = timestamp_helper_->base_timestamp() == kNoTimestamp;
-  if (first_buffer) {
+  if (!timestamp_helper_->base_timestamp()) {
     // Clamp the base timestamp to zero.
     timestamp_helper_->SetBaseTimestamp(std::max(base::TimeDelta(), out.pts));
   }
@@ -530,8 +515,7 @@ bool MediaCodecAudioDecoder::OnOutputFormatChanged() {
   MediaCodecResult result =
       media_codec->GetOutputSamplingRate(&new_sampling_rate);
   if (!result.is_ok()) {
-    DLOG(ERROR) << "GetOutputSamplingRate failed, result: "
-                << MediaSerialize(result);
+    DLOG(ERROR) << "GetOutputSamplingRate failed, result: " << result.message();
     return false;
   }
   if (new_sampling_rate != sample_rate_) {
@@ -539,20 +523,21 @@ bool MediaCodecAudioDecoder::OnOutputFormatChanged() {
              << " -> " << new_sampling_rate;
 
     sample_rate_ = new_sampling_rate;
-    const base::TimeDelta base_timestamp =
-        timestamp_helper_->base_timestamp() == kNoTimestamp
-            ? kNoTimestamp
-            : timestamp_helper_->GetTimestamp();
+
+    std::optional<base::TimeDelta> base_timestamp;
+    if (timestamp_helper_->base_timestamp()) {
+      base_timestamp = timestamp_helper_->GetTimestamp();
+    }
     timestamp_helper_ = std::make_unique<AudioTimestampHelper>(sample_rate_);
-    if (base_timestamp != kNoTimestamp)
-      timestamp_helper_->SetBaseTimestamp(base_timestamp);
+    if (base_timestamp) {
+      timestamp_helper_->SetBaseTimestamp(*base_timestamp);
+    }
   }
 
   int new_channel_count = 0;
   result = media_codec->GetOutputChannelCount(&new_channel_count);
   if (!result.is_ok() || !new_channel_count) {
-    DLOG(ERROR) << "GetOutputChannelCount failed, result: "
-                << MediaSerialize(result);
+    DLOG(ERROR) << "GetOutputChannelCount failed, result: " << result.message();
     return false;
   }
 
@@ -596,8 +581,7 @@ const char* MediaCodecAudioDecoder::AsString(State state) {
     RETURN_STRING(STATE_READY);
     RETURN_STRING(STATE_ERROR);
   }
-  NOTREACHED_IN_MIGRATION() << "Unknown state " << state;
-  return nullptr;
+  NOTREACHED() << "Unknown state " << state;
 }
 
 #undef RETURN_STRING

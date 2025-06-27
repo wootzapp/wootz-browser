@@ -47,12 +47,12 @@ class ContextGroupTest : public GpuServiceTest {
         &client_, &command_buffer_service_, &outputter_);
     scoped_refptr<FeatureInfo> feature_info = new FeatureInfo;
     group_ = scoped_refptr<ContextGroup>(new ContextGroup(
-        gpu_preferences_, false, nullptr /* memory_tracker */,
-        nullptr /* shader_translator_cache */,
-        nullptr /* framebuffer_completeness_cache */, feature_info,
-        kBindGeneratesResource, nullptr /* progress_reporter */,
-        GpuFeatureInfo(), &discardable_manager_,
-        nullptr /* passthrough_discardable_manager */, &shared_image_manager_));
+        gpu_preferences_, /*memory_tracker=*/nullptr,
+        /*shader_translator_cache=*/nullptr,
+        /*framebuffer_completeness_cache=*/nullptr, feature_info,
+        kBindGeneratesResource, /*progress_reporter=*/nullptr, GpuFeatureInfo(),
+        &discardable_manager_,
+        /*passthrough_discardable_manager=*/nullptr, &shared_image_manager_));
   }
 
   GpuPreferences gpu_preferences_;
@@ -84,7 +84,7 @@ TEST_F(ContextGroupTest, Basic) {
 
 TEST_F(ContextGroupTest, InitializeNoExtensions) {
   TestHelper::SetupContextGroupInitExpectations(
-      gl_.get(), DisallowedFeatures(), "", "",
+      gl_.get(), DisallowedFeatures(), "ANGLE", "OpenGL ES 2.0",
       CONTEXT_TYPE_OPENGLES2, kBindGeneratesResource);
   group_->Initialize(decoder_.get(), CONTEXT_TYPE_OPENGLES2,
                      DisallowedFeatures());
@@ -123,7 +123,7 @@ TEST_F(ContextGroupTest, MultipleContexts) {
   std::unique_ptr<MockGLES2Decoder> decoder2_(
       new MockGLES2Decoder(&client2, &command_buffer_service2, &outputter));
   TestHelper::SetupContextGroupInitExpectations(
-      gl_.get(), DisallowedFeatures(), "", "",
+      gl_.get(), DisallowedFeatures(), "ANGLE", "OpenGL ES 2.0",
       CONTEXT_TYPE_OPENGLES2, kBindGeneratesResource);
   EXPECT_EQ(group_->Initialize(decoder_.get(), CONTEXT_TYPE_OPENGLES2,
                                DisallowedFeatures()),

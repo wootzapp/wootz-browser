@@ -14,9 +14,13 @@
 // namespace.
 + (NSString*)valueForPlatformPolicy:(NSString*)policyKey;
 
-// Sets the value of the policy with the `policyKey` key to the given value. The
-// value must be serialized to JSON.
+// Sets the json policy corresponding to `policy_key` to the given json
+// value, and removes previous policies.
 + (void)setPolicyValue:(NSString*)jsonValue forKey:(NSString*)policyKey;
+
+// Merges the json policy corresponding to `policyKey` to the existing
+// policies with its value sets to `jsonValue`.
++ (void)mergePolicyValue:(NSString*)jsonValue forKey:(NSString*)policyKey;
 
 // Clear all policy values.
 + (void)clearPolicies;
@@ -47,13 +51,13 @@
 // to be finished before returning the value.
 + (BOOL)clearCloudPolicyDirectory [[nodiscard]];
 
-// Returns YES if there is user policy data in the current BrowserState.
-+ (BOOL)hasUserPolicyDataInCurrentBrowserState;
+// Returns YES if there is user policy data in the current Profile.
++ (BOOL)hasUserPolicyDataInCurrentProfile;
 
-// Returns YES if in the user policy store of the current BrowserState the
+// Returns YES if in the user policy store of the current Profile the
 // policy with name `policyName` and of type integer is set to `expectedValue`.
-+ (BOOL)hasUserPolicyInCurrentBrowserState:(NSString*)policyName
-                          withIntegerValue:(int)expectedValue;
++ (BOOL)hasUserPolicyInCurrentProfile:(NSString*)policyName
+                     withIntegerValue:(int)expectedValue;
 
 @end
 

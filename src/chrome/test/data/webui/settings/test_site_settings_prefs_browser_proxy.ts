@@ -70,8 +70,10 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
       'clearPartitionedOriginDataAndCookies',
       'recordAction',
       'getRecentSitePermissions',
-      'getFpsMembershipLabel',
+      'getRwsMembershipLabel',
       'getNumCookiesString',
+      'getSystemDeniedPermissions',
+      'openSystemPermissionSettings',
       'getExtensionName',
       'getFileSystemGrants',
       'revokeFileSystemGrant',
@@ -96,7 +98,7 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
       ContentSettingsTypes.IDLE_DETECTION,
       ContentSettingsTypes.IMAGES,
       ContentSettingsTypes.JAVASCRIPT,
-      ContentSettingsTypes.JAVASCRIPT_JIT,
+      ContentSettingsTypes.JAVASCRIPT_OPTIMIZER,
       ContentSettingsTypes.LOCAL_FONTS,
       ContentSettingsTypes.MIC,
       ContentSettingsTypes.MIDI_DEVICES,
@@ -124,6 +126,19 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
     if (loadTimeData.getBoolean('capturedSurfaceControlEnabled')) {
       this.categoryList_.push(ContentSettingsTypes.CAPTURED_SURFACE_CONTROL);
     }
+
+    if (loadTimeData.getBoolean('enableHandTrackingContentSetting')) {
+      this.categoryList_.push(ContentSettingsTypes.HAND_TRACKING);
+    }
+    if (loadTimeData.getBoolean('enableKeyboardLockPrompt')) {
+      this.categoryList_.push(ContentSettingsTypes.KEYBOARD_LOCK);
+    }
+
+    // <if expr="is_chromeos">
+    if (loadTimeData.getBoolean('enableSmartCardReadersContentSetting')) {
+      this.categoryList_.push(ContentSettingsTypes.SMART_CARD_READERS);
+    }
+    // </if>
 
     this.prefs_ = createSiteSettingsPrefs([], [], []);
   }
@@ -376,7 +391,7 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
     // Create a deep copy of the pref so that the chooser-exception-list element
     // is able update the UI appropriately when incognito mode is toggled.
     const pref = /** @type {!Array<!RawChooserException>} */ (
-        structuredClone(this.prefs_.chooserExceptions[setting!]));
+        structuredClone(this.prefs_.chooserExceptions[setting]));
     assert(pref !== undefined, 'Pref is missing for ' + chooserType);
 
     if (this.hasIncognito_) {
@@ -490,7 +505,7 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
         incognito: false,
         origin: origin,
         displayName: '',
-        setting: setting!,
+        setting: setting,
         source: source!,
         isEmbargoed: false,
         type: '',
@@ -615,12 +630,12 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
     this.methodCalled('setProtocolHandlerDefault', value);
   }
 
-  getFpsMembershipLabel(fpsNumMembers: number, fpsOwner: string) {
-    this.methodCalled('getFpsMembershipLabel', fpsNumMembers, fpsOwner);
+  getRwsMembershipLabel(rwsNumMembers: number, rwsOwner: string) {
+    this.methodCalled('getRwsMembershipLabel', rwsNumMembers, rwsOwner);
     return Promise.resolve([
-      `${fpsNumMembers}`,
-      (fpsNumMembers === 1 ? 'site' : 'sites'),
-      `in ${fpsOwner}'s group`,
+      `${rwsNumMembers}`,
+      (rwsNumMembers === 1 ? 'site' : 'sites'),
+      `in ${rwsOwner}'s group`,
     ].join(' '));
   }
 
@@ -628,6 +643,15 @@ export class TestSiteSettingsPrefsBrowserProxy extends TestBrowserProxy
     this.methodCalled('getNumCookiesString', numCookies);
     return Promise.resolve(
         `${numCookies} ` + (numCookies === 1 ? 'cookie' : 'cookies'));
+  }
+
+  getSystemDeniedPermissions() {
+    this.methodCalled('getSystemDeniedPermissions');
+    return Promise.resolve([]);
+  }
+
+  openSystemPermissionSettings(contentType: string): void {
+    this.methodCalled('openSystemPermissionSettings', contentType);
   }
 
   getExtensionName(id: string) {

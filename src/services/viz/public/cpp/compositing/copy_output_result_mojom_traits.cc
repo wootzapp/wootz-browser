@@ -37,6 +37,12 @@ class TextureReleaserImpl : public viz::mojom::TextureReleaser {
 void Release(mojo::PendingRemote<viz::mojom::TextureReleaser> pending_remote,
              const gpu::SyncToken& sync_token,
              bool is_lost) {
+  // By default Mojo binds to the current task runner. If there is not one, such
+  // as during test teardown, then there is no point in making the Remote. That
+  // could lead to crashes.
+  if (!base::SequencedTaskRunner::HasCurrentDefault()) {
+    return;
+  }
   mojo::Remote<viz::mojom::TextureReleaser> remote(std::move(pending_remote));
   remote->Release(sync_token, is_lost);
 }
@@ -53,12 +59,10 @@ EnumTraits<viz::mojom::CopyOutputResultFormat, viz::CopyOutputResult::Format>::
     case viz::CopyOutputResult::Format::RGBA:
       return viz::mojom::CopyOutputResultFormat::RGBA;
     case viz::CopyOutputResult::Format::I420_PLANES:
-    case viz::CopyOutputResult::Format::NV12_PLANES:
-    case viz::CopyOutputResult::Format::NV12_MULTIPLANE:
+    case viz::CopyOutputResult::Format::NV12:
       break;  // Not intended for transport across service boundaries.
   }
-  NOTREACHED_IN_MIGRATION();
-  return viz::mojom::CopyOutputResultFormat::RGBA;
+  NOTREACHED();
 }
 
 // static
@@ -155,29 +159,9 @@ StructTraits<viz::mojom::CopyOutputResultDataView,
     return nullptr;
   }
 
-  // Only RGBA can travel across process boundaries, in which case there will be
-  // only one plane that is relevant in the |result|:
+  // Only RGBA can travel across process boundaries.
   DCHECK_EQ(result->format(), viz::CopyOutputResult::Format::RGBA);
-  return mojo::OptionalAsPointer(
-      &result->GetTextureResult()->mailbox_holders[0].mailbox);
-}
-
-// static
-mojo::OptionalAsPointer<const gpu::SyncToken>
-StructTraits<viz::mojom::CopyOutputResultDataView,
-             std::unique_ptr<viz::CopyOutputResult>>::
-    sync_token(const std::unique_ptr<viz::CopyOutputResult>& result) {
-  if (result->destination() !=
-          viz::CopyOutputResult::Destination::kNativeTextures ||
-      result->IsEmpty()) {
-    return nullptr;
-  }
-
-  // Only RGBA can travel across process boundaries, in which case there will be
-  // only one plane that is relevant in the |result|:
-  DCHECK_EQ(result->format(), viz::CopyOutputResult::Format::RGBA);
-  return mojo::OptionalAsPointer(
-      &result->GetTextureResult()->mailbox_holders[0].sync_token);
+  return mojo::OptionalAsPointer(&result->GetTextureResult()->mailbox);
 }
 
 // static
@@ -271,9 +255,6 @@ bool StructTraits<viz::mojom::CopyOutputResultDataView,
           std::optional<gpu::Mailbox> mailbox;
           if (!data.ReadMailbox(&mailbox) || !mailbox)
             return false;
-          std::optional<gpu::SyncToken> sync_token;
-          if (!data.ReadSyncToken(&sync_token) || !sync_token)
-            return false;
           std::optional<gfx::ColorSpace> color_space;
           if (!data.ReadColorSpace(&color_space) || !color_space)
             return false;
@@ -299,21 +280,18 @@ bool StructTraits<viz::mojom::CopyOutputResultDataView,
 
           *out_p = std::make_unique<viz::CopyOutputTextureResult>(
               viz::CopyOutputResult::Format::RGBA, rect,
-              viz::CopyOutputResult::TextureResult(*mailbox, *sync_token,
-                                                   *color_space),
+              viz::CopyOutputResult::TextureResult(*mailbox, *color_space),
               std::move(release_callbacks));
           return true;
         }
       }
 
     case viz::CopyOutputResult::Format::I420_PLANES:
-    case viz::CopyOutputResult::Format::NV12_PLANES:
-    case viz::CopyOutputResult::Format::NV12_MULTIPLANE:
+    case viz::CopyOutputResult::Format::NV12:
       break;  // Not intended for transport across service boundaries.
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 }  // namespace mojo

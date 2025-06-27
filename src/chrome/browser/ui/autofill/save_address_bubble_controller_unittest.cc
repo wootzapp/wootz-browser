@@ -8,14 +8,16 @@
 #include <string>
 
 #include "base/memory/weak_ptr.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/autofill/ui/ui_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/autofill/address_bubble_controller_delegate.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/autofill/core/browser/autofill_address_util.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/ui/addresses/autofill_address_util.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
@@ -26,7 +28,6 @@
 #include "ui/base/l10n/l10n_util.h"
 
 namespace autofill {
-
 namespace {
 
 class MockDelegate : public AddressBubbleControllerDelegate {
@@ -57,7 +58,6 @@ class MockDelegate : public AddressBubbleControllerDelegate {
  private:
   base::WeakPtrFactory<MockDelegate> weak_ptr_factory_{this};
 };
-}  // namespace
 
 class SaveAddressBubbleControllerTest : public ::testing::Test {
  public:
@@ -122,7 +122,7 @@ TEST_F(SaveAddressBubbleControllerTest, SavingNonAccountAddress) {
 
 TEST_F(SaveAddressBubbleControllerTest, SavingAccountAddress) {
   AutofillProfile profile = test::GetFullProfile();
-  profile.set_source_for_testing(AutofillProfile::Source::kAccount);
+  test_api(profile).set_record_type(AutofillProfile::RecordType::kAccount);
   auto controller =
       CreateController(profile, /*is_migration_to_account=*/false);
   std::u16string email =
@@ -179,4 +179,5 @@ TEST_F(SaveAddressBubbleControllerTest, MigrateIntoAccountAddress) {
   EXPECT_TRUE(controller->GetFooterMessage().empty());
 }
 
+}  // namespace
 }  // namespace autofill

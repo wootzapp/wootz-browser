@@ -4,9 +4,13 @@
 
 #include "chrome/browser/web_applications/commands/internal/command_internal.h"
 
+#include <string_view>
+#include <type_traits>
+#include <utility>
+
 #include "base/atomic_sequence_num.h"
 #include "base/check.h"
-#include "base/functional/callback_forward.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/values.h"
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
@@ -103,7 +107,8 @@ template <typename LockType>
 CommandWithLock<LockType>::CommandWithLock(const std::string& name,
                                            LockDescription initial_lock_request)
     : CommandBase(name),
-      initial_lock_request_(std::move(initial_lock_request)) {
+      initial_lock_request_(std::move(initial_lock_request)),
+      initial_lock_(std::make_unique<LockType>()) {
   GetMutableDebugValue()
       .EnsureDict("!metadata")
       ->Set("initial_lock_request", initial_lock_request_.AsDebugValue());
@@ -120,7 +125,7 @@ void CommandWithLock<LockType>::RequestLock(
     const base::Location& location) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(command_sequence_checker_);
   lock_manager->AcquireLock(
-      initial_lock_request_,
+      initial_lock_request_, *initial_lock_,
       base::BindOnce(&CommandWithLock::PrepareForStart,
                      weak_factory_.GetWeakPtr(), std::move(on_lock_acquired)),
       location);
@@ -128,15 +133,15 @@ void CommandWithLock<LockType>::RequestLock(
 
 template <typename LockType>
 void CommandWithLock<LockType>::PrepareForStart(
-    LockAcquiredCallback on_lock_acquired,
-    std::unique_ptr<LockType> lock) {
+    LockAcquiredCallback on_lock_acquired) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(command_sequence_checker_);
   CHECK(command_manager());
   CHECK(!IsStarted());
   SetStarted();
   std::move(on_lock_acquired)
       .Run(base::BindOnce(&CommandWithLock::StartWithLock,
-                          weak_factory_.GetWeakPtr(), std::move(lock)));
+                          weak_factory_.GetWeakPtr(),
+                          std::move(initial_lock_)));
 }
 
 template <typename LockType>

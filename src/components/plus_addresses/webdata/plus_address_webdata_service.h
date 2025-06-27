@@ -20,7 +20,7 @@
 class WebDatabaseService;
 
 namespace syncer {
-class ModelTypeControllerDelegate;
+class DataTypeControllerDelegate;
 }
 
 namespace plus_addresses {
@@ -35,8 +35,7 @@ class PlusAddressDataChange;
 //
 // It mirrors a subset of `PlusAddressTable`'s API and is responsible for
 // posting tasks from the UI sequence to the DB sequence, invoking the relevant
-// function on `PlusAddressTable`. For read operations, results are returned to
-// a `WebDataServiceConsumer`, who must live on the UI sequence.
+// function on `PlusAddressTable`.
 //
 // Owned by `WebDataServiceWrapper`.
 class PlusAddressWebDataService : public WebDataServiceBase {
@@ -54,22 +53,18 @@ class PlusAddressWebDataService : public WebDataServiceBase {
 
   PlusAddressWebDataService(
       scoped_refptr<WebDatabaseService> wdbs,
-      scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
-      scoped_refptr<base::SequencedTaskRunner> db_task_runner);
+      scoped_refptr<base::SequencedTaskRunner> ui_task_runner);
 
   void AddObserver(Observer* o) { observers_.AddObserver(o); }
   void RemoveObserver(Observer* o) { observers_.RemoveObserver(o); }
 
   // `PlusAddressTable`'s API, for the subset of functions needed on the UI
   // sequence.
-  void GetPlusProfiles(WebDataServiceConsumer* consumer);
+  void GetPlusProfiles(WebDataServiceRequestCallback consumer);
   void AddOrUpdatePlusProfile(const PlusProfile& profile);
-  // TODO(b/322147254): Once the sync integration is complete, this shouldn't
-  // be necessary on the UI sequence anymore either.
-  void ClearPlusProfiles();
 
   // Returns a controller delegate for the `sync_bridge` owned this service.
-  std::unique_ptr<syncer::ModelTypeControllerDelegate>
+  std::unique_ptr<syncer::DataTypeControllerDelegate>
   GetSyncControllerDelegate();
 
  protected:
@@ -99,7 +94,6 @@ class PlusAddressWebDataService : public WebDataServiceBase {
   void NotifyOnWebDataChangedBySync(std::vector<PlusAddressDataChange> changes);
 
   scoped_refptr<base::SequencedTaskRunner> ui_task_runner_;
-  scoped_refptr<base::SequencedTaskRunner> db_task_runner_;
 
   // `scoped_refptr<>`, because the destruction order of
   // `PlusAddressWebDataService` and `db_task_runner_` is unclear.
@@ -110,10 +104,6 @@ class PlusAddressWebDataService : public WebDataServiceBase {
 
   base::WeakPtrFactory<PlusAddressWebDataService> weak_factory_{this};
 };
-
-// Returns true if `syncer::kSyncPlusAddress` is enabled. This only exists to
-// avoid a sync dependency in components/plus_addresses.
-bool IsSyncingPlusAddresses();
 
 }  // namespace plus_addresses
 

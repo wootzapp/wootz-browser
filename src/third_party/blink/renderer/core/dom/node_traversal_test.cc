@@ -4,6 +4,8 @@
 
 #include "third_party/blink/renderer/core/dom/node_traversal.h"
 
+#include <array>
+
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
@@ -204,7 +206,7 @@ TEST_F(NodeTraversalTest, ChildAt) {
   Element* c00 = body->QuerySelector(AtomicString("#c00"));
 
   const unsigned kNumberOfChildNodes = 3;
-  Node* expected_child_nodes[3] = {c0, c1, c2};
+  std::array<Node*, 3> expected_child_nodes = {c0, c1, c2};
 
   ASSERT_EQ(kNumberOfChildNodes, NodeTraversal::CountChildren(*body));
   EXPECT_TRUE(NodeTraversal::HasChildren(*body));

@@ -43,8 +43,10 @@ import org.chromium.chrome.browser.omnibox.suggestions.SuggestionHost;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties;
 import org.chromium.chrome.browser.omnibox.suggestions.basic.BasicSuggestionProcessor.BookmarkState;
 import org.chromium.chrome.browser.omnibox.suggestions.basic.SuggestionViewProperties;
+import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatchBuilder;
+import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.OmniboxSuggestionType;
 import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -69,6 +71,7 @@ public class EntitySuggestionProcessorUnitTest {
     private @Mock Bitmap mBitmap;
     private @Mock BookmarkState mBookmarkState;
     private @Mock UrlBarEditingTextStateProvider mTextProvider;
+    private @Mock AutocompleteInput mInput;
 
     private EntitySuggestionProcessor mProcessor;
 
@@ -76,7 +79,7 @@ public class EntitySuggestionProcessorUnitTest {
      * Base Suggestion class that can be used for testing. Holds all mechanisms that are required to
      * processSuggestion and validate suggestions.
      */
-    class SuggestionTestHelper {
+    static class SuggestionTestHelper {
         // Stores created AutocompleteMatch
         protected final AutocompleteMatch mSuggestion;
         // Stores PropertyModel for the suggestion.
@@ -110,7 +113,7 @@ public class EntitySuggestionProcessorUnitTest {
 
     /** Populate model for associated suggestion. */
     void processSuggestion(SuggestionTestHelper helper) {
-        mProcessor.populateModel(helper.mSuggestion, helper.mModel, 0);
+        mProcessor.populateModel(mInput, helper.mSuggestion, helper.mModel, 0);
     }
 
     @Before
@@ -150,13 +153,12 @@ public class EntitySuggestionProcessorUnitTest {
 
     @Test
     @SmallTest
-    public void decorationTest_validHexColor() {
+    public void decorationTest_validHexColor_lowMemoryDevice() {
+        OmniboxFeatures.setIsLowMemoryDeviceForTesting(true);
         SuggestionTestHelper suggHelper = createSuggestion("", "", "#fedcba", SEARCH_URL);
         processSuggestion(suggHelper);
 
-        assertThat(suggHelper.getIcon(), instanceOf(ColorDrawable.class));
-        ColorDrawable icon = (ColorDrawable) suggHelper.getIcon();
-        Assert.assertEquals(icon.getColor(), 0xfffedcba);
+        assertThat(suggHelper.getIcon(), instanceOf(BitmapDrawable.class));
     }
 
     @Test
@@ -167,7 +169,7 @@ public class EntitySuggestionProcessorUnitTest {
 
         assertThat(suggHelper.getIcon(), instanceOf(ColorDrawable.class));
         ColorDrawable icon = (ColorDrawable) suggHelper.getIcon();
-        Assert.assertEquals(icon.getColor(), Color.RED);
+        Assert.assertEquals(Color.RED, icon.getColor());
     }
 
     @Test

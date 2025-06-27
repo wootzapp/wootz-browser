@@ -12,7 +12,6 @@
 
 #include "android_webview/common/aw_paths.h"
 #include "android_webview/nonembedded/component_updater/aw_component_update_service.h"
-#include "android_webview/nonembedded/nonembedded_jni_headers/ComponentsProviderPathUtil_jni.h"
 #include "base/android/jni_string.h"
 #include "base/android/path_utils.h"
 #include "base/files/file_path.h"
@@ -41,7 +40,7 @@ AwComponentInstallerPolicy::AwComponentInstallerPolicy() = default;
 
 void AwComponentInstallerPolicy::OnCustomUninstall() {
   // Uninstallation isn't supported in WebView.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 // Copy the components file from `install_dir` to the serving directory of the
@@ -76,12 +75,8 @@ void AwComponentInstallerPolicy::ComponentReady(
     base::Value::Dict manifest) {
   base::FilePath cps_component_base_path =
       GetComponentsProviderServiceDirectory();
-
-  JNIEnv* env = jni_zero::AttachCurrentThread();
   int highest_sequence_number =
-      Java_ComponentsProviderPathUtil_getTheHighestSequenceNumber(
-          env, base::android::ConvertUTF8ToJavaString(
-                   env, cps_component_base_path.MaybeAsASCII()));
+      GetHighestSequenceNumber(cps_component_base_path);
 
   // Do nothing, if the highest sequence number refers to the same `version`.
   if (base::PathExists(cps_component_base_path.AppendASCII(
@@ -136,15 +131,14 @@ base::FilePath
 AwComponentInstallerPolicy::GetComponentsProviderServiceDirectory() {
   std::vector<uint8_t> hash;
   GetHash(&hash);
-  std::string component_id = update_client::GetCrxIdFromPublicKeyHash(hash);
+  return AwComponentUpdateService::GetInstance()
+      ->GetComponentsProviderServiceDirectory(hash);
+}
 
-  JNIEnv* env = jni_zero::AttachCurrentThread();
-  return base::FilePath(
-             base::android::ConvertJavaStringToUTF8(
-                 env,
-                 Java_ComponentsProviderPathUtil_getComponentsServingDirectoryPath(
-                     env)))
-      .AppendASCII(component_id);
+int AwComponentInstallerPolicy::GetHighestSequenceNumber(
+    base::FilePath cps_component_base_path) {
+  return AwComponentUpdateService::GetInstance()->GetHighestSequenceNumber(
+      cps_component_base_path);
 }
 
 }  // namespace android_webview

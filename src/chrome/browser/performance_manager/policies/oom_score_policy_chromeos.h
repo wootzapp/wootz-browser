@@ -11,7 +11,7 @@
 #include "base/process/process_handle.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
-#include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/page_node.h"
 
@@ -22,8 +22,7 @@ namespace performance_manager::policies {
 // would be assigned lower oom score adj. See the following web page for more
 // explanation on Linux oom score adj(adjust).
 // [1]: https://man7.org/linux/man-pages/man1/choom.1.html
-class OomScorePolicyChromeOS : public GraphOwned,
-                               public PageNode::ObserverDefaultImpl {
+class OomScorePolicyChromeOS : public GraphOwned, public PageNodeObserver {
  public:
   OomScorePolicyChromeOS();
   ~OomScorePolicyChromeOS() override;
@@ -34,9 +33,10 @@ class OomScorePolicyChromeOS : public GraphOwned,
   void OnPassedToGraph(Graph* graph) override;
   void OnTakenFromGraph(Graph* graph) override;
 
-  // PageNode::ObserverDefaultImpl:
+  // PageNodeObserver:
   void OnPageNodeAdded(const PageNode* page_node) override;
   void OnBeforePageNodeRemoved(const PageNode* page_node) override;
+  void OnIsFocusedChanged(const PageNode* page_node) override;
   void OnIsVisibleChanged(const PageNode* page_node) override;
   void OnTypeChanged(const PageNode* page_node,
                      PageType previous_type) override;
@@ -66,8 +66,6 @@ class OomScorePolicyChromeOS : public GraphOwned,
       const std::vector<PageNodeSortProxy>& candidates);
 
   base::TimeTicks last_oom_scores_assignment_ = base::TimeTicks::Now();
-
-  raw_ptr<Graph> graph_ = nullptr;
 
   // Map maintaining the process handle - oom_score mapping.
   ProcessScoreMap oom_score_map_;

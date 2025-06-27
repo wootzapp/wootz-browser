@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/printing/pdf_to_emf_converter.h"
 
 #include <windows.h>
@@ -75,8 +80,9 @@ std::string GetFileNameForPageNumber(const std::string& name, int page_number) {
 
 std::unique_ptr<ENHMETAHEADER> GetEmfHeader(const std::string& emf_data) {
   Emf emf;
-  if (!emf.InitFromData(base::as_bytes(base::make_span(emf_data))))
+  if (!emf.InitFromData(base::as_byte_span(emf_data))) {
     return nullptr;
+  }
 
   auto meta_header = std::make_unique<ENHMETAHEADER>();
   if (GetEnhMetaFileHeader(emf.emf(), kHeaderSize, meta_header.get()) !=
@@ -107,8 +113,8 @@ void CompareEmfHeaders(const ENHMETAHEADER& expected_header,
 }
 
 std::string HashData(const char* data, size_t len) {
-  auto span = base::make_span(reinterpret_cast<const uint8_t*>(data), len);
-  return base::HexEncode(base::SHA1HashSpan(span));
+  return base::HexEncode(
+      base::SHA1Hash(base::span(reinterpret_cast<const uint8_t*>(data), len)));
 }
 
 class PdfToEmfConverterBrowserTest
@@ -259,7 +265,8 @@ IN_PROC_BROWSER_TEST_P(PdfToEmfConverterBrowserTest, FailureNoTempFile) {
 
 IN_PROC_BROWSER_TEST_P(PdfToEmfConverterBrowserTest, FailureBadPdf) {
   scoped_refptr<base::RefCountedStaticMemory> bad_pdf_data =
-      base::MakeRefCounted<base::RefCountedStaticMemory>("0123456789", 10);
+      base::MakeRefCounted<base::RefCountedStaticMemory>(
+          base::byte_span_from_cstring("0123456789"));
 
   base::RunLoop run_loop;
   uint32_t page_count = kInvalidPageCount;

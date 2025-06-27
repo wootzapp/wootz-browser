@@ -18,7 +18,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chromeos/dbus/dlp/dlp_client.h"
 #include "chromeos/dbus/dlp/dlp_service.pb.h"
-#include "components/enterprise/data_controls/component.h"
+#include "components/enterprise/data_controls/core/browser/component.h"
 #include "components/file_access/scoped_file_access_copy.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
@@ -122,7 +122,6 @@ DlpFileDestination DTEndpointToFileDestination(
     case ui::EndpointType::kPluginVm:
       return DlpFileDestination(data_controls::Component::kPluginVm);
 
-    case ui::EndpointType::kLacros:
     case ui::EndpointType::kDefault:
     case ui::EndpointType::kClipboardHistory:
     case ui::EndpointType::kBorealis:
@@ -178,7 +177,7 @@ DlpFilesController::FolderRecursionDelegate::~FolderRecursionDelegate() =
     default;
 
 void DlpFilesController::FolderRecursionDelegate::Run() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void DlpFilesController::FolderRecursionDelegate::RunRecursively() {
@@ -205,6 +204,10 @@ void DlpFilesController::FolderRecursionDelegate::PostProcessDirectory(
     const storage::FileSystemURL& url,
     StatusCallback callback) {
   std::move(callback).Run(base::File::FILE_OK);
+}
+base::WeakPtr<storage::RecursiveOperationDelegate>
+DlpFilesController::FolderRecursionDelegate::AsWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
 }
 
 void DlpFilesController::FolderRecursionDelegate::OnGetMetadata(

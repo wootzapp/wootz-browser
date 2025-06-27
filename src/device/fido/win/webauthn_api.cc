@@ -4,17 +4,18 @@
 
 #include "device/fido/win/webauthn_api.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util_win.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
@@ -70,7 +71,7 @@ WEBAUTHN_HMAC_SECRET_SALT_VALUES* FillHMACSaltValues(
     return nullptr;
   }
 
-  memset(values_storage, 0, sizeof(*values_storage));
+  UNSAFE_TODO(memset(values_storage, 0, sizeof(*values_storage)));
   // These vectors must not reallocate because the Windows structures will have
   // pointers into their elements.
   salts_storage->reserve(inputs.size());
@@ -316,10 +317,14 @@ WinWebAuthnApi::WinWebAuthnApi() = default;
 WinWebAuthnApi::~WinWebAuthnApi() = default;
 
 bool WinWebAuthnApi::SupportsHybrid() {
-  return IsAvailable() && Version() >= WEBAUTHN_API_VERSION_6;
+  const int min_version =
+      base::FeatureList::IsEnabled(kWebAuthnSkipHybridConfigIfSystemSupported)
+          ? WEBAUTHN_API_VERSION_7
+          : WEBAUTHN_API_VERSION_6;
+  return IsAvailable() && Version() >= min_version;
 }
 
-std::pair<CtapDeviceResponseCode,
+std::pair<MakeCredentialStatus,
           std::optional<AuthenticatorMakeCredentialResponse>>
 AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
                                     HWND h_wnd,
@@ -338,7 +343,7 @@ AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
   WEBAUTHN_RP_ENTITY_INFORMATION rp_info{
       WEBAUTHN_RP_ENTITY_INFORMATION_CURRENT_VERSION, base::as_wcstr(rp_id),
       base::as_wcstr(rp_name),
-      /*pwszIcon=*/base::as_wcstr(std::u16string())};
+      /*pwszIcon=*/nullptr};
 
   std::u16string user_name = base::UTF8ToUTF16(request.user.name.value_or(""));
   std::u16string user_display_name =
@@ -349,7 +354,7 @@ AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
       base::checked_cast<DWORD>(user_id.size()),
       const_cast<unsigned char*>(user_id.data()),
       base::as_wcstr(user_name),
-      /*pwszIcon=*/base::as_wcstr(std::u16string()),
+      /*pwszIcon=*/nullptr,
       base::as_wcstr(user_display_name),
   };
 
@@ -391,8 +396,7 @@ AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
     // MakeCredentialRequestHandler rejects a request with credProtect
     // enforced=true if webauthn.dll does not support credProtect.
     if (request.cred_protect_enforce && api_version < WEBAUTHN_API_VERSION_2) {
-      NOTREACHED_IN_MIGRATION();
-      return {CtapDeviceResponseCode::kCtap2ErrNotAllowed, std::nullopt};
+      NOTREACHED();
     }
     // Windows doesn't support the concept of
     // CredProtectRequest::kUVOrCredIDRequiredOrBetter. So an authenticators
@@ -473,9 +477,9 @@ AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
   std::vector<WEBAUTHN_CREDENTIAL_EX> exclude_list_credentials =
       ToWinCredentialExVector(&request.exclude_list);
   std::vector<WEBAUTHN_CREDENTIAL_EX*> exclude_list_ptrs;
-  base::ranges::transform(exclude_list_credentials,
-                          std::back_inserter(exclude_list_ptrs),
-                          [](auto& cred) { return &cred; });
+  std::ranges::transform(exclude_list_credentials,
+                         std::back_inserter(exclude_list_ptrs),
+                         [](auto& cred) { return &cred; });
   WEBAUTHN_CREDENTIAL_LIST exclude_credential_list{
       base::checked_cast<DWORD>(exclude_list_ptrs.size()),
       exclude_list_ptrs.data()};
@@ -528,18 +532,17 @@ AuthenticatorMakeCredentialBlocking(WinWebAuthnApi* webauthn_api,
     FIDO_LOG(DEBUG) << "WebAuthNAuthenticatorMakeCredential()="
                     << HresultToHex(hresult) << " ("
                     << webauthn_api->GetErrorName(hresult) << ")";
-    return {WinErrorNameToCtapDeviceResponseCode(
+    return {WinErrorNameToMakeCredentialStatus(
                 base::as_u16cstr(webauthn_api->GetErrorName(hresult))),
             std::nullopt};
   }
   FIDO_LOG(DEBUG) << "WebAuthNAuthenticatorMakeCredential()="
                   << *credential_attestation;
-  return {CtapDeviceResponseCode::kSuccess,
+  return {MakeCredentialStatus::kSuccess,
           ToAuthenticatorMakeCredentialResponse(*credential_attestation)};
 }
 
-std::pair<CtapDeviceResponseCode,
-          std::optional<AuthenticatorGetAssertionResponse>>
+std::pair<GetAssertionStatus, std::optional<AuthenticatorGetAssertionResponse>>
 AuthenticatorGetAssertionBlocking(WinWebAuthnApi* webauthn_api,
                                   HWND h_wnd,
                                   GUID cancellation_id,
@@ -569,9 +572,9 @@ AuthenticatorGetAssertionBlocking(WinWebAuthnApi* webauthn_api,
   std::vector<WEBAUTHN_CREDENTIAL_EX> allow_list_credentials =
       ToWinCredentialExVector(&request.allow_list);
   std::vector<WEBAUTHN_CREDENTIAL_EX*> allow_list_ptrs;
-  base::ranges::transform(allow_list_credentials,
-                          std::back_inserter(allow_list_ptrs),
-                          [](auto& cred) { return &cred; });
+  std::ranges::transform(allow_list_credentials,
+                         std::back_inserter(allow_list_ptrs),
+                         [](auto& cred) { return &cred; });
   WEBAUTHN_CREDENTIAL_LIST allow_credential_list{
       base::checked_cast<DWORD>(allow_list_ptrs.size()),
       allow_list_ptrs.data()};
@@ -667,7 +670,7 @@ AuthenticatorGetAssertionBlocking(WinWebAuthnApi* webauthn_api,
     FIDO_LOG(DEBUG) << "WebAuthNAuthenticatorGetAssertion()="
                     << HresultToHex(hresult) << " ("
                     << webauthn_api->GetErrorName(hresult) << ")";
-    return {WinErrorNameToCtapDeviceResponseCode(
+    return {WinErrorNameToGetAssertionStatus(
                 base::as_u16cstr(webauthn_api->GetErrorName(hresult))),
             std::nullopt};
   }
@@ -681,8 +684,8 @@ AuthenticatorGetAssertionBlocking(WinWebAuthnApi* webauthn_api,
     // hmac_secret.
     response->hmac_secret_not_evaluated = true;
   }
-  return {response ? CtapDeviceResponseCode::kSuccess
-                   : CtapDeviceResponseCode::kCtap2ErrOther,
+  return {response ? GetAssertionStatus::kSuccess
+                   : GetAssertionStatus::kAuthenticatorResponseInvalid,
           std::move(response)};
 }
 

@@ -56,8 +56,7 @@ std::map<int, int64_t> GetFilesOnDisk(const base::FilePath& cache_directory) {
   return files_on_disk;
 }
 
-bool RemoveAllFilesOnDiskById(
-    std::set<base::FilePath> paths_on_disk_to_remove) {
+bool RemoveFilesOnDiskByPath(std::set<base::FilePath> paths_on_disk_to_remove) {
   bool success = true;
   for (const base::FilePath& path : paths_on_disk_to_remove) {
     if (!base::DeleteFile(path)) {
@@ -93,6 +92,8 @@ std::unique_ptr<ContentCache> ContentCacheImpl::Create(
 }
 
 void ContentCacheImpl::SetMaxCacheItems(size_t max_cache_items) {
+  VLOG(1) << "Cache size changing from " << max_cache_items_ << " items to "
+          << max_cache_items << " items";
   max_cache_items_ = max_cache_items;
   EvictExcessItems();
 }
@@ -100,7 +101,7 @@ void ContentCacheImpl::SetMaxCacheItems(size_t max_cache_items) {
 void ContentCacheImpl::Notify(ProvidedFileSystemObserver::Changes& changes) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  std::vector<const base::FilePath> to_evict;
+  std::vector<base::FilePath> to_evict;
   for (const auto& change : changes) {
     ContentLRUCache::iterator it = lru_cache_.Peek(change.entry_path);
     if (it == lru_cache_.end()) {
@@ -130,139 +131,167 @@ void ContentCacheImpl::Notify(ProvidedFileSystemObserver::Changes& changes) {
     }
   }
   EvictItems(to_evict);
-  // Remove all evicted items.
-  RemoveItems(base::DoNothing());
+}
+
+void ContentCacheImpl::ObservedVersionTag(const base::FilePath& entry_path,
+                                          const std::string& version_tag) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  ContentLRUCache::iterator it = lru_cache_.Peek(entry_path);
+  if (it == lru_cache_.end()) {
+    VLOG(1) << "File is not in cache";
+    return;
+  }
+
+  CacheFileContext& ctx = it->second;
+  if (version_tag != ctx.version_tag()) {
+    VLOG(2) << "File version is out of date, evict from the cache";
+    Evict(entry_path);
+  }
 }
 
 void ContentCacheImpl::Evict(const base::FilePath& file_path) {
-  std::vector<const base::FilePath> file_paths = {file_path};
+  std::vector<base::FilePath> file_paths = {file_path};
   EvictItems(file_paths);
 }
 
-void ContentCacheImpl::SetOnItemEvictedCallback(
-    OnItemEvictedCallback on_item_evicted_callback) {
-  DCHECK(on_item_evicted_callback_.is_null());
-  on_item_evicted_callback_ = std::move(on_item_evicted_callback);
-}
-
-void ContentCacheImpl::RemoveItems(RemovedItemStatsCallback callback) {
+void ContentCacheImpl::RemoveItems(
+    const std::vector<base::FilePath>& fsp_paths) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  bool removal_in_progress = !on_removed_callbacks_.empty();
-  on_removed_callbacks_.AddUnsafe(std::move(callback));
-  if (removal_in_progress) {
-    return;
-  }
-
-  RemovedItemStats removed_items;
-  if (evicted_cache_items_ == 0) {
-    on_removed_callbacks_.Notify(removed_items);
-    return;
-  }
-
-  ContentLRUCache::reverse_iterator it = lru_cache_.rbegin();
   std::vector<int64_t> item_ids;
-  RemoveEvictedItems(it, item_ids, removed_items);
-}
 
-void ContentCacheImpl::RemoveEvictedItems(ContentLRUCache::reverse_iterator it,
-                                          std::vector<int64_t>& item_ids,
-                                          RemovedItemStats& removed_items) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // Items in the `lru_cache_` are ordered by least-recently used, so begin at
-  // the last item and enumerate (in reverse order) through the list identifying
-  // all the items that are evicted and remove them from the disk.
-  while (it != lru_cache_.rend()) {
-    const CacheFileContext& ctx = it->second;
-    if (ctx.evicted()) {
-      if (ctx.path_on_disk().empty()) {
-        // TODO(b/339114587): Handle this case better. Remove from the lru_cache
-        // immediately and erase from the database.
-        VLOG(2) << "Item does not yet have a path on disk";
-        continue;
-      }
-      io_task_runner_->PostTaskAndReplyWithResult(
-          FROM_HERE, base::BindOnce(&base::DeleteFile, ctx.path_on_disk()),
-          base::BindOnce(&ContentCacheImpl::OnItemRemovedFromDisk,
-                         weak_ptr_factory_.GetWeakPtr(), it,
-                         base::OwnedRef(item_ids),
-                         base::OwnedRef(removed_items)));
-      return;
+  // If possible, remove each item from the disk and the database. Do not wait
+  // for each removal to complete. In the case that some removals fail, orphaned
+  // items will be cleaned up upon start-up.
+  for (const base::FilePath& fsp_path : fsp_paths) {
+    ContentLRUCache::iterator it = lru_cache_.Peek(fsp_path);
+    if (it == lru_cache_.end()) {
+      VLOG(1) << "Context for '" << fsp_path << "' is not in the cache";
+      continue;
     }
-    it++;
+
+    CacheFileContext& ctx = it->second;
+    if (ctx.HasLocalFDs()) {
+      VLOG(2) << "Item '" << fsp_path
+              << "' cannot be removed whilst there is an open LocalFD";
+      continue;
+    }
+
+    if (ctx.path_on_disk().empty()) {
+      // TODO(b/339114587): Handle this case better. Remove from the lru_cache
+      // immediately and erase from the database.
+      VLOG(2) << "Item does not yet have a path on disk";
+      continue;
+    }
+
+    if (ctx.removal_in_progress()) {
+      VLOG(2) << "Item '" << fsp_path << "' is already being removed";
+      continue;
+    }
+
+    VLOG(1) << "Removing '" << fsp_path << "'";
+    ctx.set_removal_in_progress(true);
+    item_ids.push_back(ctx.id());
+
+    RemoveItemFromDisk(ctx.path_on_disk(), fsp_path);
   }
 
-  // After all the items have been removed from the disk, a single call can be
-  // made to the database to remove the items by their ID. This avoids making
-  // individual calls for every item that is removed from disk and just lumps
-  // them into a single call.
+  RemoveItemsFromDatabase(item_ids);
+}
+
+void ContentCacheImpl::RemoveItemsFromDatabase(std::vector<int64_t>& item_ids) {
+  if (item_ids.empty()) {
+    return;
+  }
+
+  const size_t number_of_items = item_ids.size();
+
+  // Remove items from the database by their ID.
+  VLOG(1) << "Attempting to remove " << number_of_items
+          << " item(s) from the database";
   context_db_.AsyncCall(&ContextDatabase::RemoveItemsByIds)
       .WithArgs(std::move(item_ids))
       .Then(base::BindOnce(&ContentCacheImpl::OnItemsRemovedFromDatabase,
-                           weak_ptr_factory_.GetWeakPtr(),
-                           base::OwnedRef(removed_items)));
+                           weak_ptr_factory_.GetWeakPtr(), number_of_items));
 }
 
-void ContentCacheImpl::OnItemsRemovedFromDatabase(
-    RemovedItemStats& removed_items,
-    bool success) {
-  LOG_IF(ERROR, !success) << "Couldn't remove items from database";
+void ContentCacheImpl::OnItemsRemovedFromDatabase(size_t number_of_items,
+                                                  bool success) {
+  if (success) {
+    VLOG(1) << "Removed " << number_of_items << " item(s) from the database";
+  } else {
+    LOG(ERROR) << "Couldn't remove " << number_of_items
+               << " items from database";
+  }
   // Now all the items on the disk have been removed, if the database call
   // failed the next time the cache is rebuilt (via `LoadFromDisk`) these items
   // will be attempted to be removed again.
-  on_removed_callbacks_.Notify(removed_items);
 }
 
-void ContentCacheImpl::OnItemRemovedFromDisk(
-    ContentLRUCache::reverse_iterator it,
-    std::vector<int64_t>& item_ids,
-    RemovedItemStats& removed_items,
-    bool success) {
+void ContentCacheImpl::RemoveItemFromDisk(const base::FilePath& path_on_disk,
+                                          const base::FilePath& fsp_path) {
+  VLOG(1) << "Attempting to remove " << path_on_disk << " from the disk";
+  io_task_runner_->PostTaskAndReplyWithResult(
+      FROM_HERE, base::BindOnce(&base::DeleteFile, path_on_disk),
+      base::BindOnce(&ContentCacheImpl::OnItemRemovedFromDisk,
+                     weak_ptr_factory_.GetWeakPtr(), base::OwnedRef(fsp_path)));
+}
+
+void ContentCacheImpl::OnItemRemovedFromDisk(const base::FilePath& fsp_path,
+                                             bool success) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (success) {
-    item_ids.emplace_back(it->second.id());
-    removed_items.bytes_removed += it->second.bytes_on_disk();
-    // Automatically increments `it`.
-    lru_cache_.Erase(it);
-    removed_items.num_items++;
-    DCHECK_GT(evicted_cache_items_, 0u);
-    evicted_cache_items_--;
-  } else {
-    it++;
-    LOG(ERROR) << "Failed to remove " << it->second.id() << " from disk";
+  ContentLRUCache::iterator it = lru_cache_.Peek(fsp_path);
+  if (it == lru_cache_.end()) {
+    VLOG(1) << "Context for '" << fsp_path << "' is not in the cache";
+    return;
   }
 
-  // Continue identifying evicted files to be removed. In the event no more
-  // items are identified, all items in `item_ids` will be removed from the
-  // database.
-  RemoveEvictedItems(it, item_ids, removed_items);
+  if (!success) {
+    LOG(ERROR) << "Failed to remove item with id " << it->second.id()
+               << " from disk";
+    return;
+  }
+
+  VLOG(1) << "Removed item with id " << it->second.id() << " from disk";
+  const int64_t bytes_on_disk = it->second.bytes_on_disk();
+  lru_cache_.Erase(it);
+  DCHECK_GT(evicted_cache_items_, 0u);
+  evicted_cache_items_--;
+
+  // Notify all observers.
+  for (auto& observer : observers_) {
+    observer.OnItemRemovedFromDisk(fsp_path, bytes_on_disk);
+  }
 }
 
 void ContentCacheImpl::EvictItems(
-    std::vector<const base::FilePath>& file_paths) {
+    const std::vector<base::FilePath>& file_paths) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   for (const base::FilePath& file_path : file_paths) {
     ContentLRUCache::iterator it = lru_cache_.Peek(file_path);
     if (it == lru_cache_.end()) {
-      VLOG(1) << "Path '" << file_path << "' is not in the cache";
+      VLOG(2) << "Context for '" << file_path << "' is not in the cache";
       continue;
     }
 
     CacheFileContext& ctx = it->second;
-    if (!ctx.evicted()) {
-      VLOG(2) << "Evicting '" << file_path << "'";
-      ctx.set_evicted(true);
-      evicted_cache_items_++;
-      if (on_item_evicted_callback_) {
-        on_item_evicted_callback_.Run(file_path);
-      }
-    } else {
-      VLOG(2) << "Item '" << file_path << "'is already evicted";
+    if (ctx.evicted()) {
+      VLOG(2) << "Item '" << file_path << "' is already evicted";
+      continue;
+    }
+
+    VLOG(1) << "Evicting '" << file_path << "'";
+    ctx.set_evicted(true);
+    evicted_cache_items_++;
+    // Notify all observers.
+    for (auto& observer : observers_) {
+      observer.OnItemEvicted(file_path);
     }
   }
+  RemoveItems(file_paths);
 }
 
 void ContentCacheImpl::EvictExcessItems() {
@@ -287,7 +316,7 @@ void ContentCacheImpl::EvictExcessItems() {
   // evicted items brings the size of the cache (without these items) to below
   // the `max_cache_items_`.
   ContentLRUCache::reverse_iterator it = lru_cache_.rbegin();
-  std::vector<const base::FilePath> to_evict;
+  std::vector<base::FilePath> to_evict;
   while (to_evict.size() < items_to_evict) {
     CacheFileContext& ctx = it->second;
     if (!ctx.evicted()) {
@@ -413,6 +442,7 @@ void ContentCacheImpl::WriteBytes(const OpenedCloudFile& file,
   }
 
   // Add a new CacheFileContext to the lru_cache.
+  VLOG(1) << "Adding '" << file.file_path << "' to the cache";
   it = lru_cache_.Put(
       PathContextPair(file.file_path, CacheFileContext(file.version_tag)));
   EvictExcessItems();
@@ -476,9 +506,15 @@ void ContentCacheImpl::WriteBytes(const OpenedCloudFile& file,
 
 void ContentCacheImpl::CloseFile(const OpenedCloudFile& file) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
+  VLOG(1) << "Closing " << file.file_path;
   if (auto it = lru_cache_.Peek(file.file_path); it != lru_cache_.end()) {
-    it->second.CloseLocalFD(file.request_id);
+    CacheFileContext& ctx = it->second;
+    ctx.CloseLocalFD(file.request_id);
+    if (ctx.evicted()) {
+      // File was evicted when reading. Remove it.
+      std::vector<base::FilePath> file_paths = {file.file_path};
+      RemoveItems(file_paths);
+    }
   }
 }
 
@@ -522,7 +558,6 @@ void ContentCacheImpl::OnBytesWritten(const base::FilePath& file_path,
 
   CacheFileContext& ctx = it->second;
   if (result == base::File::FILE_OK) {
-    size_.total_bytes_on_disk += length;
     ctx.set_bytes_on_disk(offset + length);
     ctx.set_accessed_time(base::Time::Now());
 
@@ -622,7 +657,7 @@ void ContentCacheImpl::GotItemsFromContextDatabase(
       << " path(s) from the disk";
   io_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&RemoveAllFilesOnDiskById, paths_on_disk_to_remove),
+      base::BindOnce(&RemoveFilesOnDiskByPath, paths_on_disk_to_remove),
       barrier_callback);
 }
 
@@ -651,16 +686,14 @@ std::vector<base::FilePath> ContentCacheImpl::GetCachedFilePaths() {
   return cached_file_paths;
 }
 
-const ContentCache::SizeInfo ContentCacheImpl::GetSize() const {
-  return size_;
+void ContentCacheImpl::AddObserver(ContentCache::Observer* observer) {
+  DCHECK(observer);
+  observers_.AddObserver(observer);
 }
 
-void ContentCacheImpl::SetMaxBytesOnDisk(int64_t max_bytes_on_disk) {
-  size_.max_bytes_on_disk = max_bytes_on_disk;
-}
-
-base::WeakPtr<ContentCache> ContentCacheImpl::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
+void ContentCacheImpl::RemoveObserver(ContentCache::Observer* observer) {
+  DCHECK(observer);
+  observers_.RemoveObserver(observer);
 }
 
 }  // namespace ash::file_system_provider

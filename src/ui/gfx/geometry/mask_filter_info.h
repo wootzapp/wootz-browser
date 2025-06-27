@@ -7,7 +7,7 @@
 
 #include <optional>
 
-#include "ui/gfx/geometry/geometry_skia_export.h"
+#include "base/component_export.h"
 #include "ui/gfx/geometry/linear_gradient.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/rrect_f.h"
@@ -18,7 +18,7 @@ class AxisTransform2d;
 class Transform;
 
 // This class defines a mask filter to be applied to the given rect.
-class GEOMETRY_SKIA_EXPORT MaskFilterInfo {
+class COMPONENT_EXPORT(GEOMETRY_SKIA) MaskFilterInfo {
  public:
   MaskFilterInfo() = default;
   explicit MaskFilterInfo(const RRectF& rrect)
@@ -40,8 +40,7 @@ class GEOMETRY_SKIA_EXPORT MaskFilterInfo {
 
   // True if this contains a rounded corner mask.
   bool HasRoundedCorners() const {
-    return rounded_corner_bounds_.GetType() != RRectF::Type::kEmpty &&
-           rounded_corner_bounds_.GetType() != RRectF::Type::kRect;
+    return rounded_corner_bounds_.HasRoundedCorners();
   }
 
   const std::optional<gfx::LinearGradient>& gradient_mask() const {

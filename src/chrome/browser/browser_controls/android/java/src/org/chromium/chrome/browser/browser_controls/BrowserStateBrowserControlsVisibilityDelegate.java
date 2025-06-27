@@ -10,9 +10,9 @@ import android.os.SystemClock;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.CommandLine;
-import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -23,10 +23,11 @@ import org.chromium.ui.util.TokenHolder;
  * Determines the desired visibility of the browser controls based on the current state of the
  * running activity.
  */
-public class BrowserStateBrowserControlsVisibilityDelegate extends BrowserControlsVisibilityDelegate
-        implements Destroyable {
+@NullMarked
+public class BrowserStateBrowserControlsVisibilityDelegate
+        extends BrowserControlsVisibilityDelegate {
     /** Minimum duration (in milliseconds) that the controls are shown when requested. */
-    @VisibleForTesting static final long MINIMUM_SHOW_DURATION_MS = 3000;
+    @VisibleForTesting public static final long MINIMUM_SHOW_DURATION_MS = 3000;
 
     private static boolean sDisableOverridesForTesting;
 
@@ -59,7 +60,6 @@ public class BrowserStateBrowserControlsVisibilityDelegate extends BrowserContro
         if (CommandLine.getInstance().hasSwitch(ChromeSwitches.DISABLE_MINIMUM_SHOW_DURATION)) {
             return;
         }
-        if (mHandler.hasMessages(0)) return; // Messages sent via post/postDelayed have what=0
 
         long currentShowingTime = SystemClock.uptimeMillis() - mCurrentShowingStartTime;
         if (currentShowingTime >= MINIMUM_SHOW_DURATION_MS) return;
@@ -72,19 +72,19 @@ public class BrowserStateBrowserControlsVisibilityDelegate extends BrowserContro
 
     /** Trigger a temporary showing of the browser controls. */
     public void showControlsTransient() {
-        if (!mTokenHolder.hasTokens()) mCurrentShowingStartTime = SystemClock.uptimeMillis();
+        mCurrentShowingStartTime = SystemClock.uptimeMillis();
         ensureControlsVisibleForMinDuration();
     }
 
     /**
      * Trigger a permanent showing of the browser controls until requested otherwise.
      *
-     * @return The token that determines whether the requester still needs persistent controls to
-     *         be present on the screen.
+     * @return The token that determines whether the requester still needs persistent controls to be
+     *     present on the screen.
      * @see #releasePersistentShowingToken(int)
      */
     public int showControlsPersistent() {
-        if (!mTokenHolder.hasTokens()) mCurrentShowingStartTime = SystemClock.uptimeMillis();
+        mCurrentShowingStartTime = SystemClock.uptimeMillis();
         return mTokenHolder.acquireToken();
     }
 
@@ -107,19 +107,6 @@ public class BrowserStateBrowserControlsVisibilityDelegate extends BrowserContro
      * @param token The fullscreen token returned from {@link #showControlsPersistent()}.
      */
     public void releasePersistentShowingToken(int token) {
-        if (mTokenHolder.containsOnly(token)) {
-            // Toolbar capture suppression logic sometimes locks the controls right as a scroll
-            // starts. This is a significantly different usage than locking controls for 3 seconds
-            // upon navigation. It feels wrong for the controls to stay locked for the min duration,
-            // there wasn't any significant change to the screen. They should unlock as soon as the
-            // capture logic thinks it's safe to do so. Long term this can probably be removed for
-            // all.
-            boolean useSuppression = ChromeFeatureList.sSuppressionToolbarCaptures.isEnabled();
-
-            if (!useSuppression) {
-                ensureControlsVisibleForMinDuration();
-            }
-        }
         mTokenHolder.releaseToken(token);
     }
 
@@ -142,7 +129,6 @@ public class BrowserStateBrowserControlsVisibilityDelegate extends BrowserContro
         sDisableOverridesForTesting = true;
     }
 
-    /** Performs clean-up. */
     @Override
     public void destroy() {
         mHandler.removeCallbacksAndMessages(null);

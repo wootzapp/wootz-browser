@@ -6,9 +6,13 @@
 #include <string>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/scoped_observation.h"
 #include "base/test/scoped_feature_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/plus_addresses/plus_address_service_factory.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/test/integration/status_change_checker.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
@@ -17,8 +21,11 @@
 #include "components/plus_addresses/plus_address_test_utils.h"
 #include "components/plus_addresses/plus_address_types.h"
 #include "components/plus_addresses/webdata/plus_address_sync_util.h"
+#include "components/signin/public/identity_manager/account_info.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/signin/public/identity_manager/identity_test_utils.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
-#include "components/sync/base/model_type.h"
 #include "components/sync/engine/loopback_server/persistent_tombstone_entity.h"
 #include "components/sync/engine/loopback_server/persistent_unique_client_entity.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
@@ -41,7 +48,7 @@ class PlusProfileChecker : public StatusChangeChecker,
                            public PlusAddressService::Observer {
  public:
   PlusProfileChecker(PlusAddressService* service,
-                     testing::Matcher<std::vector<PlusProfile>> matcher)
+                     testing::Matcher<base::span<const PlusProfile>> matcher)
       : service_(service), matcher_(std::move(matcher)) {
     scoped_observation_.Observe(service_);
   }
@@ -65,7 +72,7 @@ class PlusProfileChecker : public StatusChangeChecker,
 
  private:
   const raw_ptr<PlusAddressService> service_;
-  const testing::Matcher<std::vector<PlusProfile>> matcher_;
+  const testing::Matcher<base::span<const PlusProfile>> matcher_;
   base::ScopedObservation<PlusAddressService, PlusAddressService::Observer>
       scoped_observation_{this};
 };
@@ -78,9 +85,11 @@ class SingleClientPlusAddressSyncTest
       public testing::WithParamInterface<bool> {
  public:
   SingleClientPlusAddressSyncTest() : SyncTest(SINGLE_CLIENT) {
-    features_.InitWithFeatures(
-        /*enabled_features=*/{plus_addresses::features::kPlusAddressesEnabled,
-                              syncer::kSyncPlusAddress},
+    features_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/{{plus_addresses::features::kPlusAddressesEnabled,
+                               {{plus_addresses::features::
+                                     kEnterprisePlusAddressServerUrl.name,
+                                 "https://not-used.com"}}}},
         /*disabled_features=*/{});
   }
 
@@ -128,7 +137,7 @@ class SingleClientPlusAddressSyncTest
 INSTANTIATE_TEST_SUITE_P(
     ,
     SingleClientPlusAddressSyncTest,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     // On ChromeOS, sync-the-feature gets started automatically once a primary
     // account is signed in and transport mode is not a thing. As such, only run
     // the tests in sync-the-feature mode.
@@ -140,7 +149,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, InitialSync) {
   // Start syncing with an existing `plus_profile` on the server.
-  const PlusProfile plus_profile = CreatePlusProfile(/*use_full_domain=*/true);
+  const PlusProfile plus_profile = CreatePlusProfile();
   InjectEntityToServer(EntityDataFromPlusProfile(plus_profile).specifics);
   ASSERT_TRUE(SetupSync());
   EXPECT_TRUE(PlusProfileChecker(GetPlusAddressService(),
@@ -151,7 +160,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, InitialSync) {
 IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, IncrementalUpdate_Add) {
   ASSERT_TRUE(SetupSync());
   // Simulate creating a new `plus_profile` on the server after sync started.
-  const PlusProfile plus_profile = CreatePlusProfile(/*use_full_domain=*/true);
+  const PlusProfile plus_profile = CreatePlusProfile();
   InjectEntityToServer(EntityDataFromPlusProfile(plus_profile).specifics);
   EXPECT_TRUE(PlusProfileChecker(GetPlusAddressService(),
                                  testing::UnorderedElementsAre(plus_profile))
@@ -160,14 +169,15 @@ IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, IncrementalUpdate_Add) {
 
 IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest,
                        IncrementalUpdate_Update) {
-  PlusProfile plus_profile = CreatePlusProfile(/*use_full_domain=*/true);
+  PlusProfile plus_profile = CreatePlusProfile();
   InjectEntityToServer(EntityDataFromPlusProfile(plus_profile).specifics);
   ASSERT_TRUE(SetupSync());
   ASSERT_TRUE(PlusProfileChecker(GetPlusAddressService(),
                                  testing::UnorderedElementsAre(plus_profile))
                   .Wait());
   // Simulate updating the `plus_profile` on the server.
-  plus_profile.plus_address = "new-" + plus_profile.plus_address;
+  plus_profile.plus_address =
+      plus_addresses::PlusAddress("new-" + *plus_profile.plus_address);
   InjectEntityToServer(EntityDataFromPlusProfile(plus_profile).specifics);
   EXPECT_TRUE(PlusProfileChecker(GetPlusAddressService(),
                                  testing::UnorderedElementsAre(plus_profile))
@@ -176,24 +186,23 @@ IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest,
 
 IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest,
                        IncrementalUpdate_Remove) {
-  const PlusProfile plus_profile = CreatePlusProfile(/*use_full_domain=*/true);
+  const PlusProfile plus_profile = CreatePlusProfile();
   InjectEntityToServer(EntityDataFromPlusProfile(plus_profile).specifics);
   ASSERT_TRUE(SetupSync());
   ASSERT_TRUE(PlusProfileChecker(GetPlusAddressService(),
                                  testing::UnorderedElementsAre(plus_profile))
                   .Wait());
   // Simulate removing the `plus_profile` on the server.
-  InjectTombstoneToServer(plus_profile.profile_id);
+  InjectTombstoneToServer(*plus_profile.profile_id);
   EXPECT_TRUE(
       PlusProfileChecker(GetPlusAddressService(), testing::IsEmpty()).Wait());
 }
 
 // ChromeOS does not support signing out of the primary account.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, Signout_DataCleared) {
   InjectEntityToServer(
-      EntityDataFromPlusProfile(CreatePlusProfile(/*use_full_domain=*/true))
-          .specifics);
+      EntityDataFromPlusProfile(CreatePlusProfile()).specifics);
   ASSERT_TRUE(SetupSync());
   ASSERT_TRUE(PlusProfileChecker(GetPlusAddressService(),
                                  testing::Not(testing::IsEmpty()))
@@ -202,6 +211,42 @@ IN_PROC_BROWSER_TEST_P(SingleClientPlusAddressSyncTest, Signout_DataCleared) {
   EXPECT_TRUE(
       PlusProfileChecker(GetPlusAddressService(), testing::IsEmpty()).Wait());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
+
+// Overwrites the Sync test account with a non-gmail account to treat it as a
+// Dasher account.
+// On Android, `switches::kSyncUserForTest` isn't supported, so it's currently
+// not possible to simulate a non-gmail account.
+#if !BUILDFLAG(IS_ANDROID)
+class SingleClientPlusAddressManagedAccountTest
+    : public SingleClientPlusAddressSyncTest {
+ public:
+  SingleClientPlusAddressManagedAccountTest() {
+    // This can't be done in `SetUpCommandLine()` because `SyncTest::SetUp()`
+    // already consumes the parameter.
+    base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+        switches::kSyncUserForTest, "user@managed-domain.com");
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(SingleClientPlusAddressManagedAccountTest,
+                       DisabledForManagedAccounts) {
+  ASSERT_TRUE(SetupClients());
+  // Sign in with a managed account.
+  ASSERT_TRUE(GetClient(0)->SignInPrimaryAccount(signin::ConsentLevel::kSync));
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(GetProfile(0));
+  const CoreAccountInfo account =
+      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSync);
+  signin::SimulateSuccessfulFetchOfAccountInfo(
+      identity_manager, account.account_id, account.email, account.gaia,
+      "managed-domain.com", "Full name", "Given name", "en-US",
+      /*picture_url=*/"");
+  ASSERT_TRUE(SyncTest::SetupSync());
+
+  EXPECT_FALSE(GetSyncService(0)->GetActiveDataTypes().HasAny(
+      {syncer::PLUS_ADDRESS, syncer::PLUS_ADDRESS_SETTING}));
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace

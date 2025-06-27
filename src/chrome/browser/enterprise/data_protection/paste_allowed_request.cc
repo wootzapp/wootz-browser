@@ -7,6 +7,7 @@
 #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
 
 namespace enterprise_data_protection {
 
@@ -54,16 +55,8 @@ void PasteAllowedRequest::StartPasteAllowedRequest(
   CleanupObsoleteRequests();
 
   ui::ClipboardSequenceNumberToken seqno = metadata.seqno;
-  content::RenderFrameHost& rfh =
-      *destination.web_contents()->GetPrimaryMainFrame();
-  content::GlobalRenderFrameHostId rfh_id = rfh.GetGlobalId();
-
-  // Always allow if the source of the last clipboard commit was this host.
-  if (rfh.IsClipboardOwner(seqno)) {
-    ReplaceSameTabClipboardDataIfRequiredByPolicy(seqno, clipboard_paste_data);
-    std::move(callback).Run(std::move(clipboard_paste_data));
-    return;
-  }
+  content::GlobalRenderFrameHostId rfh_id =
+      destination.web_contents()->GetPrimaryMainFrame()->GetGlobalId();
 
   // Add |callback| to the callbacks associated to the sequence number, adding
   // an entry to the map if one does not exist.

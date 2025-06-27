@@ -8,6 +8,7 @@
 #include <string_view>
 #include <utility>
 
+#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/wallpaper/wallpaper_info.h"
 #include "ash/session/session_controller_impl.h"
@@ -18,10 +19,12 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/user_manager/user_type.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -33,7 +36,8 @@ using testing::Gt;
 using testing::Lt;
 
 constexpr char kUser1[] = "user1@test.com";
-const AccountId account_id_1 = AccountId::FromUserEmailGaiaId(kUser1, kUser1);
+const AccountId account_id_1 =
+    AccountId::FromUserEmailGaiaId(kUser1, GaiaId::Literal("1234"));
 
 constexpr char kDummyUrl[] = "https://best_wallpaper/1";
 constexpr char kDummyUrl2[] = "https://best_wallpaper/2";
@@ -89,8 +93,9 @@ class TestProfileHelper : public WallpaperProfileHelper {
   void SetClient(WallpaperControllerClient*) override {}
 
   PrefService* GetUserPrefServiceSyncable(const AccountId& id) override {
-    if (!is_sync_enabled)
+    if (!is_sync_enabled) {
       return nullptr;
+    }
 
     const auto& pref = synced_prefs_.find(id);
     return pref == synced_prefs_.end() ? nullptr : &(pref->second);
@@ -206,6 +211,16 @@ TEST_F(WallpaperPrefManagerTest,
   EXPECT_TRUE(pref_manager_->GetUserWallpaperInfo(
       account_id_1, /*is_ephemeral=*/true, &actual_info));
   EXPECT_TRUE(actual_info.MatchesSelection(expected_info));
+}
+
+TEST_F(WallpaperPrefManagerTest, RemoveUserWallpaperInfo_Ephemeral) {
+  profile_helper_->is_ephemeral = true;
+  WallpaperInfo expected_info = InfoWithType(WallpaperType::kDaily);
+  pref_manager_->SetUserWallpaperInfo(account_id_1, expected_info);
+
+  pref_manager_->RemoveUserWallpaperInfo(account_id_1);
+  WallpaperInfo actual_info;
+  EXPECT_FALSE(pref_manager_->GetUserWallpaperInfo(account_id_1, &actual_info));
 }
 
 TEST_F(WallpaperPrefManagerTest, SetWallpaperInfo_EphemeralDoesNotChangeLocal) {

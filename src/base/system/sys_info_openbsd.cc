@@ -18,8 +18,9 @@ namespace {
 uint64_t AmountOfMemory(int pages_name) {
   long pages = sysconf(pages_name);
   long page_size = sysconf(_SC_PAGESIZE);
-  if (pages < 0 || page_size < 0)
+  if (pages < 0 || page_size < 0) {
     return 0;
+  }
   return static_cast<uint64_t>(pages) * static_cast<uint64_t>(page_size);
 }
 
@@ -33,8 +34,7 @@ int SysInfo::NumberOfProcessors() {
   int ncpu;
   size_t size = sizeof(ncpu);
   if (sysctl(mib, std::size(mib), &ncpu, &size, NULL, 0) < 0) {
-    NOTREACHED_IN_MIGRATION();
-    return 1;
+    NOTREACHED();
   }
   return ncpu;
 }
@@ -57,8 +57,7 @@ uint64_t SysInfo::MaxSharedMemorySize() {
   size_t limit;
   size_t size = sizeof(limit);
   if (sysctl(mib, std::size(mib), &limit, &size, NULL, 0) < 0) {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
+    NOTREACHED();
   }
   return static_cast<uint64_t>(limit);
 }

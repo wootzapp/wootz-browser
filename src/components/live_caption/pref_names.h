@@ -24,10 +24,6 @@ namespace prefs {
 inline constexpr char kLiveCaptionBubbleExpanded[] =
     "accessibility.captions.live_caption_bubble_expanded";
 
-// Whether the Live Caption bubble is pinned.
-inline constexpr char kLiveCaptionBubblePinned[] =
-    "accessibility.captions.live_caption_bubble_pinned";
-
 // Whether the Live Caption feature is enabled.
 inline constexpr char kLiveCaptionEnabled[] =
     "accessibility.captions.live_caption_enabled";
@@ -45,6 +41,12 @@ inline constexpr char kLiveCaptionMaskOffensiveWords[] =
 inline constexpr char kLiveCaptionMediaFoundationRendererErrorSilenced[] =
     "accessibility.captions.live_caption_media_foundation_renderer_error_"
     "silenced";
+
+// Whether the Headless Caption exploration is enabled.  Unlike
+// `kLiveCaptionEnabled`, this does not imply that the UI is visible.  Both
+// prefs may be enabled at once.
+inline constexpr char kHeadlessCaptionEnabled[] =
+    "accessibility.captions.headless_caption_enabled";
 
 const std::string GetLiveCaptionLanguageCode(PrefService* profile_prefs);
 bool IsLanguageCodeForLiveCaption(speech::LanguageCode language_code,

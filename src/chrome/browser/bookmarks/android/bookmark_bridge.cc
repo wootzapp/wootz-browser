@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/bookmarks/android/bookmark_bridge.h"
 
 #include <stddef.h>
@@ -18,21 +23,22 @@
 #include "base/android/callback_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
+#include "base/check.h"
 #include "base/containers/adapters.h"
 #include "base/containers/stack.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/i18n/string_compare.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
-#include "chrome/browser/android/bookmarks/partner_bookmarks_reader.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/bookmarks/managed_bookmark_service_factory.h"
 #include "chrome/browser/commerce/shopping_service_factory.h"
-#include "chrome/browser/page_image_service/image_service_factory.h"
+#include "chrome/browser/partnerbookmarks/partner_bookmarks_reader.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/reading_list/android/reading_list_manager.h"
@@ -40,13 +46,13 @@
 #include "chrome/browser/reading_list/reading_list_model_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/undo/bookmark_undo_service_factory.h"
+#include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/browser/titled_url_match.h"
 #include "components/bookmarks/common/android/bookmark_type.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/dom_distiller/core/url_utils.h"
-#include "components/page_image_service/image_service.h"
 #include "components/power_bookmarks/core/power_bookmark_utils.h"
 #include "components/power_bookmarks/core/proto/power_bookmark_meta.pb.h"
 #include "components/prefs/pref_service.h"
@@ -54,15 +60,14 @@
 #include "components/reading_list/core/dual_reading_list_model.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/sync/base/features.h"
 #include "components/undo/bookmark_undo_service.h"
 #include "components/undo/undo_manager.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
-#include "chrome/android/chrome_jni_headers/BookmarkBridge_jni.h"
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/bookmarks/android/jni_headers/BookmarkBridge_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::JavaParamRef;
@@ -116,16 +121,6 @@ std::unique_ptr<icu::Collator> GetICUCollator() {
   return collator_;
 }
 
-// Handles the response from page_image_service::ImageService when requesting
-// a salient image url.
-void HandleImageUrlResponse(
-    base::android::ScopedJavaGlobalRef<jobject> callback,
-    const GURL& image_url) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  base::android::RunObjectCallbackAndroid(
-      callback, url::GURLAndroid::FromNativeGURL(env, image_url));
-}
-
 const bookmarks::BookmarkNode* GetNodeFromReadingListIfLoaded(
     const ReadingListManager* manager,
     const GURL& url) {
@@ -165,8 +160,6 @@ ScopedJavaLocalRef<jobject> JNI_BookmarkBridge_NativeGetForProfile(
     bookmark_bridge = new BookmarkBridge(
         profile, model,
         ManagedBookmarkServiceFactory::GetForProfile(original_profile),
-        page_image_service::ImageServiceFactory::GetForBrowserContext(
-            original_profile),
         ReadingListModelFactory::GetAsDualReadingListForBrowserContext(
             original_profile),
         PartnerBookmarksShim::BuildForBrowserContext(original_profile),
@@ -182,14 +175,12 @@ BookmarkBridge::BookmarkBridge(
     Profile* profile,
     BookmarkModel* model,
     bookmarks::ManagedBookmarkService* managed_bookmark_service,
-    page_image_service::ImageService* image_service,
     reading_list::DualReadingListModel* dual_reading_list_model,
     PartnerBookmarksShim* partner_bookmarks_shim,
     signin::IdentityManager* identity_manager)
     : profile_(profile),
       bookmark_model_(model),
       managed_bookmark_service_(managed_bookmark_service),
-      image_service_(image_service),
       dual_reading_list_model_(dual_reading_list_model),
       id_gen_func_(
           base::BindRepeating([](int64_t* id) { return (*id)++; },
@@ -205,7 +196,6 @@ BookmarkBridge::BookmarkBridge(
   CHECK(model);
   CHECK(managed_bookmark_service);
   CHECK(partner_bookmarks_shim);
-  CHECK(image_service_);
   CHECK(dual_reading_list_model);
   CHECK(identity_manager_);
 
@@ -232,7 +222,8 @@ BookmarkBridge::BookmarkBridge(
     ExtensiveBookmarkChangesBeginning();
 
   java_bookmark_model_ = Java_BookmarkBridge_createBookmarkModel(
-      base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this));
+      base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this),
+      profile_->GetJavaObject());
 }
 
 BookmarkBridge::~BookmarkBridge() {
@@ -248,42 +239,7 @@ void BookmarkBridge::Destroy(JNIEnv* env) {
 }
 
 jboolean BookmarkBridge::AreAccountBookmarkFoldersActive(JNIEnv* env) {
-  if (!base::FeatureList::IsEnabled(
-          syncer::kEnableBookmarkFoldersForAccountStorage)) {
-    return false;
-  }
-
   return bookmark_model_->account_mobile_node() != nullptr;
-}
-
-void BookmarkBridge::GetImageUrlForBookmark(
-    JNIEnv* env,
-    const GURL& url,
-    bool is_account_bookmark,
-    const JavaParamRef<jobject>& j_callback) {
-  ScopedJavaGlobalRef<jobject> callback(j_callback);
-  GetImageUrlForBookmarkImpl(url, is_account_bookmark,
-                             base::BindOnce(&HandleImageUrlResponse, callback));
-}
-
-void BookmarkBridge::GetImageUrlForBookmarkImpl(
-    const GURL& url,
-    bool is_account_bookmark,
-    page_image_service::ImageService::ResultCallback callback) {
-  // Images should only be fetched for bookmarks stored in the account. For
-  // Sync-the-feature user, that means all bookmarks. ImageService checks
-  // internally that syncing of bookmarks is enabled.
-  if (identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync) ||
-      is_account_bookmark) {
-    page_image_service::mojom::Options options;
-    options.optimization_guide_images = true;
-    image_service_->FetchImageFor(
-        page_image_service::mojom::ClientId::Bookmarks, url, options,
-        std::move(callback));
-    return;
-  }
-
-  std::move(callback).Run(GURL());
 }
 
 base::android::ScopedJavaLocalRef<jobject>
@@ -432,17 +388,19 @@ void BookmarkBridge::GetAllFoldersWithDepths(
 
 void BookmarkBridge::GetTopLevelFolderIds(
     JNIEnv* env,
-    jboolean j_ignore_visibility,
+    jint j_force_visible_mask,
     const JavaParamRef<jobject>& j_result_obj) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
 
   AddBookmarkNodesToBookmarkIdList(
-      env, j_result_obj, GetTopLevelFolderIdsImpl(j_ignore_visibility));
+      env, j_result_obj,
+      GetTopLevelFolderIdsImpl(
+          static_cast<BookmarkNodeMaskBit>(j_force_visible_mask)));
 }
 
 std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
-    bool ignore_visibility) {
+    BookmarkNodeMaskBit force_visible_mask) {
   std::vector<const BookmarkNode*> top_level_folders;
 
   // Query for the top-level folders:
@@ -451,49 +409,64 @@ std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
   // local bookmarks after.
   const BookmarkNode* account_mobile_node =
       bookmark_model_->account_mobile_node();
-  if (IsPermanentFolderVisible(ignore_visibility, account_mobile_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::ACCOUNT_MOBILE) != 0,
+          account_mobile_node)) {
     top_level_folders.push_back(account_mobile_node);
   }
 
   const BookmarkNode* account_bookmark_bar_node =
       bookmark_model_->account_bookmark_bar_node();
-  if (IsPermanentFolderVisible(ignore_visibility, account_bookmark_bar_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::ACCOUNT_BOOKMARK_BAR) != 0,
+          account_bookmark_bar_node)) {
     top_level_folders.push_back(account_bookmark_bar_node);
   }
 
   const BookmarkNode* account_other_node =
       bookmark_model_->account_other_node();
-  if (IsPermanentFolderVisible(ignore_visibility, account_other_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::ACCOUNT_OTHER) != 0,
+          account_other_node)) {
     top_level_folders.push_back(account_other_node);
   }
 
   const BookmarkNode* account_reading_list_node =
       account_reading_list_manager_ ? account_reading_list_manager_->GetRoot()
                                     : nullptr;
-  if (IsPermanentFolderVisible(ignore_visibility, account_reading_list_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::ACCOUNT_READING_LIST) != 0,
+          account_reading_list_node)) {
     top_level_folders.push_back(account_reading_list_node);
   }
 
   const BookmarkNode* mobile_node = bookmark_model_->mobile_node();
   // Partner bookmarks are child of the local mobile_node.
-  if (IsPermanentFolderVisible(ignore_visibility, mobile_node) ||
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::MOBILE) != 0,
+          mobile_node) ||
       partner_bookmarks_shim_->HasPartnerBookmarks()) {
     top_level_folders.push_back(mobile_node);
   }
 
   const BookmarkNode* bookmark_bar_node = bookmark_model_->bookmark_bar_node();
-  if (IsPermanentFolderVisible(ignore_visibility, bookmark_bar_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::BOOKMARK_BAR) != 0,
+          bookmark_bar_node)) {
     top_level_folders.push_back(bookmark_bar_node);
   }
 
   const BookmarkNode* other_node = bookmark_model_->other_node();
-  if (IsPermanentFolderVisible(ignore_visibility, other_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::OTHER) != 0, other_node)) {
     top_level_folders.push_back(other_node);
   }
 
   const BookmarkNode* reading_list_node =
       local_or_syncable_reading_list_manager_->GetRoot();
-  if (IsPermanentFolderVisible(ignore_visibility, reading_list_node)) {
+  if (IsPermanentFolderVisible(
+          (force_visible_mask & BookmarkNodeMaskBit::READING_LIST) != 0,
+          reading_list_node)) {
     top_level_folders.push_back(reading_list_node);
   }
 
@@ -510,7 +483,7 @@ std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
   return top_level_folders;
 }
 
-bool BookmarkBridge::IsPermanentFolderVisible(bool ignore_visibility,
+bool BookmarkBridge::IsPermanentFolderVisible(bool force_visible,
                                               const BookmarkNode* folder) {
   // Null folders are never shown.
   if (!folder) {
@@ -518,7 +491,7 @@ bool BookmarkBridge::IsPermanentFolderVisible(bool ignore_visibility,
   }
 
   bool is_account_bookmark = IsAccountBookmarkImpl(folder);
-  if (ignore_visibility) {
+  if (force_visible) {
     // When butter is active ignore_visibility only applies to a subset of local
     // folder to avoid overwhelming the user with unnecessary folders
     // (crbug.com/325070543).
@@ -563,7 +536,7 @@ const BookmarkNode* BookmarkBridge::GetCorrespondingAccountFolder(
                : nullptr;
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 ScopedJavaLocalRef<jobject> BookmarkBridge::GetRootFolderId(JNIEnv* env) {
@@ -874,7 +847,7 @@ ScopedJavaLocalRef<jbyteArray> BookmarkBridge::GetPowerBookmarkMeta(
   if (!meta)
     return ScopedJavaLocalRef<jbyteArray>(nullptr);
 
-  int size = meta->ByteSize();
+  size_t size = meta->ByteSizeLong();
   std::string proto_bytes;
   meta->SerializeToString(&proto_bytes);
   std::vector<uint8_t> data(size);
@@ -1063,7 +1036,7 @@ void BookmarkBridge::DeleteBookmarkImpl(const BookmarkNode* node, int type) {
   // this is called with a nullptr.
   if (!node) {
     LOG(ERROR) << "Deleting null bookmark, type:" << type;
-    DUMP_WILL_BE_NOTREACHED_NORETURN();
+    DUMP_WILL_BE_NOTREACHED();
     return;
   }
 
@@ -1071,9 +1044,7 @@ void BookmarkBridge::DeleteBookmarkImpl(const BookmarkNode* node, int type) {
   // why this is called with an uneditable node.
   // See https://crbug.com/981172.
   if (!IsEditable(node)) {
-    LOG(ERROR) << "Deleting non editable bookmark, type:" << type;
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED() << "Deleting non editable bookmark, type:" << type;
   }
 
   if (partner_bookmarks_shim_->IsPartnerBookmark(node)) {
@@ -1183,9 +1154,7 @@ void BookmarkBridge::MoveNodeBetweenReadingListAndBookmarks(
           GetReadingListManagerFromParentNode(new_parent_node);
       new_node = manager->Add(node->url(), base::UTF16ToUTF8(node->GetTitle()));
     } else {
-      new_node = nullptr;
-      NOTREACHED_IN_MIGRATION()
-          << "Type swapping is only supported for reading list.";
+      NOTREACHED() << "Type swapping is only supported for reading list.";
     }
 
     // The add operations aren't guaranteed to succeed, so bail early if
@@ -1524,7 +1493,7 @@ bool BookmarkBridge::IsFolderAvailable(const BookmarkNode* folder) const {
   return (folder->type() != BookmarkNode::BOOKMARK_BAR &&
           folder->type() != BookmarkNode::OTHER_NODE) ||
          (identity_manager &&
-          identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync));
+          identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin));
 }
 
 void BookmarkBridge::NotifyIfDoneLoading() {
@@ -1644,6 +1613,10 @@ void BookmarkBridge::BookmarkNodeChanged(const BookmarkNode* node) {
       CreateJavaBookmark(node));
 }
 
+void BookmarkBridge::BookmarkNodeFaviconChanged(const BookmarkNode* node) {
+  BookmarkNodeChanged(node);
+}
+
 void BookmarkBridge::BookmarkNodeChildrenReordered(const BookmarkNode* node) {
   if (!IsLoaded() || !java_bookmark_model_ ||
       suppress_observer_notifications_) {
@@ -1716,7 +1689,7 @@ void BookmarkBridge::ReorderChildren(
   const long bookmark_id = JavaBookmarkIdGetId(env, j_bookmark_id_obj);
   const int bookmark_type = JavaBookmarkIdGetType(env, j_bookmark_id_obj);
 
-  const BookmarkNode* bookmark_node = GetNodeByID(bookmark_id, bookmark_type);
+  const BookmarkNode* parent_node = GetNodeByID(bookmark_id, bookmark_type);
 
   // populate a vector
   std::vector<const BookmarkNode*> ordered_nodes;
@@ -1725,10 +1698,15 @@ void BookmarkBridge::ReorderChildren(
 
   // iterate through array, adding the BookmarkNode*s of the objects
   for (int i = 0; i < arraySize; ++i) {
+    const BookmarkNode* child_node = GetNodeByID(elements[i], bookmark_type);
+    CHECK(child_node->parent() == parent_node, base::NotFatalUntil::M135);
+    CHECK(
+        base::checked_cast<jsize>(parent_node->children().size()) == arraySize,
+        base::NotFatalUntil::M135);
     ordered_nodes.push_back(GetNodeByID(elements[i], 0));
   }
 
-  bookmark_model_->ReorderChildren(bookmark_node, ordered_nodes);
+  bookmark_model_->ReorderChildren(parent_node, ordered_nodes);
 }
 
 // Should destroy the bookmark bridge, if OTR profile is destroyed not to delete
@@ -1769,7 +1747,7 @@ ReadingListManager* BookmarkBridge::GetReadingListManagerFromParentNode(
     return local_or_syncable_reading_list_manager_.get();
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 void BookmarkBridge::ReadingListModelLoaded(const ReadingListModel* model) {
@@ -1783,11 +1761,6 @@ void BookmarkBridge::ReadingListModelCompletedBatchUpdates(
 
 void BookmarkBridge::OnPrimaryAccountChanged(
     const signin::PrimaryAccountChangeEvent& event_details) {
-  if (!base::FeatureList::IsEnabled(
-          syncer::kEnableBookmarkFoldersForAccountStorage)) {
-    return;
-  }
-
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_BookmarkBridge_clearLastUsedParent(env);
 }

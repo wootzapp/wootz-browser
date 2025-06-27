@@ -55,9 +55,8 @@ class TestWebUIDataSource final : public URLDataSource {
       const GURL& /*url*/,
       const content::WebContents::Getter& /*wc_getter*/,
       content::URLDataSource::GotDataCallback callback) override {
-    std::vector<unsigned char> raw_resource = GetResource(resource_size_);
-    auto resource = base::RefCountedBytes::TakeVector(&raw_resource);
-    std::move(callback).Run(std::move(resource));
+    std::move(callback).Run(base::MakeRefCounted<base::RefCountedBytes>(
+        GetResource(resource_size_)));
   }
 
   std::string GetMimeType(const GURL& url) override { return "video/webm"; }
@@ -98,10 +97,13 @@ class OversizedWebUIDataSource final : public URLDataSource {
 
     // base::RefCountedMemory implementation:
     base::span<const uint8_t> AsSpan() const override {
+      // This uses `reinterpret_cast` of `1` to avoid nullness `CHECK` in the
+      // constructor of `span`.
+      //
       // SAFETY: This is unsound, but any use of the pointer will crash as the
       // first page is not mapped. The test does not actually use the pointer.
       return UNSAFE_BUFFERS(base::span<const uint8_t>(
-          static_cast<const uint8_t*>(nullptr), size_));
+          reinterpret_cast<const uint8_t*>(1), size_));
     }
 
    private:
@@ -203,17 +205,17 @@ TEST_P(WebUIURLLoaderFactoryTest, RangeRequest) {
   if (loader_client.completion_status().error_code == net::OK) {
     ASSERT_TRUE(loader_client.response_body().is_valid());
     size_t response_size;
-    ASSERT_EQ(loader_client.response_body().ReadData(nullptr, &response_size,
-                                                     MOJO_READ_DATA_FLAG_QUERY),
-              MOJO_RESULT_OK);
+    ASSERT_EQ(
+        loader_client.response_body().ReadData(
+            MOJO_READ_DATA_FLAG_QUERY, base::span<uint8_t>(), response_size),
+        MOJO_RESULT_OK);
     ASSERT_EQ(response_size, GetParam().expected_size);
 
     if (response_size > 0u) {
       std::vector<uint8_t> response(response_size);
-      ASSERT_EQ(
-          loader_client.response_body().ReadData(
-              response.data(), &response_size, MOJO_READ_DATA_FLAG_ALL_OR_NONE),
-          MOJO_RESULT_OK);
+      ASSERT_EQ(loader_client.response_body().ReadData(
+                    MOJO_READ_DATA_FLAG_ALL_OR_NONE, response, response_size),
+                MOJO_RESULT_OK);
 
       std::vector<unsigned char> expected_resource =
           TestWebUIDataSource::GetResource(GetParam().resource_size);

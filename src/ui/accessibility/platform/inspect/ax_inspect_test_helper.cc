@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "ui/accessibility/platform/inspect/ax_inspect_test_helper.h"
 
 #include <string>
@@ -311,7 +316,7 @@ bool AXInspectTestHelper::ValidateAgainstExpectation(
     diff += base::JoinString(actual_lines, "\n");
     diff += "\n";
 
-    // This is used by rebase_dump_accessibility_tree_test.py to signify
+    // This is used by rebase_dump_accessibility_tree_tests.py to signify
     // the end of the file when parsing the actual output from remote logs.
     diff += kMarkEndOfFile;
     diff += "\n";

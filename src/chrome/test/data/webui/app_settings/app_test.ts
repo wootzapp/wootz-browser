@@ -4,19 +4,22 @@
 
 import 'chrome://app-settings/web_app_settings.js';
 
-import type {App, AppManagementPermissionItemElement, AppManagementSupportedLinksItemElement, AppManagementSupportedLinksOverlappingAppsDialogElement, AppManagementToggleRowElement, PermissionTypeIndex, WebAppSettingsAppElement} from 'chrome://app-settings/web_app_settings.js';
+import type {App, AppElement, PermissionItemElement, PermissionTypeIndex, SupportedLinksItemElement, SupportedLinksOverlappingAppsDialogElement, ToggleRowElement} from 'chrome://app-settings/web_app_settings.js';
 import {AppType, BrowserProxy, createTriStatePermission, getPermissionValueBool, InstallReason, InstallSource, PermissionType, RunOnOsLoginMode, TriState, WindowMode} from 'chrome://app-settings/web_app_settings.js';
+import type {CrIconButtonElement} from 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import type {CrRadioButtonElement} from 'chrome://resources/cr_elements/cr_radio_button/cr_radio_button.js';
+import {getDeepActiveElement} from 'chrome://resources/js/util.js';
+import type {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import {assertEquals, assertFalse, assertNull, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
-import {eventToPromise} from 'chrome://webui-test/test_util.js';
+import {keyDownOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
+import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestAppManagementBrowserProxy} from './test_app_management_browser_proxy.js';
 
 type AppConfig = Partial<App>;
 
 suite('AppSettingsAppTest', () => {
-  let appSettingsApp: WebAppSettingsAppElement;
+  let appSettingsApp: AppElement;
   let app: App;
   let testProxy: TestAppManagementBrowserProxy;
 
@@ -58,6 +61,7 @@ suite('AppSettingsAppTest', () => {
       selectedLocale: null,
       showSystemNotificationsSettingsLink: false,
       allowUninstall: true,
+      disableUserChoiceNavigationCapturing: false,
     };
 
     if (optConfig) {
@@ -85,18 +89,16 @@ suite('AppSettingsAppTest', () => {
     return testProxy.fakeHandler;
   }
 
-  function getSupportedLinksElement(): AppManagementSupportedLinksItemElement|
-      null {
-    return appSettingsApp.shadowRoot!
-        .querySelector<AppManagementSupportedLinksItemElement>(
-            'app-management-supported-links-item');
+  function getSupportedLinksElement(): SupportedLinksItemElement|null {
+    return appSettingsApp.shadowRoot.querySelector(
+        'app-management-supported-links-item');
   }
 
   async function reloadPage() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     appSettingsApp = document.createElement('web-app-settings-app');
     document.body.appendChild(appSettingsApp);
-    await waitAfterNextRender(appSettingsApp);
+    await microtasksFinished();
   }
 
   setup(async () => {
@@ -107,25 +109,25 @@ suite('AppSettingsAppTest', () => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     appSettingsApp = document.createElement('web-app-settings-app');
     document.body.appendChild(appSettingsApp);
-    await waitAfterNextRender(appSettingsApp);
+    await microtasksFinished();
   });
 
   test('Elements are present', function() {
     assertEquals(
-        appSettingsApp.shadowRoot!.querySelector('.cr-title-text')!.textContent,
+        appSettingsApp.shadowRoot.querySelector('.cr-title-text')!.textContent,
         app.title);
 
-    assertTrue(!!appSettingsApp.shadowRoot!.querySelector('#title-icon'));
+    assertTrue(!!appSettingsApp.shadowRoot.querySelector('#title-icon'));
 
-    assertTrue(!!appSettingsApp.shadowRoot!.querySelector(
+    assertTrue(!!appSettingsApp.shadowRoot.querySelector(
         'app-management-uninstall-button'));
 
-    assertTrue(!!appSettingsApp.shadowRoot!.querySelector(
+    assertTrue(!!appSettingsApp.shadowRoot.querySelector(
         'app-management-more-permissions-item'));
   });
 
   test('Toggle Run on OS Login', async function() {
-    const runOnOsLoginItem = appSettingsApp.shadowRoot!.querySelector(
+    const runOnOsLoginItem = appSettingsApp.shadowRoot.querySelector(
         'app-management-run-on-os-login-item')!;
     assertTrue(!!runOnOsLoginItem);
     assertEquals(
@@ -146,14 +148,14 @@ suite('AppSettingsAppTest', () => {
   // Serves as a basic test of the presence of the File Handling item. More
   // comprehensive tests are located in the cross platform app_management test.
   test('Toggle File Handling', async function() {
-    const fileHandlingItem = appSettingsApp.shadowRoot!.querySelector(
+    const fileHandlingItem = appSettingsApp.shadowRoot.querySelector(
         'app-management-file-handling-item')!;
     assertTrue(!!fileHandlingItem);
     assertEquals(fileHandlingItem.app.fileHandlingState!.enabled, false);
 
     const toggleRow =
-        fileHandlingItem.shadowRoot!
-            .querySelector<AppManagementToggleRowElement>('#toggle-row')!;
+        fileHandlingItem.shadowRoot.querySelector<ToggleRowElement>(
+            '#toggle-row')!;
     assertTrue(!!toggleRow);
     toggleRow.click();
     await eventToPromise('change', toggleRow);
@@ -165,8 +167,8 @@ suite('AppSettingsAppTest', () => {
   });
 
   test('Toggle window mode', async function() {
-    const windowModeItem =
-        appSettingsApp.shadowRoot!.querySelector('app-management-window-mode-item')!;
+    const windowModeItem = appSettingsApp.shadowRoot.querySelector(
+        'app-management-window-mode-item');
     assertTrue(!!windowModeItem);
     assertEquals(windowModeItem.app.windowMode, WindowMode.kWindow);
 
@@ -179,9 +181,10 @@ suite('AppSettingsAppTest', () => {
     const permsisionTypes: PermissionTypeIndex[] =
         ['kNotifications', 'kLocation', 'kCamera', 'kMicrophone'];
     for (const permissionType of permsisionTypes) {
-      const permissionItem = appSettingsApp.shadowRoot!.querySelector<
-          AppManagementPermissionItemElement>(
-          `app-management-permission-item[permission-type=${permissionType}]`)!;
+      const permissionItem =
+          appSettingsApp.shadowRoot.querySelector<PermissionItemElement>(
+              `app-management-permission-item[permission-type=${
+                  permissionType}]`);
       assertTrue(!!permissionItem);
       assertFalse(getPermissionValueBool(permissionItem.app, permissionType));
 
@@ -208,24 +211,24 @@ suite('AppSettingsAppTest', () => {
     await reloadPage();
 
     let radioGroup =
-        getSupportedLinksElement()!.shadowRoot!.querySelector('cr-radio-group');
+        getSupportedLinksElement()!.shadowRoot.querySelector('cr-radio-group');
     assertTrue(!!radioGroup);
     assertEquals('preferred', radioGroup.selected);
 
     const browserRadioButton =
-        getSupportedLinksElement()!.shadowRoot!
+        getSupportedLinksElement()!.shadowRoot
             .querySelector<CrRadioButtonElement>('#browserRadioButton');
     assertTrue(!!browserRadioButton);
     await browserRadioButton.click();
     await fakeHandler().whenCalled('setPreferredApp');
-    await flushTasks();
+    await microtasksFinished();
 
     const selectedApp = await fakeHandler().getApp('app1');
     assertTrue(!!selectedApp.app);
     assertFalse(selectedApp.app.isPreferredApp);
 
     radioGroup =
-        getSupportedLinksElement()!.shadowRoot!.querySelector('cr-radio-group');
+        getSupportedLinksElement()!.shadowRoot.querySelector('cr-radio-group');
     assertTrue(!!radioGroup);
     assertEquals('browser', radioGroup.selected);
   });
@@ -243,24 +246,24 @@ suite('AppSettingsAppTest', () => {
     await reloadPage();
 
     let radioGroup =
-        getSupportedLinksElement()!.shadowRoot!.querySelector('cr-radio-group');
+        getSupportedLinksElement()!.shadowRoot.querySelector('cr-radio-group');
     assertTrue(!!radioGroup);
     assertEquals('browser', radioGroup.selected);
 
     const preferredRadioButton =
-        getSupportedLinksElement()!.shadowRoot!
+        getSupportedLinksElement()!.shadowRoot
             .querySelector<CrRadioButtonElement>('#preferredRadioButton');
     assertTrue(!!preferredRadioButton);
     await preferredRadioButton.click();
     await fakeHandler().whenCalled('setPreferredApp');
-    await flushTasks();
+    await microtasksFinished();
 
     const selectedApp = await fakeHandler().getApp('app1');
     assertTrue(!!selectedApp.app);
     assertTrue(selectedApp.app.isPreferredApp);
 
     radioGroup =
-        getSupportedLinksElement()!.shadowRoot!.querySelector('cr-radio-group');
+        getSupportedLinksElement()!.shadowRoot.querySelector('cr-radio-group');
     assertTrue(!!radioGroup);
     assertEquals('preferred', radioGroup.selected);
   });
@@ -283,7 +286,7 @@ suite('AppSettingsAppTest', () => {
     // Pre-test checks
     assertNull(getSupportedLinksElement()!.querySelector('#overlapDialog'));
     const browserRadioButton =
-        getSupportedLinksElement()!.shadowRoot!
+        getSupportedLinksElement()!.shadowRoot
             .querySelector<CrRadioButtonElement>('#browserRadioButton');
     assertTrue(!!browserRadioButton);
     assertTrue(browserRadioButton.checked);
@@ -291,35 +294,36 @@ suite('AppSettingsAppTest', () => {
     // Open dialog
     let promise = fakeHandler().whenCalled('getOverlappingPreferredApps');
     const preferredRadioButton =
-        getSupportedLinksElement()!.shadowRoot!
+        getSupportedLinksElement()!.shadowRoot
             .querySelector<CrRadioButtonElement>('#preferredRadioButton');
     assertTrue(!!preferredRadioButton);
     await preferredRadioButton.click();
     await promise;
     await fakeHandler().flushPipesForTesting();
-    await flushTasks();
-    assertTrue(!!getSupportedLinksElement()!.shadowRoot!.querySelector(
+    await microtasksFinished();
+    assertTrue(!!getSupportedLinksElement()!.shadowRoot.querySelector(
         '#overlapDialog'));
 
     // Accept change
     promise = fakeHandler().whenCalled('setPreferredApp');
-    const overlapDialog = getSupportedLinksElement()!.shadowRoot!.querySelector<
-        AppManagementSupportedLinksOverlappingAppsDialogElement>(
-        '#overlapDialog');
+    const overlapDialog =
+        getSupportedLinksElement()!.shadowRoot
+            .querySelector<SupportedLinksOverlappingAppsDialogElement>(
+                '#overlapDialog');
     assertTrue(!!overlapDialog);
     overlapDialog.$.dialog.close();
     await promise;
     await fakeHandler().flushPipesForTesting();
-    await flushTasks();
+    await microtasksFinished();
 
-    assertNull(getSupportedLinksElement()!.shadowRoot!.querySelector(
-        '#overlapDialog'));
+    assertNull(
+        getSupportedLinksElement()!.shadowRoot.querySelector('#overlapDialog'));
 
     const selectedApp = await fakeHandler().getApp('app1');
     assertTrue(!!selectedApp.app);
     assertTrue(selectedApp.app.isPreferredApp);
     const radioGroup =
-        getSupportedLinksElement()!.shadowRoot!.querySelector('cr-radio-group');
+        getSupportedLinksElement()!.shadowRoot.querySelector('cr-radio-group');
     assertTrue(!!radioGroup);
     assertEquals('preferred', radioGroup.selected);
   });
@@ -346,8 +350,9 @@ suite('AppSettingsAppTest', () => {
     await fakeHandler().flushPipesForTesting();
     await reloadPage();
 
-    assertNull(getSupportedLinksElement()!.shadowRoot!.querySelector(
-        '#overlapWarning'));
+    assertNull(
+        getSupportedLinksElement()!.shadowRoot.querySelector(
+            '#overlapWarning'));
   });
 
   test('overlap warning is shown', async () => {
@@ -373,7 +378,7 @@ suite('AppSettingsAppTest', () => {
     await fakeHandler().flushPipesForTesting();
     await reloadPage();
 
-    assertTrue(!!getSupportedLinksElement()!.shadowRoot!.querySelector(
+    assertTrue(!!getSupportedLinksElement()!.shadowRoot.querySelector(
         '#overlapWarning'));
   });
 
@@ -389,8 +394,8 @@ suite('AppSettingsAppTest', () => {
     await reloadPage();
 
     assertEquals(
-        appSettingsApp.shadowRoot!.querySelector(
-                                      '.header-text')!.textContent!.trim(),
+        appSettingsApp.shadowRoot.querySelector(
+                                     '.header-text')!.textContent!.trim(),
         'Permissions (abc.com)');
   });
 
@@ -407,7 +412,7 @@ suite('AppSettingsAppTest', () => {
     await fakeHandler().flushPipesForTesting();
     await reloadPage();
 
-    const appContentItem = appSettingsApp.shadowRoot!.querySelector(
+    const appContentItem = appSettingsApp.shadowRoot.querySelector(
         'app-management-app-content-item')!;
     assertTrue(!!appContentItem);
 
@@ -427,7 +432,7 @@ suite('AppSettingsAppTest', () => {
     await fakeHandler().flushPipesForTesting();
     await reloadPage();
 
-    const appContentItem = appSettingsApp.shadowRoot!.querySelector(
+    const appContentItem = appSettingsApp.shadowRoot.querySelector(
         'app-management-app-content-item')!;
     assertTrue(!!appContentItem);
 
@@ -445,23 +450,94 @@ suite('AppSettingsAppTest', () => {
     await fakeHandler().flushPipesForTesting();
     await reloadPage();
 
-    const appContentItem = appSettingsApp.shadowRoot!.querySelector(
+    const appContentItem = appSettingsApp.shadowRoot.querySelector(
         'app-management-app-content-item')!;
     assertTrue(!!appContentItem);
 
     // Check that the dialog is not shown initially.
     assertFalse(appContentItem.showAppContentDialog);
-    assertFalse(!!appContentItem.shadowRoot!.querySelector(
+    assertFalse(!!appContentItem.shadowRoot.querySelector(
         'app-management-app-content-dialog'));
 
     const clickableAppContentElement =
-        appContentItem.shadowRoot!.querySelector<HTMLElement>('#appContent')!;
+        appContentItem.shadowRoot.querySelector<HTMLElement>('#appContent')!;
 
     await clickableAppContentElement.click();
 
     // Check that the dialog is shown after clicking on the app content row.
     assertTrue(appContentItem.showAppContentDialog);
-    assertTrue(!!appContentItem.shadowRoot!.querySelector(
-        'app-management-app-content-dialog'));
+    const appContentDialogElement = appContentItem.shadowRoot.querySelector(
+        'app-management-app-content-dialog');
+    assertTrue(!!appContentDialogElement);
+
+    const dialog =
+        appContentDialogElement.shadowRoot.querySelector<CrLitElement>(
+            '#dialog');
+    assertTrue(!!dialog);
+    const closeButton =
+        dialog.shadowRoot.querySelector<CrIconButtonElement>('#close');
+    assertTrue(!!closeButton);
+
+    // Check that the focus stays on the close button.
+    keyDownOn(appContentDialogElement, 0, undefined, 'Tab');
+    assertEquals(getDeepActiveElement(), closeButton);
+  });
+
+  test('IwaFieldsShownForIwa', async () => {
+    const appOptions = {
+      type: AppType.kWeb,
+      version: '0.1.2',
+      publisherId:
+          'isolated-app://amoiebz32b7o24tilu257xne2yf3nkblkploanxzm7ebeglseqpfeaacai',
+      appSize: '378 KB',
+      dataSize: '0 B',
+    };
+
+    // Add IWA and make it the currently selected app.
+    await fakeHandler().setApp(createApp('iwa', appOptions));
+    await fakeHandler().flushPipesForTesting();
+    await reloadPage();
+
+    const appVersionItem =
+        appSettingsApp.shadowRoot.querySelector('#appVersion');
+    assertTrue(!!appVersionItem);
+    const appVersion = appVersionItem.querySelector('.app-detail');
+    assertTrue(!!appVersion);
+    assertEquals('0.1.2', appVersion.children[1]!.textContent!.trim());
+
+    const appSizeItem = appSettingsApp.shadowRoot.querySelector('#appSize');
+    assertTrue(!!appSizeItem);
+    const appSize = appSizeItem.querySelector('.app-detail');
+    assertTrue(!!appSize);
+    assertEquals('378 KB', appSize.children[1]!.textContent!.trim());
+
+    const appDataSizeItem =
+        appSettingsApp.shadowRoot.querySelector('#dataSize');
+    assertTrue(!!appDataSizeItem);
+    const dataSize = appDataSizeItem.querySelector('.app-detail');
+    assertTrue(!!dataSize);
+    assertEquals('0 B', dataSize.children[1]!.textContent!.trim());
+  });
+
+  test('IwaFieldsHiddenForPwa', async () => {
+    const appOptions = {
+      type: AppType.kWeb,
+    };
+
+    // Add PWA and make it the currently selected app.
+    await fakeHandler().setApp(createApp('pwa', appOptions));
+    await fakeHandler().flushPipesForTesting();
+    await reloadPage();
+
+    const appVersionItem =
+        appSettingsApp.shadowRoot.querySelector('#appVersion');
+    assertFalse(!!appVersionItem);
+
+    const appSizeItem = appSettingsApp.shadowRoot.querySelector('#appSize');
+    assertFalse(!!appSizeItem);
+
+    const appDataSizeItem =
+        appSettingsApp.shadowRoot.querySelector('#dataSize');
+    assertFalse(!!appDataSizeItem);
   });
 });

@@ -25,7 +25,6 @@
 #include "gpu/command_buffer/common/capabilities.h"
 #include "gpu/command_buffer/common/context_result.h"
 #include "gpu/command_buffer/service/isolation_key_provider.h"
-#include "gpu/command_buffer/service/sync_point_manager.h"
 #include "gpu/ipc/common/gpu_channel.mojom.h"
 #include "gpu/ipc/common/gpu_disk_cache_type.h"
 #include "gpu/ipc/service/command_buffer_stub.h"
@@ -46,6 +45,7 @@ class WaitableEvent;
 
 namespace gpu {
 class DCOMPTexture;
+class FenceSyncReleaseDelegate;
 class GpuChannelManager;
 class GpuChannelMessageFilter;
 class GpuMemoryBufferFactory;
@@ -150,11 +150,8 @@ class GPU_IPC_SERVICE_EXPORT GpuChannel : public IPC::Listener,
 
   // Executes a DeferredRequest that was previously received and has now been
   // scheduled by the scheduler.
-  // `release_count` is the sync point release count that is expected to be
-  // reached after execution of this request. 0 means this request doesn't
-  // release.
   void ExecuteDeferredRequest(mojom::DeferredRequestParamsPtr params,
-                              uint64_t release_count);
+                              FenceSyncReleaseDelegate* release_delegate);
   void GetGpuMemoryBufferHandleInfo(
       const gpu::Mailbox& mailbox,
       mojom::GpuChannel::GetGpuMemoryBufferHandleInfoCallback callback);
@@ -217,7 +214,7 @@ class GPU_IPC_SERVICE_EXPORT GpuChannel : public IPC::Listener,
 #if BUILDFLAG(IS_FUCHSIA)
   void RegisterSysmemBufferCollection(mojo::PlatformHandle service_handle,
                                       mojo::PlatformHandle sysmem_token,
-                                      gfx::BufferFormat format,
+                                      const viz::SharedImageFormat& format,
                                       gfx::BufferUsage usage,
                                       bool register_with_image_pipe);
 #endif  // BUILDFLAG(IS_FUCHSIA)

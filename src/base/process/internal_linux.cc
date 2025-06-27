@@ -2,16 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "base/process/internal_linux.h"
 
 #include <limits.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <string_view>
@@ -33,8 +29,7 @@
 #define NAME_MAX 255
 #endif
 
-namespace base {
-namespace internal {
+namespace base::internal {
 
 namespace {
 
@@ -55,22 +50,17 @@ FilePath GetProcPidDir(pid_t pid) {
   return FilePath(kProcDir).Append(NumberToString(pid));
 }
 
-pid_t ProcDirSlotToPid(const char* d_name) {
-  int i;
-  for (i = 0; i < NAME_MAX && d_name[i]; ++i) {
-    if (!IsAsciiDigit(d_name[i])) {
-      return 0;
-    }
-  }
-  if (i == NAME_MAX)
+pid_t ProcDirSlotToPid(std::string_view d_name) {
+  if (d_name.size() >= NAME_MAX ||
+      !std::ranges::all_of(d_name, &IsAsciiDigit<char>)) {
     return 0;
+  }
 
   // Read the process's command line.
   pid_t pid;
   std::string pid_string(d_name);
   if (!StringToInt(pid_string, &pid)) {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
+    NOTREACHED();
   }
   return pid;
 }
@@ -116,13 +106,11 @@ size_t ReadProcStatusAndGetKbFieldAsSizeT(pid_t pid, std::string_view field) {
     std::vector<std::string_view> split_value_str =
         SplitStringPiece(value_str, " ", TRIM_WHITESPACE, SPLIT_WANT_ALL);
     if (split_value_str.size() != 2 || split_value_str[1] != "kB") {
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
     }
     size_t value;
     if (!StringToSizeT(split_value_str[0], &value)) {
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
     }
     return value;
   }
@@ -165,8 +153,9 @@ bool ParseProcStats(const std::string& stats_data,
                     std::vector<std::string>* proc_stats) {
   // |stats_data| may be empty if the process disappeared somehow.
   // e.g. http://crbug.com/145811
-  if (stats_data.empty())
+  if (stats_data.empty()) {
     return false;
+  }
 
   // The stat file is formatted as:
   // pid (process name) data1 data2 .... dataN
@@ -178,8 +167,7 @@ bool ParseProcStats(const std::string& stats_data,
       close_parens_idx == std::string::npos ||
       open_parens_idx > close_parens_idx) {
     DLOG(WARNING) << "Failed to find matched parens in '" << stats_data << "'";
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
   open_parens_idx++;
 
@@ -187,16 +175,16 @@ bool ParseProcStats(const std::string& stats_data,
   // PID.
   proc_stats->push_back(stats_data.substr(0, open_parens_idx));
   // Process name without parentheses.
-  proc_stats->push_back(
-      stats_data.substr(open_parens_idx + 1,
-                        close_parens_idx - (open_parens_idx + 1)));
+  proc_stats->push_back(stats_data.substr(
+      open_parens_idx + 1, close_parens_idx - (open_parens_idx + 1)));
 
   // Split the rest.
-  std::vector<std::string> other_stats = SplitString(
-      stats_data.substr(close_parens_idx + 2), " ",
-      base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
-  for (const auto& i : other_stats)
+  std::vector<std::string> other_stats =
+      SplitString(stats_data.substr(close_parens_idx + 2), " ",
+                  base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+  for (const auto& i : other_stats) {
     proc_stats->push_back(i);
+  }
   return true;
 }
 
@@ -237,11 +225,13 @@ size_t GetProcStatsFieldAsSizeT(const std::vector<std::string>& proc_stats,
 int64_t ReadStatFileAndGetFieldAsInt64(const FilePath& stat_file,
                                        ProcStatsFields field_num) {
   std::string stats_data;
-  if (!ReadProcFile(stat_file, &stats_data))
+  if (!ReadProcFile(stat_file, &stats_data)) {
     return 0;
+  }
   std::vector<std::string> proc_stats;
-  if (!ParseProcStats(stats_data, &proc_stats))
+  if (!ParseProcStats(stats_data, &proc_stats)) {
     return 0;
+  }
   return GetProcStatsFieldAsInt64(proc_stats, field_num);
 }
 
@@ -257,52 +247,61 @@ int64_t ReadProcSelfStatsAndGetFieldAsInt64(ProcStatsFields field_num) {
 
 size_t ReadProcStatsAndGetFieldAsSizeT(pid_t pid, ProcStatsFields field_num) {
   std::string stats_data;
-  if (!ReadProcStats(pid, &stats_data))
+  if (!ReadProcStats(pid, &stats_data)) {
     return 0;
+  }
   std::vector<std::string> proc_stats;
-  if (!ParseProcStats(stats_data, &proc_stats))
+  if (!ParseProcStats(stats_data, &proc_stats)) {
     return 0;
+  }
   return GetProcStatsFieldAsSizeT(proc_stats, field_num);
 }
 
 Time GetBootTime() {
   FilePath path("/proc/stat");
   std::string contents;
-  if (!ReadProcFile(path, &contents))
+  if (!ReadProcFile(path, &contents)) {
     return Time();
+  }
   ProcStatMap proc_stat;
   ParseProcStat(contents, &proc_stat);
   ProcStatMap::const_iterator btime_it = proc_stat.find("btime");
-  if (btime_it == proc_stat.end())
+  if (btime_it == proc_stat.end()) {
     return Time();
+  }
   int btime;
-  if (!StringToInt(btime_it->second, &btime))
+  if (!StringToInt(btime_it->second, &btime)) {
     return Time();
+  }
   return Time::FromTimeT(btime);
 }
 
 TimeDelta GetUserCpuTimeSinceBoot() {
   FilePath path("/proc/stat");
   std::string contents;
-  if (!ReadProcFile(path, &contents))
+  if (!ReadProcFile(path, &contents)) {
     return TimeDelta();
+  }
 
   ProcStatMap proc_stat;
   ParseProcStat(contents, &proc_stat);
   ProcStatMap::const_iterator cpu_it = proc_stat.find("cpu");
-  if (cpu_it == proc_stat.end())
+  if (cpu_it == proc_stat.end()) {
     return TimeDelta();
+  }
 
   std::vector<std::string> cpu = SplitString(
       cpu_it->second, kWhitespaceASCII, TRIM_WHITESPACE, SPLIT_WANT_NONEMPTY);
 
-  if (cpu.size() < 2 || cpu[0] != "cpu")
+  if (cpu.size() < 2 || cpu[0] != "cpu") {
     return TimeDelta();
+  }
 
   uint64_t user;
   uint64_t nice;
-  if (!StringToUint64(cpu[0], &user) || !StringToUint64(cpu[1], &nice))
+  if (!StringToUint64(cpu[0], &user) || !StringToUint64(cpu[1], &nice)) {
     return TimeDelta();
+  }
 
   return ClockTicksToTimeDelta(checked_cast<int64_t>(user + nice));
 }
@@ -321,5 +320,4 @@ TimeDelta ClockTicksToTimeDelta(int64_t clock_ticks) {
   return Microseconds(Time::kMicrosecondsPerSecond * clock_ticks / kHertz);
 }
 
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

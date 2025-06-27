@@ -11,18 +11,25 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
 
-import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
-import org.chromium.ui.text.NoUnderlineClickableSpan;
+import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.widget.ButtonCompat;
 
+@NullMarked
 class AccountStorageNoticeView implements BottomSheetContent {
     private final View mContentView;
 
+    /** Context must be consumed on the constructor and not cached. */
     public AccountStorageNoticeView(
             Context context, Runnable buttonCallback, Runnable settingsLinkCallback) {
+        assert context != null;
+        assert buttonCallback != null;
+        assert settingsLinkCallback != null;
         mContentView =
                 LayoutInflater.from(context)
                         .inflate(R.layout.account_storage_notice_layout, /* root= */ null);
@@ -35,7 +42,7 @@ class AccountStorageNoticeView implements BottomSheetContent {
                         new SpanApplier.SpanInfo(
                                 "<link>",
                                 "</link>",
-                                new NoUnderlineClickableSpan(
+                                new ChromeClickableSpan(
                                         context, unused -> settingsLinkCallback.run())));
         linkView.setText(linkText);
         linkView.setMovementMethod(LinkMovementMethod.getInstance());
@@ -47,8 +54,7 @@ class AccountStorageNoticeView implements BottomSheetContent {
     }
 
     @Override
-    @Nullable
-    public View getToolbarView() {
+    public @Nullable View getToolbarView() {
         return null;
     }
 
@@ -76,28 +82,27 @@ class AccountStorageNoticeView implements BottomSheetContent {
     }
 
     @Override
-    public float getHalfHeightRatio() {
-        // Slightly less than the default value (.75).
-        return 0.6f;
+    public float getFullHeightRatio() {
+        return HeightMode.WRAP_CONTENT;
     }
 
     @Override
-    public int getSheetContentDescriptionStringId() {
-        return R.string.passwords_account_storage_notice_title;
+    public String getSheetContentDescription(Context context) {
+        return context.getString(R.string.passwords_account_storage_notice_title);
     }
 
     @Override
-    public int getSheetHalfHeightAccessibilityStringId() {
+    public @StringRes int getSheetHalfHeightAccessibilityStringId() {
         return R.string.passwords_account_storage_notice_half_height_accessibility_label;
     }
 
     @Override
-    public int getSheetFullHeightAccessibilityStringId() {
+    public @StringRes int getSheetFullHeightAccessibilityStringId() {
         return R.string.passwords_account_storage_notice_full_height_accessibility_label;
     }
 
     @Override
-    public int getSheetClosedAccessibilityStringId() {
+    public @StringRes int getSheetClosedAccessibilityStringId() {
         return R.string.passwords_account_storage_notice_closed_accessibility_label;
     }
 }

@@ -26,7 +26,6 @@
 #include "components/sync/model/metadata_batch.h"
 #include "components/sync/model/mutable_data_batch.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
-#include "components/sync/protocol/model_type_state.pb.h"
 #include "components/sync/protocol/session_specifics.pb.h"
 #include "components/sync_device_info/local_device_info_util.h"
 #include "components/sync_sessions/session_sync_prefs.h"
@@ -36,8 +35,8 @@ namespace sync_sessions {
 namespace {
 
 using sync_pb::SessionSpecifics;
+using syncer::DataTypeStore;
 using syncer::MetadataChangeList;
-using syncer::ModelTypeStore;
 
 std::string TabNodeIdToClientTag(const std::string& session_tag,
                                  int tab_node_id) {
@@ -109,13 +108,13 @@ void ForwardError(syncer::OnceModelErrorHandler error_handler,
 std::optional<syncer::ModelError> ParseInitialDataOnBackendSequence(
     std::map<std::string, sync_pb::SessionSpecifics>* initial_data,
     std::string* session_name,
-    std::unique_ptr<ModelTypeStore::RecordList> record_list) {
+    std::unique_ptr<DataTypeStore::RecordList> record_list) {
   TRACE_EVENT0("sync", "sync_sessions::ParseInitialDataOnBackendSequence");
   DCHECK(initial_data);
   DCHECK(initial_data->empty());
   DCHECK(record_list);
 
-  for (ModelTypeStore::Record& record : *record_list) {
+  for (DataTypeStore::Record& record : *record_list) {
     const std::string& storage_key = record.id;
     SessionSpecifics specifics;
     if (storage_key.empty() ||
@@ -137,7 +136,7 @@ struct SessionStore::Builder {
   base::WeakPtr<SyncSessionsClient> sessions_client;
   OpenCallback callback;
   SessionInfo local_session_info;
-  std::unique_ptr<syncer::ModelTypeStore> underlying_store;
+  std::unique_ptr<syncer::DataTypeStore> underlying_store;
   std::unique_ptr<syncer::MetadataBatch> metadata_batch;
   std::map<std::string, sync_pb::SessionSpecifics> initial_data;
 };
@@ -165,7 +164,7 @@ void SessionStore::Open(const std::string& cache_guid,
 }
 
 SessionStore::WriteBatch::WriteBatch(
-    std::unique_ptr<ModelTypeStore::WriteBatch> batch,
+    std::unique_ptr<DataTypeStore::WriteBatch> batch,
     CommitCallback commit_cb,
     syncer::OnceModelErrorHandler error_handler,
     SyncedSessionTracker* session_tracker)
@@ -330,7 +329,7 @@ std::string SessionStore::GetTabClientTagForTest(const std::string& session_tag,
 void SessionStore::OnStoreCreated(
     std::unique_ptr<Builder> builder,
     const std::optional<syncer::ModelError>& error,
-    std::unique_ptr<ModelTypeStore> underlying_store) {
+    std::unique_ptr<DataTypeStore> underlying_store) {
   DCHECK(builder);
 
   if (error) {
@@ -408,9 +407,24 @@ void SessionStore::OnReadAllData(
            std::move(builder->metadata_batch));
 }
 
+// static
+std::unique_ptr<SessionStore> SessionStore::RecreateEmptyStore(
+    SessionStore::SessionInfo local_session_info_without_session_tag,
+    std::unique_ptr<syncer::DataTypeStore> underlying_store,
+    const std::string& cache_guid,
+    SyncSessionsClient* sessions_client) {
+  local_session_info_without_session_tag.session_tag = GetSessionTagWithPrefs(
+      cache_guid, sessions_client->GetSessionSyncPrefs());
+  // WrapUnique() used because constructor is private.
+  return base::WrapUnique(new SessionStore(
+      local_session_info_without_session_tag, std::move(underlying_store),
+      std::map<std::string, sync_pb::SessionSpecifics>(),
+      syncer::EntityMetadataMap(), sessions_client));
+}
+
 SessionStore::SessionStore(
     const SessionInfo& local_session_info,
-    std::unique_ptr<syncer::ModelTypeStore> underlying_store,
+    std::unique_ptr<syncer::DataTypeStore> underlying_store,
     std::map<std::string, sync_pb::SessionSpecifics> initial_data,
     const syncer::EntityMetadataMap& initial_metadata,
     SyncSessionsClient* sessions_client)
@@ -457,7 +471,7 @@ SessionStore::SessionStore(
       // view of local window/tabs.
 
       // Two local headers cannot coexist because they would use the very same
-      // storage key in ModelTypeStore/LevelDB.
+      // storage key in DataTypeStore/LevelDB.
       DCHECK(!found_local_header);
       found_local_header = true;
 
@@ -471,9 +485,6 @@ SessionStore::SessionStore(
       DVLOG(1) << "Associating local tab " << specifics.tab().tab_id()
                << " with node " << specifics.tab_node_id();
 
-      // TODO(mastiz): Move call to ReassociateLocalTab() into
-      // UpdateTrackerWithSpecifics(), possibly merge with OnTabNodeSeen(). Also
-      // consider merging this branch with processing of foreign tabs above.
       session_tracker_.ReassociateLocalTab(
           specifics.tab_node_id(),
           SessionID::FromSerializedValue(specifics.tab().tab_id()));
@@ -541,20 +552,36 @@ std::unique_ptr<SessionStore::WriteBatch> SessionStore::CreateWriteBatch(
   // requirement).
   return std::make_unique<WriteBatch>(
       store_->CreateWriteBatch(),
-      base::BindOnce(&ModelTypeStore::CommitWriteBatch,
+      base::BindOnce(&DataTypeStore::CommitWriteBatch,
                      base::Unretained(store_.get())),
       std::move(error_handler), &session_tracker_);
 }
 
-void SessionStore::DeleteAllDataAndMetadata() {
-  session_tracker_.Clear();
-  store_->DeleteAllDataAndMetadata(base::DoNothing());
-  sessions_client_->GetSessionSyncPrefs()->ClearLegacySyncSessionsGUID();
+// static
+SessionStore::RecreateEmptyStoreCallback SessionStore::DeleteAllDataAndMetadata(
+    std::unique_ptr<SessionStore> session_store) {
+  CHECK(session_store);
 
-  // At all times, the local session must be tracked.
-  session_tracker_.InitLocalSession(
-      local_session_info_.session_tag, local_session_info_.client_name,
-      local_session_info_.device_type, local_session_info_.device_form_factor);
+  // Clear the store and related info.
+  session_store->session_tracker_.Clear();
+  session_store->store_->DeleteAllDataAndMetadata(base::DoNothing());
+  session_store->sessions_client_->GetSessionSyncPrefs()
+      ->ClearLegacySyncSessionsGUID();
+
+  // Grab the necessary stuff for (synchronously) recreating a store later.
+  SessionInfo local_session_info = session_store->local_session_info_;
+  // After clearing data and metadata, the session tag may not be valid anymore.
+  // Clear it to prevent accidental reuse.
+  local_session_info.session_tag.clear();
+
+  std::unique_ptr<syncer::DataTypeStore> underlying_store =
+      std::move(session_store->store_);
+
+  session_store.reset();
+
+  return base::BindOnce(&SessionStore::RecreateEmptyStore,
+                        std::move(local_session_info),
+                        std::move(underlying_store));
 }
 
 }  // namespace sync_sessions

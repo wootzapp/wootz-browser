@@ -14,7 +14,7 @@
 #import "base/scoped_observation.h"
 #import "base/time/time.h"
 #import "ios/chrome/browser/metrics/model/tab_usage_recorder_metrics.h"
-#import "ios/chrome/browser/sessions/session_restoration_observer.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_observer.h"
 #import "ios/chrome/browser/shared/model/browser/browser_observer.h"
 #import "ios/chrome/browser/shared/model/browser/browser_user_data.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer.h"
@@ -101,7 +101,6 @@ class TabUsageRecorderBrowserAgent
   friend class TabUsageRecorderBrowserAgentTest;
 
   friend class BrowserUserData<TabUsageRecorderBrowserAgent>;
-  BROWSER_USER_DATA_KEY_DECL();
 
   explicit TabUsageRecorderBrowserAgent(Browser* browser);
 

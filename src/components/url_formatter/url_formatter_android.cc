@@ -2,17 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/url_formatter/url_formatter.h"
+
 #include <string>
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
-#include "components/url_formatter/android/jni_headers/UrlFormatter_jni.h"
 #include "components/url_formatter/elide_url.h"
 #include "components/url_formatter/url_fixer.h"
-#include "components/url_formatter/url_formatter.h"
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/url_formatter/android/jni_headers/UrlFormatter_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -112,7 +115,7 @@ JNI_UrlFormatter_FormatOriginForSecurityDisplay(
     const JavaParamRef<jobject>& j_origin,
     jint scheme_display) {
   DCHECK(j_origin);
-  url::Origin origin = url::Origin::FromJavaObject(j_origin);
+  url::Origin origin = url::Origin::FromJavaObject(env, j_origin);
   return base::android::ConvertUTF16ToJavaString(
       env, url_formatter::FormatOriginForSecurityDisplay(
                origin, static_cast<SchemeDisplay>(scheme_display)));

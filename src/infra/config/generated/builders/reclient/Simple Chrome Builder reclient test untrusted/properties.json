@@ -34,8 +34,7 @@
               "legacy_gclient_config": {
                 "apply_configs": [
                   "chromeos",
-                  "reclient_test",
-                  "checkout_lacros_sdk"
+                  "reclient_test"
                 ],
                 "config": "chromium"
               }
@@ -49,7 +48,8 @@
           "builder": "Simple Chrome Builder reclient test untrusted",
           "project": "chromium"
         }
-      ]
+      ],
+      "targets_spec_directory": "src/infra/config/generated/builders/reclient/Simple Chrome Builder reclient test untrusted/targets"
     }
   },
   "$build/reclient": {
@@ -57,7 +57,6 @@
       "GOMA_COMPILER_PROXY_ENABLE_CRASH_DUMP": "true",
       "GOMA_DEPS_CACHE_TABLE_THRESHOLD": "40000",
       "RBE_fast_log_collection": "true",
-      "RBE_use_round_robin_balancer": "true",
       "RBE_use_unified_uploads": "true"
     },
     "instance": "rbe-chromium-untrusted-test",

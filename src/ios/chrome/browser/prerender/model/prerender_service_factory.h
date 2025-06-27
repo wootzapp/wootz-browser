@@ -5,27 +5,23 @@
 #ifndef IOS_CHROME_BROWSER_PRERENDER_MODEL_PRERENDER_SERVICE_FACTORY_H_
 #define IOS_CHROME_BROWSER_PRERENDER_MODEL_PRERENDER_SERVICE_FACTORY_H_
 
-#include <memory>
+#import <memory>
 
-#include "base/no_destructor.h"
-#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
+#import "base/no_destructor.h"
+#import "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
-class ChromeBrowserState;
 class PrerenderService;
+class ProfileIOS;
 
 // Singleton that creates the PrerenderService and associates that service with
-// ChromeBrowserState.
-class PrerenderServiceFactory : public BrowserStateKeyedServiceFactory {
+// profile.
+class PrerenderServiceFactory : public ProfileKeyedServiceFactoryIOS {
  public:
-  static PrerenderService* GetForBrowserState(
-      ChromeBrowserState* browser_state);
+  static PrerenderService* GetForProfile(ProfileIOS* profile);
   static PrerenderServiceFactory* GetInstance();
 
   // Returns the default factory, useful in tests where it's null by default.
   static TestingFactory GetDefaultFactory();
-
-  PrerenderServiceFactory(const PrerenderServiceFactory&) = delete;
-  PrerenderServiceFactory& operator=(const PrerenderServiceFactory&) = delete;
 
  private:
   friend class base::NoDestructor<PrerenderServiceFactory>;
@@ -36,7 +32,6 @@ class PrerenderServiceFactory : public BrowserStateKeyedServiceFactory {
   // BrowserStateKeyedServiceFactory implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
-  bool ServiceIsNULLWhileTesting() const override;
 };
 
 #endif  // IOS_CHROME_BROWSER_PRERENDER_MODEL_PRERENDER_SERVICE_FACTORY_H_

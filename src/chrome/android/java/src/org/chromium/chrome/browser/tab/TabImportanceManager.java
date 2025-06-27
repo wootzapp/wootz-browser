@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.tab;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.content_public.browser.ChildProcessImportance;
 
 import java.util.ArrayList;
@@ -21,7 +22,14 @@ public class TabImportanceManager {
 
     public static void tabShown(Tab shownTab) {
         ThreadUtils.assertOnUiThread();
-        ((TabImpl) shownTab).setImportance(ChildProcessImportance.MODERATE);
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.PROCESS_RANK_POLICY_ANDROID)) {
+            return;
+        }
+        boolean isImportant =
+                ChromeFeatureList.isEnabled(ChromeFeatureList.CHANGE_UNFOCUSED_PRIORITY);
+        setImportance(
+                shownTab,
+                isImportant ? ChildProcessImportance.IMPORTANT : ChildProcessImportance.MODERATE);
         // Shown tabs should always be important, but hidden tabs should only be normal if there's
         // at least one important tab for two reasons:
         // 1. We could be switching between tabs within the same process and don't want the process
@@ -40,6 +48,16 @@ public class TabImportanceManager {
 
     public static void tabDestroyed(Tab tab) {
         ThreadUtils.assertOnUiThread();
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.PROCESS_RANK_POLICY_ANDROID)) {
+            return;
+        }
         sImportantTabs.remove(tab);
+    }
+
+    public static void setImportance(Tab tab, @ChildProcessImportance int importance) {
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.PROCESS_RANK_POLICY_ANDROID)) {
+            return;
+        }
+        ((TabImpl) tab).setImportance(importance);
     }
 }

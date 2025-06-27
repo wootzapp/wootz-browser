@@ -16,18 +16,17 @@ import static org.mockito.Mockito.verify;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.background_sync.BackgroundSyncBackgroundTaskScheduler.BackgroundSyncTask;
 import org.chromium.chrome.browser.background_task_scheduler.ChromeBackgroundTaskFactory;
 import org.chromium.components.background_task_scheduler.BackgroundTaskScheduler;
@@ -41,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class BackgroundSyncBackgroundTaskSchedulerTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private BackgroundTaskScheduler mTaskScheduler;
     @Captor ArgumentCaptor<TaskInfo> mTaskInfo;
 
@@ -50,7 +49,6 @@ public class BackgroundSyncBackgroundTaskSchedulerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         BackgroundTaskSchedulerFactory.setSchedulerForTesting(mTaskScheduler);
         ChromeBackgroundTaskFactory.setAsDefault();
         doReturn(true)

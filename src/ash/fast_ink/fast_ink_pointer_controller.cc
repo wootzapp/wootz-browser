@@ -66,8 +66,8 @@ bool FastInkPointerController::CanStartNewGesture(ui::LocatedEvent* event) {
   // (most likely because the preceding press event was consumed by another
   // handler).
   bool can_start_on_touch_event =
-      event->type() == ui::ET_TOUCH_PRESSED ||
-      (event->type() == ui::ET_TOUCH_MOVED && !GetPointerView());
+      event->type() == ui::EventType::kTouchPressed ||
+      (event->type() == ui::EventType::kTouchMoved && !GetPointerView());
   if (can_start_on_touch_event)
     return true;
 
@@ -76,8 +76,8 @@ bool FastInkPointerController::CanStartNewGesture(ui::LocatedEvent* event) {
   // (most likely because the preceding press event was consumed by another
   // handler).
   bool can_start_on_mouse_event =
-      event->type() == ui::ET_MOUSE_PRESSED ||
-      (event->type() == ui::ET_MOUSE_MOVED && !GetPointerView());
+      event->type() == ui::EventType::kMousePressed ||
+      (event->type() == ui::EventType::kMouseMoved && !GetPointerView());
   if (can_start_on_mouse_event)
     return true;
 
@@ -85,17 +85,17 @@ bool FastInkPointerController::CanStartNewGesture(ui::LocatedEvent* event) {
 }
 
 bool FastInkPointerController::ShouldProcessEvent(ui::LocatedEvent* event) {
-  return event->type() == ui::ET_TOUCH_RELEASED ||
-         event->type() == ui::ET_TOUCH_MOVED ||
-         event->type() == ui::ET_TOUCH_PRESSED ||
-         event->type() == ui::ET_TOUCH_CANCELLED ||
-         event->type() == ui::ET_MOUSE_PRESSED ||
-         event->type() == ui::ET_MOUSE_RELEASED ||
-         event->type() == ui::ET_MOUSE_MOVED;
+  return event->type() == ui::EventType::kTouchReleased ||
+         event->type() == ui::EventType::kTouchMoved ||
+         event->type() == ui::EventType::kTouchPressed ||
+         event->type() == ui::EventType::kTouchCancelled ||
+         event->type() == ui::EventType::kMousePressed ||
+         event->type() == ui::EventType::kMouseReleased ||
+         event->type() == ui::EventType::kMouseMoved;
 }
 
 bool FastInkPointerController::IsEnabledForMouseEvent() const {
-  return !has_seen_stylus_;
+  return !has_seen_stylus_ && !pointer_view_created_by_touch_.value_or(false);
 }
 
 bool FastInkPointerController::IsPointerInExcludedWindows(
@@ -121,6 +121,7 @@ bool FastInkPointerController::MaybeCreatePointerView(
   if (can_start_new_gesture) {
     DestroyPointerView();
     CreatePointerView(presentation_delay_, root_window);
+    pointer_view_created_by_touch_ = event->IsTouchEvent();
   } else {
     views::View* pointer_view = GetPointerView();
     if (!pointer_view)
@@ -140,10 +141,11 @@ bool FastInkPointerController::MaybeCreatePointerView(
 void FastInkPointerController::OnTouchEvent(ui::TouchEvent* event) {
   const int touch_id = event->pointer_details().id;
   // Keep track of touch point count.
-  if (event->type() == ui::ET_TOUCH_PRESSED)
+  if (event->type() == ui::EventType::kTouchPressed) {
     touch_ids_.insert(touch_id);
-  if (event->type() == ui::ET_TOUCH_RELEASED ||
-      event->type() == ui::ET_TOUCH_CANCELLED) {
+  }
+  if (event->type() == ui::EventType::kTouchReleased ||
+      event->type() == ui::EventType::kTouchCancelled) {
     auto iter = touch_ids_.find(touch_id);
 
     // Can happen if this object is constructed while fingers were down.
@@ -195,6 +197,10 @@ void FastInkPointerController::OnHasSeenStylusPrefChanged() {
   auto* local_state = pref_change_registrar_local_->prefs();
   has_seen_stylus_ =
       local_state && local_state->GetBoolean(prefs::kHasSeenStylus);
+}
+
+void FastInkPointerController::DestroyPointerView() {
+  pointer_view_created_by_touch_.reset();
 }
 
 }  // namespace ash

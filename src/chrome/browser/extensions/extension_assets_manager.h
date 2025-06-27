@@ -9,6 +9,9 @@
 
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
+#include "extensions/buildflags/buildflags.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 class Profile;
 
@@ -52,7 +55,7 @@ class ExtensionAssetsManager {
                                   const base::FilePath& profile_dir) = 0;
 
  protected:
-  virtual ~ExtensionAssetsManager() {}
+  virtual ~ExtensionAssetsManager() = default;
 };
 
 }  // namespace extensions

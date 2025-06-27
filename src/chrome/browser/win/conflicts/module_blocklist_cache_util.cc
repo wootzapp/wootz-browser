@@ -4,6 +4,7 @@
 
 #include "chrome/browser/win/conflicts/module_blocklist_cache_util.h"
 
+#include <algorithm>
 #include <functional>
 #include <iterator>
 #include <string>
@@ -14,12 +15,12 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
 #include "base/hash/md5.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "chrome/browser/win/conflicts/module_list_filter.h"
 #include "chrome/chrome_elf/third_party_dlls/packed_list_format.h"
@@ -29,7 +30,7 @@ namespace {
 // Wrapper for base::File::ReadAtCurrentPost() that returns true only if all
 // the requested bytes were succesfully read from the file.
 bool SafeRead(base::File* file, char* data, int size) {
-  return file->ReadAtCurrentPos(data, size) == size;
+  return UNSAFE_TODO(file->ReadAtCurrentPos(data, size)) == size;
 }
 
 // Returns an iterator to the element equal to |value|, or |last| if it can't
@@ -45,7 +46,7 @@ ForwardIt BinaryFind(ForwardIt first,
 
 // Returns true if the 2 digests are equal.
 bool IsMD5DigestEqual(const base::MD5Digest& lhs, const base::MD5Digest& rhs) {
-  return base::ranges::equal(lhs.a, rhs.a);
+  return std::ranges::equal(lhs.a, rhs.a);
 }
 
 // Returns MD5 hash of the cache data.
@@ -235,7 +236,7 @@ int64_t CalculateExpectedFileSize(
   return static_cast<int64_t>(sizeof(third_party_dlls::PackedListMetadata) +
                               packed_list_metadata.module_count *
                                   sizeof(third_party_dlls::PackedListModule) +
-                              std::extent<decltype(base::MD5Digest::a)>());
+                              sizeof(base::MD5Digest::a));
 }
 
 bool ModuleLess::operator()(

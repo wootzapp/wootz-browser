@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/polymer/v3_0/iron-pages/iron-pages.js';
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import 'chrome://resources/cr_elements/cr_page_selector/cr_page_selector.js';
 import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
 import './data_collectors.js';
 import './issue_details.js';
@@ -70,7 +70,7 @@ export class SupportToolElement extends SupportToolElementBase {
         value: SupportToolPageIndex.ISSUE_DETAILS,
         observer: 'onSelectedPageChange_',
       },
-      supportToolPageIndex_: {
+      supportToolPageIndexEnum_: {
         readonly: true,
         type: Object,
         value: SupportToolPageIndex,
@@ -83,8 +83,8 @@ export class SupportToolElement extends SupportToolElementBase {
     };
   }
 
-  private errorMessage_: string;
-  private selectedPage_: SupportToolPageIndex;
+  declare private errorMessage_: string;
+  declare private selectedPage_: SupportToolPageIndex;
   private browserProxy_: BrowserProxy = BrowserProxyImpl.getInstance();
 
   override connectedCallback() {

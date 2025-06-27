@@ -15,9 +15,9 @@
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
+#include "components/performance_manager/service_worker_context_adapter.h"
 #include "content/public/browser/dedicated_worker_service.h"
 #include "content/public/browser/global_routing_id.h"
-#include "content/public/browser/service_worker_context.h"
 #include "content/public/browser/service_worker_context_observer.h"
 #include "content/public/browser/shared_worker_service.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
@@ -26,7 +26,6 @@ namespace performance_manager {
 
 class FrameNodeImpl;
 class FrameNodeSource;
-class ProcessNodeSource;
 class WorkerNodeImpl;
 
 // This class keeps track of running workers of all types for a single browser
@@ -60,8 +59,7 @@ class WorkerWatcher : public content::DedicatedWorkerService::Observer,
   WorkerWatcher(const std::string& browser_context_id,
                 content::DedicatedWorkerService* dedicated_worker_service,
                 content::SharedWorkerService* shared_worker_service,
-                content::ServiceWorkerContext* service_worker_context,
-                ProcessNodeSource* process_node_source,
+                ServiceWorkerContextAdapter* service_worker_context_adapter,
                 FrameNodeSource* frame_node_source);
 
   WorkerWatcher(const WorkerWatcher&) = delete;
@@ -104,8 +102,6 @@ class WorkerWatcher : public content::DedicatedWorkerService::Observer,
       content::GlobalRenderFrameHostId render_frame_host_id) override;
 
   // content::ServiceWorkerContextObserver:
-  // Note: If you add a new function here, make sure it is also added to
-  // ServiceWorkerContextAdapter.
   void OnVersionStartedRunning(
       int64_t version_id,
       const content::ServiceWorkerRunningInfo& running_info) override;
@@ -220,12 +216,9 @@ class WorkerWatcher : public content::DedicatedWorkerService::Observer,
                           content::SharedWorkerService::Observer>
       shared_worker_service_observation_{this};
 
-  base::ScopedObservation<content::ServiceWorkerContext,
+  base::ScopedObservation<ServiceWorkerContextAdapter,
                           content::ServiceWorkerContextObserver>
-      service_worker_context_observation_{this};
-
-  // Used to retrieve an existing process node from its render process ID.
-  const raw_ptr<ProcessNodeSource> process_node_source_;
+      service_worker_context_adapter_observation_{this};
 
   // Used to retrieve an existing frame node from its render process ID and
   // frame ID. Also allows to subscribe to a frame's deletion notification.

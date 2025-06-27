@@ -8,8 +8,8 @@
 
 #include "base/functional/bind.h"
 #include "base/values.h"
-#include "chrome/browser/browser_features.h"
 #include "chrome/browser/devtools/devtools_settings.h"
+#include "chrome/browser/devtools/features.h"
 #include "chrome/browser/devtools/visual_logging.h"
 
 namespace {
@@ -89,14 +89,15 @@ bool GetValue(const base::Value& value, ImpressionEvent* event) {
     if (!impression.is_dict()) {
       return false;
     }
-    std::optional<int> id = impression.GetDict().FindInt("id");
+    std::optional<double> id = impression.GetDict().FindDouble("id");
     std::optional<int> type = impression.GetDict().FindInt("type");
     if (!id || !type) {
       return false;
     }
-    event->impressions.emplace_back(VisualElementImpression{*id, *type});
+    event->impressions.emplace_back(
+        VisualElementImpression{static_cast<int64_t>(*id), *type});
 
-    std::optional<int> parent = impression.GetDict().FindInt("parent");
+    std::optional<double> parent = impression.GetDict().FindDouble("parent");
     if (parent) {
       event->impressions.back().parent = *parent;
     }
@@ -121,7 +122,7 @@ bool GetValue(const base::Value& value, ResizeEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
   if (!veid) {
     return false;
   }
@@ -143,7 +144,7 @@ bool GetValue(const base::Value& value, ClickEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
   if (!veid) {
     return false;
   }
@@ -152,6 +153,10 @@ bool GetValue(const base::Value& value, ClickEvent* event) {
   std::optional<int> mouse_button = value.GetDict().FindInt("mouseButton");
   if (mouse_button) {
     event->mouse_button = *mouse_button;
+  }
+  std::optional<int> double_click = value.GetDict().FindInt("doubleClick");
+  if (double_click) {
+    event->double_click = *double_click;
   }
   std::optional<int> context = value.GetDict().FindInt("context");
   if (context) {
@@ -165,7 +170,7 @@ bool GetValue(const base::Value& value, HoverEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
   if (!veid) {
     return false;
   }
@@ -187,7 +192,7 @@ bool GetValue(const base::Value& value, DragEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
   if (!veid) {
     return false;
   }
@@ -209,7 +214,7 @@ bool GetValue(const base::Value& value, ChangeEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
   if (!veid) {
     return false;
   }
@@ -227,15 +232,36 @@ bool GetValue(const base::Value& value, KeyDownEvent* event) {
     return false;
   }
 
-  std::optional<int> veid = value.GetDict().FindInt("veid");
-  if (!veid) {
-    return false;
+  std::optional<double> veid = value.GetDict().FindDouble("veid");
+  if (veid) {
+    event->veid = *veid;
   }
-  event->veid = *veid;
 
   std::optional<int> context = value.GetDict().FindInt("context");
   if (context) {
     event->context = *context;
+  }
+  return true;
+}
+
+bool GetValue(const base::Value& value, SettingAccessEvent* event) {
+  if (!value.is_dict()) {
+    return false;
+  }
+
+  std::optional<int> name = value.GetDict().FindInt("name");
+  if (name) {
+    event->name = *name;
+  }
+
+  std::optional<int> numeric_value = value.GetDict().FindInt("numeric_value");
+  if (numeric_value) {
+    event->numeric_value = *numeric_value;
+  }
+
+  std::optional<int> string_value = value.GetDict().FindInt("string_value");
+  if (string_value) {
+    event->string_value = *string_value;
   }
   return true;
 }
@@ -281,11 +307,15 @@ struct ParamTuple<T, Ts...> {
 
 template <typename... As>
 bool ParseAndHandle(const base::RepeatingCallback<void(As...)>& handler,
+                    const std::string& method,
                     DispatchCallback callback,
                     const base::Value::List& list) {
   ParamTuple<As...> tuple;
-  if (!tuple.Parse(list, list.begin()))
+  if (!tuple.Parse(list, list.begin())) {
+    LOG(ERROR) << "Failed to parse arguments for " << method
+               << " call: " << list.DebugString();
     return false;
+  }
   tuple.Apply(handler);
   return true;
 }
@@ -293,11 +323,15 @@ bool ParseAndHandle(const base::RepeatingCallback<void(As...)>& handler,
 template <typename... As>
 bool ParseAndHandleWithCallback(
     const base::RepeatingCallback<void(DispatchCallback, As...)>& handler,
+    const std::string& method,
     DispatchCallback callback,
     const base::Value::List& list) {
   ParamTuple<As...> tuple;
-  if (!tuple.Parse(list, list.begin()))
+  if (!tuple.Parse(list, list.begin())) {
+    LOG(ERROR) << "Failed to parse arguments for " << method
+               << " call: " << list.DebugString();
     return false;
+  }
   tuple.Apply(handler, std::move(callback));
   return true;
 }
@@ -329,7 +363,7 @@ class DispatcherImpl : public DevToolsEmbedderMessageDispatcher {
                        Delegate* delegate) {
     handlers_[method] = base::BindRepeating(
         &ParseAndHandle<As...>,
-        base::BindRepeating(handler, base::Unretained(delegate)));
+        base::BindRepeating(handler, base::Unretained(delegate)), method);
   }
 
   template <typename... As>
@@ -339,7 +373,7 @@ class DispatcherImpl : public DevToolsEmbedderMessageDispatcher {
                                    Delegate* delegate) {
     handlers_[method] = base::BindRepeating(
         &ParseAndHandleWithCallback<As...>,
-        base::BindRepeating(handler, base::Unretained(delegate)));
+        base::BindRepeating(handler, base::Unretained(delegate)), method);
   }
 
  private:
@@ -378,6 +412,11 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
   d->RegisterHandler("removeFileSystem", &Delegate::RemoveFileSystem, delegate);
   d->RegisterHandler("upgradeDraggedFileSystemPermissions",
                      &Delegate::UpgradeDraggedFileSystemPermissions, delegate);
+  d->RegisterHandlerWithCallback("connectAutomaticFileSystem",
+                                 &Delegate::ConnectAutomaticFileSystem,
+                                 delegate);
+  d->RegisterHandler("disconnectAutomaticFileSystem",
+                     &Delegate::DisconnectAutomaticFileSystem, delegate);
   d->RegisterHandler("indexPath", &Delegate::IndexPath, delegate);
   d->RegisterHandlerWithCallback("loadNetworkResource",
                                  &Delegate::LoadNetworkResource, delegate);
@@ -407,6 +446,8 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
                      &Delegate::RecordEnumeratedHistogram, delegate);
   d->RegisterHandler("recordPerformanceHistogram",
                      &Delegate::RecordPerformanceHistogram, delegate);
+  d->RegisterHandler("recordPerformanceHistogramMedium",
+                     &Delegate::RecordPerformanceHistogramMedium, delegate);
   d->RegisterHandler("recordUserMetricsAction",
                      &Delegate::RecordUserMetricsAction, delegate);
   d->RegisterHandler("recordImpression", &Delegate::RecordImpression, delegate);
@@ -416,8 +457,8 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
   d->RegisterHandler("recordDrag", &Delegate::RecordDrag, delegate);
   d->RegisterHandler("recordChange", &Delegate::RecordChange, delegate);
   d->RegisterHandler("recordKeyDown", &Delegate::RecordKeyDown, delegate);
-  d->RegisterHandlerWithCallback("sendJsonRequest",
-                                 &Delegate::SendJsonRequest, delegate);
+  d->RegisterHandler("recordSettingAccess", &Delegate::RecordSettingAccess,
+                     delegate);
   d->RegisterHandler("registerPreference", &Delegate::RegisterPreference,
                      delegate);
   d->RegisterHandlerWithCallback("getPreferences",
@@ -432,6 +473,8 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
                      &Delegate::ClearPreferences, delegate);
   d->RegisterHandlerWithCallback("getSyncInformation",
                                  &Delegate::GetSyncInformation, delegate);
+  d->RegisterHandlerWithCallback("getHostConfig", &Delegate::GetHostConfig,
+                                 delegate);
   d->RegisterHandlerWithCallback("reattach",
                                  &Delegate::Reattach, delegate);
   d->RegisterHandler("readyForTest",
@@ -444,13 +487,10 @@ DevToolsEmbedderMessageDispatcher::CreateForDevToolsFrontend(
   d->RegisterHandlerWithCallback("showSurvey", &Delegate::ShowSurvey, delegate);
   d->RegisterHandlerWithCallback("canShowSurvey", &Delegate::CanShowSurvey,
                                  delegate);
-  if (base::FeatureList::IsEnabled(::features::kDevToolsConsoleInsights) ||
-      base::FeatureList::IsEnabled(
-          ::features::kDevToolsConsoleInsightsDogfood)) {
-    d->RegisterHandlerWithCallback("doAidaConversation",
-                                   &Delegate::DoAidaConversation, delegate);
-    d->RegisterHandler("registerAidaClientEvent",
-                       &Delegate::RegisterAidaClientEvent, delegate);
-  }
+
+  d->RegisterHandlerWithCallback("doAidaConversation",
+                                 &Delegate::DoAidaConversation, delegate);
+  d->RegisterHandlerWithCallback("registerAidaClientEvent",
+                                 &Delegate::RegisterAidaClientEvent, delegate);
   return d;
 }

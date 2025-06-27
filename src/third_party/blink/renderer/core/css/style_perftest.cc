@@ -1,7 +1,12 @@
 // Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
+
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 // A benchmark to verify style performance (and also hooks into layout,
 // but not generally layout itself). This isolates style from paint etc.,
 // for more stable benchmarking and profiling. Note that this test
@@ -12,6 +17,7 @@
 #include <string_view>
 
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/json/json_reader.h"
 #include "testing/perf/perf_result_reporter.h"
 #include "testing/perf/perf_test.h"
@@ -24,7 +30,6 @@
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_token_list.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/html_body_element.h"
 #include "third_party/blink/renderer/core/loader/empty_clients.h"
@@ -49,8 +54,8 @@ static WTF::String StripStyleTags(const WTF::String& html) {
   StringBuilder stripped_html;
   wtf_size_t pos = 0;
   for (;;) {
-    wtf_size_t style_start =
-        html.FindIgnoringCase("<style", pos);  // Allow <style id=" etc.
+    // Allow <style id=" etc.
+    wtf_size_t style_start = html.DeprecatedFindIgnoringCase("<style", pos);
     if (style_start == kNotFound) {
       // No more <style> tags, so append the rest of the string.
       stripped_html.Append(html.Substring(pos, html.length() - pos));
@@ -64,7 +69,8 @@ static WTF::String StripStyleTags(const WTF::String& html) {
       pos = style_start + 6;
       continue;
     }
-    wtf_size_t style_end = html.FindIgnoringCase("</style>", style_start);
+    wtf_size_t style_end =
+        html.DeprecatedFindIgnoringCase("</style>", style_start);
     if (style_end == kNotFound) {
       LOG(FATAL) << "Mismatched <style> tag";
     }
@@ -83,6 +89,11 @@ static std::unique_ptr<DummyPageHolder> LoadDumpedPage(
           "style-parse-iterations");
   int parse_iterations =
       parse_iterations_str.empty() ? 1 : stoi(parse_iterations_str);
+
+  const CSSDeferPropertyParsing defer_property_parsing =
+      base::CommandLine::ForCurrentProcess()->HasSwitch("style-lazy-parsing")
+          ? CSSDeferPropertyParsing::kYes
+          : CSSDeferPropertyParsing::kNo;
 
   auto page = std::make_unique<DummyPageHolder>(
       gfx::Size(800, 600), nullptr,
@@ -107,7 +118,7 @@ static std::unique_ptr<DummyPageHolder> LoadDumpedPage(
 
     for (int i = 0; i < parse_iterations; ++i) {
       sheet->ParseString(WTF::String(*sheet_dict.FindString("text")),
-                         /*allow_import_rules=*/true);
+                         /*allow_import_rules=*/true, defer_property_parsing);
     }
     if (*sheet_dict.FindString("type") == "user") {
       engine.InjectSheet(g_empty_atom, sheet, WebCssOrigin::kUser);
@@ -181,7 +192,7 @@ static StylePerfResult MeasureStyleForDumpedPage(
   std::unique_ptr<DummyPageHolder> page;
 
   {
-    scoped_refptr<SharedBuffer> serialized =
+    std::optional<Vector<char>> serialized =
         test::ReadFromFile(test::StylePerfTestDataPath(filename));
     if (!serialized) {
       // Some test data is very large and needs to be downloaded separately,
@@ -190,8 +201,8 @@ static StylePerfResult MeasureStyleForDumpedPage(
       result.skipped = true;
       return result;
     }
-    std::optional<base::Value> json = base::JSONReader::Read(
-        std::string_view(serialized->Data(), serialized->size()));
+    std::optional<base::Value> json =
+        base::JSONReader::Read(base::as_string_view(*serialized));
     CHECK(json.has_value());
     page = LoadDumpedPage(json->GetDict(), result.parse_time, reporter);
   }

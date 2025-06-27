@@ -4,10 +4,9 @@
 
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import type {TabSearchAppElement} from 'chrome://tab-search.top-chrome/tab_search.js';
-import {TabSearchApiProxyImpl} from 'chrome://tab-search.top-chrome/tab_search.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-import {isVisible} from 'chrome://webui-test/test_util.js';
+import {TabSearchApiProxyImpl, TabSearchSection} from 'chrome://tab-search.top-chrome/tab_search.js';
+import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestTabSearchApiProxy} from './test_tab_search_api_proxy.js';
 
@@ -15,7 +14,7 @@ suite('TabOrganizationPageTest', () => {
   let tabSearchApp: TabSearchAppElement;
   let testProxy: TestTabSearchApiProxy;
 
-  setup(async () => {
+  setup(() => {
     testProxy = new TestTabSearchApiProxy();
     TabSearchApiProxyImpl.setInstance(testProxy);
 
@@ -27,48 +26,17 @@ suite('TabOrganizationPageTest', () => {
 
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     document.body.appendChild(tabSearchApp);
-    await flushTasks();
-  });
-
-  test('Switching tabs calls setTabIndex', async () => {
-    assertEquals(1, testProxy.getCallCount('setTabIndex'));
-    testProxy.resetResolver('setTabIndex');
-
-    const crTabs = tabSearchApp.shadowRoot!.querySelector('cr-tabs');
-    assertTrue(!!crTabs);
-    assertEquals(0, crTabs.selected);
-
-    const allTabs = crTabs.shadowRoot!.querySelectorAll<HTMLElement>('.tab');
-    assertEquals(2, allTabs.length);
-    const newTabIndex = 1;
-    const unselectedTab = allTabs[newTabIndex]!;
-    unselectedTab.click();
-    await crTabs.updateComplete;
-
-    const [tabIndex] = await testProxy.whenCalled('setTabIndex');
-    assertEquals(newTabIndex, tabIndex);
-    assertEquals(newTabIndex, crTabs.selected);
   });
 
   test('Setting tab index from callback router', async () => {
-    const crTabs = tabSearchApp.shadowRoot!.querySelector('cr-tabs');
+    const crTabs = tabSearchApp.shadowRoot.querySelector('cr-tabs');
     assertTrue(!!crTabs);
     assertEquals(0, crTabs.selected);
 
-    testProxy.getCallbackRouterRemote().tabSearchTabIndexChanged(1);
-    await flushTasks();
+    testProxy.getCallbackRouterRemote().tabSearchSectionChanged(
+        TabSearchSection.kOrganize);
+    await microtasksFinished();
 
     assertEquals(1, crTabs.selected);
-  });
-
-  test('Disabling tab organization from callback router', async () => {
-    const crTabs = tabSearchApp.shadowRoot!.querySelector('cr-tabs');
-    assertTrue(!!crTabs);
-    assertTrue(isVisible(crTabs));
-
-    testProxy.getCallbackRouterRemote().tabOrganizationEnabledChanged(false);
-    await flushTasks();
-
-    assertFalse(isVisible(crTabs));
   });
 });

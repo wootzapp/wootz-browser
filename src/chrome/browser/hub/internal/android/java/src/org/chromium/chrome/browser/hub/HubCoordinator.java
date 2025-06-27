@@ -4,27 +4,40 @@
 
 package org.chromium.chrome.browser.hub;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
+import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.graphics.Outline;
 import android.view.ViewOutlineProvider;
 import android.util.TypedValue;
 import android.graphics.Path;  
 import android.widget.LinearLayout;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.TransitiveObservableSupplier;
-import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
+import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityClient;
+import org.chromium.chrome.browser.user_education.UserEducationHelper;
+import org.chromium.components.browser_ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
-import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
+import org.chromium.components.feature_engagement.Tracker;
+import org.chromium.ui.util.XrUtils;
 
 import android.graphics.Color;
 import android.graphics.Outline;
@@ -32,50 +45,61 @@ import android.view.ViewOutlineProvider;
 import android.os.Build;
 
 /** Root coordinator of the Hub. */
+@NullMarked
 public class HubCoordinator implements PaneHubController, BackPressHandler {
-    private static final Integer START_SURFACE_LAYOUT_TYPE =
-            Integer.valueOf(LayoutType.START_SURFACE);
+    private final FrameLayout mContainerView;
+    private final View mMainHubParent;
+    private final PaneManager mPaneManager;
+    private final HubToolbarCoordinator mHubToolbarCoordinator;
+    private final HubPaneHostCoordinator mHubPaneHostCoordinator;
+    private final HubLayoutController mHubLayoutController;
+    private final ObservableSupplierImpl<Boolean> mHandleBackPressSupplier;
+    private final HubSearchBoxBackgroundCoordinator mHubSearchBoxBackgroundCoordinator;
 
-    private final @NonNull FrameLayout mContainerView;
-    private final @NonNull View mMainHubParent;
-    private final @NonNull PaneManager mPaneManager;
-    private final @NonNull HubToolbarCoordinator mHubToolbarCoordinator;
-    private final @NonNull HubPaneHostCoordinator mHubPaneHostCoordinator;
-    private final @NonNull HubLayoutController mHubLayoutController;
-    private final @NonNull ObservableSupplierImpl<Boolean> mHandleBackPressSupplier;
     private final @NonNull HubPaneHostView hubPaneHostView;
     private final @NonNull HubToolbarView hubToolbarView;
+
     /**
      * Generic callback that invokes {@link #updateHandleBackPressSupplier()}. This can be cast to
      * an arbitrary {@link Callback} and the provided value is discarded.
      */
-    private final @NonNull Callback<Object> mBackPressStateChangeCallback;
+    private final Callback<Object> mBackPressStateChangeCallback;
 
     /**
      * Warning: {@link #getFocusedPane()} may return null if no pane is focused or {@link
      * Pane#getHandleBackPressChangedSupplier()} contains null.
      */
-    private final @NonNull TransitiveObservableSupplier<Pane, Boolean>
-            mFocusedPaneHandleBackPressSupplier;
+    private final TransitiveObservableSupplier<Pane, Boolean> mFocusedPaneHandleBackPressSupplier;
 
-    private final @NonNull PaneBackStackHandler mPaneBackStackHandler;
-    private final @NonNull ObservableSupplier<Tab> mCurrentTabSupplier;
+    private final PaneBackStackHandler mPaneBackStackHandler;
+    private final ObservableSupplier<Tab> mCurrentTabSupplier;
+    private @Nullable EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;
 
     /**
      * Creates the {@link HubCoordinator}.
      *
+     * @param activity The Android activity context.
+     * @param profileProviderSupplier Used to fetch dependencies.
      * @param containerView The view to attach the Hub to.
      * @param paneManager The {@link PaneManager} for Hub.
      * @param hubLayoutController The controller of the {@link HubLayout}.
      * @param currentTabSupplier The supplier of the current {@link Tab}.
      * @param menuButtonCoordinator Root component for the app menu.
+     * @param edgeToEdgeSupplier The supplier of {@link EdgeToEdgeController}.
+     * @param searchActivityClient A client for the search activity, used to launch search.
+     * @param hubColorMixer Mixes the Hub Overview Color.
      */
     public HubCoordinator(
-            @NonNull FrameLayout containerView,
-            @NonNull PaneManager paneManager,
-            @NonNull HubLayoutController hubLayoutController,
-            @NonNull ObservableSupplier<Tab> currentTabSupplier,
-            @NonNull MenuButtonCoordinator menuButtonCoordinator) {
+            Activity activity,
+            OneshotSupplier<ProfileProvider> profileProviderSupplier,
+            FrameLayout containerView,
+            PaneManager paneManager,
+            HubLayoutController hubLayoutController,
+            ObservableSupplier<Tab> currentTabSupplier,
+            MenuButtonCoordinator menuButtonCoordinator,
+            SearchActivityClient searchActivityClient,
+            ObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
+            HubColorMixer hubColorMixer) {
         Context context = containerView.getContext();
         mBackPressStateChangeCallback = (ignored) -> updateHandleBackPressSupplier();
         mPaneManager = paneManager;
@@ -87,24 +111,39 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
                 castCallback(mBackPressStateChangeCallback));
 
         mContainerView = containerView;
-        mMainHubParent = LayoutInflater.from(context).inflate(R.layout.hub_layout, null);
+        int layoutId = XrUtils.isXrDevice() ? R.layout.hub_xr_layout : R.layout.hub_layout;
+        mMainHubParent = LayoutInflater.from(context).inflate(layoutId, null);
         mMainHubParent.setId(View.generateViewId());
         mContainerView.addView(mMainHubParent);
 
-        hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
-
+        ProfileProvider profileProvider = profileProviderSupplier.get();
+        assert profileProvider != null;
+        Profile profile = profileProvider.getOriginalProfile();
+        Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
+        mMainHubParent.setId(View.generateViewId()); = mContainerView.findViewById(R.id.hub_toolbar);        UserEducationHelper userEducationHelper =
+                new UserEducationHelper(activity, profile, new Handler());
         mHubToolbarCoordinator =
-                new HubToolbarCoordinator(hubToolbarView, paneManager, menuButtonCoordinator);
+                new HubToolbarCoordinator(
+                        activity,
+                        hubToolbarView,
+                        paneManager,
+                        menuButtonCoordinator,
+                        tracker,
+                        searchActivityClient,
+                        hubColorMixer,
+                        userEducationHelper,
+                        hubLayoutController.getIsAnimatingSupplier());
 
-        hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
+        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
         mHubPaneHostCoordinator =
-                new HubPaneHostCoordinator(hubPaneHostView, paneManager.getFocusedPaneSupplier());
-                if (true) {
-                    LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)
-                    hubPaneHostView.getLayoutParams();
-                    params.bottomMargin = hubToolbarView.getHeight();
-                    hubPaneHostView.setLayoutParams(params);
-                }
+                new HubPaneHostCoordinator(
+                        hubPaneHostView, paneManager.getFocusedPaneSupplier(), hubColorMixer);
+                        if (true) {
+                            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)
+                            hubPaneHostView.getLayoutParams();
+                            params.bottomMargin = hubToolbarView.getHeight();
+                            hubPaneHostView.setLayoutParams(params);
+                        }
 
         mHubLayoutController = hubLayoutController;
         mHandleBackPressSupplier = new ObservableSupplierImpl<>();
@@ -116,11 +155,9 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
         mCurrentTabSupplier = currentTabSupplier;
         mCurrentTabSupplier.addObserver(castCallback(mBackPressStateChangeCallback));
-
         mCurrentTabSupplier.addObserver((tab) -> {
             setHubBackgroundColor();
         });
-        
         mHubLayoutController
                 .getPreviousLayoutTypeSupplier()
                 .addObserver(castCallback(mBackPressStateChangeCallback));
@@ -132,6 +169,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         }
 
         setHubBackgroundColor();
+        mHubSearchBoxBackgroundCoordinator = new HubSearchBoxBackgroundCoordinator(mContainerView);
     }
 
     /** Removes the hub from the layout tree and cleans up resources. */
@@ -151,25 +189,23 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
         mHubToolbarCoordinator.destroy();
         mHubPaneHostCoordinator.destroy();
+
+        if (mEdgeToEdgePadAdjuster != null) {
+            mEdgeToEdgePadAdjuster.destroy();
+            mEdgeToEdgePadAdjuster = null;
+        }
     }
 
     @Override
     public @BackPressResult int handleBackPress() {
         if (Boolean.TRUE.equals(mFocusedPaneHandleBackPressSupplier.get())
-                && getFocusedPane().handleBackPress() == BackPressResult.SUCCESS) {
+                && assumeNonNull(getFocusedPane()).handleBackPress() == BackPressResult.SUCCESS) {
             return BackPressResult.SUCCESS;
         }
 
         if (mPaneBackStackHandler.getHandleBackPressChangedSupplier().get()
                 && mPaneBackStackHandler.handleBackPress() == BackPressResult.SUCCESS) {
             return BackPressResult.SUCCESS;
-        }
-
-        // TODO(crbug.com/40287515): Discuss with Start Surface owners and investigate removing.
-        if (startSurfaceHandlesBackPress()) {
-            // This is based on the logic in TabSwitcherMediator where the logic is delegated to
-            // ReturnToChromeBackPressHandler.
-            return BackPressResult.FAILURE;
         }
 
         Tab tab = mCurrentTabSupplier.get();
@@ -195,23 +231,35 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mPaneManager.focusPane(paneId);
     }
 
-    private @Nullable Pane getFocusedPane() {
-        return mPaneManager.getFocusedPaneSupplier().get();
+    @Nullable
+    @Override
+    public View getPaneButton(@PaneId int paneId) {
+        return mHubToolbarCoordinator.getPaneButton(paneId);
     }
 
-    private boolean startSurfaceHandlesBackPress() {
-        Tab currentTab = mCurrentTabSupplier.get();
-        boolean isIncognito = currentTab != null ? currentTab.isIncognito() : false;
-        return !isIncognito
-                && START_SURFACE_LAYOUT_TYPE.equals(
-                        mHubLayoutController.getPreviousLayoutTypeSupplier().get());
+    @Override
+    public void setSearchBoxBackgroundProperties(boolean shouldShow) {
+        // Early exit if the search box is not active like in phone landscape or tablets.
+        if (!mHubToolbarCoordinator.isSearchBoxVisible()) return;
+        mHubSearchBoxBackgroundCoordinator.setShouldShowBackground(shouldShow);
+        mHubSearchBoxBackgroundCoordinator.setBackgroundColorScheme(
+                assumeNonNull(getFocusedPane()).getColorScheme());
+    }
+
+    /** Returns the view group to contain the snackbar. */
+    public ViewGroup getSnackbarContainer() {
+        return mHubPaneHostCoordinator.getSnackbarContainer();
+    }
+
+    private @Nullable Pane getFocusedPane() {
+        return mPaneManager.getFocusedPaneSupplier().get();
     }
 
     private void updateHandleBackPressSupplier() {
         boolean shouldHandleBackPress =
                 Boolean.TRUE.equals(mFocusedPaneHandleBackPressSupplier.get())
                         || mPaneBackStackHandler.getHandleBackPressChangedSupplier().get()
-                        || (!startSurfaceHandlesBackPress() && mCurrentTabSupplier.get() != null);
+                        || (mCurrentTabSupplier.get() != null);
         mHandleBackPressSupplier.set(shouldHandleBackPress);
     }
 
@@ -289,5 +337,4 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
             }
         }
     } 
-
 }

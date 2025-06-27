@@ -7,15 +7,18 @@
 #include <algorithm>
 
 #include "third_party/blink/renderer/core/paint/box_painter.h"
+#include "third_party/blink/renderer/core/paint/contoured_border_geometry.h"
 #include "third_party/blink/renderer/core/paint/object_painter.h"
 #include "third_party/blink/renderer/core/paint/paint_auto_dark_mode.h"
-#include "third_party/blink/renderer/core/paint/rounded_border_geometry.h"
 #include "third_party/blink/renderer/core/style/border_edge.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
+#include "third_party/blink/renderer/platform/geometry/contoured_rect.h"
+#include "third_party/blink/renderer/platform/geometry/float_rounded_rect.h"
+#include "third_party/blink/renderer/platform/geometry/path_builder.h"
+#include "third_party/blink/renderer/platform/geometry/stroke_data.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context_state_saver.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
-#include "third_party/blink/renderer/platform/graphics/stroke_data.h"
 #include "third_party/blink/renderer/platform/graphics/styled_stroke_data.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "ui/gfx/color_utils.h"
@@ -160,9 +163,8 @@ gfx::Rect CalculateSideRect(const FloatRoundedRect& outer_border,
   return side_rect;
 }
 
-FloatRoundedRect CalculateAdjustedInnerBorder(
-    const FloatRoundedRect& inner_border,
-    BoxSide side) {
+ContouredRect CalculateAdjustedInnerBorder(const ContouredRect& inner_border,
+                                           BoxSide side) {
   // Expand the inner border as necessary to make it a rounded rect (i.e. radii
   // contained within each edge).  This function relies on the fact we only get
   // radii not contained within each edge if one of the radii for an edge is
@@ -245,7 +247,8 @@ FloatRoundedRect CalculateAdjustedInnerBorder(
       break;
   }
 
-  return FloatRoundedRect(new_rect, new_radii);
+  return ContouredRect(FloatRoundedRect(new_rect, new_radii),
+                       inner_border.GetCornerCurvature());
 }
 
 void DrawSolidBorderRect(GraphicsContext& context,
@@ -341,7 +344,7 @@ static_assert(static_cast<unsigned>(BoxSide::kLeft) == 3,
 // Style-based paint order: non-solid edges (dashed/dotted/double) are painted
 // before solid edges (inset/outset/groove/ridge/solid) to maximize overdraw
 // opportunities.
-const unsigned kStylePriority[] = {
+constexpr auto kStylePriority = std::to_array<unsigned>({
     0,  // EBorderStyle::kNone
     0,  // EBorderStyle::kHidden
     2,  // EBorderStyle::kInset
@@ -352,16 +355,16 @@ const unsigned kStylePriority[] = {
     1,  // EBorderStyle::kDashed
     3,  // EBorderStyle::kSolid
     1,  // EBorderStyle::kDouble
-};
+});
 
 // Given the same style, prefer drawing in non-adjacent order to minimize the
 // number of sides which require miters.
-const unsigned kSidePriority[] = {
+constexpr auto kSidePriority = std::to_array<unsigned>({
     0,  // BoxSide::kTop
     2,  // BoxSide::kRight
     1,  // BoxSide::kBottom
     3,  // BoxSide::kLeft
-};
+});
 
 // Edges sharing the same opacity. Stores both a side list and an edge bitfield
 // to support constant time iteration + membership tests.
@@ -377,12 +380,11 @@ struct OpacityGroup {
 };
 
 void ClipPolygon(GraphicsContext& context,
-                 const gfx::PointF vertices[],
-                 unsigned vertices_size,
+                 base::span<const gfx::PointF> vertices,
                  bool antialiased) {
   SkPath path;
   path.moveTo(gfx::PointFToSkPoint(vertices[0]));
-  for (unsigned i = 1; i < vertices_size; ++i) {
+  for (size_t i = 1; i < vertices.size(); ++i) {
     path.lineTo(gfx::PointFToSkPoint(vertices[i]));
   }
 
@@ -658,15 +660,15 @@ void DrawRidgeOrGrooveBoxSide(GraphicsContext& context,
 }
 
 void FillQuad(GraphicsContext& context,
-              const gfx::PointF quad[],
+              const gfx::QuadF& quad,
               const Color& color,
               bool antialias,
               const AutoDarkMode& auto_dark_mode) {
   SkPath path;
-  path.moveTo(gfx::PointFToSkPoint(quad[0]));
-  path.lineTo(gfx::PointFToSkPoint(quad[1]));
-  path.lineTo(gfx::PointFToSkPoint(quad[2]));
-  path.lineTo(gfx::PointFToSkPoint(quad[3]));
+  path.moveTo(gfx::PointFToSkPoint(quad.p1()));
+  path.lineTo(gfx::PointFToSkPoint(quad.p2()));
+  path.lineTo(gfx::PointFToSkPoint(quad.p3()));
+  path.lineTo(gfx::PointFToSkPoint(quad.p4()));
   cc::PaintFlags flags(context.FillFlags());
   flags.setAntiAlias(antialias);
   flags.setColor(color.toSkColor4f());
@@ -701,31 +703,31 @@ void DrawSolidBoxSide(GraphicsContext& context,
     return;
   }
 
-  gfx::PointF quad[4];
+  gfx::QuadF quad;
   switch (side) {
     case BoxSide::kTop:
-      quad[0] = gfx::PointF(x1 + std::max(-adjacent_width1, 0), y1);
-      quad[1] = gfx::PointF(x1 + std::max(adjacent_width1, 0), y2);
-      quad[2] = gfx::PointF(x2 - std::max(adjacent_width2, 0), y2);
-      quad[3] = gfx::PointF(x2 - std::max(-adjacent_width2, 0), y1);
+      quad.set_p1(gfx::PointF(x1 + std::max(-adjacent_width1, 0), y1));
+      quad.set_p2(gfx::PointF(x1 + std::max(adjacent_width1, 0), y2));
+      quad.set_p3(gfx::PointF(x2 - std::max(adjacent_width2, 0), y2));
+      quad.set_p4(gfx::PointF(x2 - std::max(-adjacent_width2, 0), y1));
       break;
     case BoxSide::kBottom:
-      quad[0] = gfx::PointF(x1 + std::max(adjacent_width1, 0), y1);
-      quad[1] = gfx::PointF(x1 + std::max(-adjacent_width1, 0), y2);
-      quad[2] = gfx::PointF(x2 - std::max(-adjacent_width2, 0), y2);
-      quad[3] = gfx::PointF(x2 - std::max(adjacent_width2, 0), y1);
+      quad.set_p1(gfx::PointF(x1 + std::max(adjacent_width1, 0), y1));
+      quad.set_p2(gfx::PointF(x1 + std::max(-adjacent_width1, 0), y2));
+      quad.set_p3(gfx::PointF(x2 - std::max(-adjacent_width2, 0), y2));
+      quad.set_p4(gfx::PointF(x2 - std::max(adjacent_width2, 0), y1));
       break;
     case BoxSide::kLeft:
-      quad[0] = gfx::PointF(x1, y1 + std::max(-adjacent_width1, 0));
-      quad[1] = gfx::PointF(x1, y2 - std::max(-adjacent_width2, 0));
-      quad[2] = gfx::PointF(x2, y2 - std::max(adjacent_width2, 0));
-      quad[3] = gfx::PointF(x2, y1 + std::max(adjacent_width1, 0));
+      quad.set_p1(gfx::PointF(x1, y1 + std::max(-adjacent_width1, 0)));
+      quad.set_p2(gfx::PointF(x1, y2 - std::max(-adjacent_width2, 0)));
+      quad.set_p3(gfx::PointF(x2, y2 - std::max(adjacent_width2, 0)));
+      quad.set_p4(gfx::PointF(x2, y1 + std::max(adjacent_width1, 0)));
       break;
     case BoxSide::kRight:
-      quad[0] = gfx::PointF(x1, y1 + std::max(adjacent_width1, 0));
-      quad[1] = gfx::PointF(x1, y2 - std::max(adjacent_width2, 0));
-      quad[2] = gfx::PointF(x2, y2 - std::max(-adjacent_width2, 0));
-      quad[3] = gfx::PointF(x2, y1 + std::max(-adjacent_width1, 0));
+      quad.set_p1(gfx::PointF(x1, y1 + std::max(adjacent_width1, 0)));
+      quad.set_p2(gfx::PointF(x1, y2 - std::max(adjacent_width2, 0)));
+      quad.set_p3(gfx::PointF(x2, y2 - std::max(-adjacent_width2, 0)));
+      quad.set_p4(gfx::PointF(x2, y1 + std::max(-adjacent_width1, 0)));
       break;
   }
 
@@ -861,8 +863,9 @@ struct BoxBorderPainter::ComplexBorderInfo {
     // Finally, build the opacity group structures.
     BuildOpacityGroups(border_painter, sorted_sides);
 
-    if (border_painter.is_rounded_)
-      rounded_border_path.AddRoundedRect(border_painter.outer_);
+    if (border_painter.is_rounded_) {
+      rounded_border_path = border_painter.outer_.GetPath();
+    }
   }
 
   Vector<OpacityGroup, 4> opacity_groups;
@@ -916,27 +919,32 @@ void BoxBorderPainter::DrawDoubleBorder() const {
   const PhysicalBoxStrut outer_third_outsets =
       DoubleStripeOutsets(BorderEdge::kDoubleBorderStripeOuter);
   FloatRoundedRect outer_third_rect =
-      RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
-          style_, border_rect_, outer_third_outsets, sides_to_include_);
+      ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
+          style_, border_rect_, outer_third_outsets, sides_to_include_)
+          .AsRoundedRect();
   if (force_rectangular)
     outer_third_rect.SetRadii(FloatRoundedRect::Radii());
-  DrawBleedAdjustedDRRect(context_, bleed_avoidance_, outer_, outer_third_rect,
-                          color, auto_dark_mode);
+  DrawBleedAdjustedDRRect(context_, bleed_avoidance_, outer_.AsRoundedRect(),
+                          outer_third_rect, color, auto_dark_mode);
 
   // inner stripe
   const PhysicalBoxStrut inner_third_outsets =
       DoubleStripeOutsets(BorderEdge::kDoubleBorderStripeInner);
   FloatRoundedRect inner_third_rect =
-      RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
-          style_, border_rect_, inner_third_outsets, sides_to_include_);
+      ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
+          style_, border_rect_, inner_third_outsets, sides_to_include_)
+          .AsRoundedRect();
   if (force_rectangular)
     inner_third_rect.SetRadii(FloatRoundedRect::Radii());
-  context_.FillDRRect(inner_third_rect, inner_, color, auto_dark_mode);
+  context_.FillDRRect(inner_third_rect, inner_.AsRoundedRect(), color,
+                      auto_dark_mode);
 }
 
 bool BoxBorderPainter::PaintBorderFastPath() const {
-  if (!is_uniform_color_ || !is_uniform_style_ || !inner_.IsRenderable())
+  if (!is_uniform_color_ || !is_uniform_style_ || !inner_.IsRenderable() ||
+      !inner_.HasRoundCurvature()) {
     return false;
+  }
 
   if (FirstEdge().BorderStyle() != EBorderStyle::kSolid &&
       FirstEdge().BorderStyle() != EBorderStyle::kDouble)
@@ -951,7 +959,8 @@ bool BoxBorderPainter::PaintBorderFastPath() const {
                             PaintAutoDarkMode(style_, element_role_));
       } else {
         // 4-side, solid border => one drawDRRect()
-        DrawBleedAdjustedDRRect(context_, bleed_avoidance_, outer_, inner_,
+        DrawBleedAdjustedDRRect(context_, bleed_avoidance_,
+                                outer_.AsRoundedRect(), inner_.AsRoundedRect(),
                                 FirstEdge().GetColor(),
                                 PaintAutoDarkMode(style_, element_role_));
       }
@@ -970,19 +979,21 @@ bool BoxBorderPainter::PaintBorderFastPath() const {
       !outer_.IsRounded() && has_transparency_) {
     DCHECK(visible_edge_set_ != kAllBorderEdges);
     // solid, rectangular border => one drawPath()
-    Path path;
-    path.SetWindRule(RULE_NONZERO);
+    PathBuilder builder;
+    builder.SetWindRule(RULE_NONZERO);
 
     for (auto side :
          {BoxSide::kTop, BoxSide::kRight, BoxSide::kBottom, BoxSide::kLeft}) {
       const BorderEdge& curr_edge = Edge(side);
       if (curr_edge.ShouldRender()) {
-        path.AddRect(gfx::RectF(CalculateSideRect(outer_, curr_edge, side)));
+        builder.AddRect(gfx::RectF(
+            CalculateSideRect(outer_.AsRoundedRect(), curr_edge, side)));
       }
     }
 
     context_.SetFillColor(FirstEdge().GetColor());
-    context_.FillPath(path, PaintAutoDarkMode(style_, element_role_));
+    context_.FillPath(builder.Finalize(),
+                      PaintAutoDarkMode(style_, element_role_));
     return true;
   }
 
@@ -1014,9 +1025,9 @@ BoxBorderPainter::BoxBorderPainter(GraphicsContext& context,
   if (!visible_edge_set_)
     return;
 
-  outer_ = RoundedBorderGeometry::PixelSnappedRoundedBorder(style_, border_rect,
-                                                            sides_to_include);
-  inner_ = RoundedBorderGeometry::PixelSnappedRoundedInnerBorder(
+  outer_ = ContouredBorderGeometry::PixelSnappedContouredBorder(
+      style_, border_rect, sides_to_include);
+  inner_ = ContouredBorderGeometry::PixelSnappedContouredInnerBorder(
       style_, border_rect, sides_to_include);
 
   // Make sure that the border width isn't larger than the border box, which
@@ -1061,11 +1072,11 @@ BoxBorderPainter::BoxBorderPainter(GraphicsContext& context,
     e = edge;
   ComputeBorderProperties();
 
-  outer_ = RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
+  outer_ = ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
       style, border_rect, outer_outsets_);
   is_rounded_ = outer_.IsRounded();
 
-  inner_ = RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
+  inner_ = ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
       style, border_rect, inner_outsets);
 
   element_role_ = DarkModeFilter::ElementRole::kBackground;
@@ -1118,10 +1129,10 @@ void BoxBorderPainter::Paint() const {
     // For BackgroundBleedClip{Only,Layer}, the outer rrect clip is already
     // applied.
     if (!BleedAvoidanceIsClipping(bleed_avoidance_))
-      context_.ClipRoundedRect(outer_);
+      context_.ClipContouredRect(outer_);
 
     if (inner_.IsRenderable() && !inner_.IsEmpty())
-      context_.ClipOutRoundedRect(inner_);
+      context_.ClipOutContouredRect(inner_);
   }
 
   const ComplexBorderInfo border_info(*this);
@@ -1251,6 +1262,7 @@ void BoxBorderPainter::PaintSide(const ComplexBorderInfo& border_info,
     case BoxSide::kTop: {
       bool use_path =
           is_rounded_ && (BorderStyleHasInnerDetail(edge.BorderStyle()) ||
+                          !inner_.HasRoundCurvature() ||
                           BorderWillArcInnerEdge(inner_.GetRadii().TopLeft(),
                                                  inner_.GetRadii().TopRight()));
       if (use_path) {
@@ -1266,6 +1278,7 @@ void BoxBorderPainter::PaintSide(const ComplexBorderInfo& border_info,
     case BoxSide::kBottom: {
       bool use_path = is_rounded_ &&
                       (BorderStyleHasInnerDetail(edge.BorderStyle()) ||
+                       !inner_.HasRoundCurvature() ||
                        BorderWillArcInnerEdge(inner_.GetRadii().BottomLeft(),
                                               inner_.GetRadii().BottomRight()));
       if (use_path) {
@@ -1281,6 +1294,7 @@ void BoxBorderPainter::PaintSide(const ComplexBorderInfo& border_info,
     case BoxSide::kLeft: {
       bool use_path =
           is_rounded_ && (BorderStyleHasInnerDetail(edge.BorderStyle()) ||
+                          !inner_.HasRoundCurvature() ||
                           BorderWillArcInnerEdge(inner_.GetRadii().BottomLeft(),
                                                  inner_.GetRadii().TopLeft()));
       if (use_path) {
@@ -1296,6 +1310,7 @@ void BoxBorderPainter::PaintSide(const ComplexBorderInfo& border_info,
     case BoxSide::kRight: {
       bool use_path = is_rounded_ &&
                       (BorderStyleHasInnerDetail(edge.BorderStyle()) ||
+                       !inner_.HasRoundCurvature() ||
                        BorderWillArcInnerEdge(inner_.GetRadii().BottomRight(),
                                               inner_.GetRadii().TopRight()));
       if (use_path) {
@@ -1309,7 +1324,7 @@ void BoxBorderPainter::PaintSide(const ComplexBorderInfo& border_info,
       break;
     }
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -1381,10 +1396,10 @@ void BoxBorderPainter::PaintOneBorderSide(
 
     ClipBorderSidePolygon(side, miter1, miter2);
     if (!inner_.IsRenderable()) {
-      FloatRoundedRect adjusted_inner_rect =
+      ContouredRect adjusted_inner_rect =
           CalculateAdjustedInnerBorder(inner_, side);
       if (!adjusted_inner_rect.IsEmpty()) {
-        context_.ClipOutRoundedRect(adjusted_inner_rect);
+        context_.ClipOutContouredRect(adjusted_inner_rect);
       }
     }
 
@@ -1469,10 +1484,10 @@ void BoxBorderPainter::DrawDashedDottedBoxSideFromPath(
     Color color,
     EBorderStyle border_style) const {
   // Convert the path to be down the middle of the dots or dashes.
-  Path centerline_path;
-  centerline_path.AddRoundedRect(
-      RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
-          style_, border_rect_, CenterOutsets(), sides_to_include_));
+  const Path centerline_path = Path::MakeRoundedRect(
+      ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
+          style_, border_rect_, CenterOutsets(), sides_to_include_)
+          .AsRoundedRect());
 
   context_.SetStrokeColor(color);
 
@@ -1528,11 +1543,10 @@ void BoxBorderPainter::DrawDoubleBoxSideFromPath(const Path& border_path,
     GraphicsContextStateSaver state_saver(context_);
     const PhysicalBoxStrut inner_outsets =
         DoubleStripeOutsets(BorderEdge::kDoubleBorderStripeInner);
-    FloatRoundedRect inner_clip =
-        RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
+    ContouredRect inner_clip =
+        ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
             style_, border_rect_, inner_outsets, sides_to_include_);
-
-    context_.ClipRoundedRect(inner_clip);
+    context_.ClipContouredRect(inner_clip);
     DrawBoxSideFromPath(border_path, border_thickness, stroke_thickness, side,
                         color, EBorderStyle::kSolid);
   }
@@ -1549,10 +1563,10 @@ void BoxBorderPainter::DrawDoubleBoxSideFromPath(const Path& border_path,
       outer_outsets.Inflate(LayoutUnit(-1));
     }
 
-    FloatRoundedRect outer_clip =
-        RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
+    ContouredRect outer_clip =
+        ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
             style_, used_border_rect, outer_outsets, sides_to_include_);
-    context_.ClipOutRoundedRect(outer_clip);
+    context_.ClipOutContouredRect(outer_clip);
     DrawBoxSideFromPath(border_path, border_thickness, stroke_thickness, side,
                         color, EBorderStyle::kSolid);
   }
@@ -1581,11 +1595,11 @@ void BoxBorderPainter::DrawRidgeGrooveBoxSideFromPath(
 
   // Paint inner only
   GraphicsContextStateSaver state_saver(context_);
-  FloatRoundedRect clip_rect =
-      RoundedBorderGeometry::PixelSnappedRoundedBorderWithOutsets(
+  ContouredRect clip_rect =
+      ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets(
           style_, border_rect_, CenterOutsets(), sides_to_include_);
 
-  context_.ClipRoundedRect(clip_rect);
+  context_.ClipContouredRect(clip_rect);
   DrawBoxSideFromPath(border_path, border_thickness, stroke_thickness, side,
                       color, s2);
 }
@@ -1661,6 +1675,11 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
   // | |         | |       | |         | |       | |         | |
   // | /---------\ |       | /---------\ |       | /---------\ |
   //  -------------         -------------         -------------
+  //
+  // For concave corners, point 2 in the quad (or point 3 in the pentagon) is
+  // adjusted to the hull of the corner superellipse. This ensures that the
+  // entire concave border is within the clip, while not clipping in other
+  // borders.
 
   const gfx::PointF inner_points[4] = {
       inner_.Rect().origin(),
@@ -1678,6 +1697,7 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
   // Offset size and direction to expand clipping quad
   const static float kExtensionLength = 1e-1f;
   gfx::Vector2dF extension_offset;
+
   switch (side) {
     case BoxSide::kTop:
       edge_quad[0] = outer_points[0];
@@ -1695,14 +1715,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       extension_offset.set_y(0);
 
       if (!inner_.GetRadii().TopLeft().IsZero()) {
-        FindIntersection(
-            edge_quad[0], edge_quad[1],
-            gfx::PointF(edge_quad[1].x() + inner_.GetRadii().TopLeft().width(),
-                        edge_quad[1].y()),
-            gfx::PointF(
-                edge_quad[1].x(),
-                edge_quad[1].y() + inner_.GetRadii().TopLeft().height()),
-            edge_quad[1]);
+        if (outer_.GetCornerCurvature().TopLeft() >= 2) {
+          FindIntersection(
+              edge_quad[0], edge_quad[1],
+              gfx::PointF(
+                  edge_quad[1].x() + inner_.GetRadii().TopLeft().width(),
+                  edge_quad[1].y()),
+              gfx::PointF(
+                  edge_quad[1].x(),
+                  edge_quad[1].y() + inner_.GetRadii().TopLeft().height()),
+              edge_quad[1]);
+        } else {
+          edge_quad[1] = inner_.TopLeftCorner().Center();
+        }
         DCHECK(bound_quad1.y() <= edge_quad[1].y());
         bound_quad1.set_y(edge_quad[1].y());
         bound_quad2.set_y(edge_quad[1].y());
@@ -1724,14 +1749,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       }
 
       if (!inner_.GetRadii().TopRight().IsZero()) {
-        FindIntersection(
-            edge_quad[3], edge_quad[2],
-            gfx::PointF(edge_quad[2].x() - inner_.GetRadii().TopRight().width(),
-                        edge_quad[2].y()),
-            gfx::PointF(
-                edge_quad[2].x(),
-                edge_quad[2].y() + inner_.GetRadii().TopRight().height()),
-            edge_quad[2]);
+        if (inner_.GetCornerCurvature().TopRight() >= 2) {
+          FindIntersection(
+              edge_quad[3], edge_quad[2],
+              gfx::PointF(
+                  edge_quad[2].x() - inner_.GetRadii().TopRight().width(),
+                  edge_quad[2].y()),
+              gfx::PointF(
+                  edge_quad[2].x(),
+                  edge_quad[2].y() + inner_.GetRadii().TopRight().height()),
+              edge_quad[2]);
+        } else {
+          edge_quad[2] = inner_.TopRightCorner().Center();
+        }
         if (bound_quad1.y() < edge_quad[2].y()) {
           bound_quad1.set_y(edge_quad[2].y());
           bound_quad2.set_y(edge_quad[2].y());
@@ -1772,14 +1802,20 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       extension_offset.set_y(kExtensionLength);
 
       if (!inner_.GetRadii().TopLeft().IsZero()) {
-        FindIntersection(
-            edge_quad[3], edge_quad[2],
-            gfx::PointF(edge_quad[2].x() + inner_.GetRadii().TopLeft().width(),
-                        edge_quad[2].y()),
-            gfx::PointF(
-                edge_quad[2].x(),
-                edge_quad[2].y() + inner_.GetRadii().TopLeft().height()),
-            edge_quad[2]);
+        if (outer_.GetCornerCurvature().TopLeft() >= 2) {
+          FindIntersection(
+              edge_quad[3], edge_quad[2],
+              gfx::PointF(
+                  edge_quad[2].x() + inner_.GetRadii().TopLeft().width(),
+                  edge_quad[2].y()),
+              gfx::PointF(
+                  edge_quad[2].x(),
+                  edge_quad[2].y() + inner_.GetRadii().TopLeft().height()),
+              edge_quad[2]);
+
+        } else {
+          edge_quad[2] = inner_.TopLeftCorner().Center();
+        }
         DCHECK(bound_quad2.x() <= edge_quad[2].x());
         bound_quad1.set_x(edge_quad[2].x());
         bound_quad2.set_x(edge_quad[2].x());
@@ -1801,15 +1837,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       }
 
       if (!inner_.GetRadii().BottomLeft().IsZero()) {
-        FindIntersection(
-            edge_quad[0], edge_quad[1],
-            gfx::PointF(
-                edge_quad[1].x() + inner_.GetRadii().BottomLeft().width(),
-                edge_quad[1].y()),
-            gfx::PointF(
-                edge_quad[1].x(),
-                edge_quad[1].y() - inner_.GetRadii().BottomLeft().height()),
-            edge_quad[1]);
+        if (outer_.GetCornerCurvature().BottomLeft() >= 2) {
+          FindIntersection(
+              edge_quad[0], edge_quad[1],
+              gfx::PointF(
+                  edge_quad[1].x() + inner_.GetRadii().BottomLeft().width(),
+                  edge_quad[1].y()),
+              gfx::PointF(
+                  edge_quad[1].x(),
+                  edge_quad[1].y() - inner_.GetRadii().BottomLeft().height()),
+              edge_quad[1]);
+        } else {
+          edge_quad[1] = inner_.BottomLeftCorner().Center();
+        }
         if (bound_quad1.x() < edge_quad[1].x()) {
           bound_quad1.set_x(edge_quad[1].x());
           bound_quad2.set_x(edge_quad[1].x());
@@ -1850,15 +1890,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       extension_offset.set_y(0);
 
       if (!inner_.GetRadii().BottomLeft().IsZero()) {
-        FindIntersection(
-            edge_quad[3], edge_quad[2],
-            gfx::PointF(
-                edge_quad[2].x() + inner_.GetRadii().BottomLeft().width(),
-                edge_quad[2].y()),
-            gfx::PointF(
-                edge_quad[2].x(),
-                edge_quad[2].y() - inner_.GetRadii().BottomLeft().height()),
-            edge_quad[2]);
+        if (outer_.GetCornerCurvature().BottomLeft() >= 2) {
+          FindIntersection(
+              edge_quad[3], edge_quad[2],
+              gfx::PointF(
+                  edge_quad[2].x() + inner_.GetRadii().BottomLeft().width(),
+                  edge_quad[2].y()),
+              gfx::PointF(
+                  edge_quad[2].x(),
+                  edge_quad[2].y() - inner_.GetRadii().BottomLeft().height()),
+              edge_quad[2]);
+        } else {
+          edge_quad[2] = inner_.BottomLeftCorner().Center();
+        }
         DCHECK(bound_quad2.y() >= edge_quad[2].y());
         bound_quad1.set_y(edge_quad[2].y());
         bound_quad2.set_y(edge_quad[2].y());
@@ -1880,15 +1924,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       }
 
       if (!inner_.GetRadii().BottomRight().IsZero()) {
-        FindIntersection(
-            edge_quad[0], edge_quad[1],
-            gfx::PointF(
-                edge_quad[1].x() - inner_.GetRadii().BottomRight().width(),
-                edge_quad[1].y()),
-            gfx::PointF(
-                edge_quad[1].x(),
-                edge_quad[1].y() - inner_.GetRadii().BottomRight().height()),
-            edge_quad[1]);
+        if (outer_.GetCornerCurvature().BottomRight() >= 2) {
+          FindIntersection(
+              edge_quad[0], edge_quad[1],
+              gfx::PointF(
+                  edge_quad[1].x() - inner_.GetRadii().BottomRight().width(),
+                  edge_quad[1].y()),
+              gfx::PointF(
+                  edge_quad[1].x(),
+                  edge_quad[1].y() - inner_.GetRadii().BottomRight().height()),
+              edge_quad[1]);
+        } else {
+          edge_quad[1] = inner_.BottomRightCorner().Center();
+        }
         if (bound_quad1.y() > edge_quad[1].y()) {
           bound_quad1.set_y(edge_quad[1].y());
           bound_quad2.set_y(edge_quad[1].y());
@@ -1927,14 +1975,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       extension_offset.set_y(-kExtensionLength);
 
       if (!inner_.GetRadii().TopRight().IsZero()) {
-        FindIntersection(
-            edge_quad[0], edge_quad[1],
-            gfx::PointF(edge_quad[1].x() - inner_.GetRadii().TopRight().width(),
-                        edge_quad[1].y()),
-            gfx::PointF(
-                edge_quad[1].x(),
-                edge_quad[1].y() + inner_.GetRadii().TopRight().height()),
-            edge_quad[1]);
+        if (outer_.GetCornerCurvature().TopRight() >= 2) {
+          FindIntersection(
+              edge_quad[0], edge_quad[1],
+              gfx::PointF(
+                  edge_quad[1].x() - inner_.GetRadii().TopRight().width(),
+                  edge_quad[1].y()),
+              gfx::PointF(
+                  edge_quad[1].x(),
+                  edge_quad[1].y() + inner_.GetRadii().TopRight().height()),
+              edge_quad[1]);
+        } else {
+          edge_quad[1] = inner_.TopRightCorner().Center();
+        }
         DCHECK(bound_quad1.x() >= edge_quad[1].x());
         bound_quad1.set_x(edge_quad[1].x());
         bound_quad2.set_x(edge_quad[1].x());
@@ -1956,15 +2009,19 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
       }
 
       if (!inner_.GetRadii().BottomRight().IsZero()) {
-        FindIntersection(
-            edge_quad[3], edge_quad[2],
-            gfx::PointF(
-                edge_quad[2].x() - inner_.GetRadii().BottomRight().width(),
-                edge_quad[2].y()),
-            gfx::PointF(
-                edge_quad[2].x(),
-                edge_quad[2].y() - inner_.GetRadii().BottomRight().height()),
-            edge_quad[2]);
+        if (outer_.GetCornerCurvature().BottomRight() >= 2) {
+          FindIntersection(
+              edge_quad[3], edge_quad[2],
+              gfx::PointF(
+                  edge_quad[2].x() - inner_.GetRadii().BottomRight().width(),
+                  edge_quad[2].y()),
+              gfx::PointF(
+                  edge_quad[2].x(),
+                  edge_quad[2].y() - inner_.GetRadii().BottomRight().height()),
+              edge_quad[2]);
+        } else {
+          edge_quad[2] = inner_.BottomRightCorner().Center();
+        }
         if (bound_quad1.x() > edge_quad[2].x()) {
           bound_quad1.set_x(edge_quad[2].x());
           bound_quad2.set_x(edge_quad[2].x());
@@ -1992,11 +2049,11 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
     if (!edge_pentagon.empty() && !inner_.IsRenderable()) {
       DCHECK_EQ(edge_pentagon.size(), 5u);
 
-      ClipPolygon(context_, edge_pentagon.data(), 5, first_miter == kSoftMiter);
+      ClipPolygon(context_, edge_pentagon, first_miter == kSoftMiter);
       return;
     }
 
-    ClipPolygon(context_, edge_quad, 4, first_miter == kSoftMiter);
+    ClipPolygon(context_, edge_quad, first_miter == kSoftMiter);
     return;
   }
 
@@ -2016,7 +2073,7 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
     clipping_quad[2] = bound_quad2;
     clipping_quad[3] = edge_quad[3];
 
-    ClipPolygon(context_, clipping_quad, 4, first_miter == kSoftMiter);
+    ClipPolygon(context_, clipping_quad, first_miter == kSoftMiter);
   }
 
   if (second_miter != kNoMiter) {
@@ -2029,7 +2086,7 @@ void BoxBorderPainter::ClipBorderSidePolygon(BoxSide side,
     clipping_quad[2] -= extension_offset;
     clipping_quad[3] = edge_quad[3] - extension_offset;
 
-    ClipPolygon(context_, clipping_quad, 4, second_miter == kSoftMiter);
+    ClipPolygon(context_, clipping_quad, second_miter == kSoftMiter);
   }
 }
 

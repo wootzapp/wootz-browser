@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "third_party/blink/renderer/core/layout/base_layout_algorithm_test.h"
-
 #include <sstream>
+
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/renderer/core/dom/tag_collection.h"
 #include "third_party/blink/renderer/core/html/forms/html_text_area_element.h"
+#include "third_party/blink/renderer/core/layout/base_layout_algorithm_test.h"
 #include "third_party/blink/renderer/core/layout/box_fragment_builder.h"
 #include "third_party/blink/renderer/core/layout/constraint_space_builder.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_box_state.h"
@@ -19,6 +19,7 @@
 #include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_result.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 namespace {
@@ -28,14 +29,12 @@ struct TextBoxTrimResult {
   explicit TextBoxTrimResult(const LayoutBox& layout_object) {
     const LayoutResult* result = layout_object.GetCachedLayoutResult(nullptr);
     const ConstraintSpace& space = result->GetConstraintSpaceForCaching();
-    should_trim_start = space.ShouldTextBoxTrimStart();
-    should_trim_end = space.ShouldTextBoxTrimEnd();
-    is_trimmed = result->IsTextBoxTrimApplied();
+    should_trim_start = space.ShouldTextBoxTrimNodeStart();
+    should_trim_end = space.ShouldTextBoxTrimNodeEnd();
   }
 
-  bool should_trim_start = false;
-  bool should_trim_end = false;
-  bool is_trimmed = false;
+  bool should_trim_start;
+  bool should_trim_end;
 };
 
 const PhysicalLineBoxFragment* FindBlockInInlineLineBoxFragment(
@@ -872,7 +871,7 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpace) {
   ScopedCSSTextBoxTrimForTest enable_text_box_trim(true);
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
-    <div id="parent" style="text-box-trim: both; position: relative">
+    <div id="parent" style="text-box-trim: trim-both; position: relative">
       <div id="abs1" style="position: absolute">abs1</div>
       <div id="float1" style="float: left">float1</div>
       <div id="empty_before"> </div>
@@ -880,11 +879,7 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpace) {
         <div id="nested_empty_before_child"> </div>
       </div>
       <div>
-        <div id="first">first<br>first L2</div>
-      </div>
-      <div id="middle">middle</div>
-      <div>
-        <div id="last">last<br>last L2</div>
+        <div id="middle">middle<br>middle L2</div>
       </div>
       <div id="nested_empty_after">
         <div id="nested_empty_after_child"> </div>
@@ -898,42 +893,42 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpace) {
   const TextBoxTrimResult parent{*GetLayoutBlockFlowByElementId("parent")};
   EXPECT_FALSE(parent.should_trim_start);
   EXPECT_FALSE(parent.should_trim_end);
-  EXPECT_TRUE(parent.is_trimmed);
 
   // `ShouldTextBoxTrim*` should be set only to in-flow children.
+  for (const char* id : {"abs1", "abs2", "float1", "float2"}) {
+    const TextBoxTrimResult result{*GetLayoutBlockFlowByElementId(id)};
+    EXPECT_FALSE(result.should_trim_start) << id;
+    EXPECT_FALSE(result.should_trim_end) << id;
+  }
+
+  // The first formatted line has to be inside the first in-flow block child, or
+  // there is no first formatted line.
+  const TextBoxTrimResult empty_before{
+      *GetLayoutBlockFlowByElementId("empty_before")};
+  EXPECT_TRUE(empty_before.should_trim_start);
+  EXPECT_FALSE(empty_before.should_trim_end);
+
   for (const char* id :
-       {"abs1", "abs2", "float1", "float2", "middle", "empty_after",
+       {"nested_empty_before", "nested_empty_before_child", "middle",
         "nested_empty_after", "nested_empty_after_child"}) {
     const TextBoxTrimResult result{*GetLayoutBlockFlowByElementId(id)};
     EXPECT_FALSE(result.should_trim_start) << id;
     EXPECT_FALSE(result.should_trim_end) << id;
-    EXPECT_FALSE(result.is_trimmed) << id;
   }
 
-  for (const char* id :
-       {"empty_before", "nested_empty_before", "nested_empty_before_child"}) {
-    const TextBoxTrimResult result{*GetLayoutBlockFlowByElementId(id)};
-    EXPECT_TRUE(result.should_trim_start) << id;
-    EXPECT_FALSE(result.should_trim_end) << id;
-    EXPECT_FALSE(result.is_trimmed) << id;
-  }
-
-  const TextBoxTrimResult first{*GetLayoutBlockFlowByElementId("first")};
-  EXPECT_TRUE(first.should_trim_start);
-  EXPECT_FALSE(first.should_trim_end);
-  EXPECT_TRUE(first.is_trimmed);
-
-  const TextBoxTrimResult last{*GetLayoutBlockFlowByElementId("last")};
-  EXPECT_FALSE(last.should_trim_start);
-  EXPECT_TRUE(last.should_trim_end);
-  EXPECT_TRUE(last.is_trimmed);
+  // The last formatted line has to be inside the last in-flow block child, or
+  // there is no last formatted line.
+  const TextBoxTrimResult empty_after{
+      *GetLayoutBlockFlowByElementId("empty_after")};
+  EXPECT_FALSE(empty_after.should_trim_start);
+  EXPECT_TRUE(empty_after.should_trim_end);
 }
 
 TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceSingle) {
   ScopedCSSTextBoxTrimForTest enable_text_box_trim(true);
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
-    <div id="parent" style="text-box-trim: both">
+    <div id="parent" style="text-box-trim: trim-both">
       <div id="single">single<br>single L2</div>
       <div id="empty_after"> </div>
     </div>
@@ -942,25 +937,22 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceSingle) {
   const TextBoxTrimResult parent{*GetLayoutBlockFlowByElementId("parent")};
   EXPECT_FALSE(parent.should_trim_start);
   EXPECT_FALSE(parent.should_trim_end);
-  EXPECT_TRUE(parent.is_trimmed);
 
   const TextBoxTrimResult single{*GetLayoutBlockFlowByElementId("single")};
   EXPECT_TRUE(single.should_trim_start);
-  EXPECT_TRUE(single.should_trim_end);
-  EXPECT_TRUE(single.is_trimmed);
+  EXPECT_FALSE(single.should_trim_end);
 
   const TextBoxTrimResult empty_after{
       *GetLayoutBlockFlowByElementId("empty_after")};
   EXPECT_FALSE(empty_after.should_trim_start);
-  EXPECT_FALSE(empty_after.should_trim_end);
-  EXPECT_FALSE(empty_after.is_trimmed);
+  EXPECT_TRUE(empty_after.should_trim_end);
 }
 
 TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceEmptyOnly) {
   ScopedCSSTextBoxTrimForTest enable_text_box_trim(true);
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
-    <div id="parent" style="text-box-trim: both">
+    <div id="parent" style="text-box-trim: trim-both">
       <div id="empty"> </div>
     </div>
   )HTML");
@@ -968,15 +960,10 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceEmptyOnly) {
   const TextBoxTrimResult parent{*GetLayoutBlockFlowByElementId("parent")};
   EXPECT_FALSE(parent.should_trim_start);
   EXPECT_FALSE(parent.should_trim_end);
-  EXPECT_FALSE(parent.is_trimmed);
 
-  // Note: the current implementation sets `should_trim_start` to `true` even if
-  // it knows `empty` is empty. It can be either `true` or `false`. `EXPECT`
-  // exists just to verify the current implementation works as intended.
   const TextBoxTrimResult empty{*GetLayoutBlockFlowByElementId("empty")};
   EXPECT_TRUE(empty.should_trim_start);
-  EXPECT_FALSE(empty.should_trim_end);
-  EXPECT_FALSE(empty.is_trimmed);
+  EXPECT_TRUE(empty.should_trim_end);
 }
 
 TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceNone) {
@@ -990,9 +977,28 @@ TEST_F(InlineLayoutAlgorithmTest, TextBoxTrimConstraintSpaceNone) {
   const TextBoxTrimResult parent{*GetLayoutBlockFlowByElementId("parent")};
   EXPECT_FALSE(parent.should_trim_start);
   EXPECT_FALSE(parent.should_trim_end);
-  EXPECT_FALSE(parent.is_trimmed);
 }
 
 #undef MAYBE_VerticalAlignBottomReplaced
+
+// crbug.com/341126037
+TEST_F(InlineLayoutAlgorithmTest, BoxFragmentInRubyCrash) {
+  SetBodyInnerHTML(R"HTML(
+<table>
+<caption>
+<ruby>
+<select></select>
+<svg></svg>
+<span dir="rtl">
+</span>
+foo
+<rt>
+<input></ruby>)HTML");
+  // We had a crash in a case that the first base item in a kOpenRubyColumn
+  // InlineItemResult creates a BoxFragment
+
+  // This test passes if no crashes.
+}
+
 }  // namespace
 }  // namespace blink

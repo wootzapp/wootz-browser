@@ -7,8 +7,6 @@
 
 #include "base/component_export.h"
 #include "components/viz/common/resources/shared_image_format.h"
-#include "third_party/skia/include/core/SkColorType.h"
-#include "ui/gfx/buffer_types.h"
 
 namespace gpu {
 class ClientSharedImage;
@@ -21,9 +19,15 @@ namespace cc {
 class PerfContextProvider;
 }
 
-namespace media {
-class VideoResourceUpdater;
+namespace gfx {
+enum class BufferFormat : uint8_t;
 }
+
+namespace media {
+class VideoFrame;
+}
+
+enum SkColorType : int;
 
 namespace viz {
 
@@ -38,16 +42,13 @@ class TestInProcessContextProvider;
 // is always RGBA and there is no difference between RGBA/BGRA. Also, these
 // formats should not be used for software SkImages/SkSurfaces.
 COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
-SkColorType ToClosestSkColorType(bool gpu_compositing,
-                                 SharedImageFormat format);
+SkColorType ToClosestSkColorType(SharedImageFormat format);
 
 // Returns the closest SkColorType for a given `format` that does not prefer
 // external sampler and `plane_index`. For single planar formats (eg. RGBA) the
 // plane_index must be zero and it's equivalent to calling function above.
 COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
-SkColorType ToClosestSkColorType(bool gpu_compositing,
-                                 SharedImageFormat format,
-                                 int plane_index);
+SkColorType ToClosestSkColorType(SharedImageFormat format, int plane_index);
 
 // Returns the single-plane SharedImageFormat corresponding to `color_type.`
 COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
@@ -70,10 +71,9 @@ COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
 gfx::BufferFormat SinglePlaneSharedImageFormatToBufferFormat(
     SharedImageFormat format);
 
-// Returns the SharedImageFormat corresponding to `format`, which must be a
-// single-planar format.
+// Returns the SharedImageFormat corresponding to `buffer_format`.
 COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
-SharedImageFormat GetSinglePlaneSharedImageFormat(gfx::BufferFormat format);
+SharedImageFormat GetSharedImageFormat(gfx::BufferFormat buffer_format);
 
 // Utilities that conceptually belong only on the service side, but are
 // currently used by some clients. Usage is restricted to friended clients.
@@ -84,15 +84,7 @@ class COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
   friend class TestContextProvider;
   friend class TestInProcessContextProvider;
   friend class cc::PerfContextProvider;
-  friend class media::VideoResourceUpdater;
   friend class gpu::SharedImageFormatRestrictedUtilsAccessor;
-
-  // The following functions use unsigned int instead of GLenum, since including
-  // third_party/khronos/GLES2/gl2.h causes redefinition errors as
-  // macros/functions defined in it conflict with macros/functions defined in
-  // ui/gl/gl_bindings.h. See http://crbug.com/512833 for more information.
-  static unsigned int ToGLDataFormat(SharedImageFormat format);
-  static unsigned int ToGLDataType(SharedImageFormat format);
 
   // |use_angle_rgbx_format| should be true when the
   // GL_ANGLE_rgbx_internal_format extension is available.
@@ -108,6 +100,7 @@ class COMPONENT_EXPORT(VIZ_SHARED_IMAGE_FORMAT)
   friend class gpu::ClientSharedImage;
   friend class gpu::SharedImageFormatToBufferFormatRestrictedUtilsAccessor;
   friend class gpu::TestSharedImageInterface;
+  friend class media::VideoFrame;
 
   // BufferFormat is being transitioned out of SharedImage code (to use
   // SharedImageFormat instead). Refrain from using this function or preferably

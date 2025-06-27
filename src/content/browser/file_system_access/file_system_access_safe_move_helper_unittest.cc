@@ -54,6 +54,7 @@ class MockQuarantine : public quarantine::mojom::Quarantine {
   void QuarantineFile(const base::FilePath& full_path,
                       const GURL& source_url,
                       const GURL& referrer_url,
+                      const std::optional<url::Origin>& request_initiator,
                       const std::string& client_guid,
                       QuarantineFileCallback callback) override {
     paths.push_back(full_path);
@@ -103,7 +104,7 @@ class TestFileSystemBackend : public storage::TestFileSystemBackend {
 }  // namespace
 
 std::string GetHexEncodedString(const std::string& input) {
-  return base::HexEncode(base::as_bytes(base::make_span(input)));
+  return base::HexEncode(base::as_byte_span(input));
 }
 
 class FileSystemAccessSafeMoveHelperTest : public testing::Test {
@@ -209,7 +210,7 @@ class FileSystemAccessSafeMoveHelperTest : public testing::Test {
   scoped_refptr<FixedFileSystemAccessPermissionGrant> permission_grant_ =
       base::MakeRefCounted<FixedFileSystemAccessPermissionGrant>(
           FixedFileSystemAccessPermissionGrant::PermissionStatus::GRANTED,
-          base::FilePath());
+          PathInfo());
 
   std::unique_ptr<FileSystemAccessSafeMoveHelper> helper_;
 };

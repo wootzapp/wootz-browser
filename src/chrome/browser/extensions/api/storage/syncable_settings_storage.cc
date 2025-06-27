@@ -24,7 +24,7 @@ SyncableSettingsStorage::SyncableSettingsStorage(
     SequenceBoundSettingsChangedCallback observer,
     const ExtensionId& extension_id,
     ValueStore* delegate,
-    syncer::ModelType sync_type,
+    syncer::DataType sync_type,
     const syncer::SyncableService::StartSyncFlare& flare)
     : observer_(std::move(observer)),
       extension_id_(extension_id),
@@ -66,6 +66,11 @@ T SyncableSettingsStorage::HandleResult(T result) {
     StopSyncing();
   }
   return result;
+}
+
+ValueStore::ReadResult SyncableSettingsStorage::GetKeys() {
+  DCHECK(IsOnBackendSequence());
+  return HandleResult(delegate_->GetKeys());
 }
 
 ValueStore::ReadResult SyncableSettingsStorage::Get(

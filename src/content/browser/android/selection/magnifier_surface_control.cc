@@ -20,7 +20,6 @@
 #include "content/browser/renderer_host/compositor_dependencies_android.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-#include "content/public/android/content_jni_headers/MagnifierSurfaceControl_jni.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/gpu_stream_constants.h"
 #include "gpu/command_buffer/client/shared_memory_limits.h"
@@ -39,6 +38,9 @@
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gl/android/scoped_java_surface_control.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "content/public/android/content_jni_headers/MagnifierSurfaceControl_jni.h"
 
 namespace content {
 
@@ -70,9 +72,8 @@ static jlong JNI_MagnifierSurfaceControl_Create(
   gl::ScopedJavaSurfaceControl scoped_java_surface_control(j_surface_control,
                                                            release_on_destroy);
   gpu::GpuSurfaceTracker* tracker = gpu::GpuSurfaceTracker::Get();
-  gpu::SurfaceHandle surface_handle =
-      tracker->AddSurfaceForNativeWidget(gpu::GpuSurfaceTracker::SurfaceRecord(
-          std::move(scoped_java_surface_control)));
+  gpu::SurfaceHandle surface_handle = tracker->AddSurfaceForNativeWidget(
+      gpu::SurfaceRecord(std::move(scoped_java_surface_control)));
 
   return reinterpret_cast<jlong>(new MagnifierSurfaceControl(
       web_contents, surface_handle, device_scale, width, height, corner_radius,
@@ -294,7 +295,7 @@ void MagnifierSurfaceControl::CreateDisplayAndFrameSink() {
 
   layer_tree_->SetFrameSink(cc::slim::FrameSink::Create(
       std::move(sink_remote), std::move(client_receiver), nullptr,
-      GetUIThreadTaskRunner({BrowserTaskType::kUserInput}), nullptr,
+      GetUIThreadTaskRunner({BrowserTaskType::kUserInput}),
       base::kInvalidThreadId));
   layer_tree_->SetVisible(true);
 }

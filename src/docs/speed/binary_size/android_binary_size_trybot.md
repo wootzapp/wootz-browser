@@ -22,12 +22,7 @@ The bot provides analysis using:
 
 ## Checks:
 
-- All monitored differences will be displayed below your CL on Gerrit's CL
-  review page (in the Binary Size section).
-- Non-bordered changes are small changes below the failure limit.
-- Red-bordered changes are above the limit and are failing the tryjob.
-- Green-bordered changes are positive changes in the opposite direction (good
-  job making chrome smaller).
+- Results are shown under Gerrit's "Checks" tab in the "Info" section.
 
 ### Binary Size Increase
 
@@ -37,6 +32,33 @@ The bot provides analysis using:
   intentional.
 
 [normalized apk size]: /docs/speed/binary_size/metrics.md#normalized-apk-size
+
+#### ARM64 vs ARM32
+
+If your CL shows a large increase in ARM64 size, but not for ARM32, keep in mind:
+- ARM32 instructions are ~half the size of ARM64 instructions.
+- ARM32 builds are optimized-for-size (`-Os`) and ARM64 optimizes for speed (`-O2`).
+- ARM32 builds use AFDO and ARM64 builds use PGO.
+  - Both use flags to consider unknown symbols as cold in order to
+    underestimate size changes, which can actually lead to overestimating in cases
+    where aggressive inlining leads to smaller size.
+
+In this scenario, `android-binary-size` should automatically create a second
+size breakdown for ARM64. You'll find a link to it at the bottom of the bot's
+LUCI page.
+
+To force the bot to create an ARM64 breakdown, add this to your commit footer
+(leaving no blank line before subsequent footers):
+
+```
+CreateArm64SizeReport: true
+```
+
+To create a SuperSize report for ARM64 locally:
+
+```sh
+tools/binary_size/diagnose_bloat.py --arm64
+```
 
 #### What to do if the Check Fails?
 
@@ -116,7 +138,7 @@ footers.
 - Make the symbol read-only (usually by adding "const").
 - If you can't make it const, then rename it.
 - If the symbol is logically const, and you really don't want to rename it to
-  reveal that it is not actually mutable, you can annotate it with the
+  reveal that it is actually mutable, you can annotate it with the
   [LOGICALLY_CONST] macro.
 - To check what section a symbol is in for a local build:
   ```sh

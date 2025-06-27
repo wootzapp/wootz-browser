@@ -4,6 +4,7 @@
 
 #include "components/reporting/metrics/periodic_collector.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -52,7 +53,7 @@ TEST_F(PeriodicCollectorTest, InitiallyEnabled) {
   settings_->SetReportingEnabled(kEnableSettingPath, true);
   settings_->SetInteger(kRateSettingPath, interval.InMilliseconds());
 
-  MetricData metric_data_list[5];
+  std::array<MetricData, 5> metric_data_list;
   metric_data_list[0].mutable_telemetry_data();
   metric_data_list[1].mutable_info_data();
   metric_data_list[2].mutable_event_data();

@@ -46,6 +46,10 @@ enum AnnotationType {
   // given text exists in the document, and immediately disconnects the agent
   // upon finishing searching to remove the visual highlight effect.
   kTextFinder,
+
+  // Finds and highlights text for Glic. Has different scrolling and
+  // highlighting properties from kSharedHighlight.
+  kGlic,
 };
 
 // RAII wrapper for managing a single annotation in the renderer from the
@@ -53,8 +57,21 @@ enum AnnotationType {
 // annotation (and host in the browser) from the document.
 interface AnnotationAgent {
   // Ensures the content that the agent is attached to is visible and centered
-  // in the viewport.
-  ScrollIntoView();
+  // in the viewport. If `applies_focus` is true, then the first node of the
+  // match is focused. If that node is unfocusable, then the focus on the
+  // document is cleared to allow the next "tab" focus navigation to be the
+  // element after the first node in the content.
+  ScrollIntoView(bool applies_focus);
+};
+
+enum AttachmentResult {
+  // Annotation was successfully attached.
+  kSuccess,
+  // Annotation fails to be attached, because the selector is not found in the
+  // range.
+  kSelectorNotMatched,
+  // The given search range is not valid, the start node is not in the document.
+  kRangeInvalid,
 };
 
 // Allows the browser process to receive events for a single annotation in the
@@ -64,7 +81,9 @@ interface AnnotationAgentHost {
   // able to find a Range of DOM matching the specified selector,
   // `document_relative_rect` will contain its bounding box, in the document
   // coordinate space. If attachment fails, the rect will be empty.
-  DidFinishAttachment(gfx.mojom.Rect document_relative_rect);
+  // `attachment_result` means whether the attachment succeeded or the failure reason.
+  DidFinishAttachment(gfx.mojom.Rect document_relative_rect,
+                      AttachmentResult attachment_result);
 };
 
 // Allows the browser process to request creation of an annotation in the
@@ -81,10 +100,14 @@ interface AnnotationAgentContainer {
   // `type`: The use case the annotation agent is being used for.
   // `serialized_selector`: A selector that will be used to attach the agent to
   //    a Range of DOM in the Document.
+  // `search_range_start_node_id`: The DOMNodeId of the start node for the
+  //    search range to the end of the document. If DOMNodeId is not given, the
+  //    search range will be the whole document.
   CreateAgent(pending_remote<blink.mojom.AnnotationAgentHost> host_remote,
               pending_receiver<blink.mojom.AnnotationAgent> agent_receiver,
               AnnotationType type,
-              string serialized_selector);
+              string serialized_selector,
+              int32? search_range_start_node_id);
 
   // Creates an agent from the document's current text selection and returns
   // the bindings as well as a selector which can be used in the future to

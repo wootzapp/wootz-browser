@@ -45,6 +45,7 @@ public class SharedStatics {
 
     // These values are persisted to logs. Entries should not be renumbered and
     // numeric values should never be reused.
+    // LINT.IfChange(ApiCall)
     @IntDef({
         ApiCall.FIND_ADDRESS,
         ApiCall.GET_DEFAULT_USER_AGENT,
@@ -57,6 +58,9 @@ public class SharedStatics {
         ApiCall.SET_SAFE_BROWSING_ALLOWLIST,
         ApiCall.IS_MULTI_PROCESS_ENABLED,
         ApiCall.GET_VARIATIONS_HEADER,
+        ApiCall.GET_GEOLOCATION_PERMISSIONS,
+        ApiCall.SET_DEFAULT_TRAFFICSTATS_TAG,
+        ApiCall.SET_DEFAULT_TRAFFICSTATS_UID,
         // Add new constants above. The final constant should have a trailing comma for
         // cleaner diffs.
         ApiCall.COUNT, // Added to suppress WrongConstant in #recordStaticApiCall
@@ -73,9 +77,14 @@ public class SharedStatics {
         int SET_SAFE_BROWSING_ALLOWLIST = 8;
         int IS_MULTI_PROCESS_ENABLED = 9;
         int GET_VARIATIONS_HEADER = 10;
+        int GET_GEOLOCATION_PERMISSIONS = 11;
+        int SET_DEFAULT_TRAFFICSTATS_TAG = 12;
+        int SET_DEFAULT_TRAFFICSTATS_UID = 13;
         // Remember to update WebViewApiCallStatic in enums.xml when adding new values here
-        int COUNT = 11;
+        int COUNT = 14;
     }
+
+    // LINT.ThenChange(/tools/metrics/histograms/metadata/android/enums.xml:WebViewApiCallStatic)
 
     public static void setStartupTriggered() {
         sStartupTriggered = true;
@@ -223,6 +232,22 @@ public class SharedStatics {
                 TraceEvent.scoped("WebView.APICall.Framework.GET_VARIATIONS_HEADER")) {
             recordStaticApiCall(ApiCall.GET_VARIATIONS_HEADER);
             return AwContentsStatics.getVariationsHeader();
+        }
+    }
+
+    public void setDefaultTrafficStatsTag(int tag) {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.APICall.Framework.SET_DEFAULT_TRAFFICSTATS_TAG")) {
+            recordStaticApiCall(ApiCall.SET_DEFAULT_TRAFFICSTATS_TAG);
+            AwContentsStatics.setDefaultTrafficStatsTag(tag);
+        }
+    }
+
+    public void setDefaultTrafficStatsUid(int uid) {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.APICall.Framework.SET_DEFAULT_TRAFFICSTATS_UID")) {
+            recordStaticApiCall(ApiCall.SET_DEFAULT_TRAFFICSTATS_UID);
+            AwContentsStatics.setDefaultTrafficStatsUid(uid);
         }
     }
 }

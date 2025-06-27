@@ -4,6 +4,8 @@
 
 package org.chromium.content.browser.webcontents;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -18,13 +20,13 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.ViewStructure;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.Callback;
 import org.chromium.base.JavaExceptionReporter;
 import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
@@ -32,10 +34,13 @@ import org.chromium.base.TerminationStatus;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.UserData;
 import org.chromium.base.UserDataHost;
+import org.chromium.base.process_launcher.ChildProcessConnection;
 import org.chromium.blink_public.input.SelectionGranularity;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.content.browser.AppWebMessagePort;
 import org.chromium.content.browser.GestureListenerManagerImpl;
-import org.chromium.content.browser.MediaSessionImpl;
 import org.chromium.content.browser.RenderCoordinatesImpl;
 import org.chromium.content.browser.RenderWidgetHostViewImpl;
 import org.chromium.content.browser.ViewEventSinkImpl;
@@ -61,6 +66,8 @@ import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsInternals;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.content_public.browser.back_forward_transition.AnimationStage;
+import org.chromium.ui.BrowserControlsOffsetTagDefinitions;
 import org.chromium.ui.OverscrollRefreshHandler;
 import org.chromium.ui.base.EventForwarder;
 import org.chromium.ui.base.ViewAndroidDelegate;
@@ -76,11 +83,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The WebContentsImpl Java wrapper to allow communicating with the native WebContentsImpl
- * object.
+ * The WebContentsImpl Java wrapper to allow communicating with the native WebContentsImpl object.
  */
 @JNINamespace("content")
-public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, WindowEventObserver {
+@NullMarked
+public class WebContentsImpl
+        implements WebContents,
+                WebContentsObserver.Observable,
+                RenderFrameHostDelegate,
+                WindowEventObserver {
     private static final String TAG = "WebContentsImpl";
 
     private static final String PARCEL_VERSION_KEY = "version";
@@ -108,15 +119,20 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     public static final Parcelable.Creator<WebContents> CREATOR =
             new Parcelable.Creator<WebContents>() {
                 @Override
-                public WebContents createFromParcel(Parcel source) {
+                public @Nullable WebContents createFromParcel(Parcel source) {
                     Bundle bundle = source.readBundle();
 
                     // Check the version.
-                    if (bundle.getLong(PARCEL_VERSION_KEY, -1) != 0) return null;
+                    if (bundle == null || bundle.getLong(PARCEL_VERSION_KEY, -1) != 0) {
+                        return null;
+                    }
 
                     // Check that we're in the same process.
                     ParcelUuid parcelUuid = bundle.getParcelable(PARCEL_PROCESS_GUARD_KEY);
-                    if (sParcelableUUID.compareTo(parcelUuid.getUuid()) != 0) return null;
+                    if (parcelUuid == null
+                            || sParcelableUUID.compareTo(parcelUuid.getUuid()) != 0) {
+                        return null;
+                    }
 
                     // Attempt to retrieve the WebContents object from the native pointer.
                     return WebContentsImplJni.get()
@@ -129,46 +145,16 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
                 }
             };
 
-    /**
-     * Factory interface passed to {@link #getOrSetUserData()} for instantiation of
-     * class as user data.
-     *
-     * Constructor method reference comes handy for class Foo to provide the factory.
-     * Use lazy initialization to avoid having to generate too many anonymous references.
-     *
-     * <code>
-     * public class Foo {
-     *     static final class FoofactoryLazyHolder {
-     *         private static final UserDataFactory<Foo> INSTANCE = Foo::new;
-     *     }
-     *     ....
-     *
-     *     webContents.getOrsetUserData(Foo.class, FooFactoryLazyHolder.INSTANCE);
-     *
-     *     ....
-     * }
-     * </code>
-     *
-     * @param <T> Class to instantiate.
-     */
-    public interface UserDataFactory<T> {
-        T create(WebContents webContents);
-    }
-
     // Note this list may be incomplete. Frames that never had to initialize java side would
     // not have an entry here. This is here mainly to keep the java RenderFrameHosts alive, since
     // native side generally cannot safely hold strong references to them.
     private final List<RenderFrameHostImpl> mFrames = new ArrayList<>();
 
     private long mNativeWebContentsAndroid;
-    private NavigationController mNavigationController;
+    private @Nullable NavigationController mNavigationController;
 
     // Lazily created proxy observer for handling all Java-based WebContentsObservers.
-    private WebContentsObserverProxy mObserverProxy;
-
-    // The media session for this WebContents. It is constructed by the native MediaSession and has
-    // the same life time as native MediaSession.
-    private MediaSessionImpl mMediaSession;
+    private @Nullable WebContentsObserverProxy mObserverProxy;
 
     class SmartClipCallback {
         public SmartClipCallback(final Handler smartClipHandler) {
@@ -193,11 +179,11 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         final Handler mHandler;
     }
 
-    private SmartClipCallback mSmartClipCallback;
+    private @Nullable SmartClipCallback mSmartClipCallback;
 
-    private EventForwarder mEventForwarder;
+    private @Nullable EventForwarder mEventForwarder;
 
-    private StylusWritingHandler mStylusWritingHandler;
+    private @Nullable StylusWritingHandler mStylusWritingHandler;
 
     // Cached copy of all positions and scales as reported by the renderer.
     private RenderCoordinatesImpl mRenderCoordinates;
@@ -209,13 +195,13 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     private boolean mInitialized;
 
     // Remember the stack for clearing native the native stack for debugging use after destroy.
-    private Throwable mNativeDestroyThrowable;
+    private @Nullable Throwable mNativeDestroyThrowable;
 
-    private ObserverList<Runnable> mTearDownDialogOverlaysHandlers;
+    private @Nullable ObserverList<Runnable> mTearDownDialogOverlaysHandlers;
 
     private static class WebContentsInternalsImpl implements WebContentsInternals {
-        public UserDataHost userDataHost;
-        public ViewAndroidDelegate viewAndroidDelegate;
+        public final UserDataHost userDataHost = new UserDataHost();
+        public @Nullable ViewAndroidDelegate viewAndroidDelegate;
     }
 
     private WebContentsImpl(
@@ -233,11 +219,12 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
+    @Initializer
     public void setDelegates(
             String productVersion,
             ViewAndroidDelegate viewDelegate,
             InternalAccessDelegate accessDelegate,
-            WindowAndroid windowAndroid,
+            @Nullable WindowAndroid windowAndroid,
             InternalsHolder internalsHolder) {
         assert internalsHolder != null;
 
@@ -248,7 +235,6 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
             internals = (WebContentsInternalsImpl) mInternalsHolder.get();
         } else {
             internals = new WebContentsInternalsImpl();
-            internals.userDataHost = new UserDataHost();
         }
         mInternalsHolder = internalsHolder;
         mInternalsHolder.set(internals);
@@ -279,20 +265,19 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     public void clearJavaWebContentsObservers() {
         // Clear all the Android specific observers.
         if (mObserverProxy != null) {
-            mObserverProxy.destroy();
+            mObserverProxy.webContentsDestroyed();
             mObserverProxy = null;
         }
     }
 
-    @Nullable
-    public Context getContext() {
+    public @Nullable Context getContext() {
         assert mInitialized;
 
         WindowAndroid window = getTopLevelNativeWindow();
         return window != null ? window.getContext().get() : null;
     }
 
-    public String getProductVersion() {
+    public @Nullable String getProductVersion() {
         assert mInitialized;
         return mProductVersion;
     }
@@ -304,7 +289,7 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         mNativeWebContentsAndroid = 0;
         mNavigationController = null;
         if (mObserverProxy != null) {
-            mObserverProxy.destroy();
+            mObserverProxy.webContentsDestroyed();
             mObserverProxy = null;
         }
     }
@@ -347,13 +332,13 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public WindowAndroid getTopLevelNativeWindow() {
+    public @Nullable WindowAndroid getTopLevelNativeWindow() {
         checkNotDestroyed();
         return WebContentsImplJni.get().getTopLevelNativeWindow(mNativeWebContentsAndroid);
     }
 
     @Override
-    public void setTopLevelNativeWindow(WindowAndroid windowAndroid) {
+    public void setTopLevelNativeWindow(@Nullable WindowAndroid windowAndroid) {
         checkNotDestroyed();
         WebContentsImplJni.get().setTopLevelNativeWindow(mNativeWebContentsAndroid, windowAndroid);
         WindowEventObserverManager.from(this).onWindowAndroidChanged(windowAndroid);
@@ -361,7 +346,9 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public ViewAndroidDelegate getViewAndroidDelegate() {
+    public @Nullable ViewAndroidDelegate getViewAndroidDelegate() {
+        // TODO(agrieve): I suspect this never returns null...
+        if (mInternalsHolder == null) return null;
         WebContentsInternals internals = mInternalsHolder.get();
         if (internals == null) return null;
         return ((WebContentsInternalsImpl) internals).viewAndroidDelegate;
@@ -409,7 +396,7 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public NavigationController getNavigationController() {
+    public @Nullable NavigationController getNavigationController() {
         return mNavigationController;
     }
 
@@ -487,14 +474,6 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public List<WebContentsImpl> getInnerWebContents() {
-        checkNotDestroyed();
-        WebContentsImpl[] innerWebContents =
-                WebContentsImplJni.get().getInnerWebContents(mNativeWebContentsAndroid);
-        return Collections.unmodifiableList(Arrays.asList(innerWebContents));
-    }
-
-    @Override
     public @Visibility int getVisibility() {
         checkNotDestroyed();
         return WebContentsImplJni.get().getVisibility(mNativeWebContentsAndroid);
@@ -503,6 +482,14 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     @Override
     public void updateWebContentsVisibility(@Visibility int visibility) {
         checkNotDestroyed();
+        if (visibility == Visibility.VISIBLE) {
+            SelectionPopupControllerImpl controller = getSelectionPopupController();
+            if (controller != null) controller.restoreSelectionPopupsIfNecessary();
+        }
+        if (visibility == Visibility.HIDDEN) {
+            SelectionPopupControllerImpl controller = getSelectionPopupController();
+            if (controller != null) controller.hidePopupsAndPreserveSelection();
+        }
         WebContentsImplJni.get().updateWebContentsVisibility(mNativeWebContentsAndroid, visibility);
     }
 
@@ -607,31 +594,17 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         WebContentsImplJni.get().collapseSelection(mNativeWebContentsAndroid);
     }
 
-    @Override
-    public void onHide() {
-        checkNotDestroyed();
-        SelectionPopupControllerImpl controller = getSelectionPopupController();
-        if (controller != null) controller.hidePopupsAndPreserveSelection();
-        WebContentsImplJni.get().onHide(mNativeWebContentsAndroid);
-    }
-
-    @Override
-    public void onShow() {
-        checkNotDestroyed();
-        SelectionPopupControllerImpl controller = getSelectionPopupController();
-        if (controller != null) controller.restoreSelectionPopupsIfNecessary();
-        WebContentsImplJni.get().onShow(mNativeWebContentsAndroid);
-    }
-
-    private SelectionPopupControllerImpl getSelectionPopupController() {
+    private @Nullable SelectionPopupControllerImpl getSelectionPopupController() {
         return SelectionPopupControllerImpl.fromWebContents(this);
     }
 
     @Override
-    public void setImportance(@ChildProcessImportance int primaryMainFrameImportance) {
+    public void setPrimaryMainFrameImportance(@ChildProcessImportance int importance) {
         checkNotDestroyed();
+        assert ChildProcessConnection.supportNotPerceptibleBinding()
+                || importance != ChildProcessImportance.PERCEPTIBLE;
         WebContentsImplJni.get()
-                .setImportance(mNativeWebContentsAndroid, primaryMainFrameImportance);
+                .setPrimaryMainFrameImportance(mNativeWebContentsAndroid, importance);
     }
 
     @Override
@@ -726,14 +699,14 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public void evaluateJavaScript(String script, JavaScriptCallback callback) {
+    public void evaluateJavaScript(String script, @Nullable JavaScriptCallback callback) {
         ThreadUtils.assertOnUiThread();
         if (isDestroyed() || script == null) return;
         WebContentsImplJni.get().evaluateJavaScript(mNativeWebContentsAndroid, script, callback);
     }
 
     @Override
-    public void evaluateJavaScriptForTests(String script, JavaScriptCallback callback) {
+    public void evaluateJavaScriptForTests(String script, @Nullable JavaScriptCallback callback) {
         ThreadUtils.assertOnUiThread();
         if (script == null) return;
         checkNotDestroyed();
@@ -751,9 +724,9 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     @Override
     public void postMessageToMainFrame(
             MessagePayload messagePayload,
-            String sourceOrigin,
+            @Nullable String sourceOrigin,
             String targetOrigin,
-            MessagePort[] ports) {
+            MessagePort @Nullable [] ports) {
         if (ports != null) {
             for (MessagePort port : ports) {
                 if (port.isClosed() || port.isTransferred()) {
@@ -871,7 +844,7 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public void setStylusWritingHandler(StylusWritingHandler stylusWritingHandler) {
+    public void setStylusWritingHandler(@Nullable StylusWritingHandler stylusWritingHandler) {
         mStylusWritingHandler = stylusWritingHandler;
         if (mNativeWebContentsAndroid == 0) return;
         WebContentsImplJni.get()
@@ -880,13 +853,13 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
-    public StylusWritingImeCallback getStylusWritingImeCallback() {
+    public @Nullable StylusWritingImeCallback getStylusWritingImeCallback() {
         ImeAdapterImpl imeAdapter = ImeAdapterImpl.fromWebContents(this);
         if (imeAdapter == null) return null;
         return imeAdapter.getStylusWritingImeCallback();
     }
 
-    public StylusWritingHandler getStylusWritingHandler() {
+    public @Nullable StylusWritingHandler getStylusWritingHandler() {
         return mStylusWritingHandler;
     }
 
@@ -904,14 +877,16 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
                             return mStylusWritingHandler != null
                                     && mStylusWritingHandler.handleTouchEvent(
                                             motionEvent,
-                                            getViewAndroidDelegate().getContainerView());
+                                            assumeNonNull(getViewAndroidDelegate())
+                                                    .getContainerView());
                         }
 
                         @Override
                         public void handleHoverEvent(MotionEvent motionEvent) {
                             if (mStylusWritingHandler != null) {
                                 mStylusWritingHandler.handleHoverEvent(
-                                        motionEvent, getViewAndroidDelegate().getContainerView());
+                                        motionEvent,
+                                        assumeNonNull(getViewAndroidDelegate()).getContainerView());
                             }
                         }
                     });
@@ -1018,11 +993,6 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @CalledByNative
-    private final void setMediaSession(MediaSessionImpl mediaSession) {
-        mMediaSession = mediaSession;
-    }
-
-    @CalledByNative
     private static List<Bitmap> createBitmapList() {
         return new ArrayList<Bitmap>();
     }
@@ -1052,17 +1022,9 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         return mRenderCoordinates;
     }
 
-    /**
-     * Retrieves or stores a user data object for this WebContents.
-     * @param key Class instance of the object used as the key.
-     * @param userDataFactory Factory that creates an object of the generic class. A new object
-     *        is created if it hasn't been created and non-null factory is given.
-     * @return The created or retrieved user data object. Can be null if the object was
-     *         not created yet, or {@code userDataFactory} is null, or the internal data
-     *         storage is already garbage-collected.
-     */
-    public <T extends UserData> T getOrSetUserData(
-            Class<T> key, UserDataFactory<T> userDataFactory) {
+    @Override
+    public <T extends UserData> @Nullable T getOrSetUserData(
+            Class<T> key, @Nullable UserDataFactory<T> userDataFactory) {
         // For tests that go without calling |initialize|.
         if (!mInitialized) return null;
 
@@ -1096,7 +1058,6 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         WebContentsInternalsImpl internals = (WebContentsInternalsImpl) mInternalsHolder.get();
         if (internals == null) {
             internals = new WebContentsInternalsImpl();
-            internals.userDataHost = new UserDataHost();
         }
         mInternalsHolder.set(internals);
         mInitialized = true;
@@ -1107,10 +1068,12 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         // Be sure to call initializeForTesting() first.
         assert mInitialized;
 
-        WebContentsInternalsImpl internals = (WebContentsInternalsImpl) mInternalsHolder.get();
+        WebContentsInternalsImpl internals =
+                assumeNonNull((WebContentsInternalsImpl) mInternalsHolder.get());
         internals.userDataHost.setUserData(key, userData);
     }
 
+    @Override
     public <T extends UserData> void removeUserData(Class<T> key) {
         UserDataHost userDataHost = getUserDataHost();
         if (userDataHost == null) return;
@@ -1121,7 +1084,7 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
      * @return {@code UserDataHost} that contains internal user data. {@code null} if
      *         it is already gc'ed.
      */
-    private UserDataHost getUserDataHost() {
+    private @Nullable UserDataHost getUserDataHost() {
         if (mInternalsHolder == null) return null;
         WebContentsInternals internals = mInternalsHolder.get();
         if (internals == null) return null;
@@ -1181,6 +1144,18 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
     }
 
     @Override
+    public void setContextMenuInsets(Rect insets) {
+        if (mNativeWebContentsAndroid == 0) return;
+        WebContentsImplJni.get()
+                .setContextMenuInsets(
+                        mNativeWebContentsAndroid,
+                        insets.top,
+                        insets.left,
+                        insets.bottom,
+                        insets.right);
+    }
+
+    @Override
     public void notifyRendererPreferenceUpdate() {
         if (mNativeWebContentsAndroid == 0) return;
         WebContentsImplJni.get().notifyRendererPreferenceUpdate(mNativeWebContentsAndroid);
@@ -1225,15 +1200,56 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         mTearDownDialogOverlaysHandlers.removeObserver(handler);
     }
 
+    @Override
+    public void onContentForNavigationEntryShown() {
+        checkNotDestroyed();
+        WebContentsImplJni.get().onContentForNavigationEntryShown(mNativeWebContentsAndroid);
+    }
+
+    @Override
+    @AnimationStage
+    public int getCurrentBackForwardTransitionStage() {
+        checkNotDestroyed();
+        return WebContentsImplJni.get()
+                .getCurrentBackForwardTransitionStage(mNativeWebContentsAndroid);
+    }
+
+    @Override
+    public void setLongPressLinkSelectText(boolean enabled) {
+        checkNotDestroyed();
+        WebContentsImplJni.get().setLongPressLinkSelectText(mNativeWebContentsAndroid, enabled);
+    }
+
+    @Override
+    public void updateOffsetTagDefinitions(
+            BrowserControlsOffsetTagDefinitions offsetTagDefinitions) {
+        if (mNativeWebContentsAndroid == 0) return;
+        WebContentsImplJni.get()
+                .updateOffsetTagDefinitions(mNativeWebContentsAndroid, offsetTagDefinitions);
+    }
+
     private void checkNotDestroyed() {
         if (mNativeWebContentsAndroid != 0) return;
         throw new IllegalStateException(
                 "Native WebContents already destroyed", mNativeDestroyThrowable);
     }
 
+    @Override
+    public void captureContentAsBitmapForTesting(Callback<Bitmap> callback) {
+        WebContentsImplJni.get()
+                .captureContentAsBitmapForTesting(mNativeWebContentsAndroid, callback);
+    }
+
+    @Override
+    public void setSupportsForwardTransitionAnimation(boolean supports) {
+        WebContentsImplJni.get()
+                .setSupportsForwardTransitionAnimation(mNativeWebContentsAndroid, supports);
+    }
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     @NativeMethods
     public interface Natives {
+
         // This is static to avoid exposing a public destroy method on the native side of this
         // class.
         void destroyWebContents(long webContentsAndroidPtr);
@@ -1242,9 +1258,11 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
 
         void clearNativeReference(long nativeWebContentsAndroid);
 
+        @Nullable
         WindowAndroid getTopLevelNativeWindow(long nativeWebContentsAndroid);
 
-        void setTopLevelNativeWindow(long nativeWebContentsAndroid, WindowAndroid windowAndroid);
+        void setTopLevelNativeWindow(
+                long nativeWebContentsAndroid, @Nullable WindowAndroid windowAndroid);
 
         RenderFrameHost getMainFrame(long nativeWebContentsAndroid);
 
@@ -1258,8 +1276,6 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         RenderFrameHost[] getAllRenderFrameHosts(long nativeWebContentsAndroid);
 
         RenderWidgetHostViewImpl getRenderWidgetHostView(long nativeWebContentsAndroid);
-
-        WebContentsImpl[] getInnerWebContents(long nativeWebContentsAndroid);
 
         @Visibility
         int getVisibility(long nativeWebContentsAndroid);
@@ -1298,11 +1314,7 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
 
         void collapseSelection(long nativeWebContentsAndroid);
 
-        void onHide(long nativeWebContentsAndroid);
-
-        void onShow(long nativeWebContentsAndroid);
-
-        void setImportance(long nativeWebContentsAndroid, int importance);
+        void setPrimaryMainFrameImportance(long nativeWebContentsAndroid, int importance);
 
         void suspendAllMediaPlayers(long nativeWebContentsAndroid);
 
@@ -1340,19 +1352,23 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         void resumeLoadingCreatedWebContents(long nativeWebContentsAndroid);
 
         void evaluateJavaScript(
-                long nativeWebContentsAndroid, String script, JavaScriptCallback callback);
+                long nativeWebContentsAndroid,
+                String script,
+                @Nullable JavaScriptCallback callback);
 
         void evaluateJavaScriptForTests(
-                long nativeWebContentsAndroid, String script, JavaScriptCallback callback);
+                long nativeWebContentsAndroid,
+                String script,
+                @Nullable JavaScriptCallback callback);
 
         void addMessageToDevToolsConsole(long nativeWebContentsAndroid, int level, String message);
 
         void postMessageToMainFrame(
                 long nativeWebContentsAndroid,
                 MessagePayload payload,
-                String sourceOrigin,
+                @Nullable String sourceOrigin,
                 String targetOrigin,
-                MessagePort[] ports);
+                MessagePort @Nullable [] ports);
 
         boolean hasAccessedInitialDocument(long nativeWebContentsAndroid);
 
@@ -1422,6 +1438,9 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         void setDisplayCutoutSafeArea(
                 long nativeWebContentsAndroid, int top, int left, int bottom, int right);
 
+        void setContextMenuInsets(
+                long nativeWebContentsAndroid, int top, int left, int bottom, int right);
+
         void notifyRendererPreferenceUpdate(long nativeWebContentsAndroid);
 
         void notifyBrowserControlsHeightChanged(long nativeWebContentsAndroid);
@@ -1429,5 +1448,21 @@ public class WebContentsImpl implements WebContents, RenderFrameHostDelegate, Wi
         boolean isBeingDestroyed(long nativeWebContentsAndroid);
 
         boolean needToFireBeforeUnloadOrUnloadEvents(long nativeWebContentsAndroid);
+
+        void onContentForNavigationEntryShown(long nativeWebContentsAndroid);
+
+        @AnimationStage
+        int getCurrentBackForwardTransitionStage(long nativeWebContentsAndroid);
+
+        void setLongPressLinkSelectText(long nativeWebContentsAndroid, boolean enabled);
+
+        void updateOffsetTagDefinitions(
+                long nativeWebContentsAndroid,
+                BrowserControlsOffsetTagDefinitions offsetTagDefinitions);
+
+        void captureContentAsBitmapForTesting(
+                long nativeWebContentsAndroid, Callback<Bitmap> callback);
+
+        void setSupportsForwardTransitionAnimation(long nativeWebContentsAndroid, boolean enabled);
     }
 }

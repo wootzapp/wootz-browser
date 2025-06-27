@@ -4,10 +4,11 @@
 
 #include "media/formats/hls/tag_name.h"
 
+#include <string_view>
 #include <utility>
+
 #include "base/containers/fixed_flat_map.h"
 #include "base/notreached.h"
-#include "base/strings/string_piece.h"
 
 namespace media::hls {
 
@@ -110,7 +111,7 @@ TagKind GetTagKind(TagName name) {
     return TagKind::kMediaPlaylistTag;
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::optional<TagName> ParseTagName(std::string_view name) {
@@ -130,7 +131,7 @@ std::string_view TagNameToString(TagName name) {
     }
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace media::hls

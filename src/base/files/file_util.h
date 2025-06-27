@@ -16,6 +16,8 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "base/base_export.h"
 #include "base/containers/span.h"
@@ -32,6 +34,7 @@
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 #include <sys/stat.h>
 #include <unistd.h>
+
 #include "base/posix/eintr_wrapper.h"
 #endif
 
@@ -294,8 +297,6 @@ BASE_EXPORT bool ReadStreamToStringWithMaxSize(FILE* stream,
 // into `buffer`. This function is protected against EINTR and partial reads.
 // Returns true iff `buffer` was successfully filled with bytes read from `fd`.
 BASE_EXPORT bool ReadFromFD(int fd, span<char> buffer);
-// TODO(crbug.com/40284755): Migrate callers to the span variant.
-BASE_EXPORT bool ReadFromFD(int fd, char* buffer, size_t bytes);
 
 // Performs the same function as CreateAndOpenTemporaryStreamInDir(), but
 // returns the file-descriptor wrapped in a ScopedFD, rather than the stream
@@ -340,6 +341,7 @@ BASE_EXPORT std::optional<FilePath> ReadSymbolicLinkAbsolute(
 
 // Bits and masks of the file permission.
 enum FilePermissionBits {
+  // clang-format off
   FILE_PERMISSION_MASK              = S_IRWXU | S_IRWXG | S_IRWXO,
   FILE_PERMISSION_USER_MASK         = S_IRWXU,
   FILE_PERMISSION_GROUP_MASK        = S_IRWXG,
@@ -354,6 +356,7 @@ enum FilePermissionBits {
   FILE_PERMISSION_READ_BY_OTHERS    = S_IROTH,
   FILE_PERMISSION_WRITE_BY_OTHERS   = S_IWOTH,
   FILE_PERMISSION_EXECUTE_BY_OTHERS = S_IXOTH,
+  // clang-format on
 };
 
 // Reads the permission of the given |path|, storing the file permission
@@ -425,7 +428,7 @@ BASE_EXPORT bool CreateTemporaryFileInDir(const FilePath& dir,
 // Returns the file name for a temporary file by using a platform-specific
 // naming scheme that incorporates |identifier|.
 BASE_EXPORT FilePath
-FormatTemporaryFileName(FilePath::StringPieceType identifier);
+FormatTemporaryFileName(FilePath::StringViewType identifier);
 
 // Create and open a temporary file stream for exclusive read, write, and delete
 // access. The full path is placed in `path`. Returns the opened file stream, or
@@ -438,23 +441,6 @@ BASE_EXPORT ScopedFILE CreateAndOpenTemporaryStream(FilePath* path);
 // Similar to CreateAndOpenTemporaryStream(), but the file is created in `dir`.
 BASE_EXPORT ScopedFILE CreateAndOpenTemporaryStreamInDir(const FilePath& dir,
                                                          FilePath* path);
-
-#if BUILDFLAG(IS_WIN)
-// Retrieves the path `%systemroot%\SystemTemp`, if available, else retrieves
-// `%programfiles%`.
-// Returns the path in `temp` and `true` if the path is writable by the caller,
-// which is usually only when the caller is running as admin or system.
-// Returns `false` otherwise.
-// Both paths are only accessible to admin and system processes, and are
-// therefore secure.
-BASE_EXPORT bool GetSecureSystemTemp(FilePath* temp);
-
-// Set whether or not the use of %systemroot%\SystemTemp or %programfiles% is
-// permitted for testing. This is so tests that run as admin will still continue
-// to use %TMP% so their files will be correctly cleaned up by the test
-// launcher.
-BASE_EXPORT void SetDisableSecureSystemTempForTesting(bool disabled);
-#endif  // BUILDFLAG(IS_WIN)
 
 // Do NOT USE in new code. Use ScopedTempDir instead.
 // TODO(crbug.com/40446440) Remove existing usage and make this an
@@ -477,28 +463,40 @@ BASE_EXPORT bool CreateNewTempDirectory(const FilePath::StringType& prefix,
 // Extra characters will be appended to |prefix| to ensure that the
 // new directory does not have the same name as an existing directory.
 BASE_EXPORT bool CreateTemporaryDirInDir(const FilePath& base_dir,
-                                         const FilePath::StringType& prefix,
+                                         FilePath::StringViewType prefix,
                                          FilePath* new_dir);
 
-// Creates a directory, as well as creating any parent directories, if they
-// don't exist. Returns 'true' on successful creation, or if the directory
-// already exists.  The directory is only readable by the current user.
-// Returns true on success, leaving *error unchanged.
-// Returns false on failure and sets *error appropriately, if it is non-NULL.
+// Ensures a directory exists, if necessary, creating it and parent directories.
+// Returns true if the directory already existed or was created, leaving *error
+// unchanged.
+// Returns false on failure and sets *error appropriately if it is non-NULL.
+//
+// The created directories can only be accessed by the current user, except on
+// ChromeOS, where the directories created under `~/MyFiles` or `/media` can
+// also be accessed by ChromeOS services.
 BASE_EXPORT bool CreateDirectoryAndGetError(const FilePath& full_path,
                                             File::Error* error);
 
 // Backward-compatible convenience method for the above.
 BASE_EXPORT bool CreateDirectory(const FilePath& full_path);
 
-// Returns the file size. Returns true on success.
-BASE_EXPORT bool GetFileSize(const FilePath& file_path, int64_t* file_size);
+// Returns the file size, or std::nullopt on failure.
+BASE_EXPORT std::optional<int64_t> GetFileSize(const FilePath& file_path);
+
+// Same as above, but as an OnceCallback.
+BASE_EXPORT OnceCallback<std::optional<int64_t>()> GetFileSizeCallback(
+    const FilePath& path);
 
 // Sets |real_path| to |path| with symbolic links and junctions expanded.
-// On windows, make sure the path starts with a lettered drive.
-// |path| must reference a file.  Function will fail if |path| points to
-// a directory or to a nonexistent path.  On windows, this function will
-// fail if |real_path| would be longer than MAX_PATH characters.
+// On Windows, the function ensures that the resulting |real_path| starts with a
+// drive letter.
+//
+// The |path| parameter can reference either a file or a directory. The function
+// will fail if |path| points to a nonexistent path or to a volume that isn't
+// mapped to a drive letter on Windows.
+//
+// In addition, on Windows this function will fail if the resulting |real_path|
+// would exceed 'MAX_PATH' characters in length.
 BASE_EXPORT bool NormalizeFilePath(const FilePath& path, FilePath* real_path);
 
 #if BUILDFLAG(IS_WIN)
@@ -570,31 +568,23 @@ BASE_EXPORT std::optional<uint64_t> ReadFile(const FilePath& filename,
 // TODO(crbug.com/40284755): Migrate callers to the span variant.
 BASE_EXPORT int ReadFile(const FilePath& filename, char* data, int max_size);
 
-// Writes the given buffer into the file, overwriting any data that was
-// previously there.  Returns the number of bytes written, or -1 on error.
-// If file doesn't exist, it gets created with read/write permissions for all.
-// Note that the other variants of WriteFile() below may be easier to use.
-// TODO(crbug.com/40284755): Migrate callers to the span variant.
-BASE_EXPORT int WriteFile(const FilePath& filename, const char* data,
-                          int size);
-
 // Writes |data| into the file, overwriting any data that was previously there.
 // Returns true if and only if all of |data| was written. If the file does not
 // exist, it gets created with read/write permissions for all.
 BASE_EXPORT bool WriteFile(const FilePath& filename, span<const uint8_t> data);
 
-// Another WriteFile() variant that takes a StringPiece so callers don't have to
-// do manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool WriteFile(const FilePath& filename, StringPiece data);
+// Another WriteFile() variant that takes a std::string_view so callers don't
+// have to do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool WriteFile(const FilePath& filename, std::string_view data);
 
 #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 // Appends |data| to |fd|. Does not close |fd| when done.  Returns true iff all
 // of |data| were written to |fd|.
 BASE_EXPORT bool WriteFileDescriptor(int fd, span<const uint8_t> data);
 
-// WriteFileDescriptor() variant that takes a StringPiece so callers don't have
-// to do manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool WriteFileDescriptor(int fd, StringPiece data);
+// WriteFileDescriptor() variant that takes a std::string_view so callers don't
+// have to do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool WriteFileDescriptor(int fd, std::string_view data);
 
 // Allocates disk space for the file referred to by |fd| for the byte range
 // starting at |offset| and continuing for |size| bytes. The file size will be
@@ -610,9 +600,9 @@ BASE_EXPORT bool AllocateFileRegion(File* file, int64_t offset, size_t size);
 BASE_EXPORT bool AppendToFile(const FilePath& filename,
                               span<const uint8_t> data);
 
-// AppendToFile() variant that takes a StringPiece so callers don't have to do
-// manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool AppendToFile(const FilePath& filename, StringPiece data);
+// AppendToFile() variant that takes a std::string_view so callers don't have to
+// do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool AppendToFile(const FilePath& filename, std::string_view data);
 
 // Gets the current working directory for the process.
 BASE_EXPORT bool GetCurrentDirectory(FilePath* path);
@@ -633,8 +623,9 @@ BASE_EXPORT FilePath GetUniquePath(const FilePath& path);
 // suffix printf format string in cases where the default format doesn't work
 // (for example because you need a filename without spaces in it). Passing
 // " (%d)" as `suffix_format` makes this behave identical to `GetUniquePath()`.
-BASE_EXPORT FilePath GetUniquePathWithSuffixFormat(const FilePath& path,
-                                                   cstring_view suffix_format);
+BASE_EXPORT FilePath
+GetUniquePathWithSuffixFormat(const FilePath& path,
+                              base::cstring_view suffix_format);
 
 // Sets the given |fd| to non-blocking mode.
 // Returns true if it was able to set it in the non-blocking mode, otherwise
@@ -686,7 +677,7 @@ BASE_EXPORT bool CreatePipe(ScopedFD* read_fd,
 // This creates a non-blocking pipe that is not intended to be shared with any
 // child process. This will be done atomically if the operating system supports
 // it. Returns true if it was able to create the pipe, otherwise false.
-BASE_EXPORT bool CreateLocalNonBlockingPipe(int fds[2]);
+BASE_EXPORT bool CreateLocalNonBlockingPipe(span<int, 2u> fds);
 
 // Sets the given |fd| to close-on-exec mode.
 // Returns true if it was able to set it in the close-on-exec mode, otherwise
@@ -745,8 +736,7 @@ namespace internal {
 
 // Same as Move but allows paths with traversal components.
 // Use only with extreme care.
-BASE_EXPORT bool MoveUnsafe(const FilePath& from_path,
-                            const FilePath& to_path);
+BASE_EXPORT bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path);
 
 #if BUILDFLAG(IS_WIN)
 // Copy from_path to to_path recursively and then delete from_path recursively.

@@ -34,19 +34,17 @@ constexpr base::TimeDelta kDelayToDismissToast = base::Seconds(6);
 
 std::u16string GetCaptureToastTextOnToastType(
     CaptureToastType capture_toast_type) {
-  const int nudge_message_id =
-      IDS_ASH_SCREEN_CAPTURE_SHOW_DEMO_TOOLS_USER_NUDGE;
-
-  const int message_id =
-      capture_toast_type == CaptureToastType::kCameraPreview
-          ? IDS_ASH_SCREEN_CAPTURE_SURFACE_TOO_SMALL_USER_NUDGE
-          : nudge_message_id;
-  return l10n_util::GetStringUTF16(message_id);
+  return capture_toast_type == CaptureToastType::kCameraPreview
+             ? l10n_util::GetStringUTF16(
+                   IDS_ASH_SCREEN_CAPTURE_SURFACE_TOO_SMALL_USER_NUDGE)
+             : l10n_util::GetStringUTF16(IDS_ASH_SUNFISH_EDUCATE_TOAST_MESSAGE);
 }
 
 // Returns the init params that will be used for the toast widget.
 views::Widget::InitParams CreateWidgetParams(aura::Window* parent) {
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   params.parent = parent;
   params.name = "CaptureModeToastWidget";

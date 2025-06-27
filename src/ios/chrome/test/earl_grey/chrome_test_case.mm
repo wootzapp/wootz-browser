@@ -16,8 +16,8 @@
 #import "base/strings/string_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/policy/model/policy_earl_grey_utils.h"
-#import "ios/chrome/browser/ui/ntp/new_tab_page_feature.h"
 #import "ios/chrome/browser/web/model/features.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
@@ -64,9 +64,8 @@ NSArray* multitaskingTests() {
     @"testSignInPopUpAccountOnSyncSettings",   // AccountCollectionsTestCase
     @"testAutofillProfileEditing",             // AutofillSettingsTestCase
     @"testAccessibilityOfBlockPopupSettings",  // BlockPopupsTestCase
-    // TODO(crbug.com/40282512): Failing on ios-simulator-full-configs.
-    // @"testClearCookies",                       // SettingsTestCase
-    @"testAccessibilityOfTranslateSettings",  // TranslateUITestCase
+    @"testClearCookies",                       // SettingsTestCase
+    @"testAccessibilityOfTranslateSettings",   // TranslateUITestCase
 
     // UI tests
     @"testActivityServiceControllerPrintAfterRedirectionToUnprintablePage",
@@ -224,18 +223,28 @@ void ResetAuthentication() {
   ResetAuthentication();
 
   // Reset any remaining sign-in state from previous tests.
-  [ChromeEarlGrey signOutAndClearIdentities];
-  if (![ChromeTestCase isStartupTest]) {
-    [ChromeEarlGrey openNewTab];
+  if (![ChromeTestCase forceRestartAndWipe]) {
+    [ChromeEarlGrey killWebKitNetworkProcess];
+    [ChromeEarlGrey signOutAndClearIdentities];
+    if (![ChromeTestCase isStartupTest]) {
+      [ChromeEarlGrey openNewTab];
+    }
   }
   _executedTestMethodSetUp = YES;
 
   [ChromeTestCaseAppInterface blockSigninIPH];
 }
 
+- (void)tearDownHelper {
+}
+
 // Tear down called once per test, to close all tabs and menus, and clear the
 // tracked tests accounts. It also makes sure mock authentication is running.
 - (void)tearDown {
+  if (![ChromeTestCase forceRestartAndWipe]) {
+    [self tearDownHelper];
+  }
+
   const bool appShouldBeRunning = !IsAppInAllowedCrashState();
 
   if (appShouldBeRunning) {
@@ -250,12 +259,13 @@ void ResetAuthentication() {
     _tearDownHandler();
   }
 
-  if (appShouldBeRunning) {
+  if (![ChromeTestCase forceRestartAndWipe] && appShouldBeRunning) {
     // EG syncs with WKWebView loading. Stops all loadings to prevent these from
     // failing rest of tearDown actions.
     [ChromeEarlGrey stopAllWebStatesLoading];
 
     // Clear any remaining test accounts and signed in users.
+    [ChromeEarlGrey killWebKitNetworkProcess];
     [ChromeEarlGrey signOutAndClearIdentities];
 
     [[self class] enableMockAuthentication];
@@ -280,8 +290,8 @@ void ResetAuthentication() {
     // attempt to run in other orientations.
     [EarlGrey rotateDeviceToOrientation:_originalOrientation error:nil];
   }
-  [super tearDown];
   _executedTestMethodSetUp = NO;
+  [super tearDown];
 }
 
 #pragma mark - Public methods
@@ -430,7 +440,8 @@ void ResetAuthentication() {
 
   // Sometimes on start up there can be infobars (e.g. restore session), so
   // ensure the UI is in a clean state.
-  if (![ChromeTestCase isStartupTest]) {
+  if (![ChromeTestCase isStartupTest] &&
+      ![ChromeTestCase forceRestartAndWipe]) {
     [[self class] removeAnyOpenMenusAndInfoBars];
     [self closeAllTabs];
   }
@@ -499,10 +510,12 @@ void ResetAuthentication() {
 
       ResetAuthentication();
 
-      // Reset any remaining sign-in state from previous tests.
-      [ChromeEarlGrey signOutAndClearIdentities];
-      if (![ChromeTestCase isStartupTest]) {
-        [ChromeEarlGrey openNewTab];
+      if (![ChromeTestCase forceRestartAndWipe]) {
+        // Reset any remaining sign-in state from previous tests.
+        [ChromeEarlGrey signOutAndClearIdentities];
+        if (![ChromeTestCase isStartupTest]) {
+          [ChromeEarlGrey openNewTab];
+        }
       }
     }
   }

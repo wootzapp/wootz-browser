@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,15 +23,16 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
+#include "build/branding_buildflags.h"
 #include "components/component_updater/component_updater_service_internal.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/update_client/crx_update_item.h"
 #include "components/update_client/test_configurator.h"
 #include "components/update_client/test_installer.h"
 #include "components/update_client/update_client.h"
 #include "components/update_client/update_client_errors.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "components/update_client/crx_update_item.h"
 
 using Configurator = update_client::Configurator;
 using Result = update_client::CrxInstaller::Result;
@@ -56,8 +58,8 @@ class MockInstaller : public update_client::CrxInstaller {
                     std::unique_ptr<InstallParams> install_params,
                     ProgressCallback progress_callback,
                     Callback callback));
-  MOCK_METHOD2(GetInstalledFile,
-               bool(const std::string& file, base::FilePath* installed_file));
+  MOCK_METHOD1(GetInstalledFile,
+               std::optional<base::FilePath>(const std::string& file));
   MOCK_METHOD0(Uninstall, bool());
 
  private:
@@ -105,17 +107,14 @@ class MockUpdateClient : public UpdateClient {
 
 class MockServiceObserver : public ServiceObserver {
  public:
-  MockServiceObserver() = default;
-  ~MockServiceObserver() override = default;
-
-  MOCK_METHOD2(OnEvent, void(Events event, const std::string&));
+  MOCK_METHOD1(OnEvent, void(const update_client::CrxUpdateItem&));
 };
 
 class MockUpdateScheduler : public UpdateScheduler {
  public:
   MOCK_METHOD4(Schedule,
-               void(const base::TimeDelta& initial_delay,
-                    const base::TimeDelta& delay,
+               void(base::TimeDelta initial_delay,
+                    base::TimeDelta delay,
                     const UserTask& user_task,
                     const OnStopTaskCallback& on_stop));
   MOCK_METHOD0(Stop, void());
@@ -179,8 +178,8 @@ class ComponentUpdaterTest : public testing::Test {
 
  private:
   void RunUpdateTask(const UpdateScheduler::UserTask& user_task);
-  void Schedule(const base::TimeDelta& initial_delay,
-                const base::TimeDelta& delay,
+  void Schedule(base::TimeDelta initial_delay,
+                base::TimeDelta delay,
                 const UpdateScheduler::UserTask& user_task,
                 const UpdateScheduler::OnStopTaskCallback& on_stop);
 
@@ -268,8 +267,8 @@ void ComponentUpdaterTest::RunUpdateTask(
 }
 
 void ComponentUpdaterTest::Schedule(
-    const base::TimeDelta& initial_delay,
-    const base::TimeDelta& delay,
+    base::TimeDelta initial_delay,
+    base::TimeDelta delay,
     const UpdateScheduler::UserTask& user_task,
     const UpdateScheduler::OnStopTaskCallback& on_stop) {
   RunUpdateTask(user_task);
@@ -498,7 +497,12 @@ TEST_F(ComponentUpdaterTest, ComponentDetails) {
   EXPECT_EQ(registered.version, version);
   EXPECT_EQ(registered.name, name);
 
+#if BUILDFLAG(CHROME_FOR_TESTING)
+  // In Chrome for Testing component updates are disabled.
+  EXPECT_FALSE(registered.updates_enabled);
+#else
   EXPECT_TRUE(registered.updates_enabled);
+#endif  // BUILDFLAG(CHROME_FOR_TESTING)
 }
 
 TEST_F(ComponentUpdaterTest, UpdatesDisabled) {

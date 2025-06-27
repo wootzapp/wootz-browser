@@ -12,8 +12,6 @@
 
 namespace blink {
 
-class DOMException;
-
 class MockMediaStreamVideoSource : public blink::MediaStreamVideoSource {
  public:
   MockMediaStreamVideoSource();
@@ -86,19 +84,6 @@ class MockMediaStreamVideoSource : public blink::MediaStreamVideoSource {
     DoSetMutedState(muted_state);
   }
 
-#if !BUILDFLAG(IS_ANDROID)
-  MOCK_METHOD(
-      void,
-      SendWheel,
-      (double, double, int, int, base::OnceCallback<void(DOMException*)>),
-      (override));
-
-  MOCK_METHOD(void,
-              SetZoomLevel,
-              (int, base::OnceCallback<void(DOMException*)>),
-              (override));
-#endif  // !BUILDFLAG(IS_ANDROID)
-
   void EnableStopForRestart() { can_stop_for_restart_ = true; }
   void DisableStopForRestart() { can_stop_for_restart_ = false; }
 
@@ -120,10 +105,7 @@ class MockMediaStreamVideoSource : public blink::MediaStreamVideoSource {
 
   // Implements blink::MediaStreamVideoSource.
   void StartSourceImpl(
-      VideoCaptureDeliverFrameCB frame_callback,
-      EncodedVideoFrameCB encoded_frame_callback,
-      VideoCaptureSubCaptureTargetVersionCB sub_capture_target_version_callback,
-      VideoCaptureNotifyFrameDroppedCB frame_dropped_callback) override;
+      MediaStreamVideoSourceCallbacks media_stream_callbacks) override;
   void StopSourceImpl() override;
   std::optional<media::VideoCaptureFormat> GetCurrentFormat() const override;
   void StopSourceForRestartImpl() override;

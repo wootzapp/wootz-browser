@@ -7,6 +7,7 @@
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/app_types_util.h"
 #include "ash/public/cpp/window_properties.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/icon_button.h"
@@ -46,7 +47,7 @@ bool ShouldEnableFeatures() {
 }
 
 views::Widget* GetNextWidgetToFocus(
-    const std::vector<views::Widget*> widget_list,
+    const std::vector<views::Widget*>& widget_list,
     const views::Widget* focused_widget,
     bool reverse) {
   if (auto it =
@@ -65,7 +66,8 @@ views::Widget* GetNextWidgetToFocus(
   return nullptr;
 }
 
-std::optional<ArcGameControlsFlag> GetGameControlsFlag(aura::Window* window) {
+std::optional<ArcGameControlsFlag> GetGameControlsFlag(
+    const aura::Window* window) {
   if (!IsArcWindow(window)) {
     return std::nullopt;
   }
@@ -187,8 +189,9 @@ void UpdateAccessibilityTree(const std::vector<views::Widget*>& widget_list) {
 
     view_a11y.SetPreviousFocus(widget_list[prev_index]);
     view_a11y.SetNextFocus(widget_list[next_index]);
-    contents_view->NotifyAccessibilityEvent(ax::mojom::Event::kTreeChanged,
-                                            /*send_native_event=*/true);
+    contents_view->NotifyAccessibilityEventDeprecated(
+        ax::mojom::Event::kTreeChanged,
+        /*send_native_event=*/true);
   }
 }
 

@@ -6,25 +6,18 @@
 
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/data_sharing_internals/data_sharing_internals_page_handler_impl.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/data_sharing_internals_resources.h"
-#include "chrome/grit/data_sharing_internals_resources_map.h"
+#include "components/data_sharing/data_sharing_internals/webui/data_sharing_internals_page_handler_impl.h"
+#include "components/grit/data_sharing_internals_resources.h"
+#include "components/grit/data_sharing_internals_resources_map.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "ui/webui/webui_util.h"
 
-DataSharingUIConfig::DataSharingUIConfig()
-    : WebUIConfig(content::kChromeUIScheme,
-                  chrome::kChromeUIDataSharingInternalsHost) {}
+DataSharingInternalsUIConfig::DataSharingInternalsUIConfig()
+    : DefaultInternalWebUIConfig(chrome::kChromeUIDataSharingInternalsHost) {}
 
-DataSharingUIConfig::~DataSharingUIConfig() = default;
-
-std::unique_ptr<content::WebUIController>
-DataSharingUIConfig::CreateWebUIController(content::WebUI* web_ui,
-                                                  const GURL& url) {
-  return std::make_unique<DataSharingInternalsUI>(web_ui);
-}
+DataSharingInternalsUIConfig::~DataSharingInternalsUIConfig() = default;
 
 DataSharingInternalsUI::DataSharingInternalsUI(content::WebUI* web_ui)
     : ui::MojoWebUIController(web_ui, /*enable_chrome_send=*/true) {
@@ -32,9 +25,7 @@ DataSharingInternalsUI::DataSharingInternalsUI(content::WebUI* web_ui)
       web_ui->GetWebContents()->GetBrowserContext(),
       chrome::kChromeUIDataSharingInternalsHost);
   webui::SetupWebUIDataSource(
-      source,
-      base::make_span(kDataSharingInternalsResources,
-                      kDataSharingInternalsResourcesSize),
+      source, kDataSharingInternalsResources,
       IDR_DATA_SHARING_INTERNALS_DATA_SHARING_INTERNALS_HTML);
 }
 

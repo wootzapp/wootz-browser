@@ -322,16 +322,12 @@
     },
     {
       "id": 68,
-      "description": "VMware Fusion 4 has corrupt rendering on Windows",
-      "cr_bugs": [169470],
+      "description": "Do not use GPU accelerated rendering with VMware on Windows",
+      "cr_bugs": [169470, 879098, 325159675],
       "os": {
         "type": "win"
       },
       "vendor_id": "0x15ad",
-      "driver_version": {
-        "op": "<=",
-        "value": "7.14.1.1134"
-      },
       "features": [
         "all"
       ]
@@ -580,7 +576,13 @@
           "os": {
             "type": "android"
           },
-          "gl_renderer": "ANGLE.*"
+          "gl_type": "angle_gles"
+        },
+        {
+          "os": {
+            "type": "android"
+          },
+          "gl_type": "angle_vulkan"
         }
       ],
       "features": [
@@ -1024,7 +1026,7 @@
         { "gl_vendor": "freedreno" },
         { "gl_renderer": "Mali-T8.*",
           "subpixel_font_rendering": "unsupported"},
-        { "gl_renderer": "Mali-G.*",
+        { "gl_renderer": ".*Mali-G.*",
           "subpixel_font_rendering": "unsupported"},
         { "gl_renderer": "PowerVR.*" },
         { "vendor_id": "0x1002" }
@@ -1148,23 +1150,6 @@
       "test_group": 2,
       "features": [
         "accelerated_webgl"
-      ]
-    },
-    {
-      "id": 157,
-      "description": "VMware can crash with older drivers and WebGL content",
-      "cr_bugs": [879098],
-      "os": {
-        "type": "win"
-      },
-      "vendor_id": "0x15ad",
-      "driver_version": {
-        "op": "<=",
-        "value": "7.14.1.1210"
-      },
-      "features": [
-        "accelerated_webgl",
-        "accelerated_webgl2"
       ]
     },
     {
@@ -1439,18 +1424,6 @@
       ]
     },
     {
-      "id": 180,
-      "cr_bugs": [325123735],
-      "description": "QC GPUs have driver bugs preventing WebNN from working correctly",
-      "os": {
-        "type": "win"
-      },
-      "vendor_id": "0x4d4f4351",
-      "features": [
-        "webnn"
-      ]
-    },
-    {
       "id": 181,
       "cr_bugs": [329702368],
       "description": "Corrupted browser/webpage rendering on Win10/Intel HD Graphics 4400",
@@ -1464,62 +1437,29 @@
       ]
     },
     {
-      "id": 182,
-      "cr_bugs": [332731568],
-      "description": "Accelerated video decoding fails with SkiaGraphite on win10+nvidia",
+      "id": 183,
+      "cr_bugs": [1227033],
+      "description": "Don't use the OOPR Canvas feature on Macs with NVIDIA GPUs",
       "os": {
-        "type": "win",
-        "version": {
-          "op": "<",
-          "value": "10.0.22621"
-        }
+        "type" : "macosx"
       },
       "vendor_id": "0x10de",
-      "driver_version": {
-        "op": "<",
-        "value": "31.0.15.3623"
-      },
       "features": [
-        "skia_graphite"
-      ]
-    },
-    {
-      "id": 183,
-      "cr_bugs": [335564846, 335640712],
-      "description": "Analytic clipping is not implemented in Graphite",
-      "os": {
-        "type": "win"
-      },
-      "vendor_id": "0x8086",
-      "intel_gpu_generation": {
-        "op": "<",
-        "value": "11"
-      },
-      "features": [
-        "skia_graphite"
+        "accelerated_2d_canvas"
       ]
     },
     {
       "id": 184,
-      "cr_bugs": [340005431],
-      "description": "Accelerated video decoding fails with SkiaGraphite + NVIDIA GTX 960",
+      "cr_bugs": [383521542],
+      "description": "Disable Graphite on very old Intel drivers",
       "os": {
         "type": "win"
       },
-      "vendor_id": "0x10de",
-      "device_id": ["0x1401"],
-      "features": [
-        "skia_graphite"
-      ]
-    },
-    {
-      "id": 185,
-      "cr_bugs": [340005431],
-      "description": "Accelerated video decoding fails with SkiaGraphite + Moore Threads GPUs",
-      "os": {
-        "type": "win"
+      "vendor_id": "0x8086",
+      "driver_version": {
+        "op": "<=",
+        "value": "10.18.10.5161"
       },
-      "vendor_id": "0x1ed5",
       "features": [
         "skia_graphite"
       ]

@@ -6,6 +6,8 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "base/base_jni/LocaleUtils_jni.h"
 
 namespace base {
@@ -13,21 +15,17 @@ namespace android {
 
 std::string GetDefaultCountryCode() {
   JNIEnv* env = base::android::AttachCurrentThread();
-  return ConvertJavaStringToUTF8(Java_LocaleUtils_getDefaultCountryCode(env));
+  return Java_LocaleUtils_getDefaultCountryCode(env);
 }
 
 std::string GetDefaultLocaleString() {
   JNIEnv* env = base::android::AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> locale =
-      Java_LocaleUtils_getDefaultLocaleString(env);
-  return ConvertJavaStringToUTF8(locale);
+  return Java_LocaleUtils_getDefaultLocaleString(env);
 }
 
 std::string GetDefaultLocaleListString() {
   JNIEnv* env = base::android::AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> locales =
-      Java_LocaleUtils_getDefaultLocaleListString(env);
-  return ConvertJavaStringToUTF8(locales);
+  return Java_LocaleUtils_getDefaultLocaleListString(env);
 }
 
 }  // namespace android

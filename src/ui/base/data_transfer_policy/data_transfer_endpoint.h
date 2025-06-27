@@ -7,6 +7,7 @@
 
 #include <optional>
 
+#include "base/component_export.h"
 #include "build/build_config.h"
 #include "url/gurl.h"
 
@@ -27,8 +28,13 @@ enum class EndpointType {
   kBorealis = 5,   // Borealis OS.
   kCrostini = 6,   // Crostini.
   kPluginVm = 7,   // Plugin VM App.
-  kLacros = 8,     // Lacros browser.
 #endif             // BUILDFLAG(IS_CHROMEOS)
+};
+
+struct COMPONENT_EXPORT(UI_BASE_DATA_TRANSFER_POLICY)
+    DataTransferEndpointOptions {
+  bool notify_if_restricted = true;
+  bool off_the_record = false;
 };
 
 // DataTransferEndpoint represents:
@@ -44,12 +50,13 @@ class COMPONENT_EXPORT(UI_BASE_DATA_TRANSFER_POLICY) DataTransferEndpoint {
  public:
   // In case DataTransferEndpoint is constructed from a RenderFrameHost object,
   // please use the url of its main frame.
-  explicit DataTransferEndpoint(const GURL& url,
-                                bool off_the_record = false,
-                                bool notify_if_restricted = true);
+  explicit DataTransferEndpoint(
+      const GURL& url,
+      DataTransferEndpointOptions options = DataTransferEndpointOptions());
   // This constructor shouldn't be used if |type| == EndpointType::kUrl.
-  explicit DataTransferEndpoint(EndpointType type,
-                                bool notify_if_restricted = true);
+  explicit DataTransferEndpoint(
+      EndpointType type,
+      DataTransferEndpointOptions options = DataTransferEndpointOptions());
 
   DataTransferEndpoint(const DataTransferEndpoint& other);
   DataTransferEndpoint(DataTransferEndpoint&& other);

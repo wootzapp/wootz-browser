@@ -53,6 +53,7 @@ class OSDevToolsAgent : public blink::mojom::DevToolsAgent,
           session_receiver,
       mojo::PendingReceiver<blink::mojom::DevToolsSession> io_session_receiver,
       blink::mojom::DevToolsSessionStatePtr reattach_session_state,
+      const std::string& script_to_evaluate_on_load,
       bool client_expects_binary_responses,
       bool client_is_trusted,
       const std::string& session_id,
@@ -94,4 +95,4 @@ class OSDevToolsAgent : public blink::mojom::DevToolsAgent,
 };
 
 }  // namespace ax
-#endif
+#endif  // SERVICES_ACCESSIBILITY_FEATURES_DEVTOOLS_OS_DEVTOOLS_AGENT_H_

@@ -4,10 +4,14 @@
 
 #include "ash/shelf/desk_button_widget.h"
 
-#include "ash/focus_cycler.h"
+#include <algorithm>
+
+#include "ash/accessibility/ui/accessibility_focusable_widget_delegate.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/public/cpp/shelf_prefs.h"
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/screen_util.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shelf/scrollable_shelf_view.h"
 #include "ash/shelf/shelf_focus_cycler.h"
 #include "ash/shelf/shelf_layout_manager.h"
@@ -17,7 +21,6 @@
 #include "ash/wm/desks/desks_constants.h"
 #include "ash/wm/overview/overview_controller.h"
 #include "base/i18n/rtl.h"
-#include "base/ranges/algorithm.h"
 #include "ui/aura/window_targeter.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/geometry/point.h"
@@ -81,11 +84,10 @@ class DeskButtonWindowTargeter : public aura::WindowTargeter {
   const raw_ptr<DeskButtonWidget> desk_button_widget_;
 };
 
-DeskButtonWidget::DelegateView::DelegateView() = default;
-DeskButtonWidget::DelegateView::~DelegateView() = default;
+DeskButtonWidgetDelegateView::DeskButtonWidgetDelegateView() = default;
+DeskButtonWidgetDelegateView::~DeskButtonWidgetDelegateView() = default;
 
-void DeskButtonWidget::DelegateView::Init(
-    DeskButtonWidget* desk_button_widget) {
+void DeskButtonWidgetDelegateView::Init(DeskButtonWidget* desk_button_widget) {
   CHECK(desk_button_widget);
   desk_button_widget_ = desk_button_widget;
   SetPaintToLayer(ui::LAYER_NOT_DRAWN);
@@ -96,13 +98,7 @@ void DeskButtonWidget::DelegateView::Init(
   AddAccelerator(ui::Accelerator(ui::VKEY_ESCAPE, ui::EF_NONE));
 }
 
-bool DeskButtonWidget::DelegateView::CanActivate() const {
-  // We don't want mouse clicks to activate us, but we need to allow
-  // activation when the user is using the keyboard (FocusCycler).
-  return Shell::Get()->focus_cycler()->widget_activating() == GetWidget();
-}
-
-void DeskButtonWidget::DelegateView::Layout(PassKey) {
+void DeskButtonWidgetDelegateView::Layout(PassKey) {
   if (!desk_button_widget_ || !desk_button_container_) {
     return;
   }
@@ -132,7 +128,7 @@ void DeskButtonWidget::DelegateView::Layout(PassKey) {
   desk_button_container_->SetBoundsRect({container_origin, container_size});
 }
 
-bool DeskButtonWidget::DelegateView::AcceleratorPressed(
+bool DeskButtonWidgetDelegateView::AcceleratorPressed(
     const ui::Accelerator& accelerator) {
   CHECK_EQ(accelerator.key_code(), ui::VKEY_ESCAPE);
   GetWidget()->Deactivate();
@@ -278,12 +274,12 @@ void DeskButtonWidget::HandleLocaleChange() {
 
 void DeskButtonWidget::Initialize(aura::Window* container) {
   CHECK(container);
-  delegate_view_ = new DelegateView();
+  delegate_view_ = new AccessibilityFocusable<DeskButtonWidgetDelegateView>();
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.name = "DeskButtonWidget";
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.delegate = delegate_view_;
   params.parent = container;
   params.layer_type = ui::LAYER_NOT_DRAWN;
@@ -343,12 +339,12 @@ void DeskButtonWidget::MaybeFocusOut(bool reverse) {
   // The desk button will still be drawn in LTR, with the previous desk button
   // on the left, when in RTL mode.
   if (base::i18n::IsRTL()) {
-    base::ranges::reverse(views);
+    std::ranges::reverse(views);
   }
 
   views::View* focused_view = GetFocusManager()->GetFocusedView();
   const int count = views.size();
-  int focused = base::ranges::find(views, focused_view) - std::begin(views);
+  int focused = std::ranges::find(views, focused_view) - std::begin(views);
   if (focused == count) {
     GetFocusManager()
         ->GetNextFocusableView(nullptr, nullptr, !reverse, false)
@@ -362,6 +358,10 @@ void DeskButtonWidget::MaybeFocusOut(bool reverse) {
     return;
   }
   views[next]->RequestFocus();
+}
+
+void DeskButtonWidget::InitializeAccessibleProperties() {
+  delegate_view()->desk_button_container()->InitializeAccessibleProperties();
 }
 
 bool DeskButtonWidget::OnNativeWidgetActivationChanged(bool active) {

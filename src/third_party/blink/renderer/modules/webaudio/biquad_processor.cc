@@ -139,14 +139,24 @@ void BiquadProcessor::Process(const AudioBus* source,
 }
 
 void BiquadProcessor::ProcessOnlyAudioParams(uint32_t frames_to_process) {
-  DCHECK_LE(frames_to_process, RenderQuantumFrames());
+  // TODO(crbug.com/40637820): Eventually, the render quantum size will no
+  // longer be hardcoded as 128. At that point, we'll need to switch from
+  // stack allocation to heap allocation.
+  constexpr unsigned render_quantum_frames_expected = 128;
+  CHECK_EQ(RenderQuantumFrames(), render_quantum_frames_expected);
 
-  float values[RenderQuantumFrames()];
+  DCHECK_LE(frames_to_process, render_quantum_frames_expected);
 
-  parameter1_->CalculateSampleAccurateValues(values, frames_to_process);
-  parameter2_->CalculateSampleAccurateValues(values, frames_to_process);
-  parameter3_->CalculateSampleAccurateValues(values, frames_to_process);
-  parameter4_->CalculateSampleAccurateValues(values, frames_to_process);
+  float values[render_quantum_frames_expected];
+
+  parameter1_->CalculateSampleAccurateValues(
+      base::span(values).first(frames_to_process));
+  parameter2_->CalculateSampleAccurateValues(
+      base::span(values).first(frames_to_process));
+  parameter3_->CalculateSampleAccurateValues(
+      base::span(values).first(frames_to_process));
+  parameter4_->CalculateSampleAccurateValues(
+      base::span(values).first(frames_to_process));
 }
 
 void BiquadProcessor::Reset() {

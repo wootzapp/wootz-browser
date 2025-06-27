@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/webrtc/audio_processor.h"
 
 #include <stddef.h>
@@ -66,21 +71,17 @@ void ReadDataFromSpeechFile(char* data, int length) {
              .Append(FILE_PATH_LITERAL("data"))
              .Append(FILE_PATH_LITERAL("speech_16b_stereo_48kHz.raw"));
   DCHECK(base::PathExists(file));
-  int64_t data_file_size64 = 0;
-  DCHECK(base::GetFileSize(file, &data_file_size64));
+  std::optional<int64_t> data_file_size64 = base::GetFileSize(file);
+  DCHECK(data_file_size64.has_value());
   EXPECT_EQ(length, base::ReadFile(file, data, length));
-  DCHECK(data_file_size64 > length);
+  DCHECK(data_file_size64.value() > length);
 }
 
 void DisableDefaultSettings(AudioProcessingSettings& settings) {
   settings.echo_cancellation = false;
   settings.noise_suppression = false;
-  settings.transient_noise_suppression = false;
   settings.automatic_gain_control = false;
-  settings.high_pass_filter = false;
   settings.multi_channel_capture_processing = false;
-  settings.stereo_mirroring = false;
-  settings.force_apm_creation = false;
 }
 
 }  // namespace
@@ -139,7 +140,7 @@ class AudioProcessorTest : public ::testing::Test {
             EXPECT_EQ(audio_capture_time, input_capture_time);
           });
       audio_processor.ProcessCapturedAudio(*data_bus, input_capture_time,
-                                           num_preferred_channels, 1.0, false);
+                                           num_preferred_channels, 1.0);
 
       data_ptr += input_params.frames_per_buffer() * input_params.channels();
 
@@ -157,7 +158,6 @@ class AudioProcessorTest : public ::testing::Test {
     const webrtc::AudioProcessing::Config config =
         *audio_processor.GetAudioProcessingModuleConfigForTesting();
 
-    EXPECT_TRUE(config.high_pass_filter.enabled);
     EXPECT_FALSE(config.pre_amplifier.enabled);
     EXPECT_TRUE(config.echo_canceller.enabled);
 
@@ -180,13 +180,6 @@ class AudioProcessorTest : public ::testing::Test {
     EXPECT_TRUE(config.noise_suppression.enabled);
     EXPECT_EQ(config.noise_suppression.level,
               webrtc::AudioProcessing::Config::NoiseSuppression::kHigh);
-
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-    // Android and iOS use echo cancellation optimized for mobiles.
-    EXPECT_TRUE(config.echo_canceller.mobile_mode);
-#else
-    EXPECT_FALSE(config.echo_canceller.mobile_mode);
-#endif
   }
 
   media::AudioParameters params_;
@@ -381,15 +374,12 @@ TEST_P(AudioProcessorTestMultichannelAndFormat, TestStereoAudio) {
       // Turn off the audio processing.
       DisableDefaultSettings(settings);
     }
-    // Turn on the stereo channels mirroring.
-    settings.stereo_mirroring = true;
     std::unique_ptr<AudioProcessor> audio_processor = AudioProcessor::Create(
         mock_capture_callback_.Get(), LogCallbackForTesting(), settings,
         params_, GetProcessorOutputParams(params_, settings));
     EXPECT_EQ(audio_processor->has_webrtc_audio_processing(), use_apm);
     // There's no sense in continuing if this fails.
     ASSERT_EQ(2, audio_processor->output_format().channels());
-
     // Run the test consecutively to make sure the stereo channels are not
     // flipped back and forth.
     const base::TimeTicks pushed_capture_time = base::TimeTicks::Now();
@@ -402,8 +392,8 @@ TEST_P(AudioProcessorTestMultichannelAndFormat, TestStereoAudio) {
         SCOPED_TRACE(testing::Message() << "packet index i=" << i);
         EXPECT_CALL(mock_capture_callback_, Run(_, _, _)).Times(1);
         // Pass audio for processing.
-        audio_processor->ProcessCapturedAudio(
-            *data_bus, pushed_capture_time, num_preferred_channels, 0.0, false);
+        audio_processor->ProcessCapturedAudio(*data_bus, pushed_capture_time,
+                                              num_preferred_channels, 0.0);
       }
       // At this point, the audio processing algorithms have gotten past any
       // initial buffer silence generated from resamplers, FFTs, and whatnot.
@@ -430,15 +420,13 @@ TEST_P(AudioProcessorTestMultichannelAndFormat, TestStereoAudio) {
               EXPECT_NE(right_channel_energy, 0);
             } else {
               // Stereo output. Output channels are independent.
-              // Note that after stereo mirroring, the _right_ channel is
-              // non-zero.
-              EXPECT_EQ(left_channel_energy, 0);
-              EXPECT_NE(right_channel_energy, 0);
+              EXPECT_NE(left_channel_energy, 0);
+              EXPECT_EQ(right_channel_energy, 0);
             }
           });
       // Process one more frame of audio.
       audio_processor->ProcessCapturedAudio(*data_bus, pushed_capture_time,
-                                            num_preferred_channels, 0.0, false);
+                                            num_preferred_channels, 0.0);
     }
   }
 }
@@ -477,9 +465,9 @@ TEST_P(AudioProcessorDefaultOutputFormatTest, GetDefaultOutputFormat) {
   // https://crrev.com/c/3621456/comments/2e73cc96_0e9773cd for details.
   const int expected_sample_rate =
 #if BUILDFLAG(IS_CASTOS) || BUILDFLAG(IS_CAST_ANDROID)
-      std::min(sample_rate, media::kAudioProcessingSampleRateHz);
+      std::min(sample_rate, media::WebRtcAudioProcessingSampleRateHz());
 #else
-      media::kAudioProcessingSampleRateHz;
+      media::WebRtcAudioProcessingSampleRateHz();
 #endif
   const int expected_output_channels =
       settings.multi_channel_capture_processing ? input_params.channels() : 1;
@@ -510,16 +498,15 @@ class AudioProcessorPlayoutTest : public AudioProcessorTest {
  protected:
   AudioProcessorPlayoutTest()
       : mock_webrtc_apm_(
-            rtc::make_ref_counted<webrtc::test::MockAudioProcessing>()),
+            webrtc::make_ref_counted<webrtc::test::MockAudioProcessing>()),
         audio_processor_(mock_capture_callback_.Get(),
                          LogCallbackForTesting(),
                          params_,
                          params_,
                          mock_webrtc_apm_,
-                         /*stereo_mirroring=*/false,
                          /*needs_playout_reference=*/true) {}
 
-  rtc::scoped_refptr<webrtc::test::MockAudioProcessing> mock_webrtc_apm_;
+  webrtc::scoped_refptr<webrtc::test::MockAudioProcessing> mock_webrtc_apm_;
   AudioProcessor audio_processor_;
 };
 
@@ -611,27 +598,27 @@ TEST(AudioProcessorCallbackTest,
   // 4 ms of data: Not enough to process.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _)).Times(0);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 8 ms of data: Not enough to process.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _)).Times(0);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 12 ms of data: Should trigger callback, with 2 ms left in the processor.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _))
       .Times(1)
       .WillOnce(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 2 + 4 ms of data: Not enough to process.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _)).Times(0);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 10 ms of data: Should trigger callback.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _))
       .Times(1)
       .WillOnce(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
 }
 
 // When audio processing is performed, input containing 10 ms several times over
@@ -663,13 +650,13 @@ TEST(AudioProcessorCallbackTest,
       .Times(3)
       .WillRepeatedly(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 5 + 35 ms of audio --> 4 chunks of 10 ms.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _))
       .Times(4)
       .WillRepeatedly(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
 }
 
 // When no audio processing is performed, audio is delivered immediately. Note
@@ -702,12 +689,12 @@ TEST(AudioProcessorCallbackTest,
       .Times(1)
       .WillOnce(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   EXPECT_CALL(mock_capture_callback, Run(_, _, _))
       .Times(1)
       .WillOnce(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
 }
 
 // When no audio processing is performed, audio is delivered immediately. Chunks
@@ -740,13 +727,13 @@ TEST(AudioProcessorCallbackTest,
       .Times(3)
       .WillRepeatedly(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
   // 5 + 35 ms of audio --> 4 chunks of 10 ms.
   EXPECT_CALL(mock_capture_callback, Run(_, _, _))
       .Times(4)
       .WillRepeatedly(check_audio_length);
   audio_processor->ProcessCapturedAudio(*data_bus, base::TimeTicks::Now(), -1,
-                                        1.0, false);
+                                        1.0);
 }
 
 class ApmTellsIfPlayoutReferenceIsNeededParametrizedTest

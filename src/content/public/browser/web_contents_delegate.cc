@@ -20,9 +20,11 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/bindings_policy.h"
+#include "content/public/common/content_features.h"
 #include "content/public/common/url_constants.h"
 #include "third_party/blink/public/common/security/protocol_handler_security_level.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -40,6 +42,17 @@ WebContents* WebContentsDelegate::OpenURLFromTab(
 bool WebContentsDelegate::ShouldAllowRendererInitiatedCrossProcessNavigation(
     bool is_outermost_main_frame_navigation) {
   return true;
+}
+
+WebContents* WebContentsDelegate::AddNewContents(
+    WebContents* source,
+    std::unique_ptr<WebContents> new_contents,
+    const GURL& target_url,
+    WindowOpenDisposition disposition,
+    const blink::mojom::WindowFeatures& window_features,
+    bool user_gesture,
+    bool* was_blocked) {
+  return nullptr;
 }
 
 bool WebContentsDelegate::CanOverscrollContent() {
@@ -96,15 +109,21 @@ bool WebContentsDelegate::HandleContextMenu(RenderFrameHost& render_frame_host,
   return false;
 }
 
+bool WebContentsDelegate::PreHandleMouseEvent(
+    WebContents* source,
+    const blink::WebMouseEvent& event) {
+  return false;
+}
+
 KeyboardEventProcessingResult WebContentsDelegate::PreHandleKeyboardEvent(
     WebContents* source,
-    const NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   return KeyboardEventProcessingResult::NOT_HANDLED;
 }
 
 bool WebContentsDelegate::HandleKeyboardEvent(
     WebContents* source,
-    const NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   return false;
 }
 
@@ -167,8 +186,8 @@ bool WebContentsDelegate::GetCanResize() {
   return false;
 }
 
-ui::WindowShowState WebContentsDelegate::GetWindowShowState() const {
-  return ui::SHOW_STATE_DEFAULT;
+ui::mojom::WindowShowState WebContentsDelegate::GetWindowShowState() const {
+  return ui::mojom::WindowShowState::kDefault;
 }
 
 bool WebContentsDelegate::IsFullscreenForTabOrPending(
@@ -240,6 +259,12 @@ void WebContentsDelegate::RunFileChooser(
   listener->FileSelectionCanceled();
 }
 
+#if BUILDFLAG(IS_ANDROID)
+bool WebContentsDelegate::UseFileChooserForFileSystemAccess() const {
+  return false;
+}
+#endif
+
 void WebContentsDelegate::EnumerateDirectory(
     WebContents* web_contents,
     scoped_refptr<FileSelectListener> listener,
@@ -256,6 +281,15 @@ void WebContentsDelegate::RequestMediaAccessPermission(
   std::move(callback).Run(blink::mojom::StreamDevicesSet(),
                           blink::mojom::MediaStreamRequestResult::NOT_SUPPORTED,
                           std::unique_ptr<MediaStreamUI>());
+}
+
+void WebContentsDelegate::ProcessSelectAudioOutput(
+    const SelectAudioOutputRequest& request,
+    SelectAudioOutputCallback callback) {
+  LOG(ERROR) << "WebContentsDelegate::ProcessSelectAudioOutput: "
+             << "Not supported.";
+  std::move(callback).Run(
+      base::unexpected(content::SelectAudioOutputError::kNotSupported));
 }
 
 bool WebContentsDelegate::CheckMediaAccessPermission(
@@ -370,13 +404,21 @@ bool WebContentsDelegate::ShouldAllowLazyLoad() {
   return true;
 }
 
-bool WebContentsDelegate::IsBackForwardCacheSupported() {
+bool WebContentsDelegate::IsBackForwardCacheSupported(
+    WebContents& web_contents) {
   return false;
 }
 
 PreloadingEligibility WebContentsDelegate::IsPrerender2Supported(
-    WebContents& web_contents) {
+    WebContents& web_contents,
+    PreloadingTriggerType trigger_type) {
   return PreloadingEligibility::kPreloadingUnsupportedByWebContents;
+}
+
+int WebContentsDelegate::AllowedPrerenderingCount(WebContents& web_contents) {
+  return base::GetFieldTrialParamByFeatureAsInt(
+      features::kPrerender2NewLimitAndScheduler,
+      "max_num_of_running_embedder_prerenders", 2);
 }
 
 NavigationController::UserAgentOverrideOption
@@ -387,13 +429,6 @@ WebContentsDelegate::ShouldOverrideUserAgentForPrerender2() {
 bool WebContentsDelegate::ShouldAllowPartialParamMismatchOfPrerender2(
     NavigationHandle& navigation_handle) {
   return false;
-}
-
-void WebContentsDelegate::UpdateInspectedWebContentsIfNecessary(
-    WebContents* old_contents,
-    WebContents* new_contents,
-    base::OnceCallback<void()> callback) {
-  std::move(callback).Run();
 }
 
 bool WebContentsDelegate::ShouldShowStaleContentOnEviction(
@@ -419,6 +454,32 @@ bool WebContentsDelegate::ShouldUseInstancedSystemMediaControls() const {
 bool WebContentsDelegate::MaybeCopyContentAreaAsBitmap(
     base::OnceCallback<void(const SkBitmap&)> callback) {
   return false;
+}
+
+bool WebContentsDelegate::IsWaitingForPointerLockPrompt(
+    WebContents* web_contents) {
+  return false;
+}
+
+#if BUILDFLAG(IS_ANDROID)
+SkBitmap WebContentsDelegate::MaybeCopyContentAreaAsBitmapSync() {
+  return SkBitmap();
+}
+
+SkBitmap
+WebContentsDelegate::GetBackForwardTransitionFallbackUXInternalPageIcon() {
+  return SkBitmap();
+}
+
+BackForwardTransitionAnimationManager::FallbackUXConfig
+WebContentsDelegate::GetBackForwardTransitionFallbackUXConfig() {
+  return BackForwardTransitionAnimationManager::FallbackUXConfig();
+}
+#endif  // BUILDFLAG(IS_ANDROID)
+
+std::vector<blink::mojom::RelatedApplicationPtr>
+WebContentsDelegate::GetSavedRelatedApplications(WebContents* web_contents) {
+  return {};
 }
 
 }  // namespace content

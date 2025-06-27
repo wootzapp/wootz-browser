@@ -11,7 +11,8 @@
 #include "ui/base/webui/web_ui_util.h"
 
 namespace security_interstitials {
-TestSafeBrowsingBlockingPageQuiet::~TestSafeBrowsingBlockingPageQuiet() {}
+TestSafeBrowsingBlockingPageQuiet::~TestSafeBrowsingBlockingPageQuiet() =
+    default;
 
 TestSafeBrowsingBlockingPageQuiet::TestSafeBrowsingBlockingPageQuiet(
     safe_browsing::BaseUIManager* ui_manager,
@@ -33,7 +34,6 @@ TestSafeBrowsingBlockingPageQuiet::TestSafeBrowsingBlockingPageQuiet(
                            /* blocked_page_shown_timestamp */ std::nullopt),
                        display_options),
       sb_error_ui_(unsafe_resources[0].url,
-                   main_frame_url,
                    GetInterstitialReason(unsafe_resources),
                    display_options,
                    ui_manager->app_locale(),

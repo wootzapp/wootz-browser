@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "build/build_config.h"
 #include "content/public/app/content_main_delegate.h"
@@ -42,7 +43,7 @@ class HEADLESS_EXPORT HeadlessContentMainDelegate
   // content::ContentMainDelegate implementation:
   std::optional<int> BasicStartupComplete() override;
   void PreSandboxStartup() override;
-  absl::variant<int, content::MainFunctionParams> RunProcess(
+  std::variant<int, content::MainFunctionParams> RunProcess(
       const std::string& process_type,
       content::MainFunctionParams main_function_params) override;
   std::optional<int> PreBrowserMain() override;
@@ -55,6 +56,12 @@ class HEADLESS_EXPORT HeadlessContentMainDelegate
   content::ContentRendererClient* CreateContentRendererClient() override;
 
   std::optional<int> PostEarlyInitialization(InvokedIn invoked_in) override;
+
+#if defined(HEADLESS_SUPPORT_FIELD_TRIALS)
+  bool ShouldCreateFeatureList(InvokedIn invoked_in) override;
+  bool ShouldInitializeMojo(InvokedIn invoked_in) override;
+#endif
+
 #if BUILDFLAG(IS_MAC)
   void PlatformPreBrowserMain();
 #endif

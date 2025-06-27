@@ -5,10 +5,18 @@
 #ifndef CONTENT_PUBLIC_BROWSER_FEDERATED_IDENTITY_PERMISSION_CONTEXT_DELEGATE_H_
 #define CONTENT_PUBLIC_BROWSER_FEDERATED_IDENTITY_PERMISSION_CONTEXT_DELEGATE_H_
 
+#include <optional>
 #include <vector>
 
 #include "base/functional/callback_forward.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/observer_list.h"
+#include "base/types/optional_ref.h"
+#include "base/values.h"
+#include "content/public/browser/identity_request_account.h"
+#include "third_party/blink/public/common/webid/login_status_account.h"
+#include "third_party/blink/public/common/webid/login_status_options.h"
+#include "third_party/blink/public/mojom/webid/federated_auth_request.mojom-forward.h"
 #include "url/origin.h"
 
 namespace content {
@@ -43,13 +51,20 @@ class FederatedIdentityPermissionContextDelegate {
 
   // Determine whether there is an existing permission grant to share identity
   // information for the given account to the `relying_party_requester` when
-  // embedded in `relying_party_embedder`. `account_id` can be omitted to
-  // represent "sharing permission for any account".
-  virtual bool HasSharingPermission(
+  // embedded in `relying_party_embedder`.
+  virtual bool HasSharingPermission(const url::Origin& relying_party_requester,
+                                    const url::Origin& relying_party_embedder,
+                                    const url::Origin& identity_provider) = 0;
+
+  // Returns the last time when `account_id` was used via FedCM on the
+  // (relying_party_requester, relying_party_embedder, identity_provider). If
+  // there is no known last time, returns nullopt. If the `account_id` was known
+  // to be used but a timestamp is not known, returns 0.
+  virtual std::optional<base::Time> GetLastUsedTimestamp(
       const url::Origin& relying_party_requester,
       const url::Origin& relying_party_embedder,
       const url::Origin& identity_provider,
-      const std::optional<std::string>& account_id) = 0;
+      const std::string& account_id) = 0;
 
   // Determine whether there is an existing permission grant to share identity
   // information for any account to the `relying_party_requester`.
@@ -86,11 +101,21 @@ class FederatedIdentityPermissionContextDelegate {
   virtual std::optional<bool> GetIdpSigninStatus(
       const url::Origin& idp_origin) = 0;
 
+  // Returns the stored profile information for the passed-in
+  // `identity_provider`. If the signin status is false or no profile
+  // information was stored, returns an empty List. The consumer is responsible
+  // for checking validity of accounts.
+  virtual base::Value::List GetAccounts(
+      const url::Origin& identity_provider) = 0;
+
   // Updates the IDP sign-in status. This could be called by
   //   1. IdpSigninStatus API
   //   2. fetching accounts response callback
-  virtual void SetIdpSigninStatus(const url::Origin& idp_origin,
-                                  bool idp_signin_status) = 0;
+  virtual void SetIdpSigninStatus(
+      const url::Origin& idp_origin,
+      bool idp_signin_status,
+      base::optional_ref<const blink::common::webid::LoginStatusOptions>
+          options) = 0;
 
   // Returns all origins that are registered as IDP.
   virtual std::vector<GURL> GetRegisteredIdPs() = 0;

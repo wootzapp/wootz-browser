@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
+import {gCrWebLegacy} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 import {sendWebKitMessage} from '//ios/web/public/js_messaging/resources/utils.js';
 
 // Mark: Private properties
@@ -44,7 +44,7 @@ function hasNoTranslate(): boolean {
  */
 function getMetaContentByHttpEquiv(httpEquiv: string): string {
   for (const metaTag of document.getElementsByTagName('meta')) {
-    if (metaTag.httpEquiv.toLowerCase() === httpEquiv) {
+    if (metaTag.httpEquiv && metaTag.httpEquiv.toLowerCase() === httpEquiv) {
       return metaTag.content;
     }
   }
@@ -128,7 +128,7 @@ function detectLanguage(): void {
     'hasNoTranslate': false,
     'htmlLang': document.documentElement.lang,
     'httpContentLanguage': httpContentLanguage,
-    'frameId': gCrWeb.message.getFrameId(),
+    'frameId': gCrWebLegacy.message.getFrameId(),
   };
 
   if (hasNoTranslate()) {
@@ -153,7 +153,7 @@ function retrieveBufferedTextContent(): string|null {
 
 // Mark: Public API
 
-gCrWeb.languageDetection = {
+gCrWebLegacy.languageDetection = {
   detectLanguage,
   retrieveBufferedTextContent,
 };

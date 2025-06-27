@@ -6,6 +6,7 @@
 
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
+#include "components/device_reauth/device_authenticator.h"
 #include "components/password_manager/content/browser/keyboard_replacing_surface_visibility_controller.h"
 #include "components/password_manager/core/browser/password_credential_filler.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
@@ -13,19 +14,23 @@
 
 namespace password_manager {
 
-using ToShowVirtualKeyboard = PasswordManagerDriver::ToShowVirtualKeyboard;
 using webauthn::WebAuthnCredManDelegate;
 
 CredManController::CredManController(
     base::WeakPtr<KeyboardReplacingSurfaceVisibilityController>
-        visibility_controller)
-    : visibility_controller_(visibility_controller) {}
+        visibility_controller,
+    password_manager::PasswordManagerClient* password_client)
+    : visibility_controller_(visibility_controller),
+      password_client_(password_client),
+      authenticator_(password_client->GetDeviceAuthenticator()) {}
 
 CredManController::~CredManController() {
-  if (!visibility_controller_) {
-    return;
+  if (visibility_controller_) {
+    visibility_controller_->Reset();
   }
-  visibility_controller_->Reset();
+  if (authenticator_) {
+    authenticator_->Cancel();
+  }
 }
 
 bool CredManController::Show(
@@ -39,15 +44,14 @@ bool CredManController::Show(
           WebAuthnCredManDelegate::CredManEnabledMode::kAllCredMan ||
       cred_man_delegate->HasPasskeys() !=
           WebAuthnCredManDelegate::State::kHasPasskeys) {
-    filler->Dismiss(ToShowVirtualKeyboard(false));
     return false;
   }
   visibility_controller_->SetVisible(std::move(frame_driver));
   filler_ = std::move(filler);
   cred_man_delegate->SetRequestCompletionCallback(base::BindRepeating(
       &CredManController::Dismiss, weak_ptr_factory_.GetWeakPtr()));
-  cred_man_delegate->SetFillingCallback(
-      base::BindOnce(&CredManController::Fill, weak_ptr_factory_.GetWeakPtr()));
+  cred_man_delegate->SetFillingCallback(base::BindOnce(
+      &CredManController::TriggerFilling, weak_ptr_factory_.GetWeakPtr()));
   cred_man_delegate->TriggerCredManUi(
       WebAuthnCredManDelegate::RequestPasswords(true));
   return true;
@@ -57,23 +61,42 @@ void CredManController::Dismiss(bool success) {
   if (visibility_controller_) {
     visibility_controller_->SetShown();
   }
-  if (filler_) {
-    // If |success|, we do not need to show the keyboard. Request to show the
-    // keyboard for user convenience.
-    filler_->Dismiss(ToShowVirtualKeyboard(!success));
-  }
 }
 
-void CredManController::Fill(const std::u16string& username,
-                             const std::u16string& password) {
+void CredManController::TriggerFilling(const std::u16string& username,
+                                       const std::u16string& password) {
   if (!filler_ || !visibility_controller_) {
     return;
   }
   visibility_controller_->SetShown();
-  filler_->FillUsernameAndPassword(username, password);
-  base::UmaHistogramBoolean(
-      "PasswordManager.CredMan.PasswordFormSubmissionTriggered",
-      filler_->ShouldTriggerSubmission());
+  if (!password_client_->IsReauthBeforeFillingRequired(authenticator_.get())) {
+    FillUsernameAndPassword(username, password);
+    return;
+  }
+  authenticator_->AuthenticateWithMessage(
+      u"", base::BindOnce(&CredManController::OnReauthCompleted,
+                          base::Unretained(this), username, password));
+}
+
+void CredManController::FillUsernameAndPassword(
+    const std::u16string& username,
+    const std::u16string& password) {
+  filler_->FillUsernameAndPassword(
+      username, password,
+      base::BindOnce(base::BindOnce([](bool triggered_submission) {
+        base::UmaHistogramBoolean(
+            "PasswordManager.CredMan.PasswordFormSubmissionTriggered",
+            triggered_submission);
+      })));
+}
+
+void CredManController::OnReauthCompleted(const std::u16string& username,
+                                          const std::u16string& password,
+                                          bool auth_successful) {
+  if (!auth_successful) {
+    return;
+  }
+  FillUsernameAndPassword(username, password);
 }
 
 }  // namespace password_manager

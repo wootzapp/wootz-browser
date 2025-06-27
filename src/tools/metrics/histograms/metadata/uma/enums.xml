@@ -80,7 +80,7 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="From backup"/>
   <int value="3" label="New"/>
   <int value="4" label="From provisional id"/>
-  <int value="5" label="From external"/>
+  <int value="5" label="(Deprecated) From external"/>
 </enum>
 
 <enum name="FileMetricsProviderAccessResult">
@@ -139,7 +139,7 @@ chromium-metrics-reviews@google.com.
   <int value="-1363801537" label="Crashpad.CrashUpload.Skipped"/>
   <int value="-1345388508" label="Renderer4.IdealContentsScale"/>
   <int value="-1321341911"
-      label="DataUse.BackgroundToDataRecievedPerByte.User"/>
+      label="DataUse.BackgroundToDataReceivedPerByte.User"/>
   <int value="-1286300074"
       label="Network.Shill.Wifi.ExpiredLeaseLengthSeconds"/>
   <int value="-1277093818"
@@ -226,6 +226,7 @@ chromium-metrics-reviews@google.com.
   <int value="902803399"
       label="UMA.PersistentAllocator.CrashpadMetrics.UsedPct"/>
   <int value="910415681" label="DevTools.ExperimentEnabledAtLaunch"/>
+  <int value="1090332742" label="Blink.UseCounter.AboutBlankOrSrcdoc.Features"/>
   <int value="1096524200" label="DevTools.IssueCreated"/>
   <int value="1120293692" label="DocumentEventTiming.BeforeUnloadDuration"/>
   <int value="1126499749"
@@ -276,6 +277,24 @@ chromium-metrics-reviews@google.com.
   <int value="2147480259" label="Sqlite.Vfs_Fetch"/>
 </enum>
 
+<!-- LINT.IfChange(MetricsLogCreateReason) -->
+
+<enum name="MetricsLogCreateReason">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Periodic"/>
+  <int value="2" label="Service Shutdown"/>
+  <int value="3" label="Load From Previous Session"/>
+  <int value="4" label="Backgrounded"/>
+  <int value="5" label="Foregrounded"/>
+  <int value="6" label="Alternate Ongoing Log Store Set"/>
+  <int value="7" label="Alternate Ongoing Log Store Unset"/>
+  <int value="8" label="Stability"/>
+  <int value="9" label="Independent"/>
+  <int value="10" label="Out Of Band"/>
+</enum>
+
+<!-- LINT.ThenChange(/components/metrics/metrics_logs_event_manager.h:CreateReason) -->
+
 <enum name="MetricsReportingChange">
   <int value="0" label="Error">
     Error occurred while updating MetricsReporting
@@ -303,8 +322,10 @@ chromium-metrics-reviews@google.com.
       label="Histogram active sample wrapped 2^31 during accumulation."/>
 </enum>
 
-<enum name="PersistentAllocatorErrors">
-  <int value="1" label="Allocator memory is corrupt (set only once)"/>
+<enum name="OptionalBoolRecord">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="False"/>
+  <int value="2" label="True"/>
 </enum>
 
 <enum name="PersistentHistogramsInitResult">
@@ -381,20 +402,6 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="BROWSER_SENT_IPC"/>
   <int value="1" label="CHILD_RECEIVED_IPC"/>
   <int value="2" label="BROWSER_REPLY_CALLBACK"/>
-</enum>
-
-<enum name="UmaCleanExitConsistency">
-  <obsolete>
-    Deprecated 07/2021 in favor of UmaCleanExitConsistency2. Version 2 re-orders
-    and adds new buckets to support measuring the frequency with which the Local
-    State data is missing.
-  </obsolete>
-  <int value="0" label="Dirty/Dirty (Registry/Local State)"/>
-  <int value="1" label="Dirty/Clean (Registry/Local State)"/>
-  <int value="2" label="Clean/Dirty (Registry/Local State)"/>
-  <int value="3" label="Clean/Clean (Registry/Local State)"/>
-  <int value="4" label="Missing/Dirty (Registry/Local State)"/>
-  <int value="5" label="Missing/Clean (Registry/Local State)"/>
 </enum>
 
 <enum name="UmaCleanExitConsistency3">

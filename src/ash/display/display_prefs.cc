@@ -288,7 +288,7 @@ void LoadDisplayProperties(PrefService* local_state) {
     }
 
     display::VariableRefreshRateState variable_refresh_rate_state =
-        display::kVrrNotCapable;
+        display::VariableRefreshRateState::kVrrNotCapable;
     if (std::optional<int> vrr_state_value =
             dict_value->FindInt(kVariableRefreshRateState)) {
       variable_refresh_rate_state =
@@ -621,7 +621,7 @@ void StoreCurrentDisplayProperties(PrefService* pref_service) {
     property_value.Set(kDisplayZoomMap, std::move(display_zoom_dict));
 
     property_value.Set(kVariableRefreshRateState,
-                       info.variable_refresh_rate_state());
+                       static_cast<int>(info.variable_refresh_rate_state()));
     if (const std::optional<float>& vsync_rate_min = info.vsync_rate_min()) {
       property_value.Set(kVsyncRateMin, vsync_rate_min.value());
     }
@@ -686,9 +686,8 @@ void StoreCurrentDisplayRotationLockPrefs(PrefService* pref_service) {
     return;
   }
   display::Display::Rotation rotation =
-      GetDisplayManager()
-          ->GetDisplayInfo(display::Display::InternalDisplayId())
-          .GetRotation(display::Display::RotationSource::ACCELEROMETER);
+      Shell::Get()->display_manager()->registered_internal_display_rotation();
+
   bool rotation_lock = Shell::Get()
                            ->display_manager()
                            ->registered_internal_display_rotation_lock();

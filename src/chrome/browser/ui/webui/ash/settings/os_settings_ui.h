@@ -16,13 +16,18 @@
 #include "chrome/browser/ui/webui/app_management/app_management_page_handler_factory.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/apps/mojom/app_notification_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/apps/mojom/app_parental_controls_handler.mojom-forward.h"
+#include "chrome/browser/ui/webui/ash/settings/pages/date_time/date_time_handler_factory.h"
+#include "chrome/browser/ui/webui/ash/settings/pages/date_time/mojom/date_time_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/device/display_settings/display_settings_provider.mojom.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/device/input_device_settings/input_device_settings_provider.mojom.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/files/google_drive_page_handler_factory.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/files/mojom/google_drive_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/files/mojom/one_drive_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/files/one_drive_page_handler_factory.h"
+#include "chrome/browser/ui/webui/ash/settings/pages/people/mojom/graduation_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/privacy/mojom/app_permission_handler.mojom-forward.h"
+#include "chrome/browser/ui/webui/ash/settings/pages/search/magic_boost_notice_page_handler_factory.h"
+#include "chrome/browser/ui/webui/ash/settings/pages/search/mojom/magic_boost_handler.mojom-forward.h"
 #include "chrome/browser/ui/webui/ash/settings/search/mojom/user_action_recorder.mojom-forward.h"
 #include "chrome/browser/ui/webui/nearby_share/nearby_share.mojom.h"
 #include "chrome/browser/ui/webui/webui_load_timer.h"
@@ -139,6 +144,11 @@ class OSSettingsUI : public ui::MojoWebUIController {
       mojo::PendingReceiver<app_permission::mojom::AppPermissionsHandler>
           receiver);
 
+  // Instantiates implementor of the mojom::GraduationHandler mojo
+  // interface passing the pending receiver that will be internally bound.
+  void BindInterface(
+      mojo::PendingReceiver<graduation::mojom::GraduationHandler> receiver);
+
   // Instantiates implementor of the mojom::InputDeviceSettingsProvider mojo
   // interface passing the pending receiver that will be internally bound.
   void BindInterface(
@@ -234,6 +244,15 @@ class OSSettingsUI : public ui::MojoWebUIController {
       mojo::PendingReceiver<ash::ime::mojom::InputMethodUserDataService>
           receiver);
 
+  // Binds to the DateTimeHandler mojo.
+  void BindInterface(
+      mojo::PendingReceiver<date_time::mojom::PageHandlerFactory> receiver);
+
+  // Binds to the MagicBoostNoticePageHandler mojo.
+  void BindInterface(
+      mojo::PendingReceiver<magic_boost_handler::mojom::PageHandlerFactory>
+          receiver);
+
  private:
   base::TimeTicks time_when_opened_;
 
@@ -245,6 +264,9 @@ class OSSettingsUI : public ui::MojoWebUIController {
   std::unique_ptr<GoogleDrivePageHandlerFactory>
       google_drive_page_handler_factory_;
   std::unique_ptr<OneDrivePageHandlerFactory> one_drive_page_handler_factory_;
+  std::unique_ptr<DateTimeHandlerFactory> date_time_handler_factory_;
+  std::unique_ptr<MagicBoostNoticePageHandlerFactory>
+      magic_boost_notice_page_handler_factory_;
 
   // This handler notifies the WebUI when the color provider changes.
   std::unique_ptr<ui::ColorChangeHandler> color_provider_handler_;

@@ -15,7 +15,7 @@
 #include "base/memory/weak_ptr.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/reading_list/core/reading_list_entry.h"
-#include "google_apis/gaia/core_account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 
 class GURL;
 class ReadingListModelObserver;
@@ -25,7 +25,7 @@ class Location;
 }  // namespace base
 
 namespace syncer {
-class ModelTypeControllerDelegate;
+class DataTypeControllerDelegate;
 }  // namespace syncer
 
 // The reading list model contains two list of entries: one of unread urls, the
@@ -49,12 +49,12 @@ class ReadingListModel : public KeyedService {
   // Returns the delegate responsible for integrating with sync. This
   // corresponds to the regular sync mode, rather than transport-only sync (i.e.
   // the user opted into sync-the-feature).
-  virtual base::WeakPtr<syncer::ModelTypeControllerDelegate>
+  virtual base::WeakPtr<syncer::DataTypeControllerDelegate>
   GetSyncControllerDelegate() = 0;
 
   // Same as above, but specifically for sync-the-transport (i.e. the user is
   // signed in but didn't opt into sync-the-feature).
-  virtual base::WeakPtr<syncer::ModelTypeControllerDelegate>
+  virtual base::WeakPtr<syncer::DataTypeControllerDelegate>
   GetSyncControllerDelegateForTransportMode() = 0;
 
   // Returns true if the model is performing batch updates right now.
@@ -103,7 +103,7 @@ class ReadingListModel : public KeyedService {
   // If an account exists that syncs the entry which has the given `url`, that
   // account will be returned. Otherwise, the entry may be saved locally on the
   // device or may not exist, in that case an empty account will be returned.
-  virtual CoreAccountId GetAccountWhereEntryIsSavedTo(const GURL& url) = 0;
+  virtual GaiaId GetAccountWhereEntryIsSavedTo(const GURL& url) = 0;
 
   // Returns true if the entry with `url` requires explicit user action to
   // upload to sync servers.

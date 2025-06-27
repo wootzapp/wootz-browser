@@ -12,6 +12,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
@@ -20,15 +21,12 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeoutException;
 
 @RunWith(BaseJUnit4ClassRunner.class)
-@CommandLineFlags.Add({
-    ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
-    "force-fieldtrials=Study/Group"
-})
+@CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
 @Batch(Batch.PER_CLASS)
 public class ArchivePersistedTabDataTest {
     @ClassRule
@@ -43,7 +41,7 @@ public class ArchivePersistedTabDataTest {
     @Test
     public void testEmpty() throws TimeoutException {
         CallbackHelper helper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ArchivePersistedTabData.from(
                             sActivityTestRule.getActivity().getActivityTab(),
@@ -63,7 +61,7 @@ public class ArchivePersistedTabDataTest {
     public void testRestore() throws TimeoutException {
         CallbackHelper[] helpers = new CallbackHelper[3];
         helpers[0] = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ArchivePersistedTabData archivePersistedTabData =
                             ArchivePersistedTabData.from(
@@ -77,7 +75,7 @@ public class ArchivePersistedTabDataTest {
                 });
         helpers[0].waitForCallback(0);
         helpers[1] = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sActivityTestRule
                             .getActivity()
@@ -88,7 +86,7 @@ public class ArchivePersistedTabDataTest {
                 });
         helpers[1].waitForCallback(0);
         helpers[2] = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ArchivePersistedTabData.from(
                             sActivityTestRule.getActivity().getActivityTab(),
@@ -99,5 +97,35 @@ public class ArchivePersistedTabDataTest {
                             });
                 });
         helpers[2].waitForCallback(0);
+    }
+
+    @SmallTest
+    @Test
+    public void testDeserializationFailure() throws TimeoutException {
+        CallbackHelper helper = new CallbackHelper();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    ArchivePersistedTabData.from(
+                            sActivityTestRule.getActivity().getActivityTab(),
+                            (res) -> {
+                                Assert.assertNotNull(res);
+                                ByteBuffer bytes = null;
+                                Assert.assertFalse(
+                                        "Null byte buffer should early return",
+                                        res.deserialize(bytes));
+                                bytes = ByteBuffer.allocate(0);
+                                Assert.assertFalse(
+                                        "Empty byte buffer should early return",
+                                        res.deserialize(bytes));
+                                bytes = ByteBuffer.allocate(100);
+                                Assert.assertFalse(
+                                        "Non-empty byte buffer which isn't a proto should throw a"
+                                                + " caught exception and return",
+                                        res.deserialize(bytes));
+                                Assert.assertFalse(res.deserialize(bytes));
+                                helper.notifyCalled();
+                            });
+                });
+        helper.waitForCallback(0);
     }
 }

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "extensions/browser/api/management/management_api.h"
+
 #include "base/auto_reset.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
@@ -9,11 +11,9 @@
 #include "base/strings/pattern.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/install_verifier.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -23,29 +23,23 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
-#include "extensions/browser/api/management/management_api.h"
 #include "extensions/browser/api/management/management_api_constants.h"
 #include "extensions/browser/api_test_utils.h"
 #include "extensions/browser/extension_dialog_auto_confirm.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/extension_host_test_helper.h"
 #include "extensions/browser/extension_prefs.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/test/extension_test_message_listener.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/demo_mode/demo_session.h"
-#include "chrome/browser/ash/login/demo_mode/demo_mode_test_utils.h"
-#endif
 
 namespace keys = extension_management_api_constants;
 
 namespace extensions {
 namespace {
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 bool ExpectChromeAppsDefaultEnabled() {
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   return false;
@@ -53,7 +47,6 @@ bool ExpectChromeAppsDefaultEnabled() {
   return true;
 #endif
 }
-#endif
 
 }  // namespace
 
@@ -85,7 +78,7 @@ class ExtensionManagementApiBrowserTest : public ExtensionBrowserTest {
   ScopedInstallVerifierBypassForTest install_verifier_bypass_;
 };
 
-using ContextType = ExtensionBrowserTest::ContextType;
+using ContextType = extensions::browser_test_util::ContextType;
 
 class ExtensionManagementApiTestWithBackgroundType
     : public ExtensionManagementApiBrowserTest,
@@ -130,10 +123,6 @@ IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
   ASSERT_TRUE(listener2.WaitUntilSatisfied());
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-// TODO(crbug.com/40211465): Run these tests on Chrome OS with both Ash and
-// Lacros processes active.
-
 IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
                        LaunchApp) {
   ExtensionTestMessageListener listener1("app_launched");
@@ -171,57 +160,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
     EXPECT_FALSE(launched.was_satisfied());
   }
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-
-IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
-                       NoDemoModeAppLaunchSourceReported) {
-  EXPECT_FALSE(ash::DemoSession::IsDeviceInDemoMode());
-
-  base::HistogramTester histogram_tester;
-  // Should see 0 apps launched from the API in the histogram at first.
-  histogram_tester.ExpectTotalCount("DemoMode.AppLaunchSource", 0);
-
-  ExtensionTestMessageListener app_launched_listener("app_launched");
-  ASSERT_TRUE(
-      LoadExtension(test_data_dir_.AppendASCII("management/packaged_app"),
-                    {.context_type = ContextType::kFromManifest}));
-  ASSERT_TRUE(
-      LoadExtension(test_data_dir_.AppendASCII("management/launch_app")));
-  ASSERT_TRUE(app_launched_listener.WaitUntilSatisfied());
-
-  // Should still see 0 apps launched from the API in the histogram.
-  histogram_tester.ExpectTotalCount("DemoMode.AppLaunchSource", 0);
-}
-
-IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
-                       DemoModeAppLaunchSourceReported) {
-  ash::test::LockDemoDeviceInstallAttributes();
-  EXPECT_TRUE(ash::DemoSession::IsDeviceInDemoMode());
-
-  base::HistogramTester histogram_tester;
-  // Should see 0 apps launched from the Launcher in the histogram at first.
-  histogram_tester.ExpectTotalCount("DemoMode.AppLaunchSource", 0);
-
-  ExtensionTestMessageListener app_launched_listener("app_launched");
-  ASSERT_TRUE(
-      LoadExtension(test_data_dir_.AppendASCII("management/packaged_app"),
-                    {.context_type = ContextType::kFromManifest}));
-  ASSERT_TRUE(
-      LoadExtension(test_data_dir_.AppendASCII("management/launch_app")));
-  ASSERT_TRUE(app_launched_listener.WaitUntilSatisfied());
-
-  // Should see 1 app launched from the highlights app  in the histogram.
-  histogram_tester.ExpectUniqueSample(
-      "DemoMode.AppLaunchSource",
-      ash::DemoSession::AppLaunchSource::kExtensionApi, 1);
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
-// TODO(crbug.com/40211465): Run these tests on Chrome OS with both Ash and
-// Lacros processes active.
 IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
                        LaunchAppFromBackground) {
   ExtensionTestMessageListener listener1("success");
@@ -259,8 +198,6 @@ IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
     EXPECT_FALSE(success.was_satisfied());
   }
 }
-
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 IN_PROC_BROWSER_TEST_P(ExtensionManagementApiTestWithBackgroundType,
                        SelfUninstall) {
@@ -402,7 +339,6 @@ class ExtensionManagementApiEscalationTest :
     scoped_refptr<ManagementSetEnabledFunction> function(
         new ManagementSetEnabledFunction);
     function->set_extension(extension);
-    const char* const enabled_string = enabled ? "true" : "false";
     if (user_gesture)
       function->set_user_gesture(true);
     function->SetRenderFrameHost(browser()
@@ -410,7 +346,8 @@ class ExtensionManagementApiEscalationTest :
                                      ->GetActiveWebContents()
                                      ->GetPrimaryMainFrame());
     bool response = test_utils::RunFunction(
-        function.get(), base::StringPrintf("[\"%s\", %s]", kId, enabled_string),
+        function.get(),
+        base::StringPrintf("[\"%s\", %s]", kId, base::ToString(enabled)),
         browser()->profile(), api_test_utils::FunctionMode::kNone);
     if (expected_error.empty()) {
       EXPECT_EQ(true, response);
@@ -477,7 +414,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionManagementApiEscalationTest,
     // Register the target extension with extension service.
     scoped_refptr<const Extension> target_extension =
         ExtensionBuilder("TargetExtension").SetID(kId).Build();
-    extension_service()->AddExtension(target_extension.get());
+    extension_registrar()->AddExtension(target_extension);
     SetEnabled(false, true, std::string(), source_extension);
     SetEnabled(true, true, std::string(), source_extension);
     EXPECT_TRUE(extension_registry()->enabled_extensions().GetByID(kId));

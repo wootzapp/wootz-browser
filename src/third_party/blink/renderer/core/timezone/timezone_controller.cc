@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/core/timezone/timezone_controller.h"
 
+#include "base/feature_list.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
@@ -21,13 +22,20 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
 #include "third_party/blink/renderer/platform/scheduler/public/main_thread_scheduler.h"
-#include "third_party/icu/source/common/unicode/char16ptr.h"
+#include "third_party/blink/renderer/platform/wtf/text/unicode_string.h"
 #include "third_party/icu/source/i18n/unicode/timezone.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
 namespace {
+
+// When enabled, the host timezone id is evaluated only when needed.
+// TODO(crbug.com/40287434): Cleanup the feature after running the experiment,
+// no later than January 2025.
+BASE_FEATURE(kLazyBlinkTimezoneInit,
+             "LazyBlinkTimezoneInit",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Notify V8 that the date/time configuration of the system might have changed.
 void NotifyTimezoneChangeToV8(v8::Isolate* isolate) {
@@ -48,8 +56,7 @@ void NotifyTimezoneChangeOnWorkerThread(WorkerThread* worker_thread) {
 String GetTimezoneId(const icu::TimeZone& timezone) {
   icu::UnicodeString unicode_timezone_id;
   timezone.getID(unicode_timezone_id);
-  return String(icu::toUCharPtr(unicode_timezone_id.getBuffer()),
-                static_cast<unsigned>(unicode_timezone_id.length()));
+  return String(WTF::unicode::ToSpan(unicode_timezone_id));
 }
 
 String GetCurrentTimezoneId() {
@@ -100,7 +107,9 @@ bool SetIcuTimeZoneAndNotifyV8(const String& timezone_id) {
 
 TimeZoneController::TimeZoneController() {
   DCHECK(IsMainThread());
-  host_timezone_id_ = GetCurrentTimezoneId();
+  if (!base::FeatureList::IsEnabled(kLazyBlinkTimezoneInit)) {
+    host_timezone_id_ = GetCurrentTimezoneId();
+  }
 }
 
 TimeZoneController::~TimeZoneController() = default;
@@ -151,7 +160,7 @@ TimeZoneController::SetTimeZoneOverride(const String& timezone_id) {
   }
 
   // Only notify if the override and the host are different.
-  if (!CanonicalEquals(timezone_id, instance().host_timezone_id_)) {
+  if (!CanonicalEquals(timezone_id, instance().GetHostTimezoneId())) {
     if (!SetIcuTimeZoneAndNotifyV8(timezone_id)) {
       VLOG(1) << "Invalid override timezone id: " << timezone_id;
       return nullptr;
@@ -176,11 +185,11 @@ const String& TimeZoneController::TimeZoneIdOverride() {
 void TimeZoneController::ClearTimeZoneOverride() {
   DCHECK(HasTimeZoneOverride());
 
-  if (!CanonicalEquals(instance().host_timezone_id_,
+  if (!CanonicalEquals(instance().GetHostTimezoneId(),
                        instance().override_timezone_id_)) {
     // Restore remembered timezone request.
     // Only do so if the host timezone is now different.
-    SetIcuTimeZoneAndNotifyV8(instance().host_timezone_id_);
+    SetIcuTimeZoneAndNotifyV8(instance().GetHostTimezoneId());
   }
   instance().override_timezone_id_ = String();
 }
@@ -212,6 +221,14 @@ void TimeZoneController::OnTimeZoneChange(const String& timezone_id) {
 
   if (!HasTimeZoneOverride())
     SetIcuTimeZoneAndNotifyV8(timezone_id);
+}
+
+const String& TimeZoneController::GetHostTimezoneId() {
+  if (host_timezone_id_.IsNull()) {
+    CHECK(base::FeatureList::IsEnabled(kLazyBlinkTimezoneInit));
+    host_timezone_id_ = GetCurrentTimezoneId();
+  }
+  return host_timezone_id_;
 }
 
 // static

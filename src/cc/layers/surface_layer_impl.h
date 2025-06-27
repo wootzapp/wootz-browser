@@ -60,15 +60,24 @@ class CC_EXPORT SurfaceLayerImpl : public LayerImpl {
   void SetIsReflection(bool is_reflection);
   bool is_reflection() const { return is_reflection_; }
 
+  bool will_draw_needs_reset() const { return will_draw_needs_reset_; }
+
+  void SetOverrideChildPaintFlags(bool override_child_paint_flags);
+  bool override_child_paint_flags() const {
+    return override_child_paint_flags_;
+  }
+
   void ResetStateForUpdateSubmissionStateCallback();
 
   // LayerImpl overrides.
+  mojom::LayerType GetLayerType() const override;
   std::unique_ptr<LayerImpl> CreateLayerImpl(
       LayerTreeImpl* tree_impl) const override;
   void PushPropertiesTo(LayerImpl* layer) override;
   bool WillDraw(DrawMode draw_mode,
                 viz::ClientResourceProvider* resource_provider) override;
-  void AppendQuads(viz::CompositorRenderPass* render_pass,
+  void AppendQuads(const AppendQuadsContext& context,
+                   viz::CompositorRenderPass* render_pass,
                    AppendQuadsData* append_quads_data) override;
   bool is_surface_layer() const override;
   gfx::Rect GetEnclosingVisibleRectInTargetSpace() const override;
@@ -80,7 +89,6 @@ class CC_EXPORT SurfaceLayerImpl : public LayerImpl {
   void GetDebugBorderProperties(SkColor4f* color, float* width) const override;
   void AppendRainbowDebugBorder(viz::CompositorRenderPass* render_pass);
   void AsValueInto(base::trace_event::TracedValue* dict) const override;
-  const char* LayerTypeAsString() const override;
 
   UpdateSubmissionStateCB update_submission_state_callback_;
   viz::SurfaceRange surface_range_;
@@ -95,6 +103,7 @@ class CC_EXPORT SurfaceLayerImpl : public LayerImpl {
   // SurfaceLayer, so that it can be propagated to the active SurfaceLayerImpl
   // and used to update `will_draw_` on that layer accordingly.
   bool will_draw_needs_reset_ = false;
+  bool override_child_paint_flags_ = false;
 };
 
 }  // namespace cc

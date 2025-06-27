@@ -7,7 +7,7 @@
 #include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/webdata_services/web_data_service_factory.h"
-#include "components/autofill/core/browser/autocomplete_history_manager.h"
+#include "components/autofill/core/browser/single_field_fillers/autocomplete/autocomplete_history_manager.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 
 namespace autofill {
@@ -34,6 +34,9 @@ AutocompleteHistoryManagerFactory::AutocompleteHistoryManagerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   DependsOn(WebDataServiceFactory::GetInstance());
 }
@@ -41,10 +44,12 @@ AutocompleteHistoryManagerFactory::AutocompleteHistoryManagerFactory()
 AutocompleteHistoryManagerFactory::~AutocompleteHistoryManagerFactory() =
     default;
 
-KeyedService* AutocompleteHistoryManagerFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+AutocompleteHistoryManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
-  AutocompleteHistoryManager* service = new AutocompleteHistoryManager();
+  std::unique_ptr<AutocompleteHistoryManager> service =
+      std::make_unique<AutocompleteHistoryManager>();
 
   auto local_storage = WebDataServiceFactory::GetAutofillWebDataForProfile(
       profile, ServiceAccessType::EXPLICIT_ACCESS);

@@ -118,16 +118,14 @@ class NET_EXPORT_PRIVATE HttpStreamParser {
   base::TimeTicks first_early_hints_time() { return first_early_hints_time_; }
 
   // Encodes the given |payload| in the chunked format to |output|.
-  // Returns the number of bytes written to |output|. |output_size| should
+  // Returns the number of bytes written to |output|. output.size() should
   // be large enough to store the encoded chunk, which is payload.size() +
-  // kChunkHeaderFooterSize. Returns ERR_INVALID_ARGUMENT if |output_size|
+  // kChunkHeaderFooterSize. Returns ERR_INVALID_ARGUMENT if output.size()
   // is not large enough.
   //
   // The output will look like: "HEX\r\n[payload]\r\n"
-  // where HEX is a length in hexdecimal (without the "0x" prefix).
-  static int EncodeChunk(std::string_view payload,
-                         char* output,
-                         size_t output_size);
+  // where HEX is a length in hexadecimal (without the "0x" prefix).
+  static int EncodeChunk(std::string_view payload, base::span<uint8_t> output);
 
   // Returns true if request headers and body should be merged (i.e. the
   // sum is small enough and the body is in memory, and not chunked).
@@ -208,7 +206,7 @@ class NET_EXPORT_PRIVATE HttpStreamParser {
 
   // Parse the headers into response_.  Returns OK on success or a net::Error on
   // failure.
-  int ParseResponseHeaders(int end_of_header_offset);
+  int ParseResponseHeaders(size_t end_of_header_offset);
 
   // Examine the parsed headers to try to determine the response body size.
   void CalculateResponseBodySize();
@@ -238,7 +236,7 @@ class NET_EXPORT_PRIVATE HttpStreamParser {
   // Offset of the first unused byte in |read_buf_|.  May be nonzero due to
   // body data in the same packet as header data but is zero when reading
   // headers.
-  int read_buf_unused_offset_ = 0;
+  size_t read_buf_unused_offset_ = 0;
 
   // The amount beyond |read_buf_unused_offset_| where the status line starts;
   // std::string::npos if not found yet.
@@ -298,7 +296,7 @@ class NET_EXPORT_PRIVATE HttpStreamParser {
 
   // Where the caller wants the body data.
   scoped_refptr<IOBuffer> user_read_buf_;
-  int user_read_buf_len_ = 0;
+  size_t user_read_buf_len_ = 0;
 
   // The callback to notify a user that the handshake has been confirmed.
   CompletionOnceCallback confirm_handshake_callback_;

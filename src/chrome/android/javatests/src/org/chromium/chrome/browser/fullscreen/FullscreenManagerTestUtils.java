@@ -10,6 +10,7 @@ import org.hamcrest.Matchers;
 import org.junit.Assert;
 
 import org.chromium.base.BuildInfo;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.CallbackHelper;
@@ -20,7 +21,6 @@ import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsV
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.content_public.browser.RenderCoordinates;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 
 import java.util.concurrent.TimeUnit;
@@ -56,7 +56,7 @@ public class FullscreenManagerTestUtils {
             dragEndY = tempDragStartY;
         }
         long downTime = SystemClock.uptimeMillis();
-        TouchCommon.performDrag(
+        TouchCommon.performDragNoFling(
                 testRule.getActivity(), dragX, dragX, dragStartY, dragEndY, 100, downTime);
         waitForBrowserControlsPosition(testRule, expectedPosition);
     }
@@ -106,6 +106,22 @@ public class FullscreenManagerTestUtils {
      */
     public static void waitForBrowserControlsToBeMoveable(
             ChromeActivityTestRule testRule, final Tab tab) {
+        waitForBrowserControlsToBeMoveable(testRule, tab, /* showControls= */ true);
+    }
+
+    /**
+     * Waits for the browser controls to be moveable by user gesture.
+     *
+     * <p>This function requires the browser controls to start fully visible. Then it ensures that
+     * at some point the controls can be moved by user gesture. If @param showControls is true, it
+     * will restore the controls to show fully.
+     *
+     * @param testRule The test rule for the currently running test.
+     * @param tab The current activity tab.
+     * @param showControls Whether to keep the controls shown at the end.
+     */
+    public static void waitForBrowserControlsToBeMoveable(
+            ChromeActivityTestRule testRule, final Tab tab, boolean showControls) {
         waitForBrowserControlsPosition(testRule, 0);
 
         final CallbackHelper contentMovedCallback = new CallbackHelper();
@@ -114,7 +130,7 @@ public class FullscreenManagerTestUtils {
         final float initialVisibleContentOffset =
                 browserControlsStateProvider.getTopVisibleContentOffset();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     browserControlsStateProvider.addObserver(
                             new BrowserControlsStateProvider.Observer() {
@@ -122,9 +138,12 @@ public class FullscreenManagerTestUtils {
                                 public void onControlsOffsetChanged(
                                         int topOffset,
                                         int topControlsMinHeightOffset,
+                                        boolean topControlsMinHeightChanged,
                                         int bottomOffset,
                                         int bottomControlsMinHeightOffset,
-                                        boolean needsAnimate) {
+                                        boolean bottomControlsMinHeightChanged,
+                                        boolean requestNewFrame,
+                                        boolean isVisibilityForced) {
                                     if (browserControlsStateProvider.getTopVisibleContentOffset()
                                             != initialVisibleContentOffset) {
                                         contentMovedCallback.notifyCalled();
@@ -141,13 +160,16 @@ public class FullscreenManagerTestUtils {
             float dragEndY = dragStartY - browserControlsStateProvider.getTopControlsHeight();
 
             long downTime = SystemClock.uptimeMillis();
-            TouchCommon.performDrag(
+            // Avoid fling so that the next drag has the chance to start with a non-moving content.
+            TouchCommon.performDragNoFling(
                     testRule.getActivity(), dragX, dragX, dragStartY, dragEndY, 100, downTime);
 
             try {
                 contentMovedCallback.waitForCallback(0, 1, 500, TimeUnit.MILLISECONDS);
                 scrollBrowserControls(testRule, false);
-                scrollBrowserControls(testRule, true);
+                if (showControls) {
+                    scrollBrowserControls(testRule, true);
+                }
                 return;
             } catch (TimeoutException e) {
                 // Ignore and retry
@@ -159,7 +181,7 @@ public class FullscreenManagerTestUtils {
 
     /** Disable any browser visibility overrides for testing. */
     public static void disableBrowserOverrides() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> BrowserStateBrowserControlsVisibilityDelegate.disableForTesting());
     }
 
@@ -173,8 +195,8 @@ public class FullscreenManagerTestUtils {
                                     SystemClock.uptimeMillis(),
                                     vx,
                                     vy,
-                                    /* synthetic_scroll= */ false,
-                                    /* prevent_boosting= */ false);
+                                    /* syntheticScroll= */ false,
+                                    /* preventBoosting= */ false);
                 });
     }
 }

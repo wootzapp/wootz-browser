@@ -101,16 +101,16 @@ void LargestContentfulPaintCalculator::UpdateWebExposedLargestContentfulImage(
   uint64_t size = largest_image->recorded_size;
   double bpp = largest_image->EntropyForLCP();
 
-  if (base::FeatureList::IsEnabled(features::kExcludeLowEntropyImagesFromLCP)) {
-    if (bpp < features::kMinimumEntropyForLCP.Get()) {
-      return;
-    }
+  if (bpp < kMinimumEntropyForLCP) {
+    return;
   }
+
   largest_image_bpp_ = bpp;
   largest_reported_size_ = size;
   const KURL& url = media_timing->Url();
   bool expose_paint_time_to_api =
-      url.ProtocolIsData() || media_timing->TimingAllowPassed();
+      url.ProtocolIsData() || media_timing->TimingAllowPassed() ||
+      RuntimeEnabledFeatures::ExposeCoarsenedRenderTimeEnabled();
   const String& image_string = url.GetString();
   const String& image_url =
       url.ProtocolIsData()
@@ -122,29 +122,13 @@ void LargestContentfulPaintCalculator::UpdateWebExposedLargestContentfulImage(
   const AtomicString& image_id =
       image_element ? image_element->GetIdAttribute() : AtomicString();
 
-  base::TimeTicks start_time = expose_paint_time_to_api
-                                   ? largest_image->paint_time
-                                   : largest_image->load_time;
-
-  if (RuntimeEnabledFeatures::ExposeRenderTimeNonTaoDelayedImageEnabled() &&
-      !expose_paint_time_to_api) {
-    // For Non-Tao images, set start time to the max of FCP and load time.
-    base::TimeTicks fcp =
-        PaintTiming::From(*window_performance_->DomWindow()->document())
-            .FirstContentfulPaintPresentation();
-    DCHECK(!fcp.is_null());
-    start_time = std::max(fcp, largest_image->load_time);
-  }
-  base::TimeTicks renderTime =
-      expose_paint_time_to_api ? largest_image->paint_time : base::TimeTicks();
-
   window_performance_->OnLargestContentfulPaintUpdated(
-      /*start_time=*/start_time, /*render_time=*/renderTime,
+      expose_paint_time_to_api
+          ? std::make_optional(largest_image->paint_timing_info)
+          : std::nullopt,
       /*paint_size=*/largest_image->recorded_size,
       /*load_time=*/largest_image->load_time,
-      /*first_animated_frame_time=*/
-      expose_paint_time_to_api ? largest_image->first_animated_frame_time
-                               : base::TimeTicks(),
+
       /*id=*/image_id, /*url=*/image_url, /*element=*/image_element,
       is_triggered_by_soft_navigation);
 
@@ -174,18 +158,18 @@ void LargestContentfulPaintCalculator::UpdateWebExposedLargestContentfulText(
     return;
   Node* text_node = largest_text.node_;
   largest_reported_size_ = largest_text.recorded_size;
-  // Do not expose element attribution from shadow trees.
+  // Do not expose element attribution from shadow trees. Also note that @page
+  // margin boxes do not create Element nodes.
   Element* text_element =
-      text_node->IsInShadowTree() ? nullptr : To<Element>(text_node);
+      text_node->IsInShadowTree() ? nullptr : DynamicTo<Element>(text_node);
   const AtomicString& text_id =
       text_element ? text_element->GetIdAttribute() : AtomicString();
   // Always use paint time as start time for text LCP candidate.
   window_performance_->OnLargestContentfulPaintUpdated(
-      /*start_time=*/largest_text.paint_time,
-      /*render_time=*/largest_text.paint_time,
+      largest_text.paint_timing_info,
       /*paint_size=*/largest_text.recorded_size,
       /*load_time=*/base::TimeTicks(),
-      /*first_animated_frame_time=*/base::TimeTicks(), /*id=*/text_id,
+      /*id=*/text_id,
       /*url=*/g_empty_string, /*element=*/text_element,
       is_triggered_by_soft_navigation);
 
@@ -222,11 +206,10 @@ bool LargestContentfulPaintCalculator::NotifyMetricsIfLargestImagePaintChanged(
     std::optional<WebURLRequest::Priority> priority) {
   // (Experimental) Images with insufficient entropy are not considered
   // candidates for LCP
-  if (base::FeatureList::IsEnabled(features::kExcludeLowEntropyImagesFromLCP)) {
-    if (image_bpp < features::kMinimumEntropyForLCP.Get()) {
-      return false;
-    }
+  if (image_bpp < kMinimumEntropyForLCP) {
+    return false;
   }
+
   if (!HasLargestImagePaintChangedForMetrics(image_paint_time,
                                              image_paint_size)) {
     return false;
@@ -235,10 +218,6 @@ bool LargestContentfulPaintCalculator::NotifyMetricsIfLargestImagePaintChanged(
   latest_lcp_details_.largest_contentful_paint_type =
       blink::LargestContentfulPaintType::kNone;
   if (image_record) {
-    if (image_record->is_loaded_after_mouseover) {
-      latest_lcp_details_.largest_contentful_paint_type |=
-          blink::LargestContentfulPaintType::kAfterMouseover;
-    }
     // TODO(yoav): Once we'd enable the kLCPAnimatedImagesReporting flag by
     // default, we'd be able to use the value of
     // largest_image_record->first_animated_frame_time directly.
@@ -287,10 +266,6 @@ bool LargestContentfulPaintCalculator::NotifyMetricsIfLargestImagePaintChanged(
           image_record->media_timing->LoadStart();
       latest_lcp_details_.resource_load_timings.load_end =
           image_record->media_timing->LoadEnd();
-      latest_lcp_details_.is_loaded_from_memory_cache =
-          image_record->media_timing->IsLoadedFromMemoryCache();
-      latest_lcp_details_.is_preloaded_with_early_hints =
-          image_record->media_timing->IsPreloadedWithEarlyHints();
     }
   }
   latest_lcp_details_.largest_image_paint_time = image_paint_time;

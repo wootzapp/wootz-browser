@@ -52,6 +52,7 @@ class GPUTracer;
 class MultiDrawManager;
 class GLES2DecoderPassthroughImpl;
 class GLES2ExternalFramebuffer;
+class PassthroughProgramCache;
 
 struct MappedBuffer {
   GLsizeiptr size;
@@ -356,6 +357,15 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
                       GLsizei length,
                       const GLchar* message);
 
+  GLsizeiptr BlobCacheGet(const void* key,
+                          GLsizeiptr key_size,
+                          void* value,
+                          GLsizeiptr value_size);
+  void BlobCacheSet(const void* key,
+                    GLsizeiptr key_size,
+                    const void* value,
+                    GLsizeiptr value_size);
+
   void SetCopyTextureResourceManagerForTest(
       CopyTextureCHROMIUMResourceManager* copy_texture_resource_manager)
       override;
@@ -469,13 +479,9 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
 
   void ExitCommandProcessingEarly() override;
 
-  void CheckSwapBuffersAsyncResult(const char* function_name,
-                                   uint64_t swap_id,
-                                   gfx::SwapCompletionResult result);
-  error::Error CheckSwapBuffersResult(gfx::SwapResult result,
-                                      const char* function_name);
-
   bool OnlyHasPendingProgramCompletionQueries();
+
+  PassthroughProgramCache* get_passthrough_program_cache() const;
 
   int commands_to_process_;
 
@@ -502,31 +508,6 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
 
   // A table of CommandInfo for all the commands.
   static const CommandInfo command_info[kNumCommands - kFirstGLES2Command];
-
-  // Creates lazily and holds a SharedContextState on a GLContext that is in the
-  // same share group as the command decoder's context. This is done so that
-  // skia operations can be performed on textures from the context and not worry
-  // about state tracking.
-  class LazySharedContextState {
-   public:
-    static std::unique_ptr<LazySharedContextState> Create(
-        GLES2DecoderPassthroughImpl* impl);
-
-    explicit LazySharedContextState(GLES2DecoderPassthroughImpl* impl);
-    ~LazySharedContextState();
-
-    SharedContextState* shared_context_state() {
-      return shared_context_state_.get();
-    }
-
-   private:
-    bool Initialize();
-
-    raw_ptr<GLES2DecoderPassthroughImpl> impl_ = nullptr;
-    scoped_refptr<SharedContextState> shared_context_state_;
-  };
-
-  std::unique_ptr<LazySharedContextState> lazy_context_;
 
   // The GLApi to make the gl calls on.
   raw_ptr<gl::GLApi> api_ = nullptr;
@@ -573,8 +554,11 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
     k2DMultisample = 4,
     kExternal = 5,
     kRectangle = 6,
+    kBuffer = 7,
+    kCubeMapArray = 8,
+    k2DMultisampleArray = 9,
 
-    kUnkown = 7,
+    kUnkown = 10,
     kCount = kUnkown,
   };
   static TextureTarget GLenumToTextureTarget(GLenum target);
@@ -751,9 +735,33 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
   // has, we need to start using the pixel local storage interrupt mechanism.
   bool has_activated_pixel_local_storage_ = false;
 
+  // Creates lazily and holds a SharedContextState on a GLContext that is in the
+  // same share group as the command decoder's context. This is done so that
+  // skia operations can be performed on textures from the context and not worry
+  // about state tracking.
+  class LazySharedContextState {
+   public:
+    static std::unique_ptr<LazySharedContextState> Create(
+        GLES2DecoderPassthroughImpl* impl);
+
+    explicit LazySharedContextState(GLES2DecoderPassthroughImpl* impl);
+    ~LazySharedContextState();
+
+    SharedContextState* shared_context_state() {
+      return shared_context_state_.get();
+    }
+
+   private:
+    bool Initialize();
+
+    raw_ptr<GLES2DecoderPassthroughImpl> impl_ = nullptr;
+    scoped_refptr<SharedContextState> shared_context_state_;
+  };
+
+  std::unique_ptr<LazySharedContextState> lazy_context_;
   // Tracing
   std::unique_ptr<GPUTracer> gpu_tracer_;
-  const unsigned char* gpu_decoder_category_ = nullptr;
+  raw_ptr<const unsigned char> gpu_decoder_category_ = nullptr;
   int gpu_trace_level_;
   bool gpu_trace_commands_;
   bool gpu_debug_commands_;

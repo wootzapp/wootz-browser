@@ -12,6 +12,7 @@
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "ui/accessibility/accessibility_features.h"
+#include "ui/accessibility/ax_tree.h"
 
 using blink::WebAXObject;
 using blink::WebDocument;
@@ -35,7 +36,6 @@ class MockMainNodeAnnotationService
   }
 
   void ExtractMainContent(const ::ui::AXTreeUpdate& snapshot,
-                          int64_t ukm_source_id,
                           ExtractMainContentCallback callback) override {}
 
   void ExtractMainNode(const ui::AXTreeUpdate& snapshot,
@@ -52,6 +52,11 @@ class MockMainNodeAnnotationService
         &tree, content_nodes_);
     std::move(callback).Run(main_);
   }
+
+  void IdentifyMainNode(const ui::AXTreeUpdate& snapshot,
+                        IdentifyMainNodeCallback callback) override {}
+
+  void SetClientType(screen_ai::mojom::MceClientType client) override {}
 
   // Tests should not modify entries in these lists.
   std::vector<ui::AXNodeID> content_nodes_;
@@ -144,6 +149,23 @@ TEST_F(AXMainNodeAnnotatorTest, AnnotateMainNode) {
   // The main node found by the mock annotator should match the id of the
   // expected main.
   ASSERT_EQ(mock_annotator_service().main_, expected_main.AxID());
+}
+
+TEST_F(AXMainNodeAnnotatorTest, DoesNothingIfAuthorProvidedNode) {
+  LoadHTMLAndRefreshAccessibilityTree(R"HTML(
+      <body>
+        <div role="main">
+          <div>Heading</div>
+          <div>Paragraph</div>
+          <div>Paragraph</div>
+        </div>
+      </body>
+      )HTML");
+
+  // Expect mock annotator service did not run.
+  task_environment_.RunUntilIdle();
+  EXPECT_EQ(0u, mock_annotator_service().content_nodes_.size());
+  EXPECT_EQ(ui::kInvalidAXNodeID, mock_annotator_service().main_);
 }
 
 }  // namespace content

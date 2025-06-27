@@ -4,6 +4,8 @@
 
 package org.chromium.components.autofill;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.ComponentName;
 import android.content.Context;
 import android.graphics.Rect;
@@ -21,11 +23,15 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.CollectionUtil;
 import org.chromium.base.Log;
 import org.chromium.build.annotations.DoNotStripLogs;
+import org.chromium.build.annotations.EnsuresNonNullIf;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 /** The class to call Android's AutofillManager. */
+@NullMarked
 public class AutofillManagerWrapper {
     // Don't change TAG, it is used for runtime log.
     // NOTE: As a result of the above, the tag below still references the name of this class from
@@ -35,14 +41,14 @@ public class AutofillManagerWrapper {
             "com.google.android.gms/com.google.android.gms.autofill.service.AutofillService";
 
     /** The observer of suggestion window. */
-    public static interface InputUIObserver {
-        void onInputUIShown();
+    public static interface InputUiObserver {
+        void onInputUiShown();
     }
 
-    private static class AutofillInputUIMonitor extends AutofillManager.AutofillCallback {
+    private static class AutofillInputUiMonitor extends AutofillManager.AutofillCallback {
         private WeakReference<AutofillManagerWrapper> mManager;
 
-        public AutofillInputUIMonitor(AutofillManagerWrapper manager) {
+        public AutofillInputUiMonitor(AutofillManagerWrapper manager) {
             mManager = new WeakReference<AutofillManagerWrapper>(manager);
         }
 
@@ -50,29 +56,31 @@ public class AutofillManagerWrapper {
         public void onAutofillEvent(View view, int virtualId, int event) {
             AutofillManagerWrapper manager = mManager.get();
             if (manager == null) return;
-            manager.mIsAutofillInputUIShowing = (event == EVENT_INPUT_SHOWN);
-            if (event == EVENT_INPUT_SHOWN) manager.notifyInputUIChange();
+            manager.mIsAutofillInputUiShowing = (event == EVENT_INPUT_SHOWN);
+            if (event == EVENT_INPUT_SHOWN) manager.notifyInputUiChange();
         }
     }
 
     private static boolean sIsLoggable;
     private final String mPackageName;
-    private AutofillManager mAutofillManager;
-    private boolean mIsAutofillInputUIShowing;
-    private AutofillInputUIMonitor mMonitor;
+    private @Nullable AutofillManager mAutofillManager;
+    private boolean mIsAutofillInputUiShowing;
+    private @Nullable AutofillInputUiMonitor mMonitor;
     private boolean mDestroyed;
-    private boolean mDisabled;
-    private ArrayList<WeakReference<InputUIObserver>> mInputUIObservers;
+    private @Nullable ArrayList<WeakReference<InputUiObserver>> mInputUiObservers;
     // Indicates if AwG is the current Android autofill service.
     private final boolean mIsAwGCurrentAutofillService;
 
     public AutofillManagerWrapper(Context context) {
         updateLogStat();
         if (isLoggable()) log("constructor");
-        mAutofillManager = context.getSystemService(AutofillManager.class);
-        mDisabled = mAutofillManager == null || !mAutofillManager.isEnabled();
+        AutofillManager autofillManager = context.getSystemService(AutofillManager.class);
+        if (autofillManager != null && !autofillManager.isEnabled()) {
+            autofillManager = null;
+        }
+        mAutofillManager = autofillManager;
 
-        if (mDisabled) {
+        if (autofillManager == null) {
             mPackageName = "";
             mIsAwGCurrentAutofillService = false;
             if (isLoggable()) log("disabled");
@@ -82,7 +90,7 @@ public class AutofillManagerWrapper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             ComponentName componentName = null;
             try {
-                componentName = mAutofillManager.getAutofillServiceComponentName();
+                componentName = autofillManager.getAutofillServiceComponentName();
             } catch (Exception e) {
                 // Can't catch com.android.internal.util.SyncResultReceiver.TimeoutException,
                 // because
@@ -104,8 +112,8 @@ public class AutofillManagerWrapper {
             mPackageName = "";
             mIsAwGCurrentAutofillService = false;
         }
-        mMonitor = new AutofillInputUIMonitor(this);
-        mAutofillManager.registerCallback(mMonitor);
+        mMonitor = new AutofillInputUiMonitor(this);
+        autofillManager.registerCallback(mMonitor);
     }
 
     public String getPackageName() {
@@ -113,19 +121,19 @@ public class AutofillManagerWrapper {
     }
 
     public void notifyVirtualValueChanged(View parent, int childId, AutofillValue value) {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("notifyVirtualValueChanged");
         mAutofillManager.notifyValueChanged(parent, childId, value);
     }
 
     public void commit(int submissionSource) {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("commit source:" + submissionSource);
         mAutofillManager.commit();
     }
 
     public void cancel() {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("cancel");
         mAutofillManager.cancel();
     }
@@ -134,7 +142,7 @@ public class AutofillManagerWrapper {
             View parent, SparseArray<VirtualViewFillInfo> viewFillInfos) {
         // notifyVirtualViewsReady was added in Android U.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return;
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
 
         if (isLoggable()) log("notifyVirtualViewsReady");
         mAutofillManager.notifyVirtualViewsReady(parent, viewFillInfos);
@@ -142,7 +150,7 @@ public class AutofillManagerWrapper {
 
     public void notifyVirtualViewEntered(View parent, int childId, Rect absBounds) {
         // Log warning only when the autofill is triggered.
-        if (mDisabled) {
+        if (isDisabled()) {
             Log.w(TAG, "Autofill is disabled: AutofillManager isn't available in given Context.");
             return;
         }
@@ -154,7 +162,7 @@ public class AutofillManagerWrapper {
     @RequiresApi(VERSION_CODES.TIRAMISU)
     public boolean showAutofillDialog(View parent, int childId) {
         // Log warning only when the autofill is triggered.
-        if (mDisabled) {
+        if (isDisabled()) {
             Log.w(TAG, "Autofill is disabled: AutofillManager isn't available in given Context.");
             return false;
         }
@@ -164,7 +172,7 @@ public class AutofillManagerWrapper {
     }
 
     public void notifyVirtualViewExited(View parent, int childId) {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("notifyVirtualViewExited");
         mAutofillManager.notifyViewExited(parent, childId);
     }
@@ -172,25 +180,25 @@ public class AutofillManagerWrapper {
     public void notifyVirtualViewVisibilityChanged(View parent, int childId, boolean isVisible) {
         // `notifyViewVisibilityChanged` was added in API level 27.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return;
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("notifyVirtualViewVisibilityChanged");
         mAutofillManager.notifyViewVisibilityChanged(parent, childId, isVisible);
     }
 
     public void requestAutofill(View parent, int virtualId, Rect absBounds) {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("requestAutofill");
         mAutofillManager.requestAutofill(parent, virtualId, absBounds);
     }
 
-    public boolean isAutofillInputUIShowing() {
-        if (mDisabled || checkAndWarnIfDestroyed()) return false;
-        if (isLoggable()) log("isAutofillInputUIShowing: " + mIsAutofillInputUIShowing);
-        return mIsAutofillInputUIShowing;
+    public boolean isAutofillInputUiShowing() {
+        if (isDisabled() || checkAndWarnIfDestroyed()) return false;
+        if (isLoggable()) log("isAutofillInputUiShowing: " + mIsAutofillInputUiShowing);
+        return mIsAutofillInputUiShowing;
     }
 
     public void destroy() {
-        if (mDisabled || checkAndWarnIfDestroyed()) return;
+        if (isDisabled() || checkAndWarnIfDestroyed()) return;
         if (isLoggable()) log("destroy");
         try {
             // The binder in the autofill service side might already be dropped,
@@ -207,8 +215,9 @@ public class AutofillManagerWrapper {
         }
     }
 
+    @EnsuresNonNullIf(value="mAutofillManager", result=false)
     public boolean isDisabled() {
-        return mDisabled;
+        return mAutofillManager == null || mDestroyed;
     }
 
     /**
@@ -229,18 +238,19 @@ public class AutofillManagerWrapper {
         return mDestroyed;
     }
 
-    public void addInputUIObserver(InputUIObserver observer) {
+    public void addInputUiObserver(InputUiObserver observer) {
         if (observer == null) return;
-        if (mInputUIObservers == null) {
-            mInputUIObservers = new ArrayList<WeakReference<InputUIObserver>>();
+        if (mInputUiObservers == null) {
+            mInputUiObservers = new ArrayList<WeakReference<InputUiObserver>>();
         }
-        mInputUIObservers.add(new WeakReference<InputUIObserver>(observer));
+        mInputUiObservers.add(new WeakReference<InputUiObserver>(observer));
     }
 
     @VisibleForTesting
-    public void notifyInputUIChange() {
-        for (InputUIObserver observer : CollectionUtil.strengthen(mInputUIObservers)) {
-            observer.onInputUIShown();
+    public void notifyInputUiChange() {
+        assumeNonNull(mInputUiObservers);
+        for (InputUiObserver observer : CollectionUtil.strengthen(mInputUiObservers)) {
+            observer.onInputUiShown();
         }
     }
 

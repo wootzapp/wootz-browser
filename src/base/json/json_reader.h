@@ -42,7 +42,6 @@
 
 #include "base/base_export.h"
 #include "base/json/json_common.h"
-#include "base/rust_buildflags.h" 
 #include "base/strings/string_number_conversions.h"
 #include "base/types/expected.h"
 #include "base/values.h"
@@ -65,19 +64,15 @@ enum JSONParserOptions {
   // Allows both C (/* */) and C++ (//) style comments.
   JSON_ALLOW_COMMENTS = 1 << 2,
 
-  // Permits unescaped ASCII control characters (such as unescaped \r and \n)
-  // in the range [0x00,0x1F].
-  JSON_ALLOW_CONTROL_CHARS = 1 << 3,
-
   // Permits \\v vertical tab escapes.
-  JSON_ALLOW_VERT_TAB = 1 << 4,
+  JSON_ALLOW_VERT_TAB = 1 << 3,
 
   // Permits \\xNN escapes as described above.
-  JSON_ALLOW_X_ESCAPES = 1 << 5,
+  JSON_ALLOW_X_ESCAPES = 1 << 4,
 
   // Permits exactly \r and \n to occur in strings, which is normally not
   // allowed; this is a subset of the behavior of JSON_ALLOW_CONTROL_CHARS.
-  JSON_ALLOW_NEWLINES_IN_STRINGS = 1 << 6,
+  JSON_ALLOW_NEWLINES_IN_STRINGS = 1 << 5,
 
   // This parser historically accepted, without configuration flags,
   // non-standard JSON extensions. This flag enables that traditional parsing
@@ -111,15 +106,22 @@ class BASE_EXPORT JSONReader {
   JSONReader& operator=(const JSONReader&) = delete;
 
   // Reads and parses |json|, returning a Value.
-  // If |json| is not a properly formed JSON string, returns absl::nullopt.
+  // If |json| is not a properly formed JSON string, returns std::nullopt.
   static std::optional<Value> Read(
       std::string_view json,
       int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
       size_t max_depth = internal::kAbsoluteMaxDepth);
 
   // Reads and parses |json|, returning a Value::Dict.
-  // If |json| is not a properly formed JSON dict string, returns absl::nullopt.
+  // If |json| is not a properly formed JSON dict string, returns std::nullopt.
   static std::optional<Value::Dict> ReadDict(
+      std::string_view json,
+      int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
+      size_t max_depth = internal::kAbsoluteMaxDepth);
+
+  // Reads and parses |json|, returning a Value::List.
+  // If |json| is not a properly formed JSON list string, returns std::nullopt.
+  static std::optional<Value::List> ReadList(
       std::string_view json,
       int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
       size_t max_depth = internal::kAbsoluteMaxDepth);
@@ -135,16 +137,6 @@ class BASE_EXPORT JSONReader {
   // Determine whether the Rust parser is in use.
   static bool UsingRust();
 };
-
-
-
-// BASE_EXPORT JSONReader::Result DecodeJSONInRust(std::string_view json,
-//                                                 int options, size_t max_depth);
-
-#if BUILDFLAG(BUILD_RUST_JSON_READER)
-BASE_EXPORT JSONReader::Result DecodeJSONInRust(std::string_view json,
-                                                int options);
-#endif
 
 }  // namespace base
 

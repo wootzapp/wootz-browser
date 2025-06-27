@@ -4,11 +4,20 @@
 
 #include "chrome/browser/ui/views/performance_controls/memory_saver_resource_view.h"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "base/numerics/angle_conversions.h"
+#include "cc/paint/paint_flags.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/performance_manager/public/features.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkPath.h"
+#include "third_party/skia/include/core/SkRect.h"
+#include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -19,9 +28,12 @@
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/vector2d_f.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/flex_layout_view.h"
 #include "ui/views/layout/layout_types.h"
+#include "ui/views/style/typography.h"
+#include "ui/views/view_class_properties.h"
 
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
     MemorySaverResourceView,
@@ -57,12 +69,12 @@ enum MemorySavingsQuartile {
 // Each element represents the label for the chart when memory savings are in
 // the quartile represented by `MemorySavingsQuartile`. The last "quartile"
 // instead represents the 99th percentile (or a full chart).
-constexpr int kQuartilesLabels[] = {
-    IDS_MEMORY_SAVER_DIALOG_SMALL_SAVINGS_LABEL,
-    IDS_MEMORY_SAVER_DIALOG_MEDIUM_SAVINGS_LABEL,
-    IDS_MEMORY_SAVER_DIALOG_MEDIUM_SAVINGS_LABEL,
-    IDS_MEMORY_SAVER_DIALOG_LARGE_SAVINGS_LABEL,
-    IDS_MEMORY_SAVER_DIALOG_VERY_LARGE_SAVINGS_LABEL};
+constexpr auto kQuartilesLabels =
+    std::to_array<int>({IDS_MEMORY_SAVER_DIALOG_SMALL_SAVINGS_LABEL,
+                        IDS_MEMORY_SAVER_DIALOG_MEDIUM_SAVINGS_LABEL,
+                        IDS_MEMORY_SAVER_DIALOG_MEDIUM_SAVINGS_LABEL,
+                        IDS_MEMORY_SAVER_DIALOG_LARGE_SAVINGS_LABEL,
+                        IDS_MEMORY_SAVER_DIALOG_VERY_LARGE_SAVINGS_LABEL});
 
 // Returns which of the four quartiles of memory savings this number falls into.
 // The lowest memory usage quartile (0-24th percentile) returns 0 and the
@@ -192,7 +204,7 @@ MemorySaverResourceView::MemorySaverResourceView(
                               kMemorySaverResourceViewMemorySavingsElementId);
   memory_savings->SetFontList(
       memory_savings->font_list().DeriveWithSizeDelta(kMemoryLabelSizeDelta));
-  memory_savings->SetAccessibleName(l10n_util::GetStringFUTF16(
+  memory_savings->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
       IDS_MEMORY_SAVER_DIALOG_SAVINGS_ACCNAME, {formatted_savings}));
 
   auto* memory_label = AddChildView(std::make_unique<views::Label>(

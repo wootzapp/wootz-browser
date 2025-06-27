@@ -26,8 +26,8 @@
 #include "extensions/common/core_extensions_api_provider.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_api.h"
-#include "extensions/common/extension_icon_set.h"
 #include "extensions/common/extension_urls.h"
+#include "extensions/common/icons/extension_icon_set.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
@@ -56,16 +56,15 @@ ChromeExtensionsClient::ChromeExtensionsClient() {
   AddAPIProvider(std::make_unique<CoreExtensionsAPIProvider>());
 }
 
-ChromeExtensionsClient::~ChromeExtensionsClient() {
-}
+ChromeExtensionsClient::~ChromeExtensionsClient() = default;
 
 void ChromeExtensionsClient::Initialize() {
   // Set up the scripting allowlist.
   // Allowlist ChromeVox, an accessibility extension from Google that needs
   // the ability to script webui pages. This is temporary and is not
   // meant to be a general solution.
-  // TODO(dmazzoni): remove this once we have an extension API that
-  // allows any extension to request read-only access to webui pages.
+  // TODO(crbug.com/412291638): Remove this once an extension API can allow any
+  // extension to request read-only access to WebUI pages.
   scripting_allowlist_.push_back(extension_misc::kChromeVoxExtensionId);
   InitializeWebStoreUrls(base::CommandLine::ForCurrentProcess());
 }
@@ -74,6 +73,8 @@ void ChromeExtensionsClient::InitializeWebStoreUrls(
     base::CommandLine* command_line) {
   if (command_line->HasSwitch(switches::kAppsGalleryURL)) {
     webstore_base_url_ =
+        GURL(command_line->GetSwitchValueASCII(switches::kAppsGalleryURL));
+    new_webstore_base_url_ =
         GURL(command_line->GetSwitchValueASCII(switches::kAppsGalleryURL));
   } else {
     webstore_base_url_ = GURL(extension_urls::kChromeWebstoreBaseURL);

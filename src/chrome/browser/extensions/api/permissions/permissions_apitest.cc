@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/files/file_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/permissions/permissions_api.h"
@@ -16,6 +17,7 @@
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_prefs.h"
+#include "extensions/common/extension_features.h"
 #include "extensions/common/permissions/permission_set.h"
 #include "extensions/common/switches.h"
 #include "net/dns/mock_host_resolver.h"
@@ -31,7 +33,7 @@ static void AddPattern(URLPatternSet* extent, const std::string& pattern) {
 
 }  // namespace
 
-using ContextType = ExtensionBrowserTest::ContextType;
+using ContextType = extensions::browser_test_util::ContextType;
 
 class ExperimentalApiTest : public ExtensionApiTest {
  public:
@@ -278,5 +280,37 @@ INSTANTIATE_TEST_SUITE_P(PersistentBackground,
 INSTANTIATE_TEST_SUITE_P(ServiceWorker,
                          PermissionsApiTestWithContextType,
                          testing::Values(ContextType::kServiceWorker));
+
+class PermissionsApiHostAccessRequestsTest : public PermissionsApiTest {
+ public:
+  PermissionsApiHostAccessRequestsTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        extensions_features::kApiPermissionsHostAccessRequests);
+  }
+  ~PermissionsApiHostAccessRequestsTest() override = default;
+  PermissionsApiHostAccessRequestsTest(
+      const PermissionsApiHostAccessRequestsTest&) = delete;
+  PermissionsApiHostAccessRequestsTest& operator=(
+      const PermissionsApiHostAccessRequestsTest&) = delete;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(PermissionsApiHostAccessRequestsTest,
+                       InvalidAddHostAccessRequests) {
+  ASSERT_TRUE(StartEmbeddedTestServer());
+
+  ASSERT_TRUE(RunExtensionTest("permissions/add_host_access_request"))
+      << message_;
+}
+
+IN_PROC_BROWSER_TEST_F(PermissionsApiHostAccessRequestsTest,
+                       InvalidRemoveHostAccessRequests) {
+  ASSERT_TRUE(StartEmbeddedTestServer());
+
+  ASSERT_TRUE(RunExtensionTest("permissions/remove_host_access_request"))
+      << message_;
+}
 
 }  // namespace extensions

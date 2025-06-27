@@ -13,6 +13,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 namespace ash {
 
@@ -26,7 +27,13 @@ SearchResultBaseView::SearchResultBaseView() {
   // all relevant key events (e.g. ENTER key for result activation) to search
   // result views as needed.
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
-  SetAccessibleRole(ax::mojom::Role::kListBoxOption);
+  // Mark the result is a list item in the list of search results.
+  // Also avoids an issue with the nested button case(append and remove
+  // button are child button of SearchResultView), which is not supported by
+  // ChromeVox. see details in crbug.com/924776.
+  GetViewAccessibility().SetRole(ax::mojom::Role::kListBoxOption);
+  UpdateAccessibleName();
+  UpdateAccessibleDefaultAction();
 }
 
 SearchResultBaseView::~SearchResultBaseView() {
@@ -41,6 +48,11 @@ bool SearchResultBaseView::SkipDefaultKeyEventProcessing(
   // Ensure accelerators take priority in the app list. This ensures, e.g., that
   // Ctrl+Space will switch input methods rather than activate the button.
   return false;
+}
+
+void SearchResultBaseView::SetVisible(bool visible) {
+  views::Button::SetVisible(visible);
+  UpdateAccessibleDefaultAction();
 }
 
 void SearchResultBaseView::SetSelected(bool selected,
@@ -86,6 +98,8 @@ void SearchResultBaseView::SetResult(SearchResult* result) {
     result_->AddObserver(this);
   }
   OnResultChanged();
+
+  UpdateAccessibleName();
 }
 
 void SearchResultBaseView::OnResultDestroying() {
@@ -115,9 +129,6 @@ std::u16string SearchResultBaseView::ComputeAccessibleName() const {
              AppListSearchResultType::kInstalledApp) {
     accessible_name = l10n_util::GetStringFUTF16(
         IDS_APP_ACCESSIBILITY_INSTALLED_APP_ANNOUNCEMENT, title);
-  } else if (result()->result_type() == AppListSearchResultType::kInternalApp) {
-    accessible_name = l10n_util::GetStringFUTF16(
-        IDS_APP_ACCESSIBILITY_INTERNAL_APP_ANNOUNCEMENT, title);
   } else if (!result()->details().empty()) {
     accessible_name = base::JoinString({title, result()->details()}, u", ");
   } else {
@@ -132,32 +143,23 @@ std::u16string SearchResultBaseView::ComputeAccessibleName() const {
   return accessible_name;
 }
 
-void SearchResultBaseView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  if (!GetVisible()) {
-    return;
-  }
-
-  // Mark the result is a list item in the list of search results.
-  // Also avoids an issue with the nested button case(append and remove
-  // button are child button of SearchResultView), which is not supported by
-  // ChromeVox. see details in crbug.com/924776.
-  node_data->role = ax::mojom::Role::kListBoxOption;
-  node_data->SetDefaultActionVerb(ax::mojom::DefaultActionVerb::kClick);
-
+void SearchResultBaseView::UpdateAccessibleName() {
   // It is possible for the view to be visible but lack a result. When this
-  // happens, GetAccessibleName() will return an empty string. Because the
-  // focusable state is set in the constructor and not updated when the
+  // happens, `ComputeAccessibleName()` will return an empty string. Because
+  // the focusable state is set in the constructor and not updated when the
   // result is removed, the accessibility paint checks will fail.
-  if (!result()) {
-    node_data->SetNameExplicitlyEmpty();
-    return;
+  const std::u16string name = ComputeAccessibleName();
+  if (name.empty()) {
+    GetViewAccessibility().SetName(
+        name, ax::mojom::NameFrom::kAttributeExplicitlyEmpty);
+  } else {
+    GetViewAccessibility().SetName(name);
   }
-
-  node_data->SetName(GetAccessibleName());
 }
 
-void SearchResultBaseView::UpdateAccessibleName() {
-  SetAccessibleName(ComputeAccessibleName());
+void SearchResultBaseView::OnEnabledChanged() {
+  views::Button::OnEnabledChanged();
+  UpdateAccessibleDefaultAction();
 }
 
 void SearchResultBaseView::ClearResult() {
@@ -177,6 +179,15 @@ void SearchResultBaseView::SelectInitialResultAction(bool reverse_tab_order) {
 void SearchResultBaseView::ClearSelectedResultAction() {
   if (actions_view_) {
     actions_view_->ClearSelectedAction();
+  }
+}
+
+void SearchResultBaseView::UpdateAccessibleDefaultAction() {
+  if (GetVisible()) {
+    GetViewAccessibility().SetDefaultActionVerb(
+        ax::mojom::DefaultActionVerb::kClick);
+  } else {
+    GetViewAccessibility().RemoveDefaultActionVerb();
   }
 }
 

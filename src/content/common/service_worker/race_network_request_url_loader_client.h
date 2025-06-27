@@ -11,6 +11,7 @@
 #include "base/time/time.h"
 #include "content/common/content_export.h"
 #include "content/common/service_worker/race_network_request_read_buffer_manager.h"
+#include "content/common/service_worker/race_network_request_simple_buffer_manager.h"
 #include "content/common/service_worker/race_network_request_write_buffer_manager.h"
 #include "content/common/service_worker/service_worker_resource_loader.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -164,7 +165,7 @@ class CONTENT_EXPORT ServiceWorkerRaceNetworkRequestURLLoaderClient
 
   // mojo::DataPipeDrainer::Client overrides:
   // These just do nothing.
-  void OnDataAvailable(const void* data, size_t num_bytes) override {}
+  void OnDataAvailable(base::span<const uint8_t> data) override {}
   void OnDataComplete() override {}
 
   // Commits the head and body through |owner_|'s commit methods.
@@ -202,17 +203,6 @@ class CONTENT_EXPORT ServiceWorkerRaceNetworkRequestURLLoaderClient
   // due to the long fetch handler execution. and test case the mechanism to
   // wait for the fetch handler
   void TwoPhaseWrite(MojoResult result, const mojo::HandleSignalsState& state);
-  // Writes data in RaceNetworkRequestReadBufferManager into the data
-  // pipe producer that handles for both the race network request and the fetch
-  // handler respectively.
-  //
-  // Unlike |TwoPhaseWrite()|, this doesn't use two-phase operations to
-  // write data into data pipes. However, the result should be the same as
-  // |TwoPhaseWrite()| because mojo's |WriteData()| is expected to write
-  // the same amount of data from the given data pipe consumer handle to read.
-  // also |Write()| has CHECK to guarantee that the actual written sizes
-  // to data pips are exactly same.
-  void Write(MojoResult result, const mojo::HandleSignalsState& state);
 
   bool IsReadyToHandleReadWrite(MojoResult result);
 
@@ -225,12 +215,14 @@ class CONTENT_EXPORT ServiceWorkerRaceNetworkRequestURLLoaderClient
   // Record the time between the response received time and the fetch handler
   // end time iff both events are already reached.
   void MaybeRecordResponseReceivedToFetchHandlerEndTiming();
-  void RecordMojoResultForDataTransfer(MojoResult result,
-                                       const std::string& suffix);
-  void RecordMojoResultForWrite(MojoResult result);
 
   void SetFetchHandlerEndTiming(base::TimeTicks fetch_handler_end_time,
                                 bool is_fallback);
+
+  void CloneResponse();
+  void CloneResponseForFetchHandler();
+  void OnCloneCompleted();
+  void OnCloneCompletedForFetchHandler();
 
   State state_ = State::kWaitForBody;
   mojo::Receiver<network::mojom::URLLoaderClient> receiver_{this};
@@ -242,6 +234,7 @@ class CONTENT_EXPORT ServiceWorkerRaceNetworkRequestURLLoaderClient
   std::optional<mojo_base::BigBuffer> cached_metadata_;
 
   std::optional<RaceNetworkRequestReadBufferManager> read_buffer_manager_;
+  std::optional<RaceNetworkRequestSimpleBufferManager> simple_buffer_manager_;
   RaceNetworkRequestWriteBufferManager
       write_buffer_manager_for_race_network_request_;
   RaceNetworkRequestWriteBufferManager write_buffer_manager_for_fetch_handler_;
@@ -253,6 +246,7 @@ class CONTENT_EXPORT ServiceWorkerRaceNetworkRequestURLLoaderClient
   std::optional<base::TimeTicks> fetch_handler_end_time_;
   std::optional<bool> is_fetch_handler_fallback_;
   bool is_main_resource_;
+  bool clone_response_for_fetch_handler_completed_ = false;
 
   base::TimeTicks request_start_;
   base::Time request_start_time_;

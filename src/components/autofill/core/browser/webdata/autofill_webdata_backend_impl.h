@@ -6,14 +6,19 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_WEBDATA_AUTOFILL_WEBDATA_BACKEND_IMPL_H_
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/memory/ref_counted.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/observer_list.h"
 #include "base/supports_user_data.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "base/uuid.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
+#include "components/autofill/core/browser/data_model/valuables/loyalty_card.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_backend.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/webdata/common/web_data_results.h"
@@ -30,6 +35,7 @@ class WebDatabaseBackend;
 namespace autofill {
 
 class AutofillWebDataServiceObserverOnDBSequence;
+class AutofillWebDataServiceObserverOnUISequence;
 class CreditCard;
 class Iban;
 
@@ -46,19 +52,16 @@ class AutofillWebDataBackendImpl
   // `web_database_backend` is used to access the WebDatabase directly for
   // Sync-related operations. `ui_task_runner` and `db_task_runner` are the task
   // runners that this class uses for UI and DB tasks respectively.
-  // `on_autofill_changed_by_sync_callback_` is a closure which can be used to
-  // notify the UI sequence of changes initiated by Sync (this callback may be
-  // called multiple times).
   AutofillWebDataBackendImpl(
       scoped_refptr<WebDatabaseBackend> web_database_backend,
       scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
-      scoped_refptr<base::SequencedTaskRunner> db_task_runner,
-      const base::RepeatingCallback<void(syncer::ModelType)>&
-          on_autofill_changed_by_sync_callback);
+      scoped_refptr<base::SequencedTaskRunner> db_task_runner);
 
   AutofillWebDataBackendImpl(const AutofillWebDataBackendImpl&) = delete;
   AutofillWebDataBackendImpl& operator=(const AutofillWebDataBackendImpl&) =
       delete;
+
+  void ShutdownOnUISequence();
 
   void SetAutofillProfileChangedCallback(
       base::RepeatingCallback<void(const AutofillProfileChange&)> change_cb);
@@ -68,12 +71,16 @@ class AutofillWebDataBackendImpl
       AutofillWebDataServiceObserverOnDBSequence* observer) override;
   void RemoveObserver(
       AutofillWebDataServiceObserverOnDBSequence* observer) override;
+  void AddObserver(
+      AutofillWebDataServiceObserverOnUISequence* observer) override;
+  void RemoveObserver(
+      AutofillWebDataServiceObserverOnUISequence* observer) override;
   WebDatabase* GetDatabase() override;
   void NotifyOfAutofillProfileChanged(
       const AutofillProfileChange& change) override;
   void NotifyOfCreditCardChanged(const CreditCardChange& change) override;
   void NotifyOfIbanChanged(const IbanChange& change) override;
-  void NotifyOnAutofillChangedBySync(syncer::ModelType model_type) override;
+  void NotifyOnAutofillChangedBySync(syncer::DataType data_type) override;
   void NotifyOnServerCvcChanged(const ServerCvcChange& change) override;
   void CommitChanges() override;
 
@@ -104,10 +111,9 @@ class AutofillWebDataBackendImpl
       WebDatabase* db);
 
   // Removes form elements recorded for Autocomplete from the database.
-  WebDatabase::State RemoveFormElementsAddedBetween(
-      const base::Time& delete_begin,
-      const base::Time& delete_end,
-      WebDatabase* db);
+  WebDatabase::State RemoveFormElementsAddedBetween(base::Time delete_begin,
+                                                    base::Time delete_end,
+                                                    WebDatabase* db);
 
   // Removes the Form-value |value| which has been entered in form input fields
   // named |name| from the database.
@@ -116,30 +122,54 @@ class AutofillWebDataBackendImpl
                                                    WebDatabase* db);
 
   // Adds an Autofill profile to the web database.
-  WebDatabase::State AddAutofillProfile(const AutofillProfile& profile,
-                                        WebDatabase* db);
+  WebDatabase::State AddAutofillProfile(
+      const AutofillProfile& profile,
+      base::OnceCallback<void(const AutofillProfileChange&)> on_success,
+      WebDatabase* db);
 
   // Updates an Autofill profile in the web database.
-  WebDatabase::State UpdateAutofillProfile(const AutofillProfile& profile,
-                                           WebDatabase* db);
+  WebDatabase::State UpdateAutofillProfile(
+      const AutofillProfile& profile,
+      base::OnceCallback<void(const AutofillProfileChange&)> on_success,
+      WebDatabase* db);
 
   // Removes an Autofill profile from the web database.
   WebDatabase::State RemoveAutofillProfile(
       const std::string& guid,
-      AutofillProfile::Source profile_source,
+      AutofillProfileChange::Type change_type,
+      base::OnceCallback<void(const AutofillProfileChange&)> on_success,
       WebDatabase* db);
 
   // Returns the Autofill profiles from the web database.
   std::unique_ptr<WDTypedResult> GetAutofillProfiles(
-      AutofillProfile::Source profile_source,
       WebDatabase* db);
+
+  // Adds, updates, removes, or retrieves EntityInstances.
+  // See the identically named functions in `EntityTable`, especially on why
+  // RemoveEntityInstancesModifiedBetween() exists.
+  WebDatabase::State AddOrUpdateEntityInstance(
+      EntityInstance entity,
+      base::OnceCallback<void(EntityInstanceChange)> on_success,
+      WebDatabase* db);
+  WebDatabase::State RemoveEntityInstance(
+      base::Uuid guid,
+      base::OnceCallback<void(EntityInstanceChange)> on_success,
+      WebDatabase* db);
+  WebDatabase::State RemoveEntityInstancesModifiedBetween(
+      base::Time delete_begin,
+      base::Time delete_end,
+      WebDatabase* db);
+  std::unique_ptr<WDTypedResult> GetEntityInstances(WebDatabase* db);
+
+  // Retrieves LoyaltyCards from the database.
+  std::unique_ptr<WDTypedResult> GetLoyaltyCards(WebDatabase* db);
 
   // Returns the number of values such that all for autofill entries with that
   // value, the interval between creation date and last usage is entirely
   // contained between [|begin|, |end|).
   std::unique_ptr<WDTypedResult> GetCountOfValuesContainedBetween(
-      const base::Time& begin,
-      const base::Time& end,
+      base::Time begin,
+      base::Time end,
       WebDatabase* db);
 
   // Updates autocomplete entries in the web database.
@@ -219,21 +249,15 @@ class AutofillWebDataBackendImpl
   // Returns a vector of masked bank accounts from the web database.
   std::unique_ptr<WDTypedResult> GetMaskedBankAccounts(WebDatabase* db);
 
+  // Returns a vector of payment instruments from the web database.
+  std::unique_ptr<WDTypedResult> GetPaymentInstruments(WebDatabase* db);
+
+  // Returns a vector of payment instrument creation options from the web
+  // database.
+  std::unique_ptr<WDTypedResult> GetPaymentInstrumentCreationOptions(
+      WebDatabase* db);
+
   WebDatabase::State ClearAllServerData(WebDatabase* db);
-
-  // Removes Autofill records from the database. Valid only for local cards and
-  // kLocalOrSyncable profiles.
-  WebDatabase::State RemoveAutofillDataModifiedBetween(
-      const base::Time& delete_begin,
-      const base::Time& delete_end,
-      WebDatabase* db);
-
-  // Removes origin URLs associated with local credit cards from the database.
-  // Autofill profiles don't store an origin, so this doesn't apply to them.
-  WebDatabase::State RemoveOriginURLsModifiedBetween(
-      const base::Time& delete_begin,
-      const base::Time& delete_end,
-      WebDatabase* db);
 
   // Clears all the credit card benefits from the database.
   WebDatabase::State ClearAllCreditCardBenefits(WebDatabase* db);
@@ -257,7 +281,7 @@ class AutofillWebDataBackendImpl
   // reference-counted objects.
   class SupportsUserDataAggregatable : public base::SupportsUserData {
    public:
-    SupportsUserDataAggregatable() {}
+    SupportsUserDataAggregatable() = default;
 
     SupportsUserDataAggregatable(const SupportsUserDataAggregatable&) = delete;
     SupportsUserDataAggregatable& operator=(
@@ -277,14 +301,16 @@ class AutofillWebDataBackendImpl
   base::ObserverList<AutofillWebDataServiceObserverOnDBSequence>::Unchecked
       db_observer_list_;
 
+  base::ObserverList<AutofillWebDataServiceObserverOnUISequence>::Unchecked
+      ui_observer_list_;
+
   // WebDatabaseBackend allows direct access to DB.
   // TODO(caitkp): Make it so nobody but us needs direct DB access anymore.
   scoped_refptr<WebDatabaseBackend> web_database_backend_;
 
-  base::RepeatingCallback<void(syncer::ModelType)>
-      on_autofill_changed_by_sync_callback_;
-  base::RepeatingCallback<void(const AutofillProfileChange&)>
-      on_autofill_profile_changed_cb_;
+  // This factory is used on the UI sequence. All vended weak pointers are
+  // invalidated in ShutdownOnUISequence().
+  base::WeakPtrFactory<AutofillWebDataBackendImpl> weak_ptr_factory_{this};
 };
 
 }  // namespace autofill

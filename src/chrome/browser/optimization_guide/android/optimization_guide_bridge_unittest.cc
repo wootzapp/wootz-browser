@@ -7,7 +7,6 @@
 #include "base/android/jni_android.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/gmock_callback_support.h"
-#include "chrome/browser/optimization_guide/android/native_j_unittests_jni_headers/OptimizationGuideBridgeNativeUnitTest_jni.h"
 #include "chrome/browser/optimization_guide/chrome_hints_manager.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
@@ -27,6 +26,10 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/optimization_guide/android/native_j_unittests_jni_headers/OptimizationGuideBridgeNativeUnitTest_jni.h"
+
+using ::testing::_;
 using ::testing::An;
 using ::testing::ByRef;
 using ::testing::DoAll;
@@ -110,6 +113,24 @@ TEST_F(OptimizationGuideBridgeTest, CanApplyOptimizationHasHint) {
           ByRef(metadata)));
 
   Java_OptimizationGuideBridgeNativeUnitTest_testCanApplyOptimizationHasHint(
+      env_, j_test_);
+}
+
+TEST_F(OptimizationGuideBridgeTest, SyncCanApplyOptimizationHasHint) {
+  RegisterOptimizationTypes();
+  optimization_guide::proto::LoadingPredictorMetadata hints_metadata;
+  optimization_guide::OptimizationMetadata metadata;
+  metadata.SetAnyMetadataForTesting(hints_metadata);
+  EXPECT_CALL(
+      *optimization_guide_keyed_service_,
+      CanApplyOptimization(GURL("https://example.com/"),
+                           optimization_guide::proto::LOADING_PREDICTOR,
+                           An<optimization_guide::OptimizationMetadata*>()))
+      .WillOnce(
+          DoAll(SetArgPointee<2>(metadata),
+                Return(optimization_guide::OptimizationGuideDecision::kTrue)));
+
+  Java_OptimizationGuideBridgeNativeUnitTest_testSyncCanApplyOptimizationHasHint(
       env_, j_test_);
 }
 

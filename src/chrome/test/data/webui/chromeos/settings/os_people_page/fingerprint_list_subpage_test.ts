@@ -4,14 +4,19 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {FingerprintBrowserProxyImpl, FingerprintResultType, FingerprintSetupStep, SettingsFingerprintListSubpageElement, SettingsSetupFingerprintDialogElement} from 'chrome://os-settings/lazy_load.js';
-import {CrDialogElement, Router, routes} from 'chrome://os-settings/os_settings.js';
+import type {SettingsFingerprintListSubpageElement, SettingsSetupFingerprintDialogElement} from 'chrome://os-settings/lazy_load.js';
+import {FingerprintBrowserProxyImpl, FingerprintResultType, FingerprintSetupStep} from 'chrome://os-settings/lazy_load.js';
+import type {CrDialogElement} from 'chrome://os-settings/os_settings.js';
+import {Router, routes} from 'chrome://os-settings/os_settings.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {getDeepActiveElement} from 'chrome://resources/js/util.js';
-import {DomRepeatEvent, flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {isVisible} from 'chrome://webui-test/test_util.js';
+
+import {FakeQuickUnlockPrivate} from '../fake_quick_unlock_private.js';
 
 import {TestFingerprintBrowserProxy} from './test_fingerprint_browser_proxy.js';
 
@@ -257,10 +262,37 @@ suite('<settings-fingerprint-list-subpage>', () => {
     assertEquals(0, fingerprintList.get('fingerprints_').length);
   });
 
+  // This test simulates a page reload (e.g., CTRL+R) to ensure the
+  // `setup_fingerprint_dialog`'s `disconnectedCallback()` handles
+  // DOM removal correctly.
+  test('ReloadFingerprintEnrollDialog', async () => {
+    openDialog();
+    await browserProxy.whenCalled('startEnroll');
+    const dialogButton =
+        dialog.shadowRoot!.querySelector<CrDialogElement>('#dialog');
+    assertTrue(!!dialogButton);
+    assertTrue(dialogButton.open);
+    assertEquals(0, dialog.get('percentComplete_'));
+    assertEquals(FingerprintSetupStep.LOCATE_SCANNER, dialog.get('step_'));
+    // First tap on the sensor to start fingerprint enrollment.
+    browserProxy.scanReceived(
+        FingerprintResultType.SUCCESS, false, 20 /* percent */);
+    assertEquals(FingerprintSetupStep.MOVE_FINGER, dialog.get('step_'));
+
+    browserProxy.scanReceived(
+        FingerprintResultType.SUCCESS, false, 30 /* percent */);
+    assertEquals(30, dialog.get('percentComplete_'));
+    assertEquals(FingerprintSetupStep.MOVE_FINGER, dialog.get('step_'));
+    dialog.parentNode!.removeChild(dialog);
+    await browserProxy.whenCalled('cancelCurrentEnroll');
+    assertEquals(0, fingerprintList.get('fingerprints_').length);
+  });
+
   test('RemoveFingerprint', async () => {
+    const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
+    fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
     fingerprintList['updateFingerprintsList_']();
-
     await browserProxy.whenCalled('getFingerprintsList');
     browserProxy.resetResolver('getFingerprintsList');
     assertEquals(2, fingerprintList.get('fingerprints_').length);
@@ -274,8 +306,10 @@ suite('<settings-fingerprint-list-subpage>', () => {
   });
 
   test('Deep link to add fingerprint', async () => {
+    const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
+    fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
+    // This is equivalent to the settings id.
     const settingId = '1111';
-
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
     fingerprintList['updateFingerprintsList_']();
     await browserProxy.whenCalled('getFingerprintsList');
@@ -300,6 +334,8 @@ suite('<settings-fingerprint-list-subpage>', () => {
     const settingId = '1112';
 
     browserProxy.setFingerprints(['Label 1', 'Label 2']);
+    const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
+    fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
     fingerprintList['updateFingerprintsList_']();
     await browserProxy.whenCalled('getFingerprintsList');
 
@@ -341,7 +377,8 @@ suite('<settings-fingerprint-list-subpage>', () => {
   test('AddingNewFingerprint', async () => {
     browserProxy.setFingerprints(['1', '2', '3']);
     fingerprintList['updateFingerprintsList_']();
-
+    const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
+    fingerprintList.set('authToken', quickUnlockPrivateApi.getFakeToken());
     // Verify that new fingerprints cannot be added when there are already three
     // registered fingerprints.
     await browserProxy.whenCalled('getFingerprintsList');

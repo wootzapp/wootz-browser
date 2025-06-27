@@ -86,14 +86,15 @@
           "group": "tryserver.chromium.linux"
         },
         {
-          "builder": "linux-mbi-mode-per-render-process-host-rel",
+          "builder": "linux-rel",
           "group": "tryserver.chromium.linux"
         },
         {
-          "builder": "linux-rel",
+          "builder": "linux-rel-test-selection",
           "group": "tryserver.chromium.linux"
         }
-      ]
+      ],
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/Linux Release (NVIDIA)/targets"
     }
   },
   "$recipe_engine/resultdb/test_presentation": {
@@ -104,6 +105,9 @@
     ]
   },
   "builder_group": "chromium.gpu",
+  "gardener_rotations": [
+    "chromium.gpu"
+  ],
   "recipe": "chromium",
   "sheriff_rotations": [
     "chromium.gpu"

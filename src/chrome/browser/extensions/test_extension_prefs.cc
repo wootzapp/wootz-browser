@@ -52,7 +52,7 @@ class TestExtensionPrefs::IncrementalClock : public base::Clock {
   IncrementalClock(const IncrementalClock&) = delete;
   IncrementalClock& operator=(const IncrementalClock&) = delete;
 
-  ~IncrementalClock() override {}
+  ~IncrementalClock() override = default;
 
   base::Time Now() const override {
     current_time_ += base::Seconds(10);
@@ -77,8 +77,7 @@ TestExtensionPrefs::TestExtensionPrefs(
   RecreateExtensionPrefs();
 }
 
-TestExtensionPrefs::~TestExtensionPrefs() {
-}
+TestExtensionPrefs::~TestExtensionPrefs() = default;
 
 ExtensionPrefs* TestExtensionPrefs::prefs() {
   return ExtensionPrefs::Get(&profile_);
@@ -182,12 +181,13 @@ scoped_refptr<Extension> TestExtensionPrefs::AddExtensionWithManifestAndFlags(
   scoped_refptr<Extension> extension =
       Extension::Create(path, location, manifest, extra_flags, &errors);
   EXPECT_TRUE(extension.get()) << errors;
-  if (!extension.get())
+  if (!extension.get()) {
     return nullptr;
+  }
 
   EXPECT_TRUE(crx_file::id_util::IdIsValid(extension->id()));
   prefs()->OnExtensionInstalled(extension.get(),
-                                Extension::ENABLED,
+                                /*disable_reasons=*/{},
                                 syncer::StringOrdinal::CreateInitialOrdinal(),
                                 std::string());
   return extension;
@@ -201,7 +201,7 @@ std::string TestExtensionPrefs::AddExtensionAndReturnId(
 
 void TestExtensionPrefs::AddExtension(const Extension* extension) {
   prefs()->OnExtensionInstalled(extension,
-                                Extension::ENABLED,
+                                /*disable_reasons=*/{},
                                 syncer::StringOrdinal::CreateInitialOrdinal(),
                                 std::string());
 }

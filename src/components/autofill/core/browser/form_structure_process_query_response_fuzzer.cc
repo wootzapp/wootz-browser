@@ -7,11 +7,12 @@
 #include <iostream>
 
 #include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_encoding.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/form_structure_test_api.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "testing/libfuzzer/proto/lpm_interface.h"
 
@@ -28,7 +29,7 @@ void AddField(const std::string& label,
   field.set_label(ASCIIToUTF16(label));
   field.set_name(ASCIIToUTF16(name));
   field.set_form_control_type(control_type);
-  form_data->fields.push_back(field);
+  test_api(*form_data).Append(field);
 }
 
 // We run ProcessServerPredictionsQueryResponse twice with hardcoded forms
@@ -37,10 +38,9 @@ void AddField(const std::string& label,
 // those two hardcoded forms vectors, so it can be changed if needed.
 DEFINE_BINARY_PROTO_FUZZER(const AutofillQueryResponse& response) {
   std::vector<raw_ptr<FormStructure, VectorExperimental>> forms;
-  ProcessServerPredictionsQueryResponse(
-      response, forms, test::GetEncodedSignatures(forms),
-      /*form_interactions_ukm_logger=*/nullptr,
-      /*log_manager=*/nullptr);
+  ProcessServerPredictionsQueryResponse(response, forms,
+                                        test::GetEncodedSignatures(forms),
+                                        /*log_manager=*/nullptr);
 
   FormData form_data;
   AddField("username", "username", FormControlType::kInputText, &form_data);
@@ -48,10 +48,9 @@ DEFINE_BINARY_PROTO_FUZZER(const AutofillQueryResponse& response) {
 
   FormStructure form(form_data);
   forms.push_back(&form);
-  ProcessServerPredictionsQueryResponse(
-      response, forms, test::GetEncodedSignatures(forms),
-      /*form_interactions_ukm_logger=*/nullptr,
-      /*log_manager=*/nullptr);
+  ProcessServerPredictionsQueryResponse(response, forms,
+                                        test::GetEncodedSignatures(forms),
+                                        /*log_manager=*/nullptr);
 }
 
 }  // namespace

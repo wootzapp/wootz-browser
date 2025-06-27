@@ -25,10 +25,12 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "components/services/storage/public/cpp/buckets/bucket_locator.h"
@@ -124,8 +126,8 @@ base::FilePath ConstructOriginPath(const base::FilePath& profile_path,
   if (owner != storage::mojom::CacheStorageOwner::kCacheAPI) {
     identifier += "-" + base::NumberToString(static_cast<int>(owner));
   }
-  const std::string origin_hash_hex = base::ToLowerASCII(base::HexEncode(
-      base::SHA1HashSpan(base::as_bytes(base::make_span(identifier)))));
+  const std::string origin_hash_hex = base::ToLowerASCII(
+      base::HexEncode(base::SHA1Hash(base::as_byte_span(identifier))));
   return first_party_default_root_path.AppendASCII(origin_hash_hex);
 }
 
@@ -180,9 +182,9 @@ void ValidateAndAddBucketFromPath(
   if (index.has_bucket_id() && index.has_bucket_is_default()) {
     // We'll populate the bucket locator using the information from the index
     // file, but it's not guaranteed that this will be valid.
-    bucket_locator = storage::BucketLocator(
-        storage::BucketId(index.bucket_id()), storage_key,
-        blink::mojom::StorageType::kTemporary, index.bucket_is_default());
+    bucket_locator =
+        storage::BucketLocator(storage::BucketId(index.bucket_id()),
+                               storage_key, index.bucket_is_default());
   } else {
     // If the index file has no bucket information then it's from before we
     // had non-default buckets and third-party storage partitioning
@@ -300,7 +302,7 @@ bool BucketMatchesOriginsForDeletion(
   for (auto& requested_origin : origins) {
     if (bucket_key.origin() == requested_origin ||
         (bucket_key.IsThirdPartyContext() &&
-         bucket_key.top_level_site() == net::SchemefulSite(requested_origin))) {
+         bucket_key.top_level_site().IsSameSiteWith(requested_origin))) {
       return true;
     }
   }
@@ -365,7 +367,6 @@ bool CacheStorageManager::CacheStoragePathIsUnique(const base::FilePath& path) {
 bool CacheStorageManager::ConflictingInstanceExistsInMap(
     storage::mojom::CacheStorageOwner owner,
     const storage::BucketLocator& bucket_locator) {
-  DCHECK(bucket_locator.type == blink::mojom::StorageType::kTemporary);
 
   if (IsMemoryBacked() || !bucket_locator.is_default ||
       !bucket_locator.storage_key.IsFirstPartyContext()) {
@@ -389,7 +390,6 @@ bool CacheStorageManager::ConflictingInstanceExistsInMap(
         key_value.first.first.storage_key != bucket_locator.storage_key) {
       continue;
     }
-    DCHECK(key_value.first.first.type == blink::mojom::StorageType::kTemporary);
 
     // An existing entry has a different bucket ID and/or type, which means
     // these entries will use the same directory path.
@@ -455,10 +455,10 @@ void CacheStorageManager::NotifyCacheListChanged(
 
 void CacheStorageManager::NotifyCacheContentChanged(
     const storage::BucketLocator& bucket_locator,
-    const std::string& name) {
+    const std::u16string& name) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   for (const auto& observer : observers_) {
-    observer->OnCacheContentChanged(bucket_locator, name);
+    observer->OnCacheContentChanged(bucket_locator, base::UTF16ToUTF8(name));
   }
 }
 
@@ -470,7 +470,7 @@ void CacheStorageManager::CacheStorageUnreferenced(
   DCHECK(cache_storage);
   cache_storage->AssertUnreferenced();
   auto it = cache_storage_map_.find({bucket_locator, owner});
-  DCHECK(it != cache_storage_map_.end());
+  CHECK(it != cache_storage_map_.end(), base::NotFatalUntil::M130);
   DCHECK(it->second.get() == cache_storage);
 
   // Currently we don't do anything when a CacheStorage instance becomes
@@ -526,7 +526,7 @@ void CacheStorageManager::GetBucketUsageDidGetExists(
 // default bucket.
 void CacheStorageManager::GetStorageKeys(
     storage::mojom::CacheStorageOwner owner,
-    storage::mojom::QuotaClient::GetStorageKeysForTypeCallback callback) {
+    storage::mojom::QuotaClient::GetDefaultStorageKeysCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (IsMemoryBacked()) {
@@ -702,7 +702,7 @@ void CacheStorageManager::DeleteBucketDataDidGetExists(
   CacheStorageHandle handle = OpenCacheStorage(bucket_locator, owner);
 
   auto it = cache_storage_map_.find({bucket_locator, owner});
-  DCHECK(it != cache_storage_map_.end());
+  CHECK(it != cache_storage_map_.end(), base::NotFatalUntil::M130);
 
   CacheStorage* cache_storage = it->second.release();
   cache_storage->ResetManager();
@@ -799,7 +799,7 @@ base::FilePath CacheStorageManager::ConstructBucketPath(
           profile_path, bucket_locator,
           storage::QuotaClientType::kBackgroundFetch);
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -840,7 +840,7 @@ base::FilePath CacheStorageManager::ConstructThirdPartyAndNonDefaultRootPath(
 // default bucket. Keep this function to return a vector of StorageKeys, instead
 // of buckets.
 void CacheStorageManager::ListStorageKeysOnTaskRunner(
-    storage::mojom::QuotaClient::GetStorageKeysForTypeCallback callback,
+    storage::mojom::QuotaClient::GetDefaultStorageKeysCallback callback,
     std::vector<storage::BucketLocator> buckets) {
   // Note that bucket IDs will not be populated in the `buckets` entries.
   std::vector<blink::StorageKey> out_storage_keys;

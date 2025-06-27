@@ -15,7 +15,13 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.components.embedder_support.contextmenu.ChipDelegate;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuNativeDelegate;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuParams;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulator;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuUi;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuUtils;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -91,6 +97,7 @@ public class ContextMenuHelper {
                 || windowAndroid == null
                 || windowAndroid.getActivity().get() == null
                 || mPopulatorFactory == null
+                || !mPopulatorFactory.isEnabled()
                 || mCurrentContextMenu != null) {
             return;
         }

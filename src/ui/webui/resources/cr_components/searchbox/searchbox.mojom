@@ -23,6 +23,7 @@ struct Action {
   mojo_base.mojom.String16 suggestion_contents;
   // The url for the action icon. This is a relative url pointing to a
   // bundled resource and is used directly in CSS to show the icon.
+  // |icon_url| is a relative url or a data URI.
   string icon_url;
 };
 
@@ -122,7 +123,7 @@ struct OmniboxPopupSelection {
 // searchboxes which communicate with this interface are chrome://new-tab-page
 // and two chrome-untrusted://lens pages.
 interface PageHandler {
-  // The RealboxBrowserProxy singleton calls this when it's first initialized.
+  // The SearchboxBrowserProxy singleton calls this when it's first initialized.
   SetPage(pending_remote<Page> page);
   // Informs the handler and model about focus state changes.
   OnFocusChanged(bool focused);

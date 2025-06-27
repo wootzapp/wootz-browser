@@ -19,14 +19,21 @@ InterpolationValue CSSTimeInterpolationType::MaybeConvertNeutral(
   return CreateTimeValue(0);
 }
 
+InterpolationValue CSSTimeInterpolationType::MaybeConvertTime(
+    const CSSValue& value,
+    const CSSToLengthConversionData& conversion_data) const {
+  const auto* primitive_value = DynamicTo<CSSPrimitiveValue>(value);
+  if (!primitive_value || !primitive_value->IsTime()) {
+    return nullptr;
+  }
+  return CreateTimeValue(primitive_value->ComputeSeconds(conversion_data));
+}
+
 InterpolationValue CSSTimeInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState*,
+    const StyleResolverState& state,
     ConversionCheckers&) const {
-  auto* primitive_value = DynamicTo<CSSPrimitiveValue>(value);
-  if (!primitive_value || !primitive_value->IsTime())
-    return nullptr;
-  return CreateTimeValue(primitive_value->ComputeSeconds());
+  return MaybeConvertTime(value, state.CssToLengthConversionData());
 }
 
 const CSSValue* CSSTimeInterpolationType::CreateCSSValue(
@@ -47,13 +54,12 @@ std::optional<double> CSSTimeInterpolationType::GetSeconds(
     const CSSPropertyID& property,
     const ComputedStyle& style) {
   switch (property) {
-    case CSSPropertyID::kPopoverShowDelay:
-      return style.PopoverShowDelay();
-    case CSSPropertyID::kPopoverHideDelay:
-      return style.PopoverHideDelay();
+    case CSSPropertyID::kInterestTargetShowDelay:
+      return style.InterestTargetShowDelay();
+    case CSSPropertyID::kInterestTargetHideDelay:
+      return style.InterestTargetHideDelay();
     default:
-      NOTREACHED_IN_MIGRATION();
-      return std::optional<double>();
+      NOTREACHED();
   }
 }
 
@@ -69,12 +75,11 @@ std::optional<double> CSSTimeInterpolationType::GetSeconds(
 double CSSTimeInterpolationType::ClampTime(const CSSPropertyID& property,
                                            double value) const {
   switch (property) {
-    case CSSPropertyID::kPopoverShowDelay:
-    case CSSPropertyID::kPopoverHideDelay:
+    case CSSPropertyID::kInterestTargetShowDelay:
+    case CSSPropertyID::kInterestTargetHideDelay:
       return ClampTo<float>(value, 0);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
   }
 }
 
@@ -86,6 +91,13 @@ CSSTimeInterpolationType::MaybeConvertStandardPropertyUnderlyingValue(
   return nullptr;
 }
 
+InterpolationValue
+CSSTimeInterpolationType::MaybeConvertCustomPropertyUnderlyingValue(
+    const CSSValue& value) const {
+  return MaybeConvertTime(value,
+                          CSSToLengthConversionData(/*element=*/nullptr));
+}
+
 void CSSTimeInterpolationType::ApplyStandardPropertyValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue*,
@@ -95,15 +107,14 @@ void CSSTimeInterpolationType::ApplyStandardPropertyValue(
   double clamped_seconds =
       ClampTime(property, To<InterpolableNumber>(interpolable_value).Value());
   switch (property) {
-    case CSSPropertyID::kPopoverShowDelay:
-      builder.SetPopoverShowDelay(clamped_seconds);
+    case CSSPropertyID::kInterestTargetShowDelay:
+      builder.SetInterestTargetShowDelay(clamped_seconds);
       break;
-    case CSSPropertyID::kPopoverHideDelay:
-      builder.SetPopoverHideDelay(clamped_seconds);
+    case CSSPropertyID::kInterestTargetHideDelay:
+      builder.SetInterestTargetHideDelay(clamped_seconds);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 

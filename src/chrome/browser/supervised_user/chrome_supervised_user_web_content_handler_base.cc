@@ -15,7 +15,7 @@
 ChromeSupervisedUserWebContentHandlerBase::
     ChromeSupervisedUserWebContentHandlerBase(
         content::WebContents* web_contents,
-        int frame_id,
+        content::FrameTreeNodeId frame_id,
         int64_t interstitial_navigation_id)
     : web_contents_(web_contents),
       frame_id_(frame_id),
@@ -76,6 +76,8 @@ void ChromeSupervisedUserWebContentHandlerBase::GoBack() {
   }
   OnInterstitialDone();
 }
+
+void ChromeSupervisedUserWebContentHandlerBase::MaybeCloseLocalApproval() {}
 
 bool ChromeSupervisedUserWebContentHandlerBase::
     AttemptMoveAwayFromCurrentFrameURL() {

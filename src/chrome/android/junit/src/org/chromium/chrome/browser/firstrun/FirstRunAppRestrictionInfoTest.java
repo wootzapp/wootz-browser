@@ -14,32 +14,36 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowUserManager;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.PayloadCallbackHelper;
+import org.chromium.chrome.browser.signin.AppRestrictionSupplier;
 import org.chromium.components.policy.PolicySwitches;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
-/** Unit test for {@link FirstRunAppRestrictionInfo}. */
+/** Unit test for {@link AppRestrictionSupplier}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(
         manifest = Config.NONE,
         shadows = {ShadowPostTask.class, ShadowUserManager.class})
 @LooperMode(LooperMode.Mode.LEGACY)
 public class FirstRunAppRestrictionInfoTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Bundle mMockBundle;
 
     private boolean mPauseDuringPostTask;
@@ -47,7 +51,6 @@ public class FirstRunAppRestrictionInfoTest {
 
     @Before
     public void setup() {
-        MockitoAnnotations.initMocks(this);
         ShadowPostTask.setTestImpl(
                 new ShadowPostTask.TestImpl() {
                     @Override
@@ -84,10 +87,9 @@ public class FirstRunAppRestrictionInfoTest {
         final PayloadCallbackHelper<Boolean> appResCallbackHelper = new PayloadCallbackHelper<>();
         final CallbackHelper completionCallbackHelper = new CallbackHelper();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    FirstRunAppRestrictionInfo info =
-                            FirstRunAppRestrictionInfo.takeMaybeInitialized();
+                    AppRestrictionSupplier info = AppRestrictionSupplier.takeMaybeInitialized();
                     info.getHasAppRestriction(appResCallbackHelper::notifyCalled);
                     info.getCompletionElapsedRealtimeMs(
                             (ignored) -> completionCallbackHelper.notifyCalled());
@@ -110,10 +112,9 @@ public class FirstRunAppRestrictionInfoTest {
         final CallbackHelper completionCallbackHelper3 = new CallbackHelper();
 
         mPauseDuringPostTask = true;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    FirstRunAppRestrictionInfo info =
-                            FirstRunAppRestrictionInfo.takeMaybeInitialized();
+                    AppRestrictionSupplier info = AppRestrictionSupplier.takeMaybeInitialized();
                     info.getHasAppRestriction(appResCallbackHelper1::notifyCalled);
                     info.getHasAppRestriction(appResCallbackHelper2::notifyCalled);
                     info.getHasAppRestriction(appResCallbackHelper3::notifyCalled);
@@ -152,7 +153,7 @@ public class FirstRunAppRestrictionInfoTest {
 
         mPauseDuringPostTask = false;
         // Initialized the AppRestrictionInfo and wait until initialized.
-        TestThreadUtils.runOnUiThreadBlocking(() -> mPendingPostTask.run());
+        ThreadUtils.runOnUiThreadBlocking(() -> mPendingPostTask.run());
 
         Assert.assertTrue(appResCallbackHelper1.getOnlyPayloadBlocking());
         Assert.assertTrue(appResCallbackHelper2.getOnlyPayloadBlocking());
@@ -169,10 +170,9 @@ public class FirstRunAppRestrictionInfoTest {
         final CallbackHelper completionCallbackHelper = new CallbackHelper();
         mPauseDuringPostTask = true;
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    FirstRunAppRestrictionInfo info =
-                            FirstRunAppRestrictionInfo.takeMaybeInitialized();
+                    AppRestrictionSupplier info = AppRestrictionSupplier.takeMaybeInitialized();
                     info.getHasAppRestriction(appResCallbackHelper::notifyCalled);
                     info.getCompletionElapsedRealtimeMs(
                             (ignored) -> completionCallbackHelper.notifyCalled());
@@ -196,9 +196,9 @@ public class FirstRunAppRestrictionInfoTest {
     @CommandLineFlags.Add({PolicySwitches.CHROME_POLICY})
     public void testCommandLine() {
         final PayloadCallbackHelper<Boolean> appResCallbackHelper = new PayloadCallbackHelper<>();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        FirstRunAppRestrictionInfo.takeMaybeInitialized()
+                        AppRestrictionSupplier.takeMaybeInitialized()
                                 .getHasAppRestriction(appResCallbackHelper::notifyCalled));
         Assert.assertTrue(appResCallbackHelper.getOnlyPayloadBlocking());
     }

@@ -4,13 +4,12 @@
 
 #include "chrome/browser/win/remove_app_compat_entries.h"
 
+#include <algorithm>
 #include <string_view>
 #include <vector>
 
 #include "base/containers/fixed_flat_set.h"
 #include "base/files/file_path.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/win/registry.h"
@@ -33,14 +32,13 @@ void RemoveAppCompatEntries(const base::FilePath& program) {
     return;
   }
 
-  bool modified = RemoveCompatLayers(layers);
-  if (modified &&
-      (layers.empty() ? key.DeleteValue(program.value().c_str())
-                      : key.WriteValue(program.value().c_str(),
-                                       layers.c_str())) != ERROR_SUCCESS) {
-    modified = false;  // Writing to the registry failed.
+  if (RemoveCompatLayers(layers)) {
+    if (layers.empty()) {
+      key.DeleteValue(program.value().c_str());
+    } else {
+      key.WriteValue(program.value().c_str(), layers.c_str());
+    }
   }
-  base::UmaHistogramBoolean("Windows.AppCompatLayersRemoved", modified);
 }
 
 bool RemoveCompatLayers(std::wstring& layers) {
@@ -48,6 +46,13 @@ bool RemoveCompatLayers(std::wstring& layers) {
       layers, L" ", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
   if (tokens.empty()) {
     return false;  // Nothing to remove.
+  }
+
+  static constexpr std::wstring_view kMagicToken(L"~");
+  if (tokens.size() == 1 && tokens.front() == kMagicToken) {
+    // The input is nothing but the leading token.
+    layers.clear();
+    return true;
   }
 
   // Remove all known compatibility mode layer names.
@@ -59,15 +64,15 @@ bool RemoveCompatLayers(std::wstring& layers) {
           L"WIN98",       L"WINSRV03SP1", L"WINSRV08SP1", L"WINSRV16RTM",
           L"WINSRV19RTM", L"WINXPSP2",    L"WINXPSP3",
       });
-  const auto new_end =
-      base::ranges::remove_if(tokens, [](const std::wstring_view& token) {
+  const auto to_remove =
+      std::ranges::remove_if(tokens, [](const std::wstring_view& token) {
         return kCompatModeTokens.contains(token);
       });
-  if (new_end == tokens.end()) {
+  if (to_remove.empty()) {
     return false;  // No changes made.
   }
-  tokens.erase(new_end, tokens.end());
-  if (tokens.empty()) {
+  tokens.erase(to_remove.begin(), to_remove.end());
+  if (tokens.empty() || (tokens.size() == 1 && tokens.front() == kMagicToken)) {
     layers.clear();
   } else {
     layers = base::JoinString(tokens, L" ");

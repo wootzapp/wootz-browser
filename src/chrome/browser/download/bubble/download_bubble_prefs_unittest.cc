@@ -7,7 +7,7 @@
 #include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
@@ -62,7 +62,7 @@ class DownloadBubblePrefsTest : public testing::Test {
     policy::SetDMTokenForTesting(
         policy::DMToken::CreateValidToken("fake-token"));
     profile_->GetPrefs()->SetInteger(
-        ConnectorScopePref(
+        AnalysisConnectorScopePref(
             enterprise_connectors::AnalysisConnector::FILE_DOWNLOADED),
         policy::POLICY_SCOPE_MACHINE);
   }
@@ -78,7 +78,7 @@ class DownloadBubblePrefsTest : public testing::Test {
 
 TEST_F(DownloadBubblePrefsTest, IsDownloadBubbleEnabled) {
   bool is_enabled = IsDownloadBubbleEnabled();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   EXPECT_FALSE(is_enabled);
 #else
   EXPECT_TRUE(is_enabled);
@@ -88,12 +88,12 @@ TEST_F(DownloadBubblePrefsTest, IsDownloadBubbleEnabled) {
 TEST_F(DownloadBubblePrefsTest, DoesDownloadConnectorBlock) {
   EXPECT_FALSE(DoesDownloadConnectorBlock(profile_, GURL()));
   profile_->GetPrefs()->Set(
-      enterprise_connectors::ConnectorPref(
+      enterprise_connectors::AnalysisConnectorPref(
           enterprise_connectors::FILE_DOWNLOADED),
       *base::JSONReader::Read(kDownloadConnectorEnabledNonBlockingPref));
   EXPECT_FALSE(DoesDownloadConnectorBlock(profile_, GURL()));
   profile_->GetPrefs()->Set(
-      enterprise_connectors::ConnectorPref(
+      enterprise_connectors::AnalysisConnectorPref(
           enterprise_connectors::FILE_DOWNLOADED),
       *base::JSONReader::Read(kDownloadConnectorEnabledBlockingPref));
   EXPECT_TRUE(DoesDownloadConnectorBlock(profile_, GURL()));

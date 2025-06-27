@@ -18,10 +18,15 @@ namespace global_media_controls {
 
 namespace {
 
-constexpr int kMediaListMaxHeight = 478;
+constexpr int kMediaListMaxHeight = 488;
 
 // Thickness of separator border.
 constexpr int kMediaListSeparatorThickness = 2;
+
+#if !BUILDFLAG(IS_CHROMEOS)
+// Padding for the borders and separators for non-CrOS updated UI.
+constexpr int kMediaListUpdatedPadding = 8;
+#endif
 
 std::unique_ptr<views::Border> CreateMediaListSeparatorBorder(SkColor color,
                                                               int thickness) {
@@ -54,6 +59,16 @@ MediaItemUIListView::MediaItemUIListView(
       views::ScrollBar::Orientation::kVertical));
   SetHorizontalScrollBar(std::make_unique<views::OverlayScrollBar>(
       views::ScrollBar::Orientation::kHorizontal));
+
+#if !BUILDFLAG(IS_CHROMEOS)
+  if (base::FeatureList::IsEnabled(media::kGlobalMediaControlsUpdatedUI)) {
+    auto* layout =
+        static_cast<views::BoxLayout*>(contents()->GetLayoutManager());
+    layout->set_inside_border_insets(
+        gfx::Insets::VH(kMediaListUpdatedPadding, kMediaListUpdatedPadding));
+    layout->set_between_child_spacing(kMediaListUpdatedPadding);
+  }
+#endif
 }
 
 MediaItemUIListView::~MediaItemUIListView() = default;
@@ -63,11 +78,9 @@ void MediaItemUIListView::ShowItem(const std::string& id,
   DCHECK(!base::Contains(items_, id));
   DCHECK_NE(nullptr, item.get());
 
-#if BUILDFLAG(IS_CHROMEOS)
-  bool use_updated_ui =
-      base::FeatureList::IsEnabled(media::kGlobalMediaControlsCrOSUpdatedUI);
-#else
-  bool use_updated_ui =
+  bool use_updated_ui = true;
+#if !BUILDFLAG(IS_CHROMEOS)
+  use_updated_ui =
       base::FeatureList::IsEnabled(media::kGlobalMediaControlsUpdatedUI);
 #endif
 

@@ -15,8 +15,8 @@
 #include "base/types/expected.h"
 #include "base/uuid.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/chromeos/extensions/telemetry/api/diagnostics/diagnostics_api_converters.h"
+#include "chrome/browser/chromeos/extensions/telemetry/api/diagnostics/diagnostics_api_metrics.h"
 #include "chrome/browser/chromeos/extensions/telemetry/api/diagnostics/remote_diagnostics_service_strategy.h"
 #include "chrome/browser/chromeos/extensions/telemetry/api/routines/diagnostic_routine_manager.h"
 #include "chrome/common/chromeos/extensions/api/diagnostics.h"
@@ -26,11 +26,6 @@
 #include "chromeos/crosapi/mojom/telemetry_extension_exception.mojom.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/permissions/permissions_data.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "base/strings/stringprintf.h"
-#include "chromeos/lacros/lacros_service.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 namespace chromeos {
 
@@ -60,7 +55,7 @@ ParseRoutineArgumentSupportResult(
       return base::ok(std::move(info));
     }
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 bool IsPendingApprovalRoutine(
@@ -96,23 +91,6 @@ DiagnosticsApiFunctionBase::GetRemoteService() {
   DCHECK(remote_diagnostics_service_strategy_);
   return remote_diagnostics_service_strategy_->GetRemoteService();
 }
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-bool DiagnosticsApiFunctionBase::IsCrosApiAvailable() {
-  return remote_diagnostics_service_strategy_ != nullptr;
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
-// DiagnosticsApiFunctionBaseV2 ------------------------------------------------
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-bool DiagnosticsApiFunctionBaseV2::IsCrosApiAvailable() {
-  return LacrosService::Get() &&
-         LacrosService::Get()
-             ->IsAvailable<
-                 crosapi::mojom::TelemetryDiagnosticRoutinesService>();
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 // OsDiagnosticsGetAvailableRoutinesFunction -----------------------------------
 
@@ -526,6 +504,8 @@ void OsDiagnosticsCreateRoutineFunction::RunIfAllowed() {
         NewUnrecognizedArgument(false);
   }
 
+  RecordRoutineCreation(mojo_arg.value()->which());
+
   // Network bandwidth routine is guarded by `os.diagnostics.network_info_mlab`
   // permission.
   if (mojo_arg.value()->is_network_bandwidth() &&
@@ -774,6 +754,8 @@ void OsDiagnosticsIsRoutineArgumentSupportedFunction::RunIfAllowed() {
     mojo_arg = crosapi::mojom::TelemetryDiagnosticRoutineArgument::
         NewUnrecognizedArgument(false);
   }
+
+  RecordRoutineSupportedStatusQuery(mojo_arg.value()->which());
 
   // Network bandwidth routine is guarded by `os.diagnostics.network_info_mlab`
   // permission.

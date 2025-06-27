@@ -8,7 +8,6 @@
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
 #include "ash/style/color_util.h"
-#include "ash/utility/forest_util.h"
 #include "ash/wallpaper/views/wallpaper_view.h"
 #include "ui/aura/window.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
@@ -140,10 +139,6 @@ void WallpaperWidgetController::OnColorProviderChanged() {
 }
 
 void WallpaperWidgetController::CreateWallpaperUnderlayLayer() {
-  if (!features::IsOakFeatureEnabled() && !IsForestFeatureFlagEnabled()) {
-    return;
-  }
-
   wallpaper_underlay_layer_ =
       std::make_unique<ui::Layer>(ui::LAYER_SOLID_COLOR);
   wallpaper_underlay_layer_->SetName("WallpaperUnderlayLayer");

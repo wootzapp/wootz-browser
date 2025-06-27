@@ -13,7 +13,9 @@
 #include "base/component_export.h"
 #include "base/files/file_path.h"
 #include "base/time/time.h"
+#include "components/optimization_guide/core/optimization_guide_constants.h"
 #include "components/optimization_guide/proto/models.pb.h"
+#include "url/gurl.h"
 
 namespace optimization_guide {
 namespace proto {
@@ -63,11 +65,19 @@ extern const char kModelValidate[];
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const char kModelExecutionValidate[];
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kModelExecutionEnableRemoteDebugLogging[];
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const char kModelQualityServiceURL[];
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const char kModelQualityServiceAPIKey[];
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const char kEnableModelQualityDogfoodLogging[];
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kGetFreeDiskSpaceWithUserVisiblePriorityTask[];
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kOptimizationGuideLanguageOverride[];
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kGoogleApiKeyConfigurationCheckOverride[];
 
 // The API key for the ModelQualityLoggingService.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
@@ -123,10 +133,6 @@ bool ShouldOverrideCheckingUserPermissionsToFetchHintsForTesting();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool ShouldSkipModelDownloadVerificationForTesting();
 
-// Returns whether at least one model was provided via command-line.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-bool IsModelOverridePresent();
-
 // Returns whether the model validation should happen.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool ShouldValidateModel();
@@ -135,17 +141,9 @@ bool ShouldValidateModel();
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool ShouldValidateModelExecution();
 
-// Returns the model override command line switch.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-std::optional<std::string> GetModelOverride();
-
-// Returns the on-device model execution override command line switch.
+// Returns the path to the on-device base model provided on the command line.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 std::optional<std::string> GetOnDeviceModelExecutionOverride();
-
-// Returns the on-device model adaptations override command line switch.
-COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
-std::optional<std::string> GetOnDeviceModelAdaptationsOverride();
 
 // Returns the file path to the text file to use for the on-device request
 // override.
@@ -159,6 +157,20 @@ std::optional<base::FilePath> GetOnDeviceValidationWriteToFile();
 // Returns true if debug logs are enabled for the optimization guide.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 bool IsDebugLogsEnabled();
+
+// Returns whether to get free disk space with base::TaskPriority::USER_VISIBLE
+// task. This is about the freediskspace check in the context of the on-device
+// model eligibility check.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ShouldGetFreeDiskSpaceWithUserVisiblePriorityTask();
+
+// Returns true if Google API key configuration check should be skipped.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+bool ShouldSkipGoogleApiKeyConfigurationCheck();
+
+// Return the URL endpoint used for the model execution service.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+GURL GetModelExecutionServiceURL();
 
 }  // namespace switches
 }  // namespace optimization_guide

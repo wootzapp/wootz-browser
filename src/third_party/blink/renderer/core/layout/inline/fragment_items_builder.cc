@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/core/layout/inline/fragment_items_builder.h"
 
+#include "base/not_fatal_until.h"
 #include "third_party/blink/renderer/core/layout/box_fragment_builder.h"
 #include "third_party/blink/renderer/core/layout/geometry/writing_mode_converter.h"
 #include "third_party/blink/renderer/core/layout/inline/fragment_items.h"
@@ -40,7 +41,7 @@ FragmentItemsBuilder::FragmentItemsBuilder(
   // oilpan doesn't get around to collecting it.
   if (!is_block_fragmented) {
     const wtf_size_t estimated_item_count = text_content_.length() / 40 * 3;
-    if (UNLIKELY(estimated_item_count > items_.capacity() * 2)) {
+    if (estimated_item_count > items_.capacity() * 2) [[unlikely]] {
       items_.ReserveInitialCapacity(estimated_item_count);
     }
   }
@@ -143,7 +144,7 @@ void FragmentItemsBuilder::AddLine(const PhysicalLineBoxFragment& line_fragment,
   const wtf_size_t line_start_index = items_.size();
   items_.emplace_back(offset, line_fragment);
 
-  AddItems(line_items.begin(), line_items.end());
+  AddItems(base::span(line_items));
 
   for (auto& annotation_line : line_container->AnnotationLineList()) {
     const wtf_size_t annotation_line_start_index = items_.size();
@@ -151,6 +152,15 @@ void FragmentItemsBuilder::AddLine(const PhysicalLineBoxFragment& line_fragment,
     if (!annotation_line->FirstInFlowChild()) {
       continue;
     }
+
+    // If the line is hidden (e.g. because of line-clamp), annotations on that
+    // line should be hidden as well.
+    if (line_fragment.IsHiddenForPaint()) {
+      for (auto& item : *annotation_line.line_items) {
+        item.is_hidden_for_paint = true;
+      }
+    }
+
     LogicalOffset line_offset = annotation_line->FirstInFlowChild()->Offset();
     LayoutUnit line_inline_size =
         annotation_line->LastInFlowChild()->rect.InlineEndOffset() -
@@ -160,7 +170,7 @@ void FragmentItemsBuilder::AddLine(const PhysicalLineBoxFragment& line_fragment,
                             : PhysicalSize(line_height, line_inline_size);
     // The offset must be relative to the base line box for now.
     items_.emplace_back(line_offset, size, line_fragment);
-    AddItems(annotation_line->begin(), annotation_line->end());
+    AddItems(base::span(*annotation_line.line_items));
     items_[annotation_line_start_index].item.SetDescendantsCount(
         items_.size() - annotation_line_start_index);
   }
@@ -179,23 +189,22 @@ void FragmentItemsBuilder::AddLine(const PhysicalLineBoxFragment& line_fragment,
   DCHECK_LE(items_.size(), estimated_size);
 }
 
-void FragmentItemsBuilder::AddItems(LogicalLineItem* child_begin,
-                                    LogicalLineItem* child_end) {
+void FragmentItemsBuilder::AddItems(base::span<LogicalLineItem> child_span) {
   DCHECK(!is_converted_to_physical_);
 
   const WritingMode writing_mode = GetWritingMode();
-  for (LogicalLineItem* child_iter = child_begin; child_iter != child_end;) {
-    LogicalLineItem& child = *child_iter;
+  for (size_t i = 0; i < child_span.size();) {
+    LogicalLineItem& child = child_span[i];
     // OOF children should have been added to their parent box fragments.
     DCHECK(!child.out_of_flow_positioned_box);
     if (!child.CanCreateFragmentItem()) {
-      ++child_iter;
+      ++i;
       continue;
     }
 
     if (child.children_count <= 1) {
       items_.emplace_back(child.rect.offset, std::move(child), writing_mode);
-      ++child_iter;
+      ++i;
       continue;
     }
 
@@ -209,10 +218,8 @@ void FragmentItemsBuilder::AddItems(LogicalLineItem* child_begin,
 
     // Add all children, including their desendants, skipping this item.
     CHECK_GE(children_count, 1u);  // 0 will loop infinitely.
-    LogicalLineItem* end_child_iter = child_iter + children_count;
-    CHECK_LE(end_child_iter - child_begin, child_end - child_begin);
-    AddItems(child_iter + 1, end_child_iter);
-    child_iter = end_child_iter;
+    AddItems(child_span.subspan(i + 1, children_count - 1));
+    i += children_count;
 
     // All children are added. Compute how many items are actually added. The
     // number of items added may be different from |children_count|.
@@ -237,25 +244,18 @@ void FragmentItemsBuilder::AddListMarker(
 FragmentItemsBuilder::AddPreviousItemsResult
 FragmentItemsBuilder::AddPreviousItems(const PhysicalBoxFragment& container,
                                        const FragmentItems& items,
+                                       const FragmentItem& end_item,
                                        BoxFragmentBuilder* container_builder,
-                                       const FragmentItem* end_item,
                                        wtf_size_t max_lines) {
-  if (end_item) {
-    DCHECK(node_);
-    DCHECK(container_builder);
-    DCHECK(text_content_);
+  DCHECK(node_);
+  DCHECK(container_builder);
+  DCHECK(text_content_);
 
-    if (UNLIKELY(items.FirstLineText() && !first_line_text_content_)) {
-      // Don't reuse previous items if they have different `::first-line` style
-      // but |this| doesn't. Reaching here means that computed style doesn't
-      // change, but |FragmentItem| has wrong |StyleVariant|.
-      return AddPreviousItemsResult();
-    }
-  } else {
-    DCHECK(!container_builder);
-    DCHECK(!text_content_);
-    text_content_ = items.NormalText();
-    first_line_text_content_ = items.FirstLineText();
+  if (items.FirstLineText() && !first_line_text_content_) [[unlikely]] {
+    // Don't reuse previous items if they have different `::first-line` style
+    // but |this| doesn't. Reaching here means that computed style doesn't
+    // change, but |FragmentItem| has wrong |StyleVariant|.
+    return AddPreviousItemsResult();
   }
 
   DCHECK(items_.empty());
@@ -278,98 +278,86 @@ FragmentItemsBuilder::AddPreviousItems(const PhysicalBoxFragment& container,
   LayoutUnit used_block_size;
   wtf_size_t line_count = 0;
 
-  for (InlineCursor cursor(container, items); cursor;) {
+  for (InlineCursor cursor(container, items); cursor;
+       cursor.MoveToNextSkippingChildren()) {
     DCHECK(cursor.Current().Item());
     const FragmentItem& item = *cursor.Current().Item();
-    if (&item == end_item)
+    if (&item == &end_item) {
       break;
+    }
     DCHECK(!item.IsDirty());
 
     const LogicalOffset item_offset =
         converter.ToLogical(item.OffsetInContainerFragment(), item.Size());
 
-    if (item.Type() == FragmentItem::kLine) {
-      DCHECK(item.LineBoxFragment());
-      if (end_item) {
-        // Check if this line has valid item_index and offset.
-        const PhysicalLineBoxFragment* line_fragment = item.LineBoxFragment();
-        // Block-in-inline should have been prevented by |EndOfReusableItems|.
-        DCHECK(!line_fragment->IsBlockInInline());
-        const auto* break_token =
-            To<InlineBreakToken>(line_fragment->GetBreakToken());
-        DCHECK(break_token);
-        const InlineItemsData* current_items_data;
-        if (UNLIKELY(break_token->UseFirstLineStyle()))
-          current_items_data = &node_.ItemsData(true);
-        else if (items_data)
-          current_items_data = items_data;
-        else
-          current_items_data = items_data = &node_.ItemsData(false);
-        if (UNLIKELY(
-                !current_items_data->IsValidOffset(break_token->Start()))) {
-          NOTREACHED_IN_MIGRATION();
-          break;
-        }
+    DCHECK_EQ(item.Type(), FragmentItem::kLine);
+    DCHECK(item.LineBoxFragment());
 
-        last_break_token = break_token;
-        container_builder->AddChild(*line_fragment, item_offset);
-        used_block_size +=
-            item.Size().ConvertToLogical(writing_mode).block_size;
-      }
-
-      items_.emplace_back(item_offset, item);
-      const PhysicalRect line_box_bounds = item.RectInContainerFragment();
-      line_converter.SetOuterSize(line_box_bounds.size);
-      for (InlineCursor line = cursor.CursorForDescendants(); line;
-           line.MoveToNext()) {
-        const FragmentItem& line_child = *line.Current().Item();
-        if (line_child.Type() != FragmentItem::kLine) {
-          if (end_item) {
-            // If |end_item| is given, the caller has computed the range safe
-            // to reuse by calling |EndOfReusableItems|. All children should
-            // be safe to reuse.
-            DCHECK(line_child.CanReuse());
-          } else if (!line_child.CanReuse()) {
-            // Abort and report the failure if any child is not reusable.
-            return AddPreviousItemsResult();
-          }
-        }
-#if DCHECK_IS_ON()
-        // |RebuildFragmentTreeSpine| does not rebuild spine if |NeedsLayout|.
-        // Such block needs to copy PostLayout fragment while running simplified
-        // layout.
-        std::optional<PhysicalBoxFragment::AllowPostLayoutScope>
-            allow_post_layout;
-        if (line_child.IsRelayoutBoundary())
-          allow_post_layout.emplace();
-#endif
-        items_.emplace_back(
-            line_converter.ToLogical(
-                line_child.OffsetInContainerFragment() - line_box_bounds.offset,
-                line_child.Size()),
-            line_child);
-
-        // Be sure to pick the post-layout fragment.
-        const FragmentItem& new_item = items_.back().item;
-        if (const PhysicalBoxFragment* box = new_item.BoxFragment()) {
-          box = box->PostLayout();
-          new_item.GetMutableForCloning().ReplaceBoxFragment(*box);
-        }
-      }
-      if (++line_count == max_lines)
-        break;
-      cursor.MoveToNextSkippingChildren();
-      continue;
+    // Check if this line has valid item_index and offset.
+    const PhysicalLineBoxFragment* line_fragment = item.LineBoxFragment();
+    // Block-in-inline should have been prevented by |EndOfReusableItems|.
+    DCHECK(!line_fragment->IsBlockInInline());
+    const auto* break_token =
+        To<InlineBreakToken>(line_fragment->GetBreakToken());
+    DCHECK(break_token);
+    const InlineItemsData* current_items_data;
+    if (break_token->UseFirstLineStyle()) [[unlikely]] {
+      current_items_data = &node_.ItemsData(true);
+    } else if (items_data) {
+      current_items_data = items_data;
+    } else {
+      current_items_data = items_data = &node_.ItemsData(false);
+    }
+    if (!current_items_data->IsValidOffset(break_token->Start())) [[unlikely]] {
+      DUMP_WILL_BE_NOTREACHED();
+      break;
     }
 
-    DCHECK_NE(item.Type(), FragmentItem::kLine);
-    DCHECK(!end_item);
+    last_break_token = break_token;
+    container_builder->AddChild(*line_fragment, item_offset);
+    used_block_size += ToLogicalSize(item.Size(), writing_mode).block_size;
+
     items_.emplace_back(item_offset, item);
-    cursor.MoveToNext();
+    const PhysicalRect line_box_bounds = item.RectInContainerFragment();
+    line_converter.SetOuterSize(line_box_bounds.size);
+    for (InlineCursor line = cursor.CursorForDescendants(); line;
+         line.MoveToNext()) {
+      const FragmentItem& line_child = *line.Current().Item();
+      if (line_child.Type() != FragmentItem::kLine) {
+        // The caller has computed the range safe to reuse by calling
+        // |EndOfReusableItems|. All children should be safe to reuse.
+        DCHECK(line_child.CanReuse());
+      }
+#if DCHECK_IS_ON()
+      // |RebuildFragmentTreeSpine| does not rebuild spine if |NeedsLayout|.
+      // Such block needs to copy PostLayout fragment while running simplified
+      // layout.
+      std::optional<PhysicalBoxFragment::AllowPostLayoutScope>
+          allow_post_layout;
+      if (line_child.IsRelayoutBoundary()) {
+        allow_post_layout.emplace();
+      }
+#endif
+      items_.emplace_back(
+          line_converter.ToLogical(
+              line_child.OffsetInContainerFragment() - line_box_bounds.offset,
+              line_child.Size()),
+          line_child);
+
+      // Be sure to pick the post-layout fragment.
+      const FragmentItem& new_item = items_.back().item;
+      if (const PhysicalBoxFragment* box = new_item.BoxFragment()) {
+        box = box->PostLayout();
+        new_item.GetMutableForCloning().ReplaceBoxFragment(*box);
+      }
+    }
+    if (++line_count == max_lines) {
+      break;
+    }
   }
   DCHECK_LE(items_.size(), estimated_size);
 
-  if (end_item && last_break_token) {
+  if (last_break_token) {
     DCHECK_GT(line_count, 0u);
     DCHECK(!max_lines || line_count <= max_lines);
     return AddPreviousItemsResult{last_break_token, used_block_size, line_count,
@@ -397,9 +385,11 @@ void FragmentItemsBuilder::ConvertToPhysical(const PhysicalSize& outer_size) {
   WritingModeConverter line_converter(
       {ToLineWritingMode(GetWritingMode()), TextDirection::kLtr});
 
-  for (ItemWithOffset* iter = items_.begin(); iter != items_.end(); ++iter) {
-    FragmentItem* item = &iter->item;
-    item->SetOffset(converter.ToPhysical(iter->offset, item->Size()));
+  for (wtf_size_t i = 0; i < items_.size(); ++i) {
+    ItemWithOffset& item_with_offset = items_[i];
+    FragmentItem* item = &item_with_offset.item;
+    item->SetOffset(
+        converter.ToPhysical(item_with_offset.offset, item->Size()));
 
     // Transform children of lines separately from children of the block,
     // because they may have different directions from the block. To do
@@ -411,11 +401,13 @@ void FragmentItemsBuilder::ConvertToPhysical(const PhysicalSize& outer_size) {
         const PhysicalRect line_box_bounds = item->RectInContainerFragment();
         line_converter.SetOuterSize(line_box_bounds.size);
         while (--descendants_count) {
-          ++iter;
-          DCHECK_NE(iter, items_.end());
-          item = &iter->item;
+          ++i;
+          CHECK_NE(i, items_.size(), base::NotFatalUntil::M130);
+          ItemWithOffset& descendant_item_with_offset = items_[i];
+          item = &descendant_item_with_offset.item;
           item->SetOffset(
-              line_converter.ToPhysical(iter->offset, item->Size()) +
+              line_converter.ToPhysical(descendant_item_with_offset.offset,
+                                        item->Size()) +
               line_box_bounds.offset);
         }
       }
@@ -427,14 +419,16 @@ void FragmentItemsBuilder::ConvertToPhysical(const PhysicalSize& outer_size) {
 
 void FragmentItemsBuilder::MoveChildrenInBlockDirection(LayoutUnit delta) {
   DCHECK(!is_converted_to_physical_);
-  for (ItemWithOffset* iter = items_.begin(); iter != items_.end(); ++iter) {
-    if (iter->item->Type() == FragmentItem::kLine) {
-      iter->offset.block_offset += delta;
-      std::advance(iter, iter->item->DescendantsCount() - 1);
-      DCHECK_LE(iter, items_.end());
+  for (wtf_size_t i = 0; i < items_.size(); ++i) {
+    ItemWithOffset& item_with_offset = items_[i];
+    FragmentItem* item = &item_with_offset.item;
+    if (item->Type() == FragmentItem::kLine) {
+      item_with_offset.offset.block_offset += delta;
+      i += item->DescendantsCount() - 1;
+      DCHECK_LE(i, items_.size());
       continue;
     }
-    iter->offset.block_offset += delta;
+    item_with_offset.offset.block_offset += delta;
   }
 }
 

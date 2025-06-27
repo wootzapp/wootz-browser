@@ -17,23 +17,20 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.hamcrest.Matchers;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
-import org.chromium.chrome.browser.browserservices.ui.splashscreen.SplashController;
 import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
 import org.chromium.chrome.browser.tab.TabBrowserControlsConstraintsHelper;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /** Custom {@link ChromeActivityTestRule} for tests using {@link WebappActivity}. */
 public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivity> {
@@ -108,45 +105,39 @@ public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivit
     }
 
     @Override
-    public Statement apply(final Statement base, Description description) {
-        Statement webappTestRuleStatement =
-                new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        // We run the WebappRegistry calls on the UI thread to prevent
-                        // ConcurrentModificationExceptions caused by multiple threads iterating and
-                        // modifying its hashmap at the same time.
-                        final TestFetchStorageCallback callback = new TestFetchStorageCallback();
-                        TestThreadUtils.runOnUiThreadBlocking(
-                                () -> {
-                                    // Register the webapp so when the data storage is opened, the
-                                    // test doesn't crash.
-                                    WebappRegistry.refreshSharedPrefsForTesting();
-                                    WebappRegistry.getInstance().register(WEBAPP_ID, callback);
-                                });
+    protected void before() throws Throwable {
+        super.before();
+        // We run the WebappRegistry calls on the UI thread to prevent
+        // ConcurrentModificationExceptions caused by multiple threads iterating and
+        // modifying its hashmap at the same time.
+        final TestFetchStorageCallback callback = new TestFetchStorageCallback();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    // Register the webapp so when the data storage is opened, the
+                    // test doesn't crash.
+                    WebappRegistry.refreshSharedPrefsForTesting();
+                    WebappRegistry.getInstance().register(WEBAPP_ID, callback);
+                });
 
-                        // Running this on the UI thread causes issues, so can't group everything
-                        // into one runnable.
-                        callback.waitForCallback(0);
+        // Running this on the UI thread causes issues, so can't group everything
+        // into one runnable.
+        callback.waitForCallback(0);
 
-                        TestThreadUtils.runOnUiThreadBlocking(
-                                () -> {
-                                    callback.getStorage()
-                                            .updateFromWebappIntentDataProvider(
-                                                    WebappIntentDataProviderFactory.create(
-                                                            createIntent()));
-                                });
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    callback.getStorage()
+                            .updateFromWebappIntentDataProvider(
+                                    WebappIntentDataProviderFactory.create(createIntent()));
+                });
+    }
 
-                        base.evaluate();
-
-                        TestThreadUtils.runOnUiThreadBlocking(
-                                () -> {
-                                    WebappRegistry.getInstance().clearForTesting();
-                                });
-                    }
-                };
-
-        return super.apply(webappTestRuleStatement, description);
+    @Override
+    protected void after() {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    WebappRegistry.getInstance().clearForTesting();
+                });
+        super.after();
     }
 
     /** Starts up the WebappActivity and sets up the test observer. */
@@ -180,7 +171,7 @@ public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivit
     }
 
     public static @BrowserControlsState int getToolbarShowState(ChromeActivity activity) {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         TabBrowserControlsConstraintsHelper.getConstraints(
                                 activity.getActivityTab()));
@@ -233,7 +224,10 @@ public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivit
                     Criteria.checkThat(getActivity().getActivityTab(), Matchers.notNullValue());
 
                     View splashScreen =
-                            getSplashController(getActivity()).getSplashScreenForTests();
+                            getActivity()
+                                    .getSplashControllerSupplier()
+                                    .get()
+                                    .getSplashScreenForTests();
                     Criteria.checkThat(splashScreen, Matchers.notNullValue());
 
                     if (!(splashScreen instanceof ViewGroup)) return;
@@ -244,7 +238,8 @@ public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivit
                 CriteriaHelper.DEFAULT_POLLING_INTERVAL);
 
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-        View splashScreen = getSplashController(getActivity()).getSplashScreenForTests();
+        View splashScreen =
+                getActivity().getSplashControllerSupplier().get().getSplashScreenForTests();
         assertNotNull("No splash screen available.", splashScreen);
 
         // TODO(pkotwicz): Change return type in order to accommodate new-style WebAPKs.
@@ -260,17 +255,15 @@ public class WebappActivityTestRule extends ChromeActivityTestRule<WebappActivit
     public static void waitUntilSplashHides(WebappActivity activity) {
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
-                    return getSplashController(activity).wasSplashScreenHiddenForTests();
+                    return activity.getSplashControllerSupplier()
+                            .get()
+                            .wasSplashScreenHiddenForTests();
                 },
                 STARTUP_TIMEOUT,
                 CriteriaHelper.DEFAULT_POLLING_INTERVAL);
     }
 
     public boolean isSplashScreenVisible() {
-        return getSplashController(getActivity()).getSplashScreenForTests() != null;
-    }
-
-    public static SplashController getSplashController(WebappActivity activity) {
-        return activity.getComponent().resolveSplashController();
+        return getActivity().getSplashControllerSupplier().get().getSplashScreenForTests() != null;
     }
 }

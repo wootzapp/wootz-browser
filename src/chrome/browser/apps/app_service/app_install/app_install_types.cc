@@ -6,6 +6,7 @@
 
 #include <ostream>
 #include <utility>
+#include <variant>
 
 namespace apps {
 
@@ -24,6 +25,8 @@ std::ostream& operator<<(std::ostream& out, AppInstallSurface surface) {
       return out << "AppInstallUriShowoff";
     case AppInstallSurface::kAppInstallUriMall:
       return out << "AppInstallUriMall";
+    case AppInstallSurface::kAppInstallUriMallV2:
+      return out << "AppInstallUriMallV2";
     case AppInstallSurface::kAppInstallUriGetit:
       return out << "AppInstallUriGetit";
     case AppInstallSurface::kAppInstallUriLauncher:
@@ -70,6 +73,7 @@ std::ostream& operator<<(std::ostream& out, const WebAppInstallData& data) {
   out << ", original_manifest_url: " << data.original_manifest_url;
   out << ", proxied_manifest_url: " << data.proxied_manifest_url;
   out << ", document_url: " << data.document_url;
+  out << ", open_as_window: " << data.open_as_window;
   return out << "}";
 }
 
@@ -91,6 +95,21 @@ AppInstallData::AppInstallData(AppInstallData&&) = default;
 AppInstallData& AppInstallData::operator=(AppInstallData&&) = default;
 
 AppInstallData::~AppInstallData() = default;
+
+bool AppInstallData::IsValidForInstallation() const {
+  if (package_id.package_type() == PackageType::kWeb ||
+      package_id.package_type() == PackageType::kWebsite) {
+    if (!std::holds_alternative<WebAppInstallData>(app_type_data)) {
+      return false;
+    }
+  } else if (!install_url.is_valid()) {
+    // For all package types other than Web/Website, there must be an Install
+    // URL for us to launch.
+    return false;
+  }
+
+  return true;
+}
 
 std::ostream& operator<<(std::ostream& out, const AppInstallData& data) {
   out << "AppInstallData{";
@@ -114,7 +133,7 @@ std::ostream& operator<<(std::ostream& out, const AppInstallData& data) {
   out << ", install_url: " << data.install_url;
 
   out << ", app_type_data: ";
-  absl::visit([&out](const auto& data) { out << data; }, data.app_type_data);
+  std::visit([&out](const auto& data) { out << data; }, data.app_type_data);
 
   return out << "}";
 }

@@ -34,6 +34,7 @@
 #include <memory>
 
 #include "base/types/pass_key.h"
+#include "net/storage_access_api/status.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/frame/back_forward_cache_controller.mojom-blink.h"
 #include "third_party/blink/public/mojom/worker/dedicated_worker_host.mojom-blink.h"
@@ -93,7 +94,7 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
   // Implements ExecutionContext.
   void SetIsInBackForwardCache(bool) override;
   bool IsDedicatedWorkerGlobalScope() const override { return true; }
-  bool HasStorageAccess() const override;
+  net::StorageAccessApiStatus GetStorageAccessApiStatus() const override;
 
   // Implements EventTarget
   // (via WorkerOrWorkletGlobalScope -> EventTarget).
@@ -128,8 +129,7 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
       std::unique_ptr<PolicyContainer> policy_container,
       const FetchClientSettingsObjectSnapshot& outside_settings_object,
       WorkerResourceTimingNotifier& outside_resource_timing_notifier,
-      network::mojom::CredentialsMode,
-      RejectCoepUnsafeNone reject_coep_unsafe_none) override;
+      network::mojom::CredentialsMode) override;
   bool IsOffMainThreadScriptFetchDisabled() override;
   void WorkerScriptFetchFinished(
       Script& worker_script,
@@ -149,7 +149,7 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
   const String name() const;
   void postMessage(ScriptState*,
                    const ScriptValue& message,
-                   HeapVector<ScriptValue>& transfer,
+                   HeapVector<ScriptObject> transfer,
                    ExceptionState&);
   void postMessage(ScriptState*,
                    const ScriptValue& message,
@@ -157,11 +157,6 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
                    ExceptionState&);
   DEFINE_ATTRIBUTE_EVENT_LISTENER(message, kMessage)
   DEFINE_ATTRIBUTE_EVENT_LISTENER(messageerror, kMessageerror)
-
-  RejectCoepUnsafeNone ShouldRejectCoepUnsafeNoneTopModuleScript()
-      const override {
-    return reject_coep_unsafe_none_;
-  }
 
   // Called by the Oilpan.
   void Trace(Visitor*) const override;
@@ -188,7 +183,7 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
   struct ParsedCreationParams {
     std::unique_ptr<GlobalScopeCreationParams> creation_params;
     ExecutionContextToken parent_context_token;
-    bool parent_has_storage_access;
+    net::StorageAccessApiStatus parent_storage_access_api_status;
   };
 
   static ParsedCreationParams ParseCreationParams(
@@ -228,7 +223,6 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
   bool cross_origin_isolated_capability_;
   bool is_isolated_context_;
   Member<WorkerAnimationFrameProvider> animation_frame_provider_;
-  RejectCoepUnsafeNone reject_coep_unsafe_none_ = RejectCoepUnsafeNone(false);
 
   HeapMojoRemote<mojom::blink::DedicatedWorkerHost> dedicated_worker_host_{
       this};
@@ -240,9 +234,9 @@ class CORE_EXPORT DedicatedWorkerGlobalScope final : public WorkerGlobalScope {
   // gets out of the back-forward cache.
   size_t total_bytes_buffered_while_in_back_forward_cache_ = 0;
 
-  // Whether this worker has storage access (inherited from the parent
+  // The worker's Storage Access API status (inherited from the parent
   // ExecutionContext).
-  bool has_storage_access_;
+  net::StorageAccessApiStatus storage_access_api_status_;
 
   // The timestamp taken when FetchAndRunClassicScript() is called.
   base::TimeTicks fetch_classic_script_start_time_;

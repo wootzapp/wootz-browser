@@ -50,8 +50,8 @@ static const int kMaximumMonthInMaximumYear = 8;
 static const int kMaximumDayInMaximumMonth = 13;
 static const int kMaximumWeekInMaximumYear = 37;  // The week of 275760-09-13
 
-static const int kDaysInMonth[12] = {31, 28, 31, 30, 31, 30,
-                                     31, 31, 30, 31, 30, 31};
+static const std::array<int, 12> kDaysInMonth = {31, 28, 31, 30, 31, 30,
+                                                 31, 31, 30, 31, 30, 31};
 
 // 'month' is 0-based.
 static int MaxDayOfMonth(int year, int month) {
@@ -505,8 +505,7 @@ double DateComponents::MillisecondsSinceEpoch() const {
     case kInvalid:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return InvalidMilliseconds();
+  NOTREACHED();
 }
 
 double DateComponents::MonthsSinceEpoch() const {
@@ -523,9 +522,6 @@ String DateComponents::ToStringForTime(SecondFormat format) const {
     effective_format = SecondFormat::kSecond;
 
   switch (effective_format) {
-    default:
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
     case SecondFormat::kNone:
       return String::Format("%02d:%02d", hour_, minute_);
     case SecondFormat::kSecond:
@@ -533,6 +529,8 @@ String DateComponents::ToStringForTime(SecondFormat format) const {
     case SecondFormat::kMillisecond:
       return String::Format("%02d:%02d:%02d.%03d", hour_, minute_, second_,
                             millisecond_);
+    default:
+      NOTREACHED();
   }
 }
 
@@ -552,8 +550,7 @@ String DateComponents::ToString(SecondFormat format) const {
     case kInvalid:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return String("(Invalid DateComponents)");
+  NOTREACHED();
 }
 
 }  // namespace blink

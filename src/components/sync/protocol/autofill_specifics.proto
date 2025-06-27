@@ -60,15 +60,21 @@ message AutofillProfileSpecifics {
   // from the Windows epoch.
   optional int64 use_date = 23;
 
-  // A user chosen profile label that is used to identify the profile.
-  // The value of the label can be freely chosen by the user. Two possible label
-  // values are '$HOME$' or '$WORK$' which have a special meaning.
+  // A label intended to be chosen by the user. This was however never
+  // implemented and is currently unused.
   optional string profile_label = 62;
 
   // Contact info name fields.
   repeated string name_first = 2;
   repeated string name_middle = 3;
   repeated string name_last = 4;
+
+  // A name_last consists of a prefix and a core (e.g., "van" and "Gogh" in
+  // "van Gogh"). Used for more granular name representation of last names
+  // with prefixes.
+  repeated string name_last_prefix = 99;
+  repeated string name_last_core = 100;
+
   // Sometimes the last name is composed of two names as it is common for
   // Hispanic/Latinx names. In the unstructured representation of the last name,
   // there may be even a conjunction between the first and the second last
@@ -83,18 +89,30 @@ message AutofillProfileSpecifics {
   reserved 60;
   reserved "name_full_with_honorific";
 
+  // Contact info alternative name fields (e.g. phonetic names in Japan).
+  optional string alternative_full_name = 93;
+  optional string alternative_given_name = 94;
+  optional string alternative_family_name = 95;
+
   // Validation status records for name fields.
   reserved 30;
   reserved "name_honorific_status";
   repeated VerificationStatus name_first_status = 31;
   repeated VerificationStatus name_middle_status = 32;
   repeated VerificationStatus name_last_status = 33;
+  repeated VerificationStatus name_last_prefix_status = 101;
+  repeated VerificationStatus name_last_core_status = 102;
   repeated VerificationStatus name_last_first_status = 34;
   repeated VerificationStatus name_last_conjunction_status = 35;
   repeated VerificationStatus name_last_second_status = 36;
   repeated VerificationStatus name_full_status = 37;
   reserved 61;
   reserved "name_full_with_honorific_status";
+
+  // Validation status records for alternative name fields.
+  optional VerificationStatus alternative_full_name_status = 96;
+  optional VerificationStatus alternative_given_name_status = 97;
+  optional VerificationStatus alternative_family_name_status = 98;
 
   // Contact info additional fields.
   repeated string email_address = 5;
@@ -300,6 +318,14 @@ message CardBenefit {
     ENTERTAINMENT = 4;
     STREAMING = 5;
     GROCERY_STORES = 6;
+    AIR_MILES_PARTNER = 7;
+    ALCOHOL_STORES = 8;
+    DRUGSTORES = 9;
+    OFFICE_SUPPLIES = 10;
+    RECURRING_BILLS = 11;
+    TRANSIT = 12;
+    TRAVEL = 13;
+    WHOLESALE_CLUBS = 14;
   }
 
   // Proto containing data specific to a category benefit.
@@ -378,8 +404,15 @@ message WalletMaskedCreditCard {
     NETWORK = 2;
   }
 
+  enum CardInfoRetrievalEnrollmentState {
+    RETRIEVAL_UNSPECIFIED = 0;
+    RETRIEVAL_ENROLLED = 1;
+    RETRIEVAL_UNENROLLED_AND_NOT_ELIGIBLE = 2;
+    RETRIEVAL_UNENROLLED_AND_ELIGIBLE = 3;
+  }
+
   // Server-generated unique ID string. This is opaque to the client.
-  // This is the legacy version of |instrument_id|.
+  // This is the legacy version of `instrument_id`.
   optional string id = 1;
 
   // What the server thinks of this card.
@@ -417,7 +450,7 @@ message WalletMaskedCreditCard {
   optional CardIssuer card_issuer = 13;
 
   // Server-generated unique ID. This is opaque to the client.
-  // |id| is the legacy version of this.
+  // `id` is the legacy version of this.
   optional int64 instrument_id = 15;
 
   // The state of virtual card enrollment.
@@ -440,6 +473,12 @@ message WalletMaskedCreditCard {
   // Separate link from the card issuer which provides additional context or
   // terms and conditions regarding the credit card product and its benefits.
   optional string product_terms_url = 21;
+
+  // The state of enrollement for runtime card info retrieval. Enrollment in
+  // 'CardInfoRetrieval' will enable runtime retrieval of card information from
+  // card issuer including card number, expiry and CVC.
+  optional CardInfoRetrievalEnrollmentState
+      card_info_retrieval_enrollment_state = 22;
 }
 
 // Unused by the client since M121.
@@ -531,6 +570,16 @@ message PaymentInstrument {
     PIX = 1;
     // International Bank Account Numbers.
     IBAN = 2;
+    // This rail can be used for making payments to push payment targets
+    // represented as payment hyperlinks that are supported by the instrument
+    // issuer. The hyperlink will be specified in the href attribute within a
+    // <link> tag in the DOM representing the payment page.
+    // More details on payment links can be found at
+    // https://github.com/aneeshali/paymentlink/blob/main/docs/explainer.md.
+    PAYMENT_HYPERLINK = 3;
+    // This rail is used for making payments via card numbers. Example use case:
+    // Credit/Debit cards, BuyNowPayLater (BNPL), eWallet Fronting cards etc.
+    CARD_NUMBER = 4;
   }
   // The supported rails for which a payment can be made for the given account.
   // For example, Pix is the open-banking rail in Brazil, UPI is the
@@ -548,7 +597,53 @@ message PaymentInstrument {
   oneof instrument_details {
     BankAccountDetails bank_account = 5;
     WalletMaskedIban iban = 6;
+    EwalletDetails ewallet_details = 7;
+    BnplIssuerDetails bnpl_issuer_details = 9;
   }
+
+  optional DeviceDetails device_details = 8;
+}
+
+// Details for user's linked and unlinked Buy Now Pay Later issuers.
+message BnplIssuerDetails {
+  // Unique identifier for the BNPL partner. Example: 'affirm'.
+  optional string issuer_id = 1;
+  // Eligible price range that the BNPL issuer supports.
+  repeated EligiblePriceRange eligible_price_range = 2;
+}
+
+// Details for payment instruments that the user is eligible to create an
+// instrument with.
+message PaymentInstrumentCreationOption {
+  // Identifier for the payment instrument creation option.
+  optional string id = 1;
+
+  oneof creation_option {
+    BnplCreationOption buy_now_pay_later_option = 2;
+  }
+}
+
+// Buy Now Pay Later details that the user is eligible to create an instrument
+// from.
+message BnplCreationOption {
+  // Unique identifier for the BNPL partner. Example: 'affirm'.
+  optional string issuer_id = 1;
+  // Eligible price range that the BNPL issuer supports.
+  repeated EligiblePriceRange eligible_price_range = 2;
+}
+
+// Details the eligible price range that a BNPL issuer supports. Server
+// should set min and max price and ensure that they are both for the same
+// currency.
+message EligiblePriceRange {
+  // Currency of the price range. This field contains a three-letter currency
+  // code.
+  optional string currency = 1;
+  // Min and max eligible price in micros of currency, i.e. one millionths of
+  // the base unit (dollars, not cents for example). e.g. $1.05 == 1050000
+  // micros.
+  optional int64 min_price_in_micros = 2;
+  optional int64 max_price_in_micros = 3;
 }
 
 // Contains information of server IBAN (International Bank Account Number).
@@ -591,6 +686,36 @@ message BankAccountDetails {
   optional AccountType account_type = 3;
 }
 
+// Details of an eWallet account required to show it in the payment instrument
+// selector.
+message EwalletDetails {
+  // Name of the ewallet provider.
+  optional string ewallet_name = 1;
+
+  // Display name of the ewallet account.
+  optional string account_display_name = 2;
+
+  // Payment hyperlinks will be embedded in payment web pages. Chrome will match
+  // the payment link against the list of payment link URI regexes below. If
+  // there is a match, the payment flow will be initiated via the Payments
+  // Server. The regex matching approach makes it possible to launch new payment
+  // methods without requiring any client side changes. More details on payment
+  // links can be found at
+  // https://github.com/aneeshali/paymentlink/blob/main/docs/explainer.md.
+  repeated string supported_payment_link_uris = 3;
+}
+
+// This field captures all of the information related to the instrument-device
+// combo that is required for the payment flows.
+message DeviceDetails {
+  // Whether the device is enrolled in FIDO for this instrument. Depending on
+  // the FIDO state, the Chrome client will show a different UI for the
+  // user. For an unbound device, there will be some user-education content and
+  // the user will be asked to complete FIDO binding. For an already-bound
+  // device, the user will see a more simplified UI.
+  optional bool is_fido_enrolled = 1;
+}
+
 message AutofillWalletSpecifics {
   enum WalletInfoType {
     UNKNOWN = 0;
@@ -601,6 +726,7 @@ message AutofillWalletSpecifics {
     CREDIT_CARD_CLOUD_TOKEN_DATA = 4;
     PAYMENT_INSTRUMENT = 5;
     MASKED_IBAN = 6 [deprecated = true];
+    PAYMENT_INSTRUMENT_CREATION_OPTION = 7;
   }
 
   optional WalletInfoType type = 1;
@@ -629,6 +755,11 @@ message AutofillWalletSpecifics {
   // This field exists if and only if the `type` field equals to
   // MASKED_IBAN.
   optional WalletMaskedIban masked_iban = 7 [deprecated = true];
+
+  // This field exists if and only if the "type" field equals to
+  // PAYMENT_INSTRUMENT_CREATION_OPTION.
+  optional PaymentInstrumentCreationOption payment_instrument_creation_option =
+      8;
 }
 
 // Wallet card usage information that can be synced.

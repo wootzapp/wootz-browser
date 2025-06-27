@@ -14,15 +14,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, WindowOpenFocus) {
   ASSERT_TRUE(RunExtensionTest("window_open/focus")) << message_;
 }
 
-// The test uses the chrome.browserAction.openPopup API, which requires that the
-// window can automatically be activated.
-// Fails flakily on Linux and Lacros. https://crbug.com/477691.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_WindowOpen DISABLED_WindowOpen
-#else
-#define MAYBE_WindowOpen WindowOpen
-#endif
-IN_PROC_BROWSER_TEST_F(ExtensionApiTest, MAYBE_WindowOpen) {
+IN_PROC_BROWSER_TEST_F(ExtensionApiTest, WindowOpen) {
   extensions::ResultCatcher catcher;
   ASSERT_TRUE(LoadExtension(
       test_data_dir_.AppendASCII("window_open").AppendASCII("spanning"),

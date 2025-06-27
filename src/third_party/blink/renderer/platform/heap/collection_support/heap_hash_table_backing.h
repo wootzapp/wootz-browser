@@ -2,18 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_HEAP_COLLECTION_SUPPORT_HEAP_HASH_TABLE_BACKING_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_HEAP_COLLECTION_SUPPORT_HEAP_HASH_TABLE_BACKING_H_
 
 #include <type_traits>
 
 #include "base/check_op.h"
+#include "third_party/blink/renderer/platform/heap/collection_support/utils.h"
 #include "third_party/blink/renderer/platform/heap/custom_spaces.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/thread_state_storage.h"
 #include "third_party/blink/renderer/platform/heap/trace_traits.h"
 #include "third_party/blink/renderer/platform/heap/visitor.h"
-#include "third_party/blink/renderer/platform/wtf/conditional_destructor.h"
 #include "third_party/blink/renderer/platform/wtf/hash_table.h"
 #include "third_party/blink/renderer/platform/wtf/hash_traits.h"
 #include "third_party/blink/renderer/platform/wtf/key_value_pair.h"
@@ -27,10 +32,7 @@ namespace blink {
 
 template <typename Table>
 class HeapHashTableBacking final
-    : public GarbageCollected<HeapHashTableBacking<Table>>,
-      public WTF::ConditionalDestructor<
-          HeapHashTableBacking<Table>,
-          !std::is_trivially_destructible<typename Table::ValueType>::value> {
+    : public GarbageCollected<HeapHashTableBacking<Table>> {
   using ClassType = HeapHashTableBacking<Table>;
   using ValueType = typename Table::ValueType;
 
@@ -56,8 +58,11 @@ class HeapHashTableBacking final
     return cppgc::subtle::Resize(*this, GetAdditionalBytes(new_size));
   }
 
-  // Conditionally invoked via destructor.
-  void Finalize();
+  ~HeapHashTableBacking()
+    requires(std::is_trivially_destructible_v<typename Table::ValueType>)
+  = default;
+  ~HeapHashTableBacking()
+    requires(!std::is_trivially_destructible_v<typename Table::ValueType>);
 
  private:
   static cppgc::AdditionalBytes GetAdditionalBytes(size_t wanted_array_size) {
@@ -70,7 +75,9 @@ class HeapHashTableBacking final
 };
 
 template <typename Table>
-void HeapHashTableBacking<Table>::Finalize() {
+HeapHashTableBacking<Table>::~HeapHashTableBacking()
+  requires(!std::is_trivially_destructible_v<typename Table::ValueType>)
+{
   using Value = typename Table::ValueType;
   static_assert(
       !std::is_trivially_destructible<Value>::value,
@@ -108,6 +115,16 @@ struct ThreadingTrait<WTF::KeyValuePair<First, Second>> {
           : kAnyThread;
 };
 
+namespace internal {
+
+template <typename Table>
+struct CompactionTraits<blink::HeapHashTableBacking<Table>> {
+  static constexpr bool SupportsCompaction() {
+    using ValueTraits = typename Table::ValueTraits;
+    return ValueTraits::kSupportsCompaction;
+  }
+};
+}  // namespace internal
 }  // namespace blink
 
 namespace WTF {
@@ -186,14 +203,29 @@ struct TraceHashTableBackingInCollectionTrait {
                     self)) /
         sizeof(Value);
     for (size_t i = 0; i < length; ++i) {
-      internal::ConcurrentBucket<Value> concurrent_bucket(
-          array[i], Extractor::ExtractKeyToMemory);
-      if (!WTF::IsHashTraitsEmptyOrDeletedValue<typename Table::KeyTraitsType>(
-              *concurrent_bucket.key())) {
-        blink::TraceCollectionIfEnabled<
-            weak_handling,
-            typename internal::ConcurrentBucket<Value>::BucketType,
-            Traits>::Trace(visitor, concurrent_bucket.bucket());
+      if constexpr (Traits::kCanTraceConcurrently) {
+        internal::ConcurrentBucket<Value> concurrent_bucket(
+            array[i], Extractor::ExtractKeyToMemory);
+        if (!WTF::IsHashTraitsEmptyOrDeletedValue<
+                typename Table::KeyTraitsType>(*concurrent_bucket.key())) {
+          blink::TraceCollectionIfEnabled<
+              weak_handling,
+              typename internal::ConcurrentBucket<Value>::BucketType,
+              Traits>::Trace(visitor, concurrent_bucket.bucket());
+        }
+      } else {
+        // Use single-threaded tracing in case we don't support concurrent
+        // tracing. For GC semantics this could use the `ConcurrentBucket` as
+        // well. We simply use the bucket in the data structure though to avoid
+        // copying possibly ASAN-poisened fields. Such fields can exist in keys
+        // in form of an `std::string` that uses container annotations to detect
+        // OOB. A side effect is that we also avoid copying the key.
+        if (!WTF::IsHashTraitsEmptyOrDeletedValue<
+                typename Table::KeyTraitsType>(
+                Extractor::ExtractKey(array[i]))) {
+          blink::TraceCollectionIfEnabled<weak_handling, Value, Traits>::Trace(
+              visitor, &array[i]);
+        }
       }
     }
   }
@@ -260,7 +292,10 @@ struct IsTraceable<internal::ConcurrentBucket<T>> : IsTraceable<T> {};
 namespace cppgc {
 
 template <typename Table>
-struct SpaceTrait<blink::HeapHashTableBacking<Table>> {
+struct SpaceTrait<
+    blink::HeapHashTableBacking<Table>,
+    std::enable_if_t<blink::internal::CompactionTraits<
+        blink::HeapHashTableBacking<Table>>::SupportsCompaction()>> {
   using Space = blink::CompactableHeapHashTableBackingSpace;
 };
 

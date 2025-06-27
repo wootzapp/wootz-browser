@@ -7,7 +7,7 @@
 
 #import "base/memory/raw_ptr.h"
 #import "base/scoped_observation.h"
-#import "ios/chrome/browser/sessions/session_restoration_observer.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_observer.h"
 #import "ios/chrome/browser/shared/model/browser/browser_observer.h"
 #import "ios/chrome/browser/shared/model/browser/browser_user_data.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer.h"
@@ -33,12 +33,11 @@ class WebStateListMetricsBrowserAgent
 
  private:
   friend class BrowserUserData<WebStateListMetricsBrowserAgent>;
-  BROWSER_USER_DATA_KEY_DECL();
 
   WebStateListMetricsBrowserAgent(Browser* browser,
                                   SessionMetrics* session_metrics);
 
-  // BrowserObserver methods
+  // BrowserObserver methods.
   void BrowserDestroyed(Browser* browser) override;
 
   // SessionRestorationObserver implementation.
@@ -47,7 +46,7 @@ class WebStateListMetricsBrowserAgent
       Browser* browser,
       const std::vector<web::WebState*>& restored_web_states) override;
 
-  // web::WebStateObserver
+  // web::WebStateObserver:
   void DidFinishNavigation(web::WebState* web_state,
                            web::NavigationContext* navigation_context) override;
   void PageLoaded(
@@ -61,6 +60,10 @@ class WebStateListMetricsBrowserAgent
   void WebStateListDidChange(WebStateList* web_state_list,
                              const WebStateListChange& change,
                              const WebStateListStatus& status) override;
+  void BatchOperationEnded(WebStateList* web_state_list) override;
+
+  // Updates tab count crash keys metrics.
+  void UpdateCrashkeysTabCount();
 
   // The WebStateList containing all the monitored tabs.
   raw_ptr<WebStateList> web_state_list_ = nullptr;
@@ -70,6 +73,10 @@ class WebStateListMetricsBrowserAgent
 
   // Whether metric recording is paused (for session restoration).
   bool metric_collection_paused_ = false;
+
+  // State of the Browser.
+  bool is_off_record_ = false;
+  bool is_inactive_ = false;
 
   // Observation for SessionRestorationService events.
   base::ScopedObservation<SessionRestorationService, SessionRestorationObserver>

@@ -38,7 +38,8 @@ class TabWebContentsDelegateAndroid
     : public web_contents_delegate_android::WebContentsDelegateAndroid,
       public find_in_page::FindResultObserver {
  public:
-  TabWebContentsDelegateAndroid(JNIEnv* env, jobject obj);
+  TabWebContentsDelegateAndroid(JNIEnv* env,
+                                const jni_zero::JavaRef<jobject>& obj);
 
   TabWebContentsDelegateAndroid(const TabWebContentsDelegateAndroid&) = delete;
   TabWebContentsDelegateAndroid& operator=(
@@ -81,26 +82,29 @@ class TabWebContentsDelegateAndroid
       base::OnceCallback<void(content::NavigationHandle&)>
           navigation_handle_callback) override;
   bool ShouldResumeRequestsForCreatedWindow() override;
-  void AddNewContents(content::WebContents* source,
-                      std::unique_ptr<content::WebContents> new_contents,
-                      const GURL& target_url,
-                      WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
-                      bool user_gesture,
-                      bool* was_blocked) override;
+  content::WebContents* AddNewContents(
+      content::WebContents* source,
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override;
+  void SetContentsBounds(content::WebContents* source,
+                         const gfx::Rect& bounds) override;
   void OnDidBlockNavigation(
       content::WebContents* web_contents,
       const GURL& blocked_url,
-      const GURL& initiator_url,
       blink::mojom::NavigationBlockedReason reason) override;
   void UpdateUserGestureCarryoverInfo(
       content::WebContents* web_contents) override;
   content::PictureInPictureResult EnterPictureInPicture(
       content::WebContents* web_contents) override;
   void ExitPictureInPicture() override;
-  bool IsBackForwardCacheSupported() override;
+  bool IsBackForwardCacheSupported(content::WebContents& web_contents) override;
   content::PreloadingEligibility IsPrerender2Supported(
-      content::WebContents& web_contents) override;
+      content::WebContents& web_contents,
+      content::PreloadingTriggerType trigger_type) override;
   device::mojom::GeolocationContext* GetInstalledWebappGeolocationContext()
       override;
 
@@ -137,6 +141,8 @@ class TabWebContentsDelegateAndroid
   const GURL GetManifestScope() const;
   bool IsInstalledWebappDelegateGeolocation() const;
   bool IsModalContextMenu() const;
+  bool IsDynamicSafeAreaInsetsEnabled() const;
+  bool OpenInAppOrChromeFromCct(GURL url);
 
  private:
   std::unique_ptr<device::mojom::GeolocationContext>

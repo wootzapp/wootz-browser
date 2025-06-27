@@ -76,7 +76,7 @@ class MEDIA_EXPORT AudioRendererImpl
   // |decoders| contains the AudioDecoders to use when initializing.
   AudioRendererImpl(
       const scoped_refptr<base::SequencedTaskRunner>& task_runner,
-      AudioRendererSink* sink,
+      scoped_refptr<AudioRendererSink> sink,
       const CreateAudioDecodersCB& create_audio_decoders_cb,
       MediaLog* media_log,
       MediaPlayerLoggingID media_player_id,
@@ -108,8 +108,9 @@ class MEDIA_EXPORT AudioRendererImpl
   void SetVolume(float volume) override;
   void SetLatencyHint(std::optional<base::TimeDelta> latency_hint) override;
   void SetPreservesPitch(bool preserves_pitch) override;
-  void SetWasPlayedWithUserActivation(
-      bool was_played_with_user_activation) override;
+  void SetRenderMutedAudio(bool render_muted_audio) override;
+  void SetWasPlayedWithUserActivationAndHighMediaEngagement(
+      bool was_played_with_user_activation_and_high_media_engagement) override;
 
   // base::PowerSuspendObserver implementation.
   void OnSuspend() override;
@@ -240,6 +241,13 @@ class MEDIA_EXPORT AudioRendererImpl
   void EnableSpeechRecognition();
   void TranscribeAudio(scoped_refptr<media::AudioBuffer> buffer);
 
+  void MaybeStartRealSink();
+  void SuspendRealSink();
+
+  // Returns the delta between AudioClock::back_timestamp() and
+  // AudioRendererAlgorithm::FrontTimestamp().
+  base::TimeDelta CalculateClockAndAlgorithmDrift() const;
+
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   std::unique_ptr<AudioBufferConverter> buffer_converter_;
@@ -334,7 +342,7 @@ class MEDIA_EXPORT AudioRendererImpl
   // make pitch adjustments at playbacks other than 1.0.
   bool preserves_pitch_ = true;
 
-  bool was_played_with_user_activation_ = false;
+  bool was_played_with_user_activation_and_high_media_engagement_ = false;
 
   // Simple state tracking variable.
   State state_;
@@ -401,6 +409,8 @@ class MEDIA_EXPORT AudioRendererImpl
 
   // Ensures we don't issue log spam when absurd delay values are encountered.
   int num_absurd_delay_warnings_ = 0;
+
+  bool render_muted_audio_ = false;
 
   // NOTE: Weak pointers must be invalidated before all other member variables.
   base::WeakPtrFactory<AudioRendererImpl> weak_factory_{this};

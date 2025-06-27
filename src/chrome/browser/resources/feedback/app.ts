@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../strings.m.js';
+import '/strings.m.js';
 import './feedback_shared_styles.css.js';
 // <if expr="chromeos_ash">
 import './js/jelly_colors.js';
@@ -12,9 +12,10 @@ import './js/jelly_colors.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
-import {getTemplate} from './app.html.js';
+import {getCss} from './app.css.js';
+import {getHtml} from './app.html.js';
 import {FeedbackBrowserProxyImpl} from './js/feedback_browser_proxy.js';
 import {BT_DEVICE_REGEX, BT_REGEX, CANNOT_CONNECT_REGEX, CELLULAR_REGEX, DISPLAY_REGEX, FAST_PAIR_REGEX, NEARBY_SHARE_REGEX, SMART_LOCK_REGEX, TETHER_REGEX, THUNDERBOLT_REGEX, USB_REGEX, WIFI_REGEX} from './js/feedback_regexes.js';
 import {FEEDBACK_LANDING_PAGE, FEEDBACK_LANDING_PAGE_TECHSTOP, FEEDBACK_LEGAL_HELP_URL, FEEDBACK_PRIVACY_POLICY_URL, FEEDBACK_TERM_OF_SERVICE_URL, openUrlInAppWindow} from './js/feedback_util.js';
@@ -24,13 +25,17 @@ import {takeScreenshot} from './js/take_screenshot.js';
 const MAX_ATTACH_FILE_SIZE: number = 3 * 1024 * 1024;
 const MAX_SCREENSHOT_WIDTH: number = 100;
 
-export class FeedbackAppElement extends PolymerElement {
+export class AppElement extends CrLitElement {
   static get is() {
     return 'feedback-app';
   }
 
-  static get template() {
-    return getTemplate();
+  static override get styles() {
+    return getCss();
+  }
+
+  override render() {
+    return getHtml.bind(this)();
   }
 
   private formOpenTime: number = new Date().getTime();
@@ -129,7 +134,7 @@ export class FeedbackAppElement extends PolymerElement {
               'input', (e: Event) => this.checkForShowQuestionnaire(e));
     }
 
-    if (this.shadowRoot!.querySelector<HTMLElement>(
+    if (this.shadowRoot.querySelector<HTMLElement>(
             '#autofill-checkbox-container') != null &&
         feedbackInfo.flow ===
             chrome.feedbackPrivate.FeedbackFlow.GOOGLE_INTERNAL &&
@@ -239,7 +244,7 @@ export class FeedbackAppElement extends PolymerElement {
     }
 
     const autofillMetadataUrlElement =
-        this.shadowRoot!.querySelector<HTMLElement>('#autofill-metadata-url');
+        this.shadowRoot.querySelector<HTMLElement>('#autofill-metadata-url');
 
     if (autofillMetadataUrlElement) {
       // Opens a new window showing the full anonymized autofill metadata.
@@ -256,7 +261,7 @@ export class FeedbackAppElement extends PolymerElement {
     }
 
     const sysInfoUrlElement =
-        this.shadowRoot!.querySelector<HTMLElement>('#sys-info-url');
+        this.shadowRoot.querySelector<HTMLElement>('#sys-info-url');
     if (sysInfoUrlElement) {
       // Opens a new window showing the full anonymized system+app
       // information.
@@ -272,7 +277,7 @@ export class FeedbackAppElement extends PolymerElement {
     }
 
     const histogramUrlElement =
-        this.shadowRoot!.querySelector<HTMLElement>('#histograms-url');
+        this.shadowRoot.querySelector<HTMLElement>('#histograms-url');
     if (histogramUrlElement) {
       histogramUrlElement.onclick = (e: Event) => {
         e.preventDefault();
@@ -291,7 +296,7 @@ export class FeedbackAppElement extends PolymerElement {
     // screen now. But to limit the scope of this CL, they are still hidden.
     if (feedbackInfo.flow !== chrome.feedbackPrivate.FeedbackFlow.LOGIN) {
       const legalHelpPageUrlElement =
-          this.shadowRoot!.querySelector<HTMLElement>('#legal-help-page-url');
+          this.shadowRoot.querySelector<HTMLElement>('#legal-help-page-url');
       if (legalHelpPageUrlElement) {
         this.setupLinkHandlers(
             legalHelpPageUrlElement, FEEDBACK_LEGAL_HELP_URL,
@@ -299,7 +304,7 @@ export class FeedbackAppElement extends PolymerElement {
       }
 
       const privacyPolicyUrlElement =
-          this.shadowRoot!.querySelector<HTMLElement>('#privacy-policy-url');
+          this.shadowRoot.querySelector<HTMLElement>('#privacy-policy-url');
       if (privacyPolicyUrlElement) {
         this.setupLinkHandlers(
             privacyPolicyUrlElement, FEEDBACK_PRIVACY_POLICY_URL,
@@ -307,7 +312,7 @@ export class FeedbackAppElement extends PolymerElement {
       }
 
       const termsOfServiceUrlElement =
-          this.shadowRoot!.querySelector<HTMLElement>('#terms-of-service-url');
+          this.shadowRoot.querySelector<HTMLElement>('#terms-of-service-url');
       if (termsOfServiceUrlElement) {
         this.setupLinkHandlers(
             termsOfServiceUrlElement, FEEDBACK_TERM_OF_SERVICE_URL,
@@ -595,7 +600,7 @@ export class FeedbackAppElement extends PolymerElement {
     let useSystemInfo = false;
     let useHistograms = false;
     const checkbox =
-        this.shadowRoot!.querySelector<HTMLInputElement>('#sys-info-checkbox');
+        this.shadowRoot.querySelector<HTMLInputElement>('#sys-info-checkbox');
     // SeaPen flow doesn't collect system info data.
     if (checkbox != null && checkbox.checked && !isSeaPenFlow) {
       // Send histograms along with system info.
@@ -603,7 +608,7 @@ export class FeedbackAppElement extends PolymerElement {
       useSystemInfo = true;
     }
 
-    const autofillCheckbox = this.shadowRoot!.querySelector<HTMLInputElement>(
+    const autofillCheckbox = this.shadowRoot.querySelector<HTMLInputElement>(
         '#autofill-metadata-checkbox');
     if (autofillCheckbox != null && autofillCheckbox.checked &&
         !this.getRequiredElement('#autofill-checkbox-container').hidden) {
@@ -664,7 +669,7 @@ export class FeedbackAppElement extends PolymerElement {
    * replaced by polymer's $ helper dictionary.
    */
   getRequiredElement<T extends HTMLElement = HTMLElement>(query: string): T {
-    const el = this.shadowRoot!.querySelector<T>(query);
+    const el = this.shadowRoot.querySelector<T>(query);
     assert(el);
     assert(el instanceof HTMLElement);
     return el;
@@ -673,8 +678,8 @@ export class FeedbackAppElement extends PolymerElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'feedback-app': FeedbackAppElement;
+    'feedback-app': AppElement;
   }
 }
 
-customElements.define(FeedbackAppElement.is, FeedbackAppElement);
+customElements.define(AppElement.is, AppElement);

@@ -4,12 +4,14 @@
 
 #include "services/network/network_service_network_delegate.h"
 
+#include <algorithm>
+#include <optional>
 #include <string>
 
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/types/optional_ref.h"
 #include "base/types/optional_util.h"
 #include "build/build_config.h"
 #include "components/domain_reliability/monitor.h"
@@ -18,10 +20,12 @@
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
 #include "net/cookies/cookie_setting_override.h"
+#include "net/cookies/cookie_util.h"
 #include "net/url_request/clear_site_data.h"
 #include "net/url_request/referrer_policy.h"
 #include "net/url_request/url_request.h"
 #include "services/network/cookie_manager.h"
+#include "services/network/cookie_settings.h"
 #include "services/network/network_context.h"
 #include "services/network/network_service.h"
 #include "services/network/network_service_proxy_delegate.h"
@@ -35,6 +39,16 @@
 #endif
 
 namespace network {
+
+namespace {
+// Returns the permissions policy saved for the request in the loader. The
+// loader should outlive the caller of this method.
+base::optional_ref<const network::PermissionsPolicy> GetPermissionsPolicy(
+    const net::URLRequest& request) {
+  const auto* const loader = URLLoader::ForRequest(request);
+  return loader ? loader->GetPermissionsPolicy() : std::nullopt;
+}
+}  // namespace
 
 NetworkServiceNetworkDelegate::NetworkServiceNetworkDelegate(
     bool enable_referrers,
@@ -186,6 +200,28 @@ void NetworkServiceNetworkDelegate::OnPACScriptError(
   proxy_error_client_->OnPACScriptError(line_number, base::UTF16ToUTF8(error));
 }
 
+std::optional<net::cookie_util::StorageAccessStatus>
+NetworkServiceNetworkDelegate::OnGetStorageAccessStatus(
+    const net::URLRequest& request,
+    base::optional_ref<const net::RedirectInfo> redirect_info) const {
+  if (redirect_info) {
+    return network_context_->cookie_manager()
+        ->cookie_settings()
+        .GetStorageAccessStatus(
+            redirect_info->new_url, redirect_info->new_site_for_cookies,
+            request.isolation_info().top_frame_origin(),
+            request.cookie_setting_overrides(), request.cookie_partition_key(),
+            GetPermissionsPolicy(request));
+  }
+  return network_context_->cookie_manager()
+      ->cookie_settings()
+      .GetStorageAccessStatus(request.url(), request.site_for_cookies(),
+                              request.isolation_info().top_frame_origin(),
+                              request.cookie_setting_overrides(),
+                              request.cookie_partition_key(),
+                              GetPermissionsPolicy(request));
+}
+
 bool NetworkServiceNetworkDelegate::OnAnnotateAndMoveUserBlockedCookies(
     const net::URLRequest& request,
     const net::FirstPartySetMetadata& first_party_set_metadata,
@@ -213,11 +249,13 @@ bool NetworkServiceNetworkDelegate::OnAnnotateAndMoveUserBlockedCookies(
       // 3PCs that were not allowed. If that is the case, we should still
       // preserve partitioned cookies.
       if (url_loader->CookiesDisabled()) {
-        ExcludeAllCookies(net::CookieInclusionStatus::EXCLUDE_USER_PREFERENCES,
+        ExcludeAllCookies(net::CookieInclusionStatus::ExclusionReason::
+                              EXCLUDE_USER_PREFERENCES,
                           maybe_included_cookies, excluded_cookies);
       } else {
         ExcludeAllCookiesExceptPartitioned(
-            net::CookieInclusionStatus::EXCLUDE_USER_PREFERENCES,
+            net::CookieInclusionStatus::ExclusionReason::
+                EXCLUDE_USER_PREFERENCES,
             maybe_included_cookies, excluded_cookies);
       }
     }
@@ -228,7 +266,8 @@ bool NetworkServiceNetworkDelegate::OnAnnotateAndMoveUserBlockedCookies(
       allowed = web_socket->AllowCookies(request.url());
       // TODO(crbug/324211435): Fix partitioned cookies for web sockets.
       if (!allowed) {
-        ExcludeAllCookies(net::CookieInclusionStatus::EXCLUDE_USER_PREFERENCES,
+        ExcludeAllCookies(net::CookieInclusionStatus::ExclusionReason::
+                              EXCLUDE_USER_PREFERENCES,
                           maybe_included_cookies, excluded_cookies);
       }
     }
@@ -327,7 +366,7 @@ void NetworkServiceNetworkDelegate::OnCanSendReportingReports(
   }
 
   std::vector<url::Origin> origin_vector;
-  base::ranges::copy(origins, std::back_inserter(origin_vector));
+  std::ranges::copy(origins, std::back_inserter(origin_vector));
   client->OnCanSendReportingReports(
       origin_vector,
       base::BindOnce(
@@ -372,9 +411,9 @@ int NetworkServiceNetworkDelegate::HandleClearSiteDataHeader(
   if (!url_loader_network_observer)
     return net::OK;
 
-  std::string header_value;
-  if (!original_response_headers->GetNormalizedHeader(net::kClearSiteDataHeader,
-                                                      &header_value)) {
+  std::optional<std::string> header_value =
+      original_response_headers->GetNormalizedHeader(net::kClearSiteDataHeader);
+  if (!header_value) {
     return net::OK;
   }
 
@@ -389,7 +428,7 @@ int NetworkServiceNetworkDelegate::HandleClearSiteDataHeader(
       net::NetworkDelegate::PrivacySetting::kPartitionedStateAllowedOnly;
 
   url_loader_network_observer->OnClearSiteData(
-      request->url(), header_value, request->load_flags(),
+      request->url(), *header_value, request->load_flags(),
       request->cookie_partition_key(), partitioned_state_allowed_only,
       base::BindOnce(&NetworkServiceNetworkDelegate::FinishedClearSiteData,
                      weak_ptr_factory_.GetWeakPtr(), request->GetWeakPtr(),

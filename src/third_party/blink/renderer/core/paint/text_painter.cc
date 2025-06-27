@@ -23,11 +23,11 @@
 #include "third_party/blink/renderer/core/style/shadow_list.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
 #include "third_party/blink/renderer/platform/fonts/text_fragment_paint_info.h"
+#include "third_party/blink/renderer/platform/geometry/stroke_data.h"
 #include "third_party/blink/renderer/platform/graphics/draw_looper_builder.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context_state_saver.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
-#include "third_party/blink/renderer/platform/graphics/stroke_data.h"
 
 namespace blink {
 
@@ -144,7 +144,7 @@ void UpdateGraphicsContext(GraphicsContext& context,
     DCHECK(shadow_mode == TextPainter::kBothShadowsAndTextProper ||
            shadow_mode == TextPainter::kShadowsOnly);
 
-    // If there are shadows, we definitely need an SkDrawLooper, but if there
+    // If there are shadows, we definitely need a cc::DrawLooper, but if there
     // are no shadows (nullptr), we still need one iff we’re in kShadowsOnly
     // mode, because we suppress text proper by omitting AddUnmodifiedContent
     // when building a looper (cf. CRC2DState::ShadowAndForegroundDrawLooper).
@@ -172,9 +172,8 @@ void PrepareStrokeGeometry(const TextPainter::SvgTextPaintState& state,
         stroke_scale_factor = state.InlineText().ScalingFactor();
         break;
       case SvgPaintMode::kTextDecoration: {
-        Font scaled_font;
-        LayoutSVGInlineText::ComputeNewScaledFontForStyle(
-            layout_parent, stroke_scale_factor, scaled_font);
+        LayoutSVGInlineText::ComputeNewScaledFontForStyle(layout_parent,
+                                                          stroke_scale_factor);
         DCHECK(stroke_scale_factor);
         break;
       }
@@ -220,7 +219,7 @@ void PrepareSvgPaints(const TextPainter::SvgTextPaintState& state,
                       const SvgContextPaints* context_paints,
                       SvgPaintMode paint_mode,
                       SvgPaints& paints) {
-  if (UNLIKELY(state.IsRenderingClipPathAsMaskImage())) {
+  if (state.IsRenderingClipPathAsMaskImage()) [[unlikely]] {
     cc::PaintFlags& flags = paints.fill.emplace();
     flags.setColor(SK_ColorBLACK);
     flags.setAntiAlias(true);
@@ -234,7 +233,7 @@ void PrepareSvgPaints(const TextPainter::SvgTextPaintState& state,
                                           ? *state.InlineText().Parent()
                                           : state.TextDecorationObject();
   SVGObjectPainter object_painter(layout_parent, context_paints);
-  if (UNLIKELY(state.IsPaintingTextMatch())) {
+  if (state.IsPaintingTextMatch()) [[unlikely]] {
     const ComputedStyle& style = state.Style();
 
     cc::PaintFlags& fill_flags = paints.fill.emplace();
@@ -334,6 +333,11 @@ void TextPainter::Paint(const TextFragmentPaintInfo& fragment_paint_info,
   if (!fragment_paint_info.shape_result) {
     return;
   }
+  // Do not try to paint kShadowsOnly without a ShadowList, because we will
+  // create an empty DrawLooper that effectively paints kTextProperOnly.
+  if (shadow_mode == ShadowMode::kShadowsOnly && !text_style.shadow) {
+    return;
+  }
   DCHECK_LE(fragment_paint_info.from, fragment_paint_info.text.length());
   DCHECK_LE(fragment_paint_info.to, fragment_paint_info.text.length());
 
@@ -424,7 +428,7 @@ void TextPainter::PaintSelectedText(
   // Because only a part of the text glyph can be selected, we need to draw
   // the selection twice. First, draw any shadow for the selection clipped.
   gfx::RectF float_selection_rect(selection_rect);
-  if (UNLIKELY(selection_style.shadow)) {
+  if (selection_style.shadow) [[unlikely]] {
     std::optional<base::AutoReset<bool>> is_painting_selection_reset;
     if (TextPainter::SvgTextPaintState* state = GetSvgState()) {
       is_painting_selection_reset.emplace(&state->is_painting_selection_, true);
@@ -458,19 +462,18 @@ void TextPainter::PaintSelectedText(
 }
 
 void TextPainter::SetEmphasisMark(const AtomicString& emphasis_mark,
-                                  TextEmphasisPosition position) {
+                                  LineLogicalSide emphasis_line_side) {
   emphasis_mark_ = emphasis_mark;
   const SimpleFontData* font_data = font_.PrimaryFont();
   DCHECK(font_data);
 
   if (!font_data || emphasis_mark.IsNull()) {
     emphasis_mark_offset_ = 0;
-  } else if ((horizontal_ && IsOver(position)) ||
-             (!horizontal_ && IsRight(position))) {
+  } else if (emphasis_line_side == LineLogicalSide::kOver) {
     emphasis_mark_offset_ = -font_data->GetFontMetrics().Ascent() -
                             font_.EmphasisMarkDescent(emphasis_mark);
   } else {
-    DCHECK(!IsOver(position) || position == TextEmphasisPosition::kOverLeft);
+    DCHECK(emphasis_line_side == LineLogicalSide::kUnder);
     emphasis_mark_offset_ = font_data->GetFontMetrics().Descent() +
                             font_.EmphasisMarkAscent(emphasis_mark);
   }

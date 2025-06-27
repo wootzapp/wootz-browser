@@ -26,8 +26,8 @@ struct MathMLOperatorDictionaryProperties {
   unsigned trailing_space_in_math_unit : 3;
   unsigned flags : 4;
 };
-static const MathMLOperatorDictionaryProperties
-    MathMLOperatorDictionaryCategories[] = {
+static const auto MathMLOperatorDictionaryCategories =
+    std::to_array<MathMLOperatorDictionaryProperties>({
         {5, 5, kOperatorPropertyFlagsNone},        // None (default values)
         {5, 5, kOperatorPropertyFlagsNone},        // ForceDefault
         {5, 5, MathMLOperatorElement::kStretchy},  // Category A
@@ -46,7 +46,7 @@ static const MathMLOperatorDictionaryProperties
              MathMLOperatorElement::kMovableLimits},  // Category J
         {3, 0, kOperatorPropertyFlagsNone},           // Category L
         {0, 3, kOperatorPropertyFlagsNone},           // Category M
-};
+    });
 
 static const QualifiedName& OperatorPropertyFlagToAttributeName(
     MathMLOperatorElement::OperatorPropertyFlag flag) {
@@ -60,8 +60,7 @@ static const QualifiedName& OperatorPropertyFlagToAttributeName(
     case MathMLOperatorElement::kSymmetric:
       return mathml_names::kSymmetricAttr;
   }
-  NOTREACHED_IN_MIGRATION();
-  return g_null_name;
+  NOTREACHED();
 }
 
 }  // namespace

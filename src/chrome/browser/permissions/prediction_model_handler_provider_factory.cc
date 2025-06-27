@@ -10,8 +10,8 @@
 #include "base/task/thread_pool.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+#include "chrome/browser/permissions/prediction_model_handler_provider.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/permissions/prediction_service/prediction_model_handler_provider.h"
 
 // static
 PredictionModelHandlerProviderFactory*
@@ -36,6 +36,9 @@ PredictionModelHandlerProviderFactory::PredictionModelHandlerProviderFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   DependsOn(OptimizationGuideKeyedServiceFactory::GetInstance());
 }
@@ -50,8 +53,9 @@ PredictionModelHandlerProviderFactory::BuildServiceInstanceForBrowserContext(
   OptimizationGuideKeyedService* optimization_guide =
       OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
 
-  if (!optimization_guide)
+  if (!optimization_guide) {
     return nullptr;
+  }
   return std::make_unique<permissions::PredictionModelHandlerProvider>(
       optimization_guide);
 }

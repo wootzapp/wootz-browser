@@ -14,7 +14,8 @@
 #include "base/test/mock_callback.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "components/metrics/call_stacks/call_stack_profile_params.h"
+#include "components/sampling_profiler/call_stack_profile_params.h"
+#include "components/sampling_profiler/process_type.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/metrics_proto/sampled_profile.pb.h"
 
@@ -22,15 +23,15 @@ namespace metrics {
 
 namespace {
 
-constexpr CallStackProfileParams kProfileParams = {
-    CallStackProfileParams::Process::kBrowser,
-    CallStackProfileParams::Thread::kMain,
-    CallStackProfileParams::Trigger::kProcessStartup};
+constexpr sampling_profiler::CallStackProfileParams kProfileParams = {
+    sampling_profiler::ProfilerProcessType::kBrowser,
+    sampling_profiler::ProfilerThreadType::kMain,
+    sampling_profiler::CallStackProfileParams::Trigger::kProcessStartup};
 
 class TestingCallStackProfileBuilder : public CallStackProfileBuilder {
  public:
-  TestingCallStackProfileBuilder(
-      const CallStackProfileParams& profile_params,
+  explicit TestingCallStackProfileBuilder(
+      const sampling_profiler::CallStackProfileParams& profile_params,
       const WorkIdRecorder* work_id_recorder = nullptr,
       base::OnceClosure completed_callback = base::OnceClosure());
 
@@ -56,7 +57,7 @@ class TestingCallStackProfileBuilder : public CallStackProfileBuilder {
 };
 
 TestingCallStackProfileBuilder::TestingCallStackProfileBuilder(
-    const CallStackProfileParams& profile_params,
+    const sampling_profiler::CallStackProfileParams& profile_params,
     const WorkIdRecorder* work_id_recorder,
     base::OnceClosure completed_callback)
     : CallStackProfileBuilder(profile_params,

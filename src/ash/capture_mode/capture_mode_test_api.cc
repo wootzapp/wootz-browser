@@ -4,6 +4,7 @@
 
 #include "ash/public/cpp/capture_mode/capture_mode_test_api.h"
 
+#include "ash/annotator/annotator_controller.h"
 #include "ash/capture_mode/camera_video_frame_renderer.h"
 #include "ash/capture_mode/capture_mode_behavior.h"
 #include "ash/capture_mode/capture_mode_camera_controller.h"
@@ -13,6 +14,7 @@
 #include "ash/capture_mode/capture_mode_session.h"
 #include "ash/capture_mode/capture_mode_types.h"
 #include "ash/capture_mode/video_recording_watcher.h"
+#include "ash/shell.h"
 #include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/run_loop.h"
@@ -129,6 +131,12 @@ void CaptureModeTestApi::SetOnVideoRecordCountdownFinishedCallback(
   controller_->on_countdown_finished_callback_for_test_ = std::move(callback);
 }
 
+void CaptureModeTestApi::SetOnImageCapturedForSearchCallback(
+    OnImageCapturedForSearchCallback callback) {
+  controller_->on_image_captured_for_search_callback_for_test_ =
+      std::move(callback);
+}
+
 void CaptureModeTestApi::SetAudioRecordingMode(AudioRecordingMode mode) {
   DCHECK(!controller_->is_recording_in_progress());
   controller_->audio_recording_mode_ = mode;
@@ -153,8 +161,8 @@ void CaptureModeTestApi::ResetRecordingServiceClientReceiver() {
   controller_->recording_service_client_receiver_.reset();
 }
 
-RecordingOverlayController*
-CaptureModeTestApi::GetRecordingOverlayController() {
+AnnotationsOverlayController*
+CaptureModeTestApi::GetAnnotationsOverlayController() {
   CHECK(controller_->is_recording_in_progress());
   VideoRecordingWatcher* video_recording_watcher =
       controller_->video_recording_watcher_.get();
@@ -162,8 +170,10 @@ CaptureModeTestApi::GetRecordingOverlayController() {
   const CaptureModeBehavior* active_behavior =
       video_recording_watcher->active_behavior();
   CHECK(active_behavior);
-  CHECK(active_behavior->ShouldCreateRecordingOverlayController());
-  return video_recording_watcher->recording_overlay_controller_.get();
+  CHECK(active_behavior->ShouldCreateAnnotationsOverlayController());
+  return Shell::Get()
+      ->annotator_controller()
+      ->annotations_overlay_controller_.get();
 }
 
 void CaptureModeTestApi::SimulateOpeningFolderSelectionDialog() {
@@ -198,7 +208,7 @@ aura::Window* CaptureModeTestApi::GetFolderSelectionDialogWindow() {
 
 void CaptureModeTestApi::SetForceUseGpuMemoryBufferForCameraFrames(bool value) {
   DCHECK(controller_->camera_controller());
-  capture_mode::CameraVideoFrameHandler::SetForceUseGpuMemoryBufferForTest(
+  ::capture_mode::CameraVideoFrameHandler::SetForceUseGpuMemoryBufferForTest(
       value);
 }
 

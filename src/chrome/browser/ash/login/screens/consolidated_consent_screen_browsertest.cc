@@ -21,20 +21,21 @@
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
 #include "chrome/browser/ash/login/test/user_policy_mixin.h"
 #include "chrome/browser/ash/login/test/webview_content_extractor.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
-#include "chrome/browser/ash/login/ui/webui_login_view.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/consent_auditor/consent_auditor_factory.h"
 #include "chrome/browser/consent_auditor/consent_auditor_test_utils.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/ash/login/webui_login_view.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/webui/ash/login/consolidated_consent_screen_handler.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/consent_auditor/fake_consent_auditor.h"
 #include "components/policy/proto/cloud_policy.pb.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace ash {
@@ -52,7 +53,7 @@ using ArcGoogleLocationServiceConsent =
     ::sync_pb::UserConsentTypes::ArcGoogleLocationServiceConsent;
 
 const char kManagedUser[] = "user@example.com";
-const char kManagedGaiaID[] = "33333";
+const GaiaId::Literal kManagedGaiaID("33333");
 
 constexpr char kConsolidatedConsentId[] = "consolidated-consent";
 
@@ -107,6 +108,10 @@ const test::UIPath kFooterLearnMorePopUpClose = {
 const test::UIPath kAcceptButton = {kConsolidatedConsentId, "acceptButton"};
 const test::UIPath kReadMoreButton = {kConsolidatedConsentId, "loadedDialog",
                                       "readMoreButton"};
+const test::UIPath kTermsDescriptionArcEnabled = {kConsolidatedConsentId,
+                                                  "termsDescriptionArcEnabled"};
+const test::UIPath kTermsDescriptionArcDisabled = {
+    kConsolidatedConsentId, "termsDescriptionArcDisabled"};
 
 // Google EUlA Dialog
 const test::UIPath kGoogleEulaDialog = {kConsolidatedConsentId,
@@ -329,6 +334,7 @@ IN_PROC_BROWSER_TEST_P(ConsolidatedConsentScreenTest, OptinsVisibility) {
   OobeScreenWaiter(ConsolidatedConsentScreenView::kScreenId).Wait();
   test::OobeJS().CreateVisibilityWaiter(true, kLoadedDialog)->Wait();
 
+  test::OobeJS().ExpectVisiblePath(kTermsDescriptionArcDisabled);
   test::OobeJS().ExpectVisiblePath(kUsageStats);
   test::OobeJS().ExpectEnabledPath(kUsageStatsToggle);
   test::OobeJS().ExpectHiddenPath(kBackup);
@@ -483,6 +489,7 @@ IN_PROC_BROWSER_TEST_P(ConsolidatedConsentScreenArcEnabledTest,
   OobeScreenWaiter(ConsolidatedConsentScreenView::kScreenId).Wait();
   test::OobeJS().CreateVisibilityWaiter(true, kLoadedDialog)->Wait();
 
+  test::OobeJS().ExpectVisiblePath(kTermsDescriptionArcEnabled);
   test::OobeJS().ExpectVisiblePath(kUsageStats);
   test::OobeJS().ExpectEnabledPath(kUsageStatsToggle);
   test::OobeJS().ExpectVisiblePath(kBackup);
@@ -623,6 +630,14 @@ class ConsolidatedConsentScreenArcEnabledParameterizedTest
     ConsolidatedConsentScreenArcEnabledTestBase::SetUp();
   }
 
+  void SetUpBrowserContextKeyedServices(
+      content::BrowserContext* context) override {
+    ConsolidatedConsentScreenArcEnabledTestBase::
+        SetUpBrowserContextKeyedServices(context);
+    ConsentAuditorFactory::GetInstance()->SetTestingFactory(
+        context, base::BindRepeating(&BuildFakeConsentAuditor));
+  }
+
   bool IsPhEnabled() { return is_ph_enabled_; }
 
   // Common routine that enables/disables toggles based on test parameters.
@@ -634,8 +649,7 @@ class ConsolidatedConsentScreenArcEnabledParameterizedTest
       ArcGoogleLocationServiceConsent location_service_consent) {
     Profile* profile = ProfileManager::GetActiveUserProfile();
     FakeConsentAuditor* auditor = static_cast<FakeConsentAuditor*>(
-        ConsentAuditorFactory::GetInstance()->SetTestingFactoryAndUse(
-            profile, base::BindRepeating(&BuildFakeConsentAuditor)));
+        ConsentAuditorFactory::GetForProfile(profile));
 
     if (!accept_backup_restore_)
       test::OobeJS().ClickOnPath(kBackupToggle);
@@ -778,7 +792,7 @@ class ConsolidatedConsentScreenManagedUserTest
               ->clear_googlelocationservicesenabled();
           break;
         default:
-          NOTREACHED_IN_MIGRATION();
+          NOTREACHED();
       }
     } else {
       // Legacy handling.

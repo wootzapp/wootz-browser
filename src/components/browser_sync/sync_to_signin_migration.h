@@ -6,7 +6,8 @@
 #define COMPONENTS_BROWSER_SYNC_SYNC_TO_SIGNIN_MIGRATION_H_
 
 #include "base/feature_list.h"
-#include "components/sync/base/model_type.h"
+#include "base/functional/callback.h"
+#include "components/sync/base/data_type.h"
 
 namespace base {
 class FilePath;
@@ -33,7 +34,7 @@ enum class SyncToSigninMigrationDataTypeDecision {
 
 SyncToSigninMigrationDataTypeDecision GetSyncToSigninMigrationDataTypeDecision(
     const PrefService* pref_service,
-    syncer::ModelType type,
+    syncer::DataType type,
     const char* type_enabled_pref);
 
 // Migrates the current primary account (signed-in user) from "syncing" to
@@ -44,6 +45,13 @@ SyncToSigninMigrationDataTypeDecision GetSyncToSigninMigrationDataTypeDecision(
 // KeyedServices are created.
 void MaybeMigrateSyncingUserToSignedIn(const base::FilePath& profile_path,
                                        PrefService* pref_service);
+
+// Asynchronous version of MaybeMigrateSyncingUserToSignedIn() that can be
+// used in context where accessing the IO is forbidden. When the migration is
+// complete `closure` will be invoked asynchronously on the current sequence.
+void MaybeMigrateSyncingUserToSignedInAsync(const base::FilePath& profile_path,
+                                            PrefService* pref_service,
+                                            base::OnceClosure closure);
 
 // Returns whether the current primary account was migrated from "syncing" to
 // "signed-in" via MaybeMigrateSyncingUserToSignedIn().

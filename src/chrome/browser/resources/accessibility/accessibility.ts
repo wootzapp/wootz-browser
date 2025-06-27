@@ -15,13 +15,14 @@ enum AxMode {
   NATIVE_APIS = 1 << 0,
   WEB_CONTENTS = 1 << 1,
   INLINE_TEXT_BOXES = 1 << 2,
-  SCREEN_READER = 1 << 3,
+  EXTENDED_PROPERTIES = 1 << 3,
   HTML = 1 << 4,
   HTML_METADATA = 1 << 5,
   LABEL_IMAGES = 1 << 6,
   PDF_PRINTING = 1 << 7,
   PDF_OCR = 1 << 8,
   ANNOTATE_MAIN_NODE = 1 << 9,
+  FROM_PLATFORM = 1 << 10,
 }
 
 interface Data {
@@ -42,14 +43,14 @@ type PageData = Data&{
   routingId: number,
   url?: string,
 
-  // Used for GlobalStateName.
-  // Note: Does 'metadata' actually exist? Does not appear anywhere in
-  // chrome/browser/accessibility/accessibility_ui.cc.
-  metadata: boolean,
-  native: boolean,
-  pdfPrinting: boolean,
-  screenreader: boolean,
-  web: boolean,
+     // Used for GlobalStateName.
+     // Note: Does 'metadata' actually exist? Does not appear anywhere in
+     // chrome/browser/accessibility/accessibility_ui.cc.
+     metadata: boolean,
+     native: boolean,
+     pdfPrinting: boolean,
+     extendedProperties: boolean,
+     web: boolean,
 
   tree?: string,
   error?: string,
@@ -61,8 +62,6 @@ type WidgetData = Data&{
   widgetId: number,
 };
 
-type EnabledStatus = 'disabled'|'off'|'on';
-
 interface InitData {
   browsers: BrowserData[];
   pages: PageData[];
@@ -71,19 +70,21 @@ interface InitData {
 
   supportedApiTypes: string[];
   apiType: string;
-  locked: EnabledStatus;
+  locked: boolean;
+  isolate: boolean;
 
-  html: EnabledStatus;
-  native: EnabledStatus;
-  pdfPrinting: EnabledStatus;
-  screenreader: EnabledStatus;
-  text: EnabledStatus;
-  web: EnabledStatus;
+  html: boolean;
+  native: boolean;
+  pdfPrinting: boolean;
+  extendedProperties: boolean;
+  text: boolean;
+  web: boolean;
 }
 
 type RequestType = 'showOrRefreshTree';
 
-type GlobalStateName = 'native'|'web'|'metadata'|'pdfPrinting'|'screenreader';
+type GlobalStateName =
+    'native'|'web'|'metadata'|'pdfPrinting'|'extendedProperties';
 
 class BrowserProxy {
   toggleAccessibility(
@@ -246,9 +247,10 @@ function initialize() {
   bindCheckbox('native', data.native);
   bindCheckbox('web', data.web);
   bindCheckbox('text', data.text);
-  bindCheckbox('screenreader', data.screenreader);
+  bindCheckbox('extendedProperties', data.extendedProperties);
   bindCheckbox('html', data.html);
   bindDropdown('apiType', data.supportedApiTypes, data.apiType);
+  bindCheckbox('isolate', data.isolate);
   bindCheckbox('locked', data.locked);
 
   getRequiredElement('pages').textContent = '';
@@ -297,15 +299,9 @@ function initialize() {
   addWebUiListener('startOrStopEvents', startOrStopEvents);
 }
 
-function bindCheckbox(name: string, value: EnabledStatus) {
+function bindCheckbox(name: string, value: boolean) {
   const checkbox = getRequiredElement<HTMLInputElement>(name);
-  if (value === 'on') {
-    checkbox.checked = true;
-  }
-  if (value === 'disabled') {
-    checkbox.disabled = true;
-    checkbox.labels![0]!.classList.add('disabled');
-  }
+  checkbox.checked = value;
   checkbox.addEventListener('change', function() {
     browserProxy.setGlobalFlag(name, checkbox.checked);
     document.location.reload();
@@ -388,18 +384,21 @@ function formatRow(
     row.appendChild(createModeElement(AxMode.WEB_CONTENTS, pageData, 'native'));
     row.appendChild(
         createModeElement(AxMode.INLINE_TEXT_BOXES, pageData, 'web'));
-    row.appendChild(createModeElement(AxMode.SCREEN_READER, pageData, 'web'));
+    row.appendChild(
+        createModeElement(AxMode.EXTENDED_PROPERTIES, pageData, 'web'));
     row.appendChild(createModeElement(AxMode.HTML, pageData, 'web'));
     row.appendChild(
         createModeElement(AxMode.HTML_METADATA, pageData, 'metadata'));
     row.appendChild(
         createModeElement(AxMode.PDF_PRINTING, pageData, 'pdfPrinting'));
     row.appendChild(createModeElement(
-        AxMode.LABEL_IMAGES, pageData, 'screenreader',
+        AxMode.LABEL_IMAGES, pageData, 'extendedProperties',
         /*readonly=*/ true));
     row.appendChild(createModeElement(
-        AxMode.ANNOTATE_MAIN_NODE, pageData, 'screenreader',
+        AxMode.ANNOTATE_MAIN_NODE, pageData, 'extendedProperties',
         /* readOnly= */ true));
+    // AxMode.FROM_PLATFORM is unconditionally filtered out and is therefore
+    // never presented to renderers or the user.
   } else {
     const siteInfo = document.createElement('span');
     siteInfo.appendChild(formatValue(data, 'name'));
@@ -491,8 +490,8 @@ function getNameForAccessibilityMode(mode: AxMode): string {
       return 'Web';
     case AxMode.INLINE_TEXT_BOXES:
       return 'Inline text';
-    case AxMode.SCREEN_READER:
-      return 'Screen reader';
+    case AxMode.EXTENDED_PROPERTIES:
+      return 'Extended properties';
     case AxMode.HTML:
       return 'HTML';
     case AxMode.HTML_METADATA:
@@ -520,23 +519,28 @@ function createModeElement(
     element.classList.add('readOnlyMode');
   } else {
     element.setAttribute('is', 'action-link');
-    element.setAttribute('role', 'button');
   }
+
+  element.role = 'button';
 
   const stateText = ((currentMode & mode) !== 0) ? 'true' : 'false';
   const isEnabled =
       (data as unknown as {[k: string]: boolean})[globalStateName];
   const accessibilityModeName = getNameForAccessibilityMode(mode);
+
+  element.ariaLabel = `${accessibilityModeName} for ${data.name}`;
+  element.ariaPressed = stateText;
+
   if (isEnabled) {
     element.textContent = accessibilityModeName + ': ' + stateText;
   } else {
     element.textContent = accessibilityModeName + ': disabled';
     element.classList.add('disabled');
+    element.ariaDisabled = 'true';
   }
-  element.setAttribute(
-      'aria-label', `${accessibilityModeName} for ${data.name}: ${stateText}`);
-  if (!readOnly) {
-    element.setAttribute('aria-pressed', stateText);
+  if (readOnly) {
+    element.ariaDisabled = 'true';
+  } else {
     element.addEventListener(
         'click', toggleAccessibility.bind(null, data, mode, globalStateName));
   }

@@ -101,7 +101,7 @@ ScriptPromise<IDLUndefined> TCPServerSocket::close(
   if (GetState() == State::kOpening) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "Socket is not properly initialized.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   if (GetState() != State::kOpen) {
@@ -111,7 +111,7 @@ ScriptPromise<IDLUndefined> TCPServerSocket::close(
   if (readable_stream_wrapper_->Locked()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "Close called on locked streams.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* reason = MakeGarbageCollected<DOMException>(
@@ -119,7 +119,7 @@ ScriptPromise<IDLUndefined> TCPServerSocket::close(
 
   auto readable_cancel = readable_stream_wrapper_->Readable()->cancel(
       script_state, ScriptValue::From(script_state, reason), exception_state);
-  DCHECK(!exception_state.HadException()) << exception_state.Message();
+  DCHECK(!exception_state.HadException());
   readable_cancel.MarkAsHandled();
 
   return closed(script_state);
@@ -203,11 +203,13 @@ void TCPServerSocket::ReleaseResources() {
   readable_stream_wrapper_.Clear();
 }
 
-void TCPServerSocket::OnReadableStreamClosed(ScriptValue exception) {
+void TCPServerSocket::OnReadableStreamClosed(v8::Local<v8::Value> exception,
+                                             int net_error) {
   DCHECK_EQ(GetState(), State::kOpen);
 
   if (!exception.IsEmpty()) {
-    GetClosedProperty().Reject(exception);
+    GetClosedProperty().Reject(
+        ScriptValue(GetScriptState()->GetIsolate(), exception));
     SetState(State::kAborted);
   } else {
     GetClosedProperty().ResolveWithUndefined();

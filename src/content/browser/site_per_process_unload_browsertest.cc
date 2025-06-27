@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <list>
 #include <memory>
 #include <string>
@@ -13,7 +14,6 @@
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/weak_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/run_until.h"
@@ -34,6 +34,7 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/common/content_navigation_policy.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/browser_test.h"
@@ -356,7 +357,7 @@ IN_PROC_BROWSER_TEST_P(SitePerProcessBrowserTest,
   web_contents->GetPrimaryMainFrame()
       ->DisableBeforeUnloadHangMonitorForTesting();
   web_contents->GetPrimaryMainFrame()->ExecuteJavaScriptWithUserGestureForTests(
-      std::u16string(), base::NullCallback());
+      std::u16string(), base::NullCallback(), ISOLATED_WORLD_ID_GLOBAL);
 
   // Hang the first contents in a beforeunload dialog.
   BeforeUnloadBlockingDelegate test_delegate(web_contents);
@@ -458,13 +459,13 @@ IN_PROC_BROWSER_TEST_P(SitePerProcessBrowserTest, PagehideHandlerSubframes) {
   // https://html.spec.whatwg.org/multipage/browsing-the-web.html#unloading-documents
   //
   // In process B:
-  auto B1 = base::ranges::find(messages, "B1");
-  auto B2 = base::ranges::find(messages, "B2");
+  auto B1 = std::ranges::find(messages, "B1");
+  auto B2 = std::ranges::find(messages, "B2");
   EXPECT_LT(B1, B2);
 
   // In process C:
-  auto C2 = base::ranges::find(messages, "C2");
-  auto C3 = base::ranges::find(messages, "C3");
+  auto C2 = std::ranges::find(messages, "C2");
+  auto C3 = std::ranges::find(messages, "C3");
   EXPECT_LT(C2, C3);
 
   // Make sure the processes are deleted at some point.
@@ -547,10 +548,10 @@ IN_PROC_BROWSER_TEST_P(SitePerProcessBrowserTest, PagehideHandlerABAB) {
   EXPECT_FALSE(dom_message_queue.PopMessage(&message));
 
   EXPECT_THAT(messages, WhenSorted(ElementsAre("A1", "A2", "B1", "B2")));
-  auto A1 = base::ranges::find(messages, "A1");
-  auto A2 = base::ranges::find(messages, "A2");
-  auto B1 = base::ranges::find(messages, "B1");
-  auto B2 = base::ranges::find(messages, "B2");
+  auto A1 = std::ranges::find(messages, "A1");
+  auto A2 = std::ranges::find(messages, "A2");
+  auto B1 = std::ranges::find(messages, "B1");
+  auto B2 = std::ranges::find(messages, "B2");
   EXPECT_LT(A1, A2);
   EXPECT_LT(B1, B2);
 

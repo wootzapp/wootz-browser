@@ -12,6 +12,7 @@
 #include "third_party/blink/renderer/platform/loader/testing/bytes_consumer_test_reader.h"
 #include "third_party/blink/renderer/platform/loader/testing/replaying_bytes_consumer.h"
 #include "third_party/blink/renderer/platform/scheduler/test/fake_task_runner.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 namespace {
@@ -65,7 +66,7 @@ TEST_F(BufferingBytesConsumerTest, Read) {
 
   EXPECT_EQ(PublicState::kClosed, bytes_consumer->GetPublicState());
   ASSERT_EQ(result.first, Result::kDone);
-  EXPECT_EQ("12345678", String(result.second.data(), result.second.size()));
+  EXPECT_EQ("12345678", String(result.second));
 }
 
 TEST_F(BufferingBytesConsumerTest, ReadWithDelay) {
@@ -100,7 +101,7 @@ TEST_F(BufferingBytesConsumerTest, ReadWithDelay) {
   // Reading before the delay expires should still work correctly.
   EXPECT_EQ(PublicState::kClosed, bytes_consumer->GetPublicState());
   ASSERT_EQ(result.first, Result::kDone);
-  EXPECT_EQ("12345678", String(result.second.data(), result.second.size()));
+  EXPECT_EQ("12345678", String(result.second));
 }
 
 TEST_F(BufferingBytesConsumerTest, Buffering) {
@@ -134,7 +135,7 @@ TEST_F(BufferingBytesConsumerTest, Buffering) {
 
   EXPECT_EQ(PublicState::kClosed, bytes_consumer->GetPublicState());
   ASSERT_EQ(result.first, Result::kDone);
-  EXPECT_EQ("12345678", String(result.second.data(), result.second.size()));
+  EXPECT_EQ("12345678", String(result.second));
 }
 
 TEST_F(BufferingBytesConsumerTest, BufferingWithDelay) {
@@ -178,7 +179,7 @@ TEST_F(BufferingBytesConsumerTest, BufferingWithDelay) {
 
   EXPECT_EQ(PublicState::kClosed, bytes_consumer->GetPublicState());
   ASSERT_EQ(result.first, Result::kDone);
-  EXPECT_EQ("12345678", String(result.second.data(), result.second.size()));
+  EXPECT_EQ("12345678", String(result.second));
 }
 
 TEST_F(BufferingBytesConsumerTest, StopBuffering) {
@@ -214,7 +215,7 @@ TEST_F(BufferingBytesConsumerTest, StopBuffering) {
 
   EXPECT_EQ(PublicState::kClosed, bytes_consumer->GetPublicState());
   ASSERT_EQ(result.first, Result::kDone);
-  EXPECT_EQ("12345678", String(result.second.data(), result.second.size()));
+  EXPECT_EQ("12345678", String(result.second));
 }
 
 TEST_F(BufferingBytesConsumerTest, DrainAsDataPipeFailsWithoutDelay) {

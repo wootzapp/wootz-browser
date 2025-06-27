@@ -27,8 +27,7 @@ IdleManagerFactory::IdleManagerFactory()
     : BrowserContextKeyedServiceFactory(
           "IdleManager",
           BrowserContextDependencyManager::GetInstance()) {
-  if (extensions::ExtensionsBrowserClient::Get())
-    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 IdleManagerFactory::~IdleManagerFactory() {
@@ -46,7 +45,7 @@ IdleManagerFactory::BuildServiceInstanceForBrowserContext(
 content::BrowserContext* IdleManagerFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
   return ExtensionsBrowserClient::Get()->GetContextRedirectedToOriginal(
-      context, /*force_guest_profile=*/true);
+      context);
 }
 
 bool IdleManagerFactory::ServiceIsCreatedWithBrowserContext() const {

@@ -15,6 +15,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/common/autofill_switches.h"
 #import "components/password_manager/core/common/password_manager_features.h"
+#import "components/segmentation_platform/public/constants.h"
 #import "components/variations/variations_associated_data.h"
 #import "ios/chrome/browser/browsing_data/model/browsing_data_features.h"
 #import "ios/chrome/browser/flags/chrome_switches.h"
@@ -28,6 +29,7 @@ NSString* const kAlternateDiscoverFeedServerURL =
     @"AlternateDiscoverFeedServerURL";
 NSString* const kEnableStartupCrash = @"EnableStartupCrash";
 NSString* const kFirstRunForceEnabled = @"FirstRunForceEnabled";
+NSString* const kFirstRunForceDisabled = @"FirstRunForceDisabled";
 NSString* const kUpgradePromoForceEnabled = @"UpgradePromoForceEnabled";
 NSString* const kOriginServerHost = @"AlternateOriginServerHost";
 NSString* const kWhatsNewPromoStatus = @"WhatsNewPromoStatus";
@@ -36,6 +38,8 @@ NSString* const kNextPromoForDisplayOverride = @"NextPromoForDisplayOverride";
 NSString* const kFirstRunRecency = @"FirstRunRecency";
 NSString* const kForceExperienceForDeviceSwitcherExperimentalSettings =
     @"ForceExperienceForDeviceSwitcher";
+NSString* const kForceExperienceForShopperExperimentalSettings =
+    @"ForceExperienceForShopper";
 NSString* const kSafetyCheckUpdateChromeStateOverride =
     @"SafetyCheckUpdateChromeStateOverride";
 NSString* const kSafetyCheckPasswordStateOverride =
@@ -51,11 +55,17 @@ NSString* const kSafetyCheckCompromisedPasswordsCountOverride =
 NSString* const kSimulatePostDeviceRestore = @"SimulatePostDeviceRestore";
 NSString* const kShouldIgnoreHistorySyncDeclineLimits =
     @"ShouldIgnoreHistorySyncDeclineLimits";
-NSString* const kDisplaySwitchProfile = @"DisplaySwitchProfile";
+NSString* const kSafetyCheckNotificationsInactivityThreshold =
+    @"SafetyCheckNotificationsInactivityThreshold";
 BASE_FEATURE(kEnableThirdPartyKeyboardWorkaround,
              "EnableThirdPartyKeyboardWorkaround",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
+NSString* const kTipsMagicStackLensShopWithImage =
+    @"TipsMagicStackLensShopWithImage";
+NSString* const kTipsMagicStackStateOverride = @"TipsMagicStackStateOverride";
+NSString* const kInactiveTabsDemoMode = @"InactiveTabsDemoMode";
+NSString* const kInactiveTabsTestMode = @"InactiveTabsTestMode";
+NSString* const kAsyncStartupOverrideResponse = @"AsyncStartupOverrideResponse";
 }  // namespace
 
 namespace experimental_flags {
@@ -63,6 +73,11 @@ namespace experimental_flags {
 bool AlwaysDisplayFirstRun() {
   return
       [[NSUserDefaults standardUserDefaults] boolForKey:kFirstRunForceEnabled];
+}
+
+bool NeverDisplayFirstRun() {
+  return
+      [[NSUserDefaults standardUserDefaults] boolForKey:kFirstRunForceDisabled];
 }
 
 bool AlwaysDisplayUpgradePromo() {
@@ -249,6 +264,24 @@ std::string GetSegmentForForcedDeviceSwitcherExperience() {
   return segment;
 }
 
+std::string GetSegmentForForcedShopperExperience() {
+  // Checks iOS Experimental Settings.
+  std::string segment =
+      [[NSUserDefaults standardUserDefaults]
+          boolForKey:kForceExperienceForShopperExperimentalSettings]
+          ? segmentation_platform::kShoppingUserUmaName
+          : segmentation_platform::kLegacyNegativeLabel;
+  if (segment.empty()) {
+    // Checks command line flag.
+    base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+    if (command_line->HasSwitch(switches::kForceShopperExperience)) {
+      segment =
+          command_line->GetSwitchValueNative(switches::kForceShopperExperience);
+    }
+  }
+  return segment;
+}
+
 bool SimulatePostDeviceRestore() {
   return [[NSUserDefaults standardUserDefaults]
       boolForKey:kSimulatePostDeviceRestore];
@@ -259,15 +292,67 @@ bool ShouldIgnoreHistorySyncDeclineLimits() {
       boolForKey:kShouldIgnoreHistorySyncDeclineLimits];
 }
 
-std::optional<int> DisplaySwitchProfile() {
-  int switchProfileCount = [[NSUserDefaults standardUserDefaults]
-      integerForKey:kDisplaySwitchProfile];
+std::optional<int> GetForcedInactivityThresholdForSafetyCheckNotifications() {
+  int threshold = [[NSUserDefaults standardUserDefaults]
+      integerForKey:kSafetyCheckNotificationsInactivityThreshold];
 
-  if (switchProfileCount == 0) {
+  if (threshold == 0) {
     return std::nullopt;
   }
 
-  return switchProfileCount;
+  return threshold;
+}
+
+std::optional<int> GetForcedTipsMagicStackState() {
+  int tipsIdentifier = [[NSUserDefaults standardUserDefaults]
+      integerForKey:kTipsMagicStackStateOverride];
+
+  if (tipsIdentifier == 0) {
+    return std::nullopt;
+  }
+
+  return tipsIdentifier;
+}
+
+bool ShouldDisplayLensShopTipWithImage() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kTipsMagicStackLensShopWithImage];
+}
+
+bool ShouldUseInactiveTabsDemoThreshold() {
+  return
+      [[NSUserDefaults standardUserDefaults] boolForKey:kInactiveTabsDemoMode];
+}
+
+bool ShouldUseInactiveTabsTestThreshold() {
+  return
+      [[NSUserDefaults standardUserDefaults] boolForKey:kInactiveTabsTestMode];
+}
+
+bool ShouldOpenInIncognitoOverride() {
+  NSString* value = [[NSUserDefaults standardUserDefaults]
+      stringForKey:kAsyncStartupOverrideResponse];
+  return ([value isEqualToString:@"FirstPartyIncognitoNoDelay"] ||
+          [value isEqualToString:@"FirstPartyIncognito500Delay"] ||
+          [value isEqualToString:@"AlwaysShowTheUI"]);
+}
+
+bool ShouldDelayAsyncStartup() {
+  NSString* value = [[NSUserDefaults standardUserDefaults]
+      stringForKey:kAsyncStartupOverrideResponse];
+  return ([value isEqualToString:@"FirstPartyIncognito500Delay"] ||
+          [value isEqualToString:@"500ms"]);
+}
+
+bool AlwaysShowTheFirstPartyIncognitoUI() {
+  NSString* value = [[NSUserDefaults standardUserDefaults]
+      stringForKey:kAsyncStartupOverrideResponse];
+  return [value isEqualToString:@"AlwaysShowTheUI"];
+}
+
+bool EnableAIPrototypingMenu() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:@"EnableAIPrototypingMenu"];
 }
 
 }  // namespace experimental_flags

@@ -4,6 +4,9 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/script_decoder.h"
 
+#include <memory>
+
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/html/parser/text_resource_decoder.h"
 #include "third_party/blink/renderer/platform/loader/fetch/response_body_loader_client.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
@@ -22,17 +25,52 @@ struct CrossThreadCopier<blink::ScriptDecoder::Result> {
   static Type Copy(Type&& value) { return std::move(value); }
 };
 
+template <>
+struct CrossThreadCopier<mojo::ScopedDataPipeConsumerHandle> {
+  STATIC_ONLY(CrossThreadCopier);
+  using Type = mojo::ScopedDataPipeConsumerHandle;
+  static Type Copy(Type&& value) { return std::move(value); }
+};
+
 }  // namespace WTF
 
 namespace blink {
 
+namespace {
+void AppendDataImpl(Digestor* digestor,
+                    StringBuilder* builder,
+                    const String& data) {
+  bool was_8bit = builder->Is8Bit();
+  unsigned starting_length = builder->length();
+  builder->Append(data);
+  if (was_8bit == builder->Is8Bit()) {
+    // Update the hash using the data from the builder, not the input string,
+    // because the input string could be 8-bit when the builder is 16-bit.
+    digestor->Update(builder
+                         ->SubstringView(starting_length,
+                                         builder->length() - starting_length)
+                         .RawByteSpan());
+  } else {
+    // The hash data computed so far is invalid and must be recomputed. This can
+    // only happen once per builder when it changes from 8-bit to 16-bit mode.
+    DCHECK(!builder->Is8Bit());
+    *digestor = Digestor(kHashAlgorithmSha256);
+    digestor->Update(StringView(*builder).RawByteSpan());
+  }
+}
+}  // namespace
+
 ScriptDecoder::Result::Result(
-    Deque<Vector<char>> raw_data,
+    SegmentedBuffer raw_data,
     String decoded_data,
     std::unique_ptr<ParkableStringImpl::SecureDigest> digest)
     : raw_data(std::move(raw_data)),
       decoded_data(std::move(decoded_data)),
       digest(std::move(digest)) {}
+
+////////////////////////////////////////////////////////////////////////
+// ScriptDecoder
+////////////////////////////////////////////////////////////////////////
 
 ScriptDecoder::ScriptDecoder(
     std::unique_ptr<TextResourceDecoder> decoder,
@@ -54,8 +92,8 @@ void ScriptDecoder::DidReceiveData(Vector<char> data) {
   CHECK(decoding_task_runner_->RunsTasksInCurrentSequence());
   CHECK(!client_task_runner_->RunsTasksInCurrentSequence());
 
-  AppendData(decoder_->Decode(data.data(), data.size()));
-  raw_data_.emplace_back(std::move(data));
+  AppendData(decoder_->Decode(data));
+  raw_data_.Append(std::move(data));
 }
 
 void ScriptDecoder::FinishDecode(
@@ -73,6 +111,7 @@ void ScriptDecoder::FinishDecode(
   CHECK(!client_task_runner_->RunsTasksInCurrentSequence());
 
   AppendData(decoder_->Flush());
+  ParkableStringImpl::UpdateDigestWithEncoding(&digestor_, builder_.Is8Bit());
 
   DigestValue digest_value;
   digestor_.Finish(digest_value);
@@ -91,9 +130,7 @@ void ScriptDecoder::Delete() const {
 }
 
 void ScriptDecoder::AppendData(const String& data) {
-  digestor_.Update(base::as_bytes(base::make_span(
-      static_cast<const char*>(data.Bytes()), data.CharactersSizeInBytes())));
-  builder_.Append(data);
+  AppendDataImpl(&digestor_, &builder_, data);
 }
 
 void ScriptDecoderDeleter::operator()(const ScriptDecoder* ptr) {
@@ -108,6 +145,80 @@ ScriptDecoderPtr ScriptDecoder::Create(
   return ScriptDecoderPtr(
       new ScriptDecoder(std::move(decoder), std::move(client_task_runner)));
 }
+
+////////////////////////////////////////////////////////////////////////
+// DataPipeScriptDecoder
+////////////////////////////////////////////////////////////////////////
+
+DataPipeScriptDecoder::DataPipeScriptDecoder(
+    std::unique_ptr<TextResourceDecoder> decoder,
+    scoped_refptr<base::SequencedTaskRunner> client_task_runner,
+    OnDecodeFinishedCallback on_decode_finished_callback)
+    : decoder_(std::move(decoder)),
+      client_task_runner_(std::move(client_task_runner)),
+      on_decode_finished_callback_(std::move(on_decode_finished_callback)),
+      decoding_task_runner_(worker_pool::CreateSequencedTaskRunner(
+          {base::TaskPriority::USER_BLOCKING})) {
+  CHECK(features::kBackgroundCodeCacheDecoderStart.Get());
+}
+
+void DataPipeScriptDecoder::Start(mojo::ScopedDataPipeConsumerHandle source) {
+  if (!decoding_task_runner_->RunsTasksInCurrentSequence()) {
+    PostCrossThreadTask(
+        *decoding_task_runner_, FROM_HERE,
+        CrossThreadBindOnce(&DataPipeScriptDecoder::Start,
+                            CrossThreadUnretained(this), std::move(source)));
+    return;
+  }
+  drainer_ = std::make_unique<mojo::DataPipeDrainer>(this, std::move(source));
+}
+
+void DataPipeScriptDecoder::OnDataAvailable(base::span<const uint8_t> data) {
+  AppendData(decoder_->Decode(data));
+  raw_data_.Append(data);
+}
+
+void DataPipeScriptDecoder::OnDataComplete() {
+  AppendData(decoder_->Flush());
+  ParkableStringImpl::UpdateDigestWithEncoding(&digestor_, builder_.Is8Bit());
+  digestor_.Finish(digest_value_);
+  PostCrossThreadTask(
+      *client_task_runner_, FROM_HERE,
+      CrossThreadBindOnce(
+          std::move(on_decode_finished_callback_),
+          ScriptDecoder::Result(
+              std::move(raw_data_), builder_.ReleaseString(),
+              std::make_unique<ParkableStringImpl::SecureDigest>(
+                  digest_value_))));
+}
+
+void DataPipeScriptDecoder::AppendData(const String& data) {
+  AppendDataImpl(&digestor_, &builder_, data);
+}
+
+void DataPipeScriptDecoder::Delete() const {
+  decoding_task_runner_->DeleteSoon(FROM_HERE, this);
+}
+
+void DataPipeScriptDecoderDeleter::operator()(
+    const DataPipeScriptDecoder* ptr) {
+  if (ptr) {
+    ptr->Delete();
+  }
+}
+
+DataPipeScriptDecoderPtr DataPipeScriptDecoder::Create(
+    std::unique_ptr<TextResourceDecoder> decoder,
+    scoped_refptr<base::SequencedTaskRunner> client_task_runner,
+    OnDecodeFinishedCallback on_decode_finished_callback) {
+  return DataPipeScriptDecoderPtr(new DataPipeScriptDecoder(
+      std::move(decoder), std::move(client_task_runner),
+      std::move(on_decode_finished_callback)));
+}
+
+////////////////////////////////////////////////////////////////////////
+// ScriptDecoderWithClient
+////////////////////////////////////////////////////////////////////////
 
 ScriptDecoderWithClient::ScriptDecoderWithClient(
     ResponseBodyLoaderClient* response_body_loader_client,
@@ -134,7 +245,7 @@ void ScriptDecoderWithClient::DidReceiveData(Vector<char> data,
   CHECK(decoding_task_runner_->RunsTasksInCurrentSequence());
   CHECK(!client_task_runner_->RunsTasksInCurrentSequence());
 
-  AppendData(decoder_->Decode(data.data(), data.size()));
+  AppendData(decoder_->Decode(data));
 
   if (!send_to_client) {
     return;
@@ -162,6 +273,7 @@ void ScriptDecoderWithClient::FinishDecode(
   CHECK(!client_task_runner_->RunsTasksInCurrentSequence());
 
   AppendData(decoder_->Flush());
+  ParkableStringImpl::UpdateDigestWithEncoding(&digestor_, builder_.Is8Bit());
 
   DigestValue digest_value;
   digestor_.Finish(digest_value);
@@ -190,9 +302,7 @@ void ScriptDecoderWithClient::Delete() const {
 }
 
 void ScriptDecoderWithClient::AppendData(const String& data) {
-  digestor_.Update(base::as_bytes(base::make_span(
-      static_cast<const char*>(data.Bytes()), data.CharactersSizeInBytes())));
-  builder_.Append(data);
+  AppendDataImpl(&digestor_, &builder_, data);
 }
 
 void ScriptDecoderWithClientDeleter::operator()(

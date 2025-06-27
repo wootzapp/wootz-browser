@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "base/containers/flat_map.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
@@ -15,7 +16,10 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/time/time.h"
 #include "content/browser/interest_group/bidding_and_auction_server_key_fetcher.h"
+#include "content/browser/interest_group/for_debugging_only_report_util.h"
+#include "content/browser/interest_group/interest_group_features.h"
 #include "content/browser/interest_group/interest_group_manager_impl.h"
 #include "content/browser/interest_group/interest_group_storage.h"
 #include "content/browser/interest_group/storage_interest_group.h"
@@ -24,9 +28,6 @@
 #include "url/origin.h"
 
 namespace {
-bool CacheIsEnabled() {
-  return base::FeatureList::IsEnabled(features::kFledgeUseInterestGroupCache);
-}
 
 std::optional<content::SingleStorageInterestGroup>
 ConvertOptionalGroupToSingleStorageInterestGroup(
@@ -76,6 +77,10 @@ StorageInterestGroups::StorageInterestGroups(
     std::vector<StorageInterestGroup>&& interest_groups)
     : storage_interest_groups_(std::move(interest_groups)) {
   expiry_ = base::Time::Max();
+  if (base::FeatureList::IsEnabled(blink::features::kFledgeClickiness)) {
+    expiry_ =
+        base::Time::Now() + InterestGroupCachingStorage::kMaximumCacheHoldTime;
+  }
   for (const StorageInterestGroup& group : storage_interest_groups_) {
     expiry_ = std::min(expiry_, group.interest_group.expiry);
   }
@@ -98,6 +103,29 @@ base::WeakPtr<StorageInterestGroups> StorageInterestGroups::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
 }
 
+InterestGroupCachingStorage::CachedOriginsInfo::CachedOriginsInfo() = default;
+
+InterestGroupCachingStorage::CachedOriginsInfo::CachedOriginsInfo(
+    const blink::InterestGroup& group)
+    : interest_group_name(group.name), expiry(group.expiry) {
+  if (group.trusted_bidding_signals_url.has_value()) {
+    url::Origin signals_origin =
+        url::Origin::Create(group.trusted_bidding_signals_url.value());
+    if (signals_origin != group.owner) {
+      bidding_signals_origin = std::move(signals_origin);
+    }
+  }
+}
+
+InterestGroupCachingStorage::CachedOriginsInfo::CachedOriginsInfo(
+    InterestGroupCachingStorage::CachedOriginsInfo&& other) = default;
+
+InterestGroupCachingStorage::CachedOriginsInfo&
+InterestGroupCachingStorage::CachedOriginsInfo::operator=(
+    InterestGroupCachingStorage::CachedOriginsInfo&& other) = default;
+
+InterestGroupCachingStorage::CachedOriginsInfo::~CachedOriginsInfo() = default;
+
 InterestGroupCachingStorage::InterestGroupCachingStorage(
     const base::FilePath& path,
     bool in_memory)
@@ -112,18 +140,6 @@ InterestGroupCachingStorage::~InterestGroupCachingStorage() = default;
 void InterestGroupCachingStorage::GetInterestGroupsForOwner(
     const url::Origin& owner,
     base::OnceCallback<void(scoped_refptr<StorageInterestGroups>)> callback) {
-  // If the cache is disabled, simply call
-  // InterestGroupStorage::GetInterestGroupsForOwner on each request.
-  if (!CacheIsEnabled()) {
-    interest_group_storage_
-        .AsyncCall(&InterestGroupStorage::GetInterestGroupsForOwner)
-        .WithArgs(owner)
-        .Then(base::BindOnce(
-            &InterestGroupCachingStorage::OnLoadInterestGroupsForOwnerNoCaching,
-            weak_factory_.GetWeakPtr(), owner, std::move(callback)));
-    return;
-  }
-
   // If there is a cache hit, use the in-memory object.
   auto cached_groups_it = cached_interest_groups_.find(owner);
   if (cached_groups_it != cached_interest_groups_.end()) {
@@ -169,14 +185,58 @@ void InterestGroupCachingStorage::GetInterestGroupsForOwner(
   callback_queue.push(std::move(callback));
 }
 
+bool InterestGroupCachingStorage::GetCachedOwnerAndSignalsOrigins(
+    const url::Origin& owner,
+    std::optional<url::Origin>& signals_origin) {
+  auto it = cached_owners_and_signals_origins_.find(owner);
+  if (it == cached_owners_and_signals_origins_.end()) {
+    return false;
+  }
+  if (it->second.expiry < base::Time::Now()) {
+    cached_owners_and_signals_origins_.erase(it);
+    return false;
+  }
+  signals_origin = it->second.bidding_signals_origin;
+  return true;
+}
+
+void InterestGroupCachingStorage::UpdateCachedOriginsIfEnabled(
+    const url::Origin& owner) {
+  if (!base::FeatureList::IsEnabled(features::kFledgeUsePreconnectCache) &&
+      !base::FeatureList::IsEnabled(
+          features::kFledgeStartAnticipatoryProcesses)) {
+    return;
+  }
+
+  auto cached_groups_it = cached_interest_groups_.find(owner);
+  if (cached_groups_it == cached_interest_groups_.end()) {
+    return;
+  }
+  scoped_refptr<StorageInterestGroups> groups = cached_groups_it->second.get();
+  if (!groups || groups->IsExpired() || groups->size() == 0) {
+    return;
+  }
+
+  CachedOriginsInfo cached_origins_info;
+  for (const StorageInterestGroup& group : groups->storage_interest_groups_) {
+    if (group.interest_group.expiry > cached_origins_info.expiry) {
+      cached_origins_info = CachedOriginsInfo(group.interest_group);
+    }
+  }
+  cached_owners_and_signals_origins_[owner] = std::move(cached_origins_info);
+}
+
 void InterestGroupCachingStorage::JoinInterestGroup(
     const blink::InterestGroup& group,
     const GURL& main_frame_joining_url,
-    base::OnceClosure callback) {
+    base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+        callback) {
   InvalidateCachedInterestGroupsForOwner(group.owner);
   interest_group_storage_.AsyncCall(&InterestGroupStorage::JoinInterestGroup)
       .WithArgs(std::move(group), std::move(main_frame_joining_url))
-      .Then(std::move(callback));
+      .Then(base::BindOnce(&InterestGroupCachingStorage::OnJoinInterestGroup,
+                           weak_factory_.GetWeakPtr(), group.owner,
+                           CachedOriginsInfo(group), std::move(callback)));
 }
 
 void InterestGroupCachingStorage::LeaveInterestGroup(
@@ -184,6 +244,12 @@ void InterestGroupCachingStorage::LeaveInterestGroup(
     const url::Origin& main_frame,
     base::OnceClosure callback) {
   InvalidateCachedInterestGroupsForOwner(group_key.owner);
+  auto it = cached_owners_and_signals_origins_.find(group_key.owner);
+  if (it != cached_owners_and_signals_origins_.end() &&
+      (it->second.interest_group_name == group_key.name ||
+       it->second.expiry < base::Time::Now())) {
+    cached_owners_and_signals_origins_.erase(it);
+  }
   interest_group_storage_.AsyncCall(&InterestGroupStorage::LeaveInterestGroup)
       .WithArgs(group_key, main_frame)
       .Then(std::move(callback));
@@ -195,6 +261,12 @@ void InterestGroupCachingStorage::ClearOriginJoinedInterestGroups(
     const url::Origin& main_frame_origin,
     base::OnceCallback<void(std::vector<std::string>)> callback) {
   InvalidateCachedInterestGroupsForOwner(owner);
+  auto it = cached_owners_and_signals_origins_.find(owner);
+  if (it != cached_owners_and_signals_origins_.end() &&
+      (!interest_groups_to_keep.contains(it->second.interest_group_name) ||
+       it->second.expiry < base::Time::Now())) {
+    cached_owners_and_signals_origins_.erase(it);
+  }
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::ClearOriginJoinedInterestGroups)
       .WithArgs(std::move(owner), std::move(interest_groups_to_keep),
@@ -205,19 +277,32 @@ void InterestGroupCachingStorage::ClearOriginJoinedInterestGroups(
 void InterestGroupCachingStorage::UpdateInterestGroup(
     const blink::InterestGroupKey& group_key,
     InterestGroupUpdate update,
-    base::OnceCallback<void(bool)> notify_callback) {
+    base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+        callback) {
   InvalidateCachedInterestGroupsForOwner(group_key.owner);
+  if (update.trusted_bidding_signals_url) {
+    auto it = cached_owners_and_signals_origins_.find(group_key.owner);
+    if (it != cached_owners_and_signals_origins_.end() &&
+        ((it->second.interest_group_name == group_key.name &&
+          it->second.bidding_signals_origin !=
+              url::Origin::Create(*update.trusted_bidding_signals_url)) ||
+         it->second.expiry < base::Time::Now())) {
+      // Instead of modifying the existing cache entry, erase it in case the
+      // update is invalid or doesn't succeed.
+      cached_owners_and_signals_origins_.erase(it);
+    }
+  }
   interest_group_storage_.AsyncCall(&InterestGroupStorage::UpdateInterestGroup)
       .WithArgs(group_key, std::move(update))
-      .Then(std::move(notify_callback));
+      .Then(std::move(callback));
 }
 
 void InterestGroupCachingStorage::AllowUpdateIfOlderThan(
-    const blink::InterestGroupKey& group_key,
+    blink::InterestGroupKey group_key,
     base::TimeDelta update_if_older_than) {
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::AllowUpdateIfOlderThan)
-      .WithArgs(group_key, update_if_older_than);
+      .WithArgs(std::move(group_key), update_if_older_than);
 }
 
 void InterestGroupCachingStorage::ReportUpdateFailed(
@@ -266,10 +351,11 @@ void InterestGroupCachingStorage::RecordInterestGroupWin(
 }
 
 void InterestGroupCachingStorage::RecordDebugReportLockout(
-    base::Time last_report_sent_time) {
+    base::Time starting_time,
+    base::TimeDelta duration) {
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::RecordDebugReportLockout)
-      .WithArgs(last_report_sent_time);
+      .WithArgs(starting_time, duration);
 }
 
 void InterestGroupCachingStorage::RecordDebugReportCooldown(
@@ -281,15 +367,47 @@ void InterestGroupCachingStorage::RecordDebugReportCooldown(
       .WithArgs(origin, cooldown_start, cooldown_type);
 }
 
+void InterestGroupCachingStorage::RecordViewClick(
+    network::AdAuctionEventRecord event_record) {
+  // Cached interest groups containing stale view / click counts are
+  // intentionally not evicted -- views especially occur frequently, and would
+  // result in many evictions, limiting the usefulness of this cache. So, for
+  // performance, it is better to return view / click data that's slightly
+  // stale.
+  //
+  // TODO(crbug.com/394108643): Cap the time duration of this staleness with a
+  // new timer that evicts groups loaded more than say 120 seconds ago. Without
+  // this, in the rare case that auctions that each load a given IG are running
+  // constantly, back-to-back, the view click data for that IG could become
+  // arbitrarily stale.
+  interest_group_storage_.AsyncCall(&InterestGroupStorage::RecordViewClick)
+      .WithArgs(std::move(event_record));
+}
+
+void InterestGroupCachingStorage::CheckViewClickInfoInDbForTesting(
+    url::Origin provider_origin,
+    url::Origin eligible_origin,
+    base::OnceCallback<void(std::optional<bool>)> callback) {
+  interest_group_storage_
+      .AsyncCall(&InterestGroupStorage::
+                     CheckViewClickCountsForProviderAndEligibleInDbForTesting)
+      .WithArgs(std::move(provider_origin), std::move(eligible_origin))
+      .Then(std::move(callback));
+}
+
 void InterestGroupCachingStorage::UpdateKAnonymity(
-    const StorageInterestGroup::KAnonymityData& data) {
+    const blink::InterestGroupKey& interest_group_key,
+    const std::vector<std::string>& positive_hashed_keys,
+    const base::Time update_time,
+    bool replace_existing_values) {
   // We do not know the affected owners without looking them up from the
   // database or calculating k-anon keys for all the ads in the cache. Both are
   // expensive, and this function will run many times per interest group, so
   // prefer to over-delete data here.
   InvalidateAllCachedInterestGroups();
   interest_group_storage_.AsyncCall(&InterestGroupStorage::UpdateKAnonymity)
-      .WithArgs(data);
+      .WithArgs(interest_group_key, positive_hashed_keys, update_time,
+                replace_existing_values);
 }
 
 void InterestGroupCachingStorage::GetLastKAnonymityReported(
@@ -314,28 +432,26 @@ void InterestGroupCachingStorage::GetInterestGroup(
     const blink::InterestGroupKey& group_key,
     base::OnceCallback<void(std::optional<SingleStorageInterestGroup>)>
         callback) {
-  if (CacheIsEnabled()) {
-    auto cached_groups_it = cached_interest_groups_.find(group_key.owner);
-    if (cached_groups_it != cached_interest_groups_.end()) {
-      scoped_refptr<StorageInterestGroups> groups =
-          cached_groups_it->second.get();
-      if (groups) {
-        std::optional<SingleStorageInterestGroup> output =
-            groups->FindGroup(group_key.name);
-        if (output &&
-            output.value()->interest_group.expiry < base::Time::Now()) {
-          output.reset();
-        }
-        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-            FROM_HERE, base::BindOnce(std::move(callback), std::move(output)));
-        base::UmaHistogramBoolean("Ads.InterestGroup.GetInterestGroupCacheHit",
-                                  true);
-        return;
+  auto cached_groups_it = cached_interest_groups_.find(group_key.owner);
+  if (cached_groups_it != cached_interest_groups_.end()) {
+    scoped_refptr<StorageInterestGroups> groups =
+        cached_groups_it->second.get();
+    if (groups) {
+      std::optional<SingleStorageInterestGroup> output =
+          groups->FindGroup(group_key.name);
+      if (output && output.value()->interest_group.expiry < base::Time::Now()) {
+        output.reset();
       }
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(std::move(callback), std::move(output)));
+      base::UmaHistogramBoolean("Ads.InterestGroup.GetInterestGroupCacheHit",
+                                true);
+      return;
     }
-    base::UmaHistogramBoolean("Ads.InterestGroup.GetInterestGroupCacheHit",
-                              false);
   }
+  base::UmaHistogramBoolean("Ads.InterestGroup.GetInterestGroupCacheHit",
+                            false);
+
   interest_group_storage_.AsyncCall(&InterestGroupStorage::GetInterestGroup)
       .WithArgs(group_key)
       .Then(base::BindOnce(&ConvertOptionalGroupToSingleStorageInterestGroup)
@@ -360,16 +476,6 @@ void InterestGroupCachingStorage::GetInterestGroupsForUpdate(
       .Then(std::move(callback));
 }
 
-void InterestGroupCachingStorage::GetKAnonymityDataForUpdate(
-    const blink::InterestGroupKey& group_key,
-    base::OnceCallback<void(
-        const std::vector<StorageInterestGroup::KAnonymityData>&)> callback) {
-  interest_group_storage_
-      .AsyncCall(&InterestGroupStorage::GetKAnonymityDataForUpdate)
-      .WithArgs(group_key)
-      .Then(std::move(callback));
-}
-
 void InterestGroupCachingStorage::GetDebugReportLockoutAndCooldowns(
     base::flat_set<url::Origin> origins,
     base::OnceCallback<void(std::optional<DebugReportLockoutAndCooldowns>)>
@@ -377,6 +483,14 @@ void InterestGroupCachingStorage::GetDebugReportLockoutAndCooldowns(
   return interest_group_storage_
       .AsyncCall(&InterestGroupStorage::GetDebugReportLockoutAndCooldowns)
       .WithArgs(std::move(origins))
+      .Then(std::move(callback));
+}
+
+void InterestGroupCachingStorage::GetDebugReportLockoutAndAllCooldowns(
+    base::OnceCallback<void(std::optional<DebugReportLockoutAndCooldowns>)>
+        callback) {
+  return interest_group_storage_
+      .AsyncCall(&InterestGroupStorage::GetDebugReportLockoutAndAllCooldowns)
       .Then(std::move(callback));
 }
 
@@ -409,18 +523,20 @@ void InterestGroupCachingStorage::RemoveInterestGroupsMatchingOwnerAndJoiner(
 
 void InterestGroupCachingStorage::DeleteInterestGroupData(
     StoragePartition::StorageKeyMatcherFunction storage_key_matcher,
+    bool user_initiated_deletion,
     base::OnceClosure callback) {
   // Clear all owners because storage_key_matcher can match on joining_origin,
   // which we do not have stored in cached_interest_groups_.
   InvalidateAllCachedInterestGroups();
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::DeleteInterestGroupData)
-      .WithArgs(std::move(storage_key_matcher))
+      .WithArgs(std::move(storage_key_matcher), user_initiated_deletion)
       .Then(std::move(callback));
 }
 void InterestGroupCachingStorage::DeleteAllInterestGroupData(
     base::OnceClosure callback) {
   InvalidateAllCachedInterestGroups();
+  cached_owners_and_signals_origins_.clear();
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::DeleteAllInterestGroupData)
       .Then(std::move(callback));
@@ -447,20 +563,40 @@ void InterestGroupCachingStorage::UpdateInterestGroupPriorityOverrides(
 
 void InterestGroupCachingStorage::SetBiddingAndAuctionServerKeys(
     const url::Origin& coordinator,
-    const std::vector<BiddingAndAuctionServerKey>& keys,
+    std::string serialized_keys,
     base::Time expiration) {
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::SetBiddingAndAuctionServerKeys)
-      .WithArgs(coordinator, keys, expiration);
+      .WithArgs(coordinator, std::move(serialized_keys), expiration);
 }
 void InterestGroupCachingStorage::GetBiddingAndAuctionServerKeys(
     const url::Origin& coordinator,
-    base::OnceCallback<
-        void(std::pair<base::Time, std::vector<BiddingAndAuctionServerKey>>)>
-        callback) {
+    base::OnceCallback<void(std::pair<base::Time, std::string>)> callback) {
   interest_group_storage_
       .AsyncCall(&InterestGroupStorage::GetBiddingAndAuctionServerKeys)
       .WithArgs(coordinator)
+      .Then(std::move(callback));
+}
+
+void InterestGroupCachingStorage::WriteHashedKAnonymityKeysToCache(
+    const std::vector<std::string>& positive_hashed_keys,
+    const std::vector<std::string>& negative_hashed_keys,
+    base::Time time_fetched) {
+  interest_group_storage_
+      .AsyncCall(base::IgnoreResult(
+          &InterestGroupStorage::WriteHashedKAnonymityKeysToCache))
+      .WithArgs(positive_hashed_keys, negative_hashed_keys, time_fetched);
+}
+
+void InterestGroupCachingStorage::LoadPositiveHashedKAnonymityKeysFromCache(
+    const std::vector<std::string>& keys,
+    base::Time min_valid_time,
+    base::OnceCallback<void(InterestGroupStorage::KAnonymityCacheResponse)>
+        callback) {
+  interest_group_storage_
+      .AsyncCall(
+          &InterestGroupStorage::LoadPositiveHashedKAnonymityKeysFromCache)
+      .WithArgs(keys, min_valid_time)
       .Then(std::move(callback));
 }
 
@@ -471,13 +607,22 @@ void InterestGroupCachingStorage::GetLastMaintenanceTimeForTesting(
       .Then(std::move(callback));
 }
 
-void InterestGroupCachingStorage::OnLoadInterestGroupsForOwnerNoCaching(
+void InterestGroupCachingStorage::OnJoinInterestGroup(
     const url::Origin& owner,
-    base::OnceCallback<void(scoped_refptr<StorageInterestGroups>)> callback,
-    std::vector<StorageInterestGroup> interest_groups) {
-  scoped_refptr<StorageInterestGroups> interest_groups_ptr =
-      base::MakeRefCounted<StorageInterestGroups>(std::move(interest_groups));
-  std::move(callback).Run(std::move(interest_groups_ptr));
+    CachedOriginsInfo cached_origins_info,
+    base::OnceCallback<void(std::optional<InterestGroupKanonUpdateParameter>)>
+        callback,
+    std::optional<InterestGroupKanonUpdateParameter> update) {
+  if (update) {
+    auto it = cached_owners_and_signals_origins_.find(owner);
+    if (it != cached_owners_and_signals_origins_.end()) {
+      if (it->second.interest_group_name ==
+          cached_origins_info.interest_group_name) {
+        it->second = std::move(cached_origins_info);
+      }
+    }
+  }
+  std::move(callback).Run(std::move(update));
 }
 
 void InterestGroupCachingStorage::OnLoadInterestGroupsForOwner(

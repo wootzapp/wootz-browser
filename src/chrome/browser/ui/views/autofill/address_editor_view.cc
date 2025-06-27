@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 
 #include "base/check.h"
 #include "base/functional/bind.h"
@@ -17,6 +18,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/color/color_id.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/combobox/combobox.h"
 #include "ui/views/controls/label.h"
@@ -109,8 +111,9 @@ void AddressEditorView::SetTextInputFieldValueForTesting(
   text_field->SetText(value);
 }
 
-std::u16string AddressEditorView::GetValidationErrorForTesting() const {
-  return validation_error_ ? validation_error_->GetText() : u"";
+std::u16string_view AddressEditorView::GetValidationErrorForTesting() const {
+  return validation_error_ ? validation_error_->GetText()
+                           : std::u16string_view();
 }
 
 void AddressEditorView::CreateEditorView() {
@@ -119,7 +122,7 @@ void AddressEditorView::CreateEditorView() {
 
   const int kBetweenChildSpacing =
       ChromeLayoutProvider::Get()->GetDistanceMetric(
-          DISTANCE_CONTROL_LIST_VERTICAL);
+          views::DISTANCE_CONTROL_LIST_VERTICAL);
 
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
@@ -138,7 +141,7 @@ void AddressEditorView::CreateEditorView() {
     validation_error_ =
         AddChildView(views::Builder<views::Label>()
                          .SetMultiLine(true)
-                         .SetEnabledColorId(ui::kColorAlertHighSeverity)
+                         .SetEnabledColor(ui::kColorAlertHighSeverity)
                          .SetHorizontalAlignment(gfx::ALIGN_LEFT)
                          .Build());
   }
@@ -184,7 +187,7 @@ views::View* AddressEditorView::CreateInputField(const EditorField& field) {
       auto text_field = std::make_unique<views::Textfield>();
       // Set the initial value and validity state.
       text_field->SetText(initial_value);
-      text_field->SetAccessibleName(field.label);
+      text_field->GetViewAccessibility().SetName(field.label);
 
       if (field.control_type == EditorField::ControlType::TEXTFIELD_NUMBER) {
         text_field->SetTextInputType(ui::TextInputType::TEXT_INPUT_TYPE_NUMBER);
@@ -223,7 +226,7 @@ std::unique_ptr<views::Combobox> AddressEditorView::CreateCountryCombobox(
     const std::u16string& label) {
   auto& combobox_model = controller_->GetCountryComboboxModel();
   auto combobox = std::make_unique<views::Combobox>(&combobox_model);
-  combobox->SetAccessibleName(label);
+  combobox->GetViewAccessibility().SetName(label);
 
   std::u16string initial_value =
       controller_->GetProfileInfo(autofill::ADDRESS_HOME_COUNTRY);
@@ -276,7 +279,8 @@ void AddressEditorView::SaveFieldsToProfile() {
   }
 
   for (const auto& field : text_fields_) {
-    controller_->SetProfileInfo(field.second.type, field.first->GetText());
+    controller_->SetProfileInfo(field.second.type,
+                                std::u16string(field.first->GetText()));
   }
 }
 

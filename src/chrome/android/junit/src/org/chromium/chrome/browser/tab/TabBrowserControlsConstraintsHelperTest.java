@@ -13,13 +13,14 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.LooperMode;
 
+import org.chromium.base.ObserverList;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
@@ -33,9 +34,8 @@ import java.lang.ref.WeakReference;
 @Config(manifest = Config.NONE)
 @LooperMode(LooperMode.Mode.LEGACY)
 public class TabBrowserControlsConstraintsHelperTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private final UserDataHost mUserDataHost = new UserDataHost();
-
-    @Rule public JniMocker mocker = new JniMocker();
 
     @Mock TabImpl mTab;
     @Mock WebContents mWebContents;
@@ -48,11 +48,14 @@ public class TabBrowserControlsConstraintsHelperTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        mocker.mock(TabBrowserControlsConstraintsHelperJni.TEST_HOOKS, mJniMock);
+        TabBrowserControlsConstraintsHelperJni.setInstanceForTesting(mJniMock);
         Mockito.when(mTab.getUserDataHost()).thenReturn(mUserDataHost);
         Mockito.when(mTab.getDelegateFactory()).thenReturn(mDelegateFactory);
         Mockito.when(mTab.getWebContents()).thenReturn(mWebContents);
+
+        ObserverList<TabObserver> observers = new ObserverList<>();
+        Mockito.when(mTab.getTabObservers())
+                .thenAnswer(invocation -> observers.rewindableIterator());
 
         mVisibilityDelegate = new TestVisibilityDelegate();
         Mockito.when(mDelegateFactory.createBrowserControlsVisibilityDelegate(Mockito.any()))
@@ -151,7 +154,8 @@ public class TabBrowserControlsConstraintsHelperTest {
                         Mockito.any(),
                         Mockito.anyInt(),
                         Mockito.anyInt(),
-                        Mockito.anyBoolean());
+                        Mockito.anyBoolean(),
+                        Mockito.any());
     }
 
     @Test
@@ -204,7 +208,8 @@ public class TabBrowserControlsConstraintsHelperTest {
                         Mockito.same(mWebContents),
                         Mockito.eq(constraints),
                         Mockito.eq(current),
-                        Mockito.eq(animate));
+                        Mockito.eq(animate),
+                        Mockito.any());
         Mockito.clearInvocations(mJniMock);
     }
 

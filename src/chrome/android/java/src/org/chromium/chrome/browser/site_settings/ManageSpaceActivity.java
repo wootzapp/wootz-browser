@@ -21,13 +21,14 @@ import android.widget.TextView;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
 import org.chromium.chrome.browser.about_settings.AboutChromeSettings;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.BrowserParts;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.init.EmptyBrowserParts;
@@ -36,9 +37,9 @@ import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.site_settings.AllSiteSettings;
 import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
@@ -50,12 +51,12 @@ import java.util.Collection;
 
 /**
  * This is the target activity for the "Manage Storage" button in the Android Settings UI. This is
- * configured in AndroidManifest.xml by setting android:manageSpaceActivity for the application.
- * The browser process must be started here because this Activity may be started explicitly from
- * Android settings, when Android is restoring ManageSpaceActivity after Chrome was killed, or for
- * tests.
+ * configured in AndroidManifest.xml by setting android:manageSpaceActivity for the application. The
+ * browser process must be started here because this Activity may be started explicitly from Android
+ * settings, when Android is restoring ManageSpaceActivity after Chrome was killed, or for tests.
  */
-public class ManageSpaceActivity extends AppCompatActivity implements View.OnClickListener {
+public class ManageSpaceActivity extends ChromeBaseAppCompatActivity
+        implements View.OnClickListener {
     private static final String TAG = "ManageSpaceActivity";
 
     private TextView mUnimportantSiteDataSizeText;
@@ -83,13 +84,12 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
                         r.getString(R.string.app_name)));
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        mSiteDataSizeText = (TextView) findViewById(R.id.site_data_storage_size_text);
+        mSiteDataSizeText = findViewById(R.id.site_data_storage_size_text);
         mSiteDataSizeText.setText(R.string.storage_management_computing_size);
-        mUnimportantSiteDataSizeText =
-                (TextView) findViewById(R.id.unimportant_site_data_storage_size_text);
+        mUnimportantSiteDataSizeText = findViewById(R.id.unimportant_site_data_storage_size_text);
         mUnimportantSiteDataSizeText.setText(R.string.storage_management_computing_size);
-        mManageSiteDataButton = (Button) findViewById(R.id.manage_site_data_storage);
-        mClearUnimportantButton = (Button) findViewById(R.id.clear_unimportant_site_data_storage);
+        mManageSiteDataButton = findViewById(R.id.manage_site_data_storage);
+        mClearUnimportantButton = findViewById(R.id.clear_unimportant_site_data_storage);
 
         // We initially disable all of our buttons except for the 'Clear All Data' button, and wait
         // until the browser is finished initializing to enable them. We want to make sure the
@@ -100,7 +100,7 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
         mManageSiteDataButton.setOnClickListener(this);
         mClearUnimportantButton.setOnClickListener(this);
 
-        mClearAllDataButton = (Button) findViewById(R.id.clear_all_data);
+        mClearAllDataButton = findViewById(R.id.clear_all_data);
         mClearAllDataButton.setOnClickListener(this);
         super.onCreate(savedInstanceState);
 
@@ -242,8 +242,9 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
             initialArguments.putString(
                     SingleCategorySettings.EXTRA_TITLE,
                     getString(R.string.website_settings_storage));
-            SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-            settingsLauncher.launchSettingsActivity(this, AllSiteSettings.class, initialArguments);
+            SettingsNavigation settingsNavigation =
+                    SettingsNavigationFactory.createSettingsNavigation();
+            settingsNavigation.startSettings(this, AllSiteSettings.class, initialArguments);
         } else if (view == mClearAllDataButton) {
             final ActivityManager activityManager =
                     (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -279,9 +280,15 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
             long importantSiteStorageTotal = 0;
             for (Website site : sites) {
                 siteStorageSize += site.getTotalUsage();
-                if (site.getLocalStorageInfo() != null
-                        && site.getLocalStorageInfo().isDomainImportant()) {
-                    importantSiteStorageTotal += site.getTotalUsage();
+                if (ChromeFeatureList.isEnabled(ChromeFeatureList.BROWSING_DATA_MODEL)) {
+                    if (site.isDomainImportant()) {
+                        importantSiteStorageTotal += site.getTotalUsage();
+                    }
+                } else {
+                    if (site.getLocalStorageInfo() != null
+                            && site.getLocalStorageInfo().isDomainImportant()) {
+                        importantSiteStorageTotal += site.getTotalUsage();
+                    }
                 }
             }
             onSiteStorageSizeCalculated(
@@ -323,17 +330,25 @@ public class ManageSpaceActivity extends AppCompatActivity implements View.OnCli
         @Override
         public void onWebsitePermissionsAvailable(Collection<Website> sites) {
             long siteStorageLeft = 0;
+            var siteSettingsDelegate =
+                    new ChromeSiteSettingsDelegate(
+                            getApplicationContext(), ProfileManager.getLastUsedRegularProfile());
             for (Website site : sites) {
-                if (site.getLocalStorageInfo() == null
-                        || !site.getLocalStorageInfo().isDomainImportant()) {
-                    mNumSitesClearing++;
-                    var siteSettingsDelegate =
-                            new ChromeSiteSettingsDelegate(
-                                    getApplicationContext(),
-                                    ProfileManager.getLastUsedRegularProfile());
-                    site.clearAllStoredData(siteSettingsDelegate, this);
+                if (siteSettingsDelegate.isBrowsingDataModelFeatureEnabled()) {
+                    if (!site.isDomainImportant()) {
+                        mNumSitesClearing++;
+                        site.clearAllStoredData(siteSettingsDelegate, this);
+                    } else {
+                        siteStorageLeft += site.getTotalUsage();
+                    }
                 } else {
-                    siteStorageLeft += site.getTotalUsage();
+                    if (site.getLocalStorageInfo() == null
+                            || !site.getLocalStorageInfo().isDomainImportant()) {
+                        mNumSitesClearing++;
+                        site.clearAllStoredData(siteSettingsDelegate, this);
+                    } else {
+                        siteStorageLeft += site.getTotalUsage();
+                    }
                 }
             }
             if (mNumSitesClearing == 0) {

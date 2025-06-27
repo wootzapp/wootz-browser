@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.feed;
+
 import android.util.Log;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -18,9 +19,8 @@ import androidx.annotation.NonNull;
 
 import org.chromium.base.ObserverList;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.chrome.browser.user_education.IPHCommandBuilder;
+import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
-import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.third_party.android.swiperefresh.CircleImageView;
@@ -62,7 +62,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         instance.setLayoutParams(
                 new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         instance.setProgressBackgroundColorSchemeColor(
-                ChromeColors.getSurfaceColor(activity, R.dimen.default_elevation_2));
+                SemanticColorUtils.getColorSurfaceContainer(activity));
         instance.setColorSchemeColors(SemanticColorUtils.getDefaultControlColorActive(activity));
         instance.setEnabled(false);
         final DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
@@ -102,14 +102,14 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
     }
 
     /** Shows an IPH. */
-    public void showIPH(UserEducationHelper helper) {
+    public void showIph(UserEducationHelper helper) {
         ViewGroup contentContainer = mActivity.findViewById(android.R.id.content);
         if (contentContainer == null) return;
         // Only toolbar_container view appears in both NTP and start surface.
         View toolbarView = contentContainer.findViewById(mAnchorViewId);
         if (toolbarView == null) return;
-        helper.requestShowIPH(
-                new IPHCommandBuilder(
+        helper.requestShowIph(
+                new IphCommandBuilder(
                                 getContext().getResources(),
                                 FeatureConstants.FEED_SWIPE_REFRESH_FEATURE,
                                 R.string.feed_swipe_refresh_iph,
@@ -202,7 +202,6 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-
         super.onLayout(changed, left, top, right, bottom);
         ensureTarget();
         if (mTarget == null) {
@@ -215,9 +214,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         final int childTop = getPaddingTop();
         final int childWidth = width - getPaddingLeft() - getPaddingRight();
         final int childHeight = height - getPaddingTop() - getPaddingBottom();
-
         child.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight);
-
     }
 
     @Override
@@ -227,9 +224,6 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         if (mTarget == null) {
             return;
         }
-        
-        // Force the target view to be measured with a very large height
-        // This will push any bottom content (like search box) off screen
         mTarget.measure(
                 MeasureSpec.makeMeasureSpec(
                         getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
@@ -326,7 +320,6 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     public void onHeaderOffsetChanged(int headerOffset) {
-
         mHeaderOffset = headerOffset;
     }
 }

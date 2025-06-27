@@ -15,31 +15,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
-std::unique_ptr<web_app::WebAppInstallInfo>
-CreateWebAppInfoForPrintManagementApp() {
-  std::unique_ptr<web_app::WebAppInstallInfo> info =
-      std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(ash::kChromeUIPrintManagementAppUrl);
-  info->scope = GURL(ash::kChromeUIPrintManagementAppUrl);
-  info->title = l10n_util::GetStringUTF16(IDS_PRINT_MANAGEMENT_TITLE);
-  web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
-      {{"print_management_192.png", 192,
-        IDR_ASH_PRINT_MANAGEMENT_PRINT_MANAGEMENT_192_PNG}},
-      *info);
-  info->theme_color =
-      web_app::GetDefaultBackgroundColor(/*use_dark_mode=*/false);
-  info->dark_mode_theme_color =
-      web_app::GetDefaultBackgroundColor(/*use_dark_mode=*/true);
-  info->background_color = info->theme_color;
-  info->dark_mode_background_color = info->dark_mode_theme_color;
-
-  info->display_mode = blink::mojom::DisplayMode::kStandalone;
-  info->user_display_mode = web_app::mojom::UserDisplayMode::kStandalone;
-
-  return info;
-}
-
 PrintManagementSystemAppDelegate::PrintManagementSystemAppDelegate(
     Profile* profile)
     : ash::SystemWebAppDelegate(ash::SystemWebAppType::PRINT_MANAGEMENT,
@@ -49,7 +24,25 @@ PrintManagementSystemAppDelegate::PrintManagementSystemAppDelegate(
 
 std::unique_ptr<web_app::WebAppInstallInfo>
 PrintManagementSystemAppDelegate::GetWebAppInfo() const {
-  return CreateWebAppInfoForPrintManagementApp();
+  GURL start_url = GURL(ash::kChromeUIPrintManagementAppUrl);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
+  info->scope = GURL(ash::kChromeUIPrintManagementAppUrl);
+  info->title = l10n_util::GetStringUTF16(IDS_PRINT_MANAGEMENT_TITLE);
+  web_app::CreateIconInfoForSystemWebApp(
+      info->start_url(),
+      {{"print_management_192.png", 192,
+        IDR_ASH_PRINT_MANAGEMENT_PRINT_MANAGEMENT_192_PNG}},
+      *info);
+  info->theme_color =
+      web_app::GetDefaultBackgroundColor(/*use_dark_mode=*/false);
+  info->dark_mode_theme_color =
+      web_app::GetDefaultBackgroundColor(/*use_dark_mode=*/true);
+  info->background_color = info->theme_color;
+  info->dark_mode_background_color = info->dark_mode_theme_color;
+  info->display_mode = blink::mojom::DisplayMode::kStandalone;
+  info->user_display_mode = web_app::mojom::UserDisplayMode::kStandalone;
+  return info;
 }
 
 bool PrintManagementSystemAppDelegate::ShouldShowInLauncher() const {

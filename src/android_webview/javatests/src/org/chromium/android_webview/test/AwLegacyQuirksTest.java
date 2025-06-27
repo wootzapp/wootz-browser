@@ -4,6 +4,9 @@
 
 package org.chromium.android_webview.test;
 
+import android.graphics.Rect;
+import android.os.Build;
+
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 
@@ -17,11 +20,13 @@ import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwContentsClient;
 import org.chromium.android_webview.AwSettings;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentUrlConstants;
+import org.chromium.ui.base.UiAndroidFeatureMap;
+import org.chromium.ui.base.UiAndroidFeatures;
 import org.chromium.ui.display.DisplayAndroid;
 
 import java.util.Locale;
@@ -60,7 +65,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
         settings.setJavaScriptEnabled(true);
 
         DisplayAndroid displayAndroid =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             return DisplayAndroid.getNonMultiDisplay(
                                     InstrumentationRegistry.getInstrumentation()
@@ -71,7 +76,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
         int actualWidth = Integer.parseInt(mActivityTestRule.getTitleOnUiThread(awContents));
         Assert.assertEquals(displayAndroid.getDisplayWidth(), actualWidth, 10f);
 
-        float displayWidth = (displayAndroid.getDisplayWidth());
+        float displayWidth = displayAndroid.getDisplayWidth();
         float deviceDpi = 160f * displayAndroid.getDipScale();
 
         mActivityTestRule.loadDataSync(
@@ -107,7 +112,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
         settings.setUseWideViewPort(true);
 
         DisplayAndroid displayAndroid =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             return DisplayAndroid.getNonMultiDisplay(
                                     InstrumentationRegistry.getInstrumentation()
@@ -141,7 +146,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
         settings.setJavaScriptEnabled(true);
 
         DisplayAndroid displayAndroid =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             return DisplayAndroid.getNonMultiDisplay(
                                     InstrumentationRegistry.getInstrumentation()
@@ -178,7 +183,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
                 awContents, onPageFinishedHelper, ContentUrlConstants.ABOUT_BLANK_DISPLAY_URL);
 
         DisplayAndroid displayAndroid =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             return DisplayAndroid.getNonMultiDisplay(
                                     InstrumentationRegistry.getInstrumentation()
@@ -187,6 +192,15 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
         float dipScale = displayAndroid.getDipScale();
         float physicalDisplayWidth = displayAndroid.getDisplayWidth();
         float physicalDisplayHeight = displayAndroid.getDisplayHeight();
+
+        Rect workArea = displayAndroid.getBounds();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                && UiAndroidFeatureMap.isEnabled(UiAndroidFeatures.USING_CORRECT_WORK_AREA)) {
+            workArea.inset(displayAndroid.getInsets());
+        }
+
+        float workAreaWidth = workArea.width();
+        float workAreaHeight = workArea.height();
 
         float screenWidth =
                 Integer.parseInt(
@@ -197,7 +211,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
                 Integer.parseInt(
                         mActivityTestRule.executeJavaScriptAndWaitForResult(
                                 awContents, contentClient, "screen.availWidth"));
-        Assert.assertEquals(physicalDisplayWidth, screenAvailWidth, 10f);
+        Assert.assertEquals(workAreaWidth, screenAvailWidth, 10f);
         float outerWidth =
                 Integer.parseInt(
                         mActivityTestRule.executeJavaScriptAndWaitForResult(
@@ -225,7 +239,7 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
                 Integer.parseInt(
                         mActivityTestRule.executeJavaScriptAndWaitForResult(
                                 awContents, contentClient, "screen.availHeight"));
-        Assert.assertEquals(physicalDisplayHeight, screenAvailHeight, 10f);
+        Assert.assertEquals(workAreaHeight, screenAvailHeight, 10f);
         float outerHeight =
                 Integer.parseInt(
                         mActivityTestRule.executeJavaScriptAndWaitForResult(
@@ -262,9 +276,9 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
                 String.format(
                         (Locale) null,
                         "<html><head><meta name='viewport' content='width=%d' /><meta"
-                                + " name='viewport' content='initial-scale=%.1f' /><meta"
-                                + " name='viewport' content='user-scalable=0' /></head><body"
-                                + " onload='document.title=document.body.clientWidth'></body></html>",
+                            + " name='viewport' content='initial-scale=%.1f' /><meta"
+                            + " name='viewport' content='user-scalable=0' /></head><body"
+                            + " onload='document.title=document.body.clientWidth'></body></html>",
                         pageWidth,
                         pageScale);
 
@@ -301,8 +315,8 @@ public class AwLegacyQuirksTest extends AwParameterizedTest {
                 String.format(
                         (Locale) null,
                         "<html><head><meta name='viewport' content='width=device-width' /><meta"
-                                + " name='viewport' content='width=%d' /></head><body"
-                                + " onload='document.title=document.body.clientWidth'></body></html>",
+                            + " name='viewport' content='width=%d' /></head><body"
+                            + " onload='document.title=document.body.clientWidth'></body></html>",
                         pageWidth);
 
         settings.setJavaScriptEnabled(true);

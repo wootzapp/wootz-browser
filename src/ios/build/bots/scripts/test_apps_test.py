@@ -58,7 +58,7 @@ class GetGTestFilterTest(test_runner_test.TestCase):
     ]
     expected = 'test.1:test.2'
 
-    self.assertEqual(test_apps.get_gtest_filter(included, []), expected)
+    self.assertEqual(test_apps.get_gtest_filter(included, [], []), expected)
 
   def test_correct_excluded(self):
     """Ensures correctness of inverted filter."""
@@ -68,37 +68,58 @@ class GetGTestFilterTest(test_runner_test.TestCase):
     ]
     expected = '-test.1:test.2'
 
-    self.assertEqual(test_apps.get_gtest_filter([], excluded), expected)
+    self.assertEqual(test_apps.get_gtest_filter([], excluded, []), expected)
 
   def test_both_included_excluded(self):
     """Ensures correctness when both included, excluded exist."""
     included = ['test.1', 'test.2']
     excluded = ['test.2', 'test.3']
     expected = 'test.1'
-    self.assertEqual(test_apps.get_gtest_filter(included, excluded), expected)
+    self.assertEqual(
+        test_apps.get_gtest_filter(included, excluded, []), expected)
 
     included = ['test.1', 'test.2']
     excluded = ['test.3', 'test.4']
     expected = 'test.1:test.2'
-    self.assertEqual(test_apps.get_gtest_filter(included, excluded), expected)
+    self.assertEqual(
+        test_apps.get_gtest_filter(included, excluded, []), expected)
 
     included = ['test.1', 'test.2', 'test.3']
     excluded = ['test.3']
     expected = 'test.1:test.2'
-    self.assertEqual(test_apps.get_gtest_filter(included, excluded), expected)
+    self.assertEqual(
+        test_apps.get_gtest_filter(included, excluded, []), expected)
 
     included = ['test.1', 'test.2']
     excluded = ['test.1', 'test.2']
     expected = '-*'
-    self.assertEqual(test_apps.get_gtest_filter(included, excluded), expected)
+    self.assertEqual(
+        test_apps.get_gtest_filter(included, excluded, []), expected)
 
   def test_empty_included_excluded(self):
     """Ensures correctness when both included, excluded are empty."""
     with self.assertRaises(AssertionError) as ctx:
-      test_apps.get_gtest_filter([], [])
+      test_apps.get_gtest_filter([], [], [])
       self.assertEuqals('One of included or excluded list should exist.',
                         ctx.message)
 
+  def test_grouping_empty_list(self):
+    self.assertEqual(test_apps.group_gtest_filter([], []), [])
+
+  def test_grouping_below_no_grouping_limit(self):
+    tests = ["A.B", "A.C", "B.A"]
+    self.assertEqual(test_apps.group_gtest_filter(tests, []), tests)
+
+  def test_grouping_multiple_groups(self):
+    tests = ["A.B", "A.C", "B.A", "B.B", "C.A", "C.D", "C.E"]
+    self.assertEqual(
+        test_apps.group_gtest_filter(tests, [], 1), ["A.*", "B.*", "C.*"])
+
+  def test_grouping_multiple_groups_with_excluded_suite(self):
+    tests = ["A.B", "A.C", "B.A", "B.B", "C.A", "C.D", "C.E"]
+    self.assertEqual(
+        test_apps.group_gtest_filter(tests, set('C'), 1),
+        ["A.*", "B.*", "C.A", "C.D", "C.E"])
 
 
 class DeviceXCTestUnitTestsAppTest(test_runner_test.TestCase):
@@ -304,12 +325,12 @@ class EgtestsAppTest(test_runner_test.TestCase):
     mock_listdir.return_value = [
         'random_file', 'main_binary', 'libclang_rt.asan_iossim_dynamic.dylib'
     ]
-    egtest = test_apps.EgtestsApp(_TEST_APP_PATH, _ALL_EG_TEST_NAMES)
-    self.assertEqual([
-        '__PLATFORMS__/iPhoneSimulator.platform/Developer/usr/lib/' +
-        'libXCTestBundleInject.dylib',
-        '@executable_path/libclang_rt.asan_iossim_dynamic.dylib'
-    ], egtest._additional_inserted_libs())
+    egtest = test_apps.EgtestsApp(
+        _TEST_APP_PATH,
+        _ALL_EG_TEST_NAMES,
+        host_app_path='/path/to/host_app.app')
+    self.assertEqual(['@executable_path/libclang_rt.asan_iossim_dynamic.dylib'],
+                     egtest._additional_inserted_libs())
 
   def test_xctestRunNode_without_filter(self):
     self.mock(xcode_util, 'xctest_path', lambda _: 'xctest-path')

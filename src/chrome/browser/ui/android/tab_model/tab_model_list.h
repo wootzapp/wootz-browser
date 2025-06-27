@@ -44,7 +44,6 @@ class TabModelList {
 
   static void AddObserver(TabModelListObserver* observer);
   static void RemoveObserver(TabModelListObserver* observer);
-
   static TabModel* GetCurrentTabModel();
   static TabModel* GetTabModelForWebContents(
       content::WebContents* web_contents);
@@ -55,6 +54,9 @@ class TabModelList {
   static bool IsOffTheRecordSessionActive();
 
   static const TabModelVector& models();
+
+  static void SetArchivedTabModel(TabModel* archived_tab_model);
+  static TabModel* GetArchivedTabModel();
 
  private:
   TabModelList();

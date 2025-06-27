@@ -32,24 +32,11 @@ v8::Local<v8::Template> WrapperTypeInfo::GetV8ClassTemplate(
     case kIdlNamespace:
       v8_template = v8::ObjectTemplate::New(isolate);
       break;
-    case kIdlCallbackInterface:
-      v8_template = v8::FunctionTemplate::New(
-          isolate, V8ObjectConstructor::IsValidConstructorMode);
-      break;
-    case kIdlBufferSourceType:
-      NOTREACHED_IN_MIGRATION();
-      break;
-    case kIdlObservableArray:
-      v8_template = v8::FunctionTemplate::New(isolate);
-      break;
-    case kIdlAsyncOrSyncIterator:
-      v8_template = v8::FunctionTemplate::New(isolate);
-      break;
-    case kCustomWrappableKind:
+    case kIdlOtherType:
       v8_template = v8::FunctionTemplate::New(isolate);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   install_interface_template_func(isolate, world, v8_template);
 
@@ -58,7 +45,7 @@ v8::Local<v8::Template> WrapperTypeInfo::GetV8ClassTemplate(
 }
 
 const WrapperTypeInfo* ToWrapperTypeInfo(v8::Local<v8::Object> wrapper) {
-  const auto* wrappable = ToScriptWrappable(wrapper->GetIsolate(), wrapper);
+  const auto* wrappable = ToAnyScriptWrappable(wrapper->GetIsolate(), wrapper);
   // It's either us or legacy embedders
   DCHECK(!wrappable || !WrapperTypeInfo::HasLegacyInternalFieldsSet(wrapper));
   return wrappable ? wrappable->GetWrapperTypeInfo() : nullptr;

@@ -4,6 +4,7 @@
 
 #include "content/browser/private_aggregation/private_aggregation_internals_handler_impl.h"
 
+#include <algorithm>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -15,8 +16,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_writer.h"
-#include "base/not_fatal_until.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "content/browser/aggregation_service/aggregatable_report.h"
@@ -54,13 +53,13 @@ CreateWebUIAggregatableReport(
   std::vector<private_aggregation_internals::mojom::
                   AggregatableHistogramContributionPtr>
       contributions;
-  base::ranges::transform(request.payload_contents().contributions,
-                          std::back_inserter(contributions),
-                          [](const auto& contribution) {
-                            return private_aggregation_internals::mojom::
-                                AggregatableHistogramContribution::New(
-                                    contribution.bucket, contribution.value);
-                          });
+  std::ranges::transform(request.payload_contents().contributions,
+                         std::back_inserter(contributions),
+                         [](const auto& contribution) {
+                           return private_aggregation_internals::mojom::
+                               AggregatableHistogramContribution::New(
+                                   contribution.bucket, contribution.value);
+                         });
 
   base::Value::Dict report_body;
   if (report.has_value()) {
@@ -74,8 +73,7 @@ CreateWebUIAggregatableReport(
 
     constexpr char kAggregationServicePayloadsKey[] =
         "aggregation_service_payloads";
-    CHECK(!report_body.Find(kAggregationServicePayloadsKey),
-          base::NotFatalUntil::M128);
+    CHECK(!report_body.Find(kAggregationServicePayloadsKey));
     report_body.Set(kAggregationServicePayloadsKey,
                     "Not generated prior to send");
   }
@@ -83,7 +81,7 @@ CreateWebUIAggregatableReport(
   std::string output_json;
   bool success = base::JSONWriter::WriteWithOptions(
       report_body, base::JSONWriter::OPTIONS_PRETTY_PRINT, &output_json);
-  CHECK(success, base::NotFatalUntil::M128);
+  CHECK(success);
 
   base::Time report_time =
       actual_report_time.value_or(request.shared_info().scheduled_report_time);

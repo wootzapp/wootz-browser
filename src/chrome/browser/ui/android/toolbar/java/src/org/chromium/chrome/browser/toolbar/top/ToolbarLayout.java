@@ -12,10 +12,8 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Build.VERSION;
 import android.util.AttributeSet;
-import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -46,29 +44,28 @@ import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.ThemeColorObserver;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.TintObserver;
 import org.chromium.chrome.browser.theme.ThemeUtils;
-import org.chromium.chrome.browser.toolbar.ButtonData;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.ToolbarDataProvider;
 import org.chromium.chrome.browser.toolbar.ToolbarProgressBar;
 import org.chromium.chrome.browser.toolbar.ToolbarTabController;
+import org.chromium.chrome.browser.toolbar.back_button.BackButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
+import org.chromium.chrome.browser.toolbar.reload_button.ReloadButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.top.NavigationPopup.HistoryDelegate;
-import org.chromium.chrome.browser.toolbar.top.ToolbarTablet.OfflineDownloader;
 import org.chromium.chrome.browser.toolbar.top.TopToolbarCoordinator.ToolbarColorObserver;
 import org.chromium.chrome.browser.toolbar.top.TopToolbarCoordinator.UrlExpansionObserver;
+import org.chromium.chrome.browser.toolbar.top.tab_strip.TabStripTransitionCoordinator;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuButtonHelper;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
-import org.chromium.chrome.browser.util.BrowserUiUtils.HostSurface;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.components.feature_engagement.Tracker;
-import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.ViewUtils;
+import org.chromium.ui.util.MotionEventUtils;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
-
-import java.util.function.BooleanSupplier;
 
 /**
  * Layout class that contains the base shared logic for manipulating the toolbar component. For
@@ -89,15 +86,16 @@ public abstract class ToolbarLayout extends FrameLayout
     private ToolbarTabController mToolbarTabController;
 
     @Nullable protected ToolbarProgressBar mProgressBar;
-    @Nullable protected BooleanSupplier mPartnerHomepageEnabledSupplier;
 
     private boolean mNativeLibraryReady;
     private boolean mUrlHasFocus;
     private boolean mFindInPageToolbarShowing;
 
-    private ThemeColorProvider mThemeColorProvider;
+    protected ThemeColorProvider mThemeColorProvider;
     private MenuButtonCoordinator mMenuButtonCoordinator;
     private AppMenuButtonHelper mAppMenuButtonHelper;
+
+    private ToggleTabStackButtonCoordinator mTabSwitcherButtonCoordinator;
 
     private TopToolbarOverlayCoordinator mOverlayCoordinator;
 
@@ -109,33 +107,19 @@ public abstract class ToolbarLayout extends FrameLayout
 
     protected final DestroyChecker mDestroyChecker;
 
+    /** Set if the progress bar is being drawn by WebContents for back forward transition. */
+    private boolean mShowingProgressBarForBackForwardTransition;
+
+    /** Caches the color for the toolbar hairline. */
+    private @ColorInt int mToolbarHairlineColor;
+
+    private ImageView mToolbarShadow;
+
     /** Basic constructor for {@link ToolbarLayout}. */
     public ToolbarLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
         mDefaultTint = ThemeUtils.getThemedToolbarIconTint(getContext(), false);
         mDestroyChecker = new DestroyChecker();
-
-        addOnLayoutChangeListener(
-                new OnLayoutChangeListener() {
-                    @Override
-                    public void onLayoutChange(
-                            View view,
-                            int left,
-                            int top,
-                            int right,
-                            int bottom,
-                            int oldLeft,
-                            int oldTop,
-                            int oldRight,
-                            int oldBottom) {
-                        if (isNativeLibraryReady() && mProgressBar.getParent() != null) {
-                            mProgressBar.initializeAnimation();
-                        }
-
-                        // Since this only needs to happen once, remove this listener from the view.
-                        removeOnLayoutChangeListener(this);
-                    }
-                });
     }
 
     /**
@@ -145,9 +129,6 @@ public abstract class ToolbarLayout extends FrameLayout
      * @param tabController The controller that handles interactions with the tab.
      * @param menuButtonCoordinator Coordinator for interacting with the MenuButton.
      * @param historyDelegate Delegate used to display navigation history.
-     * @param partnerHomepageEnabledSupplier A supplier of a boolean indicating that partner
-     *     homepage is enabled.
-     * @param offlineDownloader Triggers downloading an offline page.
      * @param userEducationHelper Helper for user education flows.
      * @param trackerSupplier Provides a {@link Tracker} when available.
      */
@@ -156,19 +137,23 @@ public abstract class ToolbarLayout extends FrameLayout
             ToolbarDataProvider toolbarDataProvider,
             ToolbarTabController tabController,
             MenuButtonCoordinator menuButtonCoordinator,
+            ToggleTabStackButtonCoordinator tabSwitcherButtonCoordinator,
             HistoryDelegate historyDelegate,
-            BooleanSupplier partnerHomepageEnabledSupplier,
-            OfflineDownloader offlineDownloader,
             UserEducationHelper userEducationHelper,
-            ObservableSupplier<Tracker> trackerSupplier) {
+            ObservableSupplier<Tracker> trackerSupplier,
+            ToolbarProgressBar progressBar,
+            @Nullable ReloadButtonCoordinator reloadButtonCoordinator,
+            @Nullable BackButtonCoordinator backButtonCoordinator) {
         mToolbarDataProvider = toolbarDataProvider;
         mToolbarTabController = tabController;
         mMenuButtonCoordinator = menuButtonCoordinator;
-        mPartnerHomepageEnabledSupplier = partnerHomepageEnabledSupplier;
-        mProgressBar = createProgressBar();
+        mTabSwitcherButtonCoordinator = tabSwitcherButtonCoordinator;
+        mProgressBar = progressBar;
     }
 
-    /** @param overlay The coordinator for the texture version of the top toolbar. */
+    /**
+     * @param overlay The coordinator for the texture version of the top toolbar.
+     */
     void setOverlayCoordinator(TopToolbarOverlayCoordinator overlay) {
         mOverlayCoordinator = overlay;
         mOverlayCoordinator.setIsAndroidViewVisible(getVisibility() == View.VISIBLE);
@@ -247,6 +232,42 @@ public abstract class ToolbarLayout extends FrameLayout
         return mThemeColorProvider == null ? mDefaultTint : mThemeColorProvider.getTint();
     }
 
+    protected ImageView getToolbarShadow() {
+        return mToolbarShadow;
+    }
+
+    /**
+     * Notifies whether the progress bar is being drawn by WebContents for back forward transition
+     * UI.
+     */
+    public final void setShowingProgressBarForBackForwardTransition(
+            boolean showingProgressBarForBackForwardTransition) {
+        if (mShowingProgressBarForBackForwardTransition
+                == showingProgressBarForBackForwardTransition) return;
+
+        mShowingProgressBarForBackForwardTransition = showingProgressBarForBackForwardTransition;
+        mProgressBar.setVisibility(
+                mShowingProgressBarForBackForwardTransition ? View.GONE : View.VISIBLE);
+        updateShadowVisibility();
+    }
+
+    /** Update the visibility of the toolbar shadow. */
+    protected void updateShadowVisibility() {
+        boolean shouldDrawShadow = shouldDrawShadow();
+        int shadowVisibility = shouldDrawShadow ? View.VISIBLE : View.INVISIBLE;
+
+        if (mToolbarShadow != null && mToolbarShadow.getVisibility() != shadowVisibility) {
+            mToolbarShadow.setVisibility(shadowVisibility);
+        }
+    }
+
+    /**
+     * @return Whether the toolbar shadow should be drawn.
+     */
+    protected boolean shouldDrawShadow() {
+        return !mShowingProgressBarForBackForwardTransition;
+    }
+
     @Override
     public void onTintChanged(
             ColorStateList tint,
@@ -256,37 +277,9 @@ public abstract class ToolbarLayout extends FrameLayout
     @Override
     public void onThemeColorChanged(@ColorInt int color, boolean shouldAnimate) {}
 
-    /**
-     * Set the height that the progress bar should be.
-     *
-     * @return The progress bar height in px.
-     */
-    int getProgressBarHeight() {
-        return getResources().getDimensionPixelSize(R.dimen.toolbar_progress_bar_height);
-    }
-
-    /**
-     * @return A progress bar for Chrome to use.
-     */
-    private ToolbarProgressBar createProgressBar() {
-        return new ToolbarProgressBar(getContext(), getProgressBarHeight(), this, false);
-    }
-
     /** TODO comment */
     @CallSuper
     protected void onMenuButtonDisabled() {}
-
-    // Set hover tooltip text for buttons shared between phones and tablets.
-    public void setTooltipTextForToolbarButtons() {
-        // Set hover tooltip text for home and tab switcher buttons.
-        setTooltipText(
-                ((View) getHomeButton()),
-                getContext().getString(R.string.accessibility_toolbar_btn_home));
-        setTooltipText(
-                ((View) getTabSwitcherButton()),
-                getContext()
-                        .getString(R.string.accessibility_toolbar_btn_tabswitcher_toggle_default));
-    }
 
     /**
      * Set hover tooltip text for buttons shared between phones and tablets. @TODO: Remove and use
@@ -311,12 +304,12 @@ public abstract class ToolbarLayout extends FrameLayout
                     }
 
                     @Override
-                    public boolean isInOverviewAndShowingOmnibox() {
+                    public boolean isIncognitoBranded() {
                         return false;
                     }
 
                     @Override
-                    public boolean shouldShowLocationBarInOverviewMode() {
+                    public boolean isOffTheRecord() {
                         return false;
                     }
 
@@ -369,6 +362,14 @@ public abstract class ToolbarLayout extends FrameLayout
                     public boolean isPaintPreview() {
                         return false;
                     }
+
+                    @Override
+                    public void addToolbarDataProviderObserver(
+                            ToolbarDataProvider.Observer observer) {}
+
+                    @Override
+                    public void removeToolbarDataProviderObserver(
+                            ToolbarDataProvider.Observer observer) {}
                 };
     }
 
@@ -405,16 +406,14 @@ public abstract class ToolbarLayout extends FrameLayout
     /** This function handles native dependent initialization for this class. */
     protected void onNativeLibraryReady() {
         mNativeLibraryReady = true;
-        if (mProgressBar.getParent() != null) mProgressBar.initializeAnimation();
     }
 
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        // TODO(crbug.com/40657306): lazy initialize progress bar.
-        // Posting adding progress bar can prevent parent view group from using a stale children
-        // count, which can cause a crash in rare cases.
-        post(this::addProgressBarToHierarchy);
+
+        mToolbarShadow = getRootView().findViewById(R.id.toolbar_hairline);
+        updateShadowVisibility();
     }
 
     /**
@@ -424,8 +423,17 @@ public abstract class ToolbarLayout extends FrameLayout
         return mMenuButtonCoordinator;
     }
 
+    ToggleTabStackButtonCoordinator getTabSwitcherButtonCoordinator() {
+        return mTabSwitcherButtonCoordinator;
+    }
+
     void setMenuButtonCoordinatorForTesting(MenuButtonCoordinator menuButtonCoordinator) {
         mMenuButtonCoordinator = menuButtonCoordinator;
+    }
+
+    void setTabSwitcherButtonCoordinatorForTesting(
+            ToggleTabStackButtonCoordinator toggleTabStackButtonCoordinator) {
+        mTabSwitcherButtonCoordinator = toggleTabStackButtonCoordinator;
     }
 
     /**
@@ -446,15 +454,6 @@ public abstract class ToolbarLayout extends FrameLayout
         return mNativeLibraryReady;
     }
 
-    /** Add the toolbar's progress bar to the view hierarchy. */
-    void addProgressBarToHierarchy() {
-        ViewGroup controlContainer = (ViewGroup) getRootView().findViewById(R.id.control_container);
-        int progressBarPosition =
-                UiUtils.insertAfter(controlContainer, mProgressBar, (View) getParent());
-        assert progressBarPosition >= 0;
-        mProgressBar.setProgressBarContainer(controlContainer);
-    }
-
     /**
      * @return The provider for toolbar related data.
      */
@@ -472,21 +471,8 @@ public abstract class ToolbarLayout extends FrameLayout
     }
 
     /**
-     * Sets the OnClickListener that will be notified when the TabSwitcher button is pressed.
-     * @param listener The callback that will be notified when the TabSwitcher button is pressed.
-     */
-    void setOnTabSwitcherClickHandler(OnClickListener listener) {}
-
-    /**
-     * Sets the OnLongClickListener that will be notified when the TabSwitcher button is long
-     *         pressed.
-     * @param listener The callback that will be notified when the TabSwitcher button is long
-     *         pressed.
-     */
-    void setOnTabSwitcherLongClickHandler(OnLongClickListener listener) {}
-
-    /**
      * Sets the OnClickListener that will be notified when the bookmark button is pressed.
+     *
      * @param listener The callback that will be notified when the bookmark button is pressed.
      */
     void setBookmarkClickHandler(OnClickListener listener) {}
@@ -504,43 +490,24 @@ public abstract class ToolbarLayout extends FrameLayout
     void updateButtonVisibility() {}
 
     /**
-     * Gives inheriting classes the chance to update the visibility of the
-     * back button.
-     * @param canGoBack Whether or not the current tab has any history to go back to.
-     */
-    void updateBackButtonVisibility(boolean canGoBack) {}
-
-    /**
-     * Gives inheriting classes the chance to update the visibility of the
-     * forward button.
+     * Gives inheriting classes the chance to update the visibility of the forward button.
+     *
      * @param canGoForward Whether or not the current tab has any history to go forward to.
      */
     void updateForwardButtonVisibility(boolean canGoForward) {}
 
     /**
-     * Gives inheriting classes the chance to update the visibility of the
-     * reload button.
-     * @param isReloading Whether or not the current tab is loading.
-     */
-    void updateReloadButtonVisibility(boolean isReloading) {}
-
-    /**
-     * Gives inheriting classes the chance to update the visual status of the
-     * bookmark button.
+     * Gives inheriting classes the chance to update the visual status of the bookmark button.
+     *
      * @param isBookmarked Whether or not the current tab is already bookmarked.
      * @param editingAllowed Whether or not bookmarks can be modified (added, edited, or removed).
      */
     void updateBookmarkButton(boolean isBookmarked, boolean editingAllowed) {}
 
     /**
-     * Gives inheriting classes the chance to do the necessary UI operations after Chrome is
-     * restored to a previously saved state.
-     */
-    void onStateRestored() {}
-
-    /**
      * Gives inheriting classes the chance to update home button UI if home button preference is
      * changed.
+     *
      * @param homeButtonEnabled Whether or not home button is enabled in preference.
      */
     void onHomeButtonUpdate(boolean homeButtonEnabled) {}
@@ -607,10 +574,6 @@ public abstract class ToolbarLayout extends FrameLayout
 
     protected abstract CaptureReadinessResult isReadyForTextureCapture();
 
-    boolean setForceTextureCapture(boolean forceTextureCapture) {
-        return false;
-    }
-
     void setLayoutUpdater(Runnable layoutUpdater) {}
 
     /**
@@ -635,19 +598,6 @@ public abstract class ToolbarLayout extends FrameLayout
     void onTabSwitcherTransitionFinished() {}
 
     /**
-     * Called when start surface state is changed.
-     *
-     * @param shouldBeVisible Whether toolbar layout should be visible.
-     * @param isShowingStartSurfaceHomepage Whether start surface homepage is showing.
-     * @param isShowingStartSurfaceTabSwitcher Whether the StartSurface-controlled TabSwitcher is
-     *     showing.
-     */
-    void onStartSurfaceStateChanged(
-            boolean shouldBeVisible,
-            boolean isShowingStartSurfaceHomepage,
-            boolean isShowingStartSurfaceTabSwitcher) {}
-
-    /**
      * Gives inheriting classes the chance to observe tab count changes.
      *
      * @param tabCountSupplier The observable supplier subclasses can observe.
@@ -662,13 +612,13 @@ public abstract class ToolbarLayout extends FrameLayout
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-        // Consumes mouse button events on toolbar so they don't get leaked to content layer.
-        // See https://crbug.com/740855.
-        if ((event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0
-                && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
+        // Consumes mouse/trackpad button events on toolbar so they don't get leaked to content
+        // layer. See https://crbug.com/740855 (mouse) and https://crbug.com/384916573 (trackpad).
+        if (MotionEventUtils.isMouseEvent(event) || MotionEventUtils.isTrackpadEvent(event)) {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_BUTTON_PRESS
-                    || action == MotionEvent.ACTION_BUTTON_RELEASE) {
+                    || action == MotionEvent.ACTION_BUTTON_RELEASE
+                    || action == MotionEvent.ACTION_SCROLL) {
                 return true;
             }
         }
@@ -726,10 +676,30 @@ public abstract class ToolbarLayout extends FrameLayout
     }
 
     /**
+     * TODO(crbug.com/350654700): clean up usages and remove isIncognito.
+     *
      * @return Whether or not the toolbar is incognito.
+     * @deprecated Use {@link #isIncognitoBranded()} or {@link #isOffTheRecord()}.
      */
+    @Deprecated
     protected boolean isIncognito() {
         return mToolbarDataProvider.isIncognito();
+    }
+
+    /**
+     * @return Whether or not the toolbar is incognito branded.
+     * @see {@link ToolbarDataProvider#isIncognitoBranded()}
+     */
+    protected boolean isIncognitoBranded() {
+        return mToolbarDataProvider.isIncognitoBranded();
+    }
+
+    /**
+     * @return Whether or not the toolbar is off the record.
+     * @see {@link ToolbarDataProvider#isOffTheRecord()}
+     */
+    protected boolean isOffTheRecord() {
+        return mToolbarDataProvider.isOffTheRecord();
     }
 
     /**
@@ -739,38 +709,13 @@ public abstract class ToolbarLayout extends FrameLayout
     public abstract LocationBar getLocationBar();
 
     /**
-     * Navigates the current Tab back.
-     * @return Whether or not the current Tab did go back.
-     */
-    boolean back() {
-        maybeUnfocusUrlBar();
-        return mToolbarTabController != null && mToolbarTabController.back();
-    }
-
-    /**
      * Navigates the current Tab forward.
+     *
      * @return Whether or not the current Tab did go forward.
      */
     boolean forward() {
         maybeUnfocusUrlBar();
         return mToolbarTabController != null ? mToolbarTabController.forward() : false;
-    }
-
-    /**
-     * If the page is currently loading, this will trigger the tab to stop.  If the page is fully
-     * loaded, this will trigger a refresh.
-     *
-     * <p>The buttons of the toolbar will be updated as a result of making this call.
-     */
-    void stopOrReloadCurrentTab() {
-        maybeUnfocusUrlBar();
-        if (mToolbarTabController != null) mToolbarTabController.stopOrReloadCurrentTab();
-    }
-
-    /** Opens hompage in the current tab. */
-    void openHomepage() {
-        maybeUnfocusUrlBar();
-        if (mToolbarTabController != null) mToolbarTabController.openHomepage();
     }
 
     private void maybeUnfocusUrlBar() {
@@ -783,9 +728,10 @@ public abstract class ToolbarLayout extends FrameLayout
 
     /**
      * Update the optional toolbar button, showing it if currently hidden.
+     *
      * @param buttonData Display data for the button, e.g. the Drawable and content description.
      */
-    void updateOptionalButton(ButtonData buttonData) {}
+    protected void updateOptionalButton(ButtonData buttonData) {}
 
     /** Hide the optional toolbar button. */
     void hideOptionalButton() {}
@@ -825,16 +771,24 @@ public abstract class ToolbarLayout extends FrameLayout
         final ImageView shadow = getRootView().findViewById(R.id.toolbar_hairline);
         // Tests don't always set this up. TODO(crbug.com/40866629): Refactor this dep.
         if (shadow != null) {
-            shadow.setImageTintList(ColorStateList.valueOf(getToolbarHairlineColor(toolbarColor)));
+            mToolbarHairlineColor = computeToolbarHairlineColor(toolbarColor);
+            shadow.setImageTintList(ColorStateList.valueOf(mToolbarHairlineColor));
         }
+    }
+
+    /** Returns the color of the hairline drawn underneath the toolbar. */
+    public @ColorInt int getToolbarHairlineColor() {
+        return mToolbarHairlineColor;
     }
 
     /**
      * Returns the border color between the toolbar and WebContents area.
+     *
      * @param toolbarColor Toolbar color
      */
-    public @ColorInt int getToolbarHairlineColor(@ColorInt int toolbarColor) {
-        return ThemeUtils.getToolbarHairlineColor(getContext(), toolbarColor, isIncognito());
+    private @ColorInt int computeToolbarHairlineColor(@ColorInt int toolbarColor) {
+        return ThemeUtils.getToolbarHairlineColor(
+                getContext(), toolbarColor, mToolbarDataProvider.isIncognitoBranded());
     }
 
     /**
@@ -922,8 +876,10 @@ public abstract class ToolbarLayout extends FrameLayout
     protected void recordHomeModuleClickedIfNTPVisible() {
         if (getToolbarDataProvider().getNewTabPageDelegate().isCurrentlyVisible()) {
             // Record the clicking action on the home button.
-            BrowserUiUtils.recordModuleClickHistogram(
-                    HostSurface.NEW_TAB_PAGE, ModuleTypeOnStartAndNtp.HOME_BUTTON);
+            BrowserUiUtils.recordModuleClickHistogram(ModuleTypeOnStartAndNtp.HOME_BUTTON);
         }
     }
+
+    /** Requests keyboard focus on the toolbar row. */
+    public abstract void requestKeyboardFocus();
 }

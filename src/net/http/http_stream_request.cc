@@ -72,13 +72,30 @@ const ConnectionAttempts& HttpStreamRequest::connection_attempts() const {
 
 void HttpStreamRequest::AddConnectionAttempts(
     const ConnectionAttempts& attempts) {
-  for (const auto& attempt : attempts)
+  for (const auto& attempt : attempts) {
     connection_attempts_.push_back(attempt);
+  }
 }
 
 WebSocketHandshakeStreamBase::CreateHelper*
 HttpStreamRequest::websocket_handshake_stream_create_helper() const {
   return websocket_handshake_stream_create_helper_;
+}
+
+void HttpStreamRequest::SetDnsResolutionTimeOverrides(
+    base::TimeTicks dns_resolution_start_time_override,
+    base::TimeTicks dns_resolution_end_time_override) {
+  CHECK(!dns_resolution_start_time_override.is_null());
+  CHECK(!dns_resolution_end_time_override.is_null());
+  if (dns_resolution_start_time_override_.is_null() ||
+      (dns_resolution_start_time_override <
+       dns_resolution_start_time_override_)) {
+    dns_resolution_start_time_override_ = dns_resolution_start_time_override;
+  }
+  if (dns_resolution_end_time_override_.is_null() ||
+      (dns_resolution_end_time_override < dns_resolution_end_time_override_)) {
+    dns_resolution_end_time_override_ = dns_resolution_end_time_override;
+  }
 }
 
 }  // namespace net

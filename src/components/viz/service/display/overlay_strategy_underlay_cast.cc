@@ -5,6 +5,7 @@
 #include "components/viz/service/display/overlay_strategy_underlay_cast.h"
 
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "base/containers/adapters.h"
@@ -39,7 +40,7 @@ OverlayStrategyUnderlayCast::OverlayStrategyUnderlayCast(
     OverlayProcessorUsingStrategy* capability_checker)
     : OverlayStrategyUnderlay(capability_checker) {}
 
-OverlayStrategyUnderlayCast::~OverlayStrategyUnderlayCast() {}
+OverlayStrategyUnderlayCast::~OverlayStrategyUnderlayCast() = default;
 
 void OverlayStrategyUnderlayCast::Propose(
     const SkM44& output_color_matrix,
@@ -55,6 +56,7 @@ void OverlayStrategyUnderlayCast::Propose(
   auto* render_pass = render_pass_list->back().get();
   QuadList& quad_list = render_pass->quad_list;
   OverlayCandidate candidate;
+  candidate.overlay_type = gfx::OverlayType::kUnderlay;
   auto overlay_iter = quad_list.end();
 
   OverlayCandidateFactory::OverlayContext context;
@@ -188,7 +190,7 @@ void OverlayStrategyUnderlayCast::CommitCandidate(
   DCHECK(GetVideoGeometrySetter());
   GetVideoGeometrySetter()->SetVideoGeometry(
       proposed_candidate.candidate.display_rect,
-      absl::get<gfx::OverlayTransform>(proposed_candidate.candidate.transform),
+      std::get<gfx::OverlayTransform>(proposed_candidate.candidate.transform),
       VideoHoleDrawQuad::MaterialCast(*proposed_candidate.quad_iter)
           ->overlay_plane_id);
 

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/core/core_ipcz.h"
 
 #include <algorithm>
@@ -104,8 +109,7 @@ MojoResult GetMojoWriteResultForIpczPut(IpczResult result) {
 extern "C" {
 
 MojoResult MojoInitializeIpcz(const struct MojoInitializeOptions* options) {
-  NOTREACHED_IN_MIGRATION();
-  return MOJO_RESULT_OK;
+  NOTREACHED();
 }
 
 MojoTimeTicks MojoGetTimeTicksNowIpcz() {
@@ -652,7 +656,7 @@ MojoResult MojoWrapPlatformSharedMemoryRegionIpcz(
     return MOJO_RESULT_INVALID_ARGUMENT;
   }
   auto buffer = ipcz_driver::SharedBuffer::CreateForMojoWrapper(
-      base::make_span(platform_handles, num_platform_handles), num_bytes, *guid,
+      base::span(platform_handles, num_platform_handles), num_bytes, *guid,
       access_mode);
   if (!buffer) {
     return MOJO_RESULT_INVALID_ARGUMENT;
@@ -728,8 +732,7 @@ MojoResult MojoUnwrapPlatformSharedMemoryRegionIpcz(
       *access_mode = MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_UNSAFE;
       break;
     default:
-      *access_mode = MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_READ_ONLY;
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   std::ignore = ipcz_driver::SharedBuffer::Unbox(mojo_handle);
@@ -758,7 +761,7 @@ MojoResult MojoAttachMessagePipeToInvitationIpcz(
     return MOJO_RESULT_INVALID_ARGUMENT;
   }
   return invitation->Attach(
-      base::make_span(static_cast<const uint8_t*>(name), name_num_bytes),
+      base::span(static_cast<const uint8_t*>(name), name_num_bytes),
       message_pipe_handle);
 }
 
@@ -774,7 +777,7 @@ MojoResult MojoExtractMessagePipeFromInvitationIpcz(
     return MOJO_RESULT_INVALID_ARGUMENT;
   }
   return invitation->Extract(
-      base::make_span(static_cast<const uint8_t*>(name), name_num_bytes),
+      base::span(static_cast<const uint8_t*>(name), name_num_bytes),
       message_pipe_handle);
 }
 
@@ -844,8 +847,7 @@ MojoResult MojoQueryQuotaIpcz(MojoHandle handle,
 }
 
 MojoResult MojoShutdownIpcz(const MojoShutdownOptions* options) {
-  NOTREACHED_IN_MIGRATION();
-  return MOJO_RESULT_OK;
+  NOTREACHED();
 }
 
 MojoResult MojoSetDefaultProcessErrorHandlerIpcz(

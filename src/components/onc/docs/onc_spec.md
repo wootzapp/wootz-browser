@@ -552,6 +552,10 @@ static IP configuration (see **StaticIPConfig**).
     * (optional if part of **IPConfigs**, read-only) - **string**
     * The Web Proxy Auto-Discovery URL for this network as reported over DHCP.
 
+* **MTU**
+    * (optional) - **integer**
+    * Maximum transmission unit for this network. If not specified (or set to
+      0), the value will be determined automatically.
 
 ## WiFi networks
 
@@ -562,10 +566,7 @@ field **WiFi** must be set to an object of type [WiFi](#WiFi-type).
 
 * **AllowGatewayARPPolling**
     * (optional, defaults to *true*) - **boolean**
-    * Indicaties if ARP polling of default gateway is allowed.
-      When it is allowed, periodic ARP messages will be sent to
-      the default gateway. This is used for monitoring the status
-      of the current connection.
+    * DEPRECATED.
 
 * **AutoConnect**
     * (optional, defaults to *false*) - **boolean**
@@ -1537,7 +1538,11 @@ type exists to configure the authentication.
 * **SubjectAlternativeNameMatch**
     * (optional) - [array of AlternativeSubjectName](#AlternativeSubjectName-type)
     * A list of alternative subject names to be matched against the alternative
-      subject name of an authentication server certificate.
+      subject names of an authentication server certificate.
+      If set, the server certificate is only accepted when any of the list items
+      matches an entry in the alternative subject name extension of the server
+      certificate.
+
 
 * **DomainSuffixMatch**
     * (optional) - **array of string**
@@ -1990,6 +1995,11 @@ that reference APNs contained in **AdminAPNList**.
     * (optional) - **array of string**
     * The type(s) of the APN. If provided, must be a non-empty array.
       Possible values are "Default", "Attach", or "Tether".
+
+* **Source**
+    * (optional) - **string**
+    * The source of the APN. Possible values are "", "Modem", "Modb", "Ui", or
+      "Admin".
 
 ## Certificates
 

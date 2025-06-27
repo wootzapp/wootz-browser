@@ -10,17 +10,21 @@
 #include <vector>
 
 #include "ash/public/cpp/app_list/app_list_types.h"
-#include "build/chromeos_buildflags.h"
+#include "components/sync/model/string_ordinal.h"
+#include "extensions/common/extension_id.h"
 
 namespace apps_util {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 // A testing app id that belongs to AppCollection::kEssentials by definition.
 extern const char kTestAppIdWithCollection[];
 
 // Obtain the AppCollection where the app belongs into.
 ash::AppCollection GetCollectionIdForAppId(const std::string& app_id);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+
+// Obtain the modified default ordinals for the AppsCollecrtions experimental
+// arm.
+bool GetModifiedOrdinals(const extensions::ExtensionId& extension_id,
+                         syncer::StringOrdinal* app_launch_ordinal);
 
 }  // namespace apps_util
 

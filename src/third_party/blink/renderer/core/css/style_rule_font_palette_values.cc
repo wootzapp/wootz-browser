@@ -12,7 +12,9 @@
 #include "third_party/blink/renderer/core/css/css_primitive_value.h"
 #include "third_party/blink/renderer/core/css/css_value_list.h"
 #include "third_party/blink/renderer/core/css/css_value_pair.h"
+#include "third_party/blink/renderer/core/css/media_values.h"
 #include "third_party/blink/renderer/core/css/style_color.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 
 namespace blink {
 
@@ -56,8 +58,7 @@ FontPalette::BasePaletteValue StyleRuleFontPaletteValues::GetBasePaletteIndex()
         return FontPalette::BasePaletteValue(
             {FontPalette::kDarkBasePalette, 0});
       default:
-        NOTREACHED_IN_MIGRATION();
-        return kNoBasePaletteValue;
+        NOTREACHED();
     }
   }
 
@@ -68,7 +69,8 @@ FontPalette::BasePaletteValue StyleRuleFontPaletteValues::GetBasePaletteIndex()
 }
 
 Vector<FontPalette::FontPaletteOverride>
-StyleRuleFontPaletteValues::GetOverrideColorsAsVector() const {
+StyleRuleFontPaletteValues::GetOverrideColorsAsVector(
+    const Document& document) const {
   const CSSValue* override_colors = GetOverrideColors();
   if (!override_colors || !override_colors->IsValueList()) {
     return {};
@@ -87,15 +89,19 @@ StyleRuleFontPaletteValues::GetOverrideColorsAsVector() const {
       const CSSIdentifierValue& color_identifier =
           To<CSSIdentifierValue>(override_pair.Second());
       // The value won't be a system color according to parsing, so we can pass
-      // a fixed color scheme and color provider here.
-      return StyleColor::ColorFromKeyword(color_identifier.GetValueID(),
-                                          mojom::blink::ColorScheme::kLight,
-                                          /*color_provider=*/nullptr);
+      // a fixed color scheme, color provider and `false` to indicate that we
+      // are not within a WebApp context.
+      return StyleColor::ColorFromKeyword(
+          color_identifier.GetValueID(), mojom::blink::ColorScheme::kLight,
+          /*color_provider=*/nullptr, /*is_in_web_app_scope=*/false);
     }
     const cssvalue::CSSColor& css_color =
         To<cssvalue::CSSColor>(override_pair.Second());
     return css_color.Value();
   };
+
+  MediaValues* media_values =
+      MediaValues::CreateDynamicIfFrameExists(document.GetFrame());
 
   Vector<FontPalette::FontPaletteOverride> return_overrides;
   const CSSValueList& overrides_list = To<CSSValueList>(*override_colors);
@@ -109,7 +115,8 @@ StyleRuleFontPaletteValues::GetOverrideColorsAsVector() const {
     const Color override_color = ConvertToColor(override_pair);
 
     FontPalette::FontPaletteOverride palette_override{
-        palette_index.GetValue<uint16_t>(), override_color};
+        ClampTo<uint16_t>(palette_index.ComputeInteger(*media_values)),
+        override_color};
     return_overrides.push_back(palette_override);
   }
 

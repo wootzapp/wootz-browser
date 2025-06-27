@@ -6,8 +6,11 @@
 #define CONTENT_BROWSER_INTEREST_GROUP_AD_AUCTION_PAGE_DATA_H_
 
 #include <map>
+#include <optional>
+#include <ostream>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/containers/flat_map.h"
@@ -16,6 +19,7 @@
 #include "content/browser/interest_group/header_direct_from_seller_signals.h"
 #include "content/public/browser/page_user_data.h"
 #include "net/third_party/quiche/src/quiche/oblivious_http/oblivious_http_client.h"
+#include "third_party/blink/public/common/interest_group/interest_group.h"
 #include "url/origin.h"
 
 namespace data_decoder {
@@ -24,12 +28,24 @@ class DataDecoder;
 
 namespace content {
 
+struct ContextMapKey {
+  bool operator<(const ContextMapKey& other) const {
+    return std::tie(request_id, seller) <
+           std::tie(other.request_id, other.seller);
+  }
+
+  base::Uuid request_id;
+  url::Origin seller;
+};
+
 struct CONTENT_EXPORT AdAuctionRequestContext {
   AdAuctionRequestContext(
       url::Origin seller,
       base::flat_map<url::Origin, std::vector<std::string>> group_names,
       quiche::ObliviousHttpRequest::Context context,
-      base::TimeTicks start_time);
+      base::TimeTicks start_time,
+      base::flat_map<blink::InterestGroupKey, url::Origin>
+          group_pagg_coordinators);
   AdAuctionRequestContext(AdAuctionRequestContext&& other);
   ~AdAuctionRequestContext();
 
@@ -37,7 +53,31 @@ struct CONTENT_EXPORT AdAuctionRequestContext {
   base::flat_map<url::Origin, std::vector<std::string>> group_names;
   quiche::ObliviousHttpRequest::Context context;
   base::TimeTicks start_time;
+  base::flat_map<blink::InterestGroupKey, url::Origin> group_pagg_coordinators;
 };
+
+struct CONTENT_EXPORT SignedAdditionalBidWithMetadata {
+  SignedAdditionalBidWithMetadata(std::string_view signed_additional_bid,
+                                  std::optional<std::string_view> seller_nonce);
+  ~SignedAdditionalBidWithMetadata();
+
+  SignedAdditionalBidWithMetadata(SignedAdditionalBidWithMetadata&&);
+  SignedAdditionalBidWithMetadata& operator=(SignedAdditionalBidWithMetadata&&);
+
+  // JSON object with "bid" (containing more JSON encoded as a string) and
+  // "signatures" fields.
+  std::string signed_additional_bid;
+
+  // The seller nonce for `signed_additional_bid`, if present.
+  std::optional<std::string> seller_nonce;
+
+  // ***** Please add new fields to the formatter below. *****
+};
+
+// Formatter for Google Test.
+CONTENT_EXPORT std::ostream& operator<<(
+    std::ostream& out,
+    const SignedAdditionalBidWithMetadata& in);
 
 // Contains auction header responses within a page. This will only be created
 // for the outermost page (i.e. not within a fenced frame).
@@ -52,6 +92,12 @@ class CONTENT_EXPORT AdAuctionPageData
   bool WitnessedAuctionResultForOrigin(const url::Origin& origin,
                                        const std::string& response) const;
 
+  void AddAuctionResultNonceWitnessForOrigin(const url::Origin& origin,
+                                             const std::string& nonce);
+
+  bool WitnessedAuctionResultNonceForOrigin(const url::Origin& origin,
+                                            const std::string& nonce) const;
+
   void AddAuctionSignalsWitnessForOrigin(const url::Origin& origin,
                                          const std::string& response);
 
@@ -62,20 +108,29 @@ class CONTENT_EXPORT AdAuctionPageData
 
   void AddAuctionAdditionalBidsWitnessForOrigin(
       const url::Origin& origin,
-      const std::map<std::string, std::vector<std::string>>&
+      std::map<std::string, std::vector<SignedAdditionalBidWithMetadata>>
           nonce_additional_bids_map);
 
-  std::vector<std::string> TakeAuctionAdditionalBidsForOriginAndNonce(
-      const url::Origin& origin,
-      const std::string& nonce);
+  std::vector<SignedAdditionalBidWithMetadata>
+  TakeAuctionAdditionalBidsForOriginAndNonce(const url::Origin& origin,
+                                             const std::string& nonce);
 
   void RegisterAdAuctionRequestContext(const base::Uuid& id,
                                        AdAuctionRequestContext context);
-  AdAuctionRequestContext* GetContextForAdAuctionRequest(const base::Uuid& id);
+  AdAuctionRequestContext* GetContextForAdAuctionRequest(
+      const ContextMapKey& key);
 
   // Returns a pointer to a DataDecoder owned by this AdAuctionPageData instance
   // The DataDecoder is only valid for the life of the page.
   data_decoder::DataDecoder* GetDecoderFor(const url::Origin& origin);
+
+  // Returns real time reporting quota left for `origin`.
+  std::optional<std::pair<base::TimeTicks, double>> GetRealTimeReportingQuota(
+      const url::Origin& origin);
+
+  // Update real time reporting quota for `origin`.
+  void UpdateRealTimeReportingQuota(const url::Origin& origin,
+                                    std::pair<base::TimeTicks, double> quota);
 
  private:
   explicit AdAuctionPageData(Page& page);
@@ -87,10 +142,19 @@ class CONTENT_EXPORT AdAuctionPageData
       std::vector<std::string> errors);
 
   std::map<url::Origin, std::set<std::string>> origin_auction_result_map_;
+  std::map<url::Origin, std::set<std::string>> origin_auction_result_nonce_map_;
   HeaderDirectFromSellerSignals header_direct_from_seller_signals_;
-  std::map<url::Origin, std::map<std::string, std::vector<std::string>>>
+  std::map<url::Origin,
+           std::map<std::string, std::vector<SignedAdditionalBidWithMetadata>>>
       origin_nonce_additional_bids_map_;
-  std::map<base::Uuid, AdAuctionRequestContext> context_map_;
+  std::map<ContextMapKey, AdAuctionRequestContext> context_map_;
+
+  // The real time reporting quota left for origin at a certain timestamp. Used
+  // to do per page per reporting origin rate limiting on real time reporting.
+  // TODO(crbug.com/337132755): Clean this up after long enough time, in case
+  // some pages live for a while.
+  std::map<url::Origin, std::pair<base::TimeTicks, double>>
+      real_time_reporting_quota_;
 
   // Must be declared last -- DataDecoder destruction cancels decoding
   // completion callbacks.

@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/base_export.h"
 #include "base/profiler/native_unwinder_android_memory_regions_map_impl.h"
 #include "base/profiler/unwinder.h"
 #include "third_party/libunwindstack/src/libunwindstack/include/unwindstack/DexFiles.h"
@@ -23,7 +24,7 @@ namespace base {
 // causes some divergences from other base::Unwinder (this unwinder either fully
 // succeeds or fully fails). A good source for a compariative unwinder would be
 // traced_perf or heapprofd on android which uses the same API.
-class LibunwindstackUnwinderAndroid : public Unwinder {
+class BASE_EXPORT LibunwindstackUnwinderAndroid : public Unwinder {
  public:
   LibunwindstackUnwinderAndroid();
   ~LibunwindstackUnwinderAndroid() override;
@@ -35,7 +36,8 @@ class LibunwindstackUnwinderAndroid : public Unwinder {
   // Unwinder
   void InitializeModules() override;
   bool CanUnwindFrom(const Frame& current_frame) const override;
-  UnwindResult TryUnwind(RegisterContext* thread_context,
+  UnwindResult TryUnwind(UnwinderStateCapture* capture_state,
+                         RegisterContext* thread_context,
                          uintptr_t stack_top,
                          std::vector<Frame>* stack) override;
 

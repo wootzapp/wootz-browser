@@ -26,8 +26,8 @@
 #import "ui/base/l10n/l10n_util.h"
 #import "url/gurl.h"
 
-using chrome_test_util::OmniboxText;
 using chrome_test_util::OmniboxContainingText;
+using chrome_test_util::OmniboxText;
 
 namespace {
 
@@ -76,7 +76,6 @@ class ReloadResponseProvider : public web::DataResponseProvider {
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
-  config.features_enabled.push_back(kModernTabStrip);
   return config;
 }
 
@@ -314,11 +313,13 @@ id<GREYMatcher> TabWithTitle(const std::string& tab_title) {
 
 // Tests that evaluating user JavaScript that causes navigation correctly
 // modifies history.
-- (void)testBrowsingUserJavaScriptNavigation {
+// TODO(crbug.com/362621166): Test is flaky.
+- (void)DISABLED_testBrowsingUserJavaScriptNavigation {
   // TODO(crbug.com/40511873): Keyboard entry inside the omnibox fails only on
   // iPad.
-  if ([ChromeEarlGrey isIPadIdiom])
+  if ([ChromeEarlGrey isIPadIdiom]) {
     return;
+  }
 
   // Create map of canned responses and set up the test HTML server.
   std::map<GURL, std::string> responses;
@@ -336,16 +337,11 @@ id<GREYMatcher> TabWithTitle(const std::string& tab_title) {
       [NSString stringWithFormat:@"javascript:window.location='%s'",
                                  targetURL.spec().c_str()];
 
-  [ChromeEarlGreyUI focusOmniboxAndType:script];
+  [ChromeEarlGreyUI focusOmniboxAndReplaceText:script];
 
-  if (@available(iOS 16, *)) {
-    // TODO(crbug.com/40227513): Move this logic into EG.
-    XCUIApplication* app = [[XCUIApplication alloc] init];
-    [[[app keyboards] buttons][@"go"] tap];
-  } else {
-    [[EarlGrey selectElementWithMatcher:grey_accessibilityID(@"Go")]
-        performAction:grey_tap()];
-  }
+  // TODO(crbug.com/40227513): Move this logic into EG.
+  XCUIApplication* app = [[XCUIApplication alloc] init];
+  [[[app keyboards] buttons][@"go"] tap];
 
   [ChromeEarlGrey waitForPageToFinishLoading];
 
@@ -358,11 +354,13 @@ id<GREYMatcher> TabWithTitle(const std::string& tab_title) {
 }
 
 // Tests that evaluating non-navigation user JavaScript doesn't affect history.
-- (void)testBrowsingUserJavaScriptWithoutNavigation {
+// TODO(crbug.com/362621166): Test is flaky.
+- (void)DISABLED_testBrowsingUserJavaScriptWithoutNavigation {
   // TODO(crbug.com/40511873): Keyboard entry inside the omnibox fails only on
   // iPad.
-  if ([ChromeEarlGrey isIPadIdiom])
+  if ([ChromeEarlGrey isIPadIdiom]) {
     return;
+  }
 
   // Create map of canned responses and set up the test HTML server.
   std::map<GURL, std::string> responses;
@@ -378,7 +376,8 @@ id<GREYMatcher> TabWithTitle(const std::string& tab_title) {
   [ChromeEarlGrey loadURL:secondURL];
 
   // Execute some JavaScript in the omnibox.
-  [ChromeEarlGreyUI focusOmniboxAndType:@"javascript:document.write('foo')"];
+  [ChromeEarlGreyUI
+      focusOmniboxAndReplaceText:@"javascript:document.write('foo')"];
   // TODO(crbug.com/40916974): Use simulatePhysicalKeyboardEvent until
   // replaceText can properly handle \n.
   [ChromeEarlGrey simulatePhysicalKeyboardEvent:@"\n" flags:0];

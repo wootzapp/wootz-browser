@@ -81,11 +81,13 @@ void DocumentStyleSheetCollection::CollectStyleSheetsFromCandidates(
       css_sheet->Contents()->ClearRuleSetDiff();
     }
   }
-  if (!GetTreeScope().HasAdoptedStyleSheets()) {
+
+  const TreeScope& tree_scope = GetTreeScope();
+  if (!tree_scope.HasAdoptedStyleSheets()) {
     return;
   }
 
-  for (CSSStyleSheet* sheet : *GetTreeScope().AdoptedStyleSheets()) {
+  for (CSSStyleSheet* sheet : *tree_scope.AdoptedStyleSheets()) {
     if (!sheet ||
         !sheet->CanBeActivated(
             GetDocument().GetStyleEngine().PreferredStylesheetSetName())) {
@@ -108,8 +110,8 @@ void DocumentStyleSheetCollection::CollectStyleSheets(
         GetDocument().GetStyleEngine().RuleSetForSheet(*sheet.second)));
   }
   CollectStyleSheetsFromCandidates(engine, collector);
-  if (CSSStyleSheet* inspector_sheet =
-          GetDocument().GetStyleEngine().InspectorStyleSheet()) {
+  for (CSSStyleSheet* inspector_sheet :
+       GetDocument().GetStyleEngine().InspectorStyleSheets()) {
     collector.AppendActiveStyleSheet(std::make_pair(
         inspector_sheet,
         GetDocument().GetStyleEngine().RuleSetForSheet(*inspector_sheet)));

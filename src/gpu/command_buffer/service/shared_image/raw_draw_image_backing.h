@@ -14,7 +14,7 @@
 #include "gpu/command_buffer/service/shared_image/shared_image_backing.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkSurfaceProps.h"
-#include "third_party/skia/include/gpu/GrBackendSurface.h"
+#include "third_party/skia/include/gpu/ganesh/GrBackendSurface.h"
 
 class GrPromiseImageTexture;
 
@@ -28,7 +28,7 @@ class RawDrawImageBacking : public ClearTrackingSharedImageBacking {
                       const gfx::ColorSpace& color_space,
                       GrSurfaceOrigin surface_origin,
                       SkAlphaType alpha_type,
-                      uint32_t usage,
+                      gpu::SharedImageUsageSet usage,
                       std::string debug_label);
   ~RawDrawImageBacking() override;
 

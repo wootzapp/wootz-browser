@@ -9,23 +9,28 @@ import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import 'chrome://resources/cr_elements/cr_tabs/cr_tabs.js';
-import 'chrome://resources/polymer/v3_0/iron-media-query/iron-media-query.js';
-import 'chrome://resources/polymer/v3_0/iron-pages/iron-pages.js';
+import 'chrome://resources/cr_elements/cr_page_selector/cr_page_selector.js';
 import './history_embeddings_promo.js';
 import './history_list.js';
 import './history_toolbar.js';
 import './query_manager.js';
 import './shared_style.css.js';
 import './side_bar.js';
-import './strings.m.js';
+import '/strings.m.js';
+import './product_specifications_lists.js';
 
+import {HelpBubbleMixin} from 'chrome://resources/cr_components/help_bubble/help_bubble_mixin.js';
+import type {HelpBubbleMixinInterface} from 'chrome://resources/cr_components/help_bubble/help_bubble_mixin.js';
 import {HistoryResultType} from 'chrome://resources/cr_components/history/constants.js';
+import type {HistoryEntry, HistoryQuery, PageCallbackRouter, PageHandlerRemote, QueryState} from 'chrome://resources/cr_components/history/history.mojom-webui.js';
+import {HistoryEmbeddingsBrowserProxyImpl} from 'chrome://resources/cr_components/history_embeddings/browser_proxy.js';
 import type {Suggestion} from 'chrome://resources/cr_components/history_embeddings/filter_chips.js';
 import type {HistoryEmbeddingsMoreActionsClickEvent} from 'chrome://resources/cr_components/history_embeddings/history_embeddings.js';
 import {getInstance as getAnnouncerInstance} from 'chrome://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
 import type {CrDrawerElement} from 'chrome://resources/cr_elements/cr_drawer/cr_drawer.js';
 import type {CrLazyRenderElement} from 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.js';
-import type {FindShortcutMixinInterface} from 'chrome://resources/cr_elements/find_shortcut_mixin.js';
+import type {CrPageSelectorElement} from 'chrome://resources/cr_elements/cr_page_selector/cr_page_selector.js';
+import type {FindShortcutListener} from 'chrome://resources/cr_elements/find_shortcut_manager.js';
 import {FindShortcutMixin} from 'chrome://resources/cr_elements/find_shortcut_mixin.js';
 import type {WebUiListenerMixinInterface} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
@@ -34,7 +39,6 @@ import {EventTracker} from 'chrome://resources/js/event_tracker.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {getTrustedScriptURL} from 'chrome://resources/js/static_types.js';
 import {hasKeyModifiers} from 'chrome://resources/js/util.js';
-import type {IronPagesElement} from 'chrome://resources/polymer/v3_0/iron-pages/iron-pages.js';
 import {IronScrollTargetBehavior} from 'chrome://resources/polymer/v3_0/iron-scroll-target-behavior/iron-scroll-target-behavior.js';
 import {mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -42,7 +46,7 @@ import {getTemplate} from './app.html.js';
 import type {BrowserService} from './browser_service.js';
 import {BrowserServiceImpl} from './browser_service.js';
 import {HistoryPageViewHistogram} from './constants.js';
-import type {ForeignSession, QueryResult, QueryState} from './externs.js';
+import type {ForeignSession} from './externs.js';
 import type {HistoryListElement} from './history_list.js';
 import type {HistoryToolbarElement} from './history_toolbar.js';
 import {convertDateToQueryValue} from './query_manager.js';
@@ -125,26 +129,33 @@ export function listenForPrivilegedLinkClicks() {
 
 export interface HistoryAppElement {
   $: {
-    'content': IronPagesElement,
+    'content': CrPageSelectorElement,
     'content-side-bar': HistorySideBarElement,
     'drawer': CrLazyRenderElement<CrDrawerElement>,
     'history': HistoryListElement,
     'tabs-container': Element,
-    'tabs-content': IronPagesElement,
+    'tabs-content': CrPageSelectorElement,
     'toolbar': HistoryToolbarElement,
     tabsScrollContainer: HTMLElement,
     router: HistoryRouterElement,
     historyEmbeddingsContainer: HTMLElement,
+    historyEmbeddingsDisclaimerLink: HTMLElement,
   };
 }
 
-const HistoryAppElementBase =
-    mixinBehaviors(
-        [IronScrollTargetBehavior],
-        FindShortcutMixin(WebUiListenerMixin(PolymerElement))) as {
-      new (): PolymerElement & FindShortcutMixinInterface &
-          IronScrollTargetBehavior & WebUiListenerMixinInterface,
-    };
+export interface QueryResult {
+  info?: HistoryQuery;
+  value?: HistoryEntry[];
+  sessionList?: ForeignSession[];
+}
+
+const HistoryAppElementBase = mixinBehaviors(
+                                  [IronScrollTargetBehavior],
+                                  HelpBubbleMixin(FindShortcutMixin(
+                                      WebUiListenerMixin(PolymerElement)))) as {
+  new (): PolymerElement & HelpBubbleMixinInterface & FindShortcutListener &
+      IronScrollTargetBehavior & WebUiListenerMixinInterface,
+};
 
 export class HistoryAppElement extends HistoryAppElementBase {
   static get is() {
@@ -160,6 +171,17 @@ export class HistoryAppElement extends HistoryAppElementBase {
       enableHistoryEmbeddings_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('enableHistoryEmbeddings'),
+        reflectToAttribute: true,
+      },
+
+      contentPage_: {
+        type: String,
+        value: Page.HISTORY,
+      },
+
+      tabsContentPage_: {
+        type: String,
+        value: Page.HISTORY,
       },
 
       // The id of the currently selected page.
@@ -172,7 +194,10 @@ export class HistoryAppElement extends HistoryAppElementBase {
 
       // Updated on synced-device-manager attach by chrome.sending
       // 'otherDevicesInitialized'.
-      isUserSignedIn_: Boolean,
+      isUserSignedIn_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('isUserSignedIn'),
+      },
 
       pendingDelete_: Boolean,
 
@@ -263,47 +288,84 @@ export class HistoryAppElement extends HistoryAppElementBase {
         reflectToAttribute: true,
       },
 
-      productSpecificationsListsEnabled_: Boolean,
-      tabContentScrollOffset_: Number,
+      compareHistoryEnabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('compareHistoryEnabled'),
+      },
+
+      tabContentScrollOffset_: {
+        type: Number,
+        value: 0,
+      },
+
+      nonEmbeddingsResultClicked_: {
+        type: Boolean,
+        value: false,
+      },
+
+      numCharsTypedInSearch_: {
+        type: Number,
+        value: 0,
+      },
+
+      historyEmbeddingsDisclaimerLinkClicked_: {
+        type: Boolean,
+        value: false,
+      },
     };
   }
 
-  footerInfo: FooterInfo;
+  static get observers() {
+    return ['onQueryStateChanged_(queryState_.*)'];
+  }
+
+  declare footerInfo: FooterInfo;
   private browserService_: BrowserService = BrowserServiceImpl.getInstance();
-  private enableHistoryEmbeddings_: boolean;
+  private callbackRouter_: PageCallbackRouter;
+  declare private enableHistoryEmbeddings_: boolean;
   private eventTracker_: EventTracker = new EventTracker();
-  private hasDrawer_: boolean;
-  private historyClustersEnabled_: boolean;
-  private historyClustersVisible_: boolean;
-  private isUserSignedIn_: boolean = loadTimeData.getBoolean('isUserSignedIn');
-  private lastSelectedTab_: number;
-  private pendingDelete_: boolean;
-  private queryResult_: QueryResult;
-  private queryState_: QueryState;
-  private selectedPage_: string;
-  private selectedTab_: number;
+  declare private hasDrawer_: boolean;
+  declare private historyClustersEnabled_: boolean;
+  declare private historyClustersVisible_: boolean;
+  declare private isUserSignedIn_: boolean;
+  declare private lastSelectedTab_: number;
+  declare private contentPage_: string;
+  declare private tabsContentPage_: string;
+  private pageHandler_: PageHandlerRemote;
+  declare private pendingDelete_: boolean;
+  declare private queryResult_: QueryResult;
+  declare private queryState_: QueryState;
+  declare private selectedPage_: string;
+  declare private selectedTab_: number;
   private lastRecordedSelectedPageHistogramValue_: HistoryPageViewHistogram =
       HistoryPageViewHistogram.END;
-  private showHistoryClusters_: boolean;
-  private tabsIcons_: string[];
-  private tabsNames_: string[];
-  private toolbarShadow_: boolean;
+  declare private showTabs_: boolean;
+  declare private showHistoryClusters_: boolean;
+  declare private tabsIcons_: string[];
+  declare private tabsNames_: string[];
+  declare private toolbarShadow_: boolean;
   private historyClustersViewStartTime_: Date|null = null;
-  private scrollTarget_: HTMLElement;
-  private queryStateAfterDate_?: Date;
-  private hasHistoryEmbeddingsResults_: boolean;
-  private productSpecificationsListsEnabled_: boolean =
-      loadTimeData.getBoolean('productSpecificationsListsEnabled');
+  private onHasOtherFormsChangedListenerId_: number|null = null;
+  declare private scrollTarget_: HTMLElement;
+  declare private queryStateAfterDate_?: Date;
+  declare private hasHistoryEmbeddingsResults_: boolean;
+  declare private compareHistoryEnabled_: boolean;
   private historyEmbeddingsResizeObserver_?: ResizeObserver;
-  private tabContentScrollOffset_: number = 0;
+  declare private historyEmbeddingsDisclaimerLinkClicked_: boolean;
+  declare private tabContentScrollOffset_: number;
+  private dataFromNativeBeforeInput_: string|null = null;
+  declare private numCharsTypedInSearch_: number;
+  declare private nonEmbeddingsResultClicked_: boolean;
 
   constructor() {
     super();
+    this.pageHandler_ = BrowserServiceImpl.getInstance().handler;
+    this.callbackRouter_ = BrowserServiceImpl.getInstance().callbackRouter;
 
     this.queryResult_ = {
       info: undefined,
-      results: undefined,
-      sessionList: undefined,
+      value: [],
+      sessionList: [],
     };
 
     listenForPrivilegedLinkClicks();
@@ -322,16 +384,23 @@ export class HistoryAppElement extends HistoryAppElementBase {
         'sign-in-state-changed',
         (signedIn: boolean) => this.onSignInStateChanged_(signedIn));
     this.addWebUiListener(
-        'has-other-forms-changed',
-        (hasOtherForms: boolean) =>
-            this.onHasOtherFormsChanged_(hasOtherForms));
-    this.addWebUiListener(
         'foreign-sessions-changed',
         (sessionList: ForeignSession[]) =>
             this.setForeignSessions_(sessionList));
     this.shadowRoot!.querySelector('history-query-manager')!.initialize();
-    this.browserService_!.getForeignSessions().then(
+    this.browserService_.getForeignSessions().then(
         sessionList => this.setForeignSessions_(sessionList));
+
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    this.hasDrawer_ = mediaQuery.matches;
+    this.eventTracker_.add(
+        mediaQuery, 'change',
+        (e: MediaQueryListEvent) => this.hasDrawer_ = e.matches);
+
+    this.onHasOtherFormsChangedListenerId_ =
+        this.callbackRouter_.onHasOtherFormsChanged.addListener(
+            (hasOtherForms: boolean) =>
+                this.onHasOtherFormsChanged_(hasOtherForms));
   }
 
   override ready() {
@@ -340,13 +409,31 @@ export class HistoryAppElement extends HistoryAppElementBase {
     this.addEventListener('cr-toolbar-menu-click', this.onCrToolbarMenuClick_);
     this.addEventListener('delete-selected', this.deleteSelected);
     this.addEventListener('history-checkbox-select', this.checkboxSelected);
+    this.addEventListener(
+        'product-spec-item-select',
+        this.productSpecificationsCheckboxSelected_);
     this.addEventListener('history-close-drawer', this.closeDrawer_);
     this.addEventListener('history-view-changed', this.historyViewChanged_);
     this.addEventListener('unselect-all', this.unselectAll);
+
+    if (loadTimeData.getBoolean('maybeShowEmbeddingsIph')) {
+      this.registerHelpBubble(
+          'kHistorySearchInputElementId', this.$.toolbar.searchField);
+      // TODO(crbug.com/40075330): There might be a race condition if the call
+      //    to show the help bubble comes immediately after registering the
+      //    anchor.
+      setTimeout(() => {
+        HistoryEmbeddingsBrowserProxyImpl.getInstance().maybeShowFeaturePromo();
+      }, 1000);
+    }
   }
 
   private getShowResultsByGroup_() {
     return this.selectedPage_ === Page.HISTORY_CLUSTERS;
+  }
+
+  private getShowHistoryList_() {
+    return this.selectedPage_ === Page.HISTORY;
   }
 
   private onShowResultsByGroupChanged_(e: CustomEvent<{value: boolean}>) {
@@ -365,6 +452,9 @@ export class HistoryAppElement extends HistoryAppElementBase {
       this.historyEmbeddingsResizeObserver_.disconnect();
       this.historyEmbeddingsResizeObserver_ = undefined;
     }
+    assert(this.onHasOtherFormsChangedListenerId_);
+    this.callbackRouter_.removeListener(this.onHasOtherFormsChangedListenerId_);
+    this.onHasOtherFormsChangedListenerId_ = null;
   }
 
   private fire_(eventName: string, detail?: any) {
@@ -386,8 +476,8 @@ export class HistoryAppElement extends HistoryAppElementBase {
         this.showHistoryClusters_;
   }
 
-  private productSpecificationsListsSelected_(_selectedPage: string): boolean {
-    return this.productSpecificationsListsEnabled_ &&
+  private comparisonTablesSelected_(_selectedPage: string): boolean {
+    return this.compareHistoryEnabled_ &&
         this.selectedPage_ === Page.PRODUCT_SPECIFICATIONS_LISTS;
   }
 
@@ -413,10 +503,11 @@ export class HistoryAppElement extends HistoryAppElementBase {
   override _scrollHandler() {
     if (this.scrollTarget) {
       // When the tabs are visible, show the toolbar shadow for the synced
-      // devices page only.
+      // devices page or product specifications page.
       this.toolbarShadow_ = this.scrollTarget.scrollTop !== 0 &&
           (!this.showHistoryClusters_ ||
-           this.syncedTabsSelected_(this.selectedPage_!));
+           this.syncedTabsSelected_(this.selectedPage_) ||
+           this.selectedPage_ === Page.PRODUCT_SPECIFICATIONS_LISTS);
     }
   }
 
@@ -432,7 +523,29 @@ export class HistoryAppElement extends HistoryAppElementBase {
     this.$.toolbar.count = this.$.history.getSelectedItemCount();
   }
 
+  /**
+   * Listens for product-specs-item being selected or deselected (through
+   * checkbox) and changes the view of the top toolbar.
+   */
+  private productSpecificationsCheckboxSelected_() {
+    if (this.selectedPage_ !== Page.PRODUCT_SPECIFICATIONS_LISTS) {
+      return;
+    }
+    const productSpecsListElement =
+        this.shadowRoot!.querySelector('product-specifications-lists');
+    assert(productSpecsListElement);
+    this.$.toolbar.count = productSpecsListElement.getSelectedItemCount();
+  }
+
   selectOrUnselectAll() {
+    if (this.selectedPage_ === Page.PRODUCT_SPECIFICATIONS_LISTS) {
+      const productSpecsListElement =
+          this.shadowRoot!.querySelector('product-specifications-lists');
+      assert(productSpecsListElement);
+      productSpecsListElement.selectOrUnselectAll();
+      this.$.toolbar.count = productSpecsListElement.getSelectedItemCount();
+      return;
+    }
     this.$.history.selectOrUnselectAll();
     this.$.toolbar.count = this.$.history.getSelectedItemCount();
   }
@@ -442,17 +555,40 @@ export class HistoryAppElement extends HistoryAppElementBase {
    * checkbox to be unselected.
    */
   private unselectAll() {
+    if (this.selectedPage_ === Page.PRODUCT_SPECIFICATIONS_LISTS) {
+      this.productSpecificationsUnselectAll_();
+      return;
+    }
     this.$.history.unselectAllItems();
     this.$.toolbar.count = 0;
   }
 
+  private productSpecificationsUnselectAll_() {
+    const productSpecsListElement =
+        this.shadowRoot!.querySelector('product-specifications-lists');
+
+    // This method is also called on selectedPageChanged, so it is possible
+    // for the list element to be empty.
+    if (productSpecsListElement) {
+      productSpecsListElement.unselectAllItems();
+      this.$.toolbar.count = 0;
+    }
+  }
+
   deleteSelected() {
-    this.$.history.deleteSelectedWithPrompt();
+    if (this.selectedPage_ === Page.PRODUCT_SPECIFICATIONS_LISTS) {
+      const productSpecsListElement =
+          this.shadowRoot!.querySelector('product-specifications-lists');
+      assert(productSpecsListElement);
+      productSpecsListElement.deleteSelectedWithPrompt();
+    } else {
+      this.$.history.deleteSelectedWithPrompt();
+    }
   }
 
   private onQueryFinished_() {
     this.$.history.historyResult(
-        this.queryResult_.info!, this.queryResult_.results!);
+        this.queryResult_.info!, this.queryResult_.value!);
     if (document.body.classList.contains('loading')) {
       document.body.classList.remove('loading');
       this.onFirstRender_();
@@ -508,31 +644,35 @@ export class HistoryAppElement extends HistoryAppElementBase {
       return;
     }
 
-    this.browserService_!.recordHistogram(
+    if (e.detail.resultType !== HistoryResultType.EMBEDDINGS) {
+      this.nonEmbeddingsResultClicked_ = true;
+    }
+
+    this.browserService_.recordHistogram(
         'History.SearchResultClicked.Type', e.detail.resultType,
         HistoryResultType.END);
 
     // MetricsHandler uses a 100 bucket limit, so the max index is 99.
     const maxIndex = 99;
     const clampedIndex = Math.min(e.detail.index, 99);
-    this.browserService_!.recordHistogram(
+    this.browserService_.recordHistogram(
         'History.SearchResultClicked.Index', clampedIndex, maxIndex);
 
     switch (e.detail.resultType) {
       case HistoryResultType.TRADITIONAL: {
-        this.browserService_!.recordHistogram(
+        this.browserService_.recordHistogram(
             'History.SearchResultClicked.Index.Traditional', clampedIndex,
             maxIndex);
         break;
       }
       case HistoryResultType.GROUPED: {
-        this.browserService_!.recordHistogram(
+        this.browserService_.recordHistogram(
             'History.SearchResultClicked.Index.Grouped', clampedIndex,
             maxIndex);
         break;
       }
       case HistoryResultType.EMBEDDINGS: {
-        this.browserService_!.recordHistogram(
+        this.browserService_.recordHistogram(
             'History.SearchResultClicked.Index.Embeddings', clampedIndex,
             maxIndex);
         break;
@@ -552,9 +692,9 @@ export class HistoryAppElement extends HistoryAppElementBase {
    */
   private onSelectAllCommand_(): boolean {
     if (this.$.toolbar.searchField.isSearchFocused() ||
-        this.syncedTabsSelected_(this.selectedPage_!) ||
+        this.syncedTabsSelected_(this.selectedPage_) ||
         this.historyClustersSelected_(
-            this.selectedPage_!, this.showHistoryClusters_)) {
+            this.selectedPage_, this.showHistoryClusters_)) {
       return false;
     }
     this.selectOrUnselectAll();
@@ -596,7 +736,30 @@ export class HistoryAppElement extends HistoryAppElementBase {
     return querying && !incremental && searchTerm !== '';
   }
 
+  private updateContentPage_() {
+    switch (this.selectedPage_) {
+      case Page.SYNCED_TABS:
+        this.contentPage_ = Page.SYNCED_TABS;
+        break;
+      case Page.PRODUCT_SPECIFICATIONS_LISTS:
+        this.contentPage_ = Page.PRODUCT_SPECIFICATIONS_LISTS;
+        break;
+      default:
+        this.contentPage_ = Page.HISTORY;
+    }
+  }
+
+  private updateTabsContentPage_() {
+    this.tabsContentPage_ =
+        (this.selectedPage_ === Page.HISTORY_CLUSTERS &&
+         this.historyClustersEnabled_ && this.historyClustersVisible_) ?
+        Page.HISTORY_CLUSTERS :
+        Page.HISTORY;
+  }
+
   private selectedPageChanged_(newPage: string, oldPage: string) {
+    this.updateContentPage_();
+    this.updateTabsContentPage_();
     this.unselectAll();
     this.historyViewChanged_();
     this.maybeUpdateSelectedHistoryTab_();
@@ -615,22 +778,34 @@ export class HistoryAppElement extends HistoryAppElementBase {
     const topLevelHistoryPage = this.$['tabs-container'];
     if (topLevelIronPages.selectedItem &&
         topLevelIronPages.selectedItem === topLevelHistoryPage) {
-      // The top-level History page has another inner IronPages element that
-      // can toggle between different pages.
-      this.scrollTarget = this.$.tabsScrollContainer;
+      if (this.enableHistoryEmbeddings_) {
+        // The top-level History page has another inner IronPages element that
+        // can toggle between different pages.
+        this.scrollTarget = this.$.tabsScrollContainer;
+      } else {
+        this.scrollTarget = this.$['tabs-content'].selectedItem as HTMLElement;
+      }
     } else if (topLevelIronPages.selectedItem) {
       this.scrollTarget = topLevelIronPages.selectedItem as HTMLElement;
     } else {
       this.scrollTarget = null;
     }
+
+    // Notify iron-list parents of potential resize, since the selected
+    // page or tab has changed.
+    setTimeout(() => {
+      this.$.history.notifyResize();
+    }, 0);
   }
 
   private selectedTabChanged_() {
     this.lastSelectedTab_ = this.selectedTab_;
     // Change in the currently selected tab requires change in the currently
     // selected page.
-    this.selectedPage_ = TABBED_PAGES[this.selectedTab_];
-    this.browserService_!.setLastSelectedTab(this.selectedTab_);
+    if (!this.selectedPage_ || TABBED_PAGES.includes(this.selectedPage_)) {
+      this.selectedPage_ = TABBED_PAGES[this.selectedTab_];
+    }
+    this.pageHandler_.setLastSelectedTab(this.selectedTab_);
   }
 
   private maybeUpdateSelectedHistoryTab_() {
@@ -656,7 +831,7 @@ export class HistoryAppElement extends HistoryAppElementBase {
 
     const duration =
         new Date().getTime() - this.historyClustersViewStartTime_.getTime();
-    this.browserService_!.recordLongTime(
+    this.browserService_.recordLongTime(
         'History.Clusters.WebUISessionDuration', duration);
 
     this.historyClustersViewStartTime_ = null;
@@ -669,18 +844,8 @@ export class HistoryAppElement extends HistoryAppElementBase {
     }
   }
 
-  /**
-   * This computed binding is needed to make the iron-pages selector update
-   * when <synced-device-manager> or <history-clusters> is instantiated for the
-   * first time. Otherwise the fallback selection will continue to be used after
-   * the corresponding item is added as a child of iron-pages.
-   */
-  private getSelectedPage_(selectedPage: string, _items: any[]): string {
-    return selectedPage;
-  }
-
   private closeDrawer_() {
-    const drawer = this.$.drawer.get() as CrDrawerElement;
+    const drawer = this.$.drawer.get();
     if (drawer && drawer.open) {
       drawer.close();
     }
@@ -711,7 +876,7 @@ export class HistoryAppElement extends HistoryAppElementBase {
     }
     this.lastRecordedSelectedPageHistogramValue_ = histogramValue;
 
-    this.browserService_!.recordHistogram(
+    this.browserService_.recordHistogram(
         'History.HistoryPageView', histogramValue,
         HistoryPageViewHistogram.END);
   }
@@ -745,7 +910,8 @@ export class HistoryAppElement extends HistoryAppElementBase {
 
     return this.queryState_.searchTerm.split(' ')
                .filter(part => part.length > 0)
-               .length > 1;
+               .length >=
+        loadTimeData.getInteger('historyEmbeddingsSearchMinimumWordCount');
   }
 
   private onSelectedSuggestionChanged_(e: CustomEvent<{value: Suggestion}>) {
@@ -777,6 +943,10 @@ export class HistoryAppElement extends HistoryAppElementBase {
     return afterDate;
   }
 
+  private onHistoryEmbeddingsDisclaimerLinkClick_() {
+    this.historyEmbeddingsDisclaimerLinkClicked_ = true;
+  }
+
   private onHistoryEmbeddingsItemMoreFromSiteClick_(
       e: HistoryEmbeddingsMoreActionsClickEvent) {
     const historyEmbeddingsItem = e.detail;
@@ -788,7 +958,7 @@ export class HistoryAppElement extends HistoryAppElementBase {
   private onHistoryEmbeddingsItemRemoveClick_(
       e: HistoryEmbeddingsMoreActionsClickEvent) {
     const historyEmbeddingsItem = e.detail;
-    this.browserService_.removeVisits([{
+    this.pageHandler_.removeVisits([{
       url: historyEmbeddingsItem.url.url,
       timestamps: [historyEmbeddingsItem.lastUrlVisitTimestamp],
     }]);
@@ -808,6 +978,40 @@ export class HistoryAppElement extends HistoryAppElementBase {
       this.tabContentScrollOffset_ = entries[0].contentRect.height;
     });
     this.historyEmbeddingsResizeObserver_.observe(historyEmbeddingsContainer);
+  }
+
+  private onQueryStateChanged_() {
+    this.nonEmbeddingsResultClicked_ = false;
+  }
+
+  private onToolbarSearchInputNativeBeforeInput_(
+      e: CustomEvent<{e: InputEvent}>) {
+    // TODO(crbug.com/40673976): This needs to be cached on the `beforeinput`
+    //   event since there is a bug where this data is not available in the
+    //   native `input` event below.
+    this.dataFromNativeBeforeInput_ = e.detail.e.data;
+  }
+
+  private onToolbarSearchInputNativeInput_(
+      e: CustomEvent<{e: InputEvent, inputValue: string}>) {
+    const insertedText = this.dataFromNativeBeforeInput_;
+    this.dataFromNativeBeforeInput_ = null;
+    if (e.detail.inputValue.length === 0) {
+      // Input was entirely cleared (eg. backspace/delete was hit).
+      this.numCharsTypedInSearch_ = 0;
+    } else if (insertedText === e.detail.inputValue) {
+      // If the inserted text matches exactly with the current value of the
+      // input, that implies that the previous input value was cleared or
+      // was empty to begin with. So, reset the num chars typed and count this
+      // input event as 1 char typed.
+      this.numCharsTypedInSearch_ = 1;
+    } else {
+      this.numCharsTypedInSearch_++;
+    }
+  }
+
+  private onToolbarSearchCleared_() {
+    this.numCharsTypedInSearch_ = 0;
   }
 }
 

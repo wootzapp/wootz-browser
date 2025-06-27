@@ -18,8 +18,8 @@
 #include "base/profiler/profile_builder.h"
 #include "base/time/time.h"
 #include "components/metrics/call_stacks/call_stack_profile_metadata.h"
-#include "components/metrics/call_stacks/call_stack_profile_params.h"
 #include "components/metrics/call_stacks/child_call_stack_profile_collector.h"
+#include "components/sampling_profiler/call_stack_profile_params.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "third_party/metrics_proto/sampled_profile.pb.h"
 
@@ -57,7 +57,7 @@ class CallStackProfileBuilder : public base::ProfileBuilder {
   // constructs, rather than on the thread used to construct the profiler, and
   // thus the callback must be callable on any thread.
   explicit CallStackProfileBuilder(
-      const CallStackProfileParams& profile_params,
+      const sampling_profiler::CallStackProfileParams& profile_params,
       const WorkIdRecorder* work_id_recorder = nullptr,
       base::OnceClosure completed_callback = base::OnceClosure());
 
@@ -125,7 +125,7 @@ class CallStackProfileBuilder : public base::ProfileBuilder {
 
   unsigned int last_work_id_ = std::numeric_limits<unsigned int>::max();
   bool is_continued_work_ = false;
-  const raw_ptr<const WorkIdRecorder> work_id_recorder_;
+  raw_ptr<const WorkIdRecorder> work_id_recorder_;
 
   // The SampledProfile protobuf message which contains the collected stack
   // samples.

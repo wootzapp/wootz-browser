@@ -4,6 +4,8 @@
 
 package org.chromium.components.page_info;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
@@ -14,6 +16,8 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.ColorRes;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.omnibox.SecurityStatusIcon;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
@@ -21,6 +25,7 @@ import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.content_public.browser.WebContents;
 
 /** Class for controlling the page info connection section. */
+@NullMarked
 public class PageInfoConnectionController
         implements PageInfoSubpageController, ConnectionInfoView.ConnectionInfoDelegate {
     private PageInfoMainController mMainController;
@@ -29,9 +34,9 @@ public class PageInfoConnectionController
     private final PageInfoControllerDelegate mDelegate;
     private final String mContentPublisher;
     private final boolean mIsInternalPage;
-    private String mTitle;
-    private ConnectionInfoView mInfoView;
-    private ViewGroup mContainer;
+    private @Nullable String mTitle;
+    private @Nullable ConnectionInfoView mInfoView;
+    private @Nullable ViewGroup mContainer;
 
     public PageInfoConnectionController(
             PageInfoMainController mainController,
@@ -54,7 +59,7 @@ public class PageInfoConnectionController
     }
 
     @Override
-    public String getSubpageTitle() {
+    public @Nullable String getSubpageTitle() {
         return mTitle;
     }
 
@@ -68,6 +73,7 @@ public class PageInfoConnectionController
     @Override
     public void onSubpageRemoved() {
         mContainer = null;
+        assumeNonNull(mInfoView);
         mInfoView.onDismiss();
     }
 
@@ -78,7 +84,6 @@ public class PageInfoConnectionController
             case ConnectionSecurityLevel.WARNING:
                 return R.color.default_text_color_error;
             case ConnectionSecurityLevel.NONE:
-            case ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT:
             case ConnectionSecurityLevel.SECURE:
                 return 0;
             default:
@@ -94,6 +99,7 @@ public class PageInfoConnectionController
         return mContentPublisher == null
                 && !mDelegate.isShowingOfflinePage()
                 && !mDelegate.isShowingPaintPreviewPage()
+                && mDelegate.getPdfPageType() == 0
                 && !mIsInternalPage;
     }
 
@@ -117,6 +123,8 @@ public class PageInfoConnectionController
             messageBuilder.append(mDelegate.getPaintPreviewPageConnectionMessage());
         } else if (mDelegate.getOfflinePageConnectionMessage() != null) {
             messageBuilder.append(mDelegate.getOfflinePageConnectionMessage());
+        } else if (mDelegate.getPdfPageType() != 0) {
+            messageBuilder.append(mDelegate.getPdfPageConnectionMessage());
         } else {
             if (!summary.isEmpty()) {
                 title = summary;
@@ -147,7 +155,9 @@ public class PageInfoConnectionController
     }
 
     private void setConnectionInfo(
-            CharSequence title, CharSequence subtitle, boolean hasClickCallback) {
+            @Nullable CharSequence title,
+            @Nullable CharSequence subtitle,
+            boolean hasClickCallback) {
         PageInfoRowView.ViewParams rowParams = new PageInfoRowView.ViewParams();
         mTitle = title != null ? title.toString() : null;
         rowParams.title = mTitle;
@@ -160,7 +170,7 @@ public class PageInfoConnectionController
                         securityLevel,
                         /* isSmallDevice= */ false,
                         /* skipIconForNeutralState= */ false,
-                        /* useUpdatedConnectionSecurityIndicators= */ false);
+                        /* useLockIconForSecureState= */ true);
         rowParams.iconTint = getSecurityIconColor(securityLevel);
         if (hasClickCallback) rowParams.clickCallback = this::launchSubpage;
         mRowView.setParams(rowParams);

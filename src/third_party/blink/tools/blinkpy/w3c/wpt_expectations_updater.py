@@ -52,8 +52,8 @@ class WPTExpectationsUpdater:
         self.git = self.host.git(self.finder.chromium_base())
         self.patchset = None
         self.wpt_manifests = (
-            wpt_manifests or
-            [self.port.wpt_manifest(d) for d in self.port.WPT_DIRS])
+            wpt_manifests
+            or [self.port.wpt_manifest(d) for d in self.port.wpt_dirs()])
 
         # Get options from command line arguments.
         parser = argparse.ArgumentParser(description=__doc__)
@@ -173,6 +173,15 @@ class WPTExpectationsUpdater:
 
         tests_to_rebaseline, results = self._fetch_results_for_update(
             build_to_status)
+
+        # Some builders run duplicated test suites with some slight difference.
+        # E.g. both linux-rel and linux-blink-rel runs headless_shell_wpt_tests
+        # but with DCHECK on/off respectively. Merge the results first before
+        # processing.
+        # PASS results are already filtered so will not be merged. This will be
+        # fine if we will not update baseline for it.
+        results = self._merge_results(results)
+
         # TODO(crbug.com/1475013): Decide how to organize Android expectations.
         results_by_path = defaultdict(list)
         for suite_results in results:
@@ -182,9 +191,6 @@ class WPTExpectationsUpdater:
             if flag_specific:
                 path = port.path_to_flag_specific_expectations_file(
                     flag_specific)
-            elif port.name() == 'chrome':
-                path = self.finder.path_from_web_tests(
-                    'ChromeTestExpectations')
             else:
                 path = port.path_to_generic_test_expectations_file()
             results_by_path[path].append(suite_results)
@@ -195,6 +201,19 @@ class WPTExpectationsUpdater:
                     results_by_path[path], path).items():
                 exp_lines_dict[test].extend(lines)
         return sorted(tests_to_rebaseline), exp_lines_dict
+
+    def _merge_results(self,
+                       results: List[WebTestResults]) -> List[WebTestResults]:
+        results_dict = {}
+        for suite_results in results:
+            port = self._port_for_build_step(suite_results.builder_name,
+                                             suite_results.step_name())
+            key = (port.name(), suite_results.step_name())
+            if key in results_dict:
+                results_dict[key].merge_results(suite_results)
+            else:
+                results_dict[key] = suite_results
+        return list(results_dict.values())
 
     def _update_order(self, path: str) -> int:
         # Update generic expectations first.
@@ -234,9 +253,14 @@ class WPTExpectationsUpdater:
                 else:
                     completed_results.append(suite_results)
 
-        final_results.extend(
-            self.fill_missing_results(results, completed_results)
-            for results in missing_results)
+        for results in missing_results:
+            # Missing results should only get failed test results from
+            # the SAME step in its counter part.
+            final_results.append(
+                self.fill_missing_results(results, [
+                    r for r in completed_results
+                    if r.step_name() == results.step_name()
+                ]))
         final_results.extend(completed_results)
         return tests_to_rebaseline, final_results
 
@@ -297,7 +321,7 @@ class WPTExpectationsUpdater:
             filled_results.append(filled_result)
 
         return WebTestResults(filled_results,
-                              builder_name=missing_results.builder_name,
+                              build=missing_results.build,
                               step_name=missing_results.step_name())
 
     def _tests(self, results: List[WebTestResults]) -> Set[str]:
@@ -309,16 +333,11 @@ class WPTExpectationsUpdater:
     def filter_results_for_update(
         self,
         test_results: WebTestResults,
-        min_attempts_for_update: int = 3,
     ) -> Tuple[Set[str], WebTestResults]:
         """Filters for failing test results that need TestExpectations.
 
         Arguments:
-            min_attempts_for_update: Threshold for the number of attempts at
-                which a test's expectations are updated. This prevents excessive
-                expectation creation due to infrastructure issues or flakiness.
-                Note that this threshold is necessary for updating without
-                `--include-unexpected-pass`, but sufficient otherwise.
+            test_results: All web test results on a given build step.
 
         Returns:
             * A set of tests that should be handled by rebaselining, which
@@ -331,14 +350,11 @@ class WPTExpectationsUpdater:
         if not self.options.include_unexpected_pass:
             # TODO(crbug.com/1149035): Consider suppressing flaky passes.
             for result in test_results.didnt_run_as_expected_results():
-                if (result.attempts >= min_attempts_for_update
-                        and not result.did_pass()):
+                if not result.did_pass():
                     failing_results.append(result)
         else:
             for result in test_results.didnt_run_as_expected_results():
-                if (result.attempts >= min_attempts_for_update
-                        or result.did_pass()):
-                    failing_results.append(result)
+                failing_results.append(result)
 
         failing_results = [
             result for result in failing_results
@@ -376,8 +392,8 @@ class WPTExpectationsUpdater:
         results_to_update = WebTestResults(
             results_to_update,
             step_name=test_results.step_name(),
-            interrupted=test_results.interrupted,
-            builder_name=test_results.builder_name)
+            incomplete_reason=test_results.incomplete_reason,
+            build=test_results.build)
         return tests_to_rebaseline, results_to_update
 
     def _is_wpt_test(self, test_name):
@@ -483,9 +499,6 @@ class WPTExpectationsUpdater:
     def _port_for_build_step(self, builder: str, step: str) -> Port:
         """"Get the port used to run a build step in CQ/CI."""
         builders = self.host.builders
-        product = builders.product_for_build_step(builder, step)
-        if product != 'content_shell':
-            return self.host.port_factory.get(product)
         port_name = builders.port_name_for_builder_name(builder)
         port = self.host.port_factory.get(port_name)
         port.set_option_default('flag_specific',
@@ -707,23 +720,21 @@ class WPTExpectationsUpdater:
 
     def can_rebaseline(self, result: WebTestResult) -> bool:
         """Checks if a test can be rebaselined."""
-        if self.is_reference_test(result.test_name()):
+        if not self.port.get_wpt_type(
+                result.test_name()) in {'testharness', 'wdspec'}:
             return False
         statuses = set(result.actual_results())
         if {ResultType.Pass, ResultType.Failure} <= statuses:
             return False  # Has nondeterministic output; cannot be rebaselined.
-        return not (statuses & {ResultType.Crash, ResultType.Timeout})
+        return ResultType.Failure in statuses
 
     def is_reference_test(self, test_name: str) -> bool:
         """Checks whether a given test is a reference test."""
         return bool(self.port.reference_files(test_name))
 
     @memoized
-    def _get_try_bots(self, flag_specific: Optional[str] = None):
-        builders = self.host.builders.filter_builders(
-            is_try=True,
-            exclude_specifiers={'android'},
-            flag_specific=flag_specific)
+    def _get_try_bots(self):
+        builders = self.host.builders.filter_builders(is_try=True)
         # Exclude CQ builders like `win-rel`.
         return sorted(
             set(builders) & self.host.builders.builders_for_rebaselining())

@@ -102,7 +102,7 @@ class TaskSchedulerTests : public ::testing::Test {
 
   // Converts a base::Time that is in UTC and returns the corresponding local
   // time on the current system.
-  base::Time UTCTimeToLocalTime(const base::Time& time_utc) {
+  base::Time UTCTimeToLocalTime(base::Time time_utc) {
     const FILETIME file_time_utc = time_utc.ToFileTime();
     FILETIME file_time_local = {};
     SYSTEMTIME system_time_utc = {};
@@ -491,7 +491,7 @@ TEST(TaskSchedulerTest, NoSubfolders) {
   ASSERT_TRUE(task_scheduler);
 
   constexpr int kNumTasks = 6;
-  const std::wstring kTaskNamePrefix(base::ASCIIToWide(test::GetTestName()));
+  const std::wstring kTaskNamePrefix(base::UTF8ToWide(test::GetTestName()));
 
   for (int count = 0; count < kNumTasks; ++count) {
     std::wstring task_name(kTaskNamePrefix);
@@ -513,7 +513,7 @@ TEST(TaskSchedulerTest, ForEachTaskWithPrefix) {
     ASSERT_TRUE(task_scheduler);
 
     constexpr int kNumTasks = 6;
-    const std::wstring kTaskNamePrefix(base::ASCIIToWide(test::GetTestName()));
+    const std::wstring kTaskNamePrefix(base::UTF8ToWide(test::GetTestName()));
 
     for (int count = 0; count < kNumTasks; ++count) {
       std::wstring task_name(kTaskNamePrefix);

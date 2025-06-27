@@ -28,6 +28,7 @@
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/scoped_hardware_buffer_fence_sync.h"
+#include "ui/gfx/android/surface_control_frame_rate.h"
 #endif
 
 #if BUILDFLAG(IS_WIN)
@@ -111,10 +112,15 @@ class GL_EXPORT Presenter : public base::RefCounted<Presenter> {
   // properties.
   virtual bool ScheduleCALayer(const ui::CARendererLayerParams& params);
 
-  // Schedule a DCLayer to be shown at next Present(). Semantics is similar to
-  // ScheduleOverlayPlane() above. All arguments correspond to their DCLayer
-  // properties.
-  virtual void ScheduleDCLayer(std::unique_ptr<DCLayerOverlayParams> params);
+#if BUILDFLAG(IS_WIN)
+  // Schedule a list of DCLayers to be shown at next Present(). Semantics is
+  // similar to calling ScheduleOverlayPlane() for every overlay in a frame. All
+  // arguments correspond to their DCLayer properties.
+  virtual void ScheduleDCLayers(std::vector<DCLayerOverlayParams> overlays);
+
+  // Destroy all visual tree resources and commit, returning true on success.
+  virtual bool DestroyDCLayerTree();
+#endif
 
   // Presents current frame asynchronously. `completion_callback` will be called
   // once all necessary steps were taken to display the frame.
@@ -125,16 +131,13 @@ class GL_EXPORT Presenter : public base::RefCounted<Presenter> {
                        gfx::FrameData data) = 0;
 
 #if BUILDFLAG(IS_APPLE)
-  // Sets result of delegated compositing. Value originates from overlay
-  // processors and is used by integration tests to ensure we don't fall out of
-  // delegated mode.
-  virtual void SetCALayerErrorCode(gfx::CALayerResult ca_layer_error_code) {}
-
   virtual void SetMaxPendingSwaps(int max_pending_swaps) {}
 #endif
 
+#if BUILDFLAG(IS_ANDROID)
   // Sets preferred frame rate
-  virtual void SetFrameRate(float frame_rate) {}
+  virtual void SetFrameRate(gfx::SurfaceControlFrameRate frame_rate) {}
+#endif
 
   // Android specific. Sets vsync_id of the corresponding Choreographer frame.
   virtual void SetChoreographerVsyncIdForNextFrame(
@@ -156,6 +159,11 @@ class GL_EXPORT Presenter : public base::RefCounted<Presenter> {
 
   // Tells the presenter to rely on implicit sync when presenting buffers.
   virtual void SetRelyOnImplicitSync() {}
+
+  // Tells the presenter to send
+  // gfx::SwapResult::SWAP_NON_SIMPLE_OVERLAYS_FAILED if a non-simple overlay
+  // submission fails (see gfx::OverlayType).
+  virtual void SetNotifyNonSimpleOverlayFailure() {}
 
  protected:
   friend class base::RefCounted<Presenter>;

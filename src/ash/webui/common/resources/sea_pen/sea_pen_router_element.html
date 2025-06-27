@@ -1,6 +1,9 @@
 <style>
   :host {
     --sea-pen-top-container-min-height: 168px;
+    /* The templates page shows an extra link when freeform is enabled and requires more space. */
+    --sea-pen-top-container-min-height-for-templates-with-freeform: 190px;
+    --sea-pen-freeform-top-container-min-height: 160px;
   }
 
   #topContainer {
@@ -15,6 +18,11 @@
     z-index: 1;
   }
 
+  #topContainer:has(sea-pen-input-query) {
+    position: static;
+    z-index: auto;
+  }
+
   #bottomContainer {
     display: grid;
     grid-template-areas:
@@ -26,22 +34,34 @@
     width: 100%;
   }
 
-  sea-pen-input-query,
-  sea-pen-template-query,
-  ::slotted(wallpaper-selected) {
+  #bottomContainer:has(sea-pen-freeform) {
+    min-height: calc(var(--sea-pen-router-min-height) - var(--sea-pen-freeform-top-container-min-height));
+    position: static;
+  }
+
+  sea-pen-template-query {
     grid-area: middle;
     min-height: var(--sea-pen-top-container-min-height);
   }
 
-  sea-pen-input-query,
+  sea-pen-input-query {
+    grid-area: middle;
+    min-height: var(--sea-pen-freeform-top-container-min-height);
+  }
+
   ::slotted(wallpaper-selected) {
+    grid-area: middle;
     height: var(--sea-pen-top-container-min-height);
+  }
+
+  sea-pen-input-query {
+    margin: 0 58px;
   }
 
   #bottomInnerContainer {
     background-color: var(--cros-bg-color);
     grid-area: imagegrid;
-    padding: 10px 0;
+    padding-bottom: 10px;
   }
 
   div[class$='spacerbottom'] {
@@ -68,6 +88,11 @@
     top: var(--sea-pen-top-container-min-height);
   }
 
+  :host(.always-show-top) #bottomContainer.add-extra-spacing,
+  #topContainer:has(sea-pen-template-query) + #bottomContainer.add-extra-spacing {
+    top: var(--sea-pen-top-container-min-height-for-templates-with-freeform);
+  }
+
   sea-pen-recent-wallpapers {
     margin-top: 8px;
   }
@@ -91,7 +116,7 @@
 </style>
 <div id="topContainer">
   <slot></slot>
-  <template is="dom-if" if="[[shouldShowTextInputQuery_(relativePath_, queryParams_.seaPenTemplateId)]]" restamp>
+  <template is="dom-if" if="[[shouldShowSeaPenFreeform_(relativePath_)]]" restamp>
     <sea-pen-input-query></sea-pen-input-query>
   </template>
   <template is="dom-if" if="[[shouldShowTemplateQuery_(relativePath_, queryParams_.seaPenTemplateId)]]" restamp>
@@ -99,7 +124,7 @@
     </sea-pen-template-query>
   </template>
 </div>
-<div id="bottomContainer" on-click="onBottomContainerClicked_">
+<div id="bottomContainer" class$="[[getBottomContainerClass_(relativePath_)]]" on-click="onBottomContainerClicked_">
   <iron-location path="{{path_}}" query="{{query_}}" dwell-time="200">
   </iron-location>
   <iron-query-params params-object="{{queryParams_}}" params-string="{{query_}}">
@@ -107,20 +132,26 @@
   <!-- Prevent left margin from collapsing on narrow window in RTL -->
   <div class="leftspacerbottom"></div>
   <div id="bottomInnerContainer">
-    <template is="dom-if" if="[[shouldShowSeaPenRoot_(relativePath_)]]" restamp>
+    <template is="dom-if" if="[[shouldShowSeaPenTemplates_(relativePath_)]]" restamp>
       <sea-pen-templates></sea-pen-templates>
       <sea-pen-recent-wallpapers
-          on-sea-pen-recent-image-delete="onRecentImageDelete_">
+          on-sea-pen-recent-image-delete="onRecentTemplateImageDelete_">
       </sea-pen-recent-wallpapers>
     </template>
-    <template is="dom-if" if="[[shouldShowSeaPenImages_(relativePath_)]]" restamp>
+    <template is="dom-if" if="[[shouldShowSeaPenTemplateImages_(relativePath_)]]" restamp>
       <sea-pen-images template-id="[[getTemplateIdFromQueryParams_(queryParams_.seaPenTemplateId)]]">
       </sea-pen-images>
     </template>
+    <template is="dom-if" if="[[shouldShowSeaPenFreeform_(relativePath_)]]" restamp>
+      <sea-pen-freeform></sea-pen-freeform>
+    </template>
   </div>
-  <template is="dom-if" if="[[showSeaPenIntroductionDialog_]]" restamp>
+  <template is="dom-if"
+      if="[[shouldSeaPenIntroductionDialog_(relativePath_, showSeaPenFreeformIntroductionDialog_, showSeaPenIntroductionDialog_)]]"
+      restamp>
     <sea-pen-introduction-dialog
-        on-sea-pen-introduction-dialog-close="onCloseSeaPenIntroductionDialog_">
+        on-sea-pen-introduction-dialog-close="onCloseSeaPenIntroductionDialog_"
+        on-sea-pen-freeform-introduction-dialog-close="onCloseSeaPenFreeformIntroductionDialog_">
     </sea-pen-introduction-dialog>
   </template>
   <!-- Prevent the right margin from collapsing when window gets very narrow -->

@@ -23,7 +23,7 @@ import {ContentSetting, ContentSettingsTypes} from './constants.js';
 import {getTemplate} from './settings_category_default_radio_group.html.js';
 import {SiteSettingsMixin} from './site_settings_mixin.js';
 import type {DefaultContentSetting} from './site_settings_prefs_browser_proxy.js';
-import {ContentSettingProvider} from './site_settings_prefs_browser_proxy.js';
+import {DefaultSettingSource} from './site_settings_prefs_browser_proxy.js';
 
 /**
  * Selected content setting radio option.
@@ -106,15 +106,16 @@ export class SettingsCategoryDefaultRadioGroupElement extends
     ];
   }
 
-  header: string;
-  description: string;
-  allowOptionLabel: string;
-  allowOptionSubLabel: string;
-  allowOptionIcon: string;
-  blockOptionLabel: string;
-  blockOptionSubLabel: string;
-  blockOptionIcon: string;
-  private pref_: chrome.settingsPrivate.PrefObject<number>;
+  declare header: string;
+  declare description: string;
+  declare allowOptionLabel: string;
+  declare allowOptionSubLabel: string;
+  declare allowOptionIcon: string;
+  declare blockOptionLabel: string;
+  declare blockOptionSubLabel: string;
+  declare blockOptionIcon: string;
+  declare private pref_: chrome.settingsPrivate.PrefObject<number>;
+  selected: boolean;
 
   override ready() {
     super.ready();
@@ -125,6 +126,7 @@ export class SettingsCategoryDefaultRadioGroupElement extends
   }
 
   private getAllowOptionForCategory_(): ContentSetting {
+    // Keep elements in alphabetical order within their groups.
     switch (this.category) {
       case ContentSettingsTypes.ADS:
       case ContentSettingsTypes.AUTOMATIC_FULLSCREEN:
@@ -132,7 +134,7 @@ export class SettingsCategoryDefaultRadioGroupElement extends
       case ContentSettingsTypes.FEDERATED_IDENTITY_API:
       case ContentSettingsTypes.IMAGES:
       case ContentSettingsTypes.JAVASCRIPT:
-      case ContentSettingsTypes.JAVASCRIPT_JIT:
+      case ContentSettingsTypes.JAVASCRIPT_OPTIMIZER:
       case ContentSettingsTypes.MIXEDSCRIPT:
       case ContentSettingsTypes.PAYMENT_HANDLER:
       case ContentSettingsTypes.POPUPS:
@@ -152,19 +154,23 @@ export class SettingsCategoryDefaultRadioGroupElement extends
       case ContentSettingsTypes.CLIPBOARD:
       case ContentSettingsTypes.FILE_SYSTEM_WRITE:
       case ContentSettingsTypes.GEOLOCATION:
+      case ContentSettingsTypes.HAND_TRACKING:
       case ContentSettingsTypes.HID_DEVICES:
       case ContentSettingsTypes.IDLE_DETECTION:
       case ContentSettingsTypes.KEYBOARD_LOCK:
       case ContentSettingsTypes.LOCAL_FONTS:
+      case ContentSettingsTypes.LOCAL_NETWORK_ACCESS:
       case ContentSettingsTypes.MIC:
       case ContentSettingsTypes.MIDI_DEVICES:
       case ContentSettingsTypes.NOTIFICATIONS:
       case ContentSettingsTypes.POINTER_LOCK:
       case ContentSettingsTypes.SERIAL_PORTS:
+      case ContentSettingsTypes.SMART_CARD_READERS:
       case ContentSettingsTypes.STORAGE_ACCESS:
       case ContentSettingsTypes.USB_DEVICES:
       case ContentSettingsTypes.VR:
       case ContentSettingsTypes.WINDOW_MANAGEMENT:
+      case ContentSettingsTypes.WEB_APP_INSTALLATION:
       case ContentSettingsTypes.WEB_PRINTING:
         // "Ask" vs "Blocked".
         return ContentSetting.ASK;
@@ -194,6 +200,11 @@ export class SettingsCategoryDefaultRadioGroupElement extends
     this.browserProxy.setDefaultValueForContentType(
         this.category,
         this.categoryEnabled_ ? allowOption : ContentSetting.BLOCK);
+    if (this.selected !== this.categoryEnabled_) {
+      this.selected = this.categoryEnabled_;
+      this.dispatchEvent(new CustomEvent(
+          'selected-changed', {detail: {value: this.selected}}));
+    }
   }
 
   /**
@@ -202,18 +213,18 @@ export class SettingsCategoryDefaultRadioGroupElement extends
    */
   private updatePref_(update: DefaultContentSetting) {
     if (update.source !== undefined &&
-        update.source !== ContentSettingProvider.PREFERENCE) {
+        update.source !== DefaultSettingSource.PREFERENCE) {
       this.set(
           'pref_.enforcement', chrome.settingsPrivate.Enforcement.ENFORCED);
       let controlledBy = chrome.settingsPrivate.ControlledBy.USER_POLICY;
       switch (update.source) {
-        case ContentSettingProvider.POLICY:
+        case DefaultSettingSource.POLICY:
           controlledBy = chrome.settingsPrivate.ControlledBy.DEVICE_POLICY;
           break;
-        case ContentSettingProvider.SUPERVISED_USER:
+        case DefaultSettingSource.SUPERVISED_USER:
           controlledBy = chrome.settingsPrivate.ControlledBy.PARENT;
           break;
-        case ContentSettingProvider.EXTENSION:
+        case DefaultSettingSource.EXTENSION:
           controlledBy = chrome.settingsPrivate.ControlledBy.EXTENSION;
           break;
       }
@@ -226,7 +237,7 @@ export class SettingsCategoryDefaultRadioGroupElement extends
     const enabled = this.computeIsSettingEnabled(update.setting);
     const prefValue = enabled ? SiteContentRadioSetting.ENABLED :
                                 SiteContentRadioSetting.DISABLED;
-
+    this.selected = enabled;
     this.set('pref_.value', prefValue);
   }
 

@@ -15,21 +15,20 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.external_intents.ExternalNavigationHandler;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
 
@@ -40,9 +39,8 @@ import java.util.function.Function;
 @Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class ExternalNavigationDelegateImplTest {
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
-    class ExternalNavigationDelegateImplForTesting extends ExternalNavigationDelegateImpl {
+    static class ExternalNavigationDelegateImplForTesting extends ExternalNavigationDelegateImpl {
         private Function<Intent, Boolean> mCanExternalAppHandleIntent;
 
         public ExternalNavigationDelegateImplForTesting(Tab activityTab) {
@@ -66,6 +64,7 @@ public class ExternalNavigationDelegateImplTest {
         Assert.assertEquals(isRendererInitiated, metadata.isRendererInitiated());
     }
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private ExternalNavigationDelegateImpl mExternalNavigationDelegateImpl;
     private ExternalNavigationDelegateImplForTesting mExternalNavigationDelegateImplForTesting;
 
@@ -74,14 +73,13 @@ public class ExternalNavigationDelegateImplTest {
 
     @Before
     public void setUp() throws InterruptedException {
-        MockitoAnnotations.initMocks(this);
         NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
         doReturn(mMockWindowAndroid).when(mMockTab).getWindowAndroid();
         mExternalNavigationDelegateImpl =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> new ExternalNavigationDelegateImpl(mMockTab));
         mExternalNavigationDelegateImplForTesting =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> new ExternalNavigationDelegateImplForTesting(mMockTab));
     }
 

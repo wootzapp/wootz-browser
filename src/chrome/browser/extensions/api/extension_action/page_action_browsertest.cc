@@ -25,7 +25,7 @@
 namespace extensions {
 namespace {
 
-const std::string kSubscribePageAction = "subscribe_page_action/src";
+const std::string kSubscribePageAction = "subscribe_page_action_v2/src";
 const std::string kFeedPage = "/feeds/feed.html";
 const std::string kNoFeedPage = "/feeds/no_feed.html";
 
@@ -35,7 +35,7 @@ const std::string kHashPageAHash = kHashPageA + "#asdf";
 const std::string kHashPageB =
     "/extensions/api_test/page_action/hash_change/test_page_B.html";
 
-using ContextType = ExtensionBrowserTest::ContextType;
+using ContextType = extensions::browser_test_util::ContextType;
 
 class PageActionBrowserTest : public ExtensionBrowserTest,
                               public testing::WithParamInterface<ContextType> {

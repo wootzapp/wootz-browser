@@ -44,6 +44,12 @@ public class PlayerProperties {
             new WritableBooleanPropertyKey();
     public static final WritableBooleanPropertyKey HIDDEN_AND_PLAYING =
             new WritableBooleanPropertyKey();
+    public static final WritableBooleanPropertyKey RESTORABLE_PLAYBACK =
+            new WritableBooleanPropertyKey();
+    public static final WritableIntPropertyKey PLAYBACK_MODE_SELECTION_ENABLED =
+            new WritableIntPropertyKey();
+    public static final WritableIntPropertyKey PLAYBACK_MODE = new WritableIntPropertyKey();
+
     public static final PropertyKey[] ALL_KEYS = {
         EXPANDED_PLAYER_VISIBILITY,
         TITLE,
@@ -62,5 +68,8 @@ public class PlayerProperties {
         VOICE_PREVIEW_PLAYBACK_STATE,
         SHOW_MINI_PLAYER_ON_DISMISS,
         HIDDEN_AND_PLAYING,
+        RESTORABLE_PLAYBACK,
+        PLAYBACK_MODE_SELECTION_ENABLED,
+        PLAYBACK_MODE,
     };
 }

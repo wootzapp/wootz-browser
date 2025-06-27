@@ -12,7 +12,7 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/password_edit_dialog/android/password_edit_dialog_bridge.h"
-#include "chrome/browser/password_manager/android/local_passwords_migration_warning_util.h"
+#include "chrome/browser/password_manager/android/access_loss/password_access_loss_warning_bridge.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/passwords/manage_passwords_state.h"
 #include "components/browser_ui/device_lock/android/device_lock_bridge.h"
@@ -38,26 +38,6 @@ class PasswordManagerClient;
 class SaveUpdatePasswordMessageDelegate
     : public PasswordEditDialogBridgeDelegate {
  public:
-  // When Chrome detects an unknown password being entered into a web page, it
-  // shows the message asking if user wants to save or update (if there is
-  // already some other password saved for the site) the password.
-  // This enum is used to record the user decision regarding the save/update UI.
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  enum class SaveUpdatePasswordMessageDismissReason {
-    kAccept = 0,          // Click save/update/continue in the message
-    kAcceptInDialog = 1,  // Save (or update) in dialog (if the dialog is
-                          // an optional part of the workflow)
-    // Clicked Accept in Username confirmation dialog.
-    // This bucket is different from kAcceptInDialog in order to differentiate
-    // between acceptance in the confirmation dialog, which is a required
-    // part of the flow, and the save/update dialogs which are optional.
-    kAcceptInUsernameConfirmDialog = 2,
-    kCancel = 3,          // Dismiss the message
-    kCancelInDialog = 4,  // Cancel clicked in dialog (or dialog dismissed)
-    kNeverSave = 5,       // Click 'Never save for this site'
-    kMaxValue = kNeverSave,
-  };
   using PasswordEditDialogFactory =
       base::RepeatingCallback<std::unique_ptr<PasswordEditDialog>(
           content::WebContents*,
@@ -70,12 +50,8 @@ class SaveUpdatePasswordMessageDelegate
   SaveUpdatePasswordMessageDelegate(
       base::PassKey<class SaveUpdatePasswordMessageDelegateTest>,
       PasswordEditDialogFactory password_edit_dialog_factory,
-      base::RepeatingCallback<void(
-          gfx::NativeWindow,
-          Profile*,
-          password_manager::metrics_util::PasswordMigrationWarningTriggers)>
-          password_migration_warning_bridge_callback,
-      std::unique_ptr<DeviceLockBridge> device_lock_bridge);
+      std::unique_ptr<DeviceLockBridge> device_lock_bridge,
+      std::unique_ptr<PasswordAccessLossWarningBridge> access_loss_bridge);
 
   // Displays a "Save password" message for current |web_contents| and
   // |form_to_save|.
@@ -100,13 +76,8 @@ class SaveUpdatePasswordMessageDelegate
   friend class SaveUpdatePasswordMessageDelegateTest;
   enum class SavePasswordDialogMenuItem { kNeverSave = 0, kEditPassword = 1 };
 
-  SaveUpdatePasswordMessageDelegate(
-      PasswordEditDialogFactory password_edit_dialog_factory,
-      base::RepeatingCallback<void(
-          gfx::NativeWindow,
-          Profile*,
-          password_manager::metrics_util::PasswordMigrationWarningTriggers)>
-          password_migration_warning_bridge_callback);
+  explicit SaveUpdatePasswordMessageDelegate(
+      PasswordEditDialogFactory password_edit_dialog_factory);
 
   void DismissSaveUpdatePasswordMessage(messages::DismissReason dismiss_reason);
 
@@ -159,16 +130,6 @@ class SaveUpdatePasswordMessageDelegate
   void RecordDismissalReasonMetrics(
       password_manager::metrics_util::UIDismissalReason ui_dismissal_reason);
 
-  void RecordSaveUpdateUIDismissalReason(
-      SaveUpdatePasswordMessageDismissReason dismiss_reason);
-
-  SaveUpdatePasswordMessageDismissReason GetPasswordEditDialogDismissReason(
-      bool accepted);
-
-  SaveUpdatePasswordMessageDismissReason
-  GetSaveUpdatePasswordMessageDismissReason(
-      messages::DismissReason dismiss_reason);
-
   static password_manager::metrics_util::UIDismissalReason
   MessageDismissReasonToPasswordManagerUIDismissalReason(
       messages::DismissReason dismiss_reason);
@@ -189,13 +150,9 @@ class SaveUpdatePasswordMessageDelegate
 
   std::unique_ptr<messages::MessageWrapper> message_;
   std::unique_ptr<PasswordEditDialog> password_edit_dialog_;
-  base::RepeatingCallback<void(
-      gfx::NativeWindow,
-      Profile*,
-      password_manager::metrics_util::PasswordMigrationWarningTriggers)>
-      create_migration_warning_callback_;
 
   std::unique_ptr<DeviceLockBridge> device_lock_bridge_;
+  std::unique_ptr<PasswordAccessLossWarningBridge> access_loss_bridge_;
 
   void SavePassword();
   void SavePasswordAfterDeviceLockUi(bool is_device_lock_set);

@@ -8,11 +8,13 @@
 
 #include "base/android/jni_string.h"
 #include "base/functional/callback.h"
-#include "chrome/android/chrome_jni_headers/ServiceTabLauncher_jni.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
 #include "url/android/gurl_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/ServiceTabLauncher_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertUTF8ToJavaString;
@@ -34,10 +36,9 @@ ServiceTabLauncher* ServiceTabLauncher::GetInstance() {
   return base::Singleton<ServiceTabLauncher>::get();
 }
 
-ServiceTabLauncher::ServiceTabLauncher() {
-}
+ServiceTabLauncher::ServiceTabLauncher() = default;
 
-ServiceTabLauncher::~ServiceTabLauncher() {}
+ServiceTabLauncher::~ServiceTabLauncher() = default;
 
 void ServiceTabLauncher::LaunchTab(content::BrowserContext* browser_context,
                                    const content::OpenURLParams& params,

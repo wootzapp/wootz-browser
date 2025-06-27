@@ -520,6 +520,7 @@
     "table",
     "flex",
     "grid",
+    "masonry",
     //"math",
     //"ruby",
     // The order must match the order found in IsDisplayBox().
@@ -540,6 +541,7 @@
     "inline-table",
     "inline-flex",
     "inline-grid",
+    "inline-masonry",
     "-webkit-box",
     "-webkit-inline-box",
     "-webkit-flex",
@@ -792,6 +794,7 @@
     //
     // text-box-edge
     //
+    // "auto"
     // "alphabetic",
     // "text"
     //
@@ -800,7 +803,14 @@
     // "ideographic-ink",
     "cap",
     "ex",
-    "leading",
+
+    //
+    // text-box-trim
+    //
+    // "none"
+    "trim-both",
+    "trim-end",
+    "trim-start",
 
     //
     // text-overflow
@@ -832,7 +842,7 @@
     // normal
     "space-all",
     "space-first",
-    "trim-start",
+    // "trim-start",
 
     // text-underline-position
     // auto
@@ -869,6 +879,7 @@
     "anywhere",
 
     // hyphens
+    // caret-animation
     "manual",
 
     // -webkit-appearance
@@ -884,13 +895,8 @@
     "searchfield",
     "textfield",
     "textarea",
-    // TODO(crbug/924486) All appearance values that should not be accepted by the parser (high usage).
-    "inner-spin-button",
-    "push-button",
-    "square-button",
-    "slider-horizontal",
-    "searchfield-cancel-button",
-    // TODO(crbug/1426629) All appearance values that should not be accepted by the parser (special case).
+    // TODO(crbug/1426629) slider-vertical is a non-standard value. We are
+    // waiting for its usage to be lower before deprecating it.
     "slider-vertical",
     //
     // border-image
@@ -898,10 +904,10 @@
     // stretch
     // repeat
     "round",
-    // TODO(crbug.com/1511354): "base-select" is a temporary name for stylable
+    // TODO(crbug.com/1511354): "base-select" is a temporary name for customizable
     // <select>. It should be renamed when a standardized name is chosen.
     "base-select",
-    "-internal-appearance-auto-base-select",
+    "-internal-auto-base",
 
     //
     // background-clip/background-origin
@@ -1065,16 +1071,25 @@
     "horizontal-tb",
     "vertical-rl",
     "vertical-lr",
+    "sideways-rl",
+    "sideways-lr",
 
     // -webkit-ruby-position
     "after",
     "before",
+
+    // ruby-position
+    "inter-character",
+    // over
+    // under
+    // alternate
 
     // text-emphasis-position
     "over",
     "under",
     //right
     //left
+    //auto
 
     // -webkit-text-emphasis-style
     "filled",
@@ -1190,6 +1205,15 @@
     // column-fill
     "balance",
 
+    // corner-shape
+    // "bevel",
+    "notch",
+    // "round",
+    "scoop",
+    "squircle",
+    // "square",
+    "superellipse",
+
     // -webkit-app-region
     "drag",
     "no-drag",
@@ -1222,6 +1246,21 @@
     // luminance
     "match-source",
 
+    // masonry-auto-tracks
+    // min-content
+    // max-content
+    // auto
+
+    // masonry-direction
+    // row
+    // row-reverse
+    // column
+    // column-reverse
+
+    // masonry-fill
+    // normal
+    // reverse
+
     // color-interpolation / color-interpolation-filters
     // auto
     "srgb",
@@ -1249,6 +1288,20 @@
     "ideographic",
     "hanging",
     "mathematical",
+
+    // gap-rule-paint-order
+    "row-over-column",
+    "column-over-row",
+
+    // column-rule-break
+    // none
+    "intersection",
+    "spanning-item",
+
+    // row-rule-break
+    // none
+    // intersection
+    // spanning-item
 
     // dominant-baseline
     // auto
@@ -1357,6 +1410,27 @@
 
     // shapes
     "polygon",
+    "shape",
+    // "from",
+    // "to",
+    "by",
+    "line",
+    "close",
+    "hline",
+    "vline",
+    "arc",
+    // "rotate",
+    "cw",
+    "ccw",
+    // "large",
+    // "small",
+    // "of",
+    "curve",
+    // "smooth",
+    // "start",
+    // "end",
+    "origin",
+    "with",
 
     // @font-face src
     "format",
@@ -1567,10 +1641,10 @@
     // left
     // right
     // bottom
-    "inset-block-start",
-    "inset-block-end",
-    "inset-inline-start",
-    "inset-inline-end",
+    "block-start",
+    "block-end",
+    // inline-start,
+    // inline-end,
 
     // grid auto-repeat
     "auto-fill",
@@ -1654,6 +1728,10 @@
     // https://drafts.csswg.org/css-conditional-4/#typedef-supports-selector-fn
     "selector",
 
+    // @supports at-rule(...)
+    // https://github.com/w3c/csswg-drafts/issues/2463#issuecomment-1016720310
+    "at-rule",
+
     // (device-posture) media feature
     "continuous",
     "folded",
@@ -1702,7 +1780,8 @@
     // ([video]-dynamic-range) media feature, and dynamic-range-limit property
     "standard",
     "high",
-    "constrained-high",
+    "no-limit",
+    "constrained",
     "dynamic-range-limit-mix",
 
     // Layered @import rule
@@ -1710,6 +1789,8 @@
 
     // supports in import rule: @import supports()
     "supports",
+    // @import scope()
+    "scope",
 
     // color-contrast()
     "color-contrast",
@@ -1773,6 +1854,13 @@
     // auto
     // none
 
+    // view-transition-capture-mode
+    "layered",
+    // flat
+
+    // view-transition-name
+    "match-element",
+
     // container-type
     // inline-size,
     // normal,
@@ -1784,7 +1872,7 @@
     "initial-only",
     // none
 
-    // inset-area
+    // position-area
     // none,
     // left,
     // center,
@@ -1812,8 +1900,8 @@
     "y-self-end",
     "span-y-self-start",
     "span-y-self-end",
-    "block-start",
-    "block-end",
+    // block-start,
+    // block-end,
     "span-block-start",
     "span-block-end",
     "self-block-start",
@@ -1836,8 +1924,8 @@
     // self-end,
     "span-self-start",
     "span-self-end",
-    // inset-area()
-    "inset-area",
+    // inset-area() (deprecated)
+    "position-area",
 
     // resize
     // none
@@ -1856,7 +1944,7 @@
     "most-block-size",
     "most-inline-size",
 
-    // position-try-options
+    // position-try-fallbacks
     // none
     "flip-block",
     "flip-inline",
@@ -1869,13 +1957,14 @@
     "anchors-visible",
     "no-overflow",
 
-    // reading-order-items
+    // reading-flow
     // normal
     "flex-visual",
     "flex-flow",
     "grid-rows",
     "grid-columns",
     "grid-order",
+    "source-order",
 
     // fill / stroke
     "context-fill",
@@ -1890,5 +1979,31 @@
 
     // @supports blink-feature(RuntimeEnabledFeatureName)
     "blink-feature",
+
+    // interpolate-size
+    "numeric-only",
+    "allow-keywords",
+
+    // interactivity
+    // auto
+    "inert",
+
+    // Used as functions in calc()
+    "sibling-count",
+    "sibling-index",
+
+    // @function
+    "returns",
+
+    // animation-trigger-type
+    // repeat
+    // alternate
+    "once",
+    "state",
+
+    // inline conditional
+    "if",
+    "else",
+    "media",
   ],
 }

@@ -2,22 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/test/base/chrome_test_launcher.h"
-
 #include <memory>
 
 #include "base/command_line.h"
+#include "base/memory/discardable_memory_allocator.h"
 #include "base/test/launcher/test_launcher.h"
+#include "base/test/test_discardable_memory_allocator.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/ssl/https_upgrades_navigation_throttle.h"
+#include "chrome/test/base/chrome_test_launcher.h"
 #include "chrome/test/base/chrome_test_suite.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "gpu/ipc/service/image_transport_surface.h"
+#include "ui/base/interaction/interactive_test_internal.h"
 #include "ui/base/test/ui_controls.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/test/ui_controls_ash.h"
 #elif BUILDFLAG(IS_WIN)
 #include "ui/aura/test/ui_controls_aurawin.h"
@@ -44,7 +46,7 @@ class InteractiveUITestSuite : public ChromeTestSuite {
   void Initialize() override {
     ChromeTestSuite::Initialize();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     ash::test::EnableUIControlsAsh();
 #elif BUILDFLAG(IS_WIN)
     com_initializer_ = std::make_unique<base::win::ScopedCOMInitializer>();
@@ -61,13 +63,20 @@ class InteractiveUITestSuite : public ChromeTestSuite {
 #else
     ui_controls::EnableUIControls();
 #endif
+    // Allow interactive Kombucha test verbs in interactive UI tests.
+    ui::test::internal::InteractiveTestPrivate::
+        set_interactive_test_verbs_allowed(
+            base::PassKey<InteractiveUITestSuite>());
 
     // TODO(crbug.com/40263135) Investigate why https upgrade causes
     // interactive_ui_tests to run longer.
 #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
     // Force the HTTPS-Upgrades timeout to zero.
-    HttpsUpgradesNavigationThrottle::set_timeout_for_testing(0);
+    HttpsUpgradesNavigationThrottle::set_timeout_for_testing(base::TimeDelta());
 #endif
+
+    base::DiscardableMemoryAllocator::SetInstance(
+        &discardable_memory_allocator_);
   }
 
   void Shutdown() override {
@@ -80,6 +89,7 @@ class InteractiveUITestSuite : public ChromeTestSuite {
 #if BUILDFLAG(IS_WIN)
   std::unique_ptr<base::win::ScopedCOMInitializer> com_initializer_;
 #endif
+  base::TestDiscardableMemoryAllocator discardable_memory_allocator_;
 };
 
 class InteractiveUITestLauncherDelegate : public ChromeTestLauncherDelegate {
@@ -143,7 +153,7 @@ class InteractiveUITestSuiteRunner : public ChromeTestSuiteRunner {
 int main(int argc, char** argv) {
   base::CommandLine::Init(argc, argv);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#if BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
   // Force software-gl. This is necessary for mus tests to avoid an msan warning
   // in gl init.
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
@@ -166,7 +176,7 @@ int main(int argc, char** argv) {
   // For ash chrome, it's using multiple X11 windows to host the browser.
   // Also, {emulating|injecting} keyboard and mouse events happen at ozone
   // level, not OS level. So it is fine to run tests in parallel.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   size_t parallel_jobs = base::NumParallelJobs(/*cores_per_job=*/2);
   if (parallel_jobs == 0) {
     parallel_jobs = 1;

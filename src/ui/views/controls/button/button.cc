@@ -5,6 +5,7 @@
 #include "ui/views/controls/button/button.h"
 
 #include <utility>
+#include <variant>
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -12,13 +13,13 @@
 #include "base/functional/overloaded.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/actions/actions.h"
 #include "ui/base/class_property.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/keycodes/keyboard_codes.h"
@@ -123,12 +124,12 @@ Button::PressedCallback& Button::PressedCallback::operator=(PressedCallback&&) =
 Button::PressedCallback::~PressedCallback() = default;
 
 Button::PressedCallback::operator bool() const {
-  return absl::visit([](const auto& callback) { return !callback.is_null(); },
-                     callback_);
+  return std::visit([](const auto& callback) { return !callback.is_null(); },
+                    callback_);
 }
 
 void Button::PressedCallback::Run(const ui::Event& event) {
-  return absl::visit(
+  return std::visit(
       base::Overloaded{
           [](base::OnceClosure& closure) { std::move(closure).Run(); },
           [](const base::RepeatingClosure& closure) { closure.Run(); },
@@ -171,8 +172,9 @@ const Button* Button::AsButton(const views::View* view) {
 
 // static
 Button* Button::AsButton(views::View* view) {
-  if (view && view->GetProperty(kIsButtonProperty))
+  if (view && view->GetProperty(kIsButtonProperty)) {
     return static_cast<Button*>(view);
+  }
   return nullptr;
 }
 
@@ -188,30 +190,22 @@ Button::ButtonState Button::GetButtonStateFrom(ui::NativeTheme::State state) {
     case ui::NativeTheme::kPressed:
       return Button::STATE_PRESSED;
     case ui::NativeTheme::kNumStates:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   return Button::STATE_NORMAL;
 }
 
 Button::~Button() = default;
 
-void Button::SetTooltipText(const std::u16string& tooltip_text) {
-  if (tooltip_text == tooltip_text_) {
-    return;
+void Button::OnTooltipTextChanged(const std::u16string& old_tooltip_text) {
+  View::OnTooltipTextChanged(old_tooltip_text);
+  if ((GetViewAccessibility().GetCachedName().empty() ||
+       GetViewAccessibility().GetCachedName() == old_tooltip_text) &&
+      !GetTooltipText().empty()) {
+    GetViewAccessibility().SetName(GetTooltipText());
   }
 
-  if (GetAccessibleName().empty() || GetAccessibleName() == tooltip_text_) {
-    SetAccessibleName(tooltip_text);
-  }
-
-  tooltip_text_ = tooltip_text;
-  OnSetTooltipText(tooltip_text);
-  TooltipTextChanged();
-  OnPropertyChanged(&tooltip_text_, kPropertyEffectsNone);
-}
-
-const std::u16string& Button::GetTooltipText() const {
-  return tooltip_text_;
+  OnSetTooltipText(GetTooltipText());
 }
 
 void Button::SetCallback(PressedCallback callback) {
@@ -221,8 +215,12 @@ void Button::SetCallback(PressedCallback callback) {
 void Button::AdjustAccessibleName(std::u16string& new_name,
                                   ax::mojom::NameFrom& name_from) {
   if (new_name.empty()) {
-    new_name = tooltip_text_;
+    new_name = GetAlternativeAccessibleName();
   }
+}
+
+std::u16string Button::GetAlternativeAccessibleName() const {
+  return GetTooltipText();
 }
 
 Button::ButtonState Button::GetState() const {
@@ -260,7 +258,8 @@ void Button::SetState(ButtonState state) {
   state_ = state;
 
   GetViewAccessibility().SetIsEnabled(state_ != STATE_DISABLED);
-
+  GetViewAccessibility().SetIsHovered(state_ == STATE_HOVERED);
+  UpdateAccessibleCheckedState();
   StateChanged(old_state);
   OnPropertyChanged(&state_, kPropertyEffectsPaint);
 }
@@ -385,7 +384,7 @@ void Button::SetHotTracked(bool is_hot_tracked) {
   }
 
   if (is_hot_tracked) {
-    NotifyAccessibilityEvent(ax::mojom::Event::kHover, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kHover, true);
   }
 }
 
@@ -429,21 +428,24 @@ base::CallbackListSubscription Button::AddAnchorCountChangedCallback(
 
 Button::KeyClickAction Button::GetKeyClickActionForEvent(
     const ui::KeyEvent& event) {
-  if (event.key_code() == ui::VKEY_SPACE)
+  if (event.key_code() == ui::VKEY_SPACE) {
     return PlatformStyle::kKeyClickActionOnSpace;
+  }
   // Note that default buttons also have VKEY_RETURN installed as an accelerator
   // in LabelButton::SetIsDefault(). On platforms where
   // PlatformStyle::kReturnClicksFocusedControl, the logic here will take
   // precedence over that.
   if (event.key_code() == ui::VKEY_RETURN &&
-      PlatformStyle::kReturnClicksFocusedControl)
+      PlatformStyle::kReturnClicksFocusedControl) {
     return KeyClickAction::kOnKeyPress;
+  }
   return KeyClickAction::kNone;
 }
 
 void Button::SetButtonController(
     std::unique_ptr<ButtonController> button_controller) {
   button_controller_ = std::move(button_controller);
+  UpdateAccessibleDefaultActionVerb();
 }
 
 gfx::Point Button::GetMenuPosition() const {
@@ -460,16 +462,18 @@ gfx::Point Button::GetMenuPosition() const {
   }
 
   View::ConvertPointToScreen(this, &menu_position);
-  if (base::i18n::IsRTL())
+  if (base::i18n::IsRTL()) {
     menu_position.Offset(-kMenuOffset.x(), kMenuOffset.y());
-  else
+  } else {
     menu_position += kMenuOffset;
+  }
 
   DCHECK(GetWidget());
   const int max_x_coordinate =
       GetWidget()->GetWorkAreaBoundsInScreen().right() - 1;
-  if (max_x_coordinate && max_x_coordinate <= menu_position.x())
+  if (max_x_coordinate && max_x_coordinate <= menu_position.x()) {
     menu_position.set_x(max_x_coordinate - 1);
+  }
   return menu_position;
 }
 
@@ -569,12 +573,8 @@ bool Button::SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) {
   return GetKeyClickActionForEvent(event) != KeyClickAction::kNone;
 }
 
-std::u16string Button::GetTooltipText(const gfx::Point& p) const {
-  return tooltip_text_;
-}
-
 void Button::ShowContextMenu(const gfx::Point& p,
-                             ui::MenuSourceType source_type) {
+                             ui::mojom::MenuSourceType source_type) {
   if (!context_menu_controller()) {
     return;
   }
@@ -612,29 +612,6 @@ void Button::OnPaint(gfx::Canvas* canvas) {
   Painter::PaintFocusPainter(this, canvas, focus_painter_.get());
 }
 
-void Button::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  View::GetAccessibleNodeData(node_data);
-
-  switch (state_) {
-    case STATE_HOVERED:
-      node_data->AddState(ax::mojom::State::kHovered);
-      break;
-    case STATE_PRESSED:
-      node_data->SetCheckedState(ax::mojom::CheckedState::kTrue);
-      break;
-    case STATE_DISABLED:
-    case STATE_NORMAL:
-    case STATE_COUNT:
-      // No additional accessibility node_data set for this button node_data.
-      break;
-  }
-  if (GetEnabled()) {
-    node_data->SetDefaultActionVerb(ax::mojom::DefaultActionVerb::kPress);
-  }
-
-  button_controller_->UpdateAccessibleNodeData(node_data);
-}
-
 void Button::VisibilityChanged(View* starting_from, bool visible) {
   View::VisibilityChanged(starting_from, visible);
   if (state_ == STATE_DISABLED) {
@@ -647,8 +624,9 @@ void Button::VisibilityChanged(View* starting_from, bool visible) {
 }
 
 void Button::ViewHierarchyChanged(const ViewHierarchyChangedDetails& details) {
-  if (!details.is_add && state_ != STATE_DISABLED && details.child == this)
+  if (!details.is_add && state_ != STATE_DISABLED && details.child == this) {
     SetState(STATE_NORMAL);
+  }
   View::ViewHierarchyChanged(details);
 }
 
@@ -709,7 +687,8 @@ Button::Button(PressedCallback callback)
   // if one hasn't been set.
   InkDrop::Get(ink_drop_view_)->SetBaseColor(gfx::kPlaceholderColor);
 
-  SetAccessibilityProperties(ax::mojom::Role::kButton);
+  GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
+  UpdateAccessibleDefaultActionVerb();
 }
 
 void Button::RequestFocusFromEvent() {
@@ -799,8 +778,9 @@ base::WeakPtr<Button> Button::GetWeakPtr() {
 }
 
 void Button::OnEnabledChanged() {
-  if (GetEnabled() ? (state_ != STATE_DISABLED) : (state_ == STATE_DISABLED))
+  if (GetEnabled() ? (state_ != STATE_DISABLED) : (state_ == STATE_DISABLED)) {
     return;
+  }
 
   if (GetEnabled()) {
     bool should_enter_hover_state = ShouldEnterHoveredState();
@@ -812,6 +792,18 @@ void Button::OnEnabledChanged() {
     SetState(STATE_DISABLED);
     InkDrop::Get(ink_drop_view_)->GetInkDrop()->SetHovered(false);
   }
+  UpdateAccessibleDefaultActionVerb();
+}
+
+void Button::UpdateAccessibleCheckedState() {
+  switch (state_) {
+    case STATE_PRESSED:
+      GetViewAccessibility().SetCheckedState(ax::mojom::CheckedState::kTrue);
+      break;
+    default:
+      GetViewAccessibility().RemoveCheckedState();
+      break;
+  }
 }
 
 void Button::ReleaseAnchorHighlight() {
@@ -821,15 +813,31 @@ void Button::ReleaseAnchorHighlight() {
   anchor_count_changed_callbacks_.Notify(anchor_count_);
 }
 
+void Button::SetDefaultActionVerb(ax::mojom::DefaultActionVerb verb) {
+  default_action_verb_ = verb;
+}
+
+void Button::UpdateAccessibleDefaultActionVerb() {
+  if (GetEnabled()) {
+    GetViewAccessibility().SetDefaultActionVerb(default_action_verb_);
+  } else {
+    GetViewAccessibility().RemoveDefaultActionVerb();
+  }
+
+  if (button_controller_) {
+    button_controller_->UpdateButtonAccessibleDefaultActionVerb();
+  }
+}
+
 ButtonActionViewInterface::ButtonActionViewInterface(Button* action_view)
     : BaseActionViewInterface(action_view), action_view_(action_view) {}
 
 void ButtonActionViewInterface::ActionItemChangedImpl(
     actions::ActionItem* action_item) {
   BaseActionViewInterface::ActionItemChangedImpl(action_item);
-  std::u16string tooltip_text = action_item->GetTooltipText();
+  std::u16string tooltip_text(action_item->GetTooltipText());
   if (!tooltip_text.empty()) {
-    action_view_->SetTooltipText(tooltip_text);
+    action_view_->SetTooltipText(std::move(tooltip_text));
   }
 }
 
@@ -850,7 +858,6 @@ ADD_PROPERTY_METADATA(bool, InstallFocusRingOnFocus)
 ADD_PROPERTY_METADATA(bool, RequestFocusOnPress)
 ADD_PROPERTY_METADATA(ButtonState, State)
 ADD_PROPERTY_METADATA(int, Tag)
-ADD_PROPERTY_METADATA(std::u16string, TooltipText)
 ADD_PROPERTY_METADATA(int, TriggerableEventFlags)
 END_METADATA
 

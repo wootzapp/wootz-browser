@@ -20,8 +20,10 @@
 #include "components/signin/public/base/account_consistency_method.h"
 #include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/base/signin_metrics.h"
+#include "components/signin/public/webdata/token_service_table.h"
 #include "components/webdata/common/web_data_service_base.h"
 #include "components/webdata/common/web_data_service_consumer.h"
+#include "crypto/process_bound_string.h"
 #include "net/base/backoff_entry.h"
 #include "services/network/public/cpp/network_connection_tracker.h"
 
@@ -30,6 +32,19 @@ class TokenWebData;
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 class TokenBindingHelper;
 #endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+
+// This enum is used to know if an account is known by the client has a valid
+// refresh token or not.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum class AccountStartupState {
+  kKnownValidToken = 0,
+  kKnownInvalidToken = 1,
+  kUnknownValidToken = 2,
+  kUnknownInvalidToken = 3,
+
+  kMaxValue = kUnknownInvalidToken,
+};
 
 enum class RevokeAllTokensOnLoad {
   kNo = 0,
@@ -73,6 +88,16 @@ class MutableProfileOAuth2TokenServiceDelegate
   std::string GetTokenForMultilogin(
       const CoreAccountId& account_id) const override;
   bool RefreshTokenIsAvailable(const CoreAccountId& account_id) const override;
+#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+  bool IsRefreshTokenBound(const CoreAccountId& account_id) const override;
+  std::vector<uint8_t> GetWrappedBindingKey(
+      const CoreAccountId& account_id) const override;
+  void GenerateRefreshTokenBindingKeyAssertionForMultilogin(
+      const CoreAccountId& account_id,
+      std::string_view challenge,
+      std::string_view ephemeral_public_key,
+      TokenBindingHelper::GenerateAssertionCallback callback) override;
+#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
   std::vector<CoreAccountId> GetAccounts() const override;
   scoped_refptr<network::SharedURLLoaderFactory> GetURLLoaderFactory()
       const override;
@@ -81,7 +106,7 @@ class MutableProfileOAuth2TokenServiceDelegate
   // Overridden from NetworkConnectionTracker::NetworkConnectionObserver.
   void OnConnectionChanged(network::mojom::ConnectionType type) override;
 
-  bool FixRequestErrorIfPossible() override;
+  bool FixAccountErrorIfPossible() override;
 
   // Returns the account's refresh token used for testing purposes.
   std::string GetRefreshTokenForTest(const CoreAccountId& account_id) const;
@@ -121,6 +146,18 @@ class MutableProfileOAuth2TokenServiceDelegate
                            UpdateInvalidToken);
   FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
                            LoadInvalidToken);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateTest,
+      LoadAllCredentialsIntoMemoryAccountAvailabilityPrimaryAvailable);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateTest,
+      LoadAllCredentialsIntoMemoryAccountAvailabilityPrimaryNotAvailable);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateTest,
+      LoadAllCredentialsIntoMemoryAccountAvailabilitySecondaryAvailable);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateTest,
+      LoadAllCredentialsIntoMemoryAccountAvailabilitySecondaryNotAvailable);
   FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
                            GetAccounts);
   FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
@@ -135,15 +172,24 @@ class MutableProfileOAuth2TokenServiceDelegate
                            InvalidateTokensForMultilogin);
   FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
                            ExtractCredentials);
+  FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
+                           TokenReencryption);
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-  FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
-                           UpdateBoundToken);
-  FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
-                           RevokeBoundToken);
-#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
   FRIEND_TEST_ALL_PREFIXES(
-      MutableProfileOAuth2TokenServiceDelegateWithUnoDesktopTest,
-      KeepPrimaryAccountTokenOnStartupWithClearOnExit);
+      MutableProfileOAuth2TokenServiceDelegateBoundTokensTest,
+      UpdateBoundToken);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateBoundTokensTest,
+      RevokeBoundToken);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateBoundTokensTest,
+      PersistenceLoadBoundTokens);
+  FRIEND_TEST_ALL_PREFIXES(
+      MutableProfileOAuth2TokenServiceDelegateBoundTokensTest,
+      ClearBoundTokenOnStartup);
+#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+  FRIEND_TEST_ALL_PREFIXES(MutableProfileOAuth2TokenServiceDelegateTest,
+                           KeepPrimaryAccountTokenOnStartupWithClearOnExit);
 
   // WebDataServiceConsumer implementation:
   void OnWebDataServiceRequestDone(
@@ -151,8 +197,8 @@ class MutableProfileOAuth2TokenServiceDelegate
       std::unique_ptr<WDTypedResult> result) override;
 
   // ProfileOAuth2TokenServiceDelegate implementation:
-  void LoadCredentialsInternal(const CoreAccountId& primary_account_id,
-                               bool is_syncing) override;
+  void LoadCredentialsInternal(
+      const CoreAccountId& primary_account_id) override;
   void UpdateCredentialsInternal(const CoreAccountId& account_id,
                                  const std::string& refresh_token
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
@@ -166,9 +212,13 @@ class MutableProfileOAuth2TokenServiceDelegate
   void ExtractCredentialsInternal(ProfileOAuth2TokenService* to_service,
                                   const CoreAccountId& account_id) override;
 
-  // Loads credentials into in memory structure.
+  // Loads credentials into in memory structure, and remove any invalid or
+  // revoked tokens. If `should_reencrypt` is true then any tokens successfully
+  // loaded will be written back to the database to rotate the encryption key.
   void LoadAllCredentialsIntoMemory(
-      const std::map<std::string, std::string>& db_tokens);
+      const std::map<std::string, TokenServiceTable::TokenWithBindingKey>&
+          db_tokens,
+      bool should_reencrypt = false);
 
   // Updates the in-memory representation of the credentials.
   void UpdateCredentialsInMemory(const CoreAccountId& account_id,
@@ -205,11 +255,6 @@ class MutableProfileOAuth2TokenServiceDelegate
 
   std::string GetRefreshToken(const CoreAccountId& account_id) const;
 
-#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-  std::vector<uint8_t> GetWrappedBindingKey(
-      const CoreAccountId& account_id) const;
-#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-
   // Creates a new AccountStatus and adds it to the AccountStatusMap.
   // The account must not be already in the map.
   void AddAccountStatus(const CoreAccountId& account_id,
@@ -229,8 +274,13 @@ class MutableProfileOAuth2TokenServiceDelegate
   void RevokeCredentialsImpl(const CoreAccountId& account_id,
                              bool revoke_on_server);
 
+  // Records whether the `account_id` is available in the account tracker
+  // service with a valid `refresh_token` or not. Called at startup.
+  void RecordAccountAvailabilityStartup(const CoreAccountId& account_id,
+                                        const std::string& refresh_token);
+
   // In memory refresh token store mapping account_id to refresh_token.
-  std::map<CoreAccountId, std::string> refresh_tokens_;
+  std::map<CoreAccountId, crypto::ProcessBoundString> refresh_tokens_;
 
   // Handle to the request reading tokens from database.
   WebDataServiceBase::Handle web_data_service_request_;
@@ -238,10 +288,6 @@ class MutableProfileOAuth2TokenServiceDelegate
   // The primary account id of this service's profile during the loading of
   // credentials.  This member is empty otherwise.
   CoreAccountId loading_primary_account_id_;
-
-  // Whether sync is enabled for the primary account of this service's profile
-  // during the loading of credentials.  This member is false otherwise.
-  bool loading_is_syncing_ = false;
 
   std::vector<std::unique_ptr<RevokeServerRefreshToken>> server_revokes_;
 

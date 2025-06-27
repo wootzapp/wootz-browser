@@ -7,30 +7,37 @@ import android.content.Context;
 import android.view.View;
 import org.jni_zero.CheckDiscard;
 import org.jni_zero.GEN_JNI;
-import org.jni_zero.JniStaticTestMocker;
-import org.jni_zero.NativeLibraryLoadedStatus;
+import org.jni_zero.JniTestInstanceHolder;
 import org.jni_zero.SampleForAnnotationProcessor;
+import org.jni_zero.internal.NullUnmarked;
+import org.jni_zero.internal.Nullable;
 import org.stubs.MyClass;
 
 @CheckDiscard("crbug.com/993421")
+@NullUnmarked
 class SampleForAnnotationProcessorJni implements SampleForAnnotationProcessor.Natives {
-  private static SampleForAnnotationProcessor.Natives testInstance;
+  private static @Nullable JniTestInstanceHolder sOverride;
 
-  public static final JniStaticTestMocker<SampleForAnnotationProcessor.Natives> TEST_HOOKS =
-      new JniStaticTestMocker<SampleForAnnotationProcessor.Natives>() {
-    @Override
-    public void setInstanceForTesting(SampleForAnnotationProcessor.Natives instance) {
-      if (!GEN_JNI.TESTING_ENABLED) {
-        throw new RuntimeException(
-            "Tried to set a JNI mock when mocks aren't enabled!");
-      }
-      testInstance = instance;
+  public static SampleForAnnotationProcessor.Natives get() {
+    JniTestInstanceHolder holder = sOverride;
+    if (holder != null && holder.value != null) {
+      return (SampleForAnnotationProcessor.Natives) holder.value;
     }
-  };
+    return new SampleForAnnotationProcessorJni();
+  }
+
+  public static void setInstanceForTesting(SampleForAnnotationProcessor.Natives impl) {
+    if (sOverride == null) {
+      sOverride = JniTestInstanceHolder.create();
+    }
+    sOverride.value = impl;
+  }
+
 
   @Override
   public SampleForAnnotationProcessor bar(SampleForAnnotationProcessor sample) {
-    return (SampleForAnnotationProcessor) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_bar(sample);
+    return (SampleForAnnotationProcessor) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_bar(
+        sample);
   }
 
   @Override
@@ -55,7 +62,8 @@ class SampleForAnnotationProcessorJni implements SampleForAnnotationProcessor.Na
 
   @Override
   public SampleForAnnotationProcessor[] returnConvertedAppObjects() {
-    return (SampleForAnnotationProcessor[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_returnConvertedAppObjects(SampleForAnnotationProcessor.class);
+    return (SampleForAnnotationProcessor[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_returnConvertedAppObjects(
+        SampleForAnnotationProcessor.class);
   }
 
   @Override
@@ -120,7 +128,8 @@ class SampleForAnnotationProcessorJni implements SampleForAnnotationProcessor.Na
 
   @Override
   public SampleForAnnotationProcessor[] sendSamplesToNative(SampleForAnnotationProcessor[] strs) {
-    return (SampleForAnnotationProcessor[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_sendSamplesToNative(strs);
+    return (SampleForAnnotationProcessor[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_sendSamplesToNative(
+        strs);
   }
 
   @Override
@@ -130,26 +139,45 @@ class SampleForAnnotationProcessorJni implements SampleForAnnotationProcessor.Na
 
   @Override
   public int[] testAllPrimitives(int zint, int[] ints, long zlong, long[] longs, short zshort, short[] shorts, char zchar, char[] chars, byte zbyte, byte[] bytes, double zdouble, double[] doubles, float zfloat, float[] floats, boolean zbool, boolean[] bools) {
-    return (int[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_testAllPrimitives(zint, ints, zlong, longs, zshort, shorts, zchar, chars, zbyte, bytes, zdouble, doubles, zfloat, floats, zbool, bools);
+    return (int[]) GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_testAllPrimitives(
+        zint,
+        ints,
+        zlong,
+        longs,
+        zshort,
+        shorts,
+        zchar,
+        chars,
+        zbyte,
+        bytes,
+        zdouble,
+        doubles,
+        zfloat,
+        floats,
+        zbool,
+        bools);
   }
 
   @Override
   public void testSpecialTypes(Class clazz, Class[] classes, Throwable throwable, Throwable[] throwables, String string, String[] strings, String convertedString, String[] convertedStrings, String optionalString, SampleForAnnotationProcessor.TestStruct tStruct, SampleForAnnotationProcessor.TestStruct[] structs, Object obj, Object convertedObj, Object[] objects, MyClass.SecondNestedInterface nestedInterface, View view, Context context, Object[] convertedObjects) {
-    GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_testSpecialTypes(clazz, classes, throwable, throwables, string, strings, convertedString, convertedStrings, optionalString, tStruct, structs, obj, convertedObj, objects, nestedInterface, view, context, convertedObjects);
-  }
-
-  public static SampleForAnnotationProcessor.Natives get() {
-    if (GEN_JNI.TESTING_ENABLED) {
-      if (testInstance != null) {
-        return testInstance;
-      }
-      if (GEN_JNI.REQUIRE_MOCK) {
-        throw new UnsupportedOperationException(
-            "No mock found for the native implementation of SampleForAnnotationProcessor.Natives. "
-            + "The current configuration requires implementations be mocked.");
-      }
-    }
-    NativeLibraryLoadedStatus.checkLoaded();
-    return new SampleForAnnotationProcessorJni();
+    GEN_JNI.org_jni_1zero_SampleForAnnotationProcessor_testSpecialTypes(
+        clazz,
+        classes,
+        throwable,
+        throwables,
+        string,
+        strings,
+        convertedString,
+        convertedStrings,
+        optionalString,
+        tStruct,
+        structs,
+        obj,
+        convertedObj,
+        objects,
+        nestedInterface,
+        view,
+        context,
+        convertedObjects);
   }
 }

@@ -18,15 +18,14 @@
 #include "media/capture/mojom/video_capture_types.mojom-blink.h"
 #include "media/capture/video_capture_types.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/blink/public/common/media/video_capture.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom-blink.h"
+#include "third_party/blink/public/platform/media/video_capture.h"
 #include "third_party/blink/public/web/modules/mediastream/media_stream_video_source.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/video_capture/video_capturer_source.h"
 
 namespace blink {
 
-class DOMException;
 class LocalFrame;
 class VideoCapturerSource;
 
@@ -75,10 +74,6 @@ class MODULES_EXPORT MediaStreamVideoCapturerSource
   FRIEND_TEST_ALL_PREFIXES(MediaStreamVideoCapturerSourceTest,
                            CaptureTimeAndMetadataPlumbing);
   FRIEND_TEST_ALL_PREFIXES(MediaStreamVideoCapturerSourceTest, ChangeSource);
-  FRIEND_TEST_ALL_PREFIXES(MediaStreamVideoCapturerSourceTest,
-                           SendWheelWithoutSessionIdFails);
-  FRIEND_TEST_ALL_PREFIXES(MediaStreamVideoCapturerSourceTest,
-                           SetZoomLevelWithoutSessionIdFails);
 
   // MediaStreamVideoSource overrides.
   void OnSourceCanDiscardAlpha(bool can_discard_alpha) override;
@@ -87,10 +82,7 @@ class MODULES_EXPORT MediaStreamVideoCapturerSource
   void OnHasConsumers(bool has_consumers) override;
   void OnCapturingLinkSecured(bool is_secure) override;
   void StartSourceImpl(
-      VideoCaptureDeliverFrameCB frame_callback,
-      EncodedVideoFrameCB encoded_frame_callback,
-      VideoCaptureSubCaptureTargetVersionCB sub_capture_target_version_callback,
-      VideoCaptureNotifyFrameDroppedCB frame_dropped_callback) override;
+      MediaStreamVideoSourceCallbacks media_stream_callbacks) override;
   media::VideoCaptureFeedbackCB GetFeedbackCallback() const override;
   void StopSourceImpl() override;
   void StopSourceForRestartImpl() override;
@@ -98,13 +90,6 @@ class MODULES_EXPORT MediaStreamVideoCapturerSource
   std::optional<media::VideoCaptureFormat> GetCurrentFormat() const override;
   void ChangeSourceImpl(const MediaStreamDevice& new_device) override;
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-  void SendWheel(double relative_x,
-                 double relative_y,
-                 int wheel_delta_x,
-                 int wheel_delta_y,
-                 base::OnceCallback<void(DOMException*)> callback) override;
-  void SetZoomLevel(int zoom_level,
-                    base::OnceCallback<void(DOMException*)> callback) override;
   void ApplySubCaptureTarget(
       media::mojom::blink::SubCaptureTargetType type,
       const base::Token& sub_capture_target,

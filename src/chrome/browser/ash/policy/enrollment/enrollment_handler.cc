@@ -7,7 +7,6 @@
 #include <optional>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
 #include "base/base64.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
@@ -76,7 +75,7 @@ em::DeviceRegisterRequest::Flavor EnrollmentModeToRegistrationFlavor(
     EnrollmentConfig::Mode mode) {
   switch (mode) {
     case EnrollmentConfig::MODE_NONE:
-      NOTREACHED_NORETURN() << "Bad enrollment mode: " << mode;
+      NOTREACHED() << "Bad enrollment mode: " << mode;
     case EnrollmentConfig::MODE_MANUAL:
       return em::DeviceRegisterRequest::FLAVOR_ENROLLMENT_MANUAL;
     case EnrollmentConfig::MODE_MANUAL_REENROLLMENT:
@@ -122,6 +121,12 @@ em::DeviceRegisterRequest::Flavor EnrollmentModeToRegistrationFlavor(
     case EnrollmentConfig::MODE_ENROLLMENT_TOKEN_INITIAL_MANUAL_FALLBACK:
       return em::DeviceRegisterRequest::
           FLAVOR_ENROLLMENT_TOKEN_INITIAL_MANUAL_FALLBACK;
+    case EnrollmentConfig::MODE_REMOTE_DEPLOYMENT_SERVER_FORCED:
+      return em::DeviceRegisterRequest::
+          FLAVOR_ENROLLMENT_REMOTE_DEPLOYMENT_SERVER_FORCED;
+    case EnrollmentConfig::MODE_REMOTE_DEPLOYMENT_MANUAL_FALLBACK:
+      return em::DeviceRegisterRequest::
+          FLAVOR_ENROLLMENT_REMOTE_DEPLOYMENT_MANUAL_FALLBACK;
   }
 }
 
@@ -186,7 +191,6 @@ EnrollmentHandler::EnrollmentHandler(
     std::unique_ptr<CloudPolicyClient> client,
     scoped_refptr<base::SequencedTaskRunner> background_task_runner,
     const EnrollmentConfig& enrollment_config,
-    LicenseType license_type,
     DMAuth dm_auth,
     const std::string& client_id,
     const std::string& requisition,
@@ -209,9 +213,7 @@ EnrollmentHandler::EnrollmentHandler(
   CHECK(!client_->is_registered());
   CHECK_EQ(DM_STATUS_SUCCESS, client_->last_dm_status());
   CHECK_EQ(dm_auth_.empty(), enrollment_config_.is_mode_attestation());
-  CHECK(enrollment_config_.auth_mechanism !=
-            EnrollmentConfig::AUTH_MECHANISM_ATTESTATION ||
-        attestation_flow_);
+  CHECK(enrollment_config_.is_mode_attestation() || attestation_flow_);
   register_params_ =
       std::make_unique<CloudPolicyClient::RegistrationParameters>(
           em::DeviceRegisterRequest::DEVICE,
@@ -222,7 +224,7 @@ EnrollmentHandler::EnrollmentHandler(
       GetPsmDeterminationTimestamp(*g_browser_process->local_state());
   // License type is set only if terminal license is used. Unset field is
   // treated as enterprise license.
-  if (license_type == LicenseType::kTerminal) {
+  if (enrollment_config_.license_type == LicenseType::kTerminal) {
     register_params_->license_type =
         em::LicenseType_LicenseTypeEnum::LicenseType_LicenseTypeEnum_KIOSK;
   }
@@ -268,8 +270,8 @@ void EnrollmentHandler::StartEnrollment() {
     return;
   }
 
-  // Request state keys if FRE is enabled.
-  if (AutoEnrollmentTypeChecker::IsFREEnabled()) {
+  // Request state keys if supported.
+  if (AutoEnrollmentTypeChecker::AreFREStateKeysSupported()) {
     LOG(WARNING) << "Requesting state keys.";
     state_keys_broker_->RequestStateKeys(base::BindOnce(
         // This simply allows the keys to be wrapped in an std::optional, which
@@ -450,8 +452,7 @@ void EnrollmentHandler::StartRegistration() {
   SetStep(STEP_REGISTRATION);
   if (enrollment_config_.is_mode_attestation()) {
     StartAttestationBasedEnrollmentFlow();
-  } else if (enrollment_config_.mode ==
-             EnrollmentConfig::MODE_ENROLLMENT_TOKEN_INITIAL_SERVER_FORCED) {
+  } else if (enrollment_config_.is_mode_token()) {
     client_->RegisterDeviceWithEnrollmentToken(*register_params_, client_id_,
                                                dm_auth_.Clone());
   } else {

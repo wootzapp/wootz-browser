@@ -137,6 +137,11 @@ if (crashpad_is_apple) {
         "--arch",
         "arm64",
       ]
+    } else if (current_cpu == "arm64e") {
+      args += [
+        "--arch",
+        "arm64e",
+      ]
     } else if (crashpad_is_mac && current_cpu == "mac_universal") {
       args += [
         "--arch",
@@ -306,8 +311,6 @@ crashpad_static_library("util") {
         "posix/drop_privileges.cc",
         "posix/drop_privileges.h",
         "posix/process_info.h",
-        "posix/spawn_subprocess.cc",
-        "posix/spawn_subprocess.h",
 
         # These map signals to and from strings. While Fuchsia defines some of
         # the common SIGx defines, signals are never raised on Fuchsia, so
@@ -315,11 +318,20 @@ crashpad_static_library("util") {
         "posix/symbolic_constants_posix.cc",
         "posix/symbolic_constants_posix.h",
       ]
+
+      if (crashpad_is_android || crashpad_is_linux || crashpad_is_mac) {
+        sources += [
+          "posix/spawn_subprocess.cc",
+          "posix/spawn_subprocess.h",
+        ]
+      }
     }
   }
 
   if (crashpad_is_apple) {
     sources += [
+      "mac/sysctl.cc",
+      "mac/sysctl.h",
       "mac/xattr.cc",
       "mac/xattr.h",
       "mach/composite_mach_message_server.cc",
@@ -356,8 +368,6 @@ crashpad_static_library("util") {
       "mac/mac_util.h",
       "mac/service_management.cc",
       "mac/service_management.h",
-      "mac/sysctl.cc",
-      "mac/sysctl.h",
       "mach/bootstrap.cc",
       "mach/bootstrap.h",
       "mach/child_port_handshake.cc",
@@ -408,8 +418,6 @@ crashpad_static_library("util") {
       "ios/scoped_vm_read.h",
     ]
   }
-
-  deps = [ "//build:chromeos_buildflags" ]
 
   if (crashpad_is_android) {
     sources += [
@@ -535,13 +543,12 @@ crashpad_static_library("util") {
         "win/safe_terminate_process.asm",
       ]
     } else {
-      # Most Crashpad builds use Microsoft's armasm64.exe macro assembler for
-      # .asm source files. When building in Chromium, clang-cl is used as the
-      # assembler instead. Since the two assemblers recognize different
-      # assembly dialects, the same .asm file can't be used for each. As a
-      # workaround, use a prebuilt .obj file when the Microsoft-dialect
-      # assembler isn't available.
-      if (crashpad_is_in_chromium) {
+      # When building with clang, clang-cl is used as the assembler. Since
+      # clang-cl recognizes a different assembly dialect than Microsoft’s
+      # armasm64 macro assembler, the same .asm file can’t be used for each. As
+      # a workaround, use a prebuilt .obj file when the Microsoft-dialect
+      # assembler isn’t available.
+      if (crashpad_is_clang) {
         sources += [ "misc/capture_context_win_arm64.obj" ]
       } else {
         sources += [ "misc/capture_context_win_arm64.asm" ]
@@ -580,10 +587,7 @@ crashpad_static_library("util") {
     "../third_party/zlib",
   ]
 
-  deps += [
-    "$mini_chromium_source_parent:base",
-    "$mini_chromium_source_parent:chromeos_buildflags",
-  ]
+  deps = [ "$mini_chromium_source_parent:base" ]
 
   configs = [ "../build:flock_always_supported_defines" ]
 
@@ -737,7 +741,10 @@ if (!crashpad_is_android && !crashpad_is_ios) {
 source_set("no_cfi_icall") {
   sources = [ "misc/no_cfi_icall.h" ]
   public_configs = [ "..:crashpad_config" ]
-  public_deps = [ "$mini_chromium_source_parent:build" ]
+  public_deps = [
+    "$mini_chromium_source_parent:base",
+    "$mini_chromium_source_parent:build",
+  ]
 }
 
 source_set("util_test") {

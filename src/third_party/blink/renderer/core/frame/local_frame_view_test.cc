@@ -29,6 +29,8 @@
 #include "third_party/blink/renderer/core/testing/sim/sim_request.h"
 #include "third_party/blink/renderer/core/testing/sim/sim_test.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_artifact.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
 #include "ui/gfx/geometry/size.h"
@@ -53,7 +55,8 @@ class AnimationMockChromeClient : public RenderingTestChromeClient {
   }
 
   void ScheduleAnimation(const LocalFrameView*,
-                         base::TimeDelta = base::TimeDelta()) override {
+                         base::TimeDelta = base::TimeDelta(),
+                         bool urgent = false) override {
     has_scheduled_animation_ = true;
   }
   bool has_scheduled_animation_;
@@ -163,7 +166,7 @@ TEST_F(LocalFrameViewTest, UpdateLifecyclePhasesForPrintingDetachedFrame) {
   SetBodyInnerHTML("<iframe style='display: none'></iframe>");
   SetChildFrameHTML("A");
 
-  ChildFrame().StartPrinting(gfx::SizeF(200, 200), 1);
+  ChildFrame().StartPrinting(WebPrintParams(gfx::SizeF(200, 200)));
   ChildDocument().View()->UpdateLifecyclePhasesForPrinting();
 
   // The following checks that the detached frame has been walked for PrePaint.
@@ -179,7 +182,7 @@ TEST_F(LocalFrameViewTest, PrintFrameUpdateAllLifecyclePhases) {
   SetBodyInnerHTML("<iframe></iframe>");
   SetChildFrameHTML("A");
 
-  ChildFrame().StartPrinting(gfx::SizeF(200, 200), 1);
+  ChildFrame().StartPrinting(WebPrintParams(gfx::SizeF(200, 200)));
   ChildDocument().View()->UpdateLifecyclePhasesForPrinting();
 
   EXPECT_EQ(DocumentLifecycle::kPrePaintClean,
@@ -209,7 +212,8 @@ TEST_F(LocalFrameViewTest, CanHaveScrollbarsIfScrollingAttrEqualsNoChanged) {
 
   ChildDocument().WillChangeFrameOwnerProperties(
       0, 0, mojom::blink::ScrollbarMode::kAlwaysOn, false,
-      mojom::blink::ColorScheme::kLight);
+      mojom::blink::ColorScheme::kLight,
+      mojom::blink::PreferredColorScheme::kLight);
   EXPECT_TRUE(ChildDocument().View()->CanHaveScrollbars());
 }
 
@@ -835,7 +839,7 @@ class PrerenderLocalFrameViewTest : public base::test::WithFeatureOverride,
 
 INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(PrerenderLocalFrameViewTest);
 
-TEST_P(PrerenderLocalFrameViewTest, RunPrePaintLifecyclePhaseBeforeActivation) {
+TEST_P(PrerenderLocalFrameViewTest, DryRunPaintBeforePrerenderActivation) {
   InitializePrerenderPageRoot();
   ASSERT_TRUE(GetDocument().IsPrerendering());
   SimRequest resource("https://example.test", "text/html");
@@ -845,12 +849,15 @@ TEST_P(PrerenderLocalFrameViewTest, RunPrePaintLifecyclePhaseBeforeActivation) {
     This is a prerendering page.
     </body>
   )");
+  PaintControllerPersistentData& pd =
+      GetDocument().View()->GetPaintControllerPersistentDataForTesting();
 
   if (base::FeatureList::IsEnabled(
           features::kPrerender2EarlyDocumentLifecycleUpdate)) {
-    EXPECT_EQ(DocumentLifecycle::kPrePaintClean,
+    EXPECT_EQ(DocumentLifecycle::kPaintClean,
               GetDocument().Lifecycle().GetState());
     EXPECT_FALSE(GetPage().GetVisualViewport().NeedsPaintPropertyUpdate());
+    EXPECT_EQ(1u, pd.GetPaintChunks().size());
   } else {
     EXPECT_EQ(DocumentLifecycle::kLayoutClean,
               GetDocument().Lifecycle().GetState());

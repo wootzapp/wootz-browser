@@ -80,9 +80,8 @@ class LargestContentfulPaintCalculatorTest : public RenderingTest {
     // vector of 0s to the image. This is used for bits-per-pixel
     // calculations.
     if (bytes > 0) {
-      Vector<char> img_data(bytes);
       scoped_refptr<SharedBuffer> shared_buffer =
-          SharedBuffer::AdoptVector(img_data);
+          SharedBuffer::Create(Vector<char>(bytes));
       original_image_data->SetData(shared_buffer, /*all_data_received=*/true);
     }
     ImageResourceContent* original_image_content =
@@ -102,15 +101,24 @@ class LargestContentfulPaintCalculatorTest : public RenderingTest {
     return GetLargestContentfulPaintCalculator()->count_candidates_;
   }
 
+  void InvokePresentationPromise(
+      MockPaintTimingCallbackManager* callback_manager) {
+    base::TimeTicks presentation_time = simulated_clock_.NowTicks();
+    DOMHighResTimeStamp timestamp =
+        (presentation_time -
+         WindowPerformance::GetTimeOrigin(GetDocument().domWindow()))
+            .InMillisecondsF();
+    callback_manager->InvokePresentationTimeCallback(presentation_time,
+                                                     {timestamp, timestamp});
+  }
+
   void UpdateLargestContentfulPaintCandidate() {
     GetFrame().View()->GetPaintTimingDetector().UpdateLcpCandidate();
   }
 
   void SimulateContentPresentationPromise() {
-    mock_text_callback_manager_->InvokePresentationTimeCallback(
-        simulated_clock_.NowTicks());
-    mock_image_callback_manager_->InvokePresentationTimeCallback(
-        simulated_clock_.NowTicks());
+    InvokePresentationPromise(mock_text_callback_manager_.Get());
+    InvokePresentationPromise(mock_image_callback_manager_.Get());
     // Outside the tests, this is invoked by
     // |PaintTimingCallbackManagerImpl::ReportPaintTime|.
     UpdateLargestContentfulPaintCandidate();
@@ -119,8 +127,7 @@ class LargestContentfulPaintCalculatorTest : public RenderingTest {
   // Outside the tests, the text callback and the image callback are run
   // together, as in |SimulateContentPresentationPromise|.
   void SimulateImagePresentationPromise() {
-    mock_image_callback_manager_->InvokePresentationTimeCallback(
-        simulated_clock_.NowTicks());
+    InvokePresentationPromise(mock_image_callback_manager_.Get());
     // Outside the tests, this is invoked by
     // |PaintTimingCallbackManagerImpl::ReportPaintTime|.
     UpdateLargestContentfulPaintCandidate();
@@ -129,8 +136,7 @@ class LargestContentfulPaintCalculatorTest : public RenderingTest {
   // Outside the tests, the text callback and the image callback are run
   // together, as in |SimulateContentPresentationPromise|.
   void SimulateTextPresentationPromise() {
-    mock_text_callback_manager_->InvokePresentationTimeCallback(
-        simulated_clock_.NowTicks());
+    InvokePresentationPromise(mock_text_callback_manager_.Get());
     // Outside the tests, this is invoked by
     // |PaintTimingCallbackManagerImpl::ReportPaintTime|.
     UpdateLargestContentfulPaintCandidate();
@@ -331,15 +337,13 @@ TEST_F(LargestContentfulPaintCalculatorTest, NoPaint) {
 
 TEST_F(LargestContentfulPaintCalculatorTest, SingleImageExcludedForEntropy) {
   base::test::ScopedFeatureList scoped_features;
-  scoped_features.InitAndEnableFeatureWithParameters(
-      blink::features::kExcludeLowEntropyImagesFromLCP, {{"min_bpp", "2.0"}});
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <img id='target'/>
   )HTML");
-  // 600 bytes will cause a calculated entropy of 0.32bpp, which is below the
+  // 600 bytes will cause a calculated entropy of 0.032bpp, which is below the
   // 2bpp threshold.
-  SetImage("target", 100, 150, 600);
+  SetImage("target", 100, 150, 60);
   UpdateAllLifecyclePhasesForTest();
   UpdateLargestContentfulPaintCandidate();
 
@@ -350,17 +354,15 @@ TEST_F(LargestContentfulPaintCalculatorTest, SingleImageExcludedForEntropy) {
 
 TEST_F(LargestContentfulPaintCalculatorTest, LargerImageExcludedForEntropy) {
   base::test::ScopedFeatureList scoped_features;
-  scoped_features.InitAndEnableFeatureWithParameters(
-      blink::features::kExcludeLowEntropyImagesFromLCP, {{"min_bpp", "2.0"}});
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <img id='small'/>
     <img id='large'/>
   )HTML");
-  // Smaller image has 16 bpp of entropy, enough to be considered for LCP.
-  // Larger image has only 0.32 bpp, which is below the 2bpp threshold.
+  // Smaller image has 1.6 bpp of entropy, enough to be considered for LCP.
+  // Larger image has only 0.032 bpp, which is below the 2bpp threshold.
   SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 200, 800);
+  SetImage("large", 100, 200, 80);
   UpdateAllLifecyclePhasesForTest();
   SimulateImagePresentationPromise();
 
@@ -373,8 +375,6 @@ TEST_F(LargestContentfulPaintCalculatorTest, LargerImageExcludedForEntropy) {
 TEST_F(LargestContentfulPaintCalculatorTest,
        LowEntropyImageNotExcludedAtLowerThreshold) {
   base::test::ScopedFeatureList scoped_features;
-  scoped_features.InitAndEnableFeatureWithParameters(
-      blink::features::kExcludeLowEntropyImagesFromLCP, {{"min_bpp", "0.02"}});
   SetBodyInnerHTML(R"HTML(
     <!DOCTYPE html>
     <img id='small'/>

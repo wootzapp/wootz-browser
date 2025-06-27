@@ -8,15 +8,18 @@
 #include <windows.h>
 
 #include <d3d11.h>
+#include <d3d12.h>
 #include <wrl/client.h>
+
+#include <variant>
 
 // clang-format off
 #include <webgpu/webgpu_cpp.h>
 // clang-format on
 
 #include "base/containers/span.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/gfx/win/d3d_shared_fence.h"
 #include "ui/gl/buildflags.h"
 
 namespace gpu {
@@ -28,7 +31,8 @@ bool ClearD3D11TextureToColor(
 wgpu::Texture CreateDawnSharedTexture(
     const wgpu::SharedTextureMemory& shared_texture_memory,
     wgpu::TextureUsage usage,
-    base::span<wgpu::TextureFormat> view_formats);
+    wgpu::TextureUsage internal_usage,
+    base::span<const wgpu::TextureFormat> view_formats);
 
 wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
     const wgpu::Device& device,
@@ -37,7 +41,22 @@ wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
 
 wgpu::SharedTextureMemory CreateDawnSharedTextureMemory(
     const wgpu::Device& device,
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> texture);
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> texture,
+    bool requires_dawn_signal_fence);
+
+wgpu::Buffer CreateDawnSharedBuffer(
+    const wgpu::SharedBufferMemory& shared_buffer_memory,
+    wgpu::BufferUsage usage);
+
+wgpu::SharedBufferMemory CreateDawnSharedBufferMemory(
+    const wgpu::Device& device,
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource);
+
+wgpu::SharedFence CreateDawnSharedFence(
+    const wgpu::Device& device,
+    scoped_refptr<gfx::D3DSharedFence> fence);
+
+std::string D3D11TextureDescToString(const D3D11_TEXTURE2D_DESC& desc);
 
 }  // namespace gpu
 

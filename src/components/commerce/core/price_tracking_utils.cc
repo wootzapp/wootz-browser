@@ -156,7 +156,8 @@ void SetPriceTrackingStateForBookmark(
     const bookmarks::BookmarkNode* node,
     bool enabled,
     base::OnceCallback<void(bool)> callback,
-    bool was_bookmark_created_by_price_tracking) {
+    bool was_bookmark_created_by_price_tracking,
+    std::optional<ProductInfo> product_info) {
   if (!service || !model || !node || model->IsLocalOnlyNode(*node)) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), false));
@@ -173,6 +174,16 @@ void SetPriceTrackingStateForBookmark(
   if (!meta || !meta->has_shopping_specifics()) {
     std::optional<ProductInfo> info =
         service->GetAvailableProductInfoForUrl(node->url());
+
+    // ProductInfo can be passed in optionally and used in the event
+    // that ShoppingService isn't aware of the ProductInfo.
+    // Ideally use GetProductInfoForUrls() (where a fallback is
+    // automatically provided) instead of
+    // GetAvailableProductInfoForUrl() above when synced Tabs are
+    // supported in Shopping Service TODO(crbug.com/410811501).
+    if (!info.has_value() && product_info.has_value()) {
+      info = product_info;
+    }
 
     // If still no information, do nothing.
     if (!info.has_value()) {
@@ -209,7 +220,7 @@ void SetPriceTrackingStateForBookmark(
   if (enabled) {
     user_seen_offer.emplace(base::NumberToString(specifics->offer_id()),
                             specifics->current_price().amount_micros(),
-                            specifics->country_code());
+                            specifics->country_code(), specifics->locale());
   }
   CommerceSubscription sub(
       SubscriptionType::kPriceTrack, IdentifierType::kProductClusterId,
@@ -271,9 +282,10 @@ std::vector<const bookmarks::BookmarkNode*> GetBookmarksWithClusterId(
 
 void GetAllPriceTrackedBookmarks(
     ShoppingService* shopping_service,
+    bookmarks::BookmarkModel* bookmark_model,
     base::OnceCallback<void(std::vector<const bookmarks::BookmarkNode*>)>
         callback) {
-  if (!shopping_service) {
+  if (!shopping_service || !bookmark_model) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback),
@@ -285,9 +297,13 @@ void GetAllPriceTrackedBookmarks(
       SubscriptionType::kPriceTrack,
       base::BindOnce(
           [](base::WeakPtr<ShoppingService> service,
+             base::WeakPtr<bookmarks::BookmarkModel> model,
              base::OnceCallback<void(
                  std::vector<const bookmarks::BookmarkNode*>)> callback,
              std::vector<CommerceSubscription> subscriptions) {
+            std::vector<const bookmarks::BookmarkNode*> shopping_bookmarks =
+                GetAllShoppingBookmarks(model.get());
+
             // Get all cluster IDs in a map for easier lookup.
             std::unordered_set<uint64_t> cluster_set;
             for (auto sub : subscriptions) {
@@ -299,14 +315,10 @@ void GetAllPriceTrackedBookmarks(
               }
             }
 
-            bookmarks::BookmarkModel* model =
-                service->GetBookmarkModelUsedForSync();
-            std::vector<const bookmarks::BookmarkNode*> shopping_bookmarks =
-                GetAllShoppingBookmarks(model);
             std::vector<const bookmarks::BookmarkNode*> tracked_bookmarks;
             for (const bookmarks::BookmarkNode* node : shopping_bookmarks) {
               std::unique_ptr<power_bookmarks::PowerBookmarkMeta> meta =
-                  power_bookmarks::GetNodePowerBookmarkMeta(model, node);
+                  power_bookmarks::GetNodePowerBookmarkMeta(model.get(), node);
 
               if (!meta || !meta->has_shopping_specifics()) {
                 continue;
@@ -323,7 +335,8 @@ void GetAllPriceTrackedBookmarks(
             }
             std::move(callback).Run(std::move(tracked_bookmarks));
           },
-          shopping_service->AsWeakPtr(), std::move(callback)));
+          shopping_service->AsWeakPtr(), bookmark_model->AsWeakPtr(),
+          std::move(callback)));
 }
 
 std::vector<const bookmarks::BookmarkNode*> GetAllShoppingBookmarks(

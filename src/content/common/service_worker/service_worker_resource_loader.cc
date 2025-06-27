@@ -8,7 +8,7 @@
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/trace_event/trace_event.h"
-#include "content/common/features.h"
+#include "content/public/common/content_features.h"
 #include "services/network/public/mojom/service_worker_router_info.mojom-shared.h"
 
 namespace content {
@@ -24,7 +24,7 @@ void ServiceWorkerResourceLoader::SetCommitResponsibility(
       fetch_response_from);
   switch (fetch_response_from) {
     case FetchResponseFrom::kNoResponseYet:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     case FetchResponseFrom::kSubresourceLoaderIsHandlingRedirect:
       // kSubresourceLoaderIsHandlingRedirect is called only from subresources.
       CHECK(!IsMainResourceLoader());
@@ -84,22 +84,31 @@ void ServiceWorkerResourceLoader::SetDispatchedPreloadType(
   dispatched_preload_type_ = type;
 }
 
-bool ServiceWorkerResourceLoader::
-    ShouldAvoidRecordingServiceWorkerTimingInfo() {
-  if (!used_router_source_type_.has_value()) {
+bool ServiceWorkerResourceLoader::ShouldRecordServiceWorkerFetchStart() {
+  if (!matched_router_source_type_.has_value()) {
+    return true;
+  }
+
+  switch (*matched_router_source_type_) {
+    case network::mojom::ServiceWorkerRouterSourceType::kNetwork:
+    case network::mojom::ServiceWorkerRouterSourceType::kCache:
+    case network::mojom::ServiceWorkerRouterSourceType::kRaceNetworkAndCache:
+      return false;
+    case network::mojom::ServiceWorkerRouterSourceType::
+        kRaceNetworkAndFetchEvent:
+    case network::mojom::ServiceWorkerRouterSourceType::kFetchEvent:
+      // These source should start ServiceWorker and trigger fetch-event.
+      return true;
+  }
+}
+
+bool ServiceWorkerResourceLoader::IsMatchedRouterSourceType(
+    network::mojom::ServiceWorkerRouterSourceType type) {
+  if (!matched_router_source_type_.has_value()) {
     return false;
   }
 
-  switch (*used_router_source_type_) {
-    case network::mojom::ServiceWorkerRouterSourceType::kNetwork:
-    case network::mojom::ServiceWorkerRouterSourceType::kCache:
-      return true;
-    case network::mojom::ServiceWorkerRouterSourceType::kRace:
-    case network::mojom::ServiceWorkerRouterSourceType::kFetchEvent:
-      // It is fine to record the ServiceWorker related metrics
-      // because the fetch handler is executed.
-      return false;
-  }
+  return *matched_router_source_type_ == type;
 }
 
 }  // namespace content

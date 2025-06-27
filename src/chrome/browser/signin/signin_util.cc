@@ -16,7 +16,6 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/profile_management/profile_management_features.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
@@ -38,6 +37,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "google_apis/gaia/gaia_constants.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "net/cookies/canonical_cookie.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -65,7 +65,7 @@ ScopedForceSigninSetterForTesting::~ScopedForceSigninSetterForTesting() {
   ResetForceSigninForTesting();  // IN-TEST
 }
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
 CookiesMover::CookiesMover(base::WeakPtr<Profile> source_profile,
                            base::WeakPtr<Profile> destination_profile,
                            base::OnceCallback<void()> callback)
@@ -132,7 +132,7 @@ void CookiesMover::OnCookiesReceived(
 void CookiesMover::OnCookiesMoved() {
   std::move(callback_).Run();
 }
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
 
 bool IsForceSigninEnabled() {
   if (g_is_force_signin_enabled_cache == NOT_CACHED) {
@@ -154,13 +154,11 @@ void ResetForceSigninForTesting() {
 }
 
 bool IsProfileDeletionAllowed(Profile* profile) {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  return !profile->IsMainProfile();
-#elif BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   return false;
 #else
   return true;
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -210,7 +208,7 @@ bool ProfileSeparationAllowsKeepingUnmanagedBrowsingDataInManagedProfile(
     const policy::ProfileSeparationPolicies&
         intercepted_account_separation_policies) {
   // We should not move managed data.
-  if (chrome::enterprise_util::UserAcceptedAccountManagement(profile)) {
+  if (enterprise_util::UserAcceptedAccountManagement(profile)) {
     return false;
   }
 
@@ -267,7 +265,7 @@ void RecordEnterpriseProfileCreationUserChoice(bool enforced_by_policy,
 PrimaryAccountError SetPrimaryAccountWithInvalidToken(
     Profile* profile,
     const std::string& user_email,
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     bool is_under_advanced_protection,
     signin_metrics::AccessPoint access_point,
     signin_metrics::SourceForRefreshTokenOperation source) {
@@ -301,6 +299,45 @@ PrimaryAccountError SetPrimaryAccountWithInvalidToken(
            << static_cast<int>(set_primary_account_result);
 
   return set_primary_account_result;
+}
+
+bool IsSigninPending(signin::IdentityManager* identity_manager) {
+  return !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) &&
+         identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin) &&
+         identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
+             identity_manager->GetPrimaryAccountId(
+                 signin::ConsentLevel::kSignin));
+}
+
+SignedInState GetSignedInState(
+    const signin::IdentityManager* identity_manager) {
+  if (!identity_manager) {
+    return SignedInState::kSignedOut;
+  }
+
+  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
+    if (identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
+            identity_manager->GetPrimaryAccountId(
+                signin::ConsentLevel::kSync))) {
+      return SignedInState::kSyncPaused;
+    }
+    return SignedInState::kSyncing;
+  }
+
+  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+    return identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
+               identity_manager->GetPrimaryAccountId(
+                   signin::ConsentLevel::kSignin))
+               ? SignedInState::kSignInPending
+               : SignedInState::kSignedIn;
+  }
+
+  // Not signed, but at least one account is signed in on the web.
+  if (!identity_manager->GetAccountsWithRefreshTokens().empty()) {
+    return SignedInState::kWebOnlySignedIn;
+  }
+
+  return SignedInState::kSignedOut;
 }
 
 }  // namespace signin_util

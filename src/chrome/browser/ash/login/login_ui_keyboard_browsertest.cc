@@ -15,7 +15,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ash/input_method/input_method_persistence.h"
-#include "chrome/browser/ash/language_preferences.h"
 #include "chrome/browser/ash/login/lock/screen_locker_tester.h"
 #include "chrome/browser/ash/login/lock_screen_utils.h"
 #include "chrome/browser/ash/login/login_manager_test.h"
@@ -25,19 +24,20 @@
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
 #include "chrome/browser/ash/login/test/scoped_policy_update.h"
 #include "chrome/browser/ash/login/test/user_adding_screen_utils.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
-#include "chrome/browser/ash/login/ui/user_adding_screen.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/core/device_policy_builder.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/ash/settings/stub_cros_settings_provider.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/ui/ash/login_screen_shown_observer.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/ash/login/user_adding_screen.h"
 #include "chrome/browser/ui/webui/ash/login/user_creation_screen_handler.h"
 #include "chrome/common/pref_names.h"
+#include "chromeos/ash/components/language_preferences/language_preferences.h"
 #include "chromeos/ash/components/login/auth/public/user_context.h"
 #include "chromeos/ash/components/settings/cros_settings_names.h"
+#include "chromeos/ash/experiences/login/login_screen_shown_observer.h"
 #include "components/account_id/account_id.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_manager/known_user.h"
@@ -45,6 +45,7 @@
 #include "components/user_manager/user_manager.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
+#include "google_apis/gaia/gaia_id.h"
 
 namespace ash {
 
@@ -54,11 +55,11 @@ namespace em = ::enterprise_management;
 
 constexpr char kTestUser1[] = "test-user1@gmail.com";
 constexpr char kTestUser1NonCanonicalDisplayEmail[] = "test-us.e.r1@gmail.com";
-constexpr char kTestUser1GaiaId[] = "1111111111";
+constexpr GaiaId::Literal kTestUser1GaiaId("1111111111");
 constexpr char kTestUser2[] = "test-user2@gmail.com";
-constexpr char kTestUser2GaiaId[] = "2222222222";
+constexpr GaiaId::Literal kTestUser2GaiaId("2222222222");
 constexpr char kTestUser3[] = "test-user3@gmail.com";
-constexpr char kTestUser3GaiaId[] = "3333333333";
+constexpr GaiaId::Literal kTestUser3GaiaId("3333333333");
 
 void Append_en_US_InputMethod(std::vector<std::string>* out) {
   out->push_back("xkb:us::eng");
@@ -90,7 +91,7 @@ class LoginUIKeyboardTest : public LoginManagerTest {
     test_users_.push_back(
         AccountId::FromUserEmailGaiaId(kTestUser2, kTestUser2GaiaId));
   }
-  ~LoginUIKeyboardTest() override {}
+  ~LoginUIKeyboardTest() override = default;
 
   void SetUpOnMainThread() override {
     user_input_methods.push_back("xkb:fr::fra");
@@ -243,7 +244,7 @@ IN_PROC_BROWSER_TEST_F(LoginUIKeyboardTest, CheckPODScreenWithUsers) {
 class LoginUIKeyboardTestWithUsersAndOwner : public LoginManagerTest {
  public:
   LoginUIKeyboardTestWithUsersAndOwner() = default;
-  ~LoginUIKeyboardTestWithUsersAndOwner() override {}
+  ~LoginUIKeyboardTestWithUsersAndOwner() override = default;
 
   void SetUp() override {
     LoginManagerTest::SetUp();

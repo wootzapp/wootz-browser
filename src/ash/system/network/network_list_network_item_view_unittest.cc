@@ -20,7 +20,7 @@
 #include "base/functional/bind.h"
 #include "base/i18n/number_formatting.h"
 #include "base/memory/raw_ptr.h"
-#include "base/test/scoped_feature_list.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chromeos/ash/services/network_config/public/cpp/cros_network_config_test_helper.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom.h"
@@ -236,14 +236,14 @@ TEST_F(NetworkListNetworkItemViewTest, HasCorrectCellularSublabel) {
 
   // Simulate user logout and check label for pSIM networks that are
   // connected but not activated.
-  GetSessionControllerClient()->Reset();
+  ClearLogin();
   base::RunLoop().RunUntilIdle();
   UpdateViewForNetwork(cellular_network);
   EXPECT_EQ(l10n_util::GetStringUTF16(
                 IDS_ASH_STATUS_TRAY_NETWORK_STATUS_ACTIVATE_AFTER_DEVICE_SETUP),
             network_list_network_item_view()->sub_text_label()->GetText());
 
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   base::RunLoop().RunUntilIdle();
 
   // Label for unactivated eSIM networks.
@@ -283,7 +283,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasCorrectCellularSublabel) {
             network_list_network_item_view()->sub_text_label()->GetText());
 
   // label for locked cellular network when user is not logged in.
-  GetSessionControllerClient()->Reset();
+  ClearLogin();
   base::RunLoop().RunUntilIdle();
   UpdateViewForNetwork(cellular_network);
   EXPECT_EQ(l10n_util::GetStringUTF16(
@@ -292,8 +292,6 @@ TEST_F(NetworkListNetworkItemViewTest, HasCorrectCellularSublabel) {
 }
 
 TEST_F(NetworkListNetworkItemViewTest, HasCorrectCarrierLockSublabel) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(features::kCellularCarrierLock);
   EXPECT_FALSE(network_list_network_item_view()->sub_text_label());
   NetworkStatePropertiesPtr cellular_network =
       CreateStandaloneNetworkProperties(kCellularName, NetworkType::kCellular,
@@ -304,23 +302,6 @@ TEST_F(NetworkListNetworkItemViewTest, HasCorrectCarrierLockSublabel) {
   UpdateViewForNetwork(cellular_network);
   EXPECT_EQ(l10n_util::GetStringUTF16(
                 IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CARRIER_LOCKED),
-            network_list_network_item_view()->sub_text_label()->GetText());
-}
-
-TEST_F(NetworkListNetworkItemViewTest,
-       HasCorrectCarrierLockSublabelFeatureDisable) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(features::kCellularCarrierLock);
-  EXPECT_FALSE(network_list_network_item_view()->sub_text_label());
-  NetworkStatePropertiesPtr cellular_network =
-      CreateStandaloneNetworkProperties(kCellularName, NetworkType::kCellular,
-                                        ConnectionStateType::kConnected);
-  // When feature is disabled, existing string should be displayed
-  cellular_network->type_state->get_cellular()->sim_locked = true;
-  cellular_network->type_state->get_cellular()->sim_lock_type = "network-pin";
-  UpdateViewForNetwork(cellular_network);
-  EXPECT_EQ(l10n_util::GetStringUTF16(
-                IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CLICK_TO_UNLOCK),
             network_list_network_item_view()->sub_text_label()->GetText());
 }
 
@@ -435,7 +416,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedA11yText) {
   EXPECT_EQ(
       l10n_util::GetStringFUTF16(IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_OPEN,
                                  base::UTF8ToUTF16(kWiFiName)),
-      network_list_network_item_view()->GetAccessibleName());
+      network_list_network_item_view()->GetViewAccessibility().GetCachedName());
 
   // Network can be connected to.
   wifi_network->connectable = true;
@@ -445,7 +426,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedA11yText) {
   EXPECT_EQ(
       l10n_util::GetStringFUTF16(IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_CONNECT,
                                  base::UTF8ToUTF16(kWiFiName)),
-      network_list_network_item_view()->GetAccessibleName());
+      network_list_network_item_view()->GetViewAccessibility().GetCachedName());
 
   // Activate cellular network A11Y label is shown when a pSIM network is
   // connected but not yet activated.
@@ -458,32 +439,35 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedA11yText) {
       ActivationStateType::kNotActivated;
   UpdateViewForNetwork(cellular_network);
 
-  EXPECT_EQ(l10n_util::GetStringFUTF16(
-                IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_ACTIVATE,
-                base::UTF8ToUTF16(kCellularName)),
-            network_list_network_item_view()->GetAccessibleName());
+  EXPECT_EQ(
+      l10n_util::GetStringFUTF16(
+          IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_ACTIVATE,
+          base::UTF8ToUTF16(kCellularName)),
+      network_list_network_item_view()->GetViewAccessibility().GetCachedName());
 
   // Simulate user logout and check label for pSIM networks that are
   // connected but not activated.
-  GetSessionControllerClient()->Reset();
+  ClearLogin();
   base::RunLoop().RunUntilIdle();
   UpdateViewForNetwork(cellular_network);
-  EXPECT_EQ(l10n_util::GetStringFUTF16(
-                IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_ACTIVATE_AFTER_SETUP,
-                base::UTF8ToUTF16(kCellularName)),
-            network_list_network_item_view()->GetAccessibleName());
+  EXPECT_EQ(
+      l10n_util::GetStringFUTF16(
+          IDS_ASH_STATUS_TRAY_NETWORK_A11Y_LABEL_ACTIVATE_AFTER_SETUP,
+          base::UTF8ToUTF16(kCellularName)),
+      network_list_network_item_view()->GetViewAccessibility().GetCachedName());
 
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   base::RunLoop().RunUntilIdle();
 
   // Contact carrier A11Y label is shown when a eSIM network is connected but
   // not yet activated.
   cellular_network->type_state->get_cellular()->eid = kEid;
   UpdateViewForNetwork(cellular_network);
-  EXPECT_EQ(l10n_util::GetStringFUTF16(
-                IDS_ASH_STATUS_TRAY_NETWORK_A11Y_UNAVAILABLE_SIM_NETWORK,
-                base::UTF8ToUTF16(kCellularName)),
-            network_list_network_item_view()->GetAccessibleName());
+  EXPECT_EQ(
+      l10n_util::GetStringFUTF16(
+          IDS_ASH_STATUS_TRAY_NETWORK_A11Y_UNAVAILABLE_SIM_NETWORK,
+          base::UTF8ToUTF16(kCellularName)),
+      network_list_network_item_view()->GetViewAccessibility().GetCachedName());
 }
 
 TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForEthernet) {
@@ -602,14 +586,14 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForCellular) {
           IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CLICK_TO_ACTIVATE));
 
   // Cellular is not activate and user is not logged in.
-  GetSessionControllerClient()->Reset();
+  ClearLogin();
   base::RunLoop().RunUntilIdle();
   AssertA11yDescription(
       cellular_network,
       l10n_util::GetStringUTF16(
           IDS_ASH_STATUS_TRAY_NETWORK_STATUS_ACTIVATE_AFTER_DEVICE_SETUP));
 
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   base::RunLoop().RunUntilIdle();
 
   // Cellular is not activated and is an eSIM network.
@@ -630,7 +614,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForCellular) {
           IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CLICK_TO_UNLOCK));
 
   // User is not signed in.
-  GetSessionControllerClient()->Reset();
+  ClearLogin();
   AssertA11yDescription(
       cellular_network,
       l10n_util::GetStringUTF16(
@@ -731,7 +715,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForWiFi) {
                 IDS_ASH_STATUS_TRAY_WIFI_NETWORK_A11Y_DESC_WITH_CONNECTION_STATUS;
             break;
           default:
-            NOTREACHED_IN_MIGRATION();
+            NOTREACHED();
         }
         switch (connection) {
           case ConnectionStateType::kPortal: {
@@ -747,7 +731,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForWiFi) {
                       IDS_ASH_STATUS_TRAY_NETWORK_STATUS_CONNECTED_NO_INTERNET);
                   break;
                 default:
-                  NOTREACHED_IN_MIGRATION();
+                  NOTREACHED();
               }
               AssertA11yDescription(
                   wifi_network, l10n_util::GetStringFUTF16(
@@ -785,7 +769,7 @@ TEST_F(NetworkListNetworkItemViewTest, HasExpectedDescriptionForWiFi) {
                 desc_id = IDS_ASH_STATUS_TRAY_WIFI_NETWORK_A11Y_DESC;
                 break;
               default:
-                NOTREACHED_IN_MIGRATION();
+                NOTREACHED();
             }
             AssertA11yDescription(wifi_network,
                                   l10n_util::GetStringFUTF16(
@@ -813,7 +797,7 @@ TEST_F(NetworkListNetworkItemViewTest, NetworkIconAnimating) {
   // Override current icon with an empty icon, check it is updated when
   // animation starts.
   static_cast<views::ImageView*>(network_list_network_item_view()->left_view())
-      ->SetImage(gfx::ImageSkia());
+      ->SetImage(ui::ImageModel());
 
   EXPECT_TRUE(static_cast<views::ImageView*>(
                   network_list_network_item_view()->left_view())

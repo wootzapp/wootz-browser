@@ -20,7 +20,6 @@
 #include "base/threading/thread_checker.h"
 #include "base/types/pass_key.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/net_export.h"
 #include "net/base/network_handle.h"
 #include "net/base/request_priority.h"
@@ -61,9 +60,10 @@ class PersistentReportingAndNelStore;
 class ReportingService;
 #endif  // BUILDFLAG(ENABLE_REPORTING)
 
-#if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
-class DeviceBoundSessionService;
-#endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+namespace device_bound_sessions {
+class SessionService;
+class SessionStore;
+}
 
 // Class that provides application-specific context for URLRequest
 // instances. May only be created by URLRequestContextBuilder.
@@ -86,10 +86,7 @@ class NET_EXPORT URLRequestContext final {
   // session.
   const HttpNetworkSessionContext* GetNetworkSessionContext() const;
 
-// TODO(crbug.com/40118868): Revisit once build flag switch of lacros-chrome is
-// complete.
-#if !BUILDFLAG(IS_WIN) && \
-    !(BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_LINUX)
   // This function should not be used in Chromium, please use the version with
   // NetworkTrafficAnnotationTag in the future.
   //
@@ -211,12 +208,22 @@ class NET_EXPORT URLRequestContext final {
   }
 #endif  // BUILDFLAG(ENABLE_REPORTING)
 
-#if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
   // May return nullptr if the feature is disabled.
-  DeviceBoundSessionService* device_bound_session_service() const {
-    return device_bound_session_service_.get();
+  device_bound_sessions::SessionStore* device_bound_session_store() const {
+#if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+    return device_bound_session_store_.get();
+#else
+    return nullptr;
+#endif
   }
-#endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+  // May return nullptr if the feature is disabled.
+  device_bound_sessions::SessionService* device_bound_session_service() const {
+#if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+    return device_bound_session_service_.get();
+#else
+    return nullptr;
+#endif
+  }
 
   bool enable_brotli() const { return enable_brotli_; }
 
@@ -313,8 +320,12 @@ class NET_EXPORT URLRequestContext final {
 
   raw_ptr<NetLog> net_log_ = nullptr;
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+  void set_device_bound_session_store(
+      std::unique_ptr<device_bound_sessions::SessionStore>
+          device_bound_session_store);
   void set_device_bound_session_service(
-      std::unique_ptr<DeviceBoundSessionService> device_bound_session_service);
+      std::unique_ptr<device_bound_sessions::SessionService>
+          device_bound_session_service);
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 
   std::unique_ptr<HostResolver> host_resolver_;
@@ -364,7 +375,10 @@ class NET_EXPORT URLRequestContext final {
       url_requests_;
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
-  std::unique_ptr<DeviceBoundSessionService> device_bound_session_service_;
+  std::unique_ptr<device_bound_sessions::SessionStore>
+      device_bound_session_store_;
+  std::unique_ptr<device_bound_sessions::SessionService>
+      device_bound_session_service_;
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 
   // Enables Brotli Content-Encoding support.

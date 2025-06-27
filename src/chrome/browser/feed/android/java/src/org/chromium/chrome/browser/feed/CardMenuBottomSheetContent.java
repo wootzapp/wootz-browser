@@ -4,9 +4,12 @@
 
 package org.chromium.chrome.browser.feed;
 
+import android.content.Context;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 
@@ -58,22 +61,22 @@ public class CardMenuBottomSheetContent implements BottomSheetContent {
     }
 
     @Override
-    public int getSheetContentDescriptionStringId() {
-        return R.string.feed_card_menu_description;
+    public @NonNull String getSheetContentDescription(Context context) {
+        return context.getString(R.string.feed_card_menu_description);
     }
 
     @Override
-    public int getSheetHalfHeightAccessibilityStringId() {
+    public @StringRes int getSheetHalfHeightAccessibilityStringId() {
         return R.string.feed_card_menu_opened_half;
     }
 
     @Override
-    public int getSheetFullHeightAccessibilityStringId() {
+    public @StringRes int getSheetFullHeightAccessibilityStringId() {
         return R.string.feed_card_menu_opened_full;
     }
 
     @Override
-    public int getSheetClosedAccessibilityStringId() {
+    public @StringRes int getSheetClosedAccessibilityStringId() {
         return R.string.feed_card_menu_closed;
     }
 }

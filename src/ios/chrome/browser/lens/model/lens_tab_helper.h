@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef IOS_CHROME_BROWSER_LENS_LENS_TAB_HELPER_H_
-#define IOS_CHROME_BROWSER_LENS_LENS_TAB_HELPER_H_
+#ifndef IOS_CHROME_BROWSER_LENS_MODEL_LENS_TAB_HELPER_H_
+#define IOS_CHROME_BROWSER_LENS_MODEL_LENS_TAB_HELPER_H_
 
 #import <optional>
 
@@ -47,7 +47,6 @@ class LensTabHelper : public web::WebStatePolicyDecider,
   __weak id<LensCommands> commands_handler_;
 
   friend class web::WebStateUserData<LensTabHelper>;
-  WEB_STATE_USER_DATA_KEY_DECL();
 };
 
-#endif  // IOS_CHROME_BROWSER_LENS_LENS_TAB_HELPER_H_
+#endif  // IOS_CHROME_BROWSER_LENS_MODEL_LENS_TAB_HELPER_H_

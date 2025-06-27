@@ -192,12 +192,12 @@ class MergeTestFilterSwitchHandler : public DuplicateSwitchHandler {
   ~MergeTestFilterSwitchHandler() override;
 
   void ResolveDuplicate(std::string_view key,
-                        CommandLine::StringPieceType new_value,
+                        CommandLine::StringViewType new_value,
                         CommandLine::StringType& out_value) override;
 };
 
 #endif  // BUILDFLAG(USE_BLINK)
 
-}   // namespace base
+}  // namespace base
 
 #endif  // BASE_TEST_LAUNCHER_UNIT_TEST_LAUNCHER_H_

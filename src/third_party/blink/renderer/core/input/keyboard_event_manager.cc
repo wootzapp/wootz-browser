@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/core/input/input_device_capabilities.h"
 #include "third_party/blink/renderer/core/input/keyboard_shortcut_recorder.h"
 #include "third_party/blink/renderer/core/input/scroll_manager.h"
+#include "third_party/blink/renderer/core/keywords.h"
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/focusgroup_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
@@ -105,37 +106,25 @@ bool MapKeyCodeForScroll(int key_code,
     case VKEY_LEFT:
       *scroll_direction =
           mojom::blink::ScrollDirection::kScrollLeftIgnoringWritingMode;
-      *scroll_granularity =
-          RuntimeEnabledFeatures::PercentBasedScrollingEnabled()
-              ? ui::ScrollGranularity::kScrollByPercentage
-              : ui::ScrollGranularity::kScrollByLine;
+      *scroll_granularity = ui::ScrollGranularity::kScrollByLine;
       *scroll_use_uma = WebFeature::kScrollByKeyboardArrowKeys;
       break;
     case VKEY_RIGHT:
       *scroll_direction =
           mojom::blink::ScrollDirection::kScrollRightIgnoringWritingMode;
-      *scroll_granularity =
-          RuntimeEnabledFeatures::PercentBasedScrollingEnabled()
-              ? ui::ScrollGranularity::kScrollByPercentage
-              : ui::ScrollGranularity::kScrollByLine;
+      *scroll_granularity = ui::ScrollGranularity::kScrollByLine;
       *scroll_use_uma = WebFeature::kScrollByKeyboardArrowKeys;
       break;
     case VKEY_UP:
       *scroll_direction =
           mojom::blink::ScrollDirection::kScrollUpIgnoringWritingMode;
-      *scroll_granularity =
-          RuntimeEnabledFeatures::PercentBasedScrollingEnabled()
-              ? ui::ScrollGranularity::kScrollByPercentage
-              : ui::ScrollGranularity::kScrollByLine;
+      *scroll_granularity = ui::ScrollGranularity::kScrollByLine;
       *scroll_use_uma = WebFeature::kScrollByKeyboardArrowKeys;
       break;
     case VKEY_DOWN:
       *scroll_direction =
           mojom::blink::ScrollDirection::kScrollDownIgnoringWritingMode;
-      *scroll_granularity =
-          RuntimeEnabledFeatures::PercentBasedScrollingEnabled()
-              ? ui::ScrollGranularity::kScrollByPercentage
-              : ui::ScrollGranularity::kScrollByLine;
+      *scroll_granularity = ui::ScrollGranularity::kScrollByLine;
       *scroll_use_uma = WebFeature::kScrollByKeyboardArrowKeys;
       break;
     case VKEY_HOME:
@@ -192,7 +181,7 @@ bool KeyboardEventManager::HandleAccessKey(const WebKeyboardEvent& evt) {
   if ((evt.GetModifiers() & (WebKeyboardEvent::kKeyModifiers &
                              ~WebInputEvent::kShiftKey)) != kAccessKeyModifiers)
     return false;
-  String key = String(evt.unmodified_text);
+  String key = String(evt.unmodified_text.data());
   Element* elem =
       frame_->GetDocument()->GetElementByAccessKey(key.DeprecatedLower());
   if (!elem)
@@ -240,8 +229,7 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
       (initial_key_event.GetType() == WebInputEvent::Type::kKeyDown ||
        initial_key_event.GetType() == WebInputEvent::Type::kRawKeyDown)) {
     LocalFrame::NotifyUserActivation(
-        frame_, mojom::blink::UserActivationNotificationType::kInteraction,
-        RuntimeEnabledFeatures::BrowserVerifiedUserActivationKeyboardEnabled());
+        frame_, mojom::blink::UserActivationNotificationType::kInteraction);
   }
 
   // Don't expose key events to pages while browsing on the drive-by web. This
@@ -387,7 +375,7 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
       WebKeyboardEvent char_event = initial_key_event;
       char_event.SetType(WebInputEvent::Type::kChar);
 
-      KeyboardEvent *event = KeyboardEvent::Create(
+      KeyboardEvent* event = KeyboardEvent::Create(
           char_event, frame_->GetDocument()->domWindow(), event_cancellable);
       event->SetTarget(node);
       event->SetStopPropagation(!send_key_event);
@@ -396,7 +384,7 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
       break;
     }
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   return event_handling_util::ToWebInputEventResult(dispatch_result);
 }
@@ -431,11 +419,12 @@ void KeyboardEventManager::DefaultKeyboardEventHandler(
     if (event->keyCode() == kVKeyProcessKey)
       return;
 
-    if (event->key() == "Tab") {
+    const AtomicString key(event->key());
+    if (key == keywords::kTab) {
       DefaultTabEventHandler(event);
-    } else if (event->key() == "Escape") {
+    } else if (key == keywords::kEscape) {
       DefaultEscapeEventHandler(event);
-    } else if (event->key() == "Enter") {
+    } else if (key == keywords::kCapitalEnter) {
       DefaultEnterEventHandler(event);
     } else if (event->KeyEvent() &&
                static_cast<int>(event->KeyEvent()->dom_key) == 0x00200310) {
@@ -450,7 +439,7 @@ void KeyboardEventManager::DefaultKeyboardEventHandler(
     frame_->GetEditor().HandleKeyboardEvent(event);
     if (event->DefaultHandled())
       return;
-    if (event->key() == "Enter") {
+    if (event->key() == keywords::kCapitalEnter) {
       DefaultEnterEventHandler(event);
     } else if (event->charCode() == ' ') {
       DefaultSpaceEventHandler(event, possible_focused_node);
@@ -458,7 +447,7 @@ void KeyboardEventManager::DefaultKeyboardEventHandler(
   } else if (event->type() == event_type_names::kKeyup) {
     if (event->DefaultHandled())
       return;
-    if (event->key() == "Enter") {
+    if (event->key() == keywords::kCapitalEnter) {
       DefaultEnterEventHandler(event);
     }
     if (event->keyCode() == last_scrolling_keycode_) {
@@ -557,18 +546,10 @@ void KeyboardEventManager::DefaultArrowEventHandler(
 }
 
 void KeyboardEventManager::DefaultTabEventHandler(KeyboardEvent* event) {
-  // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-  TRACE_EVENT0("input", "KeyboardEventManager::DefaultTabEventHandler");
   DCHECK_EQ(event->type(), event_type_names::kKeydown);
   // We should only advance focus on tabs if no special modifier keys are held
   // down.
   if (event->ctrlKey() || event->metaKey()) {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1(
-        "input", "KeyboardEventManager::DefaultTabEventHandler",
-        TRACE_EVENT_SCOPE_THREAD, "reason_tab_does_not_advance_focus",
-        (event->ctrlKey() ? (event->metaKey() ? "Ctrl+MetaKey+Tab" : "Ctrl+Tab")
-                          : "MetaKey+Tab"));
     return;
   }
 
@@ -576,30 +557,15 @@ void KeyboardEventManager::DefaultTabEventHandler(KeyboardEvent* event) {
   // Option-Tab is a shortcut based on a system-wide preference on Mac but
   // should be ignored on all other platforms.
   if (event->altKey()) {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1("input",
-                         "KeyboardEventManager::DefaultTabEventHandler",
-                         TRACE_EVENT_SCOPE_THREAD,
-                         "reason_tab_does_not_advance_focus", "Alt+Tab");
     return;
   }
 #endif
 
   Page* page = frame_->GetPage();
   if (!page) {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1("input",
-                         "KeyboardEventManager::DefaultTabEventHandler",
-                         TRACE_EVENT_SCOPE_THREAD,
-                         "reason_tab_does_not_advance_focus", "Page is null");
     return;
   }
   if (!page->TabKeyCyclesThroughElements()) {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1(
-        "input", "KeyboardEventManager::DefaultTabEventHandler",
-        TRACE_EVENT_SCOPE_THREAD, "reason_tab_does_not_advance_focus",
-        "TabKeyCyclesThroughElements is false");
     return;
   }
 
@@ -609,11 +575,6 @@ void KeyboardEventManager::DefaultTabEventHandler(KeyboardEvent* event) {
 
   // Tabs can be used in design mode editing.
   if (frame_->GetDocument()->InDesignMode()) {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1(
-        "input", "KeyboardEventManager::DefaultTabEventHandler",
-        TRACE_EVENT_SCOPE_THREAD, "reason_tab_does_not_advance_focus",
-        "DesignMode is true");
     return;
   }
 
@@ -623,13 +584,6 @@ void KeyboardEventManager::DefaultTabEventHandler(KeyboardEvent* event) {
                                                   ->GetInputDeviceCapabilities()
                                                   ->FiresTouchEvents(false))) {
     event->SetDefaultHandled();
-  } else {
-    // TODO (liviutinta) remove TRACE after fixing crbug.com/1063548
-    TRACE_EVENT_INSTANT1(
-        "input", "KeyboardEventManager::DefaultTabEventHandler",
-        TRACE_EVENT_SCOPE_THREAD, "reason_tab_does_not_advance_focus",
-        "AdvanceFocus returned false");
-    return;
   }
 }
 
@@ -638,27 +592,22 @@ void KeyboardEventManager::DefaultEscapeEventHandler(KeyboardEvent* event) {
   if (!page)
     return;
 
-  if (IsSpatialNavigationEnabled(frame_) &&
-      !frame_->GetDocument()->InDesignMode()) {
+  Document& document = *frame_->GetDocument();
+  if (IsSpatialNavigationEnabled(frame_) && !document.InDesignMode()) {
     page->GetSpatialNavigationController().HandleEscapeKeyboardEvent(event);
   }
 
-  frame_->DomWindow()->closewatcher_stack()->EscapeKeyHandler(event);
-
-  HTMLDialogElement* dialog = frame_->GetDocument()->ActiveModalDialog();
-  if (dialog && !RuntimeEnabledFeatures::CloseWatcherEnabled()) {
-    auto* cancel_event = Event::CreateCancelable(event_type_names::kCancel);
-    dialog->DispatchEvent(*cancel_event);
-    if (!cancel_event->defaultPrevented()) {
-      dialog->close();
+  if (RuntimeEnabledFeatures::HTMLInterestTargetAttributeEnabled(
+          document.GetExecutionContext())) {
+    // Make a copy of the list, in case the event handlers change its state.
+    auto elements{document.CurrentInterestTargetElements()};
+    for (Element* el : elements) {
+      Element::GainOrLoseInterest(el, el->InterestTargetElement(),
+                                  Element::InterestState::kNoInterest);
     }
   }
 
-  if (!RuntimeEnabledFeatures::CloseWatcherEnabled()) {
-    auto* target_node = event->GetEventPath()[0].Target()->ToNode();
-    DCHECK(target_node);
-    HTMLElement::HandlePopoverLightDismiss(*event, *target_node);
-  }
+  frame_->DomWindow()->closewatcher_stack()->EscapeKeyHandler(event);
 }
 
 void KeyboardEventManager::DefaultEnterEventHandler(KeyboardEvent* event) {

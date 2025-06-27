@@ -7,7 +7,7 @@ package org.chromium.android_webview.test;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.SINGLE_PROCESS;
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
 
 import android.os.ParcelFileDescriptor;
 
@@ -37,9 +37,9 @@ import java.util.concurrent.TimeoutException;
 
 /** Test VariationsSeedHolder. */
 @RunWith(AwJUnit4ClassRunner.class)
-@OnlyRunIn(SINGLE_PROCESS)
+@OnlyRunIn(EITHER_PROCESS) // These tests don't use the renderer process
 public class VariationsSeedHolderTest {
-    private class TestHolder extends VariationsSeedHolder {
+    private static class TestHolder extends VariationsSeedHolder {
         private final CallbackHelper mWriteFinished; // notified after each writeSeedIfNewer
         private final CallbackHelper mUpdateFinished; // notified after each updateSeed
 
@@ -180,6 +180,7 @@ public class VariationsSeedHolderTest {
 
     @Test
     @MediumTest
+    @SuppressWarnings("Finally")
     public void testConcurrentUpdatesAndWrites()
             throws IOException, FileNotFoundException, TimeoutException {
         ArrayList<File> files = new ArrayList<>();

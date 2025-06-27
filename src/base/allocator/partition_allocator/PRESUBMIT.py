@@ -9,8 +9,15 @@ for more details on the presubmit API built into depot_tools.
 
 PRESUBMIT_VERSION = '2.0.0'
 
+# This is the base path of the partition_alloc directory when stored inside the
+# chromium repository. PRESUBMIT.py is executed from chromium.
 _PARTITION_ALLOC_BASE_PATH = 'base/allocator/partition_allocator/src/'
 
+# Pattern matching C/C++ source files, for use in allowlist args.
+_SOURCE_FILE_PATTERN = r'.*\.(h|hpp|c|cc|cpp)$'
+
+# Similar pattern, matching GN files.
+_BUILD_FILE_PATTERN = r'.*\.(gn|gni)$'
 
 # This is adapted from Chromium's PRESUBMIT.py. The differences are:
 # - Base path: It is relative to the partition_alloc's source directory instead
@@ -88,56 +95,155 @@ def CheckForIncludeGuards(input_api, output_api):
 
     return errors
 
-def CheckBuildConfigMacrosWithoutInclude(input_api, output_api):
-    # Excludes OS_CHROMEOS, which is not defined in build_config.h.
-    macro_re = input_api.re.compile(
-        r'^\s*#(el)?if.*\bdefined\(((COMPILER_|ARCH_CPU_|WCHAR_T_IS_)[^)]*)')
-    include_re = input_api.re.compile(
-        r'^#include\s+"partition_alloc/build_config.h"',
-        input_api.re.MULTILINE)
-    extension_re = input_api.re.compile(r'\.[a-z]+$')
+# In .gn and .gni files, check there are no unexpected dependencies on files
+# located outside of the partition_alloc repository.
+#
+# This is important, because partition_alloc has no CQ bots on its own, but only
+# through the chromium's CQ.
+#
+# Only //build_overrides/ is allowed, as it provides embedders, a way to
+# overrides the default build settings and forward the dependencies to
+# partition_alloc.
+def CheckNoExternalImportInGn(input_api, output_api):
+    # Match and capture <path> from import("<path>").
+    import_re = input_api.re.compile(r'^ *import\("([^"]+)"\)')
+
+    sources = lambda affected_file: input_api.FilterSourceFile(
+        affected_file,
+        files_to_skip=[],
+        files_to_check=[_BUILD_FILE_PATTERN])
+
     errors = []
-    config_h_file = input_api.os_path.join('build', 'build_config.h')
-    for f in input_api.AffectedFiles(include_deletes=False):
-        # The build-config macros are allowed to be used in build_config.h
-        # without including itself.
-        if f.LocalPath() == config_h_file:
-            continue
-        if not f.LocalPath().endswith(
-            ('.h', '.c', '.cc', '.cpp', '.m', '.mm')):
-            continue
+    for f in input_api.AffectedSourceFiles(sources):
+        for line_number, line in f.ChangedContents():
+            match = import_re.search(line)
+            if not match:
+                continue
+            import_path = match.group(1)
+            if import_path.startswith('//build_overrides/'):
+                continue
+            if not import_path.startswith('//'):
+                continue;
+            errors.append(output_api.PresubmitError(
+                '%s:%d\nPartitionAlloc disallow external import: %s' %
+                (f.LocalPath(), line_number + 1, import_path)))
+    return errors;
 
-        found_line_number = None
-        found_macro = None
-        all_lines = input_api.ReadFile(f, 'r').splitlines()
-        for line_num, line in enumerate(all_lines):
-            match = macro_re.search(line)
-            if match:
-                found_line_number = line_num
-                found_macro = match.group(2)
-                break
-        if not found_line_number:
-            continue
+# partition_alloc still supports C++17, because Skia still uses C++17.
+def CheckCpp17CompatibleHeaders(input_api, output_api):
+    CPP_20_HEADERS = [
+        "barrier",
+        "bit",
+        #"compare",  Three-way comparison may be used under appropriate guards.
+        "format",
+        "numbers",
+        "ranges",
+        "semaphore",
+        "source_location",
+        "span",
+        "stop_token",
+        "syncstream",
+        "version",
+    ]
 
-        found_include_line = -1
-        for line_num, line in enumerate(all_lines):
-            if include_re.search(line):
-                found_include_line = line_num
-                break
-        if found_include_line >= 0 and found_include_line < found_line_number:
-            continue
+    CPP_23_HEADERS = [
+        "expected",
+        "flat_map",
+        "flat_set",
+        "generator",
+        "mdspan",
+        "print",
+        "spanstream",
+        "stacktrace",
+        "stdatomic.h",
+        "stdfloat",
+    ]
 
-        if not f.LocalPath().endswith('.h'):
-            primary_header_path = extension_re.sub('.h', f.AbsoluteLocalPath())
-            try:
-                content = input_api.ReadFile(primary_header_path, 'r')
-                if include_re.search(content):
+    sources = lambda affected_file: input_api.FilterSourceFile(
+        affected_file,
+        # compiler_specific.h may use these headers in guarded ways.
+        files_to_skip=[
+            r'.*partition_alloc_base/augmentations/compiler_specific\.h'
+        ],
+        files_to_check=[_SOURCE_FILE_PATTERN])
+
+    errors = []
+    for f in input_api.AffectedSourceFiles(sources):
+        # for line_number, line in f.ChangedContents():
+        for line_number, line in enumerate(f.NewContents()):
+            for header in CPP_20_HEADERS:
+                if not "#include <%s>" % header in line:
                     continue
-            except IOError:
-                pass
-        errors.append('%s:%d %s macro is used without first including '
-            'partition_alloc/build_config.h.' %
-            (f.LocalPath(), found_line_number, found_macro))
-    if errors:
-        return [output_api.PresubmitPromptWarning('\n'.join(errors))]
-    return []
+                errors.append(
+                    output_api.PresubmitError(
+                        '%s:%d\nPartitionAlloc disallows C++20 headers: <%s>'
+                        % (f.LocalPath(), line_number + 1, header)))
+            for header in CPP_23_HEADERS:
+                if not "#include <%s>" % header in line:
+                    continue
+                errors.append(
+                    output_api.PresubmitError(
+                        '%s:%d\nPartitionAlloc disallows C++23 headers: <%s>'
+                        % (f.LocalPath(), line_number + 1, header)))
+    return errors
+
+def CheckCpp17CompatibleKeywords(input_api, output_api):
+    CPP_20_KEYWORDS = [
+        "concept",
+        "consteval",
+        "constinit",
+        "co_await",
+        "co_return",
+        "co_yield",
+        "requires",
+        "std::hardware_",
+        "std::is_constant_evaluated",
+        "std::bit_cast",
+        "std::midpoint",
+        "std::to_array",
+    ]
+    # Note: C++23 doesn't introduce new keywords.
+
+    sources = lambda affected_file: input_api.FilterSourceFile(
+        affected_file,
+        # compiler_specific.h may use these keywords in guarded macros.
+        files_to_skip=[r'.*partition_alloc_base/compiler_specific\.h'],
+        files_to_check=[_SOURCE_FILE_PATTERN])
+
+    errors = []
+    for f in input_api.AffectedSourceFiles(sources):
+        for line_number, line in f.ChangedContents():
+            for keyword in CPP_20_KEYWORDS:
+                if not keyword in line:
+                    continue
+                # Skip if part of a comment
+                if '//' in line and line.index('//') < line.index(keyword):
+                    continue
+
+                # Make sure there are word separators around the keyword:
+                regex = r'\b%s\b' % keyword
+                if not input_api.re.search(regex, line):
+                    continue
+
+                errors.append(
+                    output_api.PresubmitError(
+                        '%s:%d\nPartitionAlloc disallows C++20 keywords: %s'
+                        % (f.LocalPath(), line_number + 1, keyword)))
+    return errors
+
+# Check `NDEBUG` is not used inside partition_alloc. We prefer to use the
+# buildflags `#if PA_BUILDFLAG(IS_DEBUG)` instead.
+def CheckNoNDebug(input_api, output_api):
+    sources = lambda affected_file: input_api.FilterSourceFile(
+        affected_file,
+        files_to_skip=[],
+        files_to_check=[_SOURCE_FILE_PATTERN])
+
+    errors = []
+    for f in input_api.AffectedSourceFiles(sources):
+        for line_number, line in f.ChangedContents():
+            if 'NDEBUG' in line:
+                errors.append(output_api.PresubmitError('%s:%d\nPartitionAlloc'
+                  % (f.LocalPath(), line_number + 1)
+                  + 'disallows NDEBUG, use PA_BUILDFLAG(IS_DEBUG) instead'))
+    return errors

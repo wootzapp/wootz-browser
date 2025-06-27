@@ -6,8 +6,8 @@
 
 #include <stdint.h>
 
-#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -253,8 +253,8 @@ class RecoveryComponentInstaller : public update_client::CrxInstaller {
                ProgressCallback progress_callback,
                Callback callback) override;
 
-  bool GetInstalledFile(const std::string& file,
-                        base::FilePath* installed_file) override;
+  std::optional<base::FilePath> GetInstalledFile(
+      const std::string& file) override;
 
   bool Uninstall() override;
 
@@ -278,8 +278,7 @@ void RecoveryRegisterHelper(ComponentUpdateService* cus, PrefService* prefs) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   base::Version version(prefs->GetString(prefs::kRecoveryComponentVersion));
   if (!version.IsValid()) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    VLOG(2) << "Recovery component version is not valid.";
   }
   std::vector<uint8_t> public_key_hash;
   public_key_hash.assign(std::begin(kRecoverySha2Hash),
@@ -294,7 +293,7 @@ void RecoveryRegisterHelper(ComponentUpdateService* cus, PrefService* prefs) {
           /*allow_cached_copies=*/true,
           /*allow_updates_on_metered_connection=*/true,
           /*allow_updates=*/true))) {
-    NOTREACHED_IN_MIGRATION() << "Recovery component registration failed.";
+    VLOG(2) << "Recovery component registration failed.";
   }
 }
 
@@ -317,7 +316,7 @@ RecoveryComponentInstaller::RecoveryComponentInstaller(
     : current_version_(version), prefs_(prefs) {}
 
 void RecoveryComponentInstaller::OnUpdateError(int error) {
-  NOTREACHED_IN_MIGRATION() << "Recovery component update error: " << error;
+  VLOG(2) << "Recovery component update error: " << error;
 }
 
 void WaitForInstallToComplete(base::Process process,
@@ -464,10 +463,9 @@ bool RecoveryComponentInstaller::DoInstall(const base::FilePath& unpack_path) {
   return true;
 }
 
-bool RecoveryComponentInstaller::GetInstalledFile(
-    const std::string& file,
-    base::FilePath* installed_file) {
-  return false;
+std::optional<base::FilePath> RecoveryComponentInstaller::GetInstalledFile(
+    const std::string& file) {
+  return std::nullopt;
 }
 
 bool RecoveryComponentInstaller::Uninstall() {

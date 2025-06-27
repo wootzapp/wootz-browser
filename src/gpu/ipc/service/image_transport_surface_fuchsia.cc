@@ -12,7 +12,7 @@ namespace gpu {
 
 // static
 scoped_refptr<gl::Presenter> ImageTransportSurface::CreatePresenter(
-    gl::GLDisplay* display,
+    scoped_refptr<SharedContextState> context_state,
     const GpuDriverBugWorkarounds& workarounds,
     const GpuFeatureInfo& gpu_feature_info,
     SurfaceHandle surface_handle) {

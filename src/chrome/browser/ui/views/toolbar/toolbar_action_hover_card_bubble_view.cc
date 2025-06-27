@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_action_hover_card_bubble_view.h"
 
 #include <string>
+#include <string_view>
 
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
@@ -19,6 +20,7 @@
 #include "extensions/common/extension_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/layout/flex_layout.h"
@@ -57,7 +59,7 @@ std::u16string GetSiteAccessTitle(
       title_id = IDS_EXTENSIONS_TOOLBAR_ACTION_HOVER_CARD_TITLE_REQUESTS_ACCESS;
       break;
     case HoverCardState::SiteAccess::kExtensionDoesNotWantAccess:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   return l10n_util::GetStringUTF16(title_id);
 }
@@ -83,7 +85,7 @@ std::u16string GetSiteAccessDescription(HoverCardState::SiteAccess state,
           IDS_EXTENSIONS_TOOLBAR_ACTION_HOVER_CARD_DESCRIPTION_EXTENSION_REQUESTS_ACCESS;
       break;
     case HoverCardState::SiteAccess::kExtensionDoesNotWantAccess:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   return l10n_util::GetStringFUTF16(title_id, host);
 }
@@ -100,7 +102,7 @@ std::u16string GetPolicyText(HoverCardState::AdminPolicy state) {
           IDS_EXTENSIONS_TOOLBAR_ACTION_HOVER_CARD_POLICY_LABEL_INSTALLED_TEXT;
       break;
     case HoverCardState::AdminPolicy::kNone:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   return l10n_util::GetStringUTF16(text_id);
 }
@@ -116,7 +118,7 @@ ToolbarActionHoverCardBubbleView::ToolbarActionHoverCardBubbleView(
       extensions_features::kExtensionsMenuAccessControl));
 
   // Remove dialog's default buttons.
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
 
   // Remove the accessible role so that hover cards are not read when they
   // appear because tabs handle accessibility text.
@@ -159,7 +161,7 @@ ToolbarActionHoverCardBubbleView::ToolbarActionHoverCardBubbleView(
     auto label = std::make_unique<FadeLabelView>(kHoverCardLabelMaxLines,
                                                  context, text_style);
     if (color_id) {
-      label->SetEnabledColorId(color_id.value());
+      label->SetEnabledColor(color_id.value());
     }
     label->SetProperty(views::kMarginsKey, insets);
     label->SetProperty(
@@ -262,8 +264,9 @@ void ToolbarActionHoverCardBubbleView::UpdateCardContent(
 
   policy_separator_->SetVisible(show_policy_label);
   policy_label_->SetVisible(show_policy_label);
-  if (show_policy_label)
+  if (show_policy_label) {
     policy_label_->SetData({GetPolicyText(state.policy), false});
+  }
 }
 
 void ToolbarActionHoverCardBubbleView::SetTextFade(double percent) {
@@ -274,22 +277,22 @@ void ToolbarActionHoverCardBubbleView::SetTextFade(double percent) {
   policy_label_->SetFade(percent);
 }
 
-std::u16string ToolbarActionHoverCardBubbleView::GetTitleTextForTesting()
+std::u16string_view ToolbarActionHoverCardBubbleView::GetTitleTextForTesting()
     const {
   return title_label_->GetText();
 }
 
-std::u16string ToolbarActionHoverCardBubbleView::GetActionTitleTextForTesting()
-    const {
+std::u16string_view
+ToolbarActionHoverCardBubbleView::GetActionTitleTextForTesting() const {
   return action_title_label_->GetText();
 }
 
-std::u16string
+std::u16string_view
 ToolbarActionHoverCardBubbleView::GetSiteAccessTitleTextForTesting() const {
   return site_access_title_label_->GetText();
 }
 
-std::u16string
+std::u16string_view
 ToolbarActionHoverCardBubbleView::GetSiteAccessDescriptionTextForTesting()
     const {
   return site_access_description_label_->GetText();

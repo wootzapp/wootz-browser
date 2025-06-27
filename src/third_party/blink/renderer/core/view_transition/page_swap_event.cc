@@ -5,6 +5,7 @@
 #include "third_party/blink/renderer/core/view_transition/page_swap_event.h"
 
 #include "third_party/blink/public/common/page_state/page_state.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_page_swap_event_init.h"
 #include "third_party/blink/renderer/core/event_interface_names.h"
 #include "third_party/blink/renderer/core/event_type_names.h"
 #include "third_party/blink/renderer/core/frame/dom_window.h"
@@ -18,22 +19,19 @@
 namespace blink {
 namespace {
 
-String TypeToString(mojom::blink::NavigationTypeForNavigationApi type) {
-  static_assert(static_cast<int>(
-                    mojom::blink::NavigationTypeForNavigationApi::kPush) == 0);
-  static_assert(static_cast<int>(
-                    mojom::blink::NavigationTypeForNavigationApi::kTraverse) ==
-                1);
-  static_assert(static_cast<int>(
-                    mojom::blink::NavigationTypeForNavigationApi::kReplace) ==
-                2);
-  static_assert(
-      static_cast<int>(mojom::blink::NavigationTypeForNavigationApi::kReload) ==
-      3);
-
-  DEFINE_STATIC_LOCAL(Vector<String>, names,
-                      ({"push", "traverse", "replace", "reload"}));
-  return names[static_cast<int>(type)];
+V8NavigationType::Enum TypeToEnum(
+    mojom::blink::NavigationTypeForNavigationApi type) {
+  switch (type) {
+    case mojom::blink::NavigationTypeForNavigationApi::kPush:
+      return V8NavigationType::Enum::kPush;
+    case mojom::blink::NavigationTypeForNavigationApi::kTraverse:
+      return V8NavigationType::Enum::kTraverse;
+    case mojom::blink::NavigationTypeForNavigationApi::kReplace:
+      return V8NavigationType::Enum::kReplace;
+    case mojom::blink::NavigationTypeForNavigationApi::kReload:
+      return V8NavigationType::Enum::kReload;
+  }
+  NOTREACHED();
 }
 
 }  // namespace
@@ -84,10 +82,17 @@ PageSwapEvent::PageSwapEvent(
     }
 
     activation_ = MakeGarbageCollected<NavigationActivation>();
-    activation_->Update(
-        entry, from, TypeToString(page_swap_event_params->navigation_type));
+    activation_->Update(entry, from,
+                        TypeToEnum(page_swap_event_params->navigation_type));
   }
 }
+
+PageSwapEvent::PageSwapEvent(const AtomicString& type,
+                             const PageSwapEventInit* initializer)
+    : Event(type, initializer),
+      activation_(initializer ? initializer->activation() : nullptr),
+      dom_view_transition_(initializer ? initializer->viewTransition()
+                                       : nullptr) {}
 
 PageSwapEvent::~PageSwapEvent() = default;
 

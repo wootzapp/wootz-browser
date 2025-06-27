@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "third_party/blink/renderer/core/dom/dom_node_ids.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/root_frame_viewport.h"
@@ -33,6 +32,7 @@ ScrollManager::ScrollManager(LocalFrame& frame) : frame_(frame) {
 void ScrollManager::Clear() {
   resize_scrollable_area_ = nullptr;
   offset_from_resize_corner_ = {};
+  resize_position_to_size_transform_ = {};
 }
 
 void ScrollManager::Trace(Visitor* visitor) const {
@@ -86,7 +86,7 @@ bool ScrollManager::CanPropagate(const LayoutBox* layout_box,
     case ScrollPropagationDirection::kNone:
       return true;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -163,13 +163,13 @@ bool ScrollManager::CanScroll(const Node& current_node, bool for_autoscroll) {
     return true;
 
   // If this is the main LayoutView of an active viewport (outermost main
-  // frame, portal), and it's not the root scroller, that means we have a
-  // non-default root scroller on the page.  In this case, attempts to scroll
-  // the LayoutView should cause panning of the visual viewport as well so
-  // ensure it gets added to the scroll chain.  See LTHI::ApplyScroll for the
-  // equivalent behavior in CC.  Node::NativeApplyScroll contains a special
-  // handler for this case. If autoscrolling, ignore this condition because we
-  // latch on to the deepest autoscrollable node.
+  // frame), and it's not the root scroller, that means we have a non-default
+  // root scroller on the page.  In this case, attempts to scroll the LayoutView
+  // should cause panning of the visual viewport as well so ensure it gets added
+  // to the scroll chain.  See LTHI::ApplyScroll for the equivalent behavior in
+  // CC. Node::NativeApplyScroll contains a special handler for this case. If
+  // autoscrolling, ignore this condition because we latch on to the deepest
+  // autoscrollable node.
   if (IsA<LayoutView>(scrolling_box) &&
       current_node.GetDocument().IsInMainFrame() &&
       frame_->GetPage()->GetVisualViewport().IsActiveViewport() &&
@@ -222,20 +222,15 @@ bool ScrollManager::LogicalScroll(mojom::blink::ScrollDirection direction,
     ScrollableArea* scrollable_area = ScrollableArea::GetForScrolling(box);
     DCHECK(scrollable_area);
 
-    ScrollOffset delta =
-        ToScrollDelta(physical_direction,
-                      ScrollableArea::DirectionBasedScrollDelta(granularity));
+    ScrollOffset delta = ToScrollDelta(physical_direction, 1);
     delta.Scale(scrollable_area->ScrollStep(granularity, kHorizontalScrollbar),
                 scrollable_area->ScrollStep(granularity, kVerticalScrollbar));
     // Pressing the arrow key is considered as a scroll with intended direction
-    // only (this results in kScrollByLine or kScrollByPercentage, depending on
-    // REF::PercentBasedScrollingEnabled). Pressing the PgUp/PgDn key is
-    // considered as a scroll with intended direction and end position. Pressing
-    // the Home/End key is considered as a scroll with intended end position
-    // only.
+    // only. Pressing the PgUp/PgDn key is considered as a scroll with intended
+    // direction and end position. Pressing the Home/End key is considered as a
+    // scroll with intended end position only.
     switch (granularity) {
-      case ui::ScrollGranularity::kScrollByLine:
-      case ui::ScrollGranularity::kScrollByPercentage: {
+      case ui::ScrollGranularity::kScrollByLine: {
         if (scrollable_area->SnapForDirection(delta))
           return true;
         break;
@@ -257,7 +252,7 @@ bool ScrollManager::LogicalScroll(mojom::blink::ScrollDirection direction,
         break;
       }
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     ScrollableArea::ScrollCallback callback(WTF::BindOnce(
@@ -298,10 +293,7 @@ bool ScrollManager::LogicalScroll(mojom::blink::ScrollDirection direction,
             &(frame_->GetEventHandler().GetKeyboardEventManager())),
         scrolling_via_key));
     ScrollResult result = scrollable_area->UserScroll(
-        granularity,
-        ToScrollDelta(physical_direction,
-                      ScrollableArea::DirectionBasedScrollDelta(granularity)),
-        std::move(callback));
+        granularity, ToScrollDelta(physical_direction, 1), std::move(callback));
 
     if (result.DidScroll())
       return true;
@@ -337,7 +329,7 @@ void ScrollManager::Resize(const WebMouseEvent& evt) {
       return;
     resize_scrollable_area_->Resize(
         gfx::ToFlooredPoint(evt.PositionInRootFrame()),
-        offset_from_resize_corner_);
+        offset_from_resize_corner_, resize_position_to_size_transform_);
   }
 }
 
@@ -353,6 +345,8 @@ void ScrollManager::ClearResizeScrollableArea(bool should_not_be_null) {
 void ScrollManager::SetResizeScrollableArea(PaintLayer* layer, gfx::Point p) {
   resize_scrollable_area_ = layer->GetScrollableArea();
   resize_scrollable_area_->SetInResizeMode(true);
+  resize_position_to_size_transform_ =
+      resize_scrollable_area_->InitializeResizeTransform(p);
   offset_from_resize_corner_ =
       resize_scrollable_area_->OffsetFromResizeCorner(p);
 }

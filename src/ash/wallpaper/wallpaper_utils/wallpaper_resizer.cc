@@ -109,8 +109,7 @@ gfx::ImageSkia Resize(const gfx::ImageSkia image,
         }
         break;
       case NUM_WALLPAPER_LAYOUT:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
   // Generating the bitmap right now is both acceptable and desirable since it's
@@ -170,7 +169,14 @@ void WallpaperResizer::StartResize(base::OnceClosure on_resize_done) {
 
   if (!sequenced_task_runner_->PostTaskAndReplyWithResult(
           FROM_HERE,
-          base::BindOnce(&Resize, image_, target_size_, wallpaper_info_.layout),
+          // The `DeepCopy()` of `image_` is necessary otherwise there's a
+          // potential race condition if `ImageSkiaRep::GetBitmap()` gets
+          // called concurrently from `sequenced_task_runner_`'s thread and the
+          // main thread. Note in this case, the deep copy is actually cheap
+          // because the `image_` is still backed by a paint record at this
+          // point (not actual pixels), and paint records are cheap to copy.
+          base::BindOnce(&Resize, image_.DeepCopy(), target_size_,
+                         wallpaper_info_.layout),
           base::BindOnce(&WallpaperResizer::OnResizeFinished,
                          weak_ptr_factory_.GetWeakPtr(),
                          std::move(on_resize_done)))) {

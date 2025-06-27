@@ -5,8 +5,9 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STYLE_SCOPED_CSS_NAME_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_STYLE_SCOPED_CSS_NAME_H_
 
+#include <algorithm>
+
 #include "base/memory/values_equivalent.h"
-#include "base/ranges/algorithm.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -65,7 +66,6 @@ class CORE_EXPORT ScopedCSSNameList
  public:
   explicit ScopedCSSNameList(HeapVector<Member<const ScopedCSSName>> names)
       : names_(std::move(names)) {
-    DCHECK(!names_.empty());
   }
 
   const HeapVector<Member<const ScopedCSSName>>& GetNames() const {
@@ -73,10 +73,10 @@ class CORE_EXPORT ScopedCSSNameList
   }
 
   bool operator==(const ScopedCSSNameList& other) const {
-    return base::ranges::equal(names_, other.names_,
-                               [](const auto& a, const auto& b) {
-                                 return base::ValuesEquivalent(a, b);
-                               });
+    return std::ranges::equal(names_, other.names_,
+                              [](const auto& a, const auto& b) {
+                                return base::ValuesEquivalent(a, b);
+                              });
   }
   bool operator!=(const ScopedCSSNameList& other) const {
     return !operator==(other);

@@ -7,6 +7,7 @@
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/system/privacy_hub/privacy_hub_controller.h"
 #include "ash/system/video_conference/fake_video_conference_tray_controller.h"
@@ -78,7 +79,7 @@ TEST_F(PrivacyHubSpeakOnMuteControllerTest, SetSpeakOnMuteOnLogin) {
         Shell::Get()->session_controller()->GetActiveAccountId();
 
     // Sets the pref for the second user.
-    SimulateUserLogin("other@user.test");
+    SimulateUserLogin({"other@user.test"});
     SetUserPref(!speak_on_mute_enabled);
     EXPECT_EQ(IsSpeakOnMuteDetectionOn(), !speak_on_mute_enabled);
 

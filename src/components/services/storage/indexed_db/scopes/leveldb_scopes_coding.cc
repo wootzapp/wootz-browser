@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/services/storage/indexed_db/scopes/leveldb_scopes_coding.h"
 
 #include <sstream>
@@ -12,7 +17,7 @@
 #include "base/numerics/byte_conversions.h"
 #include "components/services/storage/indexed_db/scopes/varint_coding.h"
 
-namespace content {
+namespace content::indexed_db {
 namespace {
 
 void EncodeBigEndianFixed64(uint64_t number, std::string* output) {
@@ -21,7 +26,7 @@ void EncodeBigEndianFixed64(uint64_t number, std::string* output) {
   output->resize(output->size() + sizeof(uint64_t));
   base::as_writable_byte_span(*output)
       .subspan(start_index)
-      .copy_from(base::numerics::U64ToBigEndian(number));
+      .copy_from(base::U64ToBigEndian(number));
 }
 
 std::string_view MakeStringView(base::span<const uint8_t> bytes) {
@@ -68,7 +73,7 @@ std::string KeyToDebugString(base::span<const uint8_t> key_without_prefix) {
   }
   char type_byte = key_without_prefix[0];
   std::string_view key_after_type =
-      MakeStringView(key_without_prefix.subspan(1));
+      MakeStringView(key_without_prefix.subspan<1>());
   switch (type_byte) {
     case kGlobalMetadataByte:
       result << "GlobalMetadata";
@@ -104,7 +109,7 @@ std::string KeyToDebugString(base::span<const uint8_t> key_without_prefix) {
         result << "<Invalid Seq Num>";
         break;
       }
-      seq_num = base::numerics::U64FromBigEndian(
+      seq_num = base::U64FromBigEndian(
           base::as_byte_span(key_after_type).first<8u>());
       result << seq_num;
       break;
@@ -209,4 +214,4 @@ leveldb::Slice ScopesEncoder::CleanupTaskKey(
   return leveldb::Slice(key_buffer_);
 }
 
-}  // namespace content
+}  // namespace content::indexed_db

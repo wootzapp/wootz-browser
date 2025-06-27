@@ -17,12 +17,12 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.IntentUtils;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.SysUtils;
-import org.chromium.base.cached_flags.IntCachedFieldTrialParameter;
-import org.chromium.base.cached_flags.StringCachedFieldTrialParameter;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabFeatureOverridesManager;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -34,18 +34,6 @@ import java.util.Set;
 
 /** Utility methods for the Minimized Custom Tab feature. */
 public class MinimizedFeatureUtils {
-    public static final IntCachedFieldTrialParameter ICON_VARIANT =
-            ChromeFeatureList.newIntCachedFieldTrialParameter(
-                    ChromeFeatureList.CCT_MINIMIZED, "icon_variant", 0);
-
-    // Devices from this OEM--and potentially others--sometimes crash when we call
-    // `Activity#enterPictureInPictureMode` on Android R. So, we disable the feature on those
-    // devices. See: https://crbug.com/1519164.
-    public static final StringCachedFieldTrialParameter MANUFACTURER_EXCLUDE_LIST =
-            ChromeFeatureList.newStringCachedFieldTrialParameter(
-                    ChromeFeatureList.CCT_MINIMIZED_ENABLED_BY_DEFAULT,
-                    "manufacturer_exclude_list",
-                    "xiaomi");
 
     private static Set<String> sManufacturerExcludeList;
 
@@ -149,7 +137,8 @@ public class MinimizedFeatureUtils {
 
     private static boolean isDeviceExcluded() {
         sManufacturerExcludeList = new HashSet<>();
-        String listStr = MANUFACTURER_EXCLUDE_LIST.getValue();
+        String listStr =
+                ChromeFeatureList.sCctMinimizedEnabledByDefaultManufacturerExcludeList.getValue();
         if (!TextUtils.isEmpty(listStr)) {
             Collections.addAll(sManufacturerExcludeList, listStr.split(","));
         }
@@ -165,12 +154,36 @@ public class MinimizedFeatureUtils {
     }
 
     public static @DrawableRes int getMinimizeIcon() {
-        return ICON_VARIANT.getValue() == 1 ? R.drawable.ic_pip_24dp : R.drawable.ic_minimize;
+        return ChromeFeatureList.sCctMinimizedIconVariant.getValue() == 1
+                ? R.drawable.ic_pip_24dp
+                : R.drawable.ic_minimize;
     }
 
-    /** Returns whether the current Activity is a web app, web apk or TWA. */
-    public static boolean isWebApp(BrowserServicesIntentDataProvider intentDataProvider) {
-        return intentDataProvider.isWebappOrWebApkActivity()
-                || intentDataProvider.isTrustedWebActivity();
+    /**
+     * Returns whether Minimized Custom Tabs should be enabled based on the intent data provider.
+     *
+     * @param intentDataProvider The {@link BrowserServicesIntentDataProvider}.
+     * @return Whether Minimized Custom Tabs should be enabled.
+     */
+    public static boolean shouldEnableMinimizedCustomTabs(
+            BrowserServicesIntentDataProvider intentDataProvider) {
+        boolean isWebApp =
+                intentDataProvider.isWebappOrWebApkActivity()
+                        || intentDataProvider.isTrustedWebActivity();
+        if (isWebApp) return false;
+
+        boolean isFedCmIntent =
+                intentDataProvider.isTrustedIntent()
+                        && IntentUtils.safeGetIntExtra(
+                                        intentDataProvider.getIntent(),
+                                        IntentHandler.EXTRA_FEDCM_ID,
+                                        -1)
+                                != -1;
+        if (isFedCmIntent) return false;
+
+        boolean isAuthTab = intentDataProvider.isAuthTab();
+        if (isAuthTab) return false;
+
+        return true;
     }
 }

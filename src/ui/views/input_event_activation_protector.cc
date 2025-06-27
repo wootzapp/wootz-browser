@@ -20,8 +20,9 @@ InputEventActivationProtector::~InputEventActivationProtector() {
 }
 
 void InputEventActivationProtector::VisibilityChanged(bool is_visible) {
-  if (is_visible)
+  if (is_visible) {
     view_protected_time_stamp_ = base::TimeTicks::Now();
+  }
 }
 
 void InputEventActivationProtector::MaybeUpdateViewProtectedTimeStamp(
@@ -36,8 +37,9 @@ void InputEventActivationProtector::MaybeUpdateViewProtectedTimeStamp(
 
 bool InputEventActivationProtector::IsPossiblyUnintendedInteraction(
     const ui::Event& event) {
-  if (UNLIKELY(base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kDisableInputEventActivationProtectionForTesting))) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDisableInputEventActivationProtectionForTesting))
+      [[unlikely]] {
     return false;
   }
 
@@ -52,7 +54,8 @@ bool InputEventActivationProtector::IsPossiblyUnintendedInteraction(
     return true;
   }
 
-  if (!event.IsMouseEvent() && !event.IsTouchEvent()) {
+  if (!event.IsMouseEvent() && !event.IsTouchEvent() &&
+      !event.IsGestureEvent()) {
     return false;
   }
 

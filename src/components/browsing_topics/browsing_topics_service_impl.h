@@ -8,7 +8,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
-#include "base/timer/timer.h"
+#include "base/timer/wall_clock_timer.h"
 #include "components/browsing_topics/annotator.h"
 #include "components/browsing_topics/browsing_topics_calculator.h"
 #include "components/browsing_topics/browsing_topics_service.h"
@@ -34,6 +34,20 @@ class BrowsingTopicsServiceImpl
       public privacy_sandbox::PrivacySandboxSettings::Observer,
       public history::HistoryServiceObserver {
  public:
+  using TopicAccessedCallback =
+      base::RepeatingCallback<void(content::RenderFrameHost* rfh,
+                                   const url::Origin& api_origin,
+                                   bool blocked_by_policy,
+                                   privacy_sandbox::CanonicalTopic topic)>;
+
+  // Use BrowsingTopicsServiceFactory::BuildServiceInstanceFor instead.
+  BrowsingTopicsServiceImpl(
+      const base::FilePath& profile_path,
+      privacy_sandbox::PrivacySandboxSettings* privacy_sandbox_settings,
+      history::HistoryService* history_service,
+      content::BrowsingTopicsSiteDataManager* site_data_manager,
+      std::unique_ptr<Annotator> annotator,
+      TopicAccessedCallback topic_accessed_callback);
   BrowsingTopicsServiceImpl(const BrowsingTopicsServiceImpl&) = delete;
   BrowsingTopicsServiceImpl& operator=(const BrowsingTopicsServiceImpl&) =
       delete;
@@ -58,6 +72,8 @@ class BrowsingTopicsServiceImpl
 
   std::vector<privacy_sandbox::CanonicalTopic> GetTopTopicsForDisplay()
       const override;
+
+  void ValidateCalculationSchedule() override;
 
   Annotator* GetAnnotator() override;
 
@@ -111,20 +127,6 @@ class BrowsingTopicsServiceImpl
   friend class TesterBrowsingTopicsService;
   FRIEND_TEST_ALL_PREFIXES(BrowsingTopicsServiceImplTest,
                            MethodsFailGracefullyAfterShutdown);
-
-  using TopicAccessedCallback =
-      base::RepeatingCallback<void(content::RenderFrameHost* rfh,
-                                   const url::Origin& api_origin,
-                                   bool blocked_by_policy,
-                                   privacy_sandbox::CanonicalTopic topic)>;
-
-  BrowsingTopicsServiceImpl(
-      const base::FilePath& profile_path,
-      privacy_sandbox::PrivacySandboxSettings* privacy_sandbox_settings,
-      history::HistoryService* history_service,
-      content::BrowsingTopicsSiteDataManager* site_data_manager,
-      std::unique_ptr<Annotator> annotator,
-      TopicAccessedCallback topic_accessed_callback);
 
   void ScheduleBrowsingTopicsCalculation(bool is_manually_triggered,
                                          int previous_timeout_count,
@@ -201,11 +203,13 @@ class BrowsingTopicsServiceImpl
   std::vector<mojom::PageHandler::GetBrowsingTopicsStateCallback>
       get_state_for_webui_callbacks_;
 
-  base::OneShotTimer schedule_calculate_timer_;
+  base::WallClockTimer schedule_calculate_timer_;
 
   TopicAccessedCallback topic_accessed_callback_;
 
   base::Time session_start_time_;
+
+  bool recorded_calculation_did_not_occur_metrics_ = false;
 
   base::ScopedObservation<privacy_sandbox::PrivacySandboxSettings,
                           privacy_sandbox::PrivacySandboxSettings::Observer>

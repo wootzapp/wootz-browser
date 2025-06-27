@@ -18,7 +18,7 @@
 #include "chromeos/ash/services/libassistant/grpc/rpc_method_driver.h"
 #include "chromeos/assistant/internal/proto/shared/proto/v2/delegate/event_handler_service.grpc.pb.h"
 #include "chromeos/assistant/internal/proto/shared/proto/v2/event_notification_interface.pb.h"
-#include "third_party/grpc/src/include/grpcpp/grpcpp.h"
+#include "third_party/grpc/source/include/grpcpp/grpcpp.h"
 
 namespace ash::libassistant {
 
@@ -153,4 +153,4 @@ class EventHandlerDriver : public AsyncServiceDriver {
 
 }  // namespace ash::libassistant
 
-#endif  // CHROMEOS_ASH_SERVICES_LIBASSISTANT_GRPC_EXTERNAL_SERVICES_EVENT_HANDLER_DRIVER_H_i
+#endif  // CHROMEOS_ASH_SERVICES_LIBASSISTANT_GRPC_EXTERNAL_SERVICES_EVENT_HANDLER_DRIVER_H_

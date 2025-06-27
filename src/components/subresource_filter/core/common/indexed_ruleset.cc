@@ -6,8 +6,9 @@
 
 #include "base/check.h"
 #include "base/hash/hash.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/not_fatal_until.h"
+#include "base/strings/strcat.h"
 #include "base/trace_event/trace_event.h"
 #include "components/subresource_filter/core/common/first_party_origin.h"
 #include "url/gurl.h"
@@ -73,18 +74,21 @@ bool RulesetIndexer::AddUrlRule(const proto::UrlRule& rule) {
       url_pattern_index::SerializeUrlRule(rule, &builder_, &domain_map_);
   // Note: A zero offset.o means a "nullptr" offset. It is returned when the
   // rule has not been serialized.
-  if (!offset.o)
+  if (!offset.o) {
     return false;
+  }
 
   if (rule.semantics() == proto::RULE_SEMANTICS_BLOCKLIST) {
     blocklist_.IndexUrlRule(offset);
   } else {
     const auto* flat_rule = flatbuffers::GetTemporaryPointer(builder_, offset);
     CHECK(flat_rule, base::NotFatalUntil::M129);
-    if (flat_rule->element_types())
+    if (flat_rule->element_types()) {
       allowlist_.IndexUrlRule(offset);
-    if (flat_rule->activation_types())
+    }
+    if (flat_rule->activation_types()) {
       deactivation_.IndexUrlRule(offset);
+    }
   }
 
   return true;
@@ -108,14 +112,15 @@ int RulesetIndexer::GetChecksum() const {
 
 // static
 bool IndexedRulesetMatcher::Verify(base::span<const uint8_t> buffer,
-                                   int expected_checksum) {
+                                   int expected_checksum,
+                                   std::string_view uma_tag) {
   TRACE_EVENT_BEGIN1(TRACE_DISABLED_BY_DEFAULT("loading"),
                      "IndexedRulesetMatcher::Verify", "size", buffer.size());
-  SCOPED_UMA_HISTOGRAM_TIMER(
-      "SubresourceFilter.IndexRuleset.Verify2.WallDuration");
+  base::ScopedUmaHistogramTimer scoped_timer(
+      base::StrCat({uma_tag, ".IndexRuleset.Verify2.WallDuration"}));
   VerifyStatus status = GetVerifyStatus(buffer, expected_checksum);
-  UMA_HISTOGRAM_ENUMERATION("SubresourceFilter.IndexRuleset.Verify.Status",
-                            status);
+  base::UmaHistogramEnumeration(
+      base::StrCat({uma_tag, ".IndexRuleset.Verify.Status"}), status);
   TRACE_EVENT_END1(TRACE_DISABLED_BY_DEFAULT("loading"),
                    "IndexedRulesetMatcher::Verify", "status",
                    static_cast<int>(status));
@@ -149,8 +154,9 @@ LoadPolicy IndexedRulesetMatcher::GetLoadPolicyForResourceLoad(
   const url_pattern_index::flat::UrlRule* rule =
       MatchedUrlRule(url, first_party, element_type, disable_generic_rules);
 
-  if (!rule)
+  if (!rule) {
     return LoadPolicy::ALLOW;
+  }
 
   return rule->options() & url_pattern_index::flat::OptionFlag_IS_ALLOWLIST
              ? LoadPolicy::EXPLICITLY_ALLOW
@@ -184,16 +190,18 @@ const url_pattern_index::flat::UrlRule* IndexedRulesetMatcher::MatchedUrlRule(
   // allowlist rule was not matched.
   if (element_type == proto::ELEMENT_TYPE_SUBDOCUMENT) {
     auto* allowlist_rule = find_match(allowlist_);
-    if (allowlist_rule)
+    if (allowlist_rule) {
       return allowlist_rule;
+    }
     return find_match(blocklist_);
   }
 
   // For non-subdocument elements, only check the allowlist if there is a
   // matched blocklist rule to prevent unnecessary lookups.
   auto* blocklist_rule = find_match(blocklist_);
-  if (!blocklist_rule)
+  if (!blocklist_rule) {
     return nullptr;
+  }
   auto* allowlist_rule = find_match(allowlist_);
   return allowlist_rule ? allowlist_rule : blocklist_rule;
 }

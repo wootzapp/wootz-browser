@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/codec/webrtc_video_encoder_av1.h"
 
 #include <algorithm>
@@ -307,8 +312,7 @@ void WebrtcVideoEncoderAV1::PrepareImage(
       }
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -386,7 +390,7 @@ void WebrtcVideoEncoderAV1::UpdateConfig(const FrameParams& params) {
 
   // Update encoder context.
   if (aom_codec_enc_config_set(codec_.get(), &config_)) {
-    NOTREACHED_IN_MIGRATION() << "Unable to set encoder config";
+    NOTREACHED() << "Unable to set encoder config";
   }
 }
 

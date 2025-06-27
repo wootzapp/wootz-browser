@@ -88,7 +88,8 @@ class MockScrollableAreaForAnimatorTest
   MOCK_METHOD0(ScheduleAnimation, bool());
   MOCK_CONST_METHOD0(UsedColorSchemeScrollbars, mojom::blink::ColorScheme());
 
-  bool UsesCompositedScrolling() const override { NOTREACHED_NORETURN(); }
+  bool UsesCompositedScrolling() const override { NOTREACHED(); }
+  PhysicalOffset LocalToScrollOriginOffset() const override { return {}; }
   bool UserInputScrollable(ScrollbarOrientation) const override { return true; }
   bool ShouldPlaceVerticalScrollbarOnLeft() const override { return false; }
   gfx::Vector2d ScrollOffsetInt() const override { return gfx::Vector2d(); }
@@ -115,14 +116,15 @@ class MockScrollableAreaForAnimatorTest
   ScrollOffset GetScrollOffset() const override {
     if (animator)
       return animator->CurrentOffset();
-    return ScrollableArea::GetScrollOffset();
+    return ScrollOffsetInt();
   }
 
   bool SetScrollOffset(const ScrollOffset& offset,
                        mojom::blink::ScrollType type,
                        mojom::blink::ScrollBehavior behavior =
                            mojom::blink::ScrollBehavior::kInstant,
-                       ScrollCallback on_finish = ScrollCallback()) override {
+                       ScrollCallback on_finish = ScrollCallback(),
+                       bool targeted_scroll = false) override {
     if (animator)
       animator->SetCurrentOffset(offset);
     return ScrollableArea::SetScrollOffset(offset, type, behavior,

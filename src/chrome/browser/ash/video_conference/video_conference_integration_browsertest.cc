@@ -2,10 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <string_view>
+
+#include "ash/capture_mode/capture_mode_test_util.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/capture_mode/capture_mode_test_api.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/audio/audio_effects_controller.h"
@@ -19,6 +23,7 @@
 #include "ash/webui/common/mojom/sea_pen.mojom.h"
 #include "ash/webui/vc_background_ui/url_constants.h"
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
@@ -61,16 +66,16 @@ namespace {
 std::string CreateJpgBytes() {
   SkBitmap bitmap;
   bitmap.allocN32Pixels(1, 1);
-  std::vector<unsigned char> data;
-  gfx::JPEGCodec::Encode(bitmap, /*quality=*/100, &data);
-  return std::string(data.begin(), data.end());
+  std::optional<std::vector<uint8_t>> data =
+      gfx::JPEGCodec::Encode(bitmap, /*quality=*/100);
+  return std::string(base::as_string_view(data.value()));
 }
 
 bool IsNudgeShown(const std::string& id) {
   return Shell::Get()->anchored_nudge_manager()->IsNudgeShown(id);
 }
 
-const std::u16string& GetNudgeText(const std::string& id) {
+std::u16string_view GetNudgeText(const std::string& id) {
   return Shell::Get()->anchored_nudge_manager()->GetNudgeBodyTextForTest(id);
 }
 
@@ -124,7 +129,7 @@ ash::VideoConferenceTray* GetVcTray() {
 
 // Simulates left click on the `button`.
 void ClickButton(views::Button* button) {
-  ui::MouseEvent event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+  ui::MouseEvent event(ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
                        ui::EventTimeForNow(), 0, 0);
   views::test::ButtonTestApi(button).NotifyClick(event);
 }
@@ -268,13 +273,8 @@ class VideoConferenceIntegrationTest
     // Flags use to automatically select the right desktop source and get
     // around security restrictions.
     // TODO(crbug.com/40274188): Use a less error-prone flag.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     command_line->AppendSwitchASCII(::switches::kAutoSelectDesktopCaptureSource,
                                     "Display");
-#else
-    command_line->AppendSwitchASCII(::switches::kAutoSelectDesktopCaptureSource,
-                                    "Entire screen");
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
     // If in guest mode.
     if (is_guest_mode_) {
@@ -949,9 +949,7 @@ IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
   EXPECT_TRUE(found_noise_cancellation_buttion);
 }
 
-// TODO(crbug.com/40071631): re-enable once the bug is fixed.
-IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
-                       DISABLED_StopAllScreenShare) {
+IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest, StopAllScreenShare) {
   // Open a tab.
   content::WebContents* web_contents_1 =
       NavigateTo("/video_conference_demo.html");
@@ -1177,8 +1175,8 @@ IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
 
 IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
                        TrayTriggeredByCaptureCamera) {
+  ASSERT_EQ(1u, ash::WaitForCameraAvailabilityWithTimeout(base::Seconds(5)));
   ash::CaptureModeTestApi test_api;
-  ASSERT_EQ(1u, test_api.GetNumberOfAvailableCameras());
   test_api.SelectCameraAtIndex(0);
   test_api.StartForFullscreen(/*for_video=*/true);
   ASSERT_TRUE(test_api.IsSessionActive());
@@ -1189,8 +1187,8 @@ IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
 
 IN_PROC_BROWSER_TEST_P(VideoConferenceIntegrationTest,
                        TrayTriggeredByCaptureMicrophone) {
+  ASSERT_EQ(1u, ash::WaitForCameraAvailabilityWithTimeout(base::Seconds(5)));
   ash::CaptureModeTestApi test_api;
-  ASSERT_EQ(1u, test_api.GetNumberOfAvailableCameras());
   test_api.SetAudioRecordingMode(AudioRecordingMode::kMicrophone);
   test_api.StartForFullscreen(/*for_video=*/true);
   ASSERT_TRUE(test_api.IsSessionActive());

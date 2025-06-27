@@ -60,7 +60,7 @@ suite('SystemDialogTest', function() {
               'FooDevice',
               sidebar.shadowRoot!
                   .querySelector(
-                      'print-preview-destination-settings')!.destination!.id);
+                      'print-preview-destination-settings')!.destination.id);
           // <if expr="is_win">
           link = linkContainer.$.systemDialogLink;
           // </if>
@@ -101,7 +101,7 @@ suite('SystemDialogTest', function() {
 
           // Set an invalid input.
           const scalingSettingsInput =
-              scalingSettings.shadowRoot!
+              scalingSettings.shadowRoot
                   .querySelector('print-preview-number-settings-section')!.$
                   .userValue.inputElement;
           scalingSettingsInput.value = '0';
@@ -115,7 +115,7 @@ suite('SystemDialogTest', function() {
           const parentElement =
               sidebar.shadowRoot!.querySelector('print-preview-button-strip')!;
           const printButton =
-              parentElement.shadowRoot!.querySelector<CrButtonElement>(
+              parentElement.shadowRoot.querySelector<CrButtonElement>(
                   '.action-button')!;
           assertTrue(printButton.disabled);
           assertTrue(linkContainer.disabled);

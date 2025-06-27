@@ -17,6 +17,7 @@
 #include "base/compiler_specific.h"
 #include "base/component_export.h"
 #include "base/containers/span.h"
+#include "base/feature_list.h"
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
@@ -186,6 +187,15 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) Message {
     return reinterpret_cast<internal::MessageHeaderV2*>(mutable_data());
   }
 
+  const internal::MessageHeaderV3* header_v3() const {
+    DCHECK_GE(version(), 3u);
+    return reinterpret_cast<const internal::MessageHeaderV3*>(data());
+  }
+  internal::MessageHeaderV3* header_v3() {
+    DCHECK_GE(version(), 3u);
+    return reinterpret_cast<internal::MessageHeaderV3*>(mutable_data());
+  }
+
   uint32_t version() const { return header()->version; }
 
   uint32_t interface_id() const { return header()->interface_id; }
@@ -305,6 +315,8 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) Message {
   const char* method_name() const { return method_name_; }
   void set_method_name(const char* method_name) { method_name_ = method_name; }
 #endif
+
+  int64_t creation_timeticks_us() const;
 
  private:
   // Internal constructor used by |CreateFromMessageHandle()| when either there

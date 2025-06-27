@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
@@ -348,7 +349,8 @@ void WorkerProcessLauncherTest::DisconnectServer() {
 
 void WorkerProcessLauncherTest::SendFakeMessageToLauncher() {
   if (desktop_session_state_handler_) {
-    desktop_session_state_handler_->DisconnectSession(ErrorCode::OK);
+    desktop_session_state_handler_->DisconnectSession(
+        ErrorCode::OK, /* error_details= */ {}, FROM_HERE);
   }
 }
 
@@ -459,8 +461,8 @@ TEST_F(WorkerProcessLauncherTest, Restart) {
   Expectation first_connect =
       EXPECT_CALL(server_listener_, OnChannelConnected(_))
           .Times(2)
-          .WillOnce(
-              InvokeWithoutArgs([=]() { TerminateWorker(CONTROL_C_EXIT); }))
+          .WillOnce(InvokeWithoutArgs(
+              [=, this]() { TerminateWorker(CONTROL_C_EXIT); }))
           .WillOnce(
               InvokeWithoutArgs(this, &WorkerProcessLauncherTest::StopWorker));
 
@@ -505,7 +507,7 @@ TEST_F(WorkerProcessLauncherTest, PermanentError) {
   EXPECT_CALL(server_listener_, OnChannelConnected(_))
       .Times(1)
       .WillOnce(InvokeWithoutArgs(
-          [=] { TerminateWorker(kMinPermanentErrorExitCode); }));
+          [=, this] { TerminateWorker(kMinPermanentErrorExitCode); }));
   EXPECT_CALL(server_listener_, OnPermanentError(_))
       .Times(1)
       .WillOnce(
@@ -532,8 +534,8 @@ TEST_F(WorkerProcessLauncherTest, Crash) {
 
   EXPECT_CALL(client_listener_, CrashProcess(_, _, _))
       .Times(1)
-      .WillOnce(
-          InvokeWithoutArgs([=]() { TerminateWorker(EXCEPTION_BREAKPOINT); }));
+      .WillOnce(InvokeWithoutArgs(
+          [=, this]() { TerminateWorker(EXCEPTION_BREAKPOINT); }));
   EXPECT_CALL(server_listener_, OnWorkerProcessStopped()).Times(1);
 
   StartWorker();

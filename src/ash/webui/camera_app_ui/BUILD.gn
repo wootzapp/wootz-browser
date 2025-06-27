@@ -7,11 +7,10 @@ import("//ash/webui/camera_app_ui/resources/images/images.gni")
 import("//ash/webui/camera_app_ui/resources/js/js.gni")
 import("//ash/webui/camera_app_ui/resources/sounds/sounds.gni")
 import("//ash/webui/camera_app_ui/resources/views/views.gni")
-import("//build/config/chromeos/ui_mode.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
 
-assert(is_chromeos_ash, "Camera App is ash-chrome only")
+assert(is_chromeos, "Camera App is ChromeOS only")
 
 static_library("camera_app_ui") {
   sources = [
@@ -45,7 +44,6 @@ static_library("camera_app_ui") {
     "//chromeos/ash/components/dbus/session_manager:session_manager",
     "//chromeos/ash/components/mojo_service_manager",
     "//chromeos/utils",
-    "//components/arc",
     "//components/media_device_salt",
     "//components/onc",
     "//content/public/browser",
@@ -57,6 +55,10 @@ static_library("camera_app_ui") {
     "//net",
     "//services/network/public/mojom",
     "//ui/webui",
+
+    # TODO(crbug.com/386148857): Temporarily refer chromeos/ash/experiences
+    # from here for arc directory migration. Fix this later.
+    "//chromeos/ash/experiences/arc/intent_helper",
   ]
 }
 
@@ -126,6 +128,14 @@ mojom("ocr") {
   webui_module_path = "/ash/webui/camera_app_ui"
 }
 
+mojom("pdf_builder") {
+  sources = [ "pdf_builder.mojom" ]
+
+  public_deps = [ "//mojo/public/mojom/base" ]
+
+  webui_module_path = "/ash/webui/camera_app_ui"
+}
+
 mojom("mojo_bindings") {
   sources = [
     "camera_app_helper.mojom",
@@ -133,11 +143,13 @@ mojom("mojo_bindings") {
     "types.mojom",
   ]
 
+  public_deps = [ "//mojo/public/mojom/base" ]
+
   deps = [
     ":ocr",
-    "//ash/components/arc/mojom:camera_intent",
+    ":pdf_builder",
+    "//chromeos/ash/experiences/arc/mojom:camera_intent",
     "//chromeos/services/machine_learning/public/mojom:document_scanner_param_types",
-    "//media/capture/video/chromeos/mojom:system_event_monitor",
     "//ui/gfx/geometry/mojom",
     "//url/mojom:url_mojom_gurl",
   ]
@@ -183,9 +195,6 @@ generate_grd("build_grd") {
   }
 
   # JS Files.
-  foreach(js, no_compile_js_files) {
-    input_files += [ "js/$js" ]
-  }
   foreach(wasm, wasm_files) {
     input_files += [ "js/$wasm" ]
   }

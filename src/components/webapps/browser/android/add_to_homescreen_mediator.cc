@@ -11,13 +11,15 @@
 #include "components/url_formatter/elide_url.h"
 #include "components/webapps/browser/android/add_to_homescreen_params.h"
 #include "components/webapps/browser/android/app_banner_manager_android.h"
-#include "components/webapps/browser/android/webapps_jni_headers/AddToHomescreenMediator_jni.h"
 #include "components/webapps/browser/banners/app_banner_metrics.h"
 #include "components/webapps/browser/features.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "components/webapps/browser/webapps_client.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/android/java_bitmap.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/webapps/browser/android/webapps_jni_headers/AddToHomescreenMediator_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -29,17 +31,6 @@ namespace {
 // The length of time to allow the add to homescreen data fetcher to run before
 // timing out and generating an icon.
 const int kDataTimeoutInMilliseconds = 8000;
-
-// These need to be kept the same order as in enums.xml.
-enum class AppTypeToMenuEntry {
-  kUnknownMenuEntryForWebApp,
-  kAddToHomeScreenShownForWebApp,
-  kInstallShownForWebApp,
-  kUnknownMenuEntryForShortcut,
-  kAddToHomeScreenShownForShortcut,
-  kInstallShownForShortcut,
-  kAppTypeFinalEntry,  // Must be last.
-};
 
 }  // namespace
 
@@ -84,10 +75,8 @@ void AddToHomescreenMediator::StartForAppBanner(
 void AddToHomescreenMediator::StartForAppMenu(
     JNIEnv* env,
     const JavaParamRef<jobject>& java_web_contents,
-    int app_menu_type,
-    bool universal_install) {
+    int app_menu_type) {
   app_menu_type_ = app_menu_type;
-  universal_install_ = universal_install;
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(java_web_contents);
   data_fetcher_ = std::make_unique<AddToHomescreenDataFetcher>(
@@ -122,8 +111,7 @@ void AddToHomescreenMediator::AddToHomescreen(
   }
 
   // Shortcuts always open in a browser tab.
-  if (base::FeatureList::IsEnabled(features::kPwaUniversalInstallUi) &&
-      params_->app_type == AppType::SHORTCUT) {
+  if (params_->app_type == AppType::SHORTCUT) {
     params_->shortcut_info->display = blink::mojom::DisplayMode::kBrowser;
   }
 
@@ -175,9 +163,8 @@ void AddToHomescreenMediator::SetWebAppInfo(const std::u16string& user_title,
       env, url_formatter::FormatUrlForSecurityDisplay(
                url, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC));
 
-  if (universal_install_ &&
-      app_menu_type_ ==
-          AppBannerSettingsHelper::APP_MENU_OPTION_ADD_TO_HOMESCREEN) {
+  if (app_menu_type_ ==
+      AppBannerSettingsHelper::APP_MENU_OPTION_ADD_TO_HOMESCREEN) {
     // The user triggered this flow via the Universal Install dialog and
     // explicitly requested Add a shortcut (not Install). Therefore we must ask
     // the Java install dialog to treat this as a shortcut and not a webapp.
@@ -205,32 +192,6 @@ void AddToHomescreenMediator::OnDataAvailable(
                                            InstallTrigger::MENU));
 
   SetIcon(display_icon);
-
-  if (!universal_install_) {
-    // Log what was shown in the App menu and what action was taken here.
-    auto entry = AppTypeToMenuEntry::kAppTypeFinalEntry;
-
-    switch (app_menu_type_) {
-      case AppBannerSettingsHelper::APP_MENU_OPTION_ADD_TO_HOMESCREEN: {
-        entry = params_->IsWebApk()
-                    ? AppTypeToMenuEntry::kAddToHomeScreenShownForWebApp
-                    : AppTypeToMenuEntry::kAddToHomeScreenShownForShortcut;
-        break;
-      }
-      case AppBannerSettingsHelper::APP_MENU_OPTION_INSTALL: {
-        entry = params_->IsWebApk()
-                    ? AppTypeToMenuEntry::kInstallShownForWebApp
-                    : AppTypeToMenuEntry::kInstallShownForShortcut;
-        break;
-      }
-      default:
-        NOTREACHED_IN_MIGRATION();
-    }
-
-    UMA_HISTOGRAM_ENUMERATION(
-        "Webapp.AddToHomescreenMediator.AppTypeToMenuEntry", entry,
-        AppTypeToMenuEntry::kAppTypeFinalEntry);
-  }
 
   if (params_->IsWebApk()) {
     webapps::WebappsClient::Get()->OnWebApkInstallInitiatedFromAppMenu(

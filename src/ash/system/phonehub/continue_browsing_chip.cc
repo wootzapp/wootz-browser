@@ -25,6 +25,7 @@
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
@@ -88,12 +89,12 @@ ContinueBrowsingChip::ContinueBrowsingChip(
   favicon->SetImageSize(kContinueBrowsingChipFaviconSize);
 
   if (metadata.favicon.IsEmpty()) {
-    favicon->SetImage(CreateVectorIcon(
+    favicon->SetImage(ui::ImageModel::FromVectorIcon(
         kPhoneHubDefaultFaviconIcon,
         AshColorProvider::Get()->GetContentLayerColor(
             AshColorProvider::ContentLayerType::kIconColorPrimary)));
   } else {
-    favicon->SetImage(metadata.favicon.AsImageSkia());
+    favicon->SetImage(ui::ImageModel::FromImage(metadata.favicon));
   }
 
   auto* url_label = header_view->AddChildView(
@@ -125,7 +126,7 @@ ContinueBrowsingChip::ContinueBrowsingChip(
       base::NumberToString16(index_ + 1), base::NumberToString16(total_count_),
       metadata.title, base::UTF8ToUTF16(url_.spec()));
   SetTooltipText(card_label);
-  SetAccessibleName(card_label);
+  GetViewAccessibility().SetName(card_label);
 }
 
 void ContinueBrowsingChip::OnPaintBackground(gfx::Canvas* canvas) {

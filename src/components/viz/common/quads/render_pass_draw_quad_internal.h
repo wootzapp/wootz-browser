@@ -18,8 +18,6 @@ namespace viz {
 
 class VIZ_COMMON_EXPORT RenderPassDrawQuadInternal : public DrawQuad {
  public:
-  static const size_t kMaskResourceIdIndex = 0;
-
   gfx::RectF mask_uv_rect;
   gfx::Size mask_texture_size;
 
@@ -43,9 +41,7 @@ class VIZ_COMMON_EXPORT RenderPassDrawQuadInternal : public DrawQuad {
   // to the same target.
   mutable bool intersects_damage_under = true;
 
-  ResourceId mask_resource_id() const {
-    return resources.ids[kMaskResourceIdIndex];
-  }
+  ResourceId mask_resource_id() const { return resource_id; }
 
  protected:
   RenderPassDrawQuadInternal();

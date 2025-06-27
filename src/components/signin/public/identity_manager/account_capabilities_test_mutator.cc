@@ -4,6 +4,7 @@
 
 #include "components/signin/public/identity_manager/account_capabilities_test_mutator.h"
 
+#include "base/containers/contains.h"
 #include "components/signin/internal/identity_manager/account_capabilities_constants.h"
 
 AccountCapabilitiesTestMutator::AccountCapabilitiesTestMutator(
@@ -11,9 +12,15 @@ AccountCapabilitiesTestMutator::AccountCapabilitiesTestMutator(
     : capabilities_(capabilities) {}
 
 // static
-const std::vector<std::string>&
+base::span<const std::string_view>
 AccountCapabilitiesTestMutator::GetSupportedAccountCapabilityNames() {
   return AccountCapabilities::GetSupportedAccountCapabilityNames();
+}
+
+void AccountCapabilitiesTestMutator::set_can_fetch_family_member_info(
+    bool value) {
+  capabilities_->capabilities_map_[kCanFetchFamilyMemberInfoCapabilityName] =
+      value;
 }
 
 void AccountCapabilitiesTestMutator::set_can_have_email_address_displayed(
@@ -51,6 +58,11 @@ void AccountCapabilitiesTestMutator::set_can_toggle_auto_updates(bool value) {
 void AccountCapabilitiesTestMutator::set_can_use_chrome_ip_protection(
     bool value) {
   capabilities_->capabilities_map_[kCanUseChromeIpProtectionName] = value;
+}
+
+void AccountCapabilitiesTestMutator::set_can_use_copyeditor_feature(
+    bool value) {
+  capabilities_->capabilities_map_[kCanUseCopyEditorFeatureName] = value;
 }
 
 void AccountCapabilitiesTestMutator::
@@ -98,9 +110,40 @@ void AccountCapabilitiesTestMutator::set_is_subject_to_parental_controls(
       value;
 }
 
+void AccountCapabilitiesTestMutator::set_can_use_speaker_label_in_recorder_app(
+    bool value) {
+  capabilities_->capabilities_map_[kCanUseSpeakerLabelInRecorderApp] = value;
+}
+
+void AccountCapabilitiesTestMutator::set_can_use_generative_ai_in_recorder_app(
+    bool value) {
+  capabilities_->capabilities_map_[kCanUseGenerativeAiInRecorderApp] = value;
+}
+
+void AccountCapabilitiesTestMutator::set_can_use_generative_ai_photo_editing(
+    bool value) {
+  capabilities_->capabilities_map_[kCanUseGenerativeAiPhotoEditing] = value;
+}
+
+#if BUILDFLAG(IS_CHROMEOS)
+void AccountCapabilitiesTestMutator::set_can_use_chromeos_generative_ai(
+    bool value) {
+  capabilities_->capabilities_map_[kCanUseChromeOSGenerativeAi] = value;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
 void AccountCapabilitiesTestMutator::SetAllSupportedCapabilities(bool value) {
-  for (const std::string& name :
+  for (std::string_view name :
        AccountCapabilities::GetSupportedAccountCapabilityNames()) {
-    capabilities_->capabilities_map_[name] = value;
+    capabilities_->capabilities_map_[std::string(name)] = value;
   }
+}
+
+void AccountCapabilitiesTestMutator::SetCapability(const std::string& name,
+                                                   bool value) {
+  base::span<const std::string_view> capability_names =
+      AccountCapabilities::GetSupportedAccountCapabilityNames();
+  CHECK(base::Contains(capability_names, name))
+      << "Invalid capability name: " << name;
+  capabilities_->capabilities_map_[name] = value;
 }

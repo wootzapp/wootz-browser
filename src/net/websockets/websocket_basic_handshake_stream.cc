@@ -87,14 +87,16 @@ GetHeaderResult GetSingleHeaderValue(const HttpResponseHeaders* headers,
                                      std::string_view name,
                                      std::string* value) {
   size_t iter = 0;
-  size_t num_values = 0;
-  std::string temp_value;
-  while (headers->EnumerateHeader(&iter, name, &temp_value)) {
-    if (++num_values > 1)
+  bool found_value = false;
+  while (std::optional<std::string_view> maybe_value =
+             headers->EnumerateHeader(&iter, name)) {
+    if (found_value) {
       return GET_HEADER_MULTIPLE;
-    *value = temp_value;
+    }
+    found_value = true;
+    *value = *maybe_value;
   }
-  return num_values > 0 ? GET_HEADER_OK : GET_HEADER_MISSING;
+  return found_value ? GET_HEADER_OK : GET_HEADER_MISSING;
 }
 
 bool ValidateHeaderHasSingleValue(GetHeaderResult result,
@@ -178,7 +180,7 @@ base::Value::Dict NetLogFailureParam(int net_error,
 }  // namespace
 
 WebSocketBasicHandshakeStream::WebSocketBasicHandshakeStream(
-    std::unique_ptr<ClientSocketHandle> connection,
+    std::unique_ptr<StreamSocketHandle> connection,
     WebSocketStream::ConnectDelegate* connect_delegate,
     bool is_for_get_to_http_proxy,
     std::vector<std::string> requested_sub_protocols,
@@ -219,20 +221,34 @@ int WebSocketBasicHandshakeStream::InitializeStream(
     CompletionOnceCallback callback) {
   url_ = request_info_->url;
   net_log_ = net_log;
+  state_.Initialize(request_info_, priority, net_log);
+  // RequestInfo is no longer needed after this point.
+  request_info_ = nullptr;
   // The WebSocket may receive a socket in the early data state from
   // HttpNetworkTransaction, which means it must call ConfirmHandshake() for
   // requests that need replay protection. However, the first request on any
   // WebSocket stream is a GET with an idempotent request
-  // (https://tools.ietf.org/html/rfc6455#section-1.3), so there is no need to
-  // call ConfirmHandshake().
+  // (https://tools.ietf.org/html/rfc6455#section-1.3), so ConfirmHandshake()
+  // only needs to be called if |can_send_early| is false which can happen when:
+  //   1. 0-RTT is rejected, or
+  //   2. HTTP 425 Too Early is returned by the server.
   //
   // Data after the WebSockets handshake may not be replayable, but the
   // handshake is guaranteed to be confirmed once the HTTP response is received.
-  DCHECK(can_send_early);
-  state_.Initialize(request_info_, priority, net_log);
-  // RequestInfo is no longer needed after this point.
-  request_info_ = nullptr;
-  return OK;
+  int ret = OK;
+  if (!can_send_early) {
+    // parser() cannot outlive `this`, so we can use base::Unretained().
+    ret = parser()->ConfirmHandshake(
+        base::BindOnce(&WebSocketBasicHandshakeStream::OnHandshakeConfirmed,
+                       base::Unretained(this), std::move(callback)));
+  }
+  return ret;
+}
+
+void WebSocketBasicHandshakeStream::OnHandshakeConfirmed(
+    CompletionOnceCallback callback,
+    int rv) {
+  std::move(callback).Run(rv);
 }
 
 int WebSocketBasicHandshakeStream::SendRequest(
@@ -262,12 +278,8 @@ int WebSocketBasicHandshakeStream::SendRequest(
   }
   enriched_headers.SetHeader(websockets::kSecWebSocketKey, handshake_challenge);
 
-  AddVectorHeaderIfNonEmpty(websockets::kSecWebSocketExtensions,
-                            requested_extensions_,
-                            &enriched_headers);
-  AddVectorHeaderIfNonEmpty(websockets::kSecWebSocketProtocol,
-                            requested_sub_protocols_,
-                            &enriched_headers);
+  AddVectorHeaders(requested_extensions_, requested_sub_protocols_,
+                   &enriched_headers);
 
   handshake_challenge_response_ =
       ComputeSecWebSocketAccept(handshake_challenge);
@@ -306,15 +318,9 @@ int WebSocketBasicHandshakeStream::ReadResponseBody(
 }
 
 void WebSocketBasicHandshakeStream::Close(bool not_reusable) {
-  // This class ignores the value of |not_reusable| and never lets the socket be
-  // re-used.
-  if (!parser())
-    return;
-  StreamSocket* socket = state_.connection()->socket();
-  if (socket)
-    socket->Disconnect();
-  parser()->OnConnectionClose();
-  state_.connection()->Reset();
+  // This class ignores the value of `not_reusable` and never lets the socket be
+  // reused.
+  state_.Close(/*not_reusable=*/true);
 }
 
 bool WebSocketBasicHandshakeStream::IsResponseBodyComplete() const {
@@ -326,12 +332,11 @@ bool WebSocketBasicHandshakeStream::IsConnectionReused() const {
 }
 
 void WebSocketBasicHandshakeStream::SetConnectionReused() {
-  state_.connection()->set_reuse_type(ClientSocketHandle::REUSED_IDLE);
+  state_.SetConnectionReused();
 }
 
 bool WebSocketBasicHandshakeStream::CanReuseConnection() const {
-  return parser() && state_.connection()->socket() &&
-         parser()->CanReuseConnection();
+  return state_.CanReuseConnection();
 }
 
 int64_t WebSocketBasicHandshakeStream::GetTotalReceivedBytes() const {
@@ -349,22 +354,15 @@ bool WebSocketBasicHandshakeStream::GetAlternativeService(
 
 bool WebSocketBasicHandshakeStream::GetLoadTimingInfo(
     LoadTimingInfo* load_timing_info) const {
-  return state_.connection()->GetLoadTimingInfo(IsConnectionReused(),
-                                                load_timing_info);
+  return state_.GetLoadTimingInfo(load_timing_info);
 }
 
 void WebSocketBasicHandshakeStream::GetSSLInfo(SSLInfo* ssl_info) {
-  if (!state_.connection()->socket() ||
-      !state_.connection()->socket()->GetSSLInfo(ssl_info)) {
-    ssl_info->Reset();
-  }
+  state_.GetSSLInfo(ssl_info);
 }
 
 int WebSocketBasicHandshakeStream::GetRemoteEndpoint(IPEndPoint* endpoint) {
-  if (!state_.connection() || !state_.connection()->socket())
-    return ERR_SOCKET_NOT_CONNECTED;
-
-  return state_.connection()->socket()->GetPeerAddress(endpoint);
+  return state_.GetRemoteEndpoint(endpoint);
 }
 
 void WebSocketBasicHandshakeStream::PopulateNetErrorDetails(
@@ -387,10 +385,6 @@ std::unique_ptr<HttpStream>
 WebSocketBasicHandshakeStream::RenewStreamForAuth() {
   DCHECK(IsResponseBodyComplete());
   DCHECK(!parser()->IsMoreDataBuffered());
-  // The HttpStreamParser object still has a pointer to the connection. Just to
-  // be extra-sure it doesn't touch the connection again, delete it here rather
-  // than leaving it until the destructor is called.
-  state_.DeleteParser();
 
   auto handshake_stream = std::make_unique<WebSocketBasicHandshakeStream>(
       state_.ReleaseConnection(), connect_delegate_,
@@ -413,9 +407,6 @@ std::string_view WebSocketBasicHandshakeStream::GetAcceptChViaAlps() const {
 }
 
 std::unique_ptr<WebSocketStream> WebSocketBasicHandshakeStream::Upgrade() {
-  // The HttpStreamParser object has a pointer to our ClientSocketHandle. Make
-  // sure it does not touch it again before it is destroyed.
-  state_.DeleteParser();
   WebSocketTransportClientSocketPool::UnlockEndpoint(
       state_.connection(), websocket_endpoint_lock_manager_);
   std::unique_ptr<WebSocketStream> basic_stream =

@@ -78,8 +78,7 @@ std::string GetAlarmTimerActionParamValue(AlarmTimerAction action) {
     case AlarmTimerAction::kResumeTimer:
       return kResumeTimer;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 std::string GetDeepLinkParamKey(DeepLinkParam param) {
@@ -115,8 +114,7 @@ std::string GetDeepLinkParamKey(DeepLinkParam param) {
     case DeepLinkParam::kVeId:
       return kVeIdParamKey;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 GURL AppendOrReplaceDeepLinkParam(const GURL& deep_link,
@@ -402,8 +400,7 @@ std::optional<GURL> GetAssistantUrl(
       by_id_url = std::string("https://assistant.google.com/reminders/id/");
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return std::nullopt;
+      NOTREACHED();
   }
 
   const auto& id = GetDeepLinkParam(params, DeepLinkParam::kId);
@@ -467,12 +464,10 @@ std::optional<GURL> GetWebUrl(
     case DeepLinkType::kQuery:
     case DeepLinkType::kScreenshot:
     case DeepLinkType::kTaskManager:
-      NOTREACHED_IN_MIGRATION();
-      return std::nullopt;
+      NOTREACHED();
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return std::nullopt;
+  NOTREACHED();
 }
 
 bool IsWebDeepLink(const GURL& deep_link) {

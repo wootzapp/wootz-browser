@@ -5,13 +5,13 @@
 #ifndef COMPONENTS_SYNC_BASE_DATA_TYPE_HISTOGRAM_H_
 #define COMPONENTS_SYNC_BASE_DATA_TYPE_HISTOGRAM_H_
 
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 
 namespace syncer {
 
 // The enum values are used for histogram suffixes. When adding a new type here,
-// extend also the "SyncModelTypeUpdateDrop" <histogram_suffixes> in
-// histograms.xml.
+// extend also the "Sync.DataTypeUpdateDrop" histogram in histograms.xml.
 enum class UpdateDropReason {
   kInconsistentClientTag,
   kCannotGenerateStorageKey,
@@ -24,31 +24,42 @@ enum class UpdateDropReason {
   kDroppedByBridge
 };
 
-// Records that a remote update of an entity of type |type| got dropped into a
-// |reason| related histogram.
-void SyncRecordModelTypeUpdateDropReason(UpdateDropReason reason,
-                                         ModelType type);
+// LINT.IfChange(UnsyncedDataRecordingEvent)
+enum class UnsyncedDataRecordingEvent {
+  // Upon `DataTypeLocalChangeProcessor::ModelReadyToSync()` call.
+  kOnModelReady,
+  // When the user initiates a signout flow (but has not confirmed yet).
+  // And is in pending state.
+  kOnSignoutConfirmationFromPendingState,
+  // And is not in pending state.
+  kOnSignoutConfirmation,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/sync/histograms.xml:UnsyncedDataRecordingEventVariants)
 
-// Converts memory size |bytes| into kilobytes and records it into |model_type|
+// Records that a remote update of an entity of type `type` got dropped into a
+// `reason` related histogram.
+void SyncRecordDataTypeUpdateDropReason(UpdateDropReason reason, DataType type);
+
+// Converts memory size `bytes` into kilobytes and records it into `data_type`
 // related histogram for memory footprint of sync data.
-void SyncRecordModelTypeMemoryHistogram(ModelType model_type, size_t bytes);
+void SyncRecordDataTypeMemoryHistogram(DataType data_type, size_t bytes);
 
-// Records |count| into a |model_type| related histogram for count of sync
+// Records `count` into a `data_type` related histogram for count of sync
 // entities.
-void SyncRecordModelTypeCountHistogram(ModelType model_type, size_t count);
+void SyncRecordDataTypeCountHistogram(DataType data_type, size_t count);
 
-// Records the serialized byte size of a sync entity from `model_type`, both
+// Records the serialized byte size of a sync entity from `data_type`, both
 // with and without sync metadata (`total_bytes` and `specifics_bytes`
 // respectively). Meant to be called when the entity is committed.
-void SyncRecordModelTypeEntitySizeHistogram(ModelType model_type,
-                                            bool is_tombstone,
-                                            size_t specifics_bytes,
-                                            size_t total_bytes);
+void SyncRecordDataTypeEntitySizeHistogram(DataType data_type,
+                                           bool is_tombstone,
+                                           size_t specifics_bytes,
+                                           size_t total_bytes);
 
-// Records when the model (including both data and metadata) was cleared for a
-// given `model_type` due to
-// `WipeModelUponSyncDisabledBehavior::kOnceIfTrackingMetadata`.
-void SyncRecordModelClearedOnceHistogram(ModelType model_type);
+// Records the amount of unsynced entities for the given `unsynced_data`.
+void SyncRecordDataTypeNumUnsyncedEntitiesFromDataCounts(
+    UnsyncedDataRecordingEvent event,
+    absl::flat_hash_map<DataType, size_t> unsynced_data);
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.

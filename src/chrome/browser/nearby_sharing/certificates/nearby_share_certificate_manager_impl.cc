@@ -23,7 +23,6 @@
 #include "chrome/browser/nearby_sharing/client/nearby_share_client.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_features.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_prefs.h"
-#include "chrome/browser/nearby_sharing/common/nearby_share_profile_info_provider.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_switches.h"
 #include "chromeos/ash/components/nearby/common/client/nearby_http_result.h"
 #include "chromeos/ash/components/nearby/common/scheduling/nearby_scheduler_factory.h"
@@ -49,13 +48,18 @@ constexpr std::array<nearby_share::mojom::Visibility, 3> kVisibilities = {
     nearby_share::mojom::Visibility::kYourDevices};
 
 // These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
+// numeric values should never be reused. Keep in sync with the
+// NearbyShareCertificateManagerGetDecryptedPublicCertificateResult UMA enum
+// defined in //tools/metrics/histograms/metadata/nearby/enums.xml.
+//
+// LINT.IfChange(NearbyShareCertificateManagerGetDecryptedPublicCertificateResult)
 enum GetDecryptedPublicCertificateResult {
   kSuccess = 0,
   kNoMatch = 1,
   kStorageFailure = 2,
   kMaxValue = kStorageFailure
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/nearby/enums.xml:NearbyShareCertificateManagerGetDecryptedPublicCertificateResult)
 
 // Check for a command-line override for number of certificates, otherwise
 // return the default |kNearbyShareNumPrivateCertificates|.
@@ -80,11 +84,7 @@ size_t NumPrivateCertificates() {
 }
 
 size_t NumExpectedPrivateCertificates() {
-  if (features::IsSelfShareEnabled()) {
-    return kVisibilities.size() * NumPrivateCertificates();
-  }
-
-  return (kVisibilities.size() - 1) * NumPrivateCertificates();
+  return kVisibilities.size() * NumPrivateCertificates();
 }
 
 std::optional<std::string> GetBluetoothMacAddress(
@@ -259,27 +259,27 @@ NearbyShareCertificateManagerImpl::Factory*
 // static
 std::unique_ptr<NearbyShareCertificateManager>
 NearbyShareCertificateManagerImpl::Factory::Create(
+    std::string user_email,
+    const base::FilePath& profile_path,
+    PrefService* pref_service,
     NearbyShareLocalDeviceDataManager* local_device_data_manager,
     NearbyShareContactManager* contact_manager,
-    NearbyShareProfileInfoProvider* profile_info_provider,
-    PrefService* pref_service,
     leveldb_proto::ProtoDatabaseProvider* proto_database_provider,
-    const base::FilePath& profile_path,
     NearbyShareClientFactory* client_factory,
     const base::Clock* clock) {
   DCHECK(clock);
 
   if (test_factory_) {
-    return test_factory_->CreateInstance(local_device_data_manager,
-                                         contact_manager, profile_info_provider,
-                                         pref_service, proto_database_provider,
-                                         profile_path, client_factory, clock);
+    return test_factory_->CreateInstance(
+        std::move(user_email), profile_path, pref_service,
+        local_device_data_manager, contact_manager, proto_database_provider,
+        client_factory, clock);
   }
 
   return base::WrapUnique(new NearbyShareCertificateManagerImpl(
-      local_device_data_manager, contact_manager, profile_info_provider,
-      pref_service, proto_database_provider, profile_path, client_factory,
-      clock));
+      std::move(user_email), profile_path, pref_service,
+      local_device_data_manager, contact_manager, proto_database_provider,
+      client_factory, clock));
 }
 
 // static
@@ -291,18 +291,18 @@ void NearbyShareCertificateManagerImpl::Factory::SetFactoryForTesting(
 NearbyShareCertificateManagerImpl::Factory::~Factory() = default;
 
 NearbyShareCertificateManagerImpl::NearbyShareCertificateManagerImpl(
+    std::string user_email,
+    const base::FilePath& profile_path,
+    PrefService* pref_service,
     NearbyShareLocalDeviceDataManager* local_device_data_manager,
     NearbyShareContactManager* contact_manager,
-    NearbyShareProfileInfoProvider* profile_info_provider,
-    PrefService* pref_service,
     leveldb_proto::ProtoDatabaseProvider* proto_database_provider,
-    const base::FilePath& profile_path,
     NearbyShareClientFactory* client_factory,
     const base::Clock* clock)
-    : local_device_data_manager_(local_device_data_manager),
-      contact_manager_(contact_manager),
-      profile_info_provider_(profile_info_provider),
+    : user_email_(std::move(user_email)),
       pref_service_(pref_service),
+      local_device_data_manager_(local_device_data_manager),
+      contact_manager_(contact_manager),
       client_factory_(client_factory),
       clock_(clock),
       certificate_storage_(NearbyShareCertificateStorageImpl::Factory::Create(
@@ -587,11 +587,12 @@ void NearbyShareCertificateManagerImpl::AttemptPrivateCertificateRefresh() {
   }
 
   std::optional<nearby::sharing::proto::EncryptedMetadata> metadata =
-      BuildMetadata(local_device_data_manager_->GetDeviceName(),
-                    local_device_data_manager_->GetFullName(),
-                    local_device_data_manager_->GetIconUrl(),
-                    profile_info_provider_->GetProfileUserName(),
-                    adapter_.get());
+      BuildMetadata(
+          local_device_data_manager_->GetDeviceName(),
+          local_device_data_manager_->GetFullName(),
+          local_device_data_manager_->GetIconUrl(),
+          user_email_.empty() ? std::nullopt : std::optional(user_email_),
+          adapter_.get());
   if (!metadata) {
     CD_LOG(WARNING, Feature::NS)
         << __func__
@@ -604,36 +605,19 @@ void NearbyShareCertificateManagerImpl::AttemptPrivateCertificateRefresh() {
   // kNearbyShareNumPrivateCertificates (unless overridden by a command-line
   // switch).
   size_t num_certificates = NumPrivateCertificates();
-  if (features::IsSelfShareEnabled()) {
-    CD_LOG(INFO, Feature::NS)
-        << __func__ << ": Creating "
-        << num_certificates -
-               num_valid_certs[nearby_share::mojom::Visibility::kAllContacts]
-        << " all-contacts visibility, "
-        << num_certificates -
-               num_valid_certs
-                   [nearby_share::mojom::Visibility::kSelectedContacts]
-        << " selected-contacts visibility, and "
-        << num_certificates -
-               num_valid_certs[nearby_share::mojom::Visibility::kYourDevices]
-        << " your-devices private certificates.";
-  } else {
-    CD_LOG(INFO, Feature::NS)
-        << __func__ << ": Creating "
-        << num_certificates -
-               num_valid_certs[nearby_share::mojom::Visibility::kAllContacts]
-        << " all-contacts visibility and "
-        << num_certificates -
-               num_valid_certs
-                   [nearby_share::mojom::Visibility::kSelectedContacts]
-        << " selected-contacts visibility private certificates.";
-  }
+  CD_LOG(INFO, Feature::NS)
+      << __func__ << ": Creating "
+      << num_certificates -
+             num_valid_certs[nearby_share::mojom::Visibility::kAllContacts]
+      << " all-contacts visibility, "
+      << num_certificates -
+             num_valid_certs[nearby_share::mojom::Visibility::kSelectedContacts]
+      << " selected-contacts visibility, and "
+      << num_certificates -
+             num_valid_certs[nearby_share::mojom::Visibility::kYourDevices]
+      << " your-devices private certificates.";
 
   for (nearby_share::mojom::Visibility visibility : kVisibilities) {
-    if (visibility == nearby_share::mojom::Visibility::kYourDevices &&
-        !features::IsSelfShareEnabled()) {
-      continue;
-    }
     while (num_valid_certs[visibility] < num_certificates) {
       certs.emplace_back(visibility,
                          /*not_before=*/latest_not_after[visibility],

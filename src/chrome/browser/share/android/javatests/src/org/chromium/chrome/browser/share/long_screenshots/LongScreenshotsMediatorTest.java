@@ -23,8 +23,10 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -37,7 +39,6 @@ import org.chromium.chrome.browser.share.long_screenshots.bitmap_generation.Long
 import org.chromium.chrome.browser.share.long_screenshots.bitmap_generation.LongScreenshotsEntry.EntryListener;
 import org.chromium.chrome.browser.share.long_screenshots.bitmap_generation.LongScreenshotsEntry.EntryStatus;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Tests for the LongScreenshotsMediator. */
@@ -56,6 +57,8 @@ public class LongScreenshotsMediatorTest {
     private Activity mActivity;
     private Bitmap mBitmap;
     private LongScreenshotsMediator mMediator;
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
@@ -77,8 +80,6 @@ public class LongScreenshotsMediatorTest {
         mActivityTestRule.launchActivity(null);
         mActivity = mActivityTestRule.getActivity();
 
-        MockitoAnnotations.initMocks(this);
-
         mBitmap = Bitmap.createBitmap(800, 600, Bitmap.Config.ARGB_8888);
 
         // Instantiate the object under test.
@@ -89,7 +90,7 @@ public class LongScreenshotsMediatorTest {
     @MediumTest
     public void testAreaSelectionDone() {
         // Boilerplate
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.showAreaSelectionDialog(mBitmap);
                     Assert.assertTrue(mMediator.getDialog().isShowing());
@@ -105,7 +106,7 @@ public class LongScreenshotsMediatorTest {
     @MediumTest
     public void testAreaSelectionClose() {
         // Boilerplate
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.showAreaSelectionDialog(mBitmap);
                     Assert.assertTrue(mMediator.getDialog().isShowing());
@@ -150,7 +151,7 @@ public class LongScreenshotsMediatorTest {
         verify(mLongScreenshotsEntry).setListener(mEntryListenerCaptor.capture());
         EntryListener entryListener = mEntryListenerCaptor.getValue();
         // Now we can call the onResult method of the EntryListener.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // This should trigger showAreaSelectionDialog to show the generated bitmap.
                     entryListener.onResult(EntryStatus.BITMAP_GENERATED);
@@ -182,7 +183,7 @@ public class LongScreenshotsMediatorTest {
         verify(mLongScreenshotsEntry).setListener(mEntryListenerCaptor.capture());
         EntryListener entryListener = mEntryListenerCaptor.getValue();
         // Now we can call the onResult method of the EntryListener.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // This should trigger showAreaSelectionDialog to show the scaled bitmap.
                     entryListener.onResult(EntryStatus.BITMAP_GENERATED);
@@ -223,7 +224,7 @@ public class LongScreenshotsMediatorTest {
         EntryListener entryListener = mEntryListenerCaptor.getValue();
 
         // Now we can call the onResult method of the EntryListener.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // This should trigger showAreaSelectionDialog to show the scaled bitmap.
                     entryListener.onResult(EntryStatus.BITMAP_GENERATED);
@@ -234,7 +235,7 @@ public class LongScreenshotsMediatorTest {
                 Assert.assertThrows(
                         RuntimeException.class,
                         () -> {
-                            TestThreadUtils.runOnUiThreadBlocking(
+                            ThreadUtils.runOnUiThreadBlocking(
                                     () -> {
                                         Assert.assertTrue(mMediator.getDialog().isShowing());
                                     });

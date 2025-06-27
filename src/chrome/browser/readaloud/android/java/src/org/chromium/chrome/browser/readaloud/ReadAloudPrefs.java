@@ -4,14 +4,13 @@
 
 package org.chromium.chrome.browser.readaloud;
 
-import org.jni_zero.JNINamespace;
-import org.jni_zero.NativeMethods;
-
-import org.chromium.components.prefs.PrefService;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.chromium.chrome.modules.readaloud.PlaybackArgs.PlaybackMode;
+import org.chromium.components.prefs.PrefService;
+import org.jni_zero.JNINamespace;
+import org.jni_zero.NativeMethods;
 
 /** Methods for storing and retrieving Read Aloud user settings in prefs. */
 @JNINamespace("readaloud")
@@ -21,6 +20,7 @@ public class ReadAloudPrefs {
     // Keep these names in sync with those in //chrome/common/pref_names.h.
     private static final String PREF_PATH_PREFIX = "readaloud";
     private static final String SPEED_PATH = PREF_PATH_PREFIX + ".speed";
+    private static final String PLAYBACK_MODE_PATH = PREF_PATH_PREFIX + ".playback_mode";
     static final String HIGHLIGHTING_ENABLED_PATH = PREF_PATH_PREFIX + ".highlighting_enabled";
 
     private static final float DEFAULT_SPEED = 1f;
@@ -51,7 +51,6 @@ public class ReadAloudPrefs {
         if (language == null || language.isEmpty() || voiceId == null || voiceId.isEmpty()) {
             return;
         }
-        ReadAloudMetrics.recordVoiceChanged(voiceId);
         ReadAloudPrefsJni.get().setVoice(prefs, language, voiceId);
     }
 
@@ -77,6 +76,21 @@ public class ReadAloudPrefs {
             ReadAloudMetrics.recordSpeedChange(speed);
         }
         prefs.setDouble(SPEED_PATH, (double) speed);
+    }
+
+    public static PlaybackMode getPlaybackMode(PrefService prefs) {
+        return prefs.hasPrefPath(PLAYBACK_MODE_PATH)
+            ? PlaybackMode.fromValue(prefs.getInteger(PLAYBACK_MODE_PATH))
+            : PlaybackMode.UNSPECIFIED;
+    }
+
+    public static void setPlaybackMode(PrefService prefs, PlaybackMode playbackMode) {
+        if (playbackMode == getPlaybackMode(prefs)) {
+            return;
+        }
+        int value = playbackMode.getValue();
+        ReadAloudMetrics.recordPlaybackModeChange(value);
+        prefs.setInteger(PLAYBACK_MODE_PATH, value);
     }
 
     /**
@@ -106,10 +120,23 @@ public class ReadAloudPrefs {
         }
     }
 
+    /**
+     * Return the client ID for reliability logging.
+     *
+     * @param prefs PrefService where the random salt used to generate the ID is stored.
+     */
+    public static long getReliabilityLoggingId(PrefService prefs) {
+        if (prefs == null) return 0L;
+        return ReadAloudPrefsJni.get()
+                .getReliabilityLoggingId(prefs, ReadAloudFeatures.getMetricsId());
+    }
+
     @NativeMethods
     public interface Natives {
         void getVoices(PrefService prefService, Map<String, String> output);
 
         void setVoice(PrefService prefService, String language, String voiceId);
+
+        long getReliabilityLoggingId(PrefService prefService, String metricsId);
     }
 }

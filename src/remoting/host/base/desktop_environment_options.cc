@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 
+#include "base/time/time.h"
 #include "build/build_config.h"
 
 namespace remoting {
@@ -87,22 +88,6 @@ void DesktopEnvironmentOptions::set_terminate_upon_input(bool enabled) {
   terminate_upon_input_ = enabled;
 }
 
-bool DesktopEnvironmentOptions::enable_file_transfer() const {
-  return enable_file_transfer_;
-}
-
-void DesktopEnvironmentOptions::set_enable_file_transfer(bool enabled) {
-  enable_file_transfer_ = enabled;
-}
-
-bool DesktopEnvironmentOptions::enable_remote_open_url() const {
-  return enable_remote_open_url_;
-}
-
-void DesktopEnvironmentOptions::set_enable_remote_open_url(bool enabled) {
-  enable_remote_open_url_ = enabled;
-}
-
 bool DesktopEnvironmentOptions::enable_remote_webauthn() const {
   return enable_remote_webauthn_;
 }
@@ -111,13 +96,13 @@ void DesktopEnvironmentOptions::set_enable_remote_webauthn(bool enabled) {
   enable_remote_webauthn_ = enabled;
 }
 
-const std::optional<size_t>& DesktopEnvironmentOptions::clipboard_size() const {
-  return clipboard_size_;
+base::TimeDelta DesktopEnvironmentOptions::maximum_session_duration() const {
+  return maximum_session_duration_;
 }
 
-void DesktopEnvironmentOptions::set_clipboard_size(
-    std::optional<size_t> clipboard_size) {
-  clipboard_size_ = std::move(clipboard_size);
+void DesktopEnvironmentOptions::set_maximum_session_duration(
+    base::TimeDelta duration) {
+  maximum_session_duration_ = duration;
 }
 
 bool DesktopEnvironmentOptions::capture_video_on_dedicated_thread() const {
@@ -149,6 +134,23 @@ void DesktopEnvironmentOptions::ApplySessionOptions(
   if (capture_video_on_dedicated_thread.has_value()) {
     set_capture_video_on_dedicated_thread(*capture_video_on_dedicated_thread);
   }
+
+#if BUILDFLAG(IS_MAC)
+  std::optional<bool> enable_sck_capturer =
+      options.GetBool("Enable-Sck-Capturer");
+  if (enable_sck_capturer.has_value()) {
+    desktop_capture_options_.set_allow_sck_capturer(*enable_sck_capturer);
+  }
+#endif  // IS_MAC
+
+#if BUILDFLAG(IS_WIN)
+  std::optional<bool> allow_dxgi_capturer =
+      options.GetBool("Allow-Dxgi-Capturer");
+  if (allow_dxgi_capturer.has_value()) {
+    desktop_capture_options_.set_allow_directx_capturer(*allow_dxgi_capturer);
+  }
+#endif  // IS_WIN
+
 #if defined(WEBRTC_USE_PIPEWIRE)
   desktop_capture_options_.set_allow_pipewire(true);
   desktop_capture_options_.set_pipewire_use_damage_region(true);

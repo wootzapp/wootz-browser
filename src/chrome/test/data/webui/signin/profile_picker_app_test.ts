@@ -3,22 +3,13 @@
 // found in the LICENSE file.
 
 import 'chrome://profile-picker/profile_picker.js';
-// <if expr="chromeos_lacros">
-import 'chrome://profile-picker/lazy_load.js';
 
-// </if>
-
-import type {
-  // <if expr="chromeos_lacros">
-  AvailableAccount,
-  // </if>
-  ProfilePickerAppElement} from 'chrome://profile-picker/profile_picker.js';
+import type {ProfilePickerAppElement} from 'chrome://profile-picker/profile_picker.js';
 import {ensureLazyLoaded, ManageProfilesBrowserProxyImpl, navigateTo, Routes} from 'chrome://profile-picker/profile_picker.js';
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {flushTasks, waitBeforeNextRender} from 'chrome://webui-test/polymer_test_util.js';
-import {whenCheck} from 'chrome://webui-test/test_util.js';
+import {microtasksFinished, whenCheck} from 'chrome://webui-test/test_util.js';
 
 import {TestManageProfilesBrowserProxy} from './test_manage_profiles_browser_proxy.js';
 
@@ -31,7 +22,6 @@ suite('ProfilePickerAppTest', function() {
     navigateTo(route);
     testElement = document.createElement('profile-picker-app');
     document.body.appendChild(testElement);
-    return waitBeforeNextRender(testElement);
   }
 
   setup(function() {
@@ -68,83 +58,44 @@ suite('ProfilePickerAppTest', function() {
 
   test('ProfilePickerMainView', async function() {
     assertEquals(
-        testElement.shadowRoot!.querySelectorAll('[slot=view]').length, 1);
+        testElement.shadowRoot.querySelectorAll('[slot=view]').length, 1);
     const mainView =
-        testElement.shadowRoot!.querySelector('profile-picker-main-view')!;
+        testElement.shadowRoot.querySelector('profile-picker-main-view')!;
     await whenCheck(mainView, () => mainView.classList.contains('active'));
     await browserProxy.whenCalled('initializeMainView');
-    const profilesContainer =
-        mainView.shadowRoot!.querySelector<HTMLElement>('#wrapper')!
-            .querySelector<HTMLElement>('#profilesContainer')!;
-    assertTrue(profilesContainer.hidden);
+
+    const profilesWrapper =
+        mainView.shadowRoot.querySelector<HTMLElement>('#profilesWrapper')!;
+    assertTrue(profilesWrapper.hidden);
 
     webUIListenerCallback(
         'profiles-list-changed', [browserProxy.profileSample]);
-    flushTasks();
+    await microtasksFinished();
+    assertFalse(profilesWrapper.hidden);
+
+    const profilesContainer =
+        profilesWrapper.querySelector<HTMLElement>('#profilesContainer')!;
     assertEquals(profilesContainer.querySelectorAll('profile-card').length, 1);
     mainView.$.addProfile.click();
     await waitForProfileCreationLoad();
     assertEquals(
-        testElement.shadowRoot!.querySelectorAll('[slot=view]').length, 2);
-    const choice = testElement.shadowRoot!.querySelector('profile-type-choice');
+        testElement.shadowRoot.querySelectorAll('[slot=view]').length, 2);
+    const choice = testElement.shadowRoot.querySelector('profile-type-choice');
     assertTrue(!!choice);
-    await whenCheck(choice!, () => choice!.classList.contains('active'));
-    verifyProfileCreationViewStyle(choice!);
+    await whenCheck(choice, () => choice.classList.contains('active'));
+    verifyProfileCreationViewStyle(choice);
   });
-
-  // <if expr="chromeos_lacros">
-  test('SignInPromoSignInWithAvailableAccountLacros', async function() {
-    await resetTestElement(Routes.NEW_PROFILE);
-    await waitForProfileCreationLoad();
-    const choice =
-        testElement.shadowRoot!.querySelector('profile-type-choice')!;
-    assertTrue(!!choice);
-    // Add available account to trigger the account selection screen.
-    const availableAccount: AvailableAccount = {
-      gaiaId: 'available-id',
-      name: 'Account Name',
-      email: 'email@gmail.com',
-      accountImageUrl: 'account-image-url',
-    };
-    webUIListenerCallback('available-accounts-changed', [availableAccount]);
-    flushTasks();
-    choice!.$.signInButton.click();
-    // Start Lacros signin flow.
-    await waitBeforeNextRender(testElement);
-    const accountSelectionLacros =
-        testElement.shadowRoot!.querySelector('account-selection-lacros');
-    assertTrue(!!accountSelectionLacros);
-    // Test the back button.
-    const backButton =
-        accountSelectionLacros!.shadowRoot!.querySelector<HTMLElement>(
-            '#backButton');
-    assertTrue(!!backButton);
-    backButton!.click();
-    await whenCheck(choice!, () => choice!.classList.contains('active'));
-  });
-
-  test('SignInPromoSignInWithoutAccountLacros', async function() {
-    await resetTestElement(Routes.NEW_PROFILE);
-    await waitForProfileCreationLoad();
-    const choice = testElement.shadowRoot!.querySelector('profile-type-choice');
-    assertTrue(!!choice);
-    // No available account.
-    webUIListenerCallback('available-accounts-changed', []);
-    flushTasks();
-    choice!.$.signInButton.click();
-    return browserProxy.whenCalled('selectNewAccount');
-  });
-  // </if>
 
   test('SignInPromoSignIn', async function() {
     await resetTestElement(Routes.NEW_PROFILE);
     await waitForProfileCreationLoad();
-    const choice = testElement.shadowRoot!.querySelector('profile-type-choice');
+    const choice = testElement.shadowRoot.querySelector('profile-type-choice');
     assertTrue(!!choice);
-    choice!.$.signInButton.click();
-    assertTrue(choice!.$.signInButton.disabled);
-    assertTrue(choice!.$.notNowButton.disabled);
-    assertTrue(choice!.$.backButton.disabled);
+    choice.$.signInButton.click();
+    await microtasksFinished();
+    assertTrue(choice.$.signInButton.disabled);
+    assertTrue(choice.$.notNowButton.disabled);
+    assertTrue(choice.$.backButton.disabled);
     return browserProxy.whenCalled('selectNewAccount');
   });
 
@@ -154,9 +105,9 @@ suite('ProfilePickerAppTest', function() {
     });
     await resetTestElement(Routes.NEW_PROFILE);
     assertEquals(
-        testElement.shadowRoot!.querySelectorAll('[slot=view]').length, 1);
+        testElement.shadowRoot.querySelectorAll('[slot=view]').length, 1);
     const mainView =
-        testElement.shadowRoot!.querySelector('profile-picker-main-view')!;
+        testElement.shadowRoot.querySelector('profile-picker-main-view')!;
     await whenCheck(mainView, () => mainView.classList.contains('active'));
   });
 
@@ -167,9 +118,9 @@ suite('ProfilePickerAppTest', function() {
     });
     await resetTestElement(Routes.NEW_PROFILE);
     assertEquals(
-        testElement.shadowRoot!.querySelectorAll('[slot=view]').length, 1);
+        testElement.shadowRoot.querySelectorAll('[slot=view]').length, 1);
     const mainView =
-        testElement.shadowRoot!.querySelector('profile-picker-main-view')!;
+        testElement.shadowRoot.querySelector('profile-picker-main-view')!;
     await whenCheck(mainView, () => mainView.classList.contains('active'));
     await browserProxy.whenCalled('selectNewAccount');
   });
@@ -182,26 +133,27 @@ suite('ProfilePickerAppTest', function() {
     });
     await resetTestElement(Routes.NEW_PROFILE);
     await waitForProfileCreationLoad();
-    const choice = testElement.shadowRoot!.querySelector('profile-type-choice');
+    const choice = testElement.shadowRoot.querySelector('profile-type-choice');
     assertTrue(!!choice);
-    await whenCheck(choice!, () => choice!.classList.contains('active'));
-    verifyProfileCreationViewStyle(choice!);
-    choice!.$.notNowButton.click();
+    await whenCheck(choice, () => choice.classList.contains('active'));
+    verifyProfileCreationViewStyle(choice);
+    choice.$.notNowButton.click();
+    await microtasksFinished();
     const args = await browserProxy.whenCalled('continueWithoutAccount');
     assertEquals(args[0], browserProxy.profileThemeInfo.color);
     assertTrue(testElement.profileCreationInProgress);
     assertTrue(choice.profileCreationInProgress);
-    assertTrue(choice!.$.signInButton.disabled);
-    assertTrue(choice!.$.notNowButton.disabled);
-    assertTrue(choice!.$.backButton.disabled);
+    assertTrue(choice.$.signInButton.disabled);
+    assertTrue(choice.$.notNowButton.disabled);
+    assertTrue(choice.$.backButton.disabled);
 
     webUIListenerCallback('create-profile-finished', []);
-    flushTasks();
+    await microtasksFinished();
     assertFalse(testElement.profileCreationInProgress);
     assertFalse(choice.profileCreationInProgress);
-    assertFalse(choice!.$.signInButton.disabled);
-    assertFalse(choice!.$.notNowButton.disabled);
-    assertFalse(choice!.$.backButton.disabled);
+    assertFalse(choice.$.signInButton.disabled);
+    assertFalse(choice.$.notNowButton.disabled);
+    assertFalse(choice.$.backButton.disabled);
   });
 
   test('CreateLocalProfileWithBrowserSigninNotAllowed', async function() {

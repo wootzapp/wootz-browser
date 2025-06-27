@@ -42,9 +42,6 @@ class GpuDataManager {
 
   CONTENT_EXPORT static bool Initialized();
 
-  // This is only called by extensions testing.
-  virtual void BlocklistWebGLForTesting() = 0;
-
   virtual gpu::GPUInfo GetGPUInfo() = 0;
 
   virtual gpu::GpuFeatureStatus GetFeatureStatus(
@@ -75,9 +72,18 @@ class GpuDataManager {
   // Whether a GPU is in use (as opposed to a software renderer).
   virtual bool HardwareAccelerationEnabled() = 0;
 
+  // Whether a GPU is being used for UI rasterization.
+  virtual bool IsGpuRasterizationForUIEnabled() = 0;
+
   // Insert switches into gpu process command line: kUseGL, etc.
   virtual void AppendGpuCommandLine(base::CommandLine* command_line,
                                     GpuProcessKind kind) = 0;
+
+  // This is only called by extensions testing.
+  virtual void BlocklistWebGLForTesting() = 0;
+
+  // This is only called by chrome feedback tests.
+  virtual void SetSkiaGraphiteEnabledForTesting(bool enabled) = 0;
 
  protected:
   virtual ~GpuDataManager() {}

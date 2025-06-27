@@ -18,14 +18,14 @@
 #include "components/reading_list/core/reading_list_model_storage.h"
 #include "components/reading_list/core/reading_list_sync_bridge.h"
 #include "components/sync/base/storage_type.h"
-#include "google_apis/gaia/core_account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 
 namespace base {
 class Clock;
 }  // namespace base
 
 namespace syncer {
-class ModelTypeChangeProcessor;
+class DataTypeLocalChangeProcessor;
 }  // namespace syncer
 
 // Concrete implementation of a reading list model using in memory lists.
@@ -49,9 +49,9 @@ class ReadingListModelImpl : public ReadingListModel {
 
   // ReadingListModel implementation.
   bool loaded() const override;
-  base::WeakPtr<syncer::ModelTypeControllerDelegate> GetSyncControllerDelegate()
+  base::WeakPtr<syncer::DataTypeControllerDelegate> GetSyncControllerDelegate()
       override;
-  base::WeakPtr<syncer::ModelTypeControllerDelegate>
+  base::WeakPtr<syncer::DataTypeControllerDelegate>
   GetSyncControllerDelegateForTransportMode() override;
   bool IsPerformingBatchUpdates() const override;
   std::unique_ptr<ScopedReadingListBatchUpdate> BeginBatchUpdates() override;
@@ -64,7 +64,7 @@ class ReadingListModelImpl : public ReadingListModel {
   scoped_refptr<const ReadingListEntry> GetEntryByURL(
       const GURL& gurl) const override;
   bool IsUrlSupported(const GURL& url) override;
-  CoreAccountId GetAccountWhereEntryIsSavedTo(const GURL& url) override;
+  GaiaId GetAccountWhereEntryIsSavedTo(const GURL& url) override;
   bool NeedsExplicitUploadToSyncServer(const GURL& url) const override;
   void MarkAllForUploadToSyncServerIfNeeded() override;
   const ReadingListEntry& AddOrReplaceEntry(
@@ -142,7 +142,7 @@ class ReadingListModelImpl : public ReadingListModel {
       syncer::WipeModelUponSyncDisabledBehavior
           wipe_model_upon_sync_disabled_behavior,
       base::Clock* clock,
-      std::unique_ptr<syncer::ModelTypeChangeProcessor> change_processor);
+      std::unique_ptr<syncer::DataTypeLocalChangeProcessor> change_processor);
 
   // Exposes the sync bridge publicly for testing purposes.
   ReadingListSyncBridge* GetSyncBridgeForTest();
@@ -169,7 +169,7 @@ class ReadingListModelImpl : public ReadingListModel {
       syncer::WipeModelUponSyncDisabledBehavior
           wipe_model_upon_sync_disabled_behavior,
       base::Clock* clock,
-      std::unique_ptr<syncer::ModelTypeChangeProcessor> change_processor);
+      std::unique_ptr<syncer::DataTypeLocalChangeProcessor> change_processor);
 
   void StoreLoaded(ReadingListModelStorage::LoadResultOrError result_or_error);
 

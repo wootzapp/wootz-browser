@@ -2,11 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <string_view>
+
+#include "ash/accelerators/accelerator_controller_impl.h"
 #include "ash/accessibility/accessibility_controller.h"
+#include "ash/accessibility/drag_event_rewriter.h"
 #include "ash/accessibility/mouse_keys/mouse_keys_controller.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/events/test_event_capturer.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
+#include "ash/system/accessibility/mouse_keys/mouse_keys_bubble_controller.h"
+#include "ash/system/accessibility/mouse_keys/mouse_keys_bubble_view.h"
 #include "ash/test/ash_test_base.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
@@ -19,6 +26,7 @@
 #include "ui/events/event_utils.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/types/event_type.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
@@ -38,31 +46,6 @@ const gfx::Point kDefaultPosition(100, 100);
 const double kMoveDeltaDIP = MouseKeysController::kBaseSpeedDIPPerSecond *
                              MouseKeysController::kUpdateFrequencyInSeconds;
 
-class TestTextInputView : public views::WidgetDelegateView {
- public:
-  TestTextInputView() : text_field_(new views::Textfield) {
-    text_field_->SetTextInputType(ui::TEXT_INPUT_TYPE_TEXT);
-    std::string name = "Hello, world";
-    text_field_->SetAccessibleName(base::UTF8ToUTF16(name));
-    AddChildView(text_field_.get());
-    SetLayoutManager(std::make_unique<views::FillLayout>());
-  }
-  TestTextInputView(const TestTextInputView&) = delete;
-  TestTextInputView& operator=(const TestTextInputView&) = delete;
-  ~TestTextInputView() override = default;
-
-  gfx::Size CalculatePreferredSize(
-      const views::SizeBounds& available_size) const override {
-    return gfx::Size(50, 50);
-  }
-
-  void FocusOnTextInput() { text_field_->RequestFocus(); }
-  const std::u16string& GetText() { return text_field_->GetText(); }
-
- private:
-  raw_ptr<views::Textfield> text_field_;  // owned by views hierarchy.
-};
-
 class EventRewriterWrapper : public ui::EventRewriter {
  public:
   EventRewriterWrapper() = default;
@@ -79,6 +62,8 @@ class EventRewriterWrapper : public ui::EventRewriter {
                     : SendEvent(continuation, &event);
   }
 };
+
+}  // namespace
 
 class MouseKeysTest : public AshTestBase {
  protected:
@@ -115,6 +100,36 @@ class MouseKeysTest : public AshTestBase {
     Shell::Get()->accessibility_controller()->mouse_keys().SetEnabled(enabled);
   }
 
+  MouseKeysBubbleController* GetBubbleController() const {
+    return Shell::Get()
+        ->mouse_keys_controller()
+        ->GetMouseKeysBubbleControllerForTest();
+  }
+
+  MouseKeysBubbleView* GetBubbleView() const {
+    return GetBubbleController()->mouse_keys_bubble_view_;
+  }
+
+  bool IsBubbleVisible() {
+    // Add a null check for widget_.
+    if (GetBubbleController()->widget_ == nullptr) {
+      return false;
+    }
+    return GetBubbleController()->widget_->IsVisible();
+  }
+
+  std::u16string_view GetBubbleText() const {
+    return GetBubbleView()->GetTextForTesting();
+  }
+
+  bool IsButtonChangeIconVisible() const {
+    return GetBubbleView()->GetMouseButtonChangeIconForTesting()->GetVisible();
+  }
+
+  bool IsMouseDraggedIconVisible() const {
+    return GetBubbleView()->GetMouseDragIconForTesting()->GetVisible();
+  }
+
   const std::vector<ui::KeyEvent>& CheckForKeyEvents() {
     base::RunLoop().RunUntilIdle();
     return event_capturer_.key_events();
@@ -136,7 +151,7 @@ class MouseKeysTest : public AshTestBase {
 
     // There should be 8 mouse movements.
     for (int i = 0; i < 8; ++i) {
-      EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+      EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     }
 
     // The pointer should move in a circular pattern.
@@ -179,10 +194,10 @@ class MouseKeysTest : public AshTestBase {
                    int buttons,
                    bool is_double_click,
                    const gfx::Point& position) {
-    EXPECT_EQ(ui::ET_MOUSE_PRESSED, mouse_event0.type());
+    EXPECT_EQ(ui::EventType::kMousePressed, mouse_event0.type());
     EXPECT_TRUE(buttons & mouse_event0.flags());
     EXPECT_EQ(mouse_event0.location(), position);
-    EXPECT_EQ(ui::ET_MOUSE_RELEASED, mouse_event1.type());
+    EXPECT_EQ(ui::EventType::kMouseReleased, mouse_event1.type());
     EXPECT_TRUE(buttons & mouse_event1.flags());
     EXPECT_EQ(mouse_event1.location(), position);
     if (is_double_click) {
@@ -196,6 +211,13 @@ class MouseKeysTest : public AshTestBase {
 
   MouseKeysController* GetMouseKeysController() {
     return Shell::Get()->mouse_keys_controller();
+  }
+
+  void SetUsePrimaryKeys(bool value) {
+    PrefService* prefs =
+        Shell::Get()->session_controller()->GetLastActiveUserPrefService();
+
+    prefs->SetBoolean(prefs::kAccessibilityMouseKeysUsePrimaryKeys, value);
   }
 
   void SetLeftHanded(bool value) {
@@ -258,12 +280,14 @@ class MouseKeysTest : public AshTestBase {
   }
 
   void PressColemakKey(ui::KeyboardCode key_code) {
-    ui::KeyEvent key_event(ColemakKeyEvent(ui::ET_KEY_PRESSED, key_code));
+    ui::KeyEvent key_event(
+        ColemakKeyEvent(ui::EventType::kKeyPressed, key_code));
     GetEventGenerator()->Dispatch(&key_event);
   }
 
   void ReleaseColemakKey(ui::KeyboardCode key_code) {
-    ui::KeyEvent key_event(ColemakKeyEvent(ui::ET_KEY_RELEASED, key_code));
+    ui::KeyEvent key_event(
+        ColemakKeyEvent(ui::EventType::kKeyReleased, key_code));
     GetEventGenerator()->Dispatch(&key_event);
   }
 
@@ -287,13 +311,24 @@ class MouseKeysTest : public AshTestBase {
     prefs->SetDouble(prefs::kAccessibilityMouseKeysMaxSpeed, factor);
   }
 
+  gfx::Point GetLastMousePositionFromEvents() {
+    auto events = CheckForMouseEvents();
+    EXPECT_FALSE(events.empty());
+    return events.back().location();
+  }
+
+  void ShowMouseKeysBubble() {
+    EXPECT_FALSE(IsBubbleVisible());
+    PressAndReleaseKey(ui::VKEY_OEM_COMMA);
+    EXPECT_TRUE(IsBubbleVisible());
+    EXPECT_EQ(GetBubbleText(), u"Right mouse button");
+  }
+
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
   TestEventCapturer event_capturer_;
   EventRewriterWrapper rewriter_;
 };
-
-}  // namespace
 
 TEST_F(MouseKeysTest, ToggleEnabled) {
   std::vector<ui::MouseEvent> events;
@@ -422,7 +457,16 @@ TEST_F(MouseKeysTest, SelectButtonRightHand) {
 
   // Press , and the mouse action should be the right button.
   ClearEvents();
+  EXPECT_FALSE(IsBubbleVisible());
   PressAndReleaseKey(ui::VKEY_OEM_COMMA);
+
+  // Bubble view with right button change message and button change icon
+  // should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Right mouse button");
+  EXPECT_TRUE(IsButtonChangeIconVisible());
+  EXPECT_FALSE(IsMouseDraggedIconVisible());
+
   PressAndReleaseKey(ui::VKEY_I);
   EXPECT_EQ(0u, CheckForKeyEvents().size());
   ExpectClick(CheckForMouseEvents(), ui::EF_RIGHT_MOUSE_BUTTON,
@@ -431,6 +475,14 @@ TEST_F(MouseKeysTest, SelectButtonRightHand) {
   // Press , and the mouse action should be both buttons.
   ClearEvents();
   PressAndReleaseKey(ui::VKEY_OEM_COMMA);
+
+  // Bubble view with both mouse buttons change message
+  // and button change icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Both mouse buttons");
+  EXPECT_TRUE(IsButtonChangeIconVisible());
+  EXPECT_FALSE(IsMouseDraggedIconVisible());
+
   PressAndReleaseKey(ui::VKEY_I);
   EXPECT_EQ(0u, CheckForKeyEvents().size());
   ExpectClick(CheckForMouseEvents(),
@@ -440,6 +492,14 @@ TEST_F(MouseKeysTest, SelectButtonRightHand) {
   // Press , and the mouse action should be the left button.
   ClearEvents();
   PressAndReleaseKey(ui::VKEY_OEM_COMMA);
+
+  // Bubble view with left mouse buttons change message
+  // and button change icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Left mouse button");
+  EXPECT_TRUE(IsButtonChangeIconVisible());
+  EXPECT_FALSE(IsMouseDraggedIconVisible());
+
   PressAndReleaseKey(ui::VKEY_I);
   EXPECT_EQ(0u, CheckForKeyEvents().size());
   ExpectClick(CheckForMouseEvents(), ui::EF_LEFT_MOUSE_BUTTON,
@@ -490,7 +550,7 @@ TEST_F(MouseKeysTest, SelectButtonNumPad) {
                                              kDefaultPosition);
   SetEnabled(true);
 
-  // TODO(zork): SetUsePrimaryKeys(false);
+  SetUsePrimaryKeys(false);
 
   // Press - and the mouse action should be the right button.
   ClearEvents();
@@ -530,7 +590,7 @@ TEST_F(MouseKeysTest, IgnoreKeyRepeat) {
   auto mouse_events = CheckForMouseEvents();
   ASSERT_EQ(1u, mouse_events.size());
   EXPECT_EQ(0u, CheckForKeyEvents().size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, mouse_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, mouse_events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
   EXPECT_EQ(mouse_events[0].location(), kDefaultPosition);
 
@@ -546,9 +606,40 @@ TEST_F(MouseKeysTest, IgnoreKeyRepeat) {
   mouse_events = CheckForMouseEvents();
   EXPECT_EQ(0u, CheckForKeyEvents().size());
   ASSERT_EQ(1u, mouse_events.size());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, mouse_events[0].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, mouse_events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
   EXPECT_EQ(mouse_events[0].location(), kDefaultPosition);
+}
+
+TEST_F(MouseKeysTest, MouseKeysBubbleMovesWithMouse) {
+  // Initialize mouse and enable Mouse Keys.
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+  SetEnabled(true);
+  ClearEvents();
+
+  // Get initial mouse position with a small move up-left.
+  PressAndReleaseKey(ui::VKEY_7);
+  gfx::Point initialMousePosition = GetLastMousePositionFromEvents();
+
+  // Show the bubble and get its initial position.
+  ShowMouseKeysBubble();
+  gfx::Point initialBubblePosition =
+      GetBubbleView()->GetAnchorRect().CenterPoint();
+
+  // Simulate mouse movement up-left.
+  PressAndReleaseKey(ui::VKEY_7);
+
+  // Get the final mouse position.
+  auto finalMousePosition = GetLastMousePositionFromEvents();
+
+  // Get the final bubble position.
+  gfx::Point finalBubblePosition =
+      GetBubbleView()->GetAnchorRect().CenterPoint();
+
+  // Verify mouse and bubble movements match.
+  EXPECT_EQ(finalMousePosition - initialMousePosition,
+            finalBubblePosition - initialBubblePosition);
 }
 
 TEST_F(MouseKeysTest, Move) {
@@ -670,12 +761,12 @@ TEST_F(MouseKeysTest, MaxSpeed) {
   auto mouse_events = CheckForMouseEvents();
   EXPECT_EQ(0u, CheckForKeyEvents().size());
 
-  EXPECT_EQ(10u, mouse_events.size());
+  ASSERT_EQ(10u, mouse_events.size());
   gfx::Vector2d move_delta(kMoveDeltaDIP * kMaxSpeed, 0);
   auto position = kDefaultPosition;
   for (size_t i = 0; i < mouse_events.size(); ++i) {
     position += move_delta;
-    EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+    EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     EXPECT_EQ(mouse_events[i].location(), position);
   }
 
@@ -692,7 +783,7 @@ TEST_F(MouseKeysTest, MaxSpeed) {
       gfx::Vector2d(-kMoveDeltaDIP * kMaxSpeed, kMoveDeltaDIP * kMaxSpeed);
   for (size_t i = 0; i < mouse_events.size(); ++i) {
     position += move_delta;
-    EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+    EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     EXPECT_EQ(mouse_events[i].location(), position);
   }
 }
@@ -728,7 +819,7 @@ TEST_F(MouseKeysTest, Acceleration) {
   auto position = kDefaultPosition;
   for (size_t i = 0; i < mouse_events.size(); ++i) {
     position += gfx::Vector2d(0, move_delta);
-    EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+    EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     EXPECT_EQ(mouse_events[i].location(), position);
     move_delta += kAccelerationDelta;
   }
@@ -745,7 +836,7 @@ TEST_F(MouseKeysTest, Acceleration) {
   move_delta = kMoveDeltaDIP;
   for (size_t i = 0; i < mouse_events.size(); ++i) {
     position += gfx::Vector2d(move_delta, -move_delta);
-    EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+    EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     EXPECT_EQ(mouse_events[i].location(), position);
     move_delta += kAccelerationDelta;
   }
@@ -786,7 +877,7 @@ TEST_F(MouseKeysTest, AccelerationAndMaxSpeed) {
   auto position = kDefaultPosition;
   for (size_t i = 0; i < mouse_events.size(); ++i) {
     position += gfx::Vector2d(move_delta, 0);
-    EXPECT_EQ(ui::ET_MOUSE_MOVED, mouse_events[i].type());
+    EXPECT_EQ(ui::EventType::kMouseMoved, mouse_events[i].type());
     EXPECT_EQ(mouse_events[i].location(), position);
     move_delta += kAccelerationDelta;
     move_delta = std::clamp(move_delta, 0.0, kMaxSpeed);
@@ -860,6 +951,9 @@ TEST_F(MouseKeysTest, NumPad) {
   GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
                                              kDefaultPosition);
 
+  // Switch to the num pad.
+  SetUsePrimaryKeys(false);
+
   // We should be able to click with the num pad 5.
   ClearEvents();
   PressAndReleaseKey(ui::VKEY_NUMPAD5);
@@ -880,6 +974,274 @@ TEST_F(MouseKeysTest, NumPad) {
   EXPECT_EQ(0u, CheckForKeyEvents().size());
   ExpectMouseMovedInCircularPattern(CheckForMouseEvents(), kDefaultPosition,
                                     kMoveDeltaDIP);
+}
+
+TEST_F(MouseKeysTest, UsePrimaryKeyboard) {
+  SetEnabled(true);
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+
+  // Turn off the primary keyboard.
+  SetUsePrimaryKeys(false);
+
+  // Switch to left handed.
+  SetLeftHanded(true);
+
+  ClearEvents();
+  // We should not see any mouse events from the left hand.
+  PressAndReleaseKey(ui::VKEY_1);
+  PressAndReleaseKey(ui::VKEY_2);
+  PressAndReleaseKey(ui::VKEY_3);
+  PressAndReleaseKey(ui::VKEY_Q);
+  PressAndReleaseKey(ui::VKEY_E);
+  PressAndReleaseKey(ui::VKEY_A);
+  PressAndReleaseKey(ui::VKEY_S);
+  PressAndReleaseKey(ui::VKEY_D);
+  PressAndReleaseKey(ui::VKEY_W);
+  EXPECT_EQ(0u, CheckForMouseEvents().size());
+  EXPECT_EQ(18u, CheckForKeyEvents().size());
+
+  // Switch to right handed.
+  SetLeftHanded(false);
+
+  ClearEvents();
+  // We should not see any mouse events from the right hand.
+  PressAndReleaseKey(ui::VKEY_7);
+  PressAndReleaseKey(ui::VKEY_8);
+  PressAndReleaseKey(ui::VKEY_9);
+  PressAndReleaseKey(ui::VKEY_U);
+  PressAndReleaseKey(ui::VKEY_O);
+  PressAndReleaseKey(ui::VKEY_J);
+  PressAndReleaseKey(ui::VKEY_K);
+  PressAndReleaseKey(ui::VKEY_L);
+  PressAndReleaseKey(ui::VKEY_I);
+  EXPECT_EQ(0u, CheckForMouseEvents().size());
+  EXPECT_EQ(18u, CheckForKeyEvents().size());
+}
+
+TEST_F(MouseKeysTest, Dragging) {
+  // Enough time for the initial event and 9 updates.
+  constexpr auto kTenEventsInSeconds =
+      MouseKeysController::kUpdateFrequencyInSeconds * 9.5;
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+  SetEnabled(true);
+  // No acceleration.
+  constexpr int kMaxSpeed = 3;
+  SetMaxSpeed(kMaxSpeed);
+  SetAcceleration(0);
+
+  // Start Drag.
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_M);
+
+  // Bubble view with the correct message and icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Press \".\" to release");
+  EXPECT_TRUE(IsMouseDraggedIconVisible());
+  EXPECT_FALSE(IsButtonChangeIconVisible());
+
+  auto* drag_event_rewriter =
+      Shell::Get()->mouse_keys_controller()->GetDragEventRewriterForTest();
+  ASSERT_NE(drag_event_rewriter, nullptr);
+  ASSERT_TRUE(drag_event_rewriter->IsEnabled());
+
+  auto mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMousePressed, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), kDefaultPosition);
+
+  // Move right.
+  ClearEvents();
+  PressKey(ui::VKEY_O);
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_TRUE(IsMouseDraggedIconVisible());
+  EXPECT_FALSE(IsButtonChangeIconVisible());
+  task_environment()->FastForwardBy(base::Seconds(kTenEventsInSeconds));
+  ReleaseKey(ui::VKEY_O);
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(10u, mouse_events.size());
+  gfx::Vector2d move_delta(kMoveDeltaDIP * kMaxSpeed, 0);
+  auto position = kDefaultPosition;
+  for (size_t i = 0; i < mouse_events.size(); ++i) {
+    position += move_delta;
+    EXPECT_EQ(ui::EventType::kMouseDragged, mouse_events[i].type());
+    EXPECT_EQ(mouse_events[i].location(), position);
+  }
+
+  // Stop Drag.
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_OEM_PERIOD);
+  EXPECT_FALSE(IsBubbleVisible());
+  ASSERT_FALSE(drag_event_rewriter->IsEnabled());
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMouseReleased, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), position);
+}
+
+TEST_F(MouseKeysTest, LeftHandDraggingBubble) {
+  SetEnabled(true);
+  SetLeftHanded(true);
+  ClearEvents();
+
+  // Start Drag.
+  PressAndReleaseKey(ui::VKEY_Z);
+
+  // Bubble view with the correct message and icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Press \"c\" to release");
+  EXPECT_TRUE(IsMouseDraggedIconVisible());
+  EXPECT_FALSE(IsButtonChangeIconVisible());
+}
+
+TEST_F(MouseKeysTest, DragWithClick) {
+  // Enough time for the initial event and 9 updates.
+  constexpr auto kTenEventsInSeconds =
+      MouseKeysController::kUpdateFrequencyInSeconds * 9.5;
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+  SetEnabled(true);
+  // No acceleration.
+  constexpr int kMaxSpeed = 3;
+  SetMaxSpeed(kMaxSpeed);
+  SetAcceleration(0);
+
+  // Start Drag.
+  ClearEvents();
+  PressKey(ui::VKEY_I);
+  EXPECT_FALSE(IsBubbleVisible());
+  auto mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMousePressed, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), kDefaultPosition);
+
+  // Move right.
+  ClearEvents();
+  PressKey(ui::VKEY_O);
+  task_environment()->FastForwardBy(base::Seconds(kTenEventsInSeconds));
+  ReleaseKey(ui::VKEY_O);
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(10u, mouse_events.size());
+  gfx::Vector2d move_delta(kMoveDeltaDIP * kMaxSpeed, 0);
+  auto position = kDefaultPosition;
+  for (size_t i = 0; i < mouse_events.size(); ++i) {
+    position += move_delta;
+    EXPECT_EQ(ui::EventType::kMouseDragged, mouse_events[i].type());
+    EXPECT_EQ(mouse_events[i].location(), position);
+  }
+
+  // Stop Drag.
+  ClearEvents();
+  ReleaseKey(ui::VKEY_I);
+  EXPECT_FALSE(IsBubbleVisible());
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMouseReleased, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), position);
+}
+
+TEST_F(MouseKeysTest, DragWithMixed) {
+  // Enough time for the initial event and 9 updates.
+  constexpr auto kTenEventsInSeconds =
+      MouseKeysController::kUpdateFrequencyInSeconds * 9.5;
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+  SetEnabled(true);
+  // No acceleration.
+  constexpr int kMaxSpeed = 3;
+  SetMaxSpeed(kMaxSpeed);
+  SetAcceleration(0);
+
+  // Start Drag.
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_M);
+  auto mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMousePressed, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), kDefaultPosition);
+
+  // Move right.
+  ClearEvents();
+  PressKey(ui::VKEY_O);
+  task_environment()->FastForwardBy(base::Seconds(kTenEventsInSeconds));
+  ReleaseKey(ui::VKEY_O);
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(10u, mouse_events.size());
+  gfx::Vector2d move_delta(kMoveDeltaDIP * kMaxSpeed, 0);
+  auto position = kDefaultPosition;
+  for (size_t i = 0; i < mouse_events.size(); ++i) {
+    position += move_delta;
+    EXPECT_EQ(ui::EventType::kMouseDragged, mouse_events[i].type());
+    EXPECT_EQ(mouse_events[i].location(), position);
+  }
+
+  // Stop Drag.
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_I);
+  mouse_events = CheckForMouseEvents();
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ASSERT_EQ(1u, mouse_events.size());
+  EXPECT_EQ(ui::EventType::kMouseReleased, mouse_events[0].type());
+  EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & mouse_events[0].flags());
+  EXPECT_EQ(mouse_events[0].location(), position);
+}
+
+TEST_F(MouseKeysTest, Accelerator) {
+  SetEnabled(true);
+  auto* accelerator_controller = Shell::Get()->accelerator_controller();
+  GetEventGenerator()->MoveMouseToWithNative(kDefaultPosition,
+                                             kDefaultPosition);
+
+  // Enable Mouse Keys, and we should be able to click by pressing i.
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_I);
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ExpectClick(CheckForMouseEvents(), ui::EF_LEFT_MOUSE_BUTTON,
+              kDefaultPosition);
+
+  // Toggle Mouse Keys off, and we should see no mouse events.
+  accelerator_controller->PerformActionIfEnabled(
+      AcceleratorAction::kToggleMouseKeys, {});
+
+  // Bubble view with the paused message and no icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Mouse keys paused");
+  EXPECT_FALSE(IsMouseDraggedIconVisible());
+  EXPECT_FALSE(IsButtonChangeIconVisible());
+
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_I);
+  EXPECT_EQ(0u, CheckForMouseEvents().size());
+
+  // Toggle Mouse Keys on, and we should see the original behaviour.
+  accelerator_controller->PerformActionIfEnabled(
+      AcceleratorAction::kToggleMouseKeys, {});
+
+  // Bubble view with the resumed message and no icon should be displayed.
+  EXPECT_TRUE(IsBubbleVisible());
+  EXPECT_EQ(GetBubbleText(), u"Mouse keys resumed");
+  EXPECT_FALSE(IsMouseDraggedIconVisible());
+  EXPECT_FALSE(IsButtonChangeIconVisible());
+
+  ClearEvents();
+  PressAndReleaseKey(ui::VKEY_I);
+  EXPECT_EQ(0u, CheckForKeyEvents().size());
+  ExpectClick(CheckForMouseEvents(), ui::EF_LEFT_MOUSE_BUTTON,
+              kDefaultPosition);
 }
 
 }  // namespace ash

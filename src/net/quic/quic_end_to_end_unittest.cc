@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -43,6 +44,7 @@
 #include "net/third_party/quiche/src/quiche/quic/tools/quic_memory_cache_backend.h"
 #include "net/tools/quic/quic_simple_server.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "net/url_request/static_http_user_agent_settings.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
@@ -109,6 +111,7 @@ class QuicEndToEndTest : public ::testing::Test, public WithTaskEnvironment {
     session_context_.transport_security_state = &transport_security_state_;
     session_context_.proxy_resolution_service = proxy_resolution_service_.get();
     session_context_.ssl_config_service = ssl_config_service_.get();
+    session_context_.http_user_agent_settings = &http_user_agent_settings_;
     session_context_.http_auth_handler_factory = auth_handler_factory_.get();
     session_context_.http_server_properties = &http_server_properties_;
 
@@ -190,7 +193,7 @@ class QuicEndToEndTest : public ::testing::Test, public WithTaskEnvironment {
     GenerateBody(length);
     std::vector<std::unique_ptr<UploadElementReader>> element_readers;
     element_readers.push_back(std::make_unique<UploadBytesElementReader>(
-        request_body_.data(), request_body_.length()));
+        base::as_byte_span(request_body_)));
     upload_data_stream_ = std::make_unique<ElementsUploadDataStream>(
         std::move(element_readers), 0);
     request_.method = "POST";
@@ -218,6 +221,7 @@ class QuicEndToEndTest : public ::testing::Test, public WithTaskEnvironment {
   std::unique_ptr<SSLConfigServiceDefaults> ssl_config_service_;
   std::unique_ptr<ProxyResolutionService> proxy_resolution_service_;
   std::unique_ptr<HttpAuthHandlerFactory> auth_handler_factory_;
+  StaticHttpUserAgentSettings http_user_agent_settings_ = {"*", "test-ua"};
   HttpServerProperties http_server_properties_;
   HttpNetworkSessionParams session_params_;
   HttpNetworkSessionContext session_context_;
@@ -225,8 +229,8 @@ class QuicEndToEndTest : public ::testing::Test, public WithTaskEnvironment {
   std::string request_body_;
   std::unique_ptr<UploadDataStream> upload_data_stream_;
   HttpRequestInfo request_;
-  std::unique_ptr<QuicSimpleServer> server_;
   quic::QuicMemoryCacheBackend memory_cache_backend_;
+  std::unique_ptr<QuicSimpleServer> server_;
   IPEndPoint server_address_;
   std::string server_hostname_;
   quic::QuicConfig server_config_;
@@ -304,14 +308,13 @@ TEST_F(QuicEndToEndTest, UberTest) {
     CheckResponse(*consumer.get(), "HTTP/1.1 200", kResponseBody);
 }
 
-TEST_F(QuicEndToEndTest, EnableKyber) {
-  // Enable Kyber on the client.
+TEST_F(QuicEndToEndTest, EnableMLKEM) {
+  // Enable ML-KEM on the client.
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures({features::kPostQuantumKyber}, {});
 
-  // Configure the server to only support Kyber.
-  server_->crypto_config()->set_preferred_groups(
-      {SSL_GROUP_X25519_KYBER768_DRAFT00});
+  // Configure the server to only support ML-KEM.
+  server_->crypto_config()->set_preferred_groups({SSL_GROUP_X25519_MLKEM768});
 
   AddToCache(request_.url.PathForRequest(), 200, "OK", kResponseBody);
 
@@ -321,17 +324,16 @@ TEST_F(QuicEndToEndTest, EnableKyber) {
 
   CheckResponse(consumer, "HTTP/1.1 200", kResponseBody);
   EXPECT_EQ(consumer.response_info()->ssl_info.key_exchange_group,
-            SSL_GROUP_X25519_KYBER768_DRAFT00);
+            SSL_GROUP_X25519_MLKEM768);
 }
 
-TEST_F(QuicEndToEndTest, KyberDisabled) {
-  // Disable Kyber on the client.
+TEST_F(QuicEndToEndTest, MLKEMDisabled) {
+  // Disable ML-KEM on the client.
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures({}, {features::kPostQuantumKyber});
 
-  // Configure the server to only support Kyber.
-  server_->crypto_config()->set_preferred_groups(
-      {SSL_GROUP_X25519_KYBER768_DRAFT00});
+  // Configure the server to only support ML-KEM.
+  server_->crypto_config()->set_preferred_groups({SSL_GROUP_X25519_MLKEM768});
 
   AddToCache(request_.url.PathForRequest(), 200, "OK", kResponseBody);
 

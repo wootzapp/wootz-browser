@@ -5,6 +5,7 @@
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
 
 #include <memory>
+#include <utility>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -32,10 +33,10 @@
 #include "services/network/public/mojom/fetch_api.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 #include "third_party/blink/public/common/performance/performance_timeline_constants.h"
 #include "third_party/blink/public/common/use_counter/use_counter_feature.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom.h"
+#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom.h"
 #include "third_party/blink/public/mojom/use_counter/use_counter_feature.mojom-shared.h"
 #include "url/url_constants.h"
 
@@ -161,6 +162,13 @@ class MetricsWebContentsObserverTest
             std::string(), mojom::LargestContentfulPaintTiming::New()));
   }
 
+  void SimulateCustomUserTimingUpdate(
+      const mojom::CustomUserTimingMark& custom_timing,
+      content::RenderFrameHost* render_frame_host) {
+    observer()->OnCustomUserTimingUpdated(render_frame_host,
+                                          custom_timing.Clone());
+  }
+
   virtual std::unique_ptr<TestMetricsWebContentsObserverEmbedder>
   CreateEmbedder() {
     return std::make_unique<TestMetricsWebContentsObserverEmbedder>();
@@ -218,6 +226,10 @@ class MetricsWebContentsObserverTest
       const {
     return embedder_interface_->updated_subframe_timings();
   }
+  const std::vector<mojom::CustomUserTimingMarkPtr>&
+  updated_custom_user_timings() const {
+    return embedder_interface_->updated_custom_user_timings();
+  }
   int CountCompleteTimingReported() { return complete_timings().size(); }
   int CountUpdatedTimingReported() { return updated_timings().size(); }
   int CountUpdatedCpuTimingReported() { return updated_cpu_timings().size(); }
@@ -226,6 +238,9 @@ class MetricsWebContentsObserverTest
   }
   int CountOnBackForwardCacheEntered() const {
     return embedder_interface_->count_on_enter_back_forward_cache();
+  }
+  int CountUpdatedCustomUserTimingReported() {
+    return embedder_interface_->updated_custom_user_timings().size();
   }
 
   const std::vector<GURL>& observed_committed_urls_from_on_start() const {
@@ -396,33 +411,6 @@ TEST_F(MetricsWebContentsObserverTest, SameDocumentNoTrigger) {
   ASSERT_EQ(1, CountCompleteTimingReported());
   ASSERT_EQ(0, CountEmptyCompleteTimingReported());
   CheckNoErrorEvents();
-}
-
-TEST_F(MetricsWebContentsObserverTest, DontLogNewTabPage) {
-  mojom::PageLoadTiming timing;
-  page_load_metrics::InitPageLoadTimingForTest(&timing);
-  timing.navigation_start = base::Time::FromSecondsSinceUnixEpoch(1);
-
-  embedder_interface_->set_is_ntp(true);
-
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents(), GURL(kDefaultTestUrl));
-  SimulateTimingUpdate(timing);
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents(), GURL(kDefaultTestUrl2));
-  ASSERT_EQ(0, CountUpdatedTimingReported());
-  ASSERT_EQ(0, CountCompleteTimingReported());
-
-  // Ensure that NTP and other untracked loads are still accounted for as part
-  // of keeping track of the first navigation in the WebContents.
-  embedder_interface_->set_is_ntp(false);
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents(), GURL(kDefaultTestUrl));
-  ASSERT_TRUE(is_first_navigation_in_web_contents().has_value());
-  ASSERT_FALSE(is_first_navigation_in_web_contents().value());
-
-  CheckErrorEvent(ERR_IPC_WITH_NO_RELEVANT_LOAD, 1);
-  CheckTotalErrorEvents();
 }
 
 TEST_F(MetricsWebContentsObserverTest, DontLogIrrelevantNavigation) {
@@ -1077,19 +1065,6 @@ TEST_F(MetricsWebContentsObserverTest,
   EXPECT_TRUE(loaded_resources().empty());
 }
 
-TEST_F(MetricsWebContentsObserverTest,
-       OnLoadedResource_IgnoreNonHttpOrHttpsScheme) {
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents(), GURL(kDefaultTestUrl));
-  GURL loaded_resource_url("data:text/html,Hello world");
-  observer()->ResourceLoadComplete(
-      web_contents()->GetPrimaryMainFrame(), content::GlobalRequestID(),
-      *CreateResourceLoadInfo(loaded_resource_url,
-                              network::mojom::RequestDestination::kScript));
-
-  EXPECT_TRUE(loaded_resources().empty());
-}
-
 TEST_F(MetricsWebContentsObserverTest, RecordFeatureUsage) {
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL(kDefaultTestUrl));
@@ -1124,6 +1099,21 @@ TEST_F(MetricsWebContentsObserverTest, RecordFeatureUsageNoObserver) {
   MetricsWebContentsObserver::RecordFeatureUsage(
       main_rfh(), {blink::mojom::WebFeature::kHTMLMarqueeElement,
                    blink::mojom::WebFeature::kFormAttribute});
+}
+
+TEST_F(MetricsWebContentsObserverTest, CustomUserTiming) {
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(
+      web_contents(), GURL(kDefaultTestUrl));
+  content::RenderFrameHost* rfh = web_contents()->GetPrimaryMainFrame();
+
+  mojom::CustomUserTimingMark custom_timing;
+  custom_timing.mark_name = "fake_custom_mark";
+  custom_timing.start_time = base::Milliseconds(1000);
+
+  SimulateCustomUserTimingUpdate(custom_timing, rfh);
+  ASSERT_EQ(1, CountUpdatedCustomUserTimingReported());
+  EXPECT_TRUE(custom_timing.Equals(*updated_custom_user_timings().back()));
+  CheckNoErrorEvents();
 }
 
 class MetricsWebContentsObserverBackForwardCacheTest
@@ -1167,7 +1157,10 @@ class MetricsWebContentsObserverBackForwardCacheTest
   }
 
   // content::WebContentsDelegate:
-  bool IsBackForwardCacheSupported() override { return true; }
+  bool IsBackForwardCacheSupported(
+      content::WebContents& web_contents) override {
+    return true;
+  }
 
  private:
   base::test::ScopedFeatureList feature_list_;
@@ -1334,8 +1327,11 @@ class MetricsWebContentsObserverNonPrimaryPageTest
     explicit Embedder(MetricsWebContentsObserverNonPrimaryPageTest* owner)
         : owner_(owner) {}
 
-    void RegisterObservers(PageLoadTracker* tracker) override {
-      TestMetricsWebContentsObserverEmbedder::RegisterObservers(tracker);
+    void RegisterObservers(
+        PageLoadTracker* tracker,
+        content::NavigationHandle* navigation_handle) override {
+      TestMetricsWebContentsObserverEmbedder::RegisterObservers(
+          tracker, navigation_handle);
       tracker->AddObserver(std::make_unique<MetricsObserver>(owner_));
     }
 

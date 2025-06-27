@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {EventTracker} from 'chrome://resources/js/event_tracker.js';
+import type {EventTracker} from 'chrome://resources/js/event_tracker.js';
 
 import {DESTINATION_MANAGER_SESSION_INITIALIZED, DESTINATION_MANAGER_STATE_CHANGED, DestinationManager} from './data/destination_manager.js';
 import {createCustomEvent} from './utils/event_utils.js';
@@ -30,7 +30,7 @@ export class DestinationSelectController extends EventTarget {
     super();
     eventTracker.add(
         this.destinationManager, DESTINATION_MANAGER_STATE_CHANGED,
-        (e: Event): void => this.onDestinationManagerStateChanged(e));
+        (): void => this.onDestinationManagerStateChanged());
     eventTracker.add(
         this.destinationManager, DESTINATION_MANAGER_SESSION_INITIALIZED,
         (): void => this.onDestinationManagerSessionInitialized());
@@ -40,12 +40,12 @@ export class DestinationSelectController extends EventTarget {
   // is initialized.
   shouldShowLoadingUi(): boolean {
     return !this.destinationManager.isSessionInitialized() ||
-        !this.destinationManager.hasLoadedAnInitialDestination();
+        !this.destinationManager.hasAnyDestinations();
   }
 
   // Handles notifying UI to update when destination manager
   // state changes.
-  private onDestinationManagerStateChanged(_event: Event): void {
+  private onDestinationManagerStateChanged(): void {
     this.dispatchEvent(
         createCustomEvent(DESTINATION_SELECT_SHOW_LOADING_UI_CHANGED));
   }

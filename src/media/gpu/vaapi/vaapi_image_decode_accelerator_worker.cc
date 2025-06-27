@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "media/gpu/vaapi/vaapi_image_decode_accelerator_worker.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
 
-#include "base/task/thread_pool.h"
-#include "string.h"
+#include "media/gpu/vaapi/vaapi_image_decode_accelerator_worker.h"
 
 #include <utility>
 
@@ -17,16 +19,17 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/task/thread_pool.h"
 #include "base/trace_event/trace_event.h"
 #include "gpu/config/gpu_finch_features.h"
 #include "media/gpu/macros.h"
-#include "media/gpu/vaapi/va_surface.h"
 #include "media/gpu/vaapi/vaapi_image_decoder.h"
 #include "media/gpu/vaapi/vaapi_jpeg_decoder.h"
 #include "media/gpu/vaapi/vaapi_webp_decoder.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
 #include "media/parsers/webp_parser.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
+#include "string.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/gpu_memory_buffer.h"
 #include "ui/gfx/linux/native_pixmap_dmabuf.h"

@@ -25,18 +25,48 @@ UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kConvertTrackpadEventsToMouse);
 // Use the old-style opening of an External Picker when uploading files.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kDeprecatedExternalPickerFunction);
 
+// Flip the back/forward direction of navigation gestures when the UI language
+// is an RTL language.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kMirrorBackForwardGesturesInRTL);
+
 // Reports all of the available pointer types (i.e. coarse, fine) to content
 // rather than just the first one detected.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kReportAllAvailablePointerTypes);
+
+// Reports bottom overscrolls on the web page.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kReportBottomOverscrolls);
 
 // Kill switch to turn off validation in TextViewWithLeading that requires a
 // leading value to be configured.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kRequireLeadingInTextViewWithLeading);
 
-// TODO(b/328601354): Cleanup flag after investigating nothing is broken after
-// changing the default behavior for EventForwarder observers.
+// Use ACTION_OPEN_DOCUMENT rather than ACTION_GET_CONTENT when selecting a
+// file.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kSelectFileOpenDocument);
+
+// TODO(crbug.com/328601354): Cleanup flag after investigating nothing is broken
+// after changing the default behavior for EventForwarder observers.
 UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(
     kSendTouchMovesToEventForwarderObservers);
+
+// When launching an intent, check whether the caller has the permission to
+// access a URI before returning the result.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kCheckIntentCallerPermission);
+
+// Whether photo picker should be disabled for video capture.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kDisablePhotoPickerForVideoCapture);
+
+// Feature controlling how to compute work area on Android.
+// TODO(crbug.com/372385871): Cleanup flag after investigating nothing is broken
+// after changing the default behavior for
+// availWidth/availHeight/availTop/availLeft.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kUsingCorrectWorkArea);
+
+// Enables the new ETC1 encoder (used in tab and back/forward thumbnails).
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kUseNewEtc1Encoder);
+
+// Enables using occlusion information from Android to save CPU and memory.
+UI_ANDROID_EXPORT BASE_DECLARE_FEATURE(kAndroidWindowOcclusion);
 
 }  // namespace ui
 

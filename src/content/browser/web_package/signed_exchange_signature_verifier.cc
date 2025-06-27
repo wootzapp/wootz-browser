@@ -129,7 +129,7 @@ std::string HexDump(const std::vector<uint8_t>& msg) {
 }
 
 void AppendToBuf8BytesBigEndian(std::vector<uint8_t>* buf, uint64_t n) {
-  std::array<uint8_t, 8> encoded = base::numerics::U64ToBigEndian(n);
+  std::array<uint8_t, 8> encoded = base::U64ToBigEndian(n);
   buf->insert(buf->end(), encoded.begin(), encoded.end());
 }
 
@@ -154,8 +154,7 @@ std::vector<uint8_t> GenerateSignedMessage(
   // format.
   message.push_back(32);
   const auto& cert_sha256 = envelope.signature().cert_sha256.value();
-  message.insert(message.end(), std::begin(cert_sha256.data),
-                 std::end(cert_sha256.data));
+  message.insert(message.end(), cert_sha256.begin(), cert_sha256.end());
 
   // Step 5.5. "The 8-byte big-endian encoding of the length in bytes of
   // validity-url, followed by the bytes of validity-url." [spec text]

@@ -8,14 +8,14 @@
 #include "base/test/gmock_expected_support.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/test_autofill_client.h"
-#include "components/autofill/core/browser/test_autofill_clock.h"
-#include "components/autofill/core/browser/test_autofill_driver.h"
-#include "components/autofill/core/browser/test_browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/test_autofill_client.h"
+#include "components/autofill/core/browser/foundations/test_autofill_driver.h"
+#include "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_test_utils.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace autofill {
@@ -101,26 +101,25 @@ constexpr char kExpectedFeedbackDataJSON[] = R"({
 
 FormData CreateFeedbackTestFormData() {
   FormData form;
-  form.host_frame = test::MakeLocalFrameToken(test::RandomizeFrame(false));
-  form.renderer_id = test::MakeFormRendererId();
-  form.name = u"MyForm";
-  form.url = GURL("https://myform.com/form.html");
-  form.action = GURL("https://myform.com/submit.html");
-  form.main_frame_origin =
-      url::Origin::Create(GURL("https://myform_root.com/form.html"));
-  form.fields = {
-      CreateTestFormField("First Name on Card", "firstnameoncard", "",
-                          FormControlType::kInputText, "cc-given-name"),
-      CreateTestFormField("Last Name on Card", "lastnameoncard", "",
-                          FormControlType::kInputText, "cc-family-name"),
-      CreateTestFormField("Email", "email", "", FormControlType::kInputEmail)};
-  for (FormFieldData& field : form.fields) {
-    field.set_host_frame(form.host_frame);
+  form.set_host_frame(test::MakeLocalFrameToken(test::RandomizeFrame(false)));
+  form.set_renderer_id(test::MakeFormRendererId());
+  form.set_name(u"MyForm");
+  form.set_url(GURL("https://myform.com/form.html"));
+  form.set_action(GURL("https://myform.com/submit.html"));
+  form.set_main_frame_origin(
+      url::Origin::Create(GURL("https://myform_root.com/form.html")));
+  form.set_fields(
+      {CreateTestFormField("First Name on Card", "firstnameoncard", "",
+                           FormControlType::kInputText, "cc-given-name"),
+       CreateTestFormField("Last Name on Card", "lastnameoncard", "",
+                           FormControlType::kInputText, "cc-family-name"),
+       CreateTestFormField("Email", "email", "",
+                           FormControlType::kInputEmail)});
+  for (FormFieldData& field : test_api(form).fields()) {
+    field.set_host_frame(form.host_frame());
   }
   return form;
 }
-
-}  // namespace
 
 class AutofillFeedbackDataUnitTest : public testing::Test {
  protected:
@@ -131,7 +130,8 @@ class AutofillFeedbackDataUnitTest : public testing::Test {
         std::make_unique<TestBrowserAutofillManager>(autofill_driver_.get());
   }
 
-  base::test::TaskEnvironment task_environment_;
+  base::test::TaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   test::AutofillUnitTestEnvironment autofill_test_environment_;
   TestAutofillClient autofill_client_;
   std::unique_ptr<TestAutofillDriver> autofill_driver_;
@@ -158,14 +158,15 @@ TEST_F(AutofillFeedbackDataUnitTest, CreatesCompleteReport) {
 
 TEST_F(AutofillFeedbackDataUnitTest, IncludesLastAutofillEventLogEntry) {
   FormData form = CreateFeedbackTestFormData();
-  FormFieldData field = form.fields[0];
+  FormFieldData field = form.fields()[0];
   browser_autofill_manager_->OnFormsSeen(
       /*updated_forms=*/{form},
       /*removed_forms=*/{});
 
   // Simulates an autofill event.
+  Suggestion suggestion(u"TestValue", SuggestionType::kIbanEntry);
   browser_autofill_manager_->OnSingleFieldSuggestionSelected(
-      u"TestValue", SuggestionType::kIbanEntry, form, field);
+      suggestion, form.global_id(), field.global_id());
 
   ASSERT_OK_AND_ASSIGN(
       auto expected_data,
@@ -177,7 +178,7 @@ TEST_F(AutofillFeedbackDataUnitTest, IncludesLastAutofillEventLogEntry) {
   // Update the expected data with a last_autofill_event entry.
   base::Value::Dict last_autofill_event;
   last_autofill_event.Set("associatedCountry", "");
-  last_autofill_event.Set("type", "SingleFieldFormFillerIban");
+  last_autofill_event.Set("type", "SingleFieldFillerIban");
   expected_data.GetDict().Set("lastAutofillEvent",
                               std::move(last_autofill_event));
 
@@ -188,19 +189,19 @@ TEST_F(AutofillFeedbackDataUnitTest, IncludesLastAutofillEventLogEntry) {
 
 TEST_F(AutofillFeedbackDataUnitTest,
        NotIncludeLastAutofillEventIfExceedTimeLimit) {
-  TestAutofillClock clock(AutofillClock::Now());
   FormData form = CreateFeedbackTestFormData();
-  FormFieldData& field = form.fields[0];
+  const FormFieldData& field = form.fields()[0];
   browser_autofill_manager_->OnFormsSeen(
       /*updated_forms=*/{form},
       /*removed_forms=*/{});
 
   // Simulates an autofill event.
+  Suggestion suggestion(u"TestValue", SuggestionType::kIbanEntry);
   browser_autofill_manager_->OnSingleFieldSuggestionSelected(
-      u"TestValue", SuggestionType::kIbanEntry, form, field);
+      suggestion, form.global_id(), field.global_id());
 
   // Advance the clock 4 minutes should disregard the last autofill event log.
-  clock.Advance(base::Minutes(4));
+  task_environment_.FastForwardBy(base::Minutes(4));
 
   // Expected data does not contain the last_autofill_event entry.
   ASSERT_OK_AND_ASSIGN(
@@ -240,4 +241,5 @@ TEST_F(AutofillFeedbackDataUnitTest, IncludesExtraLogs) {
   EXPECT_EQ(autofill_feedback_data, expected_data.GetDict());
 }
 
+}  // namespace
 }  // namespace autofill

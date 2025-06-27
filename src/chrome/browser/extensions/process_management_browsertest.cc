@@ -22,6 +22,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/site_instance.h"
+#include "content/public/browser/site_isolation_policy.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
@@ -50,7 +51,9 @@ class ProcessManagementTest : public ExtensionBrowserTest {
   ProcessManagementTest() {
     // TODO(crbug.com/40142347): Remove this once Extensions are
     // supported with BackForwardCache.
-    disabled_feature_list_.InitWithFeatures({}, {features::kBackForwardCache});
+    disabled_feature_list_.InitWithFeatures(
+        {}, {features::kBackForwardCache,
+             features::kProcessPerSiteUpToMainFrameThreshold});
   }
 
  private:
@@ -268,9 +271,13 @@ IN_PROC_BROWSER_TEST_F(ProcessManagementTest, ProcessOverflow) {
   extensions::ProcessManager* process_manager =
       extensions::ProcessManager::Get(browser()->profile());
   content::RenderProcessHost* extension1_host =
-      process_manager->GetSiteInstanceForURL(extension1_url)->GetProcess();
+      (*process_manager->GetRenderFrameHostsForExtension(extension1->id())
+            .begin())
+          ->GetProcess();
   content::RenderProcessHost* extension2_host =
-      process_manager->GetSiteInstanceForURL(extension2_url)->GetProcess();
+      (*process_manager->GetRenderFrameHostsForExtension(extension2->id())
+            .begin())
+          ->GetProcess();
 
   // WebUI only shares with other same-site WebUI.
   EXPECT_EQ(ntp1_host, ntp2_host);
@@ -333,7 +340,7 @@ IN_PROC_BROWSER_TEST_F(ProcessManagementTest, ExtensionAndWebProcessOverflow) {
                  << "When testing extension: " << host->extension_id());
     // The process should be locked.
     EXPECT_TRUE(host->render_process_host()->IsProcessLockedToSiteForTesting());
-    process_ids.insert(host->render_process_host()->GetID());
+    process_ids.insert(host->render_process_host()->GetDeprecatedID());
   }
   // Each extension is in a locked process, unavailable for sharing.
   EXPECT_EQ(3u, process_ids.size());
@@ -360,11 +367,11 @@ IN_PROC_BROWSER_TEST_F(ProcessManagementTest, ExtensionAndWebProcessOverflow) {
 
   // Verify the number of processes across extensions and tabs.
   process_ids.insert(
-      web_contents1->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents1->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
   process_ids.insert(
-      web_contents2->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents2->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
   process_ids.insert(
-      web_contents3->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents3->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
 
   // The web processes still share 2 processes as if there were a single
   // extension process (making a total of 5 processes counting the existing 3
@@ -387,7 +394,7 @@ IN_PROC_BROWSER_TEST_F(ProcessManagementTest, ExtensionAndWebProcessOverflow) {
   WebContents* web_contents4 =
       browser()->tab_strip_model()->GetActiveWebContents();
   process_ids.insert(
-      web_contents4->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents4->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
   // The cross-site process adds 1 more process to the total, to avoid sharing
   // with the existing web renderer processes (due to Site Isolation).
   EXPECT_EQ(6u, process_ids.size());
@@ -473,15 +480,25 @@ IN_PROC_BROWSER_TEST_P(ChromeWebStoreProcessTest,
   WebContents* cws_contents = open_url(GetWebstorePage(), non_cws_contents_1);
 
   // The second non-Webstore page should have been given a different
-  // WebContents, but share the same process with the page that opened it.
+  // WebContents.
   EXPECT_NE(non_cws_contents_1, non_cws_contents_2);
-  EXPECT_EQ(non_cws_contents_1->GetPrimaryMainFrame()->GetProcess(),
-            non_cws_contents_2->GetPrimaryMainFrame()->GetProcess());
+  // The two non-Webstore urls are same-site, but cross-origin. If
+  // kOriginKeyedProcessesByDefault is enabled they will be placed in different
+  // processes, otherwise they'll share a process.
+  if (content::SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault()) {
+    EXPECT_NE(non_cws_contents_1->GetPrimaryMainFrame()->GetProcess(),
+              non_cws_contents_2->GetPrimaryMainFrame()->GetProcess());
+  } else {
+    EXPECT_EQ(non_cws_contents_1->GetPrimaryMainFrame()->GetProcess(),
+              non_cws_contents_2->GetPrimaryMainFrame()->GetProcess());
+  }
 
   // The Webstore page should have been given a separate WebContents and process
   // than the page that opened it.
   EXPECT_NE(non_cws_contents_1, cws_contents);
   EXPECT_NE(non_cws_contents_1->GetPrimaryMainFrame()->GetProcess(),
+            cws_contents->GetPrimaryMainFrame()->GetProcess());
+  EXPECT_NE(non_cws_contents_2->GetPrimaryMainFrame()->GetProcess(),
             cws_contents->GetPrimaryMainFrame()->GetProcess());
 }
 
@@ -527,14 +544,15 @@ IN_PROC_BROWSER_TEST_P(ChromeWebStoreProcessTest,
   nav_observer.Wait();
   EXPECT_EQ(cws_web_url, web_contents->GetLastCommittedURL());
 
-  // If not using the new Webstore URL, verify that we have the Webstore hosted
-  // app loaded into the Web Contents. Note: the new Webstore is granted it's
-  // powers without use of the hosted app.
+  // If this test is for the old Webstore URL, verify that we have the Webstore
+  // hosted app loaded into the Web Contents.
+  // TODO(crbug.com/328494022): Remove this when we get rid of using the hosted
+  // app for the old Webstore.
   content::RenderProcessHost* new_process_host =
       web_contents->GetPrimaryMainFrame()->GetProcess();
-  if (GetParam() != kNewWebstoreURL) {
+  if (GetParam() == kWebstoreURL) {
     EXPECT_TRUE(extensions::ProcessMap::Get(profile())->Contains(
-        extensions::kWebStoreAppId, new_process_host->GetID()));
+        extensions::kWebStoreAppId, new_process_host->GetDeprecatedID()));
   }
 
   // Verify that Webstore is isolated in a separate renderer process.
@@ -572,14 +590,15 @@ IN_PROC_BROWSER_TEST_P(ChromeWebStoreInIsolatedOriginTest,
   EXPECT_EQ(true, content::EvalJs(web_contents,
                                   "!!chrome && !!chrome.webstorePrivate"));
 
-  // Verify that we have the Webstore hosted app loaded into the Web Contents.
-  // Note: the new Webstore is granted it's powers without use of the hosted
-  // app, so we don't do this check for it.
-  if (GetParam() != kNewWebstoreURL) {
+  // Verify that we have the Webstore hosted app loaded into the Web Contents if
+  // this is for the old Webstore URL. Note: The new Webstore and the Webstore
+  // URL override are granted their powers without use of the hosted app, so we
+  // don't do this check for them.
+  if (GetParam() == kWebstoreURL) {
     content::RenderProcessHost* render_process_host =
         web_contents->GetPrimaryMainFrame()->GetProcess();
     EXPECT_TRUE(extensions::ProcessMap::Get(profile())->Contains(
-        extensions::kWebStoreAppId, render_process_host->GetID()));
+        extensions::kWebStoreAppId, render_process_host->GetDeprecatedID()));
   }
 }
 

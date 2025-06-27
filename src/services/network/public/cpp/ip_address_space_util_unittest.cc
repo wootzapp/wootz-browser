@@ -5,9 +5,11 @@
 #include "services/network/public/cpp/ip_address_space_util.h"
 
 #include "base/command_line.h"
+#include "base/test/scoped_feature_list.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/transport_info.h"
+#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/network_switches.h"
 #include "services/network/public/mojom/ip_address_space.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
@@ -251,6 +253,29 @@ TEST(IPAddressSpaceTest, IPEndPointToAddressSpaceIPv4MappedIPv6) {
   EXPECT_EQ(IPAddressToIPAddressSpace(
                 net::ConvertIPv4ToIPv4MappedIPv6(IPAddress::IPv4Localhost())),
             IPAddressSpace::kLocal);
+}
+
+// Verifies that 0.0.0.0/8 is mapped to non-public address spaces.
+TEST(IPAddressSpaceTest, IPEndPointToAddressSpaceNullIP) {
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 0, 0, 0)),
+            IPAddressSpace::kLocal);
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 0, 0, 4)),
+            IPAddressSpace::kPrivate);
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 255, 255, 255)),
+            IPAddressSpace::kPrivate);
+}
+
+// Verifies that 0.0.0.0/8 is mapped to the public address space if configured
+// via feature flag.
+TEST(IPAddressSpaceTest, IPEndPointToAddressSpaceNullIPKillSwitch) {
+  base::test::ScopedFeatureList enable{
+      features::kTreatNullIPAsPublicAddressSpace};
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 0, 0, 0)),
+            IPAddressSpace::kPublic);
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 0, 0, 4)),
+            IPAddressSpace::kPublic);
+  EXPECT_EQ(IPAddressToIPAddressSpace(IPAddress(0, 255, 255, 255)),
+            IPAddressSpace::kPublic);
 }
 
 // Verifies that the `ip-address-space-overrides` switch can be present and
@@ -612,6 +637,24 @@ TEST(IPAddressSpaceTest, CalculateResourceAddressSpaceOverride) {
       IPAddressSpace::kPrivate,
       CalculateResourceAddressSpace(GURL("http://foo.test"),
                                     IPEndPoint(IPAddress(8, 8, 8, 8), 8888)));
+}
+
+TEST(IPAddressSpaceTest, ParsePrivateIpFromURL) {
+  EXPECT_EQ(std::nullopt, ParsePrivateIpFromUrl(GURL("http://foo.test")));
+  EXPECT_EQ(std::nullopt, ParsePrivateIpFromUrl(GURL("http://8.8.8.8")));
+  EXPECT_EQ(IPAddress(192, 168, 1, 10),
+            ParsePrivateIpFromUrl(GURL("http://192.168.1.10")));
+  EXPECT_EQ(IPAddress(10, 168, 1, 10),
+            ParsePrivateIpFromUrl(GURL("http://10.168.1.10")));
+}
+
+TEST(IPAddressSpaceTest, IsRFC6762LocalDomain) {
+  EXPECT_EQ(false, IsRFC6762LocalDomain(GURL("http://foo.test")));
+  EXPECT_EQ(false, IsRFC6762LocalDomain(GURL("http://8.8.8.8")));
+  EXPECT_EQ(false, IsRFC6762LocalDomain(GURL("http://192.168.1.10")));
+  EXPECT_EQ(false, IsRFC6762LocalDomain(GURL("http://localhost")));
+  EXPECT_EQ(true, IsRFC6762LocalDomain(GURL("http://menu.local")));
+  EXPECT_EQ(true, IsRFC6762LocalDomain(GURL("http://menu.local:8000")));
 }
 
 }  // namespace

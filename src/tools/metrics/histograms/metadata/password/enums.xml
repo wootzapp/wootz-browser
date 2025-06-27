@@ -26,6 +26,11 @@ chromium-metrics-reviews@google.com.
 
 <enums>
 
+<enum name="AcceptedGeneratedPasswordSourceType">
+  <int value="0" label="Proactive bottom sheet"/>
+  <int value="1" label="Keyboard accessory"/>
+</enum>
+
 <enum name="AccessoryAction">
   <int value="0" label="Automatic password generation"/>
   <int value="1" label="'Manage all passwords' link"/>
@@ -45,12 +50,29 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="User opened an accessory sheet"/>
 </enum>
 
-<enum name="AccessorySuggestionType">
-  <int value="0" label="USERNAME"/>
-  <int value="1" label="PASSWORD"/>
-  <int value="2" label="PAYMENT_INFO"/>
-  <int value="3" label="ADDRESS_INFO"/>
-  <int value="4" label="(obsolete) TOUCH_TO_FILL_INFO"/>
+<enum name="AccessorySuggestionTypeV2">
+  <int value="0" label="NAME_FULL"/>
+  <int value="1" label="COMPANY_NAME"/>
+  <int value="2" label="ADDRESS_LINE_1"/>
+  <int value="3" label="ADDRESS_LINE_2"/>
+  <int value="4" label="ZIP"/>
+  <int value="5" label="CITY"/>
+  <int value="6" label="STATE"/>
+  <int value="7" label="COUNTRY"/>
+  <int value="8" label="PHONE_NUMBER"/>
+  <int value="9" label="EMAIL_ADDRESS"/>
+  <int value="10" label="CREDIT_CARD_NUMBER"/>
+  <int value="11" label="CREDIT_CARD_EXPIRATION_MONTH"/>
+  <int value="12" label="CREDIT_CARD_EXPIRATION_YEAR"/>
+  <int value="13" label="CREDIT_CARD_NAME_FULL"/>
+  <int value="14" label="CREDIT_CARD_CVC"/>
+  <int value="15" label="IBAN"/>
+  <int value="16" label="PROMO_CODE"/>
+  <int value="17" label="CREDENTIAL_USERNAME"/>
+  <int value="18" label="CREDENTIAL_PASSWORD"/>
+  <int value="19" label="PASSKEY"/>
+  <int value="20" label="PLUS_ADDRESS"/>
+  <int value="21" label="LOYALTY_CARD"/>
 </enum>
 
 <enum name="AccessoryToggleType">
@@ -62,6 +84,22 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Viewed"/>
   <int value="1" label="Copied"/>
   <int value="2" label="Edited"/>
+</enum>
+
+<enum name="AccountTypeWithSyncState">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Gsuite"/>
+  <int value="2" label="Gmail"/>
+  <int value="3" label="Non-gaia enterprise"/>
+  <int value="4" label="Saved password"/>
+  <int value="5" label="Gsuite syncing"/>
+  <int value="6" label="Gmail syncing"/>
+</enum>
+
+<enum name="AcknowledgeGroupedCredentialSheetBridgeDismissReason">
+  <int value="0" label="Accepted"/>
+  <int value="1" label="Back button pressed"/>
+  <int value="2" label="Ignored"/>
 </enum>
 
 <enum name="AddCredentialFromSettingsUserInteractions">
@@ -76,6 +114,14 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Success"/>
   <int value="1" label="Network/server error"/>
   <int value="2" label="Malformed response"/>
+</enum>
+
+<enum name="AndroidAccountStorageNoticeCloseReason">
+  <int value="0" label="Other"/>
+  <int value="1" label="User dismissed by swiping or back pressing"/>
+  <int value="2" label="User clicked the 'Got it' button"/>
+  <int value="3" label="User clicked the 'settings' link"/>
+  <int value="4" label="Embedder requested (in practice, tab closed)"/>
 </enum>
 
 <enum name="AuthenticationResultStatusWin">
@@ -95,6 +141,38 @@ chromium-metrics-reviews@google.com.
   <int value="6" label="The verification operation was canceled."/>
   <int value="7" label="Failed to create UserConsentVerifier factory."/>
   <int value="8" label="Failed to call UserConsentVerifier API."/>
+  <int value="9" label="Failed to post authentication task."/>
+  <int value="10" label="Uknown return status."/>
+  <int value="11" label="Authentication async operation failed."/>
+  <int value="12" label="Failed to find last active browser."/>
+  <int value="13" label="Failed to find hwnd for native window."/>
+</enum>
+
+<enum name="AuthenticationStateWin">
+  <summary>State of authenticating using Windows Hello.</summary>
+  <int value="0" label="Authentication was started."/>
+  <int value="1" label="Authentication was finished."/>
+</enum>
+
+<enum name="AutofillSuggestionTriggerSource">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Form control element clicked"/>
+  <int value="2" label="Textarea focused without click"/>
+  <int value="3" label="Content editable clicked"/>
+  <int value="4" label="Text field's value did change"/>
+  <int value="5" label="Text field did receive keydown"/>
+  <int value="6" label="Open text data list chooser"/>
+  <int value="7" label="Show cards from account"/>
+  <int value="8" label="Password manager"/>
+  <int value="9" label="iOS"/>
+  <int value="10" label="Manual fallback address"/>
+  <int value="11" label="(Deprecated in M133) Manual fallback payments"/>
+  <int value="12" label="Manual fallback passwords"/>
+  <int value="13" label="(Deprecated in M133) Manual fallback plus addresses"/>
+  <int value="14" label="Show prompt after dialog closed non manual fallback"/>
+  <int value="15" label="Compose dialog lost focus"/>
+  <int value="16" label="Compose delayed proactive nudge"/>
+  <int value="17" label="Password manager processed focused field"/>
 </enum>
 
 <enum name="AutoSigninFirstRun">
@@ -119,15 +197,14 @@ chromium-metrics-reviews@google.com.
       label="A biometric verifier device is not configured for this user."/>
 </enum>
 
-<enum name="BiometricsAvailability">
-  <int value="0" label="Other error"/>
-  <int value="1" label="Available"/>
-  <int value="2" label="Available, but no fallback"/>
-  <int value="3" label="No hardware"/>
-  <int value="4" label="Hardware unavailable"/>
-  <int value="5" label="Not enrolled"/>
-  <int value="6" label="Security update required"/>
-  <int value="7" label="Android version not supported"/>
+<enum name="BiometricsStatusChromeOS">
+  <summary>
+    Status of biometric authentication availability on ChromeOS.
+  </summary>
+  <int value="1" label="A biometric verifier is configured for the user."/>
+  <int value="2" label="A biometric verifier is unavailable on the device."/>
+  <int value="3"
+      label="A biometric verifier device is not configured for the user."/>
 </enum>
 
 <enum name="BooleanCalled">
@@ -145,9 +222,28 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="User edited the generated password"/>
 </enum>
 
-<enum name="BooleanNewlySavedPasswordIsGenerated">
+<enum name="BooleanProfilePicker">
+  <int value="0"
+      label="Forced browser sign-in is disabled, so we attempt to save the
+             password hash from the profile picker"/>
+  <int value="1"
+      label="Forced browser sign-in is enabled, so attempting to save the
+             password hash from the profile picker was skipped"/>
+</enum>
+
+<enum name="BooleanRootPopupSuggestionAccepted">
+  <int value="0" label="Suggestion was accepted from the subpopup"/>
+  <int value="1" label="Suggestion was accepted from the root popup"/>
+</enum>
+
+<enum name="BooleanSavedPasswordIsGenerated">
   <int value="0" label="Typed by a user manually"/>
   <int value="1" label="Generated by Chrome"/>
+</enum>
+
+<enum name="BooleanSearchInputIsNotEmpty">
+  <int value="0" label="Search input is empty"/>
+  <int value="1" label="Search input is not empty"/>
 </enum>
 
 <enum name="BooleanSuccessfulLoginHappenedOnHttps">
@@ -160,11 +256,6 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Character class was absent and is added"/>
   <int value="2" label="All characters belonging to the class are removed"/>
   <int value="3" label="Set of character class members changed"/>
-</enum>
-
-<enum name="CredentialEditError">
-  <int value="0" label="Empty password"/>
-  <int value="1" label="Duplicate username"/>
 </enum>
 
 <enum name="CredentialEntryAction">
@@ -212,10 +303,13 @@ chromium-metrics-reviews@google.com.
 <enum name="CredentialManagerError">
   <int value="0" label="No context"/>
   <int value="1" label="Provided account is empty"/>
-  <int value="2" label="API error"/>
+  <int value="2" label="(Obsolete) API error"/>
   <int value="3" label="Uncategorized error"/>
   <int value="4" label="Backend version is not supported"/>
   <int value="5" label="Backend downstream implementation is not available"/>
+  <int value="6" label="ApiException"/>
+  <int value="7" label="Other API error"/>
+  <int value="8" label="Password manager not available"/>
 </enum>
 
 <enum name="CredentialManagerGetResult">
@@ -234,6 +328,12 @@ chromium-metrics-reviews@google.com.
              autofill-assistant mode"/>
 </enum>
 
+<enum name="CrossDomainPasswordFillingConfirmation">
+  <int value="0" label="Confirmed"/>
+  <int value="1" label="Canceled"/>
+  <int value="2" label="Ignored"/>
+</enum>
+
 <enum name="DeleteCorruptedPasswordsResult">
   <int value="0" label="Success - no passwords were deleted"/>
   <int value="1" label="Success - there were deleted passwords"/>
@@ -245,6 +345,16 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Success"/>
   <int value="1" label="Failure"/>
   <int value="2" label="Skipped"/>
+</enum>
+
+<enum name="DownloadCsvFlowStep">
+  <int value="0" label="Dialog dismissed"/>
+  <int value="1" label="No screen lock"/>
+  <int value="2" label="Reauthentication failed"/>
+  <int value="3" label="Download location not selected"/>
+  <int value="4" label="Source CSV could not be found"/>
+  <int value="5" label="CSV copying failed"/>
+  <int value="6" label="Success"/>
 </enum>
 
 <enum name="EditsInGeneratedPasswordMask">
@@ -266,13 +376,13 @@ chromium-metrics-reviews@google.com.
   <int value="15" label="Symbols,Numerics,Letters,Length"/>
 </enum>
 
-<enum name="FormDataDeserializationStatus">
-  <int value="0" label="Login database success"/>
-  <int value="1" label="Login database failure"/>
-  <int value="2" label="Libsecret success"/>
-  <int value="3" label="Libsecret failure"/>
-  <int value="4" label="GNOME success"/>
-  <int value="5" label="GNOME failure"/>
+<enum name="FillDataRetrievalStatusIOS">
+  <int value="0" label="Success"/>
+  <int value="1" label="No FillData matching frame"/>
+  <int value="2" label="No FillData matching form"/>
+  <int value="3" label="No FillData matching field"/>
+  <int value="4" label="No credentials matching username"/>
+  <int value="5" label="No cached last request form"/>
 </enum>
 
 <enum name="GaiaPasswordHashChange">
@@ -303,6 +413,17 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Url override was available and used"/>
   <int value="2" label="No url override was available"/>
   <int value="3" label="Url override was available in the FacetGroup and used"/>
+  <int value="4" label="Url override was available for the main domain"/>
+</enum>
+
+<enum name="HandleSubmittedFormStatus">
+  <int value="0" label="Handled"/>
+  <int value="1" label="Rejected, no WebState"/>
+  <int value="2" label="Rejected, no delegate"/>
+  <int value="3" label="Rejected, msg body not a dict"/>
+  <int value="4" label="Rejected, no frame for id"/>
+  <int value="5" label="Rejected, no trusted URL"/>
+  <int value="6" label="Rejected, can't extract form data"/>
 </enum>
 
 <enum name="HistogramExportResult">
@@ -344,11 +465,11 @@ chromium-metrics-reviews@google.com.
 <enum name="LocalUpmActivationError">
   <int value="0"
       label="None (activated / migration scheduled / previously activated)"/>
-  <int value="1" label="Unenrolled from UPM"/>
-  <int value="2" label="Initial UPM migration missing"/>
+  <int value="1" label="(obsolete) Unenrolled from UPM"/>
+  <int value="2" label="(obsolete) Initial UPM migration missing"/>
   <int value="3" label="Login DB file move failed"/>
   <int value="4" label="Outdated GmsCore"/>
-  <int value="5" label="Flag disabled"/>
+  <int value="5" label="(obsolete) Flag disabled"/>
   <int value="6" label="Migration warning unacknowledged"/>
 </enum>
 
@@ -375,6 +496,47 @@ chromium-metrics-reviews@google.com.
   <int value="11" label="Foreign key init error"/>
   <int value="12" label="Password notes table failed initialization"/>
 </enum>
+
+<enum name="LoginDatabaseShouldDeleteUndecryptablePasswords">
+  <int value="0" label="Logins should be deleted"/>
+  <int value="1"
+      label="Should not delete, user data directory is specified using the
+             enviroment variable"/>
+  <int value="2"
+      label="Should not delete, user data directory is specified via switch"/>
+  <int value="3"
+      label="Should not delete, password store is specified via switch"/>
+  <int value="4"
+      label="Should not delete, encryption selection is specified via switch"/>
+  <int value="5" label="Should not delete, encryption is not availiable"/>
+  <int value="6"
+      label="Should not delete, user data directory is specified using the
+             enterprise policy"/>
+  <int value="7"
+      label="Should not delete, deleting undecryptable logins was disabled by
+             policy"/>
+</enum>
+
+<!-- LINT.IfChange(LoginDbDeprecationExportProgress) -->
+
+<enum name="LoginDbDeprecationExportProgress">
+  <int value="0" label="Scheduled"/>
+  <int value="1" label="Started"/>
+  <int value="2" label="Finished"/>
+</enum>
+
+<!-- LINT.ThenChange(/components/password_manager/core/browser/export/login_db_deprecation_runner.h:LoginDbDeprecationExportProgress) -->
+
+<!-- LINT.IfChange(LoginDbDeprecationExportResult) -->
+
+<enum name="LoginDbDeprecationExportResult">
+  <int value="0" label="Success"/>
+  <int value="1" label="No passwords"/>
+  <int value="2" label="Error fetching paswords"/>
+  <int value="3" label="File write error"/>
+</enum>
+
+<!-- LINT.ThenChange(/components/password_manager/core/browser/export/login_db_deprecation_password_exporter.h:LoginDbDeprecationExportResult) -->
 
 <enum name="LoginsChangedTrigger">
   <summary>
@@ -433,29 +595,35 @@ chromium-metrics-reviews@google.com.
   <int value="18" label="Search Passwords widget"/>
   <int value="19" label="Add Username bubble"/>
   <int value="20" label="Omnibox Pedal Suggestion"/>
-  <int value="21" label="Default store changed bubble"/>
+  <int value="21" label="(obsolete) Default store changed bubble"/>
   <int value="22" label="Manage Password Details Bubble"/>
-</enum>
-
-<enum name="MigrationToOSCryptEnum">
-  <summary>
-    Display migration status of LoginDatabase to OSCrypt on IOS.
-  </summary>
-  <int value="0" label="Migration started"/>
-  <int value="1" label="Migration failed: can't copy password_value column"/>
-  <int value="2" label="Migration failed: can't read password from keychain"/>
-  <int value="3" label="Migration failed: can't encrypt password with OSCrypt"/>
-  <int value="4" label="Migration failed: can't update password value"/>
-  <int value="5" label="Migration succeeded"/>
-  <int value="6"
-      label="Migration failed: can't delete missing password from the
-             database"/>
+  <int value="23" label="Passkey saved confirmation bubble"/>
+  <int value="24" label="Passkey deleted confirmation bubble"/>
+  <int value="25" label="Passkey updated confirmation bubble"/>
+  <int value="26" label="Passkey not accepted confirmation bubble"/>
+  <int value="27" label="Password access loss warning"/>
+  <int value="28" label="Passkey upgrade bubble"/>
+  <int value="29" label="Password change state information bubble"/>
 </enum>
 
 <enum name="OutdatedGMSDialogDismissalReason">
   <int value="0" label="Other"/>
   <int value="1" label="Accepted"/>
   <int value="2" label="Rejected"/>
+</enum>
+
+<enum name="PasskeysMigrationStatus">
+  <int value="0" label="Passkey created"/>
+  <int value="1" label="Passkey updated"/>
+  <int value="2" label="Invalid passkey"/>
+</enum>
+
+<enum name="PasswordAccessLossWarningType">
+  <int value="0" label="No warning"/>
+  <int value="1" label="No GMS Core"/>
+  <int value="2" label="No UPM"/>
+  <int value="3" label="Only Account UPM"/>
+  <int value="4" label="New GMS Core, migration failed"/>
 </enum>
 
 <enum name="PasswordAddLoginSyncError">
@@ -524,14 +692,49 @@ chromium-metrics-reviews@google.com.
       label="Opened automatically / Offering to relaunch chrome as a result
              of a keychain issue"/>
   <int value="20"
-      label="Opened automatically / Notifying the user that their password
-             store setting changed"/>
+      label="(obsolete) Opened automatically / Notifying the user that their
+             password store setting changed"/>
+  <int value="21"
+      label="Opened automatically / Notifying the user that their passkey was
+             saved"/>
+  <int value="22"
+      label="Opened automatically / Notifying the user that their passkey was
+             deleted because it was not present on an unknown credential
+             report and that they need to log in to create a new passkey"/>
+  <int value="23"
+      label="Opened manually / Notifying the user that their passkey was
+             deleted because it was not present on an unknown credential
+             report and that they need to log in to create a new passkey"/>
+  <int value="24"
+      label="Opened automatically / Notifying the user that their passkey
+             details have been updated."/>
+  <int value="25"
+      label="Opened manually / Notifying the user that their passkey details
+             have been updated."/>
+  <int value="26"
+      label="Opened automatically / Notifying the user that their passkey was
+             deleted because it was not present on an all accepted
+             credentials report"/>
+  <int value="27"
+      label="Opened manually / Notifying the user that their passkey was
+             deleted because it was not present on an all accepted
+             credentials report"/>
 </enum>
 
 <enum name="PasswordBubbleFollowupType">
   <int value="0" label="Safe state"/>
   <int value="1" label="More passwords to fix"/>
   <int value="2" label="Unsafe state"/>
+</enum>
+
+<enum name="PasswordChangeFlowState">
+  <int value="0" label="Offering password change"/>
+  <int value="1" label="Waiting for privacy notice acceptance"/>
+  <int value="2" label="Checking if user is signed in"/>
+  <int value="3" label="No change password form found"/>
+  <int value="4" label="Changing password"/>
+  <int value="5" label="Password successfully changed"/>
+  <int value="6" label="Password change failed"/>
 </enum>
 
 <enum name="PasswordCheckInteraction">
@@ -615,9 +818,10 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Password"/>
   <int value="1" label="Manage passwords"/>
   <int value="2" label="Generate password"/>
-  <int value="3" label="Unlock account-store to fill password"/>
-  <int value="4" label="Unlock account-store to generate password"/>
-  <int value="5" label="Re-Signin to unlock account-stored passwords"/>
+  <int value="3" label="(obsolete) Unlock account-store to fill password"/>
+  <int value="4" label="(obsolete) Unlock account-store to generate password"/>
+  <int value="5"
+      label="(obsolete) Re-Signin to unlock account-stored passwords"/>
   <int value="6" label="WebAuthn credential"/>
   <int value="7" label="Sign in with another WebAuthn device"/>
 </enum>
@@ -627,22 +831,36 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Passwords and generate new password"/>
 </enum>
 
-<enum name="PasswordEditUpdatedValues">
-  <int value="0" label="None"/>
-  <int value="1" label="Username"/>
-  <int value="2" label="Password"/>
-  <int value="3" label="Both"/>
-</enum>
-
 <enum name="PasswordExportEvent">
   <int value="0" label="The user selected password export option"/>
   <int value="1" label="Password export dismissed by the user"/>
   <int value="2" label="Password export confirmed by the user"/>
 </enum>
 
+<enum name="PasswordFillingReauthPromoShown">
+  <int value="0" label="Not shown"/>
+  <int value="1" label="Shown among other suggestions"/>
+  <int value="2" label="Shown alone"/>
+</enum>
+
 <enum name="PasswordFormHadUsernameField">
   <int value="0" label="No username field"/>
   <int value="1" label="Username match"/>
+</enum>
+
+<enum name="PasswordFormPredictionWaitResult">
+  <int value="0" label="Predictions received before timeout"/>
+  <int value="1" label="Timed out with one closure outstanding"/>
+  <int value="2" label="Timed out with two or more closures outstanding"/>
+</enum>
+
+<enum name="PasswordFormType2">
+  <int value="0" label="Undefined"/>
+  <int value="1" label="Login form"/>
+  <int value="2" label="Signup form"/>
+  <int value="3" label="Change password form"/>
+  <int value="4" label="Reset password form"/>
+  <int value="5" label="Single username"/>
 </enum>
 
 <enum name="PasswordGenerationEvent">
@@ -664,11 +882,25 @@ chromium-metrics-reviews@google.com.
   <int value="15" label="Generated password deleted by autofilling"/>
 </enum>
 
+<enum name="PasswordGenerationPopupShown">
+  <int value="0" label="Not shown"/>
+  <int value="1" label="Shown automatically"/>
+  <int value="2" label="Shown manually"/>
+</enum>
+
 <enum name="PasswordGenerationUserEvent">
   <int value="0" label="Password accepted"/>
   <int value="1" label="Password edited"/>
   <int value="2" label="Password deleted"/>
   <int value="3" label="Password rejected in modal dialog (obsolete)"/>
+</enum>
+
+<enum name="PasswordLeakDetectionDialogDismissalReason">
+  <int value="0" label="No direct user interaction"/>
+  <int value="1" label="Clicked Close"/>
+  <int value="2" label="Clicked Check passwords"/>
+  <int value="3" label="Clicked Ok"/>
+  <int value="4" label="(Deprecated) Clicked Change password automatically"/>
 </enum>
 
 <enum name="PasswordLeakDetectionError">
@@ -710,12 +942,6 @@ chromium-metrics-reviews@google.com.
       label="Link redirecting to the specific password page clicked"/>
 </enum>
 
-<enum name="PasswordManager.AssistantStoppedBubble.CloseReason">
-  <int value="0" label="User restarted the flow."/>
-  <int value="1" label="User closed the bubble."/>
-  <int value="2" label="User moved or closed the tab, or closed the browser."/>
-</enum>
-
 <enum name="PasswordManager.MoveToAccountStoreTrigger">
   <summary>
     Triggers that will cause Chrome to offer to move a password from the profile
@@ -748,10 +974,12 @@ chromium-metrics-reviews@google.com.
 </enum>
 
 <enum name="PasswordManager.PasswordGenerationBottomSheet.InteractionResult">
-  <int value="0" label="Used generated password"/>
+  <int value="0" label="(Deprecated in M132) Used generated password"/>
   <int value="1" label="Rejected generated password"/>
   <int value="2" label="Bottom sheet dismissed from native"/>
   <int value="3" label="Bottom sheet dismissed by user"/>
+  <int value="4" label="Accepted - tap password view"/>
+  <int value="5" label="Accepted - tap accept button"/>
 </enum>
 
 <enum name="PasswordManager.PasswordSharingDesktopActions">
@@ -774,6 +1002,7 @@ chromium-metrics-reviews@google.com.
       label="(DEPRECATED in M122) Confirmation dialog: 'Learn more' clicked"/>
   <int value="13" label="Confirmation dialog: 'Change password' clicked"/>
   <int value="14" label="Dialog header: 'Help icon button' clicked"/>
+  <int value="15" label="Family picker: opened"/>
 </enum>
 
 <enum name="PasswordManager.PasswordSharingIOSUserAction">
@@ -794,6 +1023,7 @@ chromium-metrics-reviews@google.com.
   <int value="11" label="Confirmation dialog: 'Learn more' link clicked"/>
   <int value="12" label="Confirmation dialog: 'Change password' link clicked"/>
   <int value="13" label="Confirmation dialog: 'Done' button clicked"/>
+  <int value="14" label="Family picker: opened"/>
 </enum>
 
 <enum name="PasswordManager.ProcessIncomingPasswordSharingInvitationResult">
@@ -822,12 +1052,6 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Close button clicked"/>
 </enum>
 
-<enum name="PasswordManager.Store">
-  <int value="0" label="Not set"/>
-  <int value="1" label="Profile store"/>
-  <int value="2" label="Account store"/>
-</enum>
-
 <enum name="PasswordManager.SurfaceVisit">
   <int value="0" label="Opened Password Manager Main Page"/>
   <int value="1" label="Opened Password Details Page"/>
@@ -835,6 +1059,12 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Opened Password Issues Page"/>
   <int value="4" label="Opened Password Settings Page"/>
   <int value="5" label="Opened Add Password Page"/>
+</enum>
+
+<enum name="PasswordManagerClassificationCorrectness">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Correct"/>
+  <int value="2" label="Wrong"/>
 </enum>
 
 <enum name="PasswordManagerEditsInSaveBubbleEnum">
@@ -845,13 +1075,13 @@ chromium-metrics-reviews@google.com.
 </enum>
 
 <enum name="PasswordManagerEnableState">
-  <int value="0" label="Credentials Service enabled bu default"/>
+  <int value="0" label="Credentials Service enabled by default"/>
   <int value="1" label="Credentials Service enabled by the user"/>
   <int value="2" label="Credentials Service enabled by extension"/>
   <int value="3" label="Credentials Service enabled by policy"/>
   <int value="4" label="Credentials Service enabled by recommended policy"/>
   <int value="5" label="Credentials Service enabled by other"/>
-  <int value="6" label="Credentials Service disabled by the uer"/>
+  <int value="6" label="Credentials Service disabled by the user"/>
   <int value="7" label="Credentials Service disabled By extension"/>
   <int value="8" label="Credentials Service disabled by policy"/>
   <int value="9" label="Credentials Service disabled by recommended policy"/>
@@ -863,6 +1093,30 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="From Android"/>
 </enum>
 
+<enum name="PasswordManagerFillingAssistance">
+  <int value="0" label=":-D Credential fields filled automatically"/>
+  <int value="1"
+      label=":-) Credential fields filled manually (but none required typing)"/>
+  <int value="2"
+      label=":-| Password filled (automatically or manually), known username
+             was typed"/>
+  <int value="3" label=":-( Saved password was typed"/>
+  <int value="4"
+      label=":-X Unknown password typed, some saved credentials existed"/>
+  <int value="5"
+      label=":-X Unknown password typed, no saved credentials existed"/>
+  <int value="6" label="%-) Neither filling nor user input">
+    For example, it might be because of 3rd party password managers.
+  </int>
+  <int value="7"
+      label=":-X Unknown password typed, no saved credentials existed and
+             site was explicitly blocklisted"/>
+  <int value="8"
+      label=":-X Unknown password typed, no saved credentials existed and
+             site is blocklisted by the smart bubble"/>
+  <int value="9" label=":-) User used manual fallback to fill the form"/>
+</enum>
+
 <enum name="PasswordManagerFillingSource">
   <int value="0"
       label="Typed manually (i.e. filled from neither the account-scoped nor
@@ -872,6 +1126,89 @@ chromium-metrics-reviews@google.com.
   <int value="3"
       label="Filled from both in the profile-scoped and the account-scoped
              store"/>
+</enum>
+
+<enum name="PasswordManagerFirstRendererFillingResult">
+  <int value="0" label="Success"/>
+  <int value="1" label="No password element">
+    The password element to be filled has not been found.
+  </int>
+  <int value="2" label="Blocked by frame hierarchy">
+    Filling only happens in iframes if all parent frames PSL-match the security
+    origin of the iframe containing the password field.
+  </int>
+  <int value="3" label="Password element is not autocompleteable">
+    Passwords are not filled into fields that are not editable.
+  </int>
+  <int value="4" label="Username prefilled with incompatible value">
+    The username field contains a string that does not match the username of any
+    available credential. This typically indicates placeholder values.
+  </int>
+  <int value="5" label="Found no password for username">
+    No credential was filled due to mismatches with the username. This can
+    happen in a number of cases: In case the username field is empty and
+    readonly. In case of a username-first-flow where a user's credentials do
+    contain a username but the form contains only a password field and no
+    username field. In case of change password forms that contain no username
+    field. In case the user name is given on a page but only PSL matched
+    credentials exist for this username. There may be further cases.
+  </int>
+  <int value="6" label="Wait for username">
+    Renderer was instructed to wait until user has manually picked a credential.
+    This happens for example if the session is an incognito session, the
+    credendial's URL matches the mainframe only via the PSL, the site is on
+    HTTP, or the form has no current password field.
+    PasswordManager.FirstWaitForUsernameReason records the root causes.
+  </int>
+  <int value="7" label="No fillable elements found">
+    No fillable elements were found, only possible for the old form parser.
+  </int>
+</enum>
+
+<enum name="PasswordManagerFirstWaitForUsernameReason">
+  <int value="0" label="Don't wait"/>
+  <int value="1" label="Incognito mode">
+    User is browsing in incognito mode.
+  </int>
+  <int value="2" label="Public suffix match">
+    A credential exists for a PSL matched site but not for the current security
+    origin.
+  </int>
+  <int value="3" label="Form not good for filling">
+    Form is suspected to be a password change form. (Only recorded for old form
+    parser)
+  </int>
+  <int value="4" label="Insecure Origin">
+    User is on a site with an insecure main frame origin.
+  </int>
+  <int value="5" label="Touch To Fill (obsolete)">
+    User is browsing with the Touch To Fill feature enabled.
+  </int>
+  <int value="6" label="Fill On Select">
+    User is browsing with the Fill On Select feature enabled.
+  </int>
+  <int value="7" label="Reauth required (obsolete)">
+    Re-authenticaion for filling passwords is required.
+  </int>
+  <int value="8" label="Password is already filled">
+    Password field is already filled in and it doesn't look like a placeholder.
+  </int>
+  <int value="9" label="Affiliated website">
+    A credential exists for an affiliated matched site but not for the current
+    security origin.
+  </int>
+  <int value="10" label="Accepts WebAuthn credentials">
+    The form acccepts WebAuthn credentials from an active WebAuthn request.
+  </int>
+  <int value="11" label="Biometric authentication">
+    User needs to reauthenticate using biometric.
+  </int>
+  <int value="12" label="Cross origin iframe">
+    The form is in a cross origin iframe.
+  </int>
+  <int value="13" label="Single username form">
+    The form is a single username form.
+  </int>
 </enum>
 
 <enum name="PasswordManagerHttpCredentialType">
@@ -927,17 +1264,38 @@ chromium-metrics-reviews@google.com.
   </int>
   <int value="2" label="Affiliated android app">
     A credential exists for an affiliated android app but not for the current
-    security origin.
+    security origin. This is provided as a credential sharing affiliation by
+    AffiliationService.
   </int>
   <int value="3" label="Affiliated website">
     A credential exists for an affiliated site but not for the current security
-    origin.
+    origin. This is provided as a credential sharing affiliation by
+    AffiliationService.
   </int>
-  <int value="4" label="Grouped website">
-    A credential exists for a web site, which is grouped with the current domain
-    by the AffiliationService.
+  <int value="4" label="Grouped (Deprecated in M129)">
+    A credential exists for another entity, which is grouped with the current
+    domain by the AffiliationService through a grouping affiliation.
+  </int>
+  <int value="5" label="Grouped android app">
+    A credential exists for an android application, which is grouped with the
+    current domain by the AffiliationService through a grouping affiliation.
+  </int>
+  <int value="6" label="Grouped website">
+    A credential exists for a website, which is grouped with the current domain
+    by the AffiliationService through a grouping affiliation.
   </int>
 </enum>
+
+<!-- LINT.IfChange(PasswordManagerNotAvailableReason) -->
+
+<enum name="PasswordManagerNotAvailableReason">
+  <int value="0" label="Internal backend missing"/>
+  <int value="1" label="No GMS, no Play Store"/>
+  <int value="2" label="Outdated GMS"/>
+  <int value="3" label="Auto-export pending"/>
+</enum>
+
+<!-- LINT.ThenChange(/chrome/browser/password_manager/android/password_manager_android_util.h:PasswordManagerNotAvailableReason) -->
 
 <enum name="PasswordManagerOfferedAndroidCredentials">
   <int value="0" label="None from Android"/>
@@ -951,6 +1309,7 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Access on any device promo"/>
   <int value="4" label="Relaunch Chrome"/>
   <int value="5" label="Move passwords"/>
+  <int value="6" label="(Obsolete) Enable screenlock reauth before filling"/>
 </enum>
 
 <enum name="PasswordManagerShortcutMetric">
@@ -989,33 +1348,11 @@ chromium-metrics-reviews@google.com.
   <int value="12" label="Clicked the link passwords.google.com"/>
   <int value="13"
       label="Clicked 'Manage Password' in password details bubble."/>
-</enum>
-
-<enum name="PasswordMigrationWarningSheetStateAtClosing">
-  <int value="0" label="The sheet was displaying content when it was closed."/>
-  <int value="1" label="An empty sheet was dismissed by user interaction"/>
-  <int value="2" label="An empty sheet was dismissed without user interaction"/>
-</enum>
-
-<enum name="PasswordMigrationWarningTriggers">
-  <int value="0" label="Chrome started up"/>
-  <int value="1" label="A password was saved or updated"/>
-  <int value="2" label="Password settings UI was accessed"/>
-  <int value="3" label="A credential was filled via touch to fill sheet"/>
-  <int value="4" label="A credential was filled via keyboard accessory sheet"/>
-  <int value="5" label="A credential was filled via keyboard accessory bar"/>
-  <int value="6" label="A credential was filled via all passwords sheet"/>
-</enum>
-
-<enum name="PasswordMigrationWarningUserActions">
-  <int value="0" label="The warning was acknowledged"/>
-  <int value="1" label="The more options button was clicked"/>
-  <int value="2" label="The user chose to start syncing"/>
-  <int value="3" label="The user chose to export passwords"/>
-  <int value="4" label="The cancel button was clicked"/>
-  <int value="5" label="The sheet with the introduction was dismissed"/>
-  <int value="6" label="The sheet with more options was dismissed"/>
-  <int value="7" label="The sheet without content was dismissed (Obsolete)"/>
+  <int value="14"
+      label="Clicked 'Got it' in passkey deleted confirmation bubble."/>
+  <int value="15"
+      label="Clicked 'About password change' link in the password change
+             bubble."/>
 </enum>
 
 <enum name="PasswordNoteAction">
@@ -1032,19 +1369,6 @@ chromium-metrics-reviews@google.com.
       label="Note changed from non-empty to empty from the password edit
              dialog in settings"/>
   <int value="4" label="Note did not change"/>
-</enum>
-
-<enum name="PasswordNotesMigrationToOSCryptEnum">
-  <summary>
-    Display migration status of LoginDatabase to OSCrypt on IOS for notes.
-  </summary>
-  <int value="0" label="Migration started"/>
-  <int value="1" label="Migration failed: can't read note from keychain"/>
-  <int value="2" label="Migration failed: can't encrypt note with OSCrypt"/>
-  <int value="3" label="Migration failed: can't update note value"/>
-  <int value="4" label="Migration succeeded"/>
-  <int value="5"
-      label="Migration failed: can't delete missing note from the database"/>
 </enum>
 
 <enum name="PasswordProtectionReferringAppSource">
@@ -1078,12 +1402,6 @@ chromium-metrics-reviews@google.com.
   <int value="20" label="SafeBrowsing disabled"/>
   <int value="21" label="User not signed in"/>
   <int value="22" label="Country is excluded from Safe Browsing"/>
-</enum>
-
-<enum name="PasswordProtectionSyncAccountType">
-  <int value="0" label="Not signed in"/>
-  <int value="1" label="@gmail.com or @googlemail.com"/>
-  <int value="2" label="G Suite account"/>
 </enum>
 
 <enum name="PasswordProtectionVerdict">
@@ -1161,6 +1479,8 @@ chromium-metrics-reviews@google.com.
   <int value="11016" label="EXTERNAL_API_EXCEPTION"/>
   <int value="11017" label="EXTERNAL_INVALID_LOCAL_KEYS"/>
   <int value="11018" label="DATABASE_ERROR"/>
+  <int value="11019" label="EMPTY_SECURITY_DOMAIN"/>
+  <int value="11020" label="IRRETRIEVABLE_SECURITY_DOMAIN"/>
   <int value="43502" label="CHROME_SYNC_API_CALL_ERROR"/>
   <int value="43504" label="ERROR_WHILE_DOING_LEAK_CHECK_SERVICE_GRPC"/>
   <int value="43507" label="REQUIRED_SYNCED_ACCOUNT_MISSING"/>
@@ -1223,9 +1543,11 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="AuthErrorResolvable"/>
   <int value="2" label="AuthErrorUnresolvable"/>
   <int value="3" label="KeychainError"/>
-  <int value="4" label="kKeyRetrievalRequired"/>
-  <int value="5" label="kGMSCoreOutdatedSavingDisabled"/>
-  <int value="6" label="kGMSCoreOutdatedSavingPossible"/>
+  <int value="4" label="KeyRetrievalRequired"/>
+  <int value="5" label="GMSCoreOutdatedSavingDisabled"/>
+  <int value="6" label="GMSCoreOutdatedSavingPossible"/>
+  <int value="7" label="EmptySecurityDomain"/>
+  <int value="8" label="IrretrievableSecurityDomain"/>
 </enum>
 
 <enum name="PasswordSubmissionEvent">
@@ -1299,6 +1621,15 @@ chromium-metrics-reviews@google.com.
   <int value="11" label="The credential is requested by typing the URL."/>
   <int value="12" label="Passkey copy display name button clicked"/>
   <int value="13" label="Passkey card delete button clicked"/>
+  <int value="14" label="Passkey edit button clicked"/>
+</enum>
+
+<enum name="PasswordVsOtpFormType">
+  <int value="0"
+      label="Form without password and OTP fields (e.g. single username form)"/>
+  <int value="2" label="Password form"/>
+  <int value="4" label="OTP form"/>
+  <int value="6" label="Password + OTP form"/>
 </enum>
 
 <enum name="PasswordWeaknessScore">
@@ -1314,21 +1645,9 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="The sheet was dismissed"/>
 </enum>
 
-<enum name="PrefilledUsernameFillOutcome">
-  <int value="0" label="Prefilled placeholder username overridden">
-    1) the page has a username input element whose value was prefilled by the
-    website itself. 2) the prefilled value was found in a list of known
-    placeholder values (e.g. &quot;username or email&quot;). 3) the user had a
-    credential stored and the field content was overridden with the username of
-    this credential due to 2).
-  </int>
-  <int value="1" label="Prefilled username not overridden">
-    1) the page has a username input element whose value was prefilled by the
-    website itself. 2) the prefilled value was NOT found in a list of known
-    placeholder values (e.g. &quot;username or email&quot;). 3) the user had a
-    credential stored and the field content was NOT overridden with the username
-    of this credential due to 2).
-  </int>
+<enum name="ProactivePasswordGenerationBottomSheetTransitionType">
+  <int value="0" label="Silenced"/>
+  <int value="1" label="Unsilenced"/>
 </enum>
 
 <enum name="ProvisionalSaveFailure">
@@ -1350,20 +1669,45 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Unknown password"/>
 </enum>
 
-<enum name="SaveUpdatePasswordMessageDismissReason">
-  <int value="0" label="Clicked 'Save' or 'Update' in the message"/>
-  <int value="1" label="Clicked 'Save' or 'Update' in the edit dialog"/>
-  <int value="2" label="Clicked Accept in username confirmation dialog"/>
-  <int value="3" label="Message dismissed"/>
-  <int value="4"
-      label="Clicked 'Cancel' in the edit dialog or dismissed the dialog"/>
-  <int value="5" label="Clicked 'Never for this site' in the cog menu"/>
+<enum name="SaveFlowStep">
+  <int value="0" label="Form submitted"/>
+  <int value="1" label="Save prompt shown"/>
 </enum>
 
 <enum name="SavingOnUsernameFirstFlow">
   <int value="0" label="Saved"/>
   <int value="1" label="Saved with edited username"/>
   <int value="2" label="Not saved"/>
+</enum>
+
+<enum name="SharedPrefCredentialsAccessOutcome">
+  <int value="0" label="No credentials"/>
+  <int value="1" label="Parse error"/>
+  <int value="2" label="Bad type"/>
+  <int value="3" label="Empty credentials"/>
+  <int value="4" label="Login match"/>
+  <int value="5" label="Login mismatch"/>
+</enum>
+
+<enum name="SingleUsernameFillingAssistance">
+  <int value="0" label=":-D Username filled automatically"/>
+  <int value="1"
+      label=":-) Username filled manually (but none required typing)"/>
+  <int value="2" label=":-( Saved username was typed"/>
+  <int value="3"
+      label=":-X Unknown username typed, some saved credentials existed"/>
+  <int value="4"
+      label=":-X Unknown username typed, no saved credentials existed"/>
+  <int value="5"
+      label=":-X Unknown username typed, no saved credentials existed and
+             site was explicitly blocklisted"/>
+  <int value="6"
+      label=":-X Unknown username typed, no saved credentials existed and
+             site is blocklisted by the smart bubble"/>
+  <int value="7" label="%-) Neither filling nor user input">
+    For example, it might be because of 3rd party password managers.
+  </int>
+  <int value="8" label=":-) User used manual fallback to fill the form"/>
 </enum>
 
 <enum name="SingleUsernameVoteDataAvailability">
@@ -1387,6 +1731,40 @@ chromium-metrics-reviews@google.com.
   <int value="5" label="Failed to add group"/>
 </enum>
 
+<enum name="SubmissionIndicatorEvent">
+  <int value="0" label="No submission"/>
+  <int value="1" label="HTML form submission"/>
+  <int value="2" label="Same document navigation"/>
+  <int value="3" label="XHR succeeded"/>
+  <int value="4" label="Frame detached"/>
+  <int value="5" label="(obsolete) By context menu"/>
+  <int value="6" label="(obsolete) DOM mutation after XHR"/>
+  <int value="7"
+      label="(obsolete) Provisionally saved form on start provisional load"/>
+  <int value="8" label="(obsolete) Filled form on start provisional load"/>
+  <int value="9"
+      label="(obsolete) Filled input elements on start provisional load"/>
+  <int value="10" label="Probable form submission"/>
+  <int value="11" label="Change password form cleared"/>
+  <int value="12" label="DOM mutation after Autofill"/>
+</enum>
+
+<!-- LINT.IfChange(SubmissionOutcome)-->
+
+<enum name="SubmissionOutcome">
+  <int value="0" label="Uncategorized Error"/>
+  <int value="1" label="Successful Outcome"/>
+  <int value="2" label="Unknown Outcome"/>
+  <int value="3" label="Error - old password was incorrect"/>
+  <int value="4" label="Error - old passwords don't match"/>
+  <int value="5" label="Error - new password incorrect"/>
+  <int value="6" label="Error - page error"/>
+  <int value="7" label="No Response"/>
+  <int value="8" label="Could not parse response"/>
+</enum>
+
+<!-- LINT.ThenChange(/chrome/browser/password_manager/password_change/change_form_submission_verifier.h:SubmissionOutcome)-->
+
 <enum name="SubmittedPasswordFormFrame">
   <int value="0" label="Main frame"/>
   <int value="1" label="Iframe with the same url as main frame"/>
@@ -1404,6 +1782,19 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="'Manage Passwords' was selected"/>
   <int value="4" label="Passkey was selected"/>
   <int value="5" label="Hybrid passkey sign-in was selected"/>
+</enum>
+
+<enum name="TouchToFill.SubmissionReadiness">
+  <int value="0" label="No information"/>
+  <int value="1" label="Error occurred"/>
+  <int value="2" label="Username field not found"/>
+  <int value="3" label="Fields between username and password fields"/>
+  <int value="4" label="Field after the password field"/>
+  <int value="5" label="Empty fields in the form"/>
+  <int value="6" label="More than two fields in the form"/>
+  <int value="7" label="2-field form (username+password)"/>
+  <int value="8" label="Password field not found"/>
+  <int value="9" label="Form likely has a CAPTCHA"/>
 </enum>
 
 <enum name="TouchToFillPasswordGenerationTriggerOutcome">
@@ -1426,6 +1817,19 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="HTML based classifier"/>
   <int value="3" label="'autocomplete' attribute"/>
   <int value="4" label="Server-side prediction"/>
+  <int value="5" label="Client-side model prediction"/>
+</enum>
+
+<enum name="UseUpmLocalAndSeparateStoresState">
+  <int value="0" label="Off"/>
+  <int value="1" label="OffAndMigrationPending"/>
+  <int value="2" label="On"/>
+</enum>
+
+<enum name="WellKnownChangePasswordResult">
+  <int value="0" label="Fallback to Origin"/>
+  <int value="1" label="Fallback to Url Override"/>
+  <int value="2" label="Well-Known supported"/>
 </enum>
 
 </enums>

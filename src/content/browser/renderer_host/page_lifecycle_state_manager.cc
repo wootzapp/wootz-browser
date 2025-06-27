@@ -63,9 +63,10 @@ PageLifecycleStateManager::~PageLifecycleStateManager() {
 }
 
 void PageLifecycleStateManager::SetIsFrozen(bool frozen) {
-  if (is_set_frozen_called_ == frozen)
+  if (frozen_explicitly_ == frozen) {
     return;
-  is_set_frozen_called_ = frozen;
+  }
+  frozen_explicitly_ = frozen;
 
   SendUpdatesToRendererIfNeeded(
       /*page_restore_params=*/nullptr, base::NullCallback());
@@ -77,11 +78,25 @@ void PageLifecycleStateManager::SetFrameTreeVisibility(
     return;
 
   frame_tree_visibility_ = visibility;
+
+  if (visibility == blink::mojom::PageVisibilityState::kVisible) {
+    // Unset `frozen_explicitly_` when the page is shown, to reflect that the
+    // Blink page scheduler unfreezes the page in that situation. This ensures
+    // that the page is frozen if SetIsFrozen(true) is called while the page is
+    // hidden in the future (SetIsFrozen(true) no-ops if `frozen_explicitly_` is
+    // true).
+    frozen_explicitly_ = false;
+  }
+
   SendUpdatesToRendererIfNeeded(
       /*page_restore_params=*/nullptr, base::NullCallback());
   // TODO(yuzus): When a page is frozen and made visible, the page should
   // automatically resume.
 }
+
+BASE_FEATURE(kBackForwardCacheNonStickyDoubleFix,
+             "BackForwardCacheNonStickyDoubleFix",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 void PageLifecycleStateManager::SetIsInBackForwardCache(
     bool is_in_back_forward_cache,
@@ -105,10 +120,14 @@ void PageLifecycleStateManager::SetIsInBackForwardCache(
     pagehide_dispatch_ = blink::mojom::PagehideDispatch::kDispatchedPersisted;
   } else {
     DCHECK(page_restore_params);
-    // When a page is restored from the back-forward cache, we should reset the
-    // |pagehide_dispatch_| state so that we'd dispatch the
-    // events again the next time we navigate away from the page.
+    // When a page is restored from the back-forward cache, we should reset this
+    // state so that it behaves correctly next time navigation occurs.
     pagehide_dispatch_ = blink::mojom::PagehideDispatch::kNotDispatched;
+    // TODO(https://crbug.com/360183659): Make this unconditional after
+    // measuring the impact.
+    if (base::FeatureList::IsEnabled(kBackForwardCacheNonStickyDoubleFix)) {
+      did_receive_back_forward_cache_ack_ = false;
+    }
   }
 
   SendUpdatesToRendererIfNeeded(std::move(page_restore_params),
@@ -197,7 +216,7 @@ blink::mojom::PageLifecycleStatePtr
 PageLifecycleStateManager::CalculatePageLifecycleState() {
   auto state = blink::mojom::PageLifecycleState::New();
   state->is_in_back_forward_cache = is_in_back_forward_cache_;
-  state->is_frozen = is_in_back_forward_cache_ ? true : is_set_frozen_called_;
+  state->is_frozen = is_in_back_forward_cache_ || frozen_explicitly_;
   state->pagehide_dispatch = pagehide_dispatch_;
   // If a page is stored in the back-forward cache, or we have already
   // dispatched/are dispatching pagehide for the page, it should be treated as

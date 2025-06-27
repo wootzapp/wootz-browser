@@ -14,6 +14,7 @@
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
@@ -168,7 +169,7 @@ void DeviceCapabilitiesImpl::Unregister(const std::string& key,
                                         const Validator* validator) {
   base::AutoLock auto_lock(validation_lock_);
   auto validator_it = validator_map_.find(key);
-  DCHECK(validator_it != validator_map_.end());
+  CHECK(validator_it != validator_map_.end(), base::NotFatalUntil::M130);
   // Check that validator being unregistered matches the original for |key|.
   // This prevents managers from accidentally unregistering incorrect
   // validators.
@@ -314,9 +315,7 @@ void DeviceCapabilitiesImpl::SetPublicValidatedValue(const std::string& path,
   bool is_private = all_data_->dictionary().Find(path) &&
                     !public_data_->dictionary().Find(path);
   if (is_private) {
-    NOTREACHED_IN_MIGRATION()
-        << "Cannot make a private capability '" << path << "' public.";
-    return;
+    NOTREACHED() << "Cannot make a private capability '" << path << "' public.";
   }
 
   // We don't need to acquire lock here when reading public_data_ because we
@@ -373,9 +372,7 @@ void DeviceCapabilitiesImpl::SetPrivateValidatedValue(const std::string& path,
   // We cannot change the privacy of an already existing capability.
   const auto* is_public = public_data_->dictionary().Find(path);
   if (is_public) {
-    NOTREACHED_IN_MIGRATION()
-        << "Cannot make a public capability '" << path << "' private.";
-    return;
+    NOTREACHED() << "Cannot make a public capability '" << path << "' private.";
   }
 
   // We don't need to acquire lock here when reading all_data_ because we know

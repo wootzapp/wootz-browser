@@ -3,6 +3,9 @@
 // found in the LICENSE file.
 
 #include "media/gpu/hrd_buffer.h"
+
+#include <array>
+
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace media {
@@ -268,9 +271,18 @@ TEST_F(HRDBufferTest, CheckBufferLastFrameTimestamp) {
 TEST_F(HRDBufferTest, CheckBufferShrinking) {
   constexpr int kFrameSequenceValues[] = {10000, 10000, 10000, 10000, 10000,
                                           10000, 10000, 10000, 10000, 10000};
-  constexpr size_t kBufferShrinkingValues[] = {122917, 120834, 118751, 116668,
-                                               114585, 112502, 110419, 108336,
-                                               106253, 104170};
+  constexpr auto kBufferShrinkingValues = std::to_array<size_t>({
+      122917,
+      120834,
+      118751,
+      116668,
+      114585,
+      112502,
+      110419,
+      108336,
+      106253,
+      104170,
+  });
 
   const size_t buffer_size =
       GetBufferSizeFromDelay(kCommonAvgBitrate, kCommonBufferDelay);

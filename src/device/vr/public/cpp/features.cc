@@ -16,6 +16,11 @@ namespace device::features {
 // Enables access to articulated hand tracking sensor input.
 BASE_FEATURE(kWebXrHandInput,
              "WebXRHandInput",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Enables rendering to WebXR sessions with the WebGPU API.
+BASE_FEATURE(kWebXrWebGpuBinding,
+             "WebXRWebGPUBinding",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enables access to experimental WebXR features.
@@ -50,6 +55,7 @@ BASE_FEATURE(kWebXrOrientationSensorDevice,
 BASE_FEATURE(kWebXrSharedBuffers,
              "WebXrSharedBuffers",
              base::FEATURE_ENABLED_BY_DEFAULT);
+
 #endif
 
 #if BUILDFLAG(ENABLE_OPENXR)
@@ -73,45 +79,61 @@ BASE_FEATURE(kOpenXRSharedImages,
              "OpenXRSharedImages",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Controls whether the XrFeatureStatus.hasImmersiveFeature check is allowed to
+// Controls whether the XrFeatureStatus.isXrDevice check is allowed to
 // be used to determine if OpenXR should be enabled or not. Functionally, this
-// feature is intended to be used as a kill-switch when the immersive feature is
-// present.
-BASE_FEATURE(kAllowOpenXrWithImmersiveFeature,
-             "AllowOpenXrWithImmersiveFeature",
+// feature is intended to be used as a kill-switch when on an xr device.
+BASE_FEATURE(kAllowOpenXrOnXrDevices,
+             "AllowOpenXrOnXrDevices",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Helper for enabling a feature if either the base flag is enabled or if the
-// device has an immersive feature that we will allow to override the default
-// state.
-bool IsImmersiveFeatureEnabled(const base::Feature& base_feature,
-                               const base::Feature& immersive_feature_guard) {
-  // Generally a reboot is required to change the state of a feature; so we
-  // use statics rather than const's here to give a slight optimization,
-  // especially in the case of `has_immersive_feature`.
-  static bool feature_enabled = base::FeatureList::IsEnabled(base_feature);
-  static bool allow_with_immersive_feature =
-      base::FeatureList::IsEnabled(immersive_feature_guard);
 #if BUILDFLAG(IS_ANDROID)
-  static bool has_immersive_feature = Java_XrFeatureStatus_hasImmersiveFeature(
-      base::android::AttachCurrentThread());
-#else
-  static bool has_immersive_feature = false;
+BASE_FEATURE(kOpenXrAndroidSmoothDepth,
+             "OpenXrAndroidSmoothDepth",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
-  return feature_enabled ||
-         (allow_with_immersive_feature && has_immersive_feature);
+// Helper for enabling a feature if either the base flag is enabled or if the
+// device is an xr device that can have the feature enabled.
+// `xr_device_feature_guard` is thus used as a kill-switch for xr devices, since
+// we ignore the usual feature flag in that case.
+bool IsXrFeatureEnabled(const base::Feature& base_feature,
+                        const base::Feature& xr_device_feature_guard) {
+  // Generally a reboot is required to change the state of a feature; so we
+  // use statics rather than const's here to give a slight optimization,
+  // especially in the case of `is_xr_device`.
+  static bool feature_enabled = base::FeatureList::IsEnabled(base_feature);
+  static bool allow_on_xr_devices =
+      base::FeatureList::IsEnabled(xr_device_feature_guard);
+  static bool is_xr_device = IsXrDevice();
+
+  return feature_enabled || (allow_on_xr_devices && is_xr_device);
 }
 
 bool IsOpenXrEnabled() {
-  return IsImmersiveFeatureEnabled(kOpenXR, kAllowOpenXrWithImmersiveFeature);
+  return IsXrFeatureEnabled(kOpenXR, kAllowOpenXrOnXrDevices);
 }
 
 bool IsOpenXrArEnabled() {
-  return IsOpenXrEnabled() &&
-         IsImmersiveFeatureEnabled(kOpenXrExtendedFeatureSupport,
-                                   kAllowOpenXrWithImmersiveFeature);
+  return IsOpenXrEnabled() && IsXrFeatureEnabled(kOpenXrExtendedFeatureSupport,
+                                                 kAllowOpenXrOnXrDevices);
 }
 
 #endif  // ENABLE_OPENXR
+
+bool IsXrDevice() {
+#if BUILDFLAG(IS_ANDROID) && BUILDFLAG(ENABLE_OPENXR)
+  return device::Java_XrFeatureStatus_isXrDevice(
+      base::android::AttachCurrentThread());
+#else
+  return false;
+#endif
+}
+
+bool IsHandTrackingEnabled() {
+#if BUILDFLAG(ENABLE_OPENXR)
+  return IsOpenXrEnabled() && base::FeatureList::IsEnabled(kWebXrHandInput);
+#else
+  return false;
+#endif
+}
 }  // namespace device::features

@@ -11,12 +11,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "content/browser/renderer_host/navigation_controller_impl.h"
-#include "content/browser/renderer_host/navigation_discard_reason.h"
 #include "content/common/content_export.h"
 #include "content/common/navigation_client.mojom.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_discard_reason.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
+#include "net/storage_access_api/status.h"
 #include "third_party/blink/public/common/navigation/impression.h"
 #include "third_party/blink/public/mojom/frame/triggering_event_info.mojom-shared.h"
 #include "third_party/blink/public/mojom/navigation/navigation_initiator_activation_and_ad_status.mojom.h"
@@ -136,7 +137,8 @@ class CONTENT_EXPORT Navigator {
       blink::mojom::TriggeringEventInfo triggering_event_info,
       const std::string& href_translate,
       scoped_refptr<network::SharedURLLoaderFactory> blob_url_loader_factory,
-      const std::optional<blink::Impression>& impression);
+      const std::optional<blink::Impression>& impression,
+      bool has_rel_opener);
 
   // Called when a document requests a navigation in another document through a
   // `blink::RemoteFrame`. If `method` is "POST", then `post_body` needs to
@@ -163,21 +165,29 @@ class CONTENT_EXPORT Navigator {
       const std::optional<blink::Impression>& impression,
       blink::mojom::NavigationInitiatorActivationAndAdStatus
           initiator_activation_and_ad_status,
+      base::TimeTicks actual_navigation_start_time,
       base::TimeTicks navigation_start_time,
       bool is_embedder_initiated_fenced_frame_navigation = false,
       bool is_unfenced_top_navigation = false,
       bool force_new_browsing_instance = false,
       bool is_container_initiated = false,
+      bool has_rel_opener = false,
+      net::StorageAccessApiStatus storage_access_api_status =
+          net::StorageAccessApiStatus::kNone,
       std::optional<std::u16string> embedder_shared_storage_context =
           std::nullopt);
 
   // Called after BeforeUnloadCompleted callback is invoked from the renderer.
-  // If |frame_tree_node| has a NavigationRequest waiting for the renderer
+  // If `frame_tree_node` has a NavigationRequest waiting for the renderer
   // response, then the request is either started or canceled, depending on the
-  // value of |proceed|.
+  // value of `proceed`. If `for_legacy` is true, then this beforeunload flow
+  // was only used to post a task and no beforeunload handlers were run. If
+  // `showed_dialog` is true, then a beforeunload dialog was displayed.
   void BeforeUnloadCompleted(FrameTreeNode* frame_tree_node,
                              bool proceed,
-                             const base::TimeTicks& proceed_time);
+                             const base::TimeTicks& proceed_time,
+                             bool for_legacy,
+                             bool showed_dialog);
 
   // Used to start a new renderer-initiated navigation, following a
   // BeginNavigation IPC from the renderer.
@@ -219,6 +229,10 @@ class CONTENT_EXPORT Navigator {
 
   // Returns the NavigationController associated with this Navigator.
   NavigationControllerImpl& controller() { return controller_; }
+  const NavigationControllerImpl& controller() const { return controller_; }
+
+  void SetWillNavigateFromFrameProxyCallbackForTesting(
+      const base::RepeatingClosure& callback);
 
  private:
   friend class NavigatorTestWithBrowserSideNavigation;
@@ -258,6 +272,9 @@ class CONTENT_EXPORT Navigator {
 
   // Tracks metrics for each navigation.
   std::unique_ptr<Navigator::NavigationMetricsData> metrics_data_;
+
+  // Called every time NavigateFromFrameProxy() is called.
+  base::RepeatingClosure will_navigate_from_frame_proxy_callback_for_testing_;
 };
 
 }  // namespace content

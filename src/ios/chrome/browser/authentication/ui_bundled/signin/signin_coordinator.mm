@@ -1,0 +1,356 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
+
+#import "base/apple/foundation_util.h"
+#import "base/notreached.h"
+#import "base/strings/sys_string_conversions.h"
+#import "components/pref_registry/pref_registry_syncable.h"
+#import "components/prefs/pref_service.h"
+#import "components/signin/public/base/signin_metrics.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/account_menu/account_menu_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/add_account_signin/add_account_signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/consistency_promo_signin/consistency_promo_signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/fullscreen_signin/coordinator/fullscreen_signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/history_sync/history_sync_signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/instant_signin/instant_signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/logging/first_run_signin_logger.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_history_sync/signin_and_history_sync_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_screen_provider.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/stop_animated_chrome_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/trusted_vault_reauthentication/trusted_vault_reauthentication_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/two_screens_signin/two_screens_signin_coordinator.h"
+#import "ios/chrome/browser/shared/model/browser/browser.h"
+#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
+
+using signin_metrics::AccessPoint;
+using signin_metrics::PromoAction;
+
+@implementation SigninCoordinator
+
+- (instancetype)initWithBaseViewController:(UIViewController*)viewController
+                                   browser:(Browser*)browser
+                              contextStyle:(SigninContextStyle)contextStyle
+                               accessPoint:
+                                   (signin_metrics::AccessPoint)accessPoint {
+  self = [super initWithBaseViewController:viewController browser:browser];
+  if (self) {
+    _contextStyle = contextStyle;
+    _accessPoint = accessPoint;
+    _creationTimeTicks = base::TimeTicks::Now();
+  }
+  return self;
+}
+
++ (void)registerProfilePrefs:(user_prefs::PrefRegistrySyncable*)registry {
+  // ConsistencyPromoSigninCoordinator.
+  registry->RegisterIntegerPref(prefs::kSigninWebSignDismissalCount, 0);
+  registry->RegisterDictionaryPref(prefs::kSigninHasAcceptedManagementDialog);
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    instantSigninCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                           browser:(Browser*)browser
+                                          identity:(id<SystemIdentity>)identity
+                                      contextStyle:
+                                          (SigninContextStyle)contextStyle
+                                       accessPoint:(signin_metrics::AccessPoint)
+                                                       accessPoint
+                                       promoAction:(signin_metrics::PromoAction)
+                                                       promoAction
+                              continuationProvider:
+                                  (const ChangeProfileContinuationProvider&)
+                                      continuationProvider {
+  CHECK(continuationProvider);
+  return [[InstantSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                        identity:identity
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:promoAction
+            continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    fullscreenSigninCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                              browser:(Browser*)browser
+                                         contextStyle:
+                                             (SigninContextStyle)contextStyle
+                                          accessPoint:
+                                              (signin_metrics::AccessPoint)
+                                                  accessPoint
+                    changeProfileContinuationProvider:
+                        (const ChangeProfileContinuationProvider&)
+                            changeProfileContinuationProvider {
+  CHECK(changeProfileContinuationProvider);
+  return [[FullscreenSigninCoordinator alloc]
+             initWithBaseViewController:viewController
+                                browser:browser
+                         screenProvider:[[SigninScreenProvider alloc] init]
+                           contextStyle:contextStyle
+                            accessPoint:accessPoint
+      changeProfileContinuationProvider:changeProfileContinuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    upgradeSigninPromoCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                browser:(Browser*)browser
+                                           contextStyle:
+                                               (SigninContextStyle)contextStyle
+                      changeProfileContinuationProvider:
+                          (const ChangeProfileContinuationProvider&)
+                              changeProfileContinuationProvider {
+  CHECK(changeProfileContinuationProvider);
+  AccessPoint accessPoint = AccessPoint::kSigninPromo;
+  PromoAction promoAction = PromoAction::PROMO_ACTION_NO_SIGNIN_PROMO;
+  return [[TwoScreensSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:promoAction
+            continuationProvider:changeProfileContinuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    addAccountCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                        browser:(Browser*)browser
+                                   contextStyle:(SigninContextStyle)contextStyle
+                                    accessPoint:(AccessPoint)accessPoint
+                           continuationProvider:
+                               (const ChangeProfileContinuationProvider&)
+                                   continuationProvider {
+  CHECK(continuationProvider);
+  return [[AddAccountSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:PromoAction::PROMO_ACTION_NO_SIGNIN_PROMO
+                    signinIntent:AddAccountSigninIntent::kAddAccount
+            continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    primaryAccountReauthCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                  browser:(Browser*)browser
+                                             contextStyle:(SigninContextStyle)
+                                                              contextStyle
+                                              accessPoint:
+                                                  (AccessPoint)accessPoint
+                                              promoAction:
+                                                  (PromoAction)promoAction
+                                     continuationProvider:
+                                         (const ChangeProfileContinuationProvider&)
+                                             continuationProvider {
+  CHECK(continuationProvider);
+  return [[AddAccountSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:promoAction
+                    signinIntent:AddAccountSigninIntent::kPrimaryAccountReauth
+            continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    signinAndSyncReauthCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                 browser:(Browser*)browser
+                                            contextStyle:
+                                                (SigninContextStyle)contextStyle
+                                             accessPoint:
+                                                 (AccessPoint)accessPoint
+                                             promoAction:
+                                                 (PromoAction)promoAction
+                                    continuationProvider:
+                                        (const ChangeProfileContinuationProvider&)
+                                            continuationProvider {
+  CHECK(continuationProvider);
+  return [[AddAccountSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:promoAction
+                    signinIntent:AddAccountSigninIntent::kResignin
+            continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    trustedVaultReAuthenticationCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                          browser:
+                                                              (Browser*)browser
+                                                           intent:
+                                                               (SigninTrustedVaultDialogIntent)
+                                                                   intent
+                                                 securityDomainID:
+                                                     (trusted_vault::
+                                                          SecurityDomainId)
+                                                         securityDomainID
+                                                          trigger:
+                                                              (syncer::
+                                                                   TrustedVaultUserActionTriggerForUMA)
+                                                                  trigger
+                                                      accessPoint:
+                                                          (signin_metrics::
+                                                               AccessPoint)
+                                                              accessPoint {
+  DCHECK(!browser->GetProfile()->IsOffTheRecord());
+  return [[TrustedVaultReauthenticationCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                          intent:intent
+                securityDomainID:securityDomainID
+                         trigger:trigger
+                     accessPoint:accessPoint];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    consistencyPromoSigninCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                    browser:(Browser*)browser
+                                               contextStyle:(SigninContextStyle)
+                                                                contextStyle
+                                                accessPoint:
+                                                    (signin_metrics::
+                                                         AccessPoint)accessPoint
+                                       prepareChangeProfile:
+                                           (ProceduralBlock)prepareChangeProfile
+                                       continuationProvider:
+                                           (const ChangeProfileContinuationProvider&)
+                                               continuationProvider {
+  return [ConsistencyPromoSigninCoordinator
+      coordinatorWithBaseViewController:viewController
+                                browser:browser
+                           contextStyle:contextStyle
+                            accessPoint:accessPoint
+                   prepareChangeProfile:prepareChangeProfile
+                   continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    signinAndHistorySyncCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                                  browser:(Browser*)browser
+                                             contextStyle:(SigninContextStyle)
+                                                              contextStyle
+                                              accessPoint:
+                                                  (signin_metrics::AccessPoint)
+                                                      accessPoint
+                                              promoAction:
+                                                  (PromoAction)promoAction
+                                      optionalHistorySync:
+                                          (BOOL)optionalHistorySync
+                                          fullscreenPromo:(BOOL)fullscreenPromo
+                                     continuationProvider:
+                                         (const ChangeProfileContinuationProvider&)
+                                             continuationProvider {
+  CHECK(continuationProvider);
+  return [[SignInAndHistorySyncCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint
+                     promoAction:promoAction
+             optionalHistorySync:optionalHistorySync
+                 fullscreenPromo:fullscreenPromo
+            continuationProvider:continuationProvider];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    accountMenuCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                         browser:(Browser*)browser
+                                    contextStyle:
+                                        (SigninContextStyle)contextStyle
+                                      anchorView:(UIView*)anchorView
+                                     accessPoint:
+                                         (AccountMenuAccessPoint)accessPoint {
+  return
+      [[AccountMenuCoordinator alloc] initWithBaseViewController:viewController
+                                                         browser:browser
+                                                    contextStyle:contextStyle
+                                                      anchorView:anchorView
+                                                     accessPoint:accessPoint];
+}
+
++ (SigninCoordinator<StopAnimatedChromeCoordinator>*)
+    historySyncCoordinatorWithBaseViewController:
+        (UIViewController*)viewController
+                                         browser:(Browser*)browser
+                                    contextStyle:
+                                        (SigninContextStyle)contextStyle
+                                     accessPoint:(signin_metrics::AccessPoint)
+                                                     accessPoint
+                                     promoAction:(signin_metrics::PromoAction)
+                                                     promoAction {
+  return [[HistorySyncSigninCoordinator alloc]
+      initWithBaseViewController:viewController
+                         browser:browser
+                    contextStyle:contextStyle
+                     accessPoint:accessPoint];
+}
+
+#pragma mark - SigninCoordinator
+
+- (void)start {
+  // `signinCompletion` needs to be set by the owner to know when the sign-in
+  // is finished.
+  DCHECK(self.signinCompletion);
+}
+
+- (void)stop {
+  // If you are an user of a SigninCoordinator<StopAnimatedChromeCoordinator>
+  // subclass, you can stop it by calling -stop or -stopAnimated.
+  CHECK([self conformsToProtocol:@protocol(StopAnimatedChromeCoordinator)],
+        base::NotFatalUntil::M145);
+  SigninCoordinator<StopAnimatedChromeCoordinator>* stopAnimatedSelf =
+      base::apple::ObjCCast<SigninCoordinator<StopAnimatedChromeCoordinator>>(
+          self);
+  [stopAnimatedSelf stopAnimated:NO];
+}
+
+#pragma mark - Protected
+
+// TODO(crbug.com/381444097): implements this protocol in the header file once
+// each class inheriting SigninCoordinator implements this protocol.
+- (void)stopAnimated:(BOOL)animated {
+  [super stop];
+}
+
+- (void)runCompletionWithSigninResult:(SigninCoordinatorResult)signinResult
+                   completionIdentity:(id<SystemIdentity>)completionIdentity {
+  // `identity` is set, if and only if the sign-in is successful.
+  DCHECK(
+      ((signinResult == SigninCoordinatorResultSuccess ||
+        signinResult == SigninCoordinatorProfileSwitch) &&
+       completionIdentity) ||
+      ((signinResult != SigninCoordinatorResultSuccess) && !completionIdentity))
+      << "signinResult: " << signinResult
+      << ", identity: " << (completionIdentity ? "YES" : "NO");
+  // If `self.signinCompletion` is nil, this method has been probably called
+  // twice.
+  DCHECK(self.signinCompletion);
+  SigninCoordinatorCompletionCallback signinCompletion = self.signinCompletion;
+  // The owner should call the stop method, during the callback.
+  // `self.signinCompletion` needs to be set to nil before calling it.
+  self.signinCompletion = nil;
+  signinCompletion(signinResult, completionIdentity);
+}
+
+@end

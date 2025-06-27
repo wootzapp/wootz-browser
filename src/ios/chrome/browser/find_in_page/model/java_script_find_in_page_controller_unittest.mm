@@ -10,8 +10,9 @@
 #import "components/ukm/test_ukm_recorder.h"
 #import "ios/chrome/browser/find_in_page/model/find_in_page_model.h"
 #import "ios/chrome/browser/find_in_page/model/find_in_page_response_delegate.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/web/model/chrome_web_client.h"
+#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/web/public/test/scoped_testing_web_client.h"
 #import "ios/web/public/test/web_state_test_util.h"
 #import "ios/web/public/test/web_task_environment.h"
@@ -43,9 +44,9 @@ class JavaScriptFindInPageControllerTest : public PlatformTest {
  protected:
   JavaScriptFindInPageControllerTest()
       : web_client_(std::make_unique<ChromeWebClient>()) {
-    browser_state_ = TestChromeBrowserState::Builder().Build();
+    profile_ = TestProfileIOS::Builder().Build();
 
-    web::WebState::CreateParams params(browser_state_.get());
+    web::WebState::CreateParams params(profile_.get());
     web_state_ = web::WebState::Create(params);
     web_state_->GetView();
     web_state_->SetKeepRenderProcessAlive(true);
@@ -69,9 +70,10 @@ class JavaScriptFindInPageControllerTest : public PlatformTest {
 
   web::WebState* web_state() { return web_state_.get(); }
 
+  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   web::ScopedTestingWebClient web_client_;
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<web::WebState> web_state_;
   JavaScriptFindInPageController* find_in_page_controller_ = nil;
   TestFindInPageResponseDelegate* delegate_;

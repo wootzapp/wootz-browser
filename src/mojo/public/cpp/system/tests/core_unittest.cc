@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This file tests the C++ Mojo system core wrappers.
 // TODO(vtl): Maybe rename "CoreCppTest" -> "CoreTest" if/when this gets
 // compiled into a different binary from the C API tests.
@@ -140,7 +145,7 @@ TEST(CoreCppTest, Basic) {
     EXPECT_EQ(MOJO_RESULT_INVALID_ARGUMENT,
               WriteMessageRaw(h_invalid, nullptr, 0, nullptr, 0,
                               MOJO_WRITE_MESSAGE_FLAG_NONE));
-    char buffer[10] = {0};
+    char buffer[10] = {};
     EXPECT_EQ(MOJO_RESULT_INVALID_ARGUMENT,
               WriteMessageRaw(h_invalid, buffer, sizeof(buffer), nullptr, 0,
                               MOJO_WRITE_MESSAGE_FLAG_NONE));

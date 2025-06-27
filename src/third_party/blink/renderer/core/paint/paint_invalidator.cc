@@ -36,6 +36,10 @@ void PaintInvalidator::UpdatePaintingLayer(const LayoutObject& object,
   if (object.HasLayer() &&
       To<LayoutBoxModelObject>(object).HasSelfPaintingLayer()) {
     context.painting_layer = To<LayoutBoxModelObject>(object).Layer();
+  } else if (object.IsInlineRubyText()) {
+    // Physical fragments and fragment items for ruby-text boxes are not
+    // managed by inline parents.
+    context.painting_layer = object.PaintingLayer();
   }
 
   if (object.IsFloating()) {
@@ -272,8 +276,7 @@ bool PaintInvalidator::InvalidatePaint(
        reason == PaintInvalidationReason::kJustCreated))
     pending_delayed_paint_invalidations_.push_back(&object);
 
-  if (RuntimeEnabledFeatures::IntersectionOptimizationEnabled() &&
-      object.ShouldCheckLayoutForPaintInvalidation() &&
+  if (object.ShouldCheckLayoutForPaintInvalidation() &&
       (IsLayoutPaintInvalidationReason(reason) ||
        reason == PaintInvalidationReason::kJustCreated ||
        // We don't invalidate paint of visibility:hidden objects, but observe

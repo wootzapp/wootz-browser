@@ -4,6 +4,8 @@
 
 #include "chrome/browser/supervised_user/child_accounts/list_family_members_service_factory.h"
 
+#include <memory>
+
 #include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -12,11 +14,10 @@
 #include "components/supervised_user/core/browser/list_family_members_service.h"
 #include "content/public/browser/browser_context.h"
 
-namespace supervised_user {
 // static
-ListFamilyMembersService* ListFamilyMembersServiceFactory::GetForProfile(
-    Profile* profile) {
-  return static_cast<ListFamilyMembersService*>(
+supervised_user::ListFamilyMembersService*
+ListFamilyMembersServiceFactory::GetForProfile(Profile* profile) {
+  return static_cast<supervised_user::ListFamilyMembersService*>(
       GetInstance()->GetServiceForBrowserContext(profile, true));
 }
 
@@ -36,12 +37,11 @@ ListFamilyMembersServiceFactory::ListFamilyMembersServiceFactory()
 
 ListFamilyMembersServiceFactory::~ListFamilyMembersServiceFactory() = default;
 
-KeyedService* ListFamilyMembersServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+ListFamilyMembersServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = static_cast<Profile*>(context);
-  return new ListFamilyMembersService(
+  return std::make_unique<supervised_user::ListFamilyMembersService>(
       IdentityManagerFactory::GetForProfile(profile),
-      profile->GetURLLoaderFactory());
+      profile->GetURLLoaderFactory(), *profile->GetPrefs());
 }
-
-}  // namespace supervised_user

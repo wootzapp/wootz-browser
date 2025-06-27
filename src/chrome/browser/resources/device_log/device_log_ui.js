@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './strings.m.js';
+import '/strings.m.js';
 
 import {sendWithPromise} from 'chrome://resources/js/cr.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -127,11 +127,33 @@ const clearLog = function() {
   requestLog();
 };
 
-const clearLogTypes = function() {
-  const checkboxes = document.querySelectorAll(
+const getCheckboxes = function() {
+  return document.querySelectorAll(
       '#log-checkbox-container input[type="checkbox"]');
+};
+
+const clearLogTypes = function() {
+  const checkboxes = getCheckboxes();
   for (let i = 0; i < checkboxes.length; ++i) {
     checkboxes[i].checked = false;
+  }
+};
+
+/**
+ * Sets the checked logging types from the URL parameters.
+ */
+const setCheckedTypes = function() {
+  const checkedTypesInput = new URL(window.location).searchParams.get('types');
+  if (!checkedTypesInput) {
+    return;
+  }
+  clearLogTypes();
+  const checkedTypes = checkedTypesInput.toLowerCase().split(',');
+  for (let i = 0; i < checkedTypes.length; ++i) {
+    const checkbox = document.getElementById('log-type-' + checkedTypes[i]);
+    if (checkbox) {
+      checkbox.checked = true;
+    }
   }
 };
 
@@ -144,23 +166,6 @@ const setRefresh = function() {
     setInterval(requestLog, parseInt(interval, 10) * 1000);
   }
 };
-
-// <if expr="chromeos_ash">
-const updateOsLink = function() {
-  sendWithPromise('isLacrosEnabled').then(function(isLacrosEnabled) {
-    $('os-link-container').hidden = !isLacrosEnabled;
-
-    // we hide the header text if Lacros is enabled because the Ash window doesn't
-    // have the navigation bar and the hint saying "Add a query param in URL to
-    // auto-refresh the page" is no longer helpful for users.
-    $('header').hidden = isLacrosEnabled;
-  });
-
-  $('os-link-href').onclick = function() {
-    chrome.send('openBrowserDeviceLog');
-  };
-};
-// </if>
 
 /**
  * Gets log information from WebUI.
@@ -193,8 +198,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   setRefresh();
+  setCheckedTypes();
   requestLog();
-  // <if expr="chromeos_ash">
-  updateOsLink();
-  // </if>
 });

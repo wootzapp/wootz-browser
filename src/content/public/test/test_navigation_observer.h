@@ -15,6 +15,7 @@
 #include "content/public/browser/child_process_host.h"
 #include "content/public/test/test_utils.h"
 #include "net/base/net_errors.h"
+#include "net/http/http_status_code.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "third_party/blink/public/mojom/navigation/navigation_initiator_activation_and_ad_status.mojom.h"
 #include "url/gurl.h"
@@ -92,6 +93,9 @@ class TestNavigationObserver {
   // WebContents.
   void WatchExistingWebContents();
 
+  // Start watching the provided |web_contents|.
+  void WatchWebContents(content::WebContents* web_contents);
+
   // The URL of the last finished navigation (that matched URL / net error
   // filters, if set).
   const GURL& last_navigation_url() const { return last_navigation_url_; }
@@ -129,6 +133,11 @@ class TestNavigationObserver {
   // Returns the net::Error origin of the last finished navigation (that matched
   // URL / net error filters, if set).
   net::Error last_net_error_code() const { return last_net_error_code_; }
+
+  // Returns the HTTP response code of the last navigation, if applicable
+  std::optional<net::HttpStatusCode> last_http_response_code() const {
+    return last_http_response_code_;
+  }
 
   // Returns the navigation entry ID of the last finished navigation (that
   // matched URL if set).
@@ -280,6 +289,9 @@ class TestNavigationObserver {
 
   // The net error code of the last navigation.
   net::Error last_net_error_code_;
+
+  // HTTP status code of the last navigation.
+  std::optional<net::HttpStatusCode> last_http_response_code_ = std::nullopt;
 
   // The navigation entry ID of the last navigation.
   int last_nav_entry_id_ = 0;

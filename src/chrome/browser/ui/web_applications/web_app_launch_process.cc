@@ -10,7 +10,6 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/values_equivalent.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/profiles/profile.h"
@@ -24,18 +23,18 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/web_app.h"
-#include "chrome/browser/web_applications/web_app_launch_queue.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/services/app_service/public/cpp/intent.h"
 #include "components/services/app_service/public/cpp/intent_util.h"
+#include "components/webapps/browser/launch_queue/launch_queue.h"
 #include "extensions/common/constants.h"
-#include "third_party/blink/public/common/features.h"
+#include "ui/base/window_open_disposition.h"
 #include "ui/display/scoped_display_for_new_windows.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #endif
@@ -47,12 +46,14 @@ namespace {
 std::optional<GURL> GetProtocolHandlingTranslatedUrl(
     OsIntegrationManager& os_integration_manager,
     const apps::AppLaunchParams& params) {
-  if (!params.protocol_handler_launch_url.has_value())
+  if (!params.protocol_handler_launch_url.has_value()) {
     return std::nullopt;
+  }
 
   GURL protocol_url(params.protocol_handler_launch_url.value());
-  if (!protocol_url.is_valid())
+  if (!protocol_url.is_valid()) {
     return std::nullopt;
+  }
 
   std::optional<GURL> translated_url =
       os_integration_manager.TranslateProtocolUrl(params.app_id, protocol_url);
@@ -100,7 +101,7 @@ WebAppLaunchProcess::WebAppLaunchProcess(
 content::WebContents* WebAppLaunchProcess::Run() {
   if (Browser::GetCreationStatusForProfile(&profile_.get()) !=
           Browser::CreationStatus::kOk ||
-      !registrar_->IsInstalled(params_->app_id)) {
+      !registrar_->IsInRegistrar(params_->app_id)) {
     return nullptr;
   }
 
@@ -113,7 +114,7 @@ content::WebContents* WebAppLaunchProcess::Run() {
   const apps::ShareTarget* share_target = MaybeGetShareTarget();
   auto [launch_url, is_file_handling] = GetLaunchUrl(share_target);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   bool is_url_in_system_web_app_scope =
       ash::GetSystemWebAppTypeForAppId(&*profile_, params_->app_id) &&
       ash::SystemWebAppManager::Get(&*profile_)
@@ -148,7 +149,7 @@ content::WebContents* WebAppLaunchProcess::Run() {
   }
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // System Web Apps have their own launch code path.
   std::optional<ash::SystemWebAppType> system_app_type =
       ash::GetSystemWebAppTypeForAppId(&profile_.get(), params_->app_id);
@@ -159,7 +160,7 @@ content::WebContents* WebAppLaunchProcess::Run() {
     return browser ? browser->tab_strip_model()->GetActiveWebContents()
                    : nullptr;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   auto [browser, is_new_browser] = EnsureBrowser();
 
@@ -204,10 +205,6 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
   } else if (!params_->override_url.is_empty()) {
     launch_url = params_->override_url;
     is_file_handling = !params_->launch_files.empty();
-  } else if (params_->url_handler_launch_url.has_value() &&
-             params_->url_handler_launch_url->is_valid()) {
-    // Handle url_handlers launch.
-    launch_url = params_->url_handler_launch_url.value();
   } else if (std::optional<GURL> protocol_handler_translated_url =
                  GetProtocolHandlingTranslatedUrl(*os_integration_manager_,
                                                   *params_)) {
@@ -270,9 +267,10 @@ LaunchHandler WebAppLaunchProcess::GetLaunchHandler() const {
 
 LaunchHandler::ClientMode WebAppLaunchProcess::GetLaunchClientMode() const {
   LaunchHandler launch_handler = GetLaunchHandler();
-  if (launch_handler.client_mode == LaunchHandler::ClientMode::kAuto)
+  if (launch_handler.parsed_client_mode() == LaunchHandler::ClientMode::kAuto) {
     return LaunchHandler::ClientMode::kNavigateNew;
-  return launch_handler.client_mode;
+  }
+  return launch_handler.parsed_client_mode();
 }
 
 std::tuple<Browser*, bool /*is_new_browser*/>
@@ -331,8 +329,16 @@ Browser* WebAppLaunchProcess::CreateBrowserForLaunch() {
                                                  /*user_gesture=*/true));
   }
 
-  return CreateWebApplicationWindow(&*profile_, params_->app_id,
-                                    params_->disposition, params_->restore_id);
+  Browser::CreateParams browser_params = web_app::CreateParamsForApp(
+      params_->app_id,
+      /*is_popup=*/params_->disposition == WindowOpenDisposition::NEW_POPUP,
+      /*trusted_source=*/true, /*window_bounds=*/gfx::Rect(),
+      /*profile=*/&profile_.get(),
+      /*user_gesture*/ true);
+#if BUILDFLAG(IS_CHROMEOS)
+  browser_params.restore_id = params_->restore_id;
+#endif
+  return CreateWebAppWindowMaybeWithHomeTab(params_->app_id, browser_params);
 }
 
 WebAppLaunchProcess::NavigateResult WebAppLaunchProcess::MaybeNavigateBrowser(
@@ -357,9 +363,12 @@ WebAppLaunchProcess::NavigateResult WebAppLaunchProcess::MaybeNavigateBrowser(
   TabStripModel* const tab_strip = browser->tab_strip_model();
   if (tab_strip->empty() ||
       navigation_disposition != WindowOpenDisposition::CURRENT_TAB) {
-    return {.web_contents = NavigateWebApplicationWindow(
-                browser, params_->app_id, launch_url, navigation_disposition),
-            .did_navigate = true};
+    NavigateParams nav_params(browser, launch_url,
+                              ui::PAGE_TRANSITION_AUTO_BOOKMARK);
+    nav_params.disposition = navigation_disposition;
+    return {
+        .web_contents = NavigateWebAppUsingParams(params_->app_id, nav_params),
+        .did_navigate = true};
   }
 
   content::WebContents* existing_tab = tab_strip->GetActiveWebContents();
@@ -405,7 +414,6 @@ WebAppLaunchProcess::NavigateResult WebAppLaunchProcess::MaybeNavigateBrowser(
   tab_strip->ActivateTabAt(
       tab_index, TabStripUserGestureDetails(
                      TabStripUserGestureDetails::GestureType::kOther));
-  SetWebContentsActingAsApp(web_contents, params_->app_id);
   return {.web_contents = web_contents, .did_navigate = true};
 }
 
@@ -414,19 +422,15 @@ void WebAppLaunchProcess::MaybeEnqueueWebLaunchParams(
     bool is_file_handling,
     content::WebContents* web_contents,
     bool started_new_navigation) {
-  if (is_file_handling || web_app_->launch_handler().has_value() ||
-      base::FeatureList::IsEnabled(
-          blink::features::kWebAppEnableLaunchHandler)) {
-    WebAppLaunchParams launch_params;
-    launch_params.started_new_navigation = started_new_navigation;
-    launch_params.app_id = web_app_->app_id();
-    launch_params.target_url = launch_url;
-    launch_params.paths = is_file_handling ? params_->launch_files
-                                           : std::vector<base::FilePath>();
-    WebAppTabHelper::FromWebContents(web_contents)
-        ->EnsureLaunchQueue()
-        .Enqueue(std::move(launch_params));
-  }
+  webapps::LaunchParams launch_params;
+  launch_params.started_new_navigation = started_new_navigation;
+  launch_params.app_id = web_app_->app_id();
+  launch_params.target_url = launch_url;
+  launch_params.paths =
+      is_file_handling ? params_->launch_files : std::vector<base::FilePath>();
+  WebAppTabHelper::FromWebContents(web_contents)
+      ->EnsureLaunchQueue()
+      .Enqueue(std::move(launch_params));
 }
 
 }  // namespace web_app

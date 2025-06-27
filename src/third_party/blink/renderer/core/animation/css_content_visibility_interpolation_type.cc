@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "third_party/blink/renderer/core/css/css_primitive_value_mappings.h"
+#include "third_party/blink/renderer/core/css/css_identifier_value_mappings.h"
 #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_state.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
@@ -17,14 +17,10 @@ namespace blink {
 class CSSContentVisibilityNonInterpolableValue final
     : public NonInterpolableValue {
  public:
+  CSSContentVisibilityNonInterpolableValue(EContentVisibility start,
+                                           EContentVisibility end)
+      : start_(start), end_(end) {}
   ~CSSContentVisibilityNonInterpolableValue() final = default;
-
-  static scoped_refptr<CSSContentVisibilityNonInterpolableValue> Create(
-      EContentVisibility start,
-      EContentVisibility end) {
-    return base::AdoptRef(
-        new CSSContentVisibilityNonInterpolableValue(start, end));
-  }
 
   EContentVisibility ContentVisibility() const {
     DCHECK_EQ(start_, end_);
@@ -49,10 +45,6 @@ class CSSContentVisibilityNonInterpolableValue final
   DECLARE_NON_INTERPOLABLE_VALUE_TYPE();
 
  private:
-  CSSContentVisibilityNonInterpolableValue(EContentVisibility start,
-                                           EContentVisibility end)
-      : start_(start), end_(end) {}
-
   const EContentVisibility start_;
   const EContentVisibility end_;
 };
@@ -113,9 +105,10 @@ class InheritedContentVisibilityChecker
 InterpolationValue
 CSSContentVisibilityInterpolationType::CreateContentVisibilityValue(
     EContentVisibility content_visibility) const {
-  return InterpolationValue(MakeGarbageCollected<InterpolableNumber>(0),
-                            CSSContentVisibilityNonInterpolableValue::Create(
-                                content_visibility, content_visibility));
+  return InterpolationValue(
+      MakeGarbageCollected<InterpolableNumber>(0),
+      MakeGarbageCollected<CSSContentVisibilityNonInterpolableValue>(
+          content_visibility, content_visibility));
 }
 
 InterpolationValue CSSContentVisibilityInterpolationType::MaybeConvertNeutral(
@@ -126,7 +119,7 @@ InterpolationValue CSSContentVisibilityInterpolationType::MaybeConvertNeutral(
   // TODO(crbug.com/325821290): Avoid InterpolableNumber here.
   double underlying_fraction =
       To<InterpolableNumber>(*underlying.interpolable_value)
-          .Value(CSSToLengthConversionData());
+          .Value(CSSToLengthConversionData(/*element=*/nullptr));
   EContentVisibility underlying_content_visibility =
       To<CSSContentVisibilityNonInterpolableValue>(
           *underlying.non_interpolable_value)
@@ -159,7 +152,7 @@ InterpolationValue CSSContentVisibilityInterpolationType::MaybeConvertInherit(
 
 InterpolationValue CSSContentVisibilityInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState*,
+    const StyleResolverState&,
     ConversionCheckers& conversion_checkers) const {
   const auto* identifier_value = DynamicTo<CSSIdentifierValue>(value);
   if (!identifier_value) {
@@ -199,8 +192,8 @@ CSSContentVisibilityInterpolationType::MaybeMergeSingles(
   return PairwiseInterpolationValue(
       MakeGarbageCollected<InterpolableNumber>(0),
       MakeGarbageCollected<InterpolableNumber>(1),
-      CSSContentVisibilityNonInterpolableValue::Create(start_content_visibility,
-                                                       end_content_visibility));
+      MakeGarbageCollected<CSSContentVisibilityNonInterpolableValue>(
+          start_content_visibility, end_content_visibility));
 }
 
 void CSSContentVisibilityInterpolationType::Composite(

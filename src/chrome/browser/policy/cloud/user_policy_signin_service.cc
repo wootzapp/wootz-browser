@@ -87,8 +87,7 @@ UserPolicySigninService::UserPolicySigninService(
   }
 }
 
-UserPolicySigninService::~UserPolicySigninService() {
-}
+UserPolicySigninService::~UserPolicySigninService() = default;
 
 void UserPolicySigninService::OnPrimaryAccountChanged(
     const signin::PrimaryAccountChangeEvent& event) {
@@ -196,10 +195,10 @@ void UserPolicySigninService::ProhibitSignoutIfNeeded() {
   bool has_sync_account =
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync);
 
-  if (!chrome::enterprise_util::UserAcceptedAccountManagement(profile_) &&
+  if (!enterprise_util::UserAcceptedAccountManagement(profile_) &&
       has_sync_account) {
     // Ensure user accepted management bit is set.
-    chrome::enterprise_util::SetUserAcceptedAccountManagement(profile_, true);
+    enterprise_util::SetUserAcceptedAccountManagement(profile_, true);
   }
 
 #if DCHECK_IS_ON()
@@ -207,17 +206,7 @@ void UserPolicySigninService::ProhibitSignoutIfNeeded() {
   // signout.
   // The user accepted management bit is set in the profile storage. If there
   // is no profile storage, the bit will not be set.
-  if (!base::FeatureList::IsEnabled(kDisallowManagedProfileSignout) &&
-      has_sync_account &&
-      chrome::enterprise_util::UserAcceptedAccountManagement(profile_)) {
-    auto* signin_client = ChromeSigninClientFactory::GetForProfile(profile_);
-    DCHECK(!signin_client->IsRevokeSyncConsentAllowed());
-    DCHECK(!signin_client->IsClearPrimaryAccountAllowed(
-        /*has_sync_account=*/true));
-  }
-
-  if (base::FeatureList::IsEnabled(kDisallowManagedProfileSignout) &&
-      chrome::enterprise_util::UserAcceptedAccountManagement(profile_)) {
+  if (enterprise_util::UserAcceptedAccountManagement(profile_)) {
     auto* sigin_client = ChromeSigninClientFactory::GetForProfile(profile_);
     DCHECK(sigin_client->IsRevokeSyncConsentAllowed());
     DCHECK(!sigin_client->IsClearPrimaryAccountAllowed(has_sync_account));
@@ -268,7 +257,7 @@ bool UserPolicySigninService::CanApplyPolicies(bool check_for_refresh_token) {
   }
 
   return (profile_can_be_managed_for_testing_ ||
-          chrome::enterprise_util::ProfileCanBeManaged(profile_));
+          enterprise_util::ProfileCanBeManaged(profile_));
 }
 
 CloudPolicyClient::DeviceDMTokenCallback

@@ -13,11 +13,13 @@ import android.os.IBinder;
 
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
-import org.chromium.base.compat.ApiHelperForQ;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.concurrent.Executor;
 
 /** Implementation of ChildServiceConnection that does connect to a service. */
+@NullMarked
 /* package */ class ChildServiceConnectionImpl
         implements ChildServiceConnection, ServiceConnection {
     private static final String TAG = "ChildServiceConn";
@@ -27,8 +29,8 @@ import java.util.concurrent.Executor;
     private final int mBindFlags;
     private final Handler mHandler;
     private final Executor mExecutor;
-    private ChildServiceConnectionDelegate mDelegate;
-    private final String mInstanceName;
+    private @Nullable ChildServiceConnectionDelegate mDelegate;
+    private final @Nullable String mInstanceName;
     private boolean mBound;
 
     /* package */ ChildServiceConnectionImpl(
@@ -38,7 +40,7 @@ import java.util.concurrent.Executor;
             Handler handler,
             Executor executor,
             ChildServiceConnectionDelegate delegate,
-            String instanceName) {
+            @Nullable String instanceName) {
         mContext = context;
         mBindIntent = bindIntent;
         mBindFlags = bindFlags;
@@ -93,7 +95,7 @@ import java.util.concurrent.Executor;
         }
         if (BindService.supportVariableConnections()) {
             try {
-                ApiHelperForQ.updateServiceGroup(mContext, this, group, importanceInGroup);
+                mContext.updateServiceGroup(this, group, importanceInGroup);
             } catch (IllegalArgumentException e) {
                 // There is an unavoidable race here binding might be removed for example due to a
                 // crash, which has not been processed on the launcher thread.

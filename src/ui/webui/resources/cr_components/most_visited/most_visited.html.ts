@@ -7,6 +7,7 @@ import {html} from '//resources/lit/v3_0/lit.rollup.js';
 import type {MostVisitedElement} from './most_visited.js';
 
 export function getHtml(this: MostVisitedElement) {
+  // clang-format off
   return html`<!--_html_template_start_-->
 <div id="container" ?hidden="${!this.visible_}"
     .style="--tile-background-color: ${this.getBackgroundColorStyle_()};
@@ -89,18 +90,17 @@ export function getHtml(this: MostVisitedElement) {
     </button>
   </cr-action-menu>
 </div>
-<cr-toast id="toast" duration="10000">
-  <div>${this.toastContent_}</div>
-  ${this.showToastButtons_ ? html`
-    <cr-button id="undo" aria-label="${this.i18n('undoDescription')}"
-        @click="${this.onUndoClick_}">
-      ${this.i18n('undo')}
-    </cr-button>
-    <cr-button id="restore"
-        aria-label="${this.getRestoreButtonText_()}"
-        @click="${this.onRestoreDefaultsClick_}">
-      ${this.getRestoreButtonText_()}
-    </cr-button>` : ''}
-</cr-toast>
+<cr-toast-manager id="toastManager" duration="10000">
+  <cr-button id="undo" aria-label="${this.i18n('undoDescription')}"
+      @click="${this.onUndoClick_}">
+    ${this.i18n('undo')}
+  </cr-button>
+  <cr-button id="restore"
+      aria-label="${this.getRestoreButtonText_()}"
+      @click="${this.onRestoreDefaultsClick_}">
+    ${this.getRestoreButtonText_()}
+  </cr-button>
+</cr-toast-manager>
 <!--_html_template_end_-->`;
+  // clang-format on
 }

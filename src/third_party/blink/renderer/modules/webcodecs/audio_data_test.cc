@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/modules/webcodecs/audio_data.h"
 
 #include <optional>
 
+#include "base/containers/span.h"
 #include "media/base/audio_sample_types.h"
 #include "media/base/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -285,7 +291,7 @@ TEST_F(AudioDataTest, CopyTo_PlaneIndex) {
 TEST_F(AudioDataTest, TransferBuffer) {
   V8TestingScope scope;
   std::string data = "audio data";
-  auto* buffer = DOMArrayBuffer::Create(data.data(), data.size());
+  auto* buffer = DOMArrayBuffer::Create(base::as_byte_span(data));
   auto* buffer_source = MakeGarbageCollected<AllowSharedBufferSource>(buffer);
   const void* buffer_data_ptr = buffer->Data();
 
@@ -320,14 +326,11 @@ TEST_F(AudioDataTest, TransferBuffer) {
 TEST_F(AudioDataTest, FailToTransferUnAlignedBuffer) {
   V8TestingScope scope;
   const uint32_t frames = 3;
-  std::vector<float> data{0.0, 1.0, 2.0, 3.0, 4.0};
-  auto* buffer =
-      DOMArrayBuffer::Create(data.data(), data.size() * sizeof(float));
+  std::vector<int32_t> data{0, 1, 2, 3, 4};
+  auto* buffer = DOMArrayBuffer::Create(base::as_byte_span(data));
   auto* view = DOMDataView::Create(
-      buffer, 1 /* offset one byte from the float ptr, that how we are sure that
-                   the view is not aligned to sizeof(float) */
-      ,
-      frames * sizeof(float));
+      buffer, 1 /* offset one byte to ensure misalignment */,
+      frames * sizeof(int32_t));
   auto* buffer_source = MakeGarbageCollected<AllowSharedBufferSource>(
       MaybeShared<DOMArrayBufferView>(view));
 
@@ -340,7 +343,7 @@ TEST_F(AudioDataTest, FailToTransferUnAlignedBuffer) {
   audio_data_init->setNumberOfChannels(1);
   audio_data_init->setNumberOfFrames(frames);
   audio_data_init->setSampleRate(kSampleRate);
-  audio_data_init->setFormat("f32");
+  audio_data_init->setFormat("s32");
   HeapVector<Member<DOMArrayBuffer>> transfer;
   transfer.push_back(Member<DOMArrayBuffer>(buffer));
   audio_data_init->setTransfer(std::move(transfer));
@@ -357,7 +360,7 @@ TEST_F(AudioDataTest, FailToTransferUnAlignedBuffer) {
 
   // Even though we copied the data, the buffer still needs to be aligned.
   EXPECT_TRUE(buffer->IsDetached());
-  EXPECT_EQ(allocations_size, frames * sizeof(float));
+  EXPECT_EQ(allocations_size, frames * sizeof(int32_t));
 }
 
 TEST_F(AudioDataTest, CopyTo_Offset) {
@@ -452,18 +455,20 @@ TEST_F(AudioDataTest, Interleaved) {
 
   EXPECT_EQ("s16", frame->format());
 
-  // Verify that plane indexes > 1 throw, for interleaved formats.
   auto* options = CreateCopyToOptions(/*index=*/1, kOffset, kPartialFrameCount);
-  int allocations_size =
-      frame->allocationSize(options, scope.GetExceptionState());
 
-  EXPECT_TRUE(scope.GetExceptionState().HadException());
-  scope.GetExceptionState().ClearException();
+  // Verify that plane indexes > 1 throw, for interleaved formats.
+  {
+    DummyExceptionStateForTesting exception_state;
+    frame->allocationSize(options, exception_state);
+    EXPECT_TRUE(exception_state.HadException());
+  }
 
   // Verify that copy conversion to a planar format supports indexes > 1,
   // even if the source is interleaved.
   options->setFormat(V8AudioSampleFormat::Enum::kF32Planar);
-  allocations_size = frame->allocationSize(options, scope.GetExceptionState());
+  int allocations_size =
+      frame->allocationSize(options, scope.GetExceptionState());
   EXPECT_FALSE(scope.GetExceptionState().HadException());
 
   // Verify we get the expected allocation size, for valid formats.

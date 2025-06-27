@@ -15,7 +15,6 @@
 #include "base/task/cancelable_task_tracker.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/buildflags.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -100,9 +99,7 @@ class ChromeBrowsingDataRemoverDelegate
 
   // For debugging purposes. Please add new deletion tasks at the end.
   // This enum is recorded in a histogram, so don't change or reuse ids.
-  // Entries must also be added to ChromeBrowsingDataRemoverTasks in
-  // enums.xml and History.ClearBrowsingData.Duration.ChromeTask.{Task} in
-  // histograms/metadata/history/histograms.xml.
+  // LINT.IfChange(TracingDataType)
   enum class TracingDataType {
     kSynchronous = 1,
     kHistory = 2,
@@ -153,11 +150,9 @@ class ChromeBrowsingDataRemoverDelegate
     // See also kDisableAutoSigninForProfilePasswords.
     kDisableAutoSigninForAccountPasswords = 46,
 
-    // Please update ChromeBrowsingDataRemoverTasks in enums.xml and
-    // History.ClearBrowsingData.Duration.ChromeTask.{Task}
-    // in histograms/metadata/history/histograms.xml when adding entries!
     kMaxValue = kDisableAutoSigninForAccountPasswords,
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/history/enums.xml:ChromeBrowsingDataRemoverTasks)
 
   // Returns the suffix for the
   // History.ClearBrowsingData.Duration.ChromeTask.{Task} histogram
@@ -196,7 +191,7 @@ class ChromeBrowsingDataRemoverDelegate
   // A helper method that checks if time period is for "all time".
   bool IsForAllTime() const;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   void OnClearPlatformKeys(base::OnceClosure done, bool);
 #endif
 

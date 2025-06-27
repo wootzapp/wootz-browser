@@ -180,6 +180,16 @@ class MessageService : public BrowserContextKeyedAPI,
       mojo::PendingAssociatedRemote<extensions::mojom::MessagePort> port,
       mojo::PendingAssociatedReceiver<extensions::mojom::MessagePortHost>
           port_host);
+
+  // Creates a MessagePort for the tab with the given `web_contents`.
+  // Returns nullptr if the tab is not available.
+  std::unique_ptr<MessagePort> CreateReceiverForTab(
+      const ExtensionId& extension_id,
+      const PortId& receiver_port_id,
+      content::WebContents* receiver_contents,
+      int receiver_frame_id,
+      const std::string& receiver_document_id);
+
   void OpenChannelToNativeAppImpl(
       const ChannelEndpoint& source,
       const PortId& source_port_id,
@@ -269,6 +279,7 @@ class MessageService : public BrowserContextKeyedAPI,
   // use that argument.
   void PendingLazyContextOpenChannel(
       std::unique_ptr<OpenChannelParams> params,
+      const base::UnguessableToken& open_channel_wakeup_context_tracking_id,
       std::unique_ptr<LazyContextTaskQueue::ContextInfo> context_info);
   void PendingLazyContextClosePort(
       const PortId& port_id,
@@ -287,8 +298,9 @@ class MessageService : public BrowserContextKeyedAPI,
       const PortId& port_id,
       const Message& message,
       std::unique_ptr<LazyContextTaskQueue::ContextInfo> context_info) {
-    if (context_info)
+    if (context_info) {
       PostMessage(port_id, message);
+    }
   }
 
   void DispatchPendingMessages(const PendingMessagesQueue& queue,

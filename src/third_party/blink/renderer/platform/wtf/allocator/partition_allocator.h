@@ -11,8 +11,10 @@
 
 #include <string.h>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h"
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
+#include "base/containers/span.h"
+#include "partition_alloc/partition_alloc_constants.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/type_traits.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_export.h"
@@ -61,7 +63,7 @@ class WTF_EXPORT PartitionAllocator {
   template <typename T, typename HashTable>
   static T* AllocateZeroedHashTableBacking(size_t size) {
     void* result = AllocateBacking(size, WTF_HEAP_PROFILER_TYPE_NAME(T));
-    memset(result, 0, size);
+    UNSAFE_TODO(memset(result, 0, size));
     return reinterpret_cast<T*>(result);
   }
 
@@ -109,7 +111,7 @@ class WTF_EXPORT PartitionAllocator {
   static void NotifyNewObject(T* object) {}
 
   template <typename T, typename Traits>
-  static void NotifyNewObjects(T* array, size_t len) {}
+  static void NotifyNewObjects(base::span<T>) {}
 
  private:
   static void* AllocateBacking(size_t, const char* type_name);

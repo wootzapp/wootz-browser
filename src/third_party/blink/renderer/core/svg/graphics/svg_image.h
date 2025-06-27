@@ -33,12 +33,12 @@
 #include "base/memory/weak_ptr.h"
 #include "third_party/blink/public/mojom/css/preferred_color_scheme.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/geometry/physical_size.h"
+#include "third_party/blink/renderer/platform/geometry/physical_size.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
+#include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/scheduler/public/agent_group_scheduler.h"
-#include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 #include "ui/gfx/geometry/size.h"
@@ -56,7 +56,24 @@ class Page;
 class SVGImageChromeClient;
 class SVGImageForContainer;
 class SVGSVGElement;
-struct IntrinsicSizingInfo;
+class SVGViewSpec;
+struct NaturalSizingInfo;
+
+// A collection of "viewport defining" parameters for an SVGImage.
+class SVGImageViewInfo final : public GarbageCollected<SVGImageViewInfo> {
+ public:
+  SVGImageViewInfo(const SVGViewSpec* view_spec, Element* target)
+      : view_spec_(view_spec), target_(target) {}
+
+  const SVGViewSpec* ViewSpec() const { return view_spec_; }
+  Element* Target() const { return target_; }
+
+  void Trace(Visitor*) const;
+
+ private:
+  Member<const SVGViewSpec> view_spec_;
+  Member<Element> target_;
+};
 
 // SVGImage does not use Skia to draw images (as BitmapImage does) but instead
 // handles drawing itself. Internally, SVGImage creates a
@@ -102,20 +119,11 @@ class CORE_EXPORT SVGImage final : public Image {
   // Service CSS and SMIL animations.
   void ServiceAnimations(base::TimeTicks monotonic_animation_start_time);
 
-  void UpdateUseCounters(const Document&) const;
+  // Update use counters for the given document after an image finishes loading
+  // in that document.
+  void UpdateUseCountersAfterLoad(const Document&) const;
 
-  // The defaultObjectSize is assumed to be unzoomed, i.e. it should
-  // not have the effective zoom level applied. The returned size is
-  // thus also independent of current zoom level.
-  gfx::SizeF ConcreteObjectSize(const gfx::SizeF& default_object_size) const;
-
-  // Get the intrinsic dimensions (width, height and aspect ratio) from this
-  // SVGImage. Returns true if successful.
-  bool GetIntrinsicSizingInfo(IntrinsicSizingInfo&) const;
-
-  // Returns true if intrinsic dimensions can be extracted. (Essentially
-  // returns true if GetIntrinsicSizingInfo would.)
-  bool HasIntrinsicSizingInfo() const;
+  void MaybeRecordSvgImageProcessingTime(const Document&);
 
   PaintImage PaintImageForCurrentFrame() override;
 
@@ -135,9 +143,23 @@ class CORE_EXPORT SVGImage final : public Image {
   // Forwards calls to the various *ForContainer methods and other parts of
   // the the Image interface.
   friend class SVGImageForContainer;
+  // Forwards calls to the sizing methods.
+  friend class SVGImageView;
 
   SVGImage(ImageObserver*, bool is_multipart);
   ~SVGImage() override;
+
+  // Parse and create an SVGImageViewInfo from the provided fragment string.
+  // Returns nullptr if no valid view specifier is found.
+  const SVGImageViewInfo* CreateViewInfo(const String& fragment) const;
+
+  // Apply a view specifier.
+  void ApplyViewInfo(const SVGImageViewInfo*);
+
+  // Get the intrinsic dimensions (width, height and aspect ratio) from this
+  // SVGImage. Returns true if successful.
+  std::optional<NaturalSizingInfo> GetNaturalDimensions(
+      const SVGViewSpec*) const;
 
   String FilenameExtension() const override;
 
@@ -158,7 +180,7 @@ class CORE_EXPORT SVGImage final : public Image {
    public:
     DrawInfo(const gfx::SizeF& container_size,
              float zoom,
-             const KURL& url,
+             const SVGImageViewInfo* viewinfo,
              bool is_dark_mode_enabled);
 
     gfx::SizeF CalculateResidualScale() const;
@@ -167,14 +189,14 @@ class CORE_EXPORT SVGImage final : public Image {
     const gfx::Size& RoundedContainerSize() const {
       return rounded_container_size_;
     }
-    const KURL& Url() const { return url_; }
+    const SVGImageViewInfo* View() const { return viewinfo_; }
     bool IsDarkModeEnabled() const { return is_dark_mode_enabled_; }
 
    private:
     const gfx::SizeF container_size_;
     const gfx::Size rounded_container_size_;
     const float zoom_;
-    const KURL& url_;
+    const SVGImageViewInfo* viewinfo_;
     const bool is_dark_mode_enabled_;
   };
 
@@ -234,14 +256,13 @@ class CORE_EXPORT SVGImage final : public Image {
 
   Persistent<SVGImageChromeClient> chrome_client_;
   Persistent<IsolatedSVGDocumentHost> document_host_;
+  Persistent<AgentGroupScheduler> agent_group_scheduler_;
 
-  // When an SVG image has no intrinsic size, the size depends on the default
-  // object size, which in turn depends on the container. One SVGImage may
-  // belong to multiple containers so the final image size can't be known in
-  // SVGImage. SVGImageForContainer carries the final image size, also called
-  // the "concrete object size". For more, see: SVGImageForContainer.h
   PhysicalSize intrinsic_size_;
   bool has_pending_timeline_rewind_;
+
+  int data_change_count_ = 0;
+  base::TimeDelta data_change_elapsed_time_;
 
   base::WeakPtrFactory<SVGImage> weak_ptr_factory_{this};
   FRIEND_TEST_ALL_PREFIXES(ElementFragmentAnchorTest,

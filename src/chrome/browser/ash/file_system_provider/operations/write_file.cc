@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/file_system_provider/operations/write_file.h"
 
 #include <utility>
@@ -50,7 +55,7 @@ bool WriteFile::Execute(int request_id) {
   base::Value::Dict options_as_value = options.ToValue();
   options_as_value.Set(
       "data",
-      base::Value(base::as_bytes(base::make_span(buffer_->data(), length_))));
+      base::Value(base::as_bytes(base::span(buffer_->data(), length_))));
 
   base::Value::List event_args;
   event_args.Append(std::move(options_as_value));

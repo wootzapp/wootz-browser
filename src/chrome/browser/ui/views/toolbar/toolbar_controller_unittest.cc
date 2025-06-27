@@ -6,15 +6,24 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+#include <variant>
+
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
+#include "chrome/browser/ui/views/toolbar/overflow_button.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_button_status_indicator.h"
+#include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/vector_icons/vector_icons.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/actions/actions.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/menus/simple_menu_model.h"
+#include "ui/views/controls/menu/menu_item_view.h"
+#include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/layout/flex_layout.h"
@@ -48,6 +57,9 @@ class TestDelegate : public ToolbarController::PinnedActionsDelegate {
               base::BindRepeating(&TestDelegate::DummyAction,
                                   base::Unretained(this)))
               .SetActionId(id)
+              .SetImage(
+                  ui::ImageModel::FromVectorIcon(vector_icons::kDogfoodIcon))
+              .SetProperty(kActionItemUnderlineIndicatorKey, true)
               .SetText(
                   base::StrCat({u"DummyAction", base::NumberToString16(id)}))
               .Build());
@@ -62,10 +74,10 @@ class TestDelegate : public ToolbarController::PinnedActionsDelegate {
   }
   ~TestDelegate() override = default;
 
-  actions::ActionItem* GetActionItemFor(const actions::ActionId& id) override {
+  actions::ActionItem* GetActionItemFor(actions::ActionId id) override {
     return kIdToItemMap_.at(id);
   }
-  bool IsOverflowed(const actions::ActionId& id) override {
+  bool IsOverflowed(actions::ActionId id) override {
     return kIdToOverflowedMap_.at(id);
   }
   views::View* GetContainerView() override { return container_view_; }
@@ -76,13 +88,62 @@ class TestDelegate : public ToolbarController::PinnedActionsDelegate {
   int get_overflowed_count() { return overflowed_count_; }
   std::vector<actions::ActionId> get_action_ids() { return action_ids_; }
 
+  const std::vector<actions::ActionId>& PinnedActionIds() const override {
+    return action_ids_;
+  }
+
  private:
   int overflowed_count_ = 0;
   std::vector<actions::ActionId> action_ids_ = {0, 1, 2};
   std::vector<std::unique_ptr<actions::ActionItem>> action_items_;
-  base::flat_map<actions::ActionId, actions::ActionItem*> kIdToItemMap_;
+  base::flat_map<actions::ActionId,
+                 raw_ptr<actions::ActionItem, CtnExperimental>>
+      kIdToItemMap_;
   base::flat_map<actions::ActionId, bool> kIdToOverflowedMap_;
   raw_ptr<views::View> container_view_;
+};
+
+class TestDelegateFromModel : public ToolbarController::PinnedActionsDelegate {
+ public:
+  MOCK_METHOD(void,
+              DummyAction,
+              (actions::ActionItem*, actions::ActionInvocationContext));
+  explicit TestDelegateFromModel(PinnedToolbarActionsModel* model) {
+    model_ = model;
+  }
+  ~TestDelegateFromModel() override = default;
+
+  actions::ActionItem* GetActionItemFor(actions::ActionId id) override {
+    for (const auto& action_item : action_items_) {
+      if (action_item->GetActionId() == id) {
+        return action_item.get();
+      }
+    }
+    action_items_.push_back(
+        actions::ActionItem::ActionItemBuilder(
+            base::BindRepeating(&TestDelegateFromModel::DummyAction,
+                                base::Unretained(this)))
+            .SetActionId(id)
+            .SetImage(
+                ui::ImageModel::FromVectorIcon(vector_icons::kDogfoodIcon))
+            .SetProperty(kActionItemUnderlineIndicatorKey, true)
+            .SetText(base::StrCat({u"DummyAction", base::NumberToString16(id)}))
+            .Build());
+    return action_items_.back().get();
+  }
+  bool IsOverflowed(actions::ActionId id) override { return false; }
+  views::View* GetContainerView() override { return &container_view_; }
+  bool ShouldAnyButtonsOverflow(gfx::Size available_size) const override {
+    return false;
+  }
+  const std::vector<actions::ActionId>& PinnedActionIds() const override {
+    return model_->PinnedActionIds();
+  }
+
+ private:
+  raw_ptr<PinnedToolbarActionsModel> model_;
+  views::View container_view_;
+  std::vector<std::unique_ptr<actions::ActionItem>> action_items_;
 };
 
 class MockToolbarController : public ToolbarController {
@@ -93,19 +154,21 @@ class MockToolbarController : public ToolbarController {
       const std::vector<ui::ElementIdentifier>& elements_in_overflow_order,
       int element_flex_order_start,
       views::View* toolbar_container_view,
-      views::View* overflow_button,
-      TestDelegate* delegate)
+      OverflowButton* overflow_button,
+      TestDelegate* delegate,
+      TestingProfile* profile)
       : ToolbarController(responsive_elements,
                           elements_in_overflow_order,
                           element_flex_order_start,
                           toolbar_container_view,
                           overflow_button,
-                          delegate) {}
+                          delegate,
+                          PinnedToolbarActionsModel::Get(profile)) {}
   MOCK_METHOD(bool, PopOut, (ui::ElementIdentifier identifier), (override));
   MOCK_METHOD(bool, EndPopOut, (ui::ElementIdentifier identifier), (override));
 };
 
-class PopOutHandlerTest : public views::ViewsTestBase {
+class PopOutHandlerTest : public ChromeViewsTestBase {
  public:
   PopOutHandlerTest() = default;
 
@@ -117,47 +180,65 @@ class PopOutHandlerTest : public views::ViewsTestBase {
  protected:
   views::Widget* widget() { return widget_.get(); }
   views::View* container_view() { return container_view_; }
-  views::View* overflow_button() { return overflow_button_; }
+  OverflowButton* overflow_button() { return overflow_button_; }
 
  private:
   std::unique_ptr<views::Widget> widget_;
   raw_ptr<views::View, DanglingUntriaged> container_view_;
-  raw_ptr<views::View, DanglingUntriaged> overflow_button_;
+  raw_ptr<OverflowButton, DanglingUntriaged> overflow_button_;
 
   void SetUp() override {
-    ViewsTestBase::SetUp();
+    ChromeViewsTestBase::SetUp();
 
     widget_ = std::make_unique<views::Widget>();
     views::Widget::InitParams params =
-        CreateParams(views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
-    params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+        CreateParams(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                     views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
     params.bounds = gfx::Rect(0, 0, 650, 650);
     widget_->Init(std::move(params));
     widget_->Show();
 
+    std::unique_ptr<views::View> toolbar_container_view =
+        std::make_unique<views::View>();
+    toolbar_container_view
+        ->SetLayoutManager(std::make_unique<views::FlexLayout>())
+        ->SetOrientation(views::LayoutOrientation::kHorizontal)
+        .SetCrossAxisAlignment(views::LayoutAlignment::kCenter)
+        .SetDefault(views::kFlexBehaviorKey,
+                    views::FlexSpecification(
+                        views::LayoutOrientation::kHorizontal,
+                        views::MinimumFlexSizeRule::kPreferredSnapToZero,
+                        views::MaximumFlexSizeRule::kPreferred));
     container_view_ =
-        widget()->SetContentsView(std::make_unique<views::View>());
+        widget_->SetContentsView(std::move(toolbar_container_view));
+
+    auto overflow_button = std::make_unique<OverflowButton>();
     overflow_button_ =
-        container_view_->AddChildView(std::make_unique<views::View>());
+        container_view_->AddChildView(std::move(overflow_button));
   }
 
   void TearDown() override {
     widget_.reset();
-    ViewsTestBase::TearDown();
+    ChromeViewsTestBase::TearDown();
   }
 };
 
 TEST_F(PopOutHandlerTest, PopOutAndEndPopOut) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kDummyButton);
   auto test_delegate = std::make_unique<TestDelegate>();
+  auto test_profile = std::make_unique<TestingProfile>();
 
   MockToolbarController toolbar_controller(
-      std::vector<ToolbarController::ResponsiveElementInfo>(
-          {{ToolbarController::ElementIdInfo{
-                kDummyButton, 0, &vector_icons::kErrorIcon, kDummyActivateView},
-            false, kDummyObservedView}}),
+      std::vector<ToolbarController::ResponsiveElementInfo>{
+          ToolbarController::ResponsiveElementInfo(
+              ToolbarController::ElementIdInfo(
+                  kDummyButton, 0, &vector_icons::kErrorIcon,
+                  kDummyActivateView, kDummyObservedView),
+              false)},
       std::vector<ui::ElementIdentifier>({kDummyButton}), 1, container_view(),
-      overflow_button(), test_delegate.get());
+      overflow_button(), test_delegate.get(), test_profile.get());
+
+  overflow_button()->set_toolbar_controller(&toolbar_controller);
 
   ui::ElementContext context =
       views::ElementTrackerViews::GetContextForWidget(widget());
@@ -185,14 +266,16 @@ class TestToolbarController : public ToolbarController {
       const std::vector<ui::ElementIdentifier>& elements_in_overflow_order,
       int element_flex_order_start,
       views::View* toolbar_container_view,
-      views::View* overflow_button,
-      TestDelegate* delegate)
+      OverflowButton* overflow_button,
+      TestDelegate* delegate,
+      PinnedToolbarActionsModel* model)
       : ToolbarController(responsive_elements,
                           elements_in_overflow_order,
                           element_flex_order_start,
                           toolbar_container_view,
                           overflow_button,
-                          delegate) {}
+                          delegate,
+                          model) {}
 
   std::u16string GetMenuText(const ToolbarController::ResponsiveElementInfo&
                                  element_info) const override {
@@ -203,7 +286,7 @@ class TestToolbarController : public ToolbarController {
                                  {kDummyButton4, u"DummyButton4"}};
 
     return kToolbarToMenuTextMap.at(
-        absl::get<ToolbarController::ElementIdInfo>(element_info.overflow_id)
+        std::get<ToolbarController::ElementIdInfo>(element_info.overflow_id)
             .overflow_identifier);
   }
 };
@@ -218,7 +301,8 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
 
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
-    widget_ = CreateTestWidget();
+    widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     widget_->Show();
 
     std::unique_ptr<views::View> toolbar_container_view =
@@ -244,28 +328,30 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
         toolbar_container_view_->AddChildView(std::move(overflow_button));
     overflow_button_->SetVisible(false);
     test_delegate_ = std::make_unique<TestDelegate>();
+    testing_profile_ = std::make_unique<TestingProfile>();
     toolbar_controller_ = std::make_unique<TestToolbarController>(
-        std::vector<ToolbarController::ResponsiveElementInfo>(
-            {{ToolbarController::ElementIdInfo{kDummyButton1, 0,
-                                               &vector_icons::kErrorIcon,
-                                               kDummyActivateView},
-              false, kDummyObservedView},
-             {ToolbarController::ElementIdInfo{kDummyButton2, 0,
-                                               &vector_icons::kErrorIcon,
-                                               kDummyActivateView},
-              true, kDummyObservedView},
-             {ToolbarController::ElementIdInfo{kDummyButton3, 0,
-                                               &vector_icons::kErrorIcon,
-                                               kDummyActivateView},
-              true, kDummyObservedView}}),
+        std::vector<ToolbarController::ResponsiveElementInfo>{
+            {ToolbarController::ResponsiveElementInfo(
+                 ToolbarController::ElementIdInfo(
+                     kDummyButton1, 0, &vector_icons::kErrorIcon,
+                     kDummyActivateView, kDummyObservedView),
+                 false),
+             ToolbarController::ResponsiveElementInfo(
+                 ToolbarController::ElementIdInfo(
+                     kDummyButton2, 0, &vector_icons::kErrorIcon,
+                     kDummyActivateView, kDummyObservedView),
+                 true),
+             ToolbarController::ResponsiveElementInfo(
+                 ToolbarController::ElementIdInfo(
+                     kDummyButton3, 0, &vector_icons::kErrorIcon,
+                     kDummyActivateView, kDummyObservedView),
+                 true)}},
         std::vector<ui::ElementIdentifier>(
             {kDummyButton3, kDummyButton2, kDummyButton1}),
         kElementFlexOrderStart, toolbar_container_view_, overflow_button_,
-        test_delegate_.get());
-    overflow_button_->set_create_menu_model_callback(
-        base::BindRepeating(&ToolbarController::CreateOverflowMenuModel,
-                            base::Unretained(toolbar_controller_.get())));
-
+        test_delegate_.get(),
+        PinnedToolbarActionsModel::Get(testing_profile_.get()));
+    overflow_button_->set_toolbar_controller(toolbar_controller_.get());
     event_generator_ = std::make_unique<ui::test::EventGenerator>(
         views::GetRootWindow(widget_.get()));
   }
@@ -277,8 +363,8 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
       auto button = std::make_unique<views::View>();
       button->SetProperty(views::kElementIdentifierKey, ids[i]);
       button->SetPreferredSize(kButtonSize);
-      button->SetAccessibleRole(ax::mojom::Role::kButton);
-      button->SetAccessibleName(
+      button->GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
+      button->GetViewAccessibility().SetName(
           base::StrCat({u"DummyButton", base::NumberToString16(i)}));
       button->SetVisible(true);
       test_buttons_.emplace_back(
@@ -287,12 +373,14 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
   }
 
   void TearDown() override {
+    overflow_button_->set_toolbar_controller(nullptr);
     overflow_button_ = nullptr;
     toolbar_container_view_ = nullptr;
     event_generator_.reset();
     toolbar_controller_.reset();
     widget_.reset();
     test_delegate_.reset();
+    testing_profile_.reset();
     ChromeViewsTestBase::TearDown();
   }
 
@@ -305,12 +393,12 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
   ToolbarController* toolbar_controller() { return toolbar_controller_.get(); }
   ui::test::EventGenerator* event_generator() { return event_generator_.get(); }
   views::View* toolbar_container_view() { return toolbar_container_view_; }
-  const views::View* overflow_button() { return overflow_button_; }
+  OverflowButton* overflow_button() { return overflow_button_; }
   const std::vector<raw_ptr<views::View, VectorExperimental>>& test_buttons() {
     return test_buttons_;
   }
   const ui::SimpleMenuModel* overflow_menu() {
-    return overflow_button_->menu_model_for_testing();
+    return toolbar_controller_->menu_model_for_testing();
   }
   std::vector<const ToolbarController::ResponsiveElementInfo*>
   GetOverflowedElements() {
@@ -324,6 +412,15 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
     return toolbar_controller_->IsOverflowed(element);
   }
 
+  std::vector<ToolbarController::ResponsiveElementInfo>
+  GetResponsiveElementsWithOrderedActions(
+      const ToolbarController* toolbar_controller) const {
+    return toolbar_controller->GetResponsiveElementsWithOrderedActions();
+  }
+  PinnedToolbarActionsModel* GetPinnedToolbarActionsModel() {
+    return PinnedToolbarActionsModel::Get(testing_profile_.get());
+  }
+
  private:
   std::unique_ptr<views::Widget> widget_;
   std::unique_ptr<ToolbarController> toolbar_controller_;
@@ -331,6 +428,7 @@ class ToolbarControllerUnitTest : public ChromeViewsTestBase {
   raw_ptr<views::View> toolbar_container_view_;
   raw_ptr<OverflowButton> overflow_button_;
   std::unique_ptr<TestDelegate> test_delegate_;
+  std::unique_ptr<TestingProfile> testing_profile_;
 
   // Buttons being tested.
   std::vector<raw_ptr<views::View, VectorExperimental>> test_buttons_;
@@ -378,6 +476,38 @@ TEST_F(ToolbarControllerUnitTest, OverflowedButtonsMatchMenu) {
   }
 }
 
+TEST_F(ToolbarControllerUnitTest, RunningMenuAddsStatusIndicator) {
+  widget()->SetSize(gfx::Size(kButtonSize.width() * (test_buttons().size() - 1),
+                              kButtonSize.height()));
+  UpdateOverflowButtonVisibility();
+  EXPECT_TRUE(overflow_button()->GetVisible());
+
+  widget()->LayoutRootViewIfNecessary();
+  event_generator()->MoveMouseTo(
+      overflow_button()->GetBoundsInScreen().CenterPoint());
+  event_generator()->PressLeftButton();
+
+  const ui::SimpleMenuModel* menu = overflow_menu();
+
+  // Overflowed buttons should match overflow menu.
+  EXPECT_TRUE(menu);
+  views::SubmenuView* sub_menu =
+      toolbar_controller()->root_menu_item()->GetSubmenu();
+
+  for (auto* menu_item : sub_menu->GetMenuItems()) {
+    PinnedToolbarButtonStatusIndicator* status_indicator = nullptr;
+
+    for (auto& child : menu_item->icon_view()->children()) {
+      if (views::AsViewClass<PinnedToolbarButtonStatusIndicator>(child)) {
+        status_indicator =
+            views::AsViewClass<PinnedToolbarButtonStatusIndicator>(child);
+      }
+
+      EXPECT_TRUE(status_indicator);
+    }
+  }
+}
+
 TEST_F(ToolbarControllerUnitTest, MenuSeparator) {
   // Set widget to be small enough to ensure all the buttons overflow.
   widget()->SetSize(gfx::Size(1, 1));
@@ -410,22 +540,26 @@ TEST_F(ToolbarControllerUnitTest, InValidFirstSectionAddsNoLeadingSeparator) {
   std::unique_ptr<ToolbarController> test_controller =
       std::make_unique<TestToolbarController>(
           std::vector<ToolbarController::ResponsiveElementInfo>(
-              {{ToolbarController::ElementIdInfo{kDummyButton1, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton2, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton3, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true}}),
+              {ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton1, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton2, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton3, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true)}),
           std::vector<ui::ElementIdentifier>(
               {kDummyButton3, kDummyButton2, kDummyButton1}),
           kElementFlexOrderStart, toolbar_container_view(),
-          const_cast<views::View*>(overflow_button()), test_delegate.get());
+          const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+          GetPinnedToolbarActionsModel());
 
   widget()->SetSize(kButtonSize);
   UpdateOverflowButtonVisibility();
@@ -458,22 +592,26 @@ TEST_F(ToolbarControllerUnitTest, InValidSectionInMiddleAddsNoExtraSeparator) {
   std::unique_ptr<ToolbarController> test_controller =
       std::make_unique<TestToolbarController>(
           std::vector<ToolbarController::ResponsiveElementInfo>(
-              {{ToolbarController::ElementIdInfo{kDummyButton1, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton2, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton3, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true}}),
+              {ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton1, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton2, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton3, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true)}),
           std::vector<ui::ElementIdentifier>(
               {kDummyButton1, kDummyButton3, kDummyButton2}),
           kElementFlexOrderStart, toolbar_container_view(),
-          const_cast<views::View*>(overflow_button()), test_delegate.get());
+          const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+          GetPinnedToolbarActionsModel());
 
   widget()->SetSize(kButtonSize);
   UpdateOverflowButtonVisibility();
@@ -506,22 +644,26 @@ TEST_F(ToolbarControllerUnitTest, InValidLastSectionAddsNoTrailingSeparator) {
   std::unique_ptr<ToolbarController> test_controller =
       std::make_unique<TestToolbarController>(
           std::vector<ToolbarController::ResponsiveElementInfo>(
-              {{ToolbarController::ElementIdInfo{kDummyButton1, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton2, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true},
-               {ToolbarController::ElementIdInfo{kDummyButton3, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                true}}),
+              {ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton1, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton2, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton3, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   true)}),
           std::vector<ui::ElementIdentifier>(
               {kDummyButton1, kDummyButton2, kDummyButton3}),
           kElementFlexOrderStart, toolbar_container_view(),
-          const_cast<views::View*>(overflow_button()), test_delegate.get());
+          const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+          GetPinnedToolbarActionsModel());
 
   widget()->SetSize(kButtonSize);
   UpdateOverflowButtonVisibility();
@@ -645,22 +787,26 @@ TEST_F(ToolbarControllerUnitTest, ButtonsOverflowLeftToRightInContainer) {
   std::unique_ptr<ToolbarController> dummy_controller =
       std::make_unique<TestToolbarController>(
           std::vector<ToolbarController::ResponsiveElementInfo>(
-              {{ToolbarController::ElementIdInfo{kDummyButton1, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                false},
-               {ToolbarController::ElementIdInfo{kDummyButton2, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                false},
-               {ToolbarController::ElementIdInfo{kDummyButton3, 0,
-                                                 &vector_icons::kErrorIcon,
-                                                 kDummyActivateView},
-                false}}),
+              {ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton1, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   false),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton2, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   false),
+               ToolbarController::ResponsiveElementInfo(
+                   ToolbarController::ElementIdInfo{kDummyButton3, 0,
+                                                    &vector_icons::kErrorIcon,
+                                                    kDummyActivateView},
+                   false)}),
           std::vector<ui::ElementIdentifier>(
               {kDummyButton1, kDummyButton2, kDummyButton3}),
           kElementFlexOrderStart, toolbar_container_view(),
-          const_cast<views::View*>(overflow_button()), test_delegate.get());
+          const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+          GetPinnedToolbarActionsModel());
 
   views::View* button1 = test_buttons()[0];
   views::View* button2 = test_buttons()[1];
@@ -719,7 +865,7 @@ TEST_F(ToolbarControllerUnitTest, MenuItemUsability) {
     if (IsOverflowed(responsive_elements[i])) {
       EXPECT_EQ(ToolbarController::FindToolbarElementWithId(
                     toolbar_container_view(),
-                    absl::get<ToolbarController::ElementIdInfo>(
+                    std::get<ToolbarController::ElementIdInfo>(
                         responsive_elements[i].overflow_id)
                         .overflow_identifier)
                     ->GetEnabled(),
@@ -728,16 +874,153 @@ TEST_F(ToolbarControllerUnitTest, MenuItemUsability) {
   }
 }
 
+TEST_F(ToolbarControllerUnitTest, ResponsiveActionsAreOrdered) {
+  auto test_delegate = std::make_unique<TestDelegate>();
+
+  using ElementIdInfo = ToolbarController::ElementIdInfo;
+  using ResponsiveElementInfo = ToolbarController::ResponsiveElementInfo;
+  using ActionId = actions::ActionId;
+
+  ResponsiveElementInfo element0(
+      ElementIdInfo{kDummyButton1, 0, &vector_icons::kErrorIcon,
+                    kDummyActivateView},
+      false);
+  ResponsiveElementInfo action0(test_delegate->get_action_ids()[0]);
+  ResponsiveElementInfo action1(test_delegate->get_action_ids()[1]);
+  ResponsiveElementInfo action2(test_delegate->get_action_ids()[2]);
+
+  auto test_controller = ToolbarController(
+      std::vector<ResponsiveElementInfo>(
+          {action2, action1, action0, element0, action2, action0}),
+      std::vector<ui::ElementIdentifier>({kDummyButton1}),
+      kElementFlexOrderStart, toolbar_container_view(),
+      const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+      GetPinnedToolbarActionsModel());
+
+  std::vector<ToolbarController::ResponsiveElementInfo> elements =
+      GetResponsiveElementsWithOrderedActions(&test_controller);
+  EXPECT_EQ(int(elements.size()), 6);
+
+  // Both sections of actions are reordered
+  EXPECT_EQ(std::get<ActionId>(elements[0].overflow_id),
+            std::get<ActionId>(action0.overflow_id));
+  EXPECT_EQ(std::get<ActionId>(elements[1].overflow_id),
+            std::get<ActionId>(action1.overflow_id));
+  EXPECT_EQ(std::get<ActionId>(elements[2].overflow_id),
+            std::get<ActionId>(action2.overflow_id));
+  EXPECT_EQ(
+      std::get<ElementIdInfo>(elements[3].overflow_id).overflow_identifier,
+      std::get<ElementIdInfo>(element0.overflow_id).overflow_identifier);
+  EXPECT_EQ(std::get<ActionId>(elements[4].overflow_id),
+            std::get<ActionId>(action0.overflow_id));
+  EXPECT_EQ(std::get<ActionId>(elements[5].overflow_id),
+            std::get<ActionId>(action2.overflow_id));
+}
+
+TEST_F(ToolbarControllerUnitTest, ResponsiveActionsRemainOrdered) {
+  using ResponsiveElementInfo = ToolbarController::ResponsiveElementInfo;
+  using ActionId = actions::ActionId;
+
+  ResponsiveElementInfo action0(0);
+  ResponsiveElementInfo action1(1);
+  PinnedToolbarActionsModel* model = GetPinnedToolbarActionsModel();
+  model->UpdatePinnedState(std::get<ActionId>(action0.overflow_id), true);
+  model->UpdatePinnedState(std::get<ActionId>(action1.overflow_id), true);
+  auto delegate = std::make_unique<TestDelegateFromModel>(model);
+
+  // Create the controller with the ActionIds in the reversed order
+  // (action1, action0) with respect to delegate.PinnedActionIds().
+  // They should be sorted in responsive_elements right after the controller
+  // is instantiated.
+  auto controller = ToolbarController(
+      std::vector<ResponsiveElementInfo>({action1, action0}),
+      std::vector<ui::ElementIdentifier>({kDummyButton1}),
+      kElementFlexOrderStart, toolbar_container_view(),
+      const_cast<OverflowButton*>(overflow_button()), delegate.get(), model);
+  std::vector<ResponsiveElementInfo> elements =
+      GetResponsiveElements(&controller);
+  EXPECT_EQ(int(elements.size()), 2);
+  EXPECT_EQ(std::get<ActionId>(elements[0].overflow_id),
+            std::get<ActionId>(action0.overflow_id));
+  EXPECT_EQ(std::get<ActionId>(elements[1].overflow_id),
+            std::get<ActionId>(action1.overflow_id));
+
+  // Move action1 to the first index. responsive_elements should be reordered.
+  model->MovePinnedAction(std::get<ActionId>(action1.overflow_id), 0);
+  elements = GetResponsiveElements(&controller);
+  EXPECT_EQ(int(elements.size()), 2);
+  EXPECT_EQ(std::get<ActionId>(elements[0].overflow_id),
+            std::get<ActionId>(action1.overflow_id));
+  EXPECT_EQ(std::get<ActionId>(elements[1].overflow_id),
+            std::get<ActionId>(action0.overflow_id));
+}
+
+TEST_F(ToolbarControllerUnitTest, ResponsiveActionsAreNotOrdered) {
+  auto test_delegate = std::make_unique<TestDelegate>();
+
+  using ElementIdInfo = ToolbarController::ElementIdInfo;
+  using ResponsiveElementInfo = ToolbarController::ResponsiveElementInfo;
+  using ActionId = actions::ActionId;
+
+  ResponsiveElementInfo element0(
+      ElementIdInfo{kDummyButton1, 0, &vector_icons::kErrorIcon,
+                    kDummyActivateView},
+      false);
+  ResponsiveElementInfo element1(
+      ElementIdInfo{kDummyButton2, 0, &vector_icons::kErrorIcon,
+                    kDummyActivateView},
+      false);
+  ResponsiveElementInfo action0(test_delegate->get_action_ids()[0]);
+  ResponsiveElementInfo action1(test_delegate->get_action_ids()[1]);
+  ResponsiveElementInfo action2(test_delegate->get_action_ids()[2]);
+
+  auto test_controller = ToolbarController(
+      std::vector<ResponsiveElementInfo>(
+          {element1, element0, action2, element0, action0, element0, action1}),
+      std::vector<ui::ElementIdentifier>({kDummyButton1, kDummyButton2}),
+      kElementFlexOrderStart, toolbar_container_view(),
+      const_cast<OverflowButton*>(overflow_button()), test_delegate.get(),
+      GetPinnedToolbarActionsModel());
+
+  std::vector<ToolbarController::ResponsiveElementInfo> elements =
+      GetResponsiveElementsWithOrderedActions(&test_controller);
+  EXPECT_EQ(int(elements.size()), 7);
+
+  // Only sections of actions are reordered, so we
+  // expect the order not to change
+  EXPECT_EQ(
+      std::get<ElementIdInfo>(elements[0].overflow_id).overflow_identifier,
+      std::get<ElementIdInfo>(element1.overflow_id).overflow_identifier);
+  EXPECT_EQ(
+      std::get<ElementIdInfo>(elements[1].overflow_id).overflow_identifier,
+      std::get<ElementIdInfo>(element0.overflow_id).overflow_identifier);
+  EXPECT_EQ(std::get<ActionId>(elements[2].overflow_id),
+            std::get<ActionId>(action2.overflow_id));
+  EXPECT_EQ(
+      std::get<ElementIdInfo>(elements[3].overflow_id).overflow_identifier,
+      std::get<ElementIdInfo>(element0.overflow_id).overflow_identifier);
+  EXPECT_EQ(std::get<ActionId>(elements[4].overflow_id),
+            std::get<ActionId>(action0.overflow_id));
+  EXPECT_EQ(
+      std::get<ElementIdInfo>(elements[5].overflow_id).overflow_identifier,
+      std::get<ElementIdInfo>(element0.overflow_id).overflow_identifier);
+  EXPECT_EQ(std::get<ActionId>(elements[6].overflow_id),
+            std::get<ActionId>(action1.overflow_id));
+}
+
 TEST_F(ToolbarControllerUnitTest, SupportActionIds) {
   auto test_delegate = std::make_unique<TestDelegate>();
   auto test_controller = std::make_unique<ToolbarController>(
       std::vector<ToolbarController::ResponsiveElementInfo>(
-          {{test_delegate->get_action_ids()[0]},
-           {test_delegate->get_action_ids()[1]},
-           {test_delegate->get_action_ids()[2]}}),
+          {ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[0]),
+           ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[1]),
+           ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[2])}),
       std::vector<ui::ElementIdentifier>(), kElementFlexOrderStart,
-      toolbar_container_view(), const_cast<views::View*>(overflow_button()),
-      test_delegate.get());
+      toolbar_container_view(), const_cast<OverflowButton*>(overflow_button()),
+      test_delegate.get(), GetPinnedToolbarActionsModel());
   test_delegate->SetContainerView(
       toolbar_container_view()->AddChildView(std::make_unique<views::View>()));
 
@@ -762,4 +1045,83 @@ TEST_F(ToolbarControllerUnitTest, SupportActionIds) {
       menu->ActivatedAt(index);
     }
   }
+}
+
+TEST_F(ToolbarControllerUnitTest, StatusIndicatorVisibilityUpdates) {
+  auto test_delegate = std::make_unique<TestDelegate>();
+  auto test_controller = std::make_unique<ToolbarController>(
+      std::vector<ToolbarController::ResponsiveElementInfo>(
+          {ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[0]),
+           ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[1]),
+           ToolbarController::ResponsiveElementInfo(
+               test_delegate->get_action_ids()[2])}),
+      std::vector<ui::ElementIdentifier>(), kElementFlexOrderStart,
+      toolbar_container_view(), const_cast<OverflowButton*>(overflow_button()),
+      test_delegate.get(), GetPinnedToolbarActionsModel());
+  test_delegate->SetContainerView(
+      toolbar_container_view()->AddChildView(std::make_unique<views::View>()));
+
+  toolbar_controller()->overflow_button()->SetVisible(
+      test_controller->ShouldShowOverflowButton(widget()->GetSize()));
+  EXPECT_TRUE(overflow_button()->GetVisible());
+
+  overflow_button()->set_toolbar_controller(test_controller.get());
+
+  widget()->LayoutRootViewIfNecessary();
+  overflow_button()->RunMenu();
+
+  const ui::SimpleMenuModel* menu = test_controller->menu_model_for_testing();
+
+  // Overflowed buttons should match overflow menu.
+  EXPECT_TRUE(menu);
+  views::SubmenuView* sub_menu =
+      test_controller->root_menu_item()->GetSubmenu();
+
+  for (auto* menu_item : sub_menu->GetMenuItems()) {
+    PinnedToolbarButtonStatusIndicator* status_indicator =
+        PinnedToolbarButtonStatusIndicator::GetStatusIndicator(
+            menu_item->icon_view());
+    EXPECT_TRUE(status_indicator);
+    EXPECT_EQ(status_indicator->GetVisible(), true);
+  }
+
+  const auto& responsive_elements =
+      GetResponsiveElements(test_controller.get());
+  for (size_t i = 0; i < responsive_elements.size(); ++i) {
+    if (IsOverflowed(responsive_elements[i])) {
+      actions::ActionId element_action_id =
+          std::get<actions::ActionId>(responsive_elements[i].overflow_id);
+      test_delegate->GetActionItemFor(element_action_id)
+          ->SetProperty(kActionItemUnderlineIndicatorKey, false);
+
+      size_t index = menu->GetIndexOfCommandId(i).value();
+
+      views::MenuItemView* menu_item = sub_menu->GetMenuItemAt(index);
+      PinnedToolbarButtonStatusIndicator* status_indicator =
+          PinnedToolbarButtonStatusIndicator::GetStatusIndicator(
+              menu_item->icon_view());
+      EXPECT_EQ(status_indicator->GetVisible(), false);
+    }
+  }
+
+  for (size_t i = 0; i < responsive_elements.size(); ++i) {
+    if (IsOverflowed(responsive_elements[i])) {
+      actions::ActionId element_action_id =
+          std::get<actions::ActionId>(responsive_elements[i].overflow_id);
+      test_delegate->GetActionItemFor(element_action_id)
+          ->SetProperty(kActionItemUnderlineIndicatorKey, true);
+
+      size_t index = menu->GetIndexOfCommandId(i).value();
+
+      views::MenuItemView* menu_item = sub_menu->GetMenuItemAt(index);
+      PinnedToolbarButtonStatusIndicator* status_indicator =
+          PinnedToolbarButtonStatusIndicator::GetStatusIndicator(
+              menu_item->icon_view());
+      EXPECT_EQ(status_indicator->GetVisible(), true);
+    }
+  }
+
+  overflow_button()->set_toolbar_controller(nullptr);
 }

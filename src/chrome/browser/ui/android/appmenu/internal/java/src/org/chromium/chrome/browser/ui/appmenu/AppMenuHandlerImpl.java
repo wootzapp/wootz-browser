@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -14,25 +16,31 @@ import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.View;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.FragmentManager;
 import android.util.Log;
+
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
-
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.ChromeActivity.ChromeActivityNotFoundException;
 import org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl;
 import org.chromium.chrome.browser.extensions.ExtensionInfo;
 import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.build.annotations.MonotonicNonNull;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.build.annotations.RequiresNonNull;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuExtensionOpener;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
 import org.chromium.chrome.browser.lifecycle.StartStopWithNativeObserver;
-import org.chromium.chrome.browser.ui.appmenu.AppMenuExtensionOpener;
 import org.chromium.chrome.browser.ui.appmenu.internal.R;
 import org.chromium.components.browser_ui.widget.textbubble.TextBubble;
+import org.chromium.ui.KeyboardVisibilityDelegate;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayAndroidManager;
 import org.chromium.ui.modelutil.LayoutViewBuilder;
 import org.chromium.ui.modelutil.ListObservable;
@@ -53,10 +61,12 @@ import java.util.logging.Handler;
  * Object responsible for handling the creation, showing, hiding of the AppMenu and notifying the
  * AppMenuObservers about these actions.
  */
+@NullMarked
 class AppMenuHandlerImpl
         implements AppMenuHandler, StartStopWithNativeObserver, ConfigurationChangedObserver {
     private static final String TAG = "AppMenuHandlerImpl";
-    private AppMenu mAppMenu;
+    private @Nullable AppMenu mAppMenu;
+    // private @Nullable AppMenuDragHelper mAppMenuDragHelper;
     private final List<AppMenuBlocker> mBlockers;
     private final List<AppMenuObserver> mObservers;
     private final View mHardwareButtonMenuAnchor;
@@ -67,35 +77,41 @@ class AppMenuHandlerImpl
     private final View mDecorView;
     private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
     private final Supplier<Rect> mAppRect;
-    private ModelList mModelList;
+    private WindowAndroid mWindowAndroid;
+    private final BrowserControlsStateProvider mBrowserControlsStateProvider;
+    private @Nullable ModelList mModelList;
     private ListObserver<Void> mListObserver;
-    private Callback<Integer> mTestOptionsItemSelectedListener;
+    private @Nullable Callback<Integer> mTestOptionsItemSelectedListener;
+    private @MonotonicNonNull KeyboardVisibilityDelegate.KeyboardVisibilityListener
+            mKeyboardVisibilityListener;
     private FragmentManager mFragmentManager;
     private final int mItemRowHeight;
-    private WindowAndroid mWindowAndroid;
+
     
     private AppMenuExtensionOpener mExtensionOpener;
-    
     /**
      * The resource id of the menu item to highlight when the menu next opens. A value of {@code
      * null} means no item will be highlighted. This value will be cleared after the menu is opened.
      */
-    private Integer mHighlightMenuId;
+    private @Nullable Integer mHighlightMenuId;
 
     /**
      * Constructs an AppMenuHandlerImpl object.
+     *
      * @param context The activity context.
      * @param delegate Delegate used to check the desired AppMenu properties on show.
      * @param appMenuDelegate The AppMenuDelegate to handle menu item selection.
-     * @param menuResourceId Resource Id that should be used as the source for the menu items.
-     *            It is assumed to have back_menu_id, forward_menu_id, bookmark_this_page_id.
+     * @param menuResourceId Resource Id that should be used as the source for the menu items. It is
+     *     assumed to have back_menu_id, forward_menu_id, bookmark_this_page_id.
      * @param decorView The decor {@link View}, e.g. from Window#getDecorView(), for the containing
-     *            activity.
+     *     activity.
      * @param activityLifecycleDispatcher The {@link ActivityLifecycleDispatcher} for the containing
-     *            activity.
+     *     activity.
      * @param hardwareButtonAnchorView The {@link View} used as an anchor for the menu when it is
-     *            displayed using a hardware button.
+     *     displayed using a hardware button.
      * @param appRect Supplier of the app area in Window that the menu should fit in.
+     * @param windowAndroid The window that will be used to fetch {@link KeyboardVisibilityDelegate}
+     * @param browserControlsStateProvider a provider that can provide the state of the toolbar
      * @param fragmentManager The {@link FragmentManager} for the containing activity.
      * @param itemRowHeight The height of each menu item row.
      */
@@ -107,10 +123,10 @@ class AppMenuHandlerImpl
             ActivityLifecycleDispatcher activityLifecycleDispatcher,
             View hardwareButtonAnchorView,
             Supplier<Rect> appRect,
+            WindowAndroid windowAndroid,
+            BrowserControlsStateProvider browserControlsStateProvider,
             FragmentManager fragmentManager,
-            int itemRowHeight,
-            WindowAndroid windowAndroid) {
-                Log.d(TAG, "Initializing AppMenuHandlerImpl");
+            int itemRowHeight) {
         mContext = context;
         mAppMenuDelegate = appMenuDelegate;
         mDelegate = delegate;
@@ -119,10 +135,10 @@ class AppMenuHandlerImpl
         mObservers = new ArrayList<>();
         mHardwareButtonMenuAnchor = hardwareButtonAnchorView;
         mAppRect = appRect;
+        mWindowAndroid = windowAndroid;
+        mBrowserControlsStateProvider = browserControlsStateProvider;
         mFragmentManager = fragmentManager;
         mItemRowHeight = itemRowHeight;
-        mWindowAndroid = windowAndroid;
-        Log.d("kritagya", "mWindowAndroid: " + mWindowAndroid);
         mExtensionOpener = new AppMenuExtensionOpener(context, windowAndroid);
 
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
@@ -145,7 +161,7 @@ class AppMenuHandlerImpl
 
                     @Override
                     public void onItemRangeRemoved(ListObservable source, int index, int count) {
-                        assert mModelList != null;
+                        assert mModelList != null && mAppMenu != null;
                         updateModelForHighlightAndClick(
                                 mModelList,
                                 mHighlightMenuId,
@@ -154,16 +170,18 @@ class AppMenuHandlerImpl
                                 /* withAssertions= */ false);
                     }
                 };
-                Log.d(TAG, "AppMenuHandlerImpl initialized with itemRowHeight: " + itemRowHeight);
     }
-
     WindowAndroid getWindowAndroid() {
         return mWindowAndroid;
     }
-
     /** Called when the containing activity is being destroyed. */
     void destroy() {
         // Prevent the menu window from leaking.
+        if (mKeyboardVisibilityListener != null) {
+            mWindowAndroid
+                    .getKeyboardDelegate()
+                    .removeKeyboardVisibilityListener(mKeyboardVisibilityListener);
+        }
         hideAppMenu();
 
         mActivityLifecycleDispatcher.unregister(this);
@@ -180,13 +198,14 @@ class AppMenuHandlerImpl
     }
 
     @Override
-    public void setMenuHighlight(Integer highlightItemId) {
+    public void setMenuHighlight(@Nullable Integer highlightItemId) {
         boolean highlighting = highlightItemId != null;
         setMenuHighlight(highlightItemId, highlighting);
     }
 
     @Override
-    public void setMenuHighlight(Integer highlightItemId, boolean shouldHighlightMenuButton) {
+    public void setMenuHighlight(
+            @Nullable Integer highlightItemId, boolean shouldHighlightMenuButton) {
         if (mHighlightMenuId == null && highlightItemId == null) return;
         if (mHighlightMenuId != null && mHighlightMenuId.equals(highlightItemId)) return;
         mHighlightMenuId = highlightItemId;
@@ -209,18 +228,22 @@ class AppMenuHandlerImpl
      */
     // TODO(crbug.com/40479664): Fix this properly.
     @SuppressLint("ResourceType")
-    boolean showAppMenu(View anchorView, boolean startDragging) {
+    boolean showAppMenu(@Nullable View anchorView, boolean startDragging) {
         if (!shouldShowAppMenu() || isAppMenuShowing()) return false;
 
         TextBubble.dismissBubbles();
+        
 
         List<CustomViewBinder> customViewBinders = mDelegate.getCustomViewBinders();
         Map<CustomViewBinder, Integer> customViewTypeOffsetMap =
                 populateCustomViewBinderOffsetMap(customViewBinders, AppMenuItemType.NUM_ENTRIES);
-        mModelList = mDelegate.getMenuItems(
-                ((id) -> getCustomItemViewType(id, customViewBinders, customViewTypeOffsetMap)),
-                this);
-        
+        mModelList =
+                mDelegate.getMenuItems(
+                        (id) -> {
+                            getCustomItemViewType(
+                                    id, customViewBinders, customViewTypeOffsetMap);
+                        },
+                        this);
         if (true) {
             // Reverse the order of items in the menu
             ModelList modelListReversed = new ModelList();
@@ -231,9 +254,6 @@ class AppMenuHandlerImpl
         }
         mModelList.addObserver(mListObserver);
 
-        // if (mAppMenu == null) {
-        //     mAppMenu = new AppMenu(mItemRowHeight, this, mContext.getResources());
-        // }
         if (mAppMenu == null) {
             Log.d(TAG, "Creating new AppMenu");
             try {
@@ -272,7 +292,6 @@ class AppMenuHandlerImpl
             Log.e(TAG, "Error showing AppMenu", e);
             return false;
         }
-
     }
     public void openExtensionById(String extensionId) {
         Log.d(TAG, "JANGID: AppMenuHandler openExtensionById " + extensionId);
@@ -312,8 +331,8 @@ class AppMenuHandlerImpl
         }
     }
 
-
     void appMenuDismissed() {
+        assumeNonNull(mAppMenuDragHelper);
         mDelegate.onMenuDismissed();
     }
 
@@ -325,9 +344,10 @@ class AppMenuHandlerImpl
     /**
      * @return The App Menu that the menu handler is interacting with.
      */
-    public AppMenu getAppMenu() {
+    public @Nullable AppMenu getAppMenu() {
         return mAppMenu;
     }
+
 
     @Override
     public void hideAppMenu() {
@@ -459,15 +479,7 @@ class AppMenuHandlerImpl
                 new LayoutViewBuilder(R.layout.title_button_menu_item),
                 AppMenuItemViewBinder::bindTitleButtonItem);
         adapter.registerType(
-                AppMenuItemType.THREE_BUTTON_ROW,
-                new LayoutViewBuilder(R.layout.icon_row_menu_item),
-                AppMenuItemViewBinder::bindIconRowItem);
-        adapter.registerType(
-                AppMenuItemType.FOUR_BUTTON_ROW,
-                new LayoutViewBuilder(R.layout.icon_row_menu_item),
-                AppMenuItemViewBinder::bindIconRowItem);
-        adapter.registerType(
-                AppMenuItemType.FIVE_BUTTON_ROW,
+                AppMenuItemType.BUTTON_ROW,
                 new LayoutViewBuilder(R.layout.icon_row_menu_item),
                 AppMenuItemViewBinder::bindIconRowItem);
 
@@ -488,7 +500,9 @@ class AppMenuHandlerImpl
     }
 
     void setupModelForHighlightAndClick(
-            ModelList modelList, Integer highlightedId, AppMenuClickHandler appMenuClickHandler) {
+            ModelList modelList,
+            @Nullable Integer highlightedId,
+            AppMenuClickHandler appMenuClickHandler) {
         updateModelForHighlightAndClick(
                 modelList,
                 highlightedId,
@@ -499,7 +513,7 @@ class AppMenuHandlerImpl
 
     private void updateModelForHighlightAndClick(
             ModelList modelList,
-            Integer highlightedId,
+            @Nullable Integer highlightedId,
             AppMenuClickHandler appMenuClickHandler,
             int startIndex,
             boolean withAssertions) {
@@ -552,7 +566,7 @@ class AppMenuHandlerImpl
 
     private int getCustomItemViewType(
             int id,
-            List<CustomViewBinder> customViewBinders,
+            @Nullable List<CustomViewBinder> customViewBinders,
             Map<CustomViewBinder, Integer> customViewTypeOffsetMap) {
         if (customViewBinders == null || customViewTypeOffsetMap == null) {
             return CustomViewBinder.NOT_HANDLED;
@@ -562,7 +576,7 @@ class AppMenuHandlerImpl
             CustomViewBinder binder = customViewBinders.get(i);
             int binderViewType = binder.getItemViewType(id);
             if (binderViewType != CustomViewBinder.NOT_HANDLED) {
-                return binderViewType + customViewTypeOffsetMap.get(binder);
+                return binderViewType + assumeNonNull(customViewTypeOffsetMap.get(binder));
             }
         }
         return CustomViewBinder.NOT_HANDLED;
@@ -573,16 +587,62 @@ class AppMenuHandlerImpl
         AppMenu.setExceptionReporter(reporter);
     }
 
-    @Nullable
-    ModelList getModelListForTesting() {
+    @Nullable ModelList getModelListForTesting() {
         return mModelList;
     }
-
     public Tab getActivityTab() {
-    if (mDelegate != null && mDelegate instanceof AppMenuPropertiesDelegateImpl) {
-        AppMenuPropertiesDelegateImpl delegateImpl = (AppMenuPropertiesDelegateImpl) mDelegate;
-        return delegateImpl.getActivityTab();
-    }
+        if (mDelegate != null && mDelegate instanceof AppMenuPropertiesDelegateImpl) {
+            AppMenuPropertiesDelegateImpl delegateImpl = (AppMenuPropertiesDelegateImpl) mDelegate;
+            return delegateImpl.getActivityTab();
+        }
         return null;
+    }
+    public View getKeyboardDelegate() {
+        return mDecorView;
+    }
+
+    @RequiresNonNull("mAppMenu")
+    private void setDisplayAndShowAppMenu(
+            ContextThemeWrapper wrapper,
+            View anchorView,
+            boolean isByPermanentButton,
+            Integer rotation,
+            Rect appRect,
+            @Nullable List<CustomViewBinder> customViewBinders,
+            boolean startDragging) {
+        // Use full size of window for abnormal appRect.
+        if (appRect.left < 0 && appRect.top < 0) {
+            appRect.left = 0;
+            appRect.top = 0;
+            appRect.right = mDecorView.getWidth();
+            appRect.bottom = mDecorView.getHeight();
+        }
+
+        int footerResourceId = 0;
+        if (mDelegate.shouldShowFooter(appRect.height())) {
+            footerResourceId = mDelegate.getFooterResourceId();
+        }
+        int headerResourceId = 0;
+        if (mDelegate.shouldShowHeader(appRect.height())) {
+            headerResourceId = mDelegate.getHeaderResourceId();
+        }
+        mAppMenu.show(
+                wrapper,
+                anchorView,
+                isByPermanentButton,
+                rotation,
+                appRect,
+                footerResourceId,
+                headerResourceId,
+                mDelegate.getGroupDividerId(),
+                mHighlightMenuId,
+                customViewBinders,
+                mDelegate.isMenuIconAtStart(),
+                mBrowserControlsStateProvider.getControlsPosition());
+        assumeNonNull(mAppMenuDragHelper);
+        mAppMenuDragHelper.onShow(startDragging);
+        clearMenuHighlight();
+        RecordUserAction.record("MobileMenuShow");
+        mDelegate.onMenuShown();
     }
 }

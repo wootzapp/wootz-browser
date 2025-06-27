@@ -4,6 +4,8 @@
 
 #include "chrome/browser/web_applications/commands/internal/callback_command.h"
 
+#include <utility>
+
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
 #include "chrome/browser/web_applications/locks/app_lock.h"
 #include "chrome/browser/web_applications/locks/noop_lock.h"
@@ -24,7 +26,7 @@ CallbackCommand<LockType>::CallbackCommand(
       callback_(std::move(callback_closure)) {}
 
 template <typename LockType>
-CallbackCommand<LockType>::~CallbackCommand() {}
+CallbackCommand<LockType>::~CallbackCommand() = default;
 
 template <typename LockType>
 void CallbackCommand<LockType>::StartWithLock(std::unique_ptr<LockType> lock) {

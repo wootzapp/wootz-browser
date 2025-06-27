@@ -58,7 +58,8 @@ Discovery::Discovery(
         pairing_callback,
     std::optional<base::RepeatingCallback<void(std::unique_ptr<Pairing>)>>
         invalidated_pairing_callback,
-    std::optional<base::RepeatingCallback<void(Event)>> event_callback)
+    std::optional<base::RepeatingCallback<void(Event)>> event_callback,
+    bool must_support_ctap)
     : FidoDeviceDiscovery(FidoTransportProtocol::kHybrid),
       request_type_(request_type),
       network_context_factory_(std::move(network_context_factory)),
@@ -68,8 +69,9 @@ Discovery::Discovery(
       contact_device_stream_(std::move(contact_device_stream)),
       pairing_callback_(std::move(pairing_callback)),
       invalidated_pairing_callback_(std::move(invalidated_pairing_callback)),
-      event_callback_(std::move(event_callback)) {
-  static_assert(EXTENT(*qr_generator_key) == kQRSecretSize + kQRSeedSize, "");
+      event_callback_(std::move(event_callback)),
+      must_support_ctap_(must_support_ctap) {
+  static_assert(kQRKeySize == kQRSecretSize + kQRSeedSize);
   advert_stream_->Connect(
       base::BindRepeating(&Discovery::OnBLEAdvertSeen, base::Unretained(this)));
 
@@ -161,7 +163,8 @@ void Discovery::OnBLEAdvertSeen(base::span<const uint8_t, kAdvertSize> advert) {
       }
       AddDevice(std::make_unique<cablev2::FidoTunnelDevice>(
           network_context_factory_, pairing_callback_, event_callback_,
-          qr_keys_->qr_secret, qr_keys_->local_identity_seed, *plaintext));
+          qr_keys_->qr_secret, qr_keys_->local_identity_seed, *plaintext,
+          must_support_ctap_));
       return;
     }
   }
@@ -177,7 +180,8 @@ void Discovery::OnBLEAdvertSeen(base::span<const uint8_t, kAdvertSize> advert) {
       device_committed_ = true;
       AddDevice(std::make_unique<cablev2::FidoTunnelDevice>(
           network_context_factory_, base::DoNothing(), event_callback_,
-          extension.qr_secret, extension.local_identity_seed, *plaintext));
+          extension.qr_secret, extension.local_identity_seed, *plaintext,
+          must_support_ctap_));
       return;
     }
   }
@@ -205,19 +209,18 @@ void Discovery::PairingIsInvalid(std::unique_ptr<Pairing> pairing) {
 
 // static
 std::optional<Discovery::UnpairedKeys> Discovery::KeysFromQRGeneratorKey(
-    const std::optional<base::span<const uint8_t, kQRKeySize>>
-        qr_generator_key) {
+    std::optional<base::span<const uint8_t, kQRKeySize>> qr_generator_key) {
   if (!qr_generator_key) {
     return std::nullopt;
   }
 
   UnpairedKeys ret;
-  static_assert(EXTENT(*qr_generator_key) == kQRSeedSize + kQRSecretSize, "");
+  static_assert(kQRKeySize == kQRSeedSize + kQRSecretSize);
   ret.local_identity_seed = fido_parsing_utils::Materialize(
       qr_generator_key->subspan<0, kQRSeedSize>());
   ret.qr_secret = fido_parsing_utils::Materialize(
       qr_generator_key->subspan<kQRSeedSize, kQRSecretSize>());
-  ret.eid_key = Derive<EXTENT(ret.eid_key)>(
+  ret.eid_key = Derive<ret.eid_key.size()>(
       ret.qr_secret, base::span<const uint8_t>(), DerivedValueType::kEIDKey);
   return ret;
 }
@@ -232,16 +235,17 @@ std::vector<Discovery::UnpairedKeys> Discovery::KeysFromExtension(
       continue;
     }
 
-    if (data.v2->server_link_data.size() != kQRKeySize) {
+    auto sized_server_link_data_span =
+        base::span(data.v2->server_link_data).to_fixed_extent<kQRKeySize>();
+    if (!sized_server_link_data_span.has_value()) {
       FIDO_LOG(ERROR) << "caBLEv2 extension has incorrect length ("
                       << data.v2->server_link_data.size() << ")";
       continue;
     }
 
-    std::optional<Discovery::UnpairedKeys> keys = KeysFromQRGeneratorKey(
-        base::make_span<kQRKeySize>(data.v2->server_link_data));
-    if (keys.has_value()) {
-      ret.emplace_back(std::move(keys.value()));
+    if (std::optional<Discovery::UnpairedKeys> keys =
+            KeysFromQRGeneratorKey(sized_server_link_data_span.value())) {
+      ret.emplace_back(*std::move(keys));
     }
   }
 

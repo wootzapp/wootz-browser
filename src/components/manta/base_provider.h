@@ -7,9 +7,11 @@
 
 #include <string>
 
+#include "base/version_info/channel.h"
 #include "components/endpoint_fetcher/endpoint_fetcher.h"
 #include "components/manta/manta_service_callbacks.h"
 #include "components/manta/proto/manta.pb.h"
+#include "components/manta/provider_params.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -27,10 +29,11 @@ class COMPONENT_EXPORT(MANTA) BaseProvider
   BaseProvider();
   BaseProvider(
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      signin::IdentityManager* identity_manager);
+  BaseProvider(
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       signin::IdentityManager* identity_manager,
-      bool is_demo_mode,
-      const std::string& chrome_version = std::string(),
-      const std::string& locale = std::string());
+      const ProviderParams& provider_params);
 
   BaseProvider(const BaseProvider&) = delete;
   BaseProvider& operator=(const BaseProvider&) = delete;
@@ -52,7 +55,8 @@ class COMPONENT_EXPORT(MANTA) BaseProvider
       const net::NetworkTrafficAnnotationTag& annotation_tag,
       manta::proto::Request& request,
       const MantaMetricType metric_type,
-      MantaProtoResponseCallback done_callback);
+      MantaProtoResponseCallback done_callback,
+      const base::TimeDelta timeout);
 
   // TODO(b:333459167): they are protected because FakeBaseProvider needs to
   // access them. Try to make them private.
@@ -70,19 +74,19 @@ class COMPONENT_EXPORT(MANTA) BaseProvider
       const GURL& url,
       const std::string& oauth_consumer_name,
       const net::NetworkTrafficAnnotationTag& annotation_tag,
-      const std::string& post_data);
+      const std::string& post_data,
+      const base::TimeDelta timeout);
   // Creates an EndpointFetcher with default API key auth.
   // If an EndpointFetcher is obtained with this function, call its
   // `PerformRequest` directly instead of `Fetch`.
   std::unique_ptr<EndpointFetcher> CreateEndpointFetcherForDemoMode(
       const GURL& url,
       const net::NetworkTrafficAnnotationTag& annotation_tag,
-      const std::string& post_data);
+      const std::string& post_data,
+      const base::TimeDelta timeout);
 
   // Useful client info for particular providers.
-  const bool is_demo_mode_;
-  const std::string chrome_version_;
-  const std::string locale_;
+  const ProviderParams provider_params_;
 };
 
 }  // namespace manta

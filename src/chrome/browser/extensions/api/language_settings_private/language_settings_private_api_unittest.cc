@@ -34,7 +34,7 @@
 #include "extensions/browser/event_router_factory.h"
 #include "extensions/browser/extension_prefs.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #include "ui/base/ime/ash/component_extension_ime_manager.h"
 #include "ui/base/ime/ash/extension_ime_util.h"
@@ -55,7 +55,7 @@ class MockLanguageSettingsPrivateDelegate
  public:
   explicit MockLanguageSettingsPrivateDelegate(content::BrowserContext* context)
       : LanguageSettingsPrivateDelegate(context) {}
-  ~MockLanguageSettingsPrivateDelegate() override {}
+  ~MockLanguageSettingsPrivateDelegate() override = default;
 
   // LanguageSettingsPrivateDelegate:
   std::vector<DictionaryStatus> GetHunspellDictionaryStatuses() override;
@@ -211,15 +211,15 @@ TEST_F(LanguageSettingsPrivateApiTest, GetAlwaysTranslateLanguagesListTest) {
       ChromeTranslateClient::CreateTranslatePrefs(profile()->GetPrefs());
 
   EXPECT_FALSE(translate_prefs_->HasLanguagePairsToAlwaysTranslate());
-  translate_prefs_->AddLanguagePairToAlwaysTranslateList("af", "en");
+  translate_prefs_->AddLanguagePairToAlwaysTranslateList("ak", "en");
   EXPECT_TRUE(translate_prefs_->HasLanguagePairsToAlwaysTranslate());
 
-  translate_prefs_->AddLanguagePairToAlwaysTranslateList("aa", "es");
+  translate_prefs_->AddLanguagePairToAlwaysTranslateList("af", "es");
   // Use 'tl' as the translate language which is 'fil' as a Chrome language.
   translate_prefs_->AddLanguagePairToAlwaysTranslateList("tl", "es");
   std::vector<std::string> always_translate_languages =
       translate_prefs_->GetAlwaysTranslateLanguages();
-  ASSERT_EQ(std::vector<std::string>({"aa", "af", "fil"}),
+  ASSERT_EQ(std::vector<std::string>({"af", "ak", "fil"}),
             always_translate_languages);
 
   auto function = base::MakeRefCounted<
@@ -245,7 +245,7 @@ TEST_F(LanguageSettingsPrivateApiTest, SetTranslateTargetLanguageTest) {
   std::vector<std::string> content_languages_before;
   translate_prefs_->GetLanguageList(&content_languages_before);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ASSERT_EQ(std::vector<std::string>({"en-US"}), content_languages_before);
 #else
   ASSERT_EQ(std::vector<std::string>({"en-US", "en"}),
@@ -429,7 +429,7 @@ void LanguageSettingsPrivateApiTest::RunGetLanguageListTest() {
   EXPECT_EQ(languages_to_test.size(), languages_to_test_found_count);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 namespace {
 
 namespace input_method = ::ash::input_method;
@@ -714,7 +714,7 @@ TEST_F(LanguageSettingsPrivateApiTest, RemoveInputMethodTest) {
   TestInputMethodManager::Shutdown();
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN)
 class LanguageSettingsPrivateApiTestDelayInit

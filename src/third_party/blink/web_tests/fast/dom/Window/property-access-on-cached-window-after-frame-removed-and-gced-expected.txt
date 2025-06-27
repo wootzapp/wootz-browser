@@ -78,6 +78,7 @@ PASS childWindow.oncanplaythrough is null
 PASS childWindow.onchange is null
 PASS childWindow.onclick is null
 PASS childWindow.onclose is null
+PASS childWindow.oncommand is null
 PASS childWindow.oncontentvisibilityautostatechange is null
 PASS childWindow.oncontextlost is null
 PASS childWindow.oncontextmenu is null
@@ -151,6 +152,8 @@ PASS childWindow.onreset is null
 PASS childWindow.onresize is null
 PASS childWindow.onscroll is null
 PASS childWindow.onscrollend is null
+PASS childWindow.onscrollsnapchange is null
+PASS childWindow.onscrollsnapchanging is null
 PASS childWindow.onsearch is null
 PASS childWindow.onsecuritypolicyviolation is null
 PASS childWindow.onseeked is null
@@ -159,8 +162,6 @@ PASS childWindow.onselect is null
 PASS childWindow.onselectionchange is null
 PASS childWindow.onselectstart is null
 PASS childWindow.onslotchange is null
-PASS childWindow.onsnapchanged is null
-PASS childWindow.onsnapchanging is null
 PASS childWindow.onstalled is null
 PASS childWindow.onstorage is null
 PASS childWindow.onsubmit is null
@@ -198,9 +199,9 @@ PASS childWindow.screen.availHeight is 0
 PASS childWindow.screen.availLeft is 0
 PASS childWindow.screen.availTop is 0
 PASS childWindow.screen.availWidth is 0
-PASS childWindow.screen.colorDepth is 0
+PASS childWindow.screen.colorDepth is 24
 PASS childWindow.screen.height is 0
-PASS childWindow.screen.pixelDepth is 0
+PASS childWindow.screen.pixelDepth is 24
 PASS childWindow.screen.width is 0
 PASS childWindow.screenLeft is 0
 PASS childWindow.screenTop is 0
@@ -219,6 +220,7 @@ PASS childWindow.styleMedia.type is ''
 PASS childWindow.toolbar.visible is false
 PASS childWindow.trustedTypes.defaultPolicy is null
 PASS childWindow.trustedTypes.onbeforecreatepolicy is null
+PASS childWindow.viewport.segments is null
 PASS childWindow.visualViewport.height is 0
 PASS childWindow.visualViewport.offsetLeft is 0
 PASS childWindow.visualViewport.offsetTop is 0

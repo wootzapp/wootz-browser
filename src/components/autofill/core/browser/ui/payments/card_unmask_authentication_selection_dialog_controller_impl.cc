@@ -7,6 +7,7 @@
 #include <string>
 
 #include "base/check_is_test.h"
+#include "base/not_fatal_until.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/payments/card_unmask_challenge_option.h"
 #include "components/autofill/core/browser/ui/payments/card_unmask_authentication_selection_dialog.h"
@@ -36,11 +37,12 @@ CardUnmaskAuthenticationSelectionDialogControllerImpl::
 CardUnmaskAuthenticationSelectionDialogControllerImpl::
     ~CardUnmaskAuthenticationSelectionDialogControllerImpl() {
   // This part of code is executed only if the browser window is closed when the
-  // dialog is visible. In this case the controller is destroyed before
-  // CardUnmaskAuthenticationSelectionDialogViews::dtor() is called,
-  // but the reference to controller is not reset. This reference needs to be
-  // reset via CardUnmaskAuthenticationSelectionDialogView::Dismiss() to avoid a
-  // crash.
+  // dialog is visible, or if the user re-triggers the challenge selection flow
+  // after not completing it previously. In this case the controller is
+  // destroyed before CardUnmaskAuthenticationSelectionDialogViews::dtor() is
+  // called, but the reference to controller is not reset. This reference needs
+  // to be reset via CardUnmaskAuthenticationSelectionDialogView::Dismiss() to
+  // avoid a crash.
   if (dialog_view_) {
     dialog_view_->Dismiss(/*user_closed_dialog=*/true,
                           /*server_success=*/false);
@@ -131,10 +133,10 @@ void CardUnmaskAuthenticationSelectionDialogControllerImpl::
   // TODO(crbug.com/40247983): Remove this lambda once we refactor
   // `SetSelectedChallengeOptionId()` to `SetSelectedChallengeOptionForId()`.
   auto selected_challenge_option =
-      base::ranges::find(challenge_options_, selected_challenge_option_id_,
-                         &CardUnmaskChallengeOption::id);
+      std::ranges::find(challenge_options_, selected_challenge_option_id_,
+                        &CardUnmaskChallengeOption::id);
 
-  DCHECK(selected_challenge_option != challenge_options_.end());
+  CHECK(selected_challenge_option != challenge_options_.end());
   selected_challenge_option_type_ = (*selected_challenge_option).type;
 
   DCHECK(selected_challenge_option_type_ !=
@@ -164,8 +166,7 @@ void CardUnmaskAuthenticationSelectionDialogControllerImpl::
       case CardUnmaskChallengeOptionType::kThreeDomainSecure:
         // TODO(crbug.com/41494927): Add kThreeDomainSecure logic.
       case CardUnmaskChallengeOptionType::kUnknownType:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 }
@@ -210,8 +211,7 @@ std::u16string CardUnmaskAuthenticationSelectionDialogControllerImpl::
       return l10n_util::GetStringUTF16(
           IDS_AUTOFILL_AUTHENTICATION_MODE_THREE_DOMAIN_SECURE);
     case CardUnmaskChallengeOptionType::kUnknownType:
-      NOTREACHED_IN_MIGRATION();
-      return std::u16string();
+      NOTREACHED();
   }
 }
 
@@ -228,8 +228,8 @@ CardUnmaskAuthenticationSelectionDialogControllerImpl::GetOkButtonLabel()
   // TODO(crbug.com/40247983): Remove this lambda once we refactor
   // `SetSelectedChallengeOptionId()` to `SetSelectedChallengeOptionForId()`.
   auto selected_challenge_option =
-      base::ranges::find(challenge_options_, selected_challenge_option_id_,
-                         &CardUnmaskChallengeOption::id);
+      std::ranges::find(challenge_options_, selected_challenge_option_id_,
+                        &CardUnmaskChallengeOption::id);
   switch (selected_challenge_option->type) {
     case CardUnmaskChallengeOptionType::kSmsOtp:
     case CardUnmaskChallengeOptionType::kEmailOtp:
@@ -240,8 +240,7 @@ CardUnmaskAuthenticationSelectionDialogControllerImpl::GetOkButtonLabel()
       return l10n_util::GetStringUTF16(
           IDS_AUTOFILL_CARD_UNMASK_AUTHENTICATION_SELECTION_DIALOG_OK_BUTTON_LABEL_CONTINUE);
     case CardUnmaskChallengeOptionType::kUnknownType:
-      NOTREACHED_IN_MIGRATION();
-      return std::u16string();
+      NOTREACHED();
   }
 }
 

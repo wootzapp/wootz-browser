@@ -4,15 +4,20 @@
 
 #import "ios/chrome/browser/metrics/model/demographics_client.h"
 
+#import "base/check.h"
 #import "base/time/time.h"
 #import "components/network_time/network_time_tracker.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/browser_state_info_cache.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state_manager.h"
+#import "ios/chrome/browser/shared/model/profile/profile_attributes_storage_ios.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/model/profile/profile_manager_ios.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 
 namespace metrics {
+
+DemographicsClient::DemographicsClient() = default;
+
+DemographicsClient::~DemographicsClient() = default;
 
 base::Time DemographicsClient::GetNetworkTime() const {
   base::Time time;
@@ -28,7 +33,12 @@ base::Time DemographicsClient::GetNetworkTime() const {
 }
 
 syncer::SyncService* DemographicsClient::GetSyncService() {
-  return SyncServiceFactory::GetForBrowserState(GetCachedBrowserState());
+  CHECK_EQ(GetNumberOfProfilesOnDisk(), 1);
+  if (ProfileIOS* cached_profile = GetCachedProfile()) {
+    return SyncServiceFactory::GetForProfile(cached_profile);
+  }
+
+  return nullptr;
 }
 
 PrefService* DemographicsClient::GetLocalState() {
@@ -36,38 +46,45 @@ PrefService* DemographicsClient::GetLocalState() {
 }
 
 PrefService* DemographicsClient::GetProfilePrefs() {
-  return GetCachedBrowserState()->GetPrefs();
+  CHECK_EQ(GetNumberOfProfilesOnDisk(), 1);
+  if (ProfileIOS* cached_profile = GetCachedProfile()) {
+    return cached_profile->GetPrefs();
+  }
+
+  return nullptr;
 }
 
 int DemographicsClient::GetNumberOfProfilesOnDisk() {
   return GetApplicationContext()
-      ->GetChromeBrowserStateManager()
-      ->GetBrowserStateInfoCache()
-      ->GetNumberOfBrowserStates();
+      ->GetProfileManager()
+      ->GetProfileAttributesStorage()
+      ->GetNumberOfProfiles();
 }
 
-ChromeBrowserState* DemographicsClient::GetCachedBrowserState() {
-  std::vector<ChromeBrowserState*> browser_states =
-      GetApplicationContext()
-          ->GetChromeBrowserStateManager()
-          ->GetLoadedBrowserStates();
-
-  // If chrome_browser_state_ is defined, check it is still valid.
-  if (chrome_browser_state_) {
-    for (ChromeBrowserState* browser_state : browser_states) {
-      // TODO(crbug.com/336468571): Replace GetDebugName() with
-      // GetBrowserStateID().
-      if (browser_state->GetDebugName() ==
-          chrome_browser_state_->GetDebugName()) {
-        return chrome_browser_state_;
-      }
-    }
+// Note: this method is only called when GetNumberOfProfilesOnDisk() == 1 thus
+// the value should be stable across a single execution of the application. The
+// reason is that ProfileManagerIOS only delete the data for a Profile during
+// the application startup, so GetNumberOfProfilesOnDisk() can never decrease
+// without restarting the application, and thus the return value cannot change
+// (since the method must not be called if GetNumberOfProfilesOnDisk() > 1).
+ProfileIOS* DemographicsClient::GetCachedProfile() {
+  CHECK_EQ(GetNumberOfProfilesOnDisk(), 1);
+  if (ProfileIOS* cached_profile = profile_.get()) {
+    return cached_profile;
   }
 
-  chrome_browser_state_ = GetApplicationContext()
-                              ->GetChromeBrowserStateManager()
-                              ->GetLastUsedBrowserStateDeprecatedDoNotUse();
-  return chrome_browser_state_;
+  const std::vector<ProfileIOS*> loaded_profiles =
+      GetApplicationContext()->GetProfileManager()->GetLoadedProfiles();
+
+  // Even if there is only one Profile on disk, it may have not been loaded yet.
+  if (loaded_profiles.empty()) {
+    return nullptr;
+  }
+
+  CHECK_EQ(loaded_profiles.size(), 1u);
+  ProfileIOS* cached_profile = loaded_profiles.back();
+  profile_ = cached_profile->AsWeakPtr();
+  return cached_profile;
 }
 
 }  //  namespace metrics

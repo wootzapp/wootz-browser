@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/nqe/observation_buffer.h"
 
 #include <stddef.h>
@@ -288,8 +293,7 @@ TEST(NetworkQualityObservationBufferTest, RemoveObservations) {
   }
   EXPECT_EQ(200u, buffer.Size());
 
-  bool deleted_observation_sources[NETWORK_QUALITY_OBSERVATION_SOURCE_MAX] = {
-      false};
+  bool deleted_observation_sources[NETWORK_QUALITY_OBSERVATION_SOURCE_MAX] = {};
 
   // Since all entries in |deleted_observation_sources| are set to false, no
   // observations should be deleted.

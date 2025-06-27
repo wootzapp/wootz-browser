@@ -16,7 +16,7 @@ class MockIdentityRegistry : public IdentityRegistry {
  public:
   explicit MockIdentityRegistry(
       content::WebContents* web_contents,
-      base::WeakPtr<FederatedIdentityModalDialogViewDelegate> delegate,
+      base::WeakPtr<IdentityRegistryDelegate> delegate,
       const GURL& idp_config_url);
 
   ~MockIdentityRegistry() override;
@@ -24,7 +24,13 @@ class MockIdentityRegistry : public IdentityRegistry {
   MockIdentityRegistry(const MockIdentityRegistry&) = delete;
   MockIdentityRegistry& operator=(const MockIdentityRegistry&) = delete;
 
-  MOCK_METHOD1(Notify, void(const url::Origin&));
+  MOCK_METHOD(void, NotifyClose, (const url::Origin&), (override));
+  MOCK_METHOD(bool,
+              NotifyResolve,
+              (const url::Origin&,
+               const std::optional<std::string>&,
+               const std::string&),
+              (override));
 };
 
 }  // namespace content

@@ -15,6 +15,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityOptionsCompat;
@@ -27,12 +28,12 @@ import org.junit.Assert;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.TimeoutTimer;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.settings.SettingsActivity;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.Locale;
 import java.util.concurrent.Callable;
@@ -119,7 +120,8 @@ public class ActivityTestUtils {
     }
 
     /**
-     * Captures an activity of a particular type that is triggered from some action.
+     * Captures an activity of a particular type that is triggered from some action, and wait for it
+     * to complete layout.
      *
      * @param activityType The class type of the activity.
      * @param activityTrigger The action that will trigger the new activity (run in this thread).
@@ -127,6 +129,45 @@ public class ActivityTestUtils {
      * @return The spawned activity.
      */
     public static <T> T waitForActivityWithTimeout(
+            Instrumentation instrumentation,
+            Class<T> activityType,
+            Callable<Void> activityTrigger,
+            long timeOut)
+            throws Exception {
+        T activity =
+                launchActivityWithTimeout(instrumentation, activityType, activityTrigger, timeOut);
+        if (activity == null) {
+            return null;
+        }
+
+        // Most of the time #waitForIdleSync will include the first layout pass. But once in a while
+        // it does not. This is a problem for tests that are going to very quickly try to perform a
+        // render of a view.
+        waitForFirstLayout((Activity) activity);
+
+        return activity;
+    }
+
+    /**
+     * Wait for layout to occur at least once.
+     *
+     * @param activity The activity on which we should wait.
+     */
+    public static void waitForFirstLayout(Activity activity) throws Exception {
+        View view = ((Activity) activity).getWindow().getDecorView().getRootView();
+        CriteriaHelper.pollUiThread(() -> view.getMeasuredWidth() > 0);
+    }
+
+    /**
+     * Captures an activity of a particular type that is triggered from some action, without waiting
+     * for it to become ready.
+     *
+     * @param activityType The class type of the activity.
+     * @param activityTrigger The action that will trigger the new activity (run in this thread).
+     * @param timeOut The maximum time to wait for activity creation
+     * @return The spawned activity.
+     */
+    public static <T> T launchActivityWithTimeout(
             Instrumentation instrumentation,
             Class<T> activityType,
             Callable<Void> activityTrigger,
@@ -149,7 +190,7 @@ public class ActivityTestUtils {
     }
 
     private static void logRunningChromeActivities() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     StringBuilder builder = new StringBuilder("Running Chrome Activities: ");
                     for (Activity activity : ApplicationStatus.getRunningActivities()) {
@@ -173,8 +214,6 @@ public class ActivityTestUtils {
     @SuppressWarnings("unchecked")
     public static <T extends Fragment> T waitForFragment(
             AppCompatActivity activity, String fragmentTag) {
-        String failureReason =
-                String.format("Could not locate the fragment with tag '%s'", fragmentTag);
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     Fragment fragment =

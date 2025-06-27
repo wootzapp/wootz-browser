@@ -59,6 +59,91 @@ TEST_F(SVGResourceDocumentContentSimTest, GetDocumentBeforeLoadComplete) {
   EXPECT_NE(nullptr, entry->GetDocument());
 }
 
+TEST_F(SVGResourceDocumentContentSimTest, LoadCompleteAfterDispose) {
+  SimRequest main_resource("https://example.com/test.html", "text/html");
+  LoadURL("https://example.com/test.html");
+  main_resource.Complete("<!doctype html><body></body>");
+
+  const char kSVGUrl[] = "https://example.com/svg.svg";
+  SimSubresourceRequest svg_resource(kSVGUrl, "application/xml");
+
+  // Request a resource from the cache.
+  ExecutionContext* execution_context = GetDocument().GetExecutionContext();
+  ResourceLoaderOptions options(execution_context->GetCurrentWorld());
+  options.initiator_info.name = fetch_initiator_type_names::kCSS;
+  FetchParameters params(ResourceRequest(kSVGUrl), options);
+  params.MutableResourceRequest().SetMode(
+      network::mojom::blink::RequestMode::kSameOrigin);
+  auto* content = SVGResourceDocumentContent::Fetch(params, GetDocument());
+
+  EXPECT_TRUE(content->IsLoading());
+  EXPECT_FALSE(content->IsLoaded());
+  EXPECT_FALSE(content->ErrorOccurred());
+
+  // Make the GC dispose - and thus lose track of - the content.
+  ThreadState::Current()->CollectAllGarbageForTesting();
+
+  // Write part of the response. The document hasn't been created yet, but the
+  // cache no longer references it.
+  svg_resource.Start();
+  svg_resource.Complete("<svg xmlns='http://www.w3.org/2000/svg'></svg>");
+
+  // The cache reference is gone.
+  EXPECT_EQ(GetDocument().GetPage()->GetSVGResourceDocumentCache().Get(
+                SVGResourceDocumentCache::MakeCacheKey(params)),
+            nullptr);
+
+  EXPECT_FALSE(content->IsLoading());
+  EXPECT_TRUE(content->IsLoaded());
+  EXPECT_TRUE(content->ErrorOccurred());
+
+  content = nullptr;
+
+  // GC the content. Should not crash/DCHECK.
+  ThreadState::Current()->CollectAllGarbageForTesting();
+}
+
+TEST_F(SVGResourceDocumentContentSimTest, AsyncLoadCompleteCallbackRace) {
+  SimRequest main_resource("https://example.com/test.html", "text/html");
+  LoadURL("https://example.com/test.html");
+
+  SimSubresourceRequest svg_resource("https://example.com/resource.svg#root",
+                                     "application/xml");
+  // Write the full page resource, but don't signal it as being complete. This
+  // is to avoid flushing layout changes before the external resource has
+  // loaded.
+  main_resource.Write(
+      "<!doctype html><svg><use href='resource.svg#root'/></svg>");
+
+  svg_resource.Start();
+  svg_resource.Complete(R"SVG(
+    <svg id="root" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="url(#p)"/>
+      <defs>
+        <pattern id="p" width="100" height="100">
+          <use href="#i"/>
+        </pattern>
+        <image id="i" href="data:image/gif;base64,R0lGODdhCQAJAKEAAO6C7v8A/6Ag8AAAACwAAAAACQAJAAACFISPaWLhLhh4UNIQG81zswiGIlgAADs="/>
+      </defs>
+    </svg>)SVG");
+
+  // Flush tasks on the "internal loading" task queue. IsolatedSVGDocumentHost
+  // will post/run the async-loading-complete callback on this task queue.
+  base::RunLoop run_loop;
+  GetDocument()
+      .GetTaskRunner(TaskType::kInternalLoading)
+      ->PostTask(FROM_HERE, run_loop.QuitClosure());
+  run_loop.Run();
+
+  // Update layout and paint. This will rebuild the instance tree for the
+  // <use>. The rebuilding should not succeed (find the referenced target)
+  // because the external resource is not considered fully loaded yet. If it
+  // succeeds we may paint with a dirty tree.
+  Compositor().BeginFrame();
+
+  main_resource.Complete();
+}
+
 class SVGResourceDocumentContentTest : public PageTestBase {
  public:
   SVGResourceDocumentContentTest()
@@ -90,8 +175,8 @@ TEST_F(SVGResourceDocumentContentTest, InvalidDocumentRoot) {
   auto* content = SVGResourceDocumentContent::Fetch(params, GetDocument());
 
   EXPECT_TRUE(content->IsLoaded());
-  EXPECT_TRUE(content->ErrorOccurred());
-  EXPECT_EQ(content->GetStatus(), ResourceStatus::kDecodeError);
+  EXPECT_FALSE(content->ErrorOccurred());
+  EXPECT_EQ(content->GetStatus(), ResourceStatus::kCached);
 }
 
 TEST_F(SVGResourceDocumentContentTest, CacheCleanup) {
@@ -148,6 +233,33 @@ TEST_F(SVGResourceDocumentContentTest, CacheCleanup) {
             nullptr);
   EXPECT_EQ(cache.Get(SVGResourceDocumentCache::MakeCacheKey(params2)),
             nullptr);
+}
+
+TEST_F(SVGResourceDocumentContentTest, SecondLoadOfResourceInError) {
+  ExecutionContext* execution_context = GetDocument().GetExecutionContext();
+  ResourceLoaderOptions options(execution_context->GetCurrentWorld());
+  options.initiator_info.name = fetch_initiator_type_names::kCSS;
+
+  const char kUrl[] = "data:image/svg+xml,a";
+  FetchParameters params1(ResourceRequest(kUrl), options);
+  params1.MutableResourceRequest().SetMode(
+      network::mojom::blink::RequestMode::kSameOrigin);
+
+  auto* content1 = SVGResourceDocumentContent::Fetch(params1, GetDocument());
+  EXPECT_TRUE(content1->IsLoaded());
+
+  // Simulate a later failure.
+  content1->UpdateStatus(ResourceStatus::kLoadError);
+  EXPECT_TRUE(content1->ErrorOccurred());
+
+  FetchParameters params2(ResourceRequest(kUrl), options);
+  params2.MutableResourceRequest().SetMode(
+      network::mojom::blink::RequestMode::kSameOrigin);
+
+  auto* content2 = SVGResourceDocumentContent::Fetch(params2, GetDocument());
+  EXPECT_TRUE(content2->IsLoaded());
+
+  ThreadState::Current()->CollectAllGarbageForTesting();
 }
 
 }  // namespace blink

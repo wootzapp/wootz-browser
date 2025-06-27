@@ -8,6 +8,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/connectors/device_trust/common/common_types.h"
 #include "chrome/browser/enterprise/connectors/device_trust/common/device_trust_constants.h"
@@ -20,7 +21,7 @@
 #include "components/device_signals/core/browser/pref_names.h"
 #include "components/device_signals/core/browser/user_permission_service.h"
 #include "components/device_signals/core/common/signals_features.h"
-#include "components/enterprise/connectors/connectors_prefs.h"
+#include "components/enterprise/connectors/core/connectors_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
@@ -29,9 +30,9 @@
 #include "net/http/http_response_headers.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace enterprise_connectors {
 
@@ -76,7 +77,7 @@ Profile* GetProfile(content::NavigationHandle* navigation_handle) {
       navigation_handle->GetWebContents()->GetBrowserContext());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 DTOrigin GetAttestationFlowOrigin(content::BrowserContext* context) {
   if (context->IsOffTheRecord() && ash::ProfileHelper::IsSigninProfile(
                                        Profile::FromBrowserContext(context))) {
@@ -85,7 +86,7 @@ DTOrigin GetAttestationFlowOrigin(content::BrowserContext* context) {
 
   return DTOrigin::kInSession;
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace
 
@@ -198,11 +199,11 @@ DeviceTrustNavigationThrottle::AddHeadersIfNeeded() {
   if (navigation_handle()->GetResponseHeaders() == nullptr ||
       !navigation_handle()->GetResponseHeaders()->HasHeader(
           kVerifiedAccessChallengeHeader)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     LogOrigin(GetAttestationFlowOrigin(
         navigation_handle()->GetWebContents()->GetBrowserContext()));
     LogEnrollmentStatus();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
     LogAttestationFunnelStep(DTAttestationFunnelStep::kAttestationFlowStarted);
     navigation_handle()->SetRequestHeader(kDeviceTrustHeader,
                                           kDeviceTrustHeaderValue);
@@ -216,9 +217,8 @@ DeviceTrustNavigationThrottle::AddHeadersIfNeeded() {
   // Get challenge.
   const net::HttpResponseHeaders* headers =
       navigation_handle()->GetResponseHeaders();
-  std::string challenge;
-  if (headers->GetNormalizedHeader(kVerifiedAccessChallengeHeader,
-                                   &challenge)) {
+  if (std::optional<std::string> challenge =
+          headers->GetNormalizedHeader(kVerifiedAccessChallengeHeader)) {
     LogAttestationFunnelStep(DTAttestationFunnelStep::kChallengeReceived);
 
     // Create callback for `ReplyChallengeResponseAndResume` which will
@@ -249,7 +249,7 @@ DeviceTrustNavigationThrottle::AddHeadersIfNeeded() {
                     challenge, levels, std::move(resume_navigation_callback));
               }
             },
-            weak_ptr_factory_.GetWeakPtr(), challenge, levels,
+            weak_ptr_factory_.GetWeakPtr(), *challenge, levels,
             std::move(resume_navigation_callback)));
 
     base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(

@@ -14,10 +14,10 @@
 #import "base/memory/raw_ptr.h"
 #import "base/memory/raw_ref.h"
 #import "base/memory/weak_ptr.h"
-#import "components/autofill/core/browser/autofill_client.h"
-#import "components/autofill/core/browser/browser_autofill_manager.h"
+#import "components/autofill/core/browser/foundations/autofill_client.h"
+#import "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #import "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
-#import "ios/web/public/js_messaging/web_frame_user_data.h"
+#import "components/autofill/ios/browser/form_fetch_batcher.h"
 #import "url/origin.h"
 
 namespace web {
@@ -33,20 +33,10 @@ namespace autofill {
 inline constexpr char kAutofillSubmissionDetectionSourceHistogram[] =
     "Autofill.SubmissionDetectionSource.AutofillAgent";
 
-// Histogram for recording whether the form detected as submitted after a form
-// removal event was the synthetic form. Recorded when a submission is detected
-// after a form removal event.
-inline constexpr char kFormlessSubmissionAfterFormRemovalHistogram[] =
-    "Autofill.iOS.FormRemoval.SubmissionDetected.IsFormless";
-
 // Histogram for recording whether a form submission was detected after a form
 // removal event.
 inline constexpr char kFormSubmissionAfterFormRemovalHistogram[] =
     "Autofill.iOS.FormRemoval.SubmissionDetected";
-
-// Histogram for recording the number of removed forms in a form removal event.
-inline constexpr char kFormRemovalRemovedFormsHistogram[] =
-    "Autofill.iOS.FormRemoval.RemovedForms";
 
 // Histogram for recording the number of removed unowned fields in a form
 // removal event.
@@ -54,6 +44,7 @@ inline constexpr char kFormRemovalRemovedUnownedFieldsHistogram[] =
     "Autofill.iOS.FormRemoval.RemovedUnownedFields";
 
 class AutofillDriverIOSFactory;
+class AutofillDriverRouter;
 
 // AutofillDriverIOS drives the Autofill flow in the browser process based
 // on communication from JavaScript and from the external world.
@@ -62,10 +53,14 @@ class AutofillDriverIOSFactory;
 // Chrome is implemented by AutofillAgent, and a BrowserAutofillManager.
 //
 // AutofillDriverIOS is associated with exactly one WebFrame and its lifecycle
-// is bound to that WebFrame.
-class AutofillDriverIOS : public AutofillDriver,
-                          public AutofillManager::Observer,
-                          public web::WebFrameUserData<AutofillDriverIOS> {
+// is bound to that WebFrame. Since WebFrames do not survive cross-document
+// navigations, AutofillDriverIOS does not survive them either.
+//
+// AutofillDriverIOS is final because its constructor and destructor calls
+// AutofillManager::SetLifecycleState(), which must be called at the very
+// end/beginning of con-/destruction.
+class AutofillDriverIOS final : public AutofillDriver,
+                                public AutofillManager::Observer {
  public:
   // Returns the AutofillDriverIOS for `web_state` and `web_frame`. Creates the
   // driver if necessary.
@@ -80,6 +75,13 @@ class AutofillDriverIOS : public AutofillDriver,
       web::WebState* web_state,
       LocalFrameToken token);
 
+  AutofillDriverIOS(web::WebState* web_state,
+                    web::WebFrame* web_frame,
+                    AutofillClient* client,
+                    AutofillDriverRouter* router,
+                    id<AutofillDriverIOSBridge> bridge,
+                    base::PassKey<AutofillDriverIOSFactory>);
+
   ~AutofillDriverIOS() override;
 
   // AutofillDriver:
@@ -88,53 +90,52 @@ class AutofillDriverIOS : public AutofillDriver,
   AutofillDriverIOS* GetParent() override;
   AutofillClient& GetAutofillClient() override;
   BrowserAutofillManager& GetAutofillManager() override;
-  bool IsInActiveFrame() const override;
-  bool IsInAnyMainFrame() const override;
-  bool IsPrerendering() const override;
+  ukm::SourceId GetPageUkmSourceId() const override;
+  bool IsActive() const override;
   bool HasSharedAutofillPermission() const override;
   bool CanShowAutofillUi() const override;
   base::flat_set<FieldGlobalId> ApplyFormAction(
       mojom::FormActionType action_type,
       mojom::ActionPersistence action_persistence,
-      const FormData& data,
+      base::span<const FormFieldData> fields,
       const url::Origin& triggered_origin,
       const base::flat_map<FieldGlobalId, FieldType>& field_type_map) override;
   void ApplyFieldAction(mojom::FieldActionType action_type,
                         mojom::ActionPersistence action_persistence,
-                        const FieldGlobalId& field,
+                        const FieldGlobalId& field_id,
                         const std::u16string& value) override;
   void ExtractForm(
       FormGlobalId form,
       base::OnceCallback<void(AutofillDriver*, const std::optional<FormData>&)>
           response_callback) override;
-  void SendAutofillTypePredictionsToRenderer(
-      const std::vector<raw_ptr<FormStructure, VectorExperimental>>& forms)
-      override;
+  void ExposeDomNodeIDs() override;
+  void SendTypePredictionsToRenderer(const FormStructure& form) override;
   void RendererShouldClearPreviewedForm() override;
   void RendererShouldTriggerSuggestions(
       const FieldGlobalId& field_id,
       AutofillSuggestionTriggerSource trigger_source) override;
   void RendererShouldAcceptDataListSuggestion(
-      const FieldGlobalId& field,
+      const FieldGlobalId& field_id,
       const std::u16string& value) override;
-  void TriggerFormExtractionInDriverFrame() override;
+  void TriggerFormExtractionInDriverFrame(
+      AutofillDriverRouterAndFormForestPassKey pass_key) override;
   void TriggerFormExtractionInAllFrames(
       base::OnceCallback<void(bool)> form_extraction_finished_callback)
       override;
-  void GetFourDigitCombinationsFromDOM(
+  void GetFourDigitCombinationsFromDom(
       base::OnceCallback<void(const std::vector<std::string>&)>
           potential_matches) override;
-
-  void set_autofill_manager_for_testing(
-      std::unique_ptr<BrowserAutofillManager> manager) {
-    manager_ = std::move(manager);
-    manager_observation_.Observe(manager_.get());
-  }
+  void ExtractLabeledTextNodeValue(
+      const std::u16string& value_regex,
+      const std::u16string& label_regex,
+      uint32_t number_of_ancestor_levels_to_search,
+      base::OnceCallback<void(const std::string& amount)> response_callback)
+      override;
 
   void RendererShouldSetSuggestionAvailability(
-      const FieldGlobalId& field,
+      const FieldGlobalId& field_id,
       mojom::AutofillSuggestionAvailability suggestion_availability) override;
-  net::IsolationInfo IsolationInfo() override;
+  std::optional<net::IsolationInfo> GetIsolationInfo() override;
 
   bool is_processed() const { return processed_; }
   void set_processed(bool processed) { processed_ = processed; }
@@ -146,17 +147,21 @@ class AutofillDriverIOS : public AutofillDriver,
   // irrelevant args omitted). See
   // components/autofill/content/common/mojom/autofill_driver.mojom
   // for further documentation of each method.
-  void AskForValuesToFill(const FormData& form, const FormFieldData& field);
+  void AskForValuesToFill(const FormData& form, const FieldGlobalId& field_id);
   void DidFillAutofillFormData(const FormData& form, base::TimeTicks timestamp);
-  void FormsSeen(const std::vector<FormData>& updated_forms);
+  void FormsSeen(const std::vector<FormData>& updated_forms,
+                 const std::vector<FormGlobalId>& removed_forms);
   void FormSubmitted(const FormData& form,
-                     bool known_success,
                      mojom::SubmissionSource submission_source);
-  void TextFieldDidChange(const FormData& form,
-                          const FormFieldData& field,
-                          base::TimeTicks timestamp);
+//   void CaretMovedInFormField(const FormData& form,
+//                              const FieldGlobalId& field_id,
+//                              const gfx::Rect& caret_bounds);
+  void TextFieldValueChanged(const FormData& form,
+                             const FieldGlobalId& field_id,
+                             base::TimeTicks timestamp);
 
   // AutofillDriverIOS:
+
   // Notification that forms or formless fields have been removed. Since Bling's
   // renderer does not have API's to detect async form submissions, we use he
   // removal last interacted form or formless field as an indication that the
@@ -164,8 +169,29 @@ class AutofillDriverIOS : public AutofillDriver,
   void FormsRemoved(const std::set<FormRendererId>& removed_forms,
                     const std::set<FieldRendererId>& removed_unowned_fields);
 
+  // Unregisters the driver as a standalone node which means that the
+  // corresponding frame is now invalid. It is possible to unregister without
+  // deleting the frame so it is definitely possible that the frame lives while
+  // not being registered. Can't be rolled back where the driver cannot be
+  // re-registered after being unregistered.
+  void Unregister();
+
+  // Called when form extraction was triggered on the driver's frame. Called
+  // as soon as the extraction request is started regardless of the results.
+  void OnDidTriggerFormFetch();
+
+  // Scans to find all eligible forms in the frame's document. If batching is
+  // enabled and `immediately` is true, runs this scan and the batch
+  // immediately altogether.
+  void ScanForms(bool immediately = false);
+
+  // Fetches forms filtered by `form_name` and calls `caller_completion` with
+  // the form fetch results upon completion of the fetch.
+  void FetchFormsFilteredByName(const std::u16string& form_name,
+                                FormFetchCompletion completion);
+
  private:
-  friend AutofillDriverIOSFactory;
+  friend class AutofillDriverIOSTestApi;
 
   // Represents the last form or formless field where the user entered data.
   struct LastInteractedForm {
@@ -174,19 +200,15 @@ class AutofillDriverIOS : public AutofillDriver,
 
     // Renderer id of the last interacted formless field or `FieldRendererId()`
     // if the last interaction was not with a single formless field.
+    // TODO: crbug.com/40266699 - Convert to FieldGlobalId.
     FieldRendererId formless_field;
   };
 
-  AutofillDriverIOS(web::WebState* web_state,
-                    web::WebFrame* web_frame,
-                    AutofillClient* client,
-                    id<AutofillDriverIOSBridge> bridge,
-                    const std::string& app_locale);
-
   void SetParent(base::WeakPtr<AutofillDriverIOS> parent);
 
-  // Sets `this` as the parent of the frame identified by `token`.
-  void SetSelfAsParent(LocalFrameToken token);
+  // Sets `this` as the parent of the frame identified by `token` and with
+  // `form` as parent.
+  void SetSelfAsParent(const autofill::FormData& form, LocalFrameToken token);
 
   // Updates the saved information about the last interacted form or formless
   // field.
@@ -212,19 +234,22 @@ class AutofillDriverIOS : public AutofillDriver,
       const std::set<FormRendererId>& removed_forms,
       const std::set<FieldRendererId>& removed_unowned_fields) const;
 
-  // Only used by the AutofillDriverIOSFactory.
-  // Other callers should use FromWebStateAndWebFrame() instead.
-  using web::WebFrameUserData<AutofillDriverIOS>::FromWebFrame;
-
   // AutofillManager::Observer:
-  void OnAutofillManagerDestroyed(AutofillManager& manager) override;
+  void OnAutofillManagerStateChanged(
+      AutofillManager& manager,
+      AutofillManager::LifecycleState old_state,
+      AutofillManager::LifecycleState new_state) override;
   void OnAfterFormsSeen(AutofillManager& manager,
-                        base::span<const FormGlobalId> forms) override;
+                        base::span<const FormGlobalId> updated_forms,
+                        base::span<const FormGlobalId> removed_forms) override;
 
   // Logs metrics related to form removal events.
   void RecordFormRemoval(bool submission_detected,
                          int removed_forms_count,
                          int removed_unowned_fields_count);
+
+  // Logs metrics related to triggered form extraction.
+  void RecordTriggeredFormExtractionMetrics();
 
   // The WebState with which this object is associated.
   raw_ptr<web::WebState> web_state_ = nullptr;
@@ -263,6 +288,23 @@ class AutofillDriverIOS : public AutofillDriver,
 
   base::ScopedObservation<AutofillManager, AutofillManager::Observer>
       manager_observation_{this};
+
+  raw_ptr<AutofillDriverRouter> router_;
+
+  // True if the drive was once unregistered.
+  bool unregistered_ = false;
+
+  // Counter for the number of form extractions that were triggered during the
+  // driver's lifetime. The counter doesn't care whether the extraction
+  // actually happened for real where it focuses on the trigger.
+  int form_extraction_trigger_count_ = 0;
+
+  // FetchRequestBatcher used exclusively for batching document form scans.
+  FormFetchBatcher document_scan_batcher_;
+
+  // FetchRequestBatcher used exclusively for batching filtered document form
+  // scans.
+  FormFetchBatcher document_filtered_scan_batcher_;
 
   base::WeakPtrFactory<AutofillDriverIOS> weak_ptr_factory_{this};
 };

@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+#include "base/bits.h"
 #include "base/memory/page_size.h"
 #include "base/process/process_metrics.h"
 #include "base/synchronization/lock.h"
@@ -15,12 +16,13 @@
 
 namespace base {
 
+#if BUILDFLAG(PROTECTED_MEMORY_ENABLED)
 namespace {
 
 bool SetMemory(void* start, void* end, DWORD prot) {
   CHECK(end > start);
-  const uintptr_t page_mask = ~(base::GetPageSize() - 1);
-  const uintptr_t page_start = reinterpret_cast<uintptr_t>(start) & page_mask;
+  const uintptr_t page_start =
+      bits::AlignDown(reinterpret_cast<uintptr_t>(start), GetPageSize());
   DWORD old_prot;
   return VirtualProtect(reinterpret_cast<void*>(page_start),
                         reinterpret_cast<uintptr_t>(end) - page_start, prot,
@@ -30,15 +32,15 @@ bool SetMemory(void* start, void* end, DWORD prot) {
 }  // namespace
 
 namespace internal {
-bool IsMemoryReadOnly(const void* ptr) {
-  const uintptr_t page_mask = ~(base::GetPageSize() - 1);
-  const uintptr_t page_start = reinterpret_cast<uintptr_t>(ptr) & page_mask;
+void CheckMemoryReadOnly(const void* ptr) {
+  const uintptr_t page_start =
+      bits::AlignDown(reinterpret_cast<uintptr_t>(ptr), GetPageSize());
 
   MEMORY_BASIC_INFORMATION info;
   SIZE_T result =
       VirtualQuery(reinterpret_cast<LPCVOID>(page_start), &info, sizeof(info));
 
-  return (result > 0U) && (info.Protect == PAGE_READONLY);
+  CHECK((result > 0U) && (info.Protect == PAGE_READONLY));
 }
 }  // namespace internal
 
@@ -49,5 +51,6 @@ bool AutoWritableMemoryBase::SetMemoryReadWrite(void* start, void* end) {
 bool AutoWritableMemoryBase::SetMemoryReadOnly(void* start, void* end) {
   return SetMemory(start, end, PAGE_READONLY);
 }
+#endif  // BUILDFLAG(PROTECTED_MEMORY_ENABLED)
 
 }  // namespace base

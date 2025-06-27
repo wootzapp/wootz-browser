@@ -6,8 +6,9 @@
 import 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
 
 import type {CrToolbarSearchFieldElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
-import {pressAndReleaseKeyOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
+import {pressAndReleaseKeyOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {assertDeepEquals, assertEquals, assertNotEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {eventToPromise} from 'chrome://webui-test/test_util.js';
 // clang-format on
 
 /** @fileoverview Suite of tests for cr-toolbar-search-field. */
@@ -61,11 +62,11 @@ suite('cr-toolbar-search-field', function() {
     field.click();
     await field.updateComplete;
     assertTrue(field.showingSearch);
-    assertEquals(searchInput, field.shadowRoot!.activeElement);
+    assertEquals(searchInput, field.shadowRoot.activeElement);
 
-    pressAndReleaseKeyOn(searchInput, 27, '', 'Escape');
+    pressAndReleaseKeyOn(searchInput, 27, [], 'Escape');
     assertFalse(field.showingSearch, 'Pressing escape closes field.');
-    assertNotEquals(searchInput, field.shadowRoot!.activeElement);
+    assertNotEquals(searchInput, field.shadowRoot.activeElement);
   });
 
   test('clear search button clears and refocuses input', async function() {
@@ -73,15 +74,18 @@ suite('cr-toolbar-search-field', function() {
     simulateSearch('query1');
     await field.updateComplete;
     assertTrue(field.hasSearchText);
+    const searchInputClearedEventPromise =
+        eventToPromise('search-term-cleared', field);
     const clearSearch =
-        field.shadowRoot!.querySelector<HTMLElement>('#clearSearch')!;
+        field.shadowRoot.querySelector<HTMLElement>('#clearSearch')!;
     clearSearch.focus();
     clearSearch.click();
     assertTrue(field.showingSearch);
     assertEquals('', field.getValue());
-    assertEquals(field.$.searchInput, field.shadowRoot!.activeElement);
+    assertEquals(field.$.searchInput, field.shadowRoot.activeElement);
     assertFalse(field.hasSearchText);
     assertFalse(field.spinnerActive);
+    await searchInputClearedEventPromise;
   });
 
   test('notifies on new searches', async function() {
@@ -90,7 +94,7 @@ suite('cr-toolbar-search-field', function() {
     await field.updateComplete;
     assertEquals('query1', field.getValue());
 
-    field.shadowRoot!.querySelector<HTMLElement>('#clearSearch')!.click();
+    field.shadowRoot.querySelector<HTMLElement>('#clearSearch')!.click();
     assertTrue(field.showingSearch);
     assertEquals('', field.getValue());
 
@@ -197,7 +201,7 @@ suite('cr-toolbar-search-field', function() {
     assertTrue(field.hasSearchText);
 
     const clearSearch =
-        field.shadowRoot!.querySelector<HTMLElement>('#clearSearch')!;
+        field.shadowRoot.querySelector<HTMLElement>('#clearSearch')!;
     assertFalse(clearSearch.hidden);
     assertTrue(field.showingSearch);
   });
@@ -233,11 +237,39 @@ suite('cr-toolbar-search-field', function() {
 
   test('overrides search icon', async () => {
     assertEquals('cr:search', field.$.icon.ironIcon);
-    field.iconOverride = 'custom-icon';
+    field.iconOverride = 'cr:more-vert';
     await field.updateComplete;
-    assertEquals('custom-icon', field.$.icon.ironIcon);
+    assertEquals('cr:more-vert', field.$.icon.ironIcon);
     field.iconOverride = undefined;
     await field.updateComplete;
     assertEquals('cr:search', field.$.icon.ironIcon);
+  });
+
+  test('sets aria-description on input', async () => {
+    assertEquals('', field.$.searchInput.ariaDescription);
+    field.inputAriaDescription = 'hello world';
+    await field.updateComplete;
+    assertEquals('hello world', field.$.searchInput.ariaDescription);
+  });
+
+  test('fires a custom event for native input event', async () => {
+    // A series of events that mocks a user typing into the input.
+    simulateSearch('a');
+    const inputEvent = new InputEvent('input', {data: 'a'});
+    const searchTermInputEventPromise =
+        eventToPromise('search-term-native-input', field);
+    field.$.searchInput.dispatchEvent(inputEvent);
+    const searchTermInputEvent = await searchTermInputEventPromise;
+    assertEquals(inputEvent, searchTermInputEvent.detail.e);
+    assertEquals('a', searchTermInputEvent.detail.inputValue);
+  });
+
+  test('fires a custom event for native beforeinput event', async () => {
+    const beforeInputEvent = new InputEvent('beforeinput', {data: 'a'});
+    const searchTermBeforeInputEventPromise =
+        eventToPromise('search-term-native-before-input', field);
+    field.$.searchInput.dispatchEvent(beforeInputEvent);
+    const searchTermBeforeInputEvent = await searchTermBeforeInputEventPromise;
+    assertEquals(beforeInputEvent, searchTermBeforeInputEvent.detail.e);
   });
 });

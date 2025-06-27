@@ -5,13 +5,21 @@
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_COMMANDS_INTERNAL_CALLBACK_COMMAND_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_COMMANDS_INTERNAL_CALLBACK_COMMAND_H_
 
-#include <algorithm>
-#include <functional>
+#include <memory>
+#include <string>
 #include <tuple>
+#include <type_traits>
 
 #include "base/functional/callback.h"
 #include "base/values.h"
+#include "chrome/browser/web_applications/commands/command_result.h"
+#include "chrome/browser/web_applications/commands/internal/command_internal.h"
 #include "chrome/browser/web_applications/commands/web_app_command.h"
+#include "chrome/browser/web_applications/locks/all_apps_lock.h"
+#include "chrome/browser/web_applications/locks/app_lock.h"
+#include "chrome/browser/web_applications/locks/noop_lock.h"
+#include "chrome/browser/web_applications/locks/shared_web_contents_lock.h"
+#include "chrome/browser/web_applications/locks/shared_web_contents_with_app_lock.h"
 
 namespace web_app::internal {
 
@@ -89,11 +97,13 @@ class CallbackCommandWithResult : public WebAppCommand<LockType, ItemType> {
             std::make_tuple(std::move(arg_for_shutdown))),
         callback_(std::move(command_callback)) {}
 
-  ~CallbackCommandWithResult() override {}
+  ~CallbackCommandWithResult() override = default;
 
  protected:
   // WebAppCommand:
   void StartWithLock(std::unique_ptr<LockType> lock) override {
+    CHECK(lock);
+    CHECK(lock->IsGranted());
     ReturnType result = std::move(callback_).Run(
         *lock, internal::CommandBase::GetMutableDebugValue());
     WebAppCommand<LockType, ItemType>::CompleteAndSelfDestruct(

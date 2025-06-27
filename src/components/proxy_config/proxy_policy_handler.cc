@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/check.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
@@ -52,18 +54,19 @@ struct ProxyModeValidationEntry {
 
 // List of entries determining which proxy policies can be specified, depending
 // on the ProxyMode.
-constexpr ProxyModeValidationEntry kProxyModeValidationMap[] = {
-    {ProxyPrefs::kDirectProxyModeName, false, false, false, false,
-     IDS_POLICY_PROXY_MODE_DISABLED_ERROR},
-    {ProxyPrefs::kAutoDetectProxyModeName, false, false, false, false,
-     IDS_POLICY_PROXY_MODE_AUTO_DETECT_ERROR},
-    {ProxyPrefs::kPacScriptProxyModeName, true, true, false, false,
-     IDS_POLICY_PROXY_MODE_PAC_URL_ERROR},
-    {ProxyPrefs::kFixedServersProxyModeName, false, false, true, true,
-     IDS_POLICY_PROXY_MODE_FIXED_SERVERS_ERROR},
-    {ProxyPrefs::kSystemProxyModeName, false, false, false, false,
-     IDS_POLICY_PROXY_MODE_SYSTEM_ERROR},
-};
+constexpr auto kProxyModeValidationMap =
+    std::to_array<ProxyModeValidationEntry>({
+        {ProxyPrefs::kDirectProxyModeName, false, false, false, false,
+         IDS_POLICY_PROXY_MODE_DISABLED_ERROR},
+        {ProxyPrefs::kAutoDetectProxyModeName, false, false, false, false,
+         IDS_POLICY_PROXY_MODE_AUTO_DETECT_ERROR},
+        {ProxyPrefs::kPacScriptProxyModeName, true, true, false, false,
+         IDS_POLICY_PROXY_MODE_PAC_URL_ERROR},
+        {ProxyPrefs::kFixedServersProxyModeName, false, false, true, true,
+         IDS_POLICY_PROXY_MODE_FIXED_SERVERS_ERROR},
+        {ProxyPrefs::kSystemProxyModeName, false, false, false, false,
+         IDS_POLICY_PROXY_MODE_SYSTEM_ERROR},
+    });
 
 // Cannot be constexpr because the values of the strings are defined in an
 // automatically generated .cc file.
@@ -231,9 +234,9 @@ base::Value RemapProxyPolicies(const PolicyMap& policies) {
 // policies, but the providers then expose them through a unified
 // DictionaryValue.
 
-ProxyPolicyHandler::ProxyPolicyHandler() {}
+ProxyPolicyHandler::ProxyPolicyHandler() = default;
 
-ProxyPolicyHandler::~ProxyPolicyHandler() {}
+ProxyPolicyHandler::~ProxyPolicyHandler() = default;
 
 bool ProxyPolicyHandler::CheckPolicySettings(const PolicyMap& policies,
                                              PolicyErrorMap* errors) {
@@ -342,8 +345,7 @@ void ProxyPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
         proxy_mode = ProxyPrefs::MODE_SYSTEM;
         break;
       default:
-        proxy_mode = ProxyPrefs::MODE_DIRECT;
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
   } else {
     return;
@@ -367,7 +369,7 @@ void ProxyPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
         set_proxy_pref_value(ProxyConfigDictionary::CreatePacScript(
             pac_url->GetString(), mandatory));
       } else {
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
       }
       break;
     }
@@ -384,7 +386,7 @@ void ProxyPolicyHandler::ApplyPolicySettings(const PolicyMap& policies,
       set_proxy_pref_value(ProxyConfigDictionary::CreateSystem());
       break;
     case ProxyPrefs::kModeCount:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 

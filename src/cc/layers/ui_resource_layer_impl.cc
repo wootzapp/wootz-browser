@@ -24,6 +24,10 @@ UIResourceLayerImpl::UIResourceLayerImpl(LayerTreeImpl* tree_impl, int id)
 
 UIResourceLayerImpl::~UIResourceLayerImpl() = default;
 
+mojom::LayerType UIResourceLayerImpl::GetLayerType() const {
+  return mojom::LayerType::kUIResource;
+}
+
 std::unique_ptr<LayerImpl> UIResourceLayerImpl::CreateLayerImpl(
     LayerTreeImpl* tree_impl) const {
   return UIResourceLayerImpl::Create(tree_impl, id());
@@ -75,7 +79,8 @@ bool UIResourceLayerImpl::WillDraw(
   return LayerImpl::WillDraw(draw_mode, resource_provider);
 }
 
-void UIResourceLayerImpl::AppendQuads(viz::CompositorRenderPass* render_pass,
+void UIResourceLayerImpl::AppendQuads(const AppendQuadsContext& context,
+                                      viz::CompositorRenderPass* render_pass,
                                       AppendQuadsData* append_quads_data) {
   DCHECK(!bounds().IsEmpty());
 
@@ -97,7 +102,6 @@ void UIResourceLayerImpl::AppendQuads(viz::CompositorRenderPass* render_pass,
   if (!resource)
     return;
 
-  static const bool flipped = false;
   static const bool nearest_neighbor = false;
   static const bool premultiplied_alpha = true;
 
@@ -112,13 +116,9 @@ void UIResourceLayerImpl::AppendQuads(viz::CompositorRenderPass* render_pass,
   auto* quad = render_pass->CreateAndAppendDrawQuad<viz::TextureDrawQuad>();
   quad->SetNew(shared_quad_state, quad_rect, visible_quad_rect, needs_blending,
                resource, premultiplied_alpha, uv_top_left_, uv_bottom_right_,
-               SkColors::kTransparent, flipped, nearest_neighbor,
+               SkColors::kTransparent, nearest_neighbor,
                /*secure_output_only=*/false, gfx::ProtectedVideoType::kClear);
   ValidateQuadResources(quad);
-}
-
-const char* UIResourceLayerImpl::LayerTypeAsString() const {
-  return "cc::UIResourceLayerImpl";
 }
 
 void UIResourceLayerImpl::AsValueInto(

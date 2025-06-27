@@ -11,155 +11,138 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/notreached.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/input_method/editor_consent_enums.h"
 #include "chrome/browser/ash/input_method/editor_metrics_enums.h"
 #include "chrome/browser/ash/input_method/editor_metrics_recorder.h"
-#include "chromeos/crosapi/mojom/editor_panel.mojom.h"
+#include "chromeos/ash/components/editor_menu/public/cpp/editor_consent_status.h"
+#include "chromeos/ash/components/editor_menu/public/cpp/editor_context.h"
+#include "chromeos/ash/components/editor_menu/public/cpp/editor_mode.h"
+#include "chromeos/ash/components/editor_menu/public/cpp/editor_text_selection_mode.h"
+#include "chromeos/ash/components/editor_menu/public/cpp/preset_text_query.h"
+#include "chromeos/ash/services/orca/public/mojom/orca_service.mojom.h"
 
 namespace ash::input_method {
 
-namespace {
-
-crosapi::mojom::EditorPanelPresetQueryCategory ToEditorPanelQueryCategory(
+chromeos::editor_menu::PresetQueryCategory ToPresetQueryCategory(
     const orca::mojom::PresetTextQueryType query_type) {
   switch (query_type) {
     case orca::mojom::PresetTextQueryType::kUnknown:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kUnknown;
+      return chromeos::editor_menu::PresetQueryCategory::kUnknown;
     case orca::mojom::PresetTextQueryType::kShorten:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kShorten;
+      return chromeos::editor_menu::PresetQueryCategory::kShorten;
     case orca::mojom::PresetTextQueryType::kElaborate:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kElaborate;
+      return chromeos::editor_menu::PresetQueryCategory::kElaborate;
     case orca::mojom::PresetTextQueryType::kRephrase:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kRephrase;
+      return chromeos::editor_menu::PresetQueryCategory::kRephrase;
     case orca::mojom::PresetTextQueryType::kFormalize:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kFormalize;
+      return chromeos::editor_menu::PresetQueryCategory::kFormalize;
     case orca::mojom::PresetTextQueryType::kEmojify:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kEmojify;
+      return chromeos::editor_menu::PresetQueryCategory::kEmojify;
     case orca::mojom::PresetTextQueryType::kProofread:
-      return crosapi::mojom::EditorPanelPresetQueryCategory::kProofread;
+      return chromeos::editor_menu::PresetQueryCategory::kProofread;
   }
 }
 
-crosapi::mojom::EditorPanelMode GetEditorPanelMode(EditorMode editor_mode) {
-  switch (editor_mode) {
-    case EditorMode::kBlocked:
-      return crosapi::mojom::EditorPanelMode::kBlocked;
-    case EditorMode::kConsentNeeded:
-      return crosapi::mojom::EditorPanelMode::kPromoCard;
-    case EditorMode::kRewrite:
-      return crosapi::mojom::EditorPanelMode::kRewrite;
-    case EditorMode::kWrite:
-      return crosapi::mojom::EditorPanelMode::kWrite;
-  }
-}
-
-crosapi::mojom::EditorPanelPresetTextQueryPtr ToEditorPanelQuery(
-    const orca::mojom::PresetTextQueryPtr& orca_query) {
-  auto editor_panel_query = crosapi::mojom::EditorPanelPresetTextQuery::New();
-  editor_panel_query->text_query_id = orca_query->id;
-  editor_panel_query->name = orca_query->label;
-  editor_panel_query->description = orca_query->description;
-  editor_panel_query->category = ToEditorPanelQueryCategory(orca_query->type);
-  return editor_panel_query;
-}
-
-}  // namespace
-
-EditorPanelManager::EditorPanelManager(Delegate* delegate)
+EditorPanelManagerImpl::EditorPanelManagerImpl(Delegate* delegate)
     : delegate_(delegate) {}
 
-EditorPanelManager::~EditorPanelManager() = default;
+EditorPanelManagerImpl::~EditorPanelManagerImpl() = default;
 
-void EditorPanelManager::BindReceiver(
-    mojo::PendingReceiver<crosapi::mojom::EditorPanelManager>
-        pending_receiver) {
-  receivers_.Add(this, std::move(pending_receiver));
-}
-
-void EditorPanelManager::BindEditorClient() {
-  if (!editor_client_remote_.is_bound()) {
-    delegate_->BindEditorClient(
-        editor_client_remote_.BindNewPipeAndPassReceiver());
-
-    editor_client_remote_.reset_on_disconnect();
+void EditorPanelManagerImpl::BindEditorClient() {
+  if (editor_client_remote_.is_bound() &&
+      !base::FeatureList::IsEnabled(ash::features::kOrcaServiceConnection)) {
+    return;
   }
+
+  editor_client_remote_.reset();
+  delegate_->BindEditorClient(
+      editor_client_remote_.BindNewPipeAndPassReceiver());
+  editor_client_remote_.reset_on_disconnect();
 }
 
-void EditorPanelManager::GetEditorPanelContext(
+void EditorPanelManagerImpl::GetEditorPanelContext(
     GetEditorPanelContextCallback callback) {
-  // Force fetching and updating the input context.
-  // TODO: b:332605855 - Remove this hack after input context is fetched within
-  // GetEditorPanelMode / GetEditorMode.
-  if (base::FeatureList::IsEnabled(
-          ash::features::kOrcaForceFetchContextOnGetEditorPanelContext)) {
-    delegate_->FetchAndUpdateInputContext();
-  }
+  chromeos::editor_menu::EditorMode editor_panel_mode =
+      delegate_->GetEditorMode();
 
-  // Cache the current text context, so that any input fields that are part of
-  // the editor panel do not interfere with the context.
-  delegate_->CacheContext();
-
-  // TODO(b/295059934): Get the panel mode from the editor mediator.
-  const auto editor_panel_mode = GetEditorPanelMode(delegate_->GetEditorMode());
-
-  // TODO(b/295059934): Bind the editor client before getting the preset text
-  // queries.
-  if (editor_panel_mode == crosapi::mojom::EditorPanelMode::kRewrite &&
+  if (editor_panel_mode != chromeos::editor_menu::EditorMode::kSoftBlocked &&
+      editor_panel_mode != chromeos::editor_menu::EditorMode::kHardBlocked &&
       editor_client_remote_.is_bound()) {
     editor_client_remote_->GetPresetTextQueries(
-        base::BindOnce(&EditorPanelManager::OnGetPresetTextQueriesResult,
-                       weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
-  } else {
-    auto context = crosapi::mojom::EditorPanelContext::New();
-    context->editor_panel_mode = editor_panel_mode;
-    std::move(callback).Run(std::move(context));
+        base::BindOnce(&EditorPanelManagerImpl::OnGetPresetTextQueriesResult,
+                       weak_ptr_factory_.GetWeakPtr(), std::move(callback),
+                       editor_panel_mode));
+    return;
   }
+
+  std::move(callback).Run(chromeos::editor_menu::EditorContext(
+      /*mode=*/editor_panel_mode,
+      /*text_selection_mode=*/delegate_->GetEditorTextSelectionMode(),
+      /*consent_status_settled=*/delegate_->GetConsentStatus() !=
+          chromeos::editor_menu::EditorConsentStatus::kUnset,
+      chromeos::editor_menu::PresetTextQueries()));
 }
 
-void EditorPanelManager::OnPromoCardDismissed() {}
+void EditorPanelManagerImpl::OnPromoCardDismissed() {}
 
-void EditorPanelManager::OnPromoCardDeclined() {
+void EditorPanelManagerImpl::OnPromoCardDeclined() {
   delegate_->OnPromoCardDeclined();
   delegate_->GetMetricsRecorder()->LogEditorState(
       EditorStates::kPromoCardExplicitDismissal);
 }
 
-void EditorPanelManager::StartEditingFlow() {
+void EditorPanelManagerImpl::OnConsentRejected() {
+  delegate_->ProcessConsentAction(ConsentAction::kDecline);
+}
+
+void EditorPanelManagerImpl::StartEditingFlow() {
   delegate_->HandleTrigger(/*preset_query_id=*/std::nullopt,
                            /*freeform_text=*/std::nullopt);
 }
 
-void EditorPanelManager::StartEditingFlowWithPreset(
+void EditorPanelManagerImpl::StartEditingFlowWithPreset(
     const std::string& text_query_id) {
   delegate_->HandleTrigger(/*preset_query_id=*/text_query_id,
                            /*freeform_text=*/std::nullopt);
 }
 
-void EditorPanelManager::StartEditingFlowWithFreeform(const std::string& text) {
+void EditorPanelManagerImpl::StartEditingFlowWithFreeform(
+    const std::string& text) {
   delegate_->HandleTrigger(/*preset_query_id=*/std::nullopt,
                            /*freeform_text=*/text);
 }
 
-void EditorPanelManager::OnGetPresetTextQueriesResult(
+void EditorPanelManagerImpl::OnGetPresetTextQueriesResult(
     GetEditorPanelContextCallback callback,
+    chromeos::editor_menu::EditorMode mode,
     std::vector<orca::mojom::PresetTextQueryPtr> queries) {
-  auto context = crosapi::mojom::EditorPanelContext::New();
-  context->editor_panel_mode = crosapi::mojom::EditorPanelMode::kRewrite;
+  chromeos::editor_menu::PresetTextQueries text_queries;
+
   for (const auto& query : queries) {
-    context->preset_text_queries.push_back(ToEditorPanelQuery(query));
+    text_queries.push_back(chromeos::editor_menu::PresetTextQuery(
+        query->id, base::UTF8ToUTF16(query->label),
+        ToPresetQueryCategory(query->type)));
   }
-  std::move(callback).Run(std::move(context));
+
+  std::move(callback).Run(chromeos::editor_menu::EditorContext(
+      mode, /*text_selection_mode=*/delegate_->GetEditorTextSelectionMode(),
+      /*consent_status_settled=*/delegate_->GetConsentStatus() !=
+          chromeos::editor_menu::EditorConsentStatus::kUnset,
+
+      text_queries));
 }
 
-void EditorPanelManager::OnEditorMenuVisibilityChanged(bool visible) {
+void EditorPanelManagerImpl::OnEditorMenuVisibilityChanged(bool visible) {
   is_editor_menu_visible_ = visible;
 }
 
-bool EditorPanelManager::IsEditorMenuVisible() const {
+bool EditorPanelManagerImpl::IsEditorMenuVisible() const {
   return is_editor_menu_visible_;
 }
 
-void EditorPanelManager::LogEditorMode(crosapi::mojom::EditorPanelMode mode) {
+void EditorPanelManagerImpl::LogEditorMode(
+    chromeos::editor_menu::EditorMode mode) {
   EditorOpportunityMode opportunity_mode =
       delegate_->GetEditorOpportunityMode();
   EditorMetricsRecorder* logger = delegate_->GetMetricsRecorder();
@@ -170,46 +153,68 @@ void EditorPanelManager::LogEditorMode(crosapi::mojom::EditorPanelMode mode) {
     logger->LogEditorState(EditorStates::kNativeUIShowOpportunity);
   }
 
-  if (mode == crosapi::mojom::EditorPanelMode::kRewrite ||
-      mode == crosapi::mojom::EditorPanelMode::kWrite) {
+  if (mode == chromeos::editor_menu::EditorMode::kRewrite ||
+      mode == chromeos::editor_menu::EditorMode::kWrite) {
     logger->LogEditorState(EditorStates::kNativeUIShown);
   }
 
-  if (mode == crosapi::mojom::EditorPanelMode::kBlocked) {
+  if (mode == chromeos::editor_menu::EditorMode::kHardBlocked ||
+      mode == chromeos::editor_menu::EditorMode::kSoftBlocked) {
     logger->LogEditorState(EditorStates::kBlocked);
     for (EditorBlockedReason blocked_reason : delegate_->GetBlockedReasons()) {
       logger->LogEditorState(ToEditorStatesMetric(blocked_reason));
     }
   }
 
-  if (mode == crosapi::mojom::EditorPanelMode::kPromoCard) {
+  if (mode == chromeos::editor_menu::EditorMode::kConsentNeeded) {
     logger->LogEditorState(EditorStates::kPromoCardImpression);
   }
 }
 
-void EditorPanelManager::BindEditorObserver(
-    mojo::PendingRemote<crosapi::mojom::EditorObserver>
-        pending_observer_remote) {
-  observer_remotes_.Add(std::move(pending_observer_remote));
-}
-
-void EditorPanelManager::AddObserver(EditorPanelManager::Observer* observer) {
+void EditorPanelManagerImpl::AddObserver(
+    EditorPanelManagerImpl::Observer* observer) {
   observers_.AddObserver(observer);
 }
 
-void EditorPanelManager::RemoveObserver(
-    EditorPanelManager::Observer* observer) {
+void EditorPanelManagerImpl::RemoveObserver(
+    EditorPanelManagerImpl::Observer* observer) {
   observers_.RemoveObserver(observer);
 }
 
-void EditorPanelManager::NotifyEditorModeChanged(const EditorMode& mode) {
-  for (const mojo::Remote<crosapi::mojom::EditorObserver>& obs :
-       observer_remotes_) {
-    obs->OnEditorPanelModeChanged(GetEditorPanelMode(mode));
-  }
-  for (EditorPanelManager::Observer& obs : observers_) {
+void EditorPanelManagerImpl::NotifyEditorModeChanged(chromeos::editor_menu::EditorMode mode) {
+  for (EditorPanelManagerImpl::Observer& obs : observers_) {
     obs.OnEditorModeChanged(mode);
   }
+}
+
+void EditorPanelManagerImpl::RequestCacheContext() {
+  delegate_->CacheContext();
+}
+
+void EditorPanelManagerImpl::OnConsentApproved() {
+  delegate_->ProcessConsentAction(ConsentAction::kApprove);
+}
+
+void EditorPanelManagerImpl::OnMagicBoostPromoCardDeclined() {
+  // Reject consent and follow the normal workflow similar to when Orca's promo
+  // card is declined.
+  OnConsentRejected();
+  OnPromoCardDeclined();
+}
+
+bool EditorPanelManagerImpl::ShouldOptInEditor() {
+  chromeos::editor_menu::EditorMode editor_panel_mode =
+      delegate_->GetEditorMode();
+  chromeos::editor_menu::EditorConsentStatus consent_status =
+      delegate_->GetConsentStatus();
+
+  return editor_panel_mode != chromeos::editor_menu::EditorMode::kHardBlocked &&
+         consent_status == chromeos::editor_menu::EditorConsentStatus::kUnset;
+}
+
+void EditorPanelManagerImpl::SetEditorClientForTesting(
+    mojo::PendingRemote<orca::mojom::EditorClient> client_for_testing) {
+  editor_client_remote_.Bind(std::move(client_for_testing));
 }
 
 }  // namespace ash::input_method

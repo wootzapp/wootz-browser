@@ -14,6 +14,7 @@
 #include "base/containers/span.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list_types.h"
+#include "base/time/time.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/webauthn/core/browser/passkey_model_change.h"
 
@@ -26,7 +27,7 @@ class WebauthnCredentialSpecifics;
 }
 
 namespace syncer {
-class ModelTypeControllerDelegate;
+class DataTypeControllerDelegate;
 }
 
 namespace webauthn {
@@ -54,6 +55,9 @@ class PasskeyModel : public KeyedService {
 
     // Notifies the observer that the passkey model is shutting down.
     virtual void OnPasskeyModelShuttingDown() = 0;
+
+    // Notifies the observer when the passkey model becomes ready.
+    virtual void OnPasskeyModelIsReady(bool is_ready) = 0;
   };
 
   // Represents the WebAuthn PublicKeyCredentialUserEntity passed by the Relying
@@ -78,14 +82,17 @@ class PasskeyModel : public KeyedService {
   virtual void AddObserver(Observer* observer) = 0;
   virtual void RemoveObserver(Observer* observer) = 0;
 
-  // Returns the sync ModelTypeControllerDelegate for the WEBAUTHN_CREDENTIAL
+  // Returns the sync DataTypeControllerDelegate for the WEBAUTHN_CREDENTIAL
   // data type.
-  virtual base::WeakPtr<syncer::ModelTypeControllerDelegate>
-  GetModelTypeControllerDelegate() = 0;
+  virtual base::WeakPtr<syncer::DataTypeControllerDelegate>
+  GetDataTypeControllerDelegate() = 0;
 
   // Returns true if the model has finished loading state from disk and is ready
   // to sync.
   virtual bool IsReady() const = 0;
+
+  // Returns true if there are no passkeys in the account.
+  virtual bool IsEmpty() const = 0;
 
   virtual base::flat_set<std::string> GetAllSyncIds() const = 0;
 
@@ -113,10 +120,29 @@ class PasskeyModel : public KeyedService {
   virtual bool DeletePasskey(const std::string& credential_id,
                              const base::Location& location) = 0;
 
+  // Sets the `hidden` property for the passkey with the given `credential_id`.
+  // Returns true if a passkey was found and updated, false otherwise.
+  virtual bool SetPasskeyHidden(const std::string& credential_id,
+                                bool hidden) = 0;
+
+  // Deletes all passkeys.
+  virtual void DeleteAllPasskeys() = 0;
+
   // Updates attributes of the passkey with the given `credential_id`. Returns
   // true if the credential was found and updated, false otherwise.
+  // |updated_by_user| should be true if the user explicitly requested this
+  // update, e.g. through the password manager. Passkeys updated by the user
+  // will be permantently marked as such. Any further attempts to update the
+  // passkey with |updated_by_user| set to |false| will be dropped.
   virtual bool UpdatePasskey(const std::string& credential_id,
-                             PasskeyUpdate change) = 0;
+                             PasskeyUpdate change,
+                             bool updated_by_user) = 0;
+
+  // Updates the `last_used_time_windows_epoch_micros` attribute of the
+  // passkey with the given `credential_id`. Returns true if the credential was
+  // found and updated, false otherwise.
+  virtual bool UpdatePasskeyTimestamp(const std::string& credential_id,
+                                      base::Time last_used_time) = 0;
 
   // Creates a passkey for the given RP and user and returns the new entity
   // specifics.

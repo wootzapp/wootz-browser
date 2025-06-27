@@ -16,9 +16,8 @@ import androidx.annotation.IntDef;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -33,7 +32,6 @@ import org.chromium.components.browser_ui.modaldialog.ModalDialogTestUtils;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogView;
 import org.chromium.components.infobars.InfoBar;
 import org.chromium.components.permissions.PermissionDialogController;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
@@ -104,7 +102,6 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
          *
          * @param numUpdates The number that should be after the prefix for the wait to be over. `0`
          *     to only wait for the prefix.
-         * @throws Exception
          */
         public void waitForNumUpdates(int numUpdates) throws Exception {
             int callbackCountBefore = mCallbackHelper.getCallCount();
@@ -130,23 +127,16 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
     }
 
     @Override
-    public Statement apply(Statement base, Description description) {
-        return super.apply(
-                new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        ModalDialogView.disableButtonTapProtectionForTesting();
-                        base.evaluate();
-                    }
-                },
-                description);
+    protected void before() throws Throwable {
+        super.before();
+        ModalDialogView.disableButtonTapProtectionForTesting();
     }
 
     /** Starts an activity and listens for info-bars appearing/disappearing. */
     public void setUpActivity() throws InterruptedException {
         startMainActivityOnBlankPage();
         mListener = new InfoBarTestAnimationListener();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> getInfoBarContainer().addAnimationListener(mListener));
     }
 
@@ -196,7 +186,6 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
      * @param nUpdates How many updates of the page title to wait for.
      * @param withGesture True if we require a user gesture to trigger the prompt.
      * @param isDialog True if we are expecting a permission dialog, false for an infobar.
-     * @throws Exception
      */
     public void runAllowTest(
             PermissionUpdateWaiter updateWaiter,
@@ -226,7 +215,6 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
      * @param nUpdates How many updates of the page title to wait for.
      * @param withGesture True if we require a user gesture to trigger the prompt.
      * @param isDialog True if we are expecting a permission dialog, false for an infobar.
-     * @throws Exception
      */
     public void runDenyTest(
             PermissionUpdateWaiter updateWaiter,
@@ -256,7 +244,6 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
      * @param nUpdates How many updates of the page title to wait for.
      * @param withGesture True if we require a user gesture.
      * @param isDialog True if we are testing a permission dialog, false for an infobar.
-     * @throws Exception
      */
     public void runNoPromptTest(
             PermissionUpdateWaiter updateWaiter,
@@ -299,7 +286,7 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
                     PermissionDialogController.getInstance().isDialogShownForTest());
         } else {
             Assert.assertEquals(
-                    "Permission infobar shown when none expected", getInfoBars().size(), 0);
+                    "Permission infobar shown when none expected", 0, getInfoBars().size());
         }
     }
 
@@ -375,7 +362,7 @@ public class PermissionTestRule extends ChromeTabbedActivityTestRule {
     /** Wait for the permission dialog to be in the expected shown state. */
     public static void waitForDialogShownState(ChromeActivity activity, boolean expectedShowState) {
         ModalDialogManager dialogManager =
-                TestThreadUtils.runOnUiThreadBlockingNoException(activity::getModalDialogManager);
+                ThreadUtils.runOnUiThreadBlocking(activity::getModalDialogManager);
         CriteriaHelper.pollUiThread(
                 () -> {
                     boolean isDialogShownForTest =

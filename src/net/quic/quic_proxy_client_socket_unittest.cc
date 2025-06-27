@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/quic/quic_proxy_client_socket.h"
 
 #include <memory>
@@ -31,6 +36,7 @@
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/qpack/qpack_test_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/quic_test_utils.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
@@ -75,7 +81,7 @@ class QuicProxyClientSocketTest : public QuicProxyClientSocketTestBase {
   }
 
   void PopulateConnectRequestIR(
-      spdy::Http2HeaderBlock* block,
+      quiche::HttpHeaderBlock* block,
       std::optional<const HttpRequestHeaders> extra_headers) override {
     (*block)[":method"] = "CONNECT";
     (*block)[":authority"] =

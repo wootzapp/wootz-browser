@@ -11,11 +11,19 @@ namespace scheduler {
 
 using perfetto::protos::pbzero::RendererMainThreadTaskExecution;
 
-double TimeDeltaToMilliseconds(const base::TimeDelta& value) {
-  return value.InMillisecondsF();
+perfetto::NamedTrack MakeNamedTrack(perfetto::StaticString name,
+                                    const void* ptr,
+                                    perfetto::Track parent) {
+  return perfetto::NamedTrack(name, reinterpret_cast<uintptr_t>(ptr), parent);
 }
 
-const char* YesNoStateToString(bool is_yes) {
+perfetto::CounterTrack MakeCounterTrack(perfetto::StaticString name,
+                                        const void* ptr,
+                                        perfetto::Track parent) {
+  return perfetto::CounterTrack(name, reinterpret_cast<uintptr_t>(ptr), parent);
+}
+
+perfetto::StaticString YesNoStateToString(bool is_yes) {
   if (is_yes) {
     return "yes";
   } else {
@@ -96,9 +104,12 @@ RendererMainThreadTaskExecution::TaskType TaskTypeToProto(TaskType task_type) {
     case TaskType::kMainThreadTaskQueueV8:
       return RendererMainThreadTaskExecution::
           TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8;
-    case TaskType::kMainThreadTaskQueueV8LowPriority:
+    case TaskType::kMainThreadTaskQueueV8UserVisible:
       return RendererMainThreadTaskExecution::
-          TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY;
+          TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_USER_VISIBLE;
+    case TaskType::kMainThreadTaskQueueV8BestEffort:
+      return RendererMainThreadTaskExecution::
+          TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_BEST_EFFORT;
     case TaskType::kMainThreadTaskQueueCompositor:
       return RendererMainThreadTaskExecution::
           TASK_TYPE_MAIN_THREAD_TASK_QUEUE_COMPOSITOR;
@@ -171,6 +182,8 @@ RendererMainThreadTaskExecution::TaskType TaskTypeToProto(TaskType task_type) {
       return RendererMainThreadTaskExecution::TASK_TYPE_STORAGE;
     case TaskType::kClipboard:
       return RendererMainThreadTaskExecution::TASK_TYPE_CLIPBOARD;
+    case TaskType::kMachineLearning:
+      return RendererMainThreadTaskExecution::TASK_TYPE_MACHINE_LEARNING;
     case TaskType::kWebSchedulingPostedTask:
       return RendererMainThreadTaskExecution::
           TASK_TYPE_WEB_SCHEDULING_POSTED_TASK;
@@ -208,6 +221,8 @@ RendererMainThreadTaskExecution::TaskType TaskTypeToProto(TaskType task_type) {
     case TaskType::kInternalPostMessageForwarding:
       return RendererMainThreadTaskExecution::
           TASK_TYPE_INTERNAL_POST_MESSAGE_FORWARDING;
+    case TaskType::kInternalAutofill:
+      return RendererMainThreadTaskExecution::TASK_TYPE_INTERNAL_AUTOFILL;
   }
 }
 

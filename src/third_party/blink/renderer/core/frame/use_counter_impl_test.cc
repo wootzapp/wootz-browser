@@ -19,7 +19,6 @@
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 #include "third_party/blink/renderer/platform/testing/url_test_helpers.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -289,6 +288,21 @@ TEST_F(UseCounterImplTest, CSSSelectorPseudoDir) {
   EXPECT_TRUE(document.IsUseCounted(feature));
 }
 
+TEST_F(UseCounterImplTest, CSSSelectorNthChildOfSelector) {
+  auto dummy_page_holder =
+      std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
+  Page::InsertOrdinaryPageForTesting(&dummy_page_holder->GetPage());
+  Document& document = dummy_page_holder->GetDocument();
+  WebFeature feature = WebFeature::kCSSSelectorNthChildOfSelector;
+  EXPECT_FALSE(document.IsUseCounted(feature));
+  document.documentElement()->setInnerHTML(
+      "<style>.a:nth-child(3) { color: red; }</style>");
+  EXPECT_FALSE(document.IsUseCounted(feature));
+  document.documentElement()->setInnerHTML(
+      "<style>.a:nth-child(3 of .b) { color: red; }</style>");
+  EXPECT_TRUE(document.IsUseCounted(feature));
+}
+
 TEST_F(UseCounterImplTest, CSSGridLayoutPercentageColumnIndefiniteWidth) {
   auto dummy_page_holder =
       std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
@@ -386,9 +400,12 @@ class DeprecationTest : public testing::Test {
  public:
   DeprecationTest()
       : dummy_(std::make_unique<DummyPageHolder>()),
-        deprecation_(dummy_->GetPage().GetDeprecation()),
-        use_counter_(dummy_->GetDocument().Loader()->GetUseCounter()) {
+        deprecation_(dummy_->GetPage().GetDeprecation()) {
     Page::InsertOrdinaryPageForTesting(&dummy_->GetPage());
+  }
+
+  UseCounterImpl& use_counter() {
+    return dummy_->GetDocument().Loader()->GetUseCounter();
   }
 
  protected:
@@ -397,7 +414,6 @@ class DeprecationTest : public testing::Test {
   test::TaskEnvironment task_environment_;
   std::unique_ptr<DummyPageHolder> dummy_;
   Deprecation& deprecation_;
-  UseCounterImpl& use_counter_;
 };
 
 TEST_F(DeprecationTest, InspectorDisablesDeprecation) {
@@ -407,19 +423,19 @@ TEST_F(DeprecationTest, InspectorDisablesDeprecation) {
 
   deprecation_.MuteForInspector();
   Deprecation::CountDeprecation(GetFrame()->DomWindow(), feature);
-  EXPECT_FALSE(use_counter_.IsCounted(feature));
+  EXPECT_FALSE(use_counter().IsCounted(feature));
 
   deprecation_.MuteForInspector();
   Deprecation::CountDeprecation(GetFrame()->DomWindow(), feature);
-  EXPECT_FALSE(use_counter_.IsCounted(feature));
+  EXPECT_FALSE(use_counter().IsCounted(feature));
 
   deprecation_.UnmuteForInspector();
   Deprecation::CountDeprecation(GetFrame()->DomWindow(), feature);
-  EXPECT_FALSE(use_counter_.IsCounted(feature));
+  EXPECT_FALSE(use_counter().IsCounted(feature));
 
   deprecation_.UnmuteForInspector();
   Deprecation::CountDeprecation(GetFrame()->DomWindow(), feature);
-  EXPECT_TRUE(use_counter_.IsCounted(feature));
+  EXPECT_TRUE(use_counter().IsCounted(feature));
 }
 
 TEST_F(UseCounterImplTest, CSSUnknownNamespacePrefixInSelector) {

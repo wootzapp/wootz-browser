@@ -14,8 +14,9 @@
 std::u16string GetClipboardText(bool notify_if_restricted) {
   // Try text format.
   ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
-  ui::DataTransferEndpoint data_dst = ui::DataTransferEndpoint(
-      ui::EndpointType::kDefault, notify_if_restricted);
+  ui::DataTransferEndpoint data_dst =
+      ui::DataTransferEndpoint(ui::EndpointType::kDefault,
+                               {.notify_if_restricted = notify_if_restricted});
   if (clipboard->IsFormatAvailable(ui::ClipboardFormatType::PlainTextType(),
                                    ui::ClipboardBuffer::kCopyPaste,
                                    &data_dst)) {
@@ -39,8 +40,9 @@ std::u16string GetClipboardText(bool notify_if_restricted) {
     clipboard->ReadBookmark(&data_dst, nullptr, &url_str);
     // pass resulting url string through GURL to normalize
     GURL url(url_str);
-    if (url.is_valid())
+    if (url.is_valid()) {
       return OmniboxView::StripJavascriptSchemas(base::UTF8ToUTF16(url.spec()));
+    }
   }
 
   return std::u16string();

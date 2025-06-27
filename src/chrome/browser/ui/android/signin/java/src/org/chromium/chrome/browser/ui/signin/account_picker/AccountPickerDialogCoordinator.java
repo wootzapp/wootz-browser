@@ -32,14 +32,15 @@ public class AccountPickerDialogCoordinator {
     @MainThread
     public AccountPickerDialogCoordinator(
             Context context, Listener listener, ModalDialogManager modalDialogManager) {
+        mDialogManager = modalDialogManager;
         mAccountPickerView = inflateAccountPickerView(context);
+
         mCoordinator =
                 new AccountPickerCoordinator(
                         mAccountPickerView,
                         listener,
-                        R.layout.account_picker_row,
-                        R.layout.account_picker_new_account_row);
-        mDialogManager = modalDialogManager;
+                        R.layout.account_picker_dialog_row,
+                        R.layout.account_picker_dialog_new_account_row);
         mModel =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
                         .with(
@@ -49,6 +50,7 @@ public class AccountPickerDialogCoordinator {
                         .with(ModalDialogProperties.CUSTOM_VIEW, mAccountPickerView)
                         .with(ModalDialogProperties.CONTROLLER, createController())
                         .build();
+
         mDialogManager.showDialog(mModel, ModalDialogType.APP);
     }
 

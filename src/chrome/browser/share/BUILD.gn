@@ -23,6 +23,8 @@ source_set("share") {
 
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
+  public_deps = [ "//chrome/browser:browser_public_dependencies" ]
+
   deps = [
     "//base",
     "//chrome/browser/favicon",
@@ -43,8 +45,6 @@ source_set("share") {
       "default_ranking_android.cc",
       "editor_screenshot_task.cc",
       "link_to_text_bridge.cc",
-      "page_info_sharing_bridge.cc",
-      "page_info_sharing_bridge.h",
       "qr_code_generator_android.cc",
     ]
     deps += [
@@ -65,9 +65,9 @@ if (is_android) {
     sources = [
       "android/java/src/org/chromium/chrome/browser/share/ChromeShareExtras.java",
       "android/java/src/org/chromium/chrome/browser/share/ShareDelegate.java",
+      "android/java/src/org/chromium/chrome/browser/share/ShareDelegateSupplier.java",
       "android/java/src/org/chromium/chrome/browser/share/ShareHistoryBridge.java",
       "android/java/src/org/chromium/chrome/browser/share/ShareRankingBridge.java",
-      "android/java/src/org/chromium/chrome/browser/share/page_info_sheet/PageInfoSharingBridge.java",
       "android/java/src/org/chromium/chrome/browser/share/share_sheet/ChromeOptionShareCallback.java",
     ]
 
@@ -82,6 +82,7 @@ if (is_android) {
       "//content/public/android:content_java",
       "//third_party/androidx:androidx_annotation_annotation_java",
       "//third_party/jni_zero:jni_zero_java",
+      "//ui/android:ui_java",
       "//url:gurl_java",
     ]
   }
@@ -90,7 +91,6 @@ if (is_android) {
     sources = [
       "android/java/src/org/chromium/chrome/browser/share/ShareHistoryBridge.java",
       "android/java/src/org/chromium/chrome/browser/share/ShareRankingBridge.java",
-      "android/java/src/org/chromium/chrome/browser/share/page_info_sheet/PageInfoSharingBridge.java",
     ]
   }
 }

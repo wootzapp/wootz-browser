@@ -9,7 +9,9 @@
       "reloading": false,
       "suspiciousInstall": false,
       "updateRequired": false,
-      "publishedInStoreRequired": false
+      "publishedInStoreRequired": false,
+      "unsupportedManifestVersion": false,
+      "unsupportedDeveloperExtension": false
    },
    "errorCollection": {
       "isActive": false,

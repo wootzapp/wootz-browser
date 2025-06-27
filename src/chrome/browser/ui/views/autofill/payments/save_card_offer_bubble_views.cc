@@ -24,17 +24,19 @@
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
-#include "components/autofill/core/browser/autofill_experiments.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/data_quality/validation.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/metrics/payments/credit_card_save_metrics.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
-#include "components/autofill/core/browser/validation.h"
+#include "components/autofill/core/browser/studies/autofill_experiments.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/color_palette.h"
@@ -64,7 +66,8 @@ SaveCardOfferBubbleViews::SaveCardOfferBubbleViews(
     content::WebContents* web_contents,
     SaveCardBubbleController* controller)
     : SaveCardBubbleViews(anchor_view, web_contents, controller) {
-  SetButtons(ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kOk) |
+             static_cast<int>(ui::mojom::DialogButton::kCancel));
 
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -80,9 +83,7 @@ void SaveCardOfferBubbleViews::Init() {
 
   if (controller() &&
       (controller()->GetBubbleType() == BubbleType::UPLOAD_SAVE ||
-       controller()->GetBubbleType() == BubbleType::UPLOAD_IN_PROGRESS) &&
-      base::FeatureList::IsEnabled(
-          features::kAutofillEnableSaveCardLoadingAndConfirmation)) {
+       controller()->GetBubbleType() == BubbleType::UPLOAD_IN_PROGRESS)) {
     loading_row_ = AddChildView(CreateLoadingRow());
     if (controller()->GetBubbleType() == BubbleType::UPLOAD_IN_PROGRESS) {
       ShowThrobber();
@@ -94,10 +95,7 @@ void SaveCardOfferBubbleViews::Init() {
 
 bool SaveCardOfferBubbleViews::Accept() {
   bool show_throbber =
-      controller() &&
-      controller()->GetBubbleType() == BubbleType::UPLOAD_SAVE &&
-      base::FeatureList::IsEnabled(
-          features::kAutofillEnableSaveCardLoadingAndConfirmation);
+      controller() && controller()->GetBubbleType() == BubbleType::UPLOAD_SAVE;
 
   if (show_throbber) {
     ShowThrobber();
@@ -105,8 +103,9 @@ bool SaveCardOfferBubbleViews::Accept() {
 
   if (controller()) {
     controller()->OnSaveButton(
-        {cardholder_name_textfield_ ? cardholder_name_textfield_->GetText()
-                                    : std::u16string(),
+        {cardholder_name_textfield_
+             ? std::u16string(cardholder_name_textfield_->GetText())
+             : std::u16string(),
          month_input_dropdown_
              ? month_input_dropdown_->GetModel()->GetItemAt(
                    month_input_dropdown_->GetSelectedIndex().value())
@@ -123,11 +122,12 @@ bool SaveCardOfferBubbleViews::Accept() {
 }
 
 bool SaveCardOfferBubbleViews::IsDialogButtonEnabled(
-    ui::DialogButton button) const {
-  if (button == ui::DIALOG_BUTTON_CANCEL)
+    ui::mojom::DialogButton button) const {
+  if (button == ui::mojom::DialogButton::kCancel) {
     return true;
+  }
 
-  DCHECK_EQ(ui::DIALOG_BUTTON_OK, button);
+  DCHECK_EQ(ui::mojom::DialogButton::kOk, button);
   if (cardholder_name_textfield_) {
     // Make sure we are not requesting cardholder name and expiration date at
     // the same time.
@@ -166,16 +166,32 @@ void SaveCardOfferBubbleViews::AddedToWidget() {
   SaveCardBubbleViews::AddedToWidget();
   // Set the header image.
   ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
+  int light_mode_banner_id;
+  int dark_mode_banner_id;
 
-  bool is_cvc_save_bubble =
-      controller()->GetBubbleType() == BubbleType::LOCAL_CVC_SAVE ||
-      controller()->GetBubbleType() == BubbleType::UPLOAD_CVC_SAVE;
+  switch (controller()->GetBubbleType()) {
+    case BubbleType::UPLOAD_SAVE:
+    case BubbleType::UPLOAD_IN_PROGRESS:
+    case BubbleType::UPLOAD_COMPLETED:
+      // Updated banner/text pairs are for upload save only.
+      light_mode_banner_id = IDR_SAVE_CARD_SECURITY;
+      dark_mode_banner_id = IDR_SAVE_CARD_SECURITY_DARK;
+      break;
+    case BubbleType::LOCAL_CVC_SAVE:
+    case BubbleType::UPLOAD_CVC_SAVE:
+      // CVC bubbles show their own CVC-based banner image.
+      light_mode_banner_id = IDR_SAVE_CVC;
+      dark_mode_banner_id = IDR_SAVE_CVC_DARK;
+      break;
+    default:
+      light_mode_banner_id = IDR_SAVE_CARD;
+      dark_mode_banner_id = IDR_SAVE_CARD_DARK;
+  }
+
   auto image_view = std::make_unique<ThemeTrackingNonAccessibleImageView>(
-      *bundle.GetImageSkiaNamed(is_cvc_save_bubble ? IDR_SAVE_CVC
-                                                   : IDR_SAVE_CARD),
-      *bundle.GetImageSkiaNamed(is_cvc_save_bubble ? IDR_SAVE_CVC_DARK
-                                                   : IDR_SAVE_CARD_DARK),
-      base::BindRepeating(&views::BubbleDialogDelegate::GetBackgroundColor,
+      *bundle.GetImageSkiaNamed(light_mode_banner_id),
+      *bundle.GetImageSkiaNamed(dark_mode_banner_id),
+      base::BindRepeating(&views::BubbleDialogDelegate::background_color,
                           base::Unretained(this)));
   GetBubbleFrameView()->SetHeaderView(std::move(image_view));
 }
@@ -249,8 +265,9 @@ std::unique_ptr<views::View> SaveCardOfferBubbleViews::CreateMainContentView() {
     cardholder_name_textfield_ = new views::Textfield();
     cardholder_name_textfield_->set_controller(this);
     cardholder_name_textfield_->SetID(DialogViewId::CARDHOLDER_NAME_TEXTFIELD);
-    cardholder_name_textfield_->SetAccessibleName(l10n_util::GetStringUTF16(
-        IDS_AUTOFILL_SAVE_CARD_PROMPT_CARDHOLDER_NAME));
+    cardholder_name_textfield_->GetViewAccessibility().SetName(
+        l10n_util::GetStringUTF16(
+            IDS_AUTOFILL_SAVE_CARD_PROMPT_CARDHOLDER_NAME));
     cardholder_name_textfield_->SetTextInputType(
         ui::TextInputType::TEXT_INPUT_TYPE_TEXT);
     cardholder_name_textfield_->SetText(prefilled_name);
@@ -264,7 +281,7 @@ std::unique_ptr<views::View> SaveCardOfferBubbleViews::CreateMainContentView() {
         views::BoxLayout::Orientation::kVertical, gfx::Insets(),
         provider->GetDistanceMetric(views::DISTANCE_RELATED_CONTROL_VERTICAL)));
     cardholder_name_view->AddChildView(std::move(cardholder_name_label_row));
-    cardholder_name_view->AddChildView(cardholder_name_textfield_.get());
+    cardholder_name_view->AddChildViewRaw(cardholder_name_textfield_.get());
     view->AddChildView(std::move(cardholder_name_view));
   }
 
@@ -272,7 +289,8 @@ std::unique_ptr<views::View> SaveCardOfferBubbleViews::CreateMainContentView() {
     view->AddChildView(CreateRequestExpirationDateView());
   }
 
-  if (std::unique_ptr<views::View> legal_message_view = CreateLegalMessageView()) {
+  if (std::unique_ptr<views::View> legal_message_view =
+          CreateLegalMessageView()) {
     legal_message_view->SetID(DialogViewId::LEGAL_MESSAGE_VIEW);
     view->AddChildView(std::move(legal_message_view));
   }
@@ -293,7 +311,7 @@ SaveCardOfferBubbleViews::CreateRequestExpirationDateView() {
   month_input_dropdown_ = new views::Combobox(&month_combobox_model_);
   month_input_dropdown_->SetCallback(base::BindRepeating(
       &SaveCardOfferBubbleViews::DialogModelChanged, base::Unretained(this)));
-  month_input_dropdown_->SetAccessibleName(
+  month_input_dropdown_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_PLACEHOLDER_EXPIRY_MONTH));
   month_input_dropdown_->SetID(DialogViewId::EXPIRATION_DATE_DROPBOX_MONTH);
 
@@ -308,7 +326,7 @@ SaveCardOfferBubbleViews::CreateRequestExpirationDateView() {
   year_input_dropdown_ = new views::Combobox(&year_combobox_model_);
   year_input_dropdown_->SetCallback(base::BindRepeating(
       &SaveCardOfferBubbleViews::DialogModelChanged, base::Unretained(this)));
-  year_input_dropdown_->SetAccessibleName(
+  year_input_dropdown_->GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_PLACEHOLDER_EXPIRY_YEAR));
   year_input_dropdown_->SetID(DialogViewId::EXPIRATION_DATE_DROPBOX_YEAR);
 
@@ -324,8 +342,8 @@ SaveCardOfferBubbleViews::CreateRequestExpirationDateView() {
   input_row->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
       provider->GetDistanceMetric(DISTANCE_RELATED_CONTROL_HORIZONTAL_SMALL)));
-  input_row->AddChildView(month_input_dropdown_.get());
-  input_row->AddChildView(year_input_dropdown_.get());
+  input_row->AddChildViewRaw(month_input_dropdown_.get());
+  input_row->AddChildViewRaw(year_input_dropdown_.get());
 
   // Set up expiration date label.
   auto expiration_date_label = std::make_unique<views::Label>(
@@ -365,7 +383,7 @@ SaveCardOfferBubbleViews::CreateUploadExplanationView() {
   return upload_explanation_tooltip;
 }
 
-std::unique_ptr<LegalMessageView>
+std::unique_ptr<views::View>
 SaveCardOfferBubbleViews::CreateLegalMessageView() {
   const LegalMessageLines message_lines = controller()->GetLegalMessageLines();
 
@@ -373,13 +391,11 @@ SaveCardOfferBubbleViews::CreateLegalMessageView() {
     return nullptr;
   }
 
-  LegalMessageView::LinkClickedCallback LegalMessageCallBack =
-      base::BindRepeating(&SaveCardOfferBubbleViews::LinkClicked,
-                          base::Unretained(this));
-
-  return std::make_unique<LegalMessageView>(
+  return ::autofill::CreateLegalMessageView(
       message_lines, base::UTF8ToUTF16(controller()->GetAccountInfo().email),
-      GetProfileAvatar(controller()->GetAccountInfo()), LegalMessageCallBack);
+      GetProfileAvatar(controller()->GetAccountInfo()),
+      base::BindRepeating(&SaveCardOfferBubbleViews::LinkClicked,
+                          base::Unretained(this)));
 }
 
 std::unique_ptr<views::View> SaveCardOfferBubbleViews::CreateLoadingRow() {
@@ -400,8 +416,9 @@ std::unique_ptr<views::View> SaveCardOfferBubbleViews::CreateLoadingRow() {
 }
 
 void SaveCardOfferBubbleViews::LinkClicked(const GURL& url) {
-  if (controller())
+  if (controller()) {
     controller()->OnLegalMessageLinkClicked(url);
+  }
 }
 
 void SaveCardOfferBubbleViews::ShowThrobber() {
@@ -409,7 +426,7 @@ void SaveCardOfferBubbleViews::ShowThrobber() {
     return;
   }
 
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetExtraView({nullptr});
 
   CHECK(loading_throbber_);
@@ -422,5 +439,8 @@ void SaveCardOfferBubbleViews::ShowThrobber() {
 
   DialogModelChanged();
 }
+
+BEGIN_METADATA(SaveCardOfferBubbleViews)
+END_METADATA
 
 }  // namespace autofill

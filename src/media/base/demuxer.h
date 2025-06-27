@@ -26,14 +26,18 @@ namespace media {
 
 class MediaTracks;
 
+// WARNING: These values are reported to metrics. Entries should not be
+// renumbered and numeric values should not be reused. When adding new entries,
+// also update media::mojom::RendererType & tools/metrics/histograms/enums.xml.
 enum class DemuxerType {
-  kMockDemuxer,
-  kFFmpegDemuxer,
-  kChunkDemuxer,
-  kMediaUrlDemuxer,
-  kFrameInjectingDemuxer,
-  kStreamProviderDemuxer,
-  kManifestDemuxer,
+  kUnknownDemuxer = 0,
+  kMockDemuxer = 1,
+  kFFmpegDemuxer = 2,
+  kChunkDemuxer = 3,
+  // kMediaUrlDemuxer = 4,     // Deprecated
+  kFrameInjectingDemuxer = 5,
+  kStreamProviderDemuxer = 6,
+  kManifestDemuxer = 7,
 };
 
 class MEDIA_EXPORT DemuxerHost {
@@ -76,17 +80,9 @@ class MEDIA_EXPORT Demuxer : public MediaResource {
   using MediaTracksUpdatedCB =
       base::RepeatingCallback<void(std::unique_ptr<MediaTracks>)>;
 
-  // Called once the demuxer has finished enabling or disabling tracks. The type
-  // argument is required because the vector may be empty.
+  // Called once the demuxer has finished enabling or disabling tracks.
   using TrackChangeCB =
-      base::OnceCallback<void(DemuxerStream::Type type,
-                              const std::vector<DemuxerStream*>&)>;
-
-  enum DemuxerTypes {
-    kChunkDemuxer,
-    kFFmpegDemuxer,
-    kMediaUrlDemuxer,
-  };
+      base::OnceCallback<void(const std::vector<DemuxerStream*>&)>;
 
   Demuxer();
 

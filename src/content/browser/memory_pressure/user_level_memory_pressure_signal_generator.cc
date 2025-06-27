@@ -2,9 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/browser/memory_pressure/user_level_memory_pressure_signal_generator.h"
 
-#if BUILDFLAG(IS_ANDROID)
 #include <fcntl.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -36,7 +40,8 @@ namespace memory_pressure {
 
 namespace {
 constexpr uint64_t k1MB = 1024ull * 1024;
-constexpr base::TimeDelta kDefaultMeasurementInterval = base::Seconds(1);
+constexpr base::TimeDelta kFirstMeasurementInterval = base::Minutes(1);
+constexpr base::TimeDelta kDefaultMeasurementInterval = base::Seconds(4);
 
 // Time interval between measuring total private memory footprint.
 base::TimeDelta MeasurementIntervalFor3GbDevices() {
@@ -47,17 +52,11 @@ base::TimeDelta MeasurementIntervalFor3GbDevices() {
 }
 
 base::TimeDelta MeasurementIntervalFor4GbDevices() {
-  static const base::FeatureParam<base::TimeDelta> kMeasurementInterval{
-      &content::features::kUserLevelMemoryPressureSignalOn4GbDevices,
-      "measurement_interval", kDefaultMeasurementInterval};
-  return kMeasurementInterval.Get();
+  return kDefaultMeasurementInterval;
 }
 
 base::TimeDelta MeasurementIntervalFor6GbDevices() {
-  static const base::FeatureParam<base::TimeDelta> kMeasurementInterval{
-      &content::features::kUserLevelMemoryPressureSignalOn6GbDevices,
-      "measurement_interval", kDefaultMeasurementInterval};
-  return kMeasurementInterval.Get();
+  return kDefaultMeasurementInterval;
 }
 
 // The memory threshold: 738 was selected at around the 99th percentile of
@@ -78,10 +77,7 @@ uint64_t MemoryThresholdParamFor3GbDevices() {
 constexpr size_t kMemoryThresholdMBOf4GbDevices = 458;
 
 uint64_t MemoryThresholdParamFor4GbDevices() {
-  static const base::FeatureParam<int> kMemoryThresholdParam{
-      &content::features::kUserLevelMemoryPressureSignalOn4GbDevices,
-      "memory_threshold_mb", kMemoryThresholdMBOf4GbDevices};
-  return base::as_unsigned(kMemoryThresholdParam.Get()) * k1MB;
+  return kMemoryThresholdMBOf4GbDevices * k1MB;
 }
 
 // The memory threshold: 494 was selected at around the 99th percentile of
@@ -90,10 +86,7 @@ uint64_t MemoryThresholdParamFor4GbDevices() {
 constexpr size_t kMemoryThresholdMBOf6GbDevices = 494;
 
 uint64_t MemoryThresholdParamFor6GbDevices() {
-  static const base::FeatureParam<int> kMemoryThresholdParam{
-      &content::features::kUserLevelMemoryPressureSignalOn6GbDevices,
-      "memory_threshold_mb", kMemoryThresholdMBOf6GbDevices};
-  return base::as_unsigned(kMemoryThresholdParam.Get()) * k1MB;
+  return kMemoryThresholdMBOf6GbDevices * k1MB;
 }
 
 }  // namespace
@@ -144,18 +137,18 @@ void UserLevelMemoryPressureSignalGenerator::Start(
   measure_interval_ = measure_interval;
   minimum_interval_ = minimum_interval;
   UserLevelMemoryPressureSignalGenerator::Get().StartPeriodicTimer(
-      measure_interval);
+      kFirstMeasurementInterval);
 }
 void UserLevelMemoryPressureSignalGenerator::OnTimerFired() {
   base::TimeDelta interval = measure_interval_;
-  std::pair<uint64_t, uint64_t> total_pmfs =
+  uint64_t total_pmf =
       GetTotalPrivateFootprintVisibleOrHigherPriorityRenderers();
 
-  if (total_pmfs.first > memory_threshold_) {
+  if (total_pmf > memory_threshold_) {
     NotifyMemoryPressure();
     interval = minimum_interval_;
 
-    ReportBeforeAfterMetrics(total_pmfs.first, total_pmfs.second, "Before");
+    ReportBeforeAfterMetrics(total_pmf, "Before");
     StartReportingTimer();
   }
 
@@ -188,13 +181,13 @@ void UserLevelMemoryPressureSignalGenerator::StartReportingTimer() {
 }
 
 void UserLevelMemoryPressureSignalGenerator::OnReportingTimerFired() {
-  std::pair<uint64_t, uint64_t> total_pmfs =
+  uint64_t total_pmf =
       GetTotalPrivateFootprintVisibleOrHigherPriorityRenderers();
-  ReportBeforeAfterMetrics(total_pmfs.first, total_pmfs.second, "After");
+  ReportBeforeAfterMetrics(total_pmf, "After");
 }
 
 // static
-std::pair<uint64_t, uint64_t> UserLevelMemoryPressureSignalGenerator::
+uint64_t UserLevelMemoryPressureSignalGenerator::
     GetTotalPrivateFootprintVisibleOrHigherPriorityRenderers() {
   uint64_t total_pmf_visible_or_higher_priority_renderers_bytes = 0u;
 
@@ -228,7 +221,6 @@ std::pair<uint64_t, uint64_t> UserLevelMemoryPressureSignalGenerator::
   // or higher priority. Since the renderer processes with invisible or lower
   // priority will be cleaned up by Android OS, this pressure signal feature
   // doesn't need to take care of them.
-  uint64_t lower_priority_renderers_pmf_bytes = 0u;
   for (content::RenderProcessHost::iterator iter =
            content::RenderProcessHost::AllHostsIterator();
        !iter.IsAtEnd(); iter.Advance()) {
@@ -243,8 +235,6 @@ std::pair<uint64_t, uint64_t> UserLevelMemoryPressureSignalGenerator::
     // Ignore renderer processes with invisible or lower priority.
     if (host->GetEffectiveChildBindingState() <
         base::android::ChildBindingState::VISIBLE) {
-      lower_priority_renderers_pmf_bytes +=
-          GetPrivateFootprint(process).value_or(0);
       continue;
     }
 
@@ -258,9 +248,7 @@ std::pair<uint64_t, uint64_t> UserLevelMemoryPressureSignalGenerator::
             ->GetPrivateMemoryFootprint();
   }
 
-  return std::make_pair(total_pmf_visible_or_higher_priority_renderers_bytes,
-                        total_pmf_visible_or_higher_priority_renderers_bytes +
-                            lower_priority_renderers_pmf_bytes);
+  return total_pmf_visible_or_higher_priority_renderers_bytes;
 }
 
 // static
@@ -302,7 +290,6 @@ void UserLevelMemoryPressureSignalGenerator::NotifyMemoryPressure() {
 // static
 void UserLevelMemoryPressureSignalGenerator::ReportBeforeAfterMetrics(
     uint64_t total_pmf_visible_or_higher_priority_renderers,
-    uint64_t total_pmf,
     const char* suffix_name) {
   std::string metric_name_total_pmf_visible_or_higher_priority_renderers =
       base::StringPrintf(
@@ -312,12 +299,6 @@ void UserLevelMemoryPressureSignalGenerator::ReportBeforeAfterMetrics(
   base::UmaHistogramMemoryLargeMB(
       metric_name_total_pmf_visible_or_higher_priority_renderers,
       total_pmf_visible_or_higher_priority_renderers / k1MB);
-
-  std::string metric_name_total_pmf = base::StringPrintf(
-      "Memory.Experimental.UserLevelMemoryPressureSignal."
-      "TotalPrivateMemoryFootprint%s",
-      suffix_name);
-  base::UmaHistogramMemoryLargeMB(metric_name_total_pmf, total_pmf / k1MB);
 }
 
 namespace {
@@ -394,4 +375,3 @@ UserLevelMemoryPressureSignalGenerator::GetPrivateFootprint(
 
 }  // namespace memory_pressure
 
-#endif  // BUILDFLAG(IS_ANDROID)

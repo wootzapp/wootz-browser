@@ -21,6 +21,7 @@
 #include "net/cert/cert_verify_proc_builtin.h"
 #include "net/cert/crl_set.h"
 #include "net/cert/do_nothing_ct_verifier.h"
+#include "net/cert/internal/platform_trust_store.h"
 #include "net/cert/internal/system_trust_store.h"
 #include "net/cert/x509_util.h"
 #include "net/cert_net/cert_net_fetcher_url_request.h"
@@ -198,23 +199,32 @@ class CertVerifyImplUsingPathBuilder : public CertVerifyImpl {
 
 class DummySystemTrustStore : public net::SystemTrustStore {
  public:
-  bssl::TrustStore* GetTrustStore() override { return &trust_store_; }
+  bssl::TrustStore* GetTrustStore() override { return &empty_trust_store_; }
 
   bool IsKnownRoot(const bssl::ParsedCertificate* trust_anchor) const override {
     return false;
   }
 
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+  net::PlatformTrustStore* GetPlatformTrustStore() override { return nullptr; }
+
+  bool IsLocallyTrustedRoot(
+      const bssl::ParsedCertificate* trust_anchor) override {
+    return false;
+  }
+
   int64_t chrome_root_store_version() const override { return 0; }
 
   base::span<const net::ChromeRootCertConstraints> GetChromeRootConstraints(
       const bssl::ParsedCertificate* cert) const override {
     return {};
   }
+
+  bssl::TrustStore* eutl_trust_store() override { return &empty_trust_store_; }
 #endif
 
  private:
-  bssl::TrustStoreCollection trust_store_;
+  bssl::TrustStoreCollection empty_trust_store_;
 };
 
 std::unique_ptr<net::SystemTrustStore> CreateSystemTrustStore(
@@ -274,7 +284,8 @@ std::unique_ptr<CertVerifyImpl> CreateCertVerifyImplFromName(
             // TODO(crbug.com/41392053): support CT.
             std::make_unique<net::DoNothingCTVerifier>(),
             base::MakeRefCounted<net::DefaultCTPolicyEnforcer>(),
-            CreateSystemTrustStore(impl_name, root_store_type), {}));
+            CreateSystemTrustStore(impl_name, root_store_type), {},
+            std::nullopt));
   }
 
   if (impl_name == "pathbuilder") {
@@ -571,8 +582,7 @@ int main(int argc, char** argv) {
   std::string impls_str = command_line.GetSwitchValueASCII("impls");
   if (impls_str.empty()) {
     // Default value.
-#if !(BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX) || \
-      BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(CHROME_ROOT_STORE_ONLY))
+#if !(BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(CHROME_ROOT_STORE_ONLY))
     impls_str = "platform,";
 #endif
     impls_str += "builtin,pathbuilder";

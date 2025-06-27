@@ -7,7 +7,6 @@
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -55,7 +54,9 @@ void InitContentsBorderWidget(content::WebContents* web_contents) {
   }
 
   views::Widget* widget = new views::Widget;
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   views::Widget* frame = browser_view->contents_web_view()->GetWidget();
   params.parent = frame->GetNativeView();

@@ -17,6 +17,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/rand_util.h"
 #include "base/sequence_checker.h"
+#include "base/strings/to_string.h"
 #include "base/time/time.h"
 #include "base/version.h"
 #include "build/build_config.h"
@@ -30,6 +31,7 @@
 #include "chrome/updater/prefs.h"
 #include "chrome/updater/updater_scope.h"
 #include "chrome/updater/util/util.h"
+#include "components/crash/core/common/crash_key.h"
 #include "components/crx_file/crx_verifier.h"
 #include "components/prefs/pref_service.h"
 #include "components/update_client/network.h"
@@ -48,14 +50,18 @@
 namespace updater {
 
 Configurator::Configurator(scoped_refptr<UpdaterPrefs> prefs,
-                           scoped_refptr<ExternalConstants> external_constants)
+                           scoped_refptr<ExternalConstants> external_constants,
+                           bool is_ceca_experiment_enabled)
     : prefs_(prefs),
-      policy_service_(base::MakeRefCounted<PolicyService>(external_constants)),
       external_constants_(external_constants),
       persisted_data_(base::MakeRefCounted<PersistedData>(
           GetUpdaterScope(),
           prefs->GetPrefService(),
           std::make_unique<ActivityDataService>(GetUpdaterScope()))),
+      policy_service_(
+          base::MakeRefCounted<PolicyService>(external_constants,
+                                              persisted_data_,
+                                              is_ceca_experiment_enabled)),
       unzip_factory_(
           base::MakeRefCounted<update_client::InProcessUnzipperFactory>()),
       patch_factory_(
@@ -73,6 +79,9 @@ Configurator::Configurator(scoped_refptr<UpdaterPrefs> prefs,
   // created.
   GetNetworkFetcherFactory();
 #endif
+  static crash_reporter::CrashKeyString<6> crash_key_managed("managed");
+  crash_key_managed.Set(is_managed_device_ ? base::ToString(*is_managed_device_)
+                                           : "n/a");
 }
 Configurator::~Configurator() = default;
 
@@ -193,11 +202,6 @@ scoped_refptr<update_client::PatcherFactory> Configurator::GetPatcherFactory() {
   return patch_factory_;
 }
 
-bool Configurator::EnabledDeltas() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return external_constants_->EnableDiffUpdates();
-}
-
 bool Configurator::EnabledBackgroundDownloader() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return false;
@@ -263,7 +267,7 @@ update_client::UpdaterStateProvider Configurator::GetUpdaterStateProvider()
 
 std::optional<base::FilePath> Configurator::GetCrxCachePath() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return updater::GetCrxDiffCacheDirectory(GetUpdaterScope());
+  return updater::GetCrxCacheDirectory(GetUpdaterScope());
 }
 
 bool Configurator::IsConnectionMetered() const {

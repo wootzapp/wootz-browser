@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/check_op.h"
-#include "base/strings/string_piece.h"
 #include "base/time/tick_clock.h"
 #include "net/base/net_errors.h"
 #include "net/base/network_anonymization_key.h"
@@ -156,6 +155,10 @@ void ContextHostResolver::SetRequestContext(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   resolve_context_->set_url_request_context(request_context);
+}
+
+bool ContextHostResolver::IsHappyEyeballsV3Enabled() const {
+  return manager_->IsHappyEyeballsV3Enabled();
 }
 
 HostResolverManager* ContextHostResolver::GetManagerForTesting() {

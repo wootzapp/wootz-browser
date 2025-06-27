@@ -18,11 +18,13 @@ class CaptionBubbleContext;
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
+// LINT.IfChange(CaptionBubbleErrorType)
 enum CaptionBubbleErrorType {
   kGeneric = 0,
   kMediaFoundationRendererUnsupported = 1,
   kMaxValue = kMediaFoundationRendererUnsupported
 };
+// LINT.ThenChange(/tools/metrics/histograms/metadata/accessibility/enums.xml:CaptionBubbleErrorType)
 
 using OnErrorClickedCallback = base::RepeatingCallback<void()>;
 using OnDoNotShowAgainClickedCallback =
@@ -95,7 +97,7 @@ class CaptionBubbleModel {
   bool IsClosed() const { return is_closed_; }
   bool HasError() const { return has_error_; }
   CaptionBubbleErrorType ErrorType() const { return error_type_; }
-  std::string GetFullText() const { return final_text_ + partial_text_; }
+  std::string GetFullText() const;
   CaptionBubbleContext* GetContext() { return context_; }
   std::u16string GetDownloadProgressText() const {
     return download_progress_text_;

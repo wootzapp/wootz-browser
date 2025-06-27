@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef SERVICES_NETWORK_P2P_SOCKET_TEST_UTILS_H_
 #define SERVICES_NETWORK_P2P_SOCKET_TEST_UTILS_H_
 
@@ -28,6 +33,7 @@
 #include "services/network/public/mojom/p2p.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/webrtc/rtc_base/time_utils.h"
 
 namespace network {
 
@@ -178,7 +184,7 @@ MATCHER_P(MatchMessage, type, "") {
 MATCHER_P2(MatchSendPacketMetrics, rtc_packet_id, test_start_time, "") {
   return arg.rtc_packet_id == rtc_packet_id &&
          arg.send_time_ms >= test_start_time &&
-         arg.send_time_ms <= rtc::TimeMillis();
+         arg.send_time_ms <= webrtc::TimeMillis();
 }
 
 // Creates a GMock matcher that matches `base::span` to `std::vector`.

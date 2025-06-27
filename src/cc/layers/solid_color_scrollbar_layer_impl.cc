@@ -27,6 +27,10 @@ SolidColorScrollbarLayerImpl::Create(LayerTreeImpl* tree_impl,
 
 SolidColorScrollbarLayerImpl::~SolidColorScrollbarLayerImpl() = default;
 
+mojom::LayerType SolidColorScrollbarLayerImpl::GetLayerType() const {
+  return mojom::LayerType::kSolidColorScrollbar;
+}
+
 std::unique_ptr<LayerImpl> SolidColorScrollbarLayerImpl::CreateLayerImpl(
     LayerTreeImpl* tree_impl) const {
   return SolidColorScrollbarLayerImpl::Create(
@@ -89,6 +93,7 @@ bool SolidColorScrollbarLayerImpl::IsThumbResizable() const {
 }
 
 void SolidColorScrollbarLayerImpl::AppendQuads(
+    const AppendQuadsContext& context,
     viz::CompositorRenderPass* render_pass,
     AppendQuadsData* append_quads_data) {
   viz::SharedQuadState* shared_quad_state =
@@ -108,10 +113,6 @@ void SolidColorScrollbarLayerImpl::AppendQuads(
   auto* quad = render_pass->CreateAndAppendDrawQuad<viz::SolidColorDrawQuad>();
   quad->SetNew(shared_quad_state, thumb_quad_rect, visible_quad_rect, color_,
                false);
-}
-
-const char* SolidColorScrollbarLayerImpl::LayerTypeAsString() const {
-  return "cc::SolidColorScrollbarLayerImpl";
 }
 
 }  // namespace cc

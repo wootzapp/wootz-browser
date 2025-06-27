@@ -5,6 +5,7 @@
 #include "ui/message_center/views/notification_view_base.h"
 
 #include <stddef.h>
+
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -17,7 +18,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/observer_list.h"
 #include "base/strings/string_util.h"
-#include "build/chromeos_buildflags.h"
 #include "components/url_formatter/elide_url.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/base/class_property.h"
@@ -61,6 +61,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 
@@ -107,11 +108,11 @@ std::unique_ptr<views::View> CreateItemView(const NotificationItem& item) {
 }
 
 bool IsForAshNotification() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   return true;
 #else
   return false;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 }  // anonymous namespace
@@ -129,6 +130,7 @@ CompactTitleMessageView::CompactTitleMessageView() {
       std::u16string(), views::style::CONTEXT_DIALOG_BODY_TEXT,
       views::style::STYLE_SECONDARY));
   message_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+  SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
 }
 
 gfx::Size CompactTitleMessageView::CalculatePreferredSize(
@@ -140,7 +142,12 @@ gfx::Size CompactTitleMessageView::CalculatePreferredSize(
                    std::max(title_size.height(), message_size.height()));
 }
 
-void CompactTitleMessageView::Layout(PassKey) {
+views::ProposedLayout CompactTitleMessageView::CalculateProposedLayout(
+    const views::SizeBounds& size_bounds) const {
+  views::ProposedLayout layout;
+  DCHECK(size_bounds.is_fully_bounded());
+  layout.host_size =
+      gfx::Size(size_bounds.width().value(), size_bounds.height().value());
   // Elides title and message.
   // * If the message is too long, the message occupies at most
   //   kProgressNotificationMessageRatio of the width.
@@ -149,16 +156,22 @@ void CompactTitleMessageView::Layout(PassKey) {
   //   title is shown.
   // * If they are short enough, the title is left-aligned and the message is
   //   right-aligned.
-  const int message_width = std::min(
-      message_->GetPreferredSize().width(),
-      title_->GetPreferredSize().width() > 0
-          ? static_cast<int>(kProgressNotificationMessageRatio * width())
-          : width());
-  const int title_width =
-      std::max(0, width() - message_width - kCompactTitleMessageViewSpacing);
-
-  title_->SetBounds(0, 0, title_width, height());
-  message_->SetBounds(width() - message_width, 0, message_width, height());
+  const int message_width =
+      std::min(message_->GetPreferredSize().width(),
+               title_->GetPreferredSize().width() > 0
+                   ? static_cast<int>(kProgressNotificationMessageRatio *
+                                      layout.host_size.width())
+                   : layout.host_size.width());
+  const int title_width = std::max(0, layout.host_size.width() - message_width -
+                                          kCompactTitleMessageViewSpacing);
+  layout.child_layouts.emplace_back(
+      title_.get(), title_->GetVisible(),
+      gfx::Rect(0, 0, title_width, layout.host_size.height()));
+  layout.child_layouts.emplace_back(
+      message_.get(), message_->GetVisible(),
+      gfx::Rect(layout.host_size.width() - message_width, 0, message_width,
+                layout.host_size.height()));
+  return layout;
 }
 
 void CompactTitleMessageView::set_title(const std::u16string& title) {
@@ -200,6 +213,8 @@ void NotificationViewBase::CreateOrUpdateViews(
 NotificationViewBase::NotificationViewBase(const Notification& notification)
     : MessageView(notification), for_ash_notification_(IsForAshNotification()) {
   UpdateCornerRadius(kNotificationCornerRadius, kNotificationCornerRadius);
+  SetProperty(views::kElementIdentifierKey,
+              notification.host_view_element_id());
 }
 
 NotificationViewBase::~NotificationViewBase() = default;
@@ -249,7 +264,7 @@ void NotificationViewBase::OnMouseReleased(const ui::MouseEvent& event) {
 }
 
 void NotificationViewBase::OnGestureEvent(ui::GestureEvent* event) {
-  if (event->type() == ui::ET_GESTURE_LONG_TAP) {
+  if (event->type() == ui::EventType::kGestureLongTap) {
     ToggleInlineSettings(*event);
     return;
   }
@@ -298,6 +313,7 @@ views::Builder<views::BoxLayoutView>
 NotificationViewBase::CreateLeftContentBuilder() {
   DCHECK(!left_content_);
   return views::Builder<views::BoxLayoutView>()
+      .SetID(ViewId::kLeftContent)
       .CopyAddressTo(&left_content_)
       .SetOrientation(views::BoxLayout::Orientation::kVertical);
 }
@@ -320,6 +336,7 @@ views::Builder<views::BoxLayoutView>
 NotificationViewBase::CreateInlineSettingsBuilder() {
   DCHECK(!settings_row_);
   return views::Builder<views::BoxLayoutView>()
+      .SetID(ViewId::kInlineSettingsRow)
       .CopyAddressTo(&settings_row_)
       .SetVisible(false);
 }
@@ -336,6 +353,7 @@ views::Builder<views::View>
 NotificationViewBase::CreateImageContainerBuilder() {
   DCHECK(!image_container_view_);
   return views::Builder<views::View>()
+      .SetID(ViewId::kImageContainerView)
       .CopyAddressTo(&image_container_view_)
       .SetUseDefaultFillLayout(true);
 }
@@ -449,8 +467,8 @@ void NotificationViewBase::CreateOrUpdateProgressBarView(
     auto progress_bar_view = std::make_unique<views::ProgressBar>();
     progress_bar_view->SetPreferredHeight(kProgressBarHeight);
     progress_bar_view->SetPreferredCornerRadii(std::nullopt);
-    progress_bar_view->SetBorder(views::CreateEmptyBorder(
-        gfx::Insets::TLBR(kProgressBarTopPadding, 0, 0, 0)));
+    progress_bar_view->SetProperty(
+        views::kMarginsKey, gfx::Insets::TLBR(kProgressBarTopPadding, 0, 0, 0));
     progress_bar_view_ = AddViewToLeftContent(std::move(progress_bar_view));
   } else {
     ReorderViewInLeftContent(progress_bar_view_);
@@ -499,8 +517,8 @@ void NotificationViewBase::CreateOrUpdateMessageLabel(
     return;
   }
 
-  const std::u16string& text = gfx::TruncateString(
-      notification.message(), kMessageCharacterLimit, gfx::WORD_BREAK);
+  const std::u16string text = gfx::TruncateString(
+      notification.message(), GetMessageCharacterLimit(), gfx::WORD_BREAK);
 
   if (!message_label_) {
     auto message_label = std::make_unique<views::Label>(
@@ -566,12 +584,13 @@ void NotificationViewBase::CreateOrUpdateIconView(
   if (!icon_view_) {
     icon_view_ = right_content_->AddChildView(
         std::make_unique<ProportionalImageView>(GetIconViewSize()));
+    icon_view_->SetID(ViewId::kIconView);
   }
 
   bool apply_rounded_corners = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   apply_rounded_corners = for_ash_notification_;
-#endif  // IS_CHROMEOS_ASH
+#endif  // BUILDFLAG(IS_CHROMEOS)
   icon_view_->SetImage(icon, icon.Size(), apply_rounded_corners);
 
   // Hide the icon on the right side when the notification is expanded.

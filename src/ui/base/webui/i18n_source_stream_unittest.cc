@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
@@ -97,7 +102,7 @@ class I18nSourceStreamTest : public ::testing::TestWithParam<I18nTestParam> {
     replacements_["beta"] = "banana";
     replacements_["gamma"] = "carrot";
     stream_ = I18nSourceStream::Create(
-        std::move(source), net::SourceStream::TYPE_NONE, &replacements_);
+        std::move(source), net::SourceStreamType::kNone, &replacements_);
   }
 
   // If MockSourceStream::Mode is ASYNC, completes 1 read from |mock_stream| and

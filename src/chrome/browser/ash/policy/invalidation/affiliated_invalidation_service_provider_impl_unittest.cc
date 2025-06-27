@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ash/policy/invalidation/affiliated_invalidation_service_provider_impl.h"
 
+#include <stdint.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,11 +26,11 @@
 #include "components/invalidation/impl/fake_invalidation_handler.h"
 #include "components/invalidation/impl/fake_invalidation_service.h"
 #include "components/invalidation/impl/fcm_invalidation_service.h"
-#include "components/invalidation/impl/profile_invalidation_provider.h"
+#include "components/invalidation/invalidation_listener.h"
+#include "components/invalidation/profile_invalidation_provider.h"
 #include "components/invalidation/public/invalidation_service.h"
 #include "components/invalidation/public/invalidator_state.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "content/public/browser/browser_context.h"
@@ -48,9 +50,11 @@ namespace {
 const char kAffiliatedUserID1[] = "test_1@example.com";
 const char kAffiliatedUserID2[] = "test_2@example.com";
 const char kUnaffiliatedUserID[] = "test@other_domain.test";
+const int64_t kFakeProjectNumber = 1234567890;
 
-std::unique_ptr<invalidation::InvalidationService>
-CreateInvalidationServiceForSenderId(const std::string& fcm_sender_id) {
+std::variant<std::unique_ptr<invalidation::InvalidationService>,
+             std::unique_ptr<invalidation::InvalidationListener>>
+CreateInvalidationServiceForProjectNumber(int64_t, std::string) {
   std::unique_ptr<invalidation::FakeInvalidationService> invalidation_service(
       new invalidation::FakeInvalidationService);
   invalidation_service->SetInvalidatorState(
@@ -61,7 +65,7 @@ CreateInvalidationServiceForSenderId(const std::string& fcm_sender_id) {
 std::unique_ptr<KeyedService> BuildProfileInvalidationProvider(
     content::BrowserContext* context) {
   return std::make_unique<invalidation::ProfileInvalidationProvider>(
-      nullptr, base::BindRepeating(&CreateInvalidationServiceForSenderId));
+      nullptr, base::BindRepeating(&CreateInvalidationServiceForProjectNumber));
 }
 
 void SendInvalidatorStateChangeNotification(
@@ -231,7 +235,8 @@ void AffiliatedInvalidationServiceProviderImplTest::SetUp() {
       ->RegisterTestingFactory(
           base::BindRepeating(&BuildProfileInvalidationProvider));
 
-  provider_ = std::make_unique<AffiliatedInvalidationServiceProviderImpl>();
+  provider_ = std::make_unique<AffiliatedInvalidationServiceProviderImpl>(
+      kFakeProjectNumber);
 }
 
 void AffiliatedInvalidationServiceProviderImplTest::TearDown() {
@@ -241,7 +246,8 @@ void AffiliatedInvalidationServiceProviderImplTest::TearDown() {
 
   invalidation::ProfileInvalidationProviderFactory::GetInstance()
       ->RegisterTestingFactory(
-          BrowserContextKeyedServiceFactory::TestingFactory());
+          invalidation::ProfileInvalidationProviderFactory::
+              GlobalTestingFactory());
   DeviceOAuth2TokenServiceFactory::Shutdown();
   ash::SystemSaltGetter::Shutdown();
   ash::CryptohomeMiscClient::Shutdown();
@@ -362,9 +368,13 @@ AffiliatedInvalidationServiceProviderImplTest::GetProfileInvalidationService(
               ->GetServiceForBrowserContext(profile, create));
   if (!invalidation_provider)
     return nullptr;
+  auto invalidation_service =
+      invalidation_provider->GetInvalidationServiceOrListener(
+          kFakeProjectNumber);
+  CHECK(std::holds_alternative<invalidation::InvalidationService*>(
+      invalidation_service));
   return static_cast<invalidation::FakeInvalidationService*>(
-      invalidation_provider->GetInvalidationServiceForCustomSender(
-          kPolicyFCMInvalidationSenderID));
+      std::get<invalidation::InvalidationService*>(invalidation_service));
 }
 
 // No consumers are registered with the

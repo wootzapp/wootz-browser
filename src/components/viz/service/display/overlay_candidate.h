@@ -6,18 +6,19 @@
 #define COMPONENTS_VIZ_SERVICE_DISPLAY_OVERLAY_CANDIDATE_H_
 
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "build/build_config.h"
 #include "components/viz/common/quads/aggregated_render_pass.h"
+#include "components/viz/common/quads/texture_draw_quad.h"
 #include "components/viz/common/quads/tile_draw_quad.h"
 #include "components/viz/common/resources/resource_id.h"
+#include "components/viz/common/resources/shared_image_format.h"
 #include "components/viz/service/viz_service_export.h"
 #include "gpu/command_buffer/common/mailbox.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/skia/include/private/chromium/GrDeferredDisplayList.h"
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/rect.h"
@@ -25,16 +26,19 @@
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/hdr_metadata.h"
+#include "ui/gfx/overlay_layer_id.h"
 #include "ui/gfx/overlay_priority_hint.h"
 #include "ui/gfx/overlay_transform.h"
+#include "ui/gfx/overlay_type.h"
 #include "ui/gfx/video_types.h"
 
 namespace gfx {
 class Rect;
-}
+}  // namespace gfx
 
 namespace viz {
 class AggregatedRenderPassDrawQuad;
+class DrawQuad;
 class DisplayResourceProvider;
 
 class VIZ_SERVICE_EXPORT OverlayCandidate {
@@ -68,6 +72,9 @@ class VIZ_SERVICE_EXPORT OverlayCandidate {
   // Returns true if |quad| will not block quads underneath from becoming
   // an overlay.
   static bool IsInvisibleQuad(const DrawQuad* quad);
+
+  // Returns true if `quad` contains rounded display masks textures.
+  static bool QuadHasRoundedDisplayMasks(const DrawQuad* quad);
 
   // Modifies the |candidate|'s |display_rect| to be clipped within |clip_rect|.
   // This function will also update the |uv_rect| based on what clipping was
@@ -123,6 +130,10 @@ class VIZ_SERVICE_EXPORT OverlayCandidate {
   // can scan it out.
   bool needs_detiling : 1 = false;
 
+  // If true, this candidate uses low latency rendering and we need
+  // to increase its overlay priority.
+  bool low_latency_rendering : 1 = false;
+
   // Rect in content space that, when combined with |transform|, is the bounds
   // to position the overlay to. When |transform| is a |gx::OverlayTransform|,
   // this is the bounds of the quad rect with its transform applied, so that
@@ -133,7 +144,7 @@ class VIZ_SERVICE_EXPORT OverlayCandidate {
   gfx::RectF display_rect;
 
   // Format of the buffer to scanout.
-  gfx::BufferFormat format = gfx::BufferFormat::RGBA_8888;
+  SharedImageFormat format = SinglePlaneFormat::kRGBA_8888;
 
   gfx::ProtectedVideoType protected_video_type =
       gfx::ProtectedVideoType::kClear;
@@ -219,9 +230,7 @@ class VIZ_SERVICE_EXPORT OverlayCandidate {
 
   // If |rpdq| is present, then the renderer must draw the filter effects and
   // copy the result into the buffer backing of a render pass.
-  // This field is not a raw_ptr<> because of missing |.get()| in not-rewritten
-  // platform specific code.
-  RAW_PTR_EXCLUSION const AggregatedRenderPassDrawQuad* rpdq = nullptr;
+  raw_ptr<const AggregatedRenderPassDrawQuad, DanglingUntriaged> rpdq = nullptr;
 
   // Quad |shared_quad_state| opacity is ubiquitous for quad types
   // AggregateRenderPassDrawQuad, TileDrawQuad, SolidColorDrawQuad. A delegate
@@ -247,11 +256,19 @@ class VIZ_SERVICE_EXPORT OverlayCandidate {
   // |tracking_id|.
   TrackingId tracking_id = kDefaultTrackingId;
 
+#if BUILDFLAG(IS_WIN)
+  // Used to identify overlays that originate from the same cc layer.
+  gfx::OverlayLayerId layer_id;
+#endif
+
   // Transformation to apply to layer during composition.
   // Note: A |gfx::OverlayTransform| transforms the buffer within its bounds and
   // does not affect |display_rect|.
-  absl::variant<gfx::OverlayTransform, gfx::Transform> transform =
+  std::variant<gfx::OverlayTransform, gfx::Transform> transform =
       gfx::OVERLAY_TRANSFORM_NONE;
+
+  // Default overlay type.
+  gfx::OverlayType overlay_type = gfx::OverlayType::kSimple;
 };
 
 using OverlayCandidateList = std::vector<OverlayCandidate>;

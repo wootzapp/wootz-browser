@@ -48,8 +48,8 @@ suite('SiteListEntry', function() {
     flush();
     const prefIndicator = testElement.$$('cr-policy-pref-indicator');
     assertTrue(!!prefIndicator);
-    const icon = prefIndicator!.shadowRoot!.querySelector('cr-tooltip-icon')!;
-    const crTooltip = icon.shadowRoot!.querySelector('cr-tooltip')!;
+    const icon = prefIndicator.shadowRoot!.querySelector('cr-tooltip-icon')!;
+    const crTooltip = icon.shadowRoot.querySelector('cr-tooltip')!;
     // Never shown since site-list will show a common tooltip.
     assertTooltipIsHidden(crTooltip);
     const wait = eventToPromise('show-tooltip', document);
@@ -58,28 +58,6 @@ suite('SiteListEntry', function() {
     return wait.then(() => {
       assertTooltipIsHidden(crTooltip);
     });
-  });
-
-  // Verify that with GEOLOCATION, the "embedded on any host" text is shown.
-  // Regression test for crbug.com/1205103
-  test('location embedded on any host', function() {
-    testElement.model = {
-      category: ContentSettingsTypes.GEOLOCATION,
-      controlledBy: chrome.settingsPrivate.ControlledBy.OWNER,
-      displayName: '',
-      embeddingOrigin: '',
-      description: '',
-      enforcement: null,
-      incognito: false,
-      isEmbargoed: false,
-      origin: 'http://example.com',
-      setting: ContentSetting.DEFAULT,
-    };
-    flush();
-    const siteDescription = testElement.$$('#siteDescription')!;
-    assertEquals(
-        loadTimeData.getString('embeddedOnAnyHost'),
-        siteDescription.textContent);
   });
 
   test('not valid origin does not go to site details page', async function() {
@@ -107,7 +85,7 @@ suite('SiteListEntry', function() {
     assertTrue(!subpageArrow);
     const separator = settingsRow.querySelector('.separator');
     assertTrue(!separator);
-    settingsRow!.click();
+    settingsRow.click();
     assertEquals(
         routes.SITE_SETTINGS.path, Router.getInstance().getCurrentRoute().path);
   });

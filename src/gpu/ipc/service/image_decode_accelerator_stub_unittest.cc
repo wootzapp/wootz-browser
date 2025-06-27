@@ -2,9 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "gpu/ipc/service/image_decode_accelerator_stub.h"
+
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -20,7 +24,6 @@
 #include "base/notreached.h"
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -33,7 +36,6 @@
 #include "base/trace_event/process_memory_dump.h"
 #include "cc/paint/image_transfer_cache_entry.h"
 #include "cc/paint/transfer_cache_entry.h"
-#include "components/viz/common/resources/shared_image_format_utils.h"
 #include "gpu/command_buffer/common/buffer.h"
 #include "gpu/command_buffer/common/capabilities.h"
 #include "gpu/command_buffer/common/constants.h"
@@ -41,6 +43,7 @@
 #include "gpu/command_buffer/common/context_result.h"
 #include "gpu/command_buffer/common/discardable_handle.h"
 #include "gpu/command_buffer/common/scheduling_priority.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/common/sync_token.h"
 #include "gpu/command_buffer/service/context_group.h"
 #include "gpu/command_buffer/service/decoder_context.h"
@@ -64,7 +67,6 @@
 #include "gpu/ipc/service/gpu_channel.h"
 #include "gpu/ipc/service/gpu_channel_manager.h"
 #include "gpu/ipc/service/gpu_channel_test_common.h"
-#include "gpu/ipc/service/image_decode_accelerator_stub.h"
 #include "gpu/ipc/service/image_decode_accelerator_worker.h"
 #include "skia/ext/skia_memory_dump_provider.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -113,8 +115,8 @@ uint64_t GetMemoryDumpByteSize(
     const std::string& entry_name) {
   DCHECK(dump);
   auto entry_it =
-      base::ranges::find(dump->entries(), entry_name,
-                         &base::trace_event::MemoryAllocatorDump::Entry::name);
+      std::ranges::find(dump->entries(), entry_name,
+                        &base::trace_event::MemoryAllocatorDump::Entry::name);
   if (entry_it != dump->entries().cend()) {
     EXPECT_EQ(std::string(base::trace_event::MemoryAllocatorDump::kUnitsBytes),
               entry_it->units);
@@ -149,11 +151,10 @@ class TestSharedImageBackingFactory : public SharedImageBackingFactory {
       const gfx::ColorSpace& color_space,
       GrSurfaceOrigin surface_origin,
       SkAlphaType alpha_type,
-      uint32_t usage,
+      SharedImageUsageSet usage,
       std::string debug_label,
       bool is_thread_safe) override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
   std::unique_ptr<SharedImageBacking> CreateSharedImage(
       const Mailbox& mailbox,
@@ -162,33 +163,11 @@ class TestSharedImageBackingFactory : public SharedImageBackingFactory {
       const gfx::ColorSpace& color_space,
       GrSurfaceOrigin surface_origin,
       SkAlphaType alpha_type,
-      uint32_t usage,
+      SharedImageUsageSet usage,
       std::string debug_label,
       bool is_thread_safe,
       base::span<const uint8_t> pixel_data) override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
-  }
-  std::unique_ptr<SharedImageBacking> CreateSharedImage(
-      const Mailbox& mailbox,
-      gfx::GpuMemoryBufferHandle handle,
-      gfx::BufferFormat format,
-      gfx::BufferPlane plane,
-      const gfx::Size& size,
-      const gfx::ColorSpace& color_space,
-      GrSurfaceOrigin surface_origin,
-      SkAlphaType alpha_type,
-      uint32_t usage,
-      std::string debug_label) override {
-    auto test_image_backing = std::make_unique<TestImageBacking>(
-        mailbox, viz::GetSinglePlaneSharedImageFormat(format), size,
-        color_space, surface_origin, alpha_type, usage, 0);
-
-    // If the backing is not cleared, SkiaImageRepresentation errors out
-    // when trying to create the scoped read access.
-    test_image_backing->SetCleared();
-
-    return std::move(test_image_backing);
+    NOTREACHED();
   }
   std::unique_ptr<SharedImageBacking> CreateSharedImage(
       const Mailbox& mailbox,
@@ -197,8 +176,9 @@ class TestSharedImageBackingFactory : public SharedImageBackingFactory {
       const gfx::ColorSpace& color_space,
       GrSurfaceOrigin surface_origin,
       SkAlphaType alpha_type,
-      uint32_t usage,
+      SharedImageUsageSet usage,
       std::string debug_label,
+      bool is_thread_safe,
       gfx::GpuMemoryBufferHandle handle) override {
     auto test_image_backing = std::make_unique<TestImageBacking>(
         mailbox, format, size, color_space, surface_origin, alpha_type, usage,
@@ -210,7 +190,7 @@ class TestSharedImageBackingFactory : public SharedImageBackingFactory {
 
     return std::move(test_image_backing);
   }
-  bool IsSupported(uint32_t usage,
+  bool IsSupported(SharedImageUsageSet usage,
                    viz::SharedImageFormat format,
                    const gfx::Size& size,
                    bool thread_safe,
@@ -407,15 +387,13 @@ class ImageDecodeAcceleratorStubTest
   // registers |buffer| in the TransferBufferManager and releases the sync token
   // corresponding to |handle_release_count|.
   void RegisterDiscardableHandleBuffer(int32_t shm_id,
-                                       scoped_refptr<Buffer> buffer,
-                                       uint64_t handle_release_count) {
+                                       scoped_refptr<Buffer> buffer) {
     GpuChannel* channel = channel_manager()->LookupChannel(kChannelId);
     DCHECK(channel);
     CommandBufferStub* command_buffer =
         channel->LookupCommandBuffer(kCommandBufferRouteId);
     CHECK(command_buffer);
     command_buffer->RegisterTransferBufferForTest(shm_id, std::move(buffer));
-    command_buffer->OnFenceSyncRelease(handle_release_count);
   }
 
   // Creates a discardable handle and schedules a task in the GPU scheduler (in
@@ -439,8 +417,10 @@ class ImageDecodeAcceleratorStubTest
         base::BindOnce(
             &ImageDecodeAcceleratorStubTest::RegisterDiscardableHandleBuffer,
             weak_ptr_factory_.GetWeakPtr(), handle.shm_id(),
-            handle.BufferForTesting(), handle_release_count) /* closure */,
-        std::vector<SyncToken>() /* sync_token_fences */));
+            handle.BufferForTesting()) /* closure */,
+        std::vector<SyncToken>() /* sync_token_fences */,
+        SyncToken(CommandBufferNamespace::GPU_IO,
+                  command_buffer->command_buffer_id(), handle_release_count)));
     return handle;
   }
 
@@ -862,6 +842,7 @@ TEST_P(ImageDecodeAcceleratorStubTest, FailedDecodes) {
 }
 
 TEST_P(ImageDecodeAcceleratorStubTest, OutOfOrderDecodeSyncTokens) {
+  sync_point_manager()->set_suppress_fatal_log_for_testing();
   {
     InSequence call_sequence;
     EXPECT_CALL(image_decode_accelerator_worker_, DoDecode(gfx::Size(100, 100)))
@@ -904,6 +885,7 @@ TEST_P(ImageDecodeAcceleratorStubTest, OutOfOrderDecodeSyncTokens) {
 }
 
 TEST_P(ImageDecodeAcceleratorStubTest, ZeroReleaseCountDecodeSyncToken) {
+  sync_point_manager()->set_suppress_fatal_log_for_testing();
   EXPECT_CALL(image_decode_accelerator_worker_, DoDecode(gfx::Size(100, 100)))
       .Times(1);
   const SyncToken decode_sync_token = SendDecodeRequest(

@@ -43,14 +43,17 @@
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
 #include "third_party/blink/renderer/platform/fonts/font_global_context.h"
 #include "third_party/blink/renderer/platform/fonts/font_platform_data.h"
+#include "third_party/blink/renderer/platform/fonts/opentype/color_table_lookup.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face_from_typeface.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_font_cache.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_font_data.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_shaper.h"
+#include "third_party/blink/renderer/platform/fonts/shaping/variation_selector_mode.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
 #include "third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.h"
 #include "third_party/blink/renderer/platform/fonts/unicode_range_set.h"
 #include "third_party/blink/renderer/platform/resolution_units.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/text/character.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
@@ -77,19 +80,18 @@ void HarfBuzzFace::Trace(Visitor* visitor) const {
   visitor->Trace(harfbuzz_font_data_);
 }
 
-bool& GetIgnoreVariationSelectors() {
-  DEFINE_THREAD_SAFE_STATIC_LOCAL(WTF::ThreadSpecific<bool>,
-                                  ignore_variation_selectors, ());
-  return *ignore_variation_selectors;
+VariationSelectorMode& GetIgnoreVariationSelectorModeRef() {
+  DEFINE_THREAD_SAFE_STATIC_LOCAL(WTF::ThreadSpecific<VariationSelectorMode>,
+                                  variation_selector_mode, ());
+  return *variation_selector_mode;
 }
 
-bool HarfBuzzFace::ShouldIgnoreVariationSelectors() {
-  return GetIgnoreVariationSelectors();
+VariationSelectorMode HarfBuzzFace::GetVariationSelectorMode() {
+  return GetIgnoreVariationSelectorModeRef();
 }
 
-void HarfBuzzFace::SetIgnoreVariationSelectors(bool value) {
-  DCHECK(RuntimeEnabledFeatures::FontVariationSequencesEnabled() || value);
-  GetIgnoreVariationSelectors() = value;
+void HarfBuzzFace::SetVariationSelectorMode(VariationSelectorMode value) {
+  GetIgnoreVariationSelectorModeRef() = value;
 }
 
 static hb_bool_t HarfBuzzGetGlyph(hb_font_t* hb_font,
@@ -118,18 +120,59 @@ static hb_bool_t HarfBuzzGetGlyph(hb_font_t* hb_font,
     unicode = kSpaceCharacter;
   }
 
+  bool consider_variation_selector = false;
+  bool is_variation_sequence = false;
+
+  // Emoji System Fonts on Mac, Win and Android either do not have cmap 14
+  // subtable or it does not include all emojis from their cmap table. We use
+  // cmap 14 subtable to identify whether there is a colored (emoji
+  // presentation) or a monochromatic (text presentation) glyph in the font.
+  // This may lead to the cases when we will not be able to get the glyph ID
+  // for the requested variation sequence using fallback system font and will
+  // continue the second shaping fallback list pass ignoring variation
+  // selectors and may end up using web font with wrong emoji presentation
+  // instead of using system font with the correct presentation. To prevent that
+  // once we reached system fallback fonts, we can ignore emoji variation
+  // selectors since we will get the font with the correct presentation relying
+  // on FontFallbackPriority in `FontCache::PlatformFallbackFontForCharacter`.
+  VariationSelectorMode variation_selector_mode =
+      HarfBuzzFace::GetVariationSelectorMode();
+    if (!ShouldIgnoreVariationSelector(variation_selector_mode) &&
+        Character::IsUnicodeVariationSelector(variation_selector) &&
+        Character::IsVariationSequence(unicode, variation_selector)) {
+      is_variation_sequence = true;
+      consider_variation_selector = true;
+    } else if (UseFontVariantEmojiVariationSelector(variation_selector_mode) &&
+               Character::IsEmoji(unicode)) {
+      consider_variation_selector = true;
+    }
+
+  bool text_presentation_requested = false;
+  bool emoji_presentation_requested = false;
+
   // Variation sequences are a special case because we want to distinguish
   // between the cases when we found a glyph for the whole variation sequence in
   // cmap format 14 subtable and when we found only a base character of the
   // variation sequence. In the latter case we set the glyph value to
   // `kUnmatchedVSGlyphId`.
-  bool consider_variation_selector =
-      RuntimeEnabledFeatures::FontVariationSequencesEnabled() &&
-      !HarfBuzzFace::ShouldIgnoreVariationSelectors() &&
-      Character::IsUnicodeVariationSelector(variation_selector) &&
-      Character::IsVariationSequence(unicode, variation_selector);
-
   if (consider_variation_selector) {
+    if (!is_variation_sequence) {
+      if (variation_selector_mode == kForceVariationSelector15 ||
+          (variation_selector_mode == kUseUnicodeDefaultPresentation &&
+           Character::IsEmojiTextDefault(unicode))) {
+        variation_selector = kVariationSelector15Character;
+      } else if (variation_selector_mode == kForceVariationSelector16 ||
+                 (variation_selector_mode == kUseUnicodeDefaultPresentation &&
+                  Character::IsEmojiEmojiDefault(unicode))) {
+        variation_selector = kVariationSelector16Character;
+      }
+    }
+
+    text_presentation_requested =
+        (variation_selector == kVariationSelector15Character);
+    emoji_presentation_requested =
+        (variation_selector == kVariationSelector16Character);
+
     hb_bool_t hb_has_vs_glyph = hb_font_get_variation_glyph(
         hb_font_get_parent(hb_font), unicode, variation_selector, glyph);
     if (hb_has_vs_glyph) {
@@ -137,8 +180,8 @@ static hb_bool_t HarfBuzzGetGlyph(hb_font_t* hb_font,
       // character, can just return.
       return true;
     }
-    // Unable to find a glyph for variation sequence, now we need to look for a
-    // glyph for the base character from variation sequence.
+    // Unable to find a glyph for variation sequence, now we need to look
+    // for a glyph for the base character from variation sequence.
     variation_selector = 0;
   }
 
@@ -148,7 +191,26 @@ static hb_bool_t HarfBuzzGetGlyph(hb_font_t* hb_font,
   if (consider_variation_selector && hb_has_base_glyph) {
     // Unable to find a glyph for variation sequence, but found a glyph for
     // the base character from variation sequence ignoring variation selector.
-    *glyph = kUnmatchedVSGlyphId;
+    // We use `TypefaceHasAnySupportedColorTable` to check whether a typeface
+    // has colored table and based on that we make an assumption whether a font
+    // has a colored or monochromatic glyph for base character from variation
+    // sequence. We set `glyph` to `kUnmatchedVSGlyphId` only when font has a
+    // wrong presentation for base character.
+    if (RuntimeEnabledFeatures::SystemFallbackEmojiVSSupportEnabled() &&
+        (text_presentation_requested || emoji_presentation_requested)) {
+      SkTypeface* typeface = hb_font_data->font_.getTypeface();
+      // TODO(https://bugs.skia.org/374078818): Ideally we also want to check
+      // weather the base codepoint is present in the found color table,
+      // requested API from Skia.
+      bool has_color_table =
+          ColorTableLookup::TypefaceHasAnySupportedColorTable(typeface);
+      if ((has_color_table && text_presentation_requested) ||
+          (!has_color_table && emoji_presentation_requested)) {
+        *glyph = kUnmatchedVSGlyphId;
+      }
+    } else {
+      *glyph = kUnmatchedVSGlyphId;
+    }
   }
 
 // MacOS CoreText API synthesizes GlyphID for several unicode codepoints,
@@ -345,7 +407,6 @@ Glyph HarfBuzzFace::HbGlyphForCharacter(UChar32 character) {
 hb_codepoint_t HarfBuzzFace::HarfBuzzGetGlyphForTesting(
     UChar32 character,
     UChar32 variation_selector) {
-  DCHECK(RuntimeEnabledFeatures::FontVariationSequencesEnabled());
   hb_codepoint_t glyph = 0;
   HarfBuzzGetGlyph(harfbuzz_font_data_->unscaled_font_.get(),
                    harfbuzz_font_data_, character, variation_selector, &glyph,
@@ -384,9 +445,9 @@ class HarfBuzzSkiaFontFuncs final {
 
     const int num_tags = typeface->countTables();
 
-    SkFontTableTag tags[num_tags];
+    Vector<SkFontTableTag> tags(num_tags);
 
-    const int returned_tags = typeface->getTableTags(tags);
+    const int returned_tags = typeface->getTableTags(tags.data());
     DCHECK_EQ(num_tags, returned_tags);
 
     for (auto& tag : tags) {

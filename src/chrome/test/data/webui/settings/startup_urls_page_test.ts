@@ -6,7 +6,7 @@
 import 'chrome://settings/settings.js';
 
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
-import {keyEventOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
+import {keyEventOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SettingsStartupUrlDialogElement,SettingsStartupUrlEntryElement, SettingsStartupUrlsPageElement, StartupUrlsPageBrowserProxy} from 'chrome://settings/settings.js';
 import {EDIT_STARTUP_URL_EVENT, StartupUrlsPageBrowserProxyImpl} from 'chrome://settings/settings.js';
@@ -233,18 +233,18 @@ suite('StartupUrlsPage', function() {
     const useCurrentPagesButton =
         page.shadowRoot!.querySelector<HTMLElement>('#useCurrentPages > a');
     assertTrue(!!useCurrentPagesButton);
-    useCurrentPagesButton!.click();
+    useCurrentPagesButton.click();
     await browserProxy.whenCalled('useCurrentPages');
   });
 
-  test('AddPage_OpensDialog', async function() {
+  test('AddPage_OpensDialog', function() {
     const addPageButton =
         page.shadowRoot!.querySelector<HTMLElement>('#addPage > a');
     assertTrue(!!addPageButton);
     assertFalse(
         !!page.shadowRoot!.querySelector('settings-startup-url-dialog'));
 
-    addPageButton!.click();
+    addPageButton.click();
     flush();
     assertTrue(!!page.shadowRoot!.querySelector('settings-startup-url-dialog'));
   });

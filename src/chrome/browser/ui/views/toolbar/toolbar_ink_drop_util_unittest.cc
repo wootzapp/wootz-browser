@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
+
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/color/chrome_color_provider_utils.h"
 #include "chrome/test/views/chrome_views_test_base.h"
@@ -28,21 +29,12 @@ class TestButton : public views::Button {
 
 }  // namespace
 
-class ToolbarInkDropUtilTest : public ChromeViewsTestBase,
-                               public ::testing::WithParamInterface<bool> {
+class ToolbarInkDropUtilTest : public ChromeViewsTestBase {
  public:
   ToolbarInkDropUtilTest() = default;
 
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
-
-    // Enable or disable the feature based on the test parameter
-    if (GetParam()) {
-      feature_list_.InitAndEnableFeature(features::kChromeRefresh2023);
-    } else {
-      feature_list_.InitAndDisableFeature(features::kChromeRefresh2023);
-    }
-
     button_host_ = std::make_unique<TestButton>();
   }
 
@@ -58,25 +50,11 @@ class ToolbarInkDropUtilTest : public ChromeViewsTestBase,
 };
 
 // Basic test to check for various inkdrop properties for toolbar buttons.
-TEST_P(ToolbarInkDropUtilTest, ConfigureInkDropForToolbarTest) {
+TEST_F(ToolbarInkDropUtilTest, ConfigureInkDropForToolbarTest) {
   ConfigureInkDropForToolbar(button_host_.get());
-
-  if (!features::IsChromeRefresh2023()) {
-    EXPECT_TRUE(button_host_->GetHasInkDropActionOnClick());
-    EXPECT_EQ(views::InkDrop::Get(button_host_.get())->GetMode(),
-              views::InkDropHost::InkDropMode::ON);
-    EXPECT_EQ(views::InkDrop::Get(button_host_.get())->GetVisibleOpacity(),
-              kToolbarInkDropVisibleOpacity);
-  } else {
-    EXPECT_EQ(views::InkDrop::Get(button_host_.get())->GetLayerRegion(),
-              views::LayerRegion::kAbove);
-    std::unique_ptr<views::InkDropHighlight> highlight =
-        views::InkDrop::Get(button_host_.get())->CreateInkDropHighlight();
-    EXPECT_NE(highlight, nullptr);
-  }
+  EXPECT_EQ(views::InkDrop::Get(button_host_.get())->GetLayerRegion(),
+            views::LayerRegion::kAbove);
+  std::unique_ptr<views::InkDropHighlight> highlight =
+      views::InkDrop::Get(button_host_.get())->CreateInkDropHighlight();
+  EXPECT_NE(highlight, nullptr);
 }
-
-// Parameterized test cases. The parameter is whether the feature is enabled.
-INSTANTIATE_TEST_SUITE_P(ChromeRefresh2023OnOff,
-                         ToolbarInkDropUtilTest,
-                         testing::Bool());

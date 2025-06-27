@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/media_preview/camera_preview/camera_mediator.h"
+
 #include "base/functional/bind.h"
 #include "chrome/browser/media/prefs/capture_device_ranking.h"
 #include "content/public/browser/video_capture_service.h"
@@ -43,6 +44,7 @@ void CameraMediator::OnVideoDevicesChanged(
     devices_changed_callback_.Run({});
     return;
   }
+  is_device_list_initialized_ = true;
   // Copy into a mutable vector in order to be re-ordered by
   // `PreferenceRankDeviceInfos`.
   auto ranked_device_infos = device_infos.value();

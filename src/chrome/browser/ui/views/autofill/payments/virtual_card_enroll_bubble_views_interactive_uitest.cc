@@ -6,7 +6,6 @@
 #include <string>
 
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/autofill/payments/virtual_card_enroll_bubble_controller_impl.h"
 #include "chrome/browser/ui/autofill/payments/virtual_card_enroll_bubble_controller_impl_test_api.h"
@@ -18,28 +17,31 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/metrics/payments/virtual_card_enrollment_metrics.h"
 #include "components/autofill/core/browser/payments/legal_message_line.h"
 #include "components/autofill/core/browser/payments/payments_service_url.h"
 #include "components/autofill/core/browser/payments/test_legal_message_line.h"
 #include "components/autofill/core/browser/payments/virtual_card_enrollment_manager.h"
-#include "components/autofill/core/common/autofill_payments_features.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/gfx/image/image_unittest_util.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/throbber.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/view_observer.h"
 
 namespace autofill {
-
 namespace {
 
 constexpr int kCardImageWidthInPx = 32;
 constexpr int kCardImageLengthInPx = 20;
+
 }  // namespace
+// The anonymous namespace needs to end here because of `friend`ships between
+// the tests and the production code.
 
 class VirtualCardEnrollBubbleViewsInteractiveUiTest
     : public InProcessBrowserTest {
@@ -62,7 +64,7 @@ class VirtualCardEnrollBubbleViewsInteractiveUiTest
   }
 
   void CreateVirtualCardEnrollmentFields() {
-    CreditCard credit_card = test::GetFullServerCard();
+    CreditCard credit_card = test::GetCreditCard();
     LegalMessageLines google_legal_message = {
         TestLegalMessageLine("google_test_legal_message")};
     LegalMessageLines issuer_legal_message = {
@@ -218,7 +220,7 @@ class VirtualCardEnrollBubbleViewsInteractiveUiTest
         break;
       case VirtualCardEnrollmentBubbleResult::
           VIRTUAL_CARD_ENROLLMENT_BUBBLE_RESULT_UNKNOWN:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
     }
 
     views::test::WidgetDestroyedWaiter destroyed_waiter(
@@ -261,15 +263,8 @@ class VirtualCardEnrollBubbleViewsInteractiveUiTestParameterized
     : public VirtualCardEnrollBubbleViewsInteractiveUiTest,
       public testing::WithParamInterface<VirtualCardEnrollmentSource> {
  public:
-  VirtualCardEnrollBubbleViewsInteractiveUiTestParameterized() {
-    feature_list_.InitAndEnableFeature(
-        features::kAutofillEnableVcnEnrollLoadingAndConfirmation);
-  }
   ~VirtualCardEnrollBubbleViewsInteractiveUiTestParameterized() override =
       default;
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -585,7 +580,7 @@ IN_PROC_BROWSER_TEST_P(
 IN_PROC_BROWSER_TEST_P(
     VirtualCardEnrollBubbleViewsInteractiveUiTestParameterized,
     IconViewAccessibleName) {
-  EXPECT_EQ(GetIconView()->GetAccessibleName(),
+  EXPECT_EQ(GetIconView()->GetViewAccessibility().GetCachedName(),
             l10n_util::GetStringUTF16(
                 IDS_AUTOFILL_VIRTUAL_CARD_ENROLLMENT_FALLBACK_ICON_TOOLTIP));
   EXPECT_EQ(GetIconView()->GetTextForTooltipAndAccessibleName(),
@@ -603,8 +598,9 @@ IN_PROC_BROWSER_TEST_P(
       base::DoNothing());
   ASSERT_TRUE(GetBubbleViews());
   EXPECT_FALSE(IsLoadingProgressRowVisible());
-  EXPECT_EQ(GetBubbleViews()->GetDialogButtons(),
-            (ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL));
+  EXPECT_EQ(GetBubbleViews()->buttons(),
+            static_cast<int>(ui::mojom::DialogButton::kOk) |
+                static_cast<int>(ui::mojom::DialogButton::kCancel));
 
   GetBubbleViews()->AcceptDialog();
 
@@ -613,64 +609,12 @@ IN_PROC_BROWSER_TEST_P(
   views::View* loading_throbber =
       GetBubbleViews()->GetViewByID(DialogViewId::LOADING_THROBBER);
   EXPECT_TRUE(loading_throbber->IsDrawn());
-  EXPECT_EQ(GetBubbleViews()->GetDialogButtons(), ui::DIALOG_BUTTON_NONE);
+  EXPECT_EQ(GetBubbleViews()->buttons(),
+            static_cast<int>(ui::mojom::DialogButton::kNone));
 
   CloseBubbleForReasonAndWaitTillDestroyed(
       views::Widget::ClosedReason::kAcceptButtonClicked);
 
-  histogram_tester.ExpectBucketCount(
-      "Autofill.VirtualCardEnrollBubble.Result." +
-          VirtualCardEnrollmentSourceToMetricSuffix(
-              virtual_card_enrollment_source) +
-          ".FirstShow",
-      VirtualCardEnrollmentBubbleResult::
-          VIRTUAL_CARD_ENROLLMENT_BUBBLE_ACCEPTED,
-      1);
-}
-
-class
-    VirtualCardEnrollBubbleViewsInteractiveUiTestDisabledLoadingAndConfirmation
-    : public VirtualCardEnrollBubbleViewsInteractiveUiTest,
-      public testing::WithParamInterface<VirtualCardEnrollmentSource> {
- public:
-  VirtualCardEnrollBubbleViewsInteractiveUiTestDisabledLoadingAndConfirmation() {
-    feature_list_.InitAndDisableFeature(
-        features::kAutofillEnableVcnEnrollLoadingAndConfirmation);
-  }
-  ~VirtualCardEnrollBubbleViewsInteractiveUiTestDisabledLoadingAndConfirmation()
-      override = default;
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    VirtualCardEnrollBubbleViewsInteractiveUiTestDisabledLoadingAndConfirmation,
-    testing::Values(VirtualCardEnrollmentSource::kUpstream,
-                    VirtualCardEnrollmentSource::kDownstream,
-                    VirtualCardEnrollmentSource::kSettingsPage));
-
-IN_PROC_BROWSER_TEST_P(
-    VirtualCardEnrollBubbleViewsInteractiveUiTestDisabledLoadingAndConfirmation,
-    CloseBubbleOnAcceptWhenLoadingAndConfirmationIsDisabled) {
-  base::HistogramTester histogram_tester;
-  VirtualCardEnrollmentSource virtual_card_enrollment_source = GetParam();
-  ShowBubbleAndWaitUntilShown(
-      GetFieldsForSource(virtual_card_enrollment_source), base::DoNothing(),
-      base::DoNothing());
-  ASSERT_TRUE(GetBubbleViews());
-  EXPECT_FALSE(IsLoadingProgressRowVisible());
-  EXPECT_EQ(GetBubbleViews()->GetDialogButtons(),
-            (ui::DIALOG_BUTTON_OK | ui::DIALOG_BUTTON_CANCEL));
-
-  views::test::WidgetDestroyedWaiter destroyed_waiter(
-      GetBubbleViews()->GetWidget());
-  GetBubbleViews()->AcceptDialog();
-  destroyed_waiter.Wait();
-
-  EXPECT_FALSE(GetBubbleViews());
-  EXPECT_FALSE(IsIconVisible());
   histogram_tester.ExpectBucketCount(
       "Autofill.VirtualCardEnrollBubble.Result." +
           VirtualCardEnrollmentSourceToMetricSuffix(

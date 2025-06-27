@@ -28,16 +28,16 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -54,7 +54,6 @@ import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.url.GURL;
 
@@ -65,11 +64,11 @@ import java.util.List;
 @Batch(Batch.UNIT_TESTS)
 @RunWith(ChromeJUnit4ClassRunner.class)
 public final class ShareSheetBottomSheetContentTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Rule
     public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
             new BaseActivityTestRule<>(BlankUiTestActivity.class);
-
-    @Rule public TestRule mFeaturesProcessor = new Features.JUnitProcessor();
 
     @Rule
     public AutomotiveContextWrapperTestRule mAutoTestRule = new AutomotiveContextWrapperTestRule();
@@ -91,7 +90,6 @@ public final class ShareSheetBottomSheetContentTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
         mActivityTestRule.launchActivity(null);
         mActivity = mActivityTestRule.getActivity();
@@ -105,7 +103,7 @@ public final class ShareSheetBottomSheetContentTest {
                         .setLinkToTextSuccessful(true)
                         .build();
         // Pretend the feature engagement feature is already initialized. Otherwise
-        // UserEducationHelper#requestShowIPH() calls get dropped during test.
+        // UserEducationHelper#requestShowIph() calls get dropped during test.
         doAnswer(
                         invocation -> {
                             invocation.<Callback<Boolean>>getArgument(0).onResult(true);
@@ -381,7 +379,7 @@ public final class ShareSheetBottomSheetContentTest {
         when(mShareSheetLinkToggleCoordinator.shouldShowToggle()).thenReturn(true);
         when(mShareSheetLinkToggleCoordinator.shouldEnableToggleByDefault()).thenReturn(false);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         shareSheetBottomSheetContent.createRecyclerViews(
                                 ImmutableList.of(),
@@ -395,7 +393,7 @@ public final class ShareSheetBottomSheetContentTest {
                 shareSheetBottomSheetContent.getContentView().findViewById(R.id.link_toggle_view);
         assertEquals(View.VISIBLE, toggleView.getVisibility());
         verify(mFeatureEngagementTracker)
-                .shouldTriggerHelpUI(FeatureConstants.IPH_SHARING_HUB_LINK_TOGGLE_FEATURE);
+                .shouldTriggerHelpUi(FeatureConstants.IPH_SHARING_HUB_LINK_TOGGLE_FEATURE);
     }
 
     @Test

@@ -7,7 +7,7 @@
 #import "base/functional/bind.h"
 #import "base/run_loop.h"
 #import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/ssl/model/captive_portal_tab_helper.h"
 #import "ios/components/security_interstitials/ios_blocking_page_tab_helper.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
@@ -47,11 +47,11 @@ class IOSSSLErrorHandlerWithoutTabHelpersTest : public PlatformTest {
   void SetUp() override {
     PlatformTest::SetUp();
 
-    browser_state_ = TestChromeBrowserState::Builder().Build();
+    profile_ = TestProfileIOS::Builder().Build();
 
-    web_state_->SetBrowserState(browser_state_.get());
+    web_state_->SetBrowserState(profile_.get());
 
-    browser_state_->SetSharedURLLoaderFactory(
+    profile_->SetSharedURLLoaderFactory(
         base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
             &test_loader_factory_));
     test_loader_factory_.AddResponse("http://www.gstatic.com/generate_204", "",
@@ -62,7 +62,7 @@ class IOSSSLErrorHandlerWithoutTabHelpersTest : public PlatformTest {
 
   web::WebTaskEnvironment task_environment_{
       web::WebTaskEnvironment::MainThreadType::IO};
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<web::FakeWebState> web_state_ =
       std::make_unique<web::FakeWebState>();
 

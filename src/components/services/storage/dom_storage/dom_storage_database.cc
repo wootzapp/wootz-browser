@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/services/storage/dom_storage/dom_storage_database.h"
 
 #include <algorithm>
@@ -85,8 +90,8 @@ leveldb::Slice MakeSlice(base::span<const uint8_t> data) {
 
 DomStorageDatabase::KeyValuePair MakeKeyValuePair(const leveldb::Slice& key,
                                                   const leveldb::Slice& value) {
-  auto key_span = base::make_span(key);
-  auto value_span = base::make_span(value);
+  base::span key_span(key);
+  base::span value_span(value);
   return DomStorageDatabase::KeyValuePair(
       DomStorageDatabase::Key(key_span.begin(), key_span.end()),
       DomStorageDatabase::Value(value_span.begin(), value_span.end()));

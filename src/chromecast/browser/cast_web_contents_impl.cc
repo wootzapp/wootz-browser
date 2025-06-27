@@ -4,6 +4,7 @@
 
 #include "chromecast/browser/cast_web_contents_impl.h"
 
+#include <algorithm>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -12,7 +13,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/trace_event/trace_event.h"
@@ -66,7 +66,7 @@ size_t next_id = 0;
 // Remove the given CastWebContents pointer from the global instance vector.
 void RemoveCastWebContents(CastWebContents* instance) {
   auto& all_cast_web_contents = CastWebContents::GetAll();
-  auto it = base::ranges::find(all_cast_web_contents, instance);
+  auto it = std::ranges::find(all_cast_web_contents, instance);
   if (it != all_cast_web_contents.end()) {
     all_cast_web_contents.erase(it);
   }
@@ -95,8 +95,8 @@ std::vector<CastWebContents*>& CastWebContents::GetAll() {
 CastWebContents* CastWebContents::FromWebContents(
     content::WebContents* web_contents) {
   auto& all_cast_web_contents = CastWebContents::GetAll();
-  auto it = base::ranges::find(all_cast_web_contents, web_contents,
-                               &CastWebContents::web_contents);
+  auto it = std::ranges::find(all_cast_web_contents, web_contents,
+                              &CastWebContents::web_contents);
   if (it == all_cast_web_contents.end()) {
     return nullptr;
   }
@@ -131,13 +131,6 @@ void CastWebContentsImpl::RemoveRenderProcessHostObserver() {
 
 CastWebContentsImpl::CastWebContentsImpl(content::WebContents* web_contents,
                                          mojom::CastWebViewParamsPtr params)
-    : CastWebContentsImpl(web_contents,
-                          std::move(params),
-                          nullptr /* parent */) {}
-
-CastWebContentsImpl::CastWebContentsImpl(content::WebContents* web_contents,
-                                         mojom::CastWebViewParamsPtr params,
-                                         CastWebContents* parent)
     : web_contents_(web_contents),
       params_(std::move(params)),
       page_state_(PageState::IDLE),
@@ -148,7 +141,6 @@ CastWebContentsImpl::CastWebContentsImpl(content::WebContents* web_contents,
                          ? std::make_unique<CastMediaBlocker>(web_contents_)
                          : nullptr),
       main_process_host_(nullptr),
-      parent_cast_web_contents_(parent),
       tab_id_(params_->is_root_window ? 0 : next_tab_id++),
       id_(next_id++),
       main_frame_loaded_(false),
@@ -170,18 +162,6 @@ CastWebContentsImpl::CastWebContentsImpl(content::WebContents* web_contents,
 
   CastWebContents::GetAll().push_back(this);
   content::WebContentsObserver::Observe(web_contents_);
-
-  // The URL rewrite rules manager must be initialized only for the root
-  // CastWebContents that is created with this public ctor. All the inner
-  // CastWebContents created in |InnerWebContentsCreated()| callback will use
-  // the private ctor with |parent| specified which allows sharing the same
-  // manager, so that the whole Cast session applies the same rules.
-  if (params_->enable_url_rewrite_rules) {
-    if (!parent_cast_web_contents_) {
-      url_rewrite_rules_manager_.emplace();
-    }
-    url_rewrite_rules_manager()->AddWebContents(web_contents_);
-  }
 
   if (params_->enabled_for_dev) {
     LOG(INFO) << "Enabling dev console for CastWebContentsImpl";
@@ -210,7 +190,7 @@ CastWebContentsImpl::CastWebContentsImpl(content::WebContents* web_contents,
 
   if (params_->enable_webui_bindings_permission) {
     web_contents_->GetPrimaryMainFrame()->AllowBindings(
-        content::BINDINGS_POLICY_WEB_UI | content::BINDINGS_POLICY_MOJO_WEB_UI);
+        content::kWebUIBindingsPolicySet);
   }
 }
 
@@ -245,15 +225,6 @@ PageState CastWebContentsImpl::page_state() const {
   return page_state_;
 }
 
-url_rewrite::UrlRequestRewriteRulesManager*
-CastWebContentsImpl::url_rewrite_rules_manager() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (parent_cast_web_contents_) {
-    return parent_cast_web_contents_->url_rewrite_rules_manager();
-  }
-  return &*url_rewrite_rules_manager_;
-}
-
 const media_control::MediaBlocker* CastWebContentsImpl::media_blocker() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return media_blocker_.get();
@@ -266,14 +237,6 @@ void CastWebContentsImpl::AddRendererFeatures(base::Value::Dict features) {
 void CastWebContentsImpl::SetInterfacesForRenderer(
     mojo::PendingRemote<mojom::RemoteInterfaces> remote_interfaces) {
   remote_interfaces_.SetProvider(std::move(remote_interfaces));
-}
-
-void CastWebContentsImpl::SetUrlRewriteRules(
-    url_rewrite::mojom::UrlRequestRewriteRulesPtr rules) {
-  DCHECK(params_->enable_url_rewrite_rules);
-  if (!url_rewrite_rules_manager()->OnRulesUpdated(std::move(rules))) {
-    LOG(ERROR) << "URL rewrite rules update failed.";
-  }
 }
 
 void CastWebContentsImpl::LoadUrl(const GURL& url) {
@@ -960,7 +923,7 @@ void CastWebContentsImpl::InnerWebContentsCreated(
   params->enabled_for_dev = params_->enabled_for_dev;
   params->background_color = params_->background_color;
   auto result = inner_contents_.insert(std::unique_ptr<CastWebContentsImpl>(
-      new CastWebContentsImpl(inner_web_contents, std::move(params), this)));
+      new CastWebContentsImpl(inner_web_contents, std::move(params))));
 
   // Notifies remote observers.
   for (auto& observer : observers_) {

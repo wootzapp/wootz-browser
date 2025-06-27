@@ -23,7 +23,6 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/web_applications/chrome_pwa_launcher/chrome_pwa_launcher_util.h"
 #include "chrome/browser/web_applications/os_integration/web_app_handler_registration_utils_win.h"
-#include "chrome/browser/web_applications/test/fake_web_app_file_handler_manager.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/installer/util/shell_util.h"
@@ -57,7 +56,7 @@ constexpr char kAppName[] = "app name";
 
 class WebAppFileHandlerRegistrationWinTest : public testing::Test {
  protected:
-  WebAppFileHandlerRegistrationWinTest() {}
+  WebAppFileHandlerRegistrationWinTest() = default;
 
   void SetUp() override {
     // Set up fake windows registry

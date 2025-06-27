@@ -17,10 +17,13 @@
 #include "base/no_destructor.h"
 #include "base/sequence_checker.h"
 #include "base/trace_event/trace_event.h"
+#include "cc/base/features.h"
+#include "cc/paint/display_item_list.h"
 #include "cc/paint/image_provider.h"
 #include "cc/paint/paint_filter.h"
 #include "cc/paint/paint_op_buffer.h"
 #include "cc/paint/paint_op_buffer_iterator.h"
+#include "cc/paint/paint_shader.h"
 #include "cc/paint/skottie_wrapper.h"
 #include "third_party/skia/include/utils/SkNoDrawCanvas.h"
 #include "ui/gfx/display_color_spaces.h"
@@ -34,9 +37,16 @@ class DiscardableImageMap::Generator {
 
  public:
   Generator(DiscardableImageMap& map,
-            SkNoDrawCanvas& canvas,
-            const PaintOpBuffer& buffer)
-      : map_(map), canvas_(canvas) {
+            const PaintOpBuffer& buffer,
+            const gfx::Rect& bounds,
+            const ScrollOffsetMap& raster_inducing_scroll_offsets,
+            DecodingModeMap* decoding_mode_map,
+            PaintWorkletInputs* paint_worklet_inputs)
+      : map_(map),
+        canvas_(gfx::RectToSkIRect(bounds)),
+        raster_inducing_scroll_offsets_(raster_inducing_scroll_offsets),
+        decoding_mode_map_(decoding_mode_map),
+        paint_worklet_inputs_(paint_worklet_inputs) {
     GatherDiscardableImages(buffer, nullptr);
   }
 
@@ -72,8 +82,9 @@ class DiscardableImageMap::Generator {
   // this image in the top-level buffer.
   void GatherDiscardableImages(const PaintOpBuffer& buffer,
                                const gfx::Rect* top_level_op_rect) {
-    if (!buffer.HasDiscardableImages())
+    if (!buffer.has_discardable_images()) {
       return;
+    }
 
     // Prevent PaintOpBuffers from having side effects back into the canvas.
     SkAutoCanvasRestore save_restore(&canvas_, true);
@@ -99,7 +110,7 @@ class DiscardableImageMap::Generator {
 
         op_rect = PaintOp::ComputePaintRect(op, clip_rect, ctm);
       }
-      if (op_rect.IsEmpty()) {
+      if (!collect_invisible_images_ && op_rect.IsEmpty()) {
         continue;
       }
 
@@ -109,22 +120,31 @@ class DiscardableImageMap::Generator {
                           static_cast<const PaintOpWithFlags&>(op).flags, ctm);
       }
 
-      PaintOpType op_type = static_cast<PaintOpType>(op.type);
+      PaintOpType op_type = op.GetType();
       if (op_type == PaintOpType::kDrawImage) {
         const auto& image_op = static_cast<const DrawImageOp&>(op);
+        PaintFlags::FilterQuality quality =
+            base::FeatureList::IsEnabled(
+                features::kPreserveDiscardableImageMapQuality)
+                ? image_op.GetImageQuality()
+                : image_op.flags.getFilterQuality();
         AddImage(
             image_op.image, image_op.flags.useDarkModeForImage(),
             SkRect::MakeIWH(image_op.image.width(), image_op.image.height()),
-            op_rect, ctm, image_op.flags.getFilterQuality());
+            op_rect, ctm, quality);
       } else if (op_type == PaintOpType::kDrawImageRect) {
         const auto& image_rect_op = static_cast<const DrawImageRectOp&>(op);
         // TODO(crbug.com/40735471): Make a RectToRect method that uses SkM44s
         // in MathUtil.
         SkM44 matrix = ctm * SkM44(SkMatrix::RectToRect(image_rect_op.src,
                                                         image_rect_op.dst));
+        PaintFlags::FilterQuality quality =
+            base::FeatureList::IsEnabled(
+                features::kPreserveDiscardableImageMapQuality)
+                ? image_rect_op.GetImageQuality()
+                : image_rect_op.flags.getFilterQuality();
         AddImage(image_rect_op.image, image_rect_op.flags.useDarkModeForImage(),
-                 image_rect_op.src, op_rect, matrix,
-                 image_rect_op.flags.getFilterQuality());
+                 image_rect_op.src, op_rect, matrix, quality);
       } else if (op_type == PaintOpType::kDrawSkottie) {
         const auto& skottie_op = static_cast<const DrawSkottieOp&>(op);
         for (const auto& image_pair : skottie_op.images) {
@@ -165,6 +185,23 @@ class DiscardableImageMap::Generator {
         GatherDiscardableImages(
             static_cast<const DrawRecordOp&>(op).record.buffer(),
             top_level_op_rect);
+      } else if (op_type == PaintOpType::kDrawScrollingContents) {
+        const auto& draw_scrolling_contents_op =
+            static_cast<const DrawScrollingContentsOp&>(op);
+        if (draw_scrolling_contents_op.display_item_list
+                ->has_discardable_images()) {
+          canvas_.save();
+          // Collect all images under a DrawScrollingContentsOp, to make the set
+          // of images not depend on the scroll offset.
+          base::AutoReset<bool> reset(&collect_invisible_images_, true);
+          gfx::PointF scroll_offset = raster_inducing_scroll_offsets_.at(
+              draw_scrolling_contents_op.scroll_element_id);
+          canvas_.translate(-scroll_offset.x(), -scroll_offset.y());
+          GatherDiscardableImages(
+              draw_scrolling_contents_op.display_item_list->paint_op_buffer(),
+              top_level_op_rect);
+          canvas_.restore();
+        }
       }
     }
   }
@@ -182,8 +219,9 @@ class DiscardableImageMap::Generator {
                           const PaintShader* shader,
                           const SkM44& ctm,
                           PaintFlags::FilterQuality filter_quality) {
-    if (!shader || !shader->has_discardable_images())
+    if (!shader || !shader->HasDiscardableImages()) {
       return;
+    }
 
     if (shader->shader_type() == PaintShader::Type::kImage) {
       const PaintImage& paint_image = shader->paint_image();
@@ -208,9 +246,6 @@ class DiscardableImageMap::Generator {
         return;
       }
 
-      SkNoDrawCanvas canvas(scaled_tile_rect.width(),
-                            scaled_tile_rect.height());
-      canvas.setMatrix(SkMatrix::RectToRect(shader->tile(), scaled_tile_rect));
       base::AutoReset<bool> auto_reset(&only_gather_animated_images_, true);
       size_t prev_images_size = map_.images_.size();
       GatherDiscardableImages(shader->paint_record()->buffer(), &op_rect);
@@ -258,19 +293,6 @@ class DiscardableImageMap::Generator {
     SkIRect src_irect;
     src_rect.roundOut(&src_irect);
 
-    if (paint_image.IsPaintWorklet()) {
-      map_.paint_worklet_inputs_.emplace_back(
-          paint_image.paint_worklet_input(), paint_image.stable_id());
-    } else {
-      const auto image_color_usage = paint_image.GetContentColorUsage();
-      map_.content_color_usage_ =
-          std::max(map_.content_color_usage_, image_color_usage);
-
-      if (paint_image.is_high_bit_depth()) {
-        map_.contains_hbd_images_ = true;
-      }
-    }
-
     auto& rects = map_.image_id_to_rects_[paint_image.stable_id()];
     if (rects.size() >= kMaxRectsSize) {
       rects.back().Union(image_rect);
@@ -278,13 +300,17 @@ class DiscardableImageMap::Generator {
       rects.push_back(image_rect);
     }
 
-    if (paint_image.IsLazyGenerated()) {
-      auto decoding_mode_it =
-          map_.decoding_mode_map_.find(paint_image.stable_id());
+    if (paint_worklet_inputs_ && paint_image.IsPaintWorklet()) {
+      paint_worklet_inputs_->emplace_back(paint_image.GetPaintWorkletInput(),
+                                          paint_image.stable_id());
+    }
+
+    if (decoding_mode_map_ && paint_image.IsLazyGenerated()) {
+      auto decoding_mode_it = decoding_mode_map_->find(paint_image.stable_id());
       // Use the decoding mode if we don't have one yet, otherwise use the more
       // conservative one of the two existing ones.
-      if (decoding_mode_it == map_.decoding_mode_map_.end()) {
-        map_.decoding_mode_map_[paint_image.stable_id()] =
+      if (decoding_mode_it == decoding_mode_map_->end()) {
+        (*decoding_mode_map_)[paint_image.stable_id()] =
             paint_image.decoding_mode();
       } else {
         decoding_mode_it->second = PaintImage::GetConservative(
@@ -321,39 +347,39 @@ class DiscardableImageMap::Generator {
   }
 
   DiscardableImageMap& map_;
-  SkNoDrawCanvas& canvas_;
+  SkNoDrawCanvas canvas_;
+  const ScrollOffsetMap& raster_inducing_scroll_offsets_;
+  DecodingModeMap* const decoding_mode_map_;
+  PaintWorkletInputs* const paint_worklet_inputs_;
   bool only_gather_animated_images_ = false;
+  bool collect_invisible_images_ = false;
 };  // DiscardableImageMap::Generator
 
-DiscardableImageMap::DiscardableImageMap() {
-  DETACH_FROM_SEQUENCE(images_rtree_sequence_checker_);
-}
+DiscardableImageMap::DiscardableImageMap() = default;
+
+// Once a DiscardableImage is generated, it's hold in a ref-counted
+// DisplayItemList which may be destructed from any thread.
 DiscardableImageMap::~DiscardableImageMap() = default;
 
-void DiscardableImageMap::Generate(const PaintOpBuffer& paint_op_buffer,
-                                   const gfx::Rect& bounds) {
+scoped_refptr<DiscardableImageMap> DiscardableImageMap::Generate(
+    const PaintOpBuffer& paint_op_buffer,
+    const gfx::Rect& bounds,
+    const ScrollOffsetMap& raster_inducing_scroll_offsets,
+    DecodingModeMap* decoding_mode_map,
+    PaintWorkletInputs* paint_worklet_inputs) {
   TRACE_EVENT0("cc", "DiscardableImageMap::Generate");
-
-  if (!paint_op_buffer.HasDiscardableImages()) {
-    return;
-  }
-
-  SkNoDrawCanvas canvas(bounds.right(), bounds.bottom());
-  Generator generator(*this, canvas, paint_op_buffer);
-  DCHECK_CALLED_ON_VALID_SEQUENCE(images_rtree_sequence_checker_);
-  CHECK(!images_rtree_);
-  DETACH_FROM_SEQUENCE(images_rtree_sequence_checker_);
+  scoped_refptr<DiscardableImageMap> image_map(new DiscardableImageMap());
+  Generator generator(*image_map, paint_op_buffer, bounds,
+                      raster_inducing_scroll_offsets, decoding_mode_map,
+                      paint_worklet_inputs);
+  CHECK(!image_map->images_rtree_);
+  return image_map;
 }
 
-base::flat_map<PaintImage::Id, PaintImage::DecodingMode>
-DiscardableImageMap::TakeDecodingModeMap() {
-  return std::move(decoding_mode_map_);
-}
-
-void DiscardableImageMap::GetDiscardableImagesInRect(
-    const gfx::Rect& rect,
-    std::vector<const DrawImage*>* images) const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(images_rtree_sequence_checker_);
+std::vector<const DrawImage*> DiscardableImageMap::GetDiscardableImagesInRect(
+    const gfx::Rect& rect) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  std::vector<const DrawImage*> result;
   if (!images_rtree_) {
     images_rtree_ = std::make_unique<RTree<const DrawImage*>>();
 
@@ -361,23 +387,16 @@ void DiscardableImageMap::GetDiscardableImagesInRect(
         images_.size(), [this](size_t index) { return images_[index].second; },
         [this](size_t index) { return &images_[index].first; });
   }
-  images_rtree_->Search(rect, images);
+  images_rtree_->Search(rect, &result);
+  return result;
 }
 
 const DiscardableImageMap::Rects& DiscardableImageMap::GetRectsForImage(
     PaintImage::Id image_id) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   static const base::NoDestructor<Rects> kEmptyRects;
   auto it = image_id_to_rects_.find(image_id);
   return it == image_id_to_rects_.end() ? *kEmptyRects : it->second;
-}
-
-void DiscardableImageMap::Reset() {
-  image_id_to_rects_.clear();
-  image_id_to_rects_.shrink_to_fit();
-  DCHECK_CALLED_ON_VALID_SEQUENCE(images_rtree_sequence_checker_);
-  images_rtree_.reset();
-  images_.clear();
-  DETACH_FROM_SEQUENCE(images_rtree_sequence_checker_);
 }
 
 DiscardableImageMap::AnimatedImageMetadata::AnimatedImageMetadata(

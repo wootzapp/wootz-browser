@@ -6,7 +6,7 @@ import '../../settings_shared.css.js';
 
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {App, AppParentalControlsHandlerInterface} from '../../mojom-webui/app_parental_controls_handler.mojom-webui.js';
+import type {App, AppParentalControlsHandlerInterface} from '../../mojom-webui/app_parental_controls_handler.mojom-webui.js';
 
 import {getTemplate} from './block_app_item.html.js';
 import {getAppParentalControlsProvider} from './mojo_interface_provider.js';
@@ -23,20 +23,11 @@ export class BlockAppItemElement extends PolymerElement {
 
   static get properties() {
     return {
-      app: {
-        type: Object,
-      },
-
-      // Checked toggle indicates that an app is allowed, unchecked blocked.
-      toggleChecked_: {
-        type: Boolean,
-        value: true,
-      },
+      app: Object,
     };
   }
 
   app: App;
-  private toggleChecked_: boolean;
   private mojoInterfaceProvider: AppParentalControlsHandlerInterface;
 
   constructor() {
@@ -44,13 +35,33 @@ export class BlockAppItemElement extends PolymerElement {
     this.mojoInterfaceProvider = getAppParentalControlsProvider();
   }
 
+  override ready(): void {
+    super.ready();
+
+    this.addEventListener('click', () => {
+      this.updateBlockedState_(!this.app.isBlocked);
+    });
+  }
+
   private isAllowed_(app: App): boolean {
     return !app.isBlocked;
   }
 
   private onToggleChange_(e: CustomEvent<boolean>): void {
-    this.toggleChecked_ = e.detail;
-    this.mojoInterfaceProvider.updateApp(this.app.id, !this.toggleChecked_);
+    const isBlocked = !e.detail;
+    this.updateBlockedState_(isBlocked);
+  }
+
+  private updateBlockedState_(isBlocked: boolean): void {
+    this.mojoInterfaceProvider.updateApp(this.app.id, isBlocked);
+  }
+
+  private getIconUrl_(app: App): string {
+    // Use a no-op query param that reflects the app blocked state.
+    // This ensures that the icon is fetched every time the state of the app is
+    // updated. Otherwise, the icon is cached if the src stays the same.
+    return `chrome://app-icon/${app.id}/64?` +
+        `parental_controls_blocked=${app.isBlocked}`;
   }
 }
 

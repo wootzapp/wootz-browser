@@ -4,7 +4,10 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
+import org.chromium.build.annotations.NullMarked;
+
 /** A UI coordinator the app menu. */
+@NullMarked
 public interface AppMenuCoordinator {
     /** Called when the containing activity is being destroyed. */
     void destroy();
@@ -19,8 +22,8 @@ public interface AppMenuCoordinator {
      * @return The {@link AppMenuHandler} associated with this activity.
      */
     AppMenuHandler getAppMenuHandler();
-
-    /**
+    
+      /**
      * Open the extensions Bottom Sheet.
      */
     void openExtensionById(String extensionId);
@@ -29,8 +32,6 @@ public interface AppMenuCoordinator {
      * Close the extensions Bottom Sheet.
      */
     void closeExtensionBottomSheet();
-    
-
     /**
      * @return The {@link AppMenuPropertiesDelegate} associated with this activity.
      */

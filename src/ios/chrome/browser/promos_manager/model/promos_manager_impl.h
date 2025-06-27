@@ -5,8 +5,6 @@
 #ifndef IOS_CHROME_BROWSER_PROMOS_MANAGER_MODEL_PROMOS_MANAGER_IMPL_H_
 #define IOS_CHROME_BROWSER_PROMOS_MANAGER_MODEL_PROMOS_MANAGER_IMPL_H_
 
-#import "ios/chrome/browser/promos_manager/model/promos_manager.h"
-
 #import <Foundation/Foundation.h>
 
 #import <map>
@@ -22,6 +20,7 @@
 #import "ios/chrome/browser/promos_manager/model/constants.h"
 #import "ios/chrome/browser/promos_manager/model/impression_limit.h"
 #import "ios/chrome/browser/promos_manager/model/promo_config.h"
+#import "ios/chrome/browser/promos_manager/model/promos_manager.h"
 
 namespace feature_engagement {
 class Tracker;
@@ -56,17 +55,25 @@ class PromosManagerImpl : public PromosManager {
   // Initializes the `single_display_pending_promos_`, constructs it from Pref.
   void InitializePendingPromos();
 
-  // Checks whether the given promo can be shown given any extant impression
-  // limits.
+  // Checks whether a promo can currently be shown using the feature engagement
+  // system to check any impression limits. If true, it will mark the promo for
+  // display.
   bool CanShowPromo(promos_manager::Promo promo) const;
 
-  // Checks whether a promo can currently be shown using the feature engagement
-  // system to check any impression limits.
-  bool CanShowPromoUsingFeatureEngagementTracker(
-      promos_manager::Promo promo) const;
+  // Similar to ```CanShowPromo``` without marking the promo for display.
+  bool CanShowPromoWithoutTrigger(promos_manager::Promo promo) const;
 
   // Returns the corresponding base::Feature for the given Promo.
   const base::Feature* FeatureForPromo(promos_manager::Promo promo) const;
+
+  // Returns the first eligible promo from the given promo queue. If any valid
+  // promo is found, it will mark the promo for display.
+  std::optional<promos_manager::Promo> GetFirstEligiblePromo(
+      const std::vector<promos_manager::Promo>& promo_queue);
+
+  // Returns number of eligible promos in the given promos queue.
+  int GetEligiblePromoCount(
+      const std::vector<promos_manager::Promo>& promo_queue);
 
   // PromosManager implementation.
   void Init() override;

@@ -6,15 +6,16 @@ package org.chromium.chrome.browser.omnibox.suggestions;
 
 import android.annotation.SuppressLint;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import android.view.View;
 import org.chromium.base.Callback;
-import org.chromium.ui.base.WindowDelegate;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownEmbedder.OmniboxAlignment;
 
+import android.view.View;
 import java.util.Objects;
 
 /** Provider of capabilities required to embed the omnibox suggestion list into the UI. */
+@NullMarked
 public interface OmniboxSuggestionsDropdownEmbedder {
 
     /**
@@ -24,27 +25,35 @@ public interface OmniboxSuggestionsDropdownEmbedder {
     class OmniboxAlignment {
 
         public static final OmniboxAlignment UNSPECIFIED =
-                new OmniboxAlignment(-1, -1, -1, -1, -1, -1);
+                new OmniboxAlignment(-1, -1, -1, -1, -1, -1, -1);
         public final int left;
         public final int top;
         public final int width;
         public final int height;
         public final int paddingLeft;
         public final int paddingRight;
+        public final int paddingBottom;
 
         public OmniboxAlignment(
-                int left, int top, int width, int height, int paddingLeft, int paddingRight) {
+                int left,
+                int top,
+                int width,
+                int height,
+                int paddingLeft,
+                int paddingRight,
+                int paddingBottom) {
             this.left = left;
             this.top = top;
             this.width = width;
             this.paddingLeft = paddingLeft;
             this.paddingRight = paddingRight;
+            this.paddingBottom = paddingBottom;
             this.height = height;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(left, top, width, paddingLeft, paddingRight);
+            return Objects.hash(left, top, width, paddingLeft, paddingRight, paddingBottom);
         }
 
         @Override
@@ -56,17 +65,17 @@ public interface OmniboxSuggestionsDropdownEmbedder {
                     && other.width == this.width
                     && other.height == this.height
                     && other.paddingLeft == this.paddingLeft
-                    && other.paddingRight == this.paddingRight;
+                    && other.paddingRight == this.paddingRight
+                    && other.paddingBottom == this.paddingBottom;
         }
 
         @SuppressLint("DefaultLocale")
-        @NonNull
         @Override
         public String toString() {
             return String.format(
                     "OmniboxAlignment left: %d top: %d width: %d height: %d paddingLeft: %d"
-                            + " paddingRight: %d",
-                    left, top, width, height, paddingLeft, paddingRight);
+                            + " paddingRight: %d paddingBottom: %d",
+                    left, top, width, height, paddingLeft, paddingRight, paddingBottom);
         }
 
         /**
@@ -76,9 +85,11 @@ public interface OmniboxSuggestionsDropdownEmbedder {
         public boolean isOnlyHorizontalDifference(@Nullable OmniboxAlignment other) {
             if (other == null) return false;
             return (this.left != other.left
-                            || this.paddingLeft != other.paddingLeft
-                                    && this.paddingRight != other.paddingRight)
-                    && (this.top == other.top && this.width == other.width);
+                            || (this.paddingLeft != other.paddingLeft
+                                    && this.paddingRight != other.paddingRight))
+                    && (this.top == other.top
+                            && this.width == other.width
+                            && this.paddingBottom == other.paddingBottom);
         }
 
         /**
@@ -107,12 +118,8 @@ public interface OmniboxSuggestionsDropdownEmbedder {
      * Returns the current alignment values, but does not recalculate them. Will not return null but
      * may return {@link OmniboxAlignment.UNSPECIFIED} if there is not a currently valid alignment.
      */
-    @NonNull
     OmniboxAlignment getCurrentAlignment();
 
-    /** Return the delegate used to interact with the Window. */
-    @NonNull
-    WindowDelegate getWindowDelegate();
     @NonNull
     View getAnchorView();
 

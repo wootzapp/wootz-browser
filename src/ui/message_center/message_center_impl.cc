@@ -4,21 +4,21 @@
 
 #include "ui/message_center/message_center_impl.h"
 
-#include <iterator>
+#include <algorithm>
 #include <memory>
+#include <optional>
+#include <set>
+#include <string>
 #include <utility>
-#include <vector>
 
 #include "ash/constants/ash_features.h"
-#include "base/auto_reset.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/message_center/lock_screen/lock_screen_controller.h"
 #include "ui/message_center/message_center_types.h"
 #include "ui/message_center/notification_blocker.h"
@@ -29,26 +29,56 @@
 #include "ui/message_center/public/cpp/notification_types.h"
 #include "ui/message_center/public/cpp/notifier_id.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_constants.h"
 #include "ash/constants/ash_features.h"
 #include "base/metrics/histogram_functions.h"
-#endif
+#endif  //  BUILDFLAG(IS_CHROMEOS)
 
 namespace message_center {
 namespace {
 
 bool IsNotificationsGroupingEnabled() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   return true;
 #else
   return false;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
+
+ScopedNotificationLimitOverrider* g_limit_overrider_instance_ = nullptr;
+
+// Constants -------------------------------------------------------------------
+
+// Indicates the notification count limit.
+// NOTE: Used only when the notification limit feature is enabled.
 constexpr int kChromeOSNotificationLimit = 75;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+
+// Target notification count for the cleaning task triggered when the
+// notification count exceeds `kChromeOSNotificationLimit`. This value is
+// lower than `kChromeOSNotificationLimit` to reduce the frequency of hitting
+// the limit. Because of unremovable notifications, the actual count after
+// cleaning could exceed this target count.
+// NOTE: Used only when the notification limit feature is enabled.
+constexpr int kNotificationTargetCountAfterRemoval = 65;
+
+// Helpers ---------------------------------------------------------------------
+
+int GetNotificationLimit() {
+  return g_limit_overrider_instance_
+             ? g_limit_overrider_instance_->overriding_limit
+             : kChromeOSNotificationLimit;
+}
+
+int GetTargetCountAfterRemoval() {
+  return g_limit_overrider_instance_
+             ? g_limit_overrider_instance_->overriding_target_count
+             : kNotificationTargetCountAfterRemoval;
+}
+
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace
 
@@ -90,7 +120,7 @@ void MessageCenterImpl::AddNotificationBlocker(NotificationBlocker* blocker) {
 void MessageCenterImpl::RemoveNotificationBlocker(
     NotificationBlocker* blocker) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  auto iter = base::ranges::find(blockers_, blocker);
+  auto iter = std::ranges::find(blockers_, blocker);
   if (iter == blockers_.end()) {
     return;
   }
@@ -109,13 +139,11 @@ void MessageCenterImpl::OnBlockingStateChanged(NotificationBlocker* blocker) {
       notification_list_->GetVisibleNotifications(blockers_);
 
   for (const std::string& notification_id : blocked) {
-    for (MessageCenterObserver& observer : observer_list_) {
-      observer.OnNotificationUpdated(notification_id);
-    }
+    observer_list_.Notify(&MessageCenterObserver::OnNotificationUpdated,
+                          notification_id);
   }
-  for (MessageCenterObserver& observer : observer_list_) {
-    observer.OnBlockingStateChanged(blocker);
-  }
+  observer_list_.Notify(&MessageCenterObserver::OnBlockingStateChanged,
+                        blocker);
 }
 
 void MessageCenterImpl::SetVisibility(Visibility visibility) {
@@ -127,9 +155,7 @@ void MessageCenterImpl::SetVisibility(Visibility visibility) {
     notification_list_->SetNotificationsShown(blockers_, &updated_ids);
 
     for (const auto& id : updated_ids) {
-      for (MessageCenterObserver& observer : observer_list_) {
-        observer.OnNotificationUpdated(id);
-      }
+      observer_list_.Notify(&MessageCenterObserver::OnNotificationUpdated, id);
     }
 
     for (Notification* notification : GetPopupNotifications()) {
@@ -137,9 +163,8 @@ void MessageCenterImpl::SetVisibility(Visibility visibility) {
     }
   }
 
-  for (MessageCenterObserver& observer : observer_list_) {
-    observer.OnCenterVisibilityChanged(visibility);
-  }
+  observer_list_.Notify(&MessageCenterObserver::OnCenterVisibilityChanged,
+                        visibility);
 }
 
 bool MessageCenterImpl::IsMessageCenterVisible() const {
@@ -214,12 +239,12 @@ Notification* MessageCenterImpl::FindParentNotification(
   // IsRenderArcNotificationsByChromeEnabled() is enabled.
   bool is_privacy_indicators_notification = false;
   bool render_arc_notifications_by_chrome = false;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   is_privacy_indicators_notification =
       notification->notifier_id().id == ash::kPrivacyIndicatorsNotifierId;
   render_arc_notifications_by_chrome =
       ash::features::IsRenderArcNotificationsByChromeEnabled();
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   if (!is_privacy_indicators_notification &&
       (notification->origin_url().is_empty() ||
@@ -258,7 +283,7 @@ Notification* MessageCenterImpl::FindParentNotification(
     }
   }
 
-  auto parent_notification_it = base::ranges::find_if(
+  auto parent_notification_it = std::ranges::find_if(
       notifications,
       [](Notification* notification) { return notification->group_parent(); });
 
@@ -277,7 +302,7 @@ Notification* MessageCenterImpl::FindParentNotification(
 Notification* MessageCenterImpl::FindPopupNotificationById(
     const std::string& id) {
   auto notifications = GetPopupNotifications();
-  auto notification = base::ranges::find(notifications, id, &Notification::id);
+  auto notification = std::ranges::find(notifications, id, &Notification::id);
 
   return notification == notifications.end() ? nullptr : *notification;
 }
@@ -351,15 +376,13 @@ void MessageCenterImpl::AddNotification(
   // Sometimes the notifications can be added with the same id and the
   // |notification_list| will replace the notification instead of adding new.
   // This is essentially an update rather than addition.
-  const bool already_exists =
-      notification_list_->GetNotificationById(id) != nullptr;
-  if (already_exists) {
+  if (notification_list_->GetNotificationById(id)) {
     UpdateNotification(id, std::move(notification));
     return;
   }
 
-  auto* parent = FindParentNotification(notification.get());
-  if (notification->allow_group() && parent && !notification->group_parent()) {
+  if (auto* const parent = FindParentNotification(notification.get());
+      notification->allow_group() && parent && !notification->group_parent()) {
     parent->SetGroupParent();
     notification->SetGroupChild();
   }
@@ -368,13 +391,11 @@ void MessageCenterImpl::AddNotification(
 
   visible_notifications_ =
       notification_list_->GetVisibleNotifications(blockers_);
-  for (MessageCenterObserver& observer : observer_list_) {
-    observer.OnNotificationAdded(id);
-  }
+  observer_list_.Notify(&MessageCenterObserver::OnNotificationAdded, id);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  RemoveLastNotificationIfOverLimit();
-#endif  // IS_CHROMEOS_ASH
+#if BUILDFLAG(IS_CHROMEOS)
+  ScheduleCleaningTaskIfCountOverLimit();
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 void MessageCenterImpl::UpdateNotification(
@@ -531,6 +552,11 @@ void MessageCenterImpl::ClickOnNotification(const std::string& id) {
     return;
   }
 
+  if (lock_screen_controller_->IsNotificationAllowedOnLockScreen(id)) {
+    ClickOnNotificationUnlocked(id, std::nullopt, std::nullopt);
+    return;
+  }
+
   lock_screen_controller_->DismissLockScreenThenExecute(
       base::BindOnce(&MessageCenterImpl::ClickOnNotificationUnlocked,
                      base::Unretained(this), id, std::nullopt, std::nullopt),
@@ -544,6 +570,11 @@ void MessageCenterImpl::ClickOnNotificationButton(const std::string& id,
     return;
   }
 
+  if (lock_screen_controller_->IsNotificationAllowedOnLockScreen(id)) {
+    ClickOnNotificationUnlocked(id, button_index, std::nullopt);
+    return;
+  }
+
   lock_screen_controller_->DismissLockScreenThenExecute(
       base::BindOnce(&MessageCenterImpl::ClickOnNotificationUnlocked,
                      base::Unretained(this), id, button_index, std::nullopt),
@@ -553,15 +584,21 @@ void MessageCenterImpl::ClickOnNotificationButton(const std::string& id,
 void MessageCenterImpl::ClickOnNotificationButtonWithReply(
     const std::string& id,
     int button_index,
-    const std::u16string& reply) {
+    std::u16string_view reply) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (!FindVisibleNotificationById(id)) {
     return;
   }
 
+  if (lock_screen_controller_->IsNotificationAllowedOnLockScreen(id)) {
+    ClickOnNotificationUnlocked(id, button_index, std::u16string(reply));
+    return;
+  }
+
   lock_screen_controller_->DismissLockScreenThenExecute(
       base::BindOnce(&MessageCenterImpl::ClickOnNotificationUnlocked,
-                     base::Unretained(this), id, button_index, reply),
+                     base::Unretained(this), id, button_index,
+                     std::u16string(reply)),
       base::OnceClosure());
 }
 
@@ -571,8 +608,10 @@ void MessageCenterImpl::ClickOnNotificationUnlocked(
     const std::optional<std::u16string>& reply) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  // This method must be called under unlocked screen.
-  DCHECK(!lock_screen_controller_->IsScreenLocked());
+  // This method must be called under unlocked screen or if the notification is
+  // allowed on the lock screen.
+  DCHECK(lock_screen_controller_->IsNotificationAllowedOnLockScreen(id) ||
+         !lock_screen_controller_->IsScreenLocked());
 
   // Ensure the notification is still visible.
   if (!FindVisibleNotificationById(id)) {
@@ -599,25 +638,37 @@ void MessageCenterImpl::ClickOnNotificationUnlocked(
   }
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-void MessageCenterImpl::RemoveLastNotificationIfOverLimit() {
-  // Some clients have large notification cache's, to reduce memory footprint,
-  // limit the number of notifications a user can have.
-  if (!ash::features::IsNotificationLimitEnabled()) {
+#if BUILDFLAG(IS_CHROMEOS)
+void MessageCenterImpl::ScheduleCleaningTaskIfCountOverLimit() {
+  if (!ash::features::IsNotificationLimitEnabled() ||
+      notification_list_->size() <= GetNotificationLimit()) {
     return;
   }
 
-  if (notification_list_->size() > kChromeOSNotificationLimit) {
-    auto oldest_notification_id =
-        notification_list_->GetOldestNonGroupedNotificationId();
-    if (!oldest_notification_id.empty()) {
-      RemoveNotification(oldest_notification_id, /*by_user=*/false);
-      base::UmaHistogramBoolean("Ash.Notification.RemovedByLimitEnforcement",
-                                true);
-    }
+  if (!overlimit_handler_timer_.IsRunning()) {
+    overlimit_handler_timer_.Start(
+        FROM_HERE, base::TimeDelta(), /*receiver=*/this,
+        &MessageCenterImpl::RemoveNotificationsIfOverLimit);
   }
 }
-#endif  // IS_CHROMEOS_ASH
+
+void MessageCenterImpl::RemoveNotificationsIfOverLimit() {
+  CHECK(ash::features::IsNotificationLimitEnabled());
+
+  if (int notification_count = notification_list_->size();
+      notification_count > GetNotificationLimit()) {
+    for (const std::string& id :
+         notification_list_->GetTopKRemovableNotificationIds(
+             notification_count - GetTargetCountAfterRemoval())) {
+      RemoveNotification(id, /*by_user=*/false);
+    }
+
+    base::UmaHistogramBoolean("Ash.Notification.RemovedByLimitEnforcement",
+                              true);
+  }
+}
+
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 void MessageCenterImpl::ClickOnSettingsButton(const std::string& id) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
@@ -785,5 +836,22 @@ void MessageCenterImpl::OnMessageViewHovered(
 void MessageCenterImpl::DisableTimersForTest() {
   popup_timers_controller_.reset();
 }
+
+// ScopedNotificationLimitOverrider --------------------------------------------
+
+#if BUILDFLAG(IS_CHROMEOS)
+ScopedNotificationLimitOverrider::ScopedNotificationLimitOverrider(
+    size_t limit,
+    size_t target_count)
+    : overriding_limit(limit), overriding_target_count(target_count) {
+  CHECK(!g_limit_overrider_instance_);
+  g_limit_overrider_instance_ = this;
+}
+
+ScopedNotificationLimitOverrider::~ScopedNotificationLimitOverrider() {
+  CHECK(g_limit_overrider_instance_);
+  g_limit_overrider_instance_ = nullptr;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace message_center

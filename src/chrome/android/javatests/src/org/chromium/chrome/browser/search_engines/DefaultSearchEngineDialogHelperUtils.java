@@ -10,13 +10,13 @@ import android.view.ViewGroup;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.R;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /** Utilities for interacting with a {@link DefaultSearchEngineDialogHelper}. */
 public class DefaultSearchEngineDialogHelperUtils {
@@ -30,19 +30,20 @@ public class DefaultSearchEngineDialogHelperUtils {
         // Wait for the options to appear.
         CriteriaHelper.pollUiThread(
                 () -> {
-                    ViewGroup options = (ViewGroup) rootView.findViewById(OPTION_LAYOUT_ID);
+                    ViewGroup options = rootView.findViewById(OPTION_LAYOUT_ID);
+                    Criteria.checkThat(options, Matchers.notNullValue());
                     Criteria.checkThat(options.getChildCount(), Matchers.greaterThan(0));
                 });
 
         // Click on the first search engine option available.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ViewGroup options = (ViewGroup) rootView.findViewById(OPTION_LAYOUT_ID);
+                    ViewGroup options = rootView.findViewById(OPTION_LAYOUT_ID);
                     options.getChildAt(0).performClick();
-                    sSelectedEngine = (String) (options.getChildAt(0).getTag());
+                    sSelectedEngine = (String) options.getChildAt(0).getTag();
                 });
 
-        // Wait for the OK button to be clicakble.
+        // Wait for the OK button to be clickable.
         CriteriaHelper.pollUiThread(
                 () -> {
                     View view = rootView.findViewById(OK_BUTTON_ID);
@@ -59,7 +60,7 @@ public class DefaultSearchEngineDialogHelperUtils {
                 });
 
         // Confirm the engine was set appropriately.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         Assert.assertEquals(
                                 "Search engine wasn't set",

@@ -7,13 +7,14 @@ package org.chromium.base;
 import android.content.Context;
 import android.provider.Settings;
 
-import androidx.annotation.Nullable;
-
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.io.File;
 
 /** Provides implementation of command line initialization for Android. */
+@NullMarked
 public final class CommandLineInitUtil {
     /**
      * The location of the command line file needs to be in a protected
@@ -33,7 +34,7 @@ public final class CommandLineInitUtil {
     private static final String COMMAND_LINE_FILE_PATH_DEBUG_APP = "/data/local/tmp";
 
     /** The name of the command line file to pull arguments from. */
-    private static String sFilenameOverrideForTesting;
+    private static @Nullable String sFilenameOverrideForTesting;
 
     private CommandLineInitUtil() {}
 
@@ -44,14 +45,7 @@ public final class CommandLineInitUtil {
 
     /**
      * Initializes the CommandLine class, pulling command line arguments from {@code fileName}.
-     * @param fileName The name of the command line file to pull arguments from.
-     */
-    public static void initCommandLine(String fileName) {
-        initCommandLine(fileName, null);
-    }
-
-    /**
-     * Initializes the CommandLine class, pulling command line arguments from {@code fileName}.
+     *
      * @param fileName The name of the command line file to pull arguments from.
      * @param shouldUseDebugFlags If non-null, returns whether debug flags are allowed to be used.
      */
@@ -85,7 +79,7 @@ public final class CommandLineInitUtil {
         return context.getPackageName().equals(getDebugApp(context)) || BuildInfo.isDebugAndroid();
     }
 
-    private static String getDebugApp(Context context) {
+    private static @Nullable String getDebugApp(Context context) {
         boolean adbEnabled =
                 Settings.Global.getInt(context.getContentResolver(), Settings.Global.ADB_ENABLED, 0)
                         == 1;

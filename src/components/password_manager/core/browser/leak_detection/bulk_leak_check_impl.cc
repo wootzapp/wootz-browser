@@ -4,11 +4,11 @@
 
 #include "components/password_manager/core/browser/leak_detection/bulk_leak_check_impl.h"
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 
 #include "base/check.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
 #include "components/password_manager/core/browser/leak_detection/encryption_utils.h"
@@ -25,7 +25,7 @@ namespace {
 using HolderPtr = std::unique_ptr<BulkLeakCheckImpl::CredentialHolder>;
 HolderPtr RemoveFromQueue(BulkLeakCheckImpl::CredentialHolder* weak_holder,
                           base::circular_deque<HolderPtr>* queue) {
-  auto it = base::ranges::find(*queue, weak_holder, &HolderPtr::get);
+  auto it = std::ranges::find(*queue, weak_holder, &HolderPtr::get);
   CHECK(it != queue->end());
   HolderPtr holder = std::move(*it);
   queue->erase(it);
@@ -135,12 +135,14 @@ void BulkLeakCheckImpl::OnTokenReady(
   std::unique_ptr<CredentialHolder> holder =
       RemoveFromQueue(weak_holder, &waiting_token_);
   if (error.state() != GoogleServiceAuthError::NONE) {
-    if (error.state() == GoogleServiceAuthError::CONNECTION_FAILED)
+    if (error.state() == GoogleServiceAuthError::CONNECTION_FAILED) {
       delegate_->OnError(LeakDetectionError::kNetworkError);
-    else if (error.state() == GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS)
+    } else if (error.state() ==
+               GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS) {
       delegate_->OnError(LeakDetectionError::kNotSignIn);
-    else
+    } else {
       delegate_->OnError(LeakDetectionError::kTokenRequestFailure);
+    }
     // |this| can be destroyed here.
     return;
   }

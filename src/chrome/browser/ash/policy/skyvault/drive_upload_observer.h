@@ -12,12 +12,15 @@
 #include "chrome/browser/ash/drive/drive_integration_service.h"
 #include "chrome/browser/ash/file_manager/io_task.h"
 #include "chrome/browser/ash/file_manager/io_task_controller.h"
+#include "chrome/browser/ash/policy/skyvault/policy_utils.h"
 #include "chromeos/ash/components/drivefs/drivefs_host.h"
 #include "storage/browser/file_system/file_system_context.h"
 
 class Profile;
 
 namespace ash::cloud_upload {
+
+using policy::local_user_files::UploadTrigger;
 
 // Observes the "upload to Google Drive" after the file is written to the local
 // cache of Google Drive. Immediately uploads the file to Google Drive if the
@@ -35,7 +38,9 @@ class DriveUploadObserver
   // Starts observing the upload of the file specified at construct time.
   static void Observe(Profile* profile,
                       base::FilePath file_path,
-                      base::RepeatingCallback<void(int)> progress_callback,
+                      UploadTrigger trigger,
+                      int64_t file_bytes,
+                      base::RepeatingCallback<void(int64_t)> progress_callback,
                       base::OnceCallback<void(bool)> upload_callback);
 
   DriveUploadObserver(const DriveUploadObserver&) = delete;
@@ -49,7 +54,9 @@ class DriveUploadObserver
 
   DriveUploadObserver(Profile* profile,
                       base::FilePath file_path,
-                      base::RepeatingCallback<void(int)> progress_callback);
+                      UploadTrigger trigger,
+                      int64_t file_bytes,
+                      base::RepeatingCallback<void(int64_t)> progress_callback);
   ~DriveUploadObserver() override;
 
   void Run(base::OnceCallback<void(bool)> upload_callback);
@@ -70,7 +77,8 @@ class DriveUploadObserver
   void OnIOTaskStatus(
       const ::file_manager::io_task::ProgressStatus& status) override;
 
-  void OnImmediatelyUploadDone(drive::FileError error);
+  void OnImmediatelyUploadDone(int64_t bytes_transferred,
+                               drive::FileError error);
 
   void StartNoSyncUpdateTimer();
 
@@ -93,8 +101,14 @@ class DriveUploadObserver
   // The observed file Drive path.
   base::FilePath observed_drive_path_;
 
+  // The size of the observed file.
+  int64_t file_bytes_;
+
+  // The event or action that initiated the file upload.
+  const UploadTrigger trigger_;
+
   // Progress callback repeatedly run with progress updates.
-  base::RepeatingCallback<void(int)> progress_callback_;
+  base::RepeatingCallback<void(int64_t)> progress_callback_;
 
   // Upload callback run once with upload success/failure.
   base::OnceCallback<void(bool)> upload_callback_;

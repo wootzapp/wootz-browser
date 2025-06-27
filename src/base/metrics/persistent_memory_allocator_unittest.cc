@@ -10,6 +10,7 @@
 #include "base/metrics/persistent_memory_allocator.h"
 
 #include <memory>
+#include <optional>
 
 #include "base/containers/heap_array.h"
 #include "base/files/file.h"
@@ -17,6 +18,7 @@
 #include "base/files/memory_mapped_file.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_span.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/writable_shared_memory_region.h"
@@ -47,9 +49,9 @@ void SetFileLength(const base::FilePath& path, size_t length) {
     ASSERT_TRUE(file.SetLength(static_cast<int64_t>(length)));
   }
 
-  int64_t actual_length;
-  DCHECK(GetFileSize(path, &actual_length));
-  DCHECK_EQ(length, static_cast<size_t>(actual_length));
+  std::optional<int64_t> actual_length = GetFileSize(path);
+  DCHECK(actual_length.has_value());
+  DCHECK_EQ(length, static_cast<size_t>(actual_length.value()));
 }
 
 }  // namespace
@@ -82,20 +84,18 @@ class PersistentMemoryAllocatorTest : public testing::Test {
 
   PersistentMemoryAllocatorTest() {
     kAllocAlignment = GetAllocAlignment();
-    mem_segment_.reset(new char[TEST_MEMORY_SIZE]);
+    mem_segment_ = base::HeapArray<char>::Uninit(TEST_MEMORY_SIZE);
   }
 
   void SetUp() override {
     allocator_.reset();
-    ::memset(mem_segment_.get(), 0, TEST_MEMORY_SIZE);
+    ::memset(mem_segment_.data(), 0, TEST_MEMORY_SIZE);
     allocator_ = std::make_unique<PersistentMemoryAllocator>(
-        mem_segment_.get(), TEST_MEMORY_SIZE, TEST_MEMORY_PAGE, TEST_ID,
+        mem_segment_.data(), TEST_MEMORY_SIZE, TEST_MEMORY_PAGE, TEST_ID,
         TEST_NAME, PersistentMemoryAllocator::kReadWrite);
   }
 
-  void TearDown() override {
-    allocator_.reset();
-  }
+  void TearDown() override { allocator_.reset(); }
 
   unsigned CountIterables() {
     PersistentMemoryAllocator::Iterator iter(allocator_.get());
@@ -112,7 +112,7 @@ class PersistentMemoryAllocatorTest : public testing::Test {
   }
 
  protected:
-  std::unique_ptr<char[]> mem_segment_;
+  base::HeapArray<char> mem_segment_;
   std::unique_ptr<PersistentMemoryAllocator> allocator_;
 };
 
@@ -139,11 +139,12 @@ TEST_F(PersistentMemoryAllocatorTest, AllocateAndIterate) {
   ASSERT_TRUE(obj1);
   Reference block1 = allocator_->GetAsReference(obj1);
   ASSERT_NE(0U, block1);
-  EXPECT_NE(nullptr, allocator_->GetAsObject<TestObject1>(block1));
   EXPECT_EQ(nullptr, allocator_->GetAsObject<TestObject2>(block1));
-  EXPECT_LE(sizeof(TestObject1), allocator_->GetAllocSize(block1));
-  EXPECT_GT(sizeof(TestObject1) + kAllocAlignment,
-            allocator_->GetAllocSize(block1));
+  size_t alloc_size_1 = 0;
+  EXPECT_NE(nullptr,
+            allocator_->GetAsObject<TestObject1>(block1, &alloc_size_1));
+  EXPECT_LE(sizeof(TestObject1), alloc_size_1);
+  EXPECT_GT(sizeof(TestObject1) + kAllocAlignment, alloc_size_1);
   PersistentMemoryAllocator::MemoryInfo meminfo1;
   allocator_->GetMemoryInfo(&meminfo1);
   EXPECT_EQ(meminfo0.total, meminfo1.total);
@@ -179,11 +180,12 @@ TEST_F(PersistentMemoryAllocatorTest, AllocateAndIterate) {
   ASSERT_TRUE(obj2);
   Reference block2 = allocator_->GetAsReference(obj2);
   ASSERT_NE(0U, block2);
-  EXPECT_NE(nullptr, allocator_->GetAsObject<TestObject2>(block2));
   EXPECT_EQ(nullptr, allocator_->GetAsObject<TestObject1>(block2));
-  EXPECT_LE(sizeof(TestObject2), allocator_->GetAllocSize(block2));
-  EXPECT_GT(sizeof(TestObject2) + kAllocAlignment,
-            allocator_->GetAllocSize(block2));
+  size_t alloc_size_2 = 0;
+  EXPECT_NE(nullptr,
+            allocator_->GetAsObject<TestObject2>(block2, &alloc_size_2));
+  EXPECT_LE(sizeof(TestObject2), alloc_size_2);
+  EXPECT_GT(sizeof(TestObject2) + kAllocAlignment, alloc_size_2);
   PersistentMemoryAllocator::MemoryInfo meminfo2;
   allocator_->GetMemoryInfo(&meminfo2);
   EXPECT_EQ(meminfo1.total, meminfo2.total);
@@ -238,7 +240,7 @@ TEST_F(PersistentMemoryAllocatorTest, AllocateAndIterate) {
 
   // Create second allocator (read/write) using the same memory segment.
   std::unique_ptr<PersistentMemoryAllocator> allocator2(
-      new PersistentMemoryAllocator(mem_segment_.get(), TEST_MEMORY_SIZE,
+      new PersistentMemoryAllocator(mem_segment_.data(), TEST_MEMORY_SIZE,
                                     TEST_MEMORY_PAGE, 0, "",
                                     PersistentMemoryAllocator::kReadWrite));
   EXPECT_EQ(TEST_ID, allocator2->Id());
@@ -254,7 +256,7 @@ TEST_F(PersistentMemoryAllocatorTest, AllocateAndIterate) {
 
   // Create a third allocator (read-only) using the same memory segment.
   std::unique_ptr<const PersistentMemoryAllocator> allocator3(
-      new PersistentMemoryAllocator(mem_segment_.get(), TEST_MEMORY_SIZE,
+      new PersistentMemoryAllocator(mem_segment_.data(), TEST_MEMORY_SIZE,
                                     TEST_MEMORY_PAGE, 0, "",
                                     PersistentMemoryAllocator::kReadOnly));
   EXPECT_EQ(TEST_ID, allocator3->Id());
@@ -314,8 +316,7 @@ class AllocatorThread : public SimpleThread {
                   uint32_t size,
                   uint32_t page_size)
       : SimpleThread(name, Options()),
-        count_(0),
-        iterable_(0),
+
         allocator_(base,
                    size,
                    page_size,
@@ -328,8 +329,9 @@ class AllocatorThread : public SimpleThread {
       uint32_t size = RandInt(1, 99);
       uint32_t type = RandInt(100, 999);
       Reference block = allocator_.Allocate(size, type);
-      if (!block)
+      if (!block) {
         break;
+      }
 
       count_++;
       if (RandInt(0, 1)) {
@@ -343,15 +345,15 @@ class AllocatorThread : public SimpleThread {
   unsigned count() { return count_; }
 
  private:
-  unsigned count_;
-  unsigned iterable_;
+  unsigned count_ = 0;
+  unsigned iterable_ = 0;
   PersistentMemoryAllocator allocator_;
 };
 
 // Test parallel allocation/iteration and ensure consistency across all
 // instances.
 TEST_F(PersistentMemoryAllocatorTest, ParallelismTest) {
-  void* memory = mem_segment_.get();
+  void* memory = mem_segment_.data();
   AllocatorThread t1("t1", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
   AllocatorThread t2("t2", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
   AllocatorThread t3("t3", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
@@ -378,9 +380,8 @@ TEST_F(PersistentMemoryAllocatorTest, ParallelismTest) {
 
   EXPECT_FALSE(allocator_->IsCorrupt());
   EXPECT_TRUE(allocator_->IsFull());
-  EXPECT_EQ(CountIterables(),
-            t1.iterable() + t2.iterable() + t3.iterable() + t4.iterable() +
-            t5.iterable());
+  EXPECT_EQ(CountIterables(), t1.iterable() + t2.iterable() + t3.iterable() +
+                                  t4.iterable() + t5.iterable());
 }
 
 // A simple thread that makes all objects passed iterable.
@@ -399,7 +400,7 @@ class MakeIterableThread : public SimpleThread {
 
  private:
   raw_ptr<PersistentMemoryAllocator> allocator_;
-  span<Reference> refs_;
+  raw_span<Reference> refs_;
 };
 
 // Verifies that multiple threads making the same objects iterable doesn't cause
@@ -409,7 +410,7 @@ TEST_F(PersistentMemoryAllocatorTest, MakeIterableSameRefsTest) {
 
   // Fill up the allocator until it is full.
   Reference ref;
-  while ((ref = allocator_->Allocate(/*size=*/1, /*type=*/0)) != 0) {
+  while ((ref = allocator_->Allocate(/*size=*/1, /*type_id=*/0)) != 0) {
     refs.push_back(ref);
   }
 
@@ -440,7 +441,7 @@ class CounterThread : public SimpleThread {
         iterator_(iterator),
         lock_(lock),
         condition_(condition),
-        count_(0),
+
         wake_up_(wake_up) {}
 
   CounterThread(const CounterThread&) = delete;
@@ -477,7 +478,7 @@ class CounterThread : public SimpleThread {
   raw_ptr<PersistentMemoryAllocator::Iterator> iterator_;
   raw_ptr<Lock> lock_;
   raw_ptr<ConditionVariable> condition_;
-  unsigned count_;
+  unsigned count_ = 0;
   raw_ptr<bool> wake_up_;
 };
 
@@ -490,8 +491,9 @@ TEST_F(PersistentMemoryAllocatorTest, IteratorParallelismTest) {
     uint32_t size = RandInt(1, 99);
     uint32_t type = RandInt(100, 999);
     Reference block = allocator_->Allocate(size, type);
-    if (!block)
+    if (!block) {
       break;
+    }
     allocator_->MakeIterable(block);
     ++iterable_count;
   }
@@ -618,7 +620,7 @@ TEST_F(PersistentMemoryAllocatorTest, DelayedAllocationTest) {
 #define MAYBE_CorruptionTest CorruptionTest
 #endif
 TEST_F(PersistentMemoryAllocatorTest, MAYBE_CorruptionTest) {
-  char* memory = mem_segment_.get();
+  char* memory = mem_segment_.data();
   AllocatorThread t1("t1", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
   AllocatorThread t2("t2", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
   AllocatorThread t3("t3", memory, TEST_MEMORY_SIZE, TEST_MEMORY_PAGE);
@@ -664,7 +666,7 @@ TEST_F(PersistentMemoryAllocatorTest, MaliciousTest) {
   // Create loop in iterable list and ensure it doesn't hang. The return value
   // from CountIterables() in these cases is unpredictable. If there is a
   // failure, the call will hang and the test killed for taking too long.
-  uint32_t* header4 = (uint32_t*)(mem_segment_.get() + block4);
+  uint32_t* header4 = (uint32_t*)(mem_segment_.data() + block4);
   EXPECT_EQ(block5, header4[3]);
   header4[3] = block4;
   CountIterables();  // loop: 1-2-3-4-4
@@ -678,7 +680,6 @@ TEST_F(PersistentMemoryAllocatorTest, MaliciousTest) {
   header4[3] = block1;
   CountIterables();  // loop: 1-2-3-4-1
 }
-
 
 //----- LocalPersistentMemoryAllocator -----------------------------------------
 
@@ -879,8 +880,8 @@ TEST(FilePersistentMemoryAllocatorTest, ExtendTest) {
     writer.Write(0, (const char*)local.data(), local.used());
   }
   ASSERT_TRUE(PathExists(file_path));
-  int64_t before_size;
-  ASSERT_TRUE(GetFileSize(file_path, &before_size));
+  std::optional<int64_t> before_size = GetFileSize(file_path);
+  ASSERT_TRUE(before_size.has_value());
 
   // Map it as an extendable read/write file and append to it.
   {
@@ -891,16 +892,16 @@ TEST(FilePersistentMemoryAllocatorTest, ExtendTest) {
     FilePersistentMemoryAllocator allocator(
         std::move(mmfile), region.size, 0, "",
         FilePersistentMemoryAllocator::kReadWrite);
-    EXPECT_EQ(static_cast<size_t>(before_size), allocator.used());
+    EXPECT_EQ(static_cast<size_t>(before_size.value()), allocator.used());
 
     allocator.Allocate(111, 111);
-    EXPECT_LT(static_cast<size_t>(before_size), allocator.used());
+    EXPECT_LT(static_cast<size_t>(before_size.value()), allocator.used());
   }
 
   // Validate that append worked.
-  int64_t after_size;
-  ASSERT_TRUE(GetFileSize(file_path, &after_size));
-  EXPECT_LT(before_size, after_size);
+  std::optional<int64_t> after_size = GetFileSize(file_path);
+  ASSERT_TRUE(after_size.has_value());
+  EXPECT_LT(before_size.value(), after_size.value());
 
   // Verify that it's still an acceptable file.
   {
@@ -964,10 +965,10 @@ TEST(FilePersistentMemoryAllocatorTest, AcceptableTest) {
       uint32_t type_id;
       Reference ref;
       while ((ref = iter.GetNext(&type_id)) != 0) {
+        size_t size = 0;
         const char* data = allocator.GetAsArray<char>(
-            ref, 0, PersistentMemoryAllocator::kSizeAny);
+            ref, 0, PersistentMemoryAllocator::kSizeAny, &size);
         uint32_t type = allocator.GetType(ref);
-        size_t size = allocator.GetAllocSize(ref);
         // Ensure compiler can't optimize-out above variables.
         (void)data;
         (void)type;
@@ -1077,9 +1078,9 @@ TEST_F(PersistentMemoryAllocatorTest, TruncateTest) {
     }
 
     // Ensure that file length was not adjusted.
-    int64_t actual_length;
-    ASSERT_TRUE(GetFileSize(file_path, &actual_length));
-    EXPECT_EQ(file_length, static_cast<size_t>(actual_length));
+    std::optional<int64_t> actual_length = GetFileSize(file_path);
+    ASSERT_TRUE(actual_length.has_value());
+    EXPECT_EQ(file_length, static_cast<size_t>(actual_length.value()));
   }
 }
 

@@ -11,30 +11,20 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/chromeos/extensions/telemetry/api/common/base_telemetry_extension_browser_test.h"
 #include "chrome/browser/chromeos/extensions/telemetry/api/routines/fake_diagnostic_routines_service.h"
+#include "chrome/browser/chromeos/extensions/telemetry/api/routines/fake_diagnostic_routines_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "chromeos/ash/components/telemetry_extension/routines/telemetry_diagnostic_routine_service_ash.h"
 #include "chromeos/crosapi/mojom/telemetry_diagnostic_routine_service.mojom.h"
 #include "chromeos/crosapi/mojom/telemetry_extension_exception.mojom.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/common/extension_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/chromeos/extensions/telemetry/api/routines/fake_diagnostic_routines_service_factory.h"
-#include "chromeos/ash/components/telemetry_extension/routines/telemetry_diagnostic_routine_service_ash.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_service.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
 namespace chromeos {
 
 namespace {
-
 namespace crosapi = ::crosapi::mojom;
-
 }  // namespace
 
 class TelemetryExtensionDiagnosticsApiV2BrowserTest
@@ -51,7 +41,6 @@ class TelemetryExtensionDiagnosticsApiV2BrowserTest
 
   void SetUpOnMainThread() override {
     BaseTelemetryExtensionBrowserTest::SetUpOnMainThread();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     fake_routines_service_ = new FakeDiagnosticRoutinesService();
     fake_routines_service_factory_.SetCreateInstanceResponse(
         std::unique_ptr<FakeDiagnosticRoutinesService>(
@@ -59,19 +48,10 @@ class TelemetryExtensionDiagnosticsApiV2BrowserTest
 
     ash::TelemetryDiagnosticsRoutineServiceAsh::Factory::SetForTesting(
         &fake_routines_service_factory_);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-    fake_routines_service_ = std::make_unique<FakeDiagnosticRoutinesService>();
-    // Replace the production RoutineService with a fake for testing.
-    chromeos::LacrosService::Get()->InjectRemoteForTesting(
-        fake_routines_service_->receiver().BindNewPipeAndPassRemote());
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
   }
 
   void TearDownOnMainThread() override {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     fake_routines_service_ = nullptr;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
     BaseTelemetryExtensionBrowserTest::TearDownOnMainThread();
   }
 
@@ -81,14 +61,8 @@ class TelemetryExtensionDiagnosticsApiV2BrowserTest
   }
 
  private:
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   raw_ptr<FakeDiagnosticRoutinesService> fake_routines_service_;
   FakeDiagnosticRoutinesServiceFactory fake_routines_service_factory_;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  std::unique_ptr<FakeDiagnosticRoutinesService> fake_routines_service_;
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 };
 
 IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
@@ -1220,16 +1194,9 @@ IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
                        CreateLedLitUpRoutineSuccess) {
-  base::test::TestFuture<void> led_routine_created;
+  base::test::TestFuture<void> routine_created_future;
   fake_service().SetOnCreateRoutineCalled(
-      base::BindLambdaForTesting([this, &led_routine_created]() {
-        auto* control = fake_service().GetCreatedRoutineControlForRoutineType(
-            crosapi::TelemetryDiagnosticRoutineArgument::Tag::kLedLitUp);
-        ASSERT_TRUE(control);
-        if (control) {
-          led_routine_created.SetValue();
-        }
-      }));
+      routine_created_future.GetRepeatingCallback());
 
   OpenAppUiAndMakeItSecure();
 
@@ -1260,7 +1227,116 @@ IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
     ]);
   )");
 
-  EXPECT_TRUE(led_routine_created.Wait());
+  EXPECT_TRUE(routine_created_future.Wait());
+  EXPECT_TRUE(fake_service().GetCreatedRoutineControlForRoutineType(
+      crosapi::TelemetryDiagnosticRoutineArgument::Tag::kLedLitUp));
+}
+
+IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
+                       CreateKeyboardBacklightRoutineSuccess) {
+  base::test::TestFuture<void> routine_created_future;
+  fake_service().SetOnCreateRoutineCalled(
+      routine_created_future.GetRepeatingCallback());
+
+  OpenAppUiAndMakeItSecure();
+
+  CreateExtensionAndRunServiceWorker(R"(
+    chrome.test.runTests([
+       async function createRoutine() {
+        let resolver;
+        // Set later once the routine was created.
+        var uuid = new Promise((resolve) => {
+          resolver = resolve;
+        });
+
+        chrome.os.diagnostics.onRoutineInitialized.addListener(
+          async (status) => {
+          chrome.test.assertEq(status.uuid, await uuid);
+          chrome.test.succeed();
+        });
+
+        const response = await chrome.os.diagnostics.createRoutine({
+          keyboardBacklight: {},
+        });
+        chrome.test.assertTrue(response !== undefined);
+        resolver(response.uuid);
+      }
+    ]);
+  )");
+
+  EXPECT_TRUE(routine_created_future.Wait());
+  EXPECT_TRUE(fake_service().GetCreatedRoutineControlForRoutineType(
+      crosapi::TelemetryDiagnosticRoutineArgument::Tag::kKeyboardBacklight));
+}
+
+IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
+                       ReplyToKeyboardBacklightRoutineInquirySuccess) {
+  base::test::TestFuture<crosapi::TelemetryDiagnosticRoutineInquiryReplyPtr>
+      on_reply_to_inquiry;
+
+  fake_service().SetOnCreateRoutineCalled(
+      base::BindLambdaForTesting([this, &on_reply_to_inquiry]() {
+        auto* control = fake_service().GetCreatedRoutineControlForRoutineType(
+            crosapi::TelemetryDiagnosticRoutineArgument::Tag::
+                kKeyboardBacklight);
+        ASSERT_TRUE(control);
+
+        control->SetOnReplyToInquiryCalled(
+            on_reply_to_inquiry.GetRepeatingCallback());
+      }));
+
+  OpenAppUiAndMakeItSecure();
+
+  CreateExtensionAndRunServiceWorker(R"(
+    chrome.test.runTests([
+       async function createRoutine() {
+        let resolver;
+        // Set later once the routine was created.
+        var uuid = new Promise((resolve) => {
+          resolver = resolve;
+        });
+
+        chrome.os.diagnostics.onRoutineInitialized.addListener(
+          async (status) => {
+            chrome.test.assertEq(status.uuid, await uuid);
+          }
+        );
+
+        // Only resolve the test once we got the final event.
+        chrome.os.diagnostics.onRoutineRunning.addListener(
+          async (status) => {
+            chrome.test.assertEq(status.uuid, await uuid);
+
+            await chrome.os.diagnostics.replyToRoutineInquiry({
+              uuid: response.uuid,
+              reply: {
+                checkKeyboardBacklightState: {
+                  state: "ok",
+                }
+              },
+            });
+
+            chrome.test.succeed();
+          }
+        );
+
+        const response = await chrome.os.diagnostics.createRoutine({
+          keyboardBacklight: {},
+        });
+        chrome.test.assertTrue(response !== undefined);
+        resolver(response.uuid);
+
+        await chrome.os.diagnostics.startRoutine({ uuid: response.uuid });
+      }
+    ]);
+  )");
+
+  auto reply = on_reply_to_inquiry.Take();
+  ASSERT_TRUE(reply);
+  ASSERT_TRUE(reply->is_check_keyboard_backlight_state());
+  EXPECT_EQ(
+      reply->get_check_keyboard_backlight_state()->state,
+      crosapi::TelemetryDiagnosticCheckKeyboardBacklightStateReply::State::kOk);
 }
 
 IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
@@ -1333,6 +1409,43 @@ IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
       }
     ]);
   )");
+}
+
+IN_PROC_BROWSER_TEST_F(TelemetryExtensionDiagnosticsApiV2BrowserTest,
+                       CreateCameraFrameAnalysisRoutineSuccess) {
+  base::test::TestFuture<void> routine_created_future;
+  fake_service().SetOnCreateRoutineCalled(
+      routine_created_future.GetRepeatingCallback());
+
+  OpenAppUiAndMakeItSecure();
+
+  CreateExtensionAndRunServiceWorker(R"(
+    chrome.test.runTests([
+       async function createRoutine() {
+        let resolver;
+        // Set later once the routine was created.
+        var uuid = new Promise((resolve) => {
+          resolver = resolve;
+        });
+
+        chrome.os.diagnostics.onRoutineInitialized.addListener(
+          async (status) => {
+          chrome.test.assertEq(status.uuid, await uuid);
+          chrome.test.succeed();
+        });
+
+        const response = await chrome.os.diagnostics.createRoutine({
+          cameraFrameAnalysis: {},
+        });
+        chrome.test.assertTrue(response !== undefined);
+        resolver(response.uuid);
+      }
+    ]);
+  )");
+
+  EXPECT_TRUE(routine_created_future.Wait());
+  EXPECT_TRUE(fake_service().GetCreatedRoutineControlForRoutineType(
+      crosapi::TelemetryDiagnosticRoutineArgument::Tag::kCameraFrameAnalysis));
 }
 
 class NoExtraPermissionTelemetryExtensionDiagnosticsApiV2BrowserTest

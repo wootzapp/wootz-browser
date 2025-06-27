@@ -17,6 +17,7 @@
 #include "net/base/privacy_mode.h"
 #include "net/base/session_usage.h"
 #include "net/quic/quic_session_key.h"
+#include "net/quic/quic_session_pool.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_packets.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_server_id.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_time.h"
@@ -32,7 +33,6 @@ namespace net {
 class NetLogWithSource;
 class QuicChromiumClientSession;
 class QuicCryptoClientConfigHandle;
-class QuicSessionPool;
 
 namespace test {
 
@@ -45,11 +45,12 @@ class QuicSessionPoolPeer {
 
   static std::unique_ptr<QuicCryptoClientConfigHandle> GetCryptoConfig(
       QuicSessionPool* factory,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      QuicSessionPool::QuicCryptoClientConfigKey key);
 
   static bool HasActiveSession(
       QuicSessionPool* factory,
       const quic::QuicServerId& server_id,
+      PrivacyMode privacy_mode,
       const NetworkAnonymizationKey& network_anonymization_key,
       const ProxyChain& proxy_chain = ProxyChain::Direct(),
       SessionUsage session_usage = SessionUsage::kDestination,
@@ -57,16 +58,19 @@ class QuicSessionPoolPeer {
 
   static bool HasActiveJob(QuicSessionPool* factory,
                            const quic::QuicServerId& server_id,
+                           PrivacyMode privacy_mode,
                            bool require_dns_https_alpn = false);
 
   static QuicChromiumClientSession* GetPendingSession(
       QuicSessionPool* factory,
       const quic::QuicServerId& server_id,
+      PrivacyMode privacy_mode,
       url::SchemeHostPort destination);
 
   static QuicChromiumClientSession* GetActiveSession(
       QuicSessionPool* factory,
       const quic::QuicServerId& server_id,
+      PrivacyMode privacy_mode,
       const NetworkAnonymizationKey& network_anonymization_key =
           NetworkAnonymizationKey(),
       const ProxyChain& proxy_chain = ProxyChain::Direct(),
@@ -93,7 +97,7 @@ class QuicSessionPoolPeer {
   static bool CryptoConfigCacheIsEmpty(
       QuicSessionPool* factory,
       const quic::QuicServerId& quic_server_id,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      QuicSessionPool::QuicCryptoClientConfigKey key);
 
   static size_t GetNumDegradingSessions(QuicSessionPool* factory);
 

@@ -16,14 +16,16 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/ash/app_mode/auto_sleep/device_weekly_scheduled_suspend_test_policy_builder.h"
-#include "chrome/browser/ash/app_mode/auto_sleep/fake_repeating_time_interval_task_executor.h"
+#include "chrome/browser/ash/app_mode/auto_sleep/weekly_interval_timer.h"
 #include "chrome/browser/ash/app_mode/kiosk_controller.h"
+#include "chrome/browser/ash/app_mode/kiosk_system_session.h"
 #include "chrome/browser/ash/login/app_mode/test/web_kiosk_base_test.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chromeos/ash/components/policy/weekly_time/weekly_time.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -60,8 +62,8 @@ class ScopedMockTimeScheduledSuspendTestHelper {
             .GetKioskSystemSession()
             ->device_weekly_scheduled_suspend_controller_for_testing();
 
-    controller->SetTaskExecutorFactoryForTesting(
-        std::make_unique<FakeRepeatingTimeIntervalTaskExecutor::Factory>(
+    controller->SetWeeklyIntervalTimerFactoryForTesting(
+        std::make_unique<WeeklyIntervalTimer::Factory>(
             task_runner_->GetMockClock(), task_runner_->GetMockTickClock()));
     controller->SetClockForTesting(task_runner_->GetMockClock());
   }
@@ -72,9 +74,9 @@ class ScopedMockTimeScheduledSuspendTestHelper {
             .GetKioskSystemSession()
             ->device_weekly_scheduled_suspend_controller_for_testing();
 
-    controller->SetTaskExecutorFactoryForTesting(nullptr);
+    controller->SetWeeklyIntervalTimerFactoryForTesting(nullptr);
     controller->SetClockForTesting(nullptr);
-    // Clear the policy so that we don't get dangling task executors.
+    // Clear the policy so that we don't get dangling timers.
     g_browser_process->local_state()->SetList(
         prefs::kDeviceWeeklyScheduledSuspend, {});
   }

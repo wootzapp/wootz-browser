@@ -5,59 +5,64 @@
 #include "components/performance_manager/graph/page_node_impl.h"
 
 #include <memory>
+#include <utility>
 
 #include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
+#include "base/strings/strcat.h"
 #include "base/time/default_tick_clock.h"
+#include "base/trace_event/typed_macros.h"
+#include "base/unguessable_token.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/graph_impl.h"
 #include "components/performance_manager/graph/graph_impl_operations.h"
 #include "components/performance_manager/graph/process_node_impl.h"
 #include "components/performance_manager/public/graph/graph_operations.h"
+#include "components/performance_manager/public/render_frame_host_proxy.h"
+#include "components/performance_manager/public/resource_attribution/page_context.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
+#include "third_party/perfetto/include/perfetto/tracing/tracing.h"
+#include "third_party/perfetto/include/perfetto/tracing/track.h"
 
 namespace performance_manager {
 
 namespace {
 
-using PageState = PageNode::PageState;
+using perfetto::protos::pbzero::ChromeTrackEvent;
 
-bool IsValidInitialPageState(PageState page_state) {
-  switch (page_state) {
-    case PageState::kActive:
-    case PageState::kPrerendering:
-      return true;
-
-    case PageState::kBackForwardCache:
-      return false;
+// Creates a collapsible global track to hold all PageNode tracing tracks.
+const perfetto::NamedTrack CreatePageGroupTrack() {
+  perfetto::NamedTrack track("PageNodes", 0, perfetto::Track::Global(0));
+  if (perfetto::Tracing::IsInitialized()) {
+    // Because the track doesn't get any events of its own it must manually
+    // emit the track descriptor. SetTrackDescriptor may crash in unit tests
+    // where tracing isn't initialized.
+    base::TrackEvent::SetTrackDescriptor(track, track.Serialize());
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  return track;
 }
 
-bool IsValidPageStateTransition(PageState old_state, PageState new_state) {
-  switch (old_state) {
-    case PageState::kActive:
-      return new_state == PageState::kBackForwardCache;
-
-    case PageState::kPrerendering:
-    case PageState::kBackForwardCache:
-      return new_state == PageState::kActive;
-  }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+// Creates a tracing track for the PageNode identified by `token`.
+const perfetto::NamedTrack CreatePageNodeTrack(
+    const base::UnguessableToken& token) {
+  static const perfetto::NamedTrack page_group_track = CreatePageGroupTrack();
+  return perfetto::NamedTrack("PageNode", base::UnguessableTokenHash()(token),
+                              page_group_track);
 }
 
 }  // namespace
 
-PageNodeImpl::PageNodeImpl(const WebContentsProxy& contents_proxy,
+PageNodeImpl::PageNodeImpl(base::WeakPtr<content::WebContents> web_contents,
                            const std::string& browser_context_id,
                            const GURL& visible_url,
                            PagePropertyFlags initial_properties,
-                           base::TimeTicks visibility_change_time,
-                           PageState page_state)
-    : contents_proxy_(contents_proxy),
+                           base::TimeTicks visibility_change_time)
+    : web_contents_(std::move(web_contents)),
+      tracing_track_(CreatePageNodeTrack(page_token_.value())),
       visibility_change_time_(visibility_change_time),
       main_frame_url_(visible_url),
       browser_context_id_(browser_context_id),
@@ -65,16 +70,14 @@ PageNodeImpl::PageNodeImpl(const WebContentsProxy& contents_proxy,
       is_audible_(initial_properties.Has(PagePropertyFlag::kIsAudible)),
       has_picture_in_picture_(
           initial_properties.Has(PagePropertyFlag::kHasPictureInPicture)),
-      page_state_(page_state) {
-  // Nodes are created on the UI thread, then accessed on the PM sequence.
-  // `weak_this_` can be returned from GetWeakPtrOnUIThread() and dereferenced
-  // on the PM sequence.
+      is_off_the_record_(
+          initial_properties.Has(PagePropertyFlag::kIsOffTheRecord)) {
+  // The `PageNodeImpl` creation hook is before the `WebContents`' visible or
+  // committed url can be set, so the initial main frame URL is always empty.
+  // TODO(crbug.com/40121561): Remove `visible_url` from the constructor in M132
+  // if no issues are found with this CHECK.
+  CHECK(main_frame_url_.value().is_empty(), base::NotFatalUntil::M132);
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  DETACH_FROM_SEQUENCE(sequence_checker_);
-  weak_this_ = weak_factory_.GetWeakPtr();
-
-  DCHECK(IsValidInitialPageState(page_state));
-
   if (is_audible_.value()) {
     audible_change_time_ = base::TimeTicks::Now();
   }
@@ -84,12 +87,8 @@ PageNodeImpl::~PageNodeImpl() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(nullptr, opener_frame_node_);
   DCHECK_EQ(nullptr, embedder_frame_node_);
-  DCHECK_EQ(EmbeddingType::kInvalid, embedding_type_);
-  DCHECK(!page_load_tracker_data_);
-  DCHECK(!site_data_);
-  DCHECK(!tab_connectedness_data_);
-  DCHECK(!frozen_frame_data_);
-  DCHECK(!page_aggregator_data_);
+  // Close any open trace events.
+  EmitLoadingTraceEvent(LoadingState::kLoadingNotStarted);
 }
 
 const std::string& PageNodeImpl::GetBrowserContextID() const {
@@ -100,12 +99,6 @@ const std::string& PageNodeImpl::GetBrowserContextID() const {
 resource_attribution::PageContext PageNodeImpl::GetResourceContext() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return resource_attribution::PageContext::FromPageNode(this);
-}
-
-PageNodeImpl::EmbeddingType PageNodeImpl::GetEmbeddingType() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(embedder_frame_node_ || embedding_type_ == EmbeddingType::kInvalid);
-  return embedding_type_;
 }
 
 PageType PageNodeImpl::GetType() const {
@@ -147,6 +140,15 @@ bool PageNodeImpl::HasPictureInPicture() const {
   return has_picture_in_picture_.value();
 }
 
+bool PageNodeImpl::HasFreezingOriginTrialOptOut() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  return has_freezing_origin_trial_opt_out_.value();
+}
+
+bool PageNodeImpl::IsOffTheRecord() const {
+  return is_off_the_record_;
+}
+
 PageNode::LoadingState PageNodeImpl::GetLoadingState() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return loading_state_.value();
@@ -167,9 +169,14 @@ bool PageNodeImpl::IsHoldingWebLock() const {
   return is_holding_weblock_.value();
 }
 
-bool PageNodeImpl::IsHoldingIndexedDBLock() const {
+bool PageNodeImpl::IsHoldingBlockingIndexedDBLock() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return is_holding_indexeddb_lock_.value();
+  return is_holding_blocking_indexeddb_lock_.value();
+}
+
+bool PageNodeImpl::UsesWebRTC() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  return uses_web_rtc_.value();
 }
 
 int64_t PageNodeImpl::GetNavigationID() const {
@@ -185,7 +192,7 @@ const std::string& PageNodeImpl::GetContentsMimeType() const {
 std::optional<blink::mojom::PermissionStatus>
 PageNodeImpl::GetNotificationPermissionStatus() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return notification_permission_status_;
+  return notification_permission_status_.value();
 }
 
 base::TimeDelta PageNodeImpl::GetTimeSinceLastNavigation() const {
@@ -225,13 +232,8 @@ bool PageNodeImpl::HadUserEdits() const {
   return had_user_edits_.value();
 }
 
-const WebContentsProxy& PageNodeImpl::GetContentsProxy() const {
-  return contents_proxy();
-}
-
-PageState PageNodeImpl::GetPageState() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return page_state_.value();
+base::WeakPtr<content::WebContents> PageNodeImpl::GetWebContents() const {
+  return web_contents_;
 }
 
 uint64_t PageNodeImpl::EstimateResidentSetSize() const {
@@ -256,15 +258,6 @@ uint64_t PageNodeImpl::EstimatePrivateFootprintSize() const {
   return total;
 }
 
-const WebContentsProxy& PageNodeImpl::contents_proxy() const {
-  return contents_proxy_;
-}
-
-base::WeakPtr<PageNodeImpl> PageNodeImpl::GetWeakPtrOnUIThread() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  return weak_this_;
-}
-
 base::WeakPtr<PageNodeImpl> PageNodeImpl::GetWeakPtr() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return weak_factory_.GetWeakPtr();
@@ -278,8 +271,15 @@ void PageNodeImpl::AddFrame(base::PassKey<FrameNodeImpl>,
   DCHECK(graph()->NodeInGraph(frame_node));
 
   ++frame_node_count_;
-  if (frame_node->parent_frame_node() == nullptr)
+  if (frame_node->parent_frame_node() == nullptr) {
     main_frame_nodes_.insert(frame_node);
+    auto* rfh = frame_node->GetRenderFrameHostProxy().Get();
+    if (rfh) {
+      TRACE_EVENT_INSTANT(
+          "loading", "MainFrameAdded", tracing_track_,
+          perfetto::protos::pbzero::ChromeTrackEvent::kRenderFrameHost, *rfh);
+    }
+  }
 }
 
 void PageNodeImpl::RemoveFrame(base::PassKey<FrameNodeImpl>,
@@ -293,11 +293,18 @@ void PageNodeImpl::RemoveFrame(base::PassKey<FrameNodeImpl>,
   if (frame_node->parent_frame_node() == nullptr) {
     size_t removed = main_frame_nodes_.erase(frame_node);
     DCHECK_EQ(1u, removed);
+    auto* rfh = frame_node->GetRenderFrameHostProxy().Get();
+    if (rfh) {
+      TRACE_EVENT_INSTANT(
+          "loading", "MainFrameRemoved", tracing_track_,
+          perfetto::protos::pbzero::ChromeTrackEvent::kRenderFrameHost, *rfh);
+    }
   }
 }
 
 void PageNodeImpl::SetLoadingState(LoadingState loading_state) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  EmitLoadingTraceEvent(loading_state);
   loading_state_.SetAndMaybeNotify(this, loading_state);
 }
 
@@ -358,14 +365,32 @@ void PageNodeImpl::OnTitleUpdated() {
 
 void PageNodeImpl::OnAboutToBeDiscarded(base::WeakPtr<PageNode> new_page_node) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(!embedder_frame_node_)
+      << "Discard should only be called on the primary page node.";
 
   if (!new_page_node) {
     return;
   }
 
+  // Notify all embedded frames that the primary page is about to be discarded.
+  if (FrameNodeImpl* main_frame = main_frame_node()) {
+    main_frame->OnPrimaryPageAboutToBeDiscarded();
+  }
+
   for (auto& observer : GetObservers()) {
     observer.OnAboutToBeDiscarded(this, new_page_node.get());
   }
+}
+
+void PageNodeImpl::SetMainFrameRestoredState(
+    const GURL& url,
+    blink::mojom::PermissionStatus notification_permission_status) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(main_frame_url_.value().is_empty());
+  EmitMainFrameUrlChangedEvent(url);
+  main_frame_url_.SetAndMaybeNotify(this, url);
+  notification_permission_status_.SetAndMaybeNotify(
+      this, notification_permission_status);
 }
 
 void PageNodeImpl::OnMainFrameNavigationCommitted(
@@ -384,12 +409,17 @@ void PageNodeImpl::OnMainFrameNavigationCommitted(
   navigation_committed_time_ = navigation_committed_time;
   navigation_id_ = navigation_id;
   contents_mime_type_ = contents_mime_type;
-  notification_permission_status_ = notification_permission_status;
+  if (url != main_frame_url_.value()) {
+    EmitMainFrameUrlChangedEvent(url, navigation_id);
+  }
   main_frame_url_.SetAndMaybeNotify(this, url);
+  notification_permission_status_.SetAndMaybeNotify(
+      this, notification_permission_status);
 
   // No mainframe document change notification on same-document navigations.
-  if (same_document)
+  if (same_document) {
     return;
+  }
 
   for (auto& observer : GetObservers()) {
     observer.OnMainFrameDocumentChanged(this);
@@ -399,7 +429,7 @@ void PageNodeImpl::OnMainFrameNavigationCommitted(
 void PageNodeImpl::OnNotificationPermissionStatusChange(
     blink::mojom::PermissionStatus permission_status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  notification_permission_status_ = permission_status;
+  notification_permission_status_.SetAndMaybeNotify(this, permission_status);
 }
 
 FrameNodeImpl* PageNodeImpl::opener_frame_node() const {
@@ -409,31 +439,30 @@ FrameNodeImpl* PageNodeImpl::opener_frame_node() const {
 
 FrameNodeImpl* PageNodeImpl::embedder_frame_node() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(embedder_frame_node_ || embedding_type_ == EmbeddingType::kInvalid);
   return embedder_frame_node_;
 }
 
 FrameNodeImpl* PageNodeImpl::main_frame_node() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (main_frame_nodes_.empty())
+  if (main_frame_nodes_.empty()) {
     return nullptr;
+  }
 
   // Return the current frame node if there is one. Iterating over this set is
   // fine because it is almost always of length 1 or 2.
-  for (FrameNodeImpl* frame : main_frame_nodes_) {
+  for (FrameNodeImpl* frame : main_frame_nodes()) {
     if (frame->IsCurrent()) {
       return frame;
     }
   }
 
   // Otherwise, return any old main frame node.
-  return *main_frame_nodes_.begin();
+  return *main_frame_nodes().begin();
 }
 
-const base::flat_set<raw_ptr<FrameNodeImpl, CtnExperimental>>&
-PageNodeImpl::main_frame_nodes() const {
+PageNode::NodeSetView<FrameNodeImpl*> PageNodeImpl::main_frame_nodes() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return main_frame_nodes_;
+  return NodeSetView<FrameNodeImpl*>(main_frame_nodes_);
 }
 
 void PageNodeImpl::SetOpenerFrameNode(FrameNodeImpl* opener) {
@@ -443,8 +472,9 @@ void PageNodeImpl::SetOpenerFrameNode(FrameNodeImpl* opener) {
   DCHECK_NE(this, opener->page_node());
 
   auto* previous_opener = opener_frame_node_.get();
-  if (previous_opener)
+  if (previous_opener) {
     previous_opener->RemoveOpenedPage(PassKey(), this);
+  }
   opener_frame_node_ = opener;
   opener->AddOpenedPage(PassKey(), this);
 
@@ -467,43 +497,36 @@ void PageNodeImpl::ClearOpenerFrameNode() {
   }
 }
 
-void PageNodeImpl::SetEmbedderFrameNodeAndEmbeddingType(
-    FrameNodeImpl* embedder,
-    EmbeddingType embedding_type) {
+void PageNodeImpl::SetEmbedderFrameNode(FrameNodeImpl* embedder) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(embedder);
   DCHECK(graph()->NodeInGraph(embedder));
   DCHECK_NE(this, embedder->page_node());
-  DCHECK_NE(EmbeddingType::kInvalid, embedding_type);
 
   auto* previous_embedder = embedder_frame_node_.get();
-  auto previous_type = embedding_type_;
 
-  if (previous_embedder)
+  if (previous_embedder) {
     previous_embedder->RemoveEmbeddedPage(PassKey(), this);
+  }
   embedder_frame_node_ = embedder;
-  embedding_type_ = embedding_type;
   embedder->AddEmbeddedPage(PassKey(), this);
 
   for (auto& observer : GetObservers()) {
-    observer.OnEmbedderFrameNodeChanged(this, previous_embedder, previous_type);
+    observer.OnEmbedderFrameNodeChanged(this, previous_embedder);
   }
 }
 
-void PageNodeImpl::ClearEmbedderFrameNodeAndEmbeddingType() {
+void PageNodeImpl::ClearEmbedderFrameNode() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_NE(nullptr, embedder_frame_node_);
-  DCHECK_NE(EmbeddingType::kInvalid, embedding_type_);
 
   auto* previous_embedder = embedder_frame_node_.get();
-  auto previous_type = embedding_type_;
 
   embedder_frame_node_->RemoveEmbeddedPage(PassKey(), this);
   embedder_frame_node_ = nullptr;
-  embedding_type_ = EmbeddingType::kInvalid;
 
   for (auto& observer : GetObservers()) {
-    observer.OnEmbedderFrameNodeChanged(this, previous_embedder, previous_type);
+    observer.OnEmbedderFrameNodeChanged(this, previous_embedder);
   }
 }
 
@@ -513,75 +536,54 @@ void PageNodeImpl::set_has_nonempty_beforeunload(
   has_nonempty_beforeunload_ = has_nonempty_beforeunload;
 }
 
-void PageNodeImpl::set_page_state(PageState page_state) {
+void PageNodeImpl::OnInitializingProperties() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(IsValidPageStateTransition(page_state_.value(), page_state));
-  page_state_.SetAndMaybeNotify(this, page_state);
-}
-
-void PageNodeImpl::OnJoiningGraph() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // Make sure all weak pointers, even `weak_this_` that was created on the UI
-  // thread in the constructor, can only be dereferenced on the graph sequence.
-  weak_factory_.BindToCurrentSequence(
-      base::subtle::BindWeakPtrFactoryPassKey());
+  NodeAttachedDataStorage::Create(this);
 }
 
 void PageNodeImpl::OnBeforeLeavingGraph() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // Sever opener relationships.
-  if (opener_frame_node_)
+  if (opener_frame_node_) {
     ClearOpenerFrameNode();
+  }
 
   // Sever embedder relationships.
-  if (embedder_frame_node_)
-    ClearEmbedderFrameNodeAndEmbeddingType();
+  if (embedder_frame_node_) {
+    ClearEmbedderFrameNode();
+  }
 
   DCHECK_EQ(0u, frame_node_count_);
 }
 
-void PageNodeImpl::RemoveNodeAttachedData() {
+void PageNodeImpl::CleanUpNodeState() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  page_load_tracker_data_.reset();
-  site_data_.reset();
-  tab_connectedness_data_.reset();
-  frozen_frame_data_.Reset();
-  page_aggregator_data_.Reset();
+  DestroyNodeInlineDataStorage();
 }
 
 const FrameNode* PageNodeImpl::GetOpenerFrameNode() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(graph()->NodeEdgesArePublic(this) || !opener_frame_node());
   return opener_frame_node();
 }
 
 const FrameNode* PageNodeImpl::GetEmbedderFrameNode() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(graph()->NodeEdgesArePublic(this) || !embedder_frame_node());
   return embedder_frame_node();
 }
 
 const FrameNode* PageNodeImpl::GetMainFrameNode() const {
+  CHECK(graph()->NodeEdgesArePublic(this) || !main_frame_node());
   return main_frame_node();
 }
 
-bool PageNodeImpl::VisitMainFrameNodes(const FrameNodeVisitor& visitor) const {
+PageNode::NodeSetView<const FrameNode*> PageNodeImpl::GetMainFrameNodes()
+    const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (FrameNodeImpl* frame_impl : main_frame_nodes_) {
-    const FrameNode* frame = frame_impl;
-    if (!visitor(frame)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-const base::flat_set<raw_ptr<const FrameNode, CtnExperimental>>
-PageNodeImpl::GetMainFrameNodes() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  base::flat_set<raw_ptr<const FrameNode, CtnExperimental>> main_frame_nodes(
-      main_frame_nodes_.begin(), main_frame_nodes_.end());
-  return main_frame_nodes;
+  CHECK(graph()->NodeEdgesArePublic(this) || main_frame_nodes_.empty());
+  return NodeSetView<const FrameNode*>(main_frame_nodes_);
 }
 
 void PageNodeImpl::SetLifecycleState(LifecycleState lifecycle_state) {
@@ -594,9 +596,16 @@ void PageNodeImpl::SetIsHoldingWebLock(bool is_holding_weblock) {
   is_holding_weblock_.SetAndMaybeNotify(this, is_holding_weblock);
 }
 
-void PageNodeImpl::SetIsHoldingIndexedDBLock(bool is_holding_indexeddb_lock) {
+void PageNodeImpl::SetIsHoldingBlockingIndexedDBLock(
+    bool is_holding_blocking_indexeddb_lock) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  is_holding_indexeddb_lock_.SetAndMaybeNotify(this, is_holding_indexeddb_lock);
+  is_holding_blocking_indexeddb_lock_.SetAndMaybeNotify(
+      this, is_holding_blocking_indexeddb_lock);
+}
+
+void PageNodeImpl::SetUsesWebRTC(bool uses_web_rtc) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  uses_web_rtc_.SetAndMaybeNotify(this, uses_web_rtc);
 }
 
 void PageNodeImpl::SetHadFormInteraction(bool had_form_interaction) {
@@ -607,6 +616,41 @@ void PageNodeImpl::SetHadFormInteraction(bool had_form_interaction) {
 void PageNodeImpl::SetHadUserEdits(bool had_user_edits) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   had_user_edits_.SetAndMaybeNotify(this, had_user_edits);
+}
+
+void PageNodeImpl::SetHasFreezingOriginTrialOptOut(
+    bool has_freezing_origin_trial_opt_out) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  has_freezing_origin_trial_opt_out_.SetAndMaybeNotify(
+      this, has_freezing_origin_trial_opt_out);
+}
+
+void PageNodeImpl::EmitMainFrameUrlChangedEvent(
+    const GURL& url,
+    std::optional<int64_t> navigation_id) const {
+  TRACE_EVENT_INSTANT("loading", "MainFrameUrlChanged", tracing_track_,
+                      [&](perfetto::EventContext& ctx) {
+                        perfetto::protos::pbzero::PageLoad* page_load =
+                            ctx.event<ChromeTrackEvent>()->set_page_load();
+                        page_load->set_url(url.possibly_invalid_spec());
+                        if (navigation_id.has_value()) {
+                          page_load->set_navigation_id(navigation_id.value());
+                        }
+                      });
+}
+
+void PageNodeImpl::EmitLoadingTraceEvent(LoadingState loading_state) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  bool was_loading =
+      loading_state_.value() != LoadingState::kLoadingNotStarted &&
+      loading_state_.value() != LoadingState::kLoadedIdle;
+  bool is_loading = loading_state != LoadingState::kLoadingNotStarted &&
+                    loading_state != LoadingState::kLoadedIdle;
+  if (is_loading && !was_loading) {
+    TRACE_EVENT_BEGIN("loading", "PageNode Loading", tracing_track_);
+  } else if (was_loading && !is_loading) {
+    TRACE_EVENT_END("loading", tracing_track_);
+  }
 }
 
 }  // namespace performance_manager

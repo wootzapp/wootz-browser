@@ -18,8 +18,9 @@ TestSelectURLFencedFrameConfigObserverImpl::
 
 void TestSelectURLFencedFrameConfigObserverImpl::OnSharedStorageAccessed(
     const base::Time& access_time,
-    AccessType type,
-    int main_frame_id,
+    AccessScope scope,
+    AccessMethod method,
+    FrameTreeNodeId main_frame_id,
     const std::string& owner_origin,
     const SharedStorageEventParams& params) {}
 
@@ -64,8 +65,8 @@ TestSelectURLFencedFrameConfigObserver::TestSelectURLFencedFrameConfigObserver(
     StoragePartition* storage_partition)
     : storage_partition_(storage_partition),
       impl_(std::make_unique<TestSelectURLFencedFrameConfigObserverImpl>()) {
-  SharedStorageWorkletHostManager* manager =
-      GetSharedStorageWorkletHostManagerForStoragePartition(storage_partition_);
+  SharedStorageRuntimeManager* manager =
+      GetSharedStorageRuntimeManagerForStoragePartition(storage_partition_);
   DCHECK(manager);
 
   manager->AddSharedStorageObserver(impl_.get());
@@ -73,8 +74,8 @@ TestSelectURLFencedFrameConfigObserver::TestSelectURLFencedFrameConfigObserver(
 
 TestSelectURLFencedFrameConfigObserver::
     ~TestSelectURLFencedFrameConfigObserver() {
-  SharedStorageWorkletHostManager* manager =
-      GetSharedStorageWorkletHostManagerForStoragePartition(storage_partition_);
+  SharedStorageRuntimeManager* manager =
+      GetSharedStorageRuntimeManagerForStoragePartition(storage_partition_);
 
   manager->RemoveSharedStorageObserver(impl_.get());
 }

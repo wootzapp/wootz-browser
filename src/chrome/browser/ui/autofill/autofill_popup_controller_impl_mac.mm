@@ -8,9 +8,9 @@
 
 #import "chrome/browser/ui/autofill/popup_controller_common.h"
 #import "chrome/browser/ui/cocoa/touchbar/web_textfield_touch_bar_controller.h"
-#include "components/autofill/core/browser/filling_product.h"
+#include "components/autofill/core/browser/filling/filling_product.h"
+#include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
-#include "components/autofill/core/browser/ui/suggestion_type.h"
 
 using base::WeakPtr;
 
@@ -33,8 +33,9 @@ WeakPtr<AutofillSuggestionController> AutofillSuggestionController::GetOrCreate(
     return previous_impl->GetWeakPtr();
   }
 
-  if (previous.get())
+  if (previous.get()) {
     previous->Hide(SuggestionHidingReason::kViewDestroyed);
+  }
 
   auto* controller = new AutofillPopupControllerImplMac(
       delegate, web_contents, std::move(controller_common), form_control_ax_id);
@@ -58,6 +59,7 @@ AutofillPopupControllerImplMac::AutofillPopupControllerImplMac(
 AutofillPopupControllerImplMac::~AutofillPopupControllerImplMac() = default;
 
 void AutofillPopupControllerImplMac::Show(
+    UiSessionId ui_session_id,
     std::vector<autofill::Suggestion> suggestions,
     AutofillSuggestionTriggerSource trigger_source,
     AutoselectFirstSuggestion autoselect_first_suggestion) {
@@ -67,7 +69,8 @@ void AutofillPopupControllerImplMac::Show(
     [touch_bar_controller_ showCreditCardAutofillWithController:this];
   }
 
-  AutofillPopupControllerImpl::Show(std::move(suggestions), trigger_source,
+  AutofillPopupControllerImpl::Show(ui_session_id, std::move(suggestions),
+                                    trigger_source,
                                     autoselect_first_suggestion);
   // No code below this line!
   // |Show| may hide the popup and destroy |this|, so |Show| should be the last
@@ -76,8 +79,9 @@ void AutofillPopupControllerImplMac::Show(
 
 void AutofillPopupControllerImplMac::UpdateDataListValues(
     base::span<const SelectOption> options) {
-  if (touch_bar_controller_)
+  if (touch_bar_controller_) {
     [touch_bar_controller_ invalidateTouchBar];
+  }
 
   AutofillPopupControllerImpl::UpdateDataListValues(options);
   // No code below this line!

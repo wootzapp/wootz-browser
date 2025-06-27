@@ -4,19 +4,21 @@
 
 #include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
 
+#include <algorithm>
+#include <variant>
+
 #include "base/command_line.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/enterprise/connectors/analysis/analysis_settings.h"
 #include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/cloud_binary_upload_service_factory.h"
 #include "components/enterprise/common/strings.h"
+#include "components/enterprise/connectors/core/analysis_settings.h"
+#include "components/safe_browsing/core/common/safebrowsing_switches.h"
 #include "net/base/url_util.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #include "chrome/browser/enterprise/connectors/analysis/local_binary_upload_service_factory.h"
@@ -24,8 +26,6 @@
 
 namespace safe_browsing {
 namespace {
-
-constexpr char kCloudBinaryUploadServiceUrlFlag[] = "binary-upload-service-url";
 
 std::optional<GURL> GetUrlOverride() {
   // Ignore this flag on Stable and Beta to avoid abuse.
@@ -35,9 +35,9 @@ std::optional<GURL> GetUrlOverride() {
   }
 
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(kCloudBinaryUploadServiceUrlFlag)) {
-    GURL url = GURL(
-        command_line->GetSwitchValueASCII(kCloudBinaryUploadServiceUrlFlag));
+  if (command_line->HasSwitch(switches::kCloudBinaryUploadServiceUrlFlag)) {
+    GURL url = GURL(command_line->GetSwitchValueASCII(
+        switches::kCloudBinaryUploadServiceUrlFlag));
     if (url.is_valid())
       return url;
     else
@@ -69,6 +69,8 @@ std::string BinaryUploadService::ResultToString(Result result) {
       return "FILE_ENCRYPTED";
     case Result::TOO_MANY_REQUESTS:
       return "TOO_MANY_REQUESTS";
+    case Result::INCOMPLETE_RESPONSE:
+      return "INCOMPLETE_RESPONSE";
   }
 }
 
@@ -89,6 +91,7 @@ BinaryUploadService::Request::Data::operator=(
   size = other.size;
   mime_type = other.mime_type;
   page = other.page.Duplicate();
+  is_obfuscated = other.is_obfuscated;
   return *this;
 }
 
@@ -130,10 +133,6 @@ bool BinaryUploadService::Request::per_profile_request() const {
   return per_profile_request_;
 }
 
-void BinaryUploadService::Request::set_fcm_token(const std::string& token) {
-  content_analysis_request_.set_fcm_notification_token(token);
-}
-
 void BinaryUploadService::Request::set_device_token(const std::string& token) {
   content_analysis_request_.set_device_token(token);
 }
@@ -148,7 +147,7 @@ void BinaryUploadService::Request::set_digest(const std::string& digest) {
 
 void BinaryUploadService::Request::clear_dlp_scan_request() {
   auto* tags = content_analysis_request_.mutable_tags();
-  auto it = base::ranges::find(*tags, "dlp");
+  auto it = std::ranges::find(*tags, "dlp");
   if (it != tags->end())
     tags->erase(it);
 }
@@ -228,6 +227,21 @@ void BinaryUploadService::Request::set_printer_type(
       ->set_printer_type(printer_type);
 }
 
+void BinaryUploadService::Request::set_clipboard_source_type(
+    enterprise_connectors::ContentMetaData::CopiedTextSource::
+        CopiedTextSourceType source_type) {
+  content_analysis_request_.mutable_request_data()
+      ->mutable_copied_text_source()
+      ->set_context(source_type);
+}
+
+void BinaryUploadService::Request::set_clipboard_source_url(
+    const std::string& url) {
+  content_analysis_request_.mutable_request_data()
+      ->mutable_copied_text_source()
+      ->set_url(url);
+}
+
 void BinaryUploadService::Request::set_password(const std::string& password) {
   content_analysis_request_.mutable_request_data()->set_decryption_key(
       password);
@@ -248,6 +262,11 @@ void BinaryUploadService::Request::set_blocking(bool blocking) {
   content_analysis_request_.set_blocking(blocking);
 }
 
+void BinaryUploadService::Request::add_local_ips(
+    const std::string& ip_address) {
+  content_analysis_request_.add_local_ips(ip_address);
+}
+
 std::string BinaryUploadService::Request::SetRandomRequestToken() {
   DCHECK(request_token().empty());
   content_analysis_request_.set_request_token(
@@ -266,11 +285,6 @@ const std::string& BinaryUploadService::Request::device_token() const {
 
 const std::string& BinaryUploadService::Request::request_token() const {
   return content_analysis_request_.request_token();
-}
-
-const std::string& BinaryUploadService::Request::fcm_notification_token()
-    const {
-  return content_analysis_request_.fcm_notification_token();
 }
 
 const std::string& BinaryUploadService::Request::filename() const {
@@ -345,7 +359,7 @@ void BinaryUploadService::Request::SerializeToString(
 }
 
 GURL BinaryUploadService::Request::GetUrlWithParams() const {
-  DCHECK(absl::holds_alternative<enterprise_connectors::CloudAnalysisSettings>(
+  DCHECK(std::holds_alternative<enterprise_connectors::CloudAnalysisSettings>(
       cloud_or_local_settings_));
 
   GURL url = GetUrlOverride().value_or(cloud_or_local_settings_.analysis_url());
@@ -433,8 +447,7 @@ void BinaryUploadService::CancelRequests::set_user_action_id(
 BinaryUploadService* BinaryUploadService::GetForProfile(
     Profile* profile,
     const enterprise_connectors::AnalysisSettings& settings) {
-  // Local content analysis is supported only on desktop platforms.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
   if (settings.cloud_or_local_settings.is_cloud_analysis()) {
     return CloudBinaryUploadServiceFactory::GetForProfile(profile);
   } else {

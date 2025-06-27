@@ -20,6 +20,7 @@
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "components/lookalikes/core/lookalike_url_util.h"
 #include "components/url_formatter/spoof_checks/skeleton_generator.h"
 #include "third_party/icu/source/common/unicode/unistr.h"
 #include "third_party/icu/source/common/unicode/utypes.h"
@@ -40,8 +41,9 @@ base::FilePath GetPath(std::string_view basename) {
 bool WriteToFile(const std::string& content, std::string_view basename) {
   base::FilePath path = GetPath(basename);
   bool succeeded = base::WriteFile(path, content.data());
-  if (!succeeded)
+  if (!succeeded) {
     std::cerr << "Failed to write to " << path.AsUTF8Unsafe() << '\n';
+  }
   return succeeded;
 }
 
@@ -129,6 +131,12 @@ int GenerateSkeletons(const char* input_file_name,
       continue;
     }
 
+    std::string domain_and_registry = lookalikes::GetETLDPlusOne(domain);
+    if (domain_and_registry.empty()) {
+      // This can happen with domains like "com.se".
+      continue;
+    }
+
     const std::u16string domain16 = base::UTF8ToUTF16(domain);
     const Skeletons skeletons = skeleton_generator.GetSkeletons(domain16);
     if (skeletons.empty()) {
@@ -164,8 +172,9 @@ int GenerateSkeletons(const char* input_file_name,
     }
   }
 
-  if (!WriteToFile(output, output_file_name))
+  if (!WriteToFile(output, output_file_name)) {
     return 1;
+  }
 
   std::cout << "The first domain with the largest number of labels is "
             << domain_with_max_labels << " and has " << max_labels

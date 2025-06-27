@@ -18,7 +18,6 @@
 #include "third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_generic_reader.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_transferring_optimizer.h"
-#include "third_party/blink/renderer/core/streams/stream_promise_resolver.h"
 #include "third_party/blink/renderer/core/streams/underlying_byte_source_base.h"
 #include "third_party/blink/renderer/core/typed_arrays/array_buffer/array_buffer_contents.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
@@ -52,12 +51,11 @@ class IncomingStream::UnderlyingByteSource final
     return ToResolvedUndefinedPromise(script_state_.Get());
   }
 
-  ScriptPromise<IDLUndefined> Cancel(ExceptionState& exception_state) override {
-    return Cancel(v8::Undefined(script_state_->GetIsolate()), exception_state);
+  ScriptPromise<IDLUndefined> Cancel() override {
+    return Cancel(v8::Undefined(script_state_->GetIsolate()));
   }
 
-  ScriptPromise<IDLUndefined> Cancel(v8::Local<v8::Value> reason,
-                                     ExceptionState& exception_state) override {
+  ScriptPromise<IDLUndefined> Cancel(v8::Local<v8::Value> reason) override {
     uint8_t code = 0;
     WebTransportError* exception =
         V8WebTransportError::ToWrappable(script_state_->GetIsolate(), reason);
@@ -198,16 +196,8 @@ void IncomingStream::ProcessClose() {
 
   if (fin_received_.value()) {
     ScriptState::Scope scope(script_state_);
-    ExceptionState exception_state(script_state_->GetIsolate(),
-                                   ExceptionContextType::kUnknown, "", "");
-    CloseAbortAndReset(exception_state);
     // Ignore exception because stream will be errored soon.
-    if (exception_state.HadException()) {
-      DLOG(WARNING) << "CloseAbortAndReset throws exception "
-                    << exception_state.Code() << ", "
-                    << exception_state.Message();
-      exception_state.ClearException();
-    }
+    CloseAbortAndReset(IgnoreException(script_state_->GetIsolate()));
   }
 
   ScriptValue error;
@@ -239,22 +229,16 @@ void IncomingStream::ReadFromPipeAndEnqueue(ExceptionState& exception_state) {
   }
   DCHECK(!read_pending_);
 
-  const void* buffer = nullptr;
-  size_t buffer_num_bytes = 0;
-  auto result = data_pipe_->BeginReadData(&buffer, &buffer_num_bytes,
-                                          MOJO_BEGIN_READ_DATA_FLAG_NONE);
+  base::span<const uint8_t> buffer;
+  auto result =
+      data_pipe_->BeginReadData(MOJO_BEGIN_READ_DATA_FLAG_NONE, buffer);
   switch (result) {
     case MOJO_RESULT_OK: {
       in_two_phase_read_ = true;
 
-      // SAFETY: `BeginReadData` guarantees that `buffer_num_bytes` is set to
-      // the amount of available space in `buffer`.
-      auto buffer_span = UNSAFE_BUFFERS(
-          base::span(static_cast<const uint8_t*>(buffer), buffer_num_bytes));
-
       // RespondBYOBRequestOrEnqueueBytes() may re-enter this method via pull().
       size_t read_bytes =
-          RespondBYOBRequestOrEnqueueBytes(buffer_span, exception_state);
+          RespondBYOBRequestOrEnqueueBytes(buffer, exception_state);
       if (exception_state.HadException()) {
         return;
       }
@@ -283,8 +267,7 @@ void IncomingStream::ReadFromPipeAndEnqueue(ExceptionState& exception_state) {
       return;
 
     default:
-      NOTREACHED_IN_MIGRATION() << "Unexpected result: " << result;
-      return;
+      NOTREACHED() << "Unexpected result: " << result;
   }
 }
 
@@ -299,9 +282,7 @@ size_t IncomingStream::RespondBYOBRequestOrEnqueueBytes(
   if (ReadableStreamBYOBRequest* request = controller_->byobRequest()) {
     DOMArrayPiece view(request->view().Get());
     size_t byob_response_length = std::min(view.ByteLength(), source.size());
-    view.ByteSpan()
-        .first(byob_response_length)
-        .copy_from(source.first(byob_response_length));
+    view.ByteSpan().copy_prefix_from(source.first(byob_response_length));
     request->respond(script_state_, byob_response_length, exception_state);
     return byob_response_length;
   }

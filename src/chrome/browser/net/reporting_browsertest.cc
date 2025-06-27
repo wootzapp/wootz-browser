@@ -5,17 +5,24 @@
 #include <memory>
 #include <string>
 
+#include "base/base_switches.h"
+#include "base/strings/escape.h"
 #include "base/strings/stringprintf.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/values_test_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/ssl/cert_verifier_browser_test.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/policy/core/common/policy_map.h"
+#include "components/policy/policy_constants.h"
+#include "components/tpcd/enterprise_reporting/enterprise_reporting_tab_helper.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -24,6 +31,7 @@
 #include "content/public/common/url_constants.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
+#include "content/public/test/content_mock_cert_verifier.h"
 #include "content/public/test/no_renderer_crashes_assertion.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "net/base/features.h"
@@ -40,7 +48,8 @@
 
 namespace {
 
-const char kReportingHost[] = "example.com";
+const char kReportingHost[] = "example.test";
+const char kCrossOriginHost[] = "cross-origin.test";
 
 class BaseReportingBrowserTest : public CertVerifierBrowserTest,
                                  public ::testing::WithParamInterface<bool> {
@@ -48,11 +57,7 @@ class BaseReportingBrowserTest : public CertVerifierBrowserTest,
   BaseReportingBrowserTest()
       : https_server_(net::test_server::EmbeddedTestServer::TYPE_HTTPS) {
     std::vector<base::test::FeatureRef> required_features = {
-        network::features::kReporting, network::features::kNetworkErrorLogging,
-        features::kCrashReporting};
-    if (UseDocumentReporting()) {
-      required_features.push_back(net::features::kDocumentReporting);
-    }
+        network::features::kReporting, network::features::kNetworkErrorLogging};
     scoped_feature_list_.InitWithFeatures(
         // enabled_features
         required_features,
@@ -70,10 +75,6 @@ class BaseReportingBrowserTest : public CertVerifierBrowserTest,
 
   net::EmbeddedTestServer* server() { return &https_server_; }
 
-  net::test_server::ControllableHttpResponse* original_response() {
-    return original_response_.get();
-  }
-
   net::test_server::ControllableHttpResponse* upload_response() {
     return upload_response_.get();
   }
@@ -87,28 +88,33 @@ class BaseReportingBrowserTest : public CertVerifierBrowserTest,
   }
 
   std::string GetAppropriateReportingHeader() const {
-    return UseDocumentReporting() ? GetReportingEndpointsHeader()
-                                  : GetReportToHeader();
+    return base::EscapeQueryParamValue(UseDocumentReporting()
+                                           ? GetReportingEndpointsHeader()
+                                           : GetReportToHeader(),
+                                       /*use_plus=*/false);
   }
 
   std::string GetReportingEndpointsHeader() const {
-    return "Reporting-Endpoints: default=\"" + GetCollectorURL().spec() +
-           "\"\r\n";
+    return "Reporting-Endpoints: default=\"" + GetCollectorURL().spec() + "\"";
   }
 
   std::string GetReportToHeader() const {
     return "Report-To: {\"endpoints\":[{\"url\":\"" + GetCollectorURL().spec() +
-           "\"}],\"max_age\":86400}\r\n";
+           "\"}],\"max_age\":86400}";
   }
 
   std::string GetNELHeader() const {
-    return "NEL: "
-           "{\"report_to\":\"default\",\"max_age\":86400,\"success_fraction\":"
-           "1.0}\r\n";
+    return base::EscapeQueryParamValue(
+        "NEL: "
+        "{\"report_to\":\"default\",\"max_age\":86400,\"success_fraction\":1."
+        "0}",
+        /*use_plus=*/false);
   }
 
   std::string GetCSPHeader() const {
-    return "Content-Security-Policy: script-src 'none'; report-to default\r\n";
+    return base::EscapeQueryParamValue(
+        "Content-Security-Policy: script-src 'none'; report-to default",
+        /*use_plus=*/false);
   }
 
  protected:
@@ -123,8 +129,6 @@ class BaseReportingBrowserTest : public CertVerifierBrowserTest,
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
   net::EmbeddedTestServer https_server_;
-  std::unique_ptr<net::test_server::ControllableHttpResponse>
-      original_response_;
   std::unique_ptr<net::test_server::ControllableHttpResponse> upload_response_;
 };
 
@@ -142,9 +146,6 @@ void BaseReportingBrowserTest::SetUpOnMainThread() {
 
   host_resolver()->AddRule("*", "127.0.0.1");
 
-  original_response_ =
-      std::make_unique<net::test_server::ControllableHttpResponse>(server(),
-                                                                   "/original");
   upload_response_ =
       std::make_unique<net::test_server::ControllableHttpResponse>(server(),
                                                                    "/upload");
@@ -192,6 +193,35 @@ class NonIsolatedReportingBrowserTest : public BaseReportingBrowserTest {
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+// This is a subclass of `BaseReportingBrowserTest` that specifically tests the
+// `kCrashReportingAPIMoreContextData` feature, which adds more context data to
+// each `CrashReportBody`. See https://crbug.com/400432195.
+class ReportingBrowserTestMoreContextData : public BaseReportingBrowserTest {
+ public:
+  ReportingBrowserTestMoreContextData() = default;
+
+  ReportingBrowserTestMoreContextData(
+      const ReportingBrowserTestMoreContextData&) = delete;
+  ReportingBrowserTestMoreContextData& operator=(
+      const ReportingBrowserTestMoreContextData&) = delete;
+
+  ~ReportingBrowserTestMoreContextData() override = default;
+
+  void SetUp() override {
+    scoped_feature_list_.InitWithFeatureState(
+        blink::features::kCrashReportingAPIMoreContextData,
+        /*enabled=*/GetParam());
+    BaseReportingBrowserTest::SetUp();
+  }
+
+  void SetUpOnMainThread() override {
+    BaseReportingBrowserTest::SetUpOnMainThread();
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
 class JSCallStackReportingBrowserTest : public BaseReportingBrowserTest {
  public:
   JSCallStackReportingBrowserTest() = default;
@@ -215,20 +245,11 @@ class JSCallStackReportingBrowserTest : public BaseReportingBrowserTest {
   }
 
   void SetUpOnMainThread() override {
-    iframe_response_ =
-        std::make_unique<net::test_server::ControllableHttpResponse>(server(),
-                                                                     "/iframe");
     BaseReportingBrowserTest::SetUpOnMainThread();
   }
 
-  net::test_server::ControllableHttpResponse* iframe_response() {
-    return iframe_response_.get();
-  }
-
-  GURL GetIframeURL() { return server()->GetURL(kReportingHost, "/iframe"); }
-
   std::string GetDocumentPolicyHeader() const {
-    return "Document-Policy: include-js-call-stacks-in-crash-reports\r\n";
+    return "Document-Policy: include-js-call-stacks-in-crash-reports";
   }
 
   void ExecuteInfiniteLoopScriptAsync(content::RenderFrameHost* frame) {
@@ -247,7 +268,110 @@ class JSCallStackReportingBrowserTest : public BaseReportingBrowserTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  std::unique_ptr<net::test_server::ControllableHttpResponse> iframe_response_;
+};
+
+class EnterpriseReportingBrowserTest : public policy::PolicyTest {
+ public:
+  EnterpriseReportingBrowserTest()
+      : https_server_(net::test_server::EmbeddedTestServer::TYPE_HTTPS) {
+    scoped_feature_list_.InitWithFeatures(
+        // enabled_features
+        {net::features::kForceThirdPartyCookieBlocking,
+         net::features::kReportingApiEnableEnterpriseCookieIssues,
+         network::features::kReporting},
+        // disabled_features
+        {});
+  }
+
+  ~EnterpriseReportingBrowserTest() override = default;
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    mock_cert_verifier_.SetUpCommandLine(command_line);
+  }
+
+  void SetUpInProcessBrowserTestFixture() override {
+    PolicyTest::SetUpInProcessBrowserTestFixture();
+    mock_cert_verifier_.SetUpInProcessBrowserTestFixture();
+  }
+
+  void TearDownInProcessBrowserTestFixture() override {
+    PolicyTest::TearDownInProcessBrowserTestFixture();
+    mock_cert_verifier_.TearDownInProcessBrowserTestFixture();
+  }
+
+  void SetUp() override {
+    PolicyTest::SetUp();
+
+    // Making the report delivery happen instantly for testing.
+    net::ReportingPolicy policy;
+    policy.delivery_interval = base::Seconds(0);
+    net::ReportingPolicy::UsePolicyForTesting(policy);
+  }
+
+  void SetUpOnMainThread() override {
+    PolicyTest::SetUpOnMainThread();
+    host_resolver()->AddRule("*", "127.0.0.1");
+    preflight_response_ =
+        std::make_unique<net::test_server::ControllableHttpResponse>(server(),
+                                                                     "/upload");
+    payload_response_ =
+        std::make_unique<net::test_server::ControllableHttpResponse>(server(),
+                                                                     "/upload");
+
+    mock_cert_verifier_.mock_cert_verifier()->set_default_result(net::OK);
+    server()->AddDefaultHandlers(GetChromeTestDataDir());
+    ASSERT_TRUE(server()->Start());
+  }
+
+  void UpdateReportingEndpointsPolicy(base::Value::Dict dict) {
+    SetPolicy(&policies_, policy::key::kReportingEndpoints,
+              base::Value(std::move(dict)));
+    UpdateProviderPolicy(policies_);
+  }
+
+  net::EmbeddedTestServer* server() { return &https_server_; }
+
+  net::test_server::ControllableHttpResponse* preflight_response() {
+    return preflight_response_.get();
+  }
+
+  net::test_server::ControllableHttpResponse* payload_response() {
+    return payload_response_.get();
+  }
+
+  GURL GetCollectorURL() const {
+    return https_server_.GetURL(kReportingHost, "/upload");
+  }
+
+ private:
+  content::ContentMockCertVerifier mock_cert_verifier_;
+  base::test::ScopedFeatureList scoped_feature_list_;
+  policy::PolicyMap policies_;
+  net::test_server::EmbeddedTestServer https_server_;
+  std::unique_ptr<net::test_server::ControllableHttpResponse>
+      preflight_response_;
+  std::unique_ptr<net::test_server::ControllableHttpResponse> payload_response_;
+};
+
+class HistogramReportingBrowserTest : public BaseReportingBrowserTest {
+ public:
+  HistogramReportingBrowserTest() = default;
+
+  HistogramReportingBrowserTest(const HistogramReportingBrowserTest&) = delete;
+  HistogramReportingBrowserTest& operator=(
+      const HistogramReportingBrowserTest&) = delete;
+
+  ~HistogramReportingBrowserTest() override = default;
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    if (GetParam()) {
+      command_line->AppendSwitch(switches::kNoErrorDialogs);
+    }
+    BaseReportingBrowserTest::SetUpCommandLine(command_line);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 base::Value::List ParseReportUpload(const std::string& payload) {
@@ -273,16 +397,11 @@ base::Value::List ParseReportUpload(const std::string& payload) {
 // header, but this header should continue to function until support is
 // completely removed.
 IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestNELHeadersProcessed) {
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 204 OK\r\n");
-  original_response()->Send(GetReportToHeader());
-  original_response()->Send(GetNELHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
+  GURL main_url = server()->GetURL(
+      kReportingHost, base::StringPrintf("/set-header?%s&%s",
+                                         GetReportToHeader(), GetNELHeader()));
+  EXPECT_TRUE(NavigateToURL(
+      browser()->tab_strip_model()->GetActiveWebContents(), main_url));
 
   upload_response()->WaitForRequest();
   base::Value::List actual =
@@ -302,7 +421,7 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestNELHeadersProcessed) {
               "sampling_fraction": 1.0,
               "server_ip": "127.0.0.1",
               "method": "GET",
-              "status_code": 204,
+              "status_code": 200,
               "phase": "application",
               "type": "ok",
             },
@@ -312,25 +431,21 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestNELHeadersProcessed) {
           },
         ]
       )json",
-      GetReportingEnabledURL().spec().c_str()));
+      main_url.spec().c_str()));
   EXPECT_EQ(expected, actual);
 }
 
 // Tests that CSP reports are delivered properly whether configured with the
 // v0 Report-To header or the v1 Reporting-Endpoints header.
 IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestReportingHeadersProcessed) {
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send("Content-Type: text/html\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send(GetCSPHeader());
-  original_response()->Send("\r\n");
-  original_response()->Send("<script>alert(1);</script>\r\n");
-  original_response()->Done();
+  // Navigate to reporting-enabled page.
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf(
+          "/set-header-with-file/chrome/test/data/simple_alert.html?%s&%s",
+          GetAppropriateReportingHeader(), GetCSPHeader()));
+  EXPECT_TRUE(NavigateToURL(
+      browser()->tab_strip_model()->GetActiveWebContents(), main_url));
 
   upload_response()->WaitForRequest();
   base::Value::List actual =
@@ -348,7 +463,7 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestReportingHeadersProcessed) {
               "disposition": "enforce",
               "documentURL": "%s",
               "effectiveDirective": "script-src-elem",
-              "lineNumber": 1,
+              "lineNumber": 2,
               "originalPolicy": "script-src 'none'; report-to default",
               "referrer": "",
               "sample": "",
@@ -360,9 +475,10 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestReportingHeadersProcessed) {
            "user_agent": "Mozilla/1.0"
         } ]
       )json",
-      GetReportingEnabledURL().spec().c_str(),
-      GetReportingEnabledURL().spec().c_str(),
-      GetReportingEnabledURL().spec().c_str()));
+      main_url.spec().c_str(),
+      // Full document URL without the query parameters.
+      main_url.spec().substr(0, main_url.spec().find('?')),
+      main_url.spec().c_str()));
   EXPECT_EQ(expected, actual);
 }
 
@@ -372,18 +488,14 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, TestReportingHeadersProcessed) {
 // a regression test for https://crbug.com/1258112.
 IN_PROC_BROWSER_TEST_P(NonIsolatedReportingBrowserTest,
                        TestReportingHeadersProcessed) {
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send("Content-Type: text/html\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send(GetCSPHeader());
-  original_response()->Send("\r\n");
-  original_response()->Send("<script>alert(1);</script>\r\n");
-  original_response()->Done();
+  // Navigate to reporting-enabled page.
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf(
+          "/set-header-with-file/chrome/test/data/simple_alert.html?%s&%s",
+          GetAppropriateReportingHeader(), GetCSPHeader()));
+  EXPECT_TRUE(NavigateToURL(
+      browser()->tab_strip_model()->GetActiveWebContents(), main_url));
 
   // Ensure that the correct endpoint was found, and that a report was sent.
   // (If the endpoint cannot not be found, then a report will be sent at all.)
@@ -403,7 +515,7 @@ IN_PROC_BROWSER_TEST_P(NonIsolatedReportingBrowserTest,
               "disposition": "enforce",
               "documentURL": "%s",
               "effectiveDirective": "script-src-elem",
-              "lineNumber": 1,
+              "lineNumber": 2,
               "originalPolicy": "script-src 'none'; report-to default",
               "referrer": "",
               "sample": "",
@@ -415,29 +527,27 @@ IN_PROC_BROWSER_TEST_P(NonIsolatedReportingBrowserTest,
            "user_agent": "Mozilla/1.0"
         } ]
       )json",
-      GetReportingEnabledURL().spec().c_str(),
-      GetReportingEnabledURL().spec().c_str(),
-      GetReportingEnabledURL().spec().c_str()));
+      main_url.spec().c_str(),
+      // Full document URL without the query parameters.
+      main_url.spec().substr(0, main_url.spec().find('?')),
+      main_url.spec().c_str()));
   EXPECT_EQ(expected, actual);
 }
 
 IN_PROC_BROWSER_TEST_P(ReportingBrowserTest,
                        ReportingRespectsNetworkIsolationKeys) {
-  // Navigate main frame to a kReportingHost URL and learn NEL and Reporting
-  // information for that host.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 204 OK\r\n");
-  original_response()->Send(GetReportToHeader());
-  original_response()->Send(
-      "NEL: {"
-      "  \"report_to\":\"default\","
-      "  \"max_age\":86400,"
-      "  \"failure_fraction\":1.0"
-      "}\r\n\r\n");
-  original_response()->Done();
+  // Favicon page is necessary since they are not served by default (i.e.,
+  // `title1.html`), and in that case the default request for a favicon will
+  // trigger a NEL report for the wrong reason.
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf("/set-header-with-file/chrome/test/data/favicon/"
+                         "page_with_favicon.html?%s&%s",
+                         GetReportToHeader(),
+                         "NEL: {\"report_to\":\"default\", \"max_age\":86400, "
+                         "\"failure_fraction\":1.0}"));
+  EXPECT_TRUE(NavigateToURL(
+      browser()->tab_strip_model()->GetActiveWebContents(), main_url));
 
   // Open a cross-origin kReportingHost iframe that fails to load. No report
   // should be uploaded, since the NetworkAnonymizationKey does not match.
@@ -486,6 +596,8 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest,
 #if defined(ADDRESS_SANITIZER)
 #define MAYBE_CrashReport DISABLED_CrashReport
 #define MAYBE_CrashReportUnresponsive DISABLED_CrashReportUnresponsive
+#define MAYBE_CrashReportUnresponsiveCrossOriginIframe \
+  DISABLED_CrashReportUnresponsiveCrossOriginIframe
 #define MAYBE_MainPageOptedIn DISABLED_MainPageOptedIn
 #define MAYBE_MainPageNotOptedIn DISABLED_MainPageNotOptedIn
 #define MAYBE_IframeUnresponsiveWithJSCallStackOptedIn \
@@ -494,34 +606,24 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest,
   DISABLED_IframeUnresponsiveWithJSCallStackNotOptedIn
 #else
 #define MAYBE_CrashReport CrashReport
-
-// Flaky on Mac (multiple versions), see https://crbug.com/1261749
-// Flaky on other platforms as well, see https://crbug.com/1377031
-#define MAYBE_CrashReportUnresponsive DISABLED_CrashReportUnresponsive
-#define MAYBE_MainPageOptedIn DISABLED_MainPageOptedIn
-#define MAYBE_MainPageNotOptedIn DISABLED_MainPageNotOptedIn
+#define MAYBE_CrashReportUnresponsive CrashReportUnresponsive
+#define MAYBE_CrashReportUnresponsiveCrossOriginIframe \
+  CrashReportUnresponsiveCrossOriginIframe
+#define MAYBE_MainPageOptedIn MainPageOptedIn
+#define MAYBE_MainPageNotOptedIn MainPageNotOptedIn
 #define MAYBE_IframeUnresponsiveWithJSCallStackOptedIn \
-  DISABLED_IframeUnresponsiveWithJSCallStackOptedIn
+  IframeUnresponsiveWithJSCallStackOptedIn
 #define MAYBE_IframeUnresponsiveWithJSCallStackNotOptedIn \
-  DISABLED_IframeUnresponsiveWithJSCallStackNotOptedIn
+  IframeUnresponsiveWithJSCallStackNotOptedIn
 #endif  // defined(ADDRESS_SANITIZER)
 
 IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, MAYBE_CrashReport) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
+  GURL main_url = server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader());
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
   // Simulate a crash on the page.
   content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
@@ -542,30 +644,21 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, MAYBE_CrashReport) {
   const std::string* url = report.FindString("url");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
 }
 
 IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, MAYBE_CrashReportUnresponsive) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
+  GURL main_url = server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader());
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
+  content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
+  ASSERT_TRUE(frame);
 
-  // Simulate the page being killed due to being unresponsive.
-  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
-  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
-      content::RESULT_CODE_HUNG);
+  content::SimulateUnresponsivePrimaryMainFrameAndWaitForExit(contents);
 
   upload_response()->WaitForRequest();
   base::Value::List response =
@@ -582,27 +675,108 @@ IN_PROC_BROWSER_TEST_P(ReportingBrowserTest, MAYBE_CrashReportUnresponsive) {
   const std::string* reason = body->FindString("reason");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
   EXPECT_EQ("unresponsive", *reason);
+}
+
+IN_PROC_BROWSER_TEST_P(ReportingBrowserTestMoreContextData,
+                       CrashReportUnresponsive) {
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  // Navigate to reporting-enabled page.
+  GURL main_url = server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader());
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
+
+  // Simulate the page being killed due to being unresponsive.
+  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
+  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
+      content::RESULT_CODE_HUNG);
+
+  upload_response()->WaitForRequest();
+  base::Value::List request =
+      ParseReportUpload(upload_response()->http_request()->content);
+  upload_response()->Send("HTTP/1.1 200 OK\r\n");
+  upload_response()->Send("\r\n");
+  upload_response()->Done();
+
+  // Verify the contents of the report that we received.
+  const base::Value::Dict& report = request.begin()->GetDict();
+  const std::string* type = report.FindString("type");
+  const std::string* url = report.FindString("url");
+  const base::Value::Dict* body = report.FindDict("body");
+  const std::string* reason = body->FindString("reason");
+  const std::string* is_top_level = body->FindString("is_top_level");
+
+  EXPECT_EQ("crash", *type);
+  EXPECT_EQ(*url, main_url);
+  EXPECT_EQ("unresponsive", *reason);
+  // When the `kCrashReportingAPIMoreContextData` flag is enabled, expect the
+  // extra CrashReportBody context bits to be present.
+  if (GetParam()) {
+    EXPECT_EQ("true", *is_top_level);
+  } else {
+    EXPECT_EQ(nullptr, is_top_level);
+  }
+}
+
+IN_PROC_BROWSER_TEST_P(ReportingBrowserTestMoreContextData,
+                       MAYBE_CrashReportUnresponsiveCrossOriginIframe) {
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  EXPECT_TRUE(NavigateToURL(
+      contents, server()->GetURL(kCrossOriginHost, "/iframe.html")));
+
+  GURL iframe_url(server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader()));
+  ASSERT_TRUE(NavigateIframeToURL(contents, "test", iframe_url));
+
+  content::RenderFrameHost* subframe = ChildFrameAt(contents, 0);
+  ASSERT_TRUE(subframe);
+  content::SimulateUnresponsiveRenderer(contents,
+                                        subframe->GetRenderWidgetHost());
+
+  // Simulate the page being killed due to being unresponsive.
+  content::ScopedAllowRendererCrashes allow_renderer_crashes(
+      subframe->GetProcess());
+  subframe->GetProcess()->Shutdown(content::RESULT_CODE_HUNG);
+
+  upload_response()->WaitForRequest();
+  base::Value::List response =
+      ParseReportUpload(upload_response()->http_request()->content);
+  upload_response()->Send("HTTP/1.1 200 OK\r\n");
+  upload_response()->Send("\r\n");
+  upload_response()->Done();
+
+  // Verify the contents of the report that we received.
+  const base::Value::Dict& report = response.begin()->GetDict();
+  const std::string* type = report.FindString("type");
+  const std::string* url = report.FindString("url");
+  const base::Value::Dict* body = report.FindDict("body");
+  const std::string* reason = body->FindString("reason");
+  const std::string* is_top_level = body->FindString("is_top_level");
+
+  EXPECT_EQ("crash", *type);
+  EXPECT_EQ(*url, iframe_url);
+  EXPECT_EQ("unresponsive", *reason);
+  if (GetParam()) {
+    EXPECT_EQ("false", *is_top_level);
+  } else {
+    EXPECT_EQ(nullptr, is_top_level);
+  }
 }
 
 IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest, MAYBE_MainPageOptedIn) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send(GetDocumentPolicyHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf("/set-header?%s&%s", GetAppropriateReportingHeader(),
+                         GetDocumentPolicyHeader()));
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
   content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
   ASSERT_TRUE(frame);
@@ -612,13 +786,7 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest, MAYBE_MainPageOptedIn) {
   ExecuteInfiniteLoopScriptAsync(frame);
 
   ASSERT_TRUE(console_observer.Wait());
-
-  content::SimulateUnresponsiveRenderer(contents, frame->GetRenderWidgetHost());
-
-  // Simulate the page being killed due to being unresponsive.
-  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
-  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
-      content::RESULT_CODE_HUNG);
+  content::SimulateUnresponsivePrimaryMainFrameAndWaitForExit(contents);
 
   upload_response()->WaitForRequest();
   base::Value::List response =
@@ -636,9 +804,10 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest, MAYBE_MainPageOptedIn) {
   const std::string* call_stack = body->FindString("stack");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
   EXPECT_EQ("unresponsive", *reason);
-  if (GetParam()) {
+  // TODO(crbug.com/407473725): Improve JS call stack collection test coverage.
+  if (GetParam() && call_stack) {
     EXPECT_TRUE(call_stack->find("infiniteLoop") != std::string::npos);
   } else {
     EXPECT_EQ(nullptr, call_stack);
@@ -649,19 +818,10 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
                        MAYBE_MainPageNotOptedIn) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
-
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
+  GURL main_url = server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader());
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
   content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
   ASSERT_TRUE(frame);
@@ -672,12 +832,7 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
 
   ASSERT_TRUE(console_observer.Wait());
 
-  content::SimulateUnresponsiveRenderer(contents, frame->GetRenderWidgetHost());
-
-  // Simulate the page being killed due to being unresponsive.
-  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
-  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
-      content::RESULT_CODE_HUNG);
+  content::SimulateUnresponsivePrimaryMainFrameAndWaitForExit(contents);
 
   upload_response()->WaitForRequest();
   base::Value::List response =
@@ -695,9 +850,10 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
   const std::string* call_stack = body->FindString("stack");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
   EXPECT_EQ("unresponsive", *reason);
-  if (GetParam()) {
+  // TODO(crbug.com/407473725): Improve JS call stack collection test coverage.
+  if (GetParam() && call_stack) {
     EXPECT_EQ(
         "Website owner has not opted in for JS call stacks in crash reports.",
         *call_stack);
@@ -710,53 +866,28 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
                        MAYBE_IframeUnresponsiveWithJSCallStackOptedIn) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf(
+          "/set-header-with-file/chrome/test/data/iframe.html?%s&%s",
+          GetAppropriateReportingHeader(), GetDocumentPolicyHeader()));
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send(GetDocumentPolicyHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
-
-  std::string script =
-      "let iframe = document.createElement('iframe');"
-      "iframe.src = '" +
-      GetIframeURL().spec() + "'; document.body.appendChild(iframe);";
-  content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
-  ASSERT_TRUE(frame);
-  ExecuteScriptAsync(frame, script);
-
-  iframe_response()->WaitForRequest();
-  iframe_response()->Send("HTTP/1.1 200 OK\r\n");
-  iframe_response()->Send(GetAppropriateReportingHeader());
-  iframe_response()->Send(GetDocumentPolicyHeader());
-  iframe_response()->Send("\r\n");
-  iframe_response()->Done();
-  content::WaitForLoadStop(contents);
-
+  GURL iframe_url(server()->GetURL(
+      kReportingHost,
+      base::StringPrintf("/set-header?%s&%s", GetAppropriateReportingHeader(),
+                         GetDocumentPolicyHeader())));
+  ASSERT_TRUE(NavigateIframeToURL(contents, "test", iframe_url));
   content::RenderFrameHost* subframe = ChildFrameAt(contents, 0);
   ASSERT_TRUE(subframe);
+
   content::WebContentsConsoleObserver console_observer(contents);
   console_observer.SetPattern("infiniteLoop");
-
   ExecuteInfiniteLoopScriptAsync(subframe);
-
   ASSERT_TRUE(console_observer.Wait());
 
-  content::SimulateUnresponsiveRenderer(contents,
-                                        subframe->GetRenderWidgetHost());
-
-  // Simulate the page being killed due to being unresponsive.
-  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
-  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
-      content::RESULT_CODE_HUNG);
+  content::SimulateUnresponsivePrimaryMainFrameAndWaitForExit(contents);
 
   upload_response()->WaitForRequest();
   base::Value::List response =
@@ -774,9 +905,10 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
   const std::string* call_stack = body->FindString("stack");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
   EXPECT_EQ("unresponsive", *reason);
-  if (GetParam()) {
+  // TODO(crbug.com/407473725): Improve JS call stack collection test coverage.
+  if (GetParam() && call_stack) {
     EXPECT_EQ("Unable to collect JS call stack.", *call_stack);
   } else {
     EXPECT_EQ(nullptr, call_stack);
@@ -787,52 +919,26 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
                        MAYBE_IframeUnresponsiveWithJSCallStackNotOptedIn) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  content::TestNavigationObserver navigation_observer(contents);
 
-  // Navigate to reporting-enabled page.
-  NavigateParams params(browser(), GetReportingEnabledURL(),
-                        ui::PAGE_TRANSITION_LINK);
-  Navigate(&params);
+  GURL main_url = server()->GetURL(
+      kReportingHost,
+      base::StringPrintf(
+          "/set-header-with-file/chrome/test/data/iframe.html?%s&%s",
+          GetAppropriateReportingHeader(), GetDocumentPolicyHeader()));
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
 
-  original_response()->WaitForRequest();
-  original_response()->Send("HTTP/1.1 200 OK\r\n");
-  original_response()->Send(GetAppropriateReportingHeader());
-  original_response()->Send(GetDocumentPolicyHeader());
-  original_response()->Send("\r\n");
-  original_response()->Done();
-  navigation_observer.Wait();
-
-  std::string script =
-      "let iframe = document.createElement('iframe');"
-      "iframe.src = '" +
-      GetIframeURL().spec() + "'; document.body.appendChild(iframe);";
-  content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
-  ASSERT_TRUE(frame);
-  content::ExecuteScriptAsync(frame, script);
-
-  iframe_response()->WaitForRequest();
-  iframe_response()->Send("HTTP/1.1 200 OK\r\n");
-  iframe_response()->Send(GetAppropriateReportingHeader());
-  iframe_response()->Send("\r\n");
-  iframe_response()->Done();
-  content::WaitForLoadStop(contents);
-
+  GURL iframe_url(server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader()));
+  ASSERT_TRUE(NavigateIframeToURL(contents, "test", iframe_url));
   content::RenderFrameHost* subframe = ChildFrameAt(contents, 0);
   ASSERT_TRUE(subframe);
+
   content::WebContentsConsoleObserver console_observer(contents);
   console_observer.SetPattern("infiniteLoop");
-
   ExecuteInfiniteLoopScriptAsync(subframe);
-
   ASSERT_TRUE(console_observer.Wait());
 
-  content::SimulateUnresponsiveRenderer(contents,
-                                        subframe->GetRenderWidgetHost());
-
-  // Simulate the page being killed due to being unresponsive.
-  content::ScopedAllowRendererCrashes allow_renderer_crashes(contents);
-  contents->GetPrimaryMainFrame()->GetProcess()->Shutdown(
-      content::RESULT_CODE_HUNG);
+  content::SimulateUnresponsivePrimaryMainFrameAndWaitForExit(contents);
 
   upload_response()->WaitForRequest();
   base::Value::List response =
@@ -850,12 +956,165 @@ IN_PROC_BROWSER_TEST_P(JSCallStackReportingBrowserTest,
   const std::string* call_stack = body->FindString("stack");
 
   EXPECT_EQ("crash", *type);
-  EXPECT_EQ(GetReportingEnabledURL().spec(), *url);
+  EXPECT_EQ(*url, main_url.spec());
   EXPECT_EQ("unresponsive", *reason);
-  if (GetParam()) {
+  // TODO(crbug.com/407473725): Improve JS call stack collection test coverage.
+  if (GetParam() && call_stack) {
     EXPECT_EQ("Unable to collect JS call stack.", *call_stack);
   } else {
     EXPECT_EQ(nullptr, call_stack);
+  }
+}
+
+// Tests that enterprise reports generated by a RenderFrameHost cookie error are
+// properly delivered to an endpoint configured by the enterprise policy.
+IN_PROC_BROWSER_TEST_F(EnterpriseReportingBrowserTest,
+                       RenderFrameHostCookieError) {
+  ASSERT_TRUE(base::FeatureList::IsEnabled(
+      net::features::kForceThirdPartyCookieBlocking));
+  ASSERT_TRUE(base::FeatureList::IsEnabled(network::features::kReporting));
+  ASSERT_TRUE(base::FeatureList::IsEnabled(
+      net::features::kReportingApiEnableEnterpriseCookieIssues));
+
+  // Configure an enterprise policy endpoint for report delivery.
+  UpdateReportingEndpointsPolicy(base::Value::Dict().Set(
+      "enterprise-third-party-cookie-access-error", GetCollectorURL().spec()));
+
+  // Generate and queue a report for delivery from a RenderFrameHost cookie
+  // error
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  GURL url_a = server()->GetURL("a.test", "/iframe_blank.html");
+  GURL url_b = server()->GetURL("b.test", "/title1.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents, url_a));
+  ASSERT_TRUE(content::NavigateIframeToURL(web_contents, "test", url_b));
+  ASSERT_TRUE(
+      content::ExecJs(content::ChildFrameAt(web_contents, 0),
+                      "document.cookie = 'foo=bar;SameSite=None;Secure'"));
+
+  preflight_response()->WaitForRequest();
+  preflight_response()->Send("HTTP/1.1 204 OK\r\n");
+  preflight_response()->Send("Access-Control-Allow-Origin: *\r\n");
+  preflight_response()->Send("Access-Control-Allow-Headers: *\r\n");
+  preflight_response()->Send("\r\n");
+  preflight_response()->Done();
+
+  payload_response()->WaitForRequest();
+  base::Value::List actualReport =
+      ParseReportUpload(payload_response()->http_request()->content);
+  payload_response()->Send("HTTP/1.1 204 OK\r\n");
+  payload_response()->Send("\r\n");
+  payload_response()->Done();
+
+  base::Value::List expectedReport =
+      base::test::ParseJsonList(base::StringPrintf(
+          R"json(
+          [
+            {
+              "body": {
+                "frameUrl": "%s",
+                "accessUrl": "%s",
+                "name": "foo",
+                "domain": "b.test",
+                "path": "/",
+                "accessOperation": "write"
+              },
+              "type": "enterprise-third-party-cookie-access-error",
+              "url": "%s",
+              "user_agent": "Mozilla/1.0"
+            },
+          ]
+        )json",
+          url_b.spec().c_str(), url_b.spec().c_str(), url_a.spec().c_str()));
+  EXPECT_EQ(expectedReport, actualReport);
+}
+
+// Tests that enterprise reports generated by a NavigationHandle cookie error
+// are properly delivered to an endpoint configured by the enterprise policy.
+IN_PROC_BROWSER_TEST_F(EnterpriseReportingBrowserTest,
+                       NavigationHandleCookieError) {
+  ASSERT_TRUE(base::FeatureList::IsEnabled(
+      net::features::kForceThirdPartyCookieBlocking));
+  ASSERT_TRUE(base::FeatureList::IsEnabled(network::features::kReporting));
+  ASSERT_TRUE(base::FeatureList::IsEnabled(
+      net::features::kReportingApiEnableEnterpriseCookieIssues));
+
+  // Configure an enterprise policy endpoint for report delivery.
+  UpdateReportingEndpointsPolicy(base::Value::Dict().Set(
+      "enterprise-third-party-cookie-access-error", GetCollectorURL().spec()));
+
+  // Generate and queue a report for delivery from a NavigationHandle cookie
+  // error
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  GURL url_a = server()->GetURL("a.test", "/iframe_blank.html");
+  GURL url_b = server()->GetURL("b.test", "/title1.html");
+  ASSERT_TRUE(content::SetCookie(web_contents->GetBrowserContext(), url_b,
+                                 "foo=bar;SameSite=None;Secure"));
+  ASSERT_TRUE(content::NavigateToURL(web_contents, url_a));
+  ASSERT_TRUE(content::NavigateIframeToURL(web_contents, "test", url_b));
+
+  preflight_response()->WaitForRequest();
+  preflight_response()->Send("HTTP/1.1 204 OK\r\n");
+  preflight_response()->Send("Access-Control-Allow-Origin: *\r\n");
+  preflight_response()->Send("Access-Control-Allow-Headers: *\r\n");
+  preflight_response()->Send("\r\n");
+  preflight_response()->Done();
+
+  payload_response()->WaitForRequest();
+  base::Value::List actualReport =
+      ParseReportUpload(payload_response()->http_request()->content);
+  payload_response()->Send("HTTP/1.1 204 OK\r\n");
+  payload_response()->Send("\r\n");
+  payload_response()->Done();
+
+  base::Value::List expectedReport =
+      base::test::ParseJsonList(base::StringPrintf(
+          R"json(
+          [
+            {
+              "body": {
+                "frameUrl": "%s",
+                "accessUrl": "%s",
+                "name": "foo",
+                "domain": "b.test",
+                "path": "/",
+                "accessOperation": "read"
+              },
+              "type": "enterprise-third-party-cookie-access-error",
+              "url": "%s",
+              "user_agent": "Mozilla/1.0"
+            },
+          ]
+        )json",
+          url_b.spec().c_str(), url_b.spec().c_str(), url_a.spec().c_str()));
+  EXPECT_EQ(expectedReport, actualReport);
+}
+
+IN_PROC_BROWSER_TEST_P(HistogramReportingBrowserTest,
+                       CrashReportUnresponsiveHistogram) {
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  base::HistogramTester histogram_tester;
+
+  GURL main_url = server()->GetURL(
+      kReportingHost, "/set-header?" + GetAppropriateReportingHeader());
+  EXPECT_TRUE(NavigateToURL(contents, main_url));
+
+  content::RenderFrameHost* frame = contents->GetPrimaryMainFrame();
+  ASSERT_TRUE(frame);
+  content::SimulateUnresponsiveRenderer(contents, frame->GetRenderWidgetHost());
+  std::string_view histogram_name =
+      "ReportingAndNEL.UnresponsiveRenderer.CrashReportOutcome";
+
+  if (GetParam()) {
+    histogram_tester.ExpectBucketCount(histogram_name, /*kDropped*/ 1,
+                                       /*expected_count*/ 1);
+  } else {
+    histogram_tester.ExpectBucketCount(histogram_name,
+                                       /*kPotentiallyQueued */ 0,
+                                       /*expected_count*/ 1);
   }
 }
 
@@ -864,5 +1123,9 @@ INSTANTIATE_TEST_SUITE_P(All,
                          NonIsolatedReportingBrowserTest,
                          ::testing::Bool());
 INSTANTIATE_TEST_SUITE_P(All,
+                         ReportingBrowserTestMoreContextData,
+                         ::testing::Bool());
+INSTANTIATE_TEST_SUITE_P(All,
                          JSCallStackReportingBrowserTest,
                          ::testing::Bool());
+INSTANTIATE_TEST_SUITE_P(All, HistogramReportingBrowserTest, ::testing::Bool());

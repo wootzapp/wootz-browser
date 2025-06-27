@@ -14,7 +14,7 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/webdata_services/web_data_service_factory.h"
 #include "components/autofill/content/browser/content_autofill_shared_storage_handler.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/core/browser/strike_databases/strike_database.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -38,13 +38,6 @@ const std::string GetCountryCodeFromVariations() {
 }  // namespace
 
 // static
-PersonalDataManager* PersonalDataManagerFactory::GetForProfile(
-    Profile* profile) {
-  return static_cast<PersonalDataManager*>(
-      GetInstance()->GetServiceForBrowserContext(profile, true));
-}
-
-// static
 PersonalDataManager* PersonalDataManagerFactory::GetForBrowserContext(
     content::BrowserContext* context) {
   return static_cast<PersonalDataManager*>(
@@ -65,6 +58,9 @@ PersonalDataManagerFactory::PersonalDataManagerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
   DependsOn(IdentityManagerFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());

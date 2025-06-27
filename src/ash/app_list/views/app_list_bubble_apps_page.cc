@@ -137,7 +137,7 @@ class ClickableView : public views::View {
 
   void OnGestureEvent(ui::GestureEvent* event) override {
     views::View::OnGestureEvent(event);
-    if (event->type() == ui::ET_GESTURE_TAP) {
+    if (event->type() == ui::EventType::kGestureTap) {
       event->SetHandled();
       click_callback_.Run();
     }
@@ -154,7 +154,6 @@ END_METADATA
 
 AppListBubbleAppsPage::AppListBubbleAppsPage(
     AppListViewDelegate* view_delegate,
-    ApplicationDragAndDropHost* drag_and_drop_host,
     AppListConfig* app_list_config,
     AppListA11yAnnouncer* a11y_announcer,
     AppListFolderController* folder_controller,
@@ -165,7 +164,6 @@ AppListBubbleAppsPage::AppListBubbleAppsPage(
           std::make_unique<AppListKeyboardController>(this)),
       app_list_nudge_controller_(std::make_unique<AppListNudgeController>()) {
   DCHECK(view_delegate);
-  DCHECK(drag_and_drop_host);
   DCHECK(a11y_announcer);
   DCHECK(folder_controller);
 
@@ -238,11 +236,7 @@ AppListBubbleAppsPage::AppListBubbleAppsPage(
   separator_ =
       scroll_contents->AddChildView(std::make_unique<views::Separator>());
   separator_->SetBorder(views::CreateEmptyBorder(kSeparatorInsets));
-  if (chromeos::features::IsJellyEnabled()) {
-    separator_->SetColorId(cros_tokens::kCrosSysSeparator);
-  } else {
-    separator_->SetColorId(ui::kColorAshSystemUIMenuSeparator);
-  }
+  separator_->SetColorId(cros_tokens::kCrosSysSeparator);
 
   // Add a empty container view. A toast view should be added to
   // `toast_container_` when the app list starts temporary sorting.
@@ -259,8 +253,6 @@ AppListBubbleAppsPage::AppListBubbleAppsPage(
           a11y_announcer, view_delegate,
           /*folder_delegate=*/nullptr, scroll_view_, folder_controller,
           app_list_keyboard_controller_.get()));
-  scrollable_apps_grid_view_->SetDragAndDropHostOfCurrentAppList(
-      drag_and_drop_host);
   scrollable_apps_grid_view_->UpdateAppListConfig(app_list_config);
   scrollable_apps_grid_view_->SetMaxColumns(5);
   AppListModel* const model = AppListModelProvider::Get()->model();
@@ -717,11 +709,8 @@ void AppListBubbleAppsPage::InitContinueLabelContainer(
   continue_label_ =
       continue_label_container_->AddChildView(std::make_unique<views::Label>(
           l10n_util::GetStringUTF16(IDS_ASH_LAUNCHER_CONTINUE_SECTION_LABEL)));
-  bubble_utils::ApplyStyle(
-      continue_label_, TypographyToken::kCrosAnnotation1,
-      chromeos::features::IsJellyEnabled()
-          ? static_cast<ui::ColorId>(cros_tokens::kCrosSysOnSurfaceVariant)
-          : kColorAshTextColorSecondary);
+  bubble_utils::ApplyStyle(continue_label_, TypographyToken::kCrosAnnotation1,
+                           cros_tokens::kCrosSysOnSurfaceVariant);
   continue_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
 
   // Button should be right aligned, so flex label to fill empty space.
@@ -736,7 +725,7 @@ void AppListBubbleAppsPage::InitContinueLabelContainer(
           IconButton::Type::kSmallFloating, &kChevronUpIcon,
           /*is_togglable=*/false,
           /*has_border=*/false));
-  // See ButtonFocusSkipper in app_list_bubble_view.cc for focus handling.
+  // See ButtonFocusSkipper in button_focus_skipper.cc for focus handling.
 }
 
 void AppListBubbleAppsPage::UpdateContinueSectionVisibility() {

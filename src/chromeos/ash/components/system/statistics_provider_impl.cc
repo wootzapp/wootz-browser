@@ -4,7 +4,6 @@
 
 #include "chromeos/ash/components/system/statistics_provider_impl.h"
 
-#include <array>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -47,7 +46,15 @@ const char kCrosSystemTool[] = "/usr/bin/crossystem";
 const char kCrosSystemValueError[] = "(error)";
 
 // Path to the tool to get VPD info.
-const char kVpdTool[] = "/usr/sbin/vpd";
+const char kFilteredVpdTool[] = "/usr/sbin/dump_filtered_vpd";
+
+// Exit codes for the dump_filtered_vpd tool.
+enum class DumpVpdExitCodes : int {
+  kValid = 0,
+  kRoInvalid = 1,
+  kRwInvalid = 2,
+  kBothInvalid = kRoInvalid | kRwInvalid,
+};
 
 // The location of OEM manifest file used to trigger OOBE flow for kiosk mode.
 const base::CommandLine::CharType kOemManifestFilePath[] =
@@ -178,34 +185,11 @@ bool HasOemPrefix(std::string_view name) {
 StatisticsProviderImpl::StatisticsSources CreateDefaultSources() {
   StatisticsProviderImpl::StatisticsSources sources;
   sources.crossystem_tool = base::CommandLine(base::FilePath(kCrosSystemTool));
-  sources.vpd_ro_tool =
-      std::vector<std::string>{kVpdTool, "-i", "RO_VPD", "-g"};
-  sources.vpd_rw_tool =
-      std::vector<std::string>{kVpdTool, "-i", "RW_VPD", "-g"};
+  sources.vpd_tool = base::CommandLine(base::FilePath(kFilteredVpdTool));
   sources.machine_info_filepath = GetFilePathIgnoreFailure(FILE_MACHINE_INFO);
   sources.oem_manifest_filepath = base::FilePath(kOemManifestFilePath);
   sources.cros_regions_filepath = base::FilePath(kCrosRegions);
   return sources;
-}
-
-bool GetVpdResult(const std::vector<std::string>& command_template,
-                  const std::string& key,
-                  std::string* output) {
-  CHECK(!command_template.empty());
-
-  std::vector<std::string> command = command_template;
-  command.push_back(key);
-
-  if (!base::PathExists(base::FilePath(command[0]))) {
-    LOG(WARNING) << "VPD tool not found: " << command[0];
-    return false;
-  }
-  if (!base::GetAppOutput(command, output)) {
-    // This happens when keys don't exist, which is OK.
-    VLOG(2) << "Error retrieving VPD key: " << base::JoinString(command, " ");
-    return false;
-  }
-  return true;
 }
 
 // Maps machine statistic name to the MachineStatistic variant in
@@ -219,8 +203,6 @@ std::string_view StatisticNameToMachineStatisticVariant(
           {kCheckEnrollmentKey, "CheckEnrollment"},
           {kShouldSendRlzPingKey, "ShouldSendRlzPing"},
           {kRlzEmbargoEndDateKey, "RlzEmbargoEndDate"},
-          {kEnterpriseManagementEmbargoEndDateKey,
-           "EnterpriseManagementEmbargoEndDate"},
           {kCustomizationIdKey, "CustomizationId"},
           {kDevSwitchBootKey, "DevswBoot"},
           {kDockMacAddressKey, "DockMac"},
@@ -303,7 +285,7 @@ StatisticsProviderImpl::StatisticsProviderImpl()
 
 StatisticsProviderImpl::StatisticsProviderImpl(StatisticsSources sources)
     : sources_(std::move(sources)),
-      load_statistics_started_(false),
+      loading_state_(LoadingState::kNotStarted),
       oem_manifest_loaded_(false),
       statistics_loaded_(base::WaitableEvent::ResetPolicy::MANUAL,
                          base::WaitableEvent::InitialState::NOT_SIGNALED) {}
@@ -312,8 +294,8 @@ StatisticsProviderImpl::~StatisticsProviderImpl() = default;
 
 void StatisticsProviderImpl::StartLoadingMachineStatistics(
     bool load_oem_manifest) {
-  CHECK(!load_statistics_started_);
-  load_statistics_started_ = true;
+  CHECK(!HasLoadingStarted());
+  loading_state_ = LoadingState::kStarted;
 
   VLOG(1) << "Started loading statistics. Load OEM Manifest: "
           << load_oem_manifest;
@@ -427,6 +409,11 @@ StatisticsProvider::VpdStatus StatisticsProviderImpl::GetVpdStatus() const {
   return vpd_status_;
 }
 
+StatisticsProvider::LoadingState StatisticsProviderImpl::GetLoadingState()
+    const {
+  return loading_state_;
+}
+
 void StatisticsProviderImpl::SignalStatisticsLoaded() {
   decltype(statistics_loaded_callbacks_) local_statistics_loaded_callbacks;
 
@@ -451,7 +438,7 @@ void StatisticsProviderImpl::SignalStatisticsLoaded() {
 
 bool StatisticsProviderImpl::WaitForStatisticsLoaded(
     std::string_view statistic_name) {
-  CHECK(load_statistics_started_);
+  CHECK(HasLoadingStarted());
   if (statistics_loaded_.IsSignaled()) {
     RecordStatisticsRequestLoadingTimeMetric(
         statistic_name,
@@ -539,6 +526,14 @@ void StatisticsProviderImpl::LoadMachineStatistics(bool load_oem_manifest) {
                    << crossystem_wpsw;
       machine_info_[kFirmwareWriteProtectCurrentKey] = crossystem_wpsw;
     }
+
+    // TODO(b/315929204): Remove temporary logging.
+    if (machine_info_.find(kFirmwareWriteProtectCurrentKey) ==
+        machine_info_.end()) {
+      LOG(WARNING) << "Write-protect value unknown.";
+    } else if (machine_info_[kFirmwareWriteProtectCurrentKey] != "1") {
+      LOG(WARNING) << "Write-protect disabled.";
+    }
   }
 
   if (load_oem_manifest) {
@@ -566,6 +561,7 @@ void StatisticsProviderImpl::LoadMachineStatistics(bool load_oem_manifest) {
   LoadRegionsFile(sources_.cros_regions_filepath,
                   it != machine_info_.end() ? it->second : "");
 
+  loading_state_ = LoadingState::kFinished;
   SignalStatisticsLoaded();
 }
 
@@ -618,75 +614,50 @@ void StatisticsProviderImpl::LoadMachineInfoFile() {
 }
 
 void StatisticsProviderImpl::LoadVpd() {
-  // Allow-list of keys we want to ingest. This avoids parsing problems with
-  // unexpected/undesired keys, and collisions between disparate tools.
-  constexpr std::array ro_keys{
-      kCustomizationIdKey,
-      kDockMacAddressKey,
-      kEthernetMacAddressKey,
-      kHardwareClassKey,
-      kManufactureDateKey,
-      kRlzBrandCodeKey,
-      kRegionKey,
-      kLegacySerialNumberKey,
-      kSerialNumberKey,
-      kInitialLocaleKey,
-      kInitialTimezoneKey,
-      kKeyboardLayoutKey,
-      kKeyboardMechanicalLayoutKey,
-      kAttestedDeviceIdKey,
-      kDisplayProfilesKey,
-      kMachineModelName,
-      kMachineOemName,
-  };
-  constexpr std::array rw_keys{
-      kActivateDateKey,      kBlockDevModeKey,
-      kCheckEnrollmentKey,   kShouldSendRlzPingKey,
-      kRlzEmbargoEndDateKey, kEnterpriseManagementEmbargoEndDateKey,
-      kOffersCouponCodeKey,  kOffersGroupCodeKey,
-  };
-
-  bool found_ro = false, found_rw = false;
-  for (const std::string& ro_key : ro_keys) {
-    std::string output;
-    if (GetVpdResult(sources_.vpd_ro_tool, ro_key, &output)) {
-      machine_info_[ro_key] = output;
-      found_ro = true;
-    }
-  }
-  for (const std::string& rw_key : rw_keys) {
-    std::string output;
-    if (GetVpdResult(sources_.vpd_rw_tool, rw_key, &output)) {
-      machine_info_[rw_key] = output;
-      found_rw = true;
-    }
-  }
-
-  if (!found_ro && !found_rw) {
-    if (base::SysInfo::IsRunningOnChromeOS()) {
-      // We couldn't find anything in VPD. Continue with loading the next
-      // source.
-      LOG(ERROR) << "Couldn't find any expected VPD keys";
-      vpd_status_ = VpdStatus::kInvalid;
-      return;
-    } else {
-      machine_info_[kActivateDateKey] = kDefaultActivateDateStub;
-    }
-  }
-
-  if (found_ro && found_rw) {
-    vpd_status_ = VpdStatus::kValid;
-  } else if (found_ro) {
-    vpd_status_ = VpdStatus::kRwInvalid;
-  } else if (found_rw) {
-    vpd_status_ = VpdStatus::kRoInvalid;
-  } else {
+  if (!base::SysInfo::IsRunningOnChromeOS()) {
+    machine_info_[kActivateDateKey] = kDefaultActivateDateStub;
     vpd_status_ = VpdStatus::kInvalid;
+    return;
   }
 
-  LOG_IF(ERROR, vpd_status_ != VpdStatus::kValid)
-      << "Detected invalid VPD state: "
-      << static_cast<std::underlying_type_t<VpdStatus>>(vpd_status_);
+  NameValuePairsParser parser(&machine_info_);
+
+  std::string output;
+  int exit_code;
+  if (!base::GetAppOutputWithExitCode(sources_.vpd_tool, &output, &exit_code)) {
+    LOG(ERROR) << "Failed to run VPD tool: " << sources_.vpd_tool.GetProgram();
+    vpd_status_ = VpdStatus::kInvalid;
+    return;
+  }
+  if (!parser.ParseNameValuePairsFromString(output,
+                                            NameValuePairsFormat::kVpdDump)) {
+    LOG(ERROR) << "Errors parsing output from: "
+               << sources_.vpd_tool.GetProgram();
+    vpd_status_ = VpdStatus::kInvalid;
+    return;
+  }
+
+  switch (exit_code) {
+    case static_cast<int>(DumpVpdExitCodes::kValid):
+      vpd_status_ = VpdStatus::kValid;
+      break;
+    case static_cast<int>(DumpVpdExitCodes::kRoInvalid):
+      vpd_status_ = VpdStatus::kRoInvalid;
+      break;
+    case static_cast<int>(DumpVpdExitCodes::kRwInvalid):
+      vpd_status_ = VpdStatus::kRwInvalid;
+      break;
+    case static_cast<int>(DumpVpdExitCodes::kBothInvalid):
+      vpd_status_ = VpdStatus::kInvalid;
+      break;
+    default:
+      vpd_status_ = VpdStatus::kInvalid;
+      LOG(ERROR) << "Unexpected return code from: "
+                 << sources_.vpd_tool.GetProgram() << ", " << exit_code;
+      break;
+  };
+
+  VLOG(1) << "VPD dump exit status: " << exit_code;
 }
 
 void StatisticsProviderImpl::LoadOemManifestFromFile(
@@ -757,6 +728,10 @@ std::optional<std::string_view> StatisticsProviderImpl::GetRegionalInformation(
   }
 
   return std::nullopt;
+}
+
+bool StatisticsProviderImpl::HasLoadingStarted() const {
+  return loading_state_ != LoadingState::kNotStarted;
 }
 
 }  // namespace ash::system

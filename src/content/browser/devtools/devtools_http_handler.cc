@@ -34,8 +34,8 @@
 #include "base/threading/thread.h"
 #include "base/uuid.h"
 #include "base/values.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "content/browser/devtools/devtools_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -47,7 +47,6 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
-#include "content/public/common/user_agent.h"
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
@@ -89,17 +88,13 @@ const char kTargetUrlField[] = "url";
 const char kTargetFaviconUrlField[] = "faviconUrl";
 const char kTargetWebSocketDebuggerUrlField[] = "webSocketDebuggerUrl";
 const char kTargetDevtoolsFrontendUrlField[] = "devtoolsFrontendUrl";
+const char kMissingGitRevision[] = "@0000000000000000000000000000000000000000";
 
 const int32_t kSendBufferSizeForDevTools = 256 * 1024 * 1024;  // 256Mb
 const int32_t kReceiveBufferSizeForDevTools = 100 * 1024 * 1024;  // 100Mb
 
 const char kRemoteUrlPattern[] =
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "https://chrome-devtools-frontend.appspot.com/serve_internal_file/%s/"
-    "%s.html";
-#else
     "https://chrome-devtools-frontend.appspot.com/serve_rev/%s/%s.html";
-#endif
 
 constexpr net::NetworkTrafficAnnotationTag
     kDevtoolsHttpHandlerTrafficAnnotation =
@@ -356,8 +351,7 @@ class DevToolsAgentHostClientImpl : public DevToolsAgentHostClient {
     constexpr char kMsg[] =
         "{\"method\":\"Inspector.detached\","
         "\"params\":{\"reason\":\"target_closed\"}}";
-    DispatchProtocolMessage(
-        agent_host, base::as_bytes(base::make_span(kMsg, strlen(kMsg))));
+    DispatchProtocolMessage(agent_host, base::byte_span_from_cstring(kMsg));
 
     agent_host_ = nullptr;
     task_runner_->PostTask(
@@ -420,6 +414,8 @@ static std::string GetMimeType(const std::string& filename) {
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "text/css";
   } else if (base::EndsWith(filename, ".js",
+                            base::CompareCase::INSENSITIVE_ASCII) ||
+             base::EndsWith(filename, ".mjs",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "text/javascript";
   } else if (base::EndsWith(filename, ".png",
@@ -522,15 +518,16 @@ std::string DevToolsHttpHandler::GetFrontendURLInternal(
     const std::string& id,
     const std::string& host) {
   std::string frontend_url;
-  if (delegate_->HasBundledFrontendResources()) {
+  std::string git_revision = embedder_support::GetChromiumGitRevision();
+  if (git_revision == kMissingGitRevision &&
+      delegate_->HasBundledFrontendResources()) {
     frontend_url = "/devtools/inspector.html";
   } else {
     std::string type = agent_host->GetType();
     bool is_worker = type == DevToolsAgentHost::kTypeServiceWorker ||
                      type == DevToolsAgentHost::kTypeSharedWorker;
-    frontend_url =
-        base::StringPrintf(kRemoteUrlPattern, GetChromiumGitRevision().c_str(),
-                           is_worker ? "worker_app" : "inspector");
+    frontend_url = base::StringPrintf(kRemoteUrlPattern, git_revision.c_str(),
+                                      is_worker ? "worker_app" : "inspector");
   }
   return base::StringPrintf("%s?ws=%s%s%s", frontend_url.c_str(), host.c_str(),
                             kPageUrlPrefix, id.c_str());
@@ -590,7 +587,7 @@ void DevToolsHttpHandler::OnJsonRequest(
   if (command == "version") {
     base::Value::Dict version;
     version.Set("Protocol-Version", DevToolsAgentHost::GetProtocolVersion());
-    version.Set("WebKit-Version", GetWebKitVersion());
+    version.Set("WebKit-Version", embedder_support::GetWebKitVersion());
     version.Set("Browser", GetContentClient()->browser()->GetProduct());
     version.Set("User-Agent", GetContentClient()->browser()->GetUserAgent());
     version.Set("V8-Version", V8_VERSION_STRING);
@@ -646,9 +643,11 @@ void DevToolsHttpHandler::OnJsonRequest(
       url = GURL(url::kAboutBlankURL);
     // TODO(dsv): Remove for "for_tab" support once DevTools Frontend
     // no longer needs it for e2e tests
-    scoped_refptr<DevToolsAgentHost> agent_host = delegate_->CreateNewTarget(
-        url, for_tab ? DevToolsManagerDelegate::kTab
-                     : DevToolsManagerDelegate::kFrame);
+    scoped_refptr<DevToolsAgentHost> agent_host =
+        delegate_->CreateNewTarget(url,
+                                   for_tab ? DevToolsManagerDelegate::kTab
+                                           : DevToolsManagerDelegate::kFrame,
+                                   /*new_window=*/false);
     if (!agent_host) {
       SendJson(connection_id, net::HTTP_INTERNAL_SERVER_ERROR, std::nullopt,
                "Could not create new page");
@@ -696,7 +695,7 @@ void DevToolsHttpHandler::OnJsonRequest(
 
 void DevToolsHttpHandler::DecompressAndSendJsonProtocol(int connection_id) {
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_IOS)
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 #else
   scoped_refptr<base::RefCountedMemory> bytes =
       GetContentClient()->GetDataResourceBytes(kCcompressedProtocolJSON);
@@ -742,7 +741,7 @@ void DevToolsHttpHandler::OnDiscoveryPageRequest(int connection_id) {
 
 void DevToolsHttpHandler::OnFrontendResourceRequest(
     int connection_id, const std::string& path) {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS) || BUILDFLAG(IS_FUCHSIA)
   Send404(connection_id);
 #else
   Send200(connection_id,
@@ -812,7 +811,7 @@ void DevToolsHttpHandler::OnWebSocketMessage(int connection_id,
                                              std::string data) {
   auto it = connection_to_client_.find(connection_id);
   if (it != connection_to_client_.end()) {
-    it->second->OnMessage(base::as_bytes(base::make_span(data)));
+    it->second->OnMessage(base::as_byte_span(data));
   }
 }
 

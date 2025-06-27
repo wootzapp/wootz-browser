@@ -88,11 +88,6 @@ chromium-metrics-reviews@google.com.
   <int value="8" label="NOT_SENT_UNCONSENTED"/>
 </enum>
 
-<enum name="BackoffReportErrorReason">
-  <int value="0" label="InvalidKey"/>
-  <int value="1" label="ResponseError"/>
-</enum>
-
 <enum name="BooleanBackoff">
   <int value="0" label="No backoff"/>
   <int value="1" label="Backoff mode enabled"/>
@@ -123,14 +118,14 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Is prefetch"/>
 </enum>
 
-<enum name="BooleanIsSubresource">
-  <int value="0" label="Mainframe"/>
-  <int value="1" label="Subresource"/>
-</enum>
-
 <enum name="BooleanManagedPref">
   <int value="0" label="Unmanaged Pref"/>
   <int value="1" label="Managed Pref"/>
+</enum>
+
+<enum name="BooleanRepeatVisit">
+  <int value="0" label="Never visited before"/>
+  <int value="1" label="Visited before"/>
 </enum>
 
 <enum name="BooleanSafeBrowsingApiUnknownException">
@@ -138,9 +133,14 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Unknown exception"/>
 </enum>
 
-<enum name="BooleanSentOrReceived">
-  <int value="0" label="Sent"/>
-  <int value="1" label="Received"/>
+<enum name="BooleanSameURL">
+  <int value="0" label="Different URL"/>
+  <int value="1" label="Same URL"/>
+</enum>
+
+<enum name="BooleanSubsequentResponse">
+  <int value="0" label="Initial Response"/>
+  <int value="1" label="Subsequent Response"/>
 </enum>
 
 <enum name="BooleanTransferred">
@@ -163,6 +163,12 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="kSuccess"/>
   <int value="1" label="kFailedCreateDirectory"/>
   <int value="2" label="kFailedWriteFile"/>
+</enum>
+
+<enum name="ClientReportSendDownloadReportResult">
+  <int value="0" label="SUCCESS"/>
+  <int value="1" label="SERIALIZATION_ERROR"/>
+  <int value="2" label="EMPTY_REPORT"/>
 </enum>
 
 <enum name="ClientSafeBrowsingReportType">
@@ -189,6 +195,11 @@ chromium-metrics-reviews@google.com.
   <int value="24" label="Abusive notification permission accepted"/>
   <int value="25" label="dangerous download auto deleted"/>
   <int value="26" label="dangerous download canceled on profile closure"/>
+</enum>
+
+<enum name="DisplayPersistentNotificationEvents">
+  <int value="0" label="Request to display persistent notification"/>
+  <int value="1" label="Finished displaying persistent notification"/>
 </enum>
 
 <enum name="SafeBrowsingAllowlistAsyncMatch">
@@ -275,6 +286,16 @@ chromium-metrics-reviews@google.com.
   <int value="6" label="SUCCESS_REFERRER"/>
 </enum>
 
+<enum name="SafeBrowsingAuthenticatedEndpoint">
+  <int value="0" label="Deep scanning"/>
+  <int value="1" label="Download protection"/>
+  <int value="2" label="Extension telemetry"/>
+  <int value="3" label="Client side detection"/>
+  <int value="4" label="Password protection"/>
+  <int value="5" label="Threat details"/>
+  <int value="6" label="Realtime URL lookup"/>
+</enum>
+
 <enum name="SafeBrowsingBinaryUploadResult">
   <int value="0" label="Unknown"/>
   <int value="1" label="Success"/>
@@ -286,35 +307,12 @@ chromium-metrics-reviews@google.com.
   <int value="7" label="File encrypted"/>
   <int value="8" label="Unsupported file type"/>
   <int value="9" label="Too many requests"/>
+  <int value="10" label="Incomplete response"/>
 </enum>
 
-<enum name="SafeBrowsingDelayedWarningEvent">
-  <int value="0" label="User loaded a page with a delayed warning"/>
-  <int value="1" label="User left the page and the warning was never shown"/>
-  <int value="2" label="The warning is shown because the user pressed a key"/>
-  <int value="3"
-      label="User clicked on the page at least once but the feature isn't
-             configured to show warnings on mouse clicks."/>
-  <int value="4" label="User clicked on the page and the warning was shown."/>
-  <int value="5"
-      label="Page tried to enter fullscreen mode and the warning was shown."/>
-  <int value="6"
-      label="Page initiated a download and it was silently cancelled."/>
-  <int value="7"
-      label="The page triggered a permission request. It was denied and the
-             warning was shown."/>
-  <int value="8"
-      label="The page tried to display a JavaScript dialog
-             (alert/confirm/prompt). It was blocked and the warning was
-             shown."/>
-  <int value="9"
-      label="A password or autofill request was denied at least once and the
-             warning was never shown."/>
-  <int value="10"
-      label="The page triggered a desktop capture request. It was denied and
-             the warning was shown."/>
-  <int value="11"
-      label="User pasted something on the page and the warning was shown."/>
+<enum name="SafeBrowsingCheckUrlAction">
+  <int value="0" label="URL was checked."/>
+  <int value="1" label="URL was classified as unsafe."/>
 </enum>
 
 <enum name="SafeBrowsingEnhancedProtegoPingType">
@@ -323,6 +321,15 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="WithToken"/>
   <int value="3" label="WithoutToken"/>
 </enum>
+
+<!-- LINT.IfChange(SafeBrowsingEsbDownloadRowPromoOutcome) -->
+
+<enum name="SafeBrowsingEsbDownloadRowPromoOutcome">
+  <int value="0" label="Shown"/>
+  <int value="1" label="Clicked"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/ui/webui/downloads/downloads_dom_handler.h:SafeBrowsingEsbDownloadRowPromoOutcome) -->
 
 <enum name="SafeBrowsingHPRTOperationOutcome">
   <int value="0" label="Success"/>
@@ -336,7 +343,7 @@ chromium-metrics-reviews@google.com.
   <int value="8" label="Result found in local cache"/>
   <int value="9" label="Service is in backoff mode"/>
   <int value="10" label="OHTTP key fetch failed"/>
-  <int value="11" label="No OHTTP key service"/>
+  <int value="11" label="(Deprecated) No OHTTP key service"/>
 </enum>
 
 <enum name="SafeBrowsingOhttpFetchKeyTriggerReason">
@@ -382,14 +389,17 @@ chromium-metrics-reviews@google.com.
 
 <enum name="SafeBrowsingRTConsumerVersionReason">
   <int value="0" label="Total checks"/>
-  <int value="1" label="Off the record"/>
+  <int value="1" label="[Deprecated] Off the record"/>
   <int value="2" label="No valid DM token"/>
   <int value="3" label="Policy not set"/>
+  <int value="4" label="Incognito"/>
 </enum>
 
 <enum name="SafeBrowsingRTLookupResponseVerdictType">
   <int value="0" label="VERDICT_TYPE_UNSPECIFIED"/>
   <int value="1" label="SAFE"/>
+  <int value="50" label="SUSPICIOUS"/>
+  <int value="75" label="WARN"/>
   <int value="100" label="DANGEROUS"/>
 </enum>
 
@@ -500,6 +510,7 @@ chromium-metrics-reviews@google.com.
   <int value="10" label="UNEXPECTED_COMPRESSION_TYPE_REMOVALS_FAILURE"/>
   <int value="11" label="CHECKSUM_MISMATCH_FAILURE"/>
   <int value="12" label="MMAP_FAILURE"/>
+  <int value="13" label="READ_FAILURE_NOT_SORTED"/>
 </enum>
 
 <enum name="SafeBrowsingV4DecodeResult">
@@ -557,6 +568,16 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="UNEXPECTED_BYTES_WRITTEN_FAILURE"/>
   <int value="4" label="UNABLE_TO_RENAME_FAILURE"/>
 </enum>
+
+<!-- LINT.IfChange(SafeBrowsingV4UpdateType) -->
+
+<enum name="SafeBrowsingV4UpdateType">
+  <int value="0" label="Invalid update"/>
+  <int value="1" label="Full update"/>
+  <int value="2" label="Partial update"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/safe_browsing/core/browser/db/v4_store.h:ApplyUpdateType) -->
 
 <enum name="SafetyCheckWarningReason">
   <int value="1" label="Unpublished"/>
@@ -644,6 +665,40 @@ chromium-metrics-reviews@google.com.
   <int value="25" label="(Obsolete) Accuracy Tips. Deprecated as of 12/2022."/>
 </enum>
 
+<enum name="SiteFamiliarityHeuristicName">
+  <summary>
+    Descriptive names of heuristics that may be used to determine if a site is a
+    familiar to the user.
+  </summary>
+  <int value="0" label="NO_HEURISTIC_MATCH"/>
+  <int value="1" label="GLOBAL_ALLOWLIST_MATCH"/>
+  <int value="2" label="VISITED_MORE_THAN_A_DAY_AGO"/>
+  <int value="3" label="VISITED_MORE_THAN_FOUR_HOURS_AGO"/>
+  <int value="4" label="SITE_ENGAGEMENT_SCORE_GTE_50"/>
+  <int value="5" label="SITE_ENGAGEMENT_SCORE_GTE_25"/>
+  <int value="6" label="SITE_ENGAGEMENT_SCORE_GTE_10"/>
+  <int value="7" label="SITE_ENGAGEMENT_SCORE_EXISTS"/>
+  <int value="8" label="NO_VISITS_TO_ANY_SITE_MORE_THAN_A_DAY_AGO"/>
+  <int value="9" label="GLOBAL_ALLOWLIST_NOT_READY"/>
+  <int value="10" label="FAMILIAR_LIKELY_PREVIOUSLY_UNFAMILIAR"/>
+</enum>
+
+<enum name="SiteFamiliarityHistoryHeuristicName">
+  <int value="0" label="NO_HEURISTIC_MATCH"/>
+  <int value="1" label="VISITED_MORE_THAN_A_DAY_AGO"/>
+  <int value="2" label="VISITED_MORE_THAN_FOUR_HOURS_AGO"/>
+  <int value="3" label="NO_VISITS_TO_ANY_SITE_MORE_THAN_A_DAY_AGO"/>
+  <int value="4" label="VISITED_MORE_THAN_A_DAY_AGO_PREVIOUSLY_UNFAMILIAR"/>
+</enum>
+
+<enum name="SuspiciousNotificationWarningInteractions">
+  <int value="0" label="WARNING_SHOWN"/>
+  <int value="1" label="SHOW_ORIGINAL_NOTIFICATION"/>
+  <int value="2" label="UNSUBSCRIBE"/>
+  <int value="3" label="ALWAYS_ALLOW"/>
+  <int value="4" label="DISMISS"/>
+</enum>
+
 <enum name="SuspiciousSiteTriggerEvent">
   <int value="0" label="A page load started"/>
   <int value="1" label="A page load finished"/>
@@ -673,6 +728,39 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="A report has started"/>
   <int value="4" label="The trigger is in monitoring mode"/>
 </enum>
+
+<!-- LINT.IfChange(SyncedEsbOutcome) -->
+
+<enum name="SyncedEsbOutcome">
+  <int value="0" label="Shown"/>
+  <int value="1" label="AcceptedOk"/>
+  <int value="2" label="AcceptedTurnOn"/>
+  <int value="3" label="Dismissed"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/safe_browsing/tailored_security/consented_message_android.cc:SyncedEsbOutcome) -->
+
+<enum name="URTAndBackgroundHPRTResult">
+  <int value="0" label="UrtSafeAndHprtUnfinished"/>
+  <int value="1" label="UrtUnsafeAndHprtUnfinished"/>
+  <int value="2" label="UrtSafeAndHprtSafe"/>
+  <int value="3" label="UrtSafeAndHprtUnsafe"/>
+  <int value="4" label="UrtUnsafeAndHprtSafe"/>
+  <int value="5" label="UrtUnsafeAndHprtUnsafe"/>
+</enum>
+
+<!-- LINT.IfChange(V4HashPrefixMapWriteError) -->
+
+<enum name="V4HashPrefixMapWriteError">
+  <int value="0" label="Error writing file to disk"/>
+  <int value="1" label="File size not a multiple of prefix size"/>
+  <int value="2" label="File not found"/>
+  <int value="3" label="File size does not match metadata"/>
+  <int value="4" label="Failed to memory map file"/>
+  <int value="5" label="Memory mapped region has wrong size"/>
+</enum>
+
+<!-- LINT.ThenChange(//components/safe_browsing/core/browser/db/hash_prefix_map.cc:WriteError) -->
 
 </enums>
 

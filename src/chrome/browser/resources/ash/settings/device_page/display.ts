@@ -25,8 +25,9 @@ import 'chrome://resources/ash/common/cr_elements/cr_slider/cr_slider.js';
 import 'chrome://resources/ash/common/cr_elements/cr_shared_style.css.js';
 
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
-import {CrCheckboxElement} from 'chrome://resources/ash/common/cr_elements/cr_checkbox/cr_checkbox.js';
-import {CrSliderElement, SliderTick} from 'chrome://resources/ash/common/cr_elements/cr_slider/cr_slider.js';
+import type {CrCheckboxElement} from 'chrome://resources/ash/common/cr_elements/cr_checkbox/cr_checkbox.js';
+import type {SliderTick} from 'chrome://resources/ash/common/cr_elements/cr_slider/cr_slider.js';
+import {CrSliderElement} from 'chrome://resources/ash/common/cr_elements/cr_slider/cr_slider.js';
 import {CrToggleElement} from 'chrome://resources/ash/common/cr_elements/cr_toggle/cr_toggle.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {strictQuery} from 'chrome://resources/ash/common/typescript_utils/strict_query.js';
@@ -37,17 +38,20 @@ import {flush, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/pol
 
 import {assertExists, cast, castExists} from '../assert_extras.js';
 import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
-import {isDisplayBrightnessControlInSettingsEnabled, isRevampWayfindingEnabled} from '../common/load_time_booleans.js';
+import {isDisplayBrightnessControlInSettingsEnabled} from '../common/load_time_booleans.js';
 import {RouteObserverMixin} from '../common/route_observer_mixin.js';
-import {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
-import {SettingsSliderElement} from '../controls/settings_slider.js';
-import {AmbientLightSensorObserverReceiver, DisplayBrightnessSettingsObserverReceiver, DisplayConfigurationObserverReceiver, DisplaySettingsOrientationOption, DisplaySettingsProviderInterface, DisplaySettingsType, DisplaySettingsValue, TabletModeObserverReceiver} from '../mojom-webui/display_settings_provider.mojom-webui.js';
+import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
+import type {SettingsSliderElement} from '../controls/settings_slider.js';
+import type {DisplaySettingsProviderInterface, DisplaySettingsValue} from '../mojom-webui/display_settings_provider.mojom-webui.js';
+import {AmbientLightSensorObserverReceiver, DisplayBrightnessSettingsObserverReceiver, DisplayConfigurationObserverReceiver, DisplaySettingsOrientationOption, DisplaySettingsType, TabletModeObserverReceiver} from '../mojom-webui/display_settings_provider.mojom-webui.js';
 import {Setting} from '../mojom-webui/setting.mojom-webui.js';
-import {Route, routes} from '../router.js';
+import type {Route} from '../router.js';
+import {routes} from '../router.js';
 
-import {DevicePageBrowserProxy, DevicePageBrowserProxyImpl, getDisplayApi} from './device_page_browser_proxy.js';
+import type {DevicePageBrowserProxy} from './device_page_browser_proxy.js';
+import {DevicePageBrowserProxyImpl, getDisplayApi} from './device_page_browser_proxy.js';
 import {getTemplate} from './display.html.js';
-import {SettingsDisplayOverscanDialogElement} from './display_overscan_dialog.js';
+import type {SettingsDisplayOverscanDialogElement} from './display_overscan_dialog.js';
 import {getDisplaySettingsProvider} from './display_settings_mojo_interface_provider.js';
 
 import DisplayLayout = chrome.system.display.DisplayLayout;
@@ -93,6 +97,11 @@ export interface SettingsDisplayElement {
 const SettingsDisplayElementBase =
     DeepLinkingMixin(PrefsMixin(RouteObserverMixin(I18nMixin(PolymerElement))));
 
+// Set the MIN_VISIBLE_PERCENT to 10%. The lowest brightness that the slider can
+// go is 5%, so the slider appears the same at 0% and 5%. Therefore, the minimum
+// visible percent should be greater than 5%.
+const MIN_VISIBLE_PERCENT = 10;
+
 export class SettingsDisplayElement extends SettingsDisplayElementBase {
   static get is() {
     return 'settings-display';
@@ -104,14 +113,6 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
 
   static get properties() {
     return {
-      isRevampWayfindingEnabled_: {
-        type: Boolean,
-        value: () => {
-          return isRevampWayfindingEnabled();
-        },
-        readOnly: true,
-      },
-
       selectedModePref_: {
         type: Object,
         value() {
@@ -204,6 +205,20 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
         },
       },
 
+      excludeDisplayInMirrorModeEnabled_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('excludeDisplayInMirrorModeEnabled');
+        },
+      },
+
+      opsDisplayScaleFactorEnabled_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('opsDisplayScaleFactorEnabled');
+        },
+      },
+
       unifiedDesktopMode_: {
         type: Boolean,
         value: false,
@@ -266,25 +281,6 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
         type: Number,
         value: null,
       },
-
-      /**
-       * Used by DeepLinkingMixin to focus this page's deep links.
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set<Setting>([
-          Setting.kDisplaySize,
-          Setting.kDisplayOrientation,
-          Setting.kDisplayArrangement,
-          Setting.kDisplayResolution,
-          Setting.kDisplayRefreshRate,
-          Setting.kDisplayMirroring,
-          Setting.kAllowWindowsToSpanDisplays,
-          Setting.kAmbientColors,
-          Setting.kTouchscreenCalibration,
-          Setting.kDisplayOverscan,
-        ]),
-      },
     };
   }
 
@@ -305,6 +301,22 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   overscanDisplayId: string;
   primaryDisplayId: string;
   selectedDisplay?: DisplayUnitInfo;
+
+  // DeepLinkingMixin override
+  override supportedSettingIds = new Set<Setting>([
+    Setting.kDisplaySize,
+    Setting.kDisplayOrientation,
+    Setting.kDisplayArrangement,
+    Setting.kDisplayResolution,
+    Setting.kDisplayRefreshRate,
+    Setting.kDisplayMirroring,
+    Setting.kAllowWindowsToSpanDisplays,
+    Setting.kAmbientColors,
+    Setting.kTouchscreenCalibration,
+    Setting.kDisplayOverscan,
+  ]);
+
+  private readonly ambientColorAvailable_: boolean;
   private browserProxy_: DevicePageBrowserProxy;
   private brightnessSliderMax_: number;
   private brightnessSliderMin_: number;
@@ -316,16 +328,19 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   private displayModeList_: DropdownMenuOptionList;
   private displaySettingsProvider: DisplaySettingsProviderInterface;
   private displayTabNames_: string[];
+  private readonly excludeDisplayInMirrorModeEnabled_: boolean;
   private hasAmbientLightSensor_: boolean;
   private invalidDisplayId_: string;
   private isAmbientLightSensorEnabled_: boolean;
   private isDisplayPerformanceEnabled_: boolean;
-  private readonly isRevampWayfindingEnabled_: boolean;
+  private readonly isDisplayPerformanceSupported_: boolean;
   private isTabletMode_: boolean;
   private listAllDisplayModes_: boolean;
   private logicalResolutionText_: string;
+  private mirroringExcludedId_: string;
   private modeToParentModeMap_: Map<number, number>;
   private modeValues_: number[];
+  private opsDisplayScaleFactorEnabled_: boolean;
   private parentModeToRefreshRateMap_: Map<number, DropdownMenuOptionList>;
   private pendingSettingId_: Setting|null;
   private refreshRateList_: DropdownMenuOptionList;
@@ -333,6 +348,7 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   private selectedParentModePref_: chrome.settingsPrivate.PrefObject;
   private selectedTab_: number;
   private selectedZoomPref_: chrome.settingsPrivate.PrefObject;
+  private readonly unifiedDesktopAvailable_: boolean;
   private unifiedDesktopMode_: boolean;
   private zoomValues_: SliderTick[];
 
@@ -357,6 +373,8 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
     this.displayChangedListener_ = null;
 
     this.invalidDisplayId_ = loadTimeData.getString('invalidDisplayId');
+
+    this.mirroringExcludedId_ = this.invalidDisplayId_;
 
     this.currentRoute_ = null;
 
@@ -449,7 +467,18 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   /**
    * Implements DisplayBrightnessSettingsObserver.OnDisplayBrightnessChanged.
    */
-  onDisplayBrightnessChanged(brightnessPercent: number): void {
+  onDisplayBrightnessChanged(
+      brightnessPercent: number, triggeredByAls: boolean): void {
+    if (triggeredByAls && brightnessPercent > 0 &&
+        brightnessPercent < MIN_VISIBLE_PERCENT) {
+      // When auto-brightness is enabled, it's likely that the automated
+      // brightness percentage will fall between 0% and 10%. To avoid confusion
+      // where the user cannot distinguish between the screen being off (0%)
+      // and low brightness levels, set the slider to a minimum visible
+      // percentage (10%).
+      this.currentInternalScreenBrightness_ = MIN_VISIBLE_PERCENT;
+      return;
+    }
     this.currentInternalScreenBrightness_ = brightnessPercent;
   }
 
@@ -532,6 +561,20 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
             this.displayLayoutFetched_(displays, layouts));
     if (this.isMirrored(displays)) {
       this.mirroringDestinationIds = displays[0].mirroringDestinationIds;
+      // If the display length is not 1, it means we are in mixed mirror mode,
+      // so we need to update mirroringExcludedId_.
+      if (displays.length !== 1) {
+        const mirroringSourceId = displays[0].mirroringSourceId;
+        this.mirroringExcludedId_ =
+            this.displays
+                .filter(
+                    display =>
+                        !this.mirroringDestinationIds.includes(display.id) &&
+                        display.id !== mirroringSourceId)[0]
+                .id;
+      } else {
+        this.mirroringExcludedId_ = this.invalidDisplayId_;
+      }
     } else {
       this.mirroringDestinationIds = [];
     }
@@ -942,6 +985,13 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   }
 
   /**
+   * Returns true if external touch devices are connected a
+   */
+  private showTouchRemappingExperience_(): boolean {
+    return loadTimeData.getBoolean('enableTouchscreenMappingExperience');
+  }
+
+  /**
    * Returns true if the overscan setting should be shown for |display|.
    */
   private showOverscanSetting_(display: DisplayUnitInfo): boolean {
@@ -1042,6 +1092,28 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
         !!displays[0].mirroringSourceId;
   }
 
+  private showExcludeInMirror_(
+      unifiedDesktopMode: boolean,
+      excludeDisplayInMirrorModeEnabled: boolean,
+      allowExcludeDisplayInMirrorModePref: boolean,
+      displays: DisplayUnitInfo[],
+      selectedDisplay: DisplayUnitInfo): boolean {
+    if (!selectedDisplay) {
+      return false;
+    }
+    if (this.isMirrored(displays)) {
+      return selectedDisplay.id === this.mirroringExcludedId_;
+    }
+    if (!excludeDisplayInMirrorModeEnabled &&
+        !allowExcludeDisplayInMirrorModePref) {
+      return false;
+    }
+    if (displays.length < 3) {
+      return false;
+    }
+    return this.showMirror(unifiedDesktopMode, displays);
+  }
+
   private isSelected_(
       display: DisplayUnitInfo, selectedDisplay: DisplayUnitInfo): boolean {
     return display.id === selectedDisplay.id;
@@ -1104,7 +1176,8 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
    */
   private updateLogicalResolutionText_(zoomFactor: number): void {
     assertExists(this.selectedDisplay);
-    if (!this.selectedDisplay.isInternal) {
+    if (!this.selectedDisplay.isInternal &&
+        !this.opsDisplayScaleFactorEnabled_) {
       this.logicalResolutionText_ = '';
       return;
     }
@@ -1192,6 +1265,10 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
    */
   private onTouchCalibrationClick_(): void {
     getDisplayApi().showNativeTouchCalibration(this.selectedDisplay!.id);
+  }
+
+  private onTouchMappingClick_(): void {
+    this.displaySettingsProvider.startNativeTouchscreenMappingExperience();
   }
 
   /**
@@ -1420,8 +1497,41 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
     (event.currentTarget as CrCheckboxElement).blur();
 
     const mirrorModeInfo: MirrorModeInfo = {
-      mode: this.isMirrored(this.displays) ? MirrorMode.OFF : MirrorMode.NORMAL,
+      mode: this.isMirrored(this.displays) ? MirrorMode.OFF :
+          this.mirroringExcludedId_ === this.invalidDisplayId_ ?
+                                             MirrorMode.NORMAL :
+                                             MirrorMode.MIXED,
     };
+    if (mirrorModeInfo.mode === MirrorMode.MIXED) {
+      const mirroredDisplay = this.displayIds.split(',').filter(
+          display => (display !== this.mirroringExcludedId_));
+      mirrorModeInfo.mirroringSourceId = mirroredDisplay[0];
+      mirrorModeInfo.mirroringDestinationIds = mirroredDisplay.slice(1);
+    }
+    this.setMirrorMode(mirrorModeInfo);
+  }
+
+  private shouldExcludeInMirror_(selectedDisplay: DisplayUnitInfo): boolean {
+    return this.mirroringExcludedId_ === selectedDisplay.id;
+  }
+
+  private onExcludeInMirrorClick_(event: Event): void {
+    (event.currentTarget as CrToggleElement).blur();
+    assertExists(this.selectedDisplay);
+    if (this.mirroringExcludedId_ === this.selectedDisplay.id) {
+      this.mirroringExcludedId_ = this.invalidDisplayId_;
+    } else {
+      this.mirroringExcludedId_ = this.selectedDisplay.id;
+    }
+    if (this.isMirrored(this.displays)) {
+      const mirrorModeInfo: MirrorModeInfo = {
+        mode: MirrorMode.NORMAL,
+      };
+      this.setMirrorMode(mirrorModeInfo);
+    }
+  }
+
+  private setMirrorMode(mirrorModeInfo: MirrorModeInfo): void {
     getDisplayApi().setMirrorMode(mirrorModeInfo).then(() => {
       const error = chrome.runtime.lastError;
       if (error) {
@@ -1430,7 +1540,7 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
     });
     this.displaySettingsProvider.recordChangingDisplaySettings(
         DisplaySettingsType.kMirrorMode, /*value=*/ createDisplayValue({
-          mirrorModeStatus: mirrorModeInfo.mode === MirrorMode.NORMAL,
+          mirrorModeStatus: mirrorModeInfo.mode !== MirrorMode.OFF,
         }));
   }
 

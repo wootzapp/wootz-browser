@@ -11,10 +11,9 @@
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
-#include "build/branding_buildflags.h"
-#include "chrome/browser/chromeos/mahi/mahi_web_contents_manager.h"
 #include "chrome/browser/ui/views/mahi/mahi_menu_constants.h"
 #include "chromeos/components/mahi/public/cpp/mahi_util.h"
+#include "chromeos/components/mahi/public/cpp/mahi_web_contents_manager.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -35,28 +34,13 @@
 #include "ui/views/view_shadow.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#include "chrome/app/theme/google_chrome/chromeos/strings/grit/chromeos_chrome_internal_strings.h"
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-
 namespace chromeos::mahi {
 
 namespace {
 
-constexpr auto kCondensedMenuMargins = gfx::Insets::VH(8, 0);
-
 constexpr int kButtonIconSize = 16;
 constexpr int kButtonIconLabelSpacing = 8;
-constexpr auto kButtonBorderInsets = gfx::Insets::VH(4, 16);
-
-// TODO(b/331127382): Finalize the Mahi condensed menu button text.
-std::u16string GetMahiCondensedMenuButtonText() {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  return l10n_util::GetStringUTF16(IDS_MAHI_CONDENSED_MENU_BUTTON_LABEL);
-#else
-  return l10n_util::GetStringUTF16(IDS_MAHI_CONDENSED_MENU_BUTTON_LABEL_SHORT);
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-}
+constexpr auto kButtonBorderInsets = gfx::Insets::VH(12, 16);
 
 // View for the button which makes up most of the condensed Mahi menu.
 class MahiCondensedMenuButton : public views::LabelButton {
@@ -66,7 +50,8 @@ class MahiCondensedMenuButton : public views::LabelButton {
   MahiCondensedMenuButton() {
     SetCallback(base::BindRepeating(&MahiCondensedMenuButton::OnButtonClicked,
                                     weak_ptr_factory_.GetWeakPtr()));
-    SetText(GetMahiCondensedMenuButtonText());
+    SetText(
+        l10n_util::GetStringUTF16(IDS_ASH_MAHI_CONDENSED_MENU_BUTTON_LABEL));
     SetLabelStyle(views::style::STYLE_BODY_3_EMPHASIS);
     SetImageModel(views::Button::ButtonState::STATE_NORMAL,
                   ui::ImageModel::FromVectorIcon(
@@ -92,12 +77,14 @@ class MahiCondensedMenuButton : public views::LabelButton {
  private:
   void OnButtonClicked() {
     // TODO(b/324647147): Add separate button type for condensed menu.
-    ::mahi::MahiWebContentsManager::Get()->OnContextMenuClicked(
+    chromeos::MahiWebContentsManager::Get()->OnContextMenuClicked(
         display::Screen::GetScreen()
             ->GetDisplayNearestWindow(GetWidget()->GetNativeWindow())
             .id(),
         /*button_type=*/::chromeos::mahi::ButtonType::kSummary,
-        /*question=*/std::u16string());
+        /*question=*/std::u16string(),
+        /*mahi_menu_bounds=*/
+        parent() ? parent()->GetBoundsInScreen() : gfx::Rect());
 
     base::UmaHistogramEnumeration(kMahiContextMenuButtonClickHistogram,
                                   MahiMenuButton::kCondensedMenuButton);
@@ -105,8 +92,10 @@ class MahiCondensedMenuButton : public views::LabelButton {
 
   void SetBackgroundHighlighted(bool background_highlighted) {
     if (background_highlighted) {
-      SetBackground(views::CreateThemedSolidBackground(
-          ui::kColorMenuItemBackgroundHighlighted));
+      SetBackground(views::CreateRoundedRectBackground(
+          ui::kColorMenuItemBackgroundHighlighted,
+          views::LayoutProvider::Get()->GetCornerRadiusMetric(
+              views::ShapeContextTokens::kMenuRadius)));
     } else {
       SetBackground(nullptr);
     }
@@ -122,11 +111,13 @@ END_METADATA
 
 MahiCondensedMenuView::MahiCondensedMenuView()
     : view_shadow_(std::make_unique<views::ViewShadow>(this, /*elevation=*/2)) {
+  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
+      views::ShapeContextTokens::kMenuRadius);
+  view_shadow_->SetRoundedCornerRadius(corner_radius);
+
   SetUseDefaultFillLayout(true);
-  SetBackground(views::CreateThemedRoundedRectBackground(
-      ui::kColorSysSurface, views::LayoutProvider::Get()->GetCornerRadiusMetric(
-                                views::ShapeContextTokens::kMenuRadius)));
-  SetBorder(views::CreateEmptyBorder(kCondensedMenuMargins));
+  SetBackground(
+      views::CreateRoundedRectBackground(ui::kColorSysSurface, corner_radius));
 
   menu_button_ = AddChildView(std::make_unique<MahiCondensedMenuButton>());
 }

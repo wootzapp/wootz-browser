@@ -17,7 +17,7 @@ using UkmFeatureList = UseCounterMetricsRecorder::UkmFeatureList;
 using WebFeature = blink::mojom::WebFeature;
 using WebDXFeature = blink::mojom::WebDXFeature;
 using CSSSampleId = blink::mojom::CSSSampleId;
-using PermissionsPolicyFeature = blink::mojom::PermissionsPolicyFeature;
+using PermissionsPolicyFeature = network::mojom::PermissionsPolicyFeature;
 
 namespace {
 
@@ -80,14 +80,17 @@ UseCounterMetricsRecorder::UseCounterMetricsRecorder(
       std::make_unique<AtMostOnceEnumUmaDeferrer<blink::mojom::CSSSampleId>>(
           "Blink.UseCounter.AnimatedCSSProperties");
   uma_permissions_policy_violation_enforce_ = std::make_unique<
-      AtMostOnceEnumUmaDeferrer<blink::mojom::PermissionsPolicyFeature>>(
+      AtMostOnceEnumUmaDeferrer<network::mojom::PermissionsPolicyFeature>>(
       "Blink.UseCounter.PermissionsPolicy.Violation.Enforce");
   uma_permissions_policy_allow2_ = std::make_unique<
-      AtMostOnceEnumUmaDeferrer<blink::mojom::PermissionsPolicyFeature>>(
+      AtMostOnceEnumUmaDeferrer<network::mojom::PermissionsPolicyFeature>>(
       "Blink.UseCounter.PermissionsPolicy.Allow2");
   uma_permissions_policy_header2_ = std::make_unique<
-      AtMostOnceEnumUmaDeferrer<blink::mojom::PermissionsPolicyFeature>>(
+      AtMostOnceEnumUmaDeferrer<network::mojom::PermissionsPolicyFeature>>(
       "Blink.UseCounter.PermissionsPolicy.Header2");
+  uma_permissions_policy_enabled_private_ = std::make_unique<
+      AtMostOnceEnumUmaDeferrer<network::mojom::PermissionsPolicyFeature>>(
+      "Blink.UseCounter.PermissionsPolicy.PrivacySensitive.Enabled");
 }
 
 UseCounterMetricsRecorder::~UseCounterMetricsRecorder() = default;
@@ -117,9 +120,13 @@ void UseCounterMetricsRecorder::AssertNoMetricsRecordedOrDeferred() {
     DCHECK_EQ(uma_permissions_policy_header2_->recorded_or_deferred().count(),
               0ul);
   }
+  if (uma_permissions_policy_enabled_private_) {
+    DCHECK_EQ(
+        uma_permissions_policy_enabled_private_->recorded_or_deferred().count(),
+        0ul);
+  }
 
   DCHECK_EQ(ukm_features_recorded_.count(), 0ul);
-  DCHECK_EQ(webdev_metrics_ukm_features_recorded_.count(), 0ul);
 }
 
 void UseCounterMetricsRecorder::RecordUkmPageVisits(
@@ -153,6 +160,9 @@ void UseCounterMetricsRecorder::DisableDeferAndFlush() {
   if (uma_permissions_policy_header2_) {
     uma_permissions_policy_header2_->DisableDeferAndFlush();
   }
+  if (uma_permissions_policy_enabled_private_) {
+    uma_permissions_policy_enabled_private_->DisableDeferAndFlush();
+  }
 }
 
 void UseCounterMetricsRecorder::RecordOrDeferUseCounterFeature(
@@ -160,11 +170,20 @@ void UseCounterMetricsRecorder::RecordOrDeferUseCounterFeature(
     const blink::UseCounterFeature& feature) {
   switch (feature.type()) {
     case FeatureType::kWebFeature: {
-      WebFeature sample = static_cast<WebFeature>(feature.value());
+      auto web_feature = static_cast<WebFeature>(feature.value());
 
-      if (!uma_features_.IsRecordedOrDeferred(sample)) {
-        PossiblyWarnFeatureDeprecation(rfh, sample);
-        uma_features_.RecordOrDefer(sample);
+      if (!uma_features_.IsRecordedOrDeferred(web_feature)) {
+        PossiblyWarnFeatureDeprecation(rfh, web_feature);
+        uma_features_.RecordOrDefer(web_feature);
+
+        // For any WebFeature use counters that are mapped to a WebDXFeature,
+        // record the WebDXFeature use counter as well.
+        auto map = GetWebFeatureToWebDXFeatureMap();
+        auto entry = map.find(web_feature);
+
+        if (entry != map.end()) {
+          uma_webdx_features_.RecordOrDefer(entry->second);
+        }
       }
     } break;
     case FeatureType::kWebDXFeature:
@@ -182,14 +201,37 @@ void UseCounterMetricsRecorder::RecordOrDeferUseCounterFeature(
     // and merge and uses about same amount of memory.
     case FeatureType::kCssProperty:
       if (uma_css_properties_) {
-        uma_css_properties_->RecordOrDefer(
-            static_cast<CSSSampleId>(feature.value()));
+        auto css_property = static_cast<CSSSampleId>(feature.value());
+
+        if (!uma_css_properties_->IsRecordedOrDeferred(css_property)) {
+          uma_css_properties_->RecordOrDefer(css_property);
+
+          auto map = GetCSSProperties2WebDXFeatureMap();
+          auto entry = map.find(css_property);
+
+          if (entry != map.end() &&
+              !uma_webdx_features_.IsRecordedOrDeferred(entry->second)) {
+            uma_webdx_features_.RecordOrDefer(entry->second);
+          }
+        }
       }
       break;
     case FeatureType::kAnimatedCssProperty:
       if (uma_animated_css_properties_) {
-        uma_animated_css_properties_->RecordOrDefer(
-            static_cast<CSSSampleId>(feature.value()));
+        auto animated_css_property = static_cast<CSSSampleId>(feature.value());
+
+        if (!uma_animated_css_properties_->IsRecordedOrDeferred(
+                animated_css_property)) {
+          uma_animated_css_properties_->RecordOrDefer(animated_css_property);
+
+          auto map = GetAnimatedCSSProperties2WebDXFeatureMap();
+          auto entry = map.find(animated_css_property);
+
+          if (entry != map.end() &&
+              !uma_webdx_features_.IsRecordedOrDeferred(entry->second)) {
+            uma_webdx_features_.RecordOrDefer(entry->second);
+          }
+        }
       }
       break;
     case FeatureType::kPermissionsPolicyViolationEnforce:
@@ -210,6 +252,11 @@ void UseCounterMetricsRecorder::RecordOrDeferUseCounterFeature(
             static_cast<PermissionsPolicyFeature>(feature.value()));
       }
       break;
+    case FeatureType::kPermissionsPolicyEnabledPrivacySensitive:
+      if (uma_permissions_policy_enabled_private_) {
+        uma_permissions_policy_enabled_private_->RecordOrDefer(
+            static_cast<PermissionsPolicyFeature>(feature.value()));
+      }
   }
 }
 
@@ -241,33 +288,45 @@ void UseCounterMetricsRecorder::RecordWebFeatures(ukm::SourceId ukm_source_id) {
             uma_main_frame_features_.IsRecordedOrDeferred(web_feature))
         .Record(ukm::UkmRecorder::Get());
   }
-  for (WebFeature web_feature : GetAllowedWebDevMetricsUkmFeatures()) {
-    auto feature_enum_value =
-        static_cast<blink::UseCounterFeature::EnumValue>(web_feature);
-    if (!uma_features_.IsRecordedOrDeferred(web_feature))
-      continue;
-
-    if (TestAndSet(webdev_metrics_ukm_features_recorded_, feature_enum_value))
-      continue;
-
-    ukm::builders::Blink_DeveloperMetricsRare(ukm_source_id)
-        .SetFeature(feature_enum_value)
-        .SetIsMainFrameFeature(
-            uma_main_frame_features_.IsRecordedOrDeferred(web_feature))
-        .Record(ukm::UkmRecorder::Get());
-  }
 }
 
 void UseCounterMetricsRecorder::RecordWebDXFeatures(
     ukm::SourceId ukm_source_id) {
-  // For WebDXFeature use counter(s) where the actual use counter value can come
-  // from a WebFeature use counter, this is where those use counter values can
-  // be copied over to the matching WebDXFeature counters.
+  // Feed any used WebDXFeature counters to UKM. Due to our layering rules, we
+  // can't easily use the WebDXFeature type in the UKM code, so pass our
+  // WebDXFeatures as a set of int32_t's.
+  std::set<int32_t> webdx_features;
 
-  // TODO(crbug.com/339271460): Add mapping of existing use counters to their
-  // respective WebDXFeature use counters here.
+  for (int32_t feature = 1;
+       feature <= static_cast<int32_t>(WebDXFeature::kMaxValue); feature++) {
+    if (uma_webdx_features_.IsRecordedOrDeferred(
+            static_cast<WebDXFeature>(feature))) {
+      webdx_features.insert(feature);
+    }
+  }
+
+  ukm::UkmRecorder::Get()->RecordWebDXFeatures(
+      ukm_source_id, webdx_features,
+      static_cast<size_t>(WebDXFeature::kMaxValue));
 }
 
+void UseCounterMetricsRecorder::RecordPrivacySensitiveFeatures(
+    ukm::SourceId ukm_source_id) {
+  if (!uma_permissions_policy_enabled_private_) {
+    return;
+  }
+  auto used_features =
+      uma_permissions_policy_enabled_private_->GetRecordedValues();
+  for (auto feature : used_features) {
+    ukm::builders::Permissions_PrivacySensitive_UseCounter(ukm_source_id)
+        .SetPrivateFeatureCalledWithAdScriptInStack(
+            static_cast<size_t>(feature))
+        .Record(ukm::UkmRecorder::Get());
+  }
+}
+
+// WebDXFeature use counter mappings have been moved to
+// components/page_load_metrics/browser/observers/use_counter/webdx_feature_maps.cc
 UseCounterPageLoadMetricsObserver::UseCounterPageLoadMetricsObserver() =
     default;
 
@@ -326,6 +385,12 @@ UseCounterPageLoadMetricsObserver::OnCommit(
   recorder_->RecordOrDeferUseCounterFeature(
       rfh, {FeatureType::kWebFeature, web_feature_page_visit});
 
+  auto webdx_feature_page_visit =
+      static_cast<blink::UseCounterFeature::EnumValue>(
+          WebDXFeature::kPageVisits);
+  recorder_->RecordOrDeferUseCounterFeature(
+      rfh, {FeatureType::kWebDXFeature, webdx_feature_page_visit});
+
   auto css_total_pages_measured =
       static_cast<blink::UseCounterFeature::EnumValue>(
           CSSSampleId::kTotalPagesMeasured);
@@ -373,6 +438,7 @@ void UseCounterPageLoadMetricsObserver::OnComplete(
   auto source_id = GetDelegate().GetPageUkmSourceId();
   recorder_->RecordWebDXFeatures(source_id);
   recorder_->RecordWebFeatures(source_id);
+  recorder_->RecordPrivacySensitiveFeatures(source_id);
 }
 
 void UseCounterPageLoadMetricsObserver::OnFailedProvisionalLoad(

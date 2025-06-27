@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "services/device/usb/mojo/device_impl.h"
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -17,9 +23,10 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/stringprintf.h"
 #include "services/device/public/cpp/usb/usb_utils.h"
 #include "services/device/usb/usb_device.h"
+#include "third_party/blink/public/common/features.h"
 
 namespace device {
 
@@ -32,6 +39,8 @@ using mojom::UsbTransferStatus;
 namespace usb {
 
 namespace {
+
+constexpr size_t kUsbTransferLengthLimit = 32 * 1024 * 1024;  // 32 MiB
 
 void OnTransferIn(mojom::UsbDevice::GenericTransferInCallback callback,
                   UsbTransferStatus status,
@@ -169,8 +178,8 @@ bool DeviceImpl::HasControlTransferPermission(
     interface = device_handle_->FindInterfaceByEndpoint(index & 0xff);
   } else {
     auto interface_it =
-        base::ranges::find(config->interfaces, index & 0xff,
-                           &mojom::UsbInterfaceInfo::interface_number);
+        std::ranges::find(config->interfaces, index & 0xff,
+                          &mojom::UsbInterfaceInfo::interface_number);
     if (interface_it != config->interfaces.end())
       interface = interface_it->get();
   }
@@ -263,8 +272,8 @@ void DeviceImpl::ClaimInterface(uint8_t interface_number,
   }
 
   auto interface_it =
-      base::ranges::find(config->interfaces, interface_number,
-                         &mojom::UsbInterfaceInfo::interface_number);
+      std::ranges::find(config->interfaces, interface_number,
+                        &mojom::UsbInterfaceInfo::interface_number);
   if (interface_it == config->interfaces.end()) {
     std::move(callback).Run(mojom::UsbClaimInterfaceResult::kFailure);
     return;
@@ -334,6 +343,9 @@ void DeviceImpl::ControlTransferIn(UsbControlTransferParamsPtr params,
     std::move(callback).Run(mojom::UsbTransferStatus::TRANSFER_ERROR, {});
     return;
   }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(length)) {
+    return;
+  }
 
   if (HasControlTransferPermission(params->recipient, params->index)) {
     auto buffer = base::MakeRefCounted<base::RefCountedBytes>(length);
@@ -352,6 +364,9 @@ void DeviceImpl::ControlTransferOut(UsbControlTransferParamsPtr params,
                                     ControlTransferOutCallback callback) {
   if (!device_handle_) {
     std::move(callback).Run(mojom::UsbTransferStatus::TRANSFER_ERROR);
+    return;
+  }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(data.size())) {
     return;
   }
 
@@ -376,6 +391,9 @@ void DeviceImpl::GenericTransferIn(uint8_t endpoint_number,
     std::move(callback).Run(mojom::UsbTransferStatus::TRANSFER_ERROR, {});
     return;
   }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(length)) {
+    return;
+  }
 
   uint8_t endpoint_address = endpoint_number | 0x80;
   auto buffer = base::MakeRefCounted<base::RefCountedBytes>(length);
@@ -390,6 +408,9 @@ void DeviceImpl::GenericTransferOut(uint8_t endpoint_number,
                                     GenericTransferOutCallback callback) {
   if (!device_handle_) {
     std::move(callback).Run(mojom::UsbTransferStatus::TRANSFER_ERROR);
+    return;
+  }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(data.size())) {
     return;
   }
 
@@ -420,6 +441,9 @@ void DeviceImpl::IsochronousTransferIn(
                 packet_lengths, mojom::UsbTransferStatus::TRANSFER_ERROR));
     return;
   }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(total_bytes.value())) {
+    return;
+  }
 
   uint8_t endpoint_address = endpoint_number | 0x80;
   device_handle_->IsochronousTransferIn(
@@ -446,6 +470,9 @@ void DeviceImpl::IsochronousTransferOut(
         packet_lengths, mojom::UsbTransferStatus::TRANSFER_ERROR));
     return;
   }
+  if (ShouldRejectUsbTransferLengthAndReportBadMessage(total_bytes.value())) {
+    return;
+  }
 
   uint8_t endpoint_address = endpoint_number;
   auto buffer = base::MakeRefCounted<base::RefCountedBytes>(data);
@@ -469,6 +496,21 @@ void DeviceImpl::OnClientConnectionError() {
   // Close the connection with Blink when WebUsbServiceImpl notifies the
   // permission revocation from settings UI.
   receiver_->Close();
+}
+
+bool DeviceImpl::ShouldRejectUsbTransferLengthAndReportBadMessage(
+    size_t length) {
+  if (!base::FeatureList::IsEnabled(
+          blink::features::kWebUSBTransferSizeLimit)) {
+    return false;
+  }
+
+  if (length <= kUsbTransferLengthLimit) {
+    return false;
+  }
+  receiver_->ReportBadMessage(
+      base::StringPrintf("Transfer size %zu is over the limit.", length));
+  return true;
 }
 
 }  // namespace usb

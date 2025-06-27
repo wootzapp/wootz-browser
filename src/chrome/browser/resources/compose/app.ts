@@ -3,32 +3,37 @@
 // found in the LICENSE file.
 
 import './icons.html.js';
-import './strings.m.js';
+import '/strings.m.js';
 import './textarea.js';
 import './result_text.js';
 import '//resources/cr_elements/cr_button/cr_button.js';
+import '//resources/cr_elements/cr_chip/cr_chip.js';
 import '//resources/cr_elements/cr_feedback_buttons/cr_feedback_buttons.js';
 import '//resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import '//resources/cr_elements/cr_loading_gradient/cr_loading_gradient.js';
+import '//resources/cr_elements/cr_scrollable.css.js';
+import '//resources/cr_elements/cr_shared_vars.css.js';
 import '//resources/cr_elements/icons.html.js';
 import '//resources/cr_elements/md_select.css.js';
-import '//resources/polymer/v3_0/iron-icon/iron-icon.js';
+import '//resources/cr_elements/cr_icon/cr_icon.js';
 
 import {ColorChangeUpdater} from '//resources/cr_components/color_change_listener/colors_css_updater.js';
+import {getInstance as getAnnouncerInstance} from '//resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
 import type {CrButtonElement} from '//resources/cr_elements/cr_button/cr_button.js';
+import type {CrChipElement} from '//resources/cr_elements/cr_chip/cr_chip.js';
 import type {CrFeedbackButtonsElement} from '//resources/cr_elements/cr_feedback_buttons/cr_feedback_buttons.js';
 import {CrFeedbackOption} from '//resources/cr_elements/cr_feedback_buttons/cr_feedback_buttons.js';
-import {CrScrollableMixin} from '//resources/cr_elements/cr_scrollable_mixin.js';
 import {I18nMixin} from '//resources/cr_elements/i18n_mixin.js';
 import {assert} from '//resources/js/assert.js';
 import {EventTracker} from '//resources/js/event_tracker.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
-import {Debouncer, microTask, PolymerElement, timeOut} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {isMac} from '//resources/js/platform.js';
+import {Debouncer, microTask, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ComposeAppAnimator} from './animations/app_animator.js';
 import {getTemplate} from './app.html.js';
 import type {ComposeResponse, ComposeState, ComposeUntrustedDialogCallbackRouter, ConfigurableParams, PartialComposeResponse} from './compose.mojom-webui.js';
-import {CloseReason, StyleModifier, UserFeedback} from './compose.mojom-webui.js';
+import {CloseReason, InputMode, StyleModifier, UserFeedback} from './compose.mojom-webui.js';
 import type {ComposeApiProxy} from './compose_api_proxy.js';
 import {ComposeApiProxyImpl} from './compose_api_proxy.js';
 import {ComposeStatus} from './compose_enums.mojom-webui.js';
@@ -40,9 +45,14 @@ import type {ComposeTextareaElement} from './textarea.js';
 export interface ComposeAppState {
   editedInput?: string;
   input: string;
+  inputMode: InputMode;
   isEditingSubmittedInput?: boolean;
-  selectedLength?: StyleModifier;
-  selectedTone?: StyleModifier;
+}
+
+interface ModifierOption {
+  value: StyleModifier;
+  label: string;
+  isDefault: boolean;
 }
 
 export interface ComposeAppElement {
@@ -65,7 +75,6 @@ export interface ComposeAppElement {
     loading: HTMLElement,
     undoButton: CrButtonElement,
     redoButton: CrButtonElement,
-    refreshButton: HTMLElement,
     resultContainer: HTMLElement,
     resultTextContainer: HTMLElement,
     resultFooter: HTMLElement,
@@ -74,25 +83,31 @@ export interface ComposeAppElement {
     submitFooter: HTMLElement,
     onDeviceUsedFooter: HTMLElement,
     textarea: ComposeTextareaElement,
-    lengthMenu: HTMLSelectElement,
-    toneMenu: HTMLSelectElement,
     modifierMenu: HTMLSelectElement,
     resultText: ComposeResultTextElement,
     feedbackButtons: CrFeedbackButtonsElement,
+    polishChip: CrChipElement,
+    elaborateChip: CrChipElement,
+    formalizeChip: CrChipElement,
   };
 }
 
-const ComposeAppElementBase = I18nMixin(CrScrollableMixin(PolymerElement));
+/**
+ * Delay required for screen readers to read out consecutive messages while
+ * focus is being moved between elements.
+ */
+export const TIMEOUT_MS: number = 700;
+
+const ComposeAppElementBase = I18nMixin(PolymerElement);
 
 // Enumerates trigger points of compose or regenerate calls.
 // Used to mark where a compose call was made so focus
 // can be restored to the respective element afterwards.
 enum TriggerElement {
   SUBMIT_INPUT,  // For initial input or editing input.
-  TONE,
-  LENGTH,
   MODIFIER,
-  REFRESH
+  UNDO,
+  REDO,
 }
 
 export class ComposeAppElement extends ComposeAppElementBase {
@@ -115,18 +130,23 @@ export class ComposeAppElement extends ComposeAppElementBase {
         value: loadTimeData.getBoolean('enableAnimations'),
         reflectToAttribute: true,
       },
-      enableUiRefinements: {
+      enableUpfrontInputModes: {
         type: Boolean,
-        value: loadTimeData.getBoolean('enableRefinedUi'),
-        reflectToAttribute: true,
+        value: loadTimeData.getBoolean('enableUpfrontInputModes'),
       },
       feedbackState_: {
         type: String,
         value: CrFeedbackOption.UNSPECIFIED,
       },
+      hasPartialOutput_: {
+        type: Boolean,
+      },
       input_: {
         type: String,
         observer: 'onInputChanged_',
+      },
+      inputParams_: {
+        type: Object,
       },
       isEditingSubmittedInput_: {
         type: Boolean,
@@ -165,13 +185,35 @@ export class ComposeAppElement extends ComposeAppElementBase {
         type: Object,
         value: null,
       },
-      selectedLength_: {
-        type: Number,
-        value: StyleModifier.kUnset,
+      showInputModes_: {
+        type: Boolean,
+        reflectToAttribute: true,
+        computed: 'shouldShowInputModes_(submitted_, enableUpfrontInputModes)',
       },
-      selectedTone_: {
+      selectedInputMode_: {
         type: Number,
-        value: StyleModifier.kUnset,
+        value: InputMode.kUnset,
+      },
+      selectedModifier_: {
+        type: String,
+      },
+      polishChipIcon_: {
+        type: String,
+        value: 'cr:check',
+        reflectToAttribute: true,
+      },
+      elaborateChipIcon_: {
+        type: String,
+        value: 'compose:elaborate',
+        reflectToAttribute: true,
+      },
+      formalizeChipIcon_: {
+        type: String,
+        value: 'compose:formalize',
+        reflectToAttribute: true,
+      },
+      textSelected_: {
+        type: Boolean,
       },
       showMainAppDialog_: {
         type: Boolean,
@@ -198,54 +240,22 @@ export class ComposeAppElement extends ComposeAppElementBase {
         type: String,
         computed: 'getResponseText_(response_, partialResponse_)',
       },
+      showFirstRunDialog_: {
+        type: Boolean,
+      },
+      showMSBBDialog_: {
+        type: Boolean,
+      },
       outputComplete_: {
         type: Boolean,
+        value: true,
       },
       hasOutput_: {
         type: Boolean,
+        value: false,
       },
       displayedText_: {
         type: String,
-      },
-      lengthOptions_: {
-        type: Array,
-        value: () => {
-          return [
-            {
-              value: StyleModifier.kUnset,
-              label: loadTimeData.getString('lengthMenuTitle'),
-              isDefault: true,
-            },
-            {
-              value: StyleModifier.kShorter,
-              label: loadTimeData.getString('shorterOption'),
-            },
-            {
-              value: StyleModifier.kLonger,
-              label: loadTimeData.getString('longerOption'),
-            },
-          ];
-        },
-      },
-      toneOptions_: {
-        type: Array,
-        value: () => {
-          return [
-            {
-              value: StyleModifier.kUnset,
-              label: loadTimeData.getString('toneMenuTitle'),
-              isDefault: true,
-            },
-            {
-              value: StyleModifier.kCasual,
-              label: loadTimeData.getString('casualToneOption'),
-            },
-            {
-              value: StyleModifier.kFormal,
-              label: loadTimeData.getString('formalToneOption'),
-            },
-          ];
-        },
       },
       modifierOptions_: {
         type: Array,
@@ -290,46 +300,52 @@ export class ComposeAppElement extends ComposeAppElementBase {
     ];
   }
 
-  enableAnimations: boolean;
-  enableUiRefinements: boolean;
+  declare enableAnimations: boolean;
+  declare enableUpfrontInputModes: boolean;
 
   private animator_: ComposeAppAnimator;
   private apiProxy_: ComposeApiProxy = ComposeApiProxyImpl.getInstance();
-  private bodyResizeObserver_: ResizeObserver;
   private eventTracker_: EventTracker = new EventTracker();
   private router_: ComposeUntrustedDialogCallbackRouter =
       this.apiProxy_.getRouter();
-  private showFirstRunDialog_: boolean;
-  private showMainAppDialog_: boolean;
-  private showMSBBDialog_: boolean;
+  declare private hasPartialOutput_: boolean;
+  declare private showFirstRunDialog_: boolean;
+  declare private showMainAppDialog_: boolean;
+  declare private showMSBBDialog_: boolean;
   private shouldShowMSBBDialog_: boolean;
-  private editedInput_: string;
-  private feedbackState_: CrFeedbackOption;
-  private input_: string;
-  private inputParams_: ConfigurableParams;
-  private isEditingSubmittedInput_: boolean;
-  private isEditingResultText_: boolean;
-  private isEditSubmitEnabled_: boolean;
-  private isSubmitEnabled_: boolean;
-  private loading_: boolean;
-  private response_: ComposeResponse|null;
-  private partialResponse_: PartialComposeResponse|undefined;
+  declare private editedInput_: string;
+  declare private feedbackState_: CrFeedbackOption;
+  declare private input_: string;
+  declare private inputParams_: ConfigurableParams;
+  declare private isEditingSubmittedInput_: boolean;
+  declare private isEditingResultText_: boolean;
+  declare private isEditSubmitEnabled_: boolean;
+  declare private isSubmitEnabled_: boolean;
+  declare private loading_: boolean;
+  declare private loadingIndicatorShown_: boolean;
+  declare private response_: ComposeResponse|null;
+  declare private partialResponse_: PartialComposeResponse|undefined;
+  declare private showInputModes_: boolean;
   private saveAppStateDebouncer_: Debouncer;
   private scrollCheckDebouncer_: Debouncer;
   private updateResultCompleteDebouncer_: Debouncer;
-  private selectedLength_: StyleModifier;
-  private selectedTone_: StyleModifier;
-  private textSelected_: boolean;
-  private submitted_: boolean;
-  private undoEnabled_: boolean;
-  private redoEnabled_: boolean;
-  private feedbackEnabled_: boolean;
+  declare private selectedInputMode_: InputMode;
+  declare private selectedModifier_: string;
+  declare private polishChipIcon_: string;
+  declare private elaborateChipIcon_: string;
+  declare private formalizeChipIcon_: string;
+  declare private textSelected_: boolean;
+  declare private submitted_: boolean;
+  declare private undoEnabled_: boolean;
+  declare private redoEnabled_: boolean;
+  declare private feedbackEnabled_: boolean;
   private userHasModifiedState_: boolean = false;
   private lastTriggerElement_: TriggerElement;
-  private outputComplete_: boolean = true;
-  private hasOutput_: boolean = false;
-  private displayedText_: string;
-  private responseText_: string;
+  declare private outputComplete_: boolean;
+  declare private hasOutput_: boolean;
+  declare private displayedText_: string;
+  declare private modifierOptions_: ModifierOption[];
+  declare private responseText_: string;
   private userResponseText_: string|undefined;
 
   constructor() {
@@ -337,8 +353,11 @@ export class ComposeAppElement extends ComposeAppElementBase {
     ColorChangeUpdater.forDocument().start();
     this.animator_ = new ComposeAppAnimator(
         this, loadTimeData.getBoolean('enableAnimations'));
-    this.enableUiRefinements = loadTimeData.getBoolean('enableRefinedUi');
     this.getInitialState_();
+    // If upfront inputs are enabled, the default mode should be set to Polish.
+    if (this.enableUpfrontInputModes) {
+      this.selectedInputMode_ = InputMode.kPolish;
+    }
     this.router_.responseReceived.addListener((response: ComposeResponse) => {
       this.composeResponseReceived_(response);
     });
@@ -382,19 +401,11 @@ export class ComposeAppElement extends ComposeAppElementBase {
         this.saveComposeAppState_();
       }
     });
-    this.bodyResizeObserver_ = new ResizeObserver(() => {
-      this.scrollCheckDebouncer_ = Debouncer.debounce(
-          this.scrollCheckDebouncer_, timeOut.after(20), () => {
-            this.requestUpdateScroll();
-          });
-    });
-    this.bodyResizeObserver_.observe(this.$.body);
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
     this.eventTracker_.removeAll();
-    this.bodyResizeObserver_.disconnect();
   }
 
   private debounceSaveComposeAppState_() {
@@ -438,8 +449,8 @@ export class ComposeAppElement extends ComposeAppElementBase {
       if (composeState.webuiState) {
         const appState: ComposeAppState = JSON.parse(composeState.webuiState);
         this.input_ = appState.input;
-        this.selectedLength_ = appState.selectedLength ?? StyleModifier.kUnset;
-        this.selectedTone_ = appState.selectedTone ?? StyleModifier.kUnset;
+        this.selectedInputMode_ = appState.inputMode;
+        this.updateInputMode_();
         if (appState.isEditingSubmittedInput) {
           this.isEditingSubmittedInput_ = appState.isEditingSubmittedInput;
           this.editedInput_ = appState.editedInput!;
@@ -546,11 +557,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
     }
   }
 
-  private onRefresh_() {
-    this.rewrite_(StyleModifier.kRetry);
-    this.lastTriggerElement_ = TriggerElement.REFRESH;
-  }
-
   private onSubmit_() {
     this.isSubmitEnabled_ = this.$.textarea.validate();
     if (!this.isSubmitEnabled_) {
@@ -579,8 +585,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
     const editTextareaHeight = this.$.editTextarea.offsetHeight;
     this.isEditingSubmittedInput_ = false;
     this.input_ = this.editedInput_;
-    this.selectedLength_ = StyleModifier.kUnset;
-    this.selectedTone_ = StyleModifier.kUnset;
     this.animator_.transitionFromEditingToLoading(bodyHeight);
     this.$.textarea.transitionToReadonly(editTextareaHeight);
     this.$.editTextarea.transitionToReadonly(editTextareaHeight);
@@ -603,18 +607,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
     }
   }
 
-  private onLengthChanged_() {
-    this.selectedLength_ = Number(this.$.lengthMenu.value) as StyleModifier;
-    this.rewrite_(this.selectedLength_);
-    this.lastTriggerElement_ = TriggerElement.LENGTH;
-  }
-
-  private onToneChanged_() {
-    this.selectedTone_ = Number(this.$.toneMenu.value) as StyleModifier;
-    this.rewrite_(this.selectedTone_);
-    this.lastTriggerElement_ = TriggerElement.TONE;
-  }
-
   private onModifierChanged_() {
     const selectedModifier =
       Number(this.$.modifierMenu.value) as StyleModifier;
@@ -624,6 +616,58 @@ export class ComposeAppElement extends ComposeAppElementBase {
     // index of 0 corresponds to the default value, which is disabled and cannot
     // be selected in the dialog.
     this.$.modifierMenu.selectedIndex = 0;
+  }
+
+  private shouldShowInputModes_() {
+    return !this.submitted_ && this.enableUpfrontInputModes;
+  }
+
+  private onPolishChipClick_() {
+    this.selectedInputMode_ = InputMode.kPolish;
+    this.updateInputMode_();
+  }
+
+  private onElaborateChipClick_() {
+    this.selectedInputMode_ = InputMode.kElaborate;
+    this.updateInputMode_();
+  }
+
+  private onFormalizeChipClick_() {
+    this.selectedInputMode_ = InputMode.kFormalize;
+    this.updateInputMode_();
+  }
+
+  private updateInputMode_() {
+    this.userHasModifiedState_ = true;
+    this.$.polishChip.selected = this.selectedInputMode_ === InputMode.kPolish;
+    this.polishChipIcon_ =
+        this.$.polishChip.selected ? 'cr:check' : 'compose:polish';
+    this.$.elaborateChip.selected =
+        this.selectedInputMode_ === InputMode.kElaborate;
+    this.elaborateChipIcon_ =
+        this.$.elaborateChip.selected ? 'cr:check' : 'compose:elaborate';
+    this.$.formalizeChip.selected =
+        this.selectedInputMode_ === InputMode.kFormalize;
+    this.formalizeChipIcon_ =
+        this.$.formalizeChip.selected ? 'cr:check' : 'compose:formalize';
+    this.saveComposeAppState_();
+  }
+
+  private openModifierMenuOnKeyDown_(e: KeyboardEvent) {
+    // On Windows and Linux, ArrowDown and ArrowUp key events directly change
+    // the menu selection, which fires the `select` on-change event without
+    // showing what selection was made.
+    // MacOS keyboard controls opens the dropdown menu on ArrowUp/Down and thus
+    // does not need to override behaviour.
+    if (isMac) {
+      return;
+    }
+
+    // Override keyboard controls for ArrowUp/Down to open the `select` menu.
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.$.modifierMenu.showPicker();
+    }
   }
 
   private onFooterClick_(e: Event) {
@@ -659,6 +703,14 @@ export class ComposeAppElement extends ComposeAppElementBase {
   private compose_(inputEdited: boolean = false) {
     assert(this.$.textarea.validate());
     assert(this.submitted_);
+    // <if expr="is_macosx">
+    // For VoiceOver, the screen reader on Mac, to read consecutive alerts the
+    // contents must change between announcements. To satisfy this, new results
+    // are announced by alternating between this "loading" message and the
+    // "updated" message. This is also done to announce updates for the undo
+    // and redo functions.
+    this.screenReaderAnnounce_(this.i18n('resultLoadingA11yMessage'));
+    // </if>
     this.$.body.scrollTop = 0;
     this.loading_ = true;
     this.animator_.transitionInLoading();
@@ -667,12 +719,15 @@ export class ComposeAppElement extends ComposeAppElementBase {
     this.partialResponse_ = undefined;
     this.feedbackEnabled_ = true;
     this.saveComposeAppState_();  // Ensure state is saved before compose call.
-    this.apiProxy_.compose(this.input_, inputEdited);
+    this.apiProxy_.compose(this.input_, this.selectedInputMode_, inputEdited);
   }
 
   private rewrite_(style: StyleModifier) {
     assert(this.$.textarea.validate());
     assert(this.submitted_);
+    // <if expr="is_macosx">
+    this.screenReaderAnnounce_(this.i18n('resultLoadingA11yMessage'));
+    // </if>
     const bodyHeight = this.$.body.offsetHeight;
     const resultHeight = this.$.resultContainer.offsetHeight;
     this.$.body.scrollTop = 0;
@@ -723,19 +778,19 @@ export class ComposeAppElement extends ComposeAppElementBase {
       case TriggerElement.SUBMIT_INPUT:
         this.$.textarea.focusEditButton();
         break;
-      case TriggerElement.REFRESH:
-        this.$.refreshButton.focus({preventScroll: true});
-        break;
-      case TriggerElement.LENGTH:
-        this.$.lengthMenu.focus({preventScroll: true});
-        break;
-      case TriggerElement.TONE:
-        this.$.toneMenu.focus({preventScroll: true});
-        break;
       case TriggerElement.MODIFIER:
         this.$.modifierMenu.focus({ preventScroll: true });
         break;
+      case TriggerElement.UNDO:
+        this.$.undoButton.focus();
+        break;
+      case TriggerElement.REDO:
+        this.$.redoButton.focus();
+        break;
     }
+
+    this.screenReaderAnnounce_(
+        this.i18n('resultUpdatedA11yMessage'), TIMEOUT_MS);
   }
 
   private composeResponseReceived_(response: ComposeResponse) {
@@ -813,22 +868,6 @@ export class ComposeAppElement extends ComposeAppElementBase {
         loadTimeData.getBoolean('enableOnDeviceDogfoodFooter');
   }
 
-  private showDefaultResultFooter_(): boolean {
-    return !(Boolean(this.response_?.onDeviceEvaluationUsed) &&
-             loadTimeData.getBoolean('enableOnDeviceDogfoodFooter')) &&
-        !this.enableUiRefinements;
-  }
-
-  private showRefinementsResultFooter_(): boolean {
-    return !(Boolean(this.response_?.onDeviceEvaluationUsed) &&
-             loadTimeData.getBoolean('enableOnDeviceDogfoodFooter')) &&
-        this.enableUiRefinements;
-  }
-
-  private undoButtonIcon_(): string {
-    return this.enableUiRefinements ? 'compose:undo' : 'compose:mvpUndo';
-  }
-
   private acceptButtonText_(): string {
     return this.textSelected_ ? this.i18n('replaceButton') :
                                 this.i18n('insertButton');
@@ -892,13 +931,10 @@ export class ComposeAppElement extends ComposeAppElementBase {
       return;
     }
 
-    const state: ComposeAppState = {input: this.input_};
-    if (this.selectedLength_ !== StyleModifier.kUnset) {
-      state.selectedLength = this.selectedLength_;
-    }
-    if (this.selectedTone_ !== StyleModifier.kUnset) {
-      state.selectedTone = this.selectedTone_;
-    }
+    const state: ComposeAppState = {
+      input: this.input_,
+      inputMode: this.selectedInputMode_,
+    };
     if (this.isEditingSubmittedInput_) {
       state.isEditingSubmittedInput = this.isEditingSubmittedInput_;
       state.editedInput = this.editedInput_;
@@ -907,6 +943,9 @@ export class ComposeAppElement extends ComposeAppElementBase {
   }
 
   private async onUndoClick_() {
+    // <if expr="is_macosx">
+    this.screenReaderAnnounce_(this.i18n('undoResultA11yMessage'));
+    // </if>
     try {
       const state = await this.apiProxy_.undo();
       if (state == null) {
@@ -915,9 +954,15 @@ export class ComposeAppElement extends ComposeAppElementBase {
         this.undoEnabled_ = false;
         return;
       }
-
       this.updateWithNewState_(state);
-      this.$.undoButton.focus();
+      // Focus is moved from the undo button to the redo button if undo is
+      // disabled in the new state. Otherwise, the undo button always keeps
+      // focus.
+      if (this.undoEnabled_) {
+        this.lastTriggerElement_ = TriggerElement.UNDO;
+      } else {
+        this.lastTriggerElement_ = TriggerElement.REDO;
+      }
     } catch (error) {
       // Error (e.g., disconnected mojo pipe) from a rejected Promise. Allow the
       // user to try again as there should be a valid state to restore.
@@ -943,6 +988,9 @@ export class ComposeAppElement extends ComposeAppElementBase {
   }
 
   private async onRedoClick_() {
+    // <if expr="is_macosx">
+    this.screenReaderAnnounce_(this.i18n('redoResultA11yMessage'));
+    // </if>
     try {
       const state = await this.apiProxy_.redo();
       if (state == null) {
@@ -953,7 +1001,12 @@ export class ComposeAppElement extends ComposeAppElementBase {
       }
 
       this.updateWithNewState_(state);
-      this.$.redoButton.focus();
+      // If redo is disabled, then give focus to the undo button by default.
+      if (this.redoEnabled_) {
+        this.lastTriggerElement_ = TriggerElement.REDO;
+      } else {
+        this.lastTriggerElement_ = TriggerElement.UNDO;
+      }
     } catch (error) {
       // Error (e.g., disconnected mojo pipe) from a rejected Promise. Allow the
       // user to try again as there should be a valid state to restore.
@@ -975,11 +1028,14 @@ export class ComposeAppElement extends ComposeAppElementBase {
     if (state.webuiState) {
       const appState: ComposeAppState = JSON.parse(state.webuiState);
       this.input_ = appState.input;
-      // TODO(b/333985071): Remove modifier tracking when ComposeUiRefinement
-      // flag is removed.
-      this.selectedLength_ = appState.selectedLength ?? StyleModifier.kUnset;
-      this.selectedTone_ = appState.selectedTone ?? StyleModifier.kUnset;
     }
+  }
+
+  private screenReaderAnnounce_(message: string, wait: number = 0) {
+    setTimeout(() => {
+      const announcer = getAnnouncerInstance();
+      announcer.announce(message, wait);
+    });
   }
 
   private onFeedbackSelectedOptionChanged_(

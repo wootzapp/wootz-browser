@@ -95,14 +95,13 @@ TEST_F(SizesAttributeParserTest, Basic) {
       {"(max-width: 3000px) 50.5px, 40vw", 50.5},
       {"not (blabla) 50px, 40vw", 200},
       {"not (max-width: 100px) 50px, 40vw", 50},
-      {nullptr, 0}  // Do not remove the terminator line.
   };
 
-  auto* media_values = GetTestMediaValues();
+  MediaValues* media_values = GetTestMediaValues();
 
-  for (unsigned i = 0; test_cases[i].input; ++i) {
-    SizesAttributeParser parser(media_values, test_cases[i].input, nullptr);
-    ASSERT_EQ(test_cases[i].effective_size, parser.Size());
+  for (const SizesAttributeParserTestCase& test_case : test_cases) {
+    SizesAttributeParser parser(media_values, test_case.input, nullptr);
+    EXPECT_EQ(test_case.effective_size, parser.Size()) << test_case.input;
   }
 }
 
@@ -162,14 +161,13 @@ TEST_F(SizesAttributeParserTest, FloatViewportWidth) {
       {"(max-width: 3000px) 50.5px, 40vw", 50.5},
       {"not (blabla) 50px, 40vw", 200.2},
       {"not (max-width: 100px) 50px, 40vw", 50},
-      {nullptr, 0}  // Do not remove the terminator line.
   };
 
-  auto* media_values = GetTestMediaValues(500.5);
+  MediaValues* media_values = GetTestMediaValues(500.5);
 
-  for (unsigned i = 0; test_cases[i].input; ++i) {
-    SizesAttributeParser parser(media_values, test_cases[i].input, nullptr);
-    ASSERT_EQ(test_cases[i].effective_size, parser.Size());
+  for (const SizesAttributeParserTestCase& test_case : test_cases) {
+    SizesAttributeParser parser(media_values, test_case.input, nullptr);
+    EXPECT_EQ(test_case.effective_size, parser.Size()) << test_case.input;
   }
 }
 

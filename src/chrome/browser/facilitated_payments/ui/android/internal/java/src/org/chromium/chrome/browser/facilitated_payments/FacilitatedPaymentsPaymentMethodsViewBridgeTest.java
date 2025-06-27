@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.facilitated_payments;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,12 +27,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.autofill.AutofillImageFetcher;
+import org.chromium.chrome.browser.autofill.AutofillImageFetcherFactory;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.components.autofill.payments.AccountType;
+import org.chromium.components.autofill.payments.BankAccount;
+import org.chromium.components.autofill.payments.Ewallet;
+import org.chromium.components.autofill.payments.PaymentInstrument;
+import org.chromium.components.autofill.payments.PaymentRail;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerFactory;
 import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetController;
 import org.chromium.content_public.browser.WebContents;
@@ -40,21 +49,78 @@ import org.chromium.ui.base.WindowAndroid;
 /** Unit tests for {@link FacilitatedPaymentsPaymentMethodsViewBridge}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class FacilitatedPaymentsPaymentMethodsViewBridgeTest {
+    private static final BankAccount[] BANK_ACCOUNTS = {
+        new BankAccount.Builder()
+                .setPaymentInstrument(
+                        new PaymentInstrument.Builder()
+                                .setInstrumentId(100)
+                                .setNickname("nickname1")
+                                .setSupportedPaymentRails(new int[] {PaymentRail.PIX})
+                                .build())
+                .setBankName("bankName1")
+                .setAccountNumberSuffix("1111")
+                .setAccountType(AccountType.CHECKING)
+                .build(),
+        new BankAccount.Builder()
+                .setPaymentInstrument(
+                        new PaymentInstrument.Builder()
+                                .setInstrumentId(200)
+                                .setNickname("nickname2")
+                                .setSupportedPaymentRails(new int[] {PaymentRail.PIX})
+                                .build())
+                .setBankName("bankName2")
+                .setAccountNumberSuffix("2222")
+                .setAccountType(AccountType.CHECKING)
+                .build()
+    };
+
+    private static final Ewallet[] EWALLETS = {
+        new Ewallet.Builder()
+                .setPaymentInstrument(
+                        new PaymentInstrument.Builder()
+                                .setInstrumentId(100)
+                                .setNickname("nickname")
+                                .setSupportedPaymentRails(new int[] {2})
+                                .setIsFidoEnrolled(true)
+                                .build())
+                .setEwalletName("eWallet name 1")
+                .setAccountDisplayName("account display name 1")
+                .build(),
+        new Ewallet.Builder()
+                .setPaymentInstrument(
+                        new PaymentInstrument.Builder()
+                                .setInstrumentId(200)
+                                .setNickname("nickname2")
+                                .setSupportedPaymentRails(new int[] {2})
+                                .setIsFidoEnrolled(false)
+                                .build())
+                .setEwalletName("eWallet name 2")
+                .setAccountDisplayName("account display name 2")
+                .build()
+    };
+
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private WebContents mWebContents;
+    @Mock private FacilitatedPaymentsPaymentMethodsComponent.Delegate mDelegateMock;
     @Mock private ManagedBottomSheetController mBottomSheetController;
+    @Mock private AutofillImageFetcher mAutofillImageFetcher;
+    @Mock private Profile mProfile;
+    @Mock private WebContents mWebContents;
 
+    private Context mApplicationContext;
     private FacilitatedPaymentsPaymentMethodsViewBridge mViewBridge;
     private WindowAndroid mWindow;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        Context mApplicationContext = ApplicationProvider.getApplicationContext();
-        mWindow = new WindowAndroid(mApplicationContext);
+        ProfileManager.setLastUsedProfileForTesting(mProfile);
+        AutofillImageFetcherFactory.setInstanceForTesting(mAutofillImageFetcher);
+        mApplicationContext = ApplicationProvider.getApplicationContext();
+        mWindow = new WindowAndroid(mApplicationContext, /* trackOcclusion= */ false);
         BottomSheetControllerFactory.attach(mWindow, mBottomSheetController);
-        mViewBridge = FacilitatedPaymentsPaymentMethodsViewBridge.create(mWindow);
+        mViewBridge =
+                FacilitatedPaymentsPaymentMethodsViewBridge.create(
+                        mDelegateMock, mWindow, mProfile);
     }
 
     @After
@@ -65,10 +131,42 @@ public class FacilitatedPaymentsPaymentMethodsViewBridgeTest {
 
     @Test
     @SmallTest
+    public void create_nullProfile() {
+        mViewBridge =
+                FacilitatedPaymentsPaymentMethodsViewBridge.create(
+                        mDelegateMock, mWindow, /* profile= */ null);
+
+        assertNull(mViewBridge);
+    }
+
+    @Test
+    @SmallTest
+    public void create_nullWindowAndroid() {
+        mViewBridge =
+                FacilitatedPaymentsPaymentMethodsViewBridge.create(
+                        mDelegateMock, /* windowAndroid= */ null, mProfile);
+
+        assertNull(mViewBridge);
+    }
+
+    @Test
+    @SmallTest
+    public void create_nullBottomSheetController() {
+        BottomSheetControllerFactory.detach(mBottomSheetController);
+
+        mViewBridge =
+                FacilitatedPaymentsPaymentMethodsViewBridge.create(
+                        mDelegateMock, mWindow, mProfile);
+
+        assertNull(mViewBridge);
+    }
+
+    @Test
+    @SmallTest
     public void requestShowContent_callsControllerRequestShowContent() {
         when(mWebContents.getTopLevelNativeWindow()).thenReturn(mWindow);
 
-        mViewBridge.requestShowContent();
+        mViewBridge.requestShowContent(BANK_ACCOUNTS);
 
         verify(mBottomSheetController)
                 .requestShowContent(
@@ -80,7 +178,7 @@ public class FacilitatedPaymentsPaymentMethodsViewBridgeTest {
     public void requestShowContent_bottomSheetContentImplIsStubbed() {
         when(mWebContents.getTopLevelNativeWindow()).thenReturn(mWindow);
 
-        mViewBridge.requestShowContent();
+        mViewBridge.requestShowContent(BANK_ACCOUNTS);
 
         ArgumentCaptor<FacilitatedPaymentsPaymentMethodsView> contentCaptor =
                 ArgumentCaptor.forClass(FacilitatedPaymentsPaymentMethodsView.class);
@@ -88,9 +186,57 @@ public class FacilitatedPaymentsPaymentMethodsViewBridgeTest {
                 .requestShowContent(contentCaptor.capture(), /* animate= */ anyBoolean());
         FacilitatedPaymentsPaymentMethodsView content = contentCaptor.getValue();
         assertThat(content.getContentView(), notNullValue());
-        assertThat(content.getSheetContentDescriptionStringId(), equalTo(R.string.ok));
-        assertThat(content.getSheetHalfHeightAccessibilityStringId(), equalTo(R.string.ok));
-        assertThat(content.getSheetFullHeightAccessibilityStringId(), equalTo(R.string.ok));
-        assertThat(content.getSheetClosedAccessibilityStringId(), equalTo(R.string.ok));
+        assertThat(
+                content.getSheetContentDescription(mApplicationContext),
+                equalTo(
+                        mApplicationContext.getString(
+                                R.string
+                                        .facilitated_payments_payment_methods_bottom_sheet_content_description)));
+        assertThat(
+                content.getSheetFullHeightAccessibilityStringId(),
+                equalTo(R.string.facilitated_payments_payment_methods_bottom_sheet_full_height));
+        assertThat(
+                content.getSheetClosedAccessibilityStringId(),
+                equalTo(R.string.facilitated_payments_payment_methods_bottom_sheet_closed));
+    }
+
+    @Test
+    @SmallTest
+    public void requestShowContentForEwallet_callsControllerRequestShowContent() {
+        when(mWebContents.getTopLevelNativeWindow()).thenReturn(mWindow);
+
+        mViewBridge.requestShowContentForEwallet(EWALLETS);
+
+        verify(mBottomSheetController)
+                .requestShowContent(
+                        any(FacilitatedPaymentsPaymentMethodsView.class), /* animate= */ eq(true));
+    }
+
+    @Test
+    @SmallTest
+    public void requestShowContentForEwallet_bottomSheetContentImplIsStubbed() {
+        when(mWebContents.getTopLevelNativeWindow()).thenReturn(mWindow);
+
+        mViewBridge.requestShowContentForEwallet(EWALLETS);
+
+        ArgumentCaptor<FacilitatedPaymentsPaymentMethodsView> contentCaptor =
+                ArgumentCaptor.forClass(FacilitatedPaymentsPaymentMethodsView.class);
+        verify(mBottomSheetController)
+                .requestShowContent(contentCaptor.capture(), /* animate= */ anyBoolean());
+        FacilitatedPaymentsPaymentMethodsView content = contentCaptor.getValue();
+
+        assertThat(content.getContentView(), notNullValue());
+        assertThat(
+                content.getSheetContentDescription(mApplicationContext),
+                equalTo(
+                        mApplicationContext.getString(
+                                R.string
+                                        .facilitated_payments_payment_methods_bottom_sheet_content_description)));
+        assertThat(
+                content.getSheetFullHeightAccessibilityStringId(),
+                equalTo(R.string.facilitated_payments_payment_methods_bottom_sheet_full_height));
+        assertThat(
+                content.getSheetClosedAccessibilityStringId(),
+                equalTo(R.string.facilitated_payments_payment_methods_bottom_sheet_closed));
     }
 }

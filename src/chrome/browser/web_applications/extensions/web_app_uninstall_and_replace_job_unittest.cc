@@ -72,9 +72,6 @@ class WebAppUninstallAndReplaceJobTest : public WebAppTest {
   void SetUp() override {
     WebAppTest::SetUp();
     test::AwaitStartWebAppProviderAndSubsystems(profile());
-    auto shortcut_manager = std::make_unique<TestShortcutManager>(profile());
-    shortcut_manager_ = shortcut_manager.get();
-    os_integration_manager()->SetShortcutManager(std::move(shortcut_manager));
   }
 
   void ScheduleUninstallAndReplaceJob(
@@ -93,16 +90,8 @@ class WebAppUninstallAndReplaceJobTest : public WebAppTest {
         ->os_integration_manager()
         .AsTestOsIntegrationManager();
   }
-
-  TestShortcutManager* shortcut_manager() { return shortcut_manager_; }
-
- private:
-  raw_ptr<TestShortcutManager, DanglingUntriaged> shortcut_manager_ = nullptr;
 };
 
-// `WebAppUninstallAndReplaceJob` uses `AppServiceProxy` to do uninstall, app
-// service only lives on chromeos ash not lacros.
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 // Regression test for crbug.com/1182030
 TEST_F(WebAppUninstallAndReplaceJobTest,
        WebAppMigrationPreservesShortcutStates) {
@@ -114,7 +103,7 @@ TEST_F(WebAppUninstallAndReplaceJobTest,
   // Install a new app to migrate the old one to.
   webapps::AppId new_app_id = test::InstallDummyWebApp(
       profile(), "new_app", GURL("https://new.app.com"));
-  std::optional<proto::WebAppOsIntegrationState> os_state =
+  std::optional<proto::os_state::WebAppOsIntegration> os_state =
       provider()->registrar_unsafe().GetAppCurrentOsIntegrationState(
           new_app_id);
   ASSERT_TRUE(os_state.has_value());
@@ -124,12 +113,12 @@ TEST_F(WebAppUninstallAndReplaceJobTest,
   // Set up the existing shortcuts.
   auto shortcut_info = std::make_unique<ShortcutInfo>();
   shortcut_info->url = kOldAppUrl;
-  shortcut_manager()->SetShortcutInfoForApp(old_app_id,
-                                            std::move(shortcut_info));
+  os_integration_manager()->SetShortcutInfoForApp(old_app_id,
+                                                  std::move(shortcut_info));
   ShortcutLocations locations;
   locations.on_desktop = true;
   locations.in_startup = true;
-  shortcut_manager()->SetAppExistingShortcuts(kOldAppUrl, locations);
+  os_integration_manager()->SetAppExistingShortcuts(kOldAppUrl, locations);
 
   base::test::TestFuture<bool> future;
   ScheduleUninstallAndReplaceJob({old_app_id}, new_app_id,
@@ -141,7 +130,7 @@ TEST_F(WebAppUninstallAndReplaceJobTest,
   ASSERT_TRUE(os_state.has_value());
   EXPECT_TRUE(os_state->has_shortcut());
   EXPECT_EQ(os_state->run_on_os_login().run_on_os_login_mode(),
-            proto::RunOnOsLoginMode::WINDOWED);
+            proto::os_state::RunOnOsLogin::MODE_WINDOWED);
 }
 
 TEST_F(WebAppUninstallAndReplaceJobTest, DoubleMigration) {
@@ -167,6 +156,5 @@ TEST_F(WebAppUninstallAndReplaceJobTest, DoubleMigration) {
                                  future.GetCallback());
   EXPECT_FALSE(future.Get());
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)
 
 }  // namespace web_app

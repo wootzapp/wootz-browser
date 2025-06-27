@@ -27,20 +27,17 @@
 #include "third_party/blink/renderer/core/html/forms/text_control_inner_elements.h"
 
 #include "third_party/blink/public/common/input/web_pointer_properties.h"
-#include "third_party/blink/public/strings/grit/blink_strings.h"
 #include "third_party/blink/renderer/core/css/resolver/style_adjuster.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/style_change_reason.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_token_list.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/events/mouse_event.h"
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_text_area_element.h"
 #include "third_party/blink/renderer/core/html/shadow/shadow_element_names.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/forms/layout_text_control_inner_editor.h"
-#include "third_party/blink/renderer/platform/text/platform_locale.h"
 
 namespace blink {
 
@@ -187,7 +184,7 @@ const ComputedStyle* TextControlInnerEditorElement::CustomStyleForLayoutObject(
     // TODO(tkent): This should be done during layout.
     if (logical_height.HasPercent() ||
         (logical_height.IsFixed() &&
-         logical_height.GetFloatValue() > computed_line_height)) {
+         logical_height.Pixels() > computed_line_height)) {
       style_builder.SetLineHeight(
           ComputedStyleInitialValues::InitialLineHeight());
     }
@@ -290,14 +287,4 @@ bool PasswordRevealButtonElement::WillRespondToMouseClickEvents() {
   return HTMLDivElement::WillRespondToMouseClickEvents();
 }
 
-// ----------------------------
-
-PasswordStrongLabelElement::PasswordStrongLabelElement(Document& document)
-    : HTMLDivElement(document) {
-  SetShadowPseudoId(AtomicString("-internal-strong"));
-  setAttribute(html_names::kIdAttr,
-               shadow_element_names::kIdPasswordStrongLabel);
-  setTextContent(
-      Locale::DefaultLocale().QueryString(IDS_STRONG_PASSWORD_LABEL));
-}
 }  // namespace blink

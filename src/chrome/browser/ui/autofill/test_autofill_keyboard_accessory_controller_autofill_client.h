@@ -9,11 +9,13 @@
 #include <memory>
 
 #include "base/test/mock_callback.h"
+#include "chrome/browser/password_manager/android/access_loss/mock_password_access_loss_warning_bridge.h"
+#include "chrome/browser/ui/autofill/autofill_keyboard_accessory_controller_impl_test_api.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_test_base.h"
 #include "chrome/browser/ui/autofill/mock_autofill_keyboard_accessory_view.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
-#include "components/autofill/core/browser/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -44,11 +46,13 @@ class TestAutofillKeyboardAccessoryControllerAutofillClient
     if (!popup_controller_) {
       popup_controller_ =
           (new Controller(manager.external_delegate().GetWeakPtrForTest(),
-                          &GetWebContents(), gfx::RectF(),
-                          show_pwd_migration_warning_callback_.Get()))
+                          &GetWebContents(), gfx::RectF()))
               ->GetWeakPtr();
-      cast_popup_controller().SetViewForTesting(
-          std::make_unique<MockAutofillKeyboardAccessoryView>());
+      test_api(cast_popup_controller())
+          .SetView(std::make_unique<MockAutofillKeyboardAccessoryView>());
+      test_api(cast_popup_controller())
+          .SetAccessLossWarningBridge(
+              std::make_unique<MockPasswordAccessLossWarningBridge>());
       manager_of_last_controller_ = manager.GetWeakPtr();
       ON_CALL(cast_popup_controller(), Hide)
           .WillByDefault(
@@ -59,13 +63,16 @@ class TestAutofillKeyboardAccessoryControllerAutofillClient
 
   MockAutofillKeyboardAccessoryView* popup_view() {
     return popup_controller_ ? static_cast<MockAutofillKeyboardAccessoryView*>(
-                                   cast_popup_controller().view())
+                                   test_api(cast_popup_controller()).view())
                              : nullptr;
   }
 
-  base::MockCallback<typename Controller::ShowPasswordMigrationWarningCallback>&
-  show_pwd_migration_warning_callback() {
-    return show_pwd_migration_warning_callback_;
+  MockPasswordAccessLossWarningBridge* access_loss_warning_bridge() {
+    return popup_controller_
+               ? static_cast<MockPasswordAccessLossWarningBridge*>(
+                     test_api(cast_popup_controller())
+                         .access_loss_warning_bridge())
+               : nullptr;
   }
 
  private:
@@ -87,9 +94,6 @@ class TestAutofillKeyboardAccessoryControllerAutofillClient
 
   base::WeakPtr<AutofillSuggestionController> popup_controller_;
   base::WeakPtr<AutofillManager> manager_of_last_controller_;
-
-  base::MockCallback<typename Controller::ShowPasswordMigrationWarningCallback>
-      show_pwd_migration_warning_callback_;
 };
 
 }  // namespace autofill

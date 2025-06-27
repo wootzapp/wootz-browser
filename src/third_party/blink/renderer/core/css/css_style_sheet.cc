@@ -53,6 +53,7 @@
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
+#include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -168,7 +169,6 @@ CSSStyleSheet::CSSStyleSheet(StyleSheetContents* contents,
   // Following steps at spec draft
   // https://wicg.github.io/construct-stylesheets/#dom-cssstylesheet-cssstylesheet
   SetConstructorDocument(document);
-  SetTitle(options->title());
   ClearOwnerNode();
   ClearOwnerRule();
   Contents()->RegisterClient(this);
@@ -209,8 +209,7 @@ CSSStyleSheet::~CSSStyleSheet() = default;
 
 void CSSStyleSheet::WillMutateRules() {
   // If we are the only client it is safe to mutate.
-  if (!contents_->IsUsedFromTextCache() &&
-      !contents_->IsReferencedFromResource()) {
+  if (!IsContentsShared()) {
     contents_->StartMutation();
     contents_->ClearRuleSet();
     return;
@@ -221,14 +220,8 @@ void CSSStyleSheet::WillMutateRules() {
 
   // Copy-on-write. Note that this eagerly parses any rules that were
   // lazily parsed.
-  contents_->UnregisterClient(this);
-  contents_ = contents_->Copy();
-  contents_->RegisterClient(this);
-
+  SetContents(contents_->Copy());
   contents_->StartMutation();
-
-  // Any existing CSSOM wrappers need to be connected to the copied child rules.
-  ReattachChildRuleCSSOMWrappers();
 }
 
 void CSSStyleSheet::DidMutate(Mutation mutation) {
@@ -250,7 +243,7 @@ void CSSStyleSheet::DidMutate(Mutation mutation) {
         ownerNode()->GetTreeScope());
     invalidate_matched_properties_cache = true;
   } else if (!adopted_tree_scopes_.empty()) {
-    for (auto tree_scope : adopted_tree_scopes_) {
+    for (auto tree_scope : adopted_tree_scopes_.Keys()) {
       // It is currently required that adopted sheets can not be moved between
       // documents.
       DCHECK(tree_scope->GetDocument() == document);
@@ -276,6 +269,17 @@ void CSSStyleSheet::DisableRuleAccessForInspector() {
   enable_rule_access_for_inspector_ = false;
 }
 
+void CSSStyleSheet::BeginQuietMutation() {
+  if (IsContentsShared()) {
+    SetContents(contents_->Copy());
+  }
+}
+
+void CSSStyleSheet::EndQuietMutation(StyleSheetContents* original_contents) {
+  CHECK_NE(contents_, original_contents);
+  SetContents(original_contents);
+}
+
 CSSStyleSheet::InspectorMutationScope::InspectorMutationScope(
     CSSStyleSheet* sheet)
     : style_sheet_(sheet) {
@@ -284,6 +288,18 @@ CSSStyleSheet::InspectorMutationScope::InspectorMutationScope(
 
 CSSStyleSheet::InspectorMutationScope::~InspectorMutationScope() {
   style_sheet_->DisableRuleAccessForInspector();
+}
+
+bool CSSStyleSheet::IsContentsShared() const {
+  return contents_->IsUsedFromTextCache() ||
+         contents_->IsReferencedFromResource();
+}
+
+void CSSStyleSheet::SetContents(StyleSheetContents* contents) {
+  contents_->UnregisterClient(this);
+  contents_ = contents;
+  contents_->RegisterClient(this);
+  ReattachChildRuleCSSOMWrappers();
 }
 
 void CSSStyleSheet::ReattachChildRuleCSSOMWrappers() {
@@ -314,15 +330,24 @@ bool CSSStyleSheet::MatchesMediaQueries(const MediaQueryEvaluator& evaluator) {
 }
 
 void CSSStyleSheet::AddedAdoptedToTreeScope(TreeScope& tree_scope) {
-  adopted_tree_scopes_.insert(&tree_scope);
+  auto add_result = adopted_tree_scopes_.insert(&tree_scope, 1u);
+  if (!add_result.is_new_entry) {
+    add_result.stored_value->value++;
+  }
 }
 
 void CSSStyleSheet::RemovedAdoptedFromTreeScope(TreeScope& tree_scope) {
-  adopted_tree_scopes_.erase(&tree_scope);
+  auto it = adopted_tree_scopes_.find(&tree_scope);
+  if (it != adopted_tree_scopes_.end()) {
+    CHECK_GT(it->value, 0u);
+    if (--it->value == 0) {
+      adopted_tree_scopes_.erase(&tree_scope);
+    }
+  }
 }
 
-bool CSSStyleSheet::IsAdoptedByTreeScope(TreeScope& tree_scope) {
-  return adopted_tree_scopes_.Contains(&tree_scope);
+bool CSSStyleSheet::IsAdoptedByTreeScope(const TreeScope& tree_scope) {
+  return adopted_tree_scopes_.Contains(const_cast<TreeScope*>(&tree_scope));
 }
 
 bool CSSStyleSheet::HasViewportDependentMediaQueries() const {
@@ -448,9 +473,9 @@ void CSSStyleSheet::deleteRule(unsigned index,
     if (length()) {
       exception_state.ThrowDOMException(
           DOMExceptionCode::kIndexSizeError,
-          "The index provided (" + String::Number(index) +
-              ") is larger than the maximum index (" +
-              String::Number(length() - 1) + ").");
+          WTF::StrCat({"The index provided (", String::Number(index),
+                       ") is larger than the maximum index (",
+                       String::Number(length() - 1), ")."}));
     } else {
       exception_state.ThrowDOMException(DOMExceptionCode::kIndexSizeError,
                                         "Style sheet is empty (length 0).");
@@ -507,7 +532,7 @@ ScriptPromise<CSSStyleSheet> CSSStyleSheet::replace(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "Can't call replace on non-constructed CSSStyleSheets.");
-    return ScriptPromise<CSSStyleSheet>();
+    return EmptyPromise();
   }
   SetText(text, CSSImportRules::kIgnoreWithWarning);
   probe::DidReplaceStyleSheetText(OwnerDocument(), this, text);

@@ -171,7 +171,7 @@ class DeviceFailure(Exception):
 class TestURIMapper:
 
     def __init__(self, port):
-        self.WPT_DIRS = port.WPT_DIRS
+        self._wpt_dirs = port.wpt_dirs()
         self._port = port
 
     # The *_HOST_AND_PORTS tuples are (hostname, insecure_port, secure_port),
@@ -204,8 +204,8 @@ class TestURIMapper:
                                        self._port.abspath_for_test(test_name))
 
         if using_wptserve:
-            for wpt_path, url_prefix in self.WPT_DIRS.items():
-                # The keys of WPT_DIRS do not have trailing slashes.
+            for wpt_path, url_prefix in self._wpt_dirs.items():
+                # The keys of _wpt_dirs do not have trailing slashes.
                 wpt_path += '/'
                 if test_name.startswith(wpt_path):
                     test_dir_prefix = wpt_path
@@ -264,7 +264,7 @@ class TestURIMapper:
         for prefix in self._get_uri_prefixes(*self.WPT_HOST_AND_PORTS):
             if uri.startswith(prefix):
                 url_path = '/' + uri[len(prefix):]
-                for wpt_path, url_prefix in self.WPT_DIRS.items():
+                for wpt_path, url_prefix in self._wpt_dirs.items():
                     if url_path.startswith(url_prefix):
                         return wpt_path + '/' + url_path[len(url_prefix):]
         raise NotImplementedError('unknown url type: %s' % uri)
@@ -379,7 +379,8 @@ class Driver(TestURIMapper):
             # In the timeout case, we kill the hung process as well.
             # Add a delay to allow process to finish post-run hooks, such as dumping code coverage data.
             out, err = self._server_process.stop(
-                self._port.get_option('driver_kill_timeout_secs'))
+                timeout_secs=self._port.get_option('driver_kill_timeout_secs'),
+                send_sigterm=self._port.get_option('kill_driver_with_sigterm'))
             if out:
                 text += out
             if err:
@@ -422,7 +423,8 @@ class Driver(TestURIMapper):
             # means that the server process is restarted after every test
             # anyway, so this just accelerates the inevitable.
             out, err = self._server_process.stop(
-                self._port.get_option('driver_kill_timeout_secs'))
+                timeout_secs=self._port.get_option('driver_kill_timeout_secs'),
+                send_sigterm=self._port.get_option('kill_driver_with_sigterm'))
             if out:
                 text += out
             if err:
@@ -585,12 +587,17 @@ class Driver(TestURIMapper):
         return self._server_process.pid()
 
     def stop(self, timeout_secs=None):
-        if timeout_secs is None:
-            # Add a delay to allow process to finish post-run hooks, such as dumping code coverage data.
-            timeout_secs = self._port.get_option('driver_kill_timeout_secs')
+        # Add a delay to allow process to finish post-run hooks, such as dumping
+        # code coverage data; but allow for 0 timeout if explicitly requested.
+        if timeout_secs != 0:
+            timeout_secs = max(
+                timeout_secs or 0,
+                self._port.get_option('driver_kill_timeout_secs', 0))
 
         if self._server_process:
-            self._server_process.stop(timeout_secs)
+            self._server_process.stop(
+                timeout_secs=timeout_secs,
+                send_sigterm=self._port.get_option('kill_driver_with_sigterm'))
             self._server_process = None
             if self._profiler:
                 self._profiler.profile_after_exit()
@@ -602,7 +609,13 @@ class Driver(TestURIMapper):
         self._current_cmd_line = None
 
     def _base_cmd_line(self):
-        return [self._port.path_to_driver()]
+        return [
+            self._port.path_to_driver(),
+            '--run-web-tests',
+            # To take effect, `--ignore-certificate-errors-spki-list` requires
+            # an embedder-defined `--user-data-dir`.
+            '--user-data-dir',
+        ]
 
     def cmd_line(self, per_test_args):
         cmd = list(self._port.get_option('wrapper', []))
@@ -612,6 +625,8 @@ class Driver(TestURIMapper):
         cmd.extend(self._port.additional_driver_flags())
         if self._port.get_option('enable_leak_detection'):
             cmd.append('--enable-leak-detection')
+        if self._port.get_option('nocheck_sys_deps', False):
+            cmd.append('--disable-system-font-check')
         cmd.extend(per_test_args)
         cmd = coalesce_repeated_switches(cmd)
         cmd.append('-')

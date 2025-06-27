@@ -50,7 +50,7 @@ const gfx::Size SeparatorTest::kTestImageSize{24, 24};
 
 void SeparatorTest::SetUp() {
   ViewsTestBase::SetUp();
-  widget_ = CreateTestWidget();
+  widget_ = CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
   separator_ = widget_->SetContentsView(std::make_unique<Separator>());
   expected_foreground_color_ =
       widget_->GetColorProvider()->GetColor(kForegroundColorId);
@@ -336,6 +336,19 @@ TEST_F(SeparatorTest, Paint_MinimumSize_Scale125) {
   EXPECT_EQ(kBackgroundColor, painted.getColor(7, 6));
   EXPECT_EQ(kBackgroundColor, painted.getColor(7, 8));
   EXPECT_EQ(kBackgroundColor, painted.getColor(8, 7));
+}
+
+TEST_F(SeparatorTest, Paint_BorderRadius) {
+  separator_->SetSize({10, 10});
+  separator_->SetBorderRadius(10);
+  separator_->SetColorId(kForegroundColorId);
+
+  SkBitmap painted = PaintToCanvas(1.0f);
+  EXPECT_EQ(kBackgroundColor, painted.getColor(0, 0));
+  EXPECT_EQ(kBackgroundColor, painted.getColor(0, 9));
+  EXPECT_EQ(kBackgroundColor, painted.getColor(9, 9));
+  EXPECT_EQ(kBackgroundColor, painted.getColor(9, 0));
+  EXPECT_EQ(expected_foreground_color_, painted.getColor(5, 5));
 }
 
 }  // namespace views

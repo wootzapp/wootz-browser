@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/spellcheck/browser/spellcheck_host_metrics.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <memory>
 
 #include "base/metrics/histogram_samples.h"
@@ -52,10 +58,13 @@ TEST_F(SpellcheckHostMetricsTest, RecordEnabledStats) {
 TEST_F(SpellcheckHostMetricsTest, RecordWordCountsDiscardsDuplicates) {
   // This test ensures that RecordWordCounts only records metrics if they
   // have changed from the last invocation.
-  const char* const histogram_names[] = {
-      "SpellCheck.CheckedWords", "SpellCheck.MisspelledWords",
-      "SpellCheck.ReplacedWords", "SpellCheck.UniqueWords",
-      "SpellCheck.ShownSuggestions"};
+  const auto histogram_names = std::to_array<const char*>({
+      "SpellCheck.CheckedWords",
+      "SpellCheck.MisspelledWords",
+      "SpellCheck.ReplacedWords",
+      "SpellCheck.UniqueWords",
+      "SpellCheck.ShownSuggestions",
+  });
 
   // Ensure all histograms exist.
   metrics()->RecordCheckedWordStats(u"test", false);

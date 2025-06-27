@@ -4,6 +4,7 @@
 
 #include "services/device/geolocation/geolocation_provider_impl.h"
 
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <utility>
@@ -17,7 +18,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
 #include "build/build_config.h"
@@ -82,8 +82,7 @@ void GeolocationProviderImpl::SetGeolocationConfiguration(
     JNIEnv* env = base::android::AttachCurrentThread();
     Java_LocationProviderFactory_useGmsCoreLocationProvider(env);
 #else
-    NOTREACHED_IN_MIGRATION()
-        << "GMS core location provider is only available for Android";
+    NOTREACHED() << "GMS core location provider is only available for Android";
 #endif
   }
 }
@@ -112,10 +111,6 @@ GeolocationProviderImpl::AddLocationUpdateCallback(
   }
 
   return subscription;
-}
-
-bool GeolocationProviderImpl::HighAccuracyLocationInUse() {
-  return !high_accuracy_callbacks_.empty();
 }
 
 void GeolocationProviderImpl::OverrideLocationForTesting(
@@ -178,8 +173,9 @@ GeolocationProviderImpl::GeolocationProviderImpl()
       &GeolocationProviderImpl::OnInternalsObserverDisconnected,
       base::Unretained(this)));
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
-  if (g_geolocation_system_permission_manager) {
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+  if (features::IsOsLevelGeolocationPermissionSupportEnabled() &&
+      g_geolocation_system_permission_manager) {
     observers_ = g_geolocation_system_permission_manager->GetObserverList();
     observers_->AddObserver(this);
     system_permission_status_ =
@@ -195,8 +191,8 @@ GeolocationProviderImpl::GeolocationProviderImpl()
 }
 
 GeolocationProviderImpl::~GeolocationProviderImpl() {
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
-  if (observers_) {
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+  if (features::IsOsLevelGeolocationPermissionSupportEnabled() && observers_) {
     observers_->RemoveObserver(this);
   }
 #endif
@@ -235,13 +231,14 @@ void GeolocationProviderImpl::OnClientsChanged() {
       if (user_did_opt_into_location_services_)
         InformProvidersPermissionGranted();
     }
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
     // Handle system permission states:
     // - kAllowed: Start providers (allows re-entry for accuracy updates).
     // - kDenied: Use previously generated error result (no action here).
     // - kUndetermined: Wait for OnSystemPermissionUpdated() to handle changes
     // (no action here).
-    if (system_permission_status_ != LocationSystemPermissionStatus::kAllowed) {
+    if (features::IsOsLevelGeolocationPermissionSupportEnabled() &&
+        system_permission_status_ != LocationSystemPermissionStatus::kAllowed) {
       return;
     }
 #endif
@@ -419,11 +416,6 @@ void GeolocationProviderImpl::AddInternalsObserver(
     AddInternalsObserverCallback callback) {
   CHECK(main_task_runner_->BelongsToCurrentThread());
 
-  if (!base::FeatureList::IsEnabled(
-          features::kGeolocationDiagnosticsObserver)) {
-    std::move(callback).Run(nullptr);
-    return;
-  }
   internals_observers_.Add(std::move(observer));
   if (!location_provider_manager_) {
     std::move(callback).Run(nullptr);
@@ -469,7 +461,7 @@ void GeolocationProviderImpl::DisableDiagnosticsOnGeolocationThread() {
   diagnostics_enabled_ = false;
 }
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
 void GeolocationProviderImpl::OnSystemPermissionUpdated(
     LocationSystemPermissionStatus new_status) {
   CHECK(main_task_runner_->BelongsToCurrentThread());
@@ -477,6 +469,12 @@ void GeolocationProviderImpl::OnSystemPermissionUpdated(
     GEOLOCATION_LOG(DEBUG) << "New system permission state is kAllowed";
     if (!high_accuracy_callbacks_.empty() || !low_accuracy_callbacks_.empty()) {
       DoStartProvidersOnGeolocationThread();
+    }
+    if (system_permission_status_ == LocationSystemPermissionStatus::kDenied) {
+      // If the system permission was previously denied and is now granted,
+      // clear the cached `result_`. This prevents a stale error result from
+      // being delivered to the first new callback registered after the grant.
+      result_.reset();
     }
   } else if (new_status == LocationSystemPermissionStatus::kDenied) {
     GEOLOCATION_LOG(DEBUG) << "New system permission state is kDenied";
@@ -499,7 +497,8 @@ void GeolocationProviderImpl::NotifyClientsSystemPermissionDenied() {
   auto error_result =
       mojom::GeopositionResult::NewError(mojom::GeopositionError::New(
           mojom::GeopositionErrorCode::kPermissionDenied,
-          kSystemPermissionDeniedErrorMessage, ""));
+          kSystemPermissionDeniedErrorMessage,
+          kSystemPermissionDeniedErrorTechnical));
   NotifyClients(std::move(error_result));
 }
 #endif

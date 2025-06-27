@@ -4,11 +4,13 @@
 
 package org.chromium.components.messages;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.messages.MessageScopeChange.ChangeType;
 import org.chromium.ui.util.TokenHolder;
 
@@ -23,6 +25,7 @@ import java.util.Objects;
  * A class managing the queue of messages. Its primary role is to decide when to show/hide current
  * message and which message to show next.
  */
+@NullMarked
 class MessageQueueManager implements ScopeChangeController.Delegate {
     static final String TAG = "MessageQueueManager";
 
@@ -100,22 +103,9 @@ class MessageQueueManager implements ScopeChangeController.Delegate {
 
         MessagesMetrics.recordMessageEnqueued(message.getMessageIdentifier());
         // The candidate which will be fully visible. Null if no message will be displayed.
-        MessageState primaryCandidate;
-        if (MessageFeatureList.isStackAnimationEnabled()) {
-            List<MessageState> candidates = updateCurrentDisplayedWithStacking();
-            assert candidates.size() == 2 : "There must be 2 candidates when stacking is enabled.";
-            primaryCandidate = candidates.get(0);
-        } else {
-            MessageState candidate = updateCurrentDisplayedWithoutStacking();
-            if (candidate != null) {
-                Log.w(
-                        TAG,
-                        "Currently displaying message with ID %s and key %s.",
-                        candidate.handler.getMessageIdentifier(),
-                        candidate.messageKey);
-            }
-            primaryCandidate = candidate;
-        }
+        List<MessageState> candidates = updateCurrentDisplayed();
+        assert candidates.size() == 2 : "There must be 2 candidates when stacking is enabled.";
+        MessageState primaryCandidate = candidates.get(0);
 
         if (primaryCandidate == messageState) {
             MessagesMetrics.recordMessageEnqueuedVisible(message.getMessageIdentifier());
@@ -148,12 +138,13 @@ class MessageQueueManager implements ScopeChangeController.Delegate {
      * state from the queue.
      */
     private void dismissMessageInternal(
-            @NonNull MessageState messageState, @DismissReason int dismissReason) {
+            MessageState messageState, @DismissReason int dismissReason) {
         MessageStateHandler message = messageState.handler;
         ScopeKey scopeKey = messageState.scopeKey;
 
         // Remove the scope from the map if the messageQueue is empty.
         List<MessageState> messageQueue = mMessageQueues.get(scopeKey);
+        assumeNonNull(messageQueue);
         messageQueue.remove(messageState);
         Log.w(
                 TAG,
@@ -214,42 +205,21 @@ class MessageQueueManager implements ScopeChangeController.Delegate {
         return mSuppressionTokenHolder.hasTokens();
     }
 
-    /** Update current displayed message(s). Stacking animation is triggered if it's enabled. */
+    /** Update current displayed message(s). */
     private void updateCurrentDisplayedMessages() {
-        if (MessageFeatureList.isStackAnimationEnabled()) {
-            updateCurrentDisplayedWithStacking();
-        } else {
-            updateCurrentDisplayedWithoutStacking();
-        }
+        updateCurrentDisplayed();
     }
 
     /**
-     * Update current displayed messages with stacking.
+     * Update current displayed messages.
      *
      * @return The candidates supposed to be displayed.
      */
-    private List<MessageState> updateCurrentDisplayedWithStacking() {
+    private List<MessageState> updateCurrentDisplayed() {
         var candidates = getNextMessages();
         mAnimationCoordinator.updateWithStacking(
-                candidates, isQueueSuspended(), this::updateCurrentDisplayedWithStacking);
+                candidates, isQueueSuspended(), this::updateCurrentDisplayed);
         return candidates;
-    }
-
-    // TODO(crbug.com/40740060): Rethink the case where a message show or dismiss animation is
-    //      running when we get another scope change signal that should potentially either reverse
-    //      the animation (i.e. going from inactive -> active quickly) or jump to the end (i.e.
-    //      going from animate transition -> don't animate transition.
-
-    /**
-     * Update current displayed message without stacking.
-     *
-     * @return The candidate supposed to be displayed.
-     */
-    private MessageState updateCurrentDisplayedWithoutStacking() {
-        var candidate = getNextMessage();
-        mAnimationCoordinator.updateWithoutStacking(
-                candidate, isQueueSuspended(), this::updateCurrentDisplayedWithoutStacking);
-        return candidate;
     }
 
     void dismissAllMessages(@DismissReason int dismissReason) {
@@ -318,7 +288,7 @@ class MessageQueueManager implements ScopeChangeController.Delegate {
     //   (a is not lower priority than b);
     // * If a is not highPriority and b is high priority, return true (a is lower priority than b);
     @VisibleForTesting
-    boolean isLowerPriority(@Nullable MessageState a, @NonNull MessageState b) {
+    boolean isLowerPriority(@Nullable MessageState a, MessageState b) {
         if (a == null) return true;
         if (a.highPriority != b.highPriority) return b.highPriority;
         return a.id > b.id;

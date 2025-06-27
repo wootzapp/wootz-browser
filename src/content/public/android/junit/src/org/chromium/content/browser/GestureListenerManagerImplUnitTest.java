@@ -28,22 +28,22 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.blink.mojom.EventType;
 import org.chromium.content.browser.selection.SelectionPopupControllerImpl;
 import org.chromium.content.browser.webcontents.WebContentsImpl;
-import org.chromium.content.browser.webcontents.WebContentsImpl.UserDataFactory;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.GestureStateListener;
+import org.chromium.content_public.browser.WebContents.UserDataFactory;
 import org.chromium.ui.base.ViewAndroidDelegate;
 
 /** Unit test for {@link GestureListenerManagerImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@DisableFeatures({ContentFeatureList.CONTINUE_GESTURE_ON_LOSING_FOCUS})
 @EnableFeatures({ContentFeatureList.HIDE_PASTE_POPUP_ON_GSB})
 public class GestureListenerManagerImplUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     @Mock WebContentsImpl mWebContents;
     @Mock ViewGroup mViewGroup;
@@ -54,7 +54,7 @@ public class GestureListenerManagerImplUnitTest {
 
     @Before
     public void setup() {
-        mJniMocker.mock(GestureListenerManagerImplJni.TEST_HOOKS, mMockJniGestureListenerManager);
+        GestureListenerManagerImplJni.setInstanceForTesting(mMockJniGestureListenerManager);
         doReturn(1L).when(mMockJniGestureListenerManager).init(any(), any());
 
         setupMockWebContents();
@@ -156,6 +156,6 @@ public class GestureListenerManagerImplUnitTest {
                             return factory.create(mWebContents);
                         })
                 .when(mWebContents)
-                .getOrSetUserData(/* key= */ any(), /*userDataFactory*/ any());
+                .getOrSetUserData(/* key= */ any(), /* userDataFactory= */ any());
     }
 }

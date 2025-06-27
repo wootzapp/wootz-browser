@@ -19,10 +19,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -34,7 +34,6 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.paintpreview.player.PlayerManager;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.concurrent.ExecutionException;
 
@@ -53,8 +52,7 @@ public class DemoPaintPreviewTest {
 
     private static final String TEST_URL = "/chrome/test/data/android/about.html";
 
-    // @Mock to tell R8 not to break the ability to mock the class.
-    @Mock private static PaintPreviewTabService sMockService;
+    private static PaintPreviewTabService sMockService;
 
     @BeforeClass
     public static void setUp() {
@@ -100,19 +98,19 @@ public class DemoPaintPreviewTest {
                 .captureTab(Mockito.any(Tab.class), callbackCaptor.capture());
 
         AppMenuCoordinator coordinator = sActivityTestRule.getAppMenuCoordinator();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AppMenuTestSupport.showAppMenu(coordinator, null, false);
                 });
         Assert.assertNotNull(
                 AppMenuTestSupport.getMenuItemPropertyModel(
                         coordinator, R.id.paint_preview_show_id));
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> AppMenuTestSupport.callOnItemClick(coordinator, R.id.paint_preview_show_id));
 
         Tab tab = sActivityTestRule.getActivity().getActivityTab();
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         assertAttachedAndShown(tabbedPaintPreview, true, true);
     }
 }

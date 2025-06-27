@@ -52,8 +52,7 @@ ScriptPromise<IDLUndefined> SerialPortUnderlyingSource::Pull(
   return ToResolvedUndefinedPromise(script_state_.Get());
 }
 
-ScriptPromise<IDLUndefined> SerialPortUnderlyingSource::Cancel(
-    ExceptionState& exception_state) {
+ScriptPromise<IDLUndefined> SerialPortUnderlyingSource::Cancel() {
   DCHECK(data_pipe_);
 
   Close();
@@ -75,9 +74,8 @@ ScriptPromise<IDLUndefined> SerialPortUnderlyingSource::Cancel(
 }
 
 ScriptPromise<IDLUndefined> SerialPortUnderlyingSource::Cancel(
-    v8::Local<v8::Value> reason,
-    ExceptionState& exception_state) {
-  return Cancel(exception_state);
+    v8::Local<v8::Value> reason) {
+  return Cancel();
 }
 
 ScriptState* SerialPortUnderlyingSource::GetScriptState() {
@@ -95,8 +93,7 @@ void SerialPortUnderlyingSource::SignalErrorOnClose(SerialReceiveError error) {
   v8::Local<v8::Value> exception;
   switch (error) {
     case SerialReceiveError::NONE:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case SerialReceiveError::DISCONNECTED:
       [[fallthrough]];
     case SerialReceiveError::DEVICE_LOST:
@@ -149,10 +146,9 @@ void SerialPortUnderlyingSource::Trace(Visitor* visitor) const {
 }
 
 void SerialPortUnderlyingSource::ReadDataOrArmWatcher() {
-  const void* buffer = nullptr;
-  size_t length = 0;
+  base::span<const uint8_t> buffer;
   MojoResult result =
-      data_pipe_->BeginReadData(&buffer, &length, MOJO_READ_DATA_FLAG_NONE);
+      data_pipe_->BeginReadData(MOJO_READ_DATA_FLAG_NONE, buffer);
   switch (result) {
     case MOJO_RESULT_OK: {
       // respond() or enqueue() will only throw if their arguments are invalid
@@ -163,15 +159,14 @@ void SerialPortUnderlyingSource::ReadDataOrArmWatcher() {
 
       if (ReadableStreamBYOBRequest* request = controller_->byobRequest()) {
         DOMArrayPiece view(request->view().Get());
-        length = std::min(view.ByteLength(), length);
-        memcpy(view.Data(), buffer, length);
-        request->respond(script_state_, length, exception_state);
+        buffer = buffer.first(std::min(view.ByteLength(), buffer.size()));
+        view.ByteSpan().copy_prefix_from(buffer);
+        request->respond(script_state_, buffer.size(), exception_state);
       } else {
-        auto chunk = NotShared(DOMUint8Array::Create(
-            static_cast<const unsigned char*>(buffer), length));
+        auto chunk = NotShared(DOMUint8Array::Create(buffer));
         controller_->enqueue(script_state_, chunk, exception_state);
       }
-      result = data_pipe_->EndReadData(length);
+      result = data_pipe_->EndReadData(buffer.size());
       DCHECK_EQ(result, MOJO_RESULT_OK);
       break;
     }
@@ -183,8 +178,7 @@ void SerialPortUnderlyingSource::ReadDataOrArmWatcher() {
       break;
     default:
       invalid_data_pipe_read_result_ = result;
-      DUMP_WILL_BE_NOTREACHED_NORETURN()
-          << "Invalid data pipe read result: " << result;
+      DUMP_WILL_BE_NOTREACHED() << "Invalid data pipe read result: " << result;
       break;
   }
 }
@@ -225,6 +219,12 @@ void SerialPortUnderlyingSource::PipeClosed() {
 void SerialPortUnderlyingSource::Close() {
   watcher_.Cancel();
   data_pipe_.reset();
+}
+
+void SerialPortUnderlyingSource::Dispose() {
+  // Ensure that `watcher_` is disarmed so that `OnHandleReady()` is not called
+  // after this object becomes garbage.
+  Close();
 }
 
 }  // namespace blink

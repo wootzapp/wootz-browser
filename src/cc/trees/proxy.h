@@ -8,10 +8,14 @@
 #include <memory>
 #include <string>
 
+#include "base/memory/shared_memory_mapping.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
+#include "base/types/optional_ref.h"
 #include "cc/cc_export.h"
+#include "cc/input/browser_controls_offset_tag_modifications.h"
 #include "cc/input/browser_controls_state.h"
+#include "cc/paint/draw_image.h"
 #include "cc/trees/paint_holding_commit_trigger.h"
 #include "cc/trees/paint_holding_reason.h"
 #include "cc/trees/task_runner_provider.h"
@@ -43,8 +47,9 @@ class CC_EXPORT Proxy {
   virtual void ReleaseLayerTreeFrameSink() = 0;
 
   virtual void SetVisible(bool visible) = 0;
+  virtual void SetShouldWarmUp() = 0;
 
-  virtual void SetNeedsAnimate() = 0;
+  virtual void SetNeedsAnimate(bool urgent = false) = 0;
   virtual void SetNeedsUpdateLayers() = 0;
   virtual void SetNeedsCommit() = 0;
   virtual void SetNeedsRedraw(const gfx::Rect& damage_rect) = 0;
@@ -84,19 +89,25 @@ class CC_EXPORT Proxy {
 
   virtual bool CommitRequested() const = 0;
 
+  virtual void SetShouldThrottleFrameRate(bool flag) = 0;
+
   // Must be called before using the proxy.
   virtual void Start() = 0;
   // Must be called before deleting the proxy.
   virtual void Stop() = 0;
 
+  virtual void QueueImageDecode(int request_id, const DrawImage& image) = 0;
   virtual void SetMutator(std::unique_ptr<LayerTreeMutator> mutator) = 0;
 
   virtual void SetPaintWorkletLayerPainter(
       std::unique_ptr<PaintWorkletLayerPainter> painter) = 0;
 
-  virtual void UpdateBrowserControlsState(BrowserControlsState constraints,
-                                          BrowserControlsState current,
-                                          bool animate) = 0;
+  virtual void UpdateBrowserControlsState(
+      BrowserControlsState constraints,
+      BrowserControlsState current,
+      bool animate,
+      base::optional_ref<const BrowserControlsOffsetTagModifications>
+          offset_tag_modifications) = 0;
 
   virtual void RequestBeginMainFrameNotExpected(bool new_state) = 0;
 
@@ -107,6 +118,9 @@ class CC_EXPORT Proxy {
 
   virtual void SetUkmSmoothnessDestination(
       base::WritableSharedMemoryMapping ukm_smoothness_data) = 0;
+
+  virtual void SetUkmDroppedFramesDestination(
+      base::WritableSharedMemoryMapping ukm_dropped_frames_data) = 0;
 
   virtual void SetRenderFrameObserver(
       std::unique_ptr<RenderFrameMetadataObserver> observer) = 0;

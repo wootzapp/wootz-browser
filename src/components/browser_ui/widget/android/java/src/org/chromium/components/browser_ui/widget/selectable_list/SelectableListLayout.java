@@ -15,10 +15,12 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import androidx.annotation.Nullable;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.IdRes;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.MenuRes;
 import androidx.annotation.StringRes;
 import androidx.appcompat.widget.Toolbar.OnMenuItemClickListener;
-import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.AdapterDataObserver;
@@ -27,6 +29,9 @@ import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
 
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.widget.FadingShadow;
 import org.chromium.components.browser_ui.widget.FadingShadowView;
 import org.chromium.components.browser_ui.widget.R;
@@ -36,6 +41,7 @@ import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig.DisplayStyle;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate.SelectionObserver;
+import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.widget.LoadingView;
 
 import java.util.HashSet;
@@ -54,9 +60,11 @@ import java.util.Set;
  *
  * @param <E> The type of the selectable items this layout holds.
  */
+@NullMarked
 public class SelectableListLayout<E> extends FrameLayout
         implements DisplayStyleObserver, SelectionObserver<E>, BackPressHandler {
     private static final int WIDE_DISPLAY_MIN_PADDING_DP = 16;
+
     private RecyclerView.Adapter mAdapter;
     private ViewStub mToolbarStub;
     private TextView mEmptyView;
@@ -65,14 +73,15 @@ public class SelectableListLayout<E> extends FrameLayout
     private ImageView mEmptyImageView;
     private LoadingView mLoadingView;
     private RecyclerView mRecyclerView;
-    private ItemAnimator mItemAnimator;
+    private @Nullable ItemAnimator mItemAnimator;
     SelectableListToolbar<E> mToolbar;
+
     private FadingShadowView mToolbarShadow;
 
-    private int mEmptyStringResId;
-    private CharSequence mEmptySubheadingString;
+    private @StringRes int mEmptyStringResId;
+    private @Nullable CharSequence mEmptySubheadingString;
 
-    private UiConfig mUiConfig;
+    private @Nullable UiConfig mUiConfig;
 
     private final ObservableSupplierImpl<Boolean> mBackPressStateSupplier =
             new ObservableSupplierImpl<>();
@@ -87,7 +96,7 @@ public class SelectableListLayout<E> extends FrameLayout
                     // At inflation, the RecyclerView is set to gone, and the loading view is
                     // visible. As long as the adapter data changes, we show the recycler view,
                     // and hide loading view.
-                    mLoadingView.hideLoadingUI();
+                    mLoadingView.hideLoadingUi();
                 }
 
                 @Override
@@ -97,7 +106,7 @@ public class SelectableListLayout<E> extends FrameLayout
                     // At inflation, the RecyclerView is set to gone, and the loading view is
                     // visible. As long as the adapter data changes, we show the recycler view,
                     // and hide loading view.
-                    mLoadingView.hideLoadingUI();
+                    mLoadingView.hideLoadingUi();
                 }
 
                 @Override
@@ -121,7 +130,7 @@ public class SelectableListLayout<E> extends FrameLayout
         mEmptyView = findViewById(R.id.empty_view);
         mEmptyViewWrapper = findViewById(R.id.empty_view_wrapper);
         mLoadingView = findViewById(R.id.loading_view);
-        mLoadingView.showLoadingUI();
+        mLoadingView.showLoadingUi();
 
         mToolbarStub = findViewById(R.id.action_bar_stub);
 
@@ -151,10 +160,11 @@ public class SelectableListLayout<E> extends FrameLayout
      * Initializes the layout with the given recycler view and adapter.
      *
      * @param adapter The adapter that provides a binding from an app-specific data set to views
-     *                that are displayed within the RecyclerView.
+     *     that are displayed within the RecyclerView.
      * @param recyclerView The recycler view to be shown.
      * @return The RecyclerView itself.
      */
+    @Initializer
     public RecyclerView initializeRecyclerView(
             RecyclerView.Adapter adapter, @Nullable RecyclerView recyclerView) {
         mAdapter = adapter;
@@ -175,6 +185,7 @@ public class SelectableListLayout<E> extends FrameLayout
 
         mRecyclerView.setAdapter(mAdapter);
         initializeRecyclerViewProperties();
+        mItemAnimator = mRecyclerView.getItemAnimator();
         return mRecyclerView;
     }
 
@@ -201,8 +212,6 @@ public class SelectableListLayout<E> extends FrameLayout
                         int oldBottom) -> {
                     setToolbarShadowVisibility();
                 });
-
-        mItemAnimator = mRecyclerView.getItemAnimator();
     }
 
     /**
@@ -224,11 +233,11 @@ public class SelectableListLayout<E> extends FrameLayout
      * @return The initialized SelectionToolbar.
      */
     public SelectableListToolbar<E> initializeToolbar(
-            int toolbarLayoutId,
+            @LayoutRes int toolbarLayoutId,
             SelectionDelegate<E> delegate,
-            int titleResId,
-            int normalGroupResId,
-            int selectedGroupResId,
+            @StringRes int titleResId,
+            @IdRes int normalGroupResId,
+            @IdRes int selectedGroupResId,
             @Nullable OnMenuItemClickListener listener,
             boolean updateStatusBarColor) {
         return initializeToolbar(
@@ -264,15 +273,16 @@ public class SelectableListLayout<E> extends FrameLayout
      * @param showBackInNormalView Whether the back arrow should appear on the normal view.
      * @return The initialized SelectionToolbar.
      */
+    @Initializer
     public SelectableListToolbar<E> initializeToolbar(
-            int toolbarLayoutId,
+            @LayoutRes int toolbarLayoutId,
             SelectionDelegate<E> delegate,
-            int titleResId,
-            int normalGroupResId,
-            int selectedGroupResId,
+            @StringRes int titleResId,
+            @IdRes int normalGroupResId,
+            @IdRes int selectedGroupResId,
             @Nullable OnMenuItemClickListener listener,
             boolean updateStatusBarColor,
-            int menuResId,
+            @MenuRes int menuResId,
             boolean showBackInNormalView) {
         mToolbarStub.setLayoutResource(toolbarLayoutId);
         @SuppressWarnings("unchecked")
@@ -307,7 +317,7 @@ public class SelectableListLayout<E> extends FrameLayout
      * @param emptyStringResId The string to show when the selectable list is empty.
      * @return The {@link TextView} displayed when the list is empty.
      */
-    public TextView initializeEmptyView(int emptyStringResId) {
+    public TextView initializeEmptyView(@StringRes int emptyStringResId) {
         setEmptyViewText(emptyStringResId);
 
         // Empty listener to have the touch events dispatched to this view tree for navigation UI.
@@ -321,21 +331,15 @@ public class SelectableListLayout<E> extends FrameLayout
      *
      * @param imageResId Image view to show when the selectable list is empty.
      * @param emptyHeadingStringResId Heading string to show when the selectable list is empty.
-     * @param emptySubheadingStringResId SubString to show when the selectable list is empty.
+     * @param emptySubheadingString Subheading string to show when the selectable list is empty.
      * @return The {@link TextView} displayed when the list is empty.
      */
     // @TODO: (crbugs.com/1443648) Refactor return value for ForTesting method
+    @Initializer
     public TextView initializeEmptyStateView(
-            int imageResId, int emptyHeadingStringResId, int emptySubheadingStringResId) {
-        CharSequence emptySubheadingString = getResources().getString(emptySubheadingStringResId);
-        return initializeEmptyStateView(imageResId, emptyHeadingStringResId, emptySubheadingString);
-    }
-
-    /**
-     * @see {@link #initializeEmptyStateView(int, int, int)}
-     */
-    public TextView initializeEmptyStateView(
-            int imageResId, int emptyHeadingStringResId, CharSequence emptySubheadingString) {
+            @DrawableRes int imageResId,
+            @StringRes int emptyHeadingStringResId,
+            CharSequence emptySubheadingString) {
         // Initialize and inflate empty state view stub.
         ViewStub emptyViewStub = findViewById(R.id.empty_state_view_stub);
         View emptyStateView = emptyViewStub.inflate();
@@ -354,17 +358,19 @@ public class SelectableListLayout<E> extends FrameLayout
 
     /**
      * Sets the empty state view image when the selectable list is empty.
+     *
      * @param imageResId The image view to show when the selectable list is empty.
      */
-    public void setEmptyStateImageRes(int imageResId) {
+    public void setEmptyStateImageRes(@DrawableRes int imageResId) {
         mEmptyImageView.setImageResource(imageResId);
     }
 
     /**
      * Sets the view text when the selectable list is empty.
+     *
      * @param emptyStringResId The string to show when the selectable list is empty.
      */
-    public void setEmptyViewText(int emptyStringResId) {
+    public void setEmptyViewText(@StringRes int emptyStringResId) {
         mEmptyStringResId = emptyStringResId;
 
         mEmptyView.setText(mEmptyStringResId);
@@ -373,24 +379,16 @@ public class SelectableListLayout<E> extends FrameLayout
     /**
      * Sets the view text when the selectable list is empty.
      *
-     * @param emptyStringResId Heading string to show when the selectable list is empty.
-     * @param emptySubheadingStringResId SubString to show when the selectable list is empty.
-     */
-    public void setEmptyStateViewText(int emptyHeadingStringResId, int emptySubheadingStringResId) {
-        CharSequence emptySubheadingString = getResources().getString(emptySubheadingStringResId);
-        setEmptyStateViewText(emptyHeadingStringResId, emptySubheadingString);
-    }
-
-    /**
-     * @see {@link #setEmptyStateViewText(int, int)}
+     * @param emptyHeadingStringResId Heading string to show when the selectable list is empty.
+     * @param emptySubheadingString Subheading string to show when the selectable list is empty.
      */
     public void setEmptyStateViewText(
-            int emptyHeadingStringResId, CharSequence emptySubheadingString) {
+            @StringRes int emptyHeadingStringResId, CharSequence emptySubheadingString) {
         mEmptyStringResId = emptyHeadingStringResId;
         mEmptySubheadingString = emptySubheadingString;
 
         mEmptyView.setText(mEmptyStringResId);
-        mEmptyStateSubHeadingView.setText(emptySubheadingString);
+        mEmptyStateSubHeadingView.setText(mEmptySubheadingString);
     }
 
     /**
@@ -424,22 +422,11 @@ public class SelectableListLayout<E> extends FrameLayout
         mUiConfig.addObserver(this);
     }
 
-    /** @return The {@link UiConfig} associated with this View if one has been created, or null. */
-    @Nullable
-    public UiConfig getUiConfig() {
-        return mUiConfig;
-    }
-
     @Override
     public void onDisplayStyleChanged(DisplayStyle newDisplayStyle) {
-        int padding = getPaddingForDisplayStyle(newDisplayStyle, getResources());
-
-        ViewCompat.setPaddingRelative(
-                mRecyclerView,
-                padding,
-                mRecyclerView.getPaddingTop(),
-                padding,
-                mRecyclerView.getPaddingBottom());
+        int padding = getPaddingForDisplayStyle(newDisplayStyle, mRecyclerView, getResources());
+        mRecyclerView.setPaddingRelative(
+                padding, mRecyclerView.getPaddingTop(), padding, mRecyclerView.getPaddingBottom());
     }
 
     @Override
@@ -451,32 +438,15 @@ public class SelectableListLayout<E> extends FrameLayout
     /**
      * Called when a search is starting.
      *
-     * @param searchEmptyStringResId The string to show when the selectable list is empty during a
-     *     search.
-     */
-    public void onStartSearch(String searchEmptyString) {
-        onStartSearch(searchEmptyString, 0);
-    }
-
-    /**
-     * @see {@link #onStartSearch(String, int)}
-     */
-    public void onStartSearch(@StringRes int searchEmptyStringResId) {
-        onStartSearch(getContext().getString(searchEmptyStringResId), 0);
-    }
-
-    /**
-     * Called when a search is starting.
-     *
      * @param searchEmptyString The string to show when the selectable list is empty during a
      *     search.
      * @param searchEmptySubheadingResId The resource ID of the string to show as the description.
      */
-    public void onStartSearch(String searchEmptyString, int searchEmptySubheadingResId) {
+    public void onStartSearch(String searchEmptyString, @StringRes int searchEmptySubheadingResId) {
         mRecyclerView.setItemAnimator(null);
         mToolbarShadow.setVisibility(View.VISIBLE);
         mEmptyView.setText(searchEmptyString);
-        if (searchEmptySubheadingResId != 0) {
+        if (searchEmptySubheadingResId != Resources.ID_NULL) {
             mEmptyStateSubHeadingView.setText(searchEmptySubheadingResId);
         }
         onBackPressStateChanged();
@@ -497,11 +467,18 @@ public class SelectableListLayout<E> extends FrameLayout
      * @param resources The {@link Resources} used to retrieve configuration and display metrics.
      * @return The lateral padding to use for the current display style.
      */
-    public static int getPaddingForDisplayStyle(DisplayStyle displayStyle, Resources resources) {
+    public static int getPaddingForDisplayStyle(
+            DisplayStyle displayStyle, View view, Resources resources) {
         int padding = 0;
         if (displayStyle.horizontal == HorizontalDisplayStyle.WIDE) {
-            int screenWidthDp = resources.getConfiguration().screenWidthDp;
             float dpToPx = resources.getDisplayMetrics().density;
+            int screenWidthDp = 0;
+            if (DisplayUtil.isUiScaled() && view != null) {
+                screenWidthDp = (int) (view.getMeasuredWidth() / dpToPx);
+            } else {
+                screenWidthDp = resources.getConfiguration().screenWidthDp;
+            }
+
             padding =
                     (int)
                             (((screenWidthDp - UiConfig.WIDE_DISPLAY_STYLE_MIN_WIDTH_DP) / 2.f)

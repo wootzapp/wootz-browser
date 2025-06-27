@@ -10,17 +10,18 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/common/content_client.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/page/draggable_region.mojom.h"
+#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 
 namespace views {
 
@@ -45,6 +46,17 @@ class MockHost : public WebUIContentsWrapper::Host {
       content::WebContents* contents) override {
     ++draggable_regions_changed_called_;
   }
+  content::WebContents* AddNewContents(
+      content::WebContents* source,
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override {
+    ++add_new_contents_called_;
+    return nullptr;
+  }
 
   base::WeakPtr<MockHost> GetWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
@@ -61,6 +73,7 @@ class MockHost : public WebUIContentsWrapper::Host {
   int draggable_regions_changed_called() const {
     return draggable_regions_changed_called_;
   }
+  int add_new_contents_called() const { return add_new_contents_called_; }
 
  private:
   int show_ui_called_ = 0;
@@ -68,12 +81,12 @@ class MockHost : public WebUIContentsWrapper::Host {
   int show_custom_context_menu_called_ = 0;
   int resize_due_to_auto_resize_called_ = 0;
   int draggable_regions_changed_called_ = 0;
+  int add_new_contents_called_ = 0;
 
   base::WeakPtrFactory<MockHost> weak_ptr_factory_{this};
 };
 
-class TestWebUIContentsWrapper
-    : public WebUIContentsWrapper {
+class TestWebUIContentsWrapper : public WebUIContentsWrapper {
  public:
   explicit TestWebUIContentsWrapper(Profile* profile)
       : WebUIContentsWrapper(GURL(""), profile, 0, true, true, true, "Test") {}
@@ -97,8 +110,7 @@ class WebUIContentsWrapperTest : public ChromeViewsTestBase {
  public:
   WebUIContentsWrapperTest() = default;
   WebUIContentsWrapperTest(const WebUIContentsWrapperTest&) = delete;
-  WebUIContentsWrapperTest& operator=(const WebUIContentsWrapperTest&) =
-      delete;
+  WebUIContentsWrapperTest& operator=(const WebUIContentsWrapperTest&) = delete;
   ~WebUIContentsWrapperTest() override = default;
 
   // ViewsTestBase:
@@ -108,7 +120,7 @@ class WebUIContentsWrapperTest : public ChromeViewsTestBase {
 
     scoped_refptr<content::SiteInstance> instance =
         content::SiteInstance::Create(profile_.get());
-    instance->GetProcess()->Init();
+    instance->GetOrCreateProcess()->Init();
     auto test_contents = content::WebContentsTester::CreateTestWebContents(
         profile_.get(), std::move(instance));
 
@@ -175,7 +187,7 @@ TEST_F(WebUIContentsWrapperTest, EscapeKeyClosesHost) {
   MockHost host;
   contents_wrapper()->SetHost(host.GetWeakPtr());
 
-  content::NativeWebKeyboardEvent event(
+  input::NativeWebKeyboardEvent event(
       blink::WebInputEvent::Type::kRawKeyDown,
       blink::WebInputEvent::kNoModifiers,
       blink::WebInputEvent::GetStaticTimeStampForTests());
@@ -226,6 +238,49 @@ TEST_F(WebUIContentsWrapperTest, NotifiesHostWhenDraggableRegionsUpdated) {
   // notified of the most recently set draggable region.
   contents_wrapper()->SetHost(host.GetWeakPtr());
   EXPECT_EQ(2, host.draggable_regions_changed_called());
+}
+
+// Tests that when auto-resize is enabled (this is configured in
+// TestWebUIContentsWrapper), the host is resize when SetHost() is called if the
+// frame size is available.
+TEST_F(WebUIContentsWrapperTest, HostIsResizedOnSetHost) {
+  MockHost host;
+  contents_wrapper()->SetHost(host.GetWeakPtr());
+  // The render frame size is unset so the host is not resized.
+  EXPECT_EQ(0, host.resize_due_to_auto_resize_called());
+  contents_wrapper()->SetHost(nullptr);
+
+  // The frame size is updated and therefore the host should be resized.
+  content::WebContentsTester::For(contents_wrapper()->web_contents())
+      ->SetMainFrameSize(gfx::Size(100, 100));
+  contents_wrapper()->SetHost(host.GetWeakPtr());
+  EXPECT_EQ(1, host.resize_due_to_auto_resize_called());
+}
+
+TEST_F(WebUIContentsWrapperTest, HostNotifiedOnAddNewContents) {
+  MockHost host;
+  EXPECT_EQ(0, host.add_new_contents_called());
+
+  contents_wrapper()->SetHost(host.GetWeakPtr());
+  bool blocked;
+  contents_wrapper()->AddNewContents(
+      nullptr /* source */,
+      std::unique_ptr<content::WebContents>() /* new_contents */,
+      GURL() /* target_url */,
+      WindowOpenDisposition::CURRENT_TAB /* disposition */,
+      blink::mojom::WindowFeatures() /* window_features */,
+      false /* user_gesture */, &blocked /* was_blocked */);
+  EXPECT_EQ(1, host.add_new_contents_called());
+
+  contents_wrapper()->SetHost(nullptr);
+  contents_wrapper()->AddNewContents(
+      nullptr /* source */,
+      std::unique_ptr<content::WebContents>() /* new_contents */,
+      GURL() /* target_url */,
+      WindowOpenDisposition::CURRENT_TAB /* disposition */,
+      blink::mojom::WindowFeatures() /* window_features */,
+      false /* user_gesture */, &blocked /* was_blocked */);
+  EXPECT_EQ(1, host.add_new_contents_called());
 }
 
 }  // namespace test

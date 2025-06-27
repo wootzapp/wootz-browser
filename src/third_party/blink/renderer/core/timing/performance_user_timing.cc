@@ -24,19 +24,26 @@
  */
 
 #include "third_party/blink/renderer/core/timing/performance_user_timing.h"
-#include "base/trace_event/typed_macros.h"
 
+#include "base/time/time.h"
+#include "base/trace_event/trace_id_helper.h"
+#include "base/trace_event/typed_macros.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-shared.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_performance_mark_options.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_double_string.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
 #include "third_party/blink/renderer/core/performance_entry_names.h"
 #include "third_party/blink/renderer/core/timing/performance.h"
 #include "third_party/blink/renderer/core/timing/performance_mark.h"
 #include "third_party/blink/renderer/core/timing/performance_measure.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/bindings/source_location.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
+#include "third_party/perfetto/include/perfetto/ext/base/string_utils.h"
+#include "v8/include/v8-profiler.h"
+#include "v8/include/v8.h"
 
 namespace blink {
 
@@ -77,13 +84,23 @@ void UserTiming::AddMarkToPerformanceTimeline(
   ScriptValue detail = mark_options && mark_options->hasDetail()
                            ? mark_options->detail()
                            : ScriptValue();
-  String serialized_detail = GetSerializedDetail(detail);
 
+  String serialized_detail = GetSerializedDetail(detail);
+  const base::TimeTicks callTime = base::TimeTicks::Now();
+  uint64_t sample_trace_id = InspectorTraceEvents::GetNextSampleTraceId();
+
+  if (ExecutionContext* execution_context =
+          performance_->GetExecutionContext()) {
+    v8::Isolate* isolate = execution_context->GetIsolate();
+    v8::CpuProfiler::CollectSample(isolate, sample_trace_id);
+  }
   const auto trace_event_details = [&](perfetto::EventContext ctx) {
     ctx.event()->set_name(mark.name().Utf8().c_str());
     ctx.AddDebugAnnotation("data", [&](perfetto::TracedValue trace_context) {
       auto dict = std::move(trace_context).WriteDictionary();
       dict.Add("startTime", mark.startTime());
+      dict.Add("callTime", callTime);
+      dict.Add("sampleTraceId", sample_trace_id);
       // Only set when performance_ is a WindowPerformance.
       // performance_->timing() returns null when performance_ is a
       // WorkerPerformance.
@@ -101,6 +118,10 @@ void UserTiming::AddMarkToPerformanceTimeline(
 
 void UserTiming::ClearMarks(const AtomicString& mark_name) {
   ClearPerformanceEntries(marks_map_, marks_buffer_, mark_name);
+  if (IsTracingEnabled()) {
+    TRACE_EVENT_INSTANT("blink.user_timing", "clearMarks", "name",
+                        mark_name.Utf8().c_str());
+  }
 }
 
 const PerformanceMark* UserTiming::FindExistingMark(
@@ -108,7 +129,7 @@ const PerformanceMark* UserTiming::FindExistingMark(
   PerformanceEntryMap::const_iterator existing_marks =
       marks_map_.find(mark_name);
   if (existing_marks != marks_map_.end()) {
-    PerformanceEntry* entry = existing_marks->value->back().Get();
+    PerformanceEntry* entry = existing_marks->value.back().Get();
     DCHECK(entry->entryType() == performance_entry_names::kMark);
     return static_cast<PerformanceMark*>(entry);
   }
@@ -183,8 +204,7 @@ double UserTiming::GetTimeOrFindMarkTime(
           AtomicString(mark_or_time->GetAsString()), exception_state);
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 base::TimeTicks UserTiming::GetPerformanceMarkUnsafeTimeForTraces(
@@ -233,24 +253,39 @@ PerformanceMeasure* UserTiming::Measure(ScriptState* script_state,
   }
 
   if (IsTracingEnabled()) {
+    bool end_time_is_now_time = !end && !duration.has_value();
     base::TimeTicks unsafe_start_time =
         GetPerformanceMarkUnsafeTimeForTraces(start_time, start);
     base::TimeTicks unsafe_end_time =
-        GetPerformanceMarkUnsafeTimeForTraces(end_time, end);
+        end_time_is_now_time
+            ? base::TimeTicks::Now()
+            : GetPerformanceMarkUnsafeTimeForTraces(end_time, end);
     unsigned hash = WTF::GetHash(measure_name);
     WTF::AddFloatToHash(hash, start_time);
     WTF::AddFloatToHash(hash, end_time);
     String serialized_detail = GetSerializedDetail(detail);
+    v8::Isolate* isolate = script_state->GetIsolate();
+    const base::TimeTicks callTime = base::TimeTicks::Now();
 
+    v8::CpuProfiler::CollectSample(isolate, hash);
+    // One event is dispatched for the performance.measure call itself
+    // and another to represent the measured timing in the tracing
+    // clock (note that the timestamps of begin / end events are
+    // overridden to use the params passed to the performance.measure
+    // call).
+    TRACE_EVENT("devtools.timeline", "UserTiming::Measure", "sampleTraceId",
+                hash, "traceId", hash);
     if (serialized_detail.length()) {
       TRACE_EVENT_BEGIN("blink.user_timing", nullptr, perfetto::Track(hash),
-                        unsafe_start_time, "startTime", start_time, "detail",
-                        serialized_detail, [&](perfetto::EventContext ctx) {
+                        unsafe_start_time, "startTime", start_time, "callTime",
+                        callTime, "detail", serialized_detail, "traceId", hash,
+                        [&](perfetto::EventContext ctx) {
                           ctx.event()->set_name(measure_name.Utf8().c_str());
                         });
     } else {
       TRACE_EVENT_BEGIN("blink.user_timing", nullptr, perfetto::Track(hash),
-                        unsafe_start_time, "startTime", start_time,
+                        unsafe_start_time, "startTime", start_time, "callTime",
+                        callTime, "traceId", hash,
                         [&](perfetto::EventContext ctx) {
                           ctx.event()->set_name(measure_name.Utf8().c_str());
                         });
@@ -270,6 +305,10 @@ PerformanceMeasure* UserTiming::Measure(ScriptState* script_state,
 
 void UserTiming::ClearMeasures(const AtomicString& measure_name) {
   ClearPerformanceEntries(measures_map_, measures_buffer_, measure_name);
+  if (IsTracingEnabled()) {
+    TRACE_EVENT_INSTANT("blink.user_timing", "clearMeasures", "name",
+                        measure_name.Utf8().c_str());
+  }
 }
 
 PerformanceEntryVector UserTiming::GetMarks() const {
@@ -279,7 +318,7 @@ PerformanceEntryVector UserTiming::GetMarks() const {
 PerformanceEntryVector UserTiming::GetMarks(const AtomicString& name) const {
   PerformanceEntryMap::const_iterator it = marks_map_.find(name);
   if (it != marks_map_.end()) {
-    return *it->value;
+    return PerformanceEntryVector(it->value);
   }
   return {};
 }
@@ -291,7 +330,7 @@ PerformanceEntryVector UserTiming::GetMeasures() const {
 PerformanceEntryVector UserTiming::GetMeasures(const AtomicString& name) const {
   PerformanceEntryMap::const_iterator it = measures_map_.find(name);
   if (it != measures_map_.end()) {
-    return *it->value;
+    return PerformanceEntryVector(it->value);
   }
   return {};
 }
@@ -305,15 +344,11 @@ void UserTiming::InsertPerformanceEntry(
 
   auto it = performance_entry_map.find(entry.name());
   if (it == performance_entry_map.end()) {
-    PerformanceEntryVector* entries =
-        MakeGarbageCollected<PerformanceEntryVector>();
-    entries->push_back(&entry);
-    performance_entry_map.Set(entry.name(), entries);
+    performance_entry_map.Set(entry.name(), PerformanceEntryVector({&entry}));
     return;
   }
 
-  DCHECK(it->value);
-  performance_->InsertEntryIntoSortedBuffer(*it->value.Get(), entry,
+  performance_->InsertEntryIntoSortedBuffer(it->value, entry,
                                             Performance::kDoNotRecordSwaps);
 }
 

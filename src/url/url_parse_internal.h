@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/350788890): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef URL_URL_PARSE_INTERNAL_H_
 #define URL_URL_PARSE_INTERNAL_H_
 
@@ -54,14 +59,44 @@ inline void TrimURL(const CHAR* spec, int* begin, int* len,
   }
 }
 
-// Counts the number of consecutive slashes starting at the given offset
-// in the given string of the given length.
-template<typename CHAR>
-inline int CountConsecutiveSlashes(const CHAR *str,
-                                   int begin_offset, int str_len) {
+// Counts the number of consecutive slashes or backslashes starting at the given
+// offset in the given string of the given length. A slash and backslash can be
+// mixed.
+//
+// TODO(crbug.com/40063064): Rename this function to
+// `CountConsecutiveSlashesOrBackslashes`.
+template <typename CHAR>
+inline int CountConsecutiveSlashes(const CHAR* str,
+                                   int begin_offset,
+                                   int str_len) {
   int count = 0;
   while (begin_offset + count < str_len &&
          IsSlashOrBackslash(str[begin_offset + count])) {
+    ++count;
+  }
+  return count;
+}
+
+// Returns true if char is a slash.
+inline bool IsSlash(char16_t ch) {
+  return ch == '/';
+}
+inline bool IsSlash(char ch) {
+  return IsSlash(static_cast<char16_t>(ch));
+}
+
+// Counts the number of consecutive slashes starting at the given offset
+// in the given string of the given length.
+//
+// TODO(crbug.com/40063064): Rename this function to
+// `CountConsecutiveSlashes` after the current `CountConsecutiveSlashes` is
+// renamed to CountConsecutiveSlashesOrBackslashes`.
+template <typename CHAR>
+inline int CountConsecutiveSlashesButNotCountBackslashes(const CHAR* str,
+                                                         int begin_offset,
+                                                         int str_len) {
+  int count = 0;
+  while (begin_offset + count < str_len && IsSlash(str[begin_offset + count])) {
     ++count;
   }
   return count;

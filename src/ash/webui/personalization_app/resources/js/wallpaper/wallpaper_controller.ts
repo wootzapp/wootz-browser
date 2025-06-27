@@ -2,20 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {FullscreenPreviewState} from 'chrome://resources/ash/common/personalization/wallpaper_state.js';
 import {isNonEmptyArray, isNonEmptyFilePath} from 'chrome://resources/ash/common/sea_pen/sea_pen_utils.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import type {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 
-import {CurrentWallpaper, GooglePhotosAlbum, GooglePhotosEnablementState, GooglePhotosPhoto, WallpaperCollection, WallpaperImage, WallpaperLayout, WallpaperProviderInterface, WallpaperType} from '../../personalization_app.mojom-webui.js';
+import type {CurrentWallpaper, GooglePhotosAlbum, GooglePhotosPhoto, WallpaperCollection, WallpaperImage, WallpaperProviderInterface} from '../../personalization_app.mojom-webui.js';
+import {GooglePhotosEnablementState, WallpaperLayout, WallpaperType} from '../../personalization_app.mojom-webui.js';
 import {setErrorAction} from '../personalization_actions.js';
-import {PersonalizationStore} from '../personalization_store.js';
+import type {PersonalizationStore} from '../personalization_store.js';
 
-import {DisplayableImage} from './constants.js';
+import type {DisplayableImage} from './constants.js';
 import {isDefaultImage, isGooglePhotosPhoto, isImageAMatchForKey, isImageEqualToSelected, isWallpaperImage} from './utils.js';
 import * as action from './wallpaper_actions.js';
-import {DailyRefreshType, FullscreenPreviewState} from './wallpaper_state.js';
+import {DailyRefreshType} from './wallpaper_state.js';
 
 /**
  * @fileoverview contains all of the functions to interact with C++ side through
@@ -270,6 +272,9 @@ export async function getDefaultImageThumbnail(
     store: PersonalizationStore): Promise<void> {
   store.dispatch(action.beginLoadDefaultImageThubmnailAction());
   const {data} = await provider.getDefaultImageThumbnail();
+  if (data.url.length === 0) {
+    console.error('Failed to load default image thumbnail');
+  }
   store.dispatch(action.setDefaultImageThumbnailAction(data));
 }
 
@@ -522,15 +527,15 @@ export async function updateDailyRefreshWallpaper(
 }
 
 /** Confirm and set preview wallpaper as actual wallpaper. */
-export async function confirmPreviewWallpaper(
-    provider: WallpaperProviderInterface): Promise<void> {
+export function confirmPreviewWallpaper(provider: WallpaperProviderInterface):
+    void {
   provider.makeOpaque();
   provider.confirmPreviewWallpaper();
 }
 
 /** Cancel preview wallpaper and show the previous wallpaper. */
-export async function cancelPreviewWallpaper(
-    provider: WallpaperProviderInterface): Promise<void> {
+export function cancelPreviewWallpaper(provider: WallpaperProviderInterface):
+    void {
   provider.makeOpaque();
   provider.cancelPreviewWallpaper();
 }

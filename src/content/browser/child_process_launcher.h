@@ -6,7 +6,9 @@
 #define CONTENT_BROWSER_CHILD_PROCESS_LAUNCHER_H_
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <variant>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -23,7 +25,6 @@
 #include "content/public/browser/child_process_termination_info.h"
 #include "content/public/common/result_codes.h"
 #include "mojo/public/cpp/system/invitation.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_proto.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -41,6 +42,7 @@
 namespace base {
 class CommandLine;
 class UnsafeSharedMemoryRegion;
+class ReadOnlySharedMemoryRegion;
 #if BUILDFLAG(IS_ANDROID)
 namespace android {
 enum class ChildBindingState;
@@ -82,41 +84,42 @@ static_assert(static_cast<int>(LAUNCH_RESULT_START) >
 struct RenderProcessPriority {
   RenderProcessPriority(bool visible,
                         bool has_media_stream,
+                        bool has_immersive_xr_session,
                         bool has_foreground_service_worker,
                         unsigned int frame_depth,
                         bool intersects_viewport,
-                        bool boost_for_pending_views
+                        bool boost_for_pending_views,
+                        bool boost_for_loading,
+                        bool is_spare_renderer
 #if BUILDFLAG(IS_ANDROID)
                         ,
                         ChildProcessImportance importance
 #endif
-                        )
-      : visible(visible),
-        has_media_stream(has_media_stream),
-        has_foreground_service_worker(has_foreground_service_worker),
-        frame_depth(frame_depth),
-        intersects_viewport(intersects_viewport),
-        boost_for_pending_views(boost_for_pending_views)
-#if BUILDFLAG(IS_ANDROID)
-        ,
-        importance(importance)
+#if !BUILDFLAG(IS_ANDROID)
+                        ,
+                        std::optional<base::Process::Priority> priority_override
 #endif
-  {
-  }
+  );
+
+  RenderProcessPriority(const RenderProcessPriority&);
+
+  RenderProcessPriority& operator=(const RenderProcessPriority&);
 
   // Returns true if the child process is backgrounded.
+  // DEPRECATED NOTICE: Use GetProcessPriority() instead.
   bool is_background() const;
 
+  // Returns the process priority for this child process.
+  base::Process::Priority GetProcessPriority() const;
+
   bool operator==(const RenderProcessPriority& other) const;
-  bool operator!=(const RenderProcessPriority& other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const RenderProcessPriority& other) const;
 
   using TraceProto = perfetto::protos::pbzero::ChildProcessLauncherPriority;
   void WriteIntoTrace(perfetto::TracedProto<TraceProto> proto) const;
 
-  // Prefer |is_background()| to inspecting these fields individually (to ensure
-  // all logic uses the same notion of "backgrounded").
+  // Prefer `GetProcessPriority()` to inspecting these fields individually (to
+  // ensure all priority logic is consistent).
 
   // |visible| is true if the process is responsible for one or more widget(s)
   // in foreground tabs. The notion of "visible" is determined by the embedder
@@ -127,6 +130,11 @@ struct RenderProcessPriority {
   // |has_media_stream| is true when the process is responsible for "hearable"
   // content.
   bool has_media_stream;
+
+  // |has_immersive_xr_session| is true when the process is responsible for
+  // rendering an XrSession. Such sessions typically take over the full screen
+  // for rendering, and may otherwise "background" the current process.
+  bool has_immersive_xr_session;
 
   // |has_foreground_service_worker| is true when the process has a service
   // worker that may need to service timely events from other, possibly visible,
@@ -151,8 +159,23 @@ struct RenderProcessPriority {
   // during navigation).
   bool boost_for_pending_views;
 
+  // |boost_for_loading| is true if this process is responsible for committing
+  // navigation and initial loading.
+  bool boost_for_loading;
+
+  // |is_spare_renderer| is true if this process should be treated as a spare
+  // renderer. The process will be given a moderate priority even it is not
+  // visible and used.
+  bool is_spare_renderer;
+
 #if BUILDFLAG(IS_ANDROID)
   ChildProcessImportance importance;
+#endif
+
+#if !BUILDFLAG(IS_ANDROID)
+  // If this is set then the built-in process priority calculation system is
+  // ignored, and an externally computed process priority is used.
+  std::optional<base::Process::Priority> priority_override;
 #endif
 };
 
@@ -177,7 +200,7 @@ struct ChildProcessLauncherFileData {
   //
   // Currently only supported on Linux, ChromeOS and Android platforms.
   // TODO(crbug.com/40253015): this currently silently fails on Android.
-  std::map<std::string, absl::variant<base::FilePath, base::ScopedFD>>
+  std::map<std::string, std::variant<base::FilePath, base::ScopedFD>>
       files_to_preload;
 #endif
 };
@@ -221,7 +244,12 @@ class CONTENT_EXPORT ChildProcessLauncher {
       mojo::OutgoingInvitation mojo_invitation,
       const mojo::ProcessErrorCallback& process_error_callback,
       std::unique_ptr<ChildProcessLauncherFileData> file_data,
-      base::UnsafeSharedMemoryRegion = {},
+      scoped_refptr<base::RefCountedData<base::UnsafeSharedMemoryRegion>>
+          histogram_memory_region = nullptr,
+      scoped_refptr<base::RefCountedData<base::ReadOnlySharedMemoryRegion>>
+          trace_config_memory_region = nullptr,
+      scoped_refptr<base::RefCountedData<base::UnsafeSharedMemoryRegion>>
+          trace_output_memory_region = nullptr,
       bool terminate_on_shutdown = true);
 
   ChildProcessLauncher(const ChildProcessLauncher&) = delete;
@@ -237,7 +265,7 @@ class CONTENT_EXPORT ChildProcessLauncher {
 
   // Call this when the child process exits to know what happened to it.
   // |known_dead| can be true if we already know the process is dead as it can
-  // help the implemention figure the proper TerminationStatus.
+  // help the implementation figure the proper TerminationStatus.
   // On Linux, the use of |known_dead| is subtle and can be crucial if an
   // accurate status is important. With |known_dead| set to false, a dead
   // process could be seen as running. With |known_dead| set to true, the

@@ -6,6 +6,7 @@
 
 #import <UserNotifications/UserNotifications.h>
 
+#import "components/sync_device_info/device_info_sync_service.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_client_id.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_service.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_util.h"
@@ -14,30 +15,56 @@
 
 @implementation ProvisionalPushNotificationUtil
 
+// TODO(crbug.com/410603399) Use a weakPtr for `deviceInfoSyncService`.
+ProceduralBlock GetCompletionForClientIds(
+    std::vector<PushNotificationClientId> clientIds,
+    BOOL clientEnabledForProvisional,
+    base::WeakPtr<AuthenticationService> authService,
+    syncer::DeviceInfoSyncService* deviceInfoSyncService) {
+  return ^{
+    if (!authService) {
+      return;
+    }
+    PushNotificationService* service =
+        GetApplicationContext()->GetPushNotificationService();
+    id<SystemIdentity> identity =
+        authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+    for (PushNotificationClientId clientId : clientIds) {
+      service->SetPreference(identity.gaiaID, clientId,
+                             clientEnabledForProvisional);
+      if (clientId == PushNotificationClientId::kSendTab &&
+          deviceInfoSyncService) {
+        deviceInfoSyncService->RefreshLocalDeviceInfo();
+      }
+    }
+  };
+}
+
 + (void)enrollUserToProvisionalNotificationsForClientIds:
             (std::vector<PushNotificationClientId>)clientIds
+                             clientEnabledForProvisional:
+                                 (BOOL)clientEnabledForProvisional
                                          withAuthService:
-                                             (AuthenticationService*)
-                                                 authService {
+                                             (AuthenticationService*)authService
+                                   deviceInfoSyncService:
+                                       (syncer::DeviceInfoSyncService*)
+                                           deviceInfoSyncService {
   if (authService &&
       authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
-    // Only users with "Not Determined" authorization status are eligible for
-    // provisional notifications.
+    ProceduralBlock completion = GetCompletionForClientIds(
+        std::move(clientIds), clientEnabledForProvisional,
+        authService->GetWeakPtr(), deviceInfoSyncService);
+    // Only users with a "Not Determined" (`UNAuthorizationStatusNotDetermined`)
+    // or "Provisional" (`UNAuthorizationStatusProvisional`) notification
+    // authorization status are eligible for provisional notifications.
     [PushNotificationUtil getPermissionSettings:^(
                               UNNotificationSettings* settings) {
-      if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined) {
+      if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined ||
+          settings.authorizationStatus == UNAuthorizationStatusProvisional) {
         [PushNotificationUtil enableProvisionalPushNotificationPermission:^(
                                   BOOL granted, NSError* error) {
           if (granted && !error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-              PushNotificationService* service =
-                  GetApplicationContext()->GetPushNotificationService();
-              id<SystemIdentity> identity = authService->GetPrimaryIdentity(
-                  signin::ConsentLevel::kSignin);
-              for (PushNotificationClientId clientId : clientIds) {
-                service->SetPreference(identity.gaiaID, clientId, true);
-              }
-            });
+            dispatch_async(dispatch_get_main_queue(), completion);
           }
         }];
         return;

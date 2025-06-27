@@ -32,6 +32,7 @@
 #include "components/metrics/test/test_enabled_state_provider.h"
 #include "components/metrics/unsent_log_store.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/sync/protocol/sync_enums.pb.h"
 #include "components/sync/test/test_sync_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/ukm/ukm_pref_names.h"
@@ -113,7 +114,7 @@ class ChromeMetricsServiceClientTestWithoutUKMProviders
 class MockSyncService : public syncer::TestSyncService {
  public:
   MockSyncService() {
-    SetTransportState(TransportState::INITIALIZING);
+    SetMaxTransportState(TransportState::INITIALIZING);
     SetLastCycleSnapshot(syncer::SyncCycleSnapshot());
   }
 
@@ -123,8 +124,8 @@ class MockSyncService : public syncer::TestSyncService {
   ~MockSyncService() override { Shutdown(); }
 
   void SetStatus(bool has_passphrase, bool history_enabled, bool active) {
-    SetTransportState(active ? TransportState::ACTIVE
-                             : TransportState::INITIALIZING);
+    SetMaxTransportState(active ? TransportState::ACTIVE
+                                : TransportState::INITIALIZING);
     SetIsUsingExplicitPassphrase(has_passphrase);
 
     GetUserSettings()->SetSelectedTypes(

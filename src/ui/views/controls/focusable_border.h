@@ -21,7 +21,7 @@ namespace views {
 // A Border class to draw a focused border around a field (e.g textfield).
 class VIEWS_EXPORT FocusableBorder : public Border {
  public:
-  explicit FocusableBorder(bool should_scale = false);
+  FocusableBorder();
 
   FocusableBorder(const FocusableBorder&) = delete;
   FocusableBorder& operator=(const FocusableBorder&) = delete;
@@ -31,10 +31,6 @@ class VIEWS_EXPORT FocusableBorder : public Border {
   // Sets the insets of the border.
   void SetInsets(const gfx::Insets& insets);
 
-  // Sets the color id to use for this border. When unsupplied, the color will
-  // depend on the focus state.
-  void SetColorId(const std::optional<ui::ColorId>& color_id);
-
   // Sets the corner radius.
   void SetCornerRadius(float corner_radius);
 
@@ -43,14 +39,11 @@ class VIEWS_EXPORT FocusableBorder : public Border {
   gfx::Insets GetInsets() const override;
   gfx::Size GetMinimumSize() const override;
 
- protected:
+ private:
   SkColor GetCurrentColor(const View& view) const;
 
- private:
   gfx::Insets insets_;
   float corner_radius_;
-  std::optional<ui::ColorId> override_color_id_;
-  bool should_scale_;
 };
 
 }  // namespace views

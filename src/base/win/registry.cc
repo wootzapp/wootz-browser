@@ -179,8 +179,7 @@ LONG RegKey::CreateKey(const wchar_t* name, REGSAM access) {
   // behavior.
   // http://msdn.microsoft.com/en-us/library/windows/desktop/aa384129.aspx.
   if ((access & kWow64AccessMask) != wow64access_) {
-    NOTREACHED_IN_MIGRATION();
-    return ERROR_INVALID_PARAMETER;
+    NOTREACHED();
   }
   HKEY subkey = nullptr;
   LONG result = RegCreateKeyEx(key_, name, 0, nullptr, REG_OPTION_NON_VOLATILE,
@@ -213,8 +212,7 @@ LONG RegKey::OpenKey(const wchar_t* relative_key_name, REGSAM access) {
   // behavior.
   // http://msdn.microsoft.com/en-us/library/windows/desktop/aa384129.aspx.
   if ((access & kWow64AccessMask) != wow64access_) {
-    NOTREACHED_IN_MIGRATION();
-    return ERROR_INVALID_PARAMETER;
+    NOTREACHED();
   }
   HKEY subkey = nullptr;
   LONG result = RegOpenKeyEx(key_, relative_key_name, 0, access, &subkey);
@@ -602,8 +600,9 @@ void RegistryValueIterator::Initialize(HKEY root_key,
 }
 
 RegistryValueIterator::~RegistryValueIterator() {
-  if (key_)
+  if (key_) {
     ::RegCloseKey(key_);
+  }
 }
 
 DWORD RegistryValueIterator::ValueCount() const {
@@ -611,8 +610,9 @@ DWORD RegistryValueIterator::ValueCount() const {
   LONG result =
       ::RegQueryInfoKey(key_, nullptr, nullptr, nullptr, nullptr, nullptr,
                         nullptr, &count, nullptr, nullptr, nullptr, nullptr);
-  if (result != ERROR_SUCCESS)
+  if (result != ERROR_SUCCESS) {
     return 0;
+  }
 
   return count;
 }
@@ -622,8 +622,9 @@ bool RegistryValueIterator::Valid() const {
 }
 
 void RegistryValueIterator::operator++() {
-  if (index_ != kInvalidIterValue)
+  if (index_ != kInvalidIterValue) {
     --index_;
+  }
   Read();
 }
 
@@ -645,8 +646,9 @@ bool RegistryValueIterator::Read() {
       // ms724872(v=vs.85).aspx).
       // Resize the buffers and retry if their size caused the failure.
       DWORD value_size_in_wchars = to_wchar_size(value_size_);
-      if (value_size_in_wchars + 1 > value_.size())
+      if (value_size_in_wchars + 1 > value_.size()) {
         value_.resize(value_size_in_wchars + 1, '\0');
+      }
       value_size_ = static_cast<DWORD>((value_.size() - 1) * sizeof(wchar_t));
       name_size = name_size == capacity ? MAX_REGISTRY_NAME_SIZE : capacity;
       result = ::RegEnumValue(
@@ -681,8 +683,9 @@ RegistryKeyIterator::RegistryKeyIterator(HKEY root_key,
 }
 
 RegistryKeyIterator::~RegistryKeyIterator() {
-  if (key_)
+  if (key_) {
     ::RegCloseKey(key_);
+  }
 }
 
 DWORD RegistryKeyIterator::SubkeyCount() const {
@@ -690,8 +693,9 @@ DWORD RegistryKeyIterator::SubkeyCount() const {
   LONG result =
       ::RegQueryInfoKey(key_, nullptr, nullptr, nullptr, &count, nullptr,
                         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-  if (result != ERROR_SUCCESS)
+  if (result != ERROR_SUCCESS) {
     return 0;
+  }
 
   return count;
 }
@@ -701,8 +705,9 @@ bool RegistryKeyIterator::Valid() const {
 }
 
 void RegistryKeyIterator::operator++() {
-  if (index_ != kInvalidIterValue)
+  if (index_ != kInvalidIterValue) {
     --index_;
+  }
   Read();
 }
 
@@ -712,8 +717,9 @@ bool RegistryKeyIterator::Read() {
     FILETIME written;
     LONG r = ::RegEnumKeyEx(key_, index_, name_, &ncount, nullptr, nullptr,
                             nullptr, &written);
-    if (ERROR_SUCCESS == r)
+    if (ERROR_SUCCESS == r) {
       return true;
+    }
   }
 
   name_[0] = '\0';

@@ -17,6 +17,7 @@
 #include "gpu/command_buffer/service/gpu_task_scheduler_helper.h"
 #include "gpu/command_buffer/service/scheduler.h"
 #include "gpu/command_buffer/service/scheduler_sequence.h"
+#include "gpu/config/gpu_finch_features.h"
 #include "gpu/ipc/service/image_transport_surface.h"
 #include "ui/gl/init/gl_factory.h"
 
@@ -101,20 +102,14 @@ gpu::SurfaceHandle SkiaOutputSurfaceDependencyImpl::GetSurfaceHandle() {
 scoped_refptr<gl::Presenter>
 SkiaOutputSurfaceDependencyImpl::CreatePresenter() {
   DCHECK(!IsOffscreen());
-
-  auto context_state = GetSharedContextState();
-#if BUILDFLAG(IS_WIN)
-  // DirectComposition is only supported with dawn D3D11 backend.
-  if (context_state->gr_context_type() == gpu::GrContextType::kGraphiteDawn &&
-      context_state->dawn_context_provider()->backend_type() !=
-          wgpu::BackendType::D3D11) {
-    return {};
-  }
-#endif
-
-  return gpu::ImageTransportSurface::CreatePresenter(
-      context_state->display(), GetGpuDriverBugWorkarounds(),
+  auto presenter = gpu::ImageTransportSurface::CreatePresenter(
+      GetSharedContextState(), GetGpuDriverBugWorkarounds(),
       GetGpuFeatureInfo(), surface_handle_);
+  if (presenter &&
+      base::FeatureList::IsEnabled(features::kHandleOverlaysSwapFailure)) {
+    presenter->SetNotifyNonSimpleOverlayFailure();
+  }
+  return presenter;
 }
 
 scoped_refptr<gl::GLSurface> SkiaOutputSurfaceDependencyImpl::CreateGLSurface(
@@ -124,6 +119,7 @@ scoped_refptr<gl::GLSurface> SkiaOutputSurfaceDependencyImpl::CreateGLSurface(
       GetSharedContextState()->display(), surface_handle_, format);
 }
 
+#if BUILDFLAG(IS_ANDROID)
 base::ScopedClosureRunner SkiaOutputSurfaceDependencyImpl::CachePresenter(
     gl::Presenter* presenter) {
   // We're running on the viz thread here. We want to release ref on the
@@ -163,8 +159,9 @@ base::ScopedClosureRunner SkiaOutputSurfaceDependencyImpl::CacheGLSurface(
 
   return base::ScopedClosureRunner(std::move(release_callback));
 }
+#endif
 
-scoped_refptr<base::TaskRunner>
+scoped_refptr<base::SingleThreadTaskRunner>
 SkiaOutputSurfaceDependencyImpl::GetClientTaskRunner() {
   return client_thread_task_runner_;
 }

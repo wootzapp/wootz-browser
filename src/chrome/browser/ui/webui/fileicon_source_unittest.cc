@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/webui/fileicon_source.h"
 
+#include <array>
+
 #include "base/memory/ref_counted_memory.h"
 #include "base/strings/strcat.h"
 #include "build/build_config.h"
@@ -19,7 +21,7 @@ namespace {
 
 class TestFileIconSource : public FileIconSource {
  public:
-  TestFileIconSource() {}
+  TestFileIconSource() = default;
 
   void FetchFileIcon(
       const base::FilePath& path,
@@ -35,7 +37,7 @@ class TestFileIconSource : public FileIconSource {
                IconLoader::IconSize icon_size,
                content::URLDataSource::GotDataCallback& callback));
 
-  ~TestFileIconSource() override {}
+  ~TestFileIconSource() override = default;
 };
 
 class FileIconSourceTest : public testing::Test {
@@ -46,12 +48,14 @@ class FileIconSourceTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
 };
 
-const struct FetchFileIconExpectation {
+struct FetchFileIconExpectation {
   const char* request_path;
   const base::FilePath::CharType* unescaped_path;
   float scale_factor;
   IconLoader::IconSize size;
-} kBasicExpectations[] = {
+};
+
+constexpr auto kBasicExpectations = std::to_array<FetchFileIconExpectation>({
     {"?path=foo&bar", FILE_PATH_LITERAL("foo"), 1.0f, IconLoader::NORMAL},
     {"?path=foo&bar&scale=2x", FILE_PATH_LITERAL("foo"), 2.0f,
      IconLoader::NORMAL},
@@ -103,7 +107,7 @@ const struct FetchFileIconExpectation {
     {"?path=%2Fbaz%20(1).txt&iconsize=small", FILE_PATH_LITERAL("/baz (1).txt"),
      1.0f, IconLoader::SMALL},
 #endif
-};
+});
 
 // Test that the callback is NULL.
 MATCHER(CallbackIsNull, "") {
@@ -116,17 +120,15 @@ TEST_F(FileIconSourceTest, FileIconSource_Parse) {
   ui::test::ScopedSetSupportedResourceScaleFactors scoped_supported(
       {ui::k100Percent, ui::k200Percent});
 
-  for (unsigned i = 0; i < std::size(kBasicExpectations); i++) {
+  for (auto& expectation : kBasicExpectations) {
     auto source = std::make_unique<TestFileIconSource>();
     content::URLDataSource::GotDataCallback callback;
-    EXPECT_CALL(
-        *source.get(),
-        FetchFileIcon_(base::FilePath(kBasicExpectations[i].unescaped_path),
-                       kBasicExpectations[i].scale_factor,
-                       kBasicExpectations[i].size, CallbackIsNull()));
+    EXPECT_CALL(*source.get(),
+                FetchFileIcon_(base::FilePath(expectation.unescaped_path),
+                               expectation.scale_factor, expectation.size,
+                               CallbackIsNull()));
     source->StartDataRequest(
-        GURL(base::StrCat(
-            {"wootzapp://any-host/", kBasicExpectations[i].request_path})),
+        GURL(base::StrCat({"wootzapp://any-host/", expectation.request_path})),
         content::WebContents::Getter(), std::move(callback));
   }
 }

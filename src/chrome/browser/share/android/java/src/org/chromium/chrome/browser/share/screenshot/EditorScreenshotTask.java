@@ -28,7 +28,7 @@ import org.chromium.ui.base.WindowAndroid;
  * this temporary class and instead move
  * chrome/android/java/src/org/chromium/chrome/browser/feedback/ScreenshotTask.java.
  */
-@JNINamespace("chrome::android")
+@JNINamespace("android")
 public final class EditorScreenshotTask implements EditorScreenshotSource {
     private final Activity mActivity;
     private final BottomSheetController mBottomSheetController;
@@ -95,7 +95,7 @@ public final class EditorScreenshotTask implements EditorScreenshotSource {
     }
 
     private boolean takeCompositorScreenshot(@Nullable Activity activity) {
-        if (activity == null || !shouldTakeCompositorScreenshot((activity))) return false;
+        if (activity == null || !shouldTakeCompositorScreenshot(activity)) return false;
 
         Rect rect = new Rect();
         activity.getWindow().getDecorView().getRootView().getWindowVisibleDisplayFrame(rect);

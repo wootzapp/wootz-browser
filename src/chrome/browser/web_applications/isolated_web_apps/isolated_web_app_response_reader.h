@@ -13,6 +13,8 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_reader.h"
 #include "components/web_package/mojom/web_bundle_parser.mojom-forward.h"
+#include "components/web_package/signed_web_bundles/signed_web_bundle_id.h"
+#include "components/web_package/signed_web_bundles/signed_web_bundle_integrity_block.h"
 
 namespace network {
 struct ResourceRequest;
@@ -87,6 +89,8 @@ class IsolatedWebAppResponseReader {
       base::OnceCallback<void(base::expected<Response, Error>)>;
 
   virtual ~IsolatedWebAppResponseReader() = default;
+
+  virtual web_package::SignedWebBundleIntegrityBlock GetIntegrityBlock() = 0;
   virtual void ReadResponse(const network::ResourceRequest& resource_request,
                             ReadResponseCallback callback) = 0;
   virtual void Close(base::OnceClosure callback) = 0;
@@ -102,9 +106,12 @@ class IsolatedWebAppResponseReaderImpl : public IsolatedWebAppResponseReader {
 
   explicit IsolatedWebAppResponseReaderImpl(
       std::unique_ptr<SignedWebBundleReader> reader,
-      TrustChecker trust_checker);
+      Profile& profile,
+      const web_package::SignedWebBundleId& web_bundle_id,
+      bool dev_mode);
   ~IsolatedWebAppResponseReaderImpl() override;
 
+  web_package::SignedWebBundleIntegrityBlock GetIntegrityBlock() override;
   void ReadResponse(const network::ResourceRequest& resource_request,
                     ReadResponseCallback callback) override;
   void Close(base::OnceClosure callback) override;
@@ -117,7 +124,9 @@ class IsolatedWebAppResponseReaderImpl : public IsolatedWebAppResponseReader {
   void OnClosed(base::OnceClosure callback);
 
   std::unique_ptr<SignedWebBundleReader> reader_;
-  TrustChecker trust_checker_;
+  const raw_ref<Profile> profile_;
+  const web_package::SignedWebBundleId web_bundle_id_;
+  const bool dev_mode_ = false;
 };
 
 }  // namespace web_app

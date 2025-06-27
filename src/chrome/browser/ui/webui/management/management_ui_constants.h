@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_UI_WEBUI_MANAGEMENT_MANAGEMENT_UI_CONSTANTS_H_
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
 // Constants defining the IDs for the localized strings sent to the page as
@@ -21,6 +20,7 @@ extern const char kManagementDeviceSignalsDisclosure[];
 
 #if BUILDFLAG(IS_CHROMEOS)
 extern const char kManagementLogUploadEnabled[];
+extern const char kManagementLogUploadEnabledNoLink[];
 extern const char kManagementReportActivityTimes[];
 extern const char kManagementReportDeviceAudioStatus[];
 extern const char kManagementReportDeviceGraphicsStatus[];
@@ -43,6 +43,7 @@ extern const char kManagementReportExtensions[];
 extern const char kManagementReportAndroidApplications[];
 extern const char kManagementOnFileTransferEvent[];
 extern const char kManagementOnFileTransferVisibleData[];
+extern const char kManagementReportFileEvents[];
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 extern const char kOnPremReportingExtensionStableId[];
@@ -55,6 +56,7 @@ extern const char kManagementExtensionReportVersion[];
 extern const char kManagementExtensionReportExtensionsPlugin[];
 extern const char kManagementExtensionReportPerfCrash[];
 extern const char kManagementExtensionReportUserBrowsingData[];
+extern const char kManagementExtensionReportVisitedUrl[];
 
 extern const char kThreatProtectionTitle[];
 extern const char kManagementDataLossPreventionName[];
@@ -73,8 +75,11 @@ extern const char kManagementOnPrintEvent[];
 extern const char kManagementOnPrintVisibleData[];
 extern const char kManagementOnPageVisitedEvent[];
 extern const char kManagementOnPageVisitedVisibleData[];
+extern const char kManagementOnExtensionTelemetryEvent[];
+extern const char kManagementOnExtensionTelemetryVisibleData[];
 
 extern const char kManagementLegacyTechReport[];
+extern const char kManagementLegacyTechReportNoLink[];
 
 extern const char kPolicyKeyReportMachineIdData[];
 extern const char kPolicyKeyReportUserIdData[];
@@ -84,6 +89,7 @@ extern const char kPolicyKeyReportDlpEvents[];
 extern const char kPolicyKeyReportExtensionsData[];
 extern const char kPolicyKeyReportSystemTelemetryData[];
 extern const char kPolicyKeyReportUserBrowsingData[];
+extern const char kPolicyKeyReportVisitedUrlData[];
 
 extern const char kReportingTypeDevice[];
 extern const char kReportingTypeExtensions[];
@@ -91,6 +97,7 @@ extern const char kReportingTypeSecurity[];
 extern const char kReportingTypeUser[];
 extern const char kReportingTypeUserActivity[];
 extern const char kReportingTypeLegacyTech[];
+extern const char kReportingTypeUrl[];
 
 extern const char kProfileReportingExplanation[];
 extern const char kProfileReportingOverview[];
@@ -98,5 +105,6 @@ extern const char kProfileReportingUsername[];
 extern const char kProfileReportingBrowser[];
 extern const char kProfileReportingExtension[];
 extern const char kProfileReportingPolicy[];
+extern const char kProfileReportingLearnMore[];
 
 #endif  // CHROME_BROWSER_UI_WEBUI_MANAGEMENT_MANAGEMENT_UI_CONSTANTS_H_

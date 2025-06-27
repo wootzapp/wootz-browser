@@ -13,7 +13,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/enterprise/connectors/common.h"
@@ -68,10 +68,12 @@ class CheckClientDownloadRequest : public CheckClientDownloadRequestBase,
       const std::string& token,
       const ClientDownloadResponse::Verdict& verdict,
       const ClientDownloadResponse::TailoredVerdict& tailored_verdict) override;
-  void MaybeStorePingsForDownload(DownloadCheckResult result,
-                                  bool upload_requested,
-                                  const std::string& request_data,
-                                  const std::string& response_body) override;
+#if !BUILDFLAG(IS_ANDROID)
+  void MaybeBeginFeedbackForDownload(DownloadCheckResult result,
+                                     bool upload_requested,
+                                     const std::string& request_data,
+                                     const std::string& response_body) override;
+#endif
   bool ShouldImmediatelyDeepScan(bool server_requests_prompt) const override;
   bool ShouldPromptForDeepScanning(bool server_requests_prompt) const override;
   bool ShouldPromptForLocalDecryption(

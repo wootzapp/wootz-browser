@@ -18,6 +18,10 @@ namespace credential_provider_extension {
 NSString* kCredentialKey1 = @"key1";
 NSString* kCredentialKey2 = @"key2";
 
+NSString* kAccountInfoEmail1 = @"peter.parker@gmail.com";
+NSString* kAccountInfoEmail2 = @"mary.jane@gmail.com";
+NSString* kAccountInfoGaia1 = @"123456789";
+NSString* kAccountInfoGaia2 = @"987654321";
 NSString* kCredentialPassword1 = @"pa55word1";
 NSString* kCredentialPassword2 = @"p4ssw0rd2";
 
@@ -88,24 +92,24 @@ void PasswordUtilKeychainTest::TearDown() {
 TEST_F(PasswordUtilKeychainTest, CheckRestoreOfSavedPasswords) {
   AddPasswordForKey(kCredentialKey1, kCredentialPassword1);
   AddPasswordForKey(kCredentialKey2, kCredentialPassword2);
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2))
-      isEqualToString:kCredentialPassword2]);
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey1))
-      isEqualToString:kCredentialPassword1]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2)),
+              kCredentialPassword2);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey1)),
+              kCredentialPassword1);
   RemovePasswordForKey(kCredentialKey1);
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2))
-      isEqualToString:kCredentialPassword2]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2)),
+              kCredentialPassword2);
   RemovePasswordForKey(kCredentialKey2);
 }
 
 // Tests retrieval of saved passwords, using an empty string as arg.
 TEST_F(PasswordUtilKeychainTest, EmptyArgument) {
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(@"") isEqualToString:@""]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(@""), nil);
 }
 
 // Tests retrieval of saved passwords, nil as arg.
 TEST_F(PasswordUtilKeychainTest, NilArgument) {
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(nil) isEqualToString:@""]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(nil), nil);
 }
 
 // Tests storing passwords with StorePassword.
@@ -115,13 +119,13 @@ TEST_F(PasswordUtilKeychainTest, CheckSavingPasswords) {
   EXPECT_TRUE(StorePasswordInKeychain(kCredentialPassword2,
                                       KeyWithPrefix(kCredentialKey2)));
 
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2))
-      isEqualToString:kCredentialPassword2]);
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey1))
-      isEqualToString:kCredentialPassword1]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2)),
+              kCredentialPassword2);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey1)),
+              kCredentialPassword1);
   RemovePasswordForKey(kCredentialKey1);
-  ASSERT_TRUE([PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2))
-      isEqualToString:kCredentialPassword2]);
+  EXPECT_NSEQ(PasswordWithKeychainIdentifier(KeyWithPrefix(kCredentialKey2)),
+              kCredentialPassword2);
   RemovePasswordForKey(kCredentialKey2);
 }
 
@@ -130,4 +134,4 @@ TEST_F(PasswordUtilKeychainTest, StoreEmptyIdentifier) {
   EXPECT_FALSE(StorePasswordInKeychain(kCredentialPassword1, @""));
 }
 
-}  // credential_provider_extension
+}  // namespace credential_provider_extension

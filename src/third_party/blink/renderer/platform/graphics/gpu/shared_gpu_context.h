@@ -6,19 +6,16 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_GRAPHICS_GPU_SHARED_GPU_CONTEXT_H_
 
 #include <memory>
+
 #include "base/functional/callback.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
+#include "third_party/blink/public/platform/web_graphics_shared_image_interface_provider.h"
 #include "third_party/blink/renderer/platform/graphics/web_graphics_context_3d_provider_wrapper.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/thread_specific.h"
-
-namespace gpu {
-
-class GpuMemoryBufferManager;
-
-}  // namespace gpu
 
 namespace blink {
 
@@ -42,8 +39,15 @@ class PLATFORM_EXPORT SharedGpuContext {
   // May re-create context if context was lost
   static base::WeakPtr<WebGraphicsContext3DProviderWrapper>
   ContextProviderWrapper();
+  // Returns an existing context and doesn't create one if none exists.
+  static base::WeakPtr<WebGraphicsContext3DProviderWrapper>
+  GetExistingContextProviderWrapper();
+
   static bool AllowSoftwareToAcceleratedCanvasUpgrade();
   static bool IsValidWithoutRestoring();
+
+  static WebGraphicsSharedImageInterfaceProvider*
+  SharedImageInterfaceProvider();
 
   // "ImageChromium" refers to putting a canvas into a hardware layer which is
   // directly scanned out of display, bypassing chromium's own GPU composite.
@@ -64,12 +68,8 @@ class PLATFORM_EXPORT SharedGpuContext {
   static void SetContextProviderFactoryForTesting(ContextProviderFactory);
   // Resets the global instance including the |context_provider_factory_| and
   // dropping the context. Should be called at the end of a test that uses this
-  // to not interfere with the next test.
-  static void ResetForTesting();
-
-  static gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager();
-  static void SetGpuMemoryBufferManagerForTesting(
-      gpu::GpuMemoryBufferManager* mgr);
+  // to not interfere with the next test and when terminating web workers.
+  static void Reset();
 
  private:
   friend class WTF::ThreadSpecific<SharedGpuContext>;
@@ -78,6 +78,7 @@ class PLATFORM_EXPORT SharedGpuContext {
 
   SharedGpuContext();
   void CreateContextProviderIfNeeded(bool only_if_gpu_compositing);
+  void CreateSharedImageInterfaceProviderIfNeeded();
 
   // Can be overridden for tests.
   ContextProviderFactory context_provider_factory_;
@@ -87,7 +88,8 @@ class PLATFORM_EXPORT SharedGpuContext {
   std::unique_ptr<WebGraphicsContext3DProviderWrapper>
       context_provider_wrapper_;
 
-  gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager_ = nullptr;
+  std::unique_ptr<WebGraphicsSharedImageInterfaceProvider>
+      shared_image_interface_provider_;
 };
 
 }  // blink

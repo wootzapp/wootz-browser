@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/webui/projector_app/untrusted_projector_ui.h"
 
 #include "ash/strings/grit/ash_strings.h"
@@ -33,14 +38,9 @@ void CreateAndAddProjectorHTMLSource(content::WebUI* web_ui,
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       browser_context, kChromeUIUntrustedProjectorUrl);
 
-  source->AddResourcePaths(
-      base::make_span(kAshProjectorAppUntrustedResources,
-                      kAshProjectorAppUntrustedResourcesSize));
-  source->AddResourcePaths(base::make_span(kAshProjectorCommonResources,
-                                           kAshProjectorCommonResourcesSize));
-  source->AddResourcePaths(
-      base::make_span(kChromeosProjectorAppBundleResources,
-                      kChromeosProjectorAppBundleResourcesSize));
+  source->AddResourcePaths(kAshProjectorAppUntrustedResources);
+  source->AddResourcePaths(kAshProjectorCommonResources);
+  source->AddResourcePaths(kChromeosProjectorAppBundleResources);
 
   source->AddResourcePath("", IDR_ASH_PROJECTOR_APP_UNTRUSTED_INDEX_HTML);
   source->AddLocalizedString("appTitle", IDS_ASH_PROJECTOR_DISPLAY_SOURCE);
@@ -92,12 +92,10 @@ void CreateAndAddProjectorHTMLSource(content::WebUI* web_ui,
   auto* webui_allowlist = WebUIAllowlist::GetOrCreate(browser_context);
   const url::Origin untrusted_origin =
       url::Origin::Create(GURL(kChromeUIUntrustedProjectorUrl));
-  webui_allowlist->RegisterAutoGrantedPermission(untrusted_origin,
-                                                 ContentSettingsType::COOKIES);
-  webui_allowlist->RegisterAutoGrantedPermission(
-      untrusted_origin, ContentSettingsType::JAVASCRIPT);
-  webui_allowlist->RegisterAutoGrantedPermission(untrusted_origin,
-                                                 ContentSettingsType::IMAGES);
+  webui_allowlist->RegisterAutoGrantedPermissions(
+      untrusted_origin,
+      {ContentSettingsType::COOKIES, ContentSettingsType::JAVASCRIPT,
+       ContentSettingsType::IMAGES});
 }
 
 }  // namespace

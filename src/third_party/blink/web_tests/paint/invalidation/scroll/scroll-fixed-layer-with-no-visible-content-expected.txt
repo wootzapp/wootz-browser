@@ -5,10 +5,13 @@
       "bounds": [785, 2016],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
+      "invalidations": [
+        [0, 0, 100, 100]
+      ],
       "transform": 1
     },
     {
-      "name": "LayoutNGBlockFlow (positioned, children-inline) DIV id='moveMe' class='fixed clipped'",
+      "name": "LayoutBlockFlow (positioned, children-inline) DIV id='moveMe' class='fixed clipped'",
       "bounds": [100, 100],
       "contentsOpaque": true,
       "backgroundColor": "#008000",

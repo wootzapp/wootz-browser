@@ -32,9 +32,9 @@ class String;
 namespace blink {
 
 class Document;
-class ParseFromStringOptions;
 class LocalDOMWindow;
 class ScriptState;
+class V8SupportedType;
 
 class CORE_EXPORT DOMParser final : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
@@ -46,9 +46,7 @@ class CORE_EXPORT DOMParser final : public ScriptWrappable {
 
   explicit DOMParser(ScriptState*);
 
-  Document* parseFromString(const WTF::String&,
-                            const WTF::String& type,
-                            const ParseFromStringOptions* options);
+  Document* parseFromString(const WTF::String&, const V8SupportedType& type);
 
   void Trace(Visitor*) const override;
 

@@ -25,7 +25,9 @@ DirectoryEnumerator::DirectoryEnumerator(
     scoped_refptr<content::FileSelectListener> listener)
     : directory_(std::move(directory)),
       listener_(std::move(listener)),
-      directory_lister_(directory_, this) {}
+      directory_lister_(directory_,
+                        net::DirectoryLister::NO_SORT_RECURSIVE,
+                        this) {}
 
 DirectoryEnumerator::~DirectoryEnumerator() = default;
 
@@ -33,7 +35,9 @@ void DirectoryEnumerator::OnListFile(const DirectoryListerData& data) {
   if (data.info.IsDirectory())
     return;
   entries_.push_back(blink::mojom::FileChooserFileInfo::NewNativeFile(
-      blink::mojom::NativeFileInfo::New(data.path, /*display_name=*/u"")));
+      blink::mojom::NativeFileInfo::New(
+          data.path, /*display_name=*/u"",
+          /*base_subdirs=*/std::vector<std::u16string>())));
 }
 
 void DirectoryEnumerator::OnListDone(int error) {

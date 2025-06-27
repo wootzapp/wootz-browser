@@ -6,8 +6,11 @@
 #define COMPONENTS_SUPERVISED_USER_CORE_BROWSER_SUPERVISED_USER_SERVICE_H_
 
 #include <stddef.h>
+
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
@@ -19,16 +22,14 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/supervised_user/core/browser/remote_web_approvals_manager.h"
 #include "components/supervised_user/core/browser/supervised_user_url_filter.h"
+#include "components/supervised_user/core/common/supervised_user_constants.h"
 #include "components/supervised_user/core/common/supervised_users.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 class PrefService;
 class SupervisedUserServiceObserver;
 class SupervisedUserServiceFactory;
-
-namespace base {
-class Version;
-}  // namespace base
 
 namespace signin {
 class IdentityManager;
@@ -41,26 +42,57 @@ class SyncService;
 namespace supervised_user {
 class SupervisedUserSettingsService;
 
+// Represents custodian data - who is responsible for managing the supervised
+// user's settings.
+class Custodian {
+ public:
+  Custodian();
+  Custodian(std::string_view name,
+            std::string_view email_address,
+            std::string_view profile_image_url);
+  Custodian(std::string_view name,
+            std::string_view email_address,
+            GaiaId obfuscated_gaia_id,
+            std::string_view profile_image_url);
+  Custodian(const Custodian& other);
+  ~Custodian();
+
+  std::string GetName() const { return name_; }
+  std::string GetEmailAddress() const { return email_address_; }
+  GaiaId GetObfuscatedGaiaId() const { return obfuscated_gaia_id_; }
+  std::string GetProfileImageUrl() const { return profile_image_url_; }
+
+ private:
+  std::string name_;
+  std::string email_address_;
+  GaiaId obfuscated_gaia_id_;
+  std::string profile_image_url_;
+};
+
 // This class handles all the information related to a given supervised profile
 // (e.g. the default URL filtering behavior, or manual allowlist/denylist
 // overrides).
-class SupervisedUserService : public KeyedService,
-                              public SupervisedUserURLFilter::Observer {
+class SupervisedUserService : public KeyedService {
  public:
-  class Delegate {
-   public:
-    virtual ~Delegate() {}
-    // Allows the delegate to handle the (de)activation in a custom way.
-    virtual void SetActive(bool active) = 0;
-  };
-
   // Delegate encapsulating platform-specific logic that is invoked from SUS.
   class PlatformDelegate {
    public:
-    virtual ~PlatformDelegate() {}
+    virtual ~PlatformDelegate() = default;
 
-    // Close all incognito tabs for this service. Called the profile becomes
-    // supervised.
+    // Returns the country code stored for this client.
+    // Country code is in the format of lowercase ISO 3166-1 alpha-2. Example:
+    // us, br, in.
+    virtual std::string GetCountryCode() const = 0;
+
+    // Returns the channel for the installation.
+    virtual version_info::Channel GetChannel() const = 0;
+
+    // Decides if incognito tabs should be closed. Tested when the supervision
+    // features are enabled.
+    virtual bool ShouldCloseIncognitoTabs() const = 0;
+
+    // Close all incognito tabs for this service. Called when the supervision
+    // features are enabled and require disabling of incognito mode.
     virtual void CloseIncognitoTabs() = 0;
   };
 
@@ -76,55 +108,23 @@ class SupervisedUserService : public KeyedService,
   // Initializes this object.
   void Init();
 
-  void SetDelegate(Delegate* delegate);
-
   // Returns the URL filter for filtering navigations and classifying sites in
   // the history view. Both this method and the returned filter may only be used
   // on the UI thread.
   supervised_user::SupervisedUserURLFilter* GetURLFilter() const;
 
-  // Get the string used to identify an extension install or update request.
-  // Public for testing.
-  static std::string GetExtensionRequestId(const std::string& extension_id,
-                                           const base::Version& version);
+  std::optional<Custodian> GetCustodian() const;
+  std::optional<Custodian> GetSecondCustodian() const;
 
-  // Returns the email address of the custodian.
-  std::string GetCustodianEmailAddress() const;
-
-  // Returns the obfuscated GAIA id of the custodian.
-  std::string GetCustodianObfuscatedGaiaId() const;
-
-  // Returns the name of the custodian, or the email address if the name is
-  // empty.
-  std::string GetCustodianName() const;
-
-  // Returns the email address of the second custodian, or the empty string
-  // if there is no second custodian.
-  std::string GetSecondCustodianEmailAddress() const;
-
-  // Returns the obfuscated GAIA id of the second custodian or the empty
-  // string if there is no second custodian.
-  std::string GetSecondCustodianObfuscatedGaiaId() const;
-
-  // Returns the name of the second custodian, or the email address if the name
-  // is empty, or the empty string if there is no second custodian.
-  std::string GetSecondCustodianName() const;
-
-  // Returns true if there is a custodian for the child.  A child can have
-  // up to 2 custodians, and this returns true if they have at least 1.
-  bool HasACustodian() const;
-
-  // Returns true if the url is blocked for the primary account user.
-  bool IsBlockedURL(GURL url) const;
+  // Returns true if the url is blocked due to supervision restrictions on the
+  // primary account user.
+  bool IsBlockedURL(const GURL& url) const;
 
   void AddObserver(SupervisedUserServiceObserver* observer);
   void RemoveObserver(SupervisedUserServiceObserver* observer);
 
   // ProfileKeyedService override:
   void Shutdown() override;
-
-  // SupervisedUserURLFilter::Observer implementation:
-  void OnSiteListUpdated() override;
 
 #if BUILDFLAG(IS_CHROMEOS)
   bool signout_required_after_supervision_enabled() {
@@ -135,14 +135,6 @@ class SupervisedUserService : public KeyedService,
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-  // Updates the kFirstTimeInterstitialBannerState pref to indicate that the
-  // user has been shown the interstitial banner. This will only update users
-  // who haven't yet seen the banner.
-  void MarkFirstTimeInterstitialBannerShown() const;
-
-  // Returns true if the interstitial banner needs to be shown to user.
-  bool ShouldShowFirstTimeInterstitialBanner() const;
-
   // Use |SupervisedUserServiceFactory::GetForProfile(..)| to get
   // an instance of this service.
   // Public to allow visibility to iOS factory.
@@ -152,16 +144,15 @@ class SupervisedUserService : public KeyedService,
       PrefService& user_prefs,
       supervised_user::SupervisedUserSettingsService& settings_service,
       syncer::SyncService* sync_service,
-      ValidateURLSupportCallback check_webstore_url_callback,
       std::unique_ptr<supervised_user::SupervisedUserURLFilter::Delegate>
           url_filter_delegate,
       std::unique_ptr<supervised_user::SupervisedUserService::PlatformDelegate>
-          platform_delegate,
-      bool can_show_first_time_interstitial_banner);
+          platform_delegate);
 
  private:
   friend class SupervisedUserServiceExtensionTestBase;
   friend class ::SupervisedUserServiceFactory;
+  friend class ClassifyUrlNavigationThrottleTest;
   FRIEND_TEST_ALL_PREFIXES(
       SupervisedUserServiceExtensionTest,
       ExtensionManagementPolicyProviderWithoutSUInitiatedInstalls);
@@ -171,15 +162,32 @@ class SupervisedUserService : public KeyedService,
   FRIEND_TEST_ALL_PREFIXES(SupervisedUserServiceTest, InterstitialBannerState);
   FRIEND_TEST_ALL_PREFIXES(SupervisedUserNavigationThrottleTest,
                            BlockedMatureSitesRecordedInBlockSafeSitesBucket);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleTest,
+                           BlockedMatureSitesRecordedInBlockSafeSitesBucket);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleTest,
+                           ClassificationIsFasterThanHttp);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleTest,
+                           ClassificationIsSlowerThanHttp);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleTest,
+                           ReverseOrderOfResponsesAfterContentIsReady);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleParallelizationTest,
+                           ClassificationIsFasterThanHttp);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleParallelizationTest,
+                           ClassificationIsSlowerThanHttp);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleParallelizationTest,
+                           ShortCircuitsSynchronousBlock);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleParallelizationTest,
+                           HandlesLateAsynchronousBlock);
+  FRIEND_TEST_ALL_PREFIXES(ClassifyUrlNavigationThrottleParallelizationTest,
+                           OutOfOrderClassification);
 
   // Method used in testing to set the given test_filter as the url_filter_
   void SetURLFilterForTesting(
       std::unique_ptr<SupervisedUserURLFilter> test_filter);
 
-  FirstTimeInterstitialBannerState GetUpdatedBannerState(
-      FirstTimeInterstitialBannerState original_state);
-
   void SetActive(bool active);
+
+  void SetSettingsServiceActive(bool active);
 
   void OnCustodianInfoChanged();
 
@@ -188,6 +196,8 @@ class SupervisedUserService : public KeyedService,
   void OnDefaultFilteringBehaviorChanged();
 
   void OnSafeSitesSettingChanged();
+
+  void OnIncognitoModeAvailabilityChanged();
 
   // Updates the manual overrides for hosts in the URL filters when the
   // corresponding preference is changed.
@@ -210,8 +220,6 @@ class SupervisedUserService : public KeyedService,
 
   bool active_ = false;
 
-  raw_ptr<Delegate> delegate_;
-
   std::unique_ptr<PlatformDelegate> platform_delegate_;
 
   PrefChangeRegistrar pref_change_registrar_;
@@ -224,8 +232,6 @@ class SupervisedUserService : public KeyedService,
 
   std::unique_ptr<SupervisedUserURLFilter> url_filter_;
 
-  const bool can_show_first_time_interstitial_banner_;
-
   // Manages remote web approvals.
   RemoteWebApprovalsManager remote_web_approvals_manager_;
 
@@ -235,14 +241,14 @@ class SupervisedUserService : public KeyedService,
   bool signout_required_after_supervision_enabled_ = false;
 #endif
 
-  // TODO(https://crbug.com/1288986): Enable web filter metrics reporting in
-  // LaCrOS.
   // When there is change between WebFilterType::kTryToBlockMatureSites and
   // WebFilterType::kCertainSites, both
   // prefs::kDefaultSupervisedUserFilteringBehavior and
   // prefs::kSupervisedUserSafeSites change. Uses this member to avoid duplicate
-  // reports. Initialized in the SetActive().
-  WebFilterType current_web_filter_type_ = WebFilterType::kMaxValue;
+  // reports. Initialized in the SetActive(). This default value is derived from
+  // default value of both prefs.
+  WebFilterType current_web_filter_type_ =
+      WebFilterType::kTryToBlockMatureSites;
 
   base::WeakPtrFactory<SupervisedUserService> weak_ptr_factory_{this};
 };

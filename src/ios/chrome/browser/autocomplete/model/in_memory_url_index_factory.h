@@ -8,26 +8,22 @@
 #include <memory>
 
 #include "base/no_destructor.h"
-#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
+#include "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
-class ChromeBrowserState;
 class InMemoryURLIndex;
 
 namespace ios {
-// Singleton that owns all InMemoryURLIndexs and associates them with
-// ChromeBrowserState.
-class InMemoryURLIndexFactory : public BrowserStateKeyedServiceFactory {
+
+// Singleton that owns all InMemoryURLIndex instances and associates them
+// with profiles.
+class InMemoryURLIndexFactory : public ProfileKeyedServiceFactoryIOS {
  public:
-  static InMemoryURLIndex* GetForBrowserState(
-      ChromeBrowserState* browser_state);
+  static InMemoryURLIndex* GetForProfile(ProfileIOS* profile);
   static InMemoryURLIndexFactory* GetInstance();
 
-  // Returns the default factory used to build InMemoryURLIndexs. Can be
-  // registered with SetTestingFactory to use real instances during testing.
+  // Returns the default factory used to build InMemoryURLIndexes. Can be
+  // registered with AddTestingFactory to use real instances during testing.
   static TestingFactory GetDefaultFactory();
-
-  InMemoryURLIndexFactory(const InMemoryURLIndexFactory&) = delete;
-  InMemoryURLIndexFactory& operator=(const InMemoryURLIndexFactory&) = delete;
 
  private:
   friend class base::NoDestructor<InMemoryURLIndexFactory>;
@@ -38,9 +34,6 @@ class InMemoryURLIndexFactory : public BrowserStateKeyedServiceFactory {
   // BrowserStateKeyedServiceFactory implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
       web::BrowserState* context) const override;
-  web::BrowserState* GetBrowserStateToUse(
-      web::BrowserState* context) const override;
-  bool ServiceIsNULLWhileTesting() const override;
 };
 
 }  // namespace ios

@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/safe_browsing/content/renderer/phishing_classifier/phishing_classifier_delegate.h"
 
 #include <memory>
 #include <optional>
 
+#include "base/containers/span.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
@@ -345,8 +351,8 @@ TEST_F(PhishingClassifierDelegateTest, HasVisualTfLiteModel) {
   base::File file(file_path, base::File::FLAG_OPEN_ALWAYS |
                                  base::File::FLAG_READ |
                                  base::File::FLAG_WRITE);
-  std::string file_contents = "visual model file";
-  file.WriteAtCurrentPos(file_contents.data(), file_contents.size());
+
+  file.WriteAtCurrentPos(base::byte_span_from_cstring("visual model file"));
 
   std::string model_str = GetFlatBufferString(0);
   base::MappedReadOnlyRegion mapped_region =
@@ -445,6 +451,12 @@ TEST_F(PhishingClassifierDelegateTest, NoScorer_Ref_WithRetry) {
 }
 
 TEST_F(PhishingClassifierDelegateTest, NoScorer) {
+  std::map<std::string, std::string> feature_params;
+  feature_params["RetryTimeMax"] = "0";
+  auto scoped_list = std::make_unique<base::test::ScopedFeatureList>();
+  scoped_list->InitWithFeaturesAndParameters(
+      {{safe_browsing::kClientSideDetectionRetryLimit, feature_params}}, {});
+
   // For this test, we'll create the delegate with no scorer available yet.
   ASSERT_FALSE(classifier_->is_ready());
   const auto page_text = MakeRefPtrString(u"dummy");
@@ -460,8 +472,10 @@ TEST_F(PhishingClassifierDelegateTest, NoScorer) {
   OnStartPhishingDetection(url2);
   delegate_->PageCaptured(page_text, false);
 
+  task_environment_.RunUntilIdle();
+
   // Now set a scorer, which should cause a classifier to be created, but no
-  // classification will start.
+  // classification will start, because the retry timeout is 0.
   SetScorer(/*model_version=*/1);
   Mock::VerifyAndClearExpectations(classifier_);
 
@@ -482,6 +496,12 @@ TEST_F(PhishingClassifierDelegateTest, NoScorer) {
 }
 
 TEST_F(PhishingClassifierDelegateTest, NoScorer_Ref) {
+  std::map<std::string, std::string> feature_params;
+  feature_params["RetryTimeMax"] = "0";
+  auto scoped_list = std::make_unique<base::test::ScopedFeatureList>();
+  scoped_list->InitWithFeaturesAndParameters(
+      {{safe_browsing::kClientSideDetectionRetryLimit, feature_params}}, {});
+
   // Similar to the last test, but navigates within the page before
   // setting the scorer.
   ASSERT_FALSE(classifier_->is_ready());
@@ -496,8 +516,10 @@ TEST_F(PhishingClassifierDelegateTest, NoScorer_Ref) {
   OnStartPhishingDetection(url);
   delegate_->PageCaptured(page_text, false);
 
+  task_environment_.RunUntilIdle();
+
   // Now set a scorer, which should cause a classifier to be created, but no
-  // classification will start.
+  // classification will start, because the timeout delay is 0 seconds.
   SetScorer(/*model_version=*/1);
   Mock::VerifyAndClearExpectations(classifier_);
 

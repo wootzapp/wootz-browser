@@ -7,7 +7,6 @@
 
 // This file defines all password manager features used in the browser process.
 // Prefer adding new features here instead of "core/common/".
-#include <limits>
 
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
@@ -21,24 +20,37 @@ namespace password_manager::features {
 // auto-approved.
 BASE_DECLARE_FEATURE(kAutoApproveSharedPasswordUpdatesFromSameSender);
 
-#if BUILDFLAG(IS_WIN)
-// OS authentication will use UserConsentVerifier api to trigger Windows Hello
-// authentication.
-BASE_DECLARE_FEATURE(kAuthenticateUsingNewWindowsHelloApi);
-#endif  // BUILDFLAG(IS_WIN)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)  // Desktop
+// Feature flag to control the displaying of an ongoing hats survey that
+// measures users perception of autofilling password forms. Differently from
+// other surveys, the Autofill user perception surveys will not have a specific
+// target number of answers where it will be fully stop, instead, it will run
+// indefinitely. A target number of full answers exists, but per quarter. The
+// goal is to have a go to place to understand how users are perceiving autofill
+// across quarters.
+BASE_DECLARE_FEATURE(kAutofillPasswordUserPerceptionSurvey);
+// Moves the "Use a passkey / Use a different passkey" to the context menu from
+// the autofill dropdown. This is now decoupled from
+// "PasswordManualFallbackAvailable" flag.
+BASE_DECLARE_FEATURE(kWebAuthnUsePasskeyFromAnotherDeviceInContextMenu);
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 
 // Enables Biometrics for the Touch To Fill feature. This only effects Android.
 BASE_DECLARE_FEATURE(kBiometricTouchToFill);
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)  // Desktop
-BASE_DECLARE_FEATURE(kButterOnDesktopFollowup);
-#endif
 
 // Delete undecryptable passwords from the login database.
 BASE_DECLARE_FEATURE(kClearUndecryptablePasswords);
 
 // Delete undecryptable passwords from the store when Sync is active.
 BASE_DECLARE_FEATURE(kClearUndecryptablePasswordsOnSync);
+
+// Marks form submission as failed whenever a POST request has failed for the
+// same iframe with 400-403 status code.
+BASE_DECLARE_FEATURE(kFailedLoginDetectionBasedOnResourceLoadingErrors);
+
+// Marks form submission as failed whenever a password field is cleared for the
+// sign-in forms.
+BASE_DECLARE_FEATURE(kFailedLoginDetectionBasedOnFormClearEvent);
 
 #if BUILDFLAG(IS_ANDROID)
 // Enables reading credentials from SharedPreferences.
@@ -50,30 +62,43 @@ BASE_DECLARE_FEATURE(kFetchGaiaHashOnSignIn);
 BASE_DECLARE_FEATURE(kFillOnAccountSelect);
 
 #if BUILDFLAG(IS_IOS)
-// Enables filling for sign-in UFF on iOS.
-BASE_DECLARE_FEATURE(kIOSPasswordSignInUff);
 
-// Enable saving username in UFF on iOS.
-BASE_DECLARE_FEATURE(kIosDetectUsernameInUff);
+// Enables the clean up of hanging form extraction requests made by the
+// password suggestion helper. This is to fix the cases where the suggestions
+// pipeline is broken because the pipeline is waiting for password suggestions
+// that are never provided.
+BASE_DECLARE_FEATURE(kIosCleanupHangingPasswordFormExtractionRequests);
+
+// The feature parameter that determines the minimal period of time in
+// milliseconds before the form extraction request times out.
+extern const base::FeatureParam<int>
+    kIosPasswordFormExtractionRequestsTimeoutMs;
+
+// Enables improving detecting the password fields when retrieving password
+// suggestions for filling.
+BASE_DECLARE_FEATURE(kIOSImprovePasswordFieldDetectionForFilling);
+
+// Enables the second version of the bottom sheet to fix a few bugs that we've
+// seen in production since the launch of the V1 of the feature.
+BASE_DECLARE_FEATURE(kIOSPasswordBottomSheetV2);
+
+// Enables password generation bottom sheet to be displayed (on iOS) when a user
+// is signed-in and taps on a new password field.
+BASE_DECLARE_FEATURE(kIOSProactivePasswordGenerationBottomSheet);
 
 #endif
 
-// Enables saving enterprise password hashes to a local state preference.
-BASE_DECLARE_FEATURE(kLocalStateEnterprisePasswordHashes);
+// Enables running the clientside form classifier to parse password forms.
+BASE_DECLARE_FEATURE(kPasswordFormClientsideClassifier);
+
+// Enables offering credentials for filling across grouped domains.
+BASE_DECLARE_FEATURE(kPasswordFormGroupedAffiliations);
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)  // Desktop
-// Enables different experiments that modify content and behavior of the
-// existing generated password suggestion dropdown.
-BASE_DECLARE_FEATURE(kPasswordGenerationExperiment);
+// Enables "chunking" generated passwords by adding hyphens every 4 characters
+// to make them more readable.
+BASE_DECLARE_FEATURE(kPasswordGenerationChunking);
 #endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-
-// Enables password receiving service including incoming password sharing
-// invitation sync data type.
-BASE_DECLARE_FEATURE(kPasswordManagerEnableReceiverService);
-
-// Enables password sender service including outgoing password sharing
-// invitation sync data type.
-BASE_DECLARE_FEATURE(kPasswordManagerEnableSenderService);
 
 // Enables logging the content of chrome://password-manager-internals to the
 // terminal.
@@ -82,151 +107,75 @@ BASE_DECLARE_FEATURE(kPasswordManagerLogToTerminal);
 // Enables triggering password suggestions through the context menu.
 BASE_DECLARE_FEATURE(kPasswordManualFallbackAvailable);
 
+// Enables postponing detecting a successful submission and showing the
+// save/update UI by a fixed time.
+BASE_DECLARE_FEATURE(kPostponeOnLoginSuccessful);
+
+// Detects password reuse based on hashed password values.
+BASE_DECLARE_FEATURE(kReuseDetectionBasedOnPasswordHashes);
+
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 // Enables "Needs access to keychain, restart chrome" bubble and banner.
 BASE_DECLARE_FEATURE(kRestartToGainAccessToKeychain);
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
-// Enables the notification UI that is displayed to the user when visiting a
-// website for which a stored password has been shared by another user.
-BASE_DECLARE_FEATURE(kSharedPasswordNotificationUI);
+#if BUILDFLAG(IS_CHROMEOS)
+// Enables biometric authentication on for Password Autofill on ChromeOS.
+BASE_DECLARE_FEATURE(kBiometricsAuthForPwdFill);
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+// Sets request criticality when calling leak check service to detect leaked
+// passwords.
+BASE_DECLARE_FEATURE(kSetLeakCheckRequestCriticality);
 
 // Displays at least the decryptable and never saved logins in the password
 // manager
 BASE_DECLARE_FEATURE(kSkipUndecryptablePasswords);
 
+// Starts passwords resync after undecryptable passwords were removed. This flag
+// is enabled by default and should be treaded as a killswitch.
+BASE_DECLARE_FEATURE(kTriggerPasswordResyncAfterDeletingUndecryptablePasswords);
+
 #if BUILDFLAG(IS_ANDROID)
-// Enables use of Google Mobile services for non-synced password storage that
-// contains no passwords, so no migration will be necessary.
-// UnifiedPasswordManagerLocalPasswordsAndroidWithMigration will replace this
-// feature once UPM starts to be rolled out to users who have saved local
-// passwords.
-// See also kLocalUpmMinGmsVersionParam below.
-BASE_DECLARE_FEATURE(kUnifiedPasswordManagerLocalPasswordsAndroidNoMigration);
+// The feature flag for the Identity Check feature. The feature makes biometric
+// authentication mandatory before password filling in untrusted locations.
+BASE_DECLARE_FEATURE(kBiometricAuthIdentityCheck);
 
-// Enables use of Google Mobile services for non-synced password storage add for
-// users who have local passwords saved.
-// See also kLocalUpmMinGmsVersionParam below.
-BASE_DECLARE_FEATURE(kUnifiedPasswordManagerLocalPasswordsAndroidWithMigration);
+// If enabled, the profile login db will no longer be renamed to account
+// login db upon UPM with split stores activation. The db is cleared on
+// the following run anyway.
+BASE_DECLARE_FEATURE(kDropLoginDbRenameForUpmSyncingUsers);
 
-// Helper function which returns the delay when the local passwords migration is
-// triggered after Chrome startup in seconds.
-int GetLocalPasswordsMigrationToAndroidBackendDelay();
+// If enabled, the password store no longer uses the Login DB as a backend.
+// Instead, it either uses the Android-specific storage or an empty backend
+// if the client isn't eligible for the former.
+BASE_DECLARE_FEATURE(kLoginDbDeprecationAndroid);
 
-// Enables UPM M4 that no longer needs Password sync engine to sync passwords.
-BASE_DECLARE_FEATURE(kUnifiedPasswordManagerSyncOnlyInGMSCore);
-
-// This feature clears login database if user is capable of using UPM.
-BASE_DECLARE_FEATURE(kClearLoginDatabaseForUPMUsers);
-
-// A parameter for both the NoMigration and WithMigration features above. It
-// dictates the min value of base::android::BuildInfo::gms_version_code() for
-// the flag take effect.
-inline constexpr char kLocalUpmMinGmsVersionParam[] = "min_gms_version";
-// Default value of kLocalUpmMinGmsVersionParam.
-inline constexpr int kDefaultLocalUpmMinGmsVersion = 240212000;
-// The min GMS version, which supports UPM for syncing users.
-inline constexpr int kAccountUpmMinGmsVersion = 223012000;
-
-// Same as above, but for automotive.
-inline constexpr char kLocalUpmMinGmsVersionParamForAuto[] =
-    "min_gms_version_for_auto";
-inline constexpr int kDefaultLocalUpmMinGmsVersionForAuto =
-    std::numeric_limits<int>::max();
-// Helper function returning the status of
-// `UnifiedPasswordManagerSyncOnlyInGMSCore`.
-bool IsUnifiedPasswordManagerSyncOnlyInGMSCoreEnabled();
-
-#endif  // !BUILDFLAG(IS_ANDROID)
+inline constexpr base::FeatureParam<int> kLoginDbDeprecationExportDelay = {
+    &kLoginDbDeprecationAndroid,
+    /*name=*/"login-db-deprecation-export-delay-seconds", /*default_value=*/5};
+#endif  // BUILDFLAG(IS_ANDROID)
 
 // Improves PSL matching capabilities by utilizing PSL-extension list from
 // affiliation service. It fixes problem with incorrect password suggestions on
 // websites like slack.com.
 BASE_DECLARE_FEATURE(kUseExtensionListForPSLMatching);
 
-// Enables support of sending additional votes on username first flow. The votes
-// are sent on single password forms and contain information about preceding
-// single username forms.
-// TODO(crbug.com/40626063): Clean up if the main crowdsourcing is good enough
-// and we don't need additional signals.
-BASE_DECLARE_FEATURE(kUsernameFirstFlowFallbackCrowdsourcing);
+// Enables new encryption method of OSCrypt inside LoginDatabase (Stage 2).
+BASE_DECLARE_FEATURE(kUseNewEncryptionMethod);
 
-// Enables storing more possible username values in the LRU cache. Part of the
-// `kUsernameFirstFlowWithIntermediateValues` feature.
-BASE_DECLARE_FEATURE(kUsernameFirstFlowStoreSeveralValues);
+// Enables re-encryption of all passwords. Done separately for each store
+// (Stage 3).
+BASE_DECLARE_FEATURE(kEncryptAllPasswordsWithOSCryptAsync);
 
-// If `kUsernameFirstFlowStoreSeveralValues` is enabled, the size of LRU
-// cache that stores all username candidates outside the form.
-extern const base::FeatureParam<int> kMaxSingleUsernameFieldsToStore;
+// Marks all submitted credentials as leaked, useful for testing of a password
+// leak dialog.
+BASE_DECLARE_FEATURE(kMarkAllCredentialsAsLeaked);
 
-// Enables tolerating intermediate fields like OTP or CAPTCHA
-// between username and password fields in Username First Flow.
-BASE_DECLARE_FEATURE(kUsernameFirstFlowWithIntermediateValues);
-
-// If `kUsernameFirstFlowWithIntermediateValues` is enabled, after this amount
-// of minutes single username will not be used in the save prompt.
-extern const base::FeatureParam<int> kSingleUsernameTimeToLive;
-
-// Enables new prediction that is based on votes from Username First Flow with
-// Intermediate Values.
-BASE_DECLARE_FEATURE(kUsernameFirstFlowWithIntermediateValuesPredictions);
-
-// Enables voting for more text fields outside of the password form in Username
-// First Flow.
-BASE_DECLARE_FEATURE(kUsernameFirstFlowWithIntermediateValuesVoting);
+// Enables improvements to password change functionality.
+BASE_DECLARE_FEATURE(kImprovedPasswordChangeService);
 
 // All features parameters in alphabetical order.
-
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)  // Desktop
-// This enum supports enabling specific arms of the
-// `kPasswordGenerationExperiment` (go/strong-passwords-desktop).
-// Keep the order consistent with
-// `kPasswordGenerationExperimentVariationOption` below and with
-// `kPasswordGenerationExperimentVariations` in about_flags.cc.
-enum class PasswordGenerationVariation {
-  // Adjusts the language focusing on recommendation and security messaging.
-  kTrustedAdvice = 1,
-  // Adjusts the language making the suggestion softer and more guiding.
-  kSafetyFirst = 2,
-  // Adjusts the language adding a more persuasive and reassuring tone.
-  kTrySomethingNew = 3,
-  // Adjusts the language focusing on the convenience of use.
-  kConvenience = 4,
-  // Adjusts the language of the help text pointing out the benefits.
-  kCrossDevice = 5,
-  // Adds a row for switching to editing the suggested password directly.
-  kEditPassword = 6,
-  // Adds chunking generated passwords into smaller readable parts.
-  kChunkPassword = 7,
-  // Removes strong password row and adds nudge passwords buttons instead.
-  kNudgePassword = 8,
-};
-
-inline constexpr base::FeatureParam<PasswordGenerationVariation>::Option
-    kPasswordGenerationExperimentVariationOption[] = {
-        {PasswordGenerationVariation::kTrustedAdvice, "trusted_advice"},
-        {PasswordGenerationVariation::kSafetyFirst, "safety_first"},
-        {PasswordGenerationVariation::kTrySomethingNew, "try_something_new"},
-        {PasswordGenerationVariation::kConvenience, "convenience"},
-        {PasswordGenerationVariation::kCrossDevice, "cross_device"},
-        {PasswordGenerationVariation::kEditPassword, "edit_password"},
-        {PasswordGenerationVariation::kChunkPassword, "chunk_password"},
-        {PasswordGenerationVariation::kNudgePassword, "nudge_password"},
-};
-
-inline constexpr base::FeatureParam<PasswordGenerationVariation>
-    kPasswordGenerationExperimentVariationParam{
-        &kPasswordGenerationExperiment, "password_generation_variation",
-        PasswordGenerationVariation::kTrustedAdvice,
-        &kPasswordGenerationExperimentVariationOption};
-
-inline constexpr base::FeatureParam<std::string>
-    kPasswordGenerationExperimentSurveyTriggerId{
-        &kPasswordGenerationExperiment,
-        "PasswordGenerationExperimentSurveyTriggedId", /*default_value=*/""};
-
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-
 }  // namespace password_manager::features
 
 #endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_FEATURES_PASSWORD_FEATURES_H_

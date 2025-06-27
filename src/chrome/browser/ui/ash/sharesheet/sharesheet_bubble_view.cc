@@ -35,8 +35,11 @@
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "ui/accessibility/ax_enums.mojom-forward.h"
+#include "ui/aura/window.h"
+#include "ui/aura/window_observer.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/compositor/closure_animation_observer.h"
@@ -124,19 +127,23 @@ namespace ash {
 namespace sharesheet {
 
 class SharesheetBubbleView::SharesheetParentWidgetObserver
-    : public views::WidgetObserver {
+    : public views::WidgetObserver,
+      public aura::WindowObserver {
  public:
   SharesheetParentWidgetObserver(SharesheetBubbleView* owner,
                                  views::Widget* widget)
       : owner_(owner) {
-    observer_.Observe(widget);
+    widget_observer_.Observe(widget);
+    window_observer_.Observe(widget->GetNativeWindow());
   }
   ~SharesheetParentWidgetObserver() override = default;
 
   // WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override {
-    DCHECK(observer_.IsObservingSource(widget));
-    observer_.Reset();
+    DCHECK(widget_observer_.IsObservingSource(widget));
+    DCHECK(window_observer_.IsObservingSource(widget->GetNativeWindow()));
+    widget_observer_.Reset();
+    window_observer_.Reset();
     // |this| may be destroyed here!
 
     // TODO(crbug.com/40173521) Code clean up.
@@ -151,9 +158,23 @@ class SharesheetBubbleView::SharesheetParentWidgetObserver
     owner_->UpdateAnchorPosition();
   }
 
+  // aura::WindowObserver:
+  void OnWindowTransformed(aura::Window* window,
+                           ui::PropertyChangeReason reason) override {
+    // Update the anchor bounds when the transform animation is complete, or
+    // when the transform is set without animation.
+    if (!window->layer()->GetAnimator()->IsAnimatingOnePropertyOf(
+            ui::LayerAnimationElement::TRANSFORM)) {
+      owner_->UpdateAnchorPosition();
+    }
+  }
+
  private:
   raw_ptr<SharesheetBubbleView> owner_;
-  base::ScopedObservation<views::Widget, views::WidgetObserver> observer_{this};
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observer_{this};
+  base::ScopedObservation<aura::Window, aura::WindowObserver> window_observer_{
+      this};
 };
 
 SharesheetBubbleView::SharesheetBubbleView(
@@ -230,9 +251,7 @@ void SharesheetBubbleView::ShowBubble(
   CHECK_GT(targets.size(), 0u);
   header_body_separator_ =
       body_view_->AddChildView(std::make_unique<views::Separator>());
-  if (chromeos::features::IsJellyEnabled()) {
-    header_body_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
-  }
+  header_body_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
 
   const size_t targets_size = targets.size();
   auto scroll_view = std::make_unique<views::ScrollView>();
@@ -243,9 +262,7 @@ void SharesheetBubbleView::ShowBubble(
   if (expanded_view_) {
     body_footer_separator_ =
         body_view_->AddChildView(std::make_unique<views::Separator>());
-    if (chromeos::features::IsJellyEnabled()) {
-      body_footer_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
-    }
+    body_footer_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
     expand_button_ =
         footer_view_->AddChildView(std::make_unique<SharesheetExpandButton>(
             base::BindRepeating(&SharesheetBubbleView::ExpandButtonPressed,
@@ -317,19 +334,10 @@ std::unique_ptr<views::View> SharesheetBubbleView::MakeScrollableTargetView(
         views::BoxLayout::Orientation::kVertical);
 
     expanded_view_container
-        ->AddChildView(
-            chromeos::features::IsJellyEnabled()
-                ? CreateShareLabel(
-                      l10n_util::GetStringUTF16(IDS_SHARESHEET_APPS_LIST_LABEL),
-                      TypographyToken::kCrosHeadline1,
-                      cros_tokens::kCrosSysOnSurface, gfx::ALIGN_CENTER)
-                : CreateShareLabel(
-                      l10n_util::GetStringUTF16(IDS_SHARESHEET_APPS_LIST_LABEL),
-                      CONTEXT_SHARESHEET_BUBBLE_BODY, kSubtitleTextLineHeight,
-                      AshColorProvider::Get()->GetContentLayerColor(
-                          AshColorProvider::ContentLayerType::
-                              kTextColorPrimary),
-                      gfx::ALIGN_CENTER))
+        ->AddChildView(CreateShareLabel(
+            l10n_util::GetStringUTF16(IDS_SHARESHEET_APPS_LIST_LABEL),
+            TypographyToken::kCrosHeadline1, cros_tokens::kCrosSysOnSurface,
+            gfx::ALIGN_CENTER))
         ->SetProperty(views::kMarginsKey,
                       gfx::Insets::TLBR(kExpandViewPaddingTop, 0,
                                         kExpandViewPaddingBottom, 0));
@@ -353,9 +361,7 @@ std::unique_ptr<views::View> SharesheetBubbleView::MakeScrollableTargetView(
   if (expanded_view_container) {
     expanded_view_separator_ =
         scrollable_view->AddChildView(std::make_unique<views::Separator>());
-    if (chromeos::features::IsJellyEnabled()) {
-      expanded_view_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
-    }
+    expanded_view_separator_->SetColorId(cros_tokens::kCrosSysSeparator);
     expanded_view_separator_->SetProperty(views::kMarginsKey,
                                           gfx::Insets::VH(0, kSpacing));
     expanded_view_ =
@@ -545,8 +551,7 @@ bool SharesheetBubbleView::OnKeyPressed(const ui::KeyEvent& event) {
       delta = base::i18n::IsRTL() ? -1 : 1;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   const size_t default_views = default_view_->children().size();
@@ -574,7 +579,7 @@ SharesheetBubbleView::CreateNonClientFrameView(views::Widget* widget) {
   // TODO(crbug.com/40136695) Replace this with layer->SetRoundedCornerRadius.
   auto bubble_border =
       std::make_unique<views::BubbleBorder>(arrow(), GetShadow());
-  bubble_border->SetColor(color());
+  bubble_border->SetColor(background_color());
   bubble_border->SetCornerRadius(kCornerRadius);
   auto frame =
       views::BubbleDialogDelegateView::CreateNonClientFrameView(widget);
@@ -625,7 +630,7 @@ void SharesheetBubbleView::InitBubble() {
   // BubbleDialogDelegateView. Close on deactivation behaviour is managed by the
   // SharesheetBubbleView with the |close_on_deactivate_| member.
   set_close_on_deactivate(false);
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
 
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -661,8 +666,9 @@ void SharesheetBubbleView::ExpandButtonPressed() {
   // Scrollview has separators that overlaps with |header_body_separator_| and
   // |body_footer_separator_| to create a double line when both are visible, so
   // when scrollview is expanded we hide our separators.
-  if (header_body_separator_)
+  if (header_body_separator_) {
     header_body_separator_->SetVisible(!show_expanded_view_);
+  }
   body_footer_separator_->SetVisible(!show_expanded_view_);
 
   expanded_view_->SetVisible(show_expanded_view_);

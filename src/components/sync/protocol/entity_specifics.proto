@@ -18,20 +18,18 @@ import "components/sync/protocol/app_specifics.proto";
 import "components/sync/protocol/arc_package_specifics.proto";
 import "components/sync/protocol/autofill_specifics.proto";
 import "components/sync/protocol/autofill_offer_specifics.proto";
+import "components/sync/protocol/autofill_valuable_specifics.proto";
 import "components/sync/protocol/autofill_wallet_credential_specifics.proto";
 import "components/sync/protocol/autofill_wallet_usage_specifics.proto";
 import "components/sync/protocol/bookmark_specifics.proto";
 import "components/sync/protocol/collaboration_group_specifics.proto";
-import "components/sync/protocol/compare_specifics.proto";
+import "components/sync/protocol/product_comparison_specifics.proto";
 import "components/sync/protocol/contact_info_specifics.proto";
 import "components/sync/protocol/cookie_specifics.proto";
 import "components/sync/protocol/device_info_specifics.proto";
 import "components/sync/protocol/dictionary_specifics.proto";
-import "components/sync/protocol/experiments_specifics.proto";
 import "components/sync/protocol/extension_setting_specifics.proto";
 import "components/sync/protocol/extension_specifics.proto";
-import "components/sync/protocol/favicon_image_specifics.proto";
-import "components/sync/protocol/favicon_tracking_specifics.proto";
 import "components/sync/protocol/history_delete_directive_specifics.proto";
 import "components/sync/protocol/history_specifics.proto";
 import "components/sync/protocol/managed_user_setting_specifics.proto";
@@ -41,6 +39,7 @@ import "components/sync/protocol/os_preference_specifics.proto";
 import "components/sync/protocol/os_priority_preference_specifics.proto";
 import "components/sync/protocol/password_sharing_invitation_specifics.proto";
 import "components/sync/protocol/password_specifics.proto";
+import "components/sync/protocol/plus_address_setting_specifics.proto";
 import "components/sync/protocol/plus_address_specifics.proto";
 import "components/sync/protocol/power_bookmark_specifics.proto";
 import "components/sync/protocol/preference_specifics.proto";
@@ -64,6 +63,7 @@ import "components/sync/protocol/web_app_specifics.proto";
 import "components/sync/protocol/webauthn_credential_specifics.proto";
 import "components/sync/protocol/wifi_configuration_specifics.proto";
 import "components/sync/protocol/workspace_desk_specifics.proto";
+import "components/sync/protocol/shared_tab_group_account_data_specifics.proto";
 
 message EntitySpecifics {
   // If a datatype is encrypted, this field will contain the encrypted
@@ -106,7 +106,6 @@ message EntitySpecifics {
     AutofillSpecifics autofill = 31729;
     BookmarkSpecifics bookmark = 32904;
     PreferenceSpecifics preference = 37702;
-    TypedUrlSpecifics typed_url = 40781;
     ThemeSpecifics theme = 41210;
     PasswordSpecifics password = 45873;
     NigoriSpecifics nigori = 47745;
@@ -154,9 +153,12 @@ message EntitySpecifics {
     AutofillWalletCredentialSpecifics autofill_wallet_credential = 1164238;
     SharedTabGroupDataSpecifics shared_tab_group_data = 1239418;
     CollaborationGroupSpecifics collaboration_group = 1259076;
-    CompareSpecifics compare = 1329438;
+    ProductComparisonSpecifics product_comparison = 1329438;
     PlusAddressSpecifics plus_address = 1267844;
     CookieSpecifics cookie = 1281100;
+    PlusAddressSettingSpecifics plus_address_setting = 1303742;
+    AutofillValuableSpecifics autofill_valuable = 1419865;
+    SharedTabGroupAccountDataSpecifics shared_tab_group_account_data = 1429255;
     // When adding a new type, follow the docs below and keep this comment as
     // the last entry.
     // https://www.chromium.org/developers/design-documents/sync/integration-checklist/
@@ -168,14 +170,18 @@ message EntitySpecifics {
     EmptySpecifics app_notification = 45184 [deprecated = true];
     EmptySpecifics synced_notification = 153108 [deprecated = true];
     EmptySpecifics synced_notification_app_info = 235816 [deprecated = true];
-    ExperimentsSpecifics experiments = 161496 [deprecated = true];
-    FaviconTrackingSpecifics favicon_tracking = 181534 [deprecated = true];
-    FaviconImageSpecifics favicon_image = 182019 [deprecated = true];
     EmptySpecifics managed_user = 194582 [deprecated = true];
     ManagedUserSharedSettingSpecifics managed_user_shared_setting = 202026
         [deprecated = true];
     EmptySpecifics managed_user_allowlist = 306060 [deprecated = true];
+    TypedUrlSpecifics typed_url = 40781 [deprecated = true];
   }
+  reserved 161496;
+  reserved "experiments";
+  reserved 181534;
+  reserved "favicon_tracking";
+  reserved 182019;
+  reserved "favicon_image";
   reserved 218175;
   reserved "wifi_credential";
   reserved 223759;

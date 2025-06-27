@@ -13,6 +13,7 @@ from .code_node import EmptyNode
 from .code_node import LiteralNode
 from .code_node import SequenceNode
 from .code_node import render_code_node
+from .codegen_accumulator import IncludeDefinition
 from .codegen_accumulator import CodeGenAccumulator
 from .path_manager import PathManager
 
@@ -60,17 +61,22 @@ def make_header_include_directives(accumulator):
         def __str__(self):
             lines = []
 
+            def eol_comment(header: IncludeDefinition) -> str:
+                return f"  // {header.annotation}" if header.annotation else ""
+
             if self._accumulator.stdcpp_include_headers:
-                lines.extend([
-                    "#include <{}>".format(header) for header in sorted(
-                        self._accumulator.stdcpp_include_headers)
-                ])
+                lines.extend(
+                    sorted([
+                        "#include <{}>{}".format(h.filename, eol_comment(h))
+                        for h in self._accumulator.stdcpp_include_headers
+                    ]))
                 lines.append("")
 
-            lines.extend([
-                "#include \"{}\"".format(header)
-                for header in sorted(self._accumulator.include_headers)
-            ])
+            lines.extend(
+                sorted([
+                    '#include "{}"{}'.format(h.filename, eol_comment(h))
+                    for h in self._accumulator.include_headers
+                ]))
 
             return "\n".join(lines)
 
@@ -125,7 +131,9 @@ def collect_forward_decls_and_include_headers(idl_types):
         elif idl_type.is_typedef:
             pass
         elif idl_type.is_undefined:
-            pass
+            header_include_headers.add(
+                "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
+            )
         elif idl_type.type_definition_object:
             type_def_obj = idl_type.type_definition_object
             if type_def_obj.is_enumeration:

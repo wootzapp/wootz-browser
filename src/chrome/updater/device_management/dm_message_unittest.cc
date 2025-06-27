@@ -11,10 +11,11 @@
 #include <utility>
 
 #include "base/time/time.h"
-#include "chrome/updater/device_management/dm_cached_policy_info.h"
+#include "chrome/enterprise_companion/device_management_storage/dm_storage.h"
 #include "chrome/updater/device_management/dm_policy_builder_for_testing.h"
 #include "chrome/updater/device_management/dm_response_validator.h"
 #include "chrome/updater/protos/omaha_settings.pb.h"
+#include "components/policy/core/common/policy_types.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -39,10 +40,10 @@ TEST(DMMessage, GetPolicyFetchRequestData) {
       policy_builder->GetResponseBlobForPolicyPayload(
           policy_type, omaha_settings->SerializeAsString()));
 
-  CachedPolicyInfo policy_info;
+  device_management_storage::CachedPolicyInfo policy_info;
   ASSERT_TRUE(policy_info.Populate(policy_response_string));
-  const std::string request_data =
-      GetPolicyFetchRequestData(policy_type, policy_info);
+  const std::string request_data = GetPolicyFetchRequestData(
+      policy::PolicyFetchReason::kScheduled, policy_type, policy_info);
   EXPECT_FALSE(request_data.empty());
 
   enterprise_management::DeviceManagementRequest dm_request;
@@ -73,7 +74,7 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
           true /* first_request */, false /* rotate_to_new_key */,
           DMPolicyBuilderForTesting::SigningOption::kSignNormally);
 
-  CachedPolicyInfo initial_policy_info;
+  device_management_storage::CachedPolicyInfo initial_policy_info;
   std::vector<PolicyValidationResult> validation_results;
   DMPolicyMap policy_map = ParsePolicyFetchResponse(
       dm_response->SerializeAsString(), initial_policy_info, "test-dm-token",
@@ -83,7 +84,7 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
   std::string policy_data = policy_map[policy_type];
 
-  CachedPolicyInfo updated_policy_info;
+  device_management_storage::CachedPolicyInfo updated_policy_info;
   updated_policy_info.Populate(policy_data);
   EXPECT_FALSE(updated_policy_info.public_key().empty());
   EXPECT_GE(base::Time::UnixEpoch() +
@@ -101,7 +102,7 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
   EXPECT_EQ(policy_map.size(), size_t{1});
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
 
-  CachedPolicyInfo updated_policy_info2;
+  device_management_storage::CachedPolicyInfo updated_policy_info2;
   updated_policy_info.Populate(policy_map[policy_type]);
   EXPECT_TRUE(updated_policy_info2.public_key().empty());
 
@@ -118,7 +119,7 @@ TEST(DMMessage, ParsePolicyFetchResponse) {
   EXPECT_NE(policy_map.find(policy_type), policy_map.end());
 
   // Verify that we got a new public key.
-  CachedPolicyInfo updated_policy_info3;
+  device_management_storage::CachedPolicyInfo updated_policy_info3;
   updated_policy_info3.Populate(policy_map[policy_type]);
   std::string new_public_key = updated_policy_info3.public_key();
   EXPECT_FALSE(new_public_key.empty());
@@ -137,7 +138,7 @@ TEST(DMMessage, ResponseValidation) {
           DMPolicyBuilderForTesting::SigningOption::kSignNormally);
   const std::string dm_response_data = dm_response->SerializeAsString();
 
-  CachedPolicyInfo initial_policy_info;
+  device_management_storage::CachedPolicyInfo initial_policy_info;
   const std::string bad_dm_token = "bad-dm-token";
   std::vector<PolicyValidationResult> validation_results;
   DMPolicyMap policy_map = ParsePolicyFetchResponse(
@@ -189,7 +190,7 @@ TEST(DMMessage, ResponseValidation) {
                                         initial_policy_info, "test-dm-token",
                                         "test-device-id", validation_results);
   EXPECT_TRUE(validation_results.empty());
-  CachedPolicyInfo updated_policy_info;
+  device_management_storage::CachedPolicyInfo updated_policy_info;
   updated_policy_info.Populate(policy_map[policy_type]);
   EXPECT_FALSE(updated_policy_info.public_key().empty());
 

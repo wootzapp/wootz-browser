@@ -11,12 +11,15 @@
 #include <memory>
 #include <vector>
 
+#include "base/apple/foundation_util.h"
 #include "base/apple/scoped_cftyperef.h"
 #include "base/functional/callback.h"
 #include "base/run_loop.h"
+#include "base/strings/sys_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "components/trusted_vault/securebox.h"
+#include "components/trusted_vault/trusted_vault_server_constants.h"
 #include "crypto/apple_keychain_v2.h"
 #include "crypto/fake_apple_keychain_v2.h"
 #include "crypto/scoped_fake_apple_keychain_v2.h"
@@ -28,10 +31,13 @@ namespace device::enclave {
 namespace {
 
 constexpr char kKeychainAccessGroup[] = "keychain-access-group";
+constexpr uint8_t kHeader[]{'h', 'e', 'a', 'd', 'e', 'r'};
+constexpr uint8_t kPlaintext[]{'h', 'e', 'l', 'l', 'o'};
 
 class ICloudRecoveryKeyTest : public testing::Test {
  public:
-  std::unique_ptr<ICloudRecoveryKey> CreateKey() {
+  std::unique_ptr<ICloudRecoveryKey> CreateKey(
+      const trusted_vault::SecurityDomainId security_domain_id) {
     std::unique_ptr<ICloudRecoveryKey> new_key;
     base::RunLoop run_loop;
     ICloudRecoveryKey::Create(
@@ -39,7 +45,7 @@ class ICloudRecoveryKeyTest : public testing::Test {
           new_key = std::move(ret);
           run_loop.Quit();
         }),
-        kKeychainAccessGroup);
+        security_domain_id, kKeychainAccessGroup);
     run_loop.Run();
     return new_key;
   }
@@ -49,12 +55,42 @@ class ICloudRecoveryKeyTest : public testing::Test {
   base::test::TaskEnvironment task_environment_;
 };
 
+TEST_F(ICloudRecoveryKeyTest, EndToEnd) {
+  std::unique_ptr<ICloudRecoveryKey> key =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
+  std::optional<std::vector<uint8_t>> encrypted =
+      key->key()->public_key().Encrypt(base::span<uint8_t>(), kHeader,
+                                       kPlaintext);
+  ASSERT_TRUE(encrypted);
+
+  std::unique_ptr<ICloudRecoveryKey> retrieved;
+  base::RunLoop run_loop;
+  ICloudRecoveryKey::Retrieve(
+      base::BindLambdaForTesting(
+          [&](std::vector<std::unique_ptr<ICloudRecoveryKey>> ret) {
+            ASSERT_EQ(ret.size(), 1u);
+            retrieved = std::move(ret.at(0));
+            run_loop.Quit();
+          }),
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
+  run_loop.Run();
+
+  std::optional<std::vector<uint8_t>> decrypted =
+      retrieved->key()->private_key().Decrypt(base::span<uint8_t>(), kHeader,
+                                              *encrypted);
+  ASSERT_TRUE(decrypted);
+  EXPECT_EQ(base::span<const uint8_t>(*decrypted),
+            base::span<const uint8_t>(kPlaintext));
+}
+
 TEST_F(ICloudRecoveryKeyTest, CreateAndRetrieve) {
-  std::unique_ptr<ICloudRecoveryKey> key1 = CreateKey();
+  std::unique_ptr<ICloudRecoveryKey> key1 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
   ASSERT_TRUE(key1);
   ASSERT_TRUE(key1->key());
 
-  std::unique_ptr<ICloudRecoveryKey> key2 = CreateKey();
+  std::unique_ptr<ICloudRecoveryKey> key2 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
   ASSERT_TRUE(key2);
   ASSERT_TRUE(key2->key());
 
@@ -66,7 +102,7 @@ TEST_F(ICloudRecoveryKeyTest, CreateAndRetrieve) {
             keys = std::move(ret);
             run_loop.Quit();
           }),
-      kKeychainAccessGroup);
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
   run_loop.Run();
 
   ASSERT_TRUE(keys);
@@ -85,6 +121,120 @@ TEST_F(ICloudRecoveryKeyTest, CreateAndRetrieve) {
   EXPECT_NE(key2it, keys->end());
 }
 
+// Verify that keys are stored using the new .hw_protected kSecAttrService, but
+// old keys without it can still be retrieved.
+TEST_F(ICloudRecoveryKeyTest, RetrieveWithLegacyAttributes) {
+  std::unique_ptr<ICloudRecoveryKey> key1 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
+  ASSERT_TRUE(key1);
+  ASSERT_TRUE(key1->key());
+
+  std::unique_ptr<ICloudRecoveryKey> key2 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
+  ASSERT_TRUE(key2);
+  ASSERT_TRUE(key2->key());
+
+  CFMutableDictionaryRef key1_dict = const_cast<CFMutableDictionaryRef>(
+      fake_keychain_.keychain()->items().at(0).get());
+  auto service = base::apple::GetValueFromDictionary<CFStringRef>(
+      key1_dict, kSecAttrService);
+  EXPECT_EQ(base::SysCFStringRefToUTF8(service),
+            "com.google.common.folsom.cloud.private.hw_protected");
+  CFDictionarySetValue(
+      key1_dict, kSecAttrService,
+      base::SysUTF8ToCFStringRef("com.google.common.folsom.cloud.private")
+          .release());
+
+  std::optional<std::vector<std::unique_ptr<ICloudRecoveryKey>>> keys;
+  base::RunLoop run_loop;
+  ICloudRecoveryKey::Retrieve(
+      base::BindLambdaForTesting(
+          [&](std::vector<std::unique_ptr<ICloudRecoveryKey>> ret) {
+            keys = std::move(ret);
+            run_loop.Quit();
+          }),
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
+  run_loop.Run();
+
+  ASSERT_TRUE(keys);
+  EXPECT_EQ(keys->size(), 2u);
+}
+
+// Tests that keys belonging to other security domains are not retrieved.
+TEST_F(ICloudRecoveryKeyTest, IgnoreOtherSecurityDomains) {
+  std::unique_ptr<ICloudRecoveryKey> key1 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
+  ASSERT_TRUE(key1);
+  ASSERT_TRUE(key1->key());
+
+  CFMutableDictionaryRef key1_dict = const_cast<CFMutableDictionaryRef>(
+      fake_keychain_.keychain()->items().at(0).get());
+  CFDictionarySetValue(key1_dict, kSecAttrService,
+                       base::SysUTF8ToCFStringRef(
+                           "com.google.common.folsom.cloud.private.folsom")
+                           .release());
+
+  std::optional<std::vector<std::unique_ptr<ICloudRecoveryKey>>> keys;
+  base::RunLoop run_loop;
+  ICloudRecoveryKey::Retrieve(
+      base::BindLambdaForTesting(
+          [&](std::vector<std::unique_ptr<ICloudRecoveryKey>> ret) {
+            keys = std::move(ret);
+            run_loop.Quit();
+          }),
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
+  run_loop.Run();
+
+  ASSERT_TRUE(keys);
+  EXPECT_TRUE(keys->empty());
+}
+
+TEST_F(ICloudRecoveryKeyTest, MultipleSecurityDomains) {
+  std::unique_ptr<ICloudRecoveryKey> passkeys_key =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
+  ASSERT_TRUE(passkeys_key);
+  ASSERT_TRUE(passkeys_key->key());
+
+  std::unique_ptr<ICloudRecoveryKey> chromesync_key =
+      CreateKey(trusted_vault::SecurityDomainId::kChromeSync);
+  ASSERT_TRUE(chromesync_key);
+  ASSERT_TRUE(chromesync_key->key());
+
+  {
+    std::optional<std::vector<std::unique_ptr<ICloudRecoveryKey>>> keys;
+    base::RunLoop run_loop;
+    ICloudRecoveryKey::Retrieve(
+        base::BindLambdaForTesting(
+            [&](std::vector<std::unique_ptr<ICloudRecoveryKey>> ret) {
+              keys = std::move(ret);
+              run_loop.Quit();
+            }),
+        trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
+    run_loop.Run();
+
+    ASSERT_TRUE(keys);
+    ASSERT_EQ(keys->size(), 1u);
+    EXPECT_EQ((*keys)[0]->id(), passkeys_key->id());
+  }
+
+  {
+    std::optional<std::vector<std::unique_ptr<ICloudRecoveryKey>>> keys;
+    base::RunLoop run_loop;
+    ICloudRecoveryKey::Retrieve(
+        base::BindLambdaForTesting(
+            [&](std::vector<std::unique_ptr<ICloudRecoveryKey>> ret) {
+              keys = std::move(ret);
+              run_loop.Quit();
+            }),
+        trusted_vault::SecurityDomainId::kChromeSync, kKeychainAccessGroup);
+    run_loop.Run();
+
+    ASSERT_TRUE(keys);
+    ASSERT_EQ(keys->size(), 1u);
+    EXPECT_EQ((*keys)[0]->id(), chromesync_key->id());
+  }
+}
+
 TEST_F(ICloudRecoveryKeyTest, CreateKeychainError) {
   // Force a keychain error by setting the wrong access group.
   std::unique_ptr<ICloudRecoveryKey> keys;
@@ -94,7 +244,7 @@ TEST_F(ICloudRecoveryKeyTest, CreateKeychainError) {
         keys = std::move(ret);
         run_loop.Quit();
       }),
-      "wrong keychain group");
+      trusted_vault::SecurityDomainId::kPasskeys, "wrong keychain group");
   run_loop.Run();
   EXPECT_FALSE(keys);
 }
@@ -109,7 +259,7 @@ TEST_F(ICloudRecoveryKeyTest, RetrieveKeychainError) {
             keys = std::move(ret);
             run_loop.Quit();
           }),
-      "wrong keychain group");
+      trusted_vault::SecurityDomainId::kPasskeys, "wrong keychain group");
   run_loop.Run();
   EXPECT_TRUE(keys->empty());
 }
@@ -123,13 +273,14 @@ TEST_F(ICloudRecoveryKeyTest, RetrieveEmpty) {
             keys = std::move(ret);
             run_loop.Quit();
           }),
-      kKeychainAccessGroup);
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
   run_loop.Run();
   EXPECT_TRUE(keys->empty());
 }
 
 TEST_F(ICloudRecoveryKeyTest, RetrieveCorrupted) {
-  std::unique_ptr<ICloudRecoveryKey> key1 = CreateKey();
+  std::unique_ptr<ICloudRecoveryKey> key1 =
+      CreateKey(trusted_vault::SecurityDomainId::kPasskeys);
   ASSERT_TRUE(key1);
   ASSERT_TRUE(key1->key());
 
@@ -147,7 +298,7 @@ TEST_F(ICloudRecoveryKeyTest, RetrieveCorrupted) {
             keys = std::move(ret);
             run_loop.Quit();
           }),
-      kKeychainAccessGroup);
+      trusted_vault::SecurityDomainId::kPasskeys, kKeychainAccessGroup);
   run_loop.Run();
   EXPECT_TRUE(keys->empty());
 }

@@ -55,38 +55,91 @@ class ServiceWorkerHidDelegateObserver;
 class ServiceWorkerUsbDelegateObserver;
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-// This class manages data associated with service workers.
-// The class is single threaded and should only be used on the UI thread.
-// In chromium, there is one instance per storagepartition. This class
-// is the root of the containment hierarchy for service worker data
-// associated with a particular partition.
-class CONTENT_EXPORT ServiceWorkerContextCore
-    : public ServiceWorkerVersion::Observer {
+// A smart pointer of `ServiceWorkerClient`.
+//
+// - If `CommitResponseAndRelease()` is not called, this works as a
+//   semi-strong reference:
+//   - Keeps the underlying `ServiceWorkerClient` alive unless its
+//     `ServiceWorkerClientOwner` is destroyed.
+//   - Destroys the `ServiceWorkerClient` synchronously in the
+//     `ScopedServiceWorkerClient` destructor.
+//   - Actually the `ServiceWorkerClient` is owned by `ServiceWorkerClientOwner`
+//     and `ServiceWorkerClientOwner::OnContainerHostReceiverDisconnected()` is
+//     never called until `ServiceWorkerClientOwner::BindHost()` is called (i.e.
+//     `ScopedServiceWorkerClient::CommitResponseAndRelease` is called),
+//     and thus there is nothing explicitly to do to keep-alive it by
+//     `ScopedServiceWorkerClient`, and the destructor of
+//     `ScopedServiceWorkerClient` explicitly destroys the client when
+//     `CommitResponseAndRelease()` hasn't been called.
+// - After `CommitResponseAndRelease()` is called, this works as a weak
+//   reference:
+//   - No longer keeps alive nor destroys the `ServiceWorkerClient`. Instead,
+//     the returned object from `CommitResponseAndRelease()` keeps it alive
+//     (i.e. until
+//     `ServiceWorkerClientOwner::OnContainerHostReceiverDisconnected()` is
+//     called)
+//   - `service_worker_client_` is NOT cleared and still can be used.
+class CONTENT_EXPORT ScopedServiceWorkerClient final {
+ public:
+  explicit ScopedServiceWorkerClient(
+      base::WeakPtr<ServiceWorkerClient> service_worker_client);
+  ~ScopedServiceWorkerClient();
+
+  ScopedServiceWorkerClient(const ScopedServiceWorkerClient& other) = delete;
+  ScopedServiceWorkerClient& operator=(const ScopedServiceWorkerClient& other) =
+      delete;
+
+  ScopedServiceWorkerClient(ScopedServiceWorkerClient&& other);
+  ScopedServiceWorkerClient& operator=(ScopedServiceWorkerClient&& other) =
+      delete;
+
+  // Calls `ServiceWorkerClient::CommitResponse()` and performs related
+  // initialization/transitions, and Releases the keep-aliveness from `this`.
+  // The caller should keep alive `ServiceWorkerClient` by keeping the returned
+  // `ServiceWorkerContainerInfoForClientPtr`'s `host_remote`.
+  [[nodiscard]] std::tuple<blink::mojom::ServiceWorkerContainerInfoForClientPtr,
+                           blink::mojom::ControllerServiceWorkerInfoPtr>
+  CommitResponseAndRelease(
+      std::optional<GlobalRenderFrameHostId> rfh_id,
+      const PolicyContainerPolicies& policy_container_policies,
+      mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
+          coep_reporter,
+      mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+          dip_reporter,
+      ukm::SourceId ukm_source_id);
+
+  const base::WeakPtr<ServiceWorkerClient>& AsWeakPtr() const {
+    return service_worker_client_;
+  }
+  ServiceWorkerClient* get() const { return service_worker_client_.get(); }
+  ServiceWorkerClient* operator->() const {
+    return service_worker_client_.get();
+  }
+
+ private:
+  base::WeakPtr<ServiceWorkerClient> service_worker_client_;
+};
+
+// A class responsible for `ServiceWorkerClient` management, including its
+// ownership, lifetime, and client ID updates.
+// This is always owned by and associated with a `ServiceWorkerContextCore`.
+// This is split from `ServiceWorkerContextCore` to allow `ServiceWorkerClient`
+// to access `ServiceWorkerClientOwner` throughout the lifetime of
+// `ServiceWorkerClient` while disallow access to other parts of
+// `ServiceWorkerContextCore` after `DeleteAndStartOver()`.
+// Callers other than `ServiceWorkerClient` /
+// `ServiceWorkerContainerHostForClient` should access this through
+// `ServiceWorkerContextCore::service_worker_client_owner()`.
+class CONTENT_EXPORT ServiceWorkerClientOwner final {
  public:
   using BoolCallback = base::OnceCallback<void(bool)>;
-  using StatusCallback =
-      base::OnceCallback<void(blink::ServiceWorkerStatusCode status)>;
-  using RegistrationCallback =
-      base::OnceCallback<void(blink::ServiceWorkerStatusCode status,
-                              const std::string& status_message,
-                              int64_t registration_id)>;
-  using UpdateCallback =
-      base::OnceCallback<void(blink::ServiceWorkerStatusCode status,
-                              const std::string& status_message,
-                              int64_t registration_id)>;
-  using UnregistrationCallback =
-      base::OnceCallback<void(blink::ServiceWorkerStatusCode status)>;
   using ServiceWorkerClientByClientUUIDMap =
       std::map<std::string, std::unique_ptr<ServiceWorkerClient>>;
-  using WarmUpRequest =
-      std::tuple<GURL,
-                 blink::StorageKey,
-                 ServiceWorkerContext::WarmUpServiceWorkerCallback>;
 
   // Iterates over ServiceWorkerClient objects in the
   // ServiceWorkerClientByClientUUIDMap.
   // Note: As ServiceWorkerClientIterator is operating on a member of
-  // ServiceWorkerContextCore, users must ensure the ServiceWorkerContextCore
+  // ServiceWorkerClientOwner, users must ensure the ServiceWorkerClientOwner
   // instance always outlives the ServiceWorkerClientIterator one.
   class CONTENT_EXPORT ServiceWorkerClientIterator final {
    public:
@@ -103,7 +156,7 @@ class CONTENT_EXPORT ServiceWorkerContextCore
     ServiceWorkerClient* operator->() const;
 
    private:
-    friend class ServiceWorkerContextCore;
+    friend class ServiceWorkerClientOwner;
     using ServiceWorkerClientPredicate =
         base::RepeatingCallback<bool(ServiceWorkerClient&)>;
     ServiceWorkerClientIterator(ServiceWorkerClientByClientUUIDMap* map,
@@ -114,6 +167,127 @@ class CONTENT_EXPORT ServiceWorkerContextCore
     ServiceWorkerClientPredicate predicate_;
     ServiceWorkerClientByClientUUIDMap::iterator iterator_;
   };
+
+  explicit ServiceWorkerClientOwner(ServiceWorkerContextCore& context);
+  ServiceWorkerClientOwner(const ServiceWorkerClientOwner& other) = delete;
+  ServiceWorkerClientOwner& operator=(const ServiceWorkerClientOwner& other) =
+      delete;
+  ~ServiceWorkerClientOwner();
+
+  // Should be only called when the old `context_` is about to be destroyed and
+  // the ownership of `this` is being moved to `new_context`.
+  void ResetContext(ServiceWorkerContextCore& new_context);
+
+  // Returns an iterator for all service worker clients for the
+  // `key`. If `include_reserved_clients` is true, this includes clients that
+  // are not execution ready (i.e., for windows, the document has not yet been
+  // created and for workers, the final response after redirects has not yet
+  // been delivered). If `include_back_forward_cached_clients` is true, this
+  // includes the clients whose documents are stored in BackForward Cache.
+  ServiceWorkerClientIterator GetServiceWorkerClients(
+      const blink::StorageKey& key,
+      bool include_reserved_clients,
+      bool include_back_forward_cached_clients);
+
+  // Returns an iterator for service worker window clients for the
+  // `key`. If `include_reserved_clients` is false, this only returns clients
+  // that are execution ready.
+  ServiceWorkerClientIterator GetWindowServiceWorkerClients(
+      const blink::StorageKey& key,
+      bool include_reserved_clients);
+
+  // Runs the callback with true if there is a service worker client for `key`
+  // of type blink::mojom::ServiceWorkerContainerType::kForWindow which is a
+  // main (top-level) frame. Reserved clients are ignored.
+  // TODO(crbug.com/40568315): Make this synchronously return bool when the core
+  // thread is UI.
+  void HasMainFrameWindowClient(const blink::StorageKey& key,
+                                BoolCallback callback);
+
+  // Used to create a ServiceWorkerClient for a window during a
+  // navigation. |are_ancestors_secure| should be true for main frames.
+  // Otherwise it is true iff all ancestor frames of this frame have a secure
+  // origin. |ongoing_navigation_frame_tree_node_id| is FrameTreeNode id of the
+  // to-be-committed Window/Document.
+  ScopedServiceWorkerClient CreateServiceWorkerClientForWindow(
+      bool are_ancestors_secure,
+      FrameTreeNodeId ongoing_navigation_frame_tree_node_id);
+
+  // Used to create a ServiceWorkerClient for prefetch. This is still a
+  // navigation request's reserved client, but doesn't have associated
+  // `ongoing_navigation_frame_tree_node_id`.
+  ScopedServiceWorkerClient CreateServiceWorkerClientForPrefetch();
+
+  // Used for starting a web worker (dedicated worker or shared worker). Returns
+  // a service worker client for the worker.
+  ScopedServiceWorkerClient CreateServiceWorkerClientForWorker(
+      int process_id,
+      ServiceWorkerClientInfo client_info);
+
+  // Binds the ServiceWorkerContainerHost mojo receiver for `container_host`.
+  // After this point, `container_host` and its `ServiceWorkerClient` will be
+  // destroyed on the mojo pipe close.
+  void BindHost(
+      ServiceWorkerContainerHostForClient& container_host,
+      mojo::PendingAssociatedReceiver<blink::mojom::ServiceWorkerContainerHost>
+          host_receiver);
+
+  void DestroyServiceWorkerClient(
+      base::WeakPtr<ServiceWorkerClient> service_worker_client);
+
+  // Updates the client UUID of an existing service worker client.
+  void UpdateServiceWorkerClientClientID(const std::string& current_client_uuid,
+                                         const std::string& new_client_uuid);
+
+  // Retrieves a service worker client given its client UUID.
+  ServiceWorkerClient* GetServiceWorkerClientByClientID(
+      const std::string& client_uuid);
+
+  // Retrieves a service worker client given its window ID.
+  ServiceWorkerClient* GetServiceWorkerClientByWindowId(
+      const base::UnguessableToken& window_id);
+
+  void OnContainerHostReceiverDisconnected();
+
+ private:
+  // The `ServiceWorkerContextCore` that owns `this`. This can change due to
+  // `DeleteAndStartOver` but is still always valid and non-null.
+  raw_ref<ServiceWorkerContextCore> context_;
+
+  // Owns `ServiceWorkerContainerForClient` (via `ServiceWorkerClient`).
+  // `ServiceWorkerContainerForServiceWorker`s are owned by `ServiceWorkerHost`.
+  ServiceWorkerClientByClientUUIDMap service_worker_clients_by_uuid_;
+
+  std::unique_ptr<
+      mojo::AssociatedReceiverSet<blink::mojom::ServiceWorkerContainerHost,
+                                  ServiceWorkerContainerHostForClient*>>
+      container_host_receivers_;
+};
+
+// This class manages data associated with service workers.
+// The class is single threaded and should only be used on the UI thread.
+// In chromium, there is one instance per storagepartition. This class
+// is the root of the containment hierarchy for service worker data
+// associated with a particular partition.
+class CONTENT_EXPORT ServiceWorkerContextCore
+    : public ServiceWorkerVersion::Observer {
+ public:
+  using StatusCallback =
+      base::OnceCallback<void(blink::ServiceWorkerStatusCode status)>;
+  using RegistrationCallback =
+      base::OnceCallback<void(blink::ServiceWorkerStatusCode status,
+                              const std::string& status_message,
+                              int64_t registration_id)>;
+  using UpdateCallback =
+      base::OnceCallback<void(blink::ServiceWorkerStatusCode status,
+                              const std::string& status_message,
+                              int64_t registration_id)>;
+  using UnregistrationCallback =
+      base::OnceCallback<void(blink::ServiceWorkerStatusCode status)>;
+  using WarmUpRequest =
+      std::tuple<GURL,
+                 blink::StorageKey,
+                 ServiceWorkerContext::WarmUpServiceWorkerCallback>;
 
   class TestVersionObserver : public base::CheckedObserver {
    public:
@@ -140,13 +314,20 @@ class CONTENT_EXPORT ServiceWorkerContextCore
       ServiceWorkerContextSynchronousObserverList* sync_observer_list,
       ServiceWorkerContextWrapper* wrapper);
   // TODO(crbug.com/41409843): Remove this copy mechanism.
-  ServiceWorkerContextCore(ServiceWorkerContextCore* old_context,
-                           ServiceWorkerContextWrapper* wrapper);
+  ServiceWorkerContextCore(
+      std::unique_ptr<ServiceWorkerContextCore> old_context,
+      ServiceWorkerContextWrapper* wrapper);
 
   ServiceWorkerContextCore(const ServiceWorkerContextCore&) = delete;
   ServiceWorkerContextCore& operator=(const ServiceWorkerContextCore&) = delete;
 
   ~ServiceWorkerContextCore() override;
+
+  ServiceWorkerClientOwner& service_worker_client_owner() {
+    return *service_worker_client_owner_;
+  }
+
+  void OnClientDestroyed(ServiceWorkerClient& service_worker_client);
 
   void OnStorageWiped();
 
@@ -186,6 +367,7 @@ class CONTENT_EXPORT ServiceWorkerContextCore
   void OnNoControllees(ServiceWorkerVersion* version);
 
   // ServiceWorkerVersion::Observer overrides.
+  void OnStartWorkerMessageSent(ServiceWorkerVersion* version) override;
   void OnRunningStateChanged(ServiceWorkerVersion* version) override;
   void OnVersionStateChanged(ServiceWorkerVersion* version) override;
   void OnDevToolsRoutingIdChanged(ServiceWorkerVersion* version) override;
@@ -210,68 +392,6 @@ class CONTENT_EXPORT ServiceWorkerContextCore
     return job_coordinator_.get();
   }
 
-  // Returns an iterator for all service worker clients for the
-  // `key`. If `include_reserved_clients` is true, this includes clients that
-  // are not execution ready (i.e., for windows, the document has not yet been
-  // created and for workers, the final response after redirects has not yet
-  // been delivered). If `include_back_forward_cached_clients` is true, this
-  // includes the clients whose documents are stored in BackForward Cache.
-  ServiceWorkerClientIterator GetServiceWorkerClients(
-      const blink::StorageKey& key,
-      bool include_reserved_clients,
-      bool include_back_forward_cached_clients);
-
-  // Returns an iterator for service worker window clients for the
-  // `key`. If `include_reserved_clients` is false, this only returns clients
-  // that are execution ready.
-  ServiceWorkerClientIterator GetWindowServiceWorkerClients(
-      const blink::StorageKey& key,
-      bool include_reserved_clients);
-
-  // Runs the callback with true if there is a service worker client for `key`
-  // of type blink::mojom::ServiceWorkerContainerType::kForWindow which is a
-  // main (top-level) frame. Reserved clients are ignored.
-  // TODO(crbug.com/40568315): Make this synchronously return bool when the core
-  // thread is UI.
-  void HasMainFrameWindowClient(const blink::StorageKey& key,
-                                BoolCallback callback);
-
-  // Used to create a ServiceWorkerClient for a window during a
-  // navigation. |are_ancestors_secure| should be true for main frames.
-  // Otherwise it is true iff all ancestor frames of this frame have a secure
-  // origin. |frame_tree_node_id| is FrameTreeNode id.
-  base::WeakPtr<ServiceWorkerClient> CreateServiceWorkerClientForWindow(
-      mojo::PendingAssociatedReceiver<blink::mojom::ServiceWorkerContainerHost>
-          host_receiver,
-      bool are_ancestors_secure,
-      mojo::PendingAssociatedRemote<blink::mojom::ServiceWorkerContainer>
-          container_remote,
-      int frame_tree_node_id);
-
-  // Used for starting a web worker (dedicated worker or shared worker). Returns
-  // a service worker client for the worker.
-  base::WeakPtr<ServiceWorkerClient> CreateServiceWorkerClientForWorker(
-      mojo::PendingAssociatedReceiver<blink::mojom::ServiceWorkerContainerHost>
-          host_receiver,
-      int process_id,
-      mojo::PendingAssociatedRemote<blink::mojom::ServiceWorkerContainer>
-          container_remote,
-      ServiceWorkerClientInfo client_info);
-
-  // Updates the client UUID of an existing service worker client.
-  void UpdateServiceWorkerClientClientID(const std::string& current_client_uuid,
-                                         const std::string& new_client_uuid);
-
-  // Retrieves a service worker client given its client UUID.
-  ServiceWorkerClient* GetServiceWorkerClientByClientID(
-      const std::string& client_uuid);
-
-  // Retrieves a service worker client given its window ID.
-  ServiceWorkerClient* GetServiceWorkerClientByWindowId(
-      const base::UnguessableToken& window_id);
-
-  void OnContainerHostReceiverDisconnected();
-
   void RegisterServiceWorker(
       const GURL& script_url,
       const blink::StorageKey& key,
@@ -294,12 +414,6 @@ class CONTENT_EXPORT ServiceWorkerContextCore
   // SERVICE_WORKER_FAILED if any did not succeed.
   void DeleteForStorageKey(const blink::StorageKey& key,
                            StatusCallback callback);
-
-  // Performs internal storage cleanup. Operations to the storage in the past
-  // (e.g. deletion) are usually recorded in disk for a certain period until
-  // compaction happens. This method wipes them out to ensure that the deleted
-  // entries and other traces like log files are removed.
-  void PerformStorageCleanup(base::OnceClosure callback);
 
   // Updates the service worker. If |force_bypass_cache| is true or 24 hours
   // have passed since the last update, bypasses the browser cache.
@@ -338,14 +452,15 @@ class CONTENT_EXPORT ServiceWorkerContextCore
   void AddLiveRegistration(ServiceWorkerRegistration* registration);
   // Erases the live registration for `registration_id`, if found.
   void RemoveLiveRegistration(int64_t registration_id);
-  const std::map<int64_t, ServiceWorkerRegistration*>& GetLiveRegistrations()
-      const {
+  const std::map<int64_t, raw_ptr<ServiceWorkerRegistration, CtnExperimental>>&
+  GetLiveRegistrations() const {
     return live_registrations_;
   }
   ServiceWorkerVersion* GetLiveVersion(int64_t version_id);
   void AddLiveVersion(ServiceWorkerVersion* version);
   void RemoveLiveVersion(int64_t registration_id);
-  const std::map<int64_t, ServiceWorkerVersion*>& GetLiveVersions() const {
+  const std::map<int64_t, raw_ptr<ServiceWorkerVersion, CtnExperimental>>&
+  GetLiveVersions() const {
     return live_versions_;
   }
 
@@ -373,24 +488,21 @@ class CONTENT_EXPORT ServiceWorkerContextCore
       const blink::StorageKey& key,
       const ServiceWorkerContext::CheckHasServiceWorkerCallback callback);
 
-  // Returns OfflineCapability of the service worker matching `url` and `key`.
-  // See ServiceWorkerContext::CheckOfflineCapability for more
-  // details.
-  void CheckOfflineCapability(
-      const GURL& url,
-      const blink::StorageKey& key,
-      const ServiceWorkerContext::CheckOfflineCapabilityCallback callback);
-
   void UpdateVersionFailureCount(int64_t version_id,
                                  blink::ServiceWorkerStatusCode status);
   // Returns the count of consecutive start worker failures for the given
   // version. The count resets to zero when the worker successfully starts.
   int GetVersionFailureCount(int64_t version_id);
 
+  // Called by ServiceWorkerRegisterJob before the URLLoaderFactory used
+  // to fetch the worker script is constructed.
+  void NotifyWillCreateURLLoaderFactory(const GURL& scope);
+
   // Called by ServiceWorkerStorage when StoreRegistration() succeeds.
-  void NotifyRegistrationStored(int64_t registration_id,
+  void NotifyRegistrationStored(const int64_t registration_id,
                                 const GURL& scope,
-                                const blink::StorageKey& key);
+                                const blink::StorageKey& key,
+                                uint64_t stored_resources_total_size_bytes);
   // Notifies observers that all registrations have been deleted for a
   // particular `key`.
   void NotifyAllRegistrationsDeletedForStorageKey(const blink::StorageKey& key);
@@ -522,22 +634,17 @@ class CONTENT_EXPORT ServiceWorkerContextCore
   // Bind() to hold a reference to |wrapper_| until |this| is fully destroyed.
   raw_ptr<ServiceWorkerContextWrapper> wrapper_;
 
-  // Owns `ServiceWorkerContainerForClient` (via `ServiceWorkerClient`).
-  // `ServiceWorkerContainerForServiceWorker`s are owned by `ServiceWorkerHost`.
-  ServiceWorkerClientByClientUUIDMap service_worker_clients_by_uuid_;
-
-  std::unique_ptr<
-      mojo::AssociatedReceiverSet<blink::mojom::ServiceWorkerContainerHost,
-                                  ServiceWorkerContainerHostForClient*>>
-      container_host_receivers_;
+  std::unique_ptr<ServiceWorkerClientOwner> service_worker_client_owner_;
 
   std::unique_ptr<ServiceWorkerRegistry> registry_;
   std::unique_ptr<ServiceWorkerJobCoordinator> job_coordinator_;
   // TODO(bashi): Move |live_registrations_| to ServiceWorkerRegistry as
   // ServiceWorkerRegistry is a better place to manage in-memory representation
   // of registrations.
-  std::map<int64_t, ServiceWorkerRegistration*> live_registrations_;
-  std::map<int64_t, ServiceWorkerVersion*> live_versions_;
+  std::map<int64_t, raw_ptr<ServiceWorkerRegistration, CtnExperimental>>
+      live_registrations_;
+  std::map<int64_t, raw_ptr<ServiceWorkerVersion, CtnExperimental>>
+      live_versions_;
   std::map<int64_t, scoped_refptr<ServiceWorkerVersion>> protected_versions_;
 
   std::map<int64_t /* version_id */, FailureInfo> failure_counts_;

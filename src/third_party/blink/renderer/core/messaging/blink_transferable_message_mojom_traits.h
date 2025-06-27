@@ -85,10 +85,7 @@ class CORE_EXPORT
  public:
   static mojo_base::BigBuffer contents(
       const blink::ArrayBufferContents& array_buffer_contents) {
-    uint8_t* allocation_start =
-        static_cast<uint8_t*>(array_buffer_contents.Data());
-    return mojo_base::BigBuffer(
-        base::make_span(allocation_start, array_buffer_contents.DataLength()));
+    return mojo_base::BigBuffer(array_buffer_contents.ByteSpan());
   }
   static bool is_resizable_by_user_javascript(
       const blink::ArrayBufferContents& array_buffer_contents) {

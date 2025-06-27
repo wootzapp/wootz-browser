@@ -13,7 +13,6 @@
 #include "chrome/browser/password_manager/password_reuse_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/hats/mock_trust_safety_sentiment_service.h"
@@ -26,7 +25,6 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/hash_password_manager.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
@@ -34,7 +32,6 @@
 #include "components/password_manager/core/browser/password_reuse_manager.h"
 #include "components/password_manager/core/browser/password_store/fake_password_store_backend.h"
 #include "components/password_manager/core/browser/ui/password_check_referrer.h"
-#include "components/password_manager/core/common/password_manager_features.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -43,11 +40,12 @@
 #include "components/safe_browsing/content/browser/password_protection/password_protection_request_content.h"
 #include "components/safe_browsing/content/browser/password_protection/password_protection_test_util.h"
 #include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
-#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
+#include "components/signin/public/identity_manager/signin_constants.h"
 #include "components/user_manager/user_names.h"
 #include "components/variations/pref_names.h"
 #include "content/public/browser/browser_context.h"
@@ -64,6 +62,7 @@
 using password_manager::FakePasswordStoreBackend;
 using password_manager::PasswordForm;
 using password_manager::PasswordStoreInterface;
+using signin::constants::kNoHostedDomainFound;
 using ::testing::_;
 using ::testing::ElementsAre;
 
@@ -106,7 +105,7 @@ namespace safe_browsing {
 
 class ChromePasswordProtectionServiceBrowserTest : public InProcessBrowserTest {
  public:
-  ChromePasswordProtectionServiceBrowserTest() {}
+  ChromePasswordProtectionServiceBrowserTest() = default;
 
   ChromePasswordProtectionServiceBrowserTest(
       const ChromePasswordProtectionServiceBrowserTest&) = delete;
@@ -414,7 +413,7 @@ IN_PROC_BROWSER_TEST_F(
   AddFormToStore(password_store.get(), form);
 
   std::vector<password_manager::MatchingReusedCredential> credentials = {
-      {kSignonRealm, kUsername}};
+      {kSignonRealm, GURL(kSignonRealm), kUsername}};
 
   service->set_saved_passwords_matching_reused_credentials({credentials});
 
@@ -866,20 +865,14 @@ IN_PROC_BROWSER_TEST_F(ChromePasswordProtectionServiceBrowserTest,
       /*is_primary_account=*/false,
       password_manager::metrics_util::GaiaPasswordHashChange::
           CHANGED_IN_CONTENT_AREA);
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::kLocalStateEnterprisePasswordHashes)) {
-    ASSERT_EQ(1u, profile->GetPrefs()
-                      ->GetList(password_manager::prefs::kPasswordHashDataList)
-                      .size());
-    ASSERT_EQ(1u,
-              g_browser_process->local_state()
-                  ->GetList(password_manager::prefs::kLocalPasswordHashDataList)
-                  .size());
-  } else {
-    ASSERT_EQ(2u, profile->GetPrefs()
-                      ->GetList(password_manager::prefs::kPasswordHashDataList)
-                      .size());
-  }
+
+  ASSERT_EQ(1u, profile->GetPrefs()
+                    ->GetList(password_manager::prefs::kPasswordHashDataList)
+                    .size());
+  ASSERT_EQ(1u,
+            g_browser_process->local_state()
+                ->GetList(password_manager::prefs::kLocalPasswordHashDataList)
+                .size());
 
   // Turn off trigger
   profile->GetPrefs()->SetInteger(
@@ -916,7 +909,7 @@ class ChromePasswordProtectionServiceNavigationDeferralBrowserTest
     const std::string kSignonRealm = "https://example.test";
     const std::u16string kUsername = u"username1";
     std::vector<password_manager::MatchingReusedCredential> credentials = {
-        {kSignonRealm, kUsername}};
+        {kSignonRealm, GURL(kSignonRealm), kUsername}};
 
     service->StartRequestForTesting(
         GetWebContents(), GURL(), GURL(), GURL(), "",
@@ -1253,8 +1246,7 @@ IN_PROC_BROWSER_TEST_F(
   const GURL kPrerenderUrl = embedded_test_server()->GetURL("/simple.html");
   prerender_helper_.AddPrerender(kPrerenderUrl);
 
-  ASSERT_NE(prerender_helper_.GetHostForUrl(kPrerenderUrl),
-            content::RenderFrameHost::kNoFrameTreeNodeId);
+  ASSERT_TRUE(prerender_helper_.GetHostForUrl(kPrerenderUrl));
 
   // Navigate to the prerendered URL. Ensure the activation navigation is
   // deferred until the request finishes without showing a modal.

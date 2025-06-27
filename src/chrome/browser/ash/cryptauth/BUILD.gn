@@ -4,9 +4,9 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(is_chromeos_ash)
+assert(is_chromeos)
 
-source_set("cryptauth") {
+static_library("cryptauth") {
   sources = [
     "client_app_metadata_provider_service.cc",
     "client_app_metadata_provider_service.h",
@@ -14,9 +14,10 @@ source_set("cryptauth") {
     "client_app_metadata_provider_service_factory.h",
     "cryptauth_device_id_provider_impl.cc",
     "cryptauth_device_id_provider_impl.h",
-    "gcm_device_info_provider_impl.cc",
-    "gcm_device_info_provider_impl.h",
   ]
+
+  public_deps = [ "//chrome/browser:browser_public_dependencies" ]
+
   deps = [
     "//ash/constants",
     "//base",

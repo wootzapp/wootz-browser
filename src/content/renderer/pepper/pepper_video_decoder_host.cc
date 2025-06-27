@@ -6,13 +6,15 @@
 
 #include <stddef.h>
 
+#include <algorithm>
+
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "build/build_config.h"
 #include "content/common/pepper_file_util.h"
 #include "content/public/common/content_client.h"
@@ -494,8 +496,7 @@ void PepperVideoDecoderHost::NotifyEndOfBitstreamBuffer(
     int32_t bitstream_buffer_id) {
   auto it = GetPendingDecodeById(bitstream_buffer_id);
   if (it == pending_decodes_.end()) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
   host()->SendReply(it->reply_context,
                     PpapiPluginMsg_VideoDecoder_DecodeReply(it->shm_id));
@@ -546,7 +547,7 @@ void PepperVideoDecoderHost::NotifyError(
 
 const uint8_t* PepperVideoDecoderHost::DecodeIdToAddress(uint32_t decode_id) {
   PendingDecodeList::const_iterator it = GetPendingDecodeById(decode_id);
-  DCHECK(it != pending_decodes_.end());
+  CHECK(it != pending_decodes_.end(), base::NotFatalUntil::M130);
   uint32_t shm_id = it->shm_id;
   return static_cast<uint8_t*>(shm_buffers_[shm_id].mapping.memory());
 }
@@ -615,8 +616,8 @@ bool PepperVideoDecoderHost::TryFallbackToSoftwareDecoder() {
 
 PepperVideoDecoderHost::PendingDecodeList::iterator
 PepperVideoDecoderHost::GetPendingDecodeById(int32_t decode_id) {
-  return base::ranges::find(pending_decodes_, decode_id,
-                            &PendingDecode::decode_id);
+  return std::ranges::find(pending_decodes_, decode_id,
+                           &PendingDecode::decode_id);
 }
 
 }  // namespace content

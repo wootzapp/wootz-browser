@@ -2,12 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/live_caption/live_caption_controller.h"
+
+#include <ranges>
+
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
-#include "base/ranges/ranges.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/accessibility/caption_bubble_context_browser.h"
 #include "chrome/browser/accessibility/live_caption/live_caption_controller_factory.h"
 #include "chrome/browser/accessibility/live_caption/live_caption_test_util.h"
@@ -25,13 +27,13 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/live_caption/caption_bubble_controller.h"
-#include "components/live_caption/live_caption_controller.h"
 #include "components/live_caption/pref_names.h"
+#include "components/soda/constants.h"
 #include "components/soda/pref_names.h"
 #include "components/sync_preferences/pref_service_syncable.h"
 #include "content/public/test/browser_test.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #endif
 
@@ -340,7 +342,7 @@ IN_PROC_BROWSER_TEST_F(LiveCaptionControllerTest, OnToggleFullscreen) {
 }
 #endif
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)  // No multi-profile on ChromeOS.
+#if !BUILDFLAG(IS_CHROMEOS)  // No multi-profile on ChromeOS.
 
 IN_PROC_BROWSER_TEST_F(LiveCaptionControllerTest,
                        LiveCaptionEnabledChanged_MultipleProfiles) {
@@ -443,7 +445,6 @@ IN_PROC_BROWSER_TEST_F(LiveCaptionControllerTest,
   ExpectIsWidgetVisibleOnProfile(false, profile1);
   ExpectIsWidgetVisibleOnProfile(false, profile2);
 }
-
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace captions

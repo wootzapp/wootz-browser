@@ -6,19 +6,20 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_WEBDATA_AUTOFILL_WEBDATA_BACKEND_H_
 
 #include "components/autofill/core/browser/webdata/autofill_change.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 
 class WebDatabase;
 
 namespace autofill {
 
 class AutofillWebDataServiceObserverOnDBSequence;
+class AutofillWebDataServiceObserverOnUISequence;
 
 // Interface for doing Autofill work directly on the DB sequence (used by
 // Sync, mostly), without fully exposing the AutofillWebDataBackend to clients.
 class AutofillWebDataBackend {
  public:
-  virtual ~AutofillWebDataBackend() {}
+  virtual ~AutofillWebDataBackend() = default;
 
   // Get a raw pointer to the WebDatabase.
   virtual WebDatabase* GetDatabase() = 0;
@@ -30,6 +31,14 @@ class AutofillWebDataBackend {
   // Remove an observer.
   virtual void RemoveObserver(
       AutofillWebDataServiceObserverOnDBSequence* observer) = 0;
+
+  // Add an observer to be notified of changes on the UI sequence.
+  virtual void AddObserver(
+      AutofillWebDataServiceObserverOnUISequence* observer) = 0;
+
+  // Remove an observer.
+  virtual void RemoveObserver(
+      AutofillWebDataServiceObserverOnUISequence* observer) = 0;
 
   // Commits the currently open transaction in the database. Should be only used
   // by parties that talk directly to the database and not through the
@@ -59,7 +68,7 @@ class AutofillWebDataBackend {
   // Notifies listeners on UI sequences that changes have been made to
   // Autofill records of the database by the sync.
   // NOTE: The UI sequence notifications are asynchronous.
-  virtual void NotifyOnAutofillChangedBySync(syncer::ModelType model_type) = 0;
+  virtual void NotifyOnAutofillChangedBySync(syncer::DataType data_type) = 0;
 
   // Notifies listeners on the DB sequence that a server cvc has been
   // added/removed/updated in the WebDatabase.

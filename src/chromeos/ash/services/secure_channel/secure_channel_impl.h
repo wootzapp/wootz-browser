@@ -17,9 +17,9 @@
 #include "chromeos/ash/services/secure_channel/public/cpp/shared/connection_priority.h"
 #include "chromeos/ash/services/secure_channel/public/mojom/secure_channel.mojom.h"
 
-namespace cross_device {
+namespace ash::timer_factory {
 class TimerFactory;
-}  // namespace cross_device
+}  // namespace ash::timer_factory
 
 namespace device {
 class BluetoothAdapter;
@@ -51,20 +51,8 @@ class SecureChannelImpl : public mojom::SecureChannel,
                           public ActiveConnectionManager::Delegate,
                           public PendingConnectionManager::Delegate {
  public:
-  class Factory {
-   public:
-    static std::unique_ptr<mojom::SecureChannel> Create(
-        scoped_refptr<device::BluetoothAdapter> bluetooth_adapter);
-    static void SetFactoryForTesting(Factory* test_factory);
-
-   protected:
-    virtual ~Factory();
-    virtual std::unique_ptr<mojom::SecureChannel> CreateInstance(
-        scoped_refptr<device::BluetoothAdapter> bluetooth_adapter) = 0;
-
-   private:
-    static Factory* test_factory_;
-  };
+  explicit SecureChannelImpl(
+      scoped_refptr<device::BluetoothAdapter> bluetooth_adapter);
 
   SecureChannelImpl(const SecureChannelImpl&) = delete;
   SecureChannelImpl& operator=(const SecureChannelImpl&) = delete;
@@ -72,9 +60,6 @@ class SecureChannelImpl : public mojom::SecureChannel,
   ~SecureChannelImpl() override;
 
  private:
-  explicit SecureChannelImpl(
-      scoped_refptr<device::BluetoothAdapter> bluetooth_adapter);
-
   enum class InvalidRemoteDeviceReason {
     kInvalidPublicKey,
     kInvalidPsk,
@@ -188,7 +173,7 @@ class SecureChannelImpl : public mojom::SecureChannel,
       ConnectionMedium connection_medium);
 
   scoped_refptr<device::BluetoothAdapter> bluetooth_adapter_;
-  std::unique_ptr<cross_device::TimerFactory> timer_factory_;
+  std::unique_ptr<ash::timer_factory::TimerFactory> timer_factory_;
   std::unique_ptr<multidevice::RemoteDeviceCache> remote_device_cache_;
   std::unique_ptr<BluetoothHelper> bluetooth_helper_;
   std::unique_ptr<BleSynchronizerBase> ble_synchronizer_;

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/formats/mp4/es_descriptor.h"
 
 #include <stddef.h>
@@ -96,7 +101,7 @@ std::vector<uint8_t> ESDescriptor::CreateEsds(
   EncodeDescriptorSize(aac_extra_data.size(),
                        esds->decoder_config.extra_data.size);
 
-  base::ranges::copy(aac_extra_data, esds_data.begin() + sizeof(EsDescriptor));
+  std::ranges::copy(aac_extra_data, esds_data.begin() + sizeof(EsDescriptor));
 
   DCHECK(ESDescriptor().Parse(esds_data));
   return esds_data;

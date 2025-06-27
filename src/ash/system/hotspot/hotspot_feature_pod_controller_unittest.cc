@@ -4,7 +4,6 @@
 
 #include "ash/system/hotspot/hotspot_feature_pod_controller.h"
 
-#include "ash/constants/ash_features.h"
 #include "ash/constants/quick_settings_catalogs.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/hotspot/hotspot_detailed_view.h"
@@ -17,7 +16,6 @@
 #include "ash/test/ash_test_helper.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "chromeos/ash/services/hotspot_config/public/cpp/cros_hotspot_config_test_helper.h"
 #include "chromeos/ash/services/hotspot_config/public/mojom/cros_hotspot_config.mojom.h"
@@ -48,7 +46,6 @@ class HotspotFeaturePodControllerTest : public AshTestBase {
   ~HotspotFeaturePodControllerTest() override = default;
 
   void SetUp() override {
-    scoped_feature_list_.InitWithFeatures({features::kHotspot}, {});
     AshTestBase::SetUp();
 
     // Spin the runloop to have HotspotInfoCache finish querying the hotspot
@@ -110,8 +107,8 @@ class HotspotFeaturePodControllerTest : public AshTestBase {
     base::RunLoop().RunUntilIdle();
   }
 
-  const char* GetVectorIconName() {
-    return hotspot_feature_tile_->vector_icon_->name;
+  const gfx::VectorIcon* GetVectorIcon() {
+    return hotspot_feature_tile_->vector_icon_.get();
   }
 
   void ExpectHotspotDetailedViewShown() {
@@ -125,7 +122,6 @@ class HotspotFeaturePodControllerTest : public AshTestBase {
   }
 
  protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<HotspotFeaturePodController> hotspot_feature_pod_controller_;
   std::unique_ptr<FeatureTile> hotspot_feature_tile_;
 };
@@ -150,7 +146,7 @@ TEST_F(HotspotFeaturePodControllerTest, PressLabelWhenHotspotEnabled) {
   UpdateHotspotInfo(HotspotState::kEnabled, HotspotAllowStatus::kAllowed, 2);
   EXPECT_EQ(u"Toggle hotspot. Hotspot is on, 2 devices connected.",
             hotspot_feature_tile_->icon_button()->GetTooltipText());
-  EXPECT_STREQ(kHotspotOnIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOnIcon, GetVectorIcon());
 
   // Press on the label should navigate to the detailed page without toggle
   // hotspot.
@@ -172,7 +168,7 @@ TEST_F(HotspotFeaturePodControllerTest, PressIconWhenHotspotEnabled) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is on.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOnIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOnIcon, GetVectorIcon());
 
   // Press on the icon should toggle hotspot.
   PressIcon();
@@ -195,12 +191,12 @@ TEST_F(HotspotFeaturePodControllerTest, HotspotEnabling) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is turning on.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotDotIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotDotIcon, GetVectorIcon());
   // Verifies the hotspot icon is animating when enabling.
   task_environment()->FastForwardBy(base::Milliseconds(500));
-  EXPECT_STREQ(kHotspotOneArcIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOneArcIcon, GetVectorIcon());
   task_environment()->FastForwardBy(base::Milliseconds(500));
-  EXPECT_STREQ(kHotspotOnIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOnIcon, GetVectorIcon());
 
   // Press on the icon should navigate to the detailed page but not to toggle
   // hotspot.
@@ -224,7 +220,7 @@ TEST_F(HotspotFeaturePodControllerTest, HotspotDisabling) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is turning off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should navigate to the detailed page but not to toggle
   // hotspot.
@@ -249,7 +245,7 @@ TEST_F(HotspotFeaturePodControllerTest,
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Toggle hotspot. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should toggle hotspot and navigate to the detailed page.
   PressIcon();
@@ -273,7 +269,7 @@ TEST_F(HotspotFeaturePodControllerTest,
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Toggle hotspot. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the drive in label should navigate to the detailed page without
   // toggling hotspot.
@@ -299,7 +295,7 @@ TEST_F(HotspotFeaturePodControllerTest, HotspotDisabledNoMobileNetwork) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should navigate to the detailed page but not to toggle
   // hotspot.
@@ -326,7 +322,7 @@ TEST_F(HotspotFeaturePodControllerTest,
       hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should navigate to the detailed page but not to toggle
   // hotspot.
@@ -351,7 +347,7 @@ TEST_F(HotspotFeaturePodControllerTest, HotspotDisabledBlockedByPolicy) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Show hotspot details. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should navigate to the detailed page but not to toggle
   // hotspot.
@@ -381,7 +377,7 @@ TEST_F(HotspotFeaturePodControllerTest, LockScreen) {
             hotspot_feature_tile_->icon_button()->GetTooltipText());
   EXPECT_EQ(u"Toggle hotspot. Hotspot is off.",
             hotspot_feature_tile_->GetTooltipText());
-  EXPECT_STREQ(kHotspotOffIcon.name, GetVectorIconName());
+  EXPECT_EQ(&kHotspotOffIcon, GetVectorIcon());
 
   // Press on the icon should toggle hotspot and navigate to the detailed page.
   PressIcon();

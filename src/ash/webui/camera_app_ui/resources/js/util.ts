@@ -219,6 +219,13 @@ export function isLidClosed(): boolean {
 }
 
 /**
+ * Checks if the sw privacy switch is on.
+ */
+export function isSWPrivacySwitchOn(): boolean {
+  return state.get(state.State.SW_PRIVACY_SWITCH_ON);
+}
+
+/**
  * Toggle checked value of element.
  */
 export function toggleChecked(
@@ -398,7 +405,7 @@ export function extractBackgroundImageValueUrl(element: HTMLElement): string|
   if (imageValue === null || imageValue === undefined) {
     return null;
   }
-  const match = imageValue.toString().match(/url\(['"](.*)['"]\)/);
+  const match = /url\(['"](.*)['"]\)/.exec(imageValue.toString());
   return match?.[1] ?? null;
 }
 
@@ -425,7 +432,7 @@ export async function loadImage(
  * value and value to name, which most of the time isn't what we want.
  */
 export function getNumberEnumMapping<T extends number>(
-    enumType: {[key: string]: T|string}): {[key: string]: T} {
+    enumType: Record<string, T|string>): Record<string, T> {
   return Object.fromEntries(Object.entries(enumType).flatMap(([k, v]) => {
     if (typeof v === 'string') {
       return [];

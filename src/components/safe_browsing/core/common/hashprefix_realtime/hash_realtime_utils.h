@@ -8,7 +8,6 @@
 #include <optional>
 
 #include "components/safe_browsing/core/common/proto/safebrowsingv5.pb.h"
-#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "url/gurl.h"
 
 class PrefService;
@@ -32,6 +31,14 @@ enum class HashRealTimeSelection {
   // The lookup performed should use the database manager. This is relevant to
   // Android (Chrome and WebView).
   kDatabaseManager = 2,
+  // Only background lookups can be performed, and they should use the native
+  // HashRealTimeService.
+  // This is relevant to Desktop and iOS.
+  kHashRealTimeServiceBackgroundOnly = 3,
+  // Only background lookups can be performed, and they should use the
+  // database manager.
+  // This is relevant to Android (Chrome).
+  kDatabaseManagerBackgroundOnly = 4,
 };
 
 // Used only for tests. This is useful so that more than just
@@ -66,9 +73,7 @@ struct HashRealTimeSelectionConfiguringPrefs {
 };
 
 // Returns whether the |url| is eligible for hash-prefix real-time checks.
-// It's never eligible if the |request_destination| is not mainframe.
-bool CanCheckUrl(const GURL& url,
-                 network::mojom::RequestDestination request_destination);
+bool CanCheckUrl(const GURL& url);
 
 // Returns whether the full hash detail is relevant for hash-prefix real-time
 // lookups.
@@ -106,11 +111,14 @@ std::optional<std::string> GetCountryCode(
 // available or why not. Outside of tests, |latest_country| should be
 // determined with the helper function |hash_realtime_utils::GetCountryCode|.
 // If it's passed in as std::nullopt, the location is considered eligible.
+// |are_background_lookups_allowed| determines whether the HPRT lookup is
+// allowed to be a background lookup initiated for an eligible ESB lookup.
 HashRealTimeSelection DetermineHashRealTimeSelection(
     bool is_off_the_record,
     PrefService* prefs,
     std::optional<std::string> latest_country,
-    bool log_usage_histograms = false);
+    bool log_usage_histograms,
+    bool are_background_lookups_allowed);
 
 // A helper for consumers that want to recompute
 // |DetermineHashRealTimeSelection| when there are pref changes. This returns

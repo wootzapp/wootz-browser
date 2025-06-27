@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/browser/speech/network_speech_recognition_engine_impl.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 
 #include "base/containers/queue.h"
@@ -489,8 +495,7 @@ TEST_F(NetworkSpeechRecognitionEngineImplTest, SendPreamble) {
 void NetworkSpeechRecognitionEngineImplTest::SetUp() {
   engine_under_test_ = std::make_unique<NetworkSpeechRecognitionEngineImpl>(
       base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
-          &url_loader_factory_),
-      "" /* accept_language */);
+          &url_loader_factory_));
   engine_under_test_->set_delegate(this);
 }
 
@@ -545,7 +550,7 @@ void NetworkSpeechRecognitionEngineImplTest::EndMockRecognition() {
 void NetworkSpeechRecognitionEngineImplTest::InjectDummyAudioChunk() {
   // Enough data so that the encoder will output something, as can't read 0
   // bytes from a Mojo stream.
-  unsigned char dummy_audio_buffer_data[2000 * 2] = {'\0'};
+  std::array<unsigned char, 2000 * 2> dummy_audio_buffer_data = {};
   scoped_refptr<AudioChunk> dummy_audio_chunk(
       new AudioChunk(&dummy_audio_buffer_data[0],
                      sizeof(dummy_audio_buffer_data),
@@ -585,14 +590,14 @@ void NetworkSpeechRecognitionEngineImplTest::ProvideMockProtoResultDownstream(
 
   std::string response_string = SerializeProtobufResponse(result);
   response_buffer_.append(response_string);
-  size_t written = 0;
-  while (written < response_string.size()) {
-    size_t write_bytes = response_string.size() - written;
+  base::span<const uint8_t> bytes_to_write =
+      base::as_byte_span(response_string);
+  while (!bytes_to_write.empty()) {
+    size_t actually_written_bytes = 0;
     MojoResult mojo_result = downstream_data_pipe_->WriteData(
-        response_string.data() + written, &write_bytes,
-        MOJO_WRITE_DATA_FLAG_NONE);
+        bytes_to_write, MOJO_WRITE_DATA_FLAG_NONE, actually_written_bytes);
     if (mojo_result == MOJO_RESULT_OK) {
-      written += write_bytes;
+      bytes_to_write = bytes_to_write.subspan(actually_written_bytes);
       continue;
     }
     if (mojo_result == MOJO_RESULT_SHOULD_WAIT) {
@@ -696,11 +701,10 @@ bool NetworkSpeechRecognitionEngineImplTest::ResultsAreEqual(
 
 void NetworkSpeechRecognitionEngineImplTest::ExpectFramedChunk(
     const std::string& chunk, uint32_t type) {
-  uint32_t value = base::numerics::U32FromBigEndian(
-      base::as_byte_span(chunk).subspan<0u, 4u>());
+  uint32_t value =
+      base::U32FromBigEndian(base::as_byte_span(chunk).subspan<0u, 4u>());
   EXPECT_EQ(chunk.size() - 8, value);
-  value = base::numerics::U32FromBigEndian(
-      base::as_byte_span(chunk).subspan<4u, 4u>());
+  value = base::U32FromBigEndian(base::as_byte_span(chunk).subspan<4u, 4u>());
   EXPECT_EQ(type, value);
 }
 
@@ -738,13 +742,12 @@ std::string NetworkSpeechRecognitionEngineImplTest::ConsumeChunkedUploadData() {
   while (true) {
     base::RunLoop().RunUntilIdle();
 
-    const void* data;
-    size_t num_bytes;
-    MojoResult mojo_result = upstream_data_pipe_->BeginReadData(
-        &data, &num_bytes, MOJO_READ_DATA_FLAG_NONE);
+    base::span<const uint8_t> data;
+    MojoResult mojo_result =
+        upstream_data_pipe_->BeginReadData(MOJO_READ_DATA_FLAG_NONE, data);
     if (mojo_result == MOJO_RESULT_OK) {
-      out.append(static_cast<const char*>(data), num_bytes);
-      upstream_data_pipe_->EndReadData(num_bytes);
+      out.append(base::as_string_view(data));
+      upstream_data_pipe_->EndReadData(data.size());
       continue;
     }
     if (mojo_result == MOJO_RESULT_SHOULD_WAIT)
@@ -763,7 +766,7 @@ std::string NetworkSpeechRecognitionEngineImplTest::SerializeProtobufResponse(
 
   // Prepend 4 byte prefix length indication to the protobuf message as
   // envisaged by the google streaming recognition webservice protocol.
-  msg_string.insert(0u, base::as_string_view(base::numerics::U32ToBigEndian(
+  msg_string.insert(0u, base::as_string_view(base::U32ToBigEndian(
                             base::checked_cast<uint32_t>(msg_string.size()))));
 
   return msg_string;

@@ -8,6 +8,7 @@ import android.app.ActivityManager;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.os.Build;
+import android.os.Process;
 import android.os.SystemClock;
 import android.text.format.DateUtils;
 
@@ -19,11 +20,13 @@ import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.compat.ApiHelperForN;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** Utilities to support startup metrics - Android version. */
 @JNINamespace("chrome::android")
+@NullMarked
 public class UmaUtils {
     /** Observer for this class. */
     public interface Observer {
@@ -34,7 +37,7 @@ public class UmaUtils {
         void onHasComeToForegroundWithNative();
     }
 
-    private static Observer sObserver;
+    private static @Nullable Observer sObserver;
 
     /** Sets the observer. */
     public static void setObserver(Observer observer) {
@@ -253,7 +256,7 @@ public class UmaUtils {
 
     @CalledByNative
     public static long getProcessStartTime() {
-        return ApiHelperForN.getStartUptimeMillis();
+        return Process.getStartUptimeMillis();
     }
 
     @NativeMethods

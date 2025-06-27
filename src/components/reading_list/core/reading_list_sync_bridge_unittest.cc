@@ -4,6 +4,7 @@
 
 #include "components/reading_list/core/reading_list_sync_bridge.h"
 
+#include <array>
 #include <map>
 #include <set>
 #include <utility>
@@ -18,8 +19,8 @@
 #include "components/reading_list/core/reading_list_model_storage_impl.h"
 #include "components/sync/base/deletion_origin.h"
 #include "components/sync/base/storage_type.h"
-#include "components/sync/test/mock_model_type_change_processor.h"
-#include "components/sync/test/model_type_store_test_util.h"
+#include "components/sync/test/data_type_store_test_util.h"
+#include "components/sync/test/mock_data_type_local_change_processor.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -105,13 +106,13 @@ base::Time AdvanceAndGetTime(base::SimpleTestClock* clock) {
   return clock->Now();
 }
 
-syncer::ModelTypeStore::RecordList ReadAllDataFromModelTypeStore(
-    syncer::ModelTypeStore* store) {
-  syncer::ModelTypeStore::RecordList result;
+syncer::DataTypeStore::RecordList ReadAllDataFromDataTypeStore(
+    syncer::DataTypeStore* store) {
+  syncer::DataTypeStore::RecordList result;
   base::RunLoop loop;
   store->ReadAllData(base::BindLambdaForTesting(
       [&](const std::optional<syncer::ModelError>& error,
-          std::unique_ptr<syncer::ModelTypeStore::RecordList> records) {
+          std::unique_ptr<syncer::DataTypeStore::RecordList> records) {
         EXPECT_FALSE(error.has_value()) << error->ToString();
         result = std::move(*records);
         loop.Quit();
@@ -134,29 +135,29 @@ class ReadingListSyncBridgeTest : public testing::Test {
                            syncer::WipeModelUponSyncDisabledBehavior
                                wipe_model_upon_sync_disabled_behavior,
                            bool initial_sync_done) {
-    std::unique_ptr<syncer::ModelTypeStore> model_type_store =
-        syncer::ModelTypeStoreTestUtil::CreateInMemoryStoreForTest();
-    underlying_in_memory_store_ = model_type_store.get();
+    std::unique_ptr<syncer::DataTypeStore> data_type_store =
+        syncer::DataTypeStoreTestUtil::CreateInMemoryStoreForTest();
+    underlying_in_memory_store_ = data_type_store.get();
 
     if (initial_sync_done) {
       // Mimic initial sync having been done earlier.
-      sync_pb::ModelTypeState model_type_state;
-      model_type_state.set_cache_guid(kCacheGuid);
-      model_type_state.set_initial_sync_state(
-          sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+      sync_pb::DataTypeState data_type_state;
+      data_type_state.set_cache_guid(kCacheGuid);
+      data_type_state.set_initial_sync_state(
+          sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
 
-      std::unique_ptr<syncer::ModelTypeStore::WriteBatch> write_batch =
+      std::unique_ptr<syncer::DataTypeStore::WriteBatch> write_batch =
           underlying_in_memory_store_->CreateWriteBatch();
-      write_batch->GetMetadataChangeList()->UpdateModelTypeState(
-          model_type_state);
+      write_batch->GetMetadataChangeList()->UpdateDataTypeState(
+          data_type_state);
       underlying_in_memory_store_->CommitWriteBatch(std::move(write_batch),
                                                     base::DoNothing());
     }
 
     model_ = ReadingListModelImpl::BuildNewForTest(
         std::make_unique<ReadingListModelStorageImpl>(
-            syncer::ModelTypeStoreTestUtil::MoveStoreToFactory(
-                std::move(model_type_store))),
+            syncer::DataTypeStoreTestUtil::MoveStoreToFactory(
+                std::move(data_type_store))),
         storage_type, wipe_model_upon_sync_disabled_behavior, &clock_,
         processor_.CreateForwardingProcessor());
 
@@ -170,14 +171,14 @@ class ReadingListSyncBridgeTest : public testing::Test {
 
   ReadingListSyncBridge* bridge() { return model_->GetSyncBridgeForTest(); }
 
-  // In memory model type store needs to be able to post tasks.
+  // In memory data type store needs to be able to post tasks.
   base::test::SingleThreadTaskEnvironment task_environment_;
   base::SimpleTestClock clock_;
-  testing::NiceMock<syncer::MockModelTypeChangeProcessor> processor_;
+  testing::NiceMock<syncer::MockDataTypeLocalChangeProcessor> processor_;
   std::unique_ptr<ReadingListModelImpl> model_;
 
-  // ModelTypeStore is owned by |model_|.
-  raw_ptr<syncer::ModelTypeStore> underlying_in_memory_store_ = nullptr;
+  // DataTypeStore is owned by |model_|.
+  raw_ptr<syncer::DataTypeStore> underlying_in_memory_store_ = nullptr;
 };
 
 TEST_F(ReadingListSyncBridgeTest, SaveOneRead) {
@@ -350,8 +351,8 @@ TEST_F(ReadingListSyncBridgeTest, ApplyIncrementalSyncChangesOneRemove) {
                             /*estimated_read_time=*/base::TimeDelta());
 
   syncer::EntityChangeList delete_changes;
-  delete_changes.push_back(
-      syncer::EntityChange::CreateDelete("http://read.example.com/"));
+  delete_changes.push_back(syncer::EntityChange::CreateDelete(
+      "http://read.example.com/", syncer::EntityData()));
 
   ASSERT_EQ(1ul, model_->size());
   auto error = bridge()->ApplyIncrementalSyncChanges(
@@ -386,45 +387,15 @@ TEST_F(ReadingListSyncBridgeTest, DisableSyncWithAccountStorage) {
   EXPECT_EQ(0ul, model_->size());
 }
 
-TEST_F(ReadingListSyncBridgeTest,
-       DisableSyncWithWipingBehaviorAndInitialSyncDone) {
-  ResetModelAndBridge(
-      syncer::StorageType::kUnspecified,
-      syncer::WipeModelUponSyncDisabledBehavior::kOnceIfTrackingMetadata,
-      /*initial_sync_done=*/true);
-  model_->AddOrReplaceEntry(GURL("http://read.example.com/"), "read title",
-                            reading_list::ADDED_VIA_CURRENT_APP,
-                            /*estimated_read_time=*/base::TimeDelta());
-
-  ASSERT_EQ(1ul, model_->size());
-  bridge()->ApplyDisableSyncChanges(bridge()->CreateMetadataChangeList());
-  EXPECT_EQ(0ul, model_->size());
-}
-
-TEST_F(ReadingListSyncBridgeTest,
-       DisableSyncWithWipingBehaviorAndInitialSyncNotDone) {
-  ResetModelAndBridge(
-      syncer::StorageType::kUnspecified,
-      syncer::WipeModelUponSyncDisabledBehavior::kOnceIfTrackingMetadata,
-      /*initial_sync_done=*/false);
-  model_->AddOrReplaceEntry(GURL("http://read.example.com/"), "read title",
-                            reading_list::ADDED_VIA_CURRENT_APP,
-                            /*estimated_read_time=*/base::TimeDelta());
-
-  ASSERT_EQ(1ul, model_->size());
-  bridge()->ApplyDisableSyncChanges(bridge()->CreateMetadataChangeList());
-  EXPECT_EQ(1ul, model_->size());
-}
-
 TEST_F(ReadingListSyncBridgeTest, DisableSyncWithAccountStorageAndOrphanData) {
   ResetModelAndBridge(syncer::StorageType::kAccount,
                       syncer::WipeModelUponSyncDisabledBehavior::kAlways,
                       /*initial_sync_done=*/true);
 
   // Write some orphan or unexpected data directly onto the underlying
-  // ModelTypeStore, which should be rare but may be possible due to bugs or
+  // DataTypeStore, which should be rare but may be possible due to bugs or
   // edge cases.
-  std::unique_ptr<syncer::ModelTypeStore::WriteBatch> write_batch =
+  std::unique_ptr<syncer::DataTypeStore::WriteBatch> write_batch =
       underlying_in_memory_store_->CreateWriteBatch();
   write_batch->WriteData("orphan-data-key", "orphan-data-value");
   std::optional<syncer::ModelError> error;
@@ -438,12 +409,12 @@ TEST_F(ReadingListSyncBridgeTest, DisableSyncWithAccountStorageAndOrphanData) {
           }));
   loop.Run();
 
-  ASSERT_THAT(ReadAllDataFromModelTypeStore(underlying_in_memory_store_),
+  ASSERT_THAT(ReadAllDataFromDataTypeStore(underlying_in_memory_store_),
               SizeIs(1));
 
   bridge()->ApplyDisableSyncChanges(bridge()->CreateMetadataChangeList());
 
-  EXPECT_THAT(ReadAllDataFromModelTypeStore(underlying_in_memory_store_),
+  EXPECT_THAT(ReadAllDataFromDataTypeStore(underlying_in_memory_store_),
               SizeIs(0));
 }
 
@@ -553,10 +524,12 @@ TEST_F(ReadingListSyncBridgeTest, CompareEntriesForSync) {
   entryA.set_update_time_us(99);
   ExpectAB(entryA, entryB, true);
   ExpectAB(entryB, entryA, false);
-  sync_pb::ReadingListSpecifics::ReadingListEntryStatus status_oder[3] = {
-      sync_pb::ReadingListSpecifics::UNSEEN,
-      sync_pb::ReadingListSpecifics::UNREAD,
-      sync_pb::ReadingListSpecifics::READ};
+  std::array<sync_pb::ReadingListSpecifics::ReadingListEntryStatus, 3>
+      status_oder = {
+          sync_pb::ReadingListSpecifics::UNSEEN,
+          sync_pb::ReadingListSpecifics::UNREAD,
+          sync_pb::ReadingListSpecifics::READ,
+      };
   for (int index_a = 0; index_a < 3; index_a++) {
     entryA.set_status(status_oder[index_a]);
     for (int index_b = 0; index_b < 3; index_b++) {

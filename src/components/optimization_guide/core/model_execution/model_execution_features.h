@@ -7,13 +7,13 @@
 
 #include "base/containers/flat_set.h"
 #include "base/feature_list.h"
+#include "base/metrics/field_trial_params.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
+#include "components/optimization_guide/core/optimization_guide_enums.h"
 #include "components/optimization_guide/proto/model_execution.pb.h"
 #include "components/optimization_guide/proto/models.pb.h"
 
-namespace optimization_guide {
-namespace features {
-namespace internal {
+namespace optimization_guide::features::internal {
 
 // Features that control the visibility of whether a feature setting is visible
 // to the user. Should only be enabled for experimental features that have not
@@ -21,6 +21,12 @@ namespace internal {
 BASE_DECLARE_FEATURE(kComposeSettingsVisibility);
 BASE_DECLARE_FEATURE(kTabOrganizationSettingsVisibility);
 BASE_DECLARE_FEATURE(kWallpaperSearchSettingsVisibility);
+BASE_DECLARE_FEATURE(kHistorySearchSettingsVisibility);
+
+// Comma-separated list of performance classes (e.g. "3,4,5") accepted by
+// History Search. Use "*" if there is no performance class requirement.
+extern const base::FeatureParam<std::string>
+    kPerformanceClassListForHistorySearch;
 
 // Features that determine when a feature has graduated from experimental. These
 // should not be enabled at the same time as their respective settings
@@ -36,9 +42,6 @@ BASE_DECLARE_FEATURE(kExperimentalAIIPHPromoRampUp);
 // Feature for disabling the model execution user account capability check.
 BASE_DECLARE_FEATURE(kModelExecutionCapabilityDisable);
 
-// Features that control model adaptation.
-BASE_DECLARE_FEATURE(kModelAdaptationCompose);
-
 // Allow on-device model support for Test feature, to be used in tests.
 BASE_DECLARE_FEATURE(kOnDeviceModelTestFeature);
 
@@ -52,18 +55,14 @@ const base::Feature* GetFeatureToUseToCheckSettingsVisibility(
 // enabled, even for unsigned users.
 base::flat_set<UserVisibleFeatureKey> GetAllowedFeaturesForUnsignedUser();
 
-// Returns whether on-device model execution is enabled for the given feature.
-bool IsOnDeviceModelEnabled(ModelBasedCapabilityKey feature);
+// Returns whether the `feature` should get enabled, when the main toggle is on.
+bool ShouldEnableFeatureWhenMainToggleOn(UserVisibleFeatureKey feature);
 
-// Returns whether on-device model adaptation is enabled for the given feature.
-bool IsOnDeviceModelAdaptationEnabled(ModelBasedCapabilityKey feature);
-
-// Returns the opt target to use for fetching model adaptations for `feature`.
-proto::OptimizationTarget GetOptimizationTargetForModelAdaptation(
+// Returns the opt target to use for on-device configuration for `feature`.
+// Returns nullopt for features where on-device execution is not enabled.
+std::optional<proto::OptimizationTarget> GetOptimizationTargetForCapability(
     ModelBasedCapabilityKey feature);
 
-}  // namespace internal
-}  // namespace features
-}  // namespace optimization_guide
+}  // namespace optimization_guide::features::internal
 
 #endif  // COMPONENTS_OPTIMIZATION_GUIDE_CORE_MODEL_EXECUTION_MODEL_EXECUTION_FEATURES_H_

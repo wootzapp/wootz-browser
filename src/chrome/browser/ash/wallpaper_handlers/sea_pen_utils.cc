@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "ash/constants/ash_features.h"
 #include "ash/wallpaper/wallpaper_utils/sea_pen_metadata_utils.h"
 #include "ash/wallpaper/wallpaper_utils/sea_pen_utils_generated.h"
 #include "ash/webui/common/mojom/sea_pen.mojom.h"
@@ -44,7 +45,7 @@ gfx::Size GetLargestDisplaySizeLandscape() {
 }
 
 bool IsValidOutput(const manta::proto::OutputData& output,
-                   const std::string_view source) {
+                   std::string_view source) {
   if (!output.has_generation_seed()) {
     LOG(WARNING) << "Manta output data missing id for " << source;
     return false;
@@ -103,33 +104,57 @@ manta::proto::Request CreateMantaRequest(
       input_option.set_text(ash::TemplateOptionToString(option.second));
     }
   }
+  if (ash::features::IsSeaPenUseExptTemplateEnabled()) {
+    manta::proto::InputData& expt_template_option = *request.add_input_data();
+    expt_template_option.set_tag("use_expt_template");
+    expt_template_option.set_text("true");
+  }
+  if (query->is_text_query() && ash::features::IsSeaPenQueryRewriteEnabled()) {
+    manta::proto::InputData& rewrite_input_data = *request.add_input_data();
+    rewrite_input_data.set_tag("use_query_rewrite");
+    rewrite_input_data.set_text("true");
+  }
+  if (query->is_text_query() &&
+      ash::features::IsSeaPenTextInputTranslationEnabled()) {
+    manta::proto::InputData& translation_input_data = *request.add_input_data();
+    translation_input_data.set_tag("use_i18n");
+    translation_input_data.set_text("true");
+  }
   return request;
 }
 
 std::string GetFeedbackText(
-    const ash::personalization_app::mojom::SeaPenTemplateQueryPtr& query,
+    const ash::personalization_app::mojom::SeaPenQueryPtr& query,
     const ash::personalization_app::mojom::SeaPenFeedbackMetadataPtr&
         metadata) {
-  if (!ash::IsValidTemplateQuery(query)) {
+  if (query->is_template_query() &&
+      !ash::IsValidTemplateQuery(query->get_template_query())) {
     return "";
   }
 
   std::string feedback_text;
-  base::StringAppendF(&feedback_text, "%s %s: %s\n",
-                      metadata->log_id.starts_with("VcBackground")
-                          ? "#VCBackground"
-                          : "#AIWallpaper",
-                      metadata->is_positive ? "Positive" : "Negative",
-                      query->user_visible_query->text.c_str());
-  base::StringAppendF(&feedback_text, "template: %s\n",
-                      metadata->log_id.c_str());
-  base::StringAppendF(&feedback_text, "options: ");
-  for (const auto& [chip, option] : query->options) {
-    base::StringAppendF(&feedback_text, "(%s, %s)",
-                        ash::TemplateChipToString(chip).c_str(),
-                        ash::TemplateOptionToString(option).c_str());
+  const char* hashtag = metadata->log_id.starts_with("VcBackground")
+                            ? "#VCBackground"
+                            : "#AIWallpaper";
+  const char* sentiment = metadata->is_positive ? "Positive" : "Negative";
+  const char* query_text =
+      query->is_text_query()
+          ? query->get_text_query().c_str()
+          : query->get_template_query()->user_visible_query->text.c_str();
+  base::StringAppendF(&feedback_text, "%s %s: %s\n", hashtag, sentiment,
+                      query_text);
+  if (query->is_template_query()) {
+    base::StringAppendF(&feedback_text, "template: %s\n",
+                        metadata->log_id.c_str());
+    base::StringAppendF(&feedback_text, "options: ");
+    for (const auto& [chip, option] : query->get_template_query()->options) {
+      base::StringAppendF(&feedback_text, "(%s, %s)",
+                          ash::TemplateChipToString(chip).c_str(),
+                          ash::TemplateOptionToString(option).c_str());
+    }
+    base::StringAppendF(&feedback_text, "\n");
   }
-  base::StringAppendF(&feedback_text, "\ngeneration_seed: %u\n",
+  base::StringAppendF(&feedback_text, "generation_seed: %u\n",
                       metadata->generation_seed);
   return feedback_text;
 }

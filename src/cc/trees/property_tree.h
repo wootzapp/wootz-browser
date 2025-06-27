@@ -68,15 +68,21 @@ class CC_EXPORT PropertyTree {
   friend class PropertyTrees;
 
  public:
+  using NodeType = T;
+
   PropertyTree(const PropertyTree& other) = delete;
   ~PropertyTree();
   PropertyTree<T>& operator=(const PropertyTree<T>&);
 
 #if DCHECK_IS_ON()
   bool operator==(const PropertyTree<T>& other) const;
+  std::string ToString() const;
 #endif
 
   int Insert(const T& tree_node, int parent_id);
+
+  // Removes the last `n` nodes from the tree.
+  void RemoveNodes(size_t n);
 
   T* Node(int i) {
     CHECK_LT(i, static_cast<int>(nodes_.size()));
@@ -172,6 +178,7 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
 #endif
 
   int Insert(const TransformNode& tree_node, int parent_id);
+  void RemoveNodes(size_t n);
 
   void clear();
 
@@ -225,6 +232,9 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
 
   void SetRootScaleAndTransform(float device_scale_factor,
                                 const gfx::Transform& device_transform);
+  void set_device_transform_scale_factor(float device_transform_scale_factor) {
+    device_transform_scale_factor_ = device_transform_scale_factor;
+  }
   float device_transform_scale_factor() const {
     return device_transform_scale_factor_;
   }
@@ -238,6 +248,35 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   const std::vector<int>& nodes_affected_by_outer_viewport_bounds_delta()
       const {
     return nodes_affected_by_outer_viewport_bounds_delta_;
+  }
+  void set_nodes_affected_by_outer_viewport_bounds_delta(
+      std::vector<int> nodes) {
+    nodes_affected_by_outer_viewport_bounds_delta_ = std::move(nodes);
+  }
+
+  void NeedTransformUpdateForSafeAreaInsetBottom();
+
+  void AddNodeAffectedBySafeAreaInsetBottom(int node_id);
+
+  bool HasNodesAffectedBySafeAreaBottom() const;
+
+  const std::vector<int>& nodes_affected_by_safe_area_bottom() const {
+    return nodes_affected_by_safe_area_inset_bottom_;
+  }
+
+  const std::vector<StickyPositionNodeData>& sticky_position_data() const {
+    return sticky_position_data_;
+  }
+  std::vector<StickyPositionNodeData>& sticky_position_data() {
+    return sticky_position_data_;
+  }
+
+  const std::vector<AnchorPositionScrollData>& anchor_position_scroll_data()
+      const {
+    return anchor_position_scroll_data_;
+  }
+  std::vector<AnchorPositionScrollData>& anchor_position_scroll_data() {
+    return anchor_position_scroll_data_;
   }
 
   const gfx::Transform& FromScreen(int node_id) const;
@@ -312,6 +351,7 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   float device_scale_factor_;
   float device_transform_scale_factor_;
   std::vector<int> nodes_affected_by_outer_viewport_bounds_delta_;
+  std::vector<int> nodes_affected_by_safe_area_inset_bottom_;
   std::vector<TransformCachedNodeData> cached_data_;
   std::vector<StickyPositionNodeData> sticky_position_data_;
   std::vector<AnchorPositionScrollData> anchor_position_scroll_data_;
@@ -332,7 +372,7 @@ struct CC_EXPORT AnchorPositionScrollData {
   bool needs_scroll_adjustment_in_y = false;
 };
 
-struct StickyPositionNodeData {
+struct CC_EXPORT StickyPositionNodeData {
   int scroll_ancestor;
   StickyPositionConstraint constraints;
 
@@ -354,6 +394,8 @@ struct StickyPositionNodeData {
       : scroll_ancestor(kInvalidPropertyNodeId),
         nearest_node_shifting_sticky_box(kInvalidPropertyNodeId),
         nearest_node_shifting_containing_block(kInvalidPropertyNodeId) {}
+
+  bool operator==(const StickyPositionNodeData&) const;
 };
 
 class CC_EXPORT ClipTree final : public PropertyTree<ClipNode> {
@@ -379,6 +421,7 @@ class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
 #endif
 
   int Insert(const EffectNode& tree_node, int parent_id);
+  void RemoveNodes(size_t n);
 
   void clear();
 
@@ -574,6 +617,15 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
       synced_offset->set_clobber_active_value();
   }
 
+  // Sets the painting cull rect of scrolling contents of a scroll. If set, the
+  // painting of scrolling contents in this cull rect is guaranteed to be
+  // complete. It's in the space of `transform_id` of the corresponding scroll
+  // node. If not set or after ClearScrollingContentsCullRect is called, the
+  // cull rect is supposed to always cover all scrolling contents.
+  void SetScrollingContentsCullRect(ElementId id, const gfx::Rect& cull_rect);
+  void ClearScrollingContentsCullRect(ElementId id);
+  const gfx::Rect* ScrollingContentsCullRect(ElementId id) const;
+
   SyncedScrollOffset* GetOrCreateSyncedScrollOffsetForTesting(ElementId id);
   bool UpdateScrollOffsetBaseForTesting(ElementId id,
                                         const gfx::PointF& offset);
@@ -611,13 +663,11 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
   // All of them return false if `node.transform_id` is invalid which means
   // Blink didn't paint the transform node because the scrolling contents
   // were far from the viewport and we don't need to realize the scrolls.
-  bool CanRealizeScrollsOnCompositor(const ScrollNode& node) const;
-  // TODO(crbug.com/40517276): Add realization mode for RasterInducingScroll.
+  bool CanRealizeScrollsOnActiveTree(const ScrollNode& node) const;
+  bool CanRealizeScrollsOnPendingTree(const ScrollNode& node) const;
   bool ShouldRealizeScrollsOnMain(const ScrollNode& node) const;
 
-  // Reports reasons for blocking scroll updates on main-thread repaint. For use
-  // only with scroll unification enabled. Returns bitfield of values from
-  // MainThreadScrollingReason.
+  // Reports reasons for blocking scroll updates on main-thread repaint.
   uint32_t GetMainThreadRepaintReasons(const ScrollNode& node) const;
 
  private:
@@ -637,6 +687,9 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
   // and impl threads.
   ScrollOffsetMap scroll_offset_map_;
   SyncedScrollOffsetMap synced_scroll_offset_map_;
+
+  // Maps from scroll element id to scrolling contents cull rect.
+  base::flat_map<ElementId, gfx::Rect> scrolling_contents_cull_rects_;
 
   base::WeakPtr<ScrollCallbacks> callbacks_;
 
@@ -710,9 +763,11 @@ struct PropertyTreesCachedData {
   ~PropertyTreesCachedData();
 };
 
-struct PropertyTreesChangeState {
+struct CC_EXPORT PropertyTreesChangeState {
   PropertyTreesChangeState();
   ~PropertyTreesChangeState();
+  PropertyTreesChangeState(PropertyTreesChangeState&&);
+  PropertyTreesChangeState& operator=(PropertyTreesChangeState&&);
   bool changed = false;
   bool needs_rebuild = false;
   bool full_tree_damaged = false;
@@ -792,6 +847,7 @@ class CC_EXPORT PropertyTrees final {
   void MaximumAnimationScaleChanged(ElementId element_id, float maximum_scale);
   void SetInnerViewportContainerBoundsDelta(gfx::Vector2dF bounds_delta);
   void SetOuterViewportContainerBoundsDelta(gfx::Vector2dF bounds_delta);
+  void SetTransformDeltaBySafeAreaInsetBottom(float);
   void UpdateChangeTracking();
   void GetChangedNodes(std::vector<int>& effect_nodes,
                        std::vector<int>& transform_nodes) const;
@@ -811,6 +867,10 @@ class CC_EXPORT PropertyTrees final {
   }
   gfx::Vector2dF outer_viewport_container_bounds_delta() const {
     return outer_viewport_container_bounds_delta_.Read(synchronizer());
+  }
+
+  float transform_delta_by_safe_area_inset_bottom() const {
+    return transform_delta_by_safe_area_inset_bottom_.Read(synchronizer());
   }
 
   std::unique_ptr<base::trace_event::TracedValue> AsTracedValue() const;
@@ -872,6 +932,7 @@ class CC_EXPORT PropertyTrees final {
       inner_viewport_container_bounds_delta_;
   ProtectedSequenceReadable<gfx::Vector2dF>
       outer_viewport_container_bounds_delta_;
+  ProtectedSequenceReadable<float> transform_delta_by_safe_area_inset_bottom_;
 
   const AnimationScaleData& GetAnimationScaleData(int transform_id);
 

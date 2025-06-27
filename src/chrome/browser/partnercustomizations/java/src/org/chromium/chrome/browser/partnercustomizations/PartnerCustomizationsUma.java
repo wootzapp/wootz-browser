@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.partnercustomizations;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.partnercustomizations.PartnerCustomizationsUma.PartnerCustomizationsHomepageEnum.NTP_CORRECTLY;
 import static org.chromium.chrome.browser.partnercustomizations.PartnerCustomizationsUma.PartnerCustomizationsHomepageEnum.NTP_INCORRECTLY;
 import static org.chromium.chrome.browser.partnercustomizations.PartnerCustomizationsUma.PartnerCustomizationsHomepageEnum.NTP_UNKNOWN;
@@ -13,14 +14,14 @@ import static org.chromium.chrome.browser.partnercustomizations.PartnerCustomiza
 import android.os.SystemClock;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.FeatureList;
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
@@ -37,6 +38,7 @@ import java.lang.annotation.RetentionPolicy;
  * recently. Then that UMA logs the interaction with customization and won't log again in any future
  * instance.
  */
+@NullMarked
 class PartnerCustomizationsUma {
     private static final String TAG = "PartnerCustUma";
 
@@ -67,13 +69,13 @@ class PartnerCustomizationsUma {
     private boolean mDidCustomizationCompleteSuccessfully;
 
     /**
-     * Records whether an initial Tab was created after the customization task ran to completion.
-     * A value of {@code null} indicates that we did not yet create the initial Tab.
+     * Records whether an initial Tab was created after the customization task ran to completion. A
+     * value of {@code null} indicates that we did not yet create the initial Tab.
      */
     private @Nullable Boolean mDidCreateInitialTabAfterCustomization;
 
     private @Nullable String mHomepageUrlCreated;
-    private boolean mIsOverviewPageOrStartSurface;
+
     /** Supplies access to HomepageManager to characterize homepages. */
     private @Nullable Supplier<HomepageCharacterizationHelper> mHomepageCharacterizationHelper;
 
@@ -92,29 +94,26 @@ class PartnerCustomizationsUma {
     }
 
     /**
-     * Called when Chrome is about to create an initial tab.
-     * Logs that by the time {@link PartnerBrowserCustomizations#initializeAsync} is called, whether
-     * {@link PartnerBrowserCustomizations#isInitialized}. For cases that's not initialized - due to
+     * Called when Chrome is about to create an initial tab. Logs that by the time {@link
+     * PartnerBrowserCustomizations#initializeAsync} is called, whether {@link
+     * PartnerBrowserCustomizations#isInitialized}. For cases that's not initialized - due to
      * timeout - we are at risk of creating the initial tab with homepage different than the partner
      * provided homepage.
+     *
      * @param isInitialized Whether initialization completed vs timed out.
      * @param homepageUrlCreated The URL of the initial Tab that was created or {@code null} if
-     *         something other than a Homepage was used.
-     * @param isOverviewPageOrStartSurface indicates that there was no created Homepage because some
-     *         kind of overview page or Start Surface was presented in place of the initial Tab.
+     *     something other than a Homepage was used.
      * @param activityLifecycleDispatcher The {@link ActivityLifecycleDispatcher} to use to wait for
-     *        native initialization.
+     *     native initialization.
      * @param homepageCharacterizationHelper A supplier for Homepage characterization needs in
-     *        {@link PartnerCustomizationsUma}.
+     *     {@link PartnerCustomizationsUma}.
      */
     void onCreateInitialTab(
             boolean isInitialized,
             @Nullable String homepageUrlCreated,
-            boolean isOverviewPageOrStartSurface,
-            @NonNull ActivityLifecycleDispatcher activityLifecycleDispatcher,
-            @NonNull Supplier<HomepageCharacterizationHelper> homepageCharacterizationHelper) {
-        assert (isOverviewPageOrStartSurface || homepageUrlCreated != null)
-                : "Null created Homepage unexpected unless Overview Page!";
+            ActivityLifecycleDispatcher activityLifecycleDispatcher,
+            Supplier<HomepageCharacterizationHelper> homepageCharacterizationHelper) {
+        assert homepageUrlCreated != null : "Null created Homepage unexpected!";
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
         mHomepageCharacterizationHelper = homepageCharacterizationHelper;
 
@@ -127,7 +126,6 @@ class PartnerCustomizationsUma {
             return;
         }
 
-        mIsOverviewPageOrStartSurface = isOverviewPageOrStartSurface;
         mDidCreateInitialTabAfterCustomization = isInitialized;
         mHomepageUrlCreated = homepageUrlCreated;
         tryLogInitialTabCustomizationOutcome();
@@ -194,12 +192,13 @@ class PartnerCustomizationsUma {
 
     /**
      * Logs the outcome of creating an initial tab relative to Partner customization.
+     *
      * @param activityLifecycleDispatcher A lifecycle dispatcher used to delay any execution that
-     *                                    might be risky until after native initialization.
+     *     might be risky until after native initialization.
      */
     @VisibleForTesting
     void logInitialTabCustomizationOutcome(
-            @NonNull ActivityLifecycleDispatcher activityLifecycleDispatcher) {
+            @Nullable ActivityLifecycleDispatcher activityLifecycleDispatcher) {
         // Snapshot static members in case a new async task starts up while we're delayed.
         final @CustomizationProviderDelegateType int whichDelegate = sWhichDelegate;
 
@@ -212,9 +211,9 @@ class PartnerCustomizationsUma {
                 () -> {
                     assert mDidCreateInitialTabAfterCustomization != null;
 
+                    assumeNonNull(mHomepageCharacterizationHelper);
                     boolean isInitialTabNtpOrOverview =
-                            mHomepageCharacterizationHelper.get().isUrlNtp(mHomepageUrlCreated)
-                                    || mIsOverviewPageOrStartSurface;
+                            mHomepageCharacterizationHelper.get().isUrlNtp(mHomepageUrlCreated);
                     boolean isHomepagePartner = mHomepageCharacterizationHelper.get().isPartner();
                     boolean isHomepageNtp = mHomepageCharacterizationHelper.get().isNtp();
                     // We can be certain that our Homepage characterization is correct if the

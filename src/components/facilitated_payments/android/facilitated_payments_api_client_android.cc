@@ -10,19 +10,36 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/check.h"
-#include "components/facilitated_payments/android/java/jni_headers/FacilitatedPaymentsApiClientBridge_jni.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "components/facilitated_payments/android/secure_payload_android.h"
+#include "components/facilitated_payments/core/utils/facilitated_payments_utils.h"
 #include "components/signin/public/identity_manager/account_info.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_frame_host.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/facilitated_payments/android/java/jni_headers/FacilitatedPaymentsApiClientBridge_jni.h"
 
 namespace payments::facilitated {
 
+std::unique_ptr<FacilitatedPaymentsApiClient>
+LazyInitFacilitatedPaymentsApiClient(
+    content::GlobalRenderFrameHostId render_frame_host_id) {
+  content::RenderFrameHost* render_frame_host =
+      content::RenderFrameHost::FromID(render_frame_host_id);
+  return render_frame_host
+             ? std::make_unique<FacilitatedPaymentsApiClientAndroid>(
+                   render_frame_host)
+             : nullptr;
+}
+
 // Declared in the cross-platform header
 // `facilitated_payments_api_client_factory.h`.
-std::unique_ptr<FacilitatedPaymentsApiClient>
-CreateFacilitatedPaymentsApiClient(
-    content::RenderFrameHost* render_frame_host) {
-  return std::make_unique<FacilitatedPaymentsApiClientAndroid>(
-      render_frame_host);
+FacilitatedPaymentsApiClientCreator GetFacilitatedPaymentsApiClientCreator(
+    content::GlobalRenderFrameHostId render_frame_host_id) {
+  return base::BindRepeating(&LazyInitFacilitatedPaymentsApiClient,
+                             render_frame_host_id);
 }
 
 FacilitatedPaymentsApiClientAndroid::FacilitatedPaymentsApiClientAndroid(
@@ -57,15 +74,15 @@ void FacilitatedPaymentsApiClientAndroid::GetClientToken(
 
 void FacilitatedPaymentsApiClientAndroid::InvokePurchaseAction(
     CoreAccountInfo primary_account,
-    base::span<const uint8_t> action_token,
+    const SecurePayload& secure_payload,
     base::OnceCallback<void(PurchaseActionResult)> callback) {
   DCHECK(!IsAnyCallbackPending());
 
   purchase_action_callback_ = std::move(callback);
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_FacilitatedPaymentsApiClientBridge_invokePurchaseAction(
-      env, java_bridge_, ConvertToJavaCoreAccountInfo(env, primary_account),
-      base::android::ToJavaByteArray(env, action_token));
+      env, java_bridge_, primary_account,
+      ConvertSecurePayloadToJavaObject(secure_payload));
 }
 
 void FacilitatedPaymentsApiClientAndroid::OnIsAvailable(

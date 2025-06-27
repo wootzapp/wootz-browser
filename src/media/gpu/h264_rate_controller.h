@@ -5,6 +5,7 @@
 #ifndef MEDIA_GPU_H264_RATE_CONTROLLER_H_
 #define MEDIA_GPU_H264_RATE_CONTROLLER_H_
 
+#include <memory>
 #include <vector>
 
 #include "base/moving_window.h"
@@ -15,17 +16,89 @@
 
 namespace media {
 
+struct MEDIA_GPU_EXPORT H264RateControllerLayerSettings {
+  H264RateControllerLayerSettings() = default;
+  ~H264RateControllerLayerSettings() = default;
+
+  H264RateControllerLayerSettings(const H264RateControllerLayerSettings&) =
+      default;
+  H264RateControllerLayerSettings& operator=(
+      const H264RateControllerLayerSettings&) = default;
+
+  bool operator==(const H264RateControllerLayerSettings&) const = default;
+  std::partial_ordering operator<=>(
+      const H264RateControllerLayerSettings&) const = default;
+
+  // Average bitrate of the layer in bits per second. The bitrate includes
+  // the bits from all lower layers.
+  uint32_t avg_bitrate = 0u;
+
+  uint32_t peak_bitrate = 0u;
+
+  // HRD buffer size in bytes.
+  size_t hrd_buffer_size = 0u;
+
+  // Minimum QP for the layer.
+  uint32_t min_qp = 0;
+
+  // Maximum QP for the layer.
+  uint32_t max_qp = 0;
+
+  // Layer frame rate.
+  float frame_rate = 0.0f;
+};
+
+struct MEDIA_GPU_EXPORT H264RateControllerSettings {
+  H264RateControllerSettings();
+  ~H264RateControllerSettings();
+
+  H264RateControllerSettings(const H264RateControllerSettings&);
+  H264RateControllerSettings& operator=(const H264RateControllerSettings&);
+
+  bool operator==(const H264RateControllerSettings& other) const = default;
+  std::partial_ordering operator<=>(
+      const H264RateControllerSettings& other) const;
+
+  // Frame size.
+  gfx::Size frame_size;
+
+  // Fixed delta QP between layers.
+  // When `fixed_delta_qp` is set and the video stream scalability mode is L1T2,
+  // the QP of the higher layer is always increased by `fixed_delta_qp` compared
+  // to the base layer. This parameter has no meaning in non scalable video
+  // encoding.
+  std::optional<int> fixed_delta_qp;
+
+  // Maximum source frame rate.
+  float frame_rate_max = 0.0f;
+
+  // Number of temporal layers.
+  size_t num_temporal_layers = 0u;
+
+  // Maximum GOP duration. 0 for infinite.
+  base::TimeDelta gop_max_duration;
+
+  // Content type of the video source.
+  VideoEncodeAccelerator::Config::ContentType content_type =
+      VideoEncodeAccelerator::Config::ContentType::kCamera;
+
+  bool ease_hrd_reduction = false;
+
+  // Layer settings for each temporal layer.
+  std::vector<H264RateControllerLayerSettings> layer_settings;
+};
+
 // H264RateController class implements a rate control algorithm for H.264 video
 // encoder. The algorithm adjusts the QP for each frame, aiming to keep the
 // video stream bitrate close to the target bitrate. The controller supports
 // up to two temporal layers, each with its own HRD buffer. The HRD buffer
 // stores the encoded frames from the current layer and all the lower layers
-// that it depens on.
+// that it depends on.
 //
 // The prediction of the QP parameter for intra encoded frames is based on the
 // R-D model, using the expected size of the encoded frame as an input.
 // For inter encoded frames, the QP is calculated based on the long-term and
-// short-term statistics of the estamated QP and frame size, the prediction
+// short-term statistics of the estimated QP and frame size, the prediction
 // error of the frame size prediction for the previously encoded frames,
 // and the HRD buffer fullness.
 //
@@ -45,31 +118,7 @@ class MEDIA_GPU_EXPORT H264RateController {
 
   class MEDIA_GPU_EXPORT Layer {
    public:
-    struct MEDIA_GPU_EXPORT LayerSettings {
-      LayerSettings() = default;
-      ~LayerSettings() = default;
-
-      LayerSettings(const LayerSettings&) = default;
-      LayerSettings& operator=(const LayerSettings&) = default;
-
-      // Average bitrate of the layer in bits per second. The bitrate includes
-      // the bits from all lower layers.
-      uint32_t avg_bitrate = 0u;
-
-      // HRD buffer size in bytes.
-      size_t hrd_buffer_size = 0u;
-
-      // Minimum QP for the layer.
-      uint32_t min_qp = 0;
-
-      // Maximum QP for the layer.
-      uint32_t max_qp = 0;
-
-      // Layer frame rate.
-      float frame_rate = 0.0f;
-    };
-
-    Layer(LayerSettings settings,
+    Layer(H264RateControllerLayerSettings settings,
           float expected_fps,
           base::TimeDelta short_term_window_size,
           base::TimeDelta long_term_window_size);
@@ -178,7 +227,8 @@ class MEDIA_GPU_EXPORT H264RateController {
 
    private:
     // Returns the initial size correction for the estimators.
-    float GetInitialSizeCorrection(LayerSettings settings) const;
+    float GetInitialSizeCorrection(
+        H264RateControllerLayerSettings settings) const;
 
     // HRD buffer for the layer.
     HRDBuffer hrd_buffer_;
@@ -226,37 +276,7 @@ class MEDIA_GPU_EXPORT H264RateController {
     size_t last_frame_size_target_ = 0u;
   };
 
-  struct MEDIA_GPU_EXPORT ControllerSettings {
-    ControllerSettings();
-    ~ControllerSettings();
-
-    ControllerSettings(const ControllerSettings&);
-    ControllerSettings& operator=(const ControllerSettings&);
-
-    // Frame size.
-    gfx::Size frame_size;
-
-    // Fixed delta QP between layers.
-    bool fixed_delta_qp = false;
-
-    // Maximum source frame rate.
-    float frame_rate_max = 0.0f;
-
-    // Number of temporal layers.
-    size_t num_temporal_layers = 0u;
-
-    // Maximum GOP duration. 0 for infinite.
-    base::TimeDelta gop_max_duration;
-
-    // Content type of the video source.
-    VideoEncodeAccelerator::Config::ContentType content_type =
-        VideoEncodeAccelerator::Config::ContentType::kCamera;
-
-    // Layer settings for each temporal layer.
-    std::vector<Layer::LayerSettings> layer_settings;
-  };
-
-  explicit H264RateController(ControllerSettings settings);
+  explicit H264RateController(H264RateControllerSettings settings);
   ~H264RateController();
 
   H264RateController(const H264RateController& other) = delete;
@@ -380,7 +400,7 @@ class MEDIA_GPU_EXPORT H264RateController {
   //    frame_duration = 1 / frame_rate
   //
   //    In overflow case
-  //        owerflow_size =
+  //        overflow_size =
   //            frame_size_target + buffer_level_current - buffer_target_high
   //        size_correction =
   //            -overflow_size * frame_duration / size_correction_window
@@ -547,7 +567,7 @@ class MEDIA_GPU_EXPORT H264RateController {
                             base::TimeDelta picture_timestamp);
 
   // Returns target FPS extracted from layer settings.
-  float GetTargetFps(ControllerSettings settings) const;
+  float GetTargetFps(H264RateControllerSettings settings) const;
 
   // Temporal layers configured for the current video stream.
   std::vector<std::unique_ptr<Layer>> temporal_layers_;
@@ -561,8 +581,9 @@ class MEDIA_GPU_EXPORT H264RateController {
   // Frame size of the video stream.
   gfx::Size frame_size_;
 
-  // Indicates whether the Fixed Delta QP mode is enabled.
-  const bool fixed_delta_qp_;
+  // QP delta value in Fixed Delta QP mode. It's not defined in non Fixed Delta
+  // QP mode.
+  const std::optional<int> fixed_delta_qp_;
 
   // Indicates base QP should be raised due to upper layer HRD constraints.
   bool limit_base_qp_ = false;

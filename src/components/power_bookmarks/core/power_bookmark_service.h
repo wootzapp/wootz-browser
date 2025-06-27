@@ -11,6 +11,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
@@ -25,7 +26,7 @@ class BookmarkModel;
 }  // namespace bookmarks
 
 namespace syncer {
-class ModelTypeControllerDelegate;
+class DataTypeControllerDelegate;
 }  // namespace syncer
 
 namespace power_bookmarks {
@@ -69,7 +70,7 @@ class PowerBookmarkService : public KeyedService,
 
   // For sync codebase only: instantiates a controller delegate to interact with
   // PowerBookmarkSyncBridge. Must be called from the UI thread.
-  std::unique_ptr<syncer::ModelTypeControllerDelegate>
+  std::unique_ptr<syncer::DataTypeControllerDelegate>
   CreateSyncControllerDelegate();
 
   // Returns a vector of Powers for the given `url` through the given
@@ -155,6 +156,9 @@ class PowerBookmarkService : public KeyedService,
       data_providers_;
 
   SEQUENCE_CHECKER(sequence_checker_);
+  base::ScopedObservation<bookmarks::BookmarkModel,
+                          bookmarks::BaseBookmarkModelObserver>
+      model_observation_{this};
   base::WeakPtrFactory<PowerBookmarkService> weak_ptr_factory_{this};
 };
 

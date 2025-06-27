@@ -4,6 +4,7 @@
 
 #include "ui/views/accessibility/atomic_view_ax_tree_manager.h"
 
+#include <memory>
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
@@ -11,7 +12,6 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/test/views_test_base.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget.h"
 
 namespace views {
@@ -22,17 +22,17 @@ class AtomicViewAXTreeManagerTest : public ViewsTestBase {
   void SetUp() override {
     ViewsTestBase::SetUp();
 
-    scoped_feature_list_.InitAndEnableFeature(features::kUiaProvider);
-
     widget_ = std::make_unique<Widget>();
 
-    Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+    Widget::InitParams params =
+        CreateParams(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                     Widget::InitParams::TYPE_WINDOW);
     params.bounds = gfx::Rect(50, 50, 200, 200);
     widget_->Init(std::move(params));
 
     textfield_ = new Textfield();
     textfield_->SetBounds(10, 20, 30, 40);
-    widget_->GetContentsView()->AddChildView(textfield_.get());
+    widget_->GetContentsView()->AddChildViewRaw(textfield_.get());
 
     delegate_ = static_cast<ViewAXPlatformNodeDelegate*>(
         &textfield_->GetViewAccessibility());
@@ -65,11 +65,11 @@ class AtomicViewAXTreeManagerTest : public ViewsTestBase {
     EXPECT_EQ(expected.relative_bounds, actual.relative_bounds);
   }
 
-  ui::AXNodeData delegate_data() { return delegate_->data(); }
+  const ui::AXNodeData& delegate_data() const { return delegate_->data(); }
 
  protected:
   raw_ptr<Textfield> textfield_ = nullptr;  // Owned by views hierarchy.
-  UniqueWidgetPtr widget_;
+  std::unique_ptr<Widget> widget_;
   raw_ptr<ViewAXPlatformNodeDelegate> delegate_ = nullptr;
   base::test::ScopedFeatureList scoped_feature_list_;
 };
@@ -93,15 +93,13 @@ TEST_F(AtomicViewAXTreeManagerTest, GetRootAsAXNode) {
       delegate_->GetAtomicViewAXTreeManagerForTesting()->GetRoot()->data());
 }
 
-TEST_F(AtomicViewAXTreeManagerTest, GetNodeFromTree) {
+TEST_F(AtomicViewAXTreeManagerTest, GetNode) {
   CompareNodeData(
       delegate_data(),
       delegate_->GetAtomicViewAXTreeManagerForTesting()
-          ->GetNodeFromTree(
-              delegate_->GetAtomicViewAXTreeManagerForTesting()->GetTreeID(),
-              delegate_->GetAtomicViewAXTreeManagerForTesting()
-                  ->GetRoot()
-                  ->id())
+          ->GetNode(delegate_->GetAtomicViewAXTreeManagerForTesting()
+                        ->GetRoot()
+                        ->id())
           ->data());
 }
 

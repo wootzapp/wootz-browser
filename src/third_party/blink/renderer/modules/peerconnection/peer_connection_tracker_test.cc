@@ -66,7 +66,6 @@ class MockPeerConnectionTrackerHost
   MOCK_METHOD3(GetDisplayMediaFailure, void(int, const String&, const String&));
   MOCK_METHOD2(WebRtcEventLogWrite, void(int, const Vector<uint8_t>&));
   MOCK_METHOD2(AddStandardStats, void(int, base::Value::List));
-  MOCK_METHOD2(AddLegacyStats, void(int, base::Value::List));
 
   mojo::PendingRemote<blink::mojom::blink::PeerConnectionTrackerHost>
   CreatePendingRemoteAndBind() {
@@ -110,7 +109,6 @@ class MockPeerConnectionHandler : public RTCPeerConnectionHandler {
             MakeGarbageCollected<MockRTCPeerConnectionHandlerClient>()) {}
   MOCK_METHOD0(CloseClientPeerConnection, void());
   MOCK_METHOD1(OnThermalStateChange, void(mojom::blink::DeviceThermalState));
-  MOCK_METHOD1(OnSpeedLimitChange, void(int));
 
  private:
   explicit MockPeerConnectionHandler(
@@ -215,16 +213,6 @@ TEST_F(PeerConnectionTrackerTest, OnThermalStateChange) {
   tracker_->OnThermalStateChange(mojom::blink::DeviceThermalState::kCritical);
 }
 
-TEST_F(PeerConnectionTrackerTest, OnSpeedLimitChange) {
-  CreateTrackerWithMocks();
-  CreateAndRegisterPeerConnectionHandler();
-
-  EXPECT_CALL(*mock_handler_, OnSpeedLimitChange(22));
-  tracker_->OnSpeedLimitChange(22);
-  EXPECT_CALL(*mock_handler_, OnSpeedLimitChange(33));
-  tracker_->OnSpeedLimitChange(33);
-}
-
 TEST_F(PeerConnectionTrackerTest, ReportInitialThermalState) {
   MockPeerConnectionHandler handler0;
   MockPeerConnectionHandler handler1;
@@ -315,7 +303,7 @@ TEST_F(PeerConnectionTrackerTest, AddTransceiverWithOptionalValuesNull) {
   blink::FakeRTCRtpTransceiverImpl transceiver(
       String(),
       blink::FakeRTCRtpSenderImpl(
-          std::nullopt, {},
+          String(), {},
           blink::scheduler::GetSingleThreadTaskRunnerForTesting()),
       blink::FakeRTCRtpReceiverImpl(
           "receiverTrackId", {},

@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "ash/components/arc/test/arc_task_window_builder.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/wm/desks/desks_util.h"
@@ -25,6 +24,7 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
+#include "chromeos/ash/experiences/arc/test/arc_task_window_builder.h"
 #include "components/app_restore/app_restore_data.h"
 #include "components/exo/shell_surface_util.h"
 #include "components/exo/surface.h"
@@ -219,11 +219,12 @@ class ArcAppPerformanceTracingTest : public BrowserWithTestWindowTest {
   }
 
   TestingProfile::TestingFactories GetTestingFactories() override {
-    return {{SyncServiceFactory::GetInstance(),
-             base::BindRepeating(
-                 [](content::BrowserContext*) -> std::unique_ptr<KeyedService> {
-                   return std::make_unique<syncer::TestSyncService>();
-                 })}};
+    return {TestingProfile::TestingFactory{
+        SyncServiceFactory::GetInstance(),
+        base::BindRepeating(
+            [](content::BrowserContext*) -> std::unique_ptr<KeyedService> {
+              return std::make_unique<syncer::TestSyncService>();
+            })}};
   }
 
  private:
@@ -437,6 +438,8 @@ TEST_F(ArcAppPerformanceTracingTest, ApplicationStatisticsReported) {
     EXPECT_EQ(0L, ReadStatistics("JanksPerMinute2", application.name));
     EXPECT_EQ(0L, ReadStatistics("JanksPercentage2", application.name));
     arc_widget->Close();
+    // aura::Window will be closed asynchronously. Reset the active task here.
+    shell_root_surface_.reset();
   }
 }
 

@@ -19,8 +19,7 @@
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
-#include "chrome/browser/android/bookmarks/partner_bookmarks_shim.h"
-#include "chrome/browser/page_image_service/image_service_factory.h"
+#include "chrome/browser/partnerbookmarks/partner_bookmarks_shim.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/reading_list/android/reading_list_manager.h"
@@ -30,7 +29,6 @@
 #include "components/bookmarks/browser/scoped_group_bookmark_actions.h"
 #include "components/bookmarks/common/android/bookmark_id.h"
 #include "components/bookmarks/managed/managed_bookmark_service.h"
-#include "components/page_image_service/image_service.h"
 #include "components/power_bookmarks/core/power_bookmark_utils.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/reading_list/core/dual_reading_list_model.h"
@@ -40,6 +38,33 @@
 #include "url/android/gurl_android.h"
 
 class BookmarkBridgeTest;
+
+// Values for a bitmask used to refer to a collection of bookmark nodes.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.bookmarks
+// GENERATED_JAVA_IS_FLAG: true
+enum BookmarkNodeMaskBit {
+  NONE = 0,
+
+  // LINT.IfChange(IndividualBits)
+  ACCOUNT_BOOKMARK_BAR = 1,
+  ACCOUNT_MOBILE = 1 << 1,
+  ACCOUNT_OTHER = 1 << 2,
+  ACCOUNT_READING_LIST = 1 << 3,
+  BOOKMARK_BAR = 1 << 4,
+  MANAGED = 1 << 5,
+  MOBILE = 1 << 6,
+  OTHER = 1 << 7,
+  READING_LIST = 1 << 8,
+  // LINT.ThenChange(:AllBits)
+
+  // LINT.IfChange(AllBits)
+  ALL = ACCOUNT_BOOKMARK_BAR | ACCOUNT_MOBILE | ACCOUNT_OTHER |
+        ACCOUNT_READING_LIST | BOOKMARK_BAR | MANAGED | MOBILE | OTHER |
+        READING_LIST,
+  // LINT.ThenChange(:IndividualBits)
+
+  ACCOUNT_AND_LOCAL_BOOKMARK_BAR = ACCOUNT_BOOKMARK_BAR | BOOKMARK_BAR,
+};
 
 // The delegate to fetch bookmarks information for the Android native
 // bookmark page. This fetches the bookmarks, title, urls, folder
@@ -58,7 +83,6 @@ class BookmarkBridge : public ProfileObserver,
   BookmarkBridge(Profile* profile,
                  bookmarks::BookmarkModel* model,
                  bookmarks::ManagedBookmarkService* managed_bookmark_service,
-                 page_image_service::ImageService* image_service,
                  reading_list::DualReadingListModel* dual_reading_list_model,
                  PartnerBookmarksShim* partner_bookmarks_shim,
                  signin::IdentityManager* identity_manager);
@@ -76,17 +100,6 @@ class BookmarkBridge : public ProfileObserver,
       const bookmarks::BookmarkNode* node);
 
   jboolean AreAccountBookmarkFoldersActive(JNIEnv* env);
-
-  void GetImageUrlForBookmark(
-      JNIEnv* env,
-      const GURL& url,
-      bool is_account_bookmark,
-      const base::android::JavaParamRef<jobject>& j_callback);
-
-  void GetImageUrlForBookmarkImpl(
-      const GURL& url,
-      bool is_account_bookmark,
-      page_image_service::ImageService::ResultCallback callback);
 
   base::android::ScopedJavaLocalRef<jobject>
   GetMostRecentlyAddedUserBookmarkIdForUrl(JNIEnv* env, const GURL& url);
@@ -114,10 +127,10 @@ class BookmarkBridge : public ProfileObserver,
 
   void GetTopLevelFolderIds(
       JNIEnv* env,
-      jboolean j_ignore_visibility,
+      jint j_force_visible_mask,
       const base::android::JavaParamRef<jobject>& j_result_obj);
   std::vector<const bookmarks::BookmarkNode*> GetTopLevelFolderIdsImpl(
-      bool ignore_visibility);
+      BookmarkNodeMaskBit force_visible_mask);
   base::android::ScopedJavaLocalRef<jobject> GetRootFolderId(JNIEnv* env);
   base::android::ScopedJavaLocalRef<jobject> GetMobileFolderId(JNIEnv* env);
   base::android::ScopedJavaLocalRef<jobject> GetOtherFolderId(JNIEnv* env);
@@ -158,7 +171,6 @@ class BookmarkBridge : public ProfileObserver,
 
   void ReorderChildren(
       JNIEnv* env,
-
       const base::android::JavaParamRef<jobject>& j_bookmark_id_obj,
       jlongArray arr);
 
@@ -350,6 +362,7 @@ class BookmarkBridge : public ProfileObserver,
   void BookmarkAllUserNodesRemoved(const std::set<GURL>& removed_urls,
                                    const base::Location& location) override;
   void BookmarkNodeChanged(const bookmarks::BookmarkNode* node) override;
+  void BookmarkNodeFaviconChanged(const bookmarks::BookmarkNode* node) override;
   void BookmarkNodeChildrenReordered(
       const bookmarks::BookmarkNode* node) override;
   void ExtensiveBookmarkChangesBeginning() override;
@@ -381,8 +394,6 @@ class BookmarkBridge : public ProfileObserver,
   const raw_ptr<bookmarks::BookmarkModel> bookmark_model_;  // weak
   const raw_ptr<bookmarks::ManagedBookmarkService>
       managed_bookmark_service_;  // weak
-
-  const raw_ptr<page_image_service::ImageService> image_service_;  // weak
   const raw_ptr<reading_list::DualReadingListModel>
       dual_reading_list_model_;  // weak
   const ReadingListManagerImpl::IdGenerationFunction id_gen_func_;

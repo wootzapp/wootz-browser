@@ -7,15 +7,18 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "base/check.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/to_string.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
+#include "components/attribution_reporting/attribution_src_request_status.h"
 #include "components/attribution_reporting/constants.h"
 #include "components/attribution_reporting/registration_eligibility.mojom-shared.h"
 #include "components/attribution_reporting/suitable_origin.h"
@@ -32,8 +35,6 @@
 #include "content/test/test_web_contents.h"
 #include "net/http/http_response_headers.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
-#include "services/network/public/cpp/attribution_reporting_runtime_features.h"
-#include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/attribution.mojom-shared.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -54,6 +55,7 @@ class KeepAliveAttributionRequestHelperTestPeer {
 
 namespace {
 
+using ::attribution_reporting::AttributionSrcRequestStatus;
 using ::attribution_reporting::SuitableOrigin;
 using ::attribution_reporting::mojom::RegistrationEligibility;
 using ::network::mojom::AttributionReportingEligibility;
@@ -82,8 +84,7 @@ class KeepAliveAttributionRequestHelperTest : public RenderViewHostTestHarness {
                 AttributionOsLevelManager::ApiState::kEnabled)) {
     scoped_feature_list_.InitWithFeatures(
         {blink::features::kKeepAliveInBrowserMigration,
-         blink::features::kAttributionReportingInBrowserMigration,
-         network::features::kAttributionReportingCrossAppWeb},
+         blink::features::kAttributionReportingInBrowserMigration},
         {});
   }
 
@@ -133,9 +134,8 @@ class KeepAliveAttributionRequestHelperTest : public RenderViewHostTestHarness {
     auto helper = KeepAliveAttributionRequestHelper::CreateIfNeeded(
         eligibility, reporting_url, attribution_src_token,
         "devtools-request-id",
-        {network::AttributionReportingRuntimeFeature::kCrossAppWeb},
         *AttributionSuitableContext::Create(
-            test_web_contents()->GetPrimaryMainFrame()->GetGlobalId()));
+            test_web_contents()->GetPrimaryMainFrame()));
 
     CHECK(helper);
 
@@ -176,7 +176,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, SingleResponse) {
   headers->SetHeader(kAttributionReportingRegisterSourceHeader,
                      kRegisterSourceJson);
 
-  helper->OnReceiveResponse(headers.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers.get());
 
   // Wait for parsing to complete
   task_environment()->FastForwardBy(base::TimeDelta());
@@ -198,7 +198,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, NavigationSource) {
   auto headers = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers->SetHeader(kAttributionReportingRegisterSourceHeader,
                      kRegisterSourceJson);
-  helper->OnReceiveResponse(headers.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers.get());
 
   task_environment()->FastForwardBy(base::TimeDelta());
 }
@@ -214,7 +214,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, ExtraResponsesAreIgnored) {
   headers_1->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
 
-  helper->OnReceiveResponse(headers_1.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers_1.get());
 
   auto headers_2 = base::MakeRefCounted<net::HttpResponseHeaders>("");
 
@@ -223,7 +223,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, ExtraResponsesAreIgnored) {
   // This a valid response, however the helper processed a response, i.e.,
   // OnReceiveResponse was previously called. As such, this response should be
   // ignored.
-  helper->OnReceiveResponse(headers_2.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers_2.get());
 
   // Wait for parsing to complete
   task_environment()->FastForwardBy(base::TimeDelta());
@@ -241,13 +241,13 @@ TEST_F(KeepAliveAttributionRequestHelperTest,
   auto headers_1 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_1->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
-  helper->OnReceiveResponse(headers_1.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers_1.get());
 
   auto headers_2 = base::MakeRefCounted<net::HttpResponseHeaders>("");
 
   headers_2->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
-  helper->OnReceiveResponse(headers_2.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers_2.get());
 
   // Wait for parsing to complete
   task_environment()->FastForwardBy(base::TimeDelta());
@@ -262,7 +262,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, NoAttributionHeader) {
   auto headers = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers->SetHeader("random-header", kRegisterSourceJson);
 
-  helper->OnReceiveResponse(headers.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers.get());
 
   // Wait for parsing even if none is expected to avoid false positive.
   task_environment()->FastForwardBy(base::TimeDelta());
@@ -285,10 +285,8 @@ TEST_F(KeepAliveAttributionRequestHelperTest, Cleanup) {
                      kRegisterSourceJson);
 
   const auto attempt_to_register_data = [&]() -> bool {
-    return host->NotifyBackgroundRegistrationData(
-        background_id, &(*headers), reporting_url,
-        {network::AttributionReportingRuntimeFeature::kCrossAppWeb},
-        /*trigger_verifications=*/{});
+    return host->NotifyBackgroundRegistrationData(background_id, &(*headers),
+                                                  reporting_url);
   };
 
   // Call twice to show that we can call multiple times to register multiple
@@ -357,47 +355,40 @@ TEST_F(KeepAliveAttributionRequestHelperTest, RedirectChain) {
 
   auto helper = CreateValidHelper(reporting_url_0);
 
-  helper->OnReceiveRedirect(/*headers=*/nullptr, /*trigger_verifications=*/{},
-                            reporting_url_1);
+  helper->OnReceiveRedirect(/*headers=*/nullptr, reporting_url_1);
 
   auto headers_1 = base::MakeRefCounted<net::HttpResponseHeaders>("");
-  helper->OnReceiveRedirect(headers_1.get(), /*trigger_verifications=*/{},
-                            reporting_url_2);
+  helper->OnReceiveRedirect(headers_1.get(), reporting_url_2);
 
   auto headers_2 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_2->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
-  helper->OnReceiveRedirect(headers_2.get(), /*trigger_verifications=*/{},
-                            reporting_url_3);
+  helper->OnReceiveRedirect(headers_2.get(), reporting_url_3);
 
   auto headers_3 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_3->SetHeader(kAttributionReportingRegisterTriggerHeader,
                        kRegisterTriggerJson);
-  helper->OnReceiveRedirect(headers_3.get(),
-                            /*trigger_verifications=*/{}, reporting_url_4);
+  helper->OnReceiveRedirect(headers_3.get(), reporting_url_4);
 
   auto headers_4 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_4->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
-  helper->OnReceiveRedirect(headers_4.get(), /*trigger_verifications=*/{},
-                            reporting_url_5);
+  helper->OnReceiveRedirect(headers_4.get(), reporting_url_5);
 
   auto headers_5 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_5->SetHeader(kAttributionReportingRegisterSourceHeader,
                        kRegisterSourceJson);
-  helper->OnReceiveRedirect(headers_5.get(), /*trigger_verifications=*/{},
-                            reporting_url_6);
+  helper->OnReceiveRedirect(headers_5.get(), reporting_url_6);
 
   auto headers_6 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_6->SetHeader(kAttributionReportingRegisterOsSourceHeader,
                        R"("https://r.test/x")");
-  helper->OnReceiveRedirect(headers_6.get(), /*trigger_verifications=*/{},
-                            reporting_url_7);
+  helper->OnReceiveRedirect(headers_6.get(), reporting_url_7);
 
   auto headers_7 = base::MakeRefCounted<net::HttpResponseHeaders>("");
   headers_7->SetHeader(kAttributionReportingRegisterOsTriggerHeader,
                        R"("https://r.test/x")");
-  helper->OnReceiveResponse(headers_7.get(), /*trigger_verifications=*/{});
+  helper->OnReceiveResponse(headers_7.get());
 
   // Wait for parsing to complete
   task_environment()->FastForwardBy(base::TimeDelta());
@@ -411,7 +402,7 @@ TEST_F(KeepAliveAttributionRequestHelperTest, HelperNotNeeded) {
     test_web_contents()->NavigateAndCommit(source_url);
 
     auto context = AttributionSuitableContext::Create(
-        test_web_contents()->GetPrimaryMainFrame()->GetGlobalId());
+        test_web_contents()->GetPrimaryMainFrame());
     EXPECT_FALSE(context.has_value());
   }
 
@@ -419,12 +410,12 @@ TEST_F(KeepAliveAttributionRequestHelperTest, HelperNotNeeded) {
     const GURL source_url("https://secure.test");
     test_web_contents()->NavigateAndCommit(source_url);
     auto context = AttributionSuitableContext::Create(
-        test_web_contents()->GetPrimaryMainFrame()->GetGlobalId());
+        test_web_contents()->GetPrimaryMainFrame());
     ASSERT_TRUE(context.has_value());
     auto helper = KeepAliveAttributionRequestHelper::CreateIfNeeded(
         AttributionReportingEligibility::kEmpty, reporting_url,
         /*attribution_src_token=*/std::nullopt, "devtools-request-id",
-        network::AttributionReportingRuntimeFeatures(), context.value());
+        context.value());
     EXPECT_EQ(helper, nullptr);
   }
 
@@ -436,12 +427,12 @@ TEST_F(KeepAliveAttributionRequestHelperTest, HelperNotNeeded) {
     test_web_contents()->NavigateAndCommit(source_url);
 
     auto context = AttributionSuitableContext::Create(
-        test_web_contents()->GetPrimaryMainFrame()->GetGlobalId());
+        test_web_contents()->GetPrimaryMainFrame());
     ASSERT_TRUE(context.has_value());
     auto helper = KeepAliveAttributionRequestHelper::CreateIfNeeded(
         AttributionReportingEligibility::kEventSourceOrTrigger, reporting_url,
         /*attribution_src_token=*/std::nullopt, "devtools-request-id",
-        network::AttributionReportingRuntimeFeatures(), context.value());
+        context.value());
     EXPECT_EQ(helper, nullptr);
   }
 }
@@ -501,18 +492,196 @@ TEST_F(KeepAliveAttributionRequestHelperTest, Eligibility) {
     auto headers_0 = base::MakeRefCounted<net::HttpResponseHeaders>("");
     headers_0->SetHeader(kAttributionReportingRegisterSourceHeader,
                          kRegisterSourceJson);
-    helper->OnReceiveRedirect(headers_0.get(), /*trigger_verifications=*/{},
-                              reporting_url_1);
+    helper->OnReceiveRedirect(headers_0.get(), reporting_url_1);
 
     auto headers_1 = base::MakeRefCounted<net::HttpResponseHeaders>("");
     headers_1->SetHeader(kAttributionReportingRegisterTriggerHeader,
                          kRegisterTriggerJson);
-    helper->OnReceiveResponse(headers_1.get(),
-                              /*trigger_verifications=*/{});
+    helper->OnReceiveResponse(headers_1.get());
   }
 
   // Wait for parsing to complete
   task_environment()->FastForwardBy(base::TimeDelta());
+}
+
+TEST_F(KeepAliveAttributionRequestHelperTest, AttributionSrcRequestStatus) {
+  const struct {
+    const char* desc;
+    // Whether the request should be redirected.
+    bool redirect_request;
+    // Whether the request was redirected upon the first redirect.
+    bool second_redirect_request;
+    // Whether the request should succeed.
+    bool make_request_succeed;
+    std::vector<base::Bucket> expected;
+  } kTestCases[] = {
+      {
+          "succeeded",
+          /*redirect_request=*/false,
+          /*second_redirect_request=*/false,
+          /*make_request_succeed=*/true,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kReceived, 1)},
+      },
+      {
+          "failed",
+          /*redirect_request=*/false,
+          /*second_redirect_request=*/false,
+          /*make_request_succeed=*/false,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kFailed, 1)},
+      },
+      {
+          "redirected and succeeded",
+          /*redirect_request=*/true,
+          /*second_redirect_request=*/false,
+          /*make_request_succeed=*/true,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kRedirected, 1),
+           base::Bucket(AttributionSrcRequestStatus::kReceivedAfterRedirected,
+                        1)},
+      },
+      {
+          "redirected and failed",
+          /*redirect_request=*/true,
+          /*second_redirect_request=*/false,
+          /*make_request_succeed=*/false,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kRedirected, 1),
+           base::Bucket(AttributionSrcRequestStatus::kFailedAfterRedirected,
+                        1)},
+      },
+      {
+          "redirected twice and succeeded",
+          /*redirect_request=*/true,
+          /*second_redirect_request=*/true,
+          /*make_request_succeed=*/true,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kRedirected, 1),
+           base::Bucket(AttributionSrcRequestStatus::kReceivedAfterRedirected,
+                        1)},
+      },
+      {
+          "redirected twice and failed",
+          /*redirect_request=*/true,
+          /*second_redirect_request=*/true,
+          /*make_request_succeed=*/false,
+          {base::Bucket(AttributionSrcRequestStatus::kRequested, 1),
+           base::Bucket(AttributionSrcRequestStatus::kRedirected, 1),
+           base::Bucket(AttributionSrcRequestStatus::kFailedAfterRedirected,
+                        1)},
+      },
+  };
+
+  const GURL reporting_url("https://report.test");
+  const GURL redirect_url("https://report.test/redirect");
+
+  constexpr char kAttributionSrcNavigationRequestStatusMetric[] =
+      "Conversions.AttributionSrcRequestStatus.Navigation.Browser";
+
+  for (const bool is_navigation : {false, true}) {
+    SCOPED_TRACE(is_navigation);
+    for (const auto& test_case : kTestCases) {
+      SCOPED_TRACE(test_case.desc);
+
+      base::HistogramTester histograms;
+
+      auto helper = CreateValidHelper(
+          reporting_url,
+          is_navigation
+              ? AttributionReportingEligibility::kNavigationSource
+              : AttributionReportingEligibility::kEventSourceOrTrigger);
+
+      if (test_case.redirect_request) {
+        auto headers = net::HttpResponseHeaders::TryToCreate("");
+        helper->OnReceiveRedirect(headers.get(), redirect_url);
+
+        if (test_case.second_redirect_request) {
+          auto second_headers = net::HttpResponseHeaders::TryToCreate("");
+          helper->OnReceiveRedirect(second_headers.get(), redirect_url);
+        }
+      }
+
+      if (test_case.make_request_succeed) {
+        auto headers = net::HttpResponseHeaders::TryToCreate("");
+        helper->OnReceiveResponse(headers.get());
+      } else {
+        helper->OnError();
+      }
+
+      if (is_navigation) {
+        EXPECT_THAT(histograms.GetAllSamples(
+                        kAttributionSrcNavigationRequestStatusMetric),
+                    base::BucketsAreArray(test_case.expected));
+      } else {
+        histograms.ExpectTotalCount(
+            kAttributionSrcNavigationRequestStatusMetric, 0);
+      }
+    }
+  }
+}
+
+TEST_F(KeepAliveAttributionRequestHelperTest, CreateIfNeeded_MetricRecorded) {
+  const struct {
+    const char* desc;
+    GURL context_url;
+    network::mojom::AttributionReportingEligibility eligibility;
+    std::optional<attribution_reporting::AttributionSrcRequestStatus> expected;
+  } kTestCases[] = {
+      {
+          "insecure-navigation",
+          GURL("http://insecure-source.com"),
+          network::mojom::AttributionReportingEligibility::kNavigationSource,
+          attribution_reporting::AttributionSrcRequestStatus::kDropped,
+      },
+      {
+          "secure-navigation",
+          GURL("https://secure-source.com"),
+          network::mojom::AttributionReportingEligibility::kNavigationSource,
+          attribution_reporting::AttributionSrcRequestStatus::kRequested,
+      },
+      {
+          "insecure-non-navigation",
+          GURL("http://insecure-source.com"),
+          network::mojom::AttributionReportingEligibility::
+              kEventSourceOrTrigger,
+          std::nullopt,
+      },
+      {
+          "secure-non-navigation",
+          GURL("https://secure-source.com"),
+          network::mojom::AttributionReportingEligibility::
+              kEventSourceOrTrigger,
+          std::nullopt,
+      },
+  };
+
+  constexpr char kAttributionSrcNavigationRequestStatusMetric[] =
+      "Conversions.AttributionSrcRequestStatus.Navigation.Browser";
+
+  const GURL reporting_url("https://report.test");
+
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(test_case.desc);
+
+    test_web_contents()->NavigateAndCommit(test_case.context_url);
+    auto context = AttributionSuitableContext::Create(
+        test_web_contents()->GetPrimaryMainFrame());
+
+    base::HistogramTester histograms;
+
+    KeepAliveAttributionRequestHelper::CreateIfNeeded(
+        test_case.eligibility, reporting_url,
+        /*attribution_src_token=*/std::nullopt, "devtools-request-id", context);
+
+    if (test_case.expected.has_value()) {
+      histograms.ExpectUniqueSample(
+          kAttributionSrcNavigationRequestStatusMetric, *test_case.expected, 1);
+    } else {
+      histograms.ExpectTotalCount(kAttributionSrcNavigationRequestStatusMetric,
+                                  0);
+    }
+  }
 }
 
 }  // namespace

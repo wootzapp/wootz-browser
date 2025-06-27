@@ -7,6 +7,9 @@
 #include <stddef.h>
 
 #include "base/containers/contains.h"
+#include "base/containers/flat_set.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -24,7 +27,9 @@
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/signin/public/identity_manager/identity_utils.h"
 #include "content/public/browser/storage_partition.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/image/image.h"
 
@@ -34,32 +39,14 @@ void UpdateAccountsPrefs(
     PrefService& pref_service,
     const signin::IdentityManager& identity_manager,
     const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info) {
-  if (!accounts_in_cookie_jar_info.accounts_are_fresh) {
+  if (!accounts_in_cookie_jar_info.AreAccountsFresh()) {
     return;
   }
 
-  // Get all accounts in Chrome; both signed in and signed out accounts.
-  base::flat_set<SigninPrefs::GaiaId> account_ids_in_chrome;
-  for (const auto& account : accounts_in_cookie_jar_info.signed_in_accounts) {
-    account_ids_in_chrome.insert(account.gaia_id);
-  }
-  for (const auto& account : accounts_in_cookie_jar_info.signed_out_accounts) {
-    account_ids_in_chrome.insert(account.gaia_id);
-  }
+  const base::flat_set<GaiaId> account_ids_in_chrome =
+      signin::GetAllGaiaIdsForKeyedPreferences(&identity_manager,
+                                               accounts_in_cookie_jar_info);
 
-  // If there is a Primary account, also keep it even if it was removed (not in
-  // the cookie jar at all).
-  // Note: Make sure that `primary_account_info` and `account_ids_in_chrome`
-  // have the same lifetime, since `IdentityManager::GetPrimaryAccountInfo()`
-  // returns a copy, and `account_ids_in_chrome` is a set of
-  // `SigninPrefs::GaiaId` which are `std::string_view` (references); in order
-  // for the reference not to outlive the actual string.
-  CoreAccountInfo primary_account_info =
-      identity_manager.GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
-  if (!primary_account_info.IsEmpty()) {
-    // Set will make sure it is not duplicated if already added.
-    account_ids_in_chrome.insert(primary_account_info.gaia);
-  }
   // TODO(b/331767195): In case the prefs are needed for ChromeOS and Android
   // (platforms where the account is tied to the OS) in the future, we would
   // also need to keep the accounts that have an AccountInfo that is still
@@ -67,17 +54,37 @@ void UpdateAccountsPrefs(
   // above checks on cookies and primary account.
 
   SigninPrefs signin_prefs(pref_service);
-  signin_prefs.RemoveAllAccountPrefsExcept(account_ids_in_chrome);
+  size_t removed_count =
+      signin_prefs.RemoveAllAccountPrefsExcept(account_ids_in_chrome);
+
+  if (removed_count > 0) {
+    // There is a maximum of 10 Gaia accounts on the web. If we add the Chrome
+    // primary account, the theoretical maximum count of accounts in the pref is
+    // 11. The histogram function expects the "exclusive maximum" of 11 + 1.
+    constexpr int kExclusiveMaxRemovedCount = 12;
+    constexpr char kAccountsRemovedHistogramName[] =
+        "Signin.AccountPref.RemovedCount";
+    base::UmaHistogramExactLinear(kAccountsRemovedHistogramName, removed_count,
+                                  kExclusiveMaxRemovedCount);
+    std::string variant_histogram_name =
+        identity_manager.HasPrimaryAccount(signin::ConsentLevel::kSignin)
+            ? base::StrCat({kAccountsRemovedHistogramName, ".SignedIn"})
+            : base::StrCat({kAccountsRemovedHistogramName, ".SignedOut"});
+    base::UmaHistogramExactLinear(variant_histogram_name, removed_count,
+                                  kExclusiveMaxRemovedCount);
+  }
 }
 
 }  // namespace
 
 GAIAInfoUpdateService::GAIAInfoUpdateService(
+    Profile* profile,
     signin::IdentityManager* identity_manager,
     ProfileAttributesStorage* profile_attributes_storage,
     PrefService& pref_service,
     const base::FilePath& profile_path)
-    : identity_manager_(identity_manager),
+    : profile_(profile),
+      identity_manager_(identity_manager),
       profile_attributes_storage_(profile_attributes_storage),
       pref_service_(pref_service),
       profile_path_(profile_path) {
@@ -140,8 +147,9 @@ void GAIAInfoUpdateService::UpdatePrimaryAccount(const AccountInfo& info) {
 }
 
 void GAIAInfoUpdateService::UpdateAnyAccount(const AccountInfo& info) {
-  if (!info.IsValid())
+  if (!info.IsValid()) {
     return;
+  }
 
   ProfileAttributesEntry* entry =
       profile_attributes_storage_->GetProfileAttributesWithPath(profile_path_);
@@ -160,11 +168,12 @@ void GAIAInfoUpdateService::ClearProfileEntry() {
   if (!entry) {
     return;
   }
-  gaia_id_of_profile_attribute_entry_ = "";
+  gaia_id_of_profile_attribute_entry_ = GaiaId();
   entry->SetGAIAName(std::u16string());
   entry->SetGAIAGivenName(std::u16string());
   entry->SetGAIAPicture(std::string(), gfx::Image());
   entry->SetHostedDomain(std::string());
+  entry->SetIsGlicEligible(false);
 }
 
 void GAIAInfoUpdateService::Shutdown() {
@@ -218,14 +227,14 @@ void GAIAInfoUpdateService::OnAccountsInCookieUpdated(
   // We can fully regenerate the info about all accounts only when there are no
   // signed-out accounts. This means that for instance clearing cookies will
   // reset the info.
-  if (accounts_in_cookie_jar_info.signed_out_accounts.empty()) {
+  if (accounts_in_cookie_jar_info.GetSignedOutAccounts().empty()) {
     entry->ClearAccountNames();
 
     // Regenerate based on the info from signed-in accounts (if not available
     // now, it will be regenerated soon via OnExtendedAccountInfoUpdated() once
     // downloaded).
     for (gaia::ListedAccount account :
-         accounts_in_cookie_jar_info.signed_in_accounts) {
+         accounts_in_cookie_jar_info.GetPotentiallyInvalidSignedInAccounts()) {
       UpdateAnyAccount(
           identity_manager_->FindExtendedAccountInfoByAccountId(account.id));
     }

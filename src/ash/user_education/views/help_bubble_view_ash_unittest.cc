@@ -12,7 +12,7 @@
 #include "ash/user_education/user_education_util.h"
 #include "ash/user_education/views/help_bubble_view_ash_test_base.h"
 #include "ash/wm/window_util.h"
-#include "components/user_education/common/help_bubble_params.h"
+#include "components/user_education/common/help_bubble/help_bubble_params.h"
 #include "components/vector_icons/vector_icons.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,7 +22,8 @@
 #include "ui/color/color_provider.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
-#include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/vector_icon_types.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/interaction/element_tracker_views.h"
@@ -53,22 +54,12 @@ ui::MouseEvent CreateMouseMovedEvent(aura::Window* target,
                                      const gfx::Point& location_in_screen) {
   gfx::Point location(location_in_screen);
   wm::ConvertPointFromScreen(target, &location);
-  ui::MouseEvent mouse_moved_event(ui::ET_MOUSE_MOVED, location,
+  ui::MouseEvent mouse_moved_event(ui::EventType::kMouseMoved, location,
                                    location_in_screen, ui::EventTimeForNow(),
                                    /*flags=*/ui::EF_NONE,
                                    /*changed_button_flags=*/ui::EF_NONE);
   ui::Event::DispatcherApi(&mouse_moved_event).set_target(target);
   return mouse_moved_event;
-}
-
-std::vector<std::optional<HelpBubbleStyle>> GetHelpBubbleStyles() {
-  std::vector<std::optional<HelpBubbleStyle>> styles;
-  styles.emplace_back(std::nullopt);
-  for (size_t i = static_cast<size_t>(HelpBubbleStyle::kMinValue);
-       i <= static_cast<size_t>(HelpBubbleStyle::kMaxValue); ++i) {
-    styles.emplace_back(static_cast<HelpBubbleStyle>(i));
-  }
-  return styles;
 }
 
 std::vector<gfx::Point> GetPerimeterPoints(const gfx::Rect& rect) {
@@ -89,7 +80,7 @@ using HelpBubbleViewAshTest = HelpBubbleViewAshTestBase;
 
 // Verifies that help bubbles are contained within the correct parent window.
 TEST_F(HelpBubbleViewAshTest, ParentWindow) {
-  auto* const help_bubble_view = CreateHelpBubbleView(HelpBubbleStyle::kDialog);
+  auto* const help_bubble_view = CreateHelpBubbleView();
   EXPECT_TRUE(help_bubble_view->anchor_widget()
                   ->GetNativeWindow()
                   ->GetRootWindow()
@@ -129,12 +120,12 @@ INSTANTIATE_TEST_SUITE_P(
     HelpBubbleViewAshBodyIconTest,
     ::testing::Combine(
         /*body_icon_from_params=*/::testing::Values(
-            std::make_optional(std::cref(gfx::kNoneIcon)),
+            std::make_optional(std::cref(gfx::VectorIcon::EmptyIcon())),
             std::make_optional(std::cref(vector_icons::kCelebrationIcon)),
             std::make_optional(std::cref(vector_icons::kHelpIcon)),
             std::nullopt),
         /*body_icon_from_extended_properties=*/::testing::Values(
-            std::make_optional(std::cref(gfx::kNoneIcon)),
+            std::make_optional(std::cref(gfx::VectorIcon::EmptyIcon())),
             std::make_optional(std::cref(vector_icons::kCelebrationIcon)),
             std::make_optional(std::cref(vector_icons::kHelpIcon)),
             std::nullopt)));
@@ -169,7 +160,7 @@ TEST_P(HelpBubbleViewAshBodyIconTest, BodyIcon) {
   // Cache `expected_body_icon` based on order of precedence.
   const gfx::VectorIcon& expected_body_icon =
       body_icon_from_extended_properties().value_or(
-          body_icon_from_params().value_or(gfx::kNoneIcon));
+          body_icon_from_params().value_or(gfx::VectorIcon::EmptyIcon()));
 
   // Confirm body icon exists iff expected and is configured as expected.
   EXPECT_THAT(
@@ -177,7 +168,7 @@ TEST_P(HelpBubbleViewAshBodyIconTest, BodyIcon) {
           ->GetUniqueViewAs<views::ImageView>(
               HelpBubbleViewAsh::kBodyIconIdForTesting,
               views::ElementTrackerViews::GetContextForView(help_bubble_view)),
-      Conditional(&expected_body_icon != &gfx::kNoneIcon,
+      Conditional(&expected_body_icon != &gfx::VectorIcon::EmptyIcon(),
                   Property(&views::ImageView::GetImageModel,
                            Eq(ui::ImageModel::FromVectorIcon(
                                expected_body_icon,
@@ -185,45 +176,34 @@ TEST_P(HelpBubbleViewAshBodyIconTest, BodyIcon) {
                   IsNull()));
 }
 
-// HelpBubbleViewAshStyleTest --------------------------------------------------
-
-// Base class for tests of `HelpBubbleViewAsh` parameterized by style.
-class HelpBubbleViewAshStyleTest
-    : public HelpBubbleViewAshTestBase,
-      public ::testing::WithParamInterface<std::optional<HelpBubbleStyle>> {
- public:
-  // Returns the help bubble style to use given test parameterization.
-  const std::optional<HelpBubbleStyle>& style() const { return GetParam(); }
-};
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         HelpBubbleViewAshStyleTest,
-                         ::testing::ValuesIn(GetHelpBubbleStyles()));
-
-// Tests -----------------------------------------------------------------------
-
-// Verifies that help bubbles have the appropriate background color given style.
-TEST_P(HelpBubbleViewAshStyleTest, BackgroundColor) {
-  const auto* const help_bubble_view = CreateHelpBubbleView(style());
-  const auto* const color_provider = help_bubble_view->GetColorProvider();
-  EXPECT_THAT(
-      help_bubble_view->color(),
-      Conditional(
-          help_bubble_view->style() == HelpBubbleStyle::kDialog,
-          Eq(color_provider->GetColor(cros_tokens::kCrosSysDialogContainer)),
-          Eq(color_provider->GetColor(cros_tokens::kCrosSysBaseElevated))));
+// Verifies that help bubbles have the appropriate background color.
+TEST_F(HelpBubbleViewAshTest, BackgroundColor) {
+  const auto* const help_bubble_view = CreateHelpBubbleView();
+  EXPECT_EQ(help_bubble_view->background_color(),
+            cros_tokens::kCrosSysDialogContainer);
 }
 
-// Verifies that help bubbles can activate so long as they are not nudge style.
-TEST_P(HelpBubbleViewAshStyleTest, CanActivate) {
-  const auto* const help_bubble_view = CreateHelpBubbleView(style());
-  EXPECT_EQ(help_bubble_view->CanActivate(),
-            help_bubble_view->style() != HelpBubbleStyle::kNudge);
+// Verifies that help bubbles can activate.
+TEST_F(HelpBubbleViewAshTest, CanActivate) {
+  const auto* const help_bubble_view = CreateHelpBubbleView();
+  EXPECT_TRUE(help_bubble_view->CanActivate());
+}
+
+TEST_F(HelpBubbleViewAshTest, RootViewAccessibleName) {
+  auto* const help_bubble_view = CreateHelpBubbleView();
+  ui::AXNodeData root_view_data;
+  help_bubble_view->GetWidget()
+      ->GetRootView()
+      ->GetViewAccessibility()
+      .GetAccessibleNodeData(&root_view_data);
+  EXPECT_EQ(
+      root_view_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+      help_bubble_view->GetAccessibleWindowTitle());
 }
 
 // Verifies that help bubbles do not handle events within their shadows.
-TEST_P(HelpBubbleViewAshStyleTest, HitTest) {
-  auto* const help_bubble_view = CreateHelpBubbleView(style());
+TEST_F(HelpBubbleViewAshTest, HitTest) {
+  auto* const help_bubble_view = CreateHelpBubbleView();
   auto* const help_bubble_widget = help_bubble_view->GetWidget();
   auto* const help_bubble_window = help_bubble_widget->GetNativeWindow();
   auto* const root_window = help_bubble_window->GetRootWindow();
@@ -245,7 +225,7 @@ TEST_P(HelpBubbleViewAshStyleTest, HitTest) {
     // events don't leak through to windows behind it.
     // TODO(http://b/307780200): Possibly remove this when `WindowTargeter` is
     // updated, since it should be tested at that level
-    ui::MouseEvent press(ui::ET_MOUSE_PRESSED, point, point,
+    ui::MouseEvent press(ui::EventType::kMousePressed, point, point,
                          base::TimeTicks::Now(), ui::EF_NONE,
                          ui::EF_LEFT_MOUSE_BUTTON);
     EXPECT_EQ(root_window_targeter->FindTargetForEvent(root_window, &press),
@@ -268,20 +248,12 @@ TEST_P(HelpBubbleViewAshStyleTest, HitTest) {
     // event so it doesn't block events in its shadow.
     // TODO(http://b/307780200): Possibly remove this when `WindowTargeter` is
     // updated, since it should be tested at that level
-    ui::MouseEvent press(ui::ET_MOUSE_PRESSED, point, point,
+    ui::MouseEvent press(ui::EventType::kMousePressed, point, point,
                          base::TimeTicks::Now(), ui::EF_NONE,
                          ui::EF_LEFT_MOUSE_BUTTON);
     EXPECT_NE(root_window_targeter->FindTargetForEvent(root_window, &press),
               help_bubble_window);
   }
-}
-
-// Verifies that style is propagated to the help bubble as expected. Note that
-// if not explicitly provided, style defaults to `HelpBubbleStyle::kDialog`.
-TEST_P(HelpBubbleViewAshStyleTest, Style) {
-  const auto* const help_bubble_view = CreateHelpBubbleView(style());
-  EXPECT_EQ(help_bubble_view->style(),
-            style().value_or(HelpBubbleStyle::kDialog));
 }
 
 }  // namespace ash

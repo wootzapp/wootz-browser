@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/exo/wayland/wayland_dmabuf_feedback_manager.h"
 
 #include <bits/types.h>
@@ -380,8 +385,7 @@ WaylandDmabufFeedbackManager::WaylandDmabufFeedbackManager(Display* display)
     return;
   }
 
-  if (!base::FeatureList::IsEnabled(ash::features::kExoLinuxDmabufV3) &&
-      !base::FeatureList::IsEnabled(ash::features::kExoLinuxDmabufV4)) {
+  if (!base::FeatureList::IsEnabled(ash::features::kExoLinuxDmabufV4)) {
     version_ = ZWP_LINUX_BUFFER_PARAMS_V1_CREATE_IMMED_SINCE_VERSION;
     return;
   }

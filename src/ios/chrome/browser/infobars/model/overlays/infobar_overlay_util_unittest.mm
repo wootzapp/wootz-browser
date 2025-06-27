@@ -6,14 +6,13 @@
 
 #import "ios/chrome/browser/infobars/model/test/fake_infobar_ios.h"
 #import "ios/chrome/browser/overlays/model/public/common/infobars/infobar_overlay_request_config.h"
+#import "ios/chrome/browser/overlays/model/public/overlay_request_config.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request_queue.h"
-#import "ios/chrome/browser/overlays/model/test/overlay_test_macros.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "testing/platform_test.h"
 
 namespace {
-DEFINE_TEST_OVERLAY_REQUEST_CONFIG(NonInfobarConfig);
-
+DEFINE_STATELESS_OVERLAY_REQUEST_CONFIG(NonInfobarConfig);
 }
 
 using InfobarOverlayUtilTest = PlatformTest;
@@ -77,6 +76,7 @@ TEST_F(InfobarOverlayUtilTest, GetInfobarOverlayRequestIndex) {
   FakeInfobarIOS infobar2;
   FakeInfobarIOS infobar4;
 
+  OverlayRequestQueue::CreateForWebState(&web_state);
   OverlayRequestQueue* queue =
       OverlayRequestQueue::FromWebState(&web_state, OverlayModality::kTesting);
   queue->AddRequest(

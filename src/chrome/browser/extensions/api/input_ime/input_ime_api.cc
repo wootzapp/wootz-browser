@@ -43,8 +43,8 @@ ui::KeyEvent ConvertKeyboardEventToUIKeyEvent(
     const input_ime::KeyboardEvent& event) {
   const ui::EventType type =
       event.type == input_ime::KeyboardEventType::kKeydown
-          ? ui::ET_KEY_PRESSED
-          : ui::ET_KEY_RELEASED;
+          ? ui::EventType::kKeyPressed
+          : ui::EventType::kKeyReleased;
 
   const auto key_code = static_cast<ui::KeyboardCode>(
       event.key_code && *event.key_code != ui::VKEY_UNKNOWN
@@ -165,7 +165,7 @@ ExtensionFunction::ResponseAction InputImeSetCompositionFunction::Run() {
                               segments, &error)) {
     base::Value::List results;
     results.Append(false);
-    return RespondNow(ErrorWithArguments(
+    return RespondNow(ErrorWithArgumentsDoNotUse(
         std::move(results), InformativeError(error, static_function_name())));
   }
   return RespondNow(WithArguments(true));
@@ -185,7 +185,7 @@ ExtensionFunction::ResponseAction InputImeCommitTextFunction::Run() {
                           &error)) {
     base::Value::List results;
     results.Append(false);
-    return RespondNow(ErrorWithArguments(
+    return RespondNow(ErrorWithArgumentsDoNotUse(
         std::move(results), InformativeError(error, static_function_name())));
   }
   return RespondNow(WithArguments(true));

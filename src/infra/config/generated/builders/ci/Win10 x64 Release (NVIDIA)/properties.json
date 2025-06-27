@@ -77,7 +77,8 @@
           "builder": "win-rel",
           "group": "tryserver.chromium.win"
         }
-      ]
+      ],
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/Win10 x64 Release (NVIDIA)/targets"
     }
   },
   "$recipe_engine/resultdb/test_presentation": {
@@ -88,6 +89,9 @@
     ]
   },
   "builder_group": "chromium.gpu",
+  "gardener_rotations": [
+    "chromium.gpu"
+  ],
   "recipe": "chromium",
   "sheriff_rotations": [
     "chromium.gpu"

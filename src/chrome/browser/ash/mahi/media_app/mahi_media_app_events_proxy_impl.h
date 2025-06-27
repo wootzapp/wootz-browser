@@ -26,8 +26,9 @@ class MahiMediaAppEventsProxyImpl : public chromeos::MahiMediaAppEventsProxy {
   // chromeos::MahiMediaAppEventsProxy:
   void OnPdfGetFocus(const base::UnguessableToken client_id) override;
   void OnPdfContextMenuShown(const base::UnguessableToken client_id,
-                             const gfx::Rect& anchor_bounds) override;
+                             const gfx::Rect& anchor) override;
   void OnPdfContextMenuHide() override;
+  void OnPdfClosed(const base::UnguessableToken client_id) override;
   void AddObserver(Observer*) override;
   void RemoveObserver(Observer*) override;
 

@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <drm_fourcc.h>
 #include <gbm.h>
 #include <sys/mman.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <vector>
@@ -14,7 +20,6 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/queue.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
 #include "components/exo/wayland/clients/client_base.h"
@@ -99,9 +104,9 @@ class BufferCheckerTestClient : public ::exo::wayland::clients::ClientBase {
       do {
         if (usages_to_test.size() == 0) {
           std::vector<std::string> supported_usage_strings;
-          base::ranges::transform(supported_usages,
-                                  std::back_inserter(supported_usage_strings),
-                                  gfx::BufferUsageToString);
+          std::ranges::transform(supported_usages,
+                                 std::back_inserter(supported_usage_strings),
+                                 gfx::BufferUsageToString);
           LOG(INFO) << "Successfully used buffer with format drm: "
                     << DrmCodeToString(format) << " gfx::BufferFormat: "
                     << DrmCodeToBufferFormatString(format)

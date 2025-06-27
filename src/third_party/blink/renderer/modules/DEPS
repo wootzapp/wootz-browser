@@ -6,6 +6,7 @@ include_rules = [
     "+mojo/public/cpp/base",
     "+mojo/public/cpp/bindings",
     "+mojo/public/cpp/system",
+    "+mojo/public/cpp/test_support",
     "+net/base/net_errors.h",
     "+services/device/public/mojom",
     "+services/network/public/cpp/shared_url_loader_factory.h",
@@ -65,7 +66,7 @@ specific_include_rules = {
     ],
 
     "tcp_writable_stream_wrapper.h": [
-        "+base/allocator/partition_allocator/src/partition_alloc/partition_root.h",
+        "+partition_alloc/partition_root.h",
     ],
     ".*_stream_wrapper.cc": [
         "+net/base/ip_endpoint.h",

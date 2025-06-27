@@ -6,8 +6,8 @@
 
 #include "ash/login/login_screen_controller.h"
 #include "ash/login/ui/login_constants.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
-#include "ash/style/ash_color_id.h"
 #include "ash/wallpaper/wallpaper_controller_impl.h"
 #include "base/logging.h"
 #include "chromeos/constants/chromeos_features.h"
@@ -129,11 +129,8 @@ void LoginBigUserView::OnWallpaperBlurChanged() {
   } else {
     SetPaintToLayer();
     layer()->SetFillsBoundsOpaquely(false);
-    const ui::ColorId background_color_id =
-        chromeos::features::IsJellyEnabled()
-            ? static_cast<ui::ColorId>(cros_tokens::kCrosSysScrim2)
-            : kColorAshShieldAndBase80;
-    SetBackground(views::CreateThemedRoundedRectBackground(
+    const ui::ColorId background_color_id = cros_tokens::kCrosSysScrim2;
+    SetBackground(views::CreateRoundedRectBackground(
         background_color_id, login::kNonBlurredWallpaperBackgroundRadiusDp, 0));
   }
 }
@@ -145,7 +142,7 @@ void LoginBigUserView::CreateAuthUser(const LoginUserInfo& user) {
   auth_user_ = new LoginAuthUserView(user, auth_user_callbacks_);
   delete public_account_;
   public_account_ = nullptr;
-  AddChildView(auth_user_.get());
+  AddChildViewRaw(auth_user_.get());
 }
 
 void LoginBigUserView::CreatePublicAccount(const LoginUserInfo& user) {
@@ -156,7 +153,7 @@ void LoginBigUserView::CreatePublicAccount(const LoginUserInfo& user) {
       new LoginPublicAccountUserView(user, public_account_callbacks_);
   delete auth_user_;
   auth_user_ = nullptr;
-  AddChildView(public_account_.get());
+  AddChildViewRaw(public_account_.get());
 }
 
 BEGIN_METADATA(LoginBigUserView)

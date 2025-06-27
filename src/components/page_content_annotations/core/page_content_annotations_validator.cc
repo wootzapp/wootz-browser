@@ -4,6 +4,8 @@
 
 #include "components/page_content_annotations/core/page_content_annotations_validator.h"
 
+#include <array>
+
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -27,12 +29,12 @@ namespace page_content_annotations {
 
 namespace {
 
-const char* kRandomNouns[] = {
+auto kRandomNouns = std::to_array<const char*>({
     "Airplane", "Boat",       "Book",          "Dinosaur",   "Earth",
     "Football", "Fork",       "Hummingbird",   "Magic Wand", "Mailbox",
     "Molecule", "Pizza",      "Record Player", "Skeleton",   "Soda",
     "Sphere",   "Strawberry", "Tiger",         "Turkey",     "Wolf",
-};
+});
 const size_t kCountRandomNouns = 20;
 
 void LogLinesToFileOnBackgroundSequence(const base::FilePath& path,
@@ -81,11 +83,8 @@ bool PageContentAnnotationValidationEnabledForType(AnnotationType type) {
       return cmd->HasSwitch(
           switches::kPageContentAnnotationsValidationContentVisibility);
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
-
-  return false;
 }
 
 // Returns a set on inputs to run the validation on for the given |type|,

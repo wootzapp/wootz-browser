@@ -26,7 +26,6 @@
 #include "content/public/browser/service_worker_external_request_result.h"
 #include "content/public/browser/service_worker_external_request_timeout_type.h"
 #include "extensions/browser/activity.h"
-#include "extensions/browser/event_page_tracker.h"
 #include "extensions/browser/extension_host_observer.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/service_worker/worker_id.h"
@@ -55,7 +54,6 @@ class ProcessManagerObserver;
 // track of split-mode extensions only.
 class ProcessManager : public KeyedService,
                        public ExtensionRegistryObserver,
-                       public EventPageTracker,
                        public content::DevToolsAgentHostObserver,
                        public content::RenderProcessHostObserver,
                        public ExtensionHostObserver {
@@ -83,6 +81,17 @@ class ProcessManager : public KeyedService,
 
   static ProcessManager* Get(content::BrowserContext* context);
 
+  // Creates a new ProcessManager for the given `context`. This is independent
+  // from the constructor below as it may construct an incognito version of the
+  // ProcessManager.
+  // Note: Most callers should use `ProcessManager::Get()` instead to retrieve
+  // the ProcessManager for a given context.
+  static std::unique_ptr<ProcessManager> Create(
+      content::BrowserContext* context);
+
+  ProcessManager(content::BrowserContext* context,
+                 ExtensionRegistry* registry);
+
   ProcessManager(const ProcessManager&) = delete;
   ProcessManager& operator=(const ProcessManager&) = delete;
 
@@ -91,17 +100,17 @@ class ProcessManager : public KeyedService,
   // KeyedService support:
   void Shutdown() override;
 
-  void RegisterRenderFrameHost(content::WebContents* web_contents,
-                               content::RenderFrameHost* render_frame_host,
+  void RegisterRenderFrameHost(content::RenderFrameHost* render_frame_host,
                                const Extension* extension);
   void UnregisterRenderFrameHost(content::RenderFrameHost* render_frame_host);
 
-  // Registers or unregisters (if it exists) a running worker state to this
-  // process manager. Note: This does not create any Service Workers.
-  void RegisterServiceWorker(const WorkerId& worker_id);
-  void UnregisterServiceWorker(const WorkerId& worker_id);
-  void UnregisterServiceWorker(const ExtensionId& extension_id,
-                               int64_t worker_version_id);
+  // Starts tracking or stops tracking (if it's already being tracked) a running
+  // worker to this process manager. Note: This does not create any Service
+  // Workers.
+  void StartTrackingServiceWorkerRunningInstance(const WorkerId& worker_id);
+  void StopTrackingServiceWorkerRunningInstance(const WorkerId& worker_id);
+  void StopTrackingServiceWorkerRunningInstance(const ExtensionId& extension_id,
+                                                int64_t worker_version_id);
 
   // Returns the SiteInstance that the given URL belongs to.
   // NOTE: Usage of this method is potentially error-prone. An extension can
@@ -109,6 +118,7 @@ class ProcessManager : public KeyedService,
   // extension with non-cross-origin-isolated contexts).
   // TODO(aa): This only returns correct results for extensions and packaged
   // apps, not hosted apps.
+  // TODO(https://crbug.com/334991035): Remove this method.
   virtual scoped_refptr<content::SiteInstance> GetSiteInstanceForURL(
       const GURL& url);
 
@@ -222,10 +232,17 @@ class ProcessManager : public KeyedService,
   // Called on shutdown to close our extension hosts.
   void CloseBackgroundHosts();
 
-  // EventPageTracker implementation.
-  bool IsEventPageSuspended(const ExtensionId& extension_id) override;
+  // Wakes an extension's event page from a suspended state and calls
+  // `callback` after it is reactivated.
+  //
+  // `callback` will be passed true if the extension was reactivated
+  // successfully, or false if an error occurred.
+  //
+  // Returns true if a wake operation was scheduled successfully,
+  // or false if the event page was already awake.
+  // Callback will be run asynchronously if true, and never run if false.
   bool WakeEventPage(const ExtensionId& extension_id,
-                     base::OnceCallback<void(bool)> callback) override;
+                     base::OnceCallback<void(bool)> callback);
 
   // Sets the time in milliseconds that an extension event page can
   // be idle before it is shut down; must be > 0.
@@ -236,18 +253,6 @@ class ProcessManager : public KeyedService,
   // happening.
   static void SetEventPageSuspendingTimeForTesting(
       unsigned suspending_time_msec);
-
-  // Creates a non-incognito instance for tests. |registry| allows unit tests
-  // to inject an ExtensionRegistry that is not managed by the usual
-  // BrowserContextKeyedServiceFactory system.
-  static ProcessManager* CreateForTesting(content::BrowserContext* context,
-                                          ExtensionRegistry* registry);
-
-  // Creates an incognito-context instance for tests.
-  static ProcessManager* CreateIncognitoForTesting(
-      content::BrowserContext* incognito_context,
-      content::BrowserContext* original_context,
-      ExtensionRegistry* registry);
 
   content::BrowserContext* browser_context() const { return browser_context_; }
 
@@ -283,22 +288,10 @@ class ProcessManager : public KeyedService,
   std::vector<WorkerId> GetAllWorkersIdsForTesting();
 
  protected:
-  static ProcessManager* Create(content::BrowserContext* context);
-
-  // |context| is incognito pass the original context as |original_context|.
-  // Otherwise pass the same context for both. Pass the ExtensionRegistry for
-  // |context| as |registry|, or override it for testing.
-  ProcessManager(content::BrowserContext* context,
-                 content::BrowserContext* original_context,
-                 ExtensionRegistry* registry);
-
   // Not owned. Also used by IncognitoProcessManager.
   raw_ptr<ExtensionRegistry> extension_registry_;
 
  private:
-  friend class ProcessManagerFactory;
-  friend class ProcessManagerTest;
-
   // ExtensionRegistryObserver:
   void OnExtensionLoaded(content::BrowserContext* browser_context,
                          const Extension* extension) override;
@@ -386,9 +379,11 @@ class ProcessManager : public KeyedService,
   // A SiteInstance related to the SiteInstance for all extensions in
   // this profile.  We create it in such a way that a new
   // browsing instance is created.  This controls process grouping.
+  // TODO(https://crbug.com/334991035): Remove this member. The //content
+  // layer will properly isolate new extension processes.
   scoped_refptr<content::SiteInstance> site_instance_;
 
-  // The browser context associated with the |site_instance_|.
+  // The browser context associated with the ProcessManager.
   raw_ptr<content::BrowserContext> browser_context_;
 
   // Contains all active extension-related RenderFrameHost instances for all
@@ -396,9 +391,9 @@ class ProcessManager : public KeyedService,
   // information is not accessible at registration/deregistration time.
   ExtensionRenderFrames all_extension_frames_;
 
-  // Contains all active extension Service Worker information for all
+  // Contains all active running extension Service Worker information for all
   // extensions.
-  WorkerIdSet all_extension_workers_;
+  WorkerIdSet all_running_extension_workers_;
   // Maps worker IDs to extension context IDs (as used in the runtime API) for
   // running workers.
   std::map<WorkerId, base::Uuid> worker_context_ids_;
@@ -430,7 +425,8 @@ class ProcessManager : public KeyedService,
   // extension URLRequest is constructed and then destroyed without ever
   // starting, we can receive a completion notification without a corresponding
   // start notification. In that case we want to avoid decrementing keepalive.
-  std::map<int, ExtensionHost*> pending_network_requests_;
+  std::map<int, raw_ptr<ExtensionHost, CtnExperimental>>
+      pending_network_requests_;
 
   // Observers of Service Worker RPH this ProcessManager manages.
   base::ScopedMultiSourceObservation<content::RenderProcessHost,

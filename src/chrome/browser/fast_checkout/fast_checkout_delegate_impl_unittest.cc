@@ -12,13 +12,15 @@
 #include "components/autofill/content/browser/test_autofill_manager_injector.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
 #include "components/autofill/content/browser/test_content_autofill_driver.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/test_browser_autofill_manager.h"
-#include "components/autofill/core/browser/test_personal_data_manager.h"
-#include "components/autofill/core/browser/ui/mock_fast_checkout_client.h"
+#include "components/autofill/core/browser/data_manager/test_personal_data_manager.h"
+#include "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
+#include "components/autofill/core/browser/integrators/fast_checkout/mock_fast_checkout_client.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/unified_consent/pref_names.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+namespace {
 
 using ::autofill::FastCheckoutTriggerOutcome;
 using ::autofill::test::CreateTestAddressFormData;
@@ -85,7 +87,7 @@ TEST_F(FastCheckoutDelegateImplTest, HideFastCheckoutWhenNotShowing) {
 
 TEST_F(FastCheckoutDelegateImplTest, IntendsToShowFastCheckout) {
   autofill::FormData form = CreateTestAddressFormData();
-  autofill::FormFieldData& field = form.fields[0];
+  const autofill::FormFieldData& field = form.fields()[0];
   autofill::FormFieldData non_seen_field = autofill::test::CreateTestFormField(
       "First Name", "firstname", "", autofill::FormControlType::kInputText);
   autofill_manager()->OnFormsSeen(
@@ -106,7 +108,7 @@ TEST_F(FastCheckoutDelegateImplTest, IntendsToShowFastCheckout) {
 TEST_F(FastCheckoutDelegateImplTest,
        RecordsFastCheckoutTriggerOutcomeMetricIfNotSupported) {
   autofill::FormData form = CreateTestAddressFormData();
-  autofill::FormFieldData& field = form.fields[0];
+  const autofill::FormFieldData& field = form.fields()[0];
   autofill_manager()->OnFormsSeen(
       /*updated_forms=*/{form},
       /*removed_forms=*/{});
@@ -129,3 +131,5 @@ TEST_F(FastCheckoutDelegateImplTest,
       kUmaKeyFastCheckoutTriggerOutcome,
       FastCheckoutTriggerOutcome::kFailureFieldNotEmpty, 1u);
 }
+
+}  // namespace

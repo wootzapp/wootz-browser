@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/base/clipboard/clipboard_util_win.h"
 
 #include <shellapi.h>
 #include <wininet.h>  // For INTERNET_MAX_URL_LENGTH.
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -15,7 +21,6 @@
 
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -105,11 +110,11 @@ void SplitUrlAndTitle(const std::u16string& str,
 bool ContainsFilePathCaseInsensitive(
     const std::vector<base::FilePath>& existing_filenames,
     const base::FilePath& candidate_path) {
-  return base::ranges::any_of(existing_filenames,
-                              [&candidate_path](const base::FilePath& elem) {
-                                return base::FilePath::CompareEqualIgnoreCase(
-                                    elem.value(), candidate_path.value());
-                              });
+  return std::ranges::any_of(existing_filenames,
+                             [&candidate_path](const base::FilePath& elem) {
+                               return base::FilePath::CompareEqualIgnoreCase(
+                                   elem.value(), candidate_path.value());
+                             });
 }
 
 // Returns a unique display name for a virtual file, as it is possible that the
@@ -239,6 +244,10 @@ WriteAllFileContentsToTempFiles(
   for (size_t i = 0; i < display_names.size(); i++) {
     base::FilePath temp_path = WriteFileContentsToTempFile(
         display_names[i], memory_backed_contents[i]);
+    // Ignore file if write failed.
+    if (temp_path.empty()) {
+      continue;
+    }
 
     filepaths_and_names.push_back({temp_path, display_names[i]});
   }
@@ -782,6 +791,11 @@ bool GetFileContents(IDataObject* data_object,
     if (TYMED_HGLOBAL == content.tymed) {
       base::win::ScopedHGlobal<char*> data(content.hGlobal);
       file_contents->assign(data.data(), data.size());
+    } else if (TYMED_ISTREAM == content.tymed) {
+      // For example, files dragged out of a ZIP Folder.
+      HGLOBAL hdata = CopyFileContentsToHGlobal(data_object, 0);
+      base::win::ScopedHGlobal<char*> data(hdata);
+      file_contents->assign(data.data(), data.size());
     }
     ReleaseStgMedium(&content);
   }
@@ -804,16 +818,18 @@ bool GetFileContents(IDataObject* data_object,
   return false;
 }
 
-bool GetWebCustomData(
+bool GetDataTransferCustomData(
     IDataObject* data_object,
     std::unordered_map<std::u16string, std::u16string>* custom_data) {
   DCHECK(data_object && custom_data);
 
-  if (!HasData(data_object, ClipboardFormatType::WebCustomDataType()))
+  if (!HasData(data_object, ClipboardFormatType::DataTransferCustomType())) {
     return false;
+  }
 
   STGMEDIUM store;
-  if (GetData(data_object, ClipboardFormatType::WebCustomDataType(), &store)) {
+  if (GetData(data_object, ClipboardFormatType::DataTransferCustomType(),
+              &store)) {
     {
       base::win::ScopedHGlobal<const uint8_t*> data(store.hGlobal);
       if (std::optional<std::unordered_map<std::u16string, std::u16string>>

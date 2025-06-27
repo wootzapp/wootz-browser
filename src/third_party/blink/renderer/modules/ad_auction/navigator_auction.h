@@ -89,8 +89,8 @@ class MODULES_EXPORT NavigatorAuction final
 
   ScriptPromise<IDLUndefined> clearOriginJoinedAdInterestGroups(
       ScriptState*,
-      const String,
-      const Vector<String>,
+      const String&,
+      Vector<String>,
       ExceptionState&);
   static ScriptPromise<IDLUndefined> clearOriginJoinedAdInterestGroups(
       ScriptState*,
@@ -265,9 +265,6 @@ class MODULES_EXPORT NavigatorAuction final
                      ScriptPromiseResolver<IDLUndefined>* resolver,
                      bool failed_well_known_check);
 
-  // Completion callback for createAuctionNonce() Mojo call.
-  void CreateAuctionNonceComplete(ScriptPromiseResolver<IDLString>*,
-                                  const base::Uuid& nonce);
   // Completion callback for createAdRequest() Mojo call.
   void AdsRequested(ScriptPromiseResolver<Ads>* resolver,
                     const WTF::String& ads_guid);
@@ -282,10 +279,10 @@ class MODULES_EXPORT NavigatorAuction final
 
   void GetInterestGroupAdAuctionDataComplete(
       base::TimeTicks start_time,
+      bool is_single_seller,
       ScriptPromiseResolver<AdAuctionData>* resolver,
-      mojo_base::BigBuffer request,
-      const std::optional<base::Uuid>& request_id,
-      const WTF::String& error_message);
+      Vector<mojom::blink::AdAuctionPerSellerRequestPtr> requests,
+      const std::optional<base::Uuid>& request_id);
 
   // Manage queues of cross-site join and leave operations that have yet to be
   // sent to the browser process.
@@ -294,10 +291,9 @@ class MODULES_EXPORT NavigatorAuction final
   JoinLeaveQueue<PendingClear> queued_cross_site_clears_;
 
   // The next available auction nonce suffix, used alongside the
-  // base_auction_nonce provided by the Browser process to create unique auction
-  // nonces when createAuctionNonce is called and
-  // FledgeCreateAuctionNonceSynchronousResolution is enabled. Though this
-  // counter has 32 bits, only the least significant 24 bits are used.
+  // `base_auction_nonce` provided by the Browser process to create unique
+  // auction nonces when createAuctionNonce. Though this counter has 32 bits,
+  // only the least significant 24 bits are used.
   uint32_t auction_nonce_counter_ = 0;
 
   HeapMojoRemote<mojom::blink::AdAuctionService> ad_auction_service_;

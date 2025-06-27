@@ -8,19 +8,19 @@
  * allow users to customize the remapped key.
  */
 
-import '/shared/settings/prefs/prefs.js';
 import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../settings_shared.css.js';
 import '../controls/settings_dropdown_menu.js';
 import '../os_settings_icons.html.js';
+import 'chrome://resources/ash/common/shortcut_input_ui/icons.html.js';
 
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {assertNotReached} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
+import type {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
+import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
 
 import {MetaKey, ModifierKey} from './input_device_settings_types.js';
 import {getTemplate} from './keyboard_remap_modifier_key_row.html.js';
@@ -33,7 +33,9 @@ enum KeyState {
   MODIFIER_REMAPPED = 'modifier-remapped',
 }
 
-type KeyIcon = 'cr:search'|'os-settings:launcher'|'os-settings:assistant'|'';
+type KeyIcon = 'cr:search'|'os-settings:launcher'|'os-settings:assistant'|
+    'shortcut-input-keys:launcher-refresh'|'shortcut-input-keys:quick-insert'|
+    '';
 const KeyboardRemapModifierKeyRowElementBase = I18nMixin(PolymerElement);
 
 export class KeyboardRemapModifierKeyRowElement extends
@@ -111,6 +113,7 @@ export class KeyboardRemapModifierKeyRowElement extends
   metaKey: MetaKey;
   key: ModifierKey;
   defaultRemappings: {[key: number]: ModifierKey};
+  removeTopBorder: boolean;
 
   override ready(): void {
     super.ready();
@@ -146,6 +149,7 @@ export class KeyboardRemapModifierKeyRowElement extends
       // Launcher and Search key will display icon instead of text.
       case MetaKey.kLauncher:
       case MetaKey.kSearch:
+      case MetaKey.kLauncherRefresh:
         return this.i18n('perDeviceKeyboardKeySearch');
     }
   }
@@ -176,8 +180,8 @@ export class KeyboardRemapModifierKeyRowElement extends
       case ModifierKey.kMeta: {
         return this.getMetaKeyLabel();
       }
-      case ModifierKey.kRightAlt: {
-        return this.i18n('perDeviceKeyboardKeyRightAlt');
+      case ModifierKey.kQuickInsert: {
+        return this.i18n('perDeviceKeyboardKeyQuickInsert');
       }
       case ModifierKey.kFunction: {
         return this.i18n('perDeviceKeyboardKeyFunction');
@@ -223,8 +227,8 @@ export class KeyboardRemapModifierKeyRowElement extends
 
       if (loadTimeData.getBoolean('enableModifierSplit')) {
         keyMapTargets.push({
-          value: ModifierKey.kRightAlt,
-          name: this.i18n('perDeviceKeyboardKeyRightAlt'),
+          value: ModifierKey.kQuickInsert,
+          name: this.i18n('perDeviceKeyboardKeyQuickInsert'),
         });
       }
 
@@ -253,8 +257,13 @@ export class KeyboardRemapModifierKeyRowElement extends
       if (this.metaKey === MetaKey.kLauncher) {
         return 'os-settings:launcher';
       }
+      if (this.metaKey === MetaKey.kLauncherRefresh) {
+        return 'shortcut-input-keys:launcher-refresh';
+      }
     } else if (this.key === ModifierKey.kAssistant) {
       return 'os-settings:assistant';
+    } else if (this.key === ModifierKey.kQuickInsert) {
+      return 'shortcut-input-keys:quick-insert';
     }
 
     return '';

@@ -12,6 +12,24 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "third_party/blink/public/common/service_worker/embedded_worker_status.h"
 #include "third_party/blink/public/common/service_worker/service_worker_router_rule.h"
+#include "third_party/blink/public/mojom/service_worker/service_worker.mojom.h"
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum class ServiceWorkerRouterEvaluatorErrorEnums {
+  kNoError = 0,
+  kInvalidType = 1,
+  kParseError = 2,
+  kCompileError = 3,
+  kEmptyCondition = 4,
+  kEmptySource = 5,
+  kInvalidSource = 6,
+  kInvalidCondition = 7,
+  kExceedMaxConditionDepth = 8,
+  kExceedMaxRouterSize = 9,
+  kFetchSourceWithoutFetchHandler = 10,
+  kMaxValue = kFetchSourceWithoutFetchHandler,
+};
 
 namespace content {
 
@@ -44,7 +62,7 @@ class CONTENT_EXPORT ServiceWorkerRouterEvaluator {
 
   const blink::ServiceWorkerRouterRules& rules() const { return rules_; }
   bool need_running_status() const { return need_running_status_; }
-  bool has_fetch_event_source() const { return has_fetch_event_source_; }
+  bool require_fetch_handler() const { return require_fetch_handler_; }
   bool has_non_fetch_event_source() const {
     return has_non_fetch_event_source_;
   }
@@ -53,6 +71,10 @@ class CONTENT_EXPORT ServiceWorkerRouterEvaluator {
   std::string ToString() const;
   void RecordRouterRuleInfo() const;
   std::tuple<size_t, size_t> GetMaxDepthAndWidth() const;
+  const std::optional<ServiceWorkerRouterEvaluatorErrorEnums>&
+  invalid_error_code() const {
+    return invalid_error_code_;
+  }
 
  private:
   class RouterRule;
@@ -65,8 +87,9 @@ class CONTENT_EXPORT ServiceWorkerRouterEvaluator {
   std::vector<std::unique_ptr<RouterRule>> compiled_rules_;
   bool is_valid_ = false;
   bool need_running_status_ = false;
-  bool has_fetch_event_source_ = false;
+  bool require_fetch_handler_ = false;
   bool has_non_fetch_event_source_ = false;
+  std::optional<ServiceWorkerRouterEvaluatorErrorEnums> invalid_error_code_;
 };
 
 }  // namespace content

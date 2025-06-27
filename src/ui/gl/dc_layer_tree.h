@@ -16,8 +16,10 @@
 #include "base/check_is_test.h"
 #include "base/containers/flat_map.h"
 #include "base/moving_window.h"
+#include "base/types/expected.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/gfx/overlay_layer_id.h"
 #include "ui/gl/dc_layer_overlay_params.h"
 #include "ui/gl/delegated_ink_point_renderer_gpu.h"
 #include "ui/gl/gl_export.h"
@@ -32,10 +34,28 @@ class DelegatedInkMetadata;
 
 namespace gl {
 
-class SwapChainPresenter;
+struct CommitError {
+  // The source of the commit error. This should correspond with exactly one
+  // place in code to make identifying the cause of errors easier.
+  enum class Reason {
+    kUnknown,
+    kIDCompositionDeviceCommit,
+    kPresentToSwapChain,
+    kSolidColorSurfacePoolCreateSurface,
+    kSolidColorSurfaceBeginDraw,
+    kSolidColorSurfaceEndDraw,
+    kSolidColorSurfaceCreateRenderTargetView,
+  };
 
-inline constexpr int kNumVideoProcessorTypes = 2;
-enum class VideoProcessorType : int { kSDR = 0, kHDR = 1 };
+  Reason reason = Reason::kUnknown;
+
+  // If set, the error was caused by a Windows API and this is the HRESULT. If
+  // not set, the error was not caused by a Windows API or we did not explicitly
+  // copy out the failing HRESULT for the given `reason`.
+  std::optional<HRESULT> hr;
+};
+
+class SwapChainPresenter;
 
 // Cache video processor and its size.
 struct VideoProcessorWrapper {
@@ -107,7 +127,8 @@ class SolidColorSurfacePool final {
   // to be scaled by |color.fA|. Its contents are only valid until the next
   // |TrimAfterCommit| call, since surfaces can be reused (and recolored) on
   // subsequent frames.
-  IDCompositionSurface* GetSolidColorSurface(const SkColor4f& color);
+  base::expected<IDCompositionSurface*, CommitError> GetSolidColorSurface(
+      const SkColor4f& color);
 
   // Clean up any unused resources in the pool after DComp commit.
   void TrimAfterCommit();
@@ -162,8 +183,8 @@ class GL_EXPORT DCLayerTree {
 
   // Present overlay layers, and perform a direct composition commit if
   // necessary. Returns true if presentation and commit succeeded.
-  bool CommitAndClearPendingOverlays(
-      std::vector<std::unique_ptr<DCLayerOverlayParams>> overlays);
+  base::expected<void, CommitError> CommitAndClearPendingOverlays(
+      std::vector<DCLayerOverlayParams> overlays);
 
   // Called by SwapChainPresenter to initialize video processor that can handle
   // at least given input and output size.  The video processor is shared across
@@ -198,38 +219,21 @@ class GL_EXPORT DCLayerTree {
   Microsoft::WRL::ComPtr<IDXGISwapChain1> GetLayerSwapChainForTesting(
       size_t index) const;
 
-  void GetSwapChainVisualInfoForTesting(size_t index,
-                                        gfx::Transform* transform,
-                                        gfx::Point* offset,
-                                        gfx::Rect* clip_rect) const;
-
-  size_t GetSwapChainPresenterCountForTesting() const {
-    CHECK_IS_TEST();
-    return video_swap_chains_.size();
-  }
-
-  size_t GetDcompLayerCountForTesting() const {
-    CHECK_IS_TEST();
-    return visual_tree_ ? visual_tree_->GetDcompLayerCountForTesting() : 0;
-  }
-  IDCompositionVisual2* GetContentVisualForTesting(size_t index) const {
-    CHECK_IS_TEST();
-    return visual_tree_ ? visual_tree_->GetContentVisualForTesting(index)
-                        : nullptr;
-  }
+  void GetSwapChainVisualInfoForTesting(const gfx::OverlayLayerId& layer_id,
+                                        gfx::Transform* out_transform,
+                                        gfx::Point* out_offset,
+                                        gfx::Rect* out_clip_rect) const;
+  size_t GetSwapChainPresenterCountForTesting() const;
+  size_t GetDcompLayerCountForTesting() const;
+  IDCompositionVisual2* GetContentVisualForTesting(
+      const gfx::OverlayLayerId& layer_id) const;
   IDCompositionSurface* GetBackgroundColorSurfaceForTesting(
-      size_t index) const {
-    CHECK_IS_TEST();
-    return visual_tree_
-               ? visual_tree_->GetBackgroundColorSurfaceForTesting(index)
-               : nullptr;
-  }
+      const gfx::OverlayLayerId& layer_id) const;
   size_t GetNumSurfacesInPoolForTesting() const;
 #if DCHECK_IS_ON()
-  bool GetAttachedToRootFromPreviousFrameForTesting(size_t index) const;
+  bool DcompVisualContentChangedFromPreviousFrameForTesting(
+      const gfx::OverlayLayerId& layer_id) const;
 #endif  // DCHECK_IS_ON()
-
-  void SetFrameRate(float frame_rate);
 
   const std::unique_ptr<HDRMetadataHelperWin>& GetHDRMetadataHelper() {
     return hdr_metadata_helper_;
@@ -263,32 +267,21 @@ class GL_EXPORT DCLayerTree {
     ~VisualTree();
     // Given overlays, builds or updates this visual tree.
     // Returns true if commit succeeded.
-    bool BuildTree(
-        const std::vector<std::unique_ptr<DCLayerOverlayParams>>& overlays);
+    base::expected<void, CommitError> BuildTree(
+        const std::vector<DCLayerOverlayParams>& overlays);
 
-    void GetSwapChainVisualInfoForTesting(size_t index,
-                                          gfx::Transform* transform,
-                                          gfx::Point* offset,
-                                          gfx::Rect* clip_rect) const;
-    size_t GetDcompLayerCountForTesting() const {
-      CHECK_IS_TEST();
-      return visual_subtrees_.size();
-    }
-    IDCompositionVisual2* GetContentVisualForTesting(size_t index) const {
-      CHECK_IS_TEST();
-      return visual_subtrees_[index]->content_visual();
-    }
+    void GetSwapChainVisualInfoForTesting(const gfx::OverlayLayerId& layer_id,
+                                          gfx::Transform* out_transform,
+                                          gfx::Point* out_offset,
+                                          gfx::Rect* out_clip_rect) const;
+    size_t GetDcompLayerCountForTesting() const;
+    IDCompositionVisual2* GetContentVisualForTesting(
+        const gfx::OverlayLayerId& layer_id) const;
     IDCompositionSurface* GetBackgroundColorSurfaceForTesting(
-        size_t index) const {
-      CHECK_IS_TEST();
-      return visual_subtrees_[index]->background_color_surface_for_testing();
-    }
+        const gfx::OverlayLayerId& layer_id) const;
 #if DCHECK_IS_ON()
-    bool GetAttachedToRootFromPreviousFrameForTesting(size_t index) const {
-      CHECK_IS_TEST();
-      return visual_subtrees_[index]
-          ->GetAttachedToRootFromPreviousFrameForTesting();
-    }
+    bool DcompVisualContentChangedFromPreviousFrameForTesting(
+        const gfx::OverlayLayerId& layer_id) const;
 #endif  // DCHECK_IS_ON()
     // Maps the visual content to its corresponding subtree index.
     // This is used to find matching subtrees from the previous frame
@@ -323,7 +316,8 @@ class GL_EXPORT DCLayerTree {
           const gfx::Transform& quad_to_root_transform,
           const gfx::RRectF& rounded_corner_bounds,
           float opacity,
-          const std::optional<gfx::Rect>& clip_rect_in_root);
+          const std::optional<gfx::Rect>& clip_rect_in_root,
+          bool allow_antialiasing);
 
       IDCompositionVisual2* container_visual() const {
         return clip_visual_.Get();
@@ -338,13 +332,13 @@ class GL_EXPORT DCLayerTree {
         CHECK_IS_TEST();
         return background_color_surface_.Get();
       }
-      void GetSwapChainVisualInfoForTesting(gfx::Transform* transform,
-                                            gfx::Point* offset,
-                                            gfx::Rect* clip_rect) const;
+      void GetSwapChainVisualInfoForTesting(gfx::Transform* out_transform,
+                                            gfx::Point* out_offset,
+                                            gfx::Rect* out_clip_rect) const;
 #if DCHECK_IS_ON()
-      bool GetAttachedToRootFromPreviousFrameForTesting() const {
+      bool DcompVisualContentChangedFromPreviousFrameForTesting() const {
         CHECK_IS_TEST();
-        return attached_to_root_from_previous_frame_;
+        return dcomp_visual_content_changed_from_previous_frame_;
       }
 #endif  // DCHECK_IS_ON()
 
@@ -425,15 +419,18 @@ class GL_EXPORT DCLayerTree {
       // pixels.
       gfx::Size image_size_;
 
+      // If false, force |transform_visual_| to use the hard border mode.
+      bool allow_antialiasing_ = true;
+
       // The order relative to the root surface. Positive values means the
       // visual appears in front of the root surface (i.e. overlay) and negative
       // values means the visual appears below the root surface (i.e. underlay).
       int z_order_ = 0;
 
 #if DCHECK_IS_ON()
-      // True if the subtree is reused from the previous frame and keeps its
-      // attachment to the root from the previous frame. Used for testing.
-      bool attached_to_root_from_previous_frame_ = false;
+      // True if the content of the dcomp visual changed from the previous
+      // frame. Used for testing.
+      bool dcomp_visual_content_changed_from_previous_frame_ = false;
 #endif  // DCHECK_IS_ON()
     };
 
@@ -449,7 +446,7 @@ class GL_EXPORT DCLayerTree {
     //    previous frame subtree is matched to.
     // Returns populated visual subtree map.
     VisualSubtreeMap BuildMapAndAssignMatchingSubtrees(
-        const std::vector<std::unique_ptr<DCLayerOverlayParams>>& overlays,
+        const std::vector<DCLayerOverlayParams>& overlays,
         std::vector<std::unique_ptr<VisualSubtree>>& visual_subtrees,
         std::vector<std::optional<size_t>>& overlay_index_to_reused_subtree,
         std::vector<std::optional<size_t>>& subtree_index_to_overlay);
@@ -498,6 +495,12 @@ class GL_EXPORT DCLayerTree {
     // List of DCOMP visual subtrees for previous frame.
     std::vector<std::unique_ptr<VisualSubtree>> visual_subtrees_;
     VisualSubtreeMap subtree_map_;
+
+    // List of layer IDs in the frame, parallel to `visual_subtrees_`.
+    std::vector<gfx::OverlayLayerId> layer_ids_for_testing_;
+    // Get the first subtree in `visual_subtrees_` matching `layer_id`.
+    const VisualSubtree* GetSubtreeFromLayerIdForTesting(
+        const gfx::OverlayLayerId& layer_id) const;
   };
 
  private:
@@ -520,7 +523,8 @@ class GL_EXPORT DCLayerTree {
   // Store the largest video processor for SDR and HDR content
   // to avoid problems in (http://crbug.com/1121061) and
   // (http://crbug.com/1472975).
-  VideoProcessorWrapper video_processor_wrapper_[kNumVideoProcessorTypes];
+  VideoProcessorWrapper video_processor_wrapper_sdr_;
+  VideoProcessorWrapper video_processor_wrapper_hdr_;
 
   // Current video processor input and output colorspace.
   gfx::ColorSpace video_input_color_space_;
@@ -535,9 +539,6 @@ class GL_EXPORT DCLayerTree {
   // A tree that owns all DCOMP visuals for overlays along with attributes
   // required to build DCOMP tree. It's updated for each frame.
   std::unique_ptr<VisualTree> visual_tree_;
-
-  // Number of frames per second.
-  float frame_rate_ = 0.f;
 
   // dealing with hdr metadata
   std::unique_ptr<HDRMetadataHelperWin> hdr_metadata_helper_;

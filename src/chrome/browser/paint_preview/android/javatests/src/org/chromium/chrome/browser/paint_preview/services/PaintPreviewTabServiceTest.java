@@ -4,29 +4,36 @@
 
 package org.chromium.chrome.browser.paint_preview.services;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import android.app.Activity;
 
 import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ApplicationStatus;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
 import java.util.concurrent.TimeUnit;
@@ -65,7 +72,7 @@ public class PaintPreviewTabServiceTest {
         EmbeddedTestServer testServer = mActivityTestRule.getTestServer();
         final String url = testServer.getURL("/chrome/test/data/android/about.html");
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
                     mTab.loadUrl(new LoadUrlParams(url));
@@ -77,11 +84,11 @@ public class PaintPreviewTabServiceTest {
         // Simulate closing the app.
         Activity activity = mActivityTestRule.getActivity();
         activity.getWindow().setLocalFocus(false, false);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnPause(activity);
                 });
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnStop(activity);
                 });
@@ -98,23 +105,27 @@ public class PaintPreviewTabServiceTest {
 
         // Simulate unpausing the app (for cleanup).
         activity.getWindow().setLocalFocus(true, true);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnRestart(activity);
                     InstrumentationRegistry.getInstrumentation().callActivityOnStart(activity);
                     InstrumentationRegistry.getInstrumentation().callActivityOnResume(activity);
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mTabModelSelector = mActivityTestRule.getActivity().getTabModelSelector();
                     mTab = mTabModelSelector.getTabById(tabId);
                     mTabModel = mTabModelSelector.getModel(/* incognito= */ false);
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mTabModel.closeTab(mTab);
+                    mTabModel
+                            .getTabRemover()
+                            .closeTabs(
+                                    TabClosureParams.closeTab(mTab).allowUndo(false).build(),
+                                    /* allowDialog= */ false);
                 });
 
         CriteriaHelper.pollUiThread(
@@ -134,7 +145,7 @@ public class PaintPreviewTabServiceTest {
         EmbeddedTestServer testServer = mActivityTestRule.getTestServer();
         final String url = testServer.getURL("/chrome/test/data/android/about.html");
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
                     mTab.loadUrl(new LoadUrlParams(url));
@@ -146,11 +157,11 @@ public class PaintPreviewTabServiceTest {
         // Simulate closing the app.
         Activity activity = mActivityTestRule.getActivity();
         activity.getWindow().setLocalFocus(false, false);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnPause(activity);
                 });
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnStop(activity);
                 });
@@ -167,14 +178,14 @@ public class PaintPreviewTabServiceTest {
 
         // Simulate unpausing the app (for cleanup).
         activity.getWindow().setLocalFocus(true, true);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InstrumentationRegistry.getInstrumentation().callActivityOnRestart(activity);
                     InstrumentationRegistry.getInstrumentation().callActivityOnStart(activity);
                     InstrumentationRegistry.getInstrumentation().callActivityOnResume(activity);
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaintPreviewTabService.auditArtifacts(new int[0]);
                 });
@@ -198,21 +209,40 @@ public class PaintPreviewTabServiceTest {
         mTemporaryFolder.newFile("6");
         mTemporaryFolder.newFolder("10");
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
-                    Assert.assertTrue(
+                    assertTrue(
                             mPaintPreviewTabService.previewExistsPreNative(
                                     mTemporaryFolder.getRoot().getPath(), 2));
-                    Assert.assertTrue(
+                    assertTrue(
                             mPaintPreviewTabService.previewExistsPreNative(
                                     mTemporaryFolder.getRoot().getPath(), 3));
-                    Assert.assertFalse(
+                    assertFalse(
                             mPaintPreviewTabService.previewExistsPreNative(
                                     mTemporaryFolder.getRoot().getPath(), 6));
-                    Assert.assertFalse(
+                    assertFalse(
                             mPaintPreviewTabService.previewExistsPreNative(
                                     mTemporaryFolder.getRoot().getPath(), 10));
+                });
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"PaintPreview"})
+    public void testOnRestoreCompleted_destroyable() {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mPaintPreviewTabService = PaintPreviewTabServiceFactory.getServiceInstance();
+                    Destroyable destroyable =
+                            mPaintPreviewTabService.onRestoreCompleted(
+                                    mTabModelSelector, /* runAudit= */ false);
+                    int count = ApplicationStatus.getApplicationStateListenerCountForTesting();
+
+                    destroyable.destroy();
+                    assertEquals(
+                            count - 1,
+                            ApplicationStatus.getApplicationStateListenerCountForTesting());
                 });
     }
 }

@@ -8,7 +8,6 @@
 #include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/logical_box_fragment.h"
 #include "third_party/blink/renderer/core/layout/mathml/math_layout_utils.h"
-#include "third_party/blink/renderer/core/layout/out_of_flow_layout_part.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
 #include "third_party/blink/renderer/platform/fonts/shaping/stretchy_operator_shaper.h"
 
@@ -17,7 +16,7 @@ namespace blink {
 namespace {
 
 bool HasBaseGlyphForRadical(const ComputedStyle& style) {
-  const SimpleFontData* font_data = style.GetFont().PrimaryFont();
+  const SimpleFontData* font_data = style.GetFont()->PrimaryFont();
   return font_data && font_data->GlyphForCharacter(kSquareRootCharacter);
 }
 
@@ -52,7 +51,7 @@ void MathRadicalLayoutAlgorithm::GatherChildren(
       continue;
     }
 
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   if (Node().HasIndex()) {
@@ -127,7 +126,7 @@ const LayoutResult* MathRadicalLayoutAlgorithm::Layout() {
     float target_size = base_ascent + base_descent + vertical.vertical_gap +
                         vertical.rule_thickness;
     const ShapeResult* shape_result =
-        shaper.Shape(&Style().GetFont(), target_size, &surd_metrics);
+        shaper.Shape(Style().GetFont(), target_size, &surd_metrics);
     const ShapeResultView* shape_result_view =
         ShapeResultView::Create(shape_result);
     LayoutUnit operator_inline_offset = index_inline_size +
@@ -185,13 +184,13 @@ const LayoutResult* MathRadicalLayoutAlgorithm::Layout() {
 
   auto total_block_size = ascent + descent + BorderScrollbarPadding().block_end;
   LayoutUnit block_size = ComputeBlockSizeForFragment(
-      GetConstraintSpace(), Style(), BorderPadding(), total_block_size,
+      GetConstraintSpace(), Node(), BorderPadding(), total_block_size,
       container_builder_.InitialBorderBoxSize().inline_size);
 
   container_builder_.SetIntrinsicBlockSize(total_block_size);
   container_builder_.SetFragmentsTotalBlockSize(block_size);
 
-  OutOfFlowLayoutPart(Node(), GetConstraintSpace(), &container_builder_).Run();
+  container_builder_.HandleOofsAndSpecialDescendants();
 
   return container_builder_.ToBoxFragment();
 }

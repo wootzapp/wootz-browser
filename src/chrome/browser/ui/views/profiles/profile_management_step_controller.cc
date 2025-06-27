@@ -17,7 +17,9 @@
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/profiles/profile_customization_util.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/profiles/profile_management_types.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_signed_in_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_web_contents_host.h"
@@ -115,13 +117,15 @@ class DiceSignInStepController : public ProfileManagementStepController {
 
   void OnReloadRequested() override {
     // Sign-in may fail due to connectivity issues, allow reloading.
-    if (dice_sign_in_provider_)
+    if (dice_sign_in_provider_) {
       dice_sign_in_provider_->ReloadSignInPage();
+    }
   }
 
   void OnNavigateBackRequested() override {
-    if (dice_sign_in_provider_)
+    if (dice_sign_in_provider_) {
       NavigateBackInternal(dice_sign_in_provider_->contents());
+    }
   }
 
  private:
@@ -280,7 +284,7 @@ class FinishFlowAndRunInBrowserStepController
 
   void OnNavigateBackRequested() override {
     // Do nothing, navigating back is not allowed.
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
 
  private:
@@ -310,12 +314,7 @@ class SearchEngineChoiceStepController
             bool reset_state) override {
     CHECK(reset_state);
 
-    bool should_show_search_engine_choice_step =
-        search_engine_choice_dialog_service_ &&
-        search_engines::IsChoiceScreenFlagEnabled(
-            search_engines::ChoicePromo::kAny);
-
-    if (!should_show_search_engine_choice_step) {
+    if (!search_engine_choice_dialog_service_) {
       // Forward `step_shown_callback`, as this step is skipped.
       std::move(step_completed_callback_).Run(std::move(step_shown_callback));
       return;
@@ -348,7 +347,7 @@ class SearchEngineChoiceStepController
 
   void OnNavigateBackRequested() override {
     // Do nothing, navigating back is not allowed.
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
 
  private:

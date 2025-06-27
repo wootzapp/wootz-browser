@@ -120,6 +120,10 @@ build_recipe(
 )
 
 build_recipe(
+    name = "recipe:compile_size_trybot",
+)
+
+build_recipe(
     name = "recipe:chrome_build/build_perf",
     bootstrappable = True,
 )
@@ -167,10 +171,6 @@ build_recipe(
 )
 
 build_recipe(
-    name = "recipe:chromium/rr_test_launcher",
-)
-
-build_recipe(
     name = "recipe:chromium/compilator",
     bootstrappable = True,
 )
@@ -197,11 +197,21 @@ build_recipe(
 )
 
 build_recipe(
+    name = "recipe:chromium_rr/orchestrator",
+)
+
+build_recipe(
+    name = "recipe:chromium_rr/test_launcher",
+    bootstrappable = POLYMORPHIC,
+)
+
+build_recipe(
     name = "recipe:chromium_3pp",
 )
 
 build_recipe(
     name = "recipe:chromium/fuzz",
+    bootstrappable = True,
 )
 
 build_recipe(
@@ -222,6 +232,10 @@ build_recipe(
 
 build_recipe(
     name = "recipe:chrome_codeql_database_builder",
+)
+
+build_recipe(
+    name = "recipe:chrome_codeql_query_runner",
 )
 
 build_recipe(
@@ -256,10 +270,6 @@ build_recipe(
 
 build_recipe(
     name = "recipe:chromium_toolchain/package_rust",
-)
-
-build_recipe(
-    name = "recipe:cronet",
 )
 
 build_recipe(
@@ -315,10 +325,6 @@ build_recipe(
 
 build_recipe(
     name = "recipe:tricium_oilpan",
-)
-
-build_recipe(
-    name = "recipe:tricium_simple",
 )
 
 build_recipe(

@@ -262,6 +262,8 @@ class ZeroconfScannerDetectorImpl final : public ZeroconfScannerDetector {
     lister_entry->second->DiscoverNewDevices();
   }
 
+  void OnPermissionRejected() override {}
+
  private:
   // Creates a new device lister for the given |service_type| and adds it to the
   // ones managed by this object.
@@ -300,8 +302,7 @@ class ZeroconfScannerDetectorImpl final : public ZeroconfScannerDetector {
                    scanner->device_names.end()) {
           protocol = ScanProtocol::kLegacyNetwork;
         } else {
-          NOTREACHED_IN_MIGRATION()
-              << "Zeroconf scanner with unknown protocol.";
+          NOTREACHED() << "Zeroconf scanner with unknown protocol.";
         }
 
         it->second.device_names[protocol].insert(

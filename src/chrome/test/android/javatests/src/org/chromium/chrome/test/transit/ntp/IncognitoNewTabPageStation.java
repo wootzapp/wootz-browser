@@ -1,0 +1,81 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package org.chromium.chrome.test.transit.ntp;
+
+import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
+
+import static org.chromium.base.test.transit.Condition.whether;
+import static org.chromium.base.test.transit.ViewSpec.viewSpec;
+
+import android.util.Pair;
+import android.view.View;
+
+import org.chromium.base.test.transit.Element;
+import org.chromium.base.test.transit.Elements;
+import org.chromium.base.test.transit.SimpleConditions;
+import org.chromium.base.test.transit.ViewElement;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ntp.IncognitoNewTabPage;
+import org.chromium.chrome.browser.omnibox.UrlBar;
+import org.chromium.chrome.test.transit.SoftKeyboardFacility;
+import org.chromium.chrome.test.transit.omnibox.FakeOmniboxSuggestions;
+import org.chromium.chrome.test.transit.omnibox.OmniboxFacility;
+import org.chromium.chrome.test.transit.page.NativePageCondition;
+import org.chromium.chrome.test.transit.page.PageStation;
+import org.chromium.components.embedder_support.util.UrlConstants;
+
+import java.util.List;
+
+/** The Incognito New Tab Page screen, with text about Incognito mode. */
+public class IncognitoNewTabPageStation extends PageStation {
+    public ViewElement<UrlBar> urlBarElement;
+    public ViewElement<View> iconElement;
+    public ViewElement<View> goneIncognitoTextElement;
+    public Element<IncognitoNewTabPage> nativePageElement;
+
+    protected <T extends IncognitoNewTabPageStation> IncognitoNewTabPageStation(
+            Builder<T> builder) {
+        super(builder.withIncognito(true).withExpectedUrlSubstring(UrlConstants.NTP_URL));
+    }
+
+    public static Builder<IncognitoNewTabPageStation> newBuilder() {
+        return new Builder<>(IncognitoNewTabPageStation::new);
+    }
+
+    @Override
+    public void declareElements(Elements.Builder elements) {
+        super.declareElements(elements);
+
+        urlBarElement = elements.declareView(URL_BAR);
+        iconElement = elements.declareView(viewSpec(withId(R.id.new_tab_incognito_icon)));
+        goneIncognitoTextElement =
+                elements.declareView(viewSpec(withText("You’ve gone Incognito")));
+        nativePageElement =
+                elements.declareEnterConditionAsElement(
+                        new NativePageCondition<>(IncognitoNewTabPage.class, loadedTabElement));
+        elements.declareEnterCondition(
+                SimpleConditions.uiThreadCondition(
+                        "Incognito NTP is loaded",
+                        nativePageElement,
+                        nativePage -> whether(nativePage.isLoadedForTests())));
+    }
+
+    /** Opens the app menu by pressing the toolbar "..." button */
+    public IncognitoNewTabPageAppMenuFacility openAppMenu() {
+        return enterFacilitySync(
+                new IncognitoNewTabPageAppMenuFacility(), menuButtonElement.clickTrigger());
+    }
+
+    /** Click the URL bar to enter the Omnibox. */
+    public Pair<OmniboxFacility, SoftKeyboardFacility> openOmnibox(
+            FakeOmniboxSuggestions fakeSuggestions) {
+        OmniboxFacility omniboxFacility =
+                new OmniboxFacility(/* incognito= */ true, fakeSuggestions);
+        SoftKeyboardFacility softKeyboard = new SoftKeyboardFacility();
+        enterFacilitiesSync(List.of(omniboxFacility, softKeyboard), urlBarElement.clickTrigger());
+        return Pair.create(omniboxFacility, softKeyboard);
+    }
+}

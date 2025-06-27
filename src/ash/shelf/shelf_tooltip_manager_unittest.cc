@@ -22,7 +22,6 @@
 #include "ash/wm/desks/desks_test_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/test/scoped_feature_list.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
@@ -122,7 +121,8 @@ TEST_F(ShelfTooltipManagerTest, HideWhenShelfIsHidden) {
   ASSERT_TRUE(tooltip_manager_->IsVisible());
 
   // Create a full-screen window to hide the shelf.
-  std::unique_ptr<views::Widget> widget = CreateTestWidget();
+  std::unique_ptr<views::Widget> widget =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   widget->SetFullscreen(true);
 
   // Once the shelf is hidden, the tooltip should be invisible.
@@ -141,7 +141,8 @@ TEST_F(ShelfTooltipManagerTest, HideWhenShelfIsHidden) {
 
 TEST_F(ShelfTooltipManagerTest, HideWhenShelfIsAutoHideHidden) {
   // Create a visible window so auto-hide behavior can actually hide the shelf.
-  std::unique_ptr<views::Widget> widget = CreateTestWidget();
+  std::unique_ptr<views::Widget> widget =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   ShowTooltipForFirstAppIcon();
   ASSERT_TRUE(tooltip_manager_->IsVisible());
 
@@ -290,13 +291,9 @@ class ShelfTooltipManagerDeskButtonTest
   ~ShelfTooltipManagerDeskButtonTest() override = default;
 
   void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(features::kDeskButton);
     ShelfTooltipManagerTest::SetUp();
     Shelf::ForWindow(Shell::GetPrimaryRootWindow())->SetAlignment(GetParam());
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 INSTANTIATE_TEST_SUITE_P(All,

@@ -30,8 +30,11 @@ namespace webrtc_event_logging {
 
 extern const size_t kWebRtcEventLogManagerUnlimitedFileSize;
 
-extern const size_t kDefaultMaxLocalLogFileSizeBytes;
+extern const size_t kDefaultMaxLocalEventLogFileSizeBytes;
 extern const size_t kMaxNumberLocalWebRtcEventLogFiles;
+
+extern const size_t kDefaultMaxLocalDataChannelFileSizeBytes;
+extern const size_t kMaxNumberLocalWebRtcDataChannelLogFiles;
 
 extern const size_t kMaxRemoteLogFileSizeBytes;
 
@@ -270,9 +273,15 @@ struct WebRtcLogFileInfo {
 // the paths which will be used for these logs.
 class WebRtcLocalEventLogsObserver {
  public:
-  virtual void OnLocalLogStarted(WebRtcEventLogPeerConnectionKey key,
-                                 const base::FilePath& file_path) = 0;
-  virtual void OnLocalLogStopped(WebRtcEventLogPeerConnectionKey key) = 0;
+  virtual void OnLocalEventLogStarted(WebRtcEventLogPeerConnectionKey key,
+                                      const base::FilePath& file_path) = 0;
+  virtual void OnLocalEventLogStopped(WebRtcEventLogPeerConnectionKey key) = 0;
+
+  virtual void OnLocalDataChannelLogStarted(
+      WebRtcEventLogPeerConnectionKey key,
+      const base::FilePath& file_path) = 0;
+  virtual void OnLocalDataChannelLogStopped(
+      WebRtcEventLogPeerConnectionKey key) = 0;
 
  protected:
   virtual ~WebRtcLocalEventLogsObserver() = default;
@@ -309,7 +318,7 @@ class LogFileWriter {
     virtual size_t MinFileSizeBytes() const = 0;
 
     // The extension type associated with this type of log files.
-    virtual base::FilePath::StringPieceType Extension() const = 0;
+    virtual base::FilePath::StringViewType Extension() const = 0;
 
     // Instantiate and initialize a LogFileWriter.
     // If creation or initialization fail, an empty unique_ptr will be returned,
@@ -359,7 +368,7 @@ class BaseLogFileWriterFactory : public LogFileWriter::Factory {
 
   size_t MinFileSizeBytes() const override;
 
-  base::FilePath::StringPieceType Extension() const override;
+  base::FilePath::StringViewType Extension() const override;
 
   std::unique_ptr<LogFileWriter> Create(
       const base::FilePath& path,
@@ -498,7 +507,7 @@ class GzippedLogFileWriterFactory : public LogFileWriter::Factory {
 
   size_t MinFileSizeBytes() const override;
 
-  base::FilePath::StringPieceType Extension() const override;
+  base::FilePath::StringViewType Extension() const override;
 
   std::unique_ptr<LogFileWriter> Create(
       const base::FilePath& path,
@@ -533,11 +542,10 @@ base::FilePath GetRemoteBoundWebRtcEventLogsDir(
 
 // Produce the path to a remote-bound WebRTC event log file with the given
 // log ID, web-app ID and extension, in the given directory.
-base::FilePath WebRtcEventLogPath(
-    const base::FilePath& remote_logs_dir,
-    const std::string& log_id,
-    size_t web_app_id,
-    const base::FilePath::StringPieceType& extension);
+base::FilePath WebRtcEventLogPath(const base::FilePath& remote_logs_dir,
+                                  const std::string& log_id,
+                                  size_t web_app_id,
+                                  base::FilePath::StringViewType extension);
 
 // Checks whether the path/filename would be a valid reference to a remote-bound
 // even log. These functions do not examine the file's content or its extension.

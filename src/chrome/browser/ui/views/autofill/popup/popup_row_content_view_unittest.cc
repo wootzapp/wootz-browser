@@ -28,7 +28,8 @@ class PopupRowContentViewTest : public ChromeViewsTestBase {
   // views::ViewsTestBase:
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
-    widget_ = CreateTestWidget();
+    widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     generator_ = std::make_unique<ui::test::EventGenerator>(
         GetRootWindow(widget_.get()));
   }
@@ -79,8 +80,7 @@ TEST_F(PopupRowContentViewTest, SetSelectedUpdatesBackground) {
   view().UpdateStyle(true);
   background = view().GetBackground();
   ASSERT_TRUE(background);
-  EXPECT_EQ(background->get_color(), view().GetColorProvider()->GetColor(
-                                         ui::kColorDropdownBackgroundSelected));
+  EXPECT_EQ(background->color(), ui::kColorDropdownBackgroundSelected);
 }
 
 }  // namespace autofill

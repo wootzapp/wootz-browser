@@ -17,8 +17,8 @@ import org.chromium.ui.resources.ResourceManager;
 import java.util.List;
 
 /**
- * Handles overscroll glow effect when gesture navigation can't go forward any more.
- * Renders the effect on a compositor layer in scene overlay layer tree.
+ * Handles overscroll glow effect when gesture navigation can't go forward any more. Renders the
+ * effect on a compositor layer in scene overlay layer tree.
  */
 class OverscrollGlowOverlay extends NavigationGlow implements SceneOverlay {
     private final OverscrollSceneLayer mSceneLayer;
@@ -81,7 +81,15 @@ class OverscrollGlowOverlay extends NavigationGlow implements SceneOverlay {
     }
 
     @Override
+    public void removeFromParent() {}
+
+    @Override
     public boolean isSceneOverlayTreeShowing() {
+        return mIsShowing;
+    }
+
+    @Override
+    public boolean isShowing() {
         return mIsShowing;
     }
 

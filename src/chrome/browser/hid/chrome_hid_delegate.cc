@@ -300,15 +300,21 @@ bool ChromeHidDelegate::IsFidoAllowedForOrigin(
   return chooser_context && chooser_context->IsFidoAllowedForOrigin(origin);
 }
 
+bool ChromeHidDelegate::IsKnownSecurityKey(
+    content::BrowserContext* browser_context,
+    const device::mojom::HidDeviceInfo& device) {
+  auto* chooser_context = GetChooserContext(browser_context);
+  return chooser_context && chooser_context->IsKnownSecurityKey(device);
+}
+
 bool ChromeHidDelegate::IsServiceWorkerAllowedForOrigin(
     const url::Origin& origin) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // WebHID is only available on extension service workers with feature flag
   // enabled for now.
-  if (base::FeatureList::IsEnabled(
-          features::kEnableWebHidOnExtensionServiceWorker) &&
-      origin.scheme() == extensions::kExtensionScheme)
+  if (origin.scheme() == extensions::kExtensionScheme) {
     return true;
+  }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
   return false;
 }
@@ -329,9 +335,7 @@ void ChromeHidDelegate::IncrementConnectionCount(
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Don't track connection when the feature isn't enabled or the connection
   // isn't made by an extension origin.
-  if (!base::FeatureList::IsEnabled(
-          features::kEnableWebHidOnExtensionServiceWorker) ||
-      origin.scheme() != extensions::kExtensionScheme) {
+  if (origin.scheme() != extensions::kExtensionScheme) {
     return;
   }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
@@ -349,9 +353,7 @@ void ChromeHidDelegate::DecrementConnectionCount(
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Don't track connection when the feature isn't enabled or the connection
   // isn't made by an extension origin.
-  if (!base::FeatureList::IsEnabled(
-          features::kEnableWebHidOnExtensionServiceWorker) ||
-      origin.scheme() != extensions::kExtensionScheme) {
+  if (origin.scheme() != extensions::kExtensionScheme) {
     return;
   }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)

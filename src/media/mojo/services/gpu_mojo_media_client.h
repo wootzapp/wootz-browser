@@ -46,7 +46,7 @@ struct VideoDecoderTraits {
   // Android uses this twice.
   GetCommandBufferStubCB get_command_buffer_stub_cb;
 
-  mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder;
+  mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder;
 
   VideoDecoderTraits(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
@@ -55,7 +55,7 @@ struct VideoDecoderTraits {
       const gfx::ColorSpace* target_color_space,
       GetConfigCacheCB get_cached_configs_cb,
       GetCommandBufferStubCB get_command_buffer_stub_cb,
-      mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder);
+      mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder);
   ~VideoDecoderTraits();
 };
 
@@ -98,8 +98,10 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
   const gpu::GPUInfo& gpu_info() const { return gpu_info_; }
 
   // MojoMediaClient implementation.
+  SupportedAudioDecoderConfigs GetSupportedAudioDecoderConfigs() final;
   SupportedVideoDecoderConfigs GetSupportedVideoDecoderConfigs() final;
   VideoDecoderType GetDecoderImplementationType() final;
+
   std::unique_ptr<AudioDecoder> CreateAudioDecoder(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
       std::unique_ptr<MediaLog> media_log) final;
@@ -107,9 +109,9 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
       scoped_refptr<base::SequencedTaskRunner> task_runner) final;
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
   void NotifyDecoderSupportKnown(
-      mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder,
-      base::OnceCallback<void(
-          mojo::PendingRemote<stable::mojom::StableVideoDecoder>)> cb) final;
+      mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder,
+      base::OnceCallback<void(mojo::PendingRemote<mojom::VideoDecoder>)> cb)
+      final;
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
   std::unique_ptr<VideoDecoder> CreateVideoDecoder(
       scoped_refptr<base::SequencedTaskRunner> task_runner,
@@ -117,8 +119,7 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
       mojom::CommandBufferIdPtr command_buffer_id,
       RequestOverlayInfoCB request_overlay_info_cb,
       const gfx::ColorSpace& target_color_space,
-      mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder)
-      final;
+      mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder) final;
   std::unique_ptr<CdmFactory> CreateCdmFactory(
       mojom::FrameInterfaceFactory* interface_provider) final;
 
@@ -135,12 +136,9 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
       VideoDecoderTraits& traits) = 0;
 
   // Queries the platform-specific VideoDecoder implementation for its
-  // supported profiles. Some platforms fall back to use the VDAVideoDecoder
-  // so that implementation is shared, and its supported configs can be
-  // queries using the |get_vda_configs| callback.
-  using GetVdaConfigsCB = base::OnceCallback<SupportedVideoDecoderConfigs()>;
+  // supported profiles.
   virtual std::optional<SupportedVideoDecoderConfigs>
-  GetPlatformSupportedVideoDecoderConfigs(GetVdaConfigsCB get_vda_configs) = 0;
+  GetPlatformSupportedVideoDecoderConfigs() = 0;
 
   // Queries the platform decoder type.
   virtual VideoDecoderType GetPlatformDecoderImplementationType() = 0;
@@ -159,9 +157,9 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
   // This function is thread- and sequence-safe. |cb| is always called on the
   // same sequence as NotifyPlatformDecoderSupport().
   virtual void NotifyPlatformDecoderSupport(
-      mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder,
-      base::OnceCallback<
-          void(mojo::PendingRemote<stable::mojom::StableVideoDecoder>)> cb) = 0;
+      mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder,
+      base::OnceCallback<void(mojo::PendingRemote<mojom::VideoDecoder>)>
+          cb) = 0;
 #endif
 
   // ------------------- [ Optional implementations below ] -------------------
@@ -180,6 +178,11 @@ class MEDIA_MOJO_EXPORT GpuMojoMediaClient : public MojoMediaClient {
   // Creates a CDM factory, right now only used on android and chromeos.
   virtual std::unique_ptr<CdmFactory> CreatePlatformCdmFactory(
       mojom::FrameInterfaceFactory* frame_interfaces);
+
+  // Queries the platform-specific AudioDecoder implementation for its
+  // supported codecs.
+  virtual std::optional<SupportedAudioDecoderConfigs>
+  GetPlatformSupportedAudioDecoderConfigs();
 
   const gpu::GpuPreferences gpu_preferences_;
   const gpu::GpuDriverBugWorkarounds gpu_workarounds_;

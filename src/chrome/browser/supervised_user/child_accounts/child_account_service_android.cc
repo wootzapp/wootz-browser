@@ -9,11 +9,13 @@
 #include "base/android/callback_android.h"
 #include "base/android/jni_string.h"
 #include "base/functional/bind.h"
-#include "chrome/android/chrome_jni_headers/ChildAccountService_jni.h"
 #include "chrome/browser/browser_process.h"
 #include "components/supervised_user/core/browser/child_account_service.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/ChildAccountService_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertUTF8ToJavaString;
@@ -28,11 +30,9 @@ void ReauthenticateChildAccount(
     const base::RepeatingCallback<void()>& on_failure_callback) {
   ui::WindowAndroid* window_android =
       web_contents->GetNativeView()->GetWindowAndroid();
-  if (!window_android) {
-    // The native view may not be available on shutdown (crbug.com/1468955).
-    on_failure_callback.Run();
-    return;
-  }
+  CHECK(window_android)
+      << "See SupervisedUserGoogleAuthNavigationThrottle to confirm that this "
+         "call is never called with empty `window_android`";
 
   // Make a copy of the callback which can be passed as a pointer through
   // to Java.

@@ -15,7 +15,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/media_galleries/media_file_system_registry.h"
@@ -25,7 +24,9 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
+#include "extensions/browser/extension_host.h"
 #include "extensions/browser/process_manager.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/switches.h"
@@ -115,7 +116,8 @@ class MediaGalleriesGalleryWatchApiTest : public extensions::ExtensionApiTest {
                                const std::string& ok_message) {
     ExtensionTestMessageListener listener(ok_message);
     background_main_frame_->ExecuteJavaScriptForTests(
-        base::ASCIIToUTF16(js_command), base::NullCallback());
+        base::ASCIIToUTF16(js_command), base::NullCallback(),
+        content::ISOLATED_WORLD_ID_GLOBAL);
     EXPECT_TRUE(listener.WaitUntilSatisfied());
   }
 
@@ -241,9 +243,7 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesGalleryWatchApiTest,
 }
 
 // Test is flaky on windows and linux: crbug.com/1150017.
-// TODO(crbug.com/40118868): Revisit once build flag switch of lacros-chrome is
-// complete.
-#if BUILDFLAG(IS_WIN) || (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 #define MAYBE_RemoveListenerAndModifyGallery \
   DISABLED_RemoveListenerAndModifyGallery
 #else

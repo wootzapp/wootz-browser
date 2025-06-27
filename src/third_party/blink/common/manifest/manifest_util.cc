@@ -7,8 +7,8 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy.h"
 #include "third_party/blink/public/common/manifest/manifest.h"
-#include "third_party/blink/public/common/permissions_policy/permissions_policy.h"
 #include "third_party/blink/public/mojom/manifest/capture_links.mojom.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
@@ -39,6 +39,21 @@ bool IsDefaultManifest(const mojom::Manifest& manifest,
 bool IsDefaultManifest(const mojom::ManifestPtr& manifest,
                        const GURL& document_url) {
   return manifest && IsDefaultManifest(*manifest, document_url);
+}
+
+std::optional<blink::mojom::Manifest_TextDirection> TextDirectionFromString(
+    const std::string& dir) {
+  using TextDirection = blink::mojom::Manifest_TextDirection;
+  if (base::EqualsCaseInsensitiveASCII(dir, "auto")) {
+    return TextDirection::kAuto;
+  }
+  if (base::EqualsCaseInsensitiveASCII(dir, "ltr")) {
+    return TextDirection::kLTR;
+  }
+  if (base::EqualsCaseInsensitiveASCII(dir, "rtl")) {
+    return TextDirection::kRTL;
+  }
+  return std::nullopt;
 }
 
 std::string DisplayModeToString(blink::mojom::DisplayMode display) {

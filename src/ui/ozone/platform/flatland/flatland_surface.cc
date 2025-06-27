@@ -8,10 +8,13 @@
 #include <lib/zx/eventpair.h>
 #include <zircon/types.h>
 
+#include <variant>
+
 #include "base/check_op.h"
 #include "base/fuchsia/fuchsia_logging.h"
 #include "base/fuchsia/process_context.h"
 #include "base/functional/bind.h"
+#include "base/not_fatal_until.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -93,12 +96,7 @@ OverlayTransformFlatlandProperties OverlayTransformToFlatlandProperties(
     case gfx::OVERLAY_TRANSFORM_INVALID:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return {
-      .translation = {rounded_bounds.x(), rounded_bounds.y()},
-      .orientation = fuchsia::ui::composition::Orientation::CCW_0_DEGREES,
-      .image_flip = fuchsia::ui::composition::ImageFlip::NONE,
-  };
+  NOTREACHED();
 }
 
 // Converts a gfx size to the associated Fuchsia size, and accounts for any
@@ -198,7 +196,7 @@ void FlatlandSurface::Present(
         overlay.pixmap.get(), /*is_primary_plane=*/false);
     const auto image_id = flatland_ids.image_id;
     const auto transform_id = flatland_ids.transform_id;
-    const auto overlay_plane_transform = absl::get<gfx::OverlayTransform>(
+    const auto overlay_plane_transform = std::get<gfx::OverlayTransform>(
         overlay.overlay_plane_data.plane_transform);
 
     if (overlay.gpu_fence) {
@@ -222,6 +220,7 @@ void FlatlandSurface::Present(
     // `crop_rect` is in normalized coordinates, but Flatland expects it to be
     // given in image coordinates.
     gfx::RectF sample_region = overlay.overlay_plane_data.crop_rect;
+    sample_region.Intersect(gfx::RectF(1.0, 1.0));
     const gfx::Size& buffer_size = overlay.pixmap->GetBufferSize();
     sample_region.Scale(buffer_size.width(), buffer_size.height());
     flatland_.flatland()->SetImageSampleRegion(
@@ -334,7 +333,7 @@ void FlatlandSurface::RemovePixmapResources(FlatlandPixmapId ids) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   auto iter = pixmap_ids_to_flatland_ids_.find(ids);
-  DCHECK(iter != pixmap_ids_to_flatland_ids_.end());
+  CHECK(iter != pixmap_ids_to_flatland_ids_.end(), base::NotFatalUntil::M130);
   flatland_.flatland()->ReleaseImage(iter->second.image_id);
   if (iter->second.transform_id.value) {
     flatland_.flatland()->ReleaseTransform(iter->second.transform_id);

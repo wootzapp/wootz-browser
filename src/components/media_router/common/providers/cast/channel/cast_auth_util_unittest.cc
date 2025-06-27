@@ -22,8 +22,8 @@
 #include "third_party/openscreen/src/cast/common/certificate/proto/test_suite.pb.h"
 #include "third_party/openscreen/src/cast/common/channel/proto/cast_channel.pb.h"
 
-using cast::channel::SHA1;
-using cast::channel::SHA256;
+using openscreen::cast::proto::SHA1;
+using openscreen::cast::proto::SHA256;
 
 namespace cast_channel {
 namespace {
@@ -33,13 +33,14 @@ constexpr CastChannelFlags kFlagsCRLMissing =
 constexpr CastChannelFlags kFlagsSHA1AndCRLMissing =
     static_cast<CastChannelFlags>(CastChannelFlag::kSha1DigestAlgorithm) |
     static_cast<CastChannelFlags>(CastChannelFlag::kCRLMissing);
-constexpr CastChannelFlags kFlagsInvalidCRL =
-    static_cast<CastChannelFlags>(CastChannelFlag::kCRLInvalid) |
-    static_cast<CastChannelFlags>(CastChannelFlag::kCRLMissing);
 constexpr CastChannelFlags kFlagsInvalidFallbackCRL =
     static_cast<CastChannelFlags>(CastChannelFlag::kInvalidFallbackCRL) |
     static_cast<CastChannelFlags>(CastChannelFlag::kCRLMissing);
 constexpr CastChannelFlags kFlagsAcceptedByFallbackCRL =
+    static_cast<CastChannelFlags>(
+        CastChannelFlag::kCertificateAcceptedByFallbackCRL) |
+    static_cast<CastChannelFlags>(CastChannelFlag::kCRLMissing);
+constexpr CastChannelFlags kFlagsAcceptedWithMissingCRL =
     static_cast<CastChannelFlags>(
         CastChannelFlag::kCertificateAcceptedByFallbackCRL) |
     static_cast<CastChannelFlags>(CastChannelFlag::kCRLMissing);
@@ -49,15 +50,15 @@ constexpr CastChannelFlags kFlagsExpiredFallbackCRL =
 
 class CastAuthUtilTest : public testing::Test {
  public:
-  CastAuthUtilTest() {}
-  ~CastAuthUtilTest() override {}
+  CastAuthUtilTest() = default;
+  ~CastAuthUtilTest() override = default;
 
   void SetUp() override {}
 
  protected:
   static AuthResponse CreateAuthResponse(
       std::string* signed_data,
-      cast::channel::HashAlgorithm digest_algorithm) {
+      openscreen::cast::proto::HashAlgorithm digest_algorithm) {
     auto chain = cast_certificate::ReadCertificateChainFromFile(
         cast_certificate::testing::GetCastCertificatesSubDirectory()
             .AppendASCII("chromecast_gen1.pem"));
@@ -69,8 +70,9 @@ class CastAuthUtilTest : public testing::Test {
     AuthResponse response;
 
     response.set_client_auth_certificate(chain[0]);
-    for (size_t i = 1; i < chain.size(); ++i)
+    for (size_t i = 1; i < chain.size(); ++i) {
       response.add_intermediate_certificate(chain[i]);
+    }
 
     response.set_hash_algorithm(digest_algorithm);
     switch (digest_algorithm) {
@@ -128,29 +130,23 @@ TEST_F(CastAuthUtilTest, VerifyBadClientAuthCert) {
 }
 
 TEST_F(CastAuthUtilTest, VerifyBadSignature) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kEnforceFallbackCRLRevocationChecking);
   std::string signed_data;
   AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
   MangleString(auth_response.mutable_signature());
   AuthResult result = VerifyCredentials(auth_response, signed_data);
   EXPECT_FALSE(result.success());
   EXPECT_EQ(AuthResult::ERROR_SIGNED_BLOBS_MISMATCH, result.error_type);
-  EXPECT_EQ(kFlagsCRLMissing, result.flags);
+  EXPECT_EQ(kFlagsAcceptedWithMissingCRL, result.flags);
 }
 
 TEST_F(CastAuthUtilTest, VerifyEmptySignature) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kEnforceFallbackCRLRevocationChecking);
   std::string signed_data;
   AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
   auth_response.mutable_signature()->clear();
   AuthResult result = VerifyCredentials(auth_response, signed_data);
   EXPECT_FALSE(result.success());
   EXPECT_EQ(AuthResult::ERROR_SIGNATURE_EMPTY, result.error_type);
-  EXPECT_EQ(kFlagsCRLMissing, result.flags);
+  EXPECT_EQ(kFlagsAcceptedWithMissingCRL, result.flags);
 }
 
 TEST_F(CastAuthUtilTest, VerifyUnsupportedDigest) {
@@ -229,10 +225,7 @@ TEST_F(CastAuthUtilTest, VerifyCrlRequiredWithNotExpiredFallback) {
   EXPECT_EQ(kFlagsAcceptedByFallbackCRL, result.flags);
 }
 
-TEST_F(CastAuthUtilTest, FeatureFlagVerifyCrlRequiredWithFallbackCRL) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(
-      kEnforceFallbackCRLRevocationChecking);
+TEST_F(CastAuthUtilTest, VerifyCrlRequiredWithFallbackCRL) {
   std::string signed_data;
   AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
   AuthResult result = VerifyCredentials(auth_response, signed_data);
@@ -254,58 +247,12 @@ TEST_F(CastAuthUtilTest, VerifyCrlRequiredWithInvalidFallbackCRL) {
   EXPECT_EQ(kFlagsInvalidFallbackCRL, result.flags);
 }
 
-TEST_F(CastAuthUtilTest,
-       VerifyInvalidCRLWithFeatureFlagEnforceRevocationChecking) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kEnforceRevocationChecking},
-                                       {kEnforceFallbackCRLRevocationChecking});
-  std::string signed_data;
-  AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
-  AuthResult result = VerifyCredentials(auth_response, signed_data);
-  EXPECT_FALSE(result.success());
-  EXPECT_EQ(AuthResult::ERROR_CRL_INVALID, result.error_type);
-  EXPECT_EQ(kFlagsInvalidCRL, result.flags);
-}
-
-TEST_F(CastAuthUtilTest,
-       VerifyMissingCRLWithoutFeatureFlagEnforceRevocationChecking) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  std::string signed_data;
-  scoped_feature_list.InitWithFeatures(
-      {}, {kEnforceRevocationChecking, kEnforceFallbackCRLRevocationChecking});
-  AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
-  AuthResult result = VerifyCredentials(auth_response, signed_data);
-  EXPECT_TRUE(result.success());
-  EXPECT_EQ(AuthResult::ERROR_NONE, result.error_type);
-  EXPECT_EQ(kFlagsCRLMissing, result.flags);
-}
-
-TEST_F(CastAuthUtilTest,
-       VerifyParsingErrorWithFeatureFlagEnforceRevocationChecking) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kEnforceRevocationChecking},
-                                       {kEnforceFallbackCRLRevocationChecking});
-
+TEST_F(CastAuthUtilTest, VerifyParsingError) {
   std::string signed_data;
   AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
   MangleString(auth_response.mutable_client_auth_certificate());
   AuthResult result = VerifyCredentials(auth_response, signed_data);
   EXPECT_FALSE(result.success());
-  // will early return if the CRL is invalid
-  EXPECT_EQ(AuthResult::ERROR_CRL_INVALID, result.error_type);
-  EXPECT_EQ(kFlagsInvalidCRL, result.flags);
-}
-
-TEST_F(CastAuthUtilTest,
-       VerifyParsingErrorWithoutFeatureFlagEnforceRevocationChecking) {
-  base::test::ScopedFeatureList scoped_feature_list;
-
-  std::string signed_data;
-  AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
-  MangleString(auth_response.mutable_client_auth_certificate());
-  AuthResult result = VerifyCredentials(auth_response, signed_data);
-  EXPECT_FALSE(result.success());
-  // will NOT early return if the flag is off
   EXPECT_EQ(AuthResult::ERROR_CERT_PARSING_FAILED, result.error_type);
   EXPECT_EQ(kFlagsCRLMissing, result.flags);
 }
@@ -323,16 +270,13 @@ TEST_F(CastAuthUtilTest, VerifyCrlOptionalWithInvalidFallbackCRL) {
 }
 
 TEST_F(CastAuthUtilTest, VerifyBadPeerCert) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kEnforceFallbackCRLRevocationChecking);
   std::string signed_data;
   AuthResponse auth_response = CreateAuthResponse(&signed_data, SHA256);
   MangleString(&signed_data);
   AuthResult result = VerifyCredentials(auth_response, signed_data);
   EXPECT_FALSE(result.success());
   EXPECT_EQ(AuthResult::ERROR_SIGNED_BLOBS_MISMATCH, result.error_type);
-  EXPECT_EQ(kFlagsCRLMissing, result.flags);
+  EXPECT_EQ(kFlagsAcceptedWithMissingCRL, result.flags);
 }
 
 TEST_F(CastAuthUtilTest, VerifySenderNonceMatch) {
@@ -378,7 +322,7 @@ TEST_F(CastAuthUtilTest, VerifyTLSCertificateSuccess) {
 
   scoped_refptr<net::X509Certificate> tls_cert =
       net::X509Certificate::CreateFromBytes(
-          base::as_bytes(base::make_span(tls_cert_der[0])));
+          base::as_byte_span(tls_cert_der[0]));
   std::string peer_cert_der;
   AuthResult result =
       VerifyTLSCertificate(*tls_cert, &peer_cert_der, tls_cert->valid_start());
@@ -393,7 +337,7 @@ TEST_F(CastAuthUtilTest, VerifyTLSCertificateTooEarly) {
 
   scoped_refptr<net::X509Certificate> tls_cert =
       net::X509Certificate::CreateFromBytes(
-          base::as_bytes(base::make_span(tls_cert_der[0])));
+          base::as_byte_span(tls_cert_der[0]));
   std::string peer_cert_der;
   AuthResult result = VerifyTLSCertificate(
       *tls_cert, &peer_cert_der, tls_cert->valid_start() - base::Seconds(1));
@@ -410,7 +354,7 @@ TEST_F(CastAuthUtilTest, VerifyTLSCertificateTooLate) {
 
   scoped_refptr<net::X509Certificate> tls_cert =
       net::X509Certificate::CreateFromBytes(
-          base::as_bytes(base::make_span(tls_cert_der[0])));
+          base::as_byte_span(tls_cert_der[0]));
   std::string peer_cert_der;
   AuthResult result = VerifyTLSCertificate(
       *tls_cert, &peer_cert_der, tls_cert->valid_expiry() + base::Seconds(2));
@@ -440,16 +384,18 @@ AuthResult TestVerifyRevocation(
 
   if (certificate_chain.size() > 0) {
     response.set_client_auth_certificate(certificate_chain[0]);
-    for (size_t i = 1; i < certificate_chain.size(); ++i)
+    for (size_t i = 1; i < certificate_chain.size(); ++i) {
       response.add_intermediate_certificate(certificate_chain[i]);
+    }
   }
 
   response.set_crl(crl_bundle);
 
   cast_certificate::CRLPolicy crl_policy =
       cast_certificate::CRLPolicy::CRL_REQUIRED;
-  if (!crl_required && crl_bundle.empty())
+  if (!crl_required && crl_bundle.empty()) {
     crl_policy = cast_certificate::CRLPolicy::CRL_OPTIONAL;
+  }
   AuthResult result = VerifyCredentialsForTest(
       response, "", crl_policy, crl_trust_store, verification_time);
   // This test doesn't set the signature so it will just fail there.
@@ -458,7 +404,7 @@ AuthResult TestVerifyRevocation(
 }
 
 // Runs a single test case.
-bool RunTest(const cast::certificate::DeviceCertTest& test_case) {
+bool RunTest(const openscreen::cast::proto::DeviceCertTest& test_case) {
   std::unique_ptr<cast_certificate::testing::ScopedCastTrustStoreConfig>
       scoped_cast_trust_store =
           test_case.use_test_trust_anchors()
@@ -492,7 +438,7 @@ bool RunTest(const cast::certificate::DeviceCertTest& test_case) {
   std::string crl_bundle = test_case.crl_bundle();
   AuthResult result;
   switch (test_case.expected_result()) {
-    case cast::certificate::PATH_VERIFICATION_FAILED:
+    case openscreen::cast::proto::PATH_VERIFICATION_FAILED:
       result =
           TestVerifyRevocation(certificate_chain, crl_bundle, verification_time,
                                false, crl_trust_store.get());
@@ -500,31 +446,31 @@ bool RunTest(const cast::certificate::DeviceCertTest& test_case) {
                 AuthResult::ERROR_CERT_NOT_SIGNED_BY_TRUSTED_CA);
       return result.error_type ==
              AuthResult::ERROR_CERT_NOT_SIGNED_BY_TRUSTED_CA;
-    case cast::certificate::CRL_VERIFICATION_FAILED:
+    case openscreen::cast::proto::CRL_VERIFICATION_FAILED:
     // Fall-through intended.
-    case cast::certificate::REVOCATION_CHECK_FAILED_WITHOUT_CRL:
+    case openscreen::cast::proto::REVOCATION_CHECK_FAILED_WITHOUT_CRL:
       result =
           TestVerifyRevocation(certificate_chain, crl_bundle, verification_time,
                                true, crl_trust_store.get());
       EXPECT_EQ(result.error_type, AuthResult::ERROR_CRL_INVALID);
       return result.error_type == AuthResult::ERROR_CRL_INVALID;
-    case cast::certificate::CRL_EXPIRED_AFTER_INITIAL_VERIFICATION:
+    case openscreen::cast::proto::CRL_EXPIRED_AFTER_INITIAL_VERIFICATION:
       // By-pass this test because CRL is always verified at the time the
       // certificate is verified.
       return true;
-    case cast::certificate::REVOCATION_CHECK_FAILED:
+    case openscreen::cast::proto::REVOCATION_CHECK_FAILED:
       result =
           TestVerifyRevocation(certificate_chain, crl_bundle, verification_time,
                                true, crl_trust_store.get());
       EXPECT_EQ(result.error_type, AuthResult::ERROR_CERT_REVOKED);
       return result.error_type == AuthResult::ERROR_CERT_REVOKED;
-    case cast::certificate::SUCCESS:
+    case openscreen::cast::proto::SUCCESS:
       result =
           TestVerifyRevocation(certificate_chain, crl_bundle, verification_time,
                                false, crl_trust_store.get());
       EXPECT_EQ(result.error_type, AuthResult::ERROR_SIGNED_BLOBS_MISMATCH);
       return result.error_type == AuthResult::ERROR_SIGNED_BLOBS_MISMATCH;
-    case cast::certificate::UNSPECIFIED:
+    case openscreen::cast::proto::UNKNOWN:
       return false;
   }
   return false;
@@ -541,7 +487,7 @@ void RunTestSuite(const std::string& test_suite_file_name) {
           test_suite_file_name),
       &testsuite_raw);
 
-  cast::certificate::DeviceCertTestSuite test_suite;
+  openscreen::cast::proto::DeviceCertTestSuite test_suite;
   EXPECT_TRUE(test_suite.ParseFromString(testsuite_raw));
   uint16_t success = 0;
   uint16_t failed = 0;

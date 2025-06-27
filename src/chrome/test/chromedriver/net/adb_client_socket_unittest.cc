@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "chrome/test/chromedriver/net/adb_client_socket.h"
 
 #include <memory>
 
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
+#include "base/memory/raw_span.h"
 #include "base/run_loop.h"
 #include "base/test/gtest_util.h"
 #include "base/test/mock_callback.h"
@@ -53,7 +59,7 @@ class MockSocket : public net::MockClientSocket {
       return buf_len;
     }
     strncpy(buf->data(), return_values_array.front().data(), chunk_length);
-    return_values_array = return_values_array.subspan(1);
+    return_values_array = return_values_array.subspan<1>();
     if (chunk_length == 0) {
       return net::ERR_IO_PENDING;
     }
@@ -75,7 +81,7 @@ class MockSocket : public net::MockClientSocket {
   bool GetSSLInfo(net::SSLInfo* ssl_info) override { return false; }
   bool WasEverUsed() const override { return false; }
 
-  base::span<std::string> return_values_array;
+  base::raw_span<std::string> return_values_array;
 };
 
 class AdbClientSocketTest : public testing::Test {

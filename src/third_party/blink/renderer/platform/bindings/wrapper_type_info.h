@@ -32,6 +32,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_BINDINGS_WRAPPER_TYPE_INFO_H_
 
 #include "base/check_op.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "gin/public/wrapper_info.h"
 #include "third_party/blink/renderer/platform/bindings/v8_interface_bridge_base.h"
 #include "third_party/blink/renderer/platform/heap/visitor.h"
@@ -69,25 +70,12 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
     kCustomWrappableId,
   };
 
-  enum ActiveScriptWrappableInheritance {
-    kNotInheritFromActiveScriptWrappable,
-    kInheritFromActiveScriptWrappable,
-  };
-
   enum IdlDefinitionKind {
-    kIdlInterface,
+    kIdlInterface,  // includes callback interfaces
     kIdlNamespace,
-    kIdlCallbackInterface,
-    kIdlBufferSourceType,
-    kIdlObservableArray,
-    kIdlAsyncOrSyncIterator,
-    kCustomWrappableKind,
+    // iterators, observably arrays, buffer sources, internal script functions.
+    kIdlOtherType,
   };
-
-  static const WrapperTypeInfo* Unwrap(v8::Local<v8::Value> type_info_wrapper) {
-    return reinterpret_cast<const WrapperTypeInfo*>(
-        v8::External::Cast(*type_info_wrapper)->Value());
-  }
 
   bool Equals(const WrapperTypeInfo* that) const { return this == that; }
 
@@ -110,11 +98,7 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   //
   // - kIdlInterface: v8::FunctionTemplate of interface object
   // - kIdlNamespace: v8::ObjectTemplate of namespace object
-  // - kIdlCallbackInterface: v8::FunctionTemplate of legacy callback
-  //       interface object
-  // - kIdlAsyncOrSyncIterator: v8::FunctionTemplate of default (asynchronous
-  //       or synchronous) iterator object
-  // - kCustomWrappableKind: v8::FunctionTemplate
+  // - kIdlOtherType: v8::FunctionTemplate
   v8::Local<v8::Template> GetV8ClassTemplate(
       v8::Isolate* isolate,
       const DOMWrapperWorld& world) const;
@@ -132,11 +116,6 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
     install_context_dependent_props_func(
         context, world, instance_object, prototype_object, interface_object,
         interface_template, bindings::V8InterfaceBridgeBase::FeatureSelector());
-  }
-
-  bool IsActiveScriptWrappable() const {
-    return active_script_wrappable_inheritance ==
-           kInheritFromActiveScriptWrappable;
   }
 
   static bool HasLegacyInternalFieldsSet(v8::Local<v8::Object> object) {
@@ -157,12 +136,20 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   bindings::V8InterfaceBridgeBase::InstallContextDependentPropertiesFuncType
       install_context_dependent_props_func;
   const char* interface_name;
-  const WrapperTypeInfo* parent_class;
+  // RAW_PTR_EXCLUSION: #global-scope, #reinterpret-cast-trivial-type
+  RAW_PTR_EXCLUSION const WrapperTypeInfo* parent_class;
+
+  // When wrapping, we provide `this_tag` to v8's type checking.
+  // When unwrapping, we provide `this_tag` and `max_subclass_tag` as the valid
+  // range of tags for the object  being unwrapped. The bindings generator is
+  // responsible for ensuring the subclass tags are a contiguous range
+  // (`this_tag', `max_subclass_tag`].
+  v8::CppHeapPointerTag this_tag;
+  v8::CppHeapPointerTag max_subclass_tag;
+
   unsigned wrapper_type_prototype : 2;  // WrapperTypePrototype
   unsigned wrapper_class_id : 2;        // WrapperClassId
-  unsigned                              // ActiveScriptWrappableInheritance
-      active_script_wrappable_inheritance : 1;
-  unsigned idl_definition_kind : 3;  // IdlDefinitionKind
+  unsigned idl_definition_kind : 2;     // IdlDefinitionKind
 
   // This is a special case only used by V8WindowProperties::WrapperTypeInfo().
   // WindowProperties is part of Window's prototype object's prototype chain,
@@ -172,17 +159,22 @@ struct PLATFORM_EXPORT WrapperTypeInfo final {
   bool is_skipped_in_interface_object_prototype_chain : 1;
 };
 
-// The return value can be null if |wrapper| is a global proxy, which points to
-// nothing while a navigation.
-inline ScriptWrappable* ToScriptWrappable(
+// `ToAnyScriptWrappable()` is only for use in cases where the subtype of
+// ScriptWrappable is unknown and any subtype must be permitted.
+// `ToScriptWrappable()` should be used whenever possible for stronger type
+// enforcement.
+// The return value may be null.
+inline ScriptWrappable* ToAnyScriptWrappable(
     v8::Isolate* isolate,
     const v8::TracedReference<v8::Object>& wrapper) {
-  return v8::Object::Unwrap<kDOMWrappersTag, ScriptWrappable>(isolate, wrapper);
+  return v8::Object::Unwrap<ScriptWrappable>(isolate, wrapper,
+                                             v8::kAnyCppHeapPointer);
 }
 
-inline ScriptWrappable* ToScriptWrappable(v8::Isolate* isolate,
-                                          v8::Local<v8::Object> wrapper) {
-  return v8::Object::Unwrap<kDOMWrappersTag, ScriptWrappable>(isolate, wrapper);
+inline ScriptWrappable* ToAnyScriptWrappable(v8::Isolate* isolate,
+                                             v8::Local<v8::Object> wrapper) {
+  return v8::Object::Unwrap<ScriptWrappable>(isolate, wrapper,
+                                             v8::kAnyCppHeapPointer);
 }
 
 PLATFORM_EXPORT const WrapperTypeInfo* ToWrapperTypeInfo(

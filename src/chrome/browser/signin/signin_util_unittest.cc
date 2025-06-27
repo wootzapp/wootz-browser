@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/prefs/browser_prefs.h"
 #include "chrome/common/pref_names.h"
@@ -18,10 +17,13 @@
 #include "components/prefs/pref_service.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/base/signin_pref_names.h"
+#include "components/signin/public/base/signin_switches.h"
+#include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "content/public/test/browser_task_environment.h"
 
 using signin_util::ProfileSeparationPolicyState;
 using signin_util::ProfileSeparationPolicyStateSet;
+using signin_util::SignedInState;
 
 namespace {
 
@@ -120,7 +122,6 @@ TEST_F(SigninUtilTest, GetForceSigninPolicy) {
   EXPECT_FALSE(signin_util::IsForceSigninEnabled());
 }
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
 TEST_F(SigninUtilTest, IsProfileSeparationEnforcedByProfile) {
   std::unique_ptr<TestingProfile> profile = TestingProfile::Builder().Build();
   for (const auto& local_policy : all_policies) {
@@ -363,4 +364,52 @@ TEST_F(SigninUtilTest,
   }
 }
 
-#endif
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+TEST(SignedInStatesTest, SignedInStates) {
+  base::test::SingleThreadTaskEnvironment task_environment;
+  signin::IdentityTestEnvironment identity_test_env;
+  signin::IdentityManager* identity_manager =
+      identity_test_env.identity_manager();
+
+  // No Account present.
+  EXPECT_EQ(SignedInState::kSignedOut,
+            signin_util::GetSignedInState(identity_manager));
+
+  // Web signed in.
+  identity_test_env.MakeAccountAvailable("test@email.com",
+                                         {.set_cookie = true});
+  EXPECT_EQ(SignedInState::kWebOnlySignedIn,
+            signin_util::GetSignedInState(identity_manager));
+
+  // Syncing.
+  AccountInfo info = identity_test_env.MakePrimaryAccountAvailable(
+      "test@email.com", signin::ConsentLevel::kSync);
+  EXPECT_EQ(SignedInState::kSyncing,
+            signin_util::GetSignedInState(identity_manager));
+
+  // Sync paused state.
+  identity_test_env.SetInvalidRefreshTokenForPrimaryAccount();
+  EXPECT_EQ(SignedInState::kSyncPaused,
+            signin_util::GetSignedInState(identity_manager));
+
+  // Remove account.
+  identity_test_env.ClearPrimaryAccount();
+  EXPECT_EQ(SignedInState::kSignedOut,
+            signin_util::GetSignedInState(identity_manager));
+
+  // In incognito mode, there would be no identity manager.
+  EXPECT_EQ(SignedInState::kSignedOut, signin_util::GetSignedInState(nullptr));
+
+  // Signed in.
+  info = identity_test_env.MakePrimaryAccountAvailable(
+      "test@email.com", signin::ConsentLevel::kSignin);
+  EXPECT_EQ(SignedInState::kSignedIn,
+            signin_util::GetSignedInState(identity_manager));
+
+  // When explicit browser signin is enabled, being signed in with an invalid
+  // refresh token is equivalent to the sign in pending state.
+  identity_test_env.SetInvalidRefreshTokenForPrimaryAccount();
+  EXPECT_EQ(SignedInState::kSignInPending,
+            signin_util::GetSignedInState(identity_manager));
+}
+#endif  // !BUILDFLAG(ENABLE_DICE_SUPPORT)

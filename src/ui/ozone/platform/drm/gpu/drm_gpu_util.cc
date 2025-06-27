@@ -2,11 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/ozone/platform/drm/gpu/drm_gpu_util.h"
 
 #include <fcntl.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+
+#include <utility>
 
 #include "base/logging.h"
 #include "base/trace_event/trace_event.h"
@@ -14,6 +21,7 @@
 #include "ui/display/types/display_color_management.h"
 #include "ui/display/types/gamma_ramp_rgb_entry.h"
 #include "ui/ozone/platform/drm/common/drm_util.h"
+#include "ui/ozone/platform/drm/common/hardware_display_controller_info.h"
 #include "ui/ozone/platform/drm/gpu/drm_device.h"
 #include "ui/ozone/platform/drm/gpu/hardware_display_plane_manager.h"
 
@@ -222,14 +230,14 @@ bool ParseLutBlob(const void* data, size_t size, display::GammaCurve& result) {
     lut[i].g = entries[i].green;
     lut[i].b = entries[i].blue;
   }
-  result = display::GammaCurve(lut);
+  result = display::GammaCurve(std::move(lut));
   return true;
 }
 
 ScopedDrmColorCtmPtr CreateCTMBlob(const skcms_Matrix3x3& color_matrix,
                                    bool negative_values_broken) {
   ScopedDrmColorCtmPtr ctm(
-      static_cast<drm_color_ctm*>(malloc(sizeof(drm_color_ctm))));
+      static_cast<drm_color_ctm*>(drmMalloc(sizeof(drm_color_ctm))));
   for (size_t i = 0; i < 9; ++i) {
     float value = color_matrix.vals[i / 3][i % 3];
     if (value < 0) {
@@ -245,6 +253,7 @@ ScopedDrmColorCtmPtr CreateCTMBlob(const skcms_Matrix3x3& color_matrix,
           static_cast<uint64_t>(value * kCtmValueScale) & kCtmValueMask;
     }
   }
+
   return ctm;
 }
 
@@ -280,8 +289,8 @@ ScopedDrmModeRectPtr CreateDCBlob(const gfx::Rect& rect) {
   return dmg_rect;
 }
 
-HardwareDisplayControllerInfoList GetDisplayInfosAndUpdateCrtcs(
-    DrmWrapper& drm) {
+std::vector<std::unique_ptr<HardwareDisplayControllerInfo>>
+GetDisplayInfosAndUpdateCrtcs(DrmWrapper& drm) {
   auto [displays, invalid_crtcs] = GetDisplayInfosAndInvalidCrtcs(drm);
   // Disable invalid CRTCs to allow the preferred CRTCs to be enabled later
   // instead.

@@ -13,6 +13,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "chromeos/ash/components/dbus/audio/cras_audio_client.h"
+#include "chromeos/ash/components/dbus/audio/voice_isolation_ui_appearance.h"
 
 namespace ash {
 
@@ -31,12 +32,16 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
 
   static FakeCrasAudioClient* Get();
 
+  void SetVoiceIsolationUIAppearance(VoiceIsolationUIAppearance appearance);
+  bool GetVoiceIsolationUIEnabled();
+  uint32_t GetVoiceIsolationUIPreferredEffect();
   void SetNoiseCancellationSupported(bool noise_cancellation_supported);
   uint32_t GetNoiseCancellationEnabledCount();
   void SetStyleTransferSupported(bool style_transfer_supported);
   bool GetStyleTransferEnabled();
   void SetHfpMicSrSupported(bool hfp_mic_sr_supported);
   uint32_t GetHfpMicSrEnabled();
+  void SetSpatialAudioSupported(bool spatial_audio_supported);
 
   // CrasAudioClient overrides:
   void AddObserver(Observer* observer) override;
@@ -67,6 +72,13 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
   void SetOutputUserMute(bool mute_on) override;
   void SetInputNodeGain(uint64_t node_id, int32_t gain) override;
   void SetInputMute(bool mute_on) override;
+  void GetAudioEffectDlcs(
+      chromeos::DBusMethodCallback<std::string> callback) override;
+  void GetVoiceIsolationUIAppearance(
+      chromeos::DBusMethodCallback<VoiceIsolationUIAppearance> callback)
+      override;
+  void SetVoiceIsolationUIEnabled(bool voice_isolation_on) override;
+  void SetVoiceIsolationUIPreferredEffect(uint32_t effect_mode) override;
   void SetNoiseCancellationEnabled(bool noise_cancellation_on) override;
   void GetNoiseCancellationSupported(
       chromeos::DBusMethodCallback<bool> callback) override;
@@ -81,6 +93,10 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
   void SetFixA2dpPacketSize(bool enabled) override;
   void SetFlossEnabled(bool enabled) override;
   void SetSpeakOnMuteDetection(bool enabled) override;
+  void SetEwmaPowerReportEnabled(bool enabled) override;
+  void SetSidetoneEnabled(bool enabled) override;
+  void GetSidetoneSupported(
+      chromeos::DBusMethodCallback<bool> callback) override;
   void AddActiveInputNode(uint64_t node_id) override;
   void RemoveActiveInputNode(uint64_t node_id) override;
   void AddActiveOutputNode(uint64_t node_id) override;
@@ -106,6 +122,9 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
       chromeos::DBusMethodCallback<int> callback) override;
   void SetHfpMicSrEnabled(bool hfp_mic_sr_on) override;
   void GetHfpMicSrSupported(
+      chromeos::DBusMethodCallback<bool> callback) override;
+  void SetSpatialAudio(bool spatial_audio_enabled) override;
+  void GetSpatialAudioSupported(
       chromeos::DBusMethodCallback<bool> callback) override;
 
   // Sets the number of non chrome audio streams in output mode.
@@ -150,6 +169,8 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
   // Sets the number of ARC streams.
   void SetNumberOfArcStreams(int32_t streams);
 
+  void SetAudioEffectDlcsForTesting(const std::string& audio_effect_dlcs);
+
   const AudioNodeList& node_list() const { return node_list_; }
   const uint64_t& active_input_node_id() const { return active_input_node_id_; }
   const uint64_t& active_output_node_id() const {
@@ -173,10 +194,10 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
   void disable_gain_change_events() { enable_gain_change_events_ = false; }
 
   bool noise_cancellation_enabled() const {
-    return noise_cancellation_enabled_;
+    return voice_isolation_ui_enabled_;
   }
 
-  bool style_transfer_enabled() const { return style_transfer_enabled_; }
+  bool style_transfer_enabled() const { return voice_isolation_ui_enabled_; }
 
   bool speak_on_mute_detection_enabled() const {
     return speak_on_mute_detection_enabled_;
@@ -188,12 +209,15 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
 
   bool hfp_mic_sr_enabled() const { return hfp_mic_sr_enabled_; }
 
+  bool spatial_audio_enabled() const { return spatial_audio_enabled_; }
+
  private:
   // Finds a node in the list based on the id.
   AudioNodeList::iterator FindNode(uint64_t node_id);
 
   VolumeState volume_state_;
   AudioNodeList node_list_;
+  VoiceIsolationUIAppearance voice_isolation_ui_appearance_;
   uint64_t active_input_node_id_ = 0;
   uint64_t active_output_node_id_ = 0;
   bool enable_volume_change_events_ = true;
@@ -205,16 +229,22 @@ class COMPONENT_EXPORT(DBUS_AUDIO) FakeCrasAudioClient
   uint32_t battery_level_ = 0;
   uint32_t noise_cancellation_enabled_counter_ = 0;
   int32_t number_non_chrome_output_streams_ = 0;
-  bool noise_cancellation_enabled_ = false;
-  bool style_transfer_enabled_ = false;
+  bool voice_isolation_ui_enabled_ = false;
+  uint32_t voice_isolation_preferred_effect_ = 0;
   bool speak_on_mute_detection_enabled_ = false;
+  bool ewma_power_report_enabled_ = false;
+  bool sidetone_enabled_ = false;
+  bool sidetone_supported_ = false;
   bool force_respect_ui_gains_enabled_ = false;
   bool hfp_mic_sr_enabled_ = false;
   bool hfp_mic_sr_supported_ = false;
+  bool spatial_audio_enabled_ = false;
+  bool spatial_audio_supported_ = false;
   // Maps audio client type to the number of active input streams for clients
   // with the type specified
   ClientTypeToInputStreamCount active_input_streams_;
   int32_t number_arc_streams_ = 0;
+  std::string audio_effect_dlcs_;
 
   base::ObserverList<Observer>::Unchecked observers_;
 

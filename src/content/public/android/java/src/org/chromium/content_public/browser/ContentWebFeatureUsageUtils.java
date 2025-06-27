@@ -8,14 +8,20 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.blink.mojom.WebFeature;
+import org.chromium.build.annotations.NullMarked;
 
 /** A Java API for calling ContentBrowserClient::LogWebFeatureForCurrentPage(). */
 @JNINamespace("content")
+@NullMarked
 public class ContentWebFeatureUsageUtils {
     public static void logWebFeatureForCurrentPage(
             WebContents webContents, @WebFeature.EnumType int webFeature) {
         ContentWebFeatureUsageUtilsJni.get().logWebFeatureForCurrentPage(webContents, webFeature);
     }
+
+    // If there's a need for a logWebDXFeatureForCurrentPage() in Java, there's
+    // code for that included in
+    // https://chromium-review.googlesource.com/c/chromium/src/+/5640502/11.
 
     @NativeMethods
     public interface Natives {

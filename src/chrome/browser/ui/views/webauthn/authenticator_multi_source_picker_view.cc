@@ -5,8 +5,10 @@
 #include "chrome/browser/ui/views/webauthn/authenticator_multi_source_picker_view.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "chrome/browser/ui/views/webauthn/authenticator_request_sheet_view.h"
 #include "chrome/browser/ui/views/webauthn/hover_list_view.h"
@@ -15,19 +17,21 @@
 #include "chrome/browser/webauthn/authenticator_request_dialog_model.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/text_constants.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/layout_provider.h"
 #include "ui/views/style/typography.h"
+#include "ui/views/view.h"
 
 namespace {
 
 std::pair<std::unique_ptr<views::View>, HoverListView*> CreatePasskeyList(
     const std::optional<std::u16string>& title,
     const std::vector<int>& passkey_indices,
-    const base::span<const AuthenticatorRequestDialogModel::Mechanism> mechs) {
+    AuthenticatorRequestDialogModel* dialog_model) {
   auto container = std::make_unique<views::BoxLayoutView>();
   container->SetOrientation(views::BoxLayout::Orientation::kVertical);
   container->SetBetweenChildSpacing(
@@ -44,9 +48,9 @@ std::pair<std::unique_ptr<views::View>, HoverListView*> CreatePasskeyList(
         *title, views::style::CONTEXT_DIALOG_BODY_TEXT));
     label->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
   }
-  HoverListView* control =
-      container->AddChildView(std::make_unique<HoverListView>(
-          std::make_unique<TransportHoverListModel>(mechs, passkey_indices)));
+  HoverListView* control = container->AddChildView(
+      std::make_unique<HoverListView>(std::make_unique<TransportHoverListModel>(
+          dialog_model, passkey_indices)));
   return std::make_pair(std::move(container), control);
 }
 
@@ -67,7 +71,7 @@ AuthenticatorMultiSourcePickerView::AuthenticatorMultiSourcePickerView(
     std::pair<std::unique_ptr<views::View>, HoverListView*> primary_list =
         CreatePasskeyList(model->primary_passkeys_label(),
                           model->primary_passkey_indices(),
-                          model->dialog_model()->mechanisms);
+                          model->dialog_model());
     AddChildView(std::move(primary_list.first));
     primary_passkeys_control_ = primary_list.second;
   }
@@ -76,7 +80,7 @@ AuthenticatorMultiSourcePickerView::AuthenticatorMultiSourcePickerView(
     std::pair<std::unique_ptr<views::View>, HoverListView*> secondary_list =
         CreatePasskeyList(secondary_passkeys_label,
                           model->secondary_passkey_indices(),
-                          model->dialog_model()->mechanisms);
+                          model->dialog_model());
     AddChildView(std::move(secondary_list.first));
     secondary_passkeys_control_ = secondary_list.second;
   }
@@ -94,3 +98,6 @@ void AuthenticatorMultiSourcePickerView::RequestFocus() {
     secondary_passkeys_control_->RequestFocus();
   }
 }
+
+BEGIN_METADATA(AuthenticatorMultiSourcePickerView)
+END_METADATA

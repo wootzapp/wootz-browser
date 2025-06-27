@@ -36,7 +36,7 @@
 #include "third_party/blink/public/strings/grit/blink_strings.h"
 #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
 #include "third_party/blink/renderer/core/dom/events/scoped_event_queue.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
+#include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/fileapi/file_list.h"
 #include "third_party/blink/renderer/core/html/forms/button_input_type.h"
@@ -70,6 +70,7 @@
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/core/layout/layout_theme.h"
 #include "third_party/blink/renderer/core/page/page.h"
+#include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/json/json_values.h"
@@ -125,7 +126,7 @@ const AtomicString& InputType::TypeToString(Type type) {
     case Type::kWeek:
       return input_type_names::kWeek;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 // Listed once to avoid any discrepancy between InputType::Create and
@@ -195,10 +196,6 @@ const AtomicString& InputType::FormControlTypeAsString() const {
   return TypeToString(type_);
 }
 
-bool InputType::IsTextField() const {
-  return false;
-}
-
 bool InputType::IsAutoDirectionalityFormAssociated() const {
   return false;
 }
@@ -206,8 +203,7 @@ bool InputType::IsAutoDirectionalityFormAssociated() const {
 template <typename T>
 bool ValidateInputType(const T& input_type, const String& value) {
   if (!input_type.CanSetStringValue()) {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
   return !input_type.TypeMismatchFor(value) &&
          !input_type.StepMismatch(value) && !input_type.RangeUnderflow(value) &&
@@ -263,8 +259,7 @@ bool InputType::IsValidValue(const String& value) const {
     case Type::kText:
       return ValidateInputType(To<TextInputType>(*this), value);
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool InputType::ShouldSaveAndRestoreFormControlState() const {
@@ -363,8 +358,7 @@ bool InputType::TypeMismatchFor(const String& value) const {
     case Type::kText:
       return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool InputType::TypeMismatch() const {
@@ -408,8 +402,7 @@ bool InputType::ValueMissing(const String& value) const {
     case Type::kSubmit:
       return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool InputType::TooLong(const String&,
@@ -450,8 +443,7 @@ bool InputType::PatternMismatch(const String& value) const {
     case Type::kSubmit:
       return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool InputType::RangeUnderflow(const String& value) const {
@@ -557,12 +549,11 @@ bool InputType::StepMismatch(const String& value) const {
 }
 
 String InputType::BadInputText() const {
-  NOTREACHED_IN_MIGRATION();
-  return GetLocale().QueryString(IDS_FORM_VALIDATION_TYPE_MISMATCH);
+  NOTREACHED();
 }
 
 String InputType::ValueNotEqualText(const Decimal& value) const {
-  NOTREACHED_IN_MIGRATION();
+  DUMP_WILL_BE_NOTREACHED();
   return String();
 }
 
@@ -571,12 +562,10 @@ String InputType::RangeOverflowText(const Decimal&) const {
       "input-type", base::debug::CrashKeySize::Size32);
   base::debug::SetCrashKeyString(
       input_type, FormControlTypeAsString().GetString().Utf8().c_str());
-  NOTREACHED_IN_MIGRATION()
-      << "This should not get called. Check if input type '"
-      << FormControlTypeAsString()
-      << "' should have a RangeOverflowText implementation."
-      << "See crbug.com/1423280";
-  return String();
+  NOTREACHED() << "This should not get called. Check if input type '"
+               << FormControlTypeAsString()
+               << "' should have a RangeOverflowText implementation."
+               << "See crbug.com/1423280";
 }
 
 String InputType::RangeUnderflowText(const Decimal&) const {
@@ -584,18 +573,15 @@ String InputType::RangeUnderflowText(const Decimal&) const {
       "input-type", base::debug::CrashKeySize::Size32);
   base::debug::SetCrashKeyString(
       input_type, FormControlTypeAsString().GetString().Utf8().c_str());
-  NOTREACHED_IN_MIGRATION()
-      << "This should not get called. Check if input type '"
-      << FormControlTypeAsString()
-      << "' should have a RangeUnderflowText implementation."
-      << "See crbug.com/1423280";
-  return String();
+  NOTREACHED() << "This should not get called. Check if input type '"
+               << FormControlTypeAsString()
+               << "' should have a RangeUnderflowText implementation."
+               << "See crbug.com/1423280";
 }
 
 String InputType::ReversedRangeOutOfRangeText(const Decimal&,
                                               const Decimal&) const {
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 String InputType::RangeInvalidText(const Decimal&, const Decimal&) const {
@@ -603,12 +589,10 @@ String InputType::RangeInvalidText(const Decimal&, const Decimal&) const {
       "input-type", base::debug::CrashKeySize::Size32);
   base::debug::SetCrashKeyString(
       input_type, FormControlTypeAsString().GetString().Utf8().c_str());
-  NOTREACHED_IN_MIGRATION()
-      << "This should not get called. Check if input type '"
-      << FormControlTypeAsString()
-      << "' should have a RangeInvalidText implementation."
-      << "See crbug.com/1474270";
-  return String();
+  NOTREACHED() << "This should not get called. Check if input type '"
+               << FormControlTypeAsString()
+               << "' should have a RangeInvalidText implementation."
+               << "See crbug.com/1474270";
 }
 
 String InputType::TypeMismatchText() const {
@@ -727,8 +711,7 @@ std::pair<String, String> InputType::ValidationMessage(
 
 Decimal InputType::ParseToNumber(const String&,
                                  const Decimal& default_value) const {
-  NOTREACHED_IN_MIGRATION();
-  return default_value;
+  NOTREACHED();
 }
 
 Decimal InputType::ParseToNumberOrNaN(const String& string) const {
@@ -736,8 +719,7 @@ Decimal InputType::ParseToNumberOrNaN(const String& string) const {
 }
 
 String InputType::Serialize(const Decimal&) const {
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 ChromeClient* InputType::GetChromeClient() const {
@@ -779,11 +761,10 @@ bool InputType::CanSetStringValue() const {
     case Type::kSubmit:
       return true;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
-bool InputType::IsKeyboardFocusable(
+bool InputType::IsKeyboardFocusableSlow(
     Element::UpdateBehavior update_behavior) const {
   // Inputs are always keyboard focusable if they are focusable at all,
   // and don't have a negative tabindex set.
@@ -830,8 +811,7 @@ void InputType::SetFilesAndDispatchEvents(FileList*) {}
 void InputType::SetFilesFromPaths(const Vector<String>& paths) {}
 
 String InputType::ValueInFilenameValueMode() const {
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 String InputType::DefaultLabel() const {
@@ -902,31 +882,22 @@ void InputType::WarnIfValueIsInvalidAndElementIsVisible(
     const String& value) const {
   // Don't warn if the value is set in Modernizr.
   const ComputedStyle* style = GetElement().GetComputedStyle();
-  if (style && style->Visibility() != EVisibility::kHidden)
+  if (style && style->Visibility() != EVisibility::kHidden) {
     WarnIfValueIsInvalid(value);
+  }
 }
 
 void InputType::WarnIfValueIsInvalid(const String&) const {}
 
 bool InputType::ReceiveDroppedFiles(const DragData*) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 String InputType::DroppedFileSystemId() {
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 bool InputType::ShouldRespectListAttribute() {
-  return false;
-}
-
-bool InputType::IsButton() const {
-  return false;
-}
-
-bool InputType::IsTextButton() const {
   return false;
 }
 
@@ -970,8 +941,7 @@ bool InputType::IsSteppable() const {
     case Type::kText:
       return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 HTMLFormControlElement::PopoverTriggerSupport
@@ -1006,8 +976,7 @@ String InputType::DefaultToolTip(const InputTypeView& input_type_view) const {
 }
 
 Decimal InputType::FindClosestTickMarkValue(const Decimal&) {
-  NOTREACHED_IN_MIGRATION();
-  return Decimal::Nan();
+  NOTREACHED();
 }
 
 bool InputType::HasLegalLinkAttribute(const QualifiedName&) const {
@@ -1125,10 +1094,8 @@ void InputType::ApplyStep(const Decimal& current,
   // greater than valueBeforeStepping, or the method invoked was the stepUp()
   // method and value is less than valueBeforeStepping, then return.
   DCHECK(!current_was_invalid || current == 0);
-  if (!(RuntimeEnabledFeatures::InputStepCurrentValueValidationEnabled() &&
-        current_was_invalid) &&
-      ((count < 0 && current < new_value) ||
-       (count > 0 && current > new_value))) {
+  if (!current_was_invalid && ((count < 0 && current < new_value) ||
+                               (count > 0 && current > new_value))) {
     return;
   }
 
@@ -1136,6 +1103,12 @@ void InputType::ApplyStep(const Decimal& current,
   // a number to a string, as defined for the input element's type attribute's
   // current state, on value.
   // 12. Set the value of the element to value as string.
+  if (event_behavior == TextFieldEventBehavior::kDispatchChangeEvent &&
+      DispatchBeforeInputInsertText(
+          EventTargetNodeForDocument(&GetElement().GetDocument()),
+          new_value.ToString()) != DispatchEventResult::kNotCanceled) {
+    return;
+  }
   SetValueAsDecimal(new_value, event_behavior, exception_state);
 
   if (AXObjectCache* cache = GetElement().GetDocument().ExistingAXObjectCache())
@@ -1149,8 +1122,7 @@ bool InputType::GetAllowedValueStep(Decimal* step) const {
 }
 
 StepRange InputType::CreateStepRange(AnyStepHandling) const {
-  NOTREACHED_IN_MIGRATION();
-  return StepRange();
+  NOTREACHED();
 }
 
 void InputType::StepUp(double n, ExceptionState& exception_state) {
@@ -1270,8 +1242,9 @@ void InputType::StepUpFromLayoutObject(int n) {
 
 void InputType::CountUsageIfVisible(WebFeature feature) const {
   if (const ComputedStyle* style = GetElement().GetComputedStyle()) {
-    if (style->Visibility() != EVisibility::kHidden)
+    if (style->Visibility() != EVisibility::kHidden) {
       UseCounter::Count(GetElement().GetDocument(), feature);
+    }
   }
 }
 

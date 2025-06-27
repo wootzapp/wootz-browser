@@ -18,6 +18,27 @@ author/reviewer/OWNERS agree that another course is better.
   setters.  Note that constructors and destructors can be more expensive than
   they appear and should also generally not be inlined.
 
+Use forward declarations when:
+* Declaring a reference or pointer to a type (e.g. `MyClass& myRef;`).
+* Declaring a `unique_ptr` to a type if the type's destructor is out of line.
+* Declaring a function that takes the type as a reference parameter (e.g.
+  `void f(MyClass& arg);`).
+* Using the type in `typedef` or `using` aliases (e.g.
+  `using MyClassPtr = MyClass*;`).
+* Declaring friend classes or friend functions.
+
+You can't use forward declarations when:
+* Creating an instance of the type (e.g. `MyClass obj;`). The compiler needs to
+  know the type's size to allocate memory.
+* Accessing members of the type (e.g. `obj.Method();`). The compiler needs to
+  know the type's layout to access its members.
+* Inheriting from a type (e.g. `class Derived : public MyClass`). The compiler
+  needs the full definition of the base class to calculate the size and layout
+  of the derived class.
+* Using the type as a template argument where the template implementation
+  requires complete information about the type.
+* When you need to know the size of the type (e.g. `sizeof(MyClass);`).
+
 ## Static variables
 
 Dynamic initialization of function-scope static variables is **thread-safe** in
@@ -308,9 +329,12 @@ if existing code uses the old one.
 
 ## Named namespaces
 
-Named namespaces are discouraged in top-level embedders (e.g., `chrome/`). See
-[this thread](https://groups.google.com/a/chromium.org/d/msg/chromium-dev/8ROncnL1t4k/J7uJMCQ8BwAJ)
-for background and discussion.
+Most code should be in a namespace, with the exception of code under
+`//chrome`, which may be in the global namespace (do not use the `chrome::`
+namespace). Minimize use of nested namespaces, as they do not actually
+improve encapsulation; if a nested namespace is needed, do not reuse the
+name of any top-level namespace. For more detailed guidance and rationale,
+see https://abseil.io/tips/130.
 
 ## Guarding with DCHECK_IS_ON()
 
@@ -410,3 +434,19 @@ cases:
   are `#ifdef`ed away. Don't unconditionally declare debug-only symbols just
   to use this technique -- only use it when it doesn't require additional
   tweaks to the surrounding code.
+
+## Use [[likely]] and [[unlikely]] sparingly
+
+C++20 adds the `[[likely]]` and `[[unlikely]]` attributes, which inform the
+compiler whether code is likely to be executed or not. Use these sparingly.
+
+* Intuition is often inaccurate, and branch predictors are very good. It's easy
+  to accidentally pessimize performance with these, so they should only be used
+  when the likelihood is well-known and the performance benefit is justified.
+* Future code changes can make these annotations inaccurate even if they were
+  accurate when first added. This is hard to notice.
+* PGO data overrides these annotations, so if they're reached during profiling,
+  official builds won't benefit from them anyway. Thus the primary benefit is
+  for non-PGO-optimized builds, e.g. making execution on bots faster or having
+  local developer builds behave more like an official build.
+* The added verbosity can marginally decrease readability.

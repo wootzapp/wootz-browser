@@ -6,11 +6,13 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_CLIPBOARD_CLIPBOARD_ITEM_H_
 
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_union_blob_string.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 
 namespace blink {
 
+class Blob;
 class ScriptState;
 
 // A `ClipboardItem` holds data that was read from or will be written to the
@@ -24,7 +26,8 @@ class ClipboardItem final : public ScriptWrappable {
   // If `representations` is empty, writes error info to `exception_state` and
   // returns nullptr.
   static ClipboardItem* Create(
-      const HeapVector<std::pair<String, ScriptPromiseUntyped>>&
+      const HeapVector<
+          std::pair<String, MemberScriptPromise<V8UnionBlobOrString>>>&
           representations,
       ExceptionState& exception_state);
 
@@ -34,7 +37,8 @@ class ClipboardItem final : public ScriptWrappable {
   // If an empty `ClipboardItem` is a valid use-case, use the constructor
   // directly, else use `Create` method.
   explicit ClipboardItem(
-      const HeapVector<std::pair<String, ScriptPromiseUntyped>>&
+      const HeapVector<
+          std::pair<String, MemberScriptPromise<V8UnionBlobOrString>>>&
           representations);
 
   // Returns the MIME types contained in the `ClipboardItem`.
@@ -48,16 +52,16 @@ class ClipboardItem final : public ScriptWrappable {
   // retrieve. `exception_state`: The exception state to be updated if an error
   // occurs. Spec:
   // https://w3c.github.io/clipboard-apis/#dom-clipboarditem-gettype
-  ScriptPromiseUntyped getType(ScriptState* script_state,
-                               const String& type,
-                               ExceptionState& exception_state) const;
+  ScriptPromise<Blob> getType(ScriptState* script_state,
+                              const String& type,
+                              ExceptionState& exception_state) const;
 
   // Checks if a particular MIME type is supported by the Async Clipboard API.
   // `type` refers to a MIME type or a custom MIME type with a "web " prefix.
   // Spec: https://w3c.github.io/clipboard-apis/#dom-clipboarditem-supports
   static bool supports(const String& type);
 
-  const HeapVector<std::pair<String, ScriptPromiseUntyped>>&
+  const HeapVector<std::pair<String, MemberScriptPromise<V8UnionBlobOrString>>>&
   GetRepresentations() const {
     return representations_;
   }
@@ -70,7 +74,9 @@ class ClipboardItem final : public ScriptWrappable {
 
  private:
   // Stores built-in and web custom MIME types.
-  HeapVector<std::pair<String, ScriptPromiseUntyped>> representations_;
+  HeapVector<std::pair<String, MemberScriptPromise<V8UnionBlobOrString>>>
+      representations_;
+
   // The vector of custom MIME types that have a "web " prefix.
   Vector<String> custom_format_types_;
 };

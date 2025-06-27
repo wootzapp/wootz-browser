@@ -11,6 +11,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
@@ -266,8 +267,7 @@ bool IncompatibleApplicationsUpdater::IsWarningEnabled() {
 bool IncompatibleApplicationsUpdater::HasCachedApplications() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  if (!ModuleDatabase::IsThirdPartyBlockingPolicyEnabled() ||
-      !IsWarningEnabled()) {
+  if (!IsWarningEnabled()) {
     return false;
   }
 
@@ -289,7 +289,6 @@ bool IncompatibleApplicationsUpdater::HasCachedApplications() {
 std::vector<IncompatibleApplicationsUpdater::IncompatibleApplication>
 IncompatibleApplicationsUpdater::GetCachedApplications() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  DCHECK(ModuleDatabase::IsThirdPartyBlockingPolicyEnabled());
   DCHECK(IsWarningEnabled());
 
   std::vector<IncompatibleApplication> valid_applications;
@@ -459,7 +458,7 @@ IncompatibleApplicationsUpdater::GetModuleWarningDecision(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   auto it = module_warning_decisions_.find(module_key);
-  DCHECK(it != module_warning_decisions_.end());
+  CHECK(it != module_warning_decisions_.end(), base::NotFatalUntil::M130);
   return it->second;
 }
 

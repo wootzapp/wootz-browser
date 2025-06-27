@@ -46,6 +46,7 @@
 namespace content {
 
 class CrossOriginEmbedderPolicyReporter;
+class DocumentIsolationPolicyReporter;
 class RenderProcessHost;
 class ServiceWorkerContentSettingsProxyImpl;
 class ServiceWorkerContextCore;
@@ -161,11 +162,15 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
   // synchronously complete if this instance is STARTING but the Start IPC
   // message has not yet been sent. In that case, the start procedure is
   // aborted, and this instance enters STOPPED status.
+  //
+  // May destroy `this`.
   void Stop();
 
   // Stops the worker if the worker is not being debugged (i.e. devtools is
   // not attached). This method is called by a stop-worker timer to kill
   // idle workers.
+  //
+  // May destroy `this`.
   void StopIfNotAttachedToDevTools();
 
   int embedded_worker_id() const { return embedded_worker_id_; }
@@ -220,6 +225,7 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
   // renderer is unresponsive.  Essentially, it throws away any information
   // about the renderer-side worker, and frees this instance up to start a new
   // worker.
+  // May destroy `this`.
   void Detach();
 
   // Examine the current state of the worker in order to determine if it should
@@ -263,11 +269,16 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
       network::mojom::ClientSecurityStatePtr client_security_state,
       mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
           coep_reporter,
+      mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+          dip_reporter,
       ContentBrowserClient::URLLoaderFactoryType factory_type,
       const std::string& devtools_worker_token);
 
   mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
   GetCoepReporter();
+
+  mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+  GetDipReporter();
 
  private:
   typedef base::ObserverList<Listener>::Unchecked ListenerList;
@@ -306,6 +317,7 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
       blink::mojom::EmbeddedWorkerStartTimingPtr start_timing) override;
   // Resets the embedded worker instance to the initial state. Changes
   // the internal status from STARTING or RUNNING to STOPPED.
+  // May destroy `this`.
   void OnStopped() override;
   void OnReportException(const std::u16string& error_message,
                          int line_number,
@@ -319,6 +331,7 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
 
   // Resets all running state. After this function is called, |status_| is
   // kStopped.
+  // May destroy `this`.
   void ReleaseProcess();
 
   // Called back from StartTask when the startup sequence failed. Calls
@@ -337,6 +350,8 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
   void BindCacheStorageInternal();
   mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
   GetCoepReporterInternal(StoragePartitionImpl* storage_partition);
+  mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+  GetDipReporterInternal(StoragePartitionImpl* storage_partition);
 
   base::WeakPtr<ServiceWorkerContextCore> context_;
   raw_ptr<ServiceWorkerVersion> owner_version_;
@@ -415,6 +430,17 @@ class CONTENT_EXPORT EmbeddedWorkerInstance
   // requests initiated from the service worker. The impl lives on the UI
   // thread, and |coep_reporter_| has the ownership of the impl instance.
   std::unique_ptr<CrossOriginEmbedderPolicyReporter> coep_reporter_;
+  mojo::PendingReceiver<blink::mojom::ReportingObserver>
+      coep_reporting_observer_receiver_;
+
+  // DIP Reporter connected to the URLLoaderFactories that handles subresource
+  // requests initiated from the service worker. The impl lives on the UI
+  // thread, and |coep_reporter_| has the ownership of the impl instance.
+  std::unique_ptr<DocumentIsolationPolicyReporter> dip_reporter_;
+  mojo::PendingReceiver<blink::mojom::ReportingObserver>
+      dip_reporting_observer_receiver_;
+
+  bool in_dtor_{false};
 
   base::WeakPtrFactory<EmbeddedWorkerInstance> weak_factory_{this};
 };

@@ -2,8 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
-
 sync_integration_tests_sources = [
   "//chrome/browser/sync/test/integration/single_client_autofill_profile_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_bookmarks_sync_test.cc",
@@ -14,12 +12,22 @@ sync_integration_tests_sources = [
   "//chrome/browser/sync/test/integration/single_client_history_delete_directives_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_history_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_offer_sync_test.cc",
+  "//chrome/browser/sync/test/integration/single_client_plus_address_setting_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_plus_address_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_preferences_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_reading_list_sync_test.cc",
+  "//chrome/browser/sync/test/integration/single_client_shared_tab_group_data_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_standalone_transport_sync_test.cc",
   "//chrome/browser/sync/test/integration/single_client_sync_invalidations_test.cc",
   "//chrome/browser/sync/test/integration/sync_exponential_backoff_test.cc",
+
+  # TODO(crbug.com/393119606): After enough of the implementation is ready
+  # (CL #N), add integration tests. Careful, sync_integration_tests runs in CQ
+  # but android_sync_integration_tests do not.
+
+  # TODO(crbug.com/397767033): After enough of the implementation is ready
+  # (CL #N), add integration tests. Careful, sync_integration_tests runs in CQ
+  # but android_sync_integration_tests do not.
 ]
 
 if (!is_android) {
@@ -79,6 +87,7 @@ if (!is_android) {
     "//chrome/browser/sync/test/integration/two_client_search_engines_sync_test.cc",
     "//chrome/browser/sync/test/integration/two_client_send_tab_to_self_sync_test.cc",
     "//chrome/browser/sync/test/integration/two_client_sessions_sync_test.cc",
+    "//chrome/browser/sync/test/integration/two_client_shared_tab_group_data_sync_test.cc",
     "//chrome/browser/sync/test/integration/two_client_themes_sync_test.cc",
     "//chrome/browser/sync/test/integration/two_client_user_events_sync_test.cc",
     "//chrome/browser/sync/test/integration/two_client_wallet_credential_sync_test.cc",
@@ -109,10 +118,12 @@ if (is_win) {
   sync_integration_tests_sources += [ "//chrome/browser/sync/test/integration/two_client_web_apps_integration_test_win.cc" ]
 }
 
-# https://crbug.com/1252812 The intent picker (launch icon) actions are not
-# working on Lacros.
-if (is_chromeos_ash) {
+if (is_chromeos) {
   sync_integration_tests_sources += [ "//chrome/browser/sync/test/integration/two_client_web_apps_integration_test_cros.cc" ]
+}
+
+if (!is_chromeos && !is_android) {
+  sync_integration_tests_sources += [ "//chrome/browser/sync/test/integration/select_type_and_migrate_local_data_items_when_active_sync_test.cc" ]
 }
 
 if (is_android) {
@@ -127,6 +138,10 @@ if (is_android) {
     "//chrome:chrome_android_core",
     "//chrome/android:delegate_public_impl_java",
     "//chrome/browser/android/webapk:webapk_sources",
+    "//chrome/browser/prefs",
+    "//chrome/browser/reading_list",
+    "//chrome/browser/sync",
+    "//chrome/browser/ui:browser_navigator_params_headers",
     "//chrome/test:android_browsertests_assets",
     "//chrome/test:android_browsertests_java",
     "//chrome/test:browser_tests_runner",
@@ -142,9 +157,13 @@ if (is_android) {
     "//components/password_manager/core/browser/sharing",
     "//components/plus_addresses",
     "//components/plus_addresses:test_support",
+    "//components/plus_addresses/settings",
+    "//components/plus_addresses/settings:test_support",
     "//components/plus_addresses/webdata",
     "//components/reading_list/core:test_support",
     "//components/reading_list/features:flags",
+    "//components/saved_tab_groups/public",
+    "//components/saved_tab_groups/test_support",
     "//components/sync:test_support",
     "//components/sync_bookmarks",
     "//components/sync_device_info:test_support",

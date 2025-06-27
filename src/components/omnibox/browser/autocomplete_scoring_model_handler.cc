@@ -16,10 +16,11 @@
 #include "components/optimization_guide/core/optimization_guide_model_provider.h"
 #include "components/optimization_guide/proto/autocomplete_scoring_model_metadata.pb.h"
 #include "components/optimization_guide/proto/models.pb.h"
+#include "third_party/metrics_proto/omnibox_scoring_signals.pb.h"
 
 using ModelInput = AutocompleteScoringModelExecutor::ModelInput;
 using ModelOutput = AutocompleteScoringModelExecutor::ModelOutput;
-using ScoringSignals = ::metrics::OmniboxEventProto::Suggestion::ScoringSignals;
+using ScoringSignals = ::metrics::OmniboxScoringSignals;
 using ::optimization_guide::proto::AutocompleteScoringModelMetadata;
 using ::optimization_guide::proto::OptimizationTarget;
 using ::optimization_guide::proto::ScoringSignalSpec;
@@ -96,14 +97,13 @@ AutocompleteScoringModelHandler::GetBatchModelInput(
     const std::vector<const ScoringSignals*>& scoring_signals_vec) {
   std::vector<std::vector<float>> batch_model_input;
   for (const auto* scoring_signals : scoring_signals_vec) {
-    const std::optional<std::vector<float>> model_input =
+    std::optional<std::vector<float>> model_input =
         GetModelInput(*scoring_signals);
-    if (model_input) {
-      batch_model_input.push_back(std::move(*model_input));
-    } else {
+    if (!model_input) {
       // Return null if any input in the batch is invalid.
       return std::nullopt;
     }
+    batch_model_input.push_back(std::move(*model_input));
   }
   return batch_model_input;
 }
@@ -114,13 +114,15 @@ AutocompleteScoringModelHandler::ExtractInputFromScoringSignals(
     const AutocompleteScoringModelMetadata& metadata) {
   // Keep consistent:
   // - omnibox_event.proto `ScoringSignals`
+  // - omnibox_scoring_signals.proto `OmniboxScoringSignals`
   // - autocomplete_scoring_model_handler.cc
   //   `AutocompleteScoringModelHandler::ExtractInputFromScoringSignals()`
   // - autocomplete_match.cc `AutocompleteMatch::MergeScoringSignals()`
   // - autocomplete_controller.cc `RecordScoringSignalCoverageForProvider()`
+  // - omnibox_metrics_provider.cc `GetScoringSignalsForLogging()`
   // - omnibox.mojom `struct Signals`
-  // - omnibox_page_handler.cc `TypeConverter<AutocompleteMatch::ScoringSignals,
-  //   mojom::SignalsPtr>`
+  // - omnibox_page_handler.cc
+  //   `TypeConverter<AutocompleteMatch::ScoringSignals, mojom::SignalsPtr>`
   // - omnibox_page_handler.cc `TypeConverter<mojom::SignalsPtr,
   //   AutocompleteMatch::ScoringSignals>`
   // - omnibox_util.ts `signalNames`
@@ -293,6 +295,56 @@ AutocompleteScoringModelHandler::ExtractInputFromScoringSignals(
 
         val = static_cast<float>(matches_title_or_host_or_shortcut_text);
       } break;
+      case optimization_guide::proto::
+          SCORING_SIGNAL_TYPE_NUM_INPUT_TERMS_MATCHED_BY_BOOKMARK_TITLE:
+        if (scoring_signals.has_num_input_terms_matched_by_bookmark_title()) {
+          val = static_cast<float>(
+              scoring_signals.num_input_terms_matched_by_bookmark_title());
+        }
+        break;
+      case optimization_guide::proto::SCORING_SIGNAL_TYPE_SITE_ENGAGEMENT:
+        if (scoring_signals.has_site_engagement()) {
+          val = static_cast<float>(scoring_signals.site_engagement());
+        }
+        break;
+      case optimization_guide::proto::
+          SCORING_SIGNAL_TYPE_SEARCH_SUGGEST_RELEVANCE:
+        if (scoring_signals.has_search_suggest_relevance()) {
+          val = static_cast<float>(scoring_signals.search_suggest_relevance());
+        }
+        break;
+      case optimization_guide::proto::
+          SCORING_SIGNAL_TYPE_IS_SEARCH_SUGGEST_ENTITY:
+        if (scoring_signals.has_is_search_suggest_entity()) {
+          val = static_cast<float>(scoring_signals.is_search_suggest_entity());
+        }
+        break;
+      case optimization_guide::proto::SCORING_SIGNAL_TYPE_IS_VERBATIM:
+        if (scoring_signals.has_is_verbatim()) {
+          val = static_cast<float>(scoring_signals.is_verbatim());
+        }
+        break;
+      case optimization_guide::proto::SCORING_SIGNAL_TYPE_IS_NAVSUGGEST:
+        if (scoring_signals.has_is_navsuggest()) {
+          val = static_cast<float>(scoring_signals.is_navsuggest());
+        }
+        break;
+      case optimization_guide::proto::
+          SCORING_SIGNAL_TYPE_IS_SEARCH_SUGGEST_TAIL:
+        if (scoring_signals.has_is_search_suggest_tail()) {
+          val = static_cast<float>(scoring_signals.is_search_suggest_tail());
+        }
+        break;
+      case optimization_guide::proto::SCORING_SIGNAL_TYPE_IS_ANSWER_SUGGEST:
+        if (scoring_signals.has_is_answer_suggest()) {
+          val = static_cast<float>(scoring_signals.is_answer_suggest());
+        }
+        break;
+      case optimization_guide::proto::SCORING_SIGNAL_TYPE_IS_CALCULATOR_SUGGEST:
+        if (scoring_signals.has_is_calculator_suggest()) {
+          val = static_cast<float>(scoring_signals.is_calculator_suggest());
+        }
+        break;
       case optimization_guide::proto::SCORING_SIGNAL_TYPE_UNKNOWN:
       default:
         // Reached when the metadata is updated to have a new signal that

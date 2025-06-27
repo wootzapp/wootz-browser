@@ -4,6 +4,8 @@
 
 package org.chromium.content.browser;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
@@ -11,7 +13,6 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
@@ -38,9 +39,12 @@ import org.chromium.base.process_launcher.ChildProcessLauncher;
 import org.chromium.base.process_launcher.FileDescriptorInfo;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.content.app.SandboxedProcessService;
 import org.chromium.content.common.ContentSwitchUtils;
 import org.chromium.content_public.browser.ChildProcessImportance;
+import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.content_public.common.ContentSwitches;
@@ -52,12 +56,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
- * This is the java counterpart to ChildProcessLauncherHelper. It is owned by native side and
- * has an explicit destroy method.
- * Each public or jni methods should have explicit documentation on what threads they are called.
+ * This is the java counterpart to ChildProcessLauncherHelper. It is owned by native side and has an
+ * explicit destroy method. Each public or jni methods should have explicit documentation on what
+ * threads they are called.
  */
 @JNINamespace("content::internal")
+@NullMarked
 public final class ChildProcessLauncherHelperImpl {
     private static final String TAG = "ChildProcLH";
 
@@ -85,40 +92,38 @@ public final class ChildProcessLauncherHelperImpl {
     private static boolean sCheckedServiceGroupImportance;
 
     // A warmed-up connection to a sandboxed service.
-    private static SpareChildConnection sSpareSandboxedConnection;
-
-    // A warmed-up connection to a privileged service (network service).
-    private static SpareChildConnection sSparePrivilegedConntection;
+    private static @Nullable SpareChildConnection sSpareSandboxedConnection;
 
     // Allocator used for sandboxed services.
-    private static ChildConnectionAllocator sSandboxedChildConnectionAllocator;
-    private static ChildProcessRanking sSandboxedChildConnectionRanking;
+    private static @Nullable ChildConnectionAllocator sSandboxedChildConnectionAllocator;
+    private static @Nullable ChildProcessRanking sSandboxedChildConnectionRanking;
 
     // Map from PID to ChildProcessLauncherHelper.
     private static final Map<Integer, ChildProcessLauncherHelperImpl> sLauncherByPid =
             new HashMap<>();
 
     // Allocator used for non-sandboxed services.
-    private static ChildConnectionAllocator sPrivilegedChildConnectionAllocator;
+    private static @Nullable ChildConnectionAllocator sPrivilegedChildConnectionAllocator;
 
     // Used by tests to override the default sandboxed service allocator settings.
-    private static ChildConnectionAllocator.ConnectionFactory sSandboxedServiceFactoryForTesting;
+    private static ChildConnectionAllocator.@Nullable ConnectionFactory
+            sSandboxedServiceFactoryForTesting;
     private static int sSandboxedServicesCountForTesting = -1;
-    private static String sSandboxedServicesNameForTesting;
+    private static @Nullable String sSandboxedServicesNameForTesting;
     private static boolean sSkipDelayForReducePriorityOnBackgroundForTesting;
 
-    private static BindingManager sBindingManager;
+    private static @Nullable BindingManager sBindingManager;
 
     // Whether the main application is currently brought to the foreground.
     private static boolean sApplicationInForegroundOnUiThread;
 
     // Set on UI thread only, but null-checked on launcher thread as well.
-    private static ApplicationStatus.ApplicationStateListener sAppStateListener;
+    private static ApplicationStatus.@Nullable ApplicationStateListener sAppStateListener;
 
     // TODO(boliu): These are only set for sandboxed renderer processes. Generalize them for
     // all types of processes.
-    private final ChildProcessRanking mRanking;
-    private final BindingManager mBindingManager;
+    private final @Nullable ChildProcessRanking mRanking;
+    private final @Nullable BindingManager mBindingManager;
 
     // Whether the created process should be sandboxed.
     private final boolean mSandboxed;
@@ -127,7 +132,7 @@ public final class ChildProcessLauncherHelperImpl {
     private final boolean mReducePriorityOnBackground;
 
     // The type of process as determined by the command line.
-    private final String mProcessType;
+    private final @Nullable String mProcessType;
 
     // Whether the process can use warmed up connection.
     private final boolean mCanUseWarmUpConnection;
@@ -146,17 +151,19 @@ public final class ChildProcessLauncherHelperImpl {
     // The bundle with RELRO FD. For sending to child processes, including the ones that did not
     // announce whether they inherit from the app zygote. Declared as volatile to allow sending it
     // from different threads.
-    private static volatile Bundle sZygoteBundle;
+    private static volatile @Nullable Bundle sZygoteBundle;
+
+    private static boolean sIgnoreMainFrameVisibilityForImportance;
 
     private final ChildProcessLauncher.Delegate mLauncherDelegate =
             new ChildProcessLauncher.Delegate() {
                 @Override
-                public ChildProcessConnection getBoundConnection(
+                public @Nullable ChildProcessConnection getBoundConnection(
                         ChildConnectionAllocator connectionAllocator,
                         ChildProcessConnection.ServiceCallback serviceCallback) {
                     if (!mCanUseWarmUpConnection) return null;
                     SpareChildConnection spareConnection =
-                            mSandboxed ? sSpareSandboxedConnection : sSparePrivilegedConntection;
+                            mSandboxed ? sSpareSandboxedConnection : null;
                     if (spareConnection == null) return null;
                     return spareConnection.getConnection(connectionAllocator, serviceCallback);
                 }
@@ -191,11 +198,15 @@ public final class ChildProcessLauncherHelperImpl {
                     if (pid > 0) {
                         sLauncherByPid.put(pid, ChildProcessLauncherHelperImpl.this);
                         if (mRanking != null) {
+                            // TODO(crbug.com/409703175): Set isSpareRenderer once the
+                            // spare renderer information is passed when launching the
+                            // process.
                             mRanking.addConnection(
                                     connection,
                                     /* visible= */ false,
                                     /* frameDepth= */ 1,
                                     /* intersectsViewport= */ false,
+                                    /* isSpareRenderer= */ false,
                                     ChildProcessImportance.MODERATE);
                             if (mBindingManager != null) mBindingManager.rankingChanged();
                         }
@@ -307,10 +318,12 @@ public final class ChildProcessLauncherHelperImpl {
     }
 
     private static void sendPreviouslySeenZygoteBundleToExistingConnections(int pid) {
+        assumeNonNull(sZygoteBundle);
         for (var entry : sLauncherByPid.entrySet()) {
             int otherPid = entry.getKey();
             if (pid != otherPid) {
-                ChildProcessConnection otherConnection = entry.getValue().mLauncher.getConnection();
+                ChildProcessConnection otherConnection =
+                        assumeNonNull(entry.getValue().mLauncher.getConnection());
                 if (otherConnection.getZygotePid() == 0) {
                     // The Zygote PID for each connection must be finalized before the launcher
                     // thread starts processing the zygote info. Zygote PID being 0 guarantees that
@@ -334,8 +347,13 @@ public final class ChildProcessLauncherHelperImpl {
 
     private boolean mDroppedStrongBingingDueToBackgrounding;
 
+    private final Object mIsSpareRendererLock = new Object();
+
+    @GuardedBy("mIsSpareRendererLock")
+    private boolean mIsSpareRenderer;
+
     @CalledByNative
-    private static FileDescriptorInfo makeFdInfo(
+    private static @Nullable FileDescriptorInfo makeFdInfo(
             int id, int fd, boolean autoClose, long offset, long size) {
         assert LauncherThread.runningOnLauncherThread();
         ParcelFileDescriptor pFd;
@@ -358,7 +376,8 @@ public final class ChildProcessLauncherHelperImpl {
             long nativePointer,
             String[] commandLine,
             FileDescriptorInfo[] filesToBeMapped,
-            boolean canUseWarmUpConnection) {
+            boolean canUseWarmUpConnection,
+            @Nullable IBinder binderBox) {
         assert LauncherThread.runningOnLauncherThread();
         String processType =
                 ContentSwitchUtils.getSwitchValue(commandLine, ContentSwitches.SWITCH_PROCESS_TYPE);
@@ -400,7 +419,8 @@ public final class ChildProcessLauncherHelperImpl {
                         sandboxed,
                         reducePriorityOnBackground,
                         canUseWarmUpConnection,
-                        binderCallback);
+                        binderCallback,
+                        binderBox);
         helper.start();
 
         if (sandboxed && !sCheckedServiceGroupImportance) {
@@ -416,31 +436,24 @@ public final class ChildProcessLauncherHelperImpl {
     /**
      * @see {@link ChildProcessLauncherHelper#warmUp(Context)}.
      */
-    public static void warmUpOnAnyThread(final Context context, boolean sandboxed) {
+    public static void warmUpOnAnyThread(final Context context) {
         LauncherThread.post(
                 new Runnable() {
                     @Override
                     public void run() {
-                        warmUpOnLauncherThread(context, sandboxed);
+                        warmUpOnLauncherThread(context);
                     }
                 });
     }
 
-    private static void warmUpOnLauncherThread(Context context, boolean sandboxed) {
-        SpareChildConnection spareConnection =
-                sandboxed ? sSpareSandboxedConnection : sSparePrivilegedConntection;
-        if (spareConnection != null && !spareConnection.isEmpty()) {
+    private static void warmUpOnLauncherThread(Context context) {
+        if (sSpareSandboxedConnection != null && !sSpareSandboxedConnection.isEmpty()) {
             return;
         }
 
         Bundle serviceBundle = populateServiceBundle(new Bundle());
-        ChildConnectionAllocator allocator = getConnectionAllocator(context, sandboxed);
-        if (sandboxed) {
-            sSpareSandboxedConnection = new SpareChildConnection(context, allocator, serviceBundle);
-        } else {
-            sSparePrivilegedConntection =
-                    new SpareChildConnection(context, allocator, serviceBundle);
-        }
+        ChildConnectionAllocator allocator = getConnectionAllocator(context, /* sandboxed= */ true);
+        sSpareSandboxedConnection = new SpareChildConnection(context, allocator, serviceBundle);
     }
 
     /**
@@ -452,6 +465,7 @@ public final class ChildProcessLauncherHelperImpl {
                 new Runnable() {
                     @Override
                     public void run() {
+                        assumeNonNull(sSandboxedChildConnectionRanking);
                         ChildConnectionAllocator allocator =
                                 getConnectionAllocator(context, /* sandboxed= */ true);
                         if (ChildProcessConnection.supportVariableConnections()) {
@@ -464,7 +478,7 @@ public final class ChildProcessLauncherHelperImpl {
                             sBindingManager =
                                     new BindingManager(
                                             context,
-                                            allocator.getNumberOfServices(),
+                                            allocator.getMaxNumberOfAllocations(),
                                             sSandboxedChildConnectionRanking);
                         }
                         ChildProcessConnectionMetrics.getInstance()
@@ -498,7 +512,7 @@ public final class ChildProcessLauncherHelperImpl {
     private void reducePriorityOnBackgroundOnLauncherThread() {
         assert LauncherThread.runningOnLauncherThread();
         if (mDroppedStrongBingingDueToBackgrounding) return;
-        ChildProcessConnection connection = mLauncher.getConnection();
+        ChildProcessConnection connection = assumeNonNull(mLauncher.getConnection());
         if (!connection.isConnected()) return;
         if (connection.isStrongBindingBound()) {
             connection.removeStrongBinding();
@@ -509,7 +523,7 @@ public final class ChildProcessLauncherHelperImpl {
     private void raisePriorityOnForegroundOnLauncherThread() {
         assert LauncherThread.runningOnLauncherThread();
         if (!mDroppedStrongBingingDueToBackgrounding) return;
-        ChildProcessConnection connection = mLauncher.getConnection();
+        ChildProcessConnection connection = assumeNonNull(mLauncher.getConnection());
         if (!connection.isConnected()) return;
         connection.addStrongBinding();
         mDroppedStrongBingingDueToBackgrounding = false;
@@ -542,6 +556,10 @@ public final class ChildProcessLauncherHelperImpl {
         sSkipDelayForReducePriorityOnBackgroundForTesting = true;
     }
 
+    public static void setIgnoreMainFrameVisibilityForImportance() {
+        sIgnoreMainFrameVisibilityForImportance = true;
+    }
+
     @VisibleForTesting
     static ChildConnectionAllocator getConnectionAllocator(Context context, boolean sandboxed) {
         assert LauncherThread.runningOnLauncherThread();
@@ -551,6 +569,8 @@ public final class ChildProcessLauncherHelperImpl {
 
         if (!sandboxed) {
             if (sPrivilegedChildConnectionAllocator == null) {
+                boolean fallbackToNextSlot =
+                        ContentFeatureMap.isEnabled(ContentFeatures.ANDROID_FALLBACK_TO_NEXT_SLOT);
                 sPrivilegedChildConnectionAllocator =
                         ChildConnectionAllocator.create(
                                 context,
@@ -561,7 +581,9 @@ public final class ChildProcessLauncherHelperImpl {
                                 NUM_PRIVILEGED_SERVICES_KEY,
                                 bindToCaller,
                                 bindAsExternalService,
-                                /* useStrongBinding= */ true);
+                                /* useStrongBinding= */ true,
+                                fallbackToNextSlot,
+                                sandboxed);
             }
             return sPrivilegedChildConnectionAllocator;
         }
@@ -576,6 +598,7 @@ public final class ChildProcessLauncherHelperImpl {
                     packageName);
             Runnable freeSlotRunnable =
                     () -> {
+                        assumeNonNull(sSandboxedChildConnectionRanking);
                         ChildProcessConnection lowestRank =
                                 sSandboxedChildConnectionRanking.getLowestRankedConnection();
                         if (lowestRank != null) {
@@ -598,7 +621,9 @@ public final class ChildProcessLauncherHelperImpl {
                                 sSandboxedServicesCountForTesting,
                                 bindToCaller,
                                 bindAsExternalService,
-                                /* useStrongBinding= */ false);
+                                /* useStrongBinding= */ false,
+                                /* fallbackToNextSlot= */ false,
+                                sandboxed);
             } else if (ChildProcessConnection.supportVariableConnections()) {
                 connectionAllocator =
                         ChildConnectionAllocator.createVariableSize(
@@ -609,7 +634,8 @@ public final class ChildProcessLauncherHelperImpl {
                                 ChildProcessCreationParamsImpl.getSandboxedServicesName(),
                                 bindToCaller,
                                 bindAsExternalService,
-                                /* useStrongBinding= */ false);
+                                /* useStrongBinding= */ false,
+                                sandboxed);
             } else {
                 connectionAllocator =
                         ChildConnectionAllocator.create(
@@ -621,7 +647,9 @@ public final class ChildProcessLauncherHelperImpl {
                                 NUM_SANDBOXED_SERVICES_KEY,
                                 bindToCaller,
                                 bindAsExternalService,
-                                /* useStrongBinding= */ false);
+                                /* useStrongBinding= */ false,
+                                /* fallbackToNextSlot= */ false,
+                                sandboxed);
             }
             if (sSandboxedServiceFactoryForTesting != null) {
                 connectionAllocator.setConnectionFactoryForTesting(
@@ -633,7 +661,7 @@ public final class ChildProcessLauncherHelperImpl {
             } else {
                 sSandboxedChildConnectionRanking =
                         new ChildProcessRanking(
-                                sSandboxedChildConnectionAllocator.getNumberOfServices());
+                                sSandboxedChildConnectionAllocator.getMaxNumberOfAllocations());
             }
         }
         return sSandboxedChildConnectionAllocator;
@@ -646,7 +674,8 @@ public final class ChildProcessLauncherHelperImpl {
             boolean sandboxed,
             boolean reducePriorityOnBackground,
             boolean canUseWarmUpConnection,
-            IBinder binderCallback) {
+            @Nullable IBinder binderCallback,
+            @Nullable IBinder binderBox) {
         assert LauncherThread.runningOnLauncherThread();
 
         mNativeChildProcessLauncherHelper = nativePointer;
@@ -655,6 +684,7 @@ public final class ChildProcessLauncherHelperImpl {
         mCanUseWarmUpConnection = canUseWarmUpConnection;
         ChildConnectionAllocator connectionAllocator =
                 getConnectionAllocator(ContextUtils.getApplicationContext(), sandboxed);
+
         mLauncher =
                 new ChildProcessLauncher(
                         LauncherThread.getHandler(),
@@ -662,7 +692,8 @@ public final class ChildProcessLauncherHelperImpl {
                         commandLine,
                         filesToBeMapped,
                         connectionAllocator,
-                        binderCallback == null ? null : Arrays.asList(binderCallback));
+                        binderCallback == null ? null : Arrays.asList(binderCallback),
+                        binderBox);
         mProcessType =
                 ContentSwitchUtils.getSwitchValue(commandLine, ContentSwitches.SWITCH_PROCESS_TYPE);
 
@@ -704,7 +735,7 @@ public final class ChildProcessLauncherHelperImpl {
     }
 
     private void start() {
-        mLauncher.start(/* doSetupConnection= */ true, /* queueIfNoFreeConnection= */ true);
+        mLauncher.start(/* setupConnection= */ true, /* queueIfNoFreeConnection= */ true);
         mStartTimeMs = System.currentTimeMillis();
     }
 
@@ -716,6 +747,18 @@ public final class ChildProcessLauncherHelperImpl {
         return TextUtils.isEmpty(mProcessType) ? "" : mProcessType;
     }
 
+    private boolean getIsSpareRenderer() {
+        synchronized (mIsSpareRendererLock) {
+            return mIsSpareRenderer;
+        }
+    }
+
+    private void setIsSpareRenderer(boolean isSpareRenderer) {
+        synchronized (mIsSpareRendererLock) {
+            mIsSpareRenderer = isSpareRenderer;
+        }
+    }
+
     // Called on client (UI or IO) thread.
     @CalledByNative
     private void getTerminationInfoAndStop(long terminationInfoPtr) {
@@ -724,6 +767,11 @@ public final class ChildProcessLauncherHelperImpl {
         // does not change once it's been set. So it is safe to test whether it's null here and
         // access it afterwards.
         if (connection == null) return;
+
+        boolean isSpareRenderer;
+        synchronized (mIsSpareRendererLock) {
+            isSpareRenderer = mIsSpareRenderer;
+        }
 
         // Note there is no guarantee that connection lost has happened. However ChildProcessRanking
         // is not thread safe, so this is the best we can do.
@@ -740,19 +788,24 @@ public final class ChildProcessLauncherHelperImpl {
                         connection.bindingStateCurrentOrWhenDied(),
                         connection.isKilledByUs(),
                         connection.hasCleanExit(),
-                        exceptionString != null);
+                        exceptionString != null,
+                        isSpareRenderer);
         LauncherThread.post(() -> mLauncher.stop());
     }
 
+    @VisibleForTesting
     @CalledByNative
-    private void setPriority(
+    void setPriority(
             int pid,
             boolean visible,
             boolean hasMediaStream,
+            boolean hasImmersiveXrSession,
             boolean hasForegroundServiceWorker,
             long frameDepth,
             boolean intersectsViewport,
             boolean boostForPendingViews,
+            boolean boostForLoading,
+            boolean isSpareRenderer,
             @ChildProcessImportance int importance) {
         assert LauncherThread.runningOnLauncherThread();
         assert mLauncher.getPid() == pid
@@ -766,22 +819,31 @@ public final class ChildProcessLauncherHelperImpl {
             return;
         }
 
-        ChildProcessConnection connection = mLauncher.getConnection();
+        ChildProcessConnection connection = assumeNonNull(mLauncher.getConnection());
+
         if (ChildProcessCreationParamsImpl.getIgnoreVisibilityForImportance()) {
             visible = false;
             boostForPendingViews = false;
         }
 
+        boolean shouldUseMainFrameVisibility = !sIgnoreMainFrameVisibilityForImportance;
+        boolean isVisibleMainFrame = visible && frameDepth == 0;
         @ChildProcessImportance int newEffectiveImportance;
-        if ((visible && frameDepth == 0)
+
+        if ((shouldUseMainFrameVisibility && isVisibleMainFrame)
                 || importance == ChildProcessImportance.IMPORTANT
-                || hasMediaStream) {
+                || hasMediaStream
+                || hasImmersiveXrSession) {
             newEffectiveImportance = ChildProcessImportance.IMPORTANT;
         } else if ((visible && frameDepth > 0 && intersectsViewport)
                 || boostForPendingViews
                 || importance == ChildProcessImportance.MODERATE
-                || hasForegroundServiceWorker) {
+                || hasForegroundServiceWorker
+                || boostForLoading) {
             newEffectiveImportance = ChildProcessImportance.MODERATE;
+        } else if (importance == ChildProcessImportance.PERCEPTIBLE
+                && ChildProcessConnection.supportNotPerceptibleBinding()) {
+            newEffectiveImportance = ChildProcessImportance.PERCEPTIBLE;
         } else {
             newEffectiveImportance = ChildProcessImportance.NORMAL;
         }
@@ -797,6 +859,20 @@ public final class ChildProcessLauncherHelperImpl {
                 case ChildProcessImportance.NORMAL:
                     // Nothing to add.
                     break;
+                case ChildProcessImportance.PERCEPTIBLE:
+                    // Use not-perceptible binding for protected tabs. A service binding which leads
+                    // to PERCEPTIBLE_APP_ADJ (= 200) is ideal for protected tabs, but Android does
+                    // not provide the service binding yet.
+                    // TODO(crbug.com/400602112): Use Context.BIND_NOT_VISIBLE binding instead.
+                    //
+                    // This binding is out of control of BindingManager which always unbinds the
+                    // lowest ranked process from not-perceptible binding by
+                    // ensureLowestRankIsWaived().
+                    //
+                    // Note that ChildProcessConnection.supportNotPerceptibleBinding() is checked
+                    // above on setting ChildProcessImportance.PERCEPTIBLE.
+                    connection.addNotPerceptibleBinding();
+                    break;
                 case ChildProcessImportance.MODERATE:
                     connection.addVisibleBinding();
                     break;
@@ -808,9 +884,25 @@ public final class ChildProcessLauncherHelperImpl {
             }
         }
 
+        if (getIsSpareRenderer() != isSpareRenderer
+                && ChildProcessConnection.supportNotPerceptibleBinding()
+                && ContentFeatureList.sSpareRendererAddNotPerceptibleBinding.getValue()) {
+            if (isSpareRenderer) {
+                connection.addNotPerceptibleBinding();
+            } else {
+                connection.removeNotPerceptibleBinding();
+            }
+        }
+        setIsSpareRenderer(isSpareRenderer);
+
         if (mRanking != null) {
             mRanking.updateConnection(
-                    connection, visible, frameDepth, intersectsViewport, importance);
+                    connection,
+                    visible,
+                    frameDepth,
+                    intersectsViewport,
+                    isSpareRenderer,
+                    importance);
             if (mBindingManager != null) mBindingManager.rankingChanged();
         }
 
@@ -822,6 +914,9 @@ public final class ChildProcessLauncherHelperImpl {
                         switch (existingEffectiveImportance) {
                             case ChildProcessImportance.NORMAL:
                                 // Nothing to remove.
+                                break;
+                            case ChildProcessImportance.PERCEPTIBLE:
+                                connection.removeNotPerceptibleBinding();
                                 break;
                             case ChildProcessImportance.MODERATE:
                                 connection.removeVisibleBinding();
@@ -868,7 +963,8 @@ public final class ChildProcessLauncherHelperImpl {
     }
 
     /**
-     * Dumps the stack of the child process with |pid|  without crashing it.
+     * Dumps the stack of the child process with |pid| without crashing it.
+     *
      * @param pid Process id of the child process.
      */
     @CalledByNative
@@ -876,7 +972,7 @@ public final class ChildProcessLauncherHelperImpl {
         assert LauncherThread.runningOnLauncherThread();
         ChildProcessLauncherHelperImpl launcher = getByPid(pid);
         if (launcher != null) {
-            ChildProcessConnection connection = launcher.mLauncher.getConnection();
+            ChildProcessConnection connection = assumeNonNull(launcher.mLauncher.getConnection());
             connection.dumpProcessStack();
         }
     }
@@ -892,7 +988,7 @@ public final class ChildProcessLauncherHelperImpl {
         return bundle;
     }
 
-    private static ChildProcessLauncherHelperImpl getByPid(int pid) {
+    private static @Nullable ChildProcessLauncherHelperImpl getByPid(int pid) {
         return sLauncherByPid.get(pid);
     }
 
@@ -949,7 +1045,8 @@ public final class ChildProcessLauncherHelperImpl {
                         sandboxed,
                         reducePriorityOnBackground,
                         canUseWarmUpConnection,
-                        binderCallback);
+                        binderCallback,
+                        null);
         launcherHelper.mLauncher.start(doSetupConnection, /* queueIfNoFreeConnection= */ true);
         return launcherHelper;
     }
@@ -970,7 +1067,7 @@ public final class ChildProcessLauncherHelperImpl {
     }
 
     @VisibleForTesting
-    public ChildProcessConnection getChildProcessConnection() {
+    public @Nullable ChildProcessConnection getChildProcessConnection() {
         return mLauncher.getConnection();
     }
 
@@ -978,10 +1075,8 @@ public final class ChildProcessLauncherHelperImpl {
         return mLauncher.getConnectionAllocator();
     }
 
-    public static ChildProcessConnection getWarmUpConnectionForTesting(boolean sandboxed) {
-        SpareChildConnection connection =
-                sandboxed ? sSpareSandboxedConnection : sSparePrivilegedConntection;
-        return connection == null ? null : connection.getConnection();
+    public static @Nullable ChildProcessConnection getWarmUpConnectionForTesting() {
+        return sSpareSandboxedConnection == null ? null : sSpareSandboxedConnection.getConnection();
     }
 
     @NativeMethods
@@ -994,7 +1089,8 @@ public final class ChildProcessLauncherHelperImpl {
                 @ChildBindingState int bindingState,
                 boolean killedByUs,
                 boolean cleanExit,
-                boolean exceptionDuringInit);
+                boolean exceptionDuringInit,
+                boolean isSpareRenderer);
 
         boolean serviceGroupImportanceEnabled();
     }

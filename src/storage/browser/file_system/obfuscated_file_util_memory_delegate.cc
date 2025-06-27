@@ -2,21 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "storage/browser/file_system/obfuscated_file_util_memory_delegate.h"
 
 #include <algorithm>
 #include <utility>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h"
 #include "base/files/file_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
+#include "partition_alloc/partition_alloc_constants.h"
 
 namespace {
 
@@ -503,20 +507,23 @@ int ObfuscatedFileUtilMemoryDelegate::ReadFile(const base::FilePath& path,
   if (!dp || dp->entry->type != Entry::kFile)
     return net::ERR_FILE_NOT_FOUND;
 
-  int64_t remaining = dp->entry->file_content.size() - offset;
-  if (offset < 0)
+  if (offset < 0 || buf_len < 0) {
     return net::ERR_INVALID_ARGUMENT;
+  }
 
   // Seeking past the end of the file is ok, but returns nothing.
   // This matches FileStream::Context behavior.
-  if (remaining < 0)
+  int64_t remaining = dp->entry->file_content.size() - offset;
+  if (remaining < 0) {
     return 0;
+  }
 
   if (buf_len > remaining)
     buf_len = static_cast<int>(remaining);
 
-  base::ranges::copy(
-      base::span(dp->entry->file_content).subspan(offset, buf_len),
+  std::ranges::copy(
+      base::span(dp->entry->file_content)
+          .subspan(static_cast<size_t>(offset), static_cast<size_t>(buf_len)),
       buf->data());
 
   return buf_len;

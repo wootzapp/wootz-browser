@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/gwp_asan/client/lightweight_detector/poison_metadata_recorder.h"
 
 #include <algorithm>
@@ -70,13 +75,12 @@ void PoisonMetadataRecorder::RecordAndZap(void* ptr, size_t size) {
   slot_metadata.alloc_ptr = reinterpret_cast<uintptr_t>(ptr);
 
   const void* trace[LightweightDetectorState::kMaxStackFrames];
-  size_t len = AllocationInfo::GetStackTrace(
-      trace, LightweightDetectorState::kMaxStackFrames);
+  size_t len = AllocationInfo::GetStackTrace(trace);
   slot_metadata.dealloc.trace_len =
       Pack(reinterpret_cast<uintptr_t*>(trace), len,
            slot_metadata.deallocation_stack_trace,
            sizeof(slot_metadata.deallocation_stack_trace));
-  slot_metadata.dealloc.tid = AllocationInfo::GetCurrentTid();
+  slot_metadata.dealloc.tid = base::PlatformThread::CurrentId();
   slot_metadata.dealloc.trace_collected = true;
 
   LightweightDetectorState::PseudoAddress encoded_metadata_id =

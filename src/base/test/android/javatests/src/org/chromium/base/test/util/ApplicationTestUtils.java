@@ -13,6 +13,7 @@ import androidx.test.runner.lifecycle.Stage;
 
 import org.junit.Assert;
 
+import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 
 import java.util.concurrent.TimeUnit;
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Methods used for testing Application-level behavior. */
 public class ApplicationTestUtils {
+    private static final String TAG = "ApplicationTestUtils";
     private static final ActivityLifecycleMonitor sMonitor =
             ActivityLifecycleMonitorRegistry.getInstance();
 
@@ -53,11 +55,14 @@ public class ApplicationTestUtils {
     }
 
     /** Finishes the given activity and waits for its onDestroy() to be called. */
-    public static void finishActivity(final Activity activity) throws Exception {
+    public static void finishActivity(final Activity activity) {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (sMonitor.getLifecycleStageOf(activity) != Stage.DESTROYED) {
+                        Log.i(TAG, "Finishing %s", activity);
                         activity.finish();
+                    } else {
+                        Log.i(TAG, "Not finishing - already destroyed: %s", activity);
                     }
                 });
         final String error =
@@ -82,10 +87,10 @@ public class ApplicationTestUtils {
      * triggered by running the provided trigger.
      *
      * @param activityClass The class type to wait for.
-     * @param state The Activity {@link Stage} to wait for an activity of the right class type to
-     *         reach.
+     * @param stage The Activity {@link Stage} to wait for an activity of the right class type to
+     *     reach.
      * @param uiThreadTrigger The Runnable that will trigger the state change to wait for. The
-     *         Runnable will be run on the UI thread
+     *     Runnable will be run on the UI thread
      */
     public static <T extends Activity> T waitForActivityWithClass(
             Class<? extends Activity> activityClass, Stage stage, Runnable uiThreadTrigger) {
@@ -97,7 +102,7 @@ public class ApplicationTestUtils {
      * triggered by running the provided trigger.
      *
      * @param activityClass The class type to wait for.
-     * @param state The Activity {@link Stage} to wait for an activity of the right class type to
+     * @param stage The Activity {@link Stage} to wait for an activity of the right class type to
      *     reach.
      * @param uiThreadTrigger The Runnable that will trigger the state change to wait for, which
      *     will be run on the UI thread.
@@ -128,7 +133,7 @@ public class ApplicationTestUtils {
                 ThreadUtils.runOnUiThreadBlocking(() -> uiThreadTrigger.run());
             }
             if (backgroundThreadTrigger != null) backgroundThreadTrigger.run();
-            activityCallback.waitForFirst(
+            activityCallback.waitForOnly(
                     "No Activity reached target state.", ACTIVITY_TIMEOUT, TimeUnit.MILLISECONDS);
             T createdActivity = activityRef.get();
             Assert.assertNotNull("Activity reference is null.", createdActivity);

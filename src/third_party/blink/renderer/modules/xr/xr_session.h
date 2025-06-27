@@ -17,13 +17,22 @@
 #include "third_party/blink/renderer/bindings/core/v8/idl_types.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_depth_data_format.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_depth_type.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_depth_usage.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_environment_blend_mode.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_image_tracking_score.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_interaction_mode.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_xr_light_probe_init.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_xr_reflection_format.h"
 #include "third_party/blink/renderer/core/dom/events/event_target.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_typed_array.h"
+#include "third_party/blink/renderer/modules/xr/average_timer.h"
 #include "third_party/blink/renderer/modules/xr/xr_frame_request_callback_collection.h"
+#include "third_party/blink/renderer/modules/xr/xr_graphics_binding.h"
 #include "third_party/blink/renderer/modules/xr/xr_input_source.h"
 #include "third_party/blink/renderer/modules/xr/xr_input_source_array.h"
+#include "third_party/blink/renderer/modules/xr/xr_layer_shared_image_manager.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -42,11 +51,11 @@ class ExceptionState;
 class HTMLCanvasElement;
 class ResizeObserver;
 class V8XRFrameRequestCallback;
+class V8XRReferenceSpaceType;
+class V8XRVisibilityState;
 class XRAnchor;
 class XRAnchorSet;
 class XRCanvasInputProvider;
-class XRCPUDepthInformation;
-class XRDepthManager;
 class XRDOMOverlayState;
 class XRHitTestOptionsInit;
 class XRHitTestSource;
@@ -63,8 +72,7 @@ class XRSystem;
 class XRTransientInputHitTestOptionsInit;
 class XRTransientInputHitTestSource;
 class XRViewData;
-class XRWebGLDepthInformation;
-class XRWebGLLayer;
+class XRLayer;
 
 template <typename IDLType>
 class FrozenArray;
@@ -130,24 +138,33 @@ class XRSession final : public EventTarget,
             device::mojom::blink::XRInteractionMode interaction_mode,
             device::mojom::blink::XRSessionDeviceConfigPtr device_config,
             bool sensorless_session,
-            XRSessionFeatureSet enabled_feature_set);
+            XRSessionFeatureSet enabled_feature_set,
+            uint64_t trace_id);
   ~XRSession() override = default;
 
   XRSystem* xr() const { return xr_.Get(); }
-  const String& environmentBlendMode() const { return blend_mode_string_; }
-  const String& interactionMode() const { return interaction_mode_string_; }
+  V8XREnvironmentBlendMode environmentBlendMode() const {
+    return V8XREnvironmentBlendMode(blend_mode_);
+  }
+  V8XRInteractionMode interactionMode() const {
+    return V8XRInteractionMode(interaction_mode_);
+  }
   XRDOMOverlayState* domOverlayState() const {
     return dom_overlay_state_.Get();
   }
-  const String visibilityState() const;
+  V8XRVisibilityState visibilityState() const;
   std::optional<float> frameRate() const { return std::nullopt; }
-  DOMFloat32Array* supportedFrameRates() const { return nullptr; }
+  NotShared<DOMFloat32Array> supportedFrameRates() const {
+    return NotShared<DOMFloat32Array>();
+  }
   XRRenderState* renderState() const { return render_state_.Get(); }
 
   // ARCore by default returns textures in RGBA half-float HDR format and no
   // other runtimes support reflection mapping, so just return this until we
   // have a need to differentiate based on the underlying runtime.
-  const String preferredReflectionFormat() const { return "rgba16f"; }
+  V8XRReflectionFormat preferredReflectionFormat() const {
+    return V8XRReflectionFormat(V8XRReflectionFormat::Enum::kRgba16F);
+  }
 
   const FrozenArray<IDLString>& enabledFeatures() const;
 
@@ -174,15 +191,24 @@ class XRSession final : public EventTarget,
   void updateRenderState(XRRenderStateInit* render_state_init,
                          ExceptionState& exception_state);
 
-  const String& depthUsage(ExceptionState& exception_state);
-  const String& depthDataFormat(ExceptionState& exception_state);
+  std::optional<V8XRDepthUsage> depthUsage(ExceptionState& exception_state);
+  std::optional<V8XRDepthDataFormat> depthDataFormat(
+      ExceptionState& exception_state);
+  std::optional<V8XRDepthType> depthType(ExceptionState& exception_state);
+  std::optional<bool> depthActive(ExceptionState& exception_state);
+
+  void pauseDepthSensing(ExceptionState& exception_state);
+  void resumeDepthSensing(ExceptionState& exception_state);
+
+  // Returns true iff depth is enabled on the system and depth_active_ is true.
+  bool IsDepthActive();
 
   ScriptPromise<IDLUndefined> updateTargetFrameRate(float rate,
                                                     ExceptionState&);
 
   ScriptPromise<XRReferenceSpace> requestReferenceSpace(
       ScriptState* script_state,
-      const String& type,
+      const V8XRReferenceSpaceType& type,
       ExceptionState&);
 
   // Helper, not IDL-exposed
@@ -262,6 +288,12 @@ class XRSession final : public EventTarget,
   // value that provides a good balance between quality and performance.
   gfx::SizeF RecommendedFramebufferSize() const;
 
+  // Describes the recommended dimensions of layers represented by an array
+  // texture. Should be a value that provides a good balance between quality
+  // and performance.
+  gfx::SizeF RecommendedArrayTextureSize() const;
+  size_t array_texture_layers() const { return views_.size(); }
+
   // Reports the size of the output canvas, if one is available. If not
   // reports (0, 0);
   gfx::Size OutputCanvasSize() const;
@@ -276,12 +308,15 @@ class XRSession final : public EventTarget,
   const AtomicString& InterfaceName() const override;
 
   void OnFocusChanged();
-  void OnFrame(
-      double timestamp,
-      const std::optional<gpu::MailboxHolder>& output_mailbox_holder,
-      const std::optional<gpu::MailboxHolder>& camera_image_mailbox_holder);
+  void OnFrame(double timestamp,
+               scoped_refptr<gpu::ClientSharedImage> output_shared_image,
+               const gpu::SyncToken& output_sync_token,
+               scoped_refptr<gpu::ClientSharedImage> camera_image_shared_image,
+               const gpu::SyncToken& camera_image_sync_token);
 
   const HeapVector<Member<XRViewData>>& views();
+
+  XRViewData* ViewDataForEye(device::mojom::blink::XREye eye);
 
   void AddTransientInputSource(XRInputSource* input_source);
   void RemoveTransientInputSource(XRInputSource* input_source);
@@ -295,7 +330,7 @@ class XRSession final : public EventTarget,
   bool EmulatedPosition() const {
     // If we don't have display info then we should be using the identity
     // reference space, which by definition will be emulating the position.
-    if (pending_views_.empty()) {
+    if (views_.empty()) {
       return true;
     }
 
@@ -304,12 +339,8 @@ class XRSession final : public EventTarget,
 
   // Immersive sessions currently use two views for VR, and only a single view
   // for smartphone immersive AR mode.
-  bool StereoscopicViews() { return pending_views_.size() >= 2; }
+  bool StereoscopicViews() { return views_.size() >= 2; }
 
-  void UpdateViews(const Vector<device::mojom::blink::XRViewPtr>& views);
-  void UpdateStageParameters(
-      uint32_t stage_parameters_id,
-      const device::mojom::blink::VRStageParametersPtr& stage_parameters);
   // Incremented every time stage_parameters_ is changed, so that other objects
   // that depend on it can know when they need to update.
   uint32_t StageParametersId() const { return stage_parameters_id_; }
@@ -351,14 +382,6 @@ class XRSession final : public EventTarget,
   std::optional<gfx::Transform> GetMojoFrom(
       device::mojom::blink::XRReferenceSpaceType space_type) const;
 
-  XRCPUDepthInformation* GetCpuDepthInformation(
-      const XRFrame* xr_frame,
-      ExceptionState& exception_state) const;
-
-  XRWebGLDepthInformation* GetWebGLDepthInformation(
-      const XRFrame* xr_frame,
-      ExceptionState& exception_state) const;
-
   XRPlaneSet* GetDetectedPlanes() const;
 
   // Creates presentation frame based on current state of the session.
@@ -370,8 +393,7 @@ class XRSession final : public EventTarget,
   // presentation frames.
   void UpdatePresentationFrameState(
       double timestamp,
-      const device::mojom::blink::VRPosePtr& mojo_from_viewer_pose,
-      const device::mojom::blink::XRFrameDataPtr& frame_data,
+      device::mojom::blink::XRFrameDataPtr frame_data,
       int16_t frame_id,
       bool emulated_position);
 
@@ -398,11 +420,23 @@ class XRSession final : public EventTarget,
     return camera_image_size_;
   }
 
+  enum XRGraphicsBinding::Api GraphicsApi() const { return graphics_api_; }
+
+  uint64_t GetTraceId() const { return trace_id_; }
+  base::TimeDelta TakeAnimationFrameTimerAverage();
+
+  const XRLayerSharedImageManager& LayerSharedImageManager() {
+    return layer_shared_image_manager_;
+  }
+
+  uint32_t GetNextLayerId() { return ++last_layer_id_; }
+
  private:
   class XRSessionResizeObserverDelegate;
 
   using XRVisibilityState = device::mojom::blink::XRVisibilityState;
 
+  void UpdateInlineView();
   void UpdateCanvasDimensions(Element*);
   void ApplyPendingRenderState();
 
@@ -415,6 +449,11 @@ class XRSession final : public EventTarget,
   void ProcessInputSourceEvents(
       base::span<const device::mojom::blink::XRInputSourceStatePtr>
           input_states);
+
+  void UpdateViews(Vector<device::mojom::blink::XRViewPtr> views);
+  void UpdateStageParameters(
+      uint32_t stage_parameters_id,
+      const device::mojom::blink::VRStageParametersPtr& stage_parameters);
 
   // Processes world understanding state for current frame:
   // - updates state of hit test sources & fills them out with results
@@ -475,21 +514,25 @@ class XRSession final : public EventTarget,
 
   void ExecuteVideoFrameCallbacks(double timestamp);
 
-  // Helper, creates an instance of depth manager if depth sensing API is
-  // enabled in the session configuration.
-  XRDepthManager* CreateDepthManagerIfEnabled(
-      const XRSessionFeatureSet& feature_set,
-      const device::mojom::blink::XRSessionDeviceConfig& device_config);
-
   const Member<XRSystem> xr_;
   const device::mojom::blink::XRSessionMode mode_;
   const bool environment_integration_;
-  String blend_mode_string_;
-  String interaction_mode_string_;
+  V8XREnvironmentBlendMode::Enum blend_mode_;
+  V8XRInteractionMode::Enum interaction_mode_;
   XRVisibilityState device_visibility_state_ = XRVisibilityState::VISIBLE;
   XRVisibilityState visibility_state_ = XRVisibilityState::VISIBLE;
   String visibility_state_string_;
   Member<XRRenderState> render_state_;
+
+  // Put the device config fairly early in the list of members so that it can be
+  // used to initialize other members.
+  device::mojom::blink::XRSessionDeviceConfigPtr device_config_;
+  V8XRDepthUsage::Enum depth_usage_;
+  V8XRDepthDataFormat::Enum depth_data_format_;
+  std::optional<V8XRDepthType::Enum> depth_type_;
+  // On sessions where depth is enabled, it is active by default. On sessions
+  // where it is not enabled, we throw instead of return this value.
+  bool depth_active_ = true;
 
   Member<XRLightProbe> world_light_probe_;
   HeapVector<Member<XRRenderStateInit>> pending_render_state_;
@@ -566,17 +609,16 @@ class XRSession final : public EventTarget,
   HashSet<uint64_t> hit_test_source_for_transient_input_ids_;
 
   Member<XRPlaneManager> plane_manager_;
-  Member<XRDepthManager> depth_manager_;
 
   // Populated iff the raw camera feature has been enabled and the session
   // received a frame from the device that contained the camera image.
   std::optional<gfx::Size> camera_image_size_;
 
   HeapVector<Member<XRViewData>> views_;
-  Vector<device::mojom::blink::XRViewPtr> pending_views_;
 
+  Member<XRFrame> animation_frame_ = nullptr;
   Member<XRInputSourceArray> input_sources_;
-  Member<XRWebGLLayer> prev_base_layer_;
+  Member<XRLayer> prev_base_layer_;
   Member<ResizeObserver> resize_observer_;
   Member<XRCanvasInputProvider> canvas_input_provider_;
   Member<Element> overlay_element_;
@@ -601,11 +643,13 @@ class XRSession final : public EventTarget,
   // Viewer pose in mojo space.
   std::unique_ptr<gfx::Transform> mojo_from_viewer_;
 
+  // Location of the floor in mojo space.
+  std::optional<gfx::Transform> mojo_from_floor_;
+
   bool pending_frame_ = false;
   bool resolving_frame_ = false;
   bool frames_throttled_ = false;
 
-  bool views_updated_this_frame_ = false;
   bool canvas_was_resized_ = false;
 
   // Indicates that we've already logged a metric, so don't need to log it
@@ -617,13 +661,8 @@ class XRSession final : public EventTarget,
   int output_width_ = 1;
   int output_height_ = 1;
 
-  float recommended_framebuffer_scale_ = 1.0;
-
   // Corresponds to mojo XRSession.supportsViewportScaling
   bool supports_viewport_scaling_ = false;
-
-  // Corresponds to mojo XRSessionOptions.enable_anti_aliasing
-  bool enable_anti_aliasing_ = true;
 
   std::unique_ptr<XRSessionViewportScaler> viewport_scaler_;
 
@@ -632,8 +671,17 @@ class XRSession final : public EventTarget,
   bool sensorless_session_ = false;
 
   int16_t last_frame_id_ = -1;
+  uint32_t last_layer_id_ = 0;
 
   bool emulated_position_ = false;
+
+  XRGraphicsBinding::Api graphics_api_;
+
+  uint64_t trace_id_;
+
+  AverageTimer page_animation_frame_timer_;
+
+  XRLayerSharedImageManager layer_shared_image_manager_;
 };
 
 }  // namespace blink

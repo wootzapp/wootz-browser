@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "chrome/test/chromedriver/chrome/devtools_client_impl.h"
 
 #include <cstring>
@@ -20,7 +25,6 @@
 #include "base/time/time.h"
 #include "base/types/optional_util.h"
 #include "chrome/test/chromedriver/chrome/devtools_event_listener.h"
-#include "chrome/test/chromedriver/chrome/javascript_dialog_manager.h"
 #include "chrome/test/chromedriver/chrome/log.h"
 #include "chrome/test/chromedriver/chrome/status.h"
 #include "chrome/test/chromedriver/chrome/util.h"
@@ -50,6 +54,9 @@ const char kNoNodeWithGivenIdFoundError[] = "No node with given id found";
 const char kExecutionContextWasDestroyed[] = "Execution context was destroyed.";
 const char kInspectedTargetNavigatedOrClosed[] =
     "Inspected target navigated or closed";
+const char kFrameDosNotBelongToTarget[] =
+    "Frame with the given id does not belong to the target.";
+const char kNotAttachedToActivePage[] = "Not attached to an active page";
 
 static constexpr int kSessionNotFoundInspectorCode = -32001;
 static constexpr int kCdpMethodNotFoundCode = -32601;
@@ -74,7 +81,8 @@ Status ConditionIsMet(bool* is_condition_met) {
 }
 
 struct SessionId {
-  explicit SessionId(const std::string session_id) : session_id_(session_id) {}
+  explicit SessionId(std::string session_id)
+      : session_id_(std::move(session_id)) {}
   std::string session_id_;
 };
 
@@ -84,8 +92,8 @@ std::ostream& operator<<(std::ostream& os, const SessionId& ses_manip) {
 
 Status IsBidiMessage(const std::string& method,
                      const base::Value::Dict& params,
-                     bool* is_bidi_message) {
-  *is_bidi_message = false;
+                     bool& is_bidi_message) {
+  is_bidi_message = false;
   if (method != "Runtime.bindingCalled") {
     return Status{kOk};
   }
@@ -98,7 +106,7 @@ Status IsBidiMessage(const std::string& method,
     return Status{kOk};
   }
 
-  *is_bidi_message = true;
+  is_bidi_message = true;
   return Status{kOk};
 }
 
@@ -137,19 +145,19 @@ Status WrapCdpCommandInBidiCommand(base::Value::Dict cdp_cmd,
   base::Value::Dict* cdp_params = cdp_cmd.FindDict("params");
 
   base::Value::Dict params;
-  params.Set("cdpMethod", std::move(*cdp_method));
+  params.Set("method", std::move(*cdp_method));
   if (cdp_session_id) {
-    params.Set("cdpSession", std::move(*cdp_session_id));
+    params.Set("session", std::move(*cdp_session_id));
   }
   if (cdp_params) {
-    params.Set("cdpParams", std::move(*cdp_params));
+    params.Set("params", std::move(*cdp_params));
   }
 
   base::Value::Dict dict;
   dict.Set("id", *cdp_cmd_id);
-  dict.Set("method", "cdp.sendCommand");
+  dict.Set("method", "goog:cdp.sendCommand");
   dict.Set("params", std::move(params));
-  dict.Set("channel", DevToolsClientImpl::kCdpTunnelChannel);
+  dict.Set("goog:channel", DevToolsClientImpl::kCdpTunnelChannel);
   *bidi_cmd = std::move(dict);
   return Status{kOk};
 }
@@ -182,6 +190,73 @@ Status WrapBidiCommandInMapperCdpCommand(int cdp_cmd_id,
   return Status{kOk};
 }
 
+bool ParseCdpTunnelMessage(base::Value::Dict payload,
+                           std::string& session_id,
+                           internal::InspectorMessageType& type,
+                           InspectorEvent& event,
+                           InspectorCommandResponse& command_response) {
+  // handle CDP over BiDi events and responses
+  const std::string* payload_method = payload.FindString("method");
+
+  // CDP events in BiDi have format "goog:cdp.<CDP EVENT NAME>".
+  if (payload_method && base::StartsWith(*payload_method, "goog:cdp.",
+                                         base::CompareCase::SENSITIVE)) {
+    base::Value::Dict* payload_params = payload.FindDict("params");
+    if (!payload_params) {
+      LOG(WARNING) << "params field is missing in the payload of "
+                      "Runtime.bindingCalled message";
+      return false;
+    }
+    const std::string* cdp_method = payload_params->FindString("method");
+    if (!cdp_method) {
+      LOG(WARNING) << "params.method is missing in the payload of "
+                      "Runtime.bindingCalled message";
+      return false;
+    }
+
+    type = internal::kEventMessageType;
+    event.method = *cdp_method;
+    const std::string* cdp_session = payload_params->FindString("session");
+    session_id = cdp_session ? *cdp_session : "";
+
+    base::Value::Dict* cdp_params = payload_params->FindDict("params");
+    if (cdp_params) {
+      event.params = std::move(*cdp_params);
+    } else {
+      event.params = base::Value::Dict();
+    }
+  } else {  // CDP command response
+
+    std::optional<int> cdp_id = payload.FindInt("id");
+    if (!cdp_id) {
+      LOG(WARNING) << "tunneled CDP response has no id";
+      return false;
+    }
+
+    const std::string* cdp_session = payload.FindString("session");
+    session_id = cdp_session ? *cdp_session : "";
+
+    base::Value::Dict* cdp_result = payload.FindDict("result");
+    const base::Value::Dict* cdp_error = payload.FindDict("error");
+
+    type = internal::kCommandResponseMessageType;
+    command_response.id = *cdp_id;
+    // As per Chromium issue 392577, DevTools does not necessarily return
+    // a "result" dictionary for every valid response. In particular,
+    // Tracing.start and Tracing.end command responses do not contain one.
+    // So, if neither "error" nor "result" keys are present, just provide
+    // a blank result dictionary.
+    if (cdp_result) {
+      command_response.result = std::move(*cdp_result);
+    } else if (cdp_error) {
+      base::JSONWriter::Write(*cdp_error, &command_response.error);
+    } else {
+      command_response.result = base::Value::Dict();
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 const char DevToolsClientImpl::kBrowserwideDevToolsClientId[] = "browser";
@@ -189,23 +264,18 @@ const char DevToolsClientImpl::kCdpTunnelChannel[] = "/cdp";
 const char DevToolsClientImpl::kBidiChannelSuffix[] = "/bidi";
 
 DevToolsClientImpl::DevToolsClientImpl(const std::string& id,
-                                       const std::string& session_id)
+                                       const std::string& session_id,
+                                       bool is_tab)
     : session_id_(session_id),
       id_(id),
-      parser_func_(base::BindRepeating(&internal::ParseInspectorMessage)) {}
+      parser_func_(base::BindRepeating(&internal::ParseInspectorMessage)),
+      is_tab_(is_tab) {}
 
 DevToolsClientImpl::~DevToolsClientImpl() {
-  if (IsNull()) {
+  if (parent_ == nullptr) {
     return;
   }
-  if (parent_ != nullptr) {
-    parent_->UnregisterSessionHandler(session_id_);
-  } else {
-    // Resetting the callback is redundant as we assume
-    // that .dtor won't start a nested message loop.
-    // Doing this just in case.
-    socket_->SetNotificationCallback(base::RepeatingClosure());
-  }
+  parent_->UnregisterSessionHandler(session_id_);
 }
 
 void DevToolsClientImpl::SetParserFuncForTesting(
@@ -236,20 +306,20 @@ Status DevToolsClientImpl::SetTunnelSessionId(std::string session_id) {
 
 Status DevToolsClientImpl::StartBidiServer(
     std::string bidi_mapper_script,
-    const base::Value::Dict& mapper_options) {
+    bool enable_unsafe_extension_debugging) {
   // Give BiDiMapper generous amount of time to start.
   // If the wait times out then we likely have a bug in BiDiMapper.
   // There is no need to make this timeout user configurable.
   // We use the default page load timeout (the biggest in the standard).
   Timeout timeout = Timeout(base::Seconds(300));
-  return StartBidiServer(std::move(bidi_mapper_script), mapper_options,
-                         timeout);
+  return StartBidiServer(std::move(bidi_mapper_script), timeout,
+                         enable_unsafe_extension_debugging);
 }
 
 Status DevToolsClientImpl::StartBidiServer(
     std::string bidi_mapper_script,
-    const base::Value::Dict& mapper_options,
-    const Timeout& timeout) {
+    const Timeout& timeout,
+    bool enable_unsafe_extension_debugging) {
   if (!is_main_page_) {
     // Later we might want to start the BiDiMapper an another type of targets
     // however for the moment being we support pages only.
@@ -271,6 +341,9 @@ Status DevToolsClientImpl::StartBidiServer(
     base::Value::Dict params;
     params.Set("bindingName", "cdp");
     params.Set("targetId", target_id);
+    // Additional permissions are needed if enable_unsafe_extension_debugging is
+    // enabled.
+    params.Set("inheritPermissions", enable_unsafe_extension_debugging);
     DevToolsClient* root_client = this;
     while (root_client->GetParentClient() != nullptr) {
       root_client = root_client->GetParentClient();
@@ -342,16 +415,9 @@ Status DevToolsClientImpl::StartBidiServer(
       return status;
     }
 
-    std::string mapper_options_str;
-    status = SerializeAsJson(mapper_options, &mapper_options_str);
-    if (status.IsError()) {
-      return status;
-    }
-
-    params.Set(
-        "expression",
-        base::StringPrintf("window.runMapperInstance(%s, %s)",
-                           window_id.c_str(), mapper_options_str.c_str()));
+    params.Set("expression", base::StringPrintf("window.runMapperInstance(%s)",
+                                                window_id.c_str()));
+    params.Set("awaitPromise", true);
     status = SendCommandAndGetResultWithTimeout(
         "Runtime.evaluate", std::move(params), &timeout, &result);
     if (result.contains("exceptionDetails")) {
@@ -372,7 +438,7 @@ Status DevToolsClientImpl::StartBidiServer(
 
   if (event_tunneling_is_enabled_) {
     base::Value::Dict params;
-    params.Set("events", "cdp.eventReceived");
+    params.Set("events", "goog:cdp");
     base::Value::Dict bidi_cmd;
     bidi_cmd.Set("id", AdvanceNextMessageId());
     bidi_cmd.Set("method", "session.subscribe");
@@ -452,13 +518,6 @@ Status DevToolsClientImpl::SetSocket(std::unique_ptr<SyncWebSocket> socket) {
   }
   socket_ = std::move(socket);
   socket_->SetId(id_);
-  // If error happens during proactive event consumption we ignore it
-  // as there is no active user request where the error might be returned.
-  // Unretained 'this' won't cause any problems as we reset the callback in the
-  // .dtor.
-  socket_->SetNotificationCallback(base::BindRepeating(
-      base::IgnoreResult(&DevToolsClientImpl::HandleReceivedEvents),
-      base::Unretained(this)));
 
   return OnConnected();
 }
@@ -472,7 +531,13 @@ Status DevToolsClientImpl::OnConnected() {
                   "established"};
   }
 
-  Status status = SetUpDevTools();
+  Status status(kOk);
+  if (IsTabTarget()) {
+    // Only operation supported at a Tab Target is to setup AutoAttach.
+    status = SetupTabTarget();
+  } else {
+    status = SetUpDevTools();
+  }
   if (status.IsError()) {
     return status;
   }
@@ -493,6 +558,20 @@ Status DevToolsClientImpl::OnConnected() {
   }
 
   return status;
+}
+
+Status DevToolsClientImpl::SetupTabTarget() {
+  base::Value::Dict params;
+  params.Set("autoAttach", true);
+  params.Set("flatten", true);
+  params.Set("waitForDebuggerOnStart", false);
+  Status status = SendCommand("Target.setAutoAttach", params);
+
+  if (status.IsError()) {
+    return status;
+  }
+
+  return Status{kOk};
 }
 
 Status DevToolsClientImpl::SetUpDevTools() {
@@ -517,6 +596,7 @@ Status DevToolsClientImpl::SetUpDevTools() {
         "window.cdc_adoQpoasnfa76pfcZLmcfl_Proxy = window.Proxy;"
         "window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol = window.Symbol;"
         "window.cdc_adoQpoasnfa76pfcZLmcfl_JSON = window.JSON;"
+        "window.cdc_adoQpoasnfa76pfcZLmcfl_Window = window.Window;"
         "}) ();";
     params.Set("source", script);
     Status status = SendCommandAndIgnoreResponse(
@@ -535,7 +615,7 @@ Status DevToolsClientImpl::SetUpDevTools() {
 }
 
 Status DevToolsClientImpl::PostBidiCommand(base::Value::Dict command) {
-  std::string* maybe_channel = command.FindString("channel");
+  std::string* maybe_channel = command.FindString("goog:channel");
   std::string channel =
       maybe_channel ? *maybe_channel + DevToolsClientImpl::kBidiChannelSuffix
                     : std::string();
@@ -545,19 +625,19 @@ Status DevToolsClientImpl::PostBidiCommand(base::Value::Dict command) {
   //    -> the message from the BiDiMapper has no channel
   //    -> the response has no channel
   // In user message channel=""
-  //     -> the posted command has channel="/client"
-  //     -> the message from the BiDiMapper has channel="/client"
+  //     -> the posted command has channel="/bidi"
+  //     -> the message from the BiDiMapper has channel="/bidi"
   //     -> the response has channel=""
   // The user names their channel the same way as our infra cdp channel
-  // channel="/infra"
-  //     -> the posted command has channel="/infra/client"
-  //     -> the message from the BiDiMapper has channel="/infra/client"
-  //     -> the response has channel="/infra"
+  // channel="/cdp"
+  //     -> the posted command has channel="/cdp/bidi"
+  //     -> the message from the BiDiMapper has channel="/cdp/bidi"
+  //     -> the response has channel="/cdp"
   // The user names their channel as our user channel suffix
-  // channel="/client"
-  //     -> the posted command has channel="/client/client"
-  //     -> the message from the BiDiMapper has channel="/client/client"
-  //     -> the response has channel="/client"
+  // channel="/bidi"
+  //     -> the posted command has channel="/bidi/bidi"
+  //     -> the message from the BiDiMapper has channel="/bidi/bidi"
+  //     -> the response has channel="/bidi"
 
   return PostBidiCommandInternal(std::move(channel), std::move(command));
 }
@@ -719,6 +799,10 @@ bool DevToolsClientImpl::IsMainPage() const {
   return is_main_page_;
 }
 
+bool DevToolsClientImpl::IsTabTarget() const {
+  return is_tab_;
+}
+
 void DevToolsClientImpl::SetMainPage(bool value) {
   DCHECK(!IsConnected());
   is_main_page_ = value;
@@ -744,10 +828,10 @@ Status DevToolsClientImpl::PostBidiCommandInternal(std::string channel,
   if (tunnel_session_id_.empty()) {
     return Status{
         kUnknownError,
-        "uanble to send BiDi commands without BiDi server session id"};
+        "unable to send BiDi commands without BiDi server session id"};
   }
   if (!channel.empty()) {
-    command.Set("channel", std::move(channel));
+    command.Set("goog:channel", std::move(channel));
   }
 
   std::string json;
@@ -876,11 +960,9 @@ Status DevToolsClientImpl::SendCommandInternal(const std::string& method,
       }
       if (response_info->state == kBlocked) {
         response_info->state = kIgnored;
-        if (owner_) {
+        {
           std::string alert_text;
-          Status status =
-              owner_->GetJavaScriptDialogManager()->GetDialogMessage(
-                  &alert_text);
+          Status status = GetDialogMessage(alert_text);
           if (status.IsOk())
             return Status(kUnexpectedAlertOpen,
                           "{Alert text : " + alert_text + "}");
@@ -937,6 +1019,7 @@ Status DevToolsClientImpl::ProcessNextMessage(int expected_id,
     return parent_->ProcessNextMessage(-1, log_timeout, timeout, caller);
 
   std::string message;
+
   switch (socket_->ReceiveNextMessage(&message, timeout)) {
     case SyncWebSocket::StatusCode::kOk:
       break;
@@ -954,8 +1037,7 @@ Status DevToolsClientImpl::ProcessNextMessage(int expected_id,
       return Status(kTimeout, err);
     }
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   return HandleMessage(expected_id, message, caller);
@@ -968,8 +1050,8 @@ Status DevToolsClientImpl::HandleMessage(int expected_id,
   internal::InspectorMessageType type;
   InspectorEvent event;
   InspectorCommandResponse response;
-  if (!parser_func_.Run(message, expected_id, &session_id, &type, &event,
-                        &response)) {
+  if (!parser_func_.Run(message, expected_id, session_id, type, event,
+                        response)) {
     LOG(ERROR) << "Bad inspector message: " << message;
     return Status(kUnknownError, "bad inspector message: " + message);
   }
@@ -986,29 +1068,13 @@ Status DevToolsClientImpl::HandleMessage(int expected_id,
     client = it->second;
   }
   WebViewImplHolder client_holder(client->GetOwner());
+  Status status{kOk};
   if (type == internal::kEventMessageType) {
-    Status status = client->ProcessEvent(event);
-    if (caller == client || this == client) {
-      // In either case we are in the root.
-      // 'this == client' means that the error has happened in the browser
-      // session. Any errors happening here are global and most likely will lead
-      // to the session termination. Forward them to the caller!
-      // 'caller == client' means that the message must be routed to the
-      // same client that invoked the current root. Sending the errors
-      // to the caller is the proper behavior in this case as well.
-      return status;
-    } else {
-      // We support active event consumption meaning that the whole session
-      // makes progress independently from the active WebDriver Classic target.
-      // This is needed for timely delivery of bidi events to the user.
-      // If something wrong happens in the different target the corresponding
-      // WebView must update its state accordingly to notify the user
-      // about the issue on the next HTTP request.
-      return Status{kOk};
-    }
+    status = client->ProcessEvent(std::move(event));
+  } else {
+    CHECK_EQ(type, internal::kCommandResponseMessageType);
+    status = client->ProcessCommandResponse(std::move(response));
   }
-  CHECK_EQ(type, internal::kCommandResponseMessageType);
-  Status status = client->ProcessCommandResponse(response);
   if (caller == client || this == client) {
     // In either case we are in the root.
     // 'this == client' means that the error has happened in the browser
@@ -1029,7 +1095,44 @@ Status DevToolsClientImpl::HandleMessage(int expected_id,
   }
 }
 
-Status DevToolsClientImpl::ProcessEvent(const InspectorEvent& event) {
+Status DevToolsClientImpl::HandleDialogOpening(
+    const base::Value::Dict& params) {
+  const std::string* message = params.FindString("message");
+  if (!message) {
+    return Status(kUnknownError, "dialog event missing or invalid 'message'");
+  }
+
+  unhandled_dialog_queue_.push_back(*message);
+
+  const std::string* type = params.FindString("type");
+  if (!type) {
+    return Status(kUnknownError, "dialog has invalid 'type'");
+  }
+
+  dialog_type_queue_.push_back(*type);
+
+  const std::string* prompt_text = params.FindString("defaultPrompt");
+  if (!prompt_text) {
+    return Status(kUnknownError,
+                  "dialog event missing or invalid 'defaultPrompt'");
+  }
+  prompt_text_ = *prompt_text;
+
+  if (*type == "beforeunload" && AutoAcceptsBeforeunload()) {
+    return HandleDialog(true, std::nullopt);
+  }
+  return Status{kOk};
+}
+
+Status DevToolsClientImpl::HandleDialogClosed(const base::Value::Dict& params) {
+  // Inspector only sends this event when all dialogs have been closed.
+  // Clear the unhandled queue in case the user closed a dialog manually.
+  unhandled_dialog_queue_.clear();
+  dialog_type_queue_.clear();
+  return Status{kOk};
+}
+
+Status DevToolsClientImpl::ProcessEvent(InspectorEvent event) {
   if (IsVLogOn(1)) {
     // Note: ChromeDriver log-replay depends on the format of this logging.
     // see chromedriver/log_replay/devtools_log_reader.cc.
@@ -1040,13 +1143,16 @@ Status DevToolsClientImpl::ProcessEvent(const InspectorEvent& event) {
 
   Status status{kOk};
 
-  bool is_bidi_message = false;
   // The default parser ensures that event.params is never nullptr.
   // The unit tests however can set different parsers that not necessarily
   // provide such a guarantee.
   // Therefore we perform this nullptr check here.
   if (event.params) {
-    status = IsBidiMessage(event.method, *event.params, &is_bidi_message);
+    if (event.method == "Page.javascriptDialogOpening") {
+      status = HandleDialogOpening(*event.params);
+    } else if (event.method == "Page.javascriptDialogClosed") {
+      status = HandleDialogClosed(*event.params);
+    }
     if (status.IsError()) {
       return status;
     }
@@ -1059,13 +1165,12 @@ Status DevToolsClientImpl::ProcessEvent(const InspectorEvent& event) {
   if (status.IsError())
     return status;
   if (event.method == "Inspector.detached")
-    return Status(kDisconnected, "received Inspector.detached event");
+    return Status(kTargetDetached, "received Inspector.detached event");
   if (event.method == "Inspector.targetCrashed") {
     crashed_ = true;
     return Status(kTabCrashed);
   }
-  if ((owner_ && owner_->GetJavaScriptDialogManager()->IsDialogOpen()) ||
-      (!owner_ && event.method == "Page.javascriptDialogOpening")) {
+  if (IsDialogOpen()) {
     // A command may have opened the dialog, which will block the response.
     // To find out which one (if any), do a round trip with a simple command
     // to the renderer and afterwards see if any of the commands still haven't
@@ -1094,7 +1199,7 @@ Status DevToolsClientImpl::ProcessEvent(const InspectorEvent& event) {
 }
 
 Status DevToolsClientImpl::ProcessCommandResponse(
-    const InspectorCommandResponse& response) {
+    InspectorCommandResponse response) {
   auto iter = response_info_map_.find(response.id);
   if (IsVLogOn(1)) {
     std::string method, result;
@@ -1197,14 +1302,81 @@ void DevToolsClientImpl::EnableEventTunnelingForTesting() {
   event_tunneling_is_enabled_ = true;
 }
 
+bool DevToolsClientImpl::IsDialogOpen() const {
+  return !unhandled_dialog_queue_.empty();
+}
+
+bool DevToolsClientImpl::AutoAcceptsBeforeunload() const {
+  return autoaccept_beforeunload_;
+}
+
+void DevToolsClientImpl::SetAutoAcceptBeforeunload(bool value) {
+  autoaccept_beforeunload_ = value;
+}
+
+Status DevToolsClientImpl::GetDialogMessage(std::string& message) const {
+  if (!IsDialogOpen()) {
+    return Status(kNoSuchAlert);
+  }
+
+  message = unhandled_dialog_queue_.front();
+  return Status(kOk);
+}
+
+Status DevToolsClientImpl::GetTypeOfDialog(std::string& type) const {
+  if (!IsDialogOpen()) {
+    return Status(kNoSuchAlert);
+  }
+
+  type = dialog_type_queue_.front();
+  return Status(kOk);
+}
+
+Status DevToolsClientImpl::HandleDialog(
+    bool accept,
+    const std::optional<std::string>& text) {
+  if (!IsDialogOpen()) {
+    return Status(kNoSuchAlert);
+  }
+
+  base::Value::Dict params;
+  params.Set("accept", accept);
+  if (text) {
+    params.Set("promptText", *text);
+  } else {
+    params.Set("promptText", prompt_text_);
+  }
+  Status status = SendCommand("Page.handleJavaScriptDialog", params);
+  if (status.IsError()) {
+    // Retry once to work around
+    // https://bugs.chromium.org/p/chromedriver/issues/detail?id=1500
+    status = SendCommand("Page.handleJavaScriptDialog", params);
+    if (status.IsError()) {
+      return status;
+    }
+  }
+  // Remove a dialog from the queue. Need to check the queue is not empty here,
+  // because it could have been cleared during waiting for the command
+  // response.
+  if (unhandled_dialog_queue_.size()) {
+    unhandled_dialog_queue_.pop_front();
+  }
+
+  if (dialog_type_queue_.size()) {
+    dialog_type_queue_.pop_front();
+  }
+
+  return Status(kOk);
+}
+
 namespace internal {
 
 bool ParseInspectorMessage(const std::string& message,
                            int expected_id,
-                           std::string* session_id,
-                           InspectorMessageType* type,
-                           InspectorEvent* event,
-                           InspectorCommandResponse* command_response) {
+                           std::string& session_id,
+                           InspectorMessageType& type,
+                           InspectorEvent& event,
+                           InspectorCommandResponse& command_response) {
   // We want to allow invalid characters in case they are valid ECMAScript
   // strings. For example, webplatform tests use this to check string handling
   std::optional<base::Value> message_value =
@@ -1213,9 +1385,9 @@ bool ParseInspectorMessage(const std::string& message,
       message_value ? message_value->GetIfDict() : nullptr;
   if (!message_dict)
     return false;
-  session_id->clear();
+  session_id.clear();
   if (const std::string* str = message_dict->FindString("sessionId"))
-    *session_id = *str;
+    session_id = *str;
 
   base::Value* id_value = message_dict->Find("id");
   if (!id_value) {
@@ -1225,7 +1397,7 @@ bool ParseInspectorMessage(const std::string& message,
     bool is_bidi_message = false;
     base::Value::Dict* params = message_dict->FindDict("params");
     if (params) {
-      Status status = IsBidiMessage(*method, *params, &is_bidi_message);
+      Status status = IsBidiMessage(*method, *params, is_bidi_message);
       if (status.IsError()) {
         LOG(WARNING) << status.message();
         return false;
@@ -1240,69 +1412,11 @@ bool ParseInspectorMessage(const std::string& message,
         return false;
       }
 
-      std::string* channel = payload.FindString("channel");
+      std::string* channel = payload.FindString("goog:channel");
 
       if (channel && *channel == DevToolsClientImpl::kCdpTunnelChannel) {
-        // handle CDP over BiDi events and responses
-        std::string* payload_method = payload.FindString("method");
-
-        if (payload_method &&
-            *payload_method == "cdp.eventReceived") {  // CDP event
-          base::Value::Dict* payload_params = payload.FindDict("params");
-          if (!payload_params) {
-            LOG(WARNING) << "params field is missing in the payload of "
-                            "Runtime.bindingCalled message";
-            return false;
-          }
-          std::string* cdp_method = payload_params->FindString("cdpMethod");
-          if (!cdp_method) {
-            LOG(WARNING) << "params.cdpMethod is missing in the payload of "
-                            "Runtime.bindingCalled message";
-            return false;
-          }
-
-          *type = kEventMessageType;
-          event->method = *cdp_method;
-          std::string* cdp_session = payload_params->FindString("cdpSession");
-          *session_id = cdp_session ? *cdp_session : "";
-
-          base::Value::Dict* cdp_params = payload_params->FindDict("cdpParams");
-          if (cdp_params) {
-            event->params = std::move(*cdp_params);
-          } else {
-            event->params = base::Value::Dict();
-          }
-          return true;
-        } else {  // CDP command response
-
-          std::optional<int> cdp_id = payload.FindInt("id");
-          if (!cdp_id) {
-            LOG(WARNING) << "tunneled CDP response has no id";
-            return false;
-          }
-
-          std::string* cdp_session = payload.FindString("cdpSession");
-          *session_id = cdp_session ? *cdp_session : "";
-
-          base::Value::Dict* cdp_result = payload.FindDict("result");
-          base::Value::Dict* cdp_error = payload.FindDict("error");
-
-          *type = kCommandResponseMessageType;
-          command_response->id = *cdp_id;
-          // As per Chromium issue 392577, DevTools does not necessarily return
-          // a "result" dictionary for every valid response. In particular,
-          // Tracing.start and Tracing.end command responses do not contain one.
-          // So, if neither "error" nor "result" keys are present, just provide
-          // a blank result dictionary.
-          if (cdp_result) {
-            command_response->result = std::move(*cdp_result);
-          } else if (cdp_error) {
-            base::JSONWriter::Write(*cdp_error, &command_response->error);
-          } else {
-            command_response->result = base::Value::Dict();
-          }
-          return true;
-        }
+        return ParseCdpTunnelMessage(std::move(payload), session_id, type,
+                                     event, command_response);
       }  // Infra CDP tunnel
 
       if (channel &&
@@ -1318,29 +1432,29 @@ bool ParseInspectorMessage(const std::string& message,
       params->Set("payload", std::move(payload));
     }  // BiDi message
 
-    *type = kEventMessageType;
-    event->method = *method;
+    type = kEventMessageType;
+    event.method = *method;
     if (params) {
-      event->params = params->Clone();
+      event.params = params->Clone();
     } else {
-      event->params = base::Value::Dict();
+      event.params = base::Value::Dict();
     }
     return true;
   } else if (id_value->is_int()) {
-    *type = kCommandResponseMessageType;
-    command_response->id = id_value->GetInt();
+    type = kCommandResponseMessageType;
+    command_response.id = id_value->GetInt();
     // As per Chromium issue 392577, DevTools does not necessarily return a
     // "result" dictionary for every valid response. In particular,
     // Tracing.start and Tracing.end command responses do not contain one.
     // So, if neither "error" nor "result" keys are present, just provide
     // a blank result dictionary.
     if (base::Value::Dict* unscoped_result = message_dict->FindDict("result")) {
-      command_response->result = std::move(*unscoped_result);
+      command_response.result = std::move(*unscoped_result);
     } else if (base::Value::Dict* unscoped_error =
                    message_dict->FindDict("error")) {
-      base::JSONWriter::Write(*unscoped_error, &command_response->error);
+      base::JSONWriter::Write(*unscoped_error, &command_response.error);
     } else {
-      command_response->result = base::Value::Dict();
+      command_response.result = base::Value::Dict();
     }
     return true;
   }
@@ -1383,7 +1497,8 @@ Status ParseInspectorError(const std::string& error_json) {
     } else if (error_message == kInspectorPushPermissionError ||
                error_message == kInspectorOpaqueOrigins) {
       return Status(kInvalidArgument, error_message);
-    } else if (error_message == kInspectorNoSuchFrameError) {
+    } else if (error_message == kInspectorNoSuchFrameError ||
+               error_message == kFrameDosNotBelongToTarget) {
       // As the server returns the generic error code: SERVER_ERROR = -32000
       // we have to rely on the error message content.
       return Status(kNoSuchFrame, error_message);
@@ -1396,7 +1511,9 @@ Status ParseInspectorError(const std::string& error_json) {
                error_message == kInspectedTargetNavigatedOrClosed) {
       // The error messages that arise if navigation was started by the
       // asynchronous script before the script execution was finished..
-      return Status{kNavigationDetectedByRemoteEnd, error_message};
+      return Status{kAbortedByNavigation, error_message};
+    } else if (error_message == kNotAttachedToActivePage) {
+      return Status{kAbortedByNavigation, error_message};
     }
     std::optional<int> error_code = error_dict->FindInt("code");
     if (error_code == kInvalidParamsInspectorCode) {

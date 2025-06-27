@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "base/command_line.h"
 #include "base/test/scoped_feature_list.h"
@@ -25,7 +26,7 @@ namespace {
 // tools/origin_trials/generate_token.py https://example.test
 // PermissionElement
 // --expire-days 5000
-base::StringPiece kOriginTrialToken =
+constexpr std::string_view kOriginTrialToken =
     "AyhOIRw/ha6vGsSq2BU78sDZ49hP+Cv6OC191Ae7YQHf3pYW8UJ5bwCOOuUXjfA/"
     "QmXR6y1+4cv+"
     "Uy6utB3FJw0AAABceyJvcmlnaW4iOiAiaHR0cHM6Ly9leGFtcGxlLnRlc3Q6NDQzIiwgImZlYX"
@@ -75,7 +76,7 @@ std::string FeaturesStatusesToString(
 }  // namespace
 
 class PermissionElementOriginTrialBrowserTest
-    : public PlatformBrowserTest,
+    : public InProcessBrowserTest,
       public testing::WithParamInterface<
           testing::tuple<BaseFeatureStatus, BlinkFeatureStatus>> {
  protected:
@@ -95,7 +96,7 @@ class PermissionElementOriginTrialBrowserTest
   ~PermissionElementOriginTrialBrowserTest() override = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    PlatformBrowserTest::SetUpCommandLine(command_line);
+    InProcessBrowserTest::SetUpCommandLine(command_line);
     // Add the public key following:
     // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/origin_trials_integration.md#manual-testing.
     command_line->AppendSwitchASCII(
@@ -116,7 +117,7 @@ class PermissionElementOriginTrialBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    PlatformBrowserTest::SetUpOnMainThread();
+    InProcessBrowserTest::SetUpOnMainThread();
     url_loader_interceptor_.emplace(base::BindRepeating(
         &PermissionElementOriginTrialBrowserTest::InterceptRequest,
         base::Unretained(this)));

@@ -27,6 +27,7 @@
 #include "mediapipe/framework/port/ret_check.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
+#include "tensorflow/core/framework/types.pb.h"
 
 namespace mediapipe {
 
@@ -42,6 +43,9 @@ bool RequiresUnsignedType(tensorflow::DataType data_type) {
   return data_type == tensorflow::DT_UINT32;
 }
 
+bool RequiresInt64Type(tensorflow::DataType data_type) {
+  return data_type == tensorflow::DT_INT64;
+}
 namespace tf = ::tensorflow;
 
 template <typename TensorType>
@@ -96,15 +100,25 @@ absl::Status ProcessVectorIntToTensor(
       input =
           cc->Inputs().Tag(kVectorInt).Value().Get<std::vector<InputType>>();
     }
-    ABSL_CHECK_GE(input.size(), 1);
-    const int32_t length = input.size();
-    tensor_shape = tf::TensorShape({length});
-    auto output =
-        std::make_unique<tf::Tensor>(options.tensor_data_type(), tensor_shape);
-    for (int i = 0; i < length; ++i) {
-      output->tensor<DataType, 1>()(i) = input.at(i);
+
+    if (options.scalar_output()) {
+      ABSL_CHECK_EQ(input.size(), 1);
+      tensor_shape = tf::TensorShape({});
+      auto output = std::make_unique<tf::Tensor>(options.tensor_data_type(),
+                                                 tensor_shape);
+      output->scalar<DataType>()() = input.at(0);
+      cc->Outputs().Tag(kTensorOut).Add(output.release(), cc->InputTimestamp());
+    } else {
+      ABSL_CHECK_GE(input.size(), 1);
+      const int32_t length = input.size();
+      tensor_shape = tf::TensorShape({length});
+      auto output = std::make_unique<tf::Tensor>(options.tensor_data_type(),
+                                                 tensor_shape);
+      for (int i = 0; i < length; ++i) {
+        output->tensor<DataType, 1>()(i) = input.at(i);
+      }
+      cc->Outputs().Tag(kTensorOut).Add(output.release(), cc->InputTimestamp());
     }
-    cc->Outputs().Tag(kTensorOut).Add(output.release(), cc->InputTimestamp());
   } else {
     ABSL_LOG(FATAL) << "input size not supported";
   }
@@ -156,18 +170,26 @@ absl::Status VectorIntToTensorCalculator::GetContract(CalculatorContract* cc) {
     if (cc->Inputs().HasTag(kSingleInt)) {
       if (RequiresUnsignedType(options.tensor_data_type())) {
         cc->Inputs().Tag(kSingleInt).Set<uint32_t>();
+      } else if (RequiresInt64Type(options.tensor_data_type())) {
+        cc->Inputs().Tag(kSingleInt).Set<int64_t>();
       } else {
         cc->Inputs().Tag(kSingleInt).Set<int>();
       }
     } else {
       if (RequiresUnsignedType(options.tensor_data_type())) {
         cc->Inputs().Tag(kVectorInt).Set<std::vector<uint32_t>>();
+      } else if (RequiresInt64Type(options.tensor_data_type())) {
+        cc->Inputs().Tag(kVectorInt).Set<std::vector<int64_t>>();
       } else {
         cc->Inputs().Tag(kVectorInt).Set<std::vector<int>>();
       }
     }
   } else {
     ABSL_LOG(FATAL) << "input size not supported";
+  }
+  if (options.scalar_output() && options.input_size() != INPUT_1D) {
+    return absl::InvalidArgumentError(
+        "scalar_output is only supported for input_size = INPUT_1D.");
   }
   RET_CHECK_EQ(cc->Outputs().NumEntries(), 1)
       << "Only one output stream is supported.";
@@ -188,7 +210,7 @@ absl::Status VectorIntToTensorCalculator::Open(CalculatorContext* cc) {
 absl::Status VectorIntToTensorCalculator::Process(CalculatorContext* cc) {
   switch (options_.tensor_data_type()) {
     case tf::DT_INT64:
-      return ProcessVectorIntToTensor<int, int64_t>(options_, cc);
+      return ProcessVectorIntToTensor<int64_t, int64_t>(options_, cc);
     case tf::DT_UINT8:
       return ProcessVectorIntToTensor<int, uint8_t>(options_, cc);
     case tf::DT_INT32:

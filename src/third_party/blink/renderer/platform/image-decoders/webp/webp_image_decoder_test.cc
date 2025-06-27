@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/platform/image-decoders/webp/webp_image_decoder.h"
 
+#include <array>
 #include <memory>
 
 #include "base/metrics/histogram_base.h"
@@ -44,7 +45,7 @@ std::unique_ptr<ImageDecoder> CreateWEBPDecoder() {
 void TestInvalidImage(const char* webp_file, bool parse_error_expected) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
-  scoped_refptr<SharedBuffer> data = ReadFile(webp_file);
+  scoped_refptr<SharedBuffer> data = ReadFileToSharedBuffer(webp_file);
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
@@ -63,7 +64,7 @@ void TestInvalidImage(const char* webp_file, bool parse_error_expected) {
 
 void TestWebPBppHistogram(const char* image_name,
                           const char* histogram_name = nullptr,
-                          base::HistogramBase::Sample sample = 0) {
+                          base::HistogramBase::Sample32 sample = 0) {
   TestBppHistogram(CreateWEBPDecoder, "WebP", image_name, histogram_name,
                    sample);
 }
@@ -74,7 +75,7 @@ TEST(AnimatedWebPTests, uniqueGenerationIDs) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/webp-animated.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-animated.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
@@ -91,20 +92,20 @@ TEST(AnimatedWebPTests, verifyAnimationParametersTransparentImage) {
   EXPECT_EQ(kAnimationLoopOnce, decoder->RepetitionCount());
 
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/webp-animated.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-animated.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
   const int kCanvasWidth = 11;
   const int kCanvasHeight = 29;
-  const AnimParam kFrameParameters[] = {
+  const auto kFrameParameters = std::to_array<AnimParam>({
       {0, 0, 11, 29, ImageFrame::kDisposeKeep,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(1000), true},
       {2, 10, 7, 17, ImageFrame::kDisposeKeep,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(500), true},
       {2, 2, 7, 16, ImageFrame::kDisposeKeep,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(1000), true},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kFrameParameters); ++i) {
     const ImageFrame* const frame = decoder->DecodeFrameBufferAtIndex(i);
@@ -132,13 +133,13 @@ TEST(AnimatedWebPTests,
   EXPECT_EQ(kAnimationLoopOnce, decoder->RepetitionCount());
 
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/webp-animated-opaque.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-animated-opaque.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
   const int kCanvasWidth = 94;
   const int kCanvasHeight = 87;
-  const AnimParam kFrameParameters[] = {
+  const auto kFrameParameters = std::to_array<AnimParam>({
       {4, 10, 33, 32, ImageFrame::kDisposeOverwriteBgcolor,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(1000), true},
       {34, 30, 33, 32, ImageFrame::kDisposeOverwriteBgcolor,
@@ -147,7 +148,7 @@ TEST(AnimatedWebPTests,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(1000), true},
       {10, 54, 32, 33, ImageFrame::kDisposeOverwriteBgcolor,
        ImageFrame::kBlendAtopPreviousFrame, base::Milliseconds(1000), true},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kFrameParameters); ++i) {
     const ImageFrame* const frame = decoder->DecodeFrameBufferAtIndex(i);
@@ -174,13 +175,13 @@ TEST(AnimatedWebPTests, verifyAnimationParametersBlendOverwrite) {
   EXPECT_EQ(kAnimationLoopOnce, decoder->RepetitionCount());
 
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/webp-animated-no-blend.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-animated-no-blend.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
   const int kCanvasWidth = 94;
   const int kCanvasHeight = 87;
-  const AnimParam kFrameParameters[] = {
+  const auto kFrameParameters = std::to_array<AnimParam>({
       {4, 10, 33, 32, ImageFrame::kDisposeOverwriteBgcolor,
        ImageFrame::kBlendAtopBgcolor, base::Milliseconds(1000), true},
       {34, 30, 33, 32, ImageFrame::kDisposeOverwriteBgcolor,
@@ -189,7 +190,7 @@ TEST(AnimatedWebPTests, verifyAnimationParametersBlendOverwrite) {
        ImageFrame::kBlendAtopBgcolor, base::Milliseconds(1000), true},
       {10, 54, 32, 33, ImageFrame::kDisposeOverwriteBgcolor,
        ImageFrame::kBlendAtopBgcolor, base::Milliseconds(1000), true},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kFrameParameters); ++i) {
     const ImageFrame* const frame = decoder->DecodeFrameBufferAtIndex(i);
@@ -231,7 +232,7 @@ TEST(AnimatedWebPTests, truncatedLastFrame) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/invalid-animated-webp2.webp");
+      ReadFileToSharedBuffer("/images/resources/invalid-animated-webp2.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
 
@@ -254,10 +255,9 @@ TEST(AnimatedWebPTests, truncatedInBetweenFrame) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
   const Vector<char> full_data =
-      ReadFile("/images/resources/invalid-animated-webp4.webp")
-          ->CopyAs<Vector<char>>();
+      ReadFile("/images/resources/invalid-animated-webp4.webp");
   scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(full_data.data(), full_data.size() - 1);
+      SharedBuffer::Create(base::span(full_data).first(full_data.size() - 1));
   decoder->SetData(data.get(), false);
 
   ImageFrame* frame = decoder->DecodeFrameBufferAtIndex(1);
@@ -274,16 +274,16 @@ TEST(AnimatedWebPTests, truncatedInBetweenFrame) {
 TEST(AnimatedWebPTests, reproCrash) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
-  scoped_refptr<SharedBuffer> full_data_buffer =
+  const Vector<char> full_data =
       ReadFile("/images/resources/invalid_vp8_vp8x.webp");
-  ASSERT_TRUE(full_data_buffer.get());
-  const Vector<char> full_data = full_data_buffer->CopyAs<Vector<char>>();
+  scoped_refptr<SharedBuffer> full_data_buffer =
+      SharedBuffer::Create(full_data);
 
   // Parse partial data up to which error in bitstream is not detected.
   const size_t kPartialSize = 32768;
   ASSERT_GT(full_data.size(), kPartialSize);
   scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(full_data.data(), kPartialSize);
+      SharedBuffer::Create(base::span(full_data).first(kPartialSize));
   decoder->SetData(data.get(), false);
   EXPECT_EQ(1u, decoder->FrameCount());
   ImageFrame* frame = decoder->DecodeFrameBufferAtIndex(0);
@@ -309,14 +309,12 @@ TEST(AnimatedWebPTests, progressiveDecode) {
 TEST(AnimatedWebPTests, frameIsCompleteAndDuration) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
-  scoped_refptr<SharedBuffer> data_buffer =
-      ReadFile("/images/resources/webp-animated.webp");
-  ASSERT_TRUE(data_buffer.get());
-  const Vector<char> data = data_buffer->CopyAs<Vector<char>>();
+  const Vector<char> data = ReadFile("/images/resources/webp-animated.webp");
+  scoped_refptr<SharedBuffer> data_buffer = SharedBuffer::Create(data);
 
   ASSERT_GE(data.size(), 10u);
   scoped_refptr<SharedBuffer> temp_data =
-      SharedBuffer::Create(data.data(), data.size() - 10);
+      SharedBuffer::Create(base::span(data).first(data.size() - 10));
   decoder->SetData(temp_data.get(), false);
 
   EXPECT_EQ(2u, decoder->FrameCount());
@@ -396,7 +394,7 @@ TEST(AnimatedWEBPTests, clearCacheExceptFrameWithAncestors) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
 
   scoped_refptr<SharedBuffer> full_data =
-      ReadFile("/images/resources/webp-animated.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-animated.webp");
   ASSERT_TRUE(full_data.get());
   decoder->SetData(full_data.get(), true);
 
@@ -404,8 +402,8 @@ TEST(AnimatedWEBPTests, clearCacheExceptFrameWithAncestors) {
   // We need to store pointers to the image frames, since calling
   // FrameBufferAtIndex will decode the frame if it is not FrameComplete,
   // and we want to read the status of the frame without decoding it again.
-  ImageFrame* buffers[3];
-  size_t buffer_sizes[3];
+  std::array<ImageFrame*, 3> buffers;
+  std::array<size_t, 3> buffer_sizes;
   for (size_t i = 0; i < decoder->FrameCount(); i++) {
     buffers[i] = decoder->DecodeFrameBufferAtIndex(i);
     ASSERT_EQ(ImageFrame::kFrameComplete, buffers[i]->GetStatus());
@@ -500,7 +498,7 @@ TEST(StaticWebPTests, isSizeAvailable) {
 TEST(StaticWebPTests, notAnimated) {
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
   scoped_refptr<SharedBuffer> data =
-      ReadFile("/images/resources/webp-color-profile-lossy.webp");
+      ReadFileToSharedBuffer("/images/resources/webp-color-profile-lossy.webp");
   ASSERT_TRUE(data.get());
   decoder->SetData(data.get(), true);
   EXPECT_EQ(1u, decoder->FrameCount());
@@ -574,7 +572,8 @@ TEST(StaticWebPTests, bppHistogramHuge13000002) {
 TEST(StaticWebPTests, bppHistogramInvalid) {
   base::HistogramTester histogram_tester;
   std::unique_ptr<ImageDecoder> decoder = CreateWEBPDecoder();
-  decoder->SetData(ReadFile("/images/resources/truncated.webp"), true);
+  decoder->SetData(ReadFileToSharedBuffer("/images/resources/truncated.webp"),
+                   true);
   ASSERT_TRUE(decoder->IsSizeAvailable());
   EXPECT_FALSE(decoder->Failed());
   EXPECT_EQ(decoder->FrameCount(), 1u);

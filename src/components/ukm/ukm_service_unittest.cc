@@ -4,6 +4,7 @@
 
 #include "components/ukm/ukm_service.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
@@ -20,7 +21,6 @@
 #include "base/hash/hash.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/metrics_hashes.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -74,6 +74,9 @@ const char* kTestEvent2Metric1 = TestEvent2::kArrayBufferName;
 const char* kTestEvent2Metric2 = TestEvent2::kBlinkGCName;
 using TestEvent3 = builders::PageWithPassword;
 using TestProviderEvent = builders::ScreenBrightness;
+const int32_t kWebDXFeature1 = 1;
+const int32_t kWebDXFeature3 = 3;
+const size_t kWebDXFeatureNumberOfFeaturesForTesting = 5;
 
 SourceId ConvertSourceIdToAllowlistedType(SourceId id, SourceIdType type) {
   return ukm::SourceIdObj::FromOtherId(id, type).ToInt64();
@@ -102,9 +105,10 @@ class TestRecordingHelper {
     recorder_->MarkSourceForDeletion(source_id);
   }
 
-  void RecordWebFeatures(SourceId source_id,
-                         const std::set<DummyWebFeatures>& features) {
-    recorder_->RecordWebFeatures(source_id, features);
+  void RecordWebDXFeatures(SourceId source_id,
+                           const std::set<int32_t>& features,
+                           const size_t max_feature_value) {
+    recorder_->RecordWebDXFeatures(source_id, features, max_feature_value);
   }
 
  private:
@@ -200,15 +204,12 @@ void AddSourceToReport(Report& report,
   entry->set_source_id(source_id);
 }
 
-bool WebFeaturesStrictlyContains(
-    const HighLevelWebFeatures& actual_features,
-    const std::set<DummyWebFeatures>& expected_features) {
-  constexpr size_t kBitSetSize =
-      static_cast<size_t>(DummyWebFeatures::kMaxCount);
-  BitSet bitset(kBitSetSize, actual_features.bit_vector());
-  for (size_t i = 0; i < kBitSetSize; ++i) {
-    if (bitset.Contains(i) !=
-        base::Contains(expected_features, static_cast<DummyWebFeatures>(i))) {
+bool WebDXFeaturesStrictlyContains(const HighLevelWebFeatures& actual_features,
+                                   const std::set<int32_t>& expected_features) {
+  BitSet bitset(kWebDXFeatureNumberOfFeaturesForTesting,
+                actual_features.bit_vector());
+  for (size_t i = 0; i < kWebDXFeatureNumberOfFeaturesForTesting; ++i) {
+    if (bitset.Contains(i) != base::Contains(expected_features, i)) {
       return false;
     }
   }
@@ -225,7 +226,7 @@ class ScopedUkmFeatureParams {
   ScopedUkmFeatureParams(const ScopedUkmFeatureParams&) = delete;
   ScopedUkmFeatureParams& operator=(const ScopedUkmFeatureParams&) = delete;
 
-  ~ScopedUkmFeatureParams() {}
+  ~ScopedUkmFeatureParams() = default;
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -234,7 +235,7 @@ class ScopedUkmFeatureParams {
 class MockDemographicMetricsProvider
     : public metrics::UkmDemographicMetricsProvider {
  public:
-  ~MockDemographicMetricsProvider() override {}
+  ~MockDemographicMetricsProvider() override = default;
 
   // DemographicMetricsProvider:
   MOCK_METHOD1(ProvideSyncedUserNoisedBirthYearAndGenderToReport,
@@ -846,6 +847,35 @@ TEST_F(UkmServiceTest, SourceSerialization) {
             proto_source.urls(1).url());
 }
 
+TEST_F(UkmServiceTest, SourceSerializationForAllowlistedButNonNavigationType) {
+  UkmService service(&prefs_, &client_,
+                     std::make_unique<MockDemographicMetricsProvider>());
+  TestRecordingHelper recorder(&service);
+  EXPECT_EQ(GetPersistedLogCount(), 0);
+  service.Initialize();
+  task_runner_->RunUntilIdle();
+  service.UpdateRecording({UkmConsentType::MSBB});
+  service.EnableReporting();
+
+  const GURL kURL("https://example.com/");
+
+  SourceId id = ConvertToSourceId(0, SourceIdType::NOTIFICATION_ID);
+  recorder.UpdateSourceURL(id, kURL);
+
+  service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
+  EXPECT_EQ(GetPersistedLogCount(), 1);
+
+  Report proto_report = GetPersistedReport();
+  ASSERT_EQ(1, proto_report.sources_size());
+  EXPECT_TRUE(proto_report.has_session_id());
+  const Source& proto_source = proto_report.sources(0);
+
+  EXPECT_EQ(id, proto_source.id());
+  EXPECT_EQ(static_cast<int>(SourceIdType::NOTIFICATION_ID), proto_source.type());
+  ASSERT_EQ(1, proto_source.urls_size());
+  EXPECT_EQ(kURL.spec(), proto_source.urls(0).url());
+}
+
 TEST_F(UkmServiceTest, LogMetadataOnlyAppKMSourceType) {
   UkmService service(&prefs_, &client_,
                      std::make_unique<MockDemographicMetricsProvider>());
@@ -1189,7 +1219,8 @@ TEST_F(UkmServiceTest, LogsUploadedOnlyWhenHavingData) {
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   EXPECT_EQ(GetPersistedLogCount(), 3);
 
-  recorder.RecordWebFeatures(id, {DummyWebFeatures::kFeature1});
+  recorder.RecordWebDXFeatures(id, {kWebDXFeature1},
+                               kWebDXFeatureNumberOfFeaturesForTesting);
   // Includes web features data, so will persist.
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   EXPECT_EQ(GetPersistedLogCount(), 4);
@@ -2060,17 +2091,6 @@ TEST_F(UkmServiceTest, PruneOldSources) {
   EXPECT_EQ(ids[4], proto_report.sources(2).id());
 }
 
-TEST_F(UkmServiceTest, UseExternalClientID) {
-  prefs_.SetUint64(prefs::kUkmClientId, 1234);
-  uint64_t external_client_id = 5678;
-  UkmService service(&prefs_, &client_,
-                     std::make_unique<MockDemographicMetricsProvider>(),
-                     external_client_id);
-  service.Initialize();
-  EXPECT_EQ(external_client_id, service.client_id());
-  EXPECT_EQ(external_client_id, prefs_.GetUint64(prefs::kUkmClientId));
-}
-
 // Verifies that when a cloned install is detected, logs are purged.
 TEST_F(UkmServiceTest, PurgeLogsOnClonedInstallDetected) {
   TestMetricsServiceClientWithClonedInstallDetector client;
@@ -2114,7 +2134,7 @@ TEST_F(UkmServiceTest, PurgeLogsOnClonedInstallDetected) {
   EXPECT_FALSE(test_log_store->has_unsent_logs());
 }
 
-TEST_F(UkmServiceTest, WebFeatures) {
+TEST_F(UkmServiceTest, WebDXFeatures) {
   UkmService service(&prefs_, &client_,
                      std::make_unique<MockDemographicMetricsProvider>());
   TestRecordingHelper recorder(&service);
@@ -2127,30 +2147,30 @@ TEST_F(UkmServiceTest, WebFeatures) {
   // it matches what was recorded.
   auto id0 = GetAllowlistedSourceId(0);
   recorder.UpdateSourceURL(id0, GURL("https://google.com/foobar0"));
-  recorder.RecordWebFeatures(id0, {DummyWebFeatures::kFeature1});
+  recorder.RecordWebDXFeatures(id0, {kWebDXFeature1},
+                               kWebDXFeatureNumberOfFeaturesForTesting);
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   ASSERT_EQ(GetPersistedLogCount(), 1);
   Report proto_report = GetPersistedReport();
   ASSERT_EQ(proto_report.web_features_size(), 1);
   EXPECT_EQ(proto_report.web_features(0).source_id(), id0);
-  EXPECT_TRUE(WebFeaturesStrictlyContains(proto_report.web_features(0),
-                                          {DummyWebFeatures::kFeature1}));
+  EXPECT_TRUE(WebDXFeaturesStrictlyContains(proto_report.web_features(0),
+                                            {kWebDXFeature1}));
 
   // Record some more web features data, create a report, and verify that the
   // data in it matches what was recorded. The web features data from the
   // previous report should not appear.
   auto id1 = GetAllowlistedSourceId(1);
   recorder.UpdateSourceURL(id1, GURL("https://google.com/foobar1"));
-  recorder.RecordWebFeatures(
-      id1, {DummyWebFeatures::kFeature1, DummyWebFeatures::kFeature2});
+  recorder.RecordWebDXFeatures(id1, {kWebDXFeature1, kWebDXFeature3},
+                               kWebDXFeatureNumberOfFeaturesForTesting);
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   ASSERT_EQ(GetPersistedLogCount(), 2);
   proto_report = GetPersistedReport();
   ASSERT_EQ(proto_report.web_features_size(), 1);
   EXPECT_EQ(proto_report.web_features(0).source_id(), id1);
-  EXPECT_TRUE(WebFeaturesStrictlyContains(
-      proto_report.web_features(0),
-      {DummyWebFeatures::kFeature1, DummyWebFeatures::kFeature2}));
+  EXPECT_TRUE(WebDXFeaturesStrictlyContains(proto_report.web_features(0),
+                                            {kWebDXFeature1, kWebDXFeature3}));
 
   // Create a report without recording any web features data. Verify that it
   // contains no web features data, as the data from the previous reports should
@@ -2167,7 +2187,8 @@ TEST_F(UkmServiceTest, WebFeatures) {
   // be gone.
   auto id3 = GetAllowlistedSourceId(3);
   recorder.UpdateSourceURL(id3, GURL("https://google.com/foobar3"));
-  recorder.RecordWebFeatures(id3, {DummyWebFeatures::kFeature2});
+  recorder.RecordWebDXFeatures(id3, {kWebDXFeature3},
+                               kWebDXFeatureNumberOfFeaturesForTesting);
   service.Purge();
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   EXPECT_EQ(GetPersistedLogCount(), 0);
@@ -2181,9 +2202,7 @@ TEST_F(UkmServiceTest, NotifyObserverOnShutdown) {
   ukm::UkmRecorder::Get()->AddObserver(&observer);
   EXPECT_CALL(observer, OnStartingShutdown()).Times(1);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 namespace {
 
 class UkmServiceTestWithIndependentAppKM
@@ -2370,7 +2389,7 @@ INSTANTIATE_TEST_SUITE_P(
       }
     });
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 class MockUkmRecorder : public ukm::UkmRecorder {
  public:
@@ -2379,8 +2398,10 @@ class MockUkmRecorder : public ukm::UkmRecorder {
 
   MOCK_METHOD(void, AddEntry, (mojom::UkmEntryPtr entry), (override));
   MOCK_METHOD(void,
-              RecordWebFeatures,
-              (SourceId source_id, const std::set<DummyWebFeatures>& features),
+              RecordWebDXFeatures,
+              (SourceId source_id,
+               const std::set<int32_t>& features,
+               const size_t max_feature_value),
               (override));
   MOCK_METHOD(void,
               UpdateSourceURL,

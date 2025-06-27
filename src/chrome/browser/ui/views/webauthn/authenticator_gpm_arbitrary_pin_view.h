@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_WEBAUTHN_AUTHENTICATOR_GPM_ARBITRARY_PIN_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_WEBAUTHN_AUTHENTICATOR_GPM_ARBITRARY_PIN_VIEW_H_
 
+#include <string>
+
 #include "base/memory/raw_ptr.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
@@ -26,9 +28,12 @@ class AuthenticatorGPMArbitraryPinView : public views::View,
     virtual void OnPinChanged(std::u16string pin) = 0;
   };
 
-  explicit AuthenticatorGPMArbitraryPinView(bool ui_disabled,
-                                            const std::u16string& pin,
-                                            Delegate* delegate);
+  explicit AuthenticatorGPMArbitraryPinView(
+      bool ui_disabled,
+      const std::u16string& pin,
+      const std::u16string& pin_accessible_name,
+      const std::u16string& pin_accessible_description,
+      Delegate* delegate);
 
   AuthenticatorGPMArbitraryPinView(const AuthenticatorGPMArbitraryPinView&) =
       delete;

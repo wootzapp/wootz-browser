@@ -11,8 +11,8 @@ namespace ui {
 
 // This is sent to the renderer. Keep the string representation in sync with
 // third_party/WebKit/public/platform/WebEditingCommandType.h.
-std::string TextEditCommandAuraLinux::GetCommandString() const {
-  switch (command_) {
+std::string TextEditCommandToString(ui::TextEditCommand command) {
+  switch (command) {
     case TextEditCommand::DELETE_BACKWARD:
       return "DeleteBackward";
     case TextEditCommand::DELETE_FORWARD:
@@ -135,11 +135,9 @@ std::string TextEditCommandAuraLinux::GetCommandString() const {
     case TextEditCommand::SCROLL_TO_END_OF_DOCUMENT:
       // Scroll commands are used by Mac only
     case TextEditCommand::INVALID_COMMAND:
-      NOTREACHED_IN_MIGRATION();
-      return std::string();
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 }  // namespace ui

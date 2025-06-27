@@ -11,13 +11,14 @@ import androidx.test.filters.SmallTest;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -28,13 +29,12 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.signin.services.UnifiedConsentServiceBridge;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
+import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 /** Tests for the ContextualSearchPolicy class. */
@@ -42,13 +42,11 @@ import org.chromium.url.GURL;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
 public class ContextualSearchPolicyTest {
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
-    public BlankCTATabInitialStateRule mInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public AutoResetCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.fastAutoResetCtaActivityRule();
 
     @Mock private ContextualSearchFakeServer mMockServer;
 
@@ -57,14 +55,13 @@ public class ContextualSearchPolicyTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mProfile = ProfileManager.getLastUsedRegularProfile();
                     mPolicy = new ContextualSearchPolicy(mProfile, null, mMockServer);
                 });
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // Clear Prefs
                     PrefService prefService = UserPrefs.get(mProfile);
@@ -76,7 +73,7 @@ public class ContextualSearchPolicyTest {
 
     @After
     public void tearDown() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // Clear Prefs
                     PrefService prefService = UserPrefs.get(mProfile);
@@ -93,7 +90,7 @@ public class ContextualSearchPolicyTest {
         try {
             when(mMockServer.getBasePageUrl()).thenReturn(new GURL("https://someUrl"));
         } catch (Exception e) {
-            Assert.fail("Exception raised building a sample URL");
+            throw new AssertionError("Exception raised building a sample URL", e);
         }
     }
 
@@ -102,8 +99,7 @@ public class ContextualSearchPolicyTest {
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlDefaultCase() {
         // We don't send the URL by default.
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> Assert.assertFalse(mPolicy.doSendBasePageUrl()));
+        ThreadUtils.runOnUiThreadBlocking(() -> Assert.assertFalse(mPolicy.doSendBasePageUrl()));
     }
 
     @Test
@@ -111,7 +107,7 @@ public class ContextualSearchPolicyTest {
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlEnabledCase() {
         // Test that we do send the URL when all the requirements are enabled.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     setupAllConditionsToSendUrl();
                     Assert.assertTrue(mPolicy.doSendBasePageUrl());
@@ -122,7 +118,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlWhenNotOptedIn() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     setupAllConditionsToSendUrl();
                     mPolicy.overrideDecidedStateForTesting(false);
@@ -134,7 +130,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlWhenNotMakingSearchAndBrowsingBetter() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     setupAllConditionsToSendUrl();
                     UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(
@@ -147,13 +143,13 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlWhenFtpProtocol() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     setupAllConditionsToSendUrl();
                     try {
                         when(mMockServer.getBasePageUrl()).thenReturn(new GURL("ftp://someSource"));
                     } catch (Exception e) {
-                        Assert.fail("Exception building FTP Uri");
+                        throw new AssertionError("Exception building FTP Uri", e);
                     }
                     Assert.assertFalse(mPolicy.doSendBasePageUrl());
                 });
@@ -163,7 +159,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testDoSendBasePageUrlWhenNonGoogleSearchEngine() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     TemplateUrlService templateUrlService =
                             TemplateUrlServiceFactory.getForProfile(mProfile);
@@ -182,7 +178,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testIsUserUndecided_Disable() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertTrue(mPolicy.isUserUndecided());
                     ContextualSearchPolicy.setContextualSearchFullyOptedIn(mProfile, false);
@@ -196,7 +192,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testIsUserUndecided_Enable() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertTrue(mPolicy.isUserUndecided());
                     ContextualSearchPolicy.setContextualSearchFullyOptedIn(mProfile, true);
@@ -209,7 +205,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testIsPromoAvailable() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertTrue(mPolicy.isPromoAvailable());
                     Assert.assertEquals(
@@ -240,7 +236,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testIsContextualSearchFullyOptedIn() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // Default is not fully opted in.
                     Assert.assertFalse(
@@ -262,7 +258,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testSetContextualSearchFullyOptedIn() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // Default is not fully opted in.
                     Assert.assertFalse(
@@ -292,7 +288,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testShouldPreviousGestureResolve() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertFalse(mPolicy.shouldPreviousGestureResolve());
 
@@ -308,7 +304,7 @@ public class ContextualSearchPolicyTest {
     @SmallTest
     @Feature({"ContextualSearch"})
     public void testIsContextualSearchFullyEnabled() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertFalse(mPolicy.isContextualSearchFullyEnabled());
 

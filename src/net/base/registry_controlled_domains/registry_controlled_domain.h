@@ -115,10 +115,12 @@
 
 #include <stddef.h>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 
+#include "base/containers/span.h"
 #include "net/base/net_export.h"
 
 class GURL;
@@ -193,6 +195,12 @@ NET_EXPORT std::string GetDomainAndRegistry(const url::Origin& origin,
 NET_EXPORT std::string GetDomainAndRegistry(std::string_view host,
                                             PrivateRegistryFilter filter);
 
+// Same as above, but returns a StringPiece that is backed by the supplied
+// url::Origin.
+NET_EXPORT std::string_view GetDomainAndRegistryAsStringPiece(
+    const url::Origin& origin,
+    PrivateRegistryFilter filter);
+
 // These convenience functions return true if the two GURLs or Origins both have
 // hosts and one of the following is true:
 // * The hosts are identical.
@@ -200,7 +208,8 @@ NET_EXPORT std::string GetDomainAndRegistry(std::string_view host,
 //   URLs.  Note that this means the trailing dot, if any, must match too.
 // Effectively, callers can use this function to check whether the input URLs
 // represent hosts "on the same site".
-NET_EXPORT bool SameDomainOrHost(const GURL& gurl1, const GURL& gurl2,
+NET_EXPORT bool SameDomainOrHost(const GURL& gurl1,
+                                 const GURL& gurl2,
                                  PrivateRegistryFilter filter);
 NET_EXPORT bool SameDomainOrHost(const url::Origin& origin1,
                                  const url::Origin& origin2,
@@ -301,15 +310,14 @@ PermissiveGetHostRegistryLength(std::u16string_view host,
                                 UnknownRegistryFilter unknown_filter,
                                 PrivateRegistryFilter private_filter);
 
-typedef const struct DomainRule* (*FindDomainPtr)(const char *, unsigned int);
+typedef const struct DomainRule* (*FindDomainPtr)(const char*, unsigned int);
 
 // Used for unit tests. Uses default domains.
 NET_EXPORT_PRIVATE void ResetFindDomainGraphForTesting();
 
 // Used for unit tests, so that a frozen list of domains is used.
 NET_EXPORT_PRIVATE void SetFindDomainGraphForTesting(
-    const unsigned char* domains,
-    size_t length);
+    base::span<const uint8_t> domains);
 
 }  // namespace net::registry_controlled_domains
 

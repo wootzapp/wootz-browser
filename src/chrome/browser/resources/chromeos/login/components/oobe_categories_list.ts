@@ -5,8 +5,9 @@
 import '//resources/ash/common/cr_elements/cros_color_overrides.css.js';
 import '//resources/ash/common/cr_elements/icons.html.js';
 
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {DomRepeatEvent, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import type {DomRepeatEvent} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getTemplate} from './oobe_categories_list.html.js';
 
@@ -112,11 +113,20 @@ export class OobeCategoriesList extends OobeCategoriesListBase {
     });
   }
 
+  reset(): void {
+    this.categoriesList = [];
+    this.categoriesSelected = [];
+    this.selectedCategoriesCount = 0;
+    this.loadedIconsCount = 0;
+    this.itemRendered = 0;
+  }
+
   itemRenderedChanged(): void {
     if (this.categoriesList.length !== 0 &&
         this.itemRendered === this.categoriesList.length &&
         this.loadedIconsCount === this.categoriesList.length) {
       this.setWebviewStyle();
+      this.markCheckedUseCases();
       this.dispatchEvent(
           new CustomEvent('icons-loaded', {bubbles: true, composed: true}));
     }
@@ -143,6 +153,18 @@ export class OobeCategoriesList extends OobeCategoriesListBase {
         this.injectCss(iconWebview, BackgroundColor, iconColor);
       }
     }
+  }
+
+  private markCheckedUseCases(): void {
+    this.categoriesList.forEach((category) => {
+      if (category.selected) {
+        const element = this.shadowRoot?.querySelector(
+            `#${this.getCategoryId(category.categoryId)}`);
+        if (element) {
+          element.setAttribute('checked', 'true');
+        }
+      }
+    });
   }
 
   private getIconUrl(iconUrl: string): string {

@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.customtabs;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -49,6 +50,7 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
     private String mDescription;
     private boolean mShouldTint;
     private boolean mIsOnToolbar;
+    private @ButtonType int mType;
 
     @VisibleForTesting
     static final String SHOW_ON_TOOLBAR = "android.support.customtabs.customaction.SHOW_ON_TOOLBAR";
@@ -59,13 +61,15 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
             String description,
             @Nullable PendingIntent pendingIntent,
             boolean tinted,
-            boolean onToolbar) {
+            boolean onToolbar,
+            @ButtonType int type) {
         mId = id;
         mIcon = icon;
         mDescription = description;
         mPendingIntent = pendingIntent;
         mShouldTint = tinted;
         mIsOnToolbar = onToolbar;
+        mType = type;
     }
 
     /** Replaces the current icon and description with new ones. */
@@ -104,6 +108,17 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
         }
     }
 
+    @Override
+    public Drawable getIcon(Context context, ColorStateList tint) {
+        if (mShouldTint) {
+            TintedDrawable icon = new TintedDrawable(context, mIcon);
+            icon.setTint(tint);
+            return icon;
+        } else {
+            return new BitmapDrawable(context.getResources(), mIcon);
+        }
+    }
+
     /**
      * @return The content description for the customized button.
      */
@@ -120,17 +135,26 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
         return mPendingIntent;
     }
 
+    @Override
+    public @ButtonType int getType() {
+        return mType;
+    }
+
     /**
      * Builds an {@link ImageButton} from the data in this params. Generated buttons should be
      * placed on the bottom bar. The button's tag will be its id.
      *
      * @param parent The parent that the inflated {@link ImageButton}.
      * @param listener {@link OnClickListener} that should be used with the button.
+     * @param buttonIconTint tint to be applied to button icon, if icon should be tinted.
      * @return Parsed list of {@link CustomButtonParams}, which is empty if the input is invalid.
      */
     @Override
     public ImageButton buildBottomBarButton(
-            Context context, ViewGroup parent, OnClickListener listener) {
+            Context context,
+            ViewGroup parent,
+            OnClickListener listener,
+            ColorStateList buttonIconTint) {
         assert !mIsOnToolbar;
 
         ImageButton button =
@@ -138,7 +162,7 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
                         LayoutInflater.from(context)
                                 .inflate(R.layout.custom_tabs_bottombar_item, parent, false);
         button.setId(mId);
-        button.setImageBitmap(mIcon);
+        button.setImageDrawable(getIcon(context, buttonIconTint));
         button.setContentDescription(mDescription);
         if (mPendingIntent == null) {
             button.setEnabled(false);
@@ -302,13 +326,14 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
         }
 
         return new CustomButtonParamsImpl(
-                id, bitmap, description, pendingIntent, tinted, onToolbar);
+                id, bitmap, description, pendingIntent, tinted, onToolbar, ButtonType.OTHER);
     }
 
     /** Creates and returns a {@link CustomButtonParams} for a share button in the toolbar. */
-    static CustomButtonParams createShareButton(Context context, int backgroundColor) {
+    @VisibleForTesting
+    public static CustomButtonParams createShareButton(Context context, int backgroundColor) {
         int id = CustomTabsIntent.TOOLBAR_ACTION_BUTTON_ID;
-        String description = context.getResources().getString(R.string.share);
+        String description = context.getString(R.string.share);
         Intent shareIntent = new Intent(context, CustomTabsShareBroadcastReceiver.class);
         PendingIntent pendingIntent =
                 PendingIntent.getBroadcast(
@@ -325,12 +350,41 @@ public class CustomButtonParamsImpl implements CustomButtonParams {
         Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
 
         return new CustomButtonParamsImpl(
-                id, bitmap, description, pendingIntent, /* tinted= */ true, /* onToolbar= */ true);
+                id,
+                bitmap,
+                description,
+                pendingIntent,
+                /* tinted= */ true,
+                /* onToolbar= */ true,
+                ButtonType.CCT_SHARE_BUTTON);
+    }
+
+    @VisibleForTesting
+    public static CustomButtonParams createOpenInBrowserButton(
+            Context context, int backgroundColor) {
+        int id = CustomTabsIntent.TOOLBAR_ACTION_BUTTON_ID;
+        String description = context.getString(R.string.menu_open_in_product_default);
+
+        TintedDrawable drawable =
+                TintedDrawable.constructTintedDrawable(
+                        context, R.drawable.ic_open_in_new_white_24dp);
+        boolean useLightTint = ColorUtils.shouldUseLightForegroundOnBackground(backgroundColor);
+        drawable.setTint(ThemeUtils.getThemedToolbarIconTint(context, useLightTint));
+        Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
+
+        return new CustomButtonParamsImpl(
+                id,
+                bitmap,
+                description,
+                /* pendingIntent= */ null,
+                /* tinted= */ true,
+                /* onToolbar= */ true,
+                ButtonType.CCT_OPEN_IN_BROWSER_BUTTON);
     }
 
     /**
      * @return The bitmap contained in the given {@link Bundle}. Will return null if input is
-     *         invalid.
+     *     invalid.
      */
     static Bitmap parseBitmapFromBundle(Bundle bundle) {
         if (bundle == null) return null;

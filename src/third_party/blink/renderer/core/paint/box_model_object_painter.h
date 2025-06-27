@@ -7,7 +7,6 @@
 
 #include "third_party/blink/renderer/core/layout/background_bleed_avoidance.h"
 #include "third_party/blink/renderer/core/paint/box_painter_base.h"
-#include "third_party/blink/renderer/platform/geometry/layout_size.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -30,7 +29,8 @@ class BoxModelObjectPainter : public BoxPainterBase {
       const Color&,
       const FillLayer&,
       BackgroundBleedAvoidance,
-      bool is_painting_background_in_contents_space) const override;
+      bool is_painting_background_in_contents_space,
+      PaintFlags paint_flags) const override;
 
   void PaintTextClipMask(const PaintInfo&,
                          const gfx::Rect& mask_rect,

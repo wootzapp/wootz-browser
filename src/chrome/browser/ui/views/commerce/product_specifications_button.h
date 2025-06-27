@@ -56,7 +56,8 @@ class ProductSpecificationsButton
   }
 
   // commerce::ProductSpecificationsEntryPointController::Observer
-  void ShowEntryPointWithTitle(const std::string title) override;
+  void ShowEntryPointWithTitle(const std::u16string& title) override;
+  void HideEntryPoint() override;
 
  protected:
   // TabStripControlButton:
@@ -91,8 +92,6 @@ class ProductSpecificationsButton
       commerce::ProductSpecificationsEntryPointController* controller) {
     entry_point_controller_ = controller;
   }
-
-  base::TimeDelta GetAnimationDuration(base::TimeDelta duration);
 
   // View where, if the mouse is currently over its bounds, the expansion state
   // will not change. Changes will be staged until after the mouse exits the

@@ -50,6 +50,7 @@ class NetworkConfigurationHandler;
 class NetworkConnectionHandler;
 class NetworkDeviceHandler;
 class NetworkDeviceHandlerImpl;
+class NetworkLoginScreenProtocolHandlerObserver;
 class NetworkMetadataStore;
 class NetworkProfileHandler;
 class NetworkStateHandler;
@@ -69,6 +70,9 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkHandler {
  public:
   // Sets the global instance. Must be called before any calls to Get().
   static void Initialize();
+
+  // Sets the global fake instance.
+  static void InitializeFake();
 
   // Destroys the global instance.
   static void Shutdown();
@@ -145,7 +149,7 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkHandler {
  private:
   friend class ConnectionInfoMetricsLoggerTest;
 
-  NetworkHandler();
+  NetworkHandler(std::unique_ptr<NetworkStateHandler> handler);
   virtual ~NetworkHandler();
 
   void Init();
@@ -213,6 +217,9 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkHandler {
       ephemeral_network_policies_enablement_handler_;
   std::unique_ptr<EphemeralNetworkConfigurationHandler>
       ephemeral_network_configuration_handler_;
+
+  std::unique_ptr<NetworkLoginScreenProtocolHandlerObserver>
+      network_login_screen_protocol_handler_observer_;
 
   // True when the device is managed by policy.
   bool is_enterprise_managed_ = false;

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/permission_bubble/permission_bubble_test_util.h"
 
+#include "components/permissions/permission_request.h"
 #include "url/gurl.h"
 
 TestPermissionBubbleViewDelegate::TestPermissionBubbleViewDelegate() = default;
@@ -43,6 +44,11 @@ bool TestPermissionBubbleViewDelegate::WasCurrentRequestAlreadyDisplayed() {
 
 bool TestPermissionBubbleViewDelegate::RecreateView() {
   return false;
+}
+
+const permissions::PermissionPrompt*
+TestPermissionBubbleViewDelegate::GetCurrentPrompt() const {
+  return nullptr;
 }
 
 content::WebContents*

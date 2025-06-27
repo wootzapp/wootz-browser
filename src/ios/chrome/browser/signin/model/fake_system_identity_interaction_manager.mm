@@ -122,20 +122,18 @@ BOOL gUsingUnknownCapabilities;
 
   [self dismissAndRunCompletionCallbackWithError:nil
                                         identity:identity
-                                        animated:YES
-                                      completion:nil];
+                                        animated:YES];
 }
 
 - (void)simulateDidTapCancel {
-  [self cancelAuthActivityAnimated:YES completion:nil];
+  [self cancelAuthActivityAnimated:YES];
 }
 
 - (void)simulateDidThrowUnhandledError {
   NSError* error = [NSError errorWithDomain:@"Unhandled" code:-1 userInfo:nil];
   [self dismissAndRunCompletionCallbackWithError:error
                                         identity:nil
-                                        animated:YES
-                                      completion:nil];
+                                        animated:YES];
 }
 
 - (void)simulateDidInterrupt {
@@ -153,9 +151,7 @@ BOOL gUsingUnknownCapabilities;
   _lastStartAuthActivityUserEmail = userEmail;
   if (userEmail.length) {
     [FakeSystemIdentityInteractionManager
-                    setIdentity:[FakeSystemIdentity identityWithEmail:userEmail
-                                                               gaiaID:@"gaia"
-                                                                 name:@"name"]
+                    setIdentity:[FakeSystemIdentity identityWithEmail:userEmail]
         withUnknownCapabilities:NO];
   }
   _signinCompletion = completion;
@@ -174,13 +170,11 @@ BOOL gUsingUnknownCapabilities;
                              }];
 }
 
-- (void)cancelAuthActivityAnimated:(BOOL)animated
-                        completion:(ProceduralBlock)completion {
+- (void)cancelAuthActivityAnimated:(BOOL)animated {
   NSError* error = ios::provider::CreateUserCancelledSigninError();
   [self dismissAndRunCompletionCallbackWithError:error
                                         identity:nil
-                                        animated:animated
-                                      completion:completion];
+                                        animated:animated];
 }
 
 #pragma mark - Properties
@@ -197,8 +191,7 @@ BOOL gUsingUnknownCapabilities;
 
 - (void)dismissAndRunCompletionCallbackWithError:(NSError*)error
                                         identity:(id<SystemIdentity>)identity
-                                        animated:(BOOL)animated
-                                      completion:(ProceduralBlock)completion {
+                                        animated:(BOOL)animated {
   DCHECK(_authActivityViewController);
   DCHECK(_isActivityViewPresented);
   DCHECK(error || identity)
@@ -222,27 +215,19 @@ BOOL gUsingUnknownCapabilities;
     }
   }
 
-  __weak FakeSystemIdentityInteractionManager* weakSelf = self;
   [_authActivityViewController.presentingViewController
       dismissViewControllerAnimated:animated
-                         completion:^{
-                           [weakSelf runCompletionCallbackWithError:error
-                                                           identity:identity
-                                                         completion:completion];
-                         }];
+                         completion:nil];
+  [self runCompletionCallbackWithError:error identity:identity];
 }
 
 - (void)runCompletionCallbackWithError:(NSError*)error
-                              identity:(id<SystemIdentity>)identity
-                            completion:(ProceduralBlock)completion {
+                              identity:(id<SystemIdentity>)identity {
   _authActivityViewController = nil;
   if (_signinCompletion) {
     SigninCompletionBlock signinCompletion = nil;
     std::swap(_signinCompletion, signinCompletion);
     signinCompletion(identity, error);
-  }
-  if (completion) {
-    completion();
   }
   _isActivityViewPresented = NO;
 }

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/crash/content/browser/crash_handler_host_linux.h"
 
 #include <errno.h>
@@ -159,7 +164,7 @@ void CrashHandlerHostLinux::Init() {
 }
 
 void CrashHandlerHostLinux::OnFileCanWriteWithoutBlocking(int fd) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void CrashHandlerHostLinux::OnFileCanReadWithoutBlocking(int fd) {
@@ -632,7 +637,7 @@ void CrashHandlerHost::NotifyCrashSignalObservers(base::ProcessId pid,
 }
 
 void CrashHandlerHost::OnFileCanWriteWithoutBlocking(int fd) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void CrashHandlerHost::OnFileCanReadWithoutBlocking(int fd) {

@@ -13,6 +13,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/events/event_target.h"
 #include "ui/events/event_target_iterator.h"
 #include "ui/views/bubble/bubble_frame_view.h"
@@ -58,26 +59,18 @@ void MoveToAccountStoreBubbleViewTest::TearDown() {
 }
 
 TEST_F(MoveToAccountStoreBubbleViewTest, HasTwoButtons) {
-  // TODO crbug/40943570: Remove after feature is fully rolled out.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      password_manager::features::kButterOnDesktopFollowup);
   CreateViewAndShow();
   ASSERT_TRUE(view_->GetOkButton());
   ASSERT_TRUE(view_->GetCancelButton());
   EXPECT_EQ(l10n_util::GetStringUTF16(
                 IDS_PASSWORD_MANAGER_SAVE_IN_ACCOUNT_BUBBLE_SAVE_BUTTON),
-            view_->GetDialogButtonLabel(ui::DIALOG_BUTTON_OK));
+            view_->GetDialogButtonLabel(ui::mojom::DialogButton::kOk));
   EXPECT_EQ(
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_MOVE_BUBBLE_CANCEL_BUTTON),
-      view_->GetDialogButtonLabel(ui::DIALOG_BUTTON_CANCEL));
+      view_->GetDialogButtonLabel(ui::mojom::DialogButton::kCancel));
 }
 
 TEST_F(MoveToAccountStoreBubbleViewTest, HasDescription) {
-  // TODO crbug/40943570: Remove after feature is fully rolled out.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      password_manager::features::kButterOnDesktopFollowup);
   CreateViewAndShow();
 
   ASSERT_EQ(view_->children().size(), 2u);

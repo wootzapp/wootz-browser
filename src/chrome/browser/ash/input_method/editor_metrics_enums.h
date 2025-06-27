@@ -16,7 +16,8 @@ enum class EditorTone {
   kFormalize = 5,
   kFreeformRewrite = 6,
   kUnknown = 7,
-  kMaxValue = kUnknown,
+  kProofread = 8,
+  kMaxValue = kProofread,
 };
 
 // Must match with IMEEditorCriticalStates in enums.xml
@@ -87,7 +88,7 @@ enum class EditorStates {
   kBlockedByUnsupportedRegion = 19,
   // Increase by 1 when the feature is blocked because user is using a managed
   // device.
-  kBlockedByManagedStatus = 20,
+  // kBlockedByManagedStatus_DEPRECATED = 20,
   // Increase by 1 when the feature is blocked because the consent status does
   // not satisfy.
   kBlockedByConsent = 21,
@@ -118,22 +119,22 @@ enum class EditorStates {
   // internet.
   kBlockedByNetworkStatus = 30,
   // Increase by 1 when user receives unknown error from the server.
-  ErrorUnknown = 31,
+  kErrorUnknown = 31,
   // Increase by 1 when user receives invalid argument error from the server.
-  ErrorInvalidArgument = 32,
+  kErrorInvalidArgument = 32,
   // Increase by 1 when user receives resource exhausted error from the server.
-  ErrorResourceExhausted = 33,
+  kErrorResourceExhausted = 33,
   // Increase by 1 when user receives backend failure error from the server.
-  ErrorBackendFailure = 34,
+  kErrorBackendFailure = 34,
   // Increase by 1 when user receives internet connection error from the server.
-  ErrorNoInternetConnection = 35,
+  kErrorNoInternetConnection = 35,
   // Increase by 1 when user receives unsupported language error from the
   // server.
-  ErrorUnsupportedLanguage = 36,
+  kErrorUnsupportedLanguage = 36,
   // Increase by 1 when user receives blocked output error from the server.
-  ErrorBlockedOutputs = 37,
+  kErrorBlockedOutputs = 37,
   // Increase by 1 when user receives restricted region error from the server.
-  ErrorRestrictedRegion = 38,
+  kErrorRestrictedRegion = 38,
   // Increase by 1 when the native promo card is shown.
   kPromoCardImpression = 39,
   // Increase by 1 when user clicks "Dismiss" on the promo card.
@@ -152,7 +153,10 @@ enum class EditorStates {
   //  Increase by 1 when the feature is blocked because the capability value has
   //  been been fetched and determined yet.
   kBlockedByUnknownCapability = 46,
-  kMaxValue = kBlockedByUnknownCapability,
+  //  Increase by 1 when the feature is blocked because there is an associated
+  //  policy that disables the feature.
+  kBlockedByPolicy = 47,
+  kMaxValue = kBlockedByPolicy,
 };
 
 }  // namespace ash::input_method

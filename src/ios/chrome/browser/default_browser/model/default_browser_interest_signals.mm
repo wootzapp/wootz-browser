@@ -4,6 +4,7 @@
 
 #import "ios/chrome/browser/default_browser/model/default_browser_interest_signals.h"
 
+#import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "components/feature_engagement/public/event_constants.h"
 #import "components/feature_engagement/public/tracker.h"
@@ -147,14 +148,8 @@ void NotifyURLFromBookmarkOpened(feature_engagement::Tracker* tracker) {
 }
 
 void NotifyOmniboxURLCopyPaste(feature_engagement::Tracker* tracker) {
-  // OTR browsers can sometimes pass a null tracker, check for that here.
-  if (!tracker) {
-    return;
-  }
-
-  if (HasRecentValidURLPastesAndRecordsCurrentPaste()) {
-    tracker->NotifyEvent(feature_engagement::events::kBlueDotPromoCriterionMet);
-  }
+  // TODO(crbug.com/348230111): Decide if we want to track this event for
+  // non-modal promo.
 }
 
 void NotifyOmniboxURLCopyPasteAndNavigate(bool is_off_record,
@@ -179,16 +174,6 @@ void NotifyOmniboxURLCopyPasteAndNavigate(bool is_off_record,
 
   base::RecordAction(
       base::UserMetricsAction("Mobile.Omnibox.iOS.PastedValidURL"));
-
-  // OTR browsers can sometimes pass a null tracker, check for that here.
-  if (!tracker) {
-    return;
-  }
-
-  // Notify blue dot promo.
-  if (HasRecentValidURLPastesAndRecordsCurrentPaste()) {
-    tracker->NotifyEvent(feature_engagement::events::kBlueDotPromoCriterionMet);
-  }
 }
 
 void NotifyOmniboxTextCopyPasteAndNavigate(
@@ -215,8 +200,12 @@ void NotifyDefaultBrowserFREPromoShown(feature_engagement::Tracker* tracker) {
   LogFRETimestampMigrationDone();
 
   if (!tracker) {
+    base::UmaHistogramBoolean("IOS.DefaultBrowserPromo.FETAvailabilityOnFRE",
+                              false);
     return;
   }
   tracker->NotifyEvent(feature_engagement::events::kIOSDefaultBrowserFREShown);
+  base::UmaHistogramBoolean("IOS.DefaultBrowserPromo.FETAvailabilityOnFRE",
+                            true);
 }
 }  // namespace default_browser

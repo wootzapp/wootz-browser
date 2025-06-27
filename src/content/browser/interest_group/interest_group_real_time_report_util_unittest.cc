@@ -14,7 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "content/services/auction_worklet/public/cpp/real_time_reporting.h"
 #include "content/services/auction_worklet/public/mojom/real_time_reporting.mojom.h"
+#include "content/services/auction_worklet/real_time_reporting_bindings.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
@@ -46,7 +48,7 @@ TEST_F(InterestGroupRealTimeReportUtilTest, RapporFlippingProbability) {
     // would be all 0s, and the sum of histogram after calling Rappor will be
     // the number of flipped bits.
     std::vector<uint8_t> histogram =
-        Rappor(/*maybe_bucket=*/std::nullopt, /*epsilon=*/1.0,
+        Rappor(/*maybe_bucket=*/std::nullopt, /*flip_probability=*/0.378,
                /*num_buckets=*/kNumBuckets);
     for (size_t j = 0; j < static_cast<size_t>(kNumBuckets); j++) {
       total_flipped += histogram[j];
@@ -66,13 +68,21 @@ TEST_F(InterestGroupRealTimeReportUtilTest, RapporFlippingIsNonDeterministic) {
   base::flat_set<std::vector<uint8_t>> seen;
   while (seen.size() < 4) {
     std::vector<uint8_t> histogram =
-        Rappor(bucket, /*epsilon=*/1.0, kNumBuckets);
+        Rappor(bucket, /*flip_probability=*/0.378, kNumBuckets);
     ASSERT_THAT(histogram, testing::AnyOf(testing::ElementsAreArray({0, 0}),
                                           testing::ElementsAreArray({0, 1}),
                                           testing::ElementsAreArray({1, 0}),
                                           testing::ElementsAreArray({1, 1})));
     seen.insert(histogram);
   }
+}
+
+TEST_F(InterestGroupRealTimeReportUtilTest, CalculateFlipProbability) {
+  double flip_probability = CalculateFlipProbability(/*epsilon=*/1.0);
+  ASSERT_GT(flip_probability, 0.3775);
+  ASSERT_LT(flip_probability, 0.3776);
+
+  EXPECT_DOUBLE_EQ(0.5, CalculateFlipProbability(/*epsilon=*/0.0));
 }
 
 TEST_F(InterestGroupRealTimeReportUtilTest, SampleContributionsNoContribution) {
@@ -202,17 +212,20 @@ TEST_F(InterestGroupRealTimeReportUtilTest,
   // calling CalculateRealTimeReportingHistograms().
   contributions_map[origin_b] = std::move(contributions);
 
+  double flip_probability = CalculateFlipProbability(
+      blink::features::kFledgeRealTimeReportingEpsilon.Get());
   std::map<url::Origin, std::vector<uint8_t>> histograms_map =
-      CalculateRealTimeReportingHistograms(std::move(contributions_map));
+      CalculateRealTimeReportingHistograms(std::move(contributions_map),
+                                           flip_probability);
+  int total_buckets =
+      1024 + auction_worklet::RealTimeReportingPlatformError::kNumValues;
   for (const url::Origin& origin : {origin_a, origin_b}) {
     auto it = histograms_map.find(origin);
     CHECK(it != histograms_map.end());
-    // A histogram is a vector of length kFledgeRealTimeReportingNumBuckets,
-    // and each element is either 0 or 1.
-    EXPECT_EQ(static_cast<unsigned>(
-                  blink::features::kFledgeRealTimeReportingNumBuckets.Get()),
-              it->second.size());
-    EXPECT_TRUE(base::ranges::all_of(
+    // A histogram is a vector of length total_buckets, and each element is
+    // either 0 or 1.
+    EXPECT_EQ(static_cast<unsigned>(total_buckets), it->second.size());
+    EXPECT_TRUE(std::ranges::all_of(
         it->second, [](uint8_t bit) { return bit == 0 || bit == 1; }));
   }
 }
@@ -224,14 +237,13 @@ TEST_F(InterestGroupRealTimeReportUtilTest, GetRealTimeReportDestination) {
 }
 
 TEST_F(InterestGroupRealTimeReportUtilTest, HasValidRealTimeBucket) {
+  int total_buckets =
+      1024 + auction_worklet::RealTimeReportingPlatformError::kNumValues;
   const struct {
     int32_t bucket;
     bool expected_is_valid;
   } kTestCases[] = {
-      {0, true},
-      {1, true},
-      {blink::features::kFledgeRealTimeReportingNumBuckets.Get() - 1, true},
-      {blink::features::kFledgeRealTimeReportingNumBuckets.Get(), false},
+      {0, true},   {1, true}, {total_buckets - 1, true}, {total_buckets, false},
       {-1, false},
   };
 
@@ -268,6 +280,27 @@ TEST_F(InterestGroupRealTimeReportUtilTest, HasValidRealTimePriorityWeight) {
             auction_worklet::mojom::RealTimeReportingContribution::New(
                 /*bucket=*/1, /*priority_weight=*/test_case.priority_weight,
                 /*latency_threshold=*/std::nullopt)));
+  }
+}
+
+TEST_F(InterestGroupRealTimeReportUtilTest, BitPacking) {
+  const struct {
+    int id;
+    std::vector<uint8_t> input;
+    std::vector<uint8_t> expected_packed;
+  } kTestCases[] = {
+      {0, {}, {}},
+      {1, {1}, {128}},
+      {1, {1, 0, 0}, {128}},
+      {2, {0, 1, 0, 0}, {64}},
+      {3, {0, 0, 0, 0, 0, 0, 0, 1}, {1}},
+      {4, {0, 0, 0, 0, 0, 0, 0, 1, 1}, {1, 128}},
+      {5, {0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0}, {1, 128 + 64}},
+  };
+
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(test_case.id);
+    EXPECT_EQ(test_case.expected_packed, BitPacking(test_case.input));
   }
 }
 

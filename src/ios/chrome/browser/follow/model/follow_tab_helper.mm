@@ -21,15 +21,15 @@
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/follow/model/follow_action_state.h"
 #import "ios/chrome/browser/follow/model/follow_features.h"
-#import "ios/chrome/browser/follow/model/follow_iph_presenter.h"
 #import "ios/chrome/browser/follow/model/follow_java_script_feature.h"
 #import "ios/chrome/browser/follow/model/follow_menu_updater.h"
 #import "ios/chrome/browser/follow/model/follow_service.h"
 #import "ios/chrome/browser/follow/model/follow_service_factory.h"
 #import "ios/chrome/browser/follow/model/follow_util.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/url_util.h"
+#import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
@@ -40,6 +40,7 @@
 #import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "url/gurl.h"
+#import "url/origin.h"
 
 namespace {
 
@@ -61,12 +62,11 @@ FollowTabHelper::FollowTabHelper(web::WebState* web_state)
   web_state_observation_.Observe(web_state_.get());
 }
 
-void FollowTabHelper::set_follow_iph_presenter(
-    id<FollowIPHPresenter> presenter) {
+void FollowTabHelper::set_help_handler(id<HelpCommands> help_handler) {
   if (!IsWebChannelsEnabled()) {
     return;
   }
-  follow_iph_presenter_ = presenter;
+  help_handler_ = help_handler;
 }
 
 void FollowTabHelper::SetFollowMenuUpdater(
@@ -113,10 +113,10 @@ void FollowTabHelper::PageLoaded(
     web::WebState* web_state,
     web::PageLoadCompletionStatus load_completion_status) {
   // Do not show follow IPH if the user is not signed in.
-  ChromeBrowserState* browserState =
-      ChromeBrowserState::FromBrowserState(web_state->GetBrowserState());
+  ProfileIOS* profile =
+      ProfileIOS::FromBrowserState(web_state->GetBrowserState());
   AuthenticationService* authenticationService =
-      AuthenticationServiceFactory::GetForBrowserState(browserState);
+      AuthenticationServiceFactory::GetForProfile(profile);
   if (!authenticationService || !authenticationService->GetPrimaryIdentity(
                                     signin::ConsentLevel::kSignin)) {
     return;
@@ -170,9 +170,9 @@ void FollowTabHelper::OnSuccessfulPageLoad(const GURL& url,
                                            WebPageURLs* web_page_urls) {
   DCHECK(web_state_);
 
-  // Don't show follow in-product help (IPH) if there's no presenter. Ex.
-  // follow_iph_presenter_ is nil when link preview page is loaded.
-  if (!follow_iph_presenter_) {
+  // Don't show follow in-product help (IPH) if there's no help handler. Ex.
+  // help_handler_ is nil when link preview page is loaded.
+  if (!help_handler_) {
     return;
   }
 
@@ -186,8 +186,8 @@ void FollowTabHelper::OnSuccessfulPageLoad(const GURL& url,
   }
 
   feature_engagement::Tracker* feature_engagement_tracker =
-      feature_engagement::TrackerFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState()));
+      feature_engagement::TrackerFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state_->GetBrowserState()));
   // Do not show follow IPH if the feature engagement conditions are
   // not fulfilled. Ex. Do not show more than 5 Follow IPHs per week.
   if (!feature_engagement_tracker->WouldTriggerHelpUI(
@@ -196,8 +196,8 @@ void FollowTabHelper::OnSuccessfulPageLoad(const GURL& url,
   }
 
   NSURL* recommended_url =
-      FollowServiceFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState()))
+      FollowServiceFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state_->GetBrowserState()))
           ->GetRecommendedSiteURL(web_page_urls);
 
   // Do not show follow IPH if:
@@ -212,8 +212,8 @@ void FollowTabHelper::OnSuccessfulPageLoad(const GURL& url,
 
   // Check if the site has enough visit count.
   history::HistoryService* history_service =
-      ios::HistoryServiceFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState()),
+      ios::HistoryServiceFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state_->GetBrowserState()),
           ServiceAccessType::EXPLICIT_ACCESS);
 
   // Ignore any visits within the last hour so that we do not count
@@ -223,8 +223,8 @@ void FollowTabHelper::OnSuccessfulPageLoad(const GURL& url,
   const base::Time begin_time = page_load_time - GetVisitHistoryDuration();
 
   // Get daily visit count for `url` from the history service.
-  history_service->GetDailyVisitsToHost(
-      url, begin_time, end_time,
+  history_service->GetDailyVisitsToOrigin(
+      url::Origin::Create(url), begin_time, end_time,
       base::BindOnce(&FollowTabHelper::OnDailyVisitQueryResult,
                      weak_ptr_factory_.GetWeakPtr(), page_load_time,
                      recommended_url),
@@ -264,8 +264,8 @@ void FollowTabHelper::UpdateFollowMenuItemWithURL(WebPageURLs* web_page_urls) {
   // webFrame can be retrieved. Otherwise, leave the option disabled.
   if (web_page_urls && web_frame) {
     const bool followed =
-        FollowServiceFactory::GetForBrowserState(
-            ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState()))
+        FollowServiceFactory::GetForProfile(
+            ProfileIOS::FromBrowserState(web_state_->GetBrowserState()))
             ->IsWebSiteFollowed(web_page_urls);
 
     std::string domain_name = web_frame->GetSecurityOrigin().host();
@@ -287,8 +287,9 @@ void FollowTabHelper::UpdateFollowMenuItemWithURL(WebPageURLs* web_page_urls) {
 }
 
 void FollowTabHelper::PresentFollowIPH(NSURL* recommended_url) {
-  DCHECK(follow_iph_presenter_);
-  [follow_iph_presenter_ presentFollowWhileBrowsingIPH];
+  DCHECK(help_handler_);
+  [help_handler_
+      presentInProductHelpWithType:InProductHelpType::kFollowWhileBrowsing];
   StoreFollowIPHDisplayEvent(recommended_url.host);
   if (experimental_flags::ShouldAlwaysShowFollowIPH()) {
     // Remove the follow IPH display event that just added because it's
@@ -296,5 +297,3 @@ void FollowTabHelper::PresentFollowIPH(NSURL* recommended_url) {
     RemoveLastFollowIPHDisplayEvent();
   }
 }
-
-WEB_STATE_USER_DATA_KEY_IMPL(FollowTabHelper)

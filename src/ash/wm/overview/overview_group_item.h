@@ -17,9 +17,12 @@ namespace aura {
 class Window;
 }  // namespace aura
 
+namespace views {
+class View;
+}  // namespace views
+
 namespace ash {
 
-class OverviewGroupContainerView;
 class OverviewSession;
 
 // This class implements `OverviewItemBase` and represents a window group in
@@ -62,7 +65,7 @@ class OverviewGroupItem : public OverviewItemBase,
   float GetItemScale(int height) override;
   void ScaleUpSelectedItem(OverviewAnimationType animation_type) override;
   void EnsureVisible() override;
-  std::vector<OverviewFocusableView*> GetFocusableViews() const override;
+  std::vector<views::Widget*> GetFocusableWidgets() override;
   views::View* GetBackDropView() const override;
   bool ShouldHaveShadow() const override;
   void UpdateRoundedCornersAndShadow() override;
@@ -70,7 +73,6 @@ class OverviewGroupItem : public OverviewItemBase,
   void PrepareForOverview() override;
   void SetShouldUseSpawnAnimation(bool value) override;
   void OnStartingAnimationComplete() override;
-  void CloseWindows() override;
   void Restack() override;
   void StartDrag() override;
   void OnOverviewItemDragStarted() override;
@@ -83,9 +85,8 @@ class OverviewGroupItem : public OverviewItemBase,
   void Shutdown() override;
   void AnimateAndCloseItem(bool up) override;
   void StopWidgetAnimation() override;
-  OverviewGridWindowFillMode GetWindowDimensionsType() const override;
-  void UpdateWindowDimensionsType() override;
-  gfx::Point GetMagnifierFocusPointInScreen() const override;
+  OverviewItemFillMode GetOverviewItemFillMode() const override;
+  void UpdateOverviewItemFillMode() override;
   const gfx::RoundedCornersF GetRoundedCorners() const override;
 
   // OverviewItem::WindowDestructionDelegate:
@@ -110,7 +111,7 @@ class OverviewGroupItem : public OverviewItemBase,
   std::vector<std::unique_ptr<OverviewItem>> overview_items_;
 
   // The contents view of the `item_widget_`.
-  raw_ptr<OverviewGroupContainerView> overview_group_container_view_ = nullptr;
+  raw_ptr<views::View> overview_group_container_view_ = nullptr;
 
   base::WeakPtrFactory<OverviewGroupItem> weak_ptr_factory_{this};
 };

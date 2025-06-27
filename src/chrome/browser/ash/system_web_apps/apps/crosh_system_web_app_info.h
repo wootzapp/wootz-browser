@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "chrome/browser/ash/system_web_apps/types/system_web_app_delegate.h"
 #include "chrome/common/webui_url_constants.h"
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace web_app {
@@ -22,14 +22,11 @@ class CroshSystemAppDelegate : public ash::SystemWebAppDelegate {
   // ash::SystemWebAppDelegate overrides:
   std::unique_ptr<web_app::WebAppInstallInfo> GetWebAppInfo() const override;
   bool ShouldShowInLauncher() const override;
-  Browser* GetWindowForLaunch(Profile* profile, const GURL& url) const override;
+  ash::BrowserDelegate* GetWindowForLaunch(Profile* profile,
+                                           const GURL& url) const override;
   bool ShouldShowInSearchAndShelf() const override;
   bool ShouldHaveTabStrip() const override;
   bool UseSystemThemeColor() const override;
 };
-
-// Returns a WebAppInstallInfo used to install the app.
-std::unique_ptr<web_app::WebAppInstallInfo>
-CreateWebAppInfoForCroshSystemWebApp();
 
 #endif  // CHROME_BROWSER_ASH_SYSTEM_WEB_APPS_APPS_CROSH_SYSTEM_WEB_APP_INFO_H_

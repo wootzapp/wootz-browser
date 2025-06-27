@@ -29,6 +29,7 @@
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/layer_owner.h"
 #include "ui/compositor/layer_tree_owner.h"
+#include "ui/compositor/layer_type.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/display/display.h"
 #include "ui/display/manager/display_manager.h"
@@ -196,8 +197,21 @@ void ScreenRotationAnimator::StartRotationAnimation(
 void ScreenRotationAnimator::StartSlowAnimation(
     std::unique_ptr<ScreenRotationRequest> rotation_request) {
   CreateOldLayerTreeForSlowAnimation();
+
+  auto weak_ptr = weak_factory_.GetWeakPtr();
+
   SetRotation(rotation_request->display_id, rotation_request->old_rotation,
               rotation_request->new_rotation, rotation_request->source);
+
+  if (!weak_ptr) {
+    // The above call to `SetRotation()` will end up calling
+    // `DisplayManager::UpdateDisplaysWith()`, which may lead to display
+    // removals while we're in the middle of rotation. In this case, `this` will
+    // be destroyed in `RootWindowController::Shutdown()`, and we should early
+    // exit here. See http://b/293667233.
+    return;
+  }
+
   AnimateRotation(std::move(rotation_request));
 }
 
@@ -354,12 +368,10 @@ std::unique_ptr<ui::LayerTreeOwner> ScreenRotationAnimator::CopyLayerTree(
       GetScreenRotationContainer(root_window_)->layer()->size();
   std::unique_ptr<ui::Layer> copy_layer =
       CreateLayerFromCopyOutputResult(std::move(result), layer_size);
+  CHECK_EQ(copy_layer->type(), ui::LAYER_SOLID_COLOR);
   DCHECK_EQ(copy_layer->size(),
             GetScreenRotationContainer(root_window_)->layer()->size());
 
-  // TODO(crbug.com/40113966): This is a workaround and should be removed once
-  // the issue is fixed.
-  copy_layer->SetFillsBoundsOpaquely(false);
   return std::make_unique<ui::LayerTreeOwner>(std::move(copy_layer));
 }
 

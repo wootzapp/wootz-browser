@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <optional>
+#include <variant>
 
 #include "base/memory/raw_ptr.h"
 #include "base/strings/strcat.h"
@@ -14,7 +15,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/types/optional_util.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_files_controller.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_rules_manager.h"
 #include "chrome/browser/chromeos/policy/dlp/test/mock_dlp_rules_manager.h"
@@ -26,8 +26,8 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "components/account_id/account_id.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
-#include "components/enterprise/data_controls/dlp_policy_event.pb.h"
+#include "components/enterprise/common/proto/synced/dlp_policy_event.pb.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "components/reporting/client/mock_report_queue.h"
 #include "components/reporting/storage/test_storage_module.h"
 #include "content/public/test/browser_task_environment.h"
@@ -37,13 +37,8 @@
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
 #include "url/gurl.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_service.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 namespace policy {
 
@@ -106,13 +101,10 @@ std::optional<ui::DataTransferEndpoint> CreateEndpoint(
     bool notify_if_restricted) {
   if (type && *type == ui::EndpointType::kUrl) {
     return ui::DataTransferEndpoint(
-        (GURL(kExample2Url)),
-        /*off_the_record=*/false,
-        /*notify_if_restricted=*/notify_if_restricted);
+        GURL(kExample2Url), {.notify_if_restricted = notify_if_restricted});
   } else if (type) {
     return ui::DataTransferEndpoint(
-        *type,
-        /*notify_if_restricted=*/notify_if_restricted);
+        *type, {.notify_if_restricted = notify_if_restricted});
   }
   return std::nullopt;
 }
@@ -124,7 +116,6 @@ std::unique_ptr<content::WebContents> CreateTestWebContents(
       browser_context, std::move(site_instance));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 data_controls::Component GetComponent(ui::EndpointType endpoint_type) {
   switch (endpoint_type) {
     case ui::EndpointType::kArc:
@@ -137,7 +128,6 @@ data_controls::Component GetComponent(ui::EndpointType endpoint_type) {
       return data_controls::Component::kUnknownComponent;
   }
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 }  // namespace
 
@@ -145,7 +135,7 @@ class DataTransferDlpControllerTest
     : public ::testing::TestWithParam<
           std::tuple<std::optional<ui::EndpointType>, bool>> {
  protected:
-  DataTransferDlpControllerTest() {}
+  DataTransferDlpControllerTest() = default;
 
   ~DataTransferDlpControllerTest() override = default;
 
@@ -181,9 +171,6 @@ class DataTransferDlpControllerTest
   base::HistogramTester histogram_tester_;
   std::unique_ptr<data_controls::DlpReportingManager> reporting_manager_;
   std::vector<DlpPolicyEvent> events_;
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  chromeos::LacrosService lacros_service_;
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 };
 
 TEST_F(DataTransferDlpControllerTest, NullSrc) {
@@ -218,19 +205,6 @@ TEST_F(DataTransferDlpControllerTest, ClipboardHistoryDst) {
       false, 1);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-TEST_F(DataTransferDlpControllerTest, LacrosDst) {
-  ui::DataTransferEndpoint data_src((GURL(kExample1Url)));
-  ui::DataTransferEndpoint data_dst(ui::EndpointType::kLacros);
-  EXPECT_EQ(true, dlp_controller_->IsClipboardReadAllowed(data_src, data_dst,
-                                                          std::nullopt));
-  histogram_tester_.ExpectUniqueSample(
-      data_controls::GetDlpHistogramPrefix() +
-          data_controls::dlp::kClipboardReadBlockedUMA,
-      false, 1);
-}
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
 TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_Allow) {
   ui::DataTransferEndpoint data_src((GURL(kExample1Url)));
   ui::DataTransferEndpoint data_dst((GURL(kExample2Url)));
@@ -242,7 +216,7 @@ TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_Allow) {
   ::testing::StrictMock<base::MockOnceCallback<void(bool)>> callback;
   EXPECT_CALL(callback, Run(true));
 
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       kNonEmptyPastedContentSize;
   auto web_contents = CreateTestWebContents(testing_profile_.get());
   dlp_controller_->PasteIfAllowed(
@@ -257,7 +231,7 @@ TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_NullWebContents) {
   ::testing::StrictMock<base::MockOnceCallback<void(bool)>> callback;
   EXPECT_CALL(callback, Run(false));
 
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       kNonEmptyPastedContentSize;
   dlp_controller_->PasteIfAllowed(
       &data_src, &data_dst, std::move(pasted_content), nullptr, callback.Get());
@@ -280,7 +254,7 @@ TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_WarnDst) {
       .WillRepeatedly(testing::Return(false));
   EXPECT_CALL(*dlp_controller_, WarnOnBlinkPaste);
 
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       kNonEmptyPastedContentSize;
   dlp_controller_->PasteIfAllowed(
       &data_src, &data_dst, std::move(pasted_content),
@@ -315,7 +289,7 @@ TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_ProceedDst) {
       .WillRepeatedly(testing::Return(false));
 
   EXPECT_CALL(callback, Run(true));
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       kNonEmptyPastedContentSize;
   dlp_controller_->PasteIfAllowed(
       &data_src, &data_dst, std::move(pasted_content),
@@ -345,7 +319,7 @@ TEST_F(DataTransferDlpControllerTest, PasteIfAllowed_CancelDst) {
       .WillRepeatedly(testing::Return(true));
 
   EXPECT_CALL(callback, Run(false));
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       kNonEmptyPastedContentSize;
   dlp_controller_->PasteIfAllowed(
       &data_src, &data_dst, std::move(pasted_content),
@@ -461,7 +435,7 @@ TEST_F(DataTransferDlpControllerTest, PasteFile_Blocked) {
   ::testing::StrictMock<base::MockOnceCallback<void(bool)>> paste_callback;
   EXPECT_CALL(paste_callback, Run(false));
 
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       std::vector<base::FilePath>{path};
   dlp_controller_->PasteIfAllowed(data_src, data_dst, std::move(pasted_content),
                                   web_contents->GetPrimaryMainFrame(),
@@ -488,7 +462,7 @@ TEST_F(DataTransferDlpControllerTest, PasteFile_Allowed) {
   ::testing::StrictMock<base::MockOnceCallback<void(bool)>> paste_callback;
   EXPECT_CALL(paste_callback, Run(true));
 
-  absl::variant<size_t, std::vector<base::FilePath>> pasted_content =
+  std::variant<size_t, std::vector<base::FilePath>> pasted_content =
       std::vector<base::FilePath>{path};
   dlp_controller_->PasteIfAllowed(data_src, data_dst, std::move(pasted_content),
                                   web_contents->GetPrimaryMainFrame(),
@@ -518,10 +492,8 @@ INSTANTIATE_TEST_SUITE_P(
     DlpControllerTest,
     ::testing::Combine(::testing::Values(std::nullopt,
                                          ui::EndpointType::kDefault,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
                                          ui::EndpointType::kUnknownVm,
                                          ui::EndpointType::kBorealis,
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
                                          ui::EndpointType::kUrl),
                        testing::Bool()));
 
@@ -735,7 +707,6 @@ TEST_P(DlpControllerTest, Warn_DropIfAllowed) {
       true, 1);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 // Create a version of the test class for parameterized testing.
 class DlpControllerVMsTest : public DataTransferDlpControllerTest {
  protected:
@@ -745,7 +716,8 @@ class DlpControllerVMsTest : public DataTransferDlpControllerTest {
     drag_data_.SetSource(std::make_unique<ui::DataTransferEndpoint>(data_src_));
     std::tie(endpoint_type_, do_notify_) = GetParam();
     ASSERT_TRUE(endpoint_type_.has_value());
-    data_dst_ = ui::DataTransferEndpoint(endpoint_type_.value(), do_notify_);
+    data_dst_ = ui::DataTransferEndpoint(endpoint_type_.value(),
+                                         {.notify_if_restricted = do_notify_});
   }
 
   ui::DataTransferEndpoint data_src_{ui::EndpointType::kDefault};
@@ -767,7 +739,8 @@ TEST_P(DlpControllerVMsTest, Allow) {
   ui::DataTransferEndpoint data_src((GURL(kExample1Url)));
   auto [endpoint_type, do_notify] = GetParam();
   ASSERT_TRUE(endpoint_type.has_value());
-  ui::DataTransferEndpoint data_dst(endpoint_type.value(), do_notify);
+  ui::DataTransferEndpoint data_dst(endpoint_type.value(),
+                                    {.notify_if_restricted = do_notify});
 
   // IsClipboardReadAllowed
   EXPECT_CALL(*rules_manager_, IsRestrictedComponent)
@@ -894,7 +867,8 @@ TEST_P(DlpControllerVMsTest, Warn_IsClipboardReadAllowed) {
   ui::DataTransferEndpoint data_src((GURL(kExample1Url)));
   auto [endpoint_type, do_notify] = GetParam();
   ASSERT_TRUE(endpoint_type.has_value());
-  ui::DataTransferEndpoint data_dst(endpoint_type.value(), do_notify);
+  ui::DataTransferEndpoint data_dst(endpoint_type.value(),
+                                    {.notify_if_restricted = do_notify});
 
   // IsClipboardReadAllowed
   EXPECT_CALL(*rules_manager_, IsRestrictedComponent)
@@ -936,6 +910,5 @@ TEST_P(DlpControllerVMsTest, Warn_DropIfAllowed) {
           data_controls::dlp::kDragDropBlockedUMA,
       true, 1);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 }  // namespace policy

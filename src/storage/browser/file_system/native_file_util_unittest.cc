@@ -15,6 +15,11 @@
 #include "storage/browser/file_system/native_file_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/content_uri_utils.h"
+#include "base/test/android/content_uri_test_utils.h"
+#endif
+
 #if BUILDFLAG(IS_WIN)
 #include "windows.h"
 #endif  // BUILDFLAG(IS_WIN)
@@ -117,6 +122,29 @@ TEST_F(NativeFileUtilTest, EnsureFileExists) {
   ASSERT_EQ(base::File::FILE_OK,
             NativeFileUtil::EnsureFileExists(file_name, &created));
   EXPECT_FALSE(created);
+
+#if BUILDFLAG(IS_ANDROID)
+  // Delete file and recreate using content-URI rather than path.
+  ASSERT_TRUE(base::DeleteFile(file_name));
+  base::FilePath parent =
+      *base::test::android::GetInMemoryContentTreeUriFromCacheDirDirectory(
+          Path());
+  base::FilePath content_uri = base::ContentUriGetChildDocumentOrQuery(
+      parent, "foobar", "text/plain", /*is_directory=*/false,
+      /*create=*/true);
+  ASSERT_FALSE(content_uri.empty());
+
+  EXPECT_EQ(base::File::FILE_OK,
+            NativeFileUtil::EnsureFileExists(content_uri, &created));
+  EXPECT_TRUE(created);
+
+  EXPECT_TRUE(FileExists(file_name));
+  EXPECT_EQ(0, GetSize(file_name));
+
+  EXPECT_EQ(base::File::FILE_OK,
+            NativeFileUtil::EnsureFileExists(file_name, &created));
+  EXPECT_FALSE(created);
+#endif
 }
 
 TEST_F(NativeFileUtilTest, CreateAndDeleteDirectory) {
@@ -135,6 +163,32 @@ TEST_F(NativeFileUtilTest, CreateAndDeleteDirectory) {
   ASSERT_EQ(base::File::FILE_OK, NativeFileUtil::DeleteDirectory(dir_name));
   EXPECT_FALSE(base::DirectoryExists(dir_name));
   EXPECT_FALSE(NativeFileUtil::DirectoryExists(dir_name));
+
+#if BUILDFLAG(IS_ANDROID)
+  base::FilePath parent =
+      *base::test::android::GetInMemoryContentTreeUriFromCacheDirDirectory(
+          Path());
+  base::FilePath query = base::ContentUriGetChildDocumentOrQuery(
+      parent, "test_dir", "", /*is_directory=*/true, /*create=*/true);
+  ASSERT_FALSE(query.empty());
+  ASSERT_EQ(base::File::FILE_OK,
+            NativeFileUtil::CreateDirectory(query, false /* exclusive */,
+                                            false /* recursive */));
+  base::FilePath content_uri =
+      base::ContentUriGetDocumentFromQuery(query, /*create=*/false);
+  ASSERT_FALSE(content_uri.empty());
+
+  EXPECT_TRUE(NativeFileUtil::DirectoryExists(content_uri));
+  EXPECT_TRUE(base::DirectoryExists(dir_name));
+
+  ASSERT_EQ(base::File::FILE_ERROR_EXISTS,
+            NativeFileUtil::CreateDirectory(content_uri, true /* exclusive */,
+                                            false /* recursive */));
+
+  ASSERT_EQ(base::File::FILE_OK, NativeFileUtil::DeleteDirectory(content_uri));
+  EXPECT_FALSE(NativeFileUtil::DirectoryExists(content_uri));
+  EXPECT_FALSE(base::DirectoryExists(dir_name));
+#endif
 }
 
 // TODO(crbug.com/40511450): Remove this test once last_access_time has
@@ -235,6 +289,22 @@ TEST_F(NativeFileUtilTest, Truncate) {
 
   EXPECT_TRUE(FileExists(file_name));
   EXPECT_EQ(1020, GetSize(file_name));
+
+#if BUILDFLAG(IS_ANDROID)
+  base::FilePath content_uri =
+      *base::test::android::GetContentUriFromCacheDirFilePath(file_name);
+
+  // Content-URIs only support truncate to zero.
+  base::WriteFile(file_name, "foobar");
+  EXPECT_EQ(base::File::FILE_ERROR_FAILED,
+            NativeFileUtil::Truncate(content_uri, 1020));
+  EXPECT_TRUE(FileExists(file_name));
+  EXPECT_EQ(6, GetSize(file_name));
+
+  EXPECT_EQ(base::File::FILE_OK, NativeFileUtil::Truncate(content_uri, 0));
+  EXPECT_TRUE(FileExists(file_name));
+  EXPECT_EQ(0, GetSize(file_name));
+#endif
 }
 
 TEST_F(NativeFileUtilTest, CopyFile) {

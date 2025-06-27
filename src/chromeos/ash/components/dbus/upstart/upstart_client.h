@@ -11,7 +11,7 @@
 
 #include "base/component_export.h"
 #include "base/functional/callback.h"
-#include "chromeos/dbus/common/dbus_method_call_status.h"
+#include "chromeos/dbus/common/dbus_callback.h"
 
 namespace dbus {
 class Bus;
@@ -53,6 +53,18 @@ class COMPONENT_EXPORT(UPSTART_CLIENT) UpstartClient {
   virtual void StartJob(const std::string& job,
                         const std::vector<std::string>& upstart_env,
                         chromeos::VoidDBusMethodCallback callback) = 0;
+
+  // Starts an Upstart job with a timeout.
+  // |job|: Name of Upstart job.
+  // |upstart_env|: List of upstart environment variables to be passed to the
+  // upstart service.
+  // |callback|: Called with a response.
+  // |timeout_ms|: Duration in milliseconds to wait for a response.
+  // A value of TIMEOUT_INFINITE can be used for no timeout.
+  virtual void StartJobWithTimeout(const std::string& job,
+                                   const std::vector<std::string>& upstart_env,
+                                   chromeos::VoidDBusMethodCallback callback,
+                                   int timeout_ms) = 0;
 
   // Does the same thing as StartJob(), but the callback is run with error
   // details on failures.

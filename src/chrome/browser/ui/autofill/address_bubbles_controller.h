@@ -11,8 +11,8 @@
 #include "chrome/browser/ui/autofill/address_bubble_controller_delegate.h"
 #include "chrome/browser/ui/autofill/address_bubbles_icon_controller.h"
 #include "chrome/browser/ui/autofill/autofill_bubble_controller_base.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace autofill {
@@ -31,26 +31,24 @@ class AutofillBubbleBase;
 class AddressBubblesController
     : public AutofillBubbleControllerBase,
       public AddressBubblesIconController,
-      public content::WebContentsUserData<
-          AddressBubblesController>,
+      public content::WebContentsUserData<AddressBubblesController>,
       public AddressBubbleControllerDelegate {
  public:
-  AddressBubblesController(
-      const AddressBubblesController&) = delete;
-  AddressBubblesController& operator=(
-      const AddressBubblesController&) = delete;
+  AddressBubblesController(const AddressBubblesController&) = delete;
+  AddressBubblesController& operator=(const AddressBubblesController&) = delete;
   ~AddressBubblesController() override;
 
   // Sets up the controller and offers to save or the `profile`. If
   // `original_profile` is not nullptr, it will be updated if the user accepts
   // the offer. `callback` will be invoked once the user makes a decision with
-  // respect to the prompt. `options` carries extra configuration for opening
-  // the prompt.
+  // respect to the prompt. `is_migration_to_account` is relevant for the save
+  // case only and makes the bubble open in a special mode for saving `profile`
+  // in user's Google account.
   static void SetUpAndShowSaveOrUpdateAddressBubble(
       content::WebContents* web_contents,
       const AutofillProfile& profile,
       const AutofillProfile* original_profile,
-      AutofillClient::SaveAddressProfilePromptOptions options,
+      bool is_migration_to_account,
       AutofillClient::AddressProfileSavePromptCallback callback);
 
   static void SetUpAndShowAddNewAddressBubble(
@@ -68,7 +66,7 @@ class AddressBubblesController
   void OnBubbleClosed() override;
 
   // SaveAddressProfileIconController:
-  void OnPageActionIconClicked() override;
+  void OnIconClicked() override;
   bool IsBubbleActive() const override;
   std::u16string GetPageActionIconTootip() const override;
   AutofillBubbleBase* GetBubbleView() const override;
@@ -87,19 +85,25 @@ class AddressBubblesController
       /*shown_by_user_gesture=*/bool,
       base::WeakPtr<AddressBubbleControllerDelegate>)>;
 
-  explicit AddressBubblesController(
-      content::WebContents* web_contents);
-  friend class content::WebContentsUserData<
-      AddressBubblesController>;
+  explicit AddressBubblesController(content::WebContents* web_contents);
+  friend class content::WebContentsUserData<AddressBubblesController>;
 
-  // TODO(b/325440757): Remove `profile` and `original_profile`, put them in
-  // specific bubble controllers.
-  void SetUpAndShowBubble(
-      ShowBubbleViewCallback show_bubble_view_callback,
-      std::u16string page_action_icon_tootip,
-      AutofillClient::SaveAddressProfilePromptOptions options,
-      AutofillClient::AddressProfileSavePromptCallback
-          address_profile_save_prompt_callback);
+  // TODO(crbug.com/325440757): Remove `profile` and `original_profile`, put
+  // them in specific bubble controllers.
+  void SetUpAndShowBubble(ShowBubbleViewCallback show_bubble_view_callback,
+                          std::u16string page_action_icon_tootip,
+                          bool is_migration_to_account,
+                          AutofillClient::AddressProfileSavePromptCallback
+                              address_profile_save_prompt_callback);
+
+  // Maybe shows the iOS bubble promo after the user accepts to save their
+  // address information.
+  void MaybeShowIOSDektopAddressPromo();
+
+  // Maybe shows the sign in promo after the user accepts to save or update
+  // their address information.
+  void MaybeShowSignInPromo(
+      base::optional_ref<const AutofillProfile> autofill_profile);
 
   // Callback to run once the user makes a decision with respect to the saving
   // the address profile.
@@ -114,6 +118,11 @@ class AddressBubblesController
   // Whether the bubble prompts to save (migrate) the profile into account.
   bool is_migration_to_account_ = false;
 
+  // If the user is signed out, they may be shown a promo after an address
+  // update/save which asks them if they want to sign in to Chrome and move the
+  // just saved address to account store.
+  bool is_showing_sign_in_promo_ = false;
+
   // The callback to create and show the bubble. It defines the appearance of
   // the bubble and contains some specific logic. The controller doesn't take
   // the ownership of the instance returned (it only hides the bubble),
@@ -124,8 +133,7 @@ class AddressBubblesController
 
   std::string app_locale_;
 
-  base::WeakPtrFactory<AddressBubblesController>
-      weak_ptr_factory_{this};
+  base::WeakPtrFactory<AddressBubblesController> weak_ptr_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

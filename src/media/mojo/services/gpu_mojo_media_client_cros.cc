@@ -9,11 +9,11 @@
 #include "chromeos/components/cdm_factory_daemon/chromeos_cdm_factory.h"
 #include "media/base/audio_decoder.h"
 #include "media/base/audio_encoder.h"
+#include "media/base/media_log.h"
 #include "media/base/media_switches.h"
 #include "media/gpu/chromeos/mailbox_video_frame_converter.h"
 #include "media/gpu/chromeos/platform_video_frame_pool.h"
 #include "media/gpu/chromeos/video_decoder_pipeline.h"
-#include "media/gpu/ipc/service/vda_video_decoder.h"
 
 namespace media {
 
@@ -34,25 +34,16 @@ VideoDecoderType GetActualPlatformDecoderImplementation(
     return VideoDecoderType::kUnknown;
   }
 
-  switch (media::GetOutOfProcessVideoDecodingMode()) {
-    case media::OOPVDMode::kEnabledWithGpuProcessAsProxy:
-      return VideoDecoderType::kOutOfProcess;
-    case media::OOPVDMode::kEnabledWithoutGpuProcessAsProxy:
-      // The browser process ensures that this path is never reached for this
-      // OOP-VD mode.
-      NOTREACHED_NORETURN();
-    case media::OOPVDMode::kDisabled:
-      break;
+  if (IsOutOfProcessVideoDecodingEnabled()) {
+    return VideoDecoderType::kOutOfProcess;
   }
 
-  if (gpu_preferences.enable_chromeos_direct_video_decoder) {
 #if BUILDFLAG(USE_VAAPI)
-    return VideoDecoderType::kVaapi;
+  return VideoDecoderType::kVaapi;
 #elif BUILDFLAG(USE_V4L2_CODEC)
-    return VideoDecoderType::kV4L2;
+  return VideoDecoderType::kV4L2;
 #endif
-  }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -101,7 +92,7 @@ class GpuMojoMediaClientCrOS final : public GpuMojoMediaClient {
             /*in_video_decoder_process=*/false);
       }
       case VideoDecoderType::kVda: {
-        NOTREACHED_NORETURN();
+        NOTREACHED();
       }
       default: {
         return nullptr;
@@ -110,9 +101,9 @@ class GpuMojoMediaClientCrOS final : public GpuMojoMediaClient {
   }
 
   void NotifyPlatformDecoderSupport(
-      mojo::PendingRemote<stable::mojom::StableVideoDecoder> oop_video_decoder,
-      base::OnceCallback<void(
-          mojo::PendingRemote<stable::mojom::StableVideoDecoder>)> cb) final {
+      mojo::PendingRemote<mojom::VideoDecoder> oop_video_decoder,
+      base::OnceCallback<void(mojo::PendingRemote<mojom::VideoDecoder>)> cb)
+      final {
     switch (GetActualPlatformDecoderImplementation(gpu_preferences_)) {
       case VideoDecoderType::kOutOfProcess:
       case VideoDecoderType::kVaapi:
@@ -126,13 +117,12 @@ class GpuMojoMediaClientCrOS final : public GpuMojoMediaClient {
   }
 
   std::optional<SupportedVideoDecoderConfigs>
-  GetPlatformSupportedVideoDecoderConfigs(
-      GetVdaConfigsCB get_vda_configs) final {
+  GetPlatformSupportedVideoDecoderConfigs() final {
     VideoDecoderType decoder_implementation =
         GetActualPlatformDecoderImplementation(gpu_preferences_);
     switch (decoder_implementation) {
       case VideoDecoderType::kVda:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
       case VideoDecoderType::kOutOfProcess:
       case VideoDecoderType::kVaapi:
       case VideoDecoderType::kV4L2:

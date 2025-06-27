@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/logging.h"
 #include "base/memory/singleton.h"
 #include "build/build_config.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
@@ -44,13 +45,20 @@ PushNotificationService* PushNotificationServiceFactory::GetForBrowserContext(
   // PushNotificationService is currently only implemented for ChromeOS Desktop.
   // If/when iOS and/or Android decide on a Push Notification Service
   // implementation, this CHECK can be revisited.
-  CHECK(BUILDFLAG(IS_CHROMEOS_ASH));
+  CHECK(BUILDFLAG(IS_CHROMEOS));
   return static_cast<PushNotificationServiceDesktopImpl*>(
       GetInstance()->GetServiceForBrowserContext(context, /*create=*/true));
 }
 
 PushNotificationServiceFactory::PushNotificationServiceFactory()
-    : ProfileKeyedServiceFactory(kServiceName) {
+    : ProfileKeyedServiceFactory(
+          kServiceName,
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
+              .Build()) {
   DependsOn(instance_id::InstanceIDProfileServiceFactory::GetInstance());
   DependsOn(gcm::GCMProfileServiceFactory::GetInstance());
   DependsOn(IdentityManagerFactory::GetInstance());
@@ -64,7 +72,7 @@ PushNotificationServiceFactory::BuildServiceInstanceForBrowserContext(
   // PushNotificationService is currently only implemented for ChromeOS Desktop.
   // If/when iOS and/or Android decide on a Push Notification Service
   // implementation, this CHECK can be revisited.
-  CHECK(BUILDFLAG(IS_CHROMEOS_ASH));
+  CHECK(BUILDFLAG(IS_CHROMEOS));
   if (!context) {
     return nullptr;
   }

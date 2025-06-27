@@ -4,6 +4,7 @@
 
 #include "components/visited_url_ranking/public/url_visit.h"
 
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -15,18 +16,22 @@ URLVisit::URLVisit(const GURL& url_arg,
                    const std::u16string& title_arg,
                    const base::Time& last_modified_arg,
                    syncer::DeviceInfo::FormFactor device_type_arg,
-                   Source source_arg)
+                   Source source_arg,
+                   const std::optional<std::string>& client_name_arg)
     : url(url_arg),
       title(title_arg),
       last_modified(last_modified_arg),
       device_type(device_type_arg),
-      source(source_arg) {}
+      source(source_arg),
+      client_name(client_name_arg) {}
 
 URLVisit::URLVisit(const URLVisit&) = default;
 
 URLVisit::~URLVisit() = default;
 
-URLVisitAggregate::URLVisitAggregate() = default;
+URLVisitAggregate::URLVisitAggregate(std::string key_arg) : url_key(key_arg) {
+  DCHECK(!url_key.empty());
+}
 
 URLVisitAggregate::~URLVisitAggregate() = default;
 
@@ -34,6 +39,22 @@ URLVisitAggregate::URLVisitAggregate(URLVisitAggregate&& other) = default;
 
 URLVisitAggregate& URLVisitAggregate::operator=(URLVisitAggregate&& other) =
     default;
+
+std::set<std::u16string_view> URLVisitAggregate::GetAssociatedTitles() const {
+  std::set<std::u16string_view> titles = {};
+  for (const auto& fetcher_entry : fetcher_data_map) {
+    std::visit(
+        URLVisitVariantHelper{
+            [&titles](const URLVisitAggregate::TabData& tab_data) {
+              titles.insert(tab_data.last_active_tab.visit.title);
+            },
+            [&titles](const URLVisitAggregate::HistoryData& history_data) {
+              titles.insert(history_data.last_visited.url_row.title());
+            }},
+        fetcher_entry.second);
+  }
+  return titles;
+}
 
 std::set<const GURL*> URLVisitAggregate::GetAssociatedURLs() const {
   std::set<const GURL*> urls = {};
@@ -50,6 +71,81 @@ std::set<const GURL*> URLVisitAggregate::GetAssociatedURLs() const {
   return urls;
 }
 
+base::Time URLVisitAggregate::GetLastVisitTime() const {
+  std::optional<base::Time> last_visit_time;
+  for (const auto& fetcher_entry : fetcher_data_map) {
+    switch (fetcher_entry.first) {
+      case Fetcher::kTabModel: {
+        std::optional<base::Time> tab_last_active =
+            std::get<URLVisitAggregate::TabData>(fetcher_entry.second)
+                .last_active;
+        if (!last_visit_time ||
+            (tab_last_active && last_visit_time < tab_last_active)) {
+          last_visit_time = tab_last_active;
+        } else if (!last_visit_time && !tab_last_active) {
+          last_visit_time =
+              std::get<URLVisitAggregate::TabData>(fetcher_entry.second)
+                  .last_active_tab.visit.last_modified;
+        }
+        break;
+      }
+      case Fetcher::kSession: {
+        std::optional<base::Time> session_last_active =
+            std::get<URLVisitAggregate::TabData>(fetcher_entry.second)
+                .last_active;
+        if (!last_visit_time ||
+            (session_last_active && last_visit_time < session_last_active)) {
+          last_visit_time = session_last_active;
+        } else if (!last_visit_time && !session_last_active) {
+          last_visit_time =
+              std::get<URLVisitAggregate::TabData>(fetcher_entry.second)
+                  .last_active_tab.visit.last_modified;
+        }
+        break;
+      }
+      case Fetcher::kHistory: {
+        std::optional<base::Time> history_last_visit =
+            std::get<URLVisitAggregate::HistoryData>(fetcher_entry.second)
+                .last_visited.visit_row.visit_time;
+        if (!last_visit_time ||
+            (history_last_visit && last_visit_time < history_last_visit)) {
+          last_visit_time = history_last_visit;
+        }
+        break;
+      }
+    }
+  }
+  return *last_visit_time;
+}
+
+URLVisitAggregate::URLTypeSet URLVisitAggregate::GetURLTypes() const {
+  URLVisitAggregate::URLTypeSet types;
+  for (const auto& fetcher_entry : fetcher_data_map) {
+    std::visit(
+        URLVisitVariantHelper{
+            [&types](const URLVisitAggregate::TabData& tab_data) {
+              if (tab_data.last_active_tab.session_name) {
+                types.Put(URLVisitAggregate::URLType::kActiveRemoteTab);
+              } else {
+                types.Put(URLVisitAggregate::URLType::kActiveLocalTab);
+              }
+            },
+            [&types](const URLVisitAggregate::HistoryData& history_data) {
+              if (history_data.last_app_id) {
+                types.Put(URLVisitAggregate::URLType::kCCTVisit);
+              }
+              if (history_data.last_visited.visit_row.originator_cache_guid
+                      .empty()) {
+                types.Put(URLVisitAggregate::URLType::kLocalVisit);
+              } else {
+                types.Put(URLVisitAggregate::URLType::kRemoteVisit);
+              }
+            }},
+        fetcher_entry.second);
+  }
+  return types;
+}
+
 URLVisitAggregate::Tab::Tab(const int32_t id_arg,
                             URLVisit visit_arg,
                             std::optional<std::string> session_tag_arg,
@@ -63,8 +159,8 @@ URLVisitAggregate::Tab::Tab(const URLVisitAggregate::Tab&) = default;
 
 URLVisitAggregate::Tab::~Tab() = default;
 
-URLVisitAggregate::TabData::TabData(Tab tab)
-    : last_active_tab(std::move(tab)) {}
+URLVisitAggregate::TabData::TabData(Tab last_active_tab_arg)
+    : last_active_tab(std::move(last_active_tab_arg)) {}
 
 URLVisitAggregate::TabData::TabData(const URLVisitAggregate::TabData&) =
     default;
@@ -72,11 +168,24 @@ URLVisitAggregate::TabData::TabData(const URLVisitAggregate::TabData&) =
 URLVisitAggregate::TabData::~TabData() = default;
 
 URLVisitAggregate::HistoryData::HistoryData(
-    history::AnnotatedVisit annotated_visit)
-    : last_visited(std::move(annotated_visit)) {
-  visit_count = 1;
-  total_foreground_duration =
-      last_visited.context_annotations.total_foreground_duration;
+    history::AnnotatedVisit annotated_visit,
+    std::optional<std::string> client_name,
+    syncer::DeviceInfo::FormFactor device_type)
+    : last_visited(std::move(annotated_visit)),
+      visit(last_visited.url_row.url(),
+            last_visited.url_row.title(),
+            last_visited.visit_row.visit_time,
+            device_type,
+            last_visited.visit_row.originator_cache_guid.empty()
+                ? URLVisit::Source::kLocal
+                : URLVisit::Source::kForeign,
+            std::move(client_name)) {
+  if (last_visited.context_annotations.total_foreground_duration
+          .InMilliseconds() > 0) {
+    total_foreground_duration =
+        last_visited.context_annotations.total_foreground_duration;
+  }
+
   if (last_visited.visit_row.app_id.has_value()) {
     last_app_id = last_visited.visit_row.app_id;
   }

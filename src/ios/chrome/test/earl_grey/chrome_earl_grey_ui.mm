@@ -8,15 +8,20 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "components/strings/grit/components_strings.h"
+#import "ios/chrome/browser/browser_container/ui_bundled/edit_menu_app_interface.h"
+#import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
+#import "ios/chrome/browser/settings/ui_bundled/cells/clear_browsing_data_constants.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_constants.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_constants.h"
 #import "ios/chrome/grit/ios_strings.h"
+#import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
+#import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/chrome/test/earl_grey/scoped_disable_timer_tracking.h"
 #import "ios/chrome/test/scoped_eg_synchronization_disabler.h"
 #import "ios/testing/earl_grey/app_launch_manager.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
+#import "ios/web/public/test/element_selector.h"
 #import "ui/base/l10n/l10n_util.h"
 
 // Redefine EarlGrey macro to use line number and file name taken from the place
@@ -31,12 +36,14 @@
 
 using base::test::ios::kWaitForUIElementTimeout;
 using base::test::ios::WaitUntilConditionOrTimeout;
+using chrome_test_util::BrowsingDataButtonMatcher;
+using chrome_test_util::BrowsingDataConfirmButtonMatcher;
 using chrome_test_util::ButtonWithAccessibilityLabelId;
 using chrome_test_util::ClearAutofillButton;
 using chrome_test_util::ClearBrowsingDataButton;
 using chrome_test_util::ClearBrowsingDataView;
 using chrome_test_util::ClearSavedPasswordsButton;
-using chrome_test_util::ConfirmClearBrowsingDataButton;
+using chrome_test_util::ContextMenuItemWithAccessibilityLabel;
 using chrome_test_util::SettingsActionButton;
 using chrome_test_util::SettingsDestinationButton;
 using chrome_test_util::SettingsMenuBackButton;
@@ -65,8 +72,9 @@ id<GREYAction> PageSheetScrollDown() {
 
   // But for very small devices (like the SE), this is too big.
   UIWindow* currentWindow = chrome_test_util::GetAnyKeyWindow();
-  if (currentWindow.rootViewController.view.frame.size.height < 600)
+  if (currentWindow.rootViewController.view.frame.size.height < 600) {
     menu_scroll_displacement = 250;
+  }
   return grey_scrollInDirection(kGREYDirectionDown, menu_scroll_displacement);
 }
 
@@ -100,6 +108,9 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
 - (void)openToolsMenu {
   // TODO(crbug.com/41271107): Add logic to ensure the app is in the correct
   // state, for example DCHECK if no tabs are displayed.
+  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:
+                      grey_allOf(chrome_test_util::ToolsMenuButton(),
+                                 grey_sufficientlyVisible(), nil)];
   [[[EarlGrey
       selectElementWithMatcher:grey_allOf(chrome_test_util::ToolsMenuButton(),
                                           grey_sufficientlyVisible(), nil)]
@@ -225,9 +236,8 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
   ScopedDisableTimerTracking disabler;
   id<GREYMatcher> interactableButtonMatcher =
       grey_allOf(buttonMatcher, grey_interactable(), nil);
-  [[[EarlGrey selectElementWithMatcher:interactableButtonMatcher]
-         usingSearchAction:ScrollDown()
-      onElementWithMatcher:ClearBrowsingDataView()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:interactableButtonMatcher]
+      performAction:grey_tap()];
 }
 
 - (void)openAndClearBrowsingDataFromHistory {
@@ -237,31 +247,6 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
       performAction:grey_tap()];
   [self waitForClearBrowsingDataViewVisible:YES];
   [self selectAllBrowsingDataAndClear];
-
-  // Include sufficientlyVisible condition for the case of the clear browsing
-  // dialog, which also has a "Done" button and is displayed over the history
-  // panel.
-  id<GREYMatcher> visibleDoneButton = grey_allOf(
-      chrome_test_util::SettingsDoneButton(), grey_sufficientlyVisible(), nil);
-  [[EarlGrey selectElementWithMatcher:visibleDoneButton]
-      performAction:grey_tap()];
-}
-
-- (void)clearAllBrowsingData {
-  // Open the "Clear Browsing Data" view by the privacy view.
-  [self openSettingsMenu];
-  [self tapSettingsMenuButton:chrome_test_util::SettingsMenuPrivacyButton()];
-  [self tapPrivacyMenuButton:chrome_test_util::ClearBrowsingDataCell()];
-  [self waitForClearBrowsingDataViewVisible:YES];
-
-  // Clear all data.
-  [self selectAllBrowsingDataAndClear];
-
-  // Close the "Clear Browsing Data" view.
-  id<GREYMatcher> visibleDoneButton = grey_allOf(
-      chrome_test_util::SettingsDoneButton(), grey_sufficientlyVisible(), nil);
-  [[EarlGrey selectElementWithMatcher:visibleDoneButton]
-      performAction:grey_tap()];
 }
 
 - (void)assertHistoryHasNoEntries {
@@ -340,8 +325,16 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
 }
 
 - (void)focusOmniboxAndType:(NSString*)text {
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::DefocusedLocationView()]
-      performAction:grey_tap()];
+  [self focusOmnibox];
+
+  if (text.length) {
+    [[EarlGrey selectElementWithMatcher:chrome_test_util::Omnibox()]
+        performAction:grey_typeText(text)];
+  }
+}
+
+- (void)focusOmniboxAndReplaceText:(NSString*)text {
+  [self focusOmnibox];
 
   if (text.length) {
     [[EarlGrey selectElementWithMatcher:chrome_test_util::Omnibox()]
@@ -432,17 +425,7 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
 
 - (void)openPageInfo {
   [self openToolsMenu];
-  id<GREYAction> searchAction =
-      [ChromeEarlGrey isNewOverflowMenuEnabled]
-          ? ScrollRight()
-          : grey_scrollInDirection(kGREYDirectionDown, 200);
-  [[[EarlGrey
-      selectElementWithMatcher:grey_allOf(grey_accessibilityID(
-                                              kToolsMenuSiteInformation),
-                                          grey_sufficientlyVisible(), nil)]
-         usingSearchAction:searchAction
-      onElementWithMatcher:grey_accessibilityID(kPopupMenuToolsMenuTableViewId)]
-      performAction:grey_tap()];
+  [self tapToolsMenuButton:chrome_test_util::SiteInfoDestinationButton()];
 }
 
 - (BOOL)dismissContextMenuIfPresent {
@@ -482,8 +465,42 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
       performAction:grey_tapAtPoint(CGPointMake(0, 0))];
 
   // Verify the window is not visible.
-  [[EarlGrey selectElementWithMatcher:windowMatcher]
+  ConditionBlock condition = ^{
+    NSError* error = nil;
+    [[EarlGrey selectElementWithMatcher:windowMatcher]
+        assertWithMatcher:grey_notVisible()
+                    error:&error];
+    return !error;
+  };
+  GREYAssert(base::test::ios::WaitUntilConditionOrTimeout(
+                 kWaitForUIElementTimeout, condition),
+             @"Popover was not dismissed.");
+}
+
+- (void)longPressElementOnWebView:(ElementSelector*)selector {
+  // Use triggers_context_menu = true as this is really "triggers_browser_menu".
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::LongPressElementForContextMenu(
+                        selector, true /* menu should appear */)];
+}
+
+- (void)triggerEditMenu:(ElementSelector*)selector {
+  [[EarlGrey selectElementWithMatcher:[EditMenuAppInterface editMenuMatcher]]
       assertWithMatcher:grey_notVisible()];
+  [self longPressElementOnWebView:selector];
+
+  NSError* error = nil;
+  [[EarlGrey selectElementWithMatcher:[EditMenuAppInterface editMenuMatcher]]
+      assertWithMatcher:grey_sufficientlyVisible()
+                  error:&error];
+  if (error) {
+    // If edit is not visible, try to tap the element again.
+    // This is possible on inputs when the first long press just selects the
+    // input.
+    [self longPressElementOnWebView:selector];
+    [[EarlGrey selectElementWithMatcher:[EditMenuAppInterface editMenuMatcher]]
+        assertWithMatcher:grey_sufficientlyVisible()];
+  }
 }
 
 #pragma mark - Private
@@ -491,6 +508,23 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
 // Clears all browsing data from the device. This method needs to be called when
 // the "Clear Browsing Data" panel is opened.
 - (void)selectAllBrowsingDataAndClear {
+  // Set 'Time Range' to 'All Time'.
+  [[EarlGrey selectElementWithMatcher:
+                 grey_text(l10n_util::GetNSString(
+                     IDS_IOS_CLEAR_BROWSING_DATA_TIME_RANGE_SELECTOR_TITLE))]
+      performAction:grey_tap()];
+
+  NSString* timeRange = l10n_util::GetNSString(
+      IDS_IOS_CLEAR_BROWSING_DATA_TIME_RANGE_OPTION_BEGINNING_OF_TIME);
+  id<GREYMatcher> popupCellMenuItem = grey_allOf(
+      grey_not(grey_accessibilityID(kQuickDeletePopUpButtonIdentifier)),
+      ContextMenuItemWithAccessibilityLabel(timeRange), nil);
+  [[EarlGrey selectElementWithMatcher:popupCellMenuItem]
+      performAction:grey_tap()];
+
+  // Tap on the browsing data subpage.
+  [ChromeEarlGreyUI tapPrivacyMenuButton:BrowsingDataButtonMatcher()];
+
   // Check "Saved Passwords" and "Autofill Data" which are unchecked by
   // default.
   [ChromeEarlGrey
@@ -503,42 +537,20 @@ const int kMaxNumberOfAttemptsAtTypingTextInOmnibox = 3;
          usingSearchAction:grey_swipeSlowInDirection(kGREYDirectionUp)
       onElementWithMatcher:ClearBrowsingDataView()] performAction:grey_tap()];
 
-  // Set 'Time Range' to 'All Time'.
-  [[[EarlGrey
-      selectElementWithMatcher:
-          grey_allOf(ButtonWithAccessibilityLabelId(
-                         IDS_IOS_CLEAR_BROWSING_DATA_TIME_RANGE_SELECTOR_TITLE),
-                     grey_sufficientlyVisible(), nil)]
-         usingSearchAction:grey_swipeSlowInDirection(kGREYDirectionDown)
-      onElementWithMatcher:ClearBrowsingDataView()] performAction:grey_tap()];
-  [[EarlGrey
-      selectElementWithMatcher:
-          ButtonWithAccessibilityLabelId(
-              IDS_IOS_CLEAR_BROWSING_DATA_TIME_RANGE_OPTION_BEGINNING_OF_TIME)]
-      performAction:grey_tap()];
-  [[[EarlGrey selectElementWithMatcher:SettingsMenuBackButton()] atIndex:0]
+  // Tap the confirm button to save the prefs.
+  [[EarlGrey selectElementWithMatcher:BrowsingDataConfirmButtonMatcher()]
       performAction:grey_tap()];
 
   // Clear data, and confirm.
   [[EarlGrey selectElementWithMatcher:ClearBrowsingDataButton()]
       performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:ConfirmClearBrowsingDataButton()]
-      performAction:grey_tap()];
 
-  // Wait until activity indicator modal is cleared, meaning clearing browsing
-  // data has been finished.
+  // Wait until the spinner is cleared, meaning that clear browsing data has
+  // finished.
   [self waitForAppToIdle];
 
-  // Recheck "Saved Passwords" and "Autofill Data".
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:ClearSavedPasswordsButton()];
-  [[EarlGrey selectElementWithMatcher:ClearSavedPasswordsButton()]
-      performAction:grey_tap()];
-  [[[EarlGrey
-      selectElementWithMatcher:grey_allOf(ClearAutofillButton(),
-                                          grey_sufficientlyVisible(), nil)]
-         usingSearchAction:grey_swipeSlowInDirection(kGREYDirectionUp)
-      onElementWithMatcher:ClearBrowsingDataView()] performAction:grey_tap()];
+  // Reset selection.
+  [ChromeEarlGrey resetBrowsingDataPrefs];
 }
 
 // Waits for the clear browsing data view to become visible if `isVisible` is

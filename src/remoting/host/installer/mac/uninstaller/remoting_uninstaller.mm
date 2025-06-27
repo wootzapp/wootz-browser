@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/host/installer/mac/uninstaller/remoting_uninstaller.h"
 
 #import <Cocoa/Cocoa.h>
@@ -99,7 +104,7 @@ NSArray<NSString*>* convertToNSArray(const char** array) {
   [self sudoCommand:"/bin/rm" withArguments:args usingAuth:authRef];
 }
 
-- (void)shutdownService {
+- (void)shutdownServiceUsingAuth:(AuthorizationRef)authRef {
   const char* launchCtl = "/bin/launchctl";
   const char* argsStop[] = { "stop", remoting::kServiceName, nullptr };
   [self runCommand:launchCtl withArguments:argsStop];
@@ -109,6 +114,13 @@ NSArray<NSString*>* convertToNSArray(const char** array) {
     const char* argsUnload[] = { "unload", "-w", "-S", "Aqua",
                                 remoting::kServicePlistPath, nullptr };
     [self runCommand:launchCtl withArguments:argsUnload];
+  }
+
+  if ([NSFileManager.defaultManager
+          fileExistsAtPath:@(remoting::kBrokerPlistPath)]) {
+    const char* argsUnload[] = {"unload", "-w", remoting::kBrokerPlistPath,
+                                nullptr};
+    [self sudoCommand:launchCtl withArguments:argsUnload usingAuth:authRef];
   }
 }
 
@@ -143,9 +155,10 @@ NSArray<NSString*>* convertToNSArray(const char** array) {
   // restart itself.
   [self sudoDelete:remoting::kHostEnabledPath usingAuth:authRef];
 
-  [self shutdownService];
+  [self shutdownServiceUsingAuth:authRef];
 
   [self sudoDelete:remoting::kServicePlistPath usingAuth:authRef];
+  [self sudoDelete:remoting::kBrokerPlistPath usingAuth:authRef];
   [self sudoDelete:remoting::kHostBinaryPath usingAuth:authRef];
   [self sudoDelete:remoting::kHostLegacyBinaryPath usingAuth:authRef];
   [self sudoDelete:remoting::kOldHostHelperScriptPath usingAuth:authRef];

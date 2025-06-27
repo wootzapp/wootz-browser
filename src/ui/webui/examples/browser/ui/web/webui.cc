@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/webui/examples/browser/ui/web/webui.h"
 
 #include "chrome/grit/webui_gallery_resources.h"
@@ -24,8 +29,14 @@ void EnableTrustedTypesCSP(content::WebUIDataSource* source) {
       "trusted-types parse-html-subset sanitize-inner-html static-types "
       // Add TrustedTypes policies for cr-lottie.
       "lottie-worker-script-loader "
+      // Add TrustedTypes policies used during tests.
+      "webui-test-script webui-test-html "
+      // Add TrustedTypes policy for creating the PDF plugin.
+      "print-preview-plugin-loader "
       // Add TrustedTypes policies necessary for using Polymer.
-      "polymer-html-literal polymer-template-event-attribute-policy;");
+      "polymer-html-literal polymer-template-event-attribute-policy "
+      // Add TrustedTypes policies necessary for using Desktop's Lit bundle.
+      "lit-html-desktop;");
 }
 
 void SetJSModuleDefaults(content::WebUIDataSource* source) {
@@ -54,8 +65,7 @@ WebUI::WebUI(content::WebUI* web_ui) : content::WebUIController(web_ui) {
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       web_ui->GetWebContents()->GetBrowserContext(), kHost);
   SetupWebUIDataSource(
-      source,
-      base::make_span(kWebuiGalleryResources, kWebuiGalleryResourcesSize),
+      source, base::span(kWebuiGalleryResources, kWebuiGalleryResourcesSize),
       IDR_WEBUI_GALLERY_WEBUI_GALLERY_HTML);
 }
 

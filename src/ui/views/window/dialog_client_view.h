@@ -11,7 +11,9 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/base/interaction/element_identifier.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_types.h"
+#include "ui/color/color_id.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/input_event_activation_protector.h"
 #include "ui/views/layout/delegating_layout_manager.h"
@@ -70,10 +72,11 @@ class VIEWS_EXPORT DialogClientView : public ClientView,
   gfx::Size GetMaximumSize() const override;
   void VisibilityChanged(View* starting_from, bool is_visible) override;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // ClientView implementation:
-  void UpdateWindowRoundedCorners(int corner_radius) override;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  void UpdateWindowRoundedCorners(
+      const gfx::RoundedCornersF& window_radii) override;
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Input protection is triggered upon prompt creation and updated on
   // visibility changes. Other situations such as top window changes in certain
@@ -116,6 +119,8 @@ class VIEWS_EXPORT DialogClientView : public ClientView,
   ProposedLayout CalculateProposedLayout(
       const SizeBounds& size_bounds) const override;
 
+  void SetBackgroundColor(ui::ColorId background_color_id);
+
  private:
   enum {
     // The number of buttons that DialogClientView can support.
@@ -141,10 +146,10 @@ class VIEWS_EXPORT DialogClientView : public ClientView,
   // (which must be pointed to by `member`).  Which action is chosen is based on
   // whether DialogDelegate::GetDialogButtons() includes `type`, and whether
   // `member` points to a button that already exists.
-  void UpdateDialogButton(raw_ptr<MdTextButton, DanglingUntriaged>* member,
-                          ui::DialogButton type);
+  void UpdateDialogButton(raw_ptr<MdTextButton>* member,
+                          ui::mojom::DialogButton type);
 
-  void ButtonPressed(ui::DialogButton type, const ui::Event& event);
+  void ButtonPressed(ui::mojom::DialogButton type, const ui::Event& event);
 
   // Returns the spacing between the extra view and the ok/cancel buttons. 0 if
   // no extra view. Otherwise uses the default padding.
@@ -178,8 +183,8 @@ class VIEWS_EXPORT DialogClientView : public ClientView,
   gfx::Size minimum_size_;
 
   // The dialog buttons.
-  raw_ptr<MdTextButton, DanglingUntriaged> ok_button_ = nullptr;
-  raw_ptr<MdTextButton, DanglingUntriaged> cancel_button_ = nullptr;
+  raw_ptr<MdTextButton> ok_button_ = nullptr;
+  raw_ptr<MdTextButton> cancel_button_ = nullptr;
 
   // The extra view shown in the row of buttons; may be nullptr.
   raw_ptr<View> extra_view_ = nullptr;
@@ -196,6 +201,7 @@ class VIEWS_EXPORT DialogClientView : public ClientView,
 
   std::unique_ptr<InputEventActivationProtector> input_protector_;
 
+  ui::ColorId background_color_id_ = ui::kColorDialogBackground;
   gfx::RoundedCornersF background_radii_;
 };
 

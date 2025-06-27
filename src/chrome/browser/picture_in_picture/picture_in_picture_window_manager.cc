@@ -36,7 +36,14 @@
 #include "extensions/common/constants.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
+#if BUILDFLAG(IS_OZONE)
+#include "ui/ozone/public/ozone_platform.h"
+#endif
+
 namespace {
+// The initial aspect ratio for Document Picture-in-Picture windows. This does
+// not apply to video Picture-in-Picture windows.
+constexpr double kInitialAspectRatio = 1.0;
 
 // The minimum window size for Document Picture-in-Picture windows. This does
 // not apply to video Picture-in-Picture windows.
@@ -122,6 +129,18 @@ void PictureInPictureWindowManager::EnterPictureInPictureWithController(
   pip_window_controller_ = pip_window_controller;
 
   pip_window_controller_->Show();
+
+#if !BUILDFLAG(IS_ANDROID)
+  if (number_of_existing_scoped_disallow_picture_in_pictures_ > 0) {
+    // Don't exit picture-in-picture synchronously since exiting in the middle
+    // of opening leaves us in a bad state.
+    ExitPictureInPictureSoon();
+    RecordPictureInPictureDisallowed(
+        PictureInPictureDisallowedType::kNewWindowClosed);
+  }
+
+  MaybeRecordPictureInPictureChanged(true);
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -168,6 +187,10 @@ PictureInPictureWindowManager::EnterVideoPictureInPicture(
     CreateWindowInternal(web_contents);
   }
 
+#if !BUILDFLAG(IS_ANDROID)
+  MaybeRecordPictureInPictureChanged(true);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
   return content::PictureInPictureResult::kSuccess;
 }
 
@@ -198,6 +221,10 @@ bool PictureInPictureWindowManager::ExitPictureInPictureViaWindowUi(
       break;
   }
 
+#if !BUILDFLAG(IS_ANDROID)
+  MaybeRecordPictureInPictureChanged(false);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
   return true;
 }
 
@@ -206,6 +233,11 @@ bool PictureInPictureWindowManager::ExitPictureInPicture() {
     CloseWindowInternal();
     return true;
   }
+
+#if !BUILDFLAG(IS_ANDROID)
+  MaybeRecordPictureInPictureChanged(false);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
   return false;
 }
 
@@ -271,7 +303,7 @@ gfx::Rect PictureInPictureWindowManager::CalculateOuterWindowBounds(
   gfx::Rect window_bounds;
 
   // If the outer bounds for this request are cached, then ignore everything
-  // else and use those.
+  // else and use those, unless the site requested that we don't.
   //
   // Typically, we have a window controller at this point, but often during
   // tests we don't.  Don't worry about the cache if it's missing.
@@ -284,7 +316,10 @@ gfx::Rect PictureInPictureWindowManager::CalculateOuterWindowBounds(
     auto cached_window_bounds =
         PictureInPictureBoundsCache::GetBoundsForNewWindow(
             web_contents, display, requested_content_bounds);
-    if (cached_window_bounds) {
+    // Ignore the result if we're asked to do so.  Note that we still have to
+    // ask the cache, so that it's set up to accept position updates later for
+    // this request.
+    if (cached_window_bounds && !pip_options.prefer_initial_window_placement) {
       // Cache hit!  Just return it as the window bounds.
       return *cached_window_bounds;
     }
@@ -304,19 +339,26 @@ gfx::Rect PictureInPictureWindowManager::CalculateOuterWindowBounds(
     window_bounds = gfx::Rect(window_size);
   } else {
     // Otherwise, fall back to the aspect ratio.
-    double initial_aspect_ratio = pip_options.initial_aspect_ratio > 0.0
-                                      ? pip_options.initial_aspect_ratio
-                                      : 1.0;
     gfx::Size window_size(work_area.width() / 5, work_area.height() / 5);
     window_size.SetToMin(GetMaximumWindowSize(display));
     window_size.SetToMax(minimum_outer_window_size);
     window_bounds = gfx::Rect(window_size);
     gfx::SizeRectToAspectRatioWithExcludedMargin(
-        gfx::ResizeEdge::kTopLeft, initial_aspect_ratio,
+        gfx::ResizeEdge::kTopLeft, kInitialAspectRatio,
         GetMinimumInnerWindowSize(), GetMaximumWindowSize(display),
         excluded_margin, window_bounds);
   }
 
+#if BUILDFLAG(IS_OZONE)
+  // Some platforms like ozone/wayland don't allow clients to control windows
+  // in global screen coordinates. So it is not possible to position windows in
+  // that case.
+  if (!ui::OzonePlatform::GetInstance()
+           ->GetPlatformProperties()
+           .supports_global_screen_coordinates) {
+    return window_bounds;
+  }
+#endif
   // Position the window.
   int window_diff_width = work_area.right() - window_bounds.width();
   int window_diff_height = work_area.bottom() - window_bounds.height();
@@ -415,6 +457,16 @@ void PictureInPictureWindowManager::CreateWindowInternal(
                          NotifyObserversOnEnterPictureInPicture,
                      base::Unretained(this)));
   pip_window_controller_ = video_pip_window_controller;
+
+#if !BUILDFLAG(IS_ANDROID)
+  if (number_of_existing_scoped_disallow_picture_in_pictures_ > 0) {
+    // Don't exit picture-in-picture synchronously since exiting in the middle
+    // of opening leaves us in a bad state.
+    ExitPictureInPictureSoon();
+    RecordPictureInPictureDisallowed(
+        PictureInPictureDisallowedType::kNewWindowClosed);
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 void PictureInPictureWindowManager::CloseWindowInternal() {
@@ -423,6 +475,10 @@ void PictureInPictureWindowManager::CloseWindowInternal() {
   video_web_contents_observer_.reset();
   pip_window_controller_->Close(false /* should_pause_video */);
   pip_window_controller_ = nullptr;
+
+#if !BUILDFLAG(IS_ANDROID)
+  MaybeRecordPictureInPictureChanged(false);
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -437,7 +493,6 @@ void PictureInPictureWindowManager::DocumentWebContentsDestroyed() {
 
 std::unique_ptr<AutoPipSettingOverlayView>
 PictureInPictureWindowManager::GetOverlayView(
-    const gfx::Rect& browser_view_overridden_bounds,
     views::View* anchor_view,
     views::BubbleBorder::Arrow arrow) {
   // This should probably CHECK, but tests often can't set the controller.
@@ -476,7 +531,7 @@ PictureInPictureWindowManager::GetOverlayView(
   // close cb, if the pip window should be blocked.
   auto overlay_view = auto_pip_tab_helper->CreateOverlayPermissionViewIfNeeded(
       base::BindOnce(&PictureInPictureWindowManager::ExitPictureInPictureSoon),
-      browser_view_overridden_bounds, anchor_view, arrow);
+      anchor_view, arrow);
 
   if (!overlay_view) {
     // It's already allowed or blocked / embargoed.
@@ -506,6 +561,42 @@ void PictureInPictureWindowManager::CreateOcclusionTrackerIfNecessary() {
   if (base::FeatureList::IsEnabled(media::kPictureInPictureOcclusionTracking)) {
     occlusion_tracker_ = std::make_unique<PictureInPictureOcclusionTracker>();
   }
+}
+
+bool PictureInPictureWindowManager::ShouldFileDialogBlockPictureInPicture(
+    content::WebContents* owner_web_contents) {
+  if (!base::FeatureList::IsEnabled(media::kFileDialogsBlockPictureInPicture)) {
+    return false;
+  }
+
+  // File dialogs opened inside document picture-in-picture windows should not
+  // block picture-in-picture.
+  if (pip_window_controller_ &&
+      pip_window_controller_->GetChildWebContents() == owner_web_contents) {
+    return false;
+  }
+
+  return true;
+}
+
+void PictureInPictureWindowManager::OnScopedDisallowPictureInPictureCreated(
+    base::PassKey<ScopedDisallowPictureInPicture>) {
+  number_of_existing_scoped_disallow_picture_in_pictures_++;
+  if (pip_window_controller_) {
+    ExitPictureInPicture();
+    RecordPictureInPictureDisallowed(
+        PictureInPictureDisallowedType::kExistingWindowClosed);
+  }
+}
+
+void PictureInPictureWindowManager::OnScopedDisallowPictureInPictureDestroyed(
+    base::PassKey<ScopedDisallowPictureInPicture>) {
+  CHECK_NE(number_of_existing_scoped_disallow_picture_in_pictures_, 0u);
+  number_of_existing_scoped_disallow_picture_in_pictures_--;
+}
+
+bool PictureInPictureWindowManager::IsPictureInPictureDisabled() const {
+  return number_of_existing_scoped_disallow_picture_in_pictures_ > 0;
 }
 
 void PictureInPictureWindowManager::
@@ -551,6 +642,25 @@ void PictureInPictureWindowManager::
         recorded_percent);
   }
 }
+
+void PictureInPictureWindowManager::RecordPictureInPictureDisallowed(
+    PictureInPictureDisallowedType type) {
+  base::UmaHistogramEnumeration("Media.PictureInPicture.Disallowed", type);
+}
+
+void PictureInPictureWindowManager::MaybeRecordPictureInPictureChanged(
+    bool is_picture_in_picture) {
+  if (!uma_helper_) {
+    uma_helper_ = std::make_unique<PictureInPictureWindowManagerUmaHelper>();
+  }
+
+  uma_helper_->MaybeRecordPictureInPictureChanged(is_picture_in_picture);
+
+  if (!is_picture_in_picture) {
+    uma_helper_.reset();
+  }
+}
+
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 void PictureInPictureWindowManager::NotifyObserversOnEnterPictureInPicture() {

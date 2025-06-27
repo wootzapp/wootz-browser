@@ -89,6 +89,14 @@ export class MockSpeechRecognizer {
 
     this.dispatchResult();
   }
+
+  onDeviceWebSpeechAvailable(lang) {
+    return Promise.resolve("available");
+  }
+
+  installOnDeviceSpeechRecognition(lang) {
+    return Promise.resolve(false);
+  }
 }
 
 class MockSpeechRecognitionSession {
@@ -100,4 +108,5 @@ class MockSpeechRecognitionSession {
 
   abort() {}
   stopCapture() {}
+  updateRecognitionContext(params) {}
 }

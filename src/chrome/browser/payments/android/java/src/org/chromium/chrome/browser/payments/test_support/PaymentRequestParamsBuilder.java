@@ -163,18 +163,13 @@ public class PaymentRequestParamsBuilder implements ChromePaymentRequestService.
     }
 
     @Override
-    public JourneyLogger createJourneyLogger(boolean isIncognito, WebContents webContents) {
+    public JourneyLogger createJourneyLogger(WebContents webContents) {
         return mJourneyLogger;
     }
 
     @Override
     public String formatUrlForSecurityDisplay(GURL uri) {
         return uri.getSpec();
-    }
-
-    @Override
-    public byte[][] getCertificateChain(WebContents webContents) {
-        return new byte[0][];
     }
 
     @Override

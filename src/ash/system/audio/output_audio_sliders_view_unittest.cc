@@ -61,12 +61,12 @@ AudioNode GenerateAudioNode(const AudioNodeInfo& node_info) {
 }
 
 AudioNodeList GenerateAudioNodeList(
-    const std::vector<const AudioNodeInfo>& node_infos) {
+    const std::vector<AudioNodeInfo>& node_infos) {
   AudioNodeList node_list(node_infos.size());
-  base::ranges::transform(node_infos, node_list.begin(),
-                          [](const AudioNodeInfo& node_info) {
-                            return GenerateAudioNode(node_info);
-                          });
+  std::ranges::transform(node_infos, node_list.begin(),
+                         [](const AudioNodeInfo& node_info) {
+                           return GenerateAudioNode(node_info);
+                         });
   return node_list;
 }
 }  // namespace
@@ -105,7 +105,7 @@ class OutputAudioSlidersViewTest : public AshTestBase {
     auto device_map = view_->GetMapForTesting();
     // Iterates the `output_devices_by_name_views_` to find the corresponding
     // view.
-    auto it = base::ranges::find(
+    auto it = std::ranges::find(
         device_map, device_id, [](const AudioDeviceViewMap::value_type& value) {
           return value.second.id;
         });

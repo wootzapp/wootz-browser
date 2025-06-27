@@ -14,16 +14,17 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/web_contents.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/ContextualSearchTabHelper_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
 using contextual_search::UnhandledTapWebContentsObserver;
 
-ContextualSearchTabHelper::ContextualSearchTabHelper(JNIEnv* env,
-                                                     jobject obj,
-                                                     Profile* profile)
+ContextualSearchTabHelper::ContextualSearchTabHelper(
+    JNIEnv* env,
+    const jni_zero::JavaRef<jobject>& obj,
+    Profile* profile)
     : weak_java_ref_(env, obj),
       pref_change_registrar_(new PrefChangeRegistrar()) {
   pref_change_registrar_->Init(profile->GetPrefs());
@@ -53,7 +54,7 @@ void ContextualSearchTabHelper::OnShowUnhandledTapUIIfNeeded(int x_px,
                                                              int y_px) {
   JNIEnv* env = base::android::AttachCurrentThread();
   ScopedJavaLocalRef<jobject> jobj = weak_java_ref_.get(env);
-  Java_ContextualSearchTabHelper_onShowUnhandledTapUIIfNeeded(env, jobj, x_px,
+  Java_ContextualSearchTabHelper_onShowUnhandledTapUiIfNeeded(env, jobj, x_px,
                                                               y_px);
 }
 

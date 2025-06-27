@@ -93,10 +93,6 @@ BASE_FEATURE(kOptimizedRealtimeThreadingMac,
 #endif
 );
 
-BASE_FEATURE(kUserInteractiveCompositingMac,
-             "UserInteractiveCompositingMac",
-             FEATURE_ENABLED_BY_DEFAULT);
-
 namespace {
 
 bool IsOptimizedRealtimeThreadingMacEnabled() {
@@ -107,17 +103,24 @@ bool IsOptimizedRealtimeThreadingMacEnabled() {
 
 // Fine-tuning optimized real-time thread config:
 // Whether or not the thread should be preemptible.
-const FeatureParam<bool> kOptimizedRealtimeThreadingMacPreemptible{
-    &kOptimizedRealtimeThreadingMac, "preemptible", true};
+BASE_FEATURE_PARAM(bool,
+                   kOptimizedRealtimeThreadingMacPreemptible,
+                   &kOptimizedRealtimeThreadingMac,
+                   "preemptible",
+                   true);
 // Portion of the time quantum the thread is expected to be busy, (0, 1].
-const FeatureParam<double> kOptimizedRealtimeThreadingMacBusy{
-    &kOptimizedRealtimeThreadingMac, "busy", 0.5};
+BASE_FEATURE_PARAM(double,
+                   kOptimizedRealtimeThreadingMacBusy,
+                   &kOptimizedRealtimeThreadingMac,
+                   "busy",
+                   0.5);
 // Maximum portion of the time quantum the thread is expected to be busy,
 // (kOptimizedRealtimeThreadingMacBusy, 1].
-const FeatureParam<double> kOptimizedRealtimeThreadingMacBusyLimit{
-    &kOptimizedRealtimeThreadingMac, "busy_limit", 1.0};
-std::atomic<bool> g_user_interactive_compositing(
-    kUserInteractiveCompositingMac.default_state == FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(double,
+                   kOptimizedRealtimeThreadingMacBusyLimit,
+                   &kOptimizedRealtimeThreadingMac,
+                   "busy_limit",
+                   1.0);
 
 namespace {
 
@@ -149,8 +152,6 @@ void PlatformThreadApple::InitializeFeatures() {
   g_time_constraints.store(TimeConstraints::ReadFromFeatureParams());
   g_use_optimized_realtime_threading.store(
       IsOptimizedRealtimeThreadingMacEnabled());
-  g_user_interactive_compositing.store(
-      FeatureList::IsEnabled(kUserInteractiveCompositingMac));
 }
 
 // static
@@ -295,18 +296,6 @@ namespace internal {
 
 void SetCurrentThreadTypeImpl(ThreadType thread_type,
                               MessagePumpType pump_type_hint) {
-  // Changing the priority of the main thread causes performance
-  // regressions. https://crbug.com/601270
-  // TODO(crbug.com/40209052): Remove this check. kCompositing is the
-  // default on Mac, so this check is counter intuitive.
-  if ([[NSThread currentThread] isMainThread] &&
-      thread_type >= ThreadType::kCompositing &&
-      !g_user_interactive_compositing.load(std::memory_order_relaxed)) {
-    DCHECK(thread_type == ThreadType::kDefault ||
-           thread_type == ThreadType::kCompositing);
-    return;
-  }
-
   switch (thread_type) {
     case ThreadType::kBackground:
       pthread_set_qos_class_self_np(QOS_CLASS_BACKGROUND, 0);
@@ -319,13 +308,6 @@ void SetCurrentThreadTypeImpl(ThreadType thread_type,
       break;
     case ThreadType::kDefault:
       pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
-      break;
-    case ThreadType::kCompositing:
-      if (g_user_interactive_compositing.load(std::memory_order_relaxed)) {
-        pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
-      } else {
-        pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
-      }
       break;
     case ThreadType::kDisplayCritical: {
       pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
@@ -366,14 +348,10 @@ ThreadPriorityForTest PlatformThreadBase::GetCurrentThreadPriorityForTest() {
 
 size_t GetDefaultThreadStackSize(const pthread_attr_t& attributes) {
 #if BUILDFLAG(IS_IOS)
-#if BUILDFLAG(USE_BLINK)
   // For iOS 512kB (the default) isn't sufficient, but using the code
   // for macOS below will return 8MB. So just be a little more conservative
   // and return 1MB for now.
   return 1024 * 1024;
-#else
-  return 0;
-#endif
 #else
   // The macOS default for a pthread stack size is 512kB.
   // Libc-594.1.4/pthreads/pthread.c's pthread_attr_init uses

@@ -9,7 +9,6 @@ import android.widget.TextView;
 
 import androidx.core.widget.ImageViewCompat;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.ui.widget.ButtonCompat;
 import org.chromium.ui.widget.ChromeImageView;
 
@@ -28,10 +27,10 @@ public class MessageCardViewUtils {
     public static void setTitleTextAppearance(
             TextView title, boolean isIncognito, boolean isLargeMessageCard) {
         int titleTextAppearance =
-                (isLargeMessageCard)
+                isLargeMessageCard
                         ? TabUiThemeProvider.getLargeMessageCardTitleTextAppearance(isIncognito)
                         : TabUiThemeProvider.getMessageCardTitleTextAppearance(isIncognito);
-        ApiCompatibilityUtils.setTextAppearance(title, titleTextAppearance);
+        title.setTextAppearance(titleTextAppearance);
     }
 
     /**
@@ -44,11 +43,11 @@ public class MessageCardViewUtils {
     public static void setDescriptionTextAppearance(
             TextView description, boolean isIncognito, boolean isLargeMessageCard) {
         int descriptionTextAppearance =
-                (isLargeMessageCard)
+                isLargeMessageCard
                         ? TabUiThemeProvider.getLargeMessageCardDescriptionTextAppearance(
                                 isIncognito)
                         : TabUiThemeProvider.getMessageCardDescriptionTextAppearance(isIncognito);
-        ApiCompatibilityUtils.setTextAppearance(description, descriptionTextAppearance);
+        description.setTextAppearance(descriptionTextAppearance);
     }
 
     /**
@@ -61,12 +60,12 @@ public class MessageCardViewUtils {
     public static void setActionButtonTextAppearance(
             ButtonCompat actionButton, boolean isIncognito, boolean isLargeMessageCard) {
         int actionButtonTextAppearance =
-                (isLargeMessageCard)
+                isLargeMessageCard
                         ? TabUiThemeProvider.getLargeMessageCardActionButtonTextAppearance(
                                 isIncognito)
                         : TabUiThemeProvider.getMessageCardActionButtonTextAppearance(isIncognito);
 
-        ApiCompatibilityUtils.setTextAppearance(actionButton, actionButtonTextAppearance);
+        actionButton.setTextAppearance(actionButtonTextAppearance);
     }
 
     /**

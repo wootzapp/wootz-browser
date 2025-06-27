@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/core/node_controller.h"
 
+#include <algorithm>
 #include <limits>
 
 #include "base/containers/contains.h"
@@ -13,7 +19,6 @@
 #include "base/logging.h"
 #include "base/process/process_handle.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/current_thread.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
@@ -378,7 +383,7 @@ void NodeController::DeserializeRawBytesAsEventForFuzzer(
   void* payload;
   auto message = NodeChannel::CreateEventMessage(0, data.size(), &payload, 0);
   DCHECK(message);
-  base::ranges::copy(data, static_cast<unsigned char*>(payload));
+  std::ranges::copy(data, static_cast<unsigned char*>(payload));
   DeserializeEventMessage(ports::NodeName(), std::move(message));
 }
 
@@ -1447,7 +1452,7 @@ void NodeController::AttemptShutdownIfRequested() {
 void NodeController::ForceDisconnectProcessForTestingOnIOThread(
     base::ProcessId process_id) {
 #if BUILDFLAG(IS_NACL) || BUILDFLAG(IS_IOS)
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 #else
   DCHECK(io_task_runner_->RunsTasksInCurrentSequence());
   RequestContext request_context;

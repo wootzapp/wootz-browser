@@ -33,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * WebApk, the logic won't be executed.
  */
 public class TrackingProtectionSnackbarController implements CookieControlsObserver {
+
     private final Supplier<SnackbarManager> mSnackbarManagerSupplier;
     private final Runnable mSnakcbarOnAction;
     private final CookieControlsBridge mCookieControlsBridge;
@@ -51,6 +52,8 @@ public class TrackingProtectionSnackbarController implements CookieControlsObser
     private boolean mTrackingProtectionControlsVisible;
     private boolean mTrackingProtectionBlocked;
     private int mBlockingStatus3pcd;
+    private TrackingProtectionSnackbarLimiter mTrackingProtectionLimiter;
+    private WebContents mWebContents;
 
     /**
      * Creates the {@link TrackingProtectionSnackbarController} object.
@@ -67,11 +70,16 @@ public class TrackingProtectionSnackbarController implements CookieControlsObser
             Supplier<SnackbarManager> snackbarManagerSupplier,
             WebContents webContents,
             @Nullable BrowserContextHandle originalBrowserContext,
-            @ActivityType int activityType) {
+            @ActivityType int activityType,
+            boolean isIncognitoBranded) {
         mSnakcbarOnAction = snackbarOnAction;
         mSnackbarManagerSupplier = snackbarManagerSupplier;
-        mCookieControlsBridge = new CookieControlsBridge(this, webContents, originalBrowserContext);
+        mCookieControlsBridge =
+                new CookieControlsBridge(
+                        this, webContents, originalBrowserContext, isIncognitoBranded);
         mActivityType = activityType;
+        mWebContents = webContents;
+        mTrackingProtectionLimiter = new TrackingProtectionSnackbarLimiter();
     }
 
     @Override
@@ -83,6 +91,11 @@ public class TrackingProtectionSnackbarController implements CookieControlsObser
         if (mTrackingProtectionControlsVisible && !mTrackingProtectionBlocked && shouldHighlight) {
             showSnackbar();
         }
+    }
+
+    @Override
+    public void onHighlightPwaCookieControl() {
+        maybeTriggerSnackbar();
     }
 
     @Override
@@ -98,9 +111,39 @@ public class TrackingProtectionSnackbarController implements CookieControlsObser
     }
 
     /**
-     * Show {@link Snackbar} for TrackingProtection if the provided {@link ActivityType} is correct.
+     * Checks PWA {@link Snackbar} eligibility criteria and triggers it if needed.
+     *
+     * <p>It takes into account both rate limiting and test / feature triggers.
      */
-    public void showSnackbar() {
+    public void maybeTriggerSnackbar() {
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.TRACKING_PROTECTION_USER_BYPASS_PWA)) {
+            return;
+        }
+
+        boolean forceTriggerEnabled =
+                ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.TRACKING_PROTECTION_USER_BYPASS_PWA_TRIGGER);
+
+        String host = "";
+        if (mWebContents != null && mWebContents.getLastCommittedUrl() != null) {
+            host = mWebContents.getLastCommittedUrl().getHost();
+        }
+
+        if (!forceTriggerEnabled
+                && (!mTrackingProtectionLimiter.shouldAllowRequest(host)
+                        || !mTrackingProtectionControlsVisible
+                        || mTrackingProtectionBlocked)) {
+            return;
+        }
+
+        showSnackbar();
+    }
+
+    /**
+     * Shows {@link Snackbar} for TrackingProtection if the provided {@link ActivityType} is
+     * correct.
+     */
+    private void showSnackbar() {
         boolean locked = mLock.tryLock();
         try {
             if (!locked) {

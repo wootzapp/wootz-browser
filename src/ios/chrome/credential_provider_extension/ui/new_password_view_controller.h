@@ -33,7 +33,11 @@
 - (void)saveCredentialWithUsername:(NSString*)username
                           password:(NSString*)password
                               note:(NSString*)note
+                              gaia:(NSString*)gaia
                      shouldReplace:(BOOL)shouldReplace;
+
+// Returns the gaia for the account used for credential creation.
+- (NSString*)gaia;
 
 @end
 

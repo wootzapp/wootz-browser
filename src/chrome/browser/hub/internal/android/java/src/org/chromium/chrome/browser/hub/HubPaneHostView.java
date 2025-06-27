@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser.hub;
 
+import static org.chromium.chrome.browser.hub.HubAnimationConstants.PANE_COLOR_BLEND_ANIMATION_DURATION_MS;
+import static org.chromium.chrome.browser.hub.HubAnimationConstants.PANE_FADE_ANIMATION_DURATION_MS;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
@@ -15,55 +18,56 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.Nullable;
-import androidx.annotation.StyleRes;
-import androidx.core.widget.TextViewCompat;
 
-import org.chromium.ui.widget.ButtonCompat;
+import org.chromium.base.Callback;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.ui.animation.AnimationHandler;
 
 import java.util.Objects;
 
 /** Holds the current pane's {@link View}. */
+@NullMarked
 public class HubPaneHostView extends FrameLayout {
-    // Chosen to exactly match the default add/remove animation duration of RecyclerView.
-    private static final int FADE_ANIMATION_DURATION_MILLIS = 120;
-
     private FrameLayout mPaneFrame;
-    private ButtonCompat mActionButton;
+    private ImageView mHairline;
+    private ViewGroup mSnackbarContainer;
     private @Nullable View mCurrentViewRoot;
-    private @Nullable Animator mCurrentAnimator;
+    private final AnimationHandler mFadeAnimatorHandler;
 
     /** Default {@link FrameLayout} constructor called by inflation. */
     public HubPaneHostView(Context context, AttributeSet attributeSet) {
         super(context, attributeSet);
+        mFadeAnimatorHandler = new AnimationHandler();
     }
 
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
+
         mPaneFrame = findViewById(R.id.pane_frame);
-        mActionButton = findViewById(R.id.host_action_button);
+        mHairline = findViewById(R.id.pane_top_hairline);
+        mSnackbarContainer = findViewById(R.id.pane_host_view_snackbar_container);
     }
 
     void setRootView(@Nullable View newRootView) {
         final View oldRootView = mCurrentViewRoot;
         mCurrentViewRoot = newRootView;
-        if (mCurrentAnimator != null) {
-            mCurrentAnimator.end();
-            assert mCurrentAnimator == null;
-        }
+
+        mFadeAnimatorHandler.forceFinishAnimation();
 
         if (oldRootView != null && newRootView != null) {
             newRootView.setAlpha(0);
             tryAddViewToFrame(newRootView);
 
             Animator fadeOut = ObjectAnimator.ofFloat(oldRootView, View.ALPHA, 1, 0);
-            fadeOut.setDuration(FADE_ANIMATION_DURATION_MILLIS);
+            fadeOut.setDuration(PANE_FADE_ANIMATION_DURATION_MS);
 
             Animator fadeIn = ObjectAnimator.ofFloat(newRootView, View.ALPHA, 0, 1);
-            fadeIn.setDuration(FADE_ANIMATION_DURATION_MILLIS);
+            fadeIn.setDuration(PANE_FADE_ANIMATION_DURATION_MS);
 
             AnimatorSet animatorSet = new AnimatorSet();
             animatorSet.playSequentially(fadeOut, fadeIn);
@@ -73,11 +77,9 @@ public class HubPaneHostView extends FrameLayout {
                         public void onAnimationEnd(Animator animation) {
                             mPaneFrame.removeView(oldRootView);
                             oldRootView.setAlpha(1);
-                            mCurrentAnimator = null;
                         }
                     });
-            mCurrentAnimator = animatorSet;
-            animatorSet.start();
+            mFadeAnimatorHandler.startAnimation(animatorSet);
         } else if (newRootView == null) {
             mPaneFrame.removeAllViews();
         } else { // oldRootView == null
@@ -85,25 +87,30 @@ public class HubPaneHostView extends FrameLayout {
         }
     }
 
-    void setActionButtonData(@Nullable FullButtonData buttonData) {
-        ApplyButtonData.apply(buttonData, mActionButton);
+    void setColorMixer(HubColorMixer mixer) {
+        registerColorBlends(mixer);
     }
 
-    void setColorScheme(@HubColorScheme int colorScheme) {
+    private void registerColorBlends(HubColorMixer mixer) {
         Context context = getContext();
+        mixer.registerBlend(
+                new SingleHubViewColorBlend(
+                        PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
+                        colorScheme -> HubColors.getBackgroundColor(context, colorScheme),
+                        mPaneFrame::setBackgroundColor));
+        mixer.registerBlend(
+                new SingleHubViewColorBlend(
+                        PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
+                        colorScheme -> HubColors.getHairlineColor(context, colorScheme),
+                        this::setHairlineColor));
+    }
 
-        @ColorInt int backgroundColor = HubColors.getBackgroundColor(context, colorScheme);
-        mPaneFrame.setBackgroundColor(backgroundColor);
+    void setHairlineVisibility(boolean visible) {
+        mHairline.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
 
-        ColorStateList iconColor = HubColors.getIconColor(context, colorScheme);
-        TextViewCompat.setCompoundDrawableTintList(mActionButton, iconColor);
-
-        ColorStateList buttonColor =
-                HubColors.getSecondaryContainerColorStateList(context, colorScheme);
-        mActionButton.setButtonColor(buttonColor);
-
-        @StyleRes int textAppearance = HubColors.getTextAppearanceMedium(colorScheme);
-        mActionButton.setTextAppearance(textAppearance);
+    void setSnackbarContainerConsumer(Callback<ViewGroup> consumer) {
+        consumer.onResult(mSnackbarContainer);
     }
 
     private void tryAddViewToFrame(View rootView) {
@@ -114,5 +121,9 @@ public class HubPaneHostView extends FrameLayout {
             }
             mPaneFrame.addView(rootView);
         }
+    }
+
+    void setHairlineColor(@ColorInt int hairlineColor) {
+        mHairline.setImageTintList(ColorStateList.valueOf(hairlineColor));
     }
 }

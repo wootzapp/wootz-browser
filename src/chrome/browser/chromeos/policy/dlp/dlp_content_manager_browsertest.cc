@@ -29,8 +29,8 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
-#include "components/enterprise/data_controls/dlp_policy_event.pb.h"
+#include "components/enterprise/common/proto/synced/dlp_policy_event.pb.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "components/reporting/client/report_queue_impl.h"
 #include "components/reporting/storage/test_storage_module.h"
 #include "components/reporting/util/test_support_callbacks.h"
@@ -365,7 +365,10 @@ class DlpContentManagerReportingBrowserTest
         .WillByDefault(testing::Return(::reporting::Status::StatusOK()));
 
     auto config_result = ::reporting::ReportQueueConfiguration::Create(
-        ::reporting::EventType::kDevice, destination_, policy_check_callback_);
+                             {.event_type = ::reporting::EventType::kDevice,
+                              .destination = destination_})
+                             .SetPolicyCheckCallback(policy_check_callback_)
+                             .Build();
 
     ASSERT_TRUE(config_result.has_value());
 
@@ -399,7 +402,7 @@ class DlpContentManagerReportingBrowserTest
 
   ::reporting::test::TestStorageModule* test_storage_module() const {
     ::reporting::test::TestStorageModule* test_storage_module =
-        google::protobuf::down_cast<::reporting::test::TestStorageModule*>(
+        static_cast<::reporting::test::TestStorageModule*>(
             storage_module_.get());
     DCHECK(test_storage_module);
     return test_storage_module;
@@ -417,13 +420,11 @@ class DlpContentManagerReportingBrowserTest
   // Sets an action to execute when an event arrives to the report queue storage
   // module.
   void SetAddRecordCheck(DlpPolicyEvent expectedEvent, int times) {
-    // TODO(1290312): Change to [=, this] when chrome code base is updated to
-    // C++20.
     EXPECT_CALL(*test_storage_module(), AddRecord)
         .Times(times)
         .WillRepeatedly(testing::WithArgs<1, 2>(testing::Invoke(
-            [=](::reporting::Record record,
-                base::OnceCallback<void(::reporting::Status)> callback) {
+            [=, this](::reporting::Record record,
+                      base::OnceCallback<void(::reporting::Status)> callback) {
               content::GetUIThreadTaskRunner({})->PostTask(
                   FROM_HERE,
                   base::BindOnce(
@@ -641,7 +642,7 @@ IN_PROC_BROWSER_TEST_F(DlpContentManagerReportingBrowserTest,
       content::DesktopMediaID::TYPE_WEB_CONTENTS,
       content::DesktopMediaID::kNullId,
       content::WebContentsMediaCaptureId(
-          web_contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
+          web_contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
           web_contents->GetPrimaryMainFrame()->GetRoutingID()));
 
   DlpContentManager* manager = helper_->GetContentManager();

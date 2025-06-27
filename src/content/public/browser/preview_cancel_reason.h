@@ -5,8 +5,10 @@
 #ifndef CONTENT_PUBLIC_BROWSER_PREVIEW_CANCEL_REASON_H_
 #define CONTENT_PUBLIC_BROWSER_PREVIEW_CANCEL_REASON_H_
 
+#include <string>
+#include <variant>
+
 #include "content/common/content_export.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace content {
 
@@ -41,7 +43,7 @@ class CONTENT_EXPORT PreviewCancelReason {
     std::string interface_name;
   };
 
-  using ExtraData = absl::variant<absl::monostate, MojoInterfaceName>;
+  using ExtraData = std::variant<std::monostate, MojoInterfaceName>;
 
   PreviewCancelReason(PreviewFinalStatus final_status, ExtraData extra_data);
 

@@ -10,7 +10,6 @@
 #import "ios/chrome/browser/push_notification/model/push_notification_util.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
-#import "ios/chrome/test/testing_application_context.h"
 #import "testing/platform_test.h"
 
 namespace {
@@ -23,11 +22,14 @@ const char kNotificationAutorizationStatusChangedToAuthorized[] =
 
 const char kNotificationAutorizationStatusChangedToDenied[] =
     "IOS.PushNotification.NotificationAutorizationStatusChangedToDenied";
+
+NSDictionary<NSString*, id>* testPayload =
+    @{@"$" : @{@"n" : @"a:content_push_notify:RANDOM_ID"}};
 }  // namespace
 
 class PushNotificationUtilTest : public PlatformTest {
  protected:
-  IOSChromeScopedTestingLocalState scoped_local_state_;
+  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   base::HistogramTester histogram_tester_;
   sync_preferences::TestingPrefServiceSyncable pref_service_;
 };
@@ -99,4 +101,18 @@ TEST_F(PushNotificationUtilTest, loggingAuthorizationStatusChange) {
       updateAuthorizationStatusPref:UNAuthorizationStatusAuthorized];
   histogram_tester_.ExpectTotalCount(
       kNotificationAutorizationStatusChangedToAuthorized, 1);
+}
+
+// Test the client id Mapping for stable chime client.
+TEST_F(PushNotificationUtilTest, mappingClientIds) {
+  ASSERT_EQ([PushNotificationUtil
+                mapToPushNotificationClientIdFromUserInfo:testPayload],
+            PushNotificationClientId::kContent);
+}
+
+// Test the client id mapping for unstable chime client.
+TEST_F(PushNotificationUtilTest, mappingUnsableClientIds) {
+  ASSERT_EQ([PushNotificationUtil
+                mapToPushNotificationClientIdFromUserInfo:testPayload],
+            PushNotificationClientId::kContent);
 }

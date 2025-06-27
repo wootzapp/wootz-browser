@@ -11,12 +11,13 @@
 
 #import "base/location.h"
 #import "base/memory/scoped_refptr.h"
+#import "base/rand_util.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/test/ios/wait_util.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
 #import "components/affiliations/core/browser/fake_affiliation_service.h"
-#import "components/favicon/core/large_icon_service.h"
 #import "components/password_manager/core/browser/password_form.h"
 #import "components/password_manager/core/browser/password_store/password_store_change.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
@@ -28,14 +29,20 @@
 #import "components/signin/public/identity_manager/identity_test_environment.h"
 #import "components/sync/base/user_selectable_type.h"
 #import "components/sync/test/test_sync_service.h"
+#import "components/webauthn/core/browser/test_passkey_model.h"
+#import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/browser/credential_provider/model/credential_provider_util.h"
 #import "ios/chrome/browser/credential_provider/model/features.h"
-#import "ios/chrome/browser/favicon/model/favicon_loader.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/favicon/model/mock_favicon_loader.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
+#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/common/app_group/app_group_constants.h"
 #import "ios/chrome/common/credential_provider/constants.h"
 #import "ios/chrome/common/credential_provider/credential.h"
 #import "ios/chrome/common/credential_provider/memory_credential_store.h"
+#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "testing/gmock/include/gmock/gmock.h"
 #import "testing/gtest_mac.h"
 #import "testing/platform_test.h"
@@ -56,58 +63,20 @@ std::vector<std::string> GetServiceNames(NSArray<id<Credential>>* credentials) {
   return service_names;
 }
 
-// Needed since FaviconLoader has no fake currently.
-class MockLargeIconService : public favicon::LargeIconService {
- public:
-  MOCK_METHOD(base::CancelableTaskTracker::TaskId,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl,
-              (const GURL&,
-               int,
-               int,
-               favicon_base::LargeIconCallback,
-               base::CancelableTaskTracker*),
-              (override));
-  MOCK_METHOD(base::CancelableTaskTracker::TaskId,
-              GetLargeIconImageOrFallbackStyleForPageUrl,
-              (const GURL&,
-               int,
-               int,
-               favicon_base::LargeIconImageCallback,
-               base::CancelableTaskTracker*),
-              (override));
-  MOCK_METHOD(base::CancelableTaskTracker::TaskId,
-              GetLargeIconRawBitmapForPageUrl,
-              (const GURL&,
-               int,
-               std::optional<int>,
-               LargeIconService::NoBigEnoughIconBehavior,
-               favicon_base::LargeIconCallback,
-               base::CancelableTaskTracker*),
-              (override));
-  MOCK_METHOD(base::CancelableTaskTracker::TaskId,
-              GetLargeIconRawBitmapOrFallbackStyleForIconUrl,
-              (const GURL&,
-               int,
-               int,
-               favicon_base::LargeIconCallback,
-               base::CancelableTaskTracker*),
-              (override));
-  MOCK_METHOD(base::CancelableTaskTracker::TaskId,
-              GetIconRawBitmapOrFallbackStyleForPageUrl,
-              (const GURL&,
-               int,
-               favicon_base::LargeIconCallback,
-               base::CancelableTaskTracker*),
-              (override));
-  MOCK_METHOD(void,
-              GetLargeIconOrFallbackStyleFromGoogleServerSkippingLocalCache,
-              (const GURL&,
-               bool,
-               const net::NetworkTrafficAnnotationTag&,
-               favicon_base::GoogleFaviconServerCallback),
-              (override));
-  MOCK_METHOD(void, TouchIconFromGoogleServer, (const GURL&), (override));
-};
+sync_pb::WebauthnCredentialSpecifics CreatePasskey(
+    const std::string& rp_id,
+    const std::string& user_id,
+    const std::string& user_name,
+    const std::string& user_display_name) {
+  sync_pb::WebauthnCredentialSpecifics passkey;
+  passkey.set_sync_id(base::RandBytesAsString(16));
+  passkey.set_credential_id(base::RandBytesAsString(16));
+  passkey.set_rp_id(rp_id);
+  passkey.set_user_id(user_id);
+  passkey.set_user_name(user_name);
+  passkey.set_user_display_name(user_display_name);
+  return passkey;
+}
 
 class CredentialProviderServiceTest : public PlatformTest {
  public:
@@ -128,6 +97,10 @@ class CredentialProviderServiceTest : public PlatformTest {
                                   /*affiliated_match_helper=*/nullptr);
     testing_pref_service_.registry()->RegisterBooleanPref(
         password_manager::prefs::kCredentialsEnableService, true);
+    testing_pref_service_.registry()->RegisterBooleanPref(
+        password_manager::prefs::kCredentialsEnablePasskeys, true);
+    testing_pref_service_.registry()->RegisterBooleanPref(
+        password_manager::prefs::kAutomaticPasskeyUpgrades, true);
   }
 
   void TearDown() override {
@@ -139,30 +112,54 @@ class CredentialProviderServiceTest : public PlatformTest {
     PlatformTest::TearDown();
   }
 
+  PrefService* local_state() {
+    return GetApplicationContext()->GetLocalState();
+  }
+
   void CreateCredentialProviderService(bool with_account_store = false) {
+    // Make sure to shut down the previous instance before creating a new one.
+    if (credential_provider_service_) {
+      credential_provider_service_->Shutdown();
+    }
+
+    const std::string profile_name = "profile_name";
+    local_state()->SetString(prefs::kLastUsedProfile, profile_name);
     credential_provider_service_ = std::make_unique<CredentialProviderService>(
-        &testing_pref_service_, password_store_,
+        profile_name, &testing_pref_service_, local_state(), password_store_,
         with_account_store ? account_password_store_ : nullptr,
-        credential_store_, identity_test_environment_.identity_manager(),
-        &sync_service_, &affiliation_service_, &favicon_loader_);
+        test_passkey_model_.get(), credential_store_,
+        identity_test_environment_.identity_manager(), &sync_service_,
+        &affiliation_service_, &favicon_loader_);
+  }
+
+  bool WaitForCredentialCount(NSUInteger count) {
+    // For add and remove operations to propagate to the credential store, both
+    // the message loop and the NSRunLoop need to spin.
+    return base::test::ios::WaitUntilConditionOrTimeout(
+        base::test::ios::kWaitForActionTimeout,
+        /* run_message_loop = */ true, ^{
+          return credential_store_.credentials.count == count;
+        });
   }
 
  protected:
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
+  IOSChromeScopedTestingLocalState scoped_local_state_;
   TestingPrefServiceSimple testing_pref_service_;
   scoped_refptr<password_manager::TestPasswordStore> password_store_ =
       base::MakeRefCounted<password_manager::TestPasswordStore>();
   scoped_refptr<password_manager::TestPasswordStore> account_password_store_ =
       base::MakeRefCounted<password_manager::TestPasswordStore>(
           password_manager::IsAccountStore(true));
+  std::unique_ptr<webauthn::TestPasskeyModel> test_passkey_model_ =
+      std::make_unique<webauthn::TestPasskeyModel>();
   MemoryCredentialStore* credential_store_ =
       [[MemoryCredentialStore alloc] init];
   signin::IdentityTestEnvironment identity_test_environment_;
   syncer::TestSyncService sync_service_;
   affiliations::FakeAffiliationService affiliation_service_;
-  MockLargeIconService large_icon_service_;
-  FaviconLoader favicon_loader_ = FaviconLoader(&large_icon_service_);
+  MockFaviconLoader favicon_loader_;
   std::unique_ptr<CredentialProviderService> credential_provider_service_;
 };
 
@@ -181,9 +178,9 @@ TEST_F(CredentialProviderServiceTest, FirstSync) {
   task_environment_.FastForwardBy(base::Seconds(30));
   base::RunLoop().RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 1u);
+  ASSERT_TRUE(WaitForCredentialCount(1u));
   EXPECT_NSEQ(credential_store_.credentials[0].serviceName, @"g.com");
-  EXPECT_NSEQ(credential_store_.credentials[0].user, @"user");
+  EXPECT_NSEQ(credential_store_.credentials[0].username, @"user");
   EXPECT_NSEQ(credential_store_.credentials[0].password, @"qwerty123");
 }
 
@@ -199,7 +196,7 @@ TEST_F(CredentialProviderServiceTest, TwoStores) {
   CreateCredentialProviderService(/*with_account_store=*/true);
   base::RunLoop().RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 2u);
+  ASSERT_TRUE(WaitForCredentialCount(2u));
   EXPECT_THAT(GetServiceNames(credential_store_.credentials),
               UnorderedElementsAre("local.com", "account.com"));
 
@@ -209,7 +206,7 @@ TEST_F(CredentialProviderServiceTest, TwoStores) {
   account_password_store_->AddLogin(local_and_account_form);
   base::RunLoop().RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 3u);
+  ASSERT_TRUE(WaitForCredentialCount(3u));
   EXPECT_THAT(GetServiceNames(credential_store_.credentials),
               UnorderedElementsAre("local.com", "account.com",
                                    "local-and-account.com"));
@@ -223,9 +220,8 @@ TEST_F(CredentialProviderServiceTest, TwoStores) {
                                    "local-and-account.com"));
 
   account_password_store_->RemoveLogin(FROM_HERE, local_and_account_form);
-  base::RunLoop().RunUntilIdle();
+  ASSERT_TRUE(WaitForCredentialCount(2u));
 
-  ASSERT_EQ(credential_store_.credentials.count, 2u);
   EXPECT_THAT(GetServiceNames(credential_store_.credentials),
               UnorderedElementsAre("local.com", "account.com"));
 }
@@ -245,22 +241,25 @@ TEST_F(CredentialProviderServiceTest, PasswordChanges) {
   password_store_->AddLogin(form);
   task_environment_.RunUntilIdle();
 
-  // Expect the store to be populated with 1 credential.
-  ASSERT_EQ(1u, credential_store_.credentials.count);
+  ASSERT_TRUE(WaitForCredentialCount(1u));
 
   form.password_value = u"Qwerty123!";
   password_store_->UpdateLogin(form);
-  task_environment_.RunUntilIdle();
 
   // Expect that the credential in the store now has the same password.
-  ASSERT_EQ(1u, credential_store_.credentials.count);
-  EXPECT_NSEQ(credential_store_.credentials[0].password, @"Qwerty123!");
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForActionTimeout,
+      /* run_message_loop = */ true, ^{
+        return credential_store_.credentials.count == 1 &&
+               [credential_store_.credentials[0].password
+                   isEqualToString:@"Qwerty123!"];
+      }));
 
   password_store_->RemoveLogin(FROM_HERE, form);
   task_environment_.RunUntilIdle();
 
   // Expect the store to be empty.
-  EXPECT_EQ(0u, credential_store_.credentials.count);
+  EXPECT_TRUE(WaitForCredentialCount(0u));
 }
 
 // Test that CredentialProviderService observes changes in the primary identity.
@@ -268,9 +267,11 @@ TEST_F(CredentialProviderServiceTest, AccountChange) {
   CreateCredentialProviderService();
 
   EXPECT_FALSE([app_group::GetGroupUserDefaults()
+      stringForKey:AppGroupUserDefaultsCredentialProviderManagedUserID()]);
+  EXPECT_FALSE([app_group::GetGroupUserDefaults()
       stringForKey:AppGroupUserDefaultsCredentialProviderUserID()]);
 
-  // Enable sync for managed account.
+  // Set managed account as the primary one.
   CoreAccountInfo core_account =
       identity_test_environment_.MakeAccountAvailable("foo@gmail.com");
   AccountInfo account;
@@ -281,16 +282,25 @@ TEST_F(CredentialProviderServiceTest, AccountChange) {
   ASSERT_TRUE(account.IsManaged());
   identity_test_environment_.UpdateAccountInfoForAccount(account);
   identity_test_environment_.SetPrimaryAccount("foo@gmail.com",
-                                               signin::ConsentLevel::kSync);
+                                               signin::ConsentLevel::kSignin);
   base::RunLoop().RunUntilIdle();
 
+  EXPECT_NSEQ(
+      [app_group::GetGroupUserDefaults()
+          stringForKey:AppGroupUserDefaultsCredentialProviderManagedUserID()],
+      core_account.gaia.ToNSString());
   EXPECT_NSEQ([app_group::GetGroupUserDefaults()
                   stringForKey:AppGroupUserDefaultsCredentialProviderUserID()],
-              base::SysUTF8ToNSString(core_account.gaia));
+              core_account.gaia.ToNSString());
 
   identity_test_environment_.ClearPrimaryAccount();
   base::RunLoop().RunUntilIdle();
 
+  sync_service_.SetSignedOut();
+  sync_service_.FireStateChanged();
+
+  EXPECT_FALSE([app_group::GetGroupUserDefaults()
+      stringForKey:AppGroupUserDefaultsCredentialProviderManagedUserID()]);
   EXPECT_FALSE([app_group::GetGroupUserDefaults()
       stringForKey:AppGroupUserDefaultsCredentialProviderUserID()]);
 }
@@ -310,7 +320,7 @@ TEST_F(CredentialProviderServiceTest, AndroidCredential) {
   task_environment_.RunUntilIdle();
 
   // Expect the store to be populated with 1 credential.
-  EXPECT_EQ(1u, credential_store_.credentials.count);
+  EXPECT_TRUE(WaitForCredentialCount(1u));
 }
 
 // Test that the CredentialProviderService observes changes in the preference
@@ -322,7 +332,7 @@ TEST_F(CredentialProviderServiceTest, PasswordCreationPreference) {
   // NSUserDefaults value is also true.
   EXPECT_TRUE([[app_group::GetGroupUserDefaults()
       objectForKey:
-          AppGroupUserDefaulsCredentialProviderSavingPasswordsEnabled()]
+          AppGroupUserDefaultsCredentialProviderSavingPasswordsEnabled()]
       boolValue]);
 
   // Change the pref value to false.
@@ -332,7 +342,7 @@ TEST_F(CredentialProviderServiceTest, PasswordCreationPreference) {
   // Make sure the NSUserDefaults value is now false.
   EXPECT_FALSE([[app_group::GetGroupUserDefaults()
       objectForKey:
-          AppGroupUserDefaulsCredentialProviderSavingPasswordsEnabled()]
+          AppGroupUserDefaultsCredentialProviderSavingPasswordsEnabled()]
       boolValue]);
 }
 
@@ -342,10 +352,9 @@ TEST_F(CredentialProviderServiceTest, PasswordSyncStoredEmail) {
   // Start by signing in and turning sync on.
   CoreAccountInfo account;
   account.email = "foo@gmail.com";
-  account.gaia = "gaia";
-  account.account_id = CoreAccountId::FromGaiaId("gaia");
-  sync_service_.SetAccountInfo(account);
-  sync_service_.SetHasSyncConsent(true);
+  account.gaia = GaiaId("gaia");
+  account.account_id = CoreAccountId::FromGaiaId(GaiaId("gaia"));
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account);
 
   CreateCredentialProviderService();
 
@@ -373,10 +382,9 @@ TEST_F(CredentialProviderServiceTest, SignedInUserStoredEmail) {
   // Set up a signed in user with the flag enabled.
   CoreAccountInfo account;
   account.email = "foo@gmail.com";
-  account.gaia = "gaia";
-  account.account_id = CoreAccountId::FromGaiaId("gaia");
-  sync_service_.SetAccountInfo(account);
-  sync_service_.SetHasSyncConsent(false);
+  account.gaia = GaiaId("gaia");
+  account.account_id = CoreAccountId::FromGaiaId(GaiaId("gaia"));
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account);
 
   CreateCredentialProviderService();
 
@@ -398,15 +406,39 @@ TEST_F(CredentialProviderServiceTest, SignedInUserStoredEmail) {
       stringForKey:AppGroupUserDefaultsCredentialProviderUserEmail()]);
 }
 
+// Tests that the CredentialProviderService correctly stores the enabled state
+// of the Passkeys M2 feature.
+TEST_F(CredentialProviderServiceTest, PasskeysM2Availability) {
+  {
+    // Enable the `kIOSPasskeysM2` feature.
+    base::test::ScopedFeatureList feature_list(kIOSPasskeysM2);
+
+    CreateCredentialProviderService();
+
+    EXPECT_TRUE([[app_group::GetGroupUserDefaults()
+        objectForKey:AppGroupUserDefaultsCredentialProviderPasskeysM2Enabled()]
+        boolValue]);
+  }
+  {
+    // Disable the `kIOSPasskeysM2` feature.
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndDisableFeature(kIOSPasskeysM2);
+
+    CreateCredentialProviderService();
+
+    EXPECT_FALSE([[app_group::GetGroupUserDefaults()
+        objectForKey:AppGroupUserDefaultsCredentialProviderPasskeysM2Enabled()]
+        boolValue]);
+  }
+}
+
 TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   CreateCredentialProviderService();
 
   ASSERT_EQ(credential_store_.credentials.count, 0u);
 
   // Add password with valid URL to store.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(1);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(1);
   password_manager::PasswordForm valid_password_form;
   valid_password_form.url = GURL("http://g.com");
   valid_password_form.username_value = u"user1";
@@ -414,13 +446,11 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   password_store_->AddLogin(valid_password_form);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 1u);
+  ASSERT_TRUE(WaitForCredentialCount(1u));
 
   // Don't add password with invalid URL to store.
   // No favicon should be fetched for invalid URLs.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(0);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
   password_manager::PasswordForm invalid_password_form;
   invalid_password_form.url = GURL("");
   invalid_password_form.username_value = u"user2";
@@ -432,9 +462,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
 
   // Add password with valid Android facet URI to store.
   // No favicon should be fetched for Android URI.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(0);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
   password_manager::PasswordForm android_password_form;
   android_password_form.url = GURL(android_password_form.signon_realm);
   android_password_form.signon_realm = "android://hash@com.example.my.app";
@@ -443,7 +471,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsWithValidURL) {
   password_store_->AddLogin(android_password_form);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 2u);
+  ASSERT_TRUE(WaitForCredentialCount(2u));
 }
 
 TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
@@ -455,9 +483,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   ASSERT_EQ(credential_store_.credentials.count, 0u);
 
   // Add password with valid URL to store.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(1);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(1);
   password_manager::PasswordForm valid_password_form;
   valid_password_form.url = GURL("http://g.com");
   valid_password_form.username_value = u"user1";
@@ -465,13 +491,11 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   password_store_->AddLogin(valid_password_form);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 1u);
+  ASSERT_TRUE(WaitForCredentialCount(1u));
 
   // Don't add password with invalid URL to store.
   // No favicon should be fetched for invalid URLs.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(0);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
   password_manager::PasswordForm invalid_password_form;
   invalid_password_form.url = GURL("");
   invalid_password_form.username_value = u"user2";
@@ -483,9 +507,7 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
 
   // Add password with valid Android facet URI to store.
   // No favicon should be fetched for Android URI.
-  EXPECT_CALL(large_icon_service_,
-              GetLargeIconRawBitmapOrFallbackStyleForPageUrl(_, _, _, _, _))
-      .Times(0);
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
   password_manager::PasswordForm android_password_form;
   android_password_form.url = GURL(android_password_form.signon_realm);
   android_password_form.signon_realm = "android://hash@com.example.my.app";
@@ -494,10 +516,19 @@ TEST_F(CredentialProviderServiceTest, AddCredentialsRefactored) {
   password_store_->AddLogin(android_password_form);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 2u);
+  ASSERT_TRUE(WaitForCredentialCount(2u));
 }
+
+// TODO(crbug.com/407946269): Fails on device.
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_OnLoginsChanged_WithPerformanceImprovements_SingleOperation \
+  OnLoginsChanged_WithPerformanceImprovements_SingleOperation
+#else
+#define MAYBE_OnLoginsChanged_WithPerformanceImprovements_SingleOperation \
+  DISABLED_OnLoginsChanged_WithPerformanceImprovements_SingleOperation
+#endif
 TEST_F(CredentialProviderServiceTest,
-       OnLoginsChanged_WithPerformanceImprovements_SingleOperation) {
+       MAYBE_OnLoginsChanged_WithPerformanceImprovements_SingleOperation) {
   base::test::ScopedFeatureList scoped_feature_list_;
   scoped_feature_list_.InitWithFeatureState(
       kCredentialProviderPerformanceImprovements, true);
@@ -521,8 +552,8 @@ TEST_F(CredentialProviderServiceTest,
                                                 change_list);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 1u);
-  EXPECT_NSEQ(credential_store_.credentials[0].user, @"username");
+  ASSERT_TRUE(WaitForCredentialCount(1u));
+  EXPECT_NSEQ(credential_store_.credentials[0].username, @"username");
   EXPECT_NSEQ(credential_store_.credentials[0].password, @"12345");
   histogram_tester.ExpectTotalCount(kSyncStoreHistogramName, 1);
 
@@ -551,7 +582,7 @@ TEST_F(CredentialProviderServiceTest,
                                                 change_list);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 0u);
+  ASSERT_TRUE(WaitForCredentialCount(0u));
   histogram_tester.ExpectTotalCount(kSyncStoreHistogramName, 3);
 }
 
@@ -585,7 +616,7 @@ TEST_F(CredentialProviderServiceTest,
                                                 change_list);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 2u);
+  ASSERT_TRUE(WaitForCredentialCount(2u));
 
   // Prepare simultaneous ADD, UPDATE and REMOVE operations.
   password_manager::PasswordForm test_form3;
@@ -612,9 +643,9 @@ TEST_F(CredentialProviderServiceTest,
   task_environment_.RunUntilIdle();
 
   ASSERT_EQ(credential_store_.credentials.count, 2u);
-  EXPECT_NSEQ(credential_store_.credentials[0].user, @"homer");
+  EXPECT_NSEQ(credential_store_.credentials[0].username, @"homer");
   EXPECT_NSEQ(credential_store_.credentials[0].password, @"JSimpson");
-  EXPECT_NSEQ(credential_store_.credentials[1].user, @"marge");
+  EXPECT_NSEQ(credential_store_.credentials[1].username, @"marge");
   EXPECT_NSEQ(credential_store_.credentials[1].password, @"bouvier");
 
   // There should have been only one write to disk.
@@ -647,7 +678,7 @@ TEST_F(
                                                 change_list);
   task_environment_.RunUntilIdle();
 
-  ASSERT_EQ(credential_store_.credentials.count, 1u);
+  ASSERT_TRUE(WaitForCredentialCount(1u));
 
   // Update the PasswordForm without changing its username, url or password.
   // This mimicks a password usage.
@@ -666,10 +697,187 @@ TEST_F(
   task_environment_.RunUntilIdle();
 
   ASSERT_EQ(credential_store_.credentials.count, 1u);
-  EXPECT_NSEQ(credential_store_.credentials[0].user, @"username");
+  EXPECT_NSEQ(credential_store_.credentials[0].username, @"username");
   EXPECT_NSEQ(credential_store_.credentials[0].password, @"12345");
 
   // There should have been only one write to disk.
   histogram_tester.ExpectTotalCount(kSyncStoreHistogramName, 0);
 }
+
+TEST_F(CredentialProviderServiceTest, AddPasskeys) {
+  CreateCredentialProviderService(/*with_account_store=*/true);
+
+  ASSERT_EQ(credential_store_.credentials.count, 0u);
+
+  // Add passkey with valid URL to store.
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(1);
+  sync_pb::WebauthnCredentialSpecifics valid_passkey = CreatePasskey(
+      "g.com", {1, 2, 3, 4}, "passkey_username", "passkey_display_name");
+  test_passkey_model_->AddNewPasskeyForTesting(valid_passkey);
+  task_environment_.RunUntilIdle();
+
+  ASSERT_TRUE(WaitForCredentialCount(1u));
+
+  // Add passkey with invalid URL to store.
+  // No favicon should be fetched for invalid URLs.
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
+  sync_pb::WebauthnCredentialSpecifics invalid_passkey = CreatePasskey(
+      "", {1, 2, 3, 4}, "passkey_username", "passkey_display_name");
+  test_passkey_model_->AddNewPasskeyForTesting(invalid_passkey);
+  task_environment_.RunUntilIdle();
+
+  ASSERT_TRUE(WaitForCredentialCount(2u));
+
+  // Don't add hidden passkeys to the store.
+  // No favicon should be fetched for hidden passkeys.
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(0);
+  sync_pb::WebauthnCredentialSpecifics hidden_passkey = CreatePasskey(
+      "g.com", {1, 2, 3, 4}, "passkey_username", "passkey_display_name");
+  hidden_passkey.set_hidden(true);
+  test_passkey_model_->AddNewPasskeyForTesting(hidden_passkey);
+  task_environment_.RunUntilIdle();
+
+  ASSERT_EQ(credential_store_.credentials.count, 2u);
+
+  // Add 2nd passkey with valid URL to store.
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(1);
+  sync_pb::WebauthnCredentialSpecifics valid_passkey2 = CreatePasskey(
+      "g.com", {1, 2, 3, 4}, "passkey_username2", "passkey_display_name2");
+  test_passkey_model_->AddNewPasskeyForTesting(valid_passkey2);
+  task_environment_.RunUntilIdle();
+
+  EXPECT_TRUE(WaitForCredentialCount(3u));
+}
+
+TEST_F(CredentialProviderServiceTest, DeletePasskey) {
+  CreateCredentialProviderService(/*with_account_store=*/true);
+
+  ASSERT_EQ(credential_store_.credentials.count, 0u);
+
+  // Add passkey with valid URL to store.
+  EXPECT_CALL(favicon_loader_, FaviconForPageUrl(_, _, _, _, _)).Times(1);
+  sync_pb::WebauthnCredentialSpecifics passkey = CreatePasskey(
+      "g.com", {1, 2, 3, 4}, "passkey_username", "passkey_display_name");
+  test_passkey_model_->AddNewPasskeyForTesting(passkey);
+  task_environment_.RunUntilIdle();
+
+  ASSERT_TRUE(WaitForCredentialCount(1u));
+
+  test_passkey_model_->DeletePasskey(passkey.credential_id(), FROM_HERE);
+  task_environment_.RunUntilIdle();
+
+  EXPECT_TRUE(WaitForCredentialCount(0u));
+}
+
+// TODO(crbug.com/407946269): Fails on device.
+#if TARGET_IPHONE_SIMULATOR
+#define MAYBE_UpdatePasskey UpdatePasskey
+#else
+#define MAYBE_UpdatePasskey DISABLED_UpdatePasskey
+#endif
+TEST_F(CredentialProviderServiceTest, MAYBE_UpdatePasskey) {
+  CreateCredentialProviderService(/*with_account_store=*/true);
+
+  ASSERT_EQ(credential_store_.credentials.count, 0u);
+
+  // Add passkey with valid URL to store.
+  sync_pb::WebauthnCredentialSpecifics passkey = CreatePasskey(
+      "g.com", {1, 2, 3, 4}, "passkey_username", "passkey_display_name");
+  const base::Time timestamp =
+      base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(10));
+  passkey.set_last_used_time_windows_epoch_micros(
+      timestamp.ToDeltaSinceWindowsEpoch().InMicroseconds() - 1);
+  test_passkey_model_->AddNewPasskeyForTesting(passkey);
+  task_environment_.RunUntilIdle();
+
+  ASSERT_TRUE(WaitForCredentialCount(1u));
+
+  test_passkey_model_->UpdatePasskey(
+      passkey.credential_id(),
+      {
+          .user_name = "new_passkey_username",
+          .user_display_name = "new_passkey_display_name",
+      },
+      /*updated_by_user=*/true);
+
+  test_passkey_model_->UpdatePasskeyTimestamp(passkey.credential_id(),
+                                              timestamp);
+
+  task_environment_.RunUntilIdle();
+
+  ASSERT_EQ(credential_store_.credentials.count, 1u);
+  EXPECT_NSEQ(credential_store_.credentials[0].username,
+              @"new_passkey_username");
+  EXPECT_NSEQ(credential_store_.credentials[0].userDisplayName,
+              @"new_passkey_display_name");
+  ASSERT_EQ(credential_store_.credentials[0].lastUsedTime,
+            timestamp.ToDeltaSinceWindowsEpoch().InMicroseconds());
+}
+
+TEST_F(CredentialProviderServiceTest,
+       AutomaticPasskeyUpgradeDisabledsWithSavingPasswordsDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
+      kCredentialProviderAutomaticPasskeyUpgrade);
+  CreateCredentialProviderService();
+
+  // The test is initialized with the passkey preferences as true.
+  EXPECT_TRUE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+
+  // Change the pref value to false and verify the NSUserDefaults value.
+  testing_pref_service_.SetBoolean(
+      password_manager::prefs::kCredentialsEnableService, false);
+  EXPECT_FALSE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+}
+
+TEST_F(CredentialProviderServiceTest,
+       AutomaticPasskeyUpgradesDisabledWithSavingPasskeysDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
+      kCredentialProviderAutomaticPasskeyUpgrade);
+  CreateCredentialProviderService();
+
+  // The test is initialized with the passkey preferences as true.
+  EXPECT_TRUE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+
+  // Change the pref value to false and verify the NSUserDefaults value.
+  testing_pref_service_.SetBoolean(
+      password_manager::prefs::kCredentialsEnablePasskeys, false);
+  EXPECT_FALSE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+}
+
+TEST_F(CredentialProviderServiceTest,
+       AutomaticPasskeyUpgradesPreferenceDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
+      kCredentialProviderAutomaticPasskeyUpgrade);
+  CreateCredentialProviderService();
+
+  // The test is initialized with the passkey preferences as true.
+  EXPECT_TRUE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+
+  // Change the pref value to false and verify the NSUserDefaults value.
+  testing_pref_service_.SetBoolean(
+      password_manager::prefs::kAutomaticPasskeyUpgrades, false);
+  EXPECT_FALSE([[app_group::GetGroupUserDefaults()
+      objectForKey:
+          AppGroupUserDefaulsCredentialProviderAutomaticPasskeyUpgradeEnabled()]
+      boolValue]);
+}
+
 }  // namespace

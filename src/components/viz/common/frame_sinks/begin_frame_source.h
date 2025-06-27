@@ -14,6 +14,7 @@
 #include "base/check.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
+#include "base/rand_util.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/viz/common/display/update_vsync_parameters_callback.h"
@@ -152,13 +153,6 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
                                           base::TimeTicks deadline,
                                           base::TimeDelta vsync_interval);
 
-    void set_dynamic_begin_frame_deadline_offset_source(
-        DynamicBeginFrameDeadlineOffsetSource*
-            dynamic_begin_frame_deadline_offset_source) {
-      dynamic_begin_frame_deadline_offset_source_ =
-          dynamic_begin_frame_deadline_offset_source;
-    }
-
    private:
     static uint64_t EstimateTickCountsBetween(
         base::TimeTicks frame_time,
@@ -175,9 +169,6 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
     // number assigned relative to this, based on how many intervals the frame
     // time is off.
     uint64_t next_sequence_number_ = BeginFrameArgs::kStartingFrameNumber;
-
-    raw_ptr<DynamicBeginFrameDeadlineOffsetSource, DanglingUntriaged>
-        dynamic_begin_frame_deadline_offset_source_ = nullptr;
   };
 
   // This restart_id should be used for BeginFrameSources that don't have to
@@ -221,10 +212,6 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
   virtual void AsProtozeroInto(
       perfetto::EventContext& ctx,
       perfetto::protos::pbzero::BeginFrameSourceStateV2* state) const;
-
-  virtual void SetDynamicBeginFrameDeadlineOffsetSource(
-      DynamicBeginFrameDeadlineOffsetSource*
-          dynamic_begin_frame_deadline_offset_source);
 
   // Update the display ID for the source. This can change, e.g, as a window
   // moves across displays.
@@ -297,6 +284,9 @@ class VIZ_COMMON_EXPORT SyntheticBeginFrameSource : public BeginFrameSource {
 
   virtual void OnUpdateVSyncParameters(base::TimeTicks timebase,
                                        base::TimeDelta interval) = 0;
+  // Sets the maximum interval allowable for use with VRR (variable refresh
+  // rates). When set, this value should correspond to the maximum vsync
+  // interval supported by the display. Absent when VRR is not enabled.
   virtual void SetMaxVrrInterval(
       const std::optional<base::TimeDelta>& max_vrr_interval) = 0;
 };
@@ -362,9 +352,6 @@ class VIZ_COMMON_EXPORT DelayBasedBeginFrameSource
   void RemoveObserver(BeginFrameObserver* obs) override;
   void DidFinishFrame(BeginFrameObserver* obs) override {}
   void OnGpuNoLongerBusy() override;
-  void SetDynamicBeginFrameDeadlineOffsetSource(
-      DynamicBeginFrameDeadlineOffsetSource*
-          dynamic_begin_frame_deadline_offset_source) override;
 
   // SyntheticBeginFrameSource implementation.
   void OnUpdateVSyncParameters(base::TimeTicks timebase,
@@ -394,6 +381,7 @@ class VIZ_COMMON_EXPORT DelayBasedBeginFrameSource
   std::unique_ptr<DelayBasedTimeSource> time_source_;
   base::flat_set<raw_ptr<BeginFrameObserver, CtnExperimental>> observers_;
   base::TimeTicks last_timebase_;
+  base::TimeDelta last_vsync_interval_;
   std::optional<base::TimeDelta> max_vrr_interval_ = std::nullopt;
   int vrr_tick_count_ = 0;
   BeginFrameArgs last_begin_frame_args_;
@@ -435,6 +423,10 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
   void OnSetBeginFrameSourcePaused(bool paused);
   void OnBeginFrame(const BeginFrameArgs& args);
 
+  const BeginFrameArgs& last_begin_frame_args() const {
+    return last_begin_frame_args_;
+  }
+
 #if BUILDFLAG(IS_ANDROID)
   // Notifies when the refresh rate of the display is updated. |refresh_rate| is
   // the rate in frames per second.
@@ -445,10 +437,11 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
   // observers.
   virtual void SetPreferredInterval(base::TimeDelta interval) {}
 
-  // Returns the maximum supported refresh rate interval for a given BFS.
-  virtual base::TimeDelta GetMaximumRefreshFrameInterval();
+  // Returns the minimium supported frame interval for a given BFS.
+  // This gives the maximium refresh rate that can be requested.
+  virtual base::TimeDelta GetMinimumFrameInterval();
 
-  virtual std::vector<base::TimeDelta> GetSupportedFrameIntervals(
+  virtual base::flat_set<base::TimeDelta> GetSupportedFrameIntervals(
       base::TimeDelta interval);
 
  protected:
@@ -464,6 +457,7 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
 
  private:
   BeginFrameArgs pending_begin_frame_args_;
+  base::MetricsSubSampler metrics_sub_sampler_;
 };
 
 }  // namespace viz

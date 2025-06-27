@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/disk_cache/blockfile/backend_impl.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -17,6 +23,7 @@
 #include "base/hash/hash.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
+#include "base/logging.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_functions.h"
@@ -73,7 +80,8 @@ int DesiredIndexTableLen(int32_t storage_size) {
 }
 
 int MaxStorageSizeForTable(int table_len) {
-  return table_len * (k64kEntriesStore / kBaseTableLen);
+  return std::min(int64_t{std::numeric_limits<int32_t>::max()},
+                  int64_t{table_len} * (k64kEntriesStore / kBaseTableLen));
 }
 
 size_t GetIndexSize(int table_len) {
@@ -90,15 +98,6 @@ bool InitExperiment(disk_cache::IndexHeader* header, bool cache_created) {
       header->experiment == disk_cache::EXPERIMENT_OLD_FILE2) {
     // Discard current cache.
     return false;
-  }
-
-  if (base::FieldTrialList::FindFullName("SimpleCacheTrial") ==
-          "ExperimentControl") {
-    if (cache_created) {
-      header->experiment = disk_cache::EXPERIMENT_SIMPLE_CONTROL;
-      return true;
-    }
-    return header->experiment == disk_cache::EXPERIMENT_SIMPLE_CONTROL;
   }
 
   header->experiment = disk_cache::NO_EXPERIMENT;
@@ -163,10 +162,12 @@ BackendImpl::BackendImpl(
 BackendImpl::BackendImpl(
     const base::FilePath& path,
     uint32_t mask,
+    scoped_refptr<BackendCleanupTracker> cleanup_tracker,
     const scoped_refptr<base::SingleThreadTaskRunner>& cache_thread,
     net::CacheType cache_type,
     net::NetLog* net_log)
     : Backend(cache_type),
+      cleanup_tracker_(std::move(cleanup_tracker)),
       background_queue_(this, FallbackToInternalIfNull(cache_thread)),
       path_(path),
       block_files_(path),
@@ -295,7 +296,7 @@ int BackendImpl::SyncInit() {
   trace_object_->EnableTracing(false);
   int sc = SelfCheck();
   if (sc < 0 && sc != ERR_NUM_ENTRIES_MISMATCH)
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   trace_object_->EnableTracing(true);
 #endif
 
@@ -544,7 +545,7 @@ scoped_refptr<EntryImpl> BackendImpl::CreateEntryImpl(const std::string& key) {
     DCHECK(!error);
     if (!parent && data_->table[hash & mask_]) {
       // We should have corrected the problem.
-      NOTREACHED_IN_MIGRATION();
+      DLOG(WARNING) << "Unable to correct hash collision";
       return nullptr;
     }
   }
@@ -621,7 +622,7 @@ scoped_refptr<EntryImpl> BackendImpl::OpenNextEntryImpl(
     return nullptr;
 
   const int kListsToSearch = 3;
-  scoped_refptr<EntryImpl> entries[kListsToSearch];
+  std::array<scoped_refptr<EntryImpl>, kListsToSearch> entries;
   if (!iterator->my_rankings) {
     iterator->my_rankings = &rankings_;
     bool ret = false;
@@ -651,7 +652,7 @@ scoped_refptr<EntryImpl> BackendImpl::OpenNextEntryImpl(
 
   int newest = -1;
   int oldest = -1;
-  Time access_times[kListsToSearch];
+  std::array<Time, kListsToSearch> access_times;
   for (int i = 0; i < kListsToSearch; i++) {
     if (entries[i].get()) {
       access_times[i] = entries[i]->GetLastUsed();
@@ -699,7 +700,7 @@ bool BackendImpl::SetMaxSize(int64_t max_bytes) {
 
 base::FilePath BackendImpl::GetFileName(Addr address) const {
   if (!address.is_separate_file() || !address.is_initialized()) {
-    NOTREACHED_IN_MIGRATION();
+    DUMP_WILL_BE_NOTREACHED();
     return base::FilePath();
   }
 
@@ -769,7 +770,7 @@ LruData* BackendImpl::GetLruData() {
 void BackendImpl::UpdateRank(EntryImpl* entry, bool modified) {
   if (read_only_ || (!modified && GetCacheType() == net::SHADER_CACHE))
     return;
-  eviction_.UpdateRank(entry, modified);
+  eviction_.UpdateRank(entry);
 }
 
 void BackendImpl::RecoveredEntry(CacheRankingsBlock* rankings) {
@@ -1161,7 +1162,7 @@ int32_t BackendImpl::GetEntryCount() const {
       data_->header.num_entries - data_->header.lru.sizes[Rankings::DELETED];
 
   if (not_deleted < 0) {
-    DUMP_WILL_BE_NOTREACHED_NORETURN();
+    DUMP_WILL_BE_NOTREACHED();
     not_deleted = 0;
   }
 
@@ -1421,8 +1422,7 @@ bool BackendImpl::InitStats() {
   }
 
   if (!address.is_block_file()) {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
   // Load the required data.

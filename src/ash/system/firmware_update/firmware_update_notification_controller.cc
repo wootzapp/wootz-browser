@@ -72,8 +72,8 @@ bool ShouldShowNotification() {
     case user_manager::UserType::kPublicAccount:
     case user_manager::UserType::kGuest:
     case user_manager::UserType::kKioskApp:
-    case user_manager::UserType::kArcKioskApp:
     case user_manager::UserType::kWebKioskApp:
+    case user_manager::UserType::kKioskIWA:
       return false;
     case user_manager::UserType::kRegular:
     case user_manager::UserType::kChild:

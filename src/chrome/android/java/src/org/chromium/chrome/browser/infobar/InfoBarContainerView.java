@@ -21,13 +21,13 @@ import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider
 import org.chromium.chrome.browser.browser_controls.BrowserControlsUtils;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeControllerFactory;
-import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.components.browser_ui.banners.SwipableOverlayView;
-import org.chromium.components.browser_ui.widget.InsetObserver;
+import org.chromium.components.browser_ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.components.infobars.InfoBar;
 import org.chromium.components.infobars.InfoBarAnimationListener;
 import org.chromium.components.infobars.InfoBarContainerLayout;
 import org.chromium.components.infobars.InfoBarUiItem;
+import org.chromium.ui.InsetObserver;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
 
@@ -222,9 +222,12 @@ public class InfoBarContainerView extends SwipableOverlayView
     public void onControlsOffsetChanged(
             int topOffset,
             int topControlsMinHeightOffset,
+            boolean topControlsMinHeightChanged,
             int bottomOffset,
             int bottomControlsMinHeightOffset,
-            boolean needsAnimate) {
+            boolean bottomControlsMinHeightChanged,
+            boolean requestNewFrame,
+            boolean isVisibilityForced) {
         if (!isAllowedToAutoHide()) {
             return;
         }
@@ -272,21 +275,23 @@ public class InfoBarContainerView extends SwipableOverlayView
         View infoBarView = infoBar.createView();
         mLayout.addInfoBar(infoBar);
 
-        if (mEdgeToEdgeSupplier != null && mEdgeToEdgeSupplier.get() != null) {
-            mEdgeToEdgePadAdjuster = EdgeToEdgeControllerFactory.createForView(infoBarView, true);
-            mEdgeToEdgeSupplier.get().registerAdjuster(mEdgeToEdgePadAdjuster);
+        if (mEdgeToEdgeSupplier != null) {
+            mEdgeToEdgePadAdjuster =
+                    EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(
+                            infoBarView, mEdgeToEdgeSupplier);
         }
     }
 
     /**
      * Removes an {@link InfoBar} from the layout.
+     *
      * @param infoBar The {@link InfoBar} to be removed.
      */
     void removeInfoBar(InfoBar infoBar) {
         mLayout.removeInfoBar(infoBar);
-        if (mEdgeToEdgeSupplier != null && mEdgeToEdgeSupplier.get() != null) {
+        if (mEdgeToEdgeSupplier != null) {
             assert (mEdgeToEdgePadAdjuster != null);
-            mEdgeToEdgeSupplier.get().unregisterAdjuster(mEdgeToEdgePadAdjuster);
+            mEdgeToEdgePadAdjuster.destroy();
         }
     }
 

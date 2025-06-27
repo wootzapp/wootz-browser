@@ -9,18 +9,27 @@
 
 #include "base/component_export.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/memory/raw_ptr.h"
+#include "base/threading/sequence_bound.h"
 #include "base/types/expected.h"
 #include "base/uuid.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/receiver.h"
-#include "services/on_device_model/platform_model_loader.h"
-#include "services/on_device_model/public/cpp/on_device_model.h"
+#include "mojo/public/cpp/bindings/unique_receiver_set.h"
+#include "services/on_device_model/ml/chrome_ml.h"
+#include "services/on_device_model/ml/gpu_blocklist.h"
+#include "services/on_device_model/ml/ts_model.h"
 #include "services/on_device_model/public/mojom/on_device_model.mojom.h"
 #include "services/on_device_model/public/mojom/on_device_model_service.mojom.h"
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #include "sandbox/policy/linux/sandbox_linux.h"
 #endif
+
+namespace ml {
+class OnDeviceModelInternalImpl;
+class TsHolder;
+}
 
 namespace on_device_model {
 
@@ -40,10 +49,19 @@ class COMPONENT_EXPORT(ON_DEVICE_MODEL) OnDeviceModelService
       sandbox::policy::SandboxLinux::Options& options);
 #endif
 
-  static mojom::PerformanceClass GetEstimatedPerformanceClass();
+  OnDeviceModelService(
+      mojo::PendingReceiver<mojom::OnDeviceModelService> receiver,
+      const ml::OnDeviceModelInternalImpl* impl);  // Deprecated
+  OnDeviceModelService(
+      mojo::PendingReceiver<mojom::OnDeviceModelService> receiver,
+      const ml::ChromeML& impl);
 
-  explicit OnDeviceModelService(
+  // Creates a service bound to the receiver.
+  // This may create a dummy service if the GPU is on a blocklist, or if the
+  // shared library fails to load.
+  static std::unique_ptr<mojom::OnDeviceModelService> Create(
       mojo::PendingReceiver<mojom::OnDeviceModelService> receiver);
+
   ~OnDeviceModelService() override;
 
   OnDeviceModelService(const OnDeviceModelService&) = delete;
@@ -53,28 +71,27 @@ class COMPONENT_EXPORT(ON_DEVICE_MODEL) OnDeviceModelService
   void LoadModel(mojom::LoadModelParamsPtr params,
                  mojo::PendingReceiver<mojom::OnDeviceModel> model,
                  LoadModelCallback callback) override;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  void LoadPlatformModel(const base::Uuid& uuid,
-                         mojo::PendingReceiver<mojom::OnDeviceModel> model,
-                         LoadPlatformModelCallback callback) override;
-#endif
+  void GetCapabilities(ModelAssets assets,
+                       GetCapabilitiesCallback callback) override;
+  void LoadTextSafetyModel(
+      mojom::TextSafetyModelParamsPtr params,
+      mojo::PendingReceiver<mojom::TextSafetyModel> model) override;
   void GetEstimatedPerformanceClass(
       GetEstimatedPerformanceClassCallback callback) override;
 
   size_t NumModelsForTesting() const { return models_.size(); }
 
- private:
-  static base::expected<std::unique_ptr<OnDeviceModel>, mojom::LoadModelResult>
-  CreateModel(mojom::LoadModelParamsPtr params);
+  void SetForceQueueingForTesting(bool force_queueing);
 
+ private:
+  on_device_model::mojom::PerformanceClass GetEstimatedPerformanceClassImpl();
   void DeleteModel(base::WeakPtr<mojom::OnDeviceModel> model);
 
   mojo::Receiver<mojom::OnDeviceModelService> receiver_;
+  const raw_ref<const ml::ChromeML> chrome_ml_;
   std::set<std::unique_ptr<mojom::OnDeviceModel>, base::UniquePtrComparator>
       models_;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  std::unique_ptr<PlatformModelLoader> platform_model_loader_;
-#endif
+  base::SequenceBound<ml::TsHolder> ts_holder_;
 };
 
 }  // namespace on_device_model

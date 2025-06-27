@@ -6,7 +6,6 @@
 #define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_PASSWORD_MANAGER_SWITCHES_H_
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 namespace password_manager {
 
@@ -14,6 +13,8 @@ namespace password_manager {
 extern const char kPasswordStore[];
 extern const char kEnableEncryptionSelection[];
 #endif  // BUILDFLAG(IS_LINUX)
+
+extern const char kEnableShareButtonUnbranded[];
 
 // Specifies the user data directory, which is where the browser will look for
 // all of its state. Needs to be kept in sync with

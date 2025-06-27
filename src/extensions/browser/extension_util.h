@@ -9,9 +9,11 @@
 #include <vector>
 
 #include "base/functional/callback.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/manifest.h"
-#include "extensions/common/mojom/host_id.mojom.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -21,10 +23,6 @@ class FilePath;
 namespace gfx {
 class ImageSkia;
 }  // namespace gfx
-
-namespace guest_view {
-class GuestViewBase;
-}  // namespace guest_view
 
 namespace content {
 class BrowserContext;
@@ -45,14 +43,6 @@ namespace util {
 // chrome/browser/extensions/extension_util.h/cc that are only dependent on
 // extensions/ here.
 
-// Returns a HostID type based on the given GuestViewBase.
-mojom::HostID::HostType HostIdTypeFromGuestView(
-    const guest_view::GuestViewBase& guest);
-
-// Returns a HostID instance based on the given GuestViewBase.
-mojom::HostID GenerateHostIdFromGuestView(
-    const guest_view::GuestViewBase& guest);
-
 // Returns true if the extension can be enabled in incognito mode.
 bool CanBeIncognitoEnabled(const Extension* extension);
 
@@ -64,6 +54,28 @@ bool IsIncognitoEnabled(const ExtensionId& extension_id,
 // (incognito to original profile, or vice versa).
 bool CanCrossIncognito(const Extension* extension,
                        content::BrowserContext* context);
+
+// Returns true if the extension associated with `extension_id` is idle and it
+// is safe to perform actions such as updating.
+bool IsExtensionIdle(const ExtensionId& extension_id,
+                     content::BrowserContext* browser_context);
+
+// Returns true if prompting for external extensions is enabled.
+bool IsPromptingEnabled();
+
+#if BUILDFLAG(IS_ANDROID)
+// This is a workaround to ensure ExtensionSystem is initialized properly for
+// incognito profile in split mode on Android.
+// Since DesktopAndroidExtensionSystem does not use `shared_` instance (keyed
+// service) to share the states and services between regular and incognito
+// profiles, as a workaround, when an extension runs in split incognito
+// mode, we need to call `InitForRegularProfile` to instantiated these objects
+// (eg quota_service, etc) for incognito DesktopAndroidExtensionSystem
+// instance. Otherwise, it will lead to crash when the objects are accessed.
+// TODO(crbug.com/356905053): Remove this workaround when the proper
+// extension runtime is implemented on Android.
+void InitExtensionSystemForIncognitoSplit(content::BrowserContext* context);
+#endif
 
 // Returns true if this extension can inject scripts into pages with file URLs.
 bool AllowFileAccess(const ExtensionId& extension_id,
@@ -149,6 +161,15 @@ std::string GetExtensionIdFromFrame(
 bool CanRendererHostExtensionOrigin(int render_process_id,
                                     const ExtensionId& extension_id,
                                     bool is_sandboxed);
+
+// Returns `true` if `render_process_host` can legitimately claim to send IPC
+// messages on behalf of `extension_id`.  `render_frame_host` parameter is
+// needed to account for scenarios involving a Chrome Web Store frame.
+bool CanRendererActOnBehalfOfExtension(
+    const ExtensionId& extension_id,
+    content::RenderFrameHost* render_frame_host,
+    content::RenderProcessHost& render_process_host,
+    bool include_user_scripts);
 
 // Returns true if the extension associated with `extension_id` is a Chrome App.
 bool IsChromeApp(const ExtensionId& extension_id,

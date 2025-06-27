@@ -9,13 +9,10 @@
 #include <vector>
 
 #include "base/functional/callback.h"
-#include "build/chromeos_buildflags.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
 #include "components/omnibox/browser/autocomplete_scheme_classifier.h"
 #include "components/omnibox/browser/mock_autocomplete_provider_client.h"
-#include "components/search_engines/search_terms_data.h"
-#include "components/search_engines/template_url_service.h"
-#include "components/search_engines/template_url_service_client.h"
+#include "components/omnibox/browser/mock_unscoped_extension_provider_delegate.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -32,7 +29,6 @@ TestOmniboxClient::TestOmniboxClient()
       last_log_disposition_(WindowOpenDisposition::UNKNOWN) {}
 
 TestOmniboxClient::~TestOmniboxClient() {
-  template_url_service_ = nullptr;
   autocomplete_classifier_.Shutdown();
 }
 
@@ -46,22 +42,15 @@ TestOmniboxClient::CreateAutocompleteProviderClient() {
   EXPECT_CALL(*provider_client, GetApplicationLocale())
       .WillRepeatedly(testing::Return("en-US"));
 
-  auto template_url_service = std::make_unique<TemplateURLService>(
-      /*prefs=*/nullptr, /*search_engine_choice_service=*/nullptr,
-      std::make_unique<SearchTermsData>(),
-      /*web_data_service=*/nullptr, std::unique_ptr<TemplateURLServiceClient>(),
-      base::RepeatingClosure()
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-          ,
-      /*for_lacros_main_profile=*/false
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-  );
+  provider_client->set_template_url_service(
+      search_engines_test_environment_.template_url_service());
 
-  // Save a reference to the created TemplateURLService for test use.
-  template_url_service_ = template_url_service.get();
-
-  provider_client->set_template_url_service(std::move(template_url_service));
-
+  // The `UnscopedExtensionProviderDelegate` should be set. It will be called
+  // when `AutocompleteController::Stop()` is called on destruction.
+  std::unique_ptr<MockUnscopedExtensionProviderDelegate> mock_delegate =
+      std::make_unique<MockUnscopedExtensionProviderDelegate>();
+  provider_client->set_unscoped_extension_provider_delegate(
+      std::move(mock_delegate));
   return std::move(provider_client);
 }
 
@@ -79,8 +68,8 @@ TestOmniboxClient::GetAutocompleteControllerEmitter() {
 }
 
 TemplateURLService* TestOmniboxClient::GetTemplateURLService() {
-  DCHECK(template_url_service_);
-  return template_url_service_;
+  CHECK(search_engines_test_environment_.template_url_service());
+  return search_engines_test_environment_.template_url_service();
 }
 
 const AutocompleteSchemeClassifier& TestOmniboxClient::GetSchemeClassifier()
@@ -104,12 +93,23 @@ bool TestOmniboxClient::IsUsingFakeHttpsForHttpsUpgradeTesting() const {
   return false;
 }
 
+gfx::Image TestOmniboxClient::GetSizedIcon(const SkBitmap* bitmap) const {
+  return gfx::Image(gfx::ImageSkia::CreateFrom1xBitmap(*bitmap));
+}
+
 gfx::Image TestOmniboxClient::GetSizedIcon(
     const gfx::VectorIcon& vector_icon_type,
     SkColor vector_icon_color) const {
   SkBitmap bitmap;
   bitmap.allocN32Pixels(16, 16);
   return gfx::Image(gfx::ImageSkia::CreateFrom1xBitmap(bitmap));
+}
+
+gfx::Image TestOmniboxClient::GetSizedIcon(const gfx::Image& icon) const {
+  if (icon.IsEmpty()) {
+    return gfx::Image();
+  }
+  return gfx::Image(*icon.ToImageSkia());
 }
 
 std::u16string TestOmniboxClient::GetFormattedFullURL() const {
@@ -125,9 +125,8 @@ GURL TestOmniboxClient::GetNavigationEntryURL() const {
 }
 
 metrics::OmniboxEventProto::PageClassification
-TestOmniboxClient::GetPageClassification(OmniboxFocusSource focus_source,
-                                         bool is_prefetch) {
-  return location_bar_model_.GetPageClassification(focus_source, is_prefetch);
+TestOmniboxClient::GetPageClassification(bool is_prefetch) const {
+  return location_bar_model_.GetPageClassification(is_prefetch);
 }
 
 security_state::SecurityLevel TestOmniboxClient::GetSecurityLevel() const {

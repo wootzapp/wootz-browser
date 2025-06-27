@@ -18,6 +18,7 @@
 #include "content/public/browser/global_routing_id.h"
 #include "services/network/public/mojom/client_security_state.mojom-forward.h"
 #include "services/network/public/mojom/cross_origin_embedder_policy.mojom-forward.h"
+#include "services/network/public/mojom/document_isolation_policy.mojom-forward.h"
 #include "services/network/public/mojom/url_response_head.mojom-forward.h"
 #include "third_party/blink/public/mojom/devtools/devtools_agent.mojom.h"
 #include "url/gurl.h"
@@ -96,6 +97,8 @@ class ServiceWorkerDevToolsManager {
       network::mojom::ClientSecurityStatePtr client_security_state,
       mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
           coep_reporter,
+      mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+          dip_reporter,
       base::UnguessableToken* devtools_worker_token,
       bool* pause_on_start);
   void WorkerReadyForInspection(
@@ -170,8 +173,7 @@ class ServiceWorkerDevToolsManager {
 
   // Clients may retain agent host for the terminated shared worker,
   // and we reconnect them when shared worker is restarted.
-  base::flat_set<raw_ptr<ServiceWorkerDevToolsAgentHost, CtnExperimental>>
-      stopped_hosts_;
+  base::flat_set<raw_ptr<ServiceWorkerDevToolsAgentHost>> stopped_hosts_;
 };
 
 }  // namespace content

@@ -16,25 +16,24 @@
 #include "components/sync/base/weak_handle.h"
 #include "components/sync/engine/active_devices_invalidation_info.h"
 #include "components/sync/engine/cancelation_signal.h"
-#include "components/sync/engine/model_type_configurer.h"
+#include "components/sync/engine/data_type_configurer.h"
 #include "components/sync/engine/shutdown_reason.h"
 #include "components/sync/engine/sync_encryption_handler.h"
 #include "components/sync/engine/sync_engine.h"
 #include "components/sync/engine/sync_manager.h"
-#include "google_apis/gaia/core_account_id.h"
+#include "google_apis/gaia/gaia_id.h"
 
 namespace syncer {
 
 class KeyDerivationParams;
-class ModelTypeController;
+class DataTypeController;
 class Nigori;
 class SyncEngineImpl;
 
 class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
                           public SyncManager::Observer {
  public:
-  using AllNodesCallback =
-      base::OnceCallback<void(const ModelType, base::Value::List)>;
+  using AllNodesCallback = base::OnceCallback<void(base::Value::List)>;
 
   // Struct that allows passing back data upon init, for data previously
   // produced by SyncEngineBackend (which doesn't itself have the ability to
@@ -68,9 +67,9 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
     kPayloadParseFailed = 1,
 
     // All data types in the payload are unknown.
-    kUnknownModelType = 2,
+    kUnknownDataType = 2,
 
-    kMaxValue = kUnknownModelType,
+    kMaxValue = kUnknownDataType,
   };
   // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:SyncIncomingInvalidationStatus)
 
@@ -87,7 +86,7 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
   void OnSyncCycleCompleted(const SyncCycleSnapshot& snapshot) override;
   void OnConnectionStatusChange(ConnectionStatus status) override;
   void OnActionableProtocolError(const SyncProtocolError& sync_error) override;
-  void OnMigrationRequested(ModelTypeSet types) override;
+  void OnMigrationRequested(DataTypeSet types) override;
   void OnProtocolEvent(const ProtocolEvent& event) override;
   void OnSyncStatusChanged(const SyncStatus& status) override;
 
@@ -127,7 +126,7 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
       const std::string& passphrase,
       const KeyDerivationParams& key_derivation_params);
 
-  // Called to decrypt the pending keys using the |key| derived from
+  // Called to decrypt the pending keys using the `key` derived from
   // user-entered passphrase.
   void DoSetExplicitPassphraseDecryptionKey(std::unique_ptr<Nigori> key);
 
@@ -136,14 +135,14 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
       const std::vector<std::vector<uint8_t>>& keys);
 
   // Ask the syncer to check for updates for the specified types.
-  void DoRefreshTypes(ModelTypeSet types);
+  void DoRefreshTypes(DataTypeSet types);
 
   // Called to perform tasks which require the control data to be downloaded.
   // This includes refreshing encryption, etc.
   void DoInitialProcessControlTypes();
 
   // The shutdown order is a bit complicated:
-  // 1) Call ShutdownOnUIThread() from |frontend_loop_| to request sync manager
+  // 1) Call ShutdownOnUIThread() from `frontend_loop_` to request sync manager
   //    to stop as soon as possible.
   // 2) Post DoShutdown() to sync loop to clean up backend state and destroy
   //    sync manager.
@@ -151,11 +150,10 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
   void DoShutdown(ShutdownReason reason);
 
   // Configuration methods that must execute on sync loop.
-  void DoPurgeDisabledTypes(const ModelTypeSet& to_purge);
-  void DoConfigureSyncer(ModelTypeConfigurer::ConfigureParams params);
+  void DoConfigureSyncer(DataTypeConfigurer::ConfigureParams params);
   void DoFinishConfigureDataTypes(
-      ModelTypeSet types_to_config,
-      base::OnceCallback<void(ModelTypeSet, ModelTypeSet)> ready_task);
+      DataTypeSet types_to_config,
+      base::OnceCallback<void(DataTypeSet, DataTypeSet)> ready_task);
 
   void SendBufferedProtocolEventsAndEnableForwarding();
   void DisableProtocolEventForwarding();
@@ -164,25 +162,21 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
   void DoOnCookieJarChanged(bool account_mismatch, base::OnceClosure callback);
 
   // Forwards an invalidation to the sync manager for all data types extracted
-  // from the |payload|. This method is called for sync standalone
+  // from the `payload`. This method is called for sync standalone
   // invalidations.
   void DoOnStandaloneInvalidationReceived(
       const std::string& payload,
-      const ModelTypeSet& interested_data_types);
+      const DataTypeSet& interested_data_types);
 
-  // Returns a Value::List representing Nigori node.
+  // Functions to deal with NIGORI, resembling DataTypeController APIs.
+  void DoClearNigoriDataForMigration();
   void GetNigoriNodeForDebugging(AllNodesCallback callback);
-
-  // Record histograms related to Nigori data type.
   void RecordNigoriMemoryUsageAndCountsHistograms();
-
-  // Returns types that have local changes yet to be synced to the server.
-  ModelTypeSet GetTypesWithUnsyncedData() const;
 
   bool HasUnsyncedItemsForTest() const;
 
   // Called on each device infos change and might be called more than once with
-  // the same |active_devices|. |fcm_registration_tokens| contains a list of
+  // the same `active_devices`. `fcm_registration_tokens` contains a list of
   // tokens for all known active devices (if available and excluding the local
   // device if reflections are disabled).
   void DoOnActiveDevicesChanged(
@@ -197,7 +191,7 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
 
   IncomingInvalidationStatus DoOnStandaloneInvalidationReceivedImpl(
       const std::string& payload,
-      const ModelTypeSet& interested_data_types);
+      const DataTypeSet& interested_data_types);
 
   // Name used for debugging.
   const std::string name_;
@@ -208,17 +202,17 @@ class SyncEngineBackend : public base::RefCountedThreadSafe<SyncEngineBackend>,
   // Our parent SyncEngineImpl.
   WeakHandle<SyncEngineImpl> host_;
 
-  // Should outlive |sync_manager_|.
+  // Should outlive `sync_manager_`.
   std::unique_ptr<SyncEncryptionHandler> sync_encryption_handler_;
 
   // The top-level syncapi entry point.  Lives on the sync thread.
   std::unique_ptr<SyncManager> sync_manager_;
 
-  // Required for |nigori_controller_| LoadModels().
-  CoreAccountId authenticated_account_id_;
+  // Required for `nigori_controller_` LoadModels().
+  GaiaId authenticated_gaia_id_;
 
   // Initialized in Init().
-  std::unique_ptr<ModelTypeController> nigori_controller_;
+  std::unique_ptr<DataTypeController> nigori_controller_;
 
   // This signal allows us to send requests to shut down the
   // ServerConnectionManager without having to wait for it to finish

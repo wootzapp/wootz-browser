@@ -19,16 +19,14 @@
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
+#include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ash/accessibility/magnification_manager.h"
 #include "chrome/browser/ash/arc/accessibility/arc_accessibility_helper_bridge.h"
-#include "chrome/browser/ash/crosapi/crosapi_ash.h"
-#include "chrome/browser/ash/crosapi/crosapi_manager.h"
-#include "chrome/browser/ash/crosapi/embedded_accessibility_helper_client_ash.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
@@ -37,7 +35,6 @@
 #include "chrome/common/extensions/api/accessibility_private.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chromeos/crosapi/cpp/lacros_startup_state.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/infobars/core/infobar.h"
@@ -76,7 +73,7 @@ ash::AccessibilityToastType ConvertToastType(
     case accessibility_private::ToastType::kDictationMicMuted:
       return ash::AccessibilityToastType::kDictationMicMuted;
     case accessibility_private::ToastType::kNone:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -100,24 +97,103 @@ ash::DictationBubbleHintType ConvertDictationHintType(
     case accessibility_private::DictationBubbleHintType::kCopy:
       return ash::DictationBubbleHintType::kCopy;
     case accessibility_private::DictationBubbleHintType::kNone:
-      NOTREACHED_IN_MIGRATION();
-      return ash::DictationBubbleHintType::kTrySaying;
+      NOTREACHED();
   }
 }
 
-}  // namespace
-
-ExtensionFunction::ResponseAction
-AccessibilityPrivateClipboardCopyInActiveLacrosGoogleDocFunction::Run() {
-  EXTENSION_FUNCTION_VALIDATE(args().size() >= 1);
-  EXTENSION_FUNCTION_VALIDATE(args()[0].is_string());
-  std::string url = args()[0].GetString();
-  crosapi::CrosapiManager::Get()
-      ->crosapi_ash()
-      ->embedded_accessibility_helper_client_ash()
-      ->ClipboardCopyInActiveGoogleDoc(url);
-  return RespondNow(NoArguments());
+ash::AccessibilityScrollDirection ConvertScrollDirection(
+    accessibility_private::ScrollDirection direction) {
+  switch (direction) {
+    case accessibility_private::ScrollDirection::kUp:
+      return ash::AccessibilityScrollDirection::kUp;
+    case accessibility_private::ScrollDirection::kDown:
+      return ash::AccessibilityScrollDirection::kDown;
+    case accessibility_private::ScrollDirection::kLeft:
+      return ash::AccessibilityScrollDirection::kLeft;
+    case accessibility_private::ScrollDirection::kRight:
+      return ash::AccessibilityScrollDirection::kRight;
+    case accessibility_private::ScrollDirection::kNone:
+      NOTREACHED();
+  }
 }
+
+std::string ConvertFacialGestureType(
+    accessibility_private::FacialGesture gesture_type) {
+  switch (gesture_type) {
+    case accessibility_private::FacialGesture::kBrowInnerUp:
+      return "browInnerUp";
+    case accessibility_private::FacialGesture::kBrowsDown:
+      return "browsDown";
+    case accessibility_private::FacialGesture::kEyeSquintLeft:
+      return "eyeSquintLeft";
+    case accessibility_private::FacialGesture::kEyeSquintRight:
+      return "eyeSquintRight";
+    case accessibility_private::FacialGesture::kEyesBlink:
+      return "eyesBlink";
+    case accessibility_private::FacialGesture::kEyesLookDown:
+      return "eyesLookDown";
+    case accessibility_private::FacialGesture::kEyesLookLeft:
+      return "eyesLookLeft";
+    case accessibility_private::FacialGesture::kEyesLookRight:
+      return "eyesLookRight";
+    case accessibility_private::FacialGesture::kEyesLookUp:
+      return "eyesLookUp";
+    case accessibility_private::FacialGesture::kJawLeft:
+      return "jawLeft";
+    case accessibility_private::FacialGesture::kJawOpen:
+      return "jawOpen";
+    case accessibility_private::FacialGesture::kJawRight:
+      return "jawRight";
+    case accessibility_private::FacialGesture::kMouthFunnel:
+      return "mouthFunnel";
+    case accessibility_private::FacialGesture::kMouthLeft:
+      return "mouthLeft";
+    case accessibility_private::FacialGesture::kMouthPucker:
+      return "mouthPucker";
+    case accessibility_private::FacialGesture::kMouthRight:
+      return "mouthRight";
+    case accessibility_private::FacialGesture::kMouthSmile:
+      return "mouthSmile";
+    case accessibility_private::FacialGesture::kMouthUpperUp:
+      return "mouthUpperUp";
+    case accessibility_private::FacialGesture::kNone:
+      NOTREACHED();
+  }
+}
+
+void DispatchAccessibilityFocusChangedEvent(
+    extensions::events::HistogramValue histogram_value,
+    extensions::api::accessibility_private::ScreenRect bounds) {
+  std::unique_ptr<extensions::Event> event;
+
+  if (histogram_value ==
+      extensions::events::ACCESSIBILITY_PRIVATE_ON_CHROMEVOX_FOCUS_CHANGED) {
+    auto event_args =
+        extensions::api::accessibility_private::OnChromeVoxFocusChanged::Create(
+            bounds);
+    event = std::make_unique<extensions::Event>(
+        histogram_value,
+        extensions::api::accessibility_private::OnChromeVoxFocusChanged::
+            kEventName,
+        std::move(event_args));
+  } else if (histogram_value ==
+             extensions::events::
+                 ACCESSIBILITY_PRIVATE_ON_SELECT_TO_SPEAK_FOCUS_CHANGED) {
+    auto event_args = extensions::api::accessibility_private::
+        OnSelectToSpeakFocusChanged::Create(bounds);
+    event = std::make_unique<extensions::Event>(
+        histogram_value,
+        extensions::api::accessibility_private::OnSelectToSpeakFocusChanged::
+            kEventName,
+        std::move(event_args));
+  }
+
+  extensions::EventRouter::Get(AccessibilityManager::Get()->profile())
+      ->DispatchEventWithLazyListener(
+          extension_misc::kAccessibilityCommonExtensionId, std::move(event));
+}
+
+}  // namespace
 
 ExtensionFunction::ResponseAction
 AccessibilityPrivateDarkenScreenFunction::Run() {
@@ -129,11 +205,30 @@ AccessibilityPrivateDarkenScreenFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction
+AccessibilityPrivateEnableDragEventRewriterFunction::Run() {
+  std::optional<accessibility_private::EnableDragEventRewriter::Params> params =
+      accessibility_private::EnableDragEventRewriter::Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  ash::AccessibilityController::Get()->EnableDragEventRewriter(params->enabled);
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
 AccessibilityPrivateEnableMouseEventsFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(args().size() >= 1);
   EXTENSION_FUNCTION_VALIDATE(args()[0].is_bool());
   bool enabled = args()[0].GetBool();
   ash::EventRewriterController::Get()->SetSendMouseEvents(enabled);
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
+AccessibilityPrivateEnableLiveCaptionFunction::Run() {
+  std::optional<accessibility_private::EnableLiveCaption::Params> params =
+      accessibility_private::EnableLiveCaption::Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+  AccessibilityManager::Get()->EnableLiveCaption(params->enabled);
   return RespondNow(NoArguments());
 }
 
@@ -189,10 +284,10 @@ AccessibilityPrivateForwardKeyEventsToSwitchAccessFunction::Run() {
 }
 
 AccessibilityPrivateGetBatteryDescriptionFunction::
-    AccessibilityPrivateGetBatteryDescriptionFunction() {}
+    AccessibilityPrivateGetBatteryDescriptionFunction() = default;
 
 AccessibilityPrivateGetBatteryDescriptionFunction::
-    ~AccessibilityPrivateGetBatteryDescriptionFunction() {}
+    ~AccessibilityPrivateGetBatteryDescriptionFunction() = default;
 
 ExtensionFunction::ResponseAction
 AccessibilityPrivateGetBatteryDescriptionFunction::Run() {
@@ -332,6 +427,30 @@ void AccessibilityPrivateInstallFaceGazeAssetsFunction::OnInstallFinished(
 }
 
 ExtensionFunction::ResponseAction
+AccessibilityPrivateSendGestureInfoToSettingsFunction::Run() {
+  std::optional<accessibility_private::SendGestureInfoToSettings::Params>
+      params(accessibility_private::SendGestureInfoToSettings::Params::Create(
+          args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<ash::FaceGazeGestureInfo> converted_gesture_info_array;
+
+  for (const accessibility_private::GestureInfo& gesture_info :
+       params->gesture_info) {
+    auto converted_gesture_info = ash::FaceGazeGestureInfo();
+    converted_gesture_info.confidence = gesture_info.confidence;
+    converted_gesture_info.gesture =
+        ConvertFacialGestureType(gesture_info.gesture);
+
+    converted_gesture_info_array.push_back(converted_gesture_info);
+  }
+
+  AccessibilityManager::Get()->SendGestureInfoToSettings(
+      std::move(converted_gesture_info_array));
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
 AccessibilityPrivateInstallPumpkinForDictationFunction::Run() {
   AccessibilityManager::Get()->InstallPumpkinForDictation(
       base::BindOnce(&AccessibilityPrivateInstallPumpkinForDictationFunction::
@@ -370,6 +489,9 @@ AccessibilityPrivateIsFeatureEnabledFunction::Run() {
       break;
     case accessibility_private::AccessibilityFeature::kFaceGaze:
       enabled = ::features::IsAccessibilityFaceGazeEnabled();
+      break;
+    case accessibility_private::AccessibilityFeature::kCaptionsOnBrailleDisplay:
+      enabled = ::features::IsAccessibilityCaptionsOnBrailleDisplayEnabled();
       break;
     case accessibility_private::AccessibilityFeature::kNone:
       return RespondNow(Error("Unrecognized feature"));
@@ -432,8 +554,7 @@ AccessibilityPrivatePerformAcceleratorActionFunction::Run() {
       accelerator_action = ash::AcceleratorAction::kFocusNextPane;
       break;
     case accessibility_private::AcceleratorAction::kNone:
-      NOTREACHED_IN_MIGRATION();
-      return RespondNow(Error("Invalid accelerator action."));
+      NOTREACHED();
   }
 
   ash::AccessibilityController::Get()->PerformAcceleratorAction(
@@ -448,20 +569,24 @@ AccessibilityPrivateSendSyntheticKeyEventFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
   accessibility_private::SyntheticKeyboardEvent* key_data = &params->key_event;
 
-  int modifiers = 0;
+  int flags = 0;
   if (key_data->modifiers) {
     if (key_data->modifiers->ctrl && *key_data->modifiers->ctrl) {
-      modifiers |= ui::EF_CONTROL_DOWN;
+      flags |= ui::EF_CONTROL_DOWN;
     }
     if (key_data->modifiers->alt && *key_data->modifiers->alt) {
-      modifiers |= ui::EF_ALT_DOWN;
+      flags |= ui::EF_ALT_DOWN;
     }
     if (key_data->modifiers->search && *key_data->modifiers->search) {
-      modifiers |= ui::EF_COMMAND_DOWN;
+      flags |= ui::EF_COMMAND_DOWN;
     }
     if (key_data->modifiers->shift && *key_data->modifiers->shift) {
-      modifiers |= ui::EF_SHIFT_DOWN;
+      flags |= ui::EF_SHIFT_DOWN;
     }
+  }
+
+  if (params->is_repeat.has_value() && params->is_repeat.value()) {
+    flags |= ui::EF_IS_REPEAT;
   }
 
   ui::KeyboardCode keyboard_code =
@@ -469,10 +594,9 @@ AccessibilityPrivateSendSyntheticKeyEventFunction::Run() {
   ui::KeyEvent synthetic_key_event(
       key_data->type ==
               accessibility_private::SyntheticKeyboardEventType::kKeyup
-          ? ui::ET_KEY_RELEASED
-          : ui::ET_KEY_PRESSED,
-      keyboard_code, ui::UsLayoutKeyboardCodeToDomCode(keyboard_code),
-      modifiers);
+          ? ui::EventType::kKeyReleased
+          : ui::EventType::kKeyPressed,
+      keyboard_code, ui::UsLayoutKeyboardCodeToDomCode(keyboard_code), flags);
 
   auto* host = ash::GetWindowTreeHostForDisplay(
       display::Screen::GetScreen()->GetPrimaryDisplay().id());
@@ -481,10 +605,12 @@ AccessibilityPrivateSendSyntheticKeyEventFunction::Run() {
   bool dictation_enabled = AccessibilityManager::Get()->IsDictationEnabled();
   bool from_accessibility_common =
       extension_id() == extension_misc::kAccessibilityCommonExtensionId;
-  if (dictation_enabled && from_accessibility_common &&
+  bool facegaze_enabled = AccessibilityManager::Get()->IsFaceGazeEnabled();
+  if ((dictation_enabled || facegaze_enabled) && from_accessibility_common &&
       params->use_rewriters.has_value() && params->use_rewriters.value()) {
-    // TODO(b/259397131): Remove the `useRewriters` property and remove this
-    // if statement.
+    // TODO(b/259397131): Remove the `useRewriters` property.
+    // Call SendEventToSink so that the event can be processed by event
+    // rewriters, like Game Controls.
     host->SendEventToSink(&synthetic_key_event);
   } else {
     host->DeliverEventToSink(&synthetic_key_event);
@@ -500,32 +626,32 @@ AccessibilityPrivateSendSyntheticMouseEventFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
   accessibility_private::SyntheticMouseEvent* mouse_data = &params->mouse_event;
 
-  ui::EventType type = ui::ET_UNKNOWN;
+  ui::EventType type = ui::EventType::kUnknown;
   switch (mouse_data->type) {
     case accessibility_private::SyntheticMouseEventType::kPress:
-      type = ui::ET_MOUSE_PRESSED;
+      type = ui::EventType::kMousePressed;
       break;
     case accessibility_private::SyntheticMouseEventType::kRelease:
-      type = ui::ET_MOUSE_RELEASED;
+      type = ui::EventType::kMouseReleased;
       break;
     case accessibility_private::SyntheticMouseEventType::kDrag:
-      type = ui::ET_MOUSE_DRAGGED;
+      type = ui::EventType::kMouseDragged;
       break;
     case accessibility_private::SyntheticMouseEventType::kMove:
-      type = ui::ET_MOUSE_MOVED;
+      type = ui::EventType::kMouseMoved;
       break;
     case accessibility_private::SyntheticMouseEventType::kEnter:
-      type = ui::ET_MOUSE_ENTERED;
+      type = ui::EventType::kMouseEntered;
       break;
     case accessibility_private::SyntheticMouseEventType::kExit:
-      type = ui::ET_MOUSE_EXITED;
+      type = ui::EventType::kMouseExited;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   int flags = 0;
-  if (type != ui::ET_MOUSE_MOVED) {
+  if (type != ui::EventType::kMouseMoved) {
     switch (mouse_data->mouse_button) {
       case accessibility_private::SyntheticMouseEventButton::kLeft:
         flags |= ui::EF_LEFT_MOUSE_BUTTON;
@@ -549,16 +675,47 @@ AccessibilityPrivateSendSyntheticMouseEventFunction::Run() {
 
   int changed_button_flags = flags;
 
-  flags |= ui::EF_IS_SYNTHESIZED;
+  // If the optional parameter for force_not_synthetic is set, then do not mark
+  // the mouse event as synthetic. This should only occur for FaceGaze, which
+  // sends mouse events that need to be treated by the system as "real" mouse
+  // events in order to interact with layers such as the screen capture layer.
+  bool force_not_synthetic = mouse_data->force_not_synthetic.has_value() &&
+                             mouse_data->force_not_synthetic.value();
+  if (!force_not_synthetic) {
+    flags |= ui::EF_IS_SYNTHESIZED;
+  }
+
   if (mouse_data->touch_accessibility && *(mouse_data->touch_accessibility)) {
     flags |= ui::EF_TOUCH_ACCESSIBILITY;
   }
 
+  if (mouse_data->is_double_click && *(mouse_data->is_double_click)) {
+    flags |= ui::EF_IS_DOUBLE_CLICK;
+  }
+
+  if (mouse_data->is_triple_click && *(mouse_data->is_triple_click)) {
+    flags |= ui::EF_IS_TRIPLE_CLICK;
+  }
+
+  bool use_rewriters = mouse_data->use_rewriters.has_value() &&
+                       mouse_data->use_rewriters.value();
+
   // Locations are assumed to be in screen coordinates.
   gfx::Point location_in_screen(mouse_data->x, mouse_data->y);
   AccessibilityManager::Get()->SendSyntheticMouseEvent(
-      type, flags, changed_button_flags, location_in_screen);
+      type, flags, changed_button_flags, location_in_screen, use_rewriters);
 
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
+AccessibilityPrivateScrollAtPointFunction::Run() {
+  std::optional<accessibility_private::ScrollAtPoint::Params> params =
+      accessibility_private::ScrollAtPoint::Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+  gfx::Point point(params->target.x, params->target.y);
+  ash::AccessibilityController::Get()->ScrollAtPoint(
+      point, ConvertScrollDirection(params->direction));
   return RespondNow(NoArguments());
 }
 
@@ -638,7 +795,7 @@ AccessibilityPrivateSetFocusRingsFunction::Run() {
         focus_ring->type = ash::FocusRingType::GLOW;
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
 
     if (focus_ring_info.stacking_order !=
@@ -655,7 +812,7 @@ AccessibilityPrivateSetFocusRingsFunction::Run() {
               ash::FocusRingStackingOrder::BELOW_ACCESSIBILITY_BUBBLES;
           break;
         default:
-          NOTREACHED_IN_MIGRATION();
+          NOTREACHED();
       }
     }
 
@@ -703,35 +860,58 @@ AccessibilityPrivateSetHighlightsFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+// TODO(b/347953090): Investigate a generic SetAccessibilityFocusFunction to
+// share code for extensibility.
+ExtensionFunction::ResponseAction
+AccessibilityPrivateSetChromeVoxFocusFunction::Run() {
+  std::optional<accessibility_private::SetChromeVoxFocus::Params> params(
+      accessibility_private::SetChromeVoxFocus::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  if (!features::IsAccessibilityMagnifierFollowsChromeVoxEnabled()) {
+    return RespondNow(NoArguments());
+  }
+
+  if (!ash::AccessibilityController::Get()->fullscreen_magnifier().enabled() &&
+      !ash::AccessibilityController::Get()->docked_magnifier().enabled()) {
+    return RespondNow(NoArguments());
+  }
+
+  // Ship this event to AccessibilityCommon for docked or fullscreen
+  // magnifier.
+  extensions::api::accessibility_private::ScreenRect bounds;
+  bounds.left = params->bounds.left;
+  bounds.top = params->bounds.top;
+  bounds.width = params->bounds.width;
+  bounds.height = params->bounds.height;
+  DispatchAccessibilityFocusChangedEvent(
+      extensions::events::ACCESSIBILITY_PRIVATE_ON_CHROMEVOX_FOCUS_CHANGED,
+      std::move(bounds));
+
+  return RespondNow(NoArguments());
+}
+
 ExtensionFunction::ResponseAction
 AccessibilityPrivateSetSelectToSpeakFocusFunction::Run() {
   std::optional<accessibility_private::SetSelectToSpeakFocus::Params> params(
       accessibility_private::SetSelectToSpeakFocus::Params::Create(args()));
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  if (features::IsAccessibilityMagnifierFollowsStsEnabled() &&
-      (ash::AccessibilityController::Get()->fullscreen_magnifier().enabled() ||
-       ash::AccessibilityController::Get()->docked_magnifier().enabled())) {
-    // Ship this event to AccessibilityCommon for docked or fullscreen
-    // magnifier.
-    auto bounds =
-        std::make_unique<extensions::api::accessibility_private::ScreenRect>();
-    bounds->left = params->bounds.left;
-    bounds->top = params->bounds.top;
-    bounds->width = params->bounds.width;
-    bounds->height = params->bounds.height;
-    auto event_args = extensions::api::accessibility_private::
-        OnSelectToSpeakFocusChanged::Create(params->bounds);
-    auto event = std::make_unique<extensions::Event>(
-        extensions::events::
-            ACCESSIBILITY_PRIVATE_ON_SELECT_TO_SPEAK_FOCUS_CHANGED,
-        extensions::api::accessibility_private::OnSelectToSpeakFocusChanged::
-            kEventName,
-        std::move(event_args));
-    extensions::EventRouter::Get(AccessibilityManager::Get()->profile())
-        ->DispatchEventWithLazyListener(
-            extension_misc::kAccessibilityCommonExtensionId, std::move(event));
+  if (!ash::AccessibilityController::Get()->fullscreen_magnifier().enabled() &&
+      !ash::AccessibilityController::Get()->docked_magnifier().enabled()) {
+    return RespondNow(NoArguments());
   }
+
+  // Ship this event to AccessibilityCommon for docked or fullscreen
+  // magnifier.
+  extensions::api::accessibility_private::ScreenRect bounds;
+  bounds.left = params->bounds.left;
+  bounds.top = params->bounds.top;
+  bounds.width = params->bounds.width;
+  bounds.height = params->bounds.height;
+  DispatchAccessibilityFocusChangedEvent(
+      extensions::events::ACCESSIBILITY_PRIVATE_ON_CHROMEVOX_FOCUS_CHANGED,
+      std::move(bounds));
 
   return RespondNow(NoArguments());
 }
@@ -762,15 +942,23 @@ AccessibilityPrivateSetKeyboardListenerFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+AccessibilityPrivateSetNativeAccessibilityEnabledFunction::
+    AccessibilityPrivateSetNativeAccessibilityEnabledFunction() = default;
+
+AccessibilityPrivateSetNativeAccessibilityEnabledFunction::
+    ~AccessibilityPrivateSetNativeAccessibilityEnabledFunction() = default;
+
 ExtensionFunction::ResponseAction
 AccessibilityPrivateSetNativeAccessibilityEnabledFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(args().size() >= 1);
   EXTENSION_FUNCTION_VALIDATE(args()[0].is_bool());
   bool enabled = args()[0].GetBool();
   if (enabled) {
-    content::BrowserAccessibilityState::GetInstance()->EnableAccessibility();
+    scoped_accessibility_mode_ =
+        content::BrowserAccessibilityState::GetInstance()
+            ->CreateScopedModeForProcess(ui::kAXModeComplete);
   } else {
-    content::BrowserAccessibilityState::GetInstance()->DisableAccessibility();
+    scoped_accessibility_mode_.reset();
   }
   return RespondNow(NoArguments());
 }
@@ -891,11 +1079,12 @@ AccessibilityPrivateShowConfirmationDialogFunction::Run() {
 
   std::u16string title = base::UTF8ToUTF16(params->title);
   std::u16string description = base::UTF8ToUTF16(params->description);
+  std::u16string confirm = l10n_util::GetStringUTF16(IDS_APP_CONTINUE);
   std::u16string cancel_name =
       params->cancel_name ? base::UTF8ToUTF16(params->cancel_name.value())
                           : l10n_util::GetStringUTF16(IDS_APP_CANCEL);
   ash::AccessibilityController::Get()->ShowConfirmationDialog(
-      title, description, cancel_name,
+      title, description, confirm, cancel_name,
       base::BindOnce(
           &AccessibilityPrivateShowConfirmationDialogFunction::OnDialogResult,
           this, /* confirmed */ true),
@@ -931,7 +1120,7 @@ AccessibilityPrivateToggleDictationFunction::Run() {
              extension_misc::kAccessibilityCommonExtensionId) {
     source = ash::DictationToggleSource::kAccessibilityCommon;
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   ash::AccessibilityController::Get()->ToggleDictationFromSource(source);
@@ -963,8 +1152,7 @@ AccessibilityPrivateUpdateDictationBubbleFunction::Run() {
       icon = ash::DictationBubbleIconType::kMacroFail;
       break;
     case accessibility_private::DictationBubbleIconType::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   // Extract text.
@@ -990,6 +1178,22 @@ AccessibilityPrivateUpdateDictationBubbleFunction::Run() {
 
   ash::AccessibilityController::Get()->UpdateDictationBubble(properties.visible,
                                                              icon, text, hints);
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
+AccessibilityPrivateUpdateFaceGazeBubbleFunction::Run() {
+  std::optional<accessibility_private::UpdateFaceGazeBubble::Params> params(
+      accessibility_private::UpdateFaceGazeBubble::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  bool is_warning = false;
+  if (params->is_warning.has_value()) {
+    is_warning = params->is_warning.value();
+  }
+
+  ash::AccessibilityController::Get()->UpdateFaceGazeBubble(
+      base::UTF8ToUTF16(params->text), is_warning);
   return RespondNow(NoArguments());
 }
 
@@ -1067,10 +1271,4 @@ AccessibilityPrivateUpdateSwitchAccessBubbleFunction::Run() {
   ash::AccessibilityController::Get()->ShowSwitchAccessMenu(anchor,
                                                             actions_to_show);
   return RespondNow(NoArguments());
-}
-
-ExtensionFunction::ResponseAction
-AccessibilityPrivateIsLacrosPrimaryFunction::Run() {
-  return RespondNow(
-      WithArguments(crosapi::lacros_startup_state::IsLacrosEnabled()));
 }

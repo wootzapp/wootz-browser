@@ -2,27 +2,32 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/v4l2/v4l2_device.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <libdrm/drm_fourcc.h>
 #include <linux/media.h>
+#include <linux/videodev2.h>
 #include <poll.h>
+#include <string.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <set>
 
-#include <libdrm/drm_fourcc.h>
-#include <linux/videodev2.h>
-#include <string.h>
-#include <sys/mman.h>
-
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/not_fatal_until.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
@@ -33,7 +38,6 @@
 #include "media/gpu/macros.h"
 #include "media/gpu/v4l2/v4l2_queue.h"
 #include "media/gpu/v4l2/v4l2_utils.h"
-#include "ui/gl/egl_util.h"
 
 namespace media {
 
@@ -70,11 +74,11 @@ class V4L2QueueFactory {
   static scoped_refptr<V4L2Queue> CreateQueue(scoped_refptr<V4L2Device> dev,
                                               enum v4l2_buf_type type,
                                               base::OnceClosure destroy_cb) {
-    return new V4L2Queue(base::BindRepeating(&V4L2Device::Ioctl, dev),
-                         base::BindRepeating(&V4L2Device::SchedulePoll, dev),
-                         base::BindRepeating(&V4L2Device::Mmap, dev),
-                         dev->get_secure_allocate_cb(), type,
-                         std::move(destroy_cb));
+    return base::MakeRefCounted<V4L2Queue>(
+        V4L2Queue::PassKey::Get(), base::BindRepeating(&V4L2Device::Ioctl, dev),
+        base::BindRepeating(&V4L2Device::SchedulePoll, dev),
+        base::BindRepeating(&V4L2Device::Mmap, dev),
+        dev->get_secure_allocate_cb(), type, std::move(destroy_cb));
   }
 };
 
@@ -116,7 +120,7 @@ void V4L2Device::OnQueueDestroyed(v4l2_buf_type buf_type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(client_sequence_checker_);
 
   auto it = queues_.find(buf_type);
-  DCHECK(it != queues_.end());
+  CHECK(it != queues_.end());
   queues_.erase(it);
 }
 
@@ -548,13 +552,6 @@ V4L2Device::EnumerateSupportedDecodeProfiles(
       continue;
     }
 
-    // Skip AV1 decoder profiles if kChromeOSHWAV1Decoder is disabled.
-    if ((pixelformat == V4L2_PIX_FMT_AV1 ||
-         pixelformat == V4L2_PIX_FMT_AV1_FRAME) &&
-        !base::FeatureList::IsEnabled(kChromeOSHWAV1Decoder)) {
-      continue;
-    }
-
     VideoDecodeAccelerator::SupportedProfile profile;
     GetSupportedResolution(base::BindRepeating(&V4L2Device::Ioctl, this),
                            pixelformat, &profile.min_resolution,
@@ -604,6 +601,10 @@ V4L2Device::EnumerateSupportedEncodeProfiles() {
 
     for (const auto& video_codec_profile : video_codec_profiles) {
       profile.profile = video_codec_profile;
+
+      profile.scalability_modes = GetSupportedScalabilityModesForV4L2Codec(
+          base::BindRepeating(&V4L2Device::Ioctl, this), video_codec_profile);
+
       profiles.push_back(profile);
 
       DVLOGF(3) << "Found encoder profile " << GetProfileName(profile.profile)
@@ -683,7 +684,11 @@ V4L2RequestsQueue* V4L2Device::GetRequestsQueue() {
   // this should be fine, since |GetRequestsQueue()| is only called after
   // the codec format is configured, and the VD/VDA instance is always tied
   // to a specific format, so it will never need to switch media devices.
+#if BUILDFLAG(IS_CHROMEOS)
   static const std::string kRequestDevicePrefix = "/dev/media-dec";
+#else
+  static const std::string kRequestDevicePrefix = "/dev/media";
+#endif
 
   // We are sandboxed, so we can't query directory contents to check which
   // devices are actually available. Try to open the first 10; if not present,
@@ -849,11 +854,19 @@ void V4L2Device::CloseDevice() {
 }
 
 void V4L2Device::EnumerateDevicesForType(Type type) {
+#if BUILDFLAG(IS_CHROMEOS)
   static const std::string kDecoderDevicePattern = "/dev/video-dec";
   static const std::string kEncoderDevicePattern = "/dev/video-enc";
   static const std::string kImageProcessorDevicePattern = "/dev/image-proc";
   static const std::string kJpegDecoderDevicePattern = "/dev/jpeg-dec";
   static const std::string kJpegEncoderDevicePattern = "/dev/jpeg-enc";
+#else
+  static const std::string kDecoderDevicePattern = "/dev/video";
+  static const std::string kEncoderDevicePattern = "/dev/video";
+  static const std::string kImageProcessorDevicePattern = "/dev/video";
+  static const std::string kJpegDecoderDevicePattern = "/dev/video";
+  static const std::string kJpegEncoderDevicePattern = "/dev/video";
+#endif
 
   std::string device_pattern;
   v4l2_buf_type buf_type;
@@ -882,14 +895,23 @@ void V4L2Device::EnumerateDevicesForType(Type type) {
 
   std::vector<std::string> candidate_paths;
 
-  // TODO(posciak): Remove this legacy unnumbered device once
-  // all platforms are updated to use numbered devices.
-  candidate_paths.push_back(device_pattern);
-
   // We are sandboxed, so we can't query directory contents to check which
   // devices are actually available. Try to open the first 10; if not present,
   // we will just fail to open immediately.
-  for (int i = 0; i < 10; ++i) {
+#if BUILDFLAG(IS_CHROMEOS)
+  constexpr int kMaxDevices = 10;
+  candidate_paths.reserve(kMaxDevices + 1);
+
+  // TODO(posciak): Remove this legacy unnumbered device once
+  // all platforms are updated to use numbered devices.
+  candidate_paths.push_back(device_pattern);
+#else
+  // On mainline Linux we need to check a much larger number of devices, mainly
+  // because the device pattern is shared with ISP devices.
+  constexpr int kMaxDevices = 256;
+  candidate_paths.reserve(kMaxDevices);
+#endif
+  for (int i = 0; i < kMaxDevices; ++i) {
     candidate_paths.push_back(
         base::StringPrintf("%s%d", device_pattern.c_str(), i));
   }

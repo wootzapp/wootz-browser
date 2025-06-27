@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/omnibox/chrome_omnibox_navigation_observer.h"
 
+#include <array>
 #include <unordered_map>
 #include <vector>
 
@@ -41,8 +42,8 @@ class ChromeOmniboxNavigationObserverTest
       const ChromeOmniboxNavigationObserverTest&) = delete;
 
  protected:
-  ChromeOmniboxNavigationObserverTest() {}
-  ~ChromeOmniboxNavigationObserverTest() override {}
+  ChromeOmniboxNavigationObserverTest() = default;
+  ~ChromeOmniboxNavigationObserverTest() override = default;
 
   content::NavigationController* navigation_controller() {
     return &(web_contents()->GetController());
@@ -107,8 +108,8 @@ void ChromeOmniboxNavigationObserverTest::SetUp() {
 
   TemplateURLData policy_turl;
   policy_turl.SetKeyword(policy_search_keyword());
-  policy_turl.created_by_policy =
-      TemplateURLData::CreatedByPolicy::kDefaultSearchProvider;
+  policy_turl.policy_origin =
+      TemplateURLData::PolicyOrigin::kDefaultSearchProvider;
   factory_util.model()->Add(std::make_unique<TemplateURL>(policy_turl));
 
   TemplateURLData starter_pack_turl;
@@ -127,15 +128,16 @@ scoped_refptr<net::HttpResponseHeaders> GetHeadersForResponseCode(int code) {
     return base::MakeRefCounted<net::HttpResponseHeaders>(
         "HTTP/1.1 404 Not Found\r\n");
   }
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void WriteMojoMessage(const mojo::ScopedDataPipeProducerHandle& handle,
-                      const char* message) {
-  size_t num_bytes = strlen(message);
-  ASSERT_EQ(MOJO_RESULT_OK,
-            handle->WriteData(message, &num_bytes, MOJO_WRITE_DATA_FLAG_NONE));
+                      std::string message) {
+  size_t actually_written_bytes = 0;
+  ASSERT_EQ(MOJO_RESULT_OK, handle->WriteData(base::as_byte_span(message),
+                                              MOJO_WRITE_DATA_FLAG_NONE,
+                                              actually_written_bytes));
+  ASSERT_EQ(message.size(), actually_written_bytes);
 }
 
 }  // namespace
@@ -212,7 +214,8 @@ TEST_F(ChromeOmniboxNavigationObserverTest, AlternateNavInfoBar) {
   struct Case {
     const Response response;
     const bool expected_alternate_nav_bar_shown;
-  } cases[] = {
+  };
+  auto cases = std::to_array<Case>({
       // The only response provided is a net error.
       {{{"http://example/"}, kNetError}, false},
       // The response connected to a valid page.
@@ -252,7 +255,7 @@ TEST_F(ChromeOmniboxNavigationObserverTest, AlternateNavInfoBar) {
       {{{"http://example/", "https://example/", "https://example/root"},
         kNoResponse},
        true},
-  };
+  });
   for (size_t i = 0; i < std::size(cases); ++i) {
     SCOPED_TRACE("case #" + base::NumberToString(i));
     const Case& test_case = cases[i];
@@ -269,7 +272,7 @@ TEST_F(ChromeOmniboxNavigationObserverTest, AlternateNavInfoBar) {
       redir_info.status_code = net::HTTP_MOVED_PERMANENTLY;
       auto redir_head =
           network::CreateURLResponseHead(net::HTTP_MOVED_PERMANENTLY);
-      redirects.push_back({redir_info, std::move(redir_head)});
+      redirects.emplace_back(redir_info, std::move(redir_head));
     }
 
     // Fill in final response.

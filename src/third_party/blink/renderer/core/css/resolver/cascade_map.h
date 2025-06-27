@@ -42,13 +42,15 @@ class CORE_EXPORT CascadeMap {
   const CascadePriority* Find(const CSSPropertyName&, CascadeOrigin) const;
   CascadePriority* FindKnownToExist(const CSSPropertyID id) {
     DCHECK(native_properties_.Bits().Has(id));
-    return &native_properties_.Buffer()[static_cast<size_t>(id)].Top(
-        backing_vector_);
+    return UNSAFE_TODO(
+        &native_properties_.Buffer()[static_cast<size_t>(id)].Top(
+            backing_vector_));
   }
   const CascadePriority* FindKnownToExist(const CSSPropertyID id) const {
     DCHECK(native_properties_.Bits().Has(id));
-    return &native_properties_.Buffer()[static_cast<size_t>(id)].Top(
-        backing_vector_);
+    return UNSAFE_TODO(
+        &native_properties_.Buffer()[static_cast<size_t>(id)].Top(
+            backing_vector_));
   }
   // Similar to Find(name, origin), but returns the CascadePriority from cascade
   // layers below the given priority. The uint64_t is presumed to come from

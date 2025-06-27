@@ -11,8 +11,8 @@
 #include "services/device/public/cpp/generic_sensor/orientation_util.h"
 #include "services/device/public/mojom/sensor.mojom-blink.h"
 #include "services/device/public/mojom/sensor_provider.mojom-blink.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/sensor/web_sensor_provider_automation.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
@@ -47,8 +47,6 @@ device::mojom::blink::SensorType ToMojoSensorType(
       return device::mojom::blink::SensorType::LINEAR_ACCELERATION;
     case V8VirtualSensorType::Enum::kMagnetometer:
       return device::mojom::blink::SensorType::MAGNETOMETER;
-    case V8VirtualSensorType::Enum::kProximity:
-      return device::mojom::blink::SensorType::PROXIMITY;
     case V8VirtualSensorType::Enum::kRelativeOrientation:
       return device::mojom::blink::SensorType::RELATIVE_ORIENTATION_QUATERNION;
   }
@@ -120,7 +118,6 @@ ToMojoRawReading(V8VirtualSensorType::Enum type,
     case V8VirtualSensorType::Enum::kGyroscope:
     case V8VirtualSensorType::Enum::kLinearAcceleration:
     case V8VirtualSensorType::Enum::kMagnetometer:
-    case V8VirtualSensorType::Enum::kProximity:
       if (!reading->hasX() || !reading->hasY() || !reading->hasZ()) {
         return base::unexpected("Invalid xyz reading format");
       }

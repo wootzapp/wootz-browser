@@ -5,13 +5,20 @@
 #ifndef CHROME_BROWSER_UI_PERFORMANCE_CONTROLS_PERFORMANCE_INTERVENTION_BUTTON_CONTROLLER_H_
 #define CHROME_BROWSER_UI_PERFORMANCE_CONTROLS_PERFORMANCE_INTERVENTION_BUTTON_CONTROLLER_H_
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/timer/timer.h"
 #include "chrome/browser/performance_manager/public/user_tuning/performance_detection_manager.h"
+#include "chrome/browser/ui/performance_controls/performance_intervention_bubble_observer.h"
 #include "chrome/browser/ui/performance_controls/performance_intervention_button_controller_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 
 class Browser;
 class TabStripModel;
+
+namespace feature_engagement {
+class Tracker;
+}
 
 namespace {
 
@@ -25,7 +32,8 @@ using performance_manager::user_tuning::PerformanceDetectionManager;
 // button through a delegate interface.
 class PerformanceInterventionButtonController
     : public TabStripModelObserver,
-      public PerformanceDetectionManager::ActionableTabsObserver {
+      public PerformanceDetectionManager::ActionableTabsObserver,
+      public PerformanceInterventionBubbleObserver {
  public:
   PerformanceInterventionButtonController(
       PerformanceInterventionButtonControllerDelegate* delegate,
@@ -36,6 +44,8 @@ class PerformanceInterventionButtonController
       const PerformanceInterventionButtonController&) = delete;
   PerformanceInterventionButtonController& operator=(
       const PerformanceInterventionButtonController&) = delete;
+
+  static int GetAcceptancePercentage();
 
   // PerformanceDetectionManager::ActionableTabsObserver:
   void OnActionableTabListChanged(
@@ -48,10 +58,36 @@ class PerformanceInterventionButtonController
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
 
+  // PerformanceInterventionBubbleObserver:
+  void OnBubbleShown() override;
+  void OnBubbleHidden() override;
+  void OnDeactivateButtonClicked() override;
+
+  PerformanceDetectionManager::ActionableTabsResult actionable_cpu_tabs() {
+    return actionable_cpu_tabs_;
+  }
+
+  bool ShouldShowNotification(feature_engagement::Tracker* tracker);
+
  private:
+  void HideToolbarButton(bool accept_intervention);
+
+  // Records metrics if the intervention UI is able to shown or the reason it
+  // was unable to do so and triggers the UI to show if is able to.
+  void MaybeShowUi(
+      PerformanceDetectionManager::ResourceType type,
+      const PerformanceDetectionManager::ActionableTabsResult& result);
+
+  // Returns true if `result` contains at least one tab that belongs to a
+  // profile different from the profile used by the last active browser.
+  // Otherwise, returns false.
+  bool ContainsNonLastActiveProfile(
+      const PerformanceDetectionManager::ActionableTabsResult& result);
+
   raw_ptr<PerformanceInterventionButtonControllerDelegate> delegate_ = nullptr;
   const raw_ptr<Browser> browser_;
   PerformanceDetectionManager::ActionableTabsResult actionable_cpu_tabs_;
+  base::RetainingOneShotTimer hide_button_timer_;
   base::WeakPtrFactory<PerformanceInterventionButtonController>
       weak_ptr_factory_{this};
 };

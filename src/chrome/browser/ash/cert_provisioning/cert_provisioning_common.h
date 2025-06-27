@@ -5,23 +5,28 @@
 #ifndef CHROME_BROWSER_ASH_CERT_PROVISIONING_CERT_PROVISIONING_COMMON_H_
 #define CHROME_BROWSER_ASH_CERT_PROVISIONING_CERT_PROVISIONING_COMMON_H_
 
+#include <stdint.h>
+
 #include <optional>
 #include <string>
 
 #include "base/containers/enum_set.h"
+#include "base/feature_list.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_forward.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/chromeos/platform_keys/platform_keys.h"
-#include "chromeos/ash/components/dbus/attestation/attestation_ca.pb.h"
-#include "chromeos/ash/components/dbus/attestation/interface.pb.h"
 #include "chromeos/ash/components/dbus/constants/attestation_constants.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "net/cert/x509_certificate.h"
 
 class PrefRegistrySimple;
 class Profile;
+
+namespace attestation {
+enum VerifiedAccessFlow : int;
+}  // namespace attestation
 
 namespace ash {
 
@@ -31,6 +36,19 @@ class PlatformKeysService;
 }  // namespace platform_keys
 
 namespace cert_provisioning {
+
+// A feature to prevent Certificate Provisioning workers from attempting to
+// continue the provisioning process on timeout (without receiving an
+// invalidation). It is intended to be used for testing only to verify that new
+// invalidations actually work. Also see `ShouldOnlyUseInvalidations`.
+// TODO(b/336989561): Remove this after the migration to new invalidations is
+// done.
+BASE_DECLARE_FEATURE(kCertProvisioningUseOnlyInvalidationsForTesting);
+
+BASE_DECLARE_FEATURE(
+    kDeviceCertProvisioningInvalidationWithDirectMessagesEnabled);
+BASE_DECLARE_FEATURE(
+    kUserCertProvisioningInvalidationWithDirectMessagesEnabled);
 
 // Used for both DeleteVaKey and DeleteVaKeysByPrefix
 using DeleteVaKeyCallback = base::OnceCallback<void(bool)>;
@@ -151,6 +169,7 @@ const char kCertProfileRenewalPeroidSec[] = "renewal_period_seconds";
 const char kCertProfilePolicyVersionKey[] = "policy_version";
 const char kCertProfileProtocolVersion[] = "protocol_version";
 const char kCertProfileIsVaEnabledKey[] = "enable_remote_attestation_check";
+const char kCertProfileKeyType[] = "key_algorithm";
 
 // The version of the certificate provisioning protocol between ChromeOS client
 // and device management server.
@@ -165,6 +184,19 @@ enum class ProtocolVersion {
   kDynamic = 2,
 };
 
+// The type of key the device should generate.
+// The values must match the description in
+// RequiredClientCertificateForDevice.yaml and
+// RequiredClientCertificateForUser.yaml.
+// They are also used in serialization so they should not be renumbered.
+enum class KeyType {
+  // 2048-bit RSA keys.
+  kRsa = 1,
+  // Elliptic-curve keys using the P-256 curve.
+  kEc = 2,
+  kMaxValue = KeyType::kEc
+};
+
 struct CertProfile {
   static std::optional<CertProfile> MakeFromValue(
       const base::Value::Dict& value);
@@ -174,6 +206,7 @@ struct CertProfile {
   CertProfile(CertProfileId profile_id,
               std::string name,
               std::string policy_version,
+              KeyType key_type,
               bool is_va_enabled,
               base::TimeDelta renewal_period,
               ProtocolVersion protocol_version);
@@ -187,6 +220,7 @@ struct CertProfile {
   // Human-readable name (UTF-8).
   std::string name;
   std::string policy_version;
+  KeyType key_type;
   bool is_va_enabled = true;
   // Default renewal period 0 means that a certificate will be renewed only
   // after the previous one has expired (0 seconds before it is expires).
@@ -196,7 +230,7 @@ struct CertProfile {
   // IMPORTANT:
   // Increment this when you add/change any member in CertProfile (and update
   // all functions that fail to compile because of it).
-  static constexpr int kVersion = 6;
+  static constexpr int kVersion = 7;
 
   bool operator==(const CertProfile& other) const;
   bool operator!=(const CertProfile& other) const;
@@ -258,6 +292,25 @@ platform_keys::PlatformKeysService* GetPlatformKeysService(CertScope scope,
 platform_keys::KeyPermissionsManager* GetKeyPermissionsManager(
     CertScope scope,
     Profile* profile);
+
+// Generates a random unique identifier for a certificate provisioning process.
+// It is used to receive invalidations (to wake up waiting workers) and for
+// consistent logging with the server-side code (see "cppId" in the logs).
+std::string GenerateCertProvisioningId();
+
+// Creates an invalidation listener type based the cert provisioning process id
+// (see `GenerateCertProvisioningId()`). The type is a string that is
+// constructed both server- and client-side and is used to deliver FCM
+// invalidations from the server-side.
+std::string MakeInvalidationListenerType(
+    const std::string& cert_prov_process_id);
+
+// Returns true if workers should only progress when they receive an
+// invalidation (not on timeout).
+bool ShouldOnlyUseInvalidations();
+
+// Returns GCP number for cert provisioning invalidations of given `scope`.
+int64_t GetCertProvisioningInvalidationProjectNumber(CertScope scope);
 
 }  // namespace cert_provisioning
 }  // namespace ash

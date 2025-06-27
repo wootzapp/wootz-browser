@@ -12,54 +12,46 @@
 
 #include "base/component_export.h"
 #include "base/containers/linked_list.h"
-#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
-#include "base/sequence_checker.h"
+#include "base/rand_util.h"
 #include "base/timer/timer.h"
 #include "mojo/public/cpp/base/shared_memory_version.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/isolation_info.h"
-#include "net/cookies/canonical_cookie.h"
-#include "net/cookies/cookie_change_dispatcher.h"
-#include "net/cookies/cookie_inclusion_status.h"
 #include "net/cookies/cookie_partition_key_collection.h"
 #include "net/cookies/cookie_setting_override.h"
-#include "net/cookies/cookie_store.h"
 #include "net/first_party_sets/first_party_set_metadata.h"
+#include "net/storage_access_api/status.h"
 #include "services/network/public/mojom/cookie_access_observer.mojom.h"
 #include "services/network/public/mojom/restricted_cookie_manager.mojom.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
 namespace net {
+class CanonicalCookie;
+class CookieInclusionStatus;
 class CookieStore;
 class SiteForCookies;
+class RefUniqueCookieKey;
 }  // namespace net
 
 namespace network {
 
-using CountedCookieAccessDetailsPtr =
-    std::pair<mojom::CookieAccessDetailsPtr, std::unique_ptr<size_t>>;
-
-struct CookieAccessDetailsPtrComparer {
-  bool operator()(const CountedCookieAccessDetailsPtr& lhs,
-                  const CountedCookieAccessDetailsPtr& rhs) const;
-};
-
-using CookieAccessDetails =
-    std::set<CountedCookieAccessDetailsPtr, CookieAccessDetailsPtrComparer>;
-
 struct CookieWithAccessResultComparer {
+  using is_transparent = std::true_type;
   bool operator()(
       const net::CookieWithAccessResult& cookie_with_access_result1,
       const net::CookieWithAccessResult& cookie_with_access_result2) const;
+  bool operator()(
+      const net::RefUniqueCookieKey& key1,
+      const net::CookieWithAccessResult& cookie_with_access_result2) const;
+  bool operator()(const net::CookieWithAccessResult& cookie_with_access_result1,
+                  const net::RefUniqueCookieKey& key2) const;
 };
 
-using CookieAccessDetailsList =
-    std::vector<network::mojom::CookieAccessDetailsPtr>;
 using CookieAccesses =
     std::set<net::CookieWithAccessResult, CookieWithAccessResultComparer>;
 using CookieAccessesByURLAndSite =
@@ -110,6 +102,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
       const url::Origin& origin,
       const net::IsolationInfo& isolation_info,
       const net::CookieSettingOverrides& cookie_setting_overrides,
+      const net::CookieSettingOverrides& devtools_cookie_setting_overrides,
       mojo::PendingRemote<mojom::CookieAccessObserver> cookie_observer,
       net::FirstPartySetMetadata first_party_set_metadata,
       UmaMetricsUpdater* metrics_updater = nullptr);
@@ -133,9 +126,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
   void GetAllForUrl(const GURL& url,
                     const net::SiteForCookies& site_for_cookies,
                     const url::Origin& top_frame_origin,
-                    bool has_storage_access,
+                    net::StorageAccessApiStatus storage_access_api_status,
                     mojom::CookieManagerGetOptionsPtr options,
                     bool is_ad_tagged,
+                    bool apply_devtools_overrides,
                     bool force_disable_third_party_cookies,
                     GetAllForUrlCallback callback) override;
 
@@ -143,37 +137,45 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
                           const GURL& url,
                           const net::SiteForCookies& site_for_cookies,
                           const url::Origin& top_frame_origin,
-                          bool has_storage_access,
+                          net::StorageAccessApiStatus storage_access_api_status,
                           net::CookieInclusionStatus status,
+                          bool is_ad_tagged,
+                          bool apply_devtools_overrides,
                           SetCanonicalCookieCallback callback) override;
 
   void AddChangeListener(
       const GURL& url,
       const net::SiteForCookies& site_for_cookies,
       const url::Origin& top_frame_origin,
-      bool has_storage_access,
+      net::StorageAccessApiStatus storage_access_api_status,
       mojo::PendingRemote<mojom::CookieChangeListener> listener,
       AddChangeListenerCallback callback) override;
 
-  void SetCookieFromString(const GURL& url,
-                           const net::SiteForCookies& site_for_cookies,
-                           const url::Origin& top_frame_origin,
-                           bool has_storage_access,
-                           const std::string& cookie,
-                           SetCookieFromStringCallback callback) override;
+  void SetCookieFromString(
+      const GURL& url,
+      const net::SiteForCookies& site_for_cookies,
+      const url::Origin& top_frame_origin,
+      net::StorageAccessApiStatus storage_access_api_status,
+      bool get_version_shared_memory,
+      bool is_ad_tagged,
+      bool apply_devtools_overrides,
+      const std::string& cookie,
+      SetCookieFromStringCallback callback) override;
 
   void GetCookiesString(const GURL& url,
                         const net::SiteForCookies& site_for_cookies,
                         const url::Origin& top_frame_origin,
-                        bool has_storage_access,
+                        net::StorageAccessApiStatus storage_access_api_status,
                         bool get_version_shared_memory,
                         bool is_ad_tagged,
+                        bool apply_devtools_overrides,
                         bool force_disable_third_party_cookies,
                         GetCookiesStringCallback callback) override;
   void CookiesEnabledFor(const GURL& url,
                          const net::SiteForCookies& site_for_cookies,
                          const url::Origin& top_frame_origin,
-                         bool has_storage_access,
+                         net::StorageAccessApiStatus storage_access_api_status,
+                         bool apply_devtools_overrides,
                          CookiesEnabledForCallback callback) override;
 
   // If this instance owns its receiver bind and store it using
@@ -197,13 +199,14 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
   // reflect that.
   void OnCookieSettingsChanged();
 
-  void SetShouldDeDupCookieAccessDetailsForTesting(bool should_dedup);
-  void SetMaxCookieCacheCountForTesting(size_t count);
-
  private:
   using SharedVersionType = std::atomic<uint64_t>;
-  static_assert(SharedVersionType::is_always_lock_free,
-                "Usage of SharedVersionType across processes might be unsafe");
+
+  // Returns the shared memory region where a cookies version is stored and
+  // registers a callback that increments the version when the cookie store has
+  // changes.
+  base::ReadOnlySharedMemoryRegion GetAndPrepareSharedMemoryRegion(
+      const GURL& url);
 
   // Function to be called when an event is known to potentially invalidate
   // cookies the other side could have cached.
@@ -229,6 +232,11 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
       const net::CookieAccessResultList& cookie_list,
       const net::CookieAccessResultList& excluded_cookies);
 
+  // Schedules a new shared memory invalidation task if appropriate. Called
+  // every time the full cookie list is retrieved.
+  void UpdateSharedMemoryVersionInvalidationTimer(
+      const std::vector<net::CookieWithAccessResult>& cookies);
+
   // Reports the result of setting the cookie to |network_context_client_|, and
   // invokes the user callback.
   void SetCanonicalCookieResult(
@@ -237,7 +245,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
       const net::CookieSettingOverrides& cookie_setting_overrides,
       const net::SiteForCookies& site_for_cookies,
       const net::CanonicalCookie& cookie,
-      const net::CookieOptions& net_options,
+      bool is_ad_tagged,
       SetCanonicalCookieCallback user_callback,
       net::CookieAccessResult access_result);
 
@@ -285,9 +293,20 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
 
   // Computes the CookieSettingOverrides to be used by this instance.
   net::CookieSettingOverrides GetCookieSettingOverrides(
-      bool has_storage_access,
+      net::StorageAccessApiStatus storage_access_api_status,
       bool is_ad_tagged,
+      bool apply_devtools_overrides,
       bool force_disable_third_party_cookies) const;
+
+  void GetCookiesAfterSet(const GURL& url,
+                          const net::SiteForCookies& site_for_cookies,
+                          const url::Origin& top_frame_origin,
+                          net::StorageAccessApiStatus storage_access_api_status,
+                          bool is_ad_tagged,
+                          bool apply_devtools_overrides,
+                          SetCookieFromStringCallback callback,
+                          base::ReadOnlySharedMemoryRegion shared_memory_region,
+                          bool succeeded);
 
   void OnCookiesAccessed(network::mojom::CookieAccessDetailsPtr details);
 
@@ -302,6 +321,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
   // GetCookieSettingOverrides, depending on additional factors not known at
   // construction or that may change after construction.
   const net::CookieSettingOverrides cookie_setting_overrides_;
+
+  // Overrides added by devtools. These are kept separate so that they can be
+  // conditionally applied within GetCookieSettingOverrides.
+  const net::CookieSettingOverrides devtools_cookie_setting_overrides_;
 
   url::Origin origin_;
 
@@ -347,19 +370,13 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
 
   // Stores queued cookie access events that will be sent after a short delay,
   // controlled by `cookies_access_timer_`.
-  CookieAccessDetails cookie_access_details_;
-  // We use this list rather than |cookie_access_details_| if de-duping is
-  // disabled (i.e., if |should_dedup_cookie_access_details_| is false. We also
-  // use it when deduping if DCHECK is enabled in order to check that the
-  // ordering of the deduplicated list is correct.
-  CookieAccessDetailsList cookie_access_details_list_;
-  bool should_dedup_cookie_access_details_ = true;
+  std::vector<network::mojom::CookieAccessDetailsPtr> cookie_access_details_;
   base::RetainingOneShotTimer cookies_access_timer_;
-  size_t estimated_cookie_access_details_size_ = 0u;
-  size_t estimated_deduped_cookie_access_details_size_ = 0u;
-  size_t cookie_access_details_count_ = 0u;
 
   mojo::SharedMemoryVersionController shared_memory_version_controller_;
+  base::OneShotTimer shared_memory_invalidation_timer_;
+
+  base::MetricsSubSampler metrics_subsampler_;
 
   base::WeakPtrFactory<RestrictedCookieManager> weak_ptr_factory_{this};
 };

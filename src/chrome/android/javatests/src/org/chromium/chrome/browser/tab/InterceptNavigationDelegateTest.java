@@ -16,11 +16,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.RequiredCallback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.externalnav.ExternalNavigationDelegateImpl;
@@ -33,9 +36,9 @@ import org.chromium.components.external_intents.ExternalNavigationHandler;
 import org.chromium.components.external_intents.ExternalNavigationParams;
 import org.chromium.components.external_intents.InterceptNavigationDelegateImpl;
 import org.chromium.content_public.browser.NavigationHandle;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.net.test.EmbeddedTestServer;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.url.GURL;
 import org.chromium.url.Origin;
@@ -48,6 +51,7 @@ import java.util.concurrent.TimeoutException;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
+@DisableIf.Device(DeviceFormFactor.TABLET) // crbug.com/41486139
 public class InterceptNavigationDelegateTest {
     @ClassRule
     public static ChromeTabbedActivityTestRule sActivityTestRule =
@@ -110,24 +114,28 @@ public class InterceptNavigationDelegateTest {
     public void setUp() throws Exception {
         mActivity = sActivityTestRule.getActivity();
         final Tab tab = mActivity.getActivityTab();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     InterceptNavigationDelegateClientImpl client =
                             new InterceptNavigationDelegateClientImpl(tab);
                     InterceptNavigationDelegateImpl delegate =
                             new InterceptNavigationDelegateImpl(client) {
                                 @Override
-                                public boolean shouldIgnoreNavigation(
+                                public void shouldIgnoreNavigation(
                                         NavigationHandle navigationHandle,
                                         GURL escapedUrl,
                                         boolean hiddenCrossFrame,
-                                        boolean isSandboxedFrame) {
+                                        boolean isSandboxedFrame,
+                                        boolean shouldRunAsync,
+                                        RequiredCallback resultCallback) {
                                     mNavParamHistory.add(navigationHandle);
-                                    return super.shouldIgnoreNavigation(
+                                    super.shouldIgnoreNavigation(
                                             navigationHandle,
                                             escapedUrl,
                                             hiddenCrossFrame,
-                                            isSandboxedFrame);
+                                            isSandboxedFrame,
+                                            shouldRunAsync,
+                                            resultCallback);
                                 }
 
                                 @Override
@@ -235,7 +243,7 @@ public class InterceptNavigationDelegateTest {
         TouchCommon.singleClickView(mActivity.getActivityTab().getView());
         waitTillExpectedCallsComplete(2, DEFAULT_MAX_TIME_TO_WAIT_IN_MS);
 
-        mSubframeExternalProtocolCalled.waitForFirst();
+        mSubframeExternalProtocolCalled.waitForOnly();
     }
 
     @Test

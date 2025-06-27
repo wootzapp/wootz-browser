@@ -8,18 +8,18 @@
 #include <vector>
 
 #include "base/files/file_util.h"
+#include "base/strings/to_string.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/net/storage_test_utils.h"
+#include "chrome/browser/page_load_metrics/observers/third_party_cookie_deprecation_page_load_metrics_observer.h"
 #include "chrome/browser/privacy_sandbox/tracking_protection_onboarding_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/subresource_filter/subresource_filter_browser_test_harness.h"
 #include "chrome/browser/tpcd/experiment/tpcd_experiment_features.h"
-#include "chrome/browser/tpcd/experiment/tpcd_pref_names.h"
-#include "chrome/browser/tpcd/experiment/tpcd_utils.h"
 #include "chrome/browser/tpcd/support/top_level_trial_service.h"
 #include "chrome/browser/tpcd/support/top_level_trial_service_factory.h"
 #include "chrome/browser/tpcd/support/tpcd_support_service.h"
@@ -36,6 +36,8 @@
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/prefs/pref_service.h"
+#include "components/privacy_sandbox/tpcd_pref_names.h"
+#include "components/privacy_sandbox/tpcd_utils.h"
 #include "components/privacy_sandbox/tracking_protection_onboarding.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "components/subresource_filter/core/common/test_ruleset_utils.h"
@@ -200,9 +202,10 @@ const Allow3PCMechanismBrowserTestCase kAllowMechanismTestCases[] = {
         // Metadata.
         .tpcd_metadata_critical_sector_allow_3p_cookie = true,
         .expected_allow_mechanism_histogram_sample =
-            ThirdPartyCookieAllowMechanism::kAllowBy3PCD,
+            ThirdPartyCookieAllowMechanism::
+                kAllowBy3PCDMetadataSourceCriticalSector,
         .expected_web_feature_histogram_sample =
-            WebFeature::kThirdPartyCookieDeprecation_AllowBy3PCD,
+            WebFeature::kThirdPartyCookieDeprecation_AllowBy3PCDMetadata,
     },
     {
         .tpcd_metadata_critical_sector_allow_3p_cookie = true,
@@ -212,6 +215,10 @@ const Allow3PCMechanismBrowserTestCase kAllowMechanismTestCases[] = {
                 kAllowBy3PCDMetadataSourceCriticalSector,
         .expected_web_feature_histogram_sample =
             WebFeature::kThirdPartyCookieDeprecation_AllowBy3PCDMetadata,
+    },
+    {
+        .expected_web_feature_histogram_sample =
+            WebFeature::kThirdPartyCookieBlocked,
     }};
 
 }  // namespace
@@ -293,9 +300,9 @@ class ThirdPartyCookieDeprecationObserverBaseBrowserTest
         prefs::kTrackingProtectionOnboardingStatus,
         static_cast<int>(privacy_sandbox::TrackingProtectionOnboarding::
                              OnboardingStatus::kOnboarded));
-    EXPECT_EQ(onboarding_service()->GetOnboardingStatus(),
-              privacy_sandbox::TrackingProtectionOnboarding::OnboardingStatus::
-                  kOnboarded);
+    // Enable 3pcd as it's no longer done through the onboarding service.
+    browser()->profile()->GetPrefs()->SetBoolean(
+        prefs::kTrackingProtection3pcdEnabled, true);
   }
 
   content::WebContents* web_contents() {
@@ -336,12 +343,11 @@ class ThirdPartyCookieDeprecationObserverBaseBrowserTest
 
 class ThirdPartyCookieDeprecationObserverBrowserTest
     : public ThirdPartyCookieDeprecationObserverBaseBrowserTest,
-      public testing::WithParamInterface<std::tuple<bool, bool>> {
+      public testing::WithParamInterface<std::tuple<bool, bool, bool>> {
  public:
   ThirdPartyCookieDeprecationObserverBrowserTest()
       : is_experiment_cookies_disabled_(std::get<0>(GetParam())),
         is_client_eligible_(std::get<1>(GetParam())) {}
-
   ThirdPartyCookieDeprecationObserverBrowserTest(
       const ThirdPartyCookieDeprecationObserverBrowserTest&) = delete;
   ThirdPartyCookieDeprecationObserverBrowserTest& operator=(
@@ -354,14 +360,22 @@ class ThirdPartyCookieDeprecationObserverBrowserTest
     subresource_filter::SubresourceFilterBrowserTest::SetUp();
   }
 
-  void SetUpThirdPartyCookieExperiment() {
+  virtual void SetUpThirdPartyCookieExperiment() {
     // Experiment feature param requests 3PCs blocked.
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kCookieDeprecationFacilitatedTesting,
-          {{tpcd::experiment::kDisable3PCookiesName,
-            is_experiment_cookies_disabled_ ? "true" : "false"}}},
-         {subresource_filter::kTPCDAdHeuristicSubframeRequestTagging, {}}},
-        {content_settings::features::kTrackingProtection3pcd});
+    std::vector<base::test::FeatureRefAndParams> enabled_features = {
+        {features::kCookieDeprecationFacilitatedTesting,
+         {{tpcd::experiment::kDisable3PCookiesName,
+           base::ToString(is_experiment_cookies_disabled_)}}},
+        {subresource_filter::kTPCDAdHeuristicSubframeRequestTagging, {}}};
+    std::vector<base::test::FeatureRef> disabled_features = {
+        content_settings::features::kTrackingProtection3pcd};
+    if (std::get<2>(GetParam())) {
+      enabled_features.push_back({network::features::kGetCookiesOnSet, {}});
+    } else {
+      disabled_features.push_back(network::features::kGetCookiesOnSet);
+    }
+    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                       disabled_features);
   }
 
   void SetUpThirdPartyCookieExperimentWithClientState() {
@@ -399,7 +413,9 @@ class ThirdPartyCookieDeprecationObserverBrowserTest
 
 INSTANTIATE_TEST_SUITE_P(,
                          ThirdPartyCookieDeprecationObserverBrowserTest,
-                         testing::Combine(testing::Bool(), testing::Bool()));
+                         testing::Combine(testing::Bool(),
+                                          testing::Bool(),
+                                          testing::Bool()));
 
 IN_PROC_BROWSER_TEST_P(ThirdPartyCookieDeprecationObserverBrowserTest,
                        FirstPartyCookiesReadAndWrite) {
@@ -960,9 +976,10 @@ class ThirdPartyCookieDeprecationObserverMechanismBrowserTest
           browser()->profile());
       auto request_origin = url::Origin::Create(third_party_url);
       auto partition_origin = url::Origin::Create(first_party_url);
-      service->Update3pcdTrialSettingsForTesting(
+      service->Update3pcdTrialSettingsForTesting(OriginTrialStatusChangeDetails(
           request_origin, net::SchemefulSite(partition_origin).Serialize(),
-          /*match_subdomains=*/true, /*enabled=*/true);
+          /*match_subdomains=*/true, /*enabled=*/true,
+          /*source_id=*/std::nullopt));
     }
 
     auto tpcd_metadata_helper = [&](const std::string& source) {
@@ -1198,8 +1215,9 @@ class ThirdPartyCookieDeprecationObserverSSABrowserTest
   void SetCrossSiteCookieOnHost(const std::string& host) {
     GURL host_url = GetURL(host);
     std::string cookie = base::StrCat({"cross-site=", host});
-    content::SetCookie(browser()->profile(), host_url,
-                       base::StrCat({cookie, ";SameSite=None;Secure"}));
+    ASSERT_TRUE(
+        content::SetCookie(browser()->profile(), host_url,
+                           base::StrCat({cookie, ";SameSite=None;Secure"})));
     ASSERT_THAT(content::GetCookies(browser()->profile(), host_url),
                 testing::HasSubstr(cookie));
   }
@@ -1361,10 +1379,11 @@ class ThirdPartyCookieDeprecationObserverCookieReadBrowserTest
     CookieSettingsFactory::GetForProfile(browser()->profile())
         ->SetTemporaryCookieGrantForHeuristic(third_party_url, first_party_url,
                                               base::Seconds(60));
-    EXPECT_EQ(CookieSettingsFactory::GetForProfile(browser()->profile())
-                  ->GetCookieSetting(third_party_url, first_party_url,
-                                     net::CookieSettingOverrides()),
-              ContentSetting::CONTENT_SETTING_ALLOW);
+    EXPECT_EQ(
+        CookieSettingsFactory::GetForProfile(browser()->profile())
+            ->GetCookieSetting(third_party_url, net::SiteForCookies(),
+                               first_party_url, net::CookieSettingOverrides()),
+        ContentSetting::CONTENT_SETTING_ALLOW);
   }
 };
 

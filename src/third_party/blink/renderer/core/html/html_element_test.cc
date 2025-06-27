@@ -5,7 +5,6 @@
 #include "third_party/blink/renderer/core/html/html_element.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -14,6 +13,7 @@
 #include "third_party/blink/renderer/core/page/page_animator.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
+#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -253,8 +253,6 @@ TEST_F(HTMLElementTest,
 }
 
 TEST_F(HTMLElementTest, HasImplicitlyAnchoredElement) {
-  ScopedCSSAnchorPositioningForTest scoped_feature(true);
-
   SetBodyInnerHTML(R"HTML(
     <div id="anchor1"></div>
     <div id="anchor2"></div>
@@ -284,8 +282,6 @@ TEST_F(HTMLElementTest, HasImplicitlyAnchoredElement) {
 }
 
 TEST_F(HTMLElementTest, HasImplicitlyAnchoredElementViaElementAttr) {
-  ScopedCSSAnchorPositioningForTest scoped_feature(true);
-
   SetBodyInnerHTML(R"HTML(
     <div id="anchor1"></div>
     <div id="anchor2"></div>
@@ -301,13 +297,13 @@ TEST_F(HTMLElementTest, HasImplicitlyAnchoredElementViaElementAttr) {
   EXPECT_TRUE(anchor1->HasImplicitlyAnchoredElement());
   EXPECT_FALSE(anchor2->HasImplicitlyAnchoredElement());
 
-  target->setAnchorElement(anchor2);
+  target->setAnchorElementForBinding(anchor2);
 
   EXPECT_EQ(target->anchorElement(), anchor2);
   EXPECT_FALSE(anchor1->HasImplicitlyAnchoredElement());
   EXPECT_TRUE(anchor2->HasImplicitlyAnchoredElement());
 
-  target->setAnchorElement(nullptr);
+  target->setAnchorElementForBinding(nullptr);
 
   EXPECT_FALSE(target->anchorElement());
   EXPECT_FALSE(anchor1->HasImplicitlyAnchoredElement());
@@ -321,8 +317,6 @@ TEST_F(HTMLElementTest, HasImplicitlyAnchoredElementViaElementAttr) {
 }
 
 TEST_F(HTMLElementTest, ImplicitAnchorIdChange) {
-  ScopedCSSAnchorPositioningForTest scoped_feature(true);
-
   SetBodyInnerHTML(R"HTML(
     <div id="anchor1"></div>
     <div id="anchor2"></div>
@@ -347,8 +341,6 @@ TEST_F(HTMLElementTest, ImplicitAnchorIdChange) {
 }
 
 TEST_F(HTMLElementTest, ImplicitlyAnchoredElementRemoved) {
-  ScopedCSSAnchorPositioningForTest scoped_feature(true);
-
   SetBodyInnerHTML(R"HTML(
     <div id="anchor"></div>
     <div id="target1" anchor="anchor"></div>
@@ -361,7 +353,7 @@ TEST_F(HTMLElementTest, ImplicitlyAnchoredElementRemoved) {
   HTMLElement* target2 =
       To<HTMLElement>(GetDocument().getElementById(AtomicString("target2")));
 
-  target2->setAnchorElement(anchor);
+  target2->setAnchorElementForBinding(anchor);
 
   EXPECT_EQ(target1->anchorElement(), anchor);
   EXPECT_EQ(target2->anchorElement(), anchor);
@@ -376,8 +368,6 @@ TEST_F(HTMLElementTest, ImplicitlyAnchoredElementRemoved) {
 }
 
 TEST_F(HTMLElementTest, ImplicitlyAnchorElementConnected) {
-  ScopedCSSAnchorPositioningForTest scoped_feature(true);
-
   SetBodyInnerHTML("<div id=anchor></div>");
 
   Element* anchor = GetDocument().getElementById(AtomicString("anchor"));
@@ -388,7 +378,7 @@ TEST_F(HTMLElementTest, ImplicitlyAnchorElementConnected) {
 
   HTMLElement* target2 = To<HTMLElement>(
       GetDocument().CreateElementForBinding(AtomicString("div")));
-  target2->setAnchorElement(anchor);
+  target2->setAnchorElementForBinding(anchor);
 
   EXPECT_FALSE(target1->anchorElement());
   EXPECT_FALSE(target2->anchorElement());
@@ -452,19 +442,31 @@ TEST_F(HTMLElementTest, DialogTopLayerRemovalTiming) {
   EXPECT_FALSE(target->IsInTopLayer());
 }
 
-TEST_F(HTMLElementTest, AnchorAttrWithFeatureDisabled) {
-  ScopedHTMLSelectListElementForTest select_list_disabled(false);
-  ScopedCSSAnchorPositioningForTest anchor_pos_disabled(false);
+TEST_F(HTMLElementTest, InertAttributeUseCounted) {
+  SetBodyInnerHTML(R"HTML(
+    <div inert></div>
+  )HTML");
+  EXPECT_TRUE(GetDocument().IsUseCounted(WebFeature::kInertAttribute));
+  GetDocument().ClearUseCounterForTesting(WebFeature::kInertAttribute);
 
-  SetBodyInnerHTML("<div id=anchor><div anchor=anchor id=target></div></div>");
+  // Set via setAttribute
+  SetBodyInnerHTML(R"HTML(
+    <div id=target></div>
+  )HTML");
+  EXPECT_FALSE(GetDocument().IsUseCounted(WebFeature::kInertAttribute));
+  GetDocument()
+      .getElementById(AtomicString("target"))
+      ->setAttribute(html_names::kInertAttr, AtomicString("true"));
+  EXPECT_TRUE(GetDocument().IsUseCounted(WebFeature::kInertAttribute));
+  GetDocument().ClearUseCounterForTesting(WebFeature::kInertAttribute);
 
-  Element* anchor = GetDocument().getElementById(AtomicString("anchor"));
-  Element* target = GetDocument().getElementById(AtomicString("target"));
-
-  // Shouldn't hook up objects related to anchor attr when the feature is
-  // disabled.
-  EXPECT_FALSE(anchor->HasImplicitlyAnchoredElement());
-  EXPECT_FALSE(target->HasAnchorElementObserverForTesting());
+  // Test that the use counter is not incremented when the inert is
+  // set via style.
+  SetBodyInnerHTML(R"HTML(
+    <div style="interactivity: inert;"></div>
+  )HTML");
+  EXPECT_FALSE(GetDocument().IsUseCounted(WebFeature::kInertAttribute));
+  GetDocument().ClearUseCounterForTesting(WebFeature::kInertAttribute);
 }
 
 }  // namespace blink

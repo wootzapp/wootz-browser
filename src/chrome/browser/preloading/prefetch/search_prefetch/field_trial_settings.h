@@ -11,15 +11,9 @@
 
 BASE_DECLARE_FEATURE(kSearchPrefetchServicePrefetching);
 
-BASE_DECLARE_FEATURE(kSearchPrefetchBlockBeforeHeaders);
-
-BASE_DECLARE_FEATURE(kSearchPrefetchSkipsCancel);
-
 BASE_DECLARE_FEATURE(kSearchPrefetchOnlyAllowDefaultMatchPreloading);
 
-// Whether matching prefetches can block navigation until they are determined to
-// be serve-able or not based on headers.
-bool SearchPrefetchBlockBeforeHeadersIsEnabled();
+BASE_DECLARE_FEATURE(kSearchPrefetchWithNoVarySearchDiskCache);
 
 // Whether the search prefetch service actually initiates prefetches.
 bool SearchPrefetchServicePrefetchingIsEnabled();
@@ -38,10 +32,10 @@ base::TimeDelta SearchPrefetchErrorBackoffDuration();
 // The max number of stored cached prefetch responses. This is stored as a list
 // of navigation URLs to prefetch URLs.
 size_t SearchPrefetchMaxCacheEntries();
-
-// The amount of time that needs to have elapsed before we consider a prefetch
-// eligible to be served.
-base::TimeDelta SearchPrefetchBlockHeadStart();
+// Overrides the max cache size for testing. This should be used only when tests
+// need to override the cache size dynamically. Otherwise, the cache size should
+// be set through base::ScopedFeatureList.
+void SetSearchPrefetchMaxCacheEntriesForTesting(size_t cache_site);
 
 BASE_DECLARE_FEATURE(kSearchNavigationPrefetch);
 
@@ -54,10 +48,6 @@ extern const base::FeatureParam<std::string> kNavigationPrefetchParam;
 // An experimental feature to measure if starting search prefetches during
 // navigation events provides benefit over the typical navigation flow.
 bool IsSearchNavigationPrefetchEnabled();
-
-// An experimental feature that skips the cancellation logic in search prefetch
-// service.
-bool SearchPrefetchSkipsCancel();
 
 // A flavor of navigation prefetch that triggers when the user changes the
 // selected index in omnibox to a search suggestion via arrow buttons. This is
@@ -82,5 +72,29 @@ bool PrefetchSearchHistorySuggestions();
 // Whether Omnibox prefetch and prerender should be restricted to the suggestion
 // being the default match.
 bool OnlyAllowDefaultMatchPreloading();
+bool IsNoVarySearchDiskCacheEnabled();
+
+// Allows the omnibox search prefetch in Incognito.
+//
+// Note SearchPrefetchService partially supports Incognito profile. For now,
+// it supports the on-press triggered search prefetch only. Other prefetches
+// must not be triggered in Incognito. crbug.com/394716358 for more details.
+bool IsPrefetchIncognitoEnabled();
+
+// When this feature is enabled, SearchPrefetchService will send a request to
+// the network service to preload shared dictionary from the disk storage for
+// the AutocompleteResult's `destination_url`.
+BASE_DECLARE_FEATURE(kAutocompleteDictionaryPreload);
+
+// The amount of time preloaded dictionary is kept alive.
+extern const base::FeatureParam<base::TimeDelta>
+    kAutocompletePreloadedDictionaryTimeout;
+
+// If enabled, suppresses SearchPrefetch (https://crbug.com/350519234)
+BASE_DECLARE_FEATURE(kSuppressesSearchPrefetchOnSlowNetwork);
+
+// The threshold to determine if the network is slow or not.
+extern const base::FeatureParam<base::TimeDelta>
+    kSuppressesSearchPrefetchOnSlowNetworkThreshold;
 
 #endif  // CHROME_BROWSER_PRELOADING_PREFETCH_SEARCH_PREFETCH_FIELD_TRIAL_SETTINGS_H_

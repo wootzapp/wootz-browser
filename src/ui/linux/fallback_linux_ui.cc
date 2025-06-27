@@ -124,6 +124,8 @@ void FallbackLinuxUi::SetDarkTheme(bool dark) {
   theme_is_dark_ = dark;
 }
 
+void FallbackLinuxUi::SetAccentColor(std::optional<SkColor> accent_color) {}
+
 bool FallbackLinuxUi::AnimationsEnabled() const {
   return true;
 }
@@ -141,7 +143,8 @@ FallbackLinuxUi::CreateNavButtonProvider() {
 
 ui::WindowFrameProvider* FallbackLinuxUi::GetWindowFrameProvider(
     bool solid_frame,
-    bool tiled) {
+    bool tiled,
+    bool maximized) {
   return nullptr;
 }
 
@@ -166,11 +169,10 @@ ui::NativeTheme* FallbackLinuxUi::GetNativeTheme() const {
   return ui::NativeTheme::GetInstanceForNativeUi();
 }
 
-bool FallbackLinuxUi::GetTextEditCommandsForEvent(
+ui::TextEditCommand FallbackLinuxUi::GetTextEditCommandForEvent(
     const ui::Event& event,
-    int text_flags,
-    std::vector<ui::TextEditCommandAuraLinux>* commands) {
-  return false;
+    int text_flags) {
+  return ui::TextEditCommand::INVALID_COMMAND;
 }
 
 #if BUILDFLAG(ENABLE_PRINTING)

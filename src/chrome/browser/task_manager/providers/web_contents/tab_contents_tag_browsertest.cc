@@ -4,6 +4,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/files/file_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
@@ -55,26 +57,13 @@ struct TestPageData {
 // The below test files are available in src/chrome/test/data/
 // TODO(afakhry): Add more test pages here as needed (e.g. pages that are hosted
 // in the tabs as apps or extensions).
-const TestPageData kTestPages[] = {
-    {
-        "/title1.html",
-        "",
-        Task::RENDERER,
-        IDS_TASK_MANAGER_TAB_PREFIX
-    },
-    {
-        "/title2.html",
-        "Title Of Awesomeness",
-        Task::RENDERER,
-        IDS_TASK_MANAGER_TAB_PREFIX
-    },
-    {
-        "/title3.html",
-        "Title Of More Awesomeness",
-        Task::RENDERER,
-        IDS_TASK_MANAGER_TAB_PREFIX
-    },
-};
+constexpr auto kTestPages = std::to_array<TestPageData>({
+    {"/title1.html", "", Task::RENDERER, IDS_TASK_MANAGER_TAB_PREFIX},
+    {"/title2.html", "Title Of Awesomeness", Task::RENDERER,
+     IDS_TASK_MANAGER_TAB_PREFIX},
+    {"/title3.html", "Title Of More Awesomeness", Task::RENDERER,
+     IDS_TASK_MANAGER_TAB_PREFIX},
+});
 
 const size_t kTestPagesLength = std::size(kTestPages);
 
@@ -311,17 +300,14 @@ IN_PROC_BROWSER_TEST_F(TabContentsTagTest, NavigateToPageNoFavicon) {
   // Check that the task manager uses the specified favicon for the page.
   base::FilePath test_dir;
   base::PathService::Get(chrome::DIR_TEST_DATA, &test_dir);
-  std::string favicon_string;
+  std::optional<std::vector<uint8_t>> favicon_data;
   {
     base::ScopedAllowBlockingForTesting allow_blocking;
-    base::ReadFileToString(
-        test_dir.AppendASCII("favicon").AppendASCII("icon.png"),
-        &favicon_string);
+    favicon_data = base::ReadFileToBytes(
+        test_dir.AppendASCII("favicon").AppendASCII("icon.png"));
   }
-  SkBitmap favicon_bitmap;
-  gfx::PNGCodec::Decode(
-      reinterpret_cast<const unsigned char*>(favicon_string.data()),
-      favicon_string.length(), &favicon_bitmap);
+  SkBitmap favicon_bitmap = gfx::PNGCodec::Decode(favicon_data.value());
+  ASSERT_FALSE(favicon_bitmap.isNull());
   ASSERT_TRUE(
       gfx::test::AreBitmapsEqual(favicon_bitmap, *task->icon().bitmap()));
 

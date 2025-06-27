@@ -11,7 +11,6 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/common/url_constants.h"
 #include "components/policy/core/common/policy_service.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -74,6 +73,7 @@ class ManagementUIHandler : public content::WebUIMessageHandler,
   virtual policy::PolicyService* GetPolicyService();
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   virtual device_signals::UserPermissionService* GetUserPermissionService();
+  base::Value::Dict GetDeviceSignalGrantedMessage();
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
   bool account_managed() const { return account_managed_; }
@@ -119,7 +119,6 @@ class ManagementUIHandler : public content::WebUIMessageHandler,
   void OnExtensionUnloaded(content::BrowserContext* browser_context,
                            const extensions::Extension* extension,
                            extensions::UnloadedExtensionReason reason) override;
-
 
   // policy::PolicyService::Observer
   void OnPolicyUpdated(const policy::PolicyNamespace& ns,

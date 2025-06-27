@@ -23,13 +23,13 @@ import org.chromium.chrome.browser.compositor.bottombar.contextualsearch.Context
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchSettingsFragment;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchUma;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimator;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
-import org.chromium.ui.text.NoUnderlineClickableSpan;
+import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 
 /**
@@ -317,20 +317,20 @@ public class ContextualSearchPromoControl extends OverlayPanelInflater {
         View view = getView();
 
         // "Allow" button.
-        Button allowButton = (Button) view.findViewById(R.id.contextual_search_allow_button);
+        Button allowButton = view.findViewById(R.id.contextual_search_allow_button);
         allowButton.setOnClickListener(
                 v -> ContextualSearchPromoControl.this.handlePromoChoice(true));
 
         // "No thanks" button.
-        Button noThanksButton = (Button) view.findViewById(R.id.contextual_search_no_thanks_button);
+        Button noThanksButton = view.findViewById(R.id.contextual_search_no_thanks_button);
         noThanksButton.setOnClickListener(
                 v -> ContextualSearchPromoControl.this.handlePromoChoice(false));
 
         // Fill in text with link to Settings.
-        TextView promoText = (TextView) view.findViewById(R.id.contextual_search_promo_text);
+        TextView promoText = view.findViewById(R.id.contextual_search_promo_text);
 
-        NoUnderlineClickableSpan settingsLink =
-                new NoUnderlineClickableSpan(
+        ChromeClickableSpan settingsLink =
+                new ChromeClickableSpan(
                         view.getContext(),
                         (View ignored) ->
                                 ContextualSearchPromoControl.this.handleClickSettingsLink());
@@ -373,8 +373,9 @@ public class ContextualSearchPromoControl extends OverlayPanelInflater {
                         new Runnable() {
                             @Override
                             public void run() {
-                                SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-                                settingsLauncher.launchSettingsActivity(
+                                SettingsNavigation settingsNavigation =
+                                        SettingsNavigationFactory.createSettingsNavigation();
+                                settingsNavigation.startSettings(
                                         getContext(), ContextualSearchSettingsFragment.class);
                             }
                         });

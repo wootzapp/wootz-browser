@@ -21,18 +21,19 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.ParameterizedRobolectricTestRunner;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.browserservices.intents.WebappExtras;
-import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishHandler;
+import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishReason;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabController;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.CustomTabMinimizationManagerHolder;
@@ -59,6 +60,8 @@ public class CloseButtonNavigatorTest {
         return Arrays.asList(new Object[][] {{true}, {false}});
     }
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Rule(order = -2)
     public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
 
@@ -73,11 +76,10 @@ public class CloseButtonNavigatorTest {
 
     private final Stack<Tab> mTabs = new Stack<>();
     private CloseButtonNavigator mCloseButtonNavigator;
-    private FinishHandler mFinishHandler;
+    private Callback<@FinishReason Integer> mFinishCallback;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
 
         if (!mIsWebapp) {
             mWebappExtras = null;
@@ -86,9 +88,9 @@ public class CloseButtonNavigatorTest {
         doReturn(mIsWebapp ? ActivityType.WEBAPP : ActivityType.CUSTOM_TAB)
                 .when(mIntentDataProvider)
                 .getActivityType();
-        mFinishHandler =
+        mFinishCallback =
                 reason -> {
-                    // FinishHandler is invoked only if there is a single tab left to close.
+                    // FinishCallback is invoked only if there is a single tab left to close.
                     assertTrue(mTabController.onlyOneTabRemaining());
                     mTabController.closeTab();
                 };
@@ -173,10 +175,9 @@ public class CloseButtonNavigatorTest {
     public void noCriteria_singleTab() {
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_1, JUnitTestGURLs.BLUE_2));
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertTrue(mTabs.empty());
-        assertOnAllTabsClosedRecorded(1);
     }
 
     @Test
@@ -185,14 +186,13 @@ public class CloseButtonNavigatorTest {
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_2));
         setParentTabId(mTabs.get(1), mTabs.get(0).getId());
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         if (mIsWebapp) {
             assertEquals(1, mTabs.size());
             verify(currentTabsNavigationController(), never()).goToNavigationIndex(anyInt());
         } else {
             assertTrue(mTabs.empty());
-            assertOnAllTabsClosedRecorded(2);
         }
     }
 
@@ -201,10 +201,9 @@ public class CloseButtonNavigatorTest {
         mCloseButtonNavigator.setLandingPageCriteria(CloseButtonNavigatorTest::isRed);
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_1, JUnitTestGURLs.BLUE_2));
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertTrue(mTabs.empty());
-        assertOnAllTabsClosedRecorded(1);
     }
 
     @Test
@@ -214,14 +213,13 @@ public class CloseButtonNavigatorTest {
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_2));
         setParentTabId(mTabs.get(1), mTabs.get(0).getId());
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         if (mIsWebapp) {
             assertEquals(1, mTabs.size());
             verify(currentTabsNavigationController(), never()).goToNavigationIndex(anyInt());
         } else {
             assertTrue(mTabs.empty());
-            assertOnAllTabsClosedRecorded(2);
         }
     }
 
@@ -235,10 +233,9 @@ public class CloseButtonNavigatorTest {
                         JUnitTestGURLs.BLUE_1,
                         JUnitTestGURLs.BLUE_2));
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertFalse(mTabs.isEmpty());
-        assertOnAllTabsClosedRecorded(0);
         verify(currentTabsNavigationController()).goToNavigationIndex(eq(1));
         // Ensure it was only called with that value.
         verify(currentTabsNavigationController()).goToNavigationIndex(anyInt());
@@ -251,10 +248,9 @@ public class CloseButtonNavigatorTest {
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_1, JUnitTestGURLs.BLUE_2));
         setParentTabId(mTabs.get(1), mTabs.get(0).getId());
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertEquals(1, mTabs.size());
-        assertOnAllTabsClosedRecorded(0);
         verify(currentTabsNavigationController(), never()).goToNavigationIndex(anyInt());
     }
 
@@ -265,10 +261,9 @@ public class CloseButtonNavigatorTest {
         mTabs.push(createTabWithNavigationHistory(JUnitTestGURLs.BLUE_2, JUnitTestGURLs.BLUE_3));
         setParentTabId(mTabs.get(1), mTabs.get(0).getId());
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertEquals(1, mTabs.size());
-        assertOnAllTabsClosedRecorded(0);
         if (mIsWebapp) {
             verify(currentTabsNavigationController(), never()).goToNavigationIndex(anyInt());
         } else {
@@ -294,10 +289,9 @@ public class CloseButtonNavigatorTest {
                 .getNavigationHistory()
                 .setCurrentEntryIndex(3);
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertEquals(1, mTabs.size());
-        assertOnAllTabsClosedRecorded(0);
         verify(currentTabsNavigationController()).goToNavigationIndex(eq(1));
         verify(currentTabsNavigationController()).goToNavigationIndex(anyInt());
     }
@@ -313,26 +307,10 @@ public class CloseButtonNavigatorTest {
                         JUnitTestGURLs.BLUE_2,
                         JUnitTestGURLs.RED_3));
 
-        mCloseButtonNavigator.navigateOnClose(mFinishHandler);
+        mCloseButtonNavigator.navigateOnClose(mFinishCallback);
 
         assertEquals(1, mTabs.size());
-        assertOnAllTabsClosedRecorded(0);
         verify(currentTabsNavigationController()).goToNavigationIndex(eq(1));
         verify(currentTabsNavigationController()).goToNavigationIndex(anyInt());
-    }
-
-    private void assertOnAllTabsClosedRecorded(int count) {
-        String histogram = "CustomTabs.TabCounts.OnClosingAllTabs";
-        if (count > 0) {
-            assertEquals(
-                    String.format("<%s> not recorded with sample <%d>.", histogram, count),
-                    1,
-                    RecordHistogram.getHistogramValueCountForTesting(histogram, count));
-        } else {
-            assertEquals(
-                    String.format("<%s> should not be recorded.", histogram),
-                    0,
-                    RecordHistogram.getHistogramTotalCountForTesting(histogram));
-        }
     }
 }

@@ -12,7 +12,7 @@
 #import "ios/chrome/browser/overlays/model/test/fake_overlay_request_cancel_handler.h"
 #import "ios/chrome/browser/overlays/model/test/fake_overlay_user_data.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
@@ -47,15 +47,16 @@ class MockOverlayPresenterObserver : public OverlayPresenterObserver {
 class OverlayPresenterImplTest : public PlatformTest {
  public:
   OverlayPresenterImplTest() {
-    chrome_browser_state_ = TestChromeBrowserState::Builder().Build();
-    browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
+    profile_ = TestProfileIOS::Builder().Build();
+    browser_ = std::make_unique<TestBrowser>(profile_.get());
     OverlayPresenterImpl::Container::CreateForUserData(browser_.get(),
                                                        browser_.get());
     presenter().AddObserver(&observer_);
   }
   ~OverlayPresenterImplTest() override {
-    if (browser_)
+    if (browser_) {
       presenter().RemoveObserver(&observer_);
+    }
   }
   WebStateList* web_state_list() { return browser_->GetWebStateList(); }
   web::WebState* active_web_state() {
@@ -71,8 +72,9 @@ class OverlayPresenterImplTest : public PlatformTest {
   MockOverlayPresenterObserver& observer() { return observer_; }
 
   OverlayRequestQueueImpl* GetQueueForWebState(web::WebState* web_state) {
-    if (!web_state)
+    if (!web_state) {
       return nullptr;
+    }
     OverlayRequestQueueImpl::Container::CreateForWebState(web_state);
     return OverlayRequestQueueImpl::Container::FromWebState(web_state)
         ->QueueForModality(OverlayModality::kWebContentArea);
@@ -82,14 +84,16 @@ class OverlayPresenterImplTest : public PlatformTest {
                                 size_t index,
                                 bool expect_presentation = true) {
     OverlayRequestQueueImpl* queue = GetQueueForWebState(web_state);
-    if (!queue)
+    if (!queue) {
       return nullptr;
+    }
     std::unique_ptr<OverlayRequest> inserted_request =
         OverlayRequest::CreateWithConfig<FakeOverlayUserData>();
     OverlayRequest* request = inserted_request.get();
-    if (expect_presentation)
+    if (expect_presentation) {
       EXPECT_CALL(observer(), WillShowOverlay(&presenter(), request,
                                               /*initial_presentation=*/true));
+    }
     GetQueueForWebState(web_state)->InsertRequest(index,
                                                   std::move(inserted_request));
     return request;
@@ -107,7 +111,7 @@ class OverlayPresenterImplTest : public PlatformTest {
   web::WebTaskEnvironment task_environment_;
   FakeOverlayPresentationContext presentation_context_;
   MockOverlayPresenterObserver observer_;
-  std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<Browser> browser_;
 };
 

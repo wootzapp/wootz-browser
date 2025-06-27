@@ -18,6 +18,7 @@
 #include "ui/events/event.h"
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/render_text.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/checkbox.h"
@@ -74,8 +75,8 @@ class MultilineExample::RenderTextView : public View {
   RenderTextView() : render_text_(gfx::RenderText::CreateRenderText()) {
     render_text_->SetHorizontalAlignment(gfx::ALIGN_TO_HEAD);
     render_text_->SetMultiline(true);
-    SetBorder(CreateThemedSolidBorder(
-        2, ExamplesColorIds::kColorMultilineExampleBorder));
+    SetBorder(
+        CreateSolidBorder(2, ExamplesColorIds::kColorMultilineExampleBorder));
   }
 
   RenderTextView(const RenderTextView&) = delete;
@@ -141,8 +142,9 @@ class MultilineExample::RenderTextView : public View {
 
   void UpdateColors() {
     const auto* cp = GetColorProvider();
-    if (!cp)
+    if (!cp) {
       return;
+    }
     render_text_->SetColor(
         cp->GetColor(ExamplesColorIds::kColorMultilineExampleForeground));
     render_text_->set_selection_color(cp->GetColor(
@@ -167,7 +169,9 @@ MultilineExample::MultilineExample()
     : ExampleBase(GetStringUTF8(IDS_MULTILINE_SELECT_LABEL).c_str()) {}
 
 MultilineExample::~MultilineExample() {
-  textfield_->set_controller(nullptr);
+  if (textfield_) {
+    textfield_->set_controller(nullptr);
+  }
 }
 
 void MultilineExample::CreateExampleView(View* container) {
@@ -201,7 +205,7 @@ void MultilineExample::CreateExampleView(View* container) {
   label_ = container->AddChildView(std::make_unique<PreferredSizeLabel>());
   label_->SetText(kTestString);
   label_->SetMultiLine(true);
-  label_->SetBorder(CreateThemedSolidBorder(
+  label_->SetBorder(CreateSolidBorder(
       2, ExamplesColorIds::kColorMultilineExampleLabelBorder));
 
   elision_checkbox_ = container->AddChildView(std::make_unique<Checkbox>(
@@ -221,14 +225,15 @@ void MultilineExample::CreateExampleView(View* container) {
   textfield_ = container->AddChildView(std::make_unique<Textfield>());
   textfield_->set_controller(this);
   textfield_->SetText(kTestString);
-  textfield_->SetAccessibleName(label);
+  textfield_->GetViewAccessibility().SetName(*label);
 }
 
 void MultilineExample::ContentsChanged(Textfield* sender,
                                        const std::u16string& new_contents) {
   render_text_view_->SetText(new_contents);
-  if (label_checkbox_->GetChecked())
+  if (label_checkbox_->GetChecked()) {
     label_->SetText(new_contents);
+  }
   example_view()->InvalidateLayout();
   example_view()->SchedulePaint();
 }

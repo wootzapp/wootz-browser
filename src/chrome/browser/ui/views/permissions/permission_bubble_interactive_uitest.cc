@@ -6,7 +6,6 @@
 
 #include "base/run_loop.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -37,8 +36,7 @@ enum ChipFeatureConfig {
 
 class PermissionBubbleInteractiveUITest : public InProcessBrowserTest {
  public:
-  PermissionBubbleInteractiveUITest() {
-  }
+  PermissionBubbleInteractiveUITest() = default;
 
   PermissionBubbleInteractiveUITest(const PermissionBubbleInteractiveUITest&) =
       delete;
@@ -126,9 +124,9 @@ class PermissionBubbleInteractiveUITest : public InProcessBrowserTest {
     if (lbv->GetChipController()->IsPermissionPromptChipVisible() &&
         !lbv->GetChipController()->IsBubbleShowing()) {
       views::test::ButtonTestApi(lbv->GetChipController()->chip())
-          .NotifyClick(ui::MouseEvent(ui::ET_MOUSE_PRESSED, gfx::Point(),
-                                      gfx::Point(), ui::EventTimeForNow(),
-                                      ui::EF_LEFT_MOUSE_BUTTON, 0));
+          .NotifyClick(ui::MouseEvent(
+              ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
+              ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON, 0));
       base::RunLoop().RunUntilIdle();
     }
   }
@@ -157,7 +155,7 @@ class PermissionBubbleInteractiveUITest : public InProcessBrowserTest {
   std::unique_ptr<test::PermissionRequestManagerTestApi> test_api_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // TODO(crbug.com/1072425): views::test::WidgetTest::GetAllWidgets() crashes
 // on Chrome OS, need to investigate\fix that.
 #define MAYBE_CmdWClosesWindow DISABLED_CmdWClosesWindow

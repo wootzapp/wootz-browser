@@ -59,10 +59,8 @@ bool IsDownloadPathValid(const base::FilePath& file_path) {
 }
 
 bool IsDownloadURLValid(const GURL& url) {
-  // TODO(https://crbug.com/837156): Allowlist all URLs instead of some general
-  // checks below.
   return url.SchemeIs(url::kHttpsScheme) &&
-         url.DomainIs(ime::kGoogleKeyboardDownloadDomain);
+         (url.DomainIs("dl.google.com") || url.DomainIs("edgedl.me.gvt1.com"));
 }
 
 bool ShouldUseUpdatedDownloadLogic() {
@@ -87,7 +85,9 @@ std::unique_ptr<network::SimpleURLLoader> CreateUrlLoader(const GURL& url) {
 }  // namespace
 
 ImeServiceConnector::ImeServiceConnector(Profile* profile)
-    : profile_(profile), url_loader_factory_(profile->GetURLLoaderFactory()) {}
+    : profile_(profile), url_loader_factory_(profile->GetURLLoaderFactory()) {
+  profile_observation_.Observe(profile);
+}
 
 ImeServiceConnector::~ImeServiceConnector() = default;
 
@@ -131,6 +131,11 @@ void ImeServiceConnector::DownloadImeFileTo(
       base::BindOnce(&ImeServiceConnector::OnFileDownloadComplete,
                      base::Unretained(this), std::move(callback)),
       full_path);
+}
+
+void ImeServiceConnector::OnProfileWillBeDestroyed(Profile* profile) {
+  profile_observation_.Reset();
+  profile_ = nullptr;
 }
 
 void ImeServiceConnector::SetupImeService(

@@ -6,18 +6,18 @@
 
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/permissions/permissions_api.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_management_test_util.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/test/test_browser_closed_waiter.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/profile_destruction_waiter.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/service_worker_context.h"
@@ -28,6 +28,7 @@
 #include "extensions/browser/background_script_executor.h"
 #include "extensions/browser/browsertest_util.h"
 #include "extensions/browser/extension_prefs.h"
+#include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/service_worker/service_worker_keepalive.h"
 #include "extensions/browser/service_worker/service_worker_test_utils.h"
 #include "extensions/common/extension.h"
@@ -41,7 +42,6 @@ namespace extensions {
 
 namespace {
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
 constexpr char kTestOpenerExtensionId[] = "adpghjkjicpfhcjicmiifjpbalaildpo";
 constexpr char kTestOpenerExtensionUrl[] =
     "chrome-extension://adpghjkjicpfhcjicmiifjpbalaildpo/";
@@ -57,7 +57,6 @@ constexpr char kTestReceiverExtensionRelativePath[] =
 constexpr char kPersistentPortConnectedMessage[] = "Persistent port connected";
 constexpr char kPersistentPortDisconnectedMessage[] =
     "Persistent port disconnected";
-#endif
 
 // Gets a keepalive matcher that enforces the extra data field.
 testing::Matcher<ProcessManager::ServiceWorkerKeepaliveData>
@@ -104,7 +103,10 @@ using service_worker_test_utils::TestServiceWorkerContextObserver;
 
 class ServiceWorkerLifetimeKeepaliveBrowsertest : public ExtensionApiTest {
  public:
-  ServiceWorkerLifetimeKeepaliveBrowsertest() = default;
+  ServiceWorkerLifetimeKeepaliveBrowsertest() {
+    // TODO(crbug.com/40937027): Convert test to use HTTPS and then re-enable.
+    feature_list_.InitAndDisableFeature(features::kHttpsFirstModeIncognito);
+  }
 
   ServiceWorkerLifetimeKeepaliveBrowsertest(
       const ServiceWorkerLifetimeKeepaliveBrowsertest&) = delete;
@@ -143,10 +145,10 @@ class ServiceWorkerLifetimeKeepaliveBrowsertest : public ExtensionApiTest {
 
   base::SimpleTestTickClock tick_clock_opener_;
   base::SimpleTestTickClock tick_clock_receiver_;
-};
 
-// The following tests are only relevant on ash.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
 
 // Loads two extensions that open a persistent port connection between each
 // other and tests that their service worker will stop after kRequestTimeout (5
@@ -188,16 +190,8 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
 
 // Tests that the service workers will not stop if both extensions are
 // allowlisted via policy and the port is not closed.
-// TODO(crbug.com/40272276): Flakes on ChromeOS.
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_ServiceWorkersDoNotTimeOutWithPolicy \
-  DISABLED_ServiceWorkersDoNotTimeOutWithPolicy
-#else
-#define MAYBE_ServiceWorkersDoNotTimeOutWithPolicy \
-  ServiceWorkersDoNotTimeOutWithPolicy
-#endif
 IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
-                       MAYBE_ServiceWorkersDoNotTimeOutWithPolicy) {
+                       ServiceWorkersDoNotTimeOutWithPolicy) {
   base::Value::List urls;
   // Both extensions receive extended lifetime.
   urls.Append(kTestOpenerExtensionUrl);
@@ -208,12 +202,17 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
 
   content::ServiceWorkerContext* context = GetServiceWorkerContext();
 
+  // Load the extensions and wait for the service workers to be activated. This
+  // test advances the worker's clock. If the activation request is in-flight
+  // when the clock is advanced, the request will expire and the worker will be
+  // terminated (because activation requests have KILL_ON_TIMEOUT behavior).
+  // Thus, we ensure that there are no in-flight activation requests before
+  // advancing the clock.
   TestServiceWorkerContextObserver sw_observer_receiver_extension(
       context, kTestReceiverExtensionId);
-  const Extension* receiver_extension = LoadExtension(
-      test_data_dir_.AppendASCII(kTestReceiverExtensionRelativePath));
+  LoadExtension(test_data_dir_.AppendASCII(kTestReceiverExtensionRelativePath));
   const int64_t service_worker_receiver_id =
-      sw_observer_receiver_extension.WaitForWorkerStarted();
+      sw_observer_receiver_extension.WaitForWorkerActivated();
 
   ExtensionTestMessageListener connect_listener(
       kPersistentPortConnectedMessage);
@@ -221,10 +220,9 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
 
   TestServiceWorkerContextObserver sw_observer_opener_extension(
       context, kTestOpenerExtensionId);
-  const Extension* opener_extension = LoadExtension(
-      test_data_dir_.AppendASCII(kTestOpenerExtensionRelativePath));
+  LoadExtension(test_data_dir_.AppendASCII(kTestOpenerExtensionRelativePath));
   const int64_t service_worker_opener_id =
-      sw_observer_opener_extension.WaitForWorkerStarted();
+      sw_observer_opener_extension.WaitForWorkerActivated();
 
   ASSERT_TRUE(connect_listener.WaitUntilSatisfied());
 
@@ -237,17 +235,6 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
   content::AdvanceClockAfterRequestTimeout(context, service_worker_opener_id,
                                            &tick_clock_opener_);
   TriggerTimeoutAndCheckActive(context, service_worker_opener_id);
-
-  // Clean up: stop running service workers before test end.
-  base::test::TestFuture<void> future_1;
-  content::StopServiceWorkerForScope(context, receiver_extension->url(),
-                                     future_1.GetCallback());
-  EXPECT_TRUE(future_1.Wait());
-
-  base::test::TestFuture<void> future_2;
-  content::StopServiceWorkerForScope(context, opener_extension->url(),
-                                     future_2.GetCallback());
-  EXPECT_TRUE(future_2.Wait());
 }
 
 // Tests that the extended lifetime only lasts as long as there is a persistent
@@ -368,8 +355,6 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
   TriggerTimeoutAndCheckStopped(context, service_worker_opener_id);
   sw_observer_opener_extension.WaitForWorkerStopped();
 }
-
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 // Tests that certain API functions can keep the service worker alive
 // indefinitely.
@@ -785,7 +770,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
   base::RunLoop().RunUntilIdle();
   // Verify the profile is destroyed.
   EXPECT_FALSE(
-      g_browser_process->profile_manager()->IsValidProfile(incognito_profile));
+      ExtensionsBrowserClient::Get()->IsValidContext(incognito_profile));
   // The test succeeds if there are no crashes. There's nothing left to verify
   // for keepalives, since the profile is gone.
 }
@@ -932,7 +917,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerLifetimeKeepaliveBrowsertest,
   base::RunLoop().RunUntilIdle();
   // Verify the profile is destroyed.
   EXPECT_FALSE(
-      g_browser_process->profile_manager()->IsValidProfile(incognito_profile));
+      ExtensionsBrowserClient::Get()->IsValidContext(incognito_profile));
   // The test succeeds if there are no crashes. There's nothing left to verify
   // for keepalives, since the profile is gone.
 }
@@ -1097,7 +1082,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Verify the profile is destroyed.
   EXPECT_FALSE(
-      g_browser_process->profile_manager()->IsValidProfile(incognito_profile));
+      ExtensionsBrowserClient::Get()->IsValidContext(incognito_profile));
 
   // Verify that all keepalives have been removed, since the message port was
   // closed as part of the incognito profile shutdown. (We can't verify

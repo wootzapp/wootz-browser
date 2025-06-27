@@ -4,6 +4,7 @@
 
 package com.android.webview.chromium;
 
+import android.os.Bundle;
 import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
 
@@ -190,19 +191,20 @@ public class SharedWebViewChromium {
             mRunQueue.addTask(() -> setProfile(profileName));
             return;
         }
-        mAwContents.setBrowserContext(AwBrowserContextStore.getNamedContext(profileName, true));
+        mAwContents.setBrowserContextForPublicApi(
+                AwBrowserContextStore.getNamedContext(profileName, true));
     }
 
     public Profile getProfile() {
         if (checkNeedsPost()) {
             return mRunQueue.runOnUiThreadBlocking(this::getProfile);
         }
-        String profileName = mAwContents.getBrowserContext().getName();
+        String profileName = mAwContents.getBrowserContextForPublicApi().getName();
         return ProfileStore.getInstance().getProfile(profileName);
     }
 
     protected boolean checkNeedsPost() {
-        boolean needsPost = !mRunQueue.chromiumHasStarted() || !ThreadUtils.runningOnUiThread();
+        boolean needsPost = !mAwInit.isChromiumInitialized() || !ThreadUtils.runningOnUiThread();
         if (!needsPost && mAwContents == null) {
             throw new IllegalStateException("AwContents must be created if we are not posting!");
         }
@@ -211,5 +213,16 @@ public class SharedWebViewChromium {
 
     public AwContents getAwContents() {
         return mAwContents;
+    }
+
+    public void saveState(Bundle outState, int maxSize, boolean includeForwardState) {
+        if (checkNeedsPost()) {
+            mRunQueue.runVoidTaskOnUiThreadBlocking(() -> {
+                saveState(outState, maxSize, includeForwardState);
+            });
+            return;
+        }
+
+        mAwContents.saveState(outState, maxSize, includeForwardState);
     }
 }

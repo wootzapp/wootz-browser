@@ -20,9 +20,22 @@
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS), "For Enabled extensions only");
 
+namespace {
+
+// URL filter delegate that verifies url extensions support.
+class FakeURLFilterDelegate
+    : public supervised_user::SupervisedUserURLFilter::Delegate {
+ public:
+  bool SupportsWebstoreURL(const GURL& url) const override {
+    return supervised_user::IsSupportedChromeExtensionURL(url);
+  }
+};
+
 class SupervisedUserURLFilterExtensionsTest : public ::testing::Test {
  public:
   SupervisedUserURLFilterExtensionsTest() {
+    filter_.SetURLCheckerClient(
+        std::make_unique<safe_search_api::FakeURLCheckerClient>());
     filter_.SetDefaultFilteringBehavior(
         supervised_user::FilteringBehavior::kBlock);
   }
@@ -30,12 +43,10 @@ class SupervisedUserURLFilterExtensionsTest : public ::testing::Test {
  protected:
   base::test::TaskEnvironment task_environment_;
   TestingPrefServiceSimple pref_service_;
-  // Test with the real method for url extensions support.
   supervised_user::SupervisedUserURLFilter filter_ =
       supervised_user::SupervisedUserURLFilter(
           pref_service_,
-          std::make_unique<safe_search_api::FakeURLCheckerClient>(),
-          base::BindRepeating(supervised_user::IsSupportedChromeExtensionURL));
+          std::make_unique<FakeURLFilterDelegate>());
 };
 
 TEST_F(SupervisedUserURLFilterExtensionsTest,
@@ -68,16 +79,11 @@ TEST_F(SupervisedUserURLFilterExtensionsTest,
 
   filter_.SetDefaultFilteringBehavior(
       supervised_user::FilteringBehavior::kBlock);
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url1));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url2));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url3));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(webstore_url));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(new_webstore_url));
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url1).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url2).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url3).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(webstore_url).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(new_webstore_url).IsAllowed());
 
   // Set explicit host rules to block those website, and make sure the
   // URLs still work.
@@ -89,14 +95,11 @@ TEST_F(SupervisedUserURLFilterExtensionsTest,
   filter_.SetManualHosts(std::move(hosts));
   filter_.SetDefaultFilteringBehavior(
       supervised_user::FilteringBehavior::kAllow);
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url1));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url2));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(crx_download_url3));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(webstore_url));
-  EXPECT_EQ(supervised_user::FilteringBehavior::kAllow,
-            filter_.GetFilteringBehaviorForURL(new_webstore_url));
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url1).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url2).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(crx_download_url3).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(webstore_url).IsAllowed());
+  EXPECT_TRUE(filter_.GetFilteringBehavior(new_webstore_url).IsAllowed());
 }
+
+}  // namespace

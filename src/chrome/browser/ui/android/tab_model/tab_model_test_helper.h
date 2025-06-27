@@ -21,14 +21,20 @@ class TestTabModel : public TabModel {
   content::WebContents* GetWebContentsAt(int index) const override;
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const override;
   void CreateTab(TabAndroid* parent,
-                 content::WebContents* web_contents) override;
+                 content::WebContents* web_contents,
+                 bool select) override;
   void HandlePopupNavigation(TabAndroid* parent,
                              NavigateParams* params) override;
-  content::WebContents* CreateNewTabForDevTools(const GURL& url) override;
+  content::WebContents* CreateNewTabForDevTools(const GURL& url,
+                                                bool new_window) override;
   bool IsSessionRestoreInProgress() const override;
+
   bool IsActiveModel() const override;
+  void SetIsActiveModel(bool is_active);
+
   TabAndroid* GetTabAt(int index) const override;
   void SetActiveIndex(int index) override;
+  void ForceCloseAllTabs() override;
   void CloseTabAt(int index) override;
   void AddObserver(TabModelObserver* observer) override;
   void RemoveObserver(TabModelObserver* observer) override;
@@ -46,6 +52,7 @@ class TestTabModel : public TabModel {
  private:
   // A fake value for the current number of tabs.
   int tab_count_ = 0;
+  bool is_active_ = false;
 
   raw_ptr<TabModelObserver> observer_ = nullptr;
   std::vector<raw_ptr<content::WebContents>> web_contents_list_;

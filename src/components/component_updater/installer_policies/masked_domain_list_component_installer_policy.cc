@@ -111,6 +111,8 @@ void MaskedDomainListComponentInstallerPolicy::ComponentReady(
     return;
   }
 
+  // Log is consumed by E2E tests. Please CC potassium-engprod@google.com if you
+  // have to change this log.
   VLOG(1) << "Masked Domain List Component ready, version "
           << version.GetString() << " in " << install_dir.value();
 
@@ -142,9 +144,8 @@ void MaskedDomainListComponentInstallerPolicy::GetHash(
 // static
 void MaskedDomainListComponentInstallerPolicy::GetPublicKeyHash(
     std::vector<uint8_t>* hash) {
-  hash->assign(kMaskedDomainListPublicKeySHA256,
-               kMaskedDomainListPublicKeySHA256 +
-                   std::size(kMaskedDomainListPublicKeySHA256));
+  hash->assign(std::begin(kMaskedDomainListPublicKeySHA256),
+               std::end(kMaskedDomainListPublicKeySHA256));
 }
 
 std::string MaskedDomainListComponentInstallerPolicy::GetName() const {

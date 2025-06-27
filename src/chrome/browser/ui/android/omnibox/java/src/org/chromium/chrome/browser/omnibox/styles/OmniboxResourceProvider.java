@@ -6,33 +6,38 @@ package org.chromium.chrome.browser.omnibox.styles;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Drawable.ConstantState;
+import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.util.SparseArray;
 import android.util.TypedValue;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.ColorRes;
 import androidx.annotation.DrawableRes;
-import androidx.annotation.NonNull;
 import androidx.annotation.Px;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.material.color.MaterialColors;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.night_mode.NightModeUtils;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
-import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.util.ColorUtils;
 
 /** Provides resources specific to Omnibox. */
+@NullMarked
 public class OmniboxResourceProvider {
     private static final String TAG = "OmniboxResourceProvider";
 
@@ -44,7 +49,7 @@ public class OmniboxResourceProvider {
      * potentially augmented with caching. If caching is enabled, there is a single, unbounded cache
      * of ConstantState shared by all contexts.
      */
-    public static @NonNull Drawable getDrawable(Context context, @DrawableRes int res) {
+    public static Drawable getDrawable(Context context, @DrawableRes int res) {
         ThreadUtils.assertOnUiThread();
         ConstantState constantState = sDrawableCache.get(res, null);
         if (constantState != null) {
@@ -62,11 +67,11 @@ public class OmniboxResourceProvider {
      * contexts. When dealing with strings with format params, the raw string is cached and
      * formatted on demand using the default locale.
      */
-    public static @NonNull String getString(Context context, @StringRes int res, Object... args) {
+    public static String getString(Context context, @StringRes int res, Object... args) {
         ThreadUtils.assertOnUiThread();
         String string = sStringCache.get(res, null);
         if (string == null) {
-            string = context.getResources().getString(res);
+            string = context.getString(res);
             sStringCache.put(res, string);
         }
 
@@ -93,7 +98,7 @@ public class OmniboxResourceProvider {
         sDrawableCache =
                 new SparseArray<>() {
                     @Override
-                    public ConstantState get(int key) {
+                    public @Nullable ConstantState get(int key) {
                         return null;
                     }
 
@@ -105,7 +110,7 @@ public class OmniboxResourceProvider {
         sStringCache =
                 new SparseArray<>() {
                     @Override
-                    public String get(int key) {
+                    public @Nullable String get(int key) {
                         return null;
                     }
 
@@ -145,15 +150,16 @@ public class OmniboxResourceProvider {
      * Returns the ColorScheme based on the incognito state and the background color.
      *
      * @param context The {@link Context}.
-     * @param isIncognito Whether incognito mode is enabled.
+     * @param isIncognitoBranded Whether incognito mode is enabled.
      * @param primaryBackgroundColor The primary background color of the omnibox.
      * @return The {@link BrandedColorScheme}.
      */
     public static @BrandedColorScheme int getBrandedColorScheme(
-            Context context, boolean isIncognito, @ColorInt int primaryBackgroundColor) {
-        if (isIncognito) return BrandedColorScheme.INCOGNITO;
+            Context context, boolean isIncognitoBranded, @ColorInt int primaryBackgroundColor) {
+        if (isIncognitoBranded) return BrandedColorScheme.INCOGNITO;
 
-        if (ThemeUtils.isUsingDefaultToolbarColor(context, isIncognito, primaryBackgroundColor)) {
+        if (ThemeUtils.isUsingDefaultToolbarColor(
+                context, isIncognitoBranded, primaryBackgroundColor)) {
             return BrandedColorScheme.APP_DEFAULT;
         }
 
@@ -379,37 +385,60 @@ public class OmniboxResourceProvider {
      * Returns the background color for suggestions in a "standard" (non-incognito) TabModel with
      * the given context.
      */
-    public static @ColorInt int getStandardSuggestionBackgroundColor(Context context) {
-        return ChromeColors.getSurfaceColor(
-                context, R.dimen.omnibox_suggestion_bg_elevation_modern);
+    public static @ColorInt int getStandardSuggestionBackgroundColor(
+            Context context, @BrandedColorScheme int colorScheme) {
+        return colorScheme == BrandedColorScheme.INCOGNITO
+                ? context.getColor(R.color.omnibox_suggestion_bg_incognito)
+                : ContextCompat.getColor(context, R.color.omnibox_suggestion_bg);
     }
 
-    /**
-     * Returns the background color for the suggestions dropdown in a "standard" (non-incognito)
-     * TabModel with the given context.
-     */
-    public static @ColorInt int getSuggestionsDropdownStandardBackgroundColor(Context context) {
-        return ChromeColors.getSurfaceColor(
-                context, R.dimen.omnibox_suggestion_dropdown_bg_elevation);
+    /** Returns the background hover color for suggestions in a model with the given context. */
+    private static @ColorInt int getHoverSuggestionBackgroundColor(
+            Context context, @BrandedColorScheme int colorScheme) {
+
+        if (colorScheme == BrandedColorScheme.INCOGNITO) {
+            return context.getColor(R.color.omnibox_suggestion_bg_hover_incognito);
+        }
+
+        // omnibox_suggestion_bg + 8% colorOnSurface
+        @ColorInt int baseColor = ContextCompat.getColor(context, R.color.omnibox_suggestion_bg);
+        @ColorInt int hoverColor = MaterialColors.getColor(context, R.attr.colorOnSurface, TAG);
+        float fraction =
+                context.getResources()
+                        .getFraction(R.fraction.omnibox_suggestion_bg_hover_overlay_fraction, 1, 1);
+
+        return ColorUtils.overlayColor(baseColor, hoverColor, fraction);
     }
 
-    /**
-     * Returns the background color for the suggestions dropdown in an incognito TabModel with the
-     * given context.
-     */
-    public static @ColorInt int getSuggestionsDropdownIncognitoBackgroundColor(Context context) {
-        return context.getColor(R.color.omnibox_dropdown_bg_incognito);
+    /** Returns a stateful suggestion background with the select default state. */
+    public static Drawable getStatefulSuggestionBackground(
+            Context context, @ColorInt int defaultColor, @BrandedColorScheme int colorScheme) {
+        var background = new ColorDrawable(defaultColor);
+        var hover = new ColorDrawable(getHoverSuggestionBackgroundColor(context, colorScheme));
+
+        // Ripple effect to use when the user interacts with the suggestion.
+        var ripple =
+                resolveAttributeToDrawable(context, colorScheme, R.attr.selectableItemBackground);
+
+        var statefulBackground = new StateListDrawable();
+        statefulBackground.addState(new int[] {android.R.attr.state_selected}, hover);
+        statefulBackground.addState(new int[] {android.R.attr.state_hovered}, hover);
+        statefulBackground.addState(
+                new int[] {android.R.attr.state_selected, android.R.attr.state_hovered}, hover);
+        statefulBackground.addState(new int[] {}, background);
+
+        return new LayerDrawable(new Drawable[] {statefulBackground, ripple});
     }
 
     /**
      * Returns the background color for the suggestions dropdown for the given {@link
      * BrandedColorScheme} with the given context.
      */
-    public static @ColorInt int getSuggestionsDropdownBackgroundColorForColorScheme(
+    public static @ColorInt int getSuggestionsDropdownBackgroundColor(
             Context context, @BrandedColorScheme int brandedColorScheme) {
         return brandedColorScheme == BrandedColorScheme.INCOGNITO
-                ? getSuggestionsDropdownIncognitoBackgroundColor(context)
-                : getSuggestionsDropdownStandardBackgroundColor(context);
+                ? context.getColor(R.color.omnibox_dropdown_bg_incognito)
+                : ContextCompat.getColor(context, R.color.omnibox_suggestion_dropdown_bg);
     }
 
     /**
@@ -427,7 +456,7 @@ public class OmniboxResourceProvider {
     }
 
     /** Gets the margin, in pixels, on either side of an omnibox suggestion list. */
-    public static @Px int getDropdownSideSpacing(@NonNull Context context) {
+    public static @Px int getDropdownSideSpacing(Context context) {
         context = maybeReplaceContextForSmallTabletWindow(context);
         return getSideSpacing(context)
                 + context.getResources()
@@ -435,7 +464,7 @@ public class OmniboxResourceProvider {
     }
 
     /** Gets the margin, in pixels, on either side of an omnibox suggestion. */
-    public static @Px int getSideSpacing(@NonNull Context context) {
+    public static @Px int getSideSpacing(Context context) {
         context = maybeReplaceContextForSmallTabletWindow(context);
         return context.getResources()
                 .getDimensionPixelSize(R.dimen.omnibox_suggestion_side_spacing_smallest);
@@ -493,11 +522,10 @@ public class OmniboxResourceProvider {
 
     /**
      * Returns the amount of pixels for the toolbar's side padding when the omnibox is pinned on the
-     * top of the screen in both the start surface and NTP.
+     * top of the screen in NTP.
      */
-    public static @Px int getToolbarSidePaddingForStartSurfaceOrNtp(Context context) {
-        return context.getResources()
-                .getDimensionPixelSize(R.dimen.toolbar_edge_padding_modern_polish);
+    public static @Px int getToolbarSidePaddingForNtp(Context context) {
+        return context.getResources().getDimensionPixelSize(R.dimen.toolbar_edge_padding_ntp);
     }
 
     /** Return the width of the Omnibox Suggestion decoration icon. */
@@ -555,5 +583,14 @@ public class OmniboxResourceProvider {
         newConfig.smallestScreenWidthDp = existingConfig.screenWidthDp;
 
         return context.createConfigurationContext(newConfig);
+    }
+
+    /**
+     * @param context The context to retrieve the resources from.
+     * @return the color for the additional text.
+     */
+    @ColorInt
+    public static int getAdditionalTextColor(Context context) {
+        return SemanticColorUtils.getDefaultTextColorSecondary(context);
     }
 }

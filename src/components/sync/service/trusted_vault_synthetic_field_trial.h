@@ -7,8 +7,13 @@
 
 #include <iosfwd>
 #include <string>
+#include <string_view>
 
-#include "components/sync/protocol/nigori_specifics.pb.h"
+class GaiaId;
+
+namespace sync_pb {
+class TrustedVaultAutoUpgradeExperimentGroup;
+}  // namespace sync_pb
 
 namespace syncer {
 
@@ -25,9 +30,7 @@ class TrustedVaultAutoUpgradeSyntheticFieldTrialGroup {
   // Constructs an instance from a protobuf. Returns an invalid instance,
   // detectable via `is_valid()`, if the input is invalid.
   static TrustedVaultAutoUpgradeSyntheticFieldTrialGroup FromProto(
-      sync_pb::NigoriSpecifics::AutoUpgradeDebugInfo::AutoUpgradeExperimentGroup
-          group,
-      int cohort_id);
+      const sync_pb::TrustedVaultAutoUpgradeExperimentGroup& group);
 
   // Constructs an invalid value.
   TrustedVaultAutoUpgradeSyntheticFieldTrialGroup();
@@ -45,9 +48,24 @@ class TrustedVaultAutoUpgradeSyntheticFieldTrialGroup {
   bool is_valid() const { return !name_.empty(); }
   const std::string& name() const { return name_; }
 
+  // Metric recording.
+  void LogValidationMetricsUponOnProfileLoad(const GaiaId& gaia_id) const;
+
+  // Exposed publicly for unit-testing.
+  static float DeterministicFloatBetweenZeroAndOneFromGaiaIdForTest(
+      const GaiaId& gaia_id,
+      std::string_view salt);
+  static bool ShouldSampleGaiaIdWithTenPercentProbabilityForTest(
+      const GaiaId& gaia_id);
+
  private:
+  void LogValidationMetrics(const GaiaId& gaia_id,
+                            std::string_view short_metric_name) const;
+
   // Empty if `this` is invalid.
   std::string name_;
+  // Set to true if this group has type VALIDATION.
+  bool is_validation_group_type_ = false;
 };
 
 // gMock printer helper.

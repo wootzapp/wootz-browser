@@ -9,9 +9,11 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_response_headers.h"
 #include "services/network/public/cpp/cross_origin_embedder_policy.h"
+#include "services/network/public/cpp/document_isolation_policy.h"
 #include "services/network/public/cpp/initiator_lock_compatibility.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/mojom/cross_origin_embedder_policy.mojom.h"
+#include "services/network/public/mojom/document_isolation_policy.mojom-forward.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -51,10 +53,14 @@ CrossOriginResourcePolicy::ParsedHeader ParseHeaderByString(
 
 CrossOriginResourcePolicy::ParsedHeader ParseHeaderByHttpResponseHeaders(
     const net::HttpResponseHeaders* headers) {
-  std::string header_value;
-  if (!headers || !headers->GetNormalizedHeader(
-                      CrossOriginResourcePolicy::kHeaderName, &header_value))
+  if (!headers) {
     return CrossOriginResourcePolicy::kNoHeader;
+  }
+  std::optional<std::string> header_value =
+      headers->GetNormalizedHeader(CrossOriginResourcePolicy::kHeaderName);
+  if (!header_value) {
+    return CrossOriginResourcePolicy::kNoHeader;
+  }
   return ParseHeaderByString(header_value);
 }
 
@@ -109,35 +115,55 @@ std::optional<mojom::BlockedByResponseReason> IsBlockedInternal(
     const std::optional<url::Origin>& request_initiator,
     mojom::RequestMode request_mode,
     bool request_include_credentials,
-    mojom::CrossOriginEmbedderPolicyValue embedder_policy) {
+    mojom::CrossOriginEmbedderPolicyValue embedder_policy,
+    mojom::DocumentIsolationPolicyValue document_isolation_policy) {
   // Browser-initiated requests are not subject to Cross-Origin-Resource-Policy.
   if (!request_initiator.has_value())
     return std::nullopt;
   const url::Origin& initiator = request_initiator.value();
 
-  bool require_corp;
+  bool require_corp_due_to_coep;
   switch (embedder_policy) {
     case mojom::CrossOriginEmbedderPolicyValue::kNone:
-      require_corp = false;
+      require_corp_due_to_coep = false;
       break;
 
     case mojom::CrossOriginEmbedderPolicyValue::kCredentialless:
-      require_corp = request_mode == mojom::RequestMode::kNavigate ||
-                     request_include_credentials;
+      require_corp_due_to_coep =
+          request_mode == mojom::RequestMode::kNavigate ||
+          request_include_credentials;
       break;
 
     case mojom::CrossOriginEmbedderPolicyValue::kRequireCorp:
-      require_corp = true;
+      require_corp_due_to_coep = true;
+      break;
+  }
+
+  bool require_corp_due_to_dip;
+  switch (document_isolation_policy) {
+    case mojom::DocumentIsolationPolicyValue::kNone:
+      require_corp_due_to_dip = false;
+      break;
+
+    case mojom::DocumentIsolationPolicyValue::kIsolateAndCredentialless:
+      require_corp_due_to_dip = request_mode == mojom::RequestMode::kNavigate ||
+                                request_include_credentials;
+      break;
+
+    case mojom::DocumentIsolationPolicyValue::kIsolateAndRequireCorp:
+      require_corp_due_to_dip = true;
       break;
   }
 
   // COEP https://mikewest.github.io/corpp/#corp-check
-  bool upgrade_to_same_origin = false;
+  bool upgrade_to_same_origin_due_to_coep = false;
+  bool upgrade_to_same_origin_due_to_dip = false;
   if ((policy == CrossOriginResourcePolicy::kNoHeader ||
        policy == CrossOriginResourcePolicy::kParsingError) &&
-      require_corp) {
+      (require_corp_due_to_coep || require_corp_due_to_dip)) {
     policy = CrossOriginResourcePolicy::kSameOrigin;
-    upgrade_to_same_origin = true;
+    upgrade_to_same_origin_due_to_coep = require_corp_due_to_coep;
+    upgrade_to_same_origin_due_to_dip = require_corp_due_to_dip;
   }
 
   if (policy == CrossOriginResourcePolicy::kNoHeader ||
@@ -162,10 +188,22 @@ std::optional<mojom::BlockedByResponseReason> IsBlockedInternal(
   // From https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header:
   // > 4. If policy is `same-origin`, then return blocked.
   if (policy == CrossOriginResourcePolicy::kSameOrigin) {
-    return upgrade_to_same_origin
-               ? mojom::BlockedByResponseReason::
-                     kCorpNotSameOriginAfterDefaultedToSameOriginByCoep
-               : mojom::BlockedByResponseReason::kCorpNotSameOrigin;
+    if (upgrade_to_same_origin_due_to_coep &&
+        upgrade_to_same_origin_due_to_dip) {
+      return mojom::BlockedByResponseReason::
+          kCorpNotSameOriginAfterDefaultedToSameOriginByCoepAndDip;
+    }
+
+    if (upgrade_to_same_origin_due_to_coep) {
+      return mojom::BlockedByResponseReason::
+          kCorpNotSameOriginAfterDefaultedToSameOriginByCoep;
+    }
+
+    if (upgrade_to_same_origin_due_to_dip) {
+      return mojom::BlockedByResponseReason::
+          kCorpNotSameOriginAfterDefaultedToSameOriginByDip;
+    }
+    return mojom::BlockedByResponseReason::kCorpNotSameOrigin;
   }
 
   // From https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header:
@@ -193,23 +231,39 @@ std::optional<mojom::BlockedByResponseReason> IsBlockedInternalWithReporting(
     mojom::RequestDestination request_destination,
     bool request_include_credentials,
     const CrossOriginEmbedderPolicy& embedder_policy,
-    mojom::CrossOriginEmbedderPolicyReporter* reporter) {
+    mojom::CrossOriginEmbedderPolicyReporter* coep_reporter,
+    const DocumentIsolationPolicy& document_isolation_policy,
+    mojom::DocumentIsolationPolicyReporter* dip_reporter) {
   constexpr auto kBlockedDueToCoep = mojom::BlockedByResponseReason::
       kCorpNotSameOriginAfterDefaultedToSameOriginByCoep;
-  if ((embedder_policy.report_only_value ==
-           mojom::CrossOriginEmbedderPolicyValue::kRequireCorp ||
-       (embedder_policy.report_only_value ==
-            mojom::CrossOriginEmbedderPolicyValue::kCredentialless &&
-        request_mode == mojom::RequestMode::kNavigate)) &&
-      reporter) {
-    const auto result = IsBlockedInternal(
-        policy, request_url, request_initiator, request_mode,
-        request_include_credentials, embedder_policy.report_only_value);
-    if (result == kBlockedDueToCoep ||
-        (result.has_value() && request_mode == mojom::RequestMode::kNavigate)) {
-      reporter->QueueCorpViolationReport(original_url, request_destination,
-                                         /*report_only=*/true);
-    }
+  constexpr auto kBlockedDueToDip = mojom::BlockedByResponseReason::
+      kCorpNotSameOriginAfterDefaultedToSameOriginByDip;
+  constexpr auto kBlockedDueToCoepAndDip = mojom::BlockedByResponseReason::
+      kCorpNotSameOriginAfterDefaultedToSameOriginByCoepAndDip;
+
+  // First, check if enforcing report-only COEP or report-only
+  // DocumentIsolationPolicy would cause the request to be blocked.
+  const auto report_only_result = IsBlockedInternal(
+      policy, request_url, request_initiator, request_mode,
+      request_include_credentials, embedder_policy.report_only_value,
+      document_isolation_policy.report_only_value);
+
+  if ((report_only_result == kBlockedDueToCoep ||
+       report_only_result == kBlockedDueToCoepAndDip ||
+       (report_only_result.has_value() &&
+        request_mode == mojom::RequestMode::kNavigate &&
+        embedder_policy.report_only_value !=
+            mojom::CrossOriginEmbedderPolicyValue::kNone)) &&
+      coep_reporter) {
+    coep_reporter->QueueCorpViolationReport(original_url, request_destination,
+                                            /*report_only=*/true);
+  }
+
+  if ((report_only_result == kBlockedDueToDip ||
+       report_only_result == kBlockedDueToCoepAndDip) &&
+      dip_reporter) {
+    dip_reporter->QueueCorpViolationReport(original_url, request_destination,
+                                           /*report_only=*/true);
   }
 
   if (request_mode == mojom::RequestMode::kNavigate &&
@@ -219,13 +273,21 @@ std::optional<mojom::BlockedByResponseReason> IsBlockedInternalWithReporting(
 
   const auto result =
       IsBlockedInternal(policy, request_url, request_initiator, request_mode,
-                        request_include_credentials, embedder_policy.value);
-  if (reporter &&
-      (result == kBlockedDueToCoep ||
+                        request_include_credentials, embedder_policy.value,
+                        document_isolation_policy.value);
+  if (coep_reporter &&
+      (result == kBlockedDueToCoep || result == kBlockedDueToCoepAndDip ||
        (result.has_value() && request_mode == mojom::RequestMode::kNavigate))) {
-    reporter->QueueCorpViolationReport(original_url, request_destination,
-                                       /*report_only=*/false);
+    coep_reporter->QueueCorpViolationReport(original_url, request_destination,
+                                            /*report_only=*/false);
   }
+
+  if (dip_reporter &&
+      (result == kBlockedDueToDip || result == kBlockedDueToCoepAndDip)) {
+    dip_reporter->QueueCorpViolationReport(original_url, request_destination,
+                                           /*report_only=*/false);
+  }
+
   return result;
 }
 
@@ -245,7 +307,9 @@ CrossOriginResourcePolicy::IsBlocked(
     mojom::RequestMode request_mode,
     mojom::RequestDestination request_destination,
     const CrossOriginEmbedderPolicy& embedder_policy,
-    mojom::CrossOriginEmbedderPolicyReporter* reporter) {
+    mojom::CrossOriginEmbedderPolicyReporter* coep_reporter,
+    const DocumentIsolationPolicy& document_isolation_policy,
+    mojom::DocumentIsolationPolicyReporter* dip_reporter) {
   // From https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header:
   // > 1. If request’s mode is not "no-cors", then return allowed.
   if (request_mode != mojom::RequestMode::kNoCors)
@@ -264,7 +328,7 @@ CrossOriginResourcePolicy::IsBlocked(
   return IsBlockedInternalWithReporting(
       policy, request_url, original_url, request_initiator, request_mode,
       request_destination, response.request_include_credentials,
-      embedder_policy, reporter);
+      embedder_policy, coep_reporter, document_isolation_policy, dip_reporter);
 }
 
 // static
@@ -278,7 +342,9 @@ CrossOriginResourcePolicy::IsBlockedByHeaderValue(
     mojom::RequestDestination request_destination,
     bool request_include_credentials,
     const CrossOriginEmbedderPolicy& embedder_policy,
-    mojom::CrossOriginEmbedderPolicyReporter* reporter) {
+    mojom::CrossOriginEmbedderPolicyReporter* coep_reporter,
+    const DocumentIsolationPolicy& document_isolation_policy,
+    mojom::DocumentIsolationPolicyReporter* dip_reporter) {
   // From https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header:
   // > 1. If request’s mode is not "no-cors", then return allowed.
   if (request_mode != mojom::RequestMode::kNoCors)
@@ -289,7 +355,7 @@ CrossOriginResourcePolicy::IsBlockedByHeaderValue(
   return IsBlockedInternalWithReporting(
       policy, request_url, original_url, request_initiator, request_mode,
       request_destination, request_include_credentials, embedder_policy,
-      reporter);
+      coep_reporter, document_isolation_policy, dip_reporter);
 }
 
 // static
@@ -301,14 +367,17 @@ CrossOriginResourcePolicy::IsNavigationBlocked(
     const network::mojom::URLResponseHead& response,
     mojom::RequestDestination request_destination,
     const CrossOriginEmbedderPolicy& embedder_policy,
-    mojom::CrossOriginEmbedderPolicyReporter* reporter) {
+    mojom::CrossOriginEmbedderPolicyReporter* coep_reporter) {
   ParsedHeader policy =
       ParseHeaderByHttpResponseHeaders(response.headers.get());
 
+  // DocumentIsolationPolicy is not checked on navigations, so pass a default
+  // DocumentIsolationPolicy and a null DocumentIsolationPolicyReporter.
   return IsBlockedInternalWithReporting(
       policy, request_url, original_url, request_initiator,
       mojom::RequestMode::kNavigate, request_destination,
-      response.request_include_credentials, embedder_policy, reporter);
+      response.request_include_credentials, embedder_policy, coep_reporter,
+      DocumentIsolationPolicy(), nullptr);
 }
 
 // static

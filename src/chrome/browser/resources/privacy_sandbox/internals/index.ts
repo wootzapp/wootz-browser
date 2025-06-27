@@ -33,6 +33,10 @@ const trackingProtectionPrefNames: Map<
   'enable_do_not_track': {},
   'tracking_protection.fingerprinting_protection_enabled': {},
   'tracking_protection.ip_protection_enabled': {},
+  'tracking_protection.ip_protection_initialized_by_dogfood': {},
+  'tracking_protection.reminder_status': {},
+  'tracking_protection.survey_window_start_time':
+      {logicalFn: timestampLogicalFn},
   'tracking_protection.tracking_protection_onboarding_status': {},
   'tracking_protection.tracking_protection_eligible_since':
       {logicalFn: timestampLogicalFn},
@@ -100,6 +104,8 @@ const advertisingPrefNames: Map<string, PrefConfig> = new Map(Object.entries({
       {logicalFn: timestampLogicalFn},
   'privacy_sandbox.topics_consent.last_update_reason': {},
   'privacy_sandbox.topics_consent.text_at_last_update': {},
+  'privacy_sandbox.activity_type.record': {},
+  'privacy_sandbox.activity_type.record2': {},
 }));
 
 function getPrefLogicalFn(prefName: string) {
@@ -122,8 +128,7 @@ class DataLoader {
     this.pageHandler = handler;
   }
 
-  async maybeAddPrefsToDom(
-      parentElement: HTMLElement|null, prefNameList: string[]) {
+  maybeAddPrefsToDom(parentElement: HTMLElement|null, prefNameList: string[]) {
     if (parentElement) {
       this.addPrefsToDom(parentElement, prefNameList);
     } else {
@@ -132,7 +137,7 @@ class DataLoader {
     }
   }
 
-  async addPrefsToDom(parentElement: HTMLElement, prefNameList: string[]) {
+  addPrefsToDom(parentElement: HTMLElement, prefNameList: string[]) {
     prefNameList.forEach(async (prefName) => {
       const prefValue = await this.pageHandler.readPref(prefName);
       const item = document.createElement('pref-display');

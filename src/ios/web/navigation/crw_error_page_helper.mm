@@ -57,7 +57,7 @@ NSString* InjectedErrorPageFilePath() {
 @synthesize errorPageFileURL = _errorPageFileURL;
 
 - (instancetype)initWithError:(NSError*)error {
-  if (self = [super init]) {
+  if ((self = [super init])) {
     _error = [error copy];
   }
   return self;
@@ -110,8 +110,9 @@ NSString* InjectedErrorPageFilePath() {
 #pragma mark - Public
 
 + (GURL)failedNavigationURLFromErrorPageFileURL:(const GURL&)URL {
-  if (!URL.is_valid())
+  if (!URL.is_valid()) {
     return GURL();
+  }
 
   if (URL.SchemeIsFile() &&
       URL.path() == base::SysNSStringToUTF8(LoadedErrorPageFilePath())) {

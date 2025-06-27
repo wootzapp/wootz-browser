@@ -3,9 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
-#include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
-#include "content/browser/accessibility/browser_accessibility.h"
 #include "content/browser/renderer_host/legacy_render_widget_host_win.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
@@ -18,6 +16,7 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/platform/ax_fragment_root_win.h"
 #include "ui/accessibility/platform/ax_platform_node.h"
+#include "ui/accessibility/platform/browser_accessibility.h"
 #include "ui/aura/client/aura_constants.h"
 
 namespace content {
@@ -38,7 +37,7 @@ class AccessibilityTreeLinkageWinBrowserTest
     if (GetParam().is_uia_enabled) {
       scoped_feature_list_.InitAndEnableFeature(::features::kUiaProvider);
     }
-    dummy_ax_platform_node_ = ui::AXPlatformNode::Create(&dummy_ax_node_);
+    dummy_ax_platform_node_ = ui::AXPlatformNode::Create(dummy_ax_node_);
   }
 
   AccessibilityTreeLinkageWinBrowserTest(
@@ -46,15 +45,9 @@ class AccessibilityTreeLinkageWinBrowserTest
   AccessibilityTreeLinkageWinBrowserTest& operator=(
       const AccessibilityTreeLinkageWinBrowserTest&) = delete;
 
-  ~AccessibilityTreeLinkageWinBrowserTest() override {
-    // Calling Destroy will delete `dummy_ax_platform_node_`.
-    dummy_ax_platform_node_.ExtractAsDangling()->Destroy();
-  }
-
   void SetUpCommandLine(base::CommandLine* command_line) override {
     if (GetParam().is_legacy_window_disabled)
-      base::CommandLine::ForCurrentProcess()->AppendSwitch(
-          ::switches::kDisableLegacyIntermediateWindow);
+      command_line->AppendSwitch(::switches::kDisableLegacyIntermediateWindow);
   }
 
   RenderWidgetHostViewAura* GetView() {
@@ -73,7 +66,7 @@ class AccessibilityTreeLinkageWinBrowserTest
 
  protected:
   ui::AXPlatformNodeDelegate dummy_ax_node_;
-  raw_ptr<ui::AXPlatformNode> dummy_ax_platform_node_;
+  ui::AXPlatformNode::Pointer dummy_ax_platform_node_;
 };
 
 IN_PROC_BROWSER_TEST_P(AccessibilityTreeLinkageWinBrowserTest, Linkage) {

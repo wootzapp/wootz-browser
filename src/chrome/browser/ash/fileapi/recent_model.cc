@@ -23,6 +23,7 @@
 #include "chrome/browser/ash/fileapi/recent_drive_source.h"
 #include "chrome/browser/ash/fileapi/recent_file.h"
 #include "chrome/browser/ash/fileapi/recent_model_factory.h"
+#include "chrome/common/extensions/api/file_manager_private.h"
 #include "content/public/browser/browser_thread.h"
 #include "storage/browser/file_system/file_system_context.h"
 
@@ -31,6 +32,8 @@ using content::BrowserThread;
 namespace ash {
 
 namespace {
+
+namespace fmp = extensions::api::file_manager_private;
 
 // Helper method that transfers files that qualify, based on the cut-off time
 // to the accumulator. Used either when a recent source completes the work or
@@ -66,43 +69,49 @@ std::vector<std::unique_ptr<RecentSource>> CreateDefaultSources(
 
   // Crostini.
   sources.emplace_back(std::make_unique<RecentDiskSource>(
+      fmp::VolumeType::kCrostini,
       file_manager::util::GetCrostiniMountPointName(profile),
       /*ignore_dotfiles=*/true, /*max_depth=*/4,
       "FileBrowser.Recent.LoadCrostini"));
 
   // Downloads / MyFiles.
   sources.emplace_back(std::make_unique<RecentDiskSource>(
+      fmp::VolumeType::kDownloads,
       file_manager::util::GetDownloadsMountPointName(profile),
       /*ignore_dotfiles=*/true, /*unlimited max_depth=*/0,
       "FileBrowser.Recent.LoadDownloads"));
   sources.emplace_back(std::make_unique<RecentDriveSource>(profile));
 
-  if (base::FeatureList::IsEnabled(ash::features::kFSPsInRecents)) {
-    file_manager::VolumeManager* volume_manager =
-        file_manager::VolumeManager::Get(profile);
-    for (const base::WeakPtr<file_manager::Volume> volume :
-         volume_manager->GetVolumeList()) {
-      if (!volume || volume->type() != file_manager::VOLUME_TYPE_PROVIDED ||
-          volume->file_system_type() == file_manager::util::kFuseBox) {
-        // Provided volume types are served via two file system types: fusebox
-        // (usable from ash or lacros, but requires ChromeOS' /usr/bin/fusebox
-        // daemon process to be running) and non-fusebox (ash only, no separate
-        // process required). The Files app runs in ash and could use either.
-        // Using both would return duplicate results. We therefore filter out
-        // the fusebox file system type.
-        continue;
-      }
-      sources.emplace_back(std::make_unique<RecentDiskSource>(
-          volume->mount_path().BaseName().AsUTF8Unsafe(),
-          /*ignore_dot_files=*/true, /*max_depth=*/0,
-          "FileBrowser.Recent.LoadFileSystemProvider"));
+  // File System Providers.
+  file_manager::VolumeManager* volume_manager =
+      file_manager::VolumeManager::Get(profile);
+  for (const base::WeakPtr<file_manager::Volume> volume :
+       volume_manager->GetVolumeList()) {
+    if (!volume || volume->type() != file_manager::VOLUME_TYPE_PROVIDED ||
+        volume->file_system_type() == file_manager::util::kFuseBox) {
+      // Provided volume types are served via two file system types: fusebox
+      // (usable from ash or lacros, but requires ChromeOS' /usr/bin/fusebox
+      // daemon process to be running) and non-fusebox (ash only, no separate
+      // process required). The Files app runs in ash and could use either.
+      // Using both would return duplicate results. We therefore filter out
+      // the fusebox file system type.
+      continue;
     }
+    sources.emplace_back(std::make_unique<RecentDiskSource>(
+        fmp::VolumeType::kProvided,
+        volume->mount_path().BaseName().AsUTF8Unsafe(),
+        /*ignore_dot_files=*/true, /*max_depth=*/0,
+        "FileBrowser.Recent.LoadFileSystemProvider"));
   }
 
   return sources;
 }
 
 }  // namespace
+
+RecentModelOptions::RecentModelOptions() = default;
+
+RecentModelOptions::~RecentModelOptions() = default;
 
 RecentModel::CallContext::CallContext(const SearchCriteria& criteria,
                                       GetRecentFilesCallback callback)
@@ -174,12 +183,29 @@ void RecentModel::GetRecentFiles(
 
   auto context =
       std::make_unique<CallContext>(search_criteria, std::move(callback));
+  // The source list should never be empty, as this means somebody wants recent
+  // files from without specifying even a single source.
+  DCHECK(!options.source_specs.empty());
+  std::set<fmp::VolumeType> volume_filter;
+  for (const RecentSourceSpec& restriction : options.source_specs) {
+    volume_filter.emplace(restriction.volume_type);
+  }
+
+  // filtered_sources is a copy of active_sources. However, as active_sources
+  // is modified, we need to create a copy that is not going to be altered
+  // while we are iterating over it.
+  std::vector<RecentSource*> filtered_sources;
+  filtered_sources.reserve(sources_.size());
   for (const auto& source : sources_) {
-    context->active_sources.insert(source.get());
+    auto it = volume_filter.find(source->volume_type());
+    if (it != volume_filter.end()) {
+      context->active_sources.insert(source.get());
+      filtered_sources.emplace_back(source.get());
+    }
   }
   context_map_.AddWithID(std::move(context), this_call_id);
 
-  if (sources_.empty()) {
+  if (filtered_sources.empty()) {
     OnSearchCompleted(this_call_id);
     return;
   }
@@ -209,10 +235,10 @@ void RecentModel::GetRecentFiles(
   const RecentSource::Params params(file_system_context, this_call_id, origin,
                                     query, options.max_files, cutoff_time,
                                     end_time, options.file_type);
-  for (const auto& source : sources_) {
+  for (const auto& source : filtered_sources) {
     source->GetRecentFiles(
         params, base::BindOnce(&RecentModel::OnGotRecentFiles,
-                               weak_ptr_factory_.GetWeakPtr(), source.get(),
+                               weak_ptr_factory_.GetWeakPtr(), source,
                                cutoff_time, this_call_id));
   }
 }

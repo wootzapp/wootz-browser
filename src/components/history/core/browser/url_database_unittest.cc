@@ -14,6 +14,7 @@
 #include "components/history/core/browser/keyword_search_term.h"
 #include "components/history/core/browser/keyword_search_term_util.h"
 #include "sql/database.h"
+#include "sql/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::Time;
@@ -38,14 +39,11 @@ bool IsURLRowEqual(const URLRow& a,
 class URLDatabaseTest : public testing::Test,
                         public URLDatabase {
  public:
-  URLDatabaseTest() = default;
-
   void CreateVersion33URLTable() {
     EXPECT_TRUE(GetDB().Execute("DROP TABLE urls"));
 
-    std::string sql;
     // create a version 33 urls table
-    sql.append(
+    static constexpr char kSql[] =
         "CREATE TABLE urls ("
         "id INTEGER PRIMARY KEY,"
         "url LONGVARCHAR,"
@@ -54,9 +52,9 @@ class URLDatabaseTest : public testing::Test,
         "typed_count INTEGER DEFAULT 0 NOT NULL,"
         "last_visit_time INTEGER NOT NULL,"
         "hidden INTEGER DEFAULT 0 NOT NULL,"
-        "favicon_id INTEGER DEFAULT 0 NOT NULL)");  // favicon_id is not used
-                                                    // now.
-    EXPECT_TRUE(GetDB().Execute(sql.c_str()));
+        "favicon_id INTEGER DEFAULT 0 NOT NULL)";  // favicon_id is not used
+                                                   // now.
+    EXPECT_TRUE(GetDB().Execute(kSql));
   }
 
  protected:
@@ -80,7 +78,7 @@ class URLDatabaseTest : public testing::Test,
   void TearDown() override { db_.Close(); }
 
   base::ScopedTempDir temp_dir_;
-  sql::Database db_;
+  sql::Database db_{sql::test::kTestTag};
 };
 
 // Test add, update, upsert, and query for the URL table in the HistoryDatabase.

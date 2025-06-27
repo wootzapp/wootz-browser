@@ -26,6 +26,7 @@
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/tooltip_icon.h"
 #include "ui/views/controls/button/button.h"
@@ -154,12 +155,17 @@ CredentialsItemView::CredentialsItemView(
     }
   }
 
-  if (!upper_text.empty() && !lower_text.empty())
-    SetAccessibleName(upper_text + u"\n" + lower_text);
-  else
-    SetAccessibleName(upper_text + lower_text);
+  if (!upper_text.empty() && !lower_text.empty()) {
+    GetViewAccessibility().SetName(upper_text + u"\n" + lower_text);
+  } else {
+    GetViewAccessibility().SetName(upper_text + lower_text);
+  }
 
   SetFocusBehavior(FocusBehavior::ALWAYS);
+  SetInstallFocusRingOnFocus(true);
+  // With Focus Ring on Focus there is a line around the button.
+  // We want to remove this line so setting the thickness as 0.
+  views::FocusRing::Get(this)->SetHaloThickness(0.0f);
 }
 
 CredentialsItemView::~CredentialsItemView() = default;
@@ -174,7 +180,8 @@ int CredentialsItemView::GetPreferredHeight() const {
 }
 
 void CredentialsItemView::OnPaintBackground(gfx::Canvas* canvas) {
-  if (GetState() == STATE_PRESSED || GetState() == STATE_HOVERED) {
+  if (GetState() == STATE_PRESSED || GetState() == STATE_HOVERED ||
+      HasFocus()) {
     canvas->DrawColor(
         GetColorProvider()->GetColor(ui::kColorMenuItemBackgroundSelected));
   }

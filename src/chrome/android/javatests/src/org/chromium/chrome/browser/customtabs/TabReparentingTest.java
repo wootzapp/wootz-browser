@@ -11,7 +11,9 @@ import static org.junit.Assert.assertNull;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
@@ -23,11 +25,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
@@ -36,26 +38,18 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.customtabs.content.CustomTabIntentHandler;
-import org.chromium.chrome.browser.customtabs.dependency_injection.BaseCustomTabActivityModule;
-import org.chromium.chrome.browser.dependency_injection.ModuleOverridesRule;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
-import org.chromium.chrome.browser.infobar.InfoBarContainer;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabTestUtils;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.browser.LocationSettingsTestUtil;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.WebContentsUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -68,42 +62,29 @@ import java.util.concurrent.TimeoutException;
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class TabReparentingTest {
     private static final String TEST_PAGE = "/chrome/test/data/android/google.html";
-    private static final String POPUP_PAGE =
-            "/chrome/test/data/popup_blocker/popup-window-open.html";
     private static final String SELECT_POPUP_PAGE = "/chrome/test/data/android/select.html";
 
     @Rule
     public CustomTabActivityTestRule mCustomTabActivityTestRule = new CustomTabActivityTestRule();
 
-    private final TestRule mModuleOverridesRule =
-            new ModuleOverridesRule()
-                    .setOverride(
-                            BaseCustomTabActivityModule.Factory.class,
-                            (BrowserServicesIntentDataProvider intentDataProvider,
-                                    CustomTabNightModeStateController nightModeController,
-                                    CustomTabIntentHandler.IntentIgnoringCriterion
-                                            intentIgnoringCriterion,
-                                    TopUiThemeColorProvider topUiThemeColorProvider,
-                                    DefaultBrowserProviderImpl customTabDefaultBrowserProvider) ->
-                                    new BaseCustomTabActivityModule(
-                                            intentDataProvider,
-                                            nightModeController,
-                                            intentIgnoringCriterion,
-                                            topUiThemeColorProvider,
-                                            new FakeDefaultBrowserProviderImpl()));
+    private static class TestContext extends ContextWrapper {
+        public TestContext(Context baseContext) {
+            super(baseContext);
+        }
 
-    @Rule
-    public RuleChain mRuleChain =
-            RuleChain.emptyRuleChain()
-                    .around(mCustomTabActivityTestRule)
-                    .around(mModuleOverridesRule);
+        @Override
+        public PackageManager getPackageManager() {
+            return CustomTabsTestUtils.getDefaultBrowserOverridingPackageManager(
+                    getPackageName(), super.getPackageManager());
+        }
+    }
 
     private String mTestPage;
     private EmbeddedTestServer mTestServer;
 
     @Before
     public void setUp() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(() -> FirstRunStatus.setFirstRunFlowComplete(true));
+        ThreadUtils.runOnUiThreadBlocking(() -> FirstRunStatus.setFirstRunFlowComplete(true));
 
         Context appContext =
                 InstrumentationRegistry.getInstrumentation()
@@ -112,11 +93,13 @@ public class TabReparentingTest {
         mTestServer = EmbeddedTestServer.createAndStartServer(appContext);
         mTestPage = mTestServer.getURL(TEST_PAGE);
         LibraryLoader.getInstance().ensureInitialized();
+        TestContext testContext = new TestContext(ContextUtils.getApplicationContext());
+        ContextUtils.initApplicationContextForTests(testContext);
     }
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> FirstRunStatus.setFirstRunFlowComplete(false));
+        ThreadUtils.runOnUiThreadBlocking(() -> FirstRunStatus.setFirstRunFlowComplete(false));
     }
 
     private CustomTabActivity getActivity() {
@@ -145,13 +128,12 @@ public class TabReparentingTest {
                         tabHiddenHelper.notifyCalled();
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabToBeReparented.addObserver(observer));
+        ThreadUtils.runOnUiThreadBlocking(() -> tabToBeReparented.addObserver(observer));
         PostTask.postTask(
                 TaskTraits.UI_DEFAULT,
                 () -> {
                     getActivity()
-                            .getComponent()
-                            .resolveNavigationController()
+                            .getCustomTabActivityNavigationController()
                             .openCurrentUrlInBrowser();
                     assertNull(getActivity().getActivityTab());
                 });
@@ -182,7 +164,7 @@ public class TabReparentingTest {
                 0,
                 tabHiddenHelper.getCallCount());
         Assert.assertFalse(TabTestUtils.isCustomTab(tabToBeReparented));
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     tabToBeReparented.removeObserver(observer);
                     ObserverList.RewindableIterator<TabObserver> observers =
@@ -211,30 +193,6 @@ public class TabReparentingTest {
                 RecordHistogram.getHistogramValueCountForTesting(
                         LaunchCauseMetrics.LAUNCH_CAUSE_HISTOGRAM,
                         LaunchCauseMetrics.LaunchCause.OPEN_IN_BROWSER_FROM_MENU));
-    }
-
-    /** Test whether a custom tab can be reparented to a new activity while showing an infobar. */
-    @Test
-    @SmallTest
-    @DisableFeatures("MessagesForAndroidPopupBlocked")
-    public void testTabReparentingInfoBar() {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(
-                CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
-                        ApplicationProvider.getApplicationContext(),
-                        mTestServer.getURL(POPUP_PAGE)));
-        CriteriaHelper.pollUiThread(
-                () -> isInfoBarSizeOne(mCustomTabActivityTestRule.getActivity().getActivityTab()));
-
-        ChromeActivity newActivity = reparentAndVerifyTab();
-        CriteriaHelper.pollUiThread(() -> isInfoBarSizeOne(newActivity.getActivityTab()));
-    }
-
-    private static boolean isInfoBarSizeOne(Tab tab) {
-        if (tab == null) return false;
-        InfoBarContainer container = InfoBarContainer.get(tab);
-        if (container == null) return false;
-        return container.getInfoBarsForTesting().size() == 1;
     }
 
     /**

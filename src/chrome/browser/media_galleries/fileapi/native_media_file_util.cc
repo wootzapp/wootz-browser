@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/media_galleries/fileapi/native_media_file_util.h"
 
 #include <string>
@@ -10,6 +15,7 @@
 
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
+#include "base/files/safe_base_name.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -626,7 +632,9 @@ base::File::Error NativeMediaFileUtil::Core::ReadDirectorySync(
     if (!info.IsDirectory() && !media_path_filter_.Match(enum_path))
       continue;
 
-    file_list->emplace_back(enum_path.BaseName(),
+    auto name = base::SafeBaseName::Create(enum_path);
+    CHECK(name) << enum_path;
+    file_list->emplace_back(*name, info.GetName().AsUTF8Unsafe(),
                             info.IsDirectory()
                                 ? filesystem::mojom::FsFileType::DIRECTORY
                                 : filesystem::mojom::FsFileType::REGULAR_FILE);

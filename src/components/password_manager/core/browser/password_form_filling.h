@@ -10,6 +10,7 @@
 
 #include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
+#include "components/autofill/core/common/unique_ids.h"
 
 namespace autofill {
 struct PasswordFormFillData;
@@ -49,11 +50,11 @@ LikelyFormFilling SendFillInformationToRenderer(
     PasswordManagerDriver* driver,
     const PasswordForm& observed_form,
     base::span<const PasswordForm> best_matches,
-    const std::vector<raw_ptr<const PasswordForm, VectorExperimental>>&
-        federated_matches,
+    base::span<const PasswordForm> federated_matches,
     const PasswordForm* preferred_match,
     PasswordFormMetricsRecorder* metrics_recorder,
-    bool webauthn_suggestions_available);
+    bool webauthn_suggestions_available,
+    base::span<autofill::FieldRendererId> suggestion_banned_fields);
 
 // Create a PasswordFormFillData structure in preparation for filling a form
 // identified by |form_on_page|, with credentials from |preferred_match| and
@@ -64,7 +65,9 @@ autofill::PasswordFormFillData CreatePasswordFormFillData(
     base::span<const PasswordForm> best_matches,
     std::optional<PasswordForm> preferred_match,
     const url::Origin& main_frame_origin,
-    bool wait_for_username);
+    bool wait_for_username,
+    base::span<const autofill::FieldRendererId> suggestion_banned_fields,
+    bool notify_browser_of_successful_filling = false);
 
 }  // namespace password_manager
 

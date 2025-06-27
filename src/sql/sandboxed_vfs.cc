@@ -16,6 +16,7 @@
 
 #include "base/check.h"
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -141,10 +142,9 @@ SandboxedVfsFileType VfsFileTypeFromPath(const char* full_path_cstr) {
     return SandboxedVfsFileType::kWal;
   }
 
-  NOTREACHED_IN_MIGRATION()
+  NOTREACHED()
       << "Argument is not a file name buffer passed from SQLite to a VFS: "
       << full_path;
-  return SandboxedVfsFileType::kDatabase;
 }
 #endif  // DCHECK_IS_ON()
 
@@ -217,8 +217,7 @@ int SandboxedVfs::Access(const char* full_path, int flags, int& result) {
       result = (access->can_read && access->can_write) ? 1 : 0;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << "Unsupported xAccess flags: " << flags;
-      return SQLITE_ERROR;
+      NOTREACHED() << "Unsupported xAccess flags: " << flags;
   }
   return SQLITE_OK;
 }
@@ -235,7 +234,7 @@ int SandboxedVfs::FullPathname(const char* file_path,
   size_t file_path_size = std::strlen(file_path) + 1;
   if (static_cast<size_t>(result_size) < file_path_size)
     return SQLITE_CANTOPEN;
-  std::memcpy(result, file_path, file_path_size);
+  UNSAFE_TODO(std::memcpy(result, file_path, file_path_size));
   return SQLITE_OK;
 }
 
@@ -244,7 +243,7 @@ int SandboxedVfs::Randomness(int result_size, char* result) {
   DCHECK(result);
 
   // TODO(pwnall): Figure out if we need a real implementation.
-  std::memset(result, 0, result_size);
+  UNSAFE_TODO(std::memset(result, 0, result_size));
   return result_size;
 }
 

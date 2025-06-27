@@ -8,18 +8,18 @@ import android.view.View;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.signin.services.SigninMetricsUtils;
 import org.chromium.chrome.browser.signin.services.SigninPreferencesManager;
 import org.chromium.chrome.browser.ui.signin.R;
-import org.chromium.chrome.browser.ui.signin.SigninUtils;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
+import org.chromium.components.signin.base.CoreAccountId;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.ui.base.WindowAndroid;
@@ -72,7 +72,8 @@ public class AccountPickerBottomSheetCoordinator {
             DeviceLockActivityLauncher deviceLockActivityLauncher,
             @AccountPickerLaunchMode int launchMode,
             boolean isWebSignin,
-            @SigninAccessPoint int signinAccessPoint) {
+            @SigninAccessPoint int signinAccessPoint,
+            @Nullable CoreAccountId selectedAccountId) {
         mIsWebSignin = isWebSignin;
         mSigninAccessPoint = signinAccessPoint;
         SigninMetricsUtils.logAccountConsistencyPromoAction(
@@ -87,27 +88,18 @@ public class AccountPickerBottomSheetCoordinator {
                         deviceLockActivityLauncher,
                         launchMode,
                         isWebSignin,
-                        signinAccessPoint);
+                        signinAccessPoint,
+                        selectedAccountId);
         mView =
                 new AccountPickerBottomSheetView(
                         windowAndroid.getActivity().get(), mAccountPickerBottomSheetMediator);
 
-        if (ChromeFeatureList.isEnabled(
-                ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)) {
-            mAccountPickerCoordinator =
-                    new AccountPickerCoordinator(
-                            mView.getAccountListView(),
-                            mAccountPickerBottomSheetMediator,
-                            R.layout.account_picker_bottom_sheet_row,
-                            R.layout.account_picker_bottom_sheet_new_account_row);
-        } else {
-            mAccountPickerCoordinator =
-                    new AccountPickerCoordinator(
-                            mView.getAccountListView(),
-                            mAccountPickerBottomSheetMediator,
-                            R.layout.account_picker_row,
-                            R.layout.account_picker_new_account_row);
-        }
+        mAccountPickerCoordinator =
+                new AccountPickerCoordinator(
+                        mView.getAccountListView(),
+                        mAccountPickerBottomSheetMediator,
+                        R.layout.account_picker_bottom_sheet_row,
+                        R.layout.account_picker_bottom_sheet_new_account_row);
 
         mBottomSheetController = bottomSheetController;
         PropertyModelChangeProcessor.create(
@@ -150,7 +142,6 @@ public class AccountPickerBottomSheetCoordinator {
      * flow.
      */
     public void onAccountAdded(@NonNull String accountEmail) {
-        assert SigninUtils.shouldShowNewSigninFlow();
         mAccountPickerBottomSheetMediator.onAccountAdded(accountEmail);
     }
 

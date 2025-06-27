@@ -22,7 +22,8 @@
 
 #include "third_party/blink/renderer/core/svg/svg_resource_document_cache.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "third_party/blink/renderer/core/svg/svg_resource_document_content.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_parameters.h"
 #include "third_party/blink/renderer/platform/loader/fetch/memory_cache.h"
@@ -48,7 +49,17 @@ SVGResourceDocumentContent* SVGResourceDocumentCache::Get(const CacheKey& key) {
 
 void SVGResourceDocumentCache::Put(const CacheKey& key,
                                    SVGResourceDocumentContent* content) {
-  entries_.Set(key, content);
+  auto result = entries_.insert(key, content);
+  // No existing entry, we're done.
+  if (result.is_new_entry) {
+    return;
+  }
+  // Existing entry. Replace with the new content and then dispose of the old.
+  SVGResourceDocumentContent* old_content =
+      std::exchange(result.stored_value->value, content);
+  if (old_content) {
+    old_content->Dispose();
+  }
 }
 
 void SVGResourceDocumentCache::WillBeDestroyed() {
@@ -80,7 +91,7 @@ void SVGResourceDocumentCache::ProcessCustomWeakness(
     return;
   }
   // Avoid scheduling spurious dispose tasks.
-  const bool all_entries_are_observed = base::ranges::all_of(
+  const bool all_entries_are_observed = std::ranges::all_of(
       entries_.Values(), [](SVGResourceDocumentContent* content) {
         return content->HasObservers();
       });

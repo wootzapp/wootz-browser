@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/peerconnection/h265_parameter_sets_tracker.h"
 
 #include <memory>
@@ -45,7 +50,7 @@ H265ParameterSetsTracker::VpsData::~VpsData() = default;
 
 H265ParameterSetsTracker::FixedBitstream
 H265ParameterSetsTracker::MaybeFixBitstream(
-    rtc::ArrayView<const uint8_t> bitstream) {
+    webrtc::ArrayView<const uint8_t> bitstream) {
   if (!bitstream.size()) {
     return {PacketAction::kRequestKeyframe};
   }
@@ -66,7 +71,7 @@ H265ParameterSetsTracker::MaybeFixBitstream(
   uint32_t slice_sps_id = 0, slice_pps_id = 0;
 
   parser_.ParseBitstream(
-      rtc::ArrayView<const uint8_t>(bitstream.data(), bitstream.size()));
+      webrtc::ArrayView<const uint8_t>(bitstream.data(), bitstream.size()));
 
   std::vector<webrtc::H265::NaluIndex> nalu_indices =
       webrtc::H265::FindNaluIndices(bitstream.data(), bitstream.size());

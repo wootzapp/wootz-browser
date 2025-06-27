@@ -13,8 +13,6 @@
 
 // This has to be included first.
 // See http://code.google.com/p/googletest/issues/detail?id=371
-#include "testing/gtest/include/gtest/gtest.h"
-
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -25,13 +23,13 @@
 #include "media/base/video_types.h"
 #include "media/gpu/test/local_gpu_memory_buffer_manager.h"
 #include "media/gpu/vaapi/test_utils.h"
-#include "media/gpu/vaapi/va_surface.h"
 #include "media/gpu/vaapi/vaapi_image_decoder.h"
 #include "media/gpu/vaapi/vaapi_image_decoder_test_common.h"
 #include "media/gpu/vaapi/vaapi_jpeg_decoder.h"
 #include "media/gpu/vaapi/vaapi_utils.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
 #include "media/parsers/jpeg_parser.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/libyuv/include/libyuv.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
@@ -174,12 +172,11 @@ std::vector<unsigned char> GenerateJpegImage(
   // size), it will be decoded incorrectly in AMD Stoney Ridge (see
   // b/127874877). When that's resolved, change the quality here to 100 so that
   // the generated JPEG is large.
-  std::vector<unsigned char> jpeg_data;
-  if (gfx::JPEGCodec::Encode(
-          SkPixmap(image_info, rgba_data.data(), stride) /* input */,
-          95 /* quality */, subsampling /* downsample */,
-          &jpeg_data /* output */)) {
-    return jpeg_data;
+  std::optional<std::vector<uint8_t>> jpeg_data = gfx::JPEGCodec::Encode(
+      /*input=*/SkPixmap(image_info, rgba_data.data(), stride),
+      /*quality=*/95, /*downsample=*/subsampling);
+  if (jpeg_data) {
+    return jpeg_data.value();
   }
   return {};
 }
@@ -434,7 +431,7 @@ TEST_F(VaapiJpegDecoderTest, DecodeSucceedsForSupportedSizes) {
                                              {max_width, max_height}};
   for (const auto& test_size : test_sizes) {
     const std::vector<unsigned char> jpeg_data = GenerateJpegImage(test_size);
-    auto jpeg_data_span = base::as_bytes(base::make_span(jpeg_data));
+    auto jpeg_data_span = base::as_byte_span(jpeg_data);
     ASSERT_FALSE(jpeg_data.empty());
     std::unique_ptr<ScopedVAImage> scoped_image = Decode(jpeg_data_span);
     ASSERT_TRUE(scoped_image)
@@ -607,7 +604,7 @@ TEST_F(VaapiJpegDecoderTest, DecodeFailsForBelowMinSize) {
     const std::vector<unsigned char> jpeg_data = GenerateJpegImage(test_size);
     ASSERT_FALSE(jpeg_data.empty());
     VaapiImageDecodeStatus status = VaapiImageDecodeStatus::kSuccess;
-    ASSERT_FALSE(Decode(base::as_bytes(base::make_span(jpeg_data)), &status))
+    ASSERT_FALSE(Decode(base::as_byte_span(jpeg_data), &status))
         << "Decode unexpectedly succeeded for size = " << test_size.ToString();
     EXPECT_EQ(VaapiImageDecodeStatus::kUnsupportedImage, status);
     EXPECT_FALSE(Decoder()->GetScopedVASurface());
@@ -653,7 +650,7 @@ TEST_F(VaapiJpegDecoderTest, DecodeFailsForAboveMaxSize) {
     const std::vector<unsigned char> jpeg_data = GenerateJpegImage(test_size);
     ASSERT_FALSE(jpeg_data.empty());
     VaapiImageDecodeStatus status = VaapiImageDecodeStatus::kSuccess;
-    ASSERT_FALSE(Decode(base::as_bytes(base::make_span(jpeg_data)), &status))
+    ASSERT_FALSE(Decode(base::as_byte_span(jpeg_data), &status))
         << "Decode unexpectedly succeeded for size = " << test_size.ToString();
     EXPECT_EQ(VaapiImageDecodeStatus::kUnsupportedImage, status);
     EXPECT_FALSE(Decoder()->GetScopedVASurface());
@@ -667,7 +664,7 @@ TEST_F(VaapiJpegDecoderTest, DecodeFails) {
   ASSERT_TRUE(base::ReadFileToString(input_file, &jpeg_data))
       << "failed to read input data from " << input_file.value();
   VaapiImageDecodeStatus status = VaapiImageDecodeStatus::kSuccess;
-  ASSERT_FALSE(Decode(base::as_bytes(base::make_span(jpeg_data)), &status));
+  ASSERT_FALSE(Decode(base::as_byte_span(jpeg_data), &status));
   EXPECT_EQ(VaapiImageDecodeStatus::kUnsupportedSubsampling, status);
   EXPECT_FALSE(Decoder()->GetScopedVASurface());
 }

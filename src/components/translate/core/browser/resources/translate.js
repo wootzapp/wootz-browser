@@ -179,6 +179,12 @@ cr.googleTranslate = (function() {
     }
   }
 
+  window.addEventListener('pagehide', function(event) {
+    if (libReady && event.persisted) {
+      lib.restore();
+    }
+  });
+
   // Public API.
   return {
     /**
@@ -249,7 +255,7 @@ cr.googleTranslate = (function() {
       }
       if (!lib.getDetectedLanguage) {
         return 'und';
-      }  // Defined as translate::kUnknownLanguageCode in C++.
+      }  // Defined as language_detection::kUnknownLanguageCode in C++.
       return lib.getDetectedLanguage();
     },
 

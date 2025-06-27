@@ -6,13 +6,14 @@
 
 #include "base/json/json_writer.h"
 #include "base/strings/escape.h"
+#include "base/strings/stringprintf.h"
 
 namespace autofill::payments {
 
 namespace {
 
 const char kUploadIbanRequestPath[] =
-    "payments/apis-secure/chromepaymentsservice/saveiban"
+    "payments/apis-secure/chromepaymentsservice/createpaymentinstrument"
     "?s7e_suffix=chromewallet";
 const char kUploadIbanRequestFormat[] =
     "requestContentType=application/json; charset=utf-8&request=%s"
@@ -21,9 +22,10 @@ const char kUploadIbanRequestFormat[] =
 }  // namespace
 
 UploadIbanRequest::UploadIbanRequest(
-    const PaymentsNetworkInterface::UploadIbanRequestDetails& details,
+    const UploadIbanRequestDetails& details,
     bool full_sync_enabled,
-    base::OnceCallback<void(AutofillClient::PaymentsRpcResult)> callback)
+    base::OnceCallback<
+        void(payments::PaymentsAutofillClient::PaymentsRpcResult)> callback)
     : request_details_(details),
       full_sync_enabled_(full_sync_enabled),
       callback_(std::move(callback)) {}
@@ -40,13 +42,21 @@ std::string UploadIbanRequest::GetRequestContentType() {
 
 std::string UploadIbanRequest::GetRequestContent() {
   base::Value::Dict request_dict;
-  request_dict.Set("value", "__param:s7e_443_value");
-  base::Value::Dict context;
+
+  base::Value::Dict iban_info;
+  iban_info.Set("value", "__param:s7e_443_value");
+  request_dict.Set("iban_info", std::move(iban_info));
+
   if (!request_details_.nickname.empty()) {
-    context.Set("nickname", request_details_.nickname);
+    request_dict.Set("nickname", request_details_.nickname);
   }
+  request_dict.Set("risk_data_encoded",
+                   BuildRiskDictionary(request_details_.risk_data));
+
+  base::Value::Dict context;
   context.Set("language_code", request_details_.app_locale);
-  context.Set("billable_service", request_details_.billable_service_number);
+  context.Set("billable_service",
+              payments::kUploadPaymentMethodBillableServiceNumber);
   if (request_details_.billing_customer_number != 0) {
     context.Set("customer_context",
                 BuildCustomerContextDictionary(
@@ -65,7 +75,7 @@ std::string UploadIbanRequest::GetRequestContent() {
                          base::EscapeUrlEncodedData(
                              base::UTF16ToASCII(request_details_.value), true)
                              .c_str());
-  VLOG(3) << "savediban request body: " << request_content;
+  DVLOG(3) << "savediban request body: " << request_content;
   return request_content;
 }
 
@@ -78,7 +88,7 @@ bool UploadIbanRequest::IsResponseComplete() {
 }
 
 void UploadIbanRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    payments::PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result);
 }
 

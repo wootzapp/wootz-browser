@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/webui/eche_app_ui/eche_uid_provider.h"
 
 #include <openssl/base64.h>
@@ -61,7 +66,7 @@ void EcheUidProvider::GenerateKeyPair(
   // first 32 bytes of what BoringSSL calls the private key.
   pref_service_->SetString(
       kEcheAppSeedPref,
-      ConvertBinaryToString(base::make_span(private_key, kSeedSizeInByte)));
+      ConvertBinaryToString(base::span(private_key, kSeedSizeInByte)));
 }
 
 std::optional<std::vector<uint8_t>> EcheUidProvider::ConvertStringToBinary(

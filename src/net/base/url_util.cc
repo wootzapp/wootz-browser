@@ -269,9 +269,7 @@ std::string GetHostAndOptionalPort(const GURL& url) {
 
 NET_EXPORT std::string GetHostAndOptionalPort(
     const url::SchemeHostPort& scheme_host_port) {
-  int default_port = url::DefaultPortForScheme(
-      scheme_host_port.scheme().data(),
-      static_cast<int>(scheme_host_port.scheme().length()));
+  int default_port = url::DefaultPortForScheme(scheme_host_port.scheme());
   if (default_port != scheme_host_port.port()) {
     return base::StringPrintf("%s:%i", scheme_host_port.host().c_str(),
                               scheme_host_port.port());
@@ -314,7 +312,9 @@ bool IsSubdomainOf(std::string_view subdomain, std::string_view superdomain) {
   return subdomain.back() == '.';
 }
 
+namespace {
 std::string CanonicalizeHost(std::string_view host,
+                             bool is_file_scheme,
                              url::CanonHostInfo* host_info) {
   // Try to canonicalize the host.
   const url::Component raw_host_component(0, static_cast<int>(host.length()));
@@ -331,8 +331,13 @@ std::string CanonicalizeHost(std::string_view host,
   // the output.
   const int kCxxMaxStringBufferSizeWithoutMalloc = 22;
   canon_host_output.Resize(kCxxMaxStringBufferSizeWithoutMalloc);
-  url::CanonicalizeHostVerbose(host.data(), raw_host_component,
-                               &canon_host_output, host_info);
+  if (is_file_scheme) {
+    url::CanonicalizeFileHostVerbose(host.data(), raw_host_component,
+                                     canon_host_output, *host_info);
+  } else {
+    url::CanonicalizeSpecialHostVerbose(host.data(), raw_host_component,
+                                        canon_host_output, *host_info);
+  }
 
   if (host_info->out_host.is_nonempty() &&
       host_info->family != url::CanonHostInfo::BROKEN) {
@@ -345,6 +350,25 @@ std::string CanonicalizeHost(std::string_view host,
   }
 
   return canon_host;
+}
+}  // namespace
+
+std::string CanonicalizeHostSupportsBareIPV6(std::string_view host,
+                                             url::CanonHostInfo* host_info) {
+  const std::string host_or_ip = host.find(':') != std::string::npos
+                                     ? base::StrCat({"[", host, "]"})
+                                     : std::string(host);
+  return CanonicalizeHost(host_or_ip, host_info);
+}
+
+std::string CanonicalizeHost(std::string_view host,
+                             url::CanonHostInfo* host_info) {
+  return CanonicalizeHost(host, /*is_file_scheme=*/false, host_info);
+}
+
+std::string CanonicalizeFileHost(std::string_view host,
+                                 url::CanonHostInfo* host_info) {
+  return CanonicalizeHost(host, /*is_file_scheme=*/true, host_info);
 }
 
 bool IsCanonicalizedHostCompliant(std::string_view host) {

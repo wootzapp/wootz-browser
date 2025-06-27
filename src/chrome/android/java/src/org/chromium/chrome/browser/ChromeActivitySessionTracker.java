@@ -16,6 +16,7 @@ import org.chromium.base.ApplicationStatus.ApplicationStateListener;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.LocaleUtils;
+import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordHistogram;
@@ -27,6 +28,7 @@ import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.metrics.UmaUtils;
 import org.chromium.chrome.browser.metrics.VariationsSession;
 import org.chromium.chrome.browser.notifications.NotificationPlatformBridge;
+import org.chromium.chrome.browser.notifications.chime.ChimeDelegate;
 import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
 import org.chromium.chrome.browser.password_manager.PasswordManagerLifecycleHelper;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
@@ -36,7 +38,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileKeyedMap;
 import org.chromium.chrome.browser.profiles.ProfileManagerUtils;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
-import org.chromium.chrome.browser.safety_hub.SafetyHubFetchService;
+import org.chromium.chrome.browser.safety_hub.SafetyHubFetchServiceFactory;
 import org.chromium.chrome.browser.translate.TranslateBridge;
 import org.chromium.components.browser_ui.accessibility.DeviceAccessibilitySettingsHandler;
 import org.chromium.components.browser_ui.accessibility.FontSizePrefs;
@@ -77,10 +79,15 @@ public class ChromeActivitySessionTracker {
 
     /**
      * Constructor exposed for extensibility only.
+     *
      * @see #getInstance()
      */
     protected ChromeActivitySessionTracker() {
-        mVariationsSession = AppHooks.get().createVariationsSession();
+        VariationsSession session = ServiceLoaderUtil.maybeCreate(VariationsSession.class);
+        if (session == null) {
+            session = new VariationsSession();
+        }
+        mVariationsSession = session;
     }
 
     /**
@@ -157,9 +164,8 @@ public class ChromeActivitySessionTracker {
             ChromeLocalizationUtils.recordUiLanguageStatus();
             mVariationsSession.start();
             mOmahaServiceStartDelayer.onForegroundSessionStart();
-            AppHooks.get().getChimeDelegate().startSession();
+            new ChimeDelegate().startSession();
             PasswordManagerLifecycleHelper.getInstance().onStartForegroundSession();
-            SafetyHubFetchService.onForegroundSessionStart();
 
             // Track the ratio of Chrome startups that are caused by notification clicks.
             // TODO(johnme): Add other reasons (and switch to recordEnumeratedHistogram).
@@ -178,9 +184,10 @@ public class ChromeActivitySessionTracker {
                 TraceEvent.scoped(
                         "ChromeActivitySessionTracker.handlePerProfileForegroundSessionStart")) {
             updatePasswordEchoState(profile);
-            FontSizePrefs.getInstance(profile).onSystemFontScaleChanged();
+            FontSizePrefs.getInstance(profile).setFontScaleFactor();
             DeviceAccessibilitySettingsHandler.getInstance(profile).updateFontWeightAdjustment();
             updateAcceptLanguages(profile);
+            SafetyHubFetchServiceFactory.getForProfile(profile).onForegroundSessionStart();
         }
         return true; // Return a non-null value to ensure ProfileKeyedMap tracks this was completed.
     }

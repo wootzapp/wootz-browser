@@ -99,8 +99,9 @@ class MEDIA_EXPORT AudioManagerAndroid : public AudioManagerBase {
   const base::android::JavaRef<jobject>& GetJavaAudioManager();
   bool HasNoAudioInputStreams();
   void SetCommunicationAudioModeOn(bool on);
-  bool SetAudioDevice(const std::string& device_id);
+  bool SetCommunicationDevice(const std::string& device_id);
   int GetNativeOutputSampleRate();
+  bool IsBluetoothMicrophoneOn();
   bool IsAudioLowLatencySupported();
   int GetAudioLowLatencyOutputFrameSize();
   int GetOptimalOutputFrameSize(int sample_rate, int channels);

@@ -6,16 +6,27 @@
 
 #include <jni.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 #include "base/android/callback_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
-#include "components/webauthn/android/jni_headers/WebauthnBrowserBridge_jni.h"
+#include "base/check_op.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "components/webauthn/android/webauthn_client_android.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "device/fido/discoverable_credential_metadata.h"
 #include "device/fido/public_key_credential_user_entity.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/webauthn/android/jni_headers/WebauthnBrowserBridge_jni.h"
 
 using base::android::ConvertJavaStringToUTF8;
 using base::android::ScopedJavaGlobalRef;
@@ -109,7 +120,7 @@ void WebauthnBrowserBridge::OnCredentialsDetailsListReceived(
     std::vector<uint8_t> credential_id = {};
     base::android::RunObjectCallbackAndroid(
         jget_assertion_callback,
-        base::android::ToJavaByteArray(base::android::AttachCurrentThread(),
+        base::android::ToJavaByteArray(jni_zero::AttachCurrentThread(),
                                        credential_id));
     return;
   }

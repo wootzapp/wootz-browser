@@ -7,6 +7,7 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/task/single_thread_task_runner.h"
+#include "cc/input/scroll_snap_data.h"
 #include "third_party/blink/public/mojom/scroll/scroll_into_view_params.mojom-blink-forward.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
@@ -55,11 +56,13 @@ class CORE_EXPORT RootFrameViewport final
   void DidUpdateVisualViewport();
 
   // ScrollableArea Implementation
+  PhysicalOffset LocalToScrollOriginOffset() const final;
   bool IsRootFrameViewport() const override { return true; }
   bool SetScrollOffset(const ScrollOffset&,
                        mojom::blink::ScrollType,
                        mojom::blink::ScrollBehavior,
-                       ScrollCallback on_finish) override;
+                       ScrollCallback on_finish,
+                       bool targeted_scroll = false) override;
   PhysicalRect ScrollIntoView(
       const PhysicalRect&,
       const PhysicalBoxStrut& scroll_margin,
@@ -110,7 +113,6 @@ class CORE_EXPORT RootFrameViewport final
       ScrollbarOrientation orientation) override;
   bool ScrollAnimatorEnabled() const override;
   ChromeClient* GetChromeClient() const override;
-  SmoothScrollSequencer* GetSmoothScrollSequencer() const override;
   void ServiceScrollAnimations(double) override;
   void UpdateCompositorScrollAnimations() override;
   void CancelProgrammaticScrollAnimation() override;
@@ -131,23 +133,30 @@ class CORE_EXPORT RootFrameViewport final
   bool SetTargetSnapAreaElementIds(cc::TargetSnapAreaElementIds) override;
   bool SnapContainerDataNeedsUpdate() const override;
   void SetSnapContainerDataNeedsUpdate(bool) override;
+  std::optional<cc::SnapPositionData> GetSnapPosition(
+      const cc::SnapSelectionStrategy& strategy) const override;
   std::optional<gfx::PointF> GetSnapPositionAndSetTarget(
       const cc::SnapSelectionStrategy& strategy) override;
-  void UpdateSnappedTargetsAndEnqueueSnapChanged() override;
-  std::optional<cc::TargetSnapAreaElementIds> GetSnapchangingTargetIds()
+  void UpdateSnappedTargetsAndEnqueueScrollSnapChange() override;
+  std::optional<cc::TargetSnapAreaElementIds> GetScrollsnapchangingTargetIds()
       const override;
-  void SetSnapchangingTargetIds(
+  void SetScrollsnapchangeTargetIds(
+      std::optional<cc::TargetSnapAreaElementIds>) override;
+  void SetScrollsnapchangingTargetIds(
       std::optional<cc::TargetSnapAreaElementIds>) override;
   const cc::SnapSelectionStrategy* GetImplSnapStrategy() const override;
   void SetImplSnapStrategy(
       std::unique_ptr<cc::SnapSelectionStrategy> strategy) override;
-  void EnqueueSnapChangingEventFromImplIfNeeded() override;
-  void UpdateSnapChangingTargetsAndEnqueueSnapChanging(
+  void EnqueueScrollSnapChangingEventFromImplIfNeeded() override;
+  void UpdateScrollSnapChangingTargetsAndEnqueueScrollSnapChanging(
       const cc::TargetSnapAreaElementIds& new_target_ids) override;
+  void SetSnappedQueryTargetIds(
+      std::optional<cc::TargetSnapAreaElementIds> new_target_ids) override;
 
   void SetPendingHistoryRestoreScrollOffset(
       const HistoryItem::ViewState& view_state,
-      bool should_restore_scroll) override {
+      bool should_restore_scroll,
+      mojom::blink::ScrollBehavior scroll_behavior) override {
     pending_view_state_ = view_state;
     should_restore_scroll_ = should_restore_scroll;
   }

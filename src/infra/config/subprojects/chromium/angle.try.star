@@ -37,7 +37,7 @@ def angle_mac_builder(*, name, **kwargs):
     return try_.builder(name = name, **kwargs)
 
 def angle_ios_builder(*, name, **kwargs):
-    kwargs.setdefault("xcode", xcode.x14main)
+    kwargs.setdefault("xcode", xcode.xcode_default)
     return angle_mac_builder(name = name, **kwargs)
 
 angle_ios_builder(
@@ -55,5 +55,6 @@ angle_ios_builder(
             "no_symbols",
         ],
     ),
-    pool = "luci.chromium.gpu.mac.mini.intel.try",
+    pool = "luci.chromium.gpu.try",
+    max_concurrent_builds = 1,
 )

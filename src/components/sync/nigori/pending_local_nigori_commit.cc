@@ -6,11 +6,9 @@
 
 #include <utility>
 
-#include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
-#include "components/sync/base/features.h"
 #include "components/sync/engine/nigori/cross_user_sharing_public_key.h"
 #include "components/sync/engine/nigori/cross_user_sharing_public_private_key_pair.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
@@ -131,10 +129,8 @@ class CustomPassphraseSetter : public PendingLocalNigoriCommit {
 class KeystoreInitializer : public PendingLocalNigoriCommit {
  public:
   KeystoreInitializer() {
-    if (base::FeatureList::IsEnabled(kSharingOfferKeyPairBootstrap)) {
-      cross_user_sharing_public_private_key_pair_ =
-          CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair();
-    }
+    cross_user_sharing_public_private_key_pair_ =
+        CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair();
   }
 
   KeystoreInitializer(const KeystoreInitializer&) = delete;
@@ -166,20 +162,16 @@ class KeystoreInitializer : public PendingLocalNigoriCommit {
 
   void OnSuccess(const NigoriState& state,
                  SyncEncryptionHandler::Observer* observer) override {
-    // Note: |passphrase_time| isn't populated for keystore passphrase.
+    // Note: `passphrase_time` isn't populated for keystore passphrase.
     observer->OnPassphraseTypeChanged(PassphraseType::kKeystorePassphrase,
                                       /*passphrase_time=*/base::Time());
     observer->OnCryptographerStateChanged(state.cryptographer.get(),
                                           /*has_pending_keys=*/false);
-    if (base::FeatureList::IsEnabled(kSharingOfferKeyPairBootstrap)) {
-      LogCrossUserSharingPublicPrivateKeyInit(true);
-    }
+    LogCrossUserSharingPublicPrivateKeyInit(true);
   }
 
   void OnFailure(SyncEncryptionHandler::Observer* observer) override {
-    if (base::FeatureList::IsEnabled(kSharingOfferKeyPairBootstrap)) {
-      LogCrossUserSharingPublicPrivateKeyInit(false);
-    }
+    LogCrossUserSharingPublicPrivateKeyInit(false);
   }
 
  private:

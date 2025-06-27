@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -21,6 +23,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_timeouts.h"
 #include "base/win/scoped_com_initializer.h"
@@ -39,7 +42,10 @@
 using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::AtLeast;
+using ::testing::Eq;
 using ::testing::Gt;
+using ::testing::IsFalse;
+using ::testing::IsTrue;
 using ::testing::NotNull;
 
 namespace media {
@@ -77,16 +83,24 @@ class FakeAudioInputCallback : public AudioInputStream::AudioInputCallback {
   FakeAudioInputCallback& operator=(const FakeAudioInputCallback&) = delete;
 
   bool error() const { return error_; }
+  int num_callbacks() const { return num_callbacks_; }
   int num_received_audio_frames() const { return num_received_audio_frames_; }
 
   // Waits until OnData() is called on another thread.
   void WaitForData() { data_event_.Wait(); }
+
+  // Waits for OnData() to be called on another thread.
+  // Returns true if the event is signaled, false if it times out.
+  bool WaitForDataWithTimeout(base::TimeDelta timeout) {
+    return data_event_.TimedWait(timeout);
+  }
 
   void OnData(const AudioBus* src,
               base::TimeTicks capture_time,
               double volume,
               const AudioGlitchInfo& glitch_info) override {
     EXPECT_GE(capture_time, base::TimeTicks());
+    num_callbacks_++;
     num_received_audio_frames_ += src->frames();
     data_event_.Signal();
   }
@@ -94,7 +108,46 @@ class FakeAudioInputCallback : public AudioInputStream::AudioInputCallback {
   void OnError() override { error_ = true; }
 
  private:
+  int num_callbacks_ = 0;
   int num_received_audio_frames_;
+  base::WaitableEvent data_event_;
+  bool error_;
+};
+
+class FakeAudioOutputCallback : public AudioOutputStream::AudioSourceCallback {
+ public:
+  FakeAudioOutputCallback()
+      : num_rendered_audio_frames_(0),
+        data_event_(base::WaitableEvent::ResetPolicy::AUTOMATIC,
+                    base::WaitableEvent::InitialState::NOT_SIGNALED),
+        error_(false) {}
+
+  FakeAudioOutputCallback(const FakeAudioOutputCallback&) = delete;
+  FakeAudioOutputCallback& operator=(const FakeAudioOutputCallback&) = delete;
+
+  bool error() const { return error_; }
+  int num_callbacks() const { return num_callbacks_; }
+  int num_rendered_audio_frames() const { return num_rendered_audio_frames_; }
+
+  // Waits until OnMoreData() is called on another thread.
+  void WaitForMoreData() { data_event_.Wait(); }
+
+  int OnMoreData(base::TimeDelta delay,
+                 base::TimeTicks delay_timestamp,
+                 const AudioGlitchInfo& glitch_info,
+                 AudioBus* dest) override {
+    num_callbacks_++;
+    num_rendered_audio_frames_ += dest->frames();
+    dest->Zero();
+    data_event_.Signal();
+    return dest->frames();
+  }
+
+  void OnError(ErrorType type) override { error_ = true; }
+
+ private:
+  int num_callbacks_ = 0;
+  int num_rendered_audio_frames_;
   base::WaitableEvent data_event_;
   bool error_;
 };
@@ -120,17 +173,16 @@ class WriteToFileAudioSink : public AudioInputStream::AudioInputCallback {
   ~WriteToFileAudioSink() override {
     size_t bytes_written = 0;
     while (bytes_written < bytes_to_write_) {
-      const uint8_t* chunk;
-      int chunk_size;
-
       // Stop writing if no more data is available.
-      if (!buffer_.GetCurrentChunk(&chunk, &chunk_size))
+      const base::span<const uint8_t> chunk = buffer_.GetCurrentChunk();
+      if (chunk.empty()) {
         break;
+      }
 
       // Write recorded data chunk to the file and prepare for next chunk.
-      fwrite(chunk, 1, chunk_size, binary_file_);
-      buffer_.Seek(chunk_size);
-      bytes_written += chunk_size;
+      UNSAFE_TODO(fwrite(chunk.data(), 1, chunk.size(), binary_file_));
+      buffer_.Seek(chunk.size());
+      bytes_written += chunk.size();
     }
     base::CloseFile(binary_file_);
   }
@@ -141,17 +193,16 @@ class WriteToFileAudioSink : public AudioInputStream::AudioInputCallback {
               double volume,
               const AudioGlitchInfo& glitch_info) override {
     const int num_samples = src->frames() * src->channels();
-    auto interleaved = std::make_unique<int16_t[]>(num_samples);
-    const int bytes_per_sample = sizeof(interleaved[0]);
+    auto interleaved = base::HeapArray<int16_t>::Uninit(num_samples);
     src->ToInterleaved<SignedInt16SampleTypeTraits>(src->frames(),
-                                                    interleaved.get());
+                                                    interleaved.data());
 
     // Store data data in a temporary buffer to avoid making blocking
     // fwrite() calls in the audio callback. The complete buffer will be
     // written to file in the destructor.
-    const int size = bytes_per_sample * num_samples;
-    if (buffer_.Append((const uint8_t*)interleaved.get(), size)) {
-      bytes_to_write_ += size;
+    const auto byte_span = base::as_bytes(interleaved.as_span());
+    if (buffer_.Append(byte_span)) {
+      bytes_to_write_ += byte_span.size();
     }
   }
 
@@ -245,6 +296,7 @@ static AudioInputStream* CreateDefaultAudioInputStream(
 
 class ScopedAudioInputStream {
  public:
+  ScopedAudioInputStream() : stream_(nullptr) {}
   explicit ScopedAudioInputStream(AudioInputStream* stream) : stream_(stream) {}
 
   ScopedAudioInputStream(const ScopedAudioInputStream&) = delete;
@@ -271,11 +323,47 @@ class ScopedAudioInputStream {
   }
 
  private:
-  raw_ptr<AudioInputStream> stream_;
+  // TODO(crbug.com/377749732): Fix dangling pointer when used with
+  // `AudioInputStreamDataInterceptor`.
+  raw_ptr<AudioInputStream, DanglingUntriaged> stream_;
 };
 
-class WinAudioInputTest : public ::testing::Test,
-                          public ::testing::WithParamInterface<bool> {
+class ScopedAudioOutputStream {
+ public:
+  ScopedAudioOutputStream() : stream_(nullptr) {}
+  explicit ScopedAudioOutputStream(AudioOutputStream* stream)
+      : stream_(stream) {}
+
+  ScopedAudioOutputStream(const ScopedAudioOutputStream&) = delete;
+  ScopedAudioOutputStream& operator=(const ScopedAudioOutputStream&) = delete;
+
+  ~ScopedAudioOutputStream() {
+    if (stream_) {
+      stream_->Close();
+    }
+  }
+
+  void Close() {
+    if (stream_) {
+      stream_->Close();
+    }
+    stream_ = nullptr;
+  }
+
+  AudioOutputStream* operator->() { return stream_; }
+
+  AudioOutputStream* get() const { return stream_; }
+
+  void Reset(AudioOutputStream* new_stream) {
+    Close();
+    stream_ = new_stream;
+  }
+
+ private:
+  raw_ptr<AudioOutputStream> stream_;
+};
+
+class WinAudioInputTest : public ::testing::Test {
  public:
   WinAudioInputTest() {
     audio_manager_ =
@@ -336,6 +424,122 @@ TEST_F(WinAudioInputTest, WASAPIAudioInputStreamEffects) {
   params = device_info_accessor.GetInputStreamParameters(
       AudioDeviceDescription::kLoopbackWithMuteDeviceId);
   EXPECT_EQ(params.effects(), AudioParameters::NO_EFFECTS);
+}
+
+TEST_F(WinAudioInputTest,
+       WASAPIAudioInputStreamLoopbackDevicesDoNotSupportSystemEffects) {
+  AudioDeviceInfoAccessorForTests device_info_accessor(audio_manager_.get());
+  ABORT_AUDIO_TEST_IF_NOT(device_info_accessor.HasAudioInputDevices() &&
+                          CoreAudioUtil::IsSupported());
+
+  base::HistogramTester histogram_tester;
+
+  // Loopback devices do not support system effects when asked for its input
+  // parameters.
+  AudioParameters params = device_info_accessor.GetInputStreamParameters(
+      AudioDeviceDescription::kLoopbackInputDeviceId);
+  EXPECT_EQ(params.effects(), AudioParameters::NO_EFFECTS);
+  histogram_tester.ExpectTotalCount(
+      "Media.Audio.Capture.Win.VoiceProcessingEffects", 0);
+
+  // Loopback devices do not support system effects when asked for its input
+  // parameters even if we enable the system AEC flag.
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(media::kEnforceSystemEchoCancellation);
+  params = device_info_accessor.GetInputStreamParameters(
+      AudioDeviceDescription::kLoopbackInputDeviceId);
+  EXPECT_EQ(params.effects(), AudioParameters::NO_EFFECTS);
+  histogram_tester.ExpectTotalCount(
+      "Media.Audio.Capture.Win.VoiceProcessingEffects", 0);
+
+  // Loopback devices to not support system AEC when used as device for an
+  // input stream even when the system AEC flag is enabled.
+  ScopedAudioInputStream stream(audio_manager_->MakeAudioInputStream(
+      params, AudioDeviceDescription::kLoopbackInputDeviceId,
+      base::BindRepeating(&LogCallbackDummy)));
+  EXPECT_EQ(stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+  EXPECT_EQ(params.effects(), AudioParameters::NO_EFFECTS);
+  histogram_tester.ExpectTotalCount(
+      "Media.Audio.Capture.Win.VoiceProcessingEffects", 0);
+}
+
+class WinAudioInputSystemEffectsTest : public WinAudioInputTest {
+ public:
+  using AP = AudioParameters;
+  WinAudioInputSystemEffectsTest()
+      : device_info_accessor_(audio_manager_.get()),
+        params_(device_info_accessor_.GetInputStreamParameters(
+            AudioDeviceDescription::kDefaultDeviceId)) {
+    feature_list_.InitAndEnableFeature(media::kEnforceSystemEchoCancellation);
+  }
+
+ protected:
+  AudioDeviceInfoAccessorForTests device_info_accessor_;
+  AudioParameters params_;
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(WinAudioInputSystemEffectsTest,
+       ParameterMustContainEchoCancellationToEnableSystemEffects) {
+  ABORT_AUDIO_TEST_IF_NOT(device_info_accessor_.HasAudioInputDevices() &&
+                          CoreAudioUtil::IsSupported());
+
+  base::HistogramTester histogram_tester;
+
+  static constexpr int kEffectsWithoutAEC[] = {
+      AP::NO_EFFECTS, AP::NOISE_SUPPRESSION, AP::AUTOMATIC_GAIN_CONTROL,
+      AP::NOISE_SUPPRESSION | AP::AUTOMATIC_GAIN_CONTROL};
+
+  // Emulate that the enumeration found an effect mask *without* AEC and create
+  // an input stream based on that. None of these should trigger a
+  // VoiceProcessingEffects histogram after the stream has been opened and
+  // closed.
+  for (const int& effect : kEffectsWithoutAEC) {
+    params_.set_effects(effect);
+    {
+      ScopedAudioInputStream stream(audio_manager_->MakeAudioInputStream(
+          params_, AudioDeviceDescription::kDefaultDeviceId,
+          base::BindRepeating(&LogCallbackDummy)));
+      ASSERT_THAT(stream.get(), NotNull());
+      ASSERT_THAT(stream->Open(), Eq(AudioInputStream::OpenOutcome::kSuccess));
+    }
+    histogram_tester.ExpectTotalCount(
+        "Media.Audio.Capture.Win.VoiceProcessingEffects", 0);
+  }
+}
+
+TEST_F(WinAudioInputSystemEffectsTest,
+       ParameterWithEchoCancellationShouldEnableSystemEffects) {
+  ABORT_AUDIO_TEST_IF_NOT(device_info_accessor_.HasAudioInputDevices() &&
+                          CoreAudioUtil::IsSupported());
+
+  static constexpr int kEffectsWithAEC[] = {
+      AP::ECHO_CANCELLER,
+      AP::ECHO_CANCELLER | AP::AUTOMATIC_GAIN_CONTROL,
+      AP::ECHO_CANCELLER | AP::NOISE_SUPPRESSION,
+      AP::ECHO_CANCELLER | AP::AUTOMATIC_GAIN_CONTROL | AP::NOISE_SUPPRESSION,
+  };
+
+  // Emulate that the enumeration found an effect mask *with* AEC and create
+  // an input stream based on that. All of these effect masks should trigger a
+  // VoiceProcessingEffects histogram after the stream has been opened and
+  // closed. The exact count can't be predicted.
+  for (const int& effect : kEffectsWithAEC) {
+    base::HistogramTester histogram_tester;
+    params_.set_effects(effect);
+    {
+      ScopedAudioInputStream stream(audio_manager_->MakeAudioInputStream(
+          params_, AudioDeviceDescription::kDefaultDeviceId,
+          base::BindRepeating(&LogCallbackDummy)));
+      ASSERT_THAT(stream.get(), NotNull());
+      ASSERT_THAT(stream->Open(), Eq(AudioInputStream::OpenOutcome::kSuccess));
+    }
+    EXPECT_THAT(histogram_tester.GetTotalCountsForPrefix(
+                    "Media.Audio.Capture.Win.VoiceProcessingEffects"),
+                ::testing::Contains(::testing::Pair(
+                    "Media.Audio.Capture.Win.VoiceProcessingEffects",
+                    ::testing::Gt(0))));
+  }
 }
 
 // Test Create(), Close() calling sequence.
@@ -517,31 +721,81 @@ TEST_F(WinAudioInputTest, WASAPIAudioInputStreamTestPacketSizes) {
   }
 }
 
-// Test that we can capture a stream in loopback.
-TEST_F(WinAudioInputTest, WASAPIAudioInputStreamLoopback) {
-  AudioDeviceInfoAccessorForTests device_info_accessor(audio_manager_.get());
-  ABORT_AUDIO_TEST_IF_NOT(device_info_accessor.HasAudioOutputDevices() &&
-                          CoreAudioUtil::IsSupported());
-  AudioParameters params = device_info_accessor.GetInputStreamParameters(
-      AudioDeviceDescription::kLoopbackInputDeviceId);
-  EXPECT_EQ(params.effects(), AudioParameters::NO_EFFECTS);
+class WinAudioInputLoopbackTest : public WinAudioInputTest {
+ public:
+  WinAudioInputLoopbackTest() : device_info_accessor_(audio_manager_.get()) {
+    // Defer stream creation and parameter fetching to SetUp.
+  }
 
-  AudioParameters output_params =
-      device_info_accessor.GetOutputStreamParameters(std::string());
-  EXPECT_EQ(params.sample_rate(), output_params.sample_rate());
-  EXPECT_EQ(params.channel_layout(), output_params.channel_layout());
+  void SetUp() override {
+    // Abort early if requirements are mot met.
+    bool prerequisites_met = device_info_accessor_.HasAudioOutputDevices() &&
+                             CoreAudioUtil::IsSupported();
+    if (!prerequisites_met) {
+      GTEST_SKIP() << "Missing audio output devices or CoreAudio support";
+    }
 
-  ScopedAudioInputStream stream(audio_manager_->MakeAudioInputStream(
-      params, AudioDeviceDescription::kLoopbackInputDeviceId,
-      base::BindRepeating(&LogCallbackDummy)));
-  EXPECT_EQ(stream->Open(), AudioInputStream::OpenOutcome::kSuccess);
+    CreateParameters();
+    CreateStreams();
+  }
+
+  void CreateParameters() {
+    params_ = device_info_accessor_.GetInputStreamParameters(
+        AudioDeviceDescription::kLoopbackInputDeviceId);
+    output_params_ =
+        device_info_accessor_.GetOutputStreamParameters(std::string());
+  }
+
+  void CreateStreams() {
+    stream_.Reset(audio_manager_->MakeAudioInputStream(
+        params_, AudioDeviceDescription::kLoopbackInputDeviceId,
+        base::BindRepeating(&LogCallbackDummy)));
+    output_stream_.Reset(audio_manager_->MakeAudioOutputStream(
+        output_params_, std::string(), base::BindRepeating(&LogCallbackDummy)));
+
+    ASSERT_THAT(stream_.get(), NotNull());
+    ASSERT_THAT(stream_->Open(), Eq(AudioInputStream::OpenOutcome::kSuccess));
+    ASSERT_THAT(output_stream_.get(), NotNull());
+    ASSERT_TRUE(output_stream_->Open());
+  }
+
+ protected:
+  AudioDeviceInfoAccessorForTests device_info_accessor_;
+  AudioParameters params_;
+  AudioParameters output_params_;
+  ScopedAudioInputStream stream_;
+  ScopedAudioOutputStream output_stream_;
+};
+
+TEST_F(WinAudioInputLoopbackTest, ValidateMatchingInputOutputParameters) {
+  // Input parameters should be the same as default output parameters in
+  // loopback capturing mode.
+  ASSERT_THAT(params_.sample_rate(), Eq(output_params_.sample_rate()));
+  ASSERT_THAT(params_.channel_layout(), Eq(output_params_.channel_layout()));
+}
+
+TEST_F(WinAudioInputLoopbackTest,
+       LoopbackEventsWhenDefaultOutputDeviceIsRenderingAudio) {
+  // Start a silent output stream and ensure that rendering starts.
+  FakeAudioOutputCallback source;
+  output_stream_->Start(&source);
+  output_stream_->SetVolume(0.0);
+  source.WaitForMoreData();
+
+  EXPECT_EQ(source.num_callbacks(), 1);
+  EXPECT_GT(source.num_rendered_audio_frames(), 0);
+  EXPECT_FALSE(source.error());
+
+  // Start the loopback stream and verify that loopback events are now fired
+  // since the default audio output device plays out audio.
   FakeAudioInputCallback sink;
-  stream->Start(&sink);
+  stream_->Start(&sink);
   ASSERT_FALSE(sink.error());
-
   sink.WaitForData();
-  stream.Close();
+  sink.WaitForData();
+  stream_.Close();
 
+  EXPECT_EQ(sink.num_callbacks(), 2);
   EXPECT_GT(sink.num_received_audio_frames(), 0);
   EXPECT_FALSE(sink.error());
 }

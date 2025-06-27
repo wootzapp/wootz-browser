@@ -4,6 +4,7 @@
 
 #include "chrome/browser/component_updater/cros_component_installer_chromeos.h"
 
+#include <algorithm>
 #include <map>
 #include <utility>
 
@@ -11,11 +12,11 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/to_string.h"
 #include "base/task/thread_pool.h"
-#include "chrome/browser/ash/crosapi/browser_util.h"
 #include "chrome/browser/ash/login/demo_mode/demo_mode_dimensions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/component_updater/component_installer_errors.h"
@@ -24,6 +25,8 @@
 #include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
 #include "chromeos/ash/components/dbus/image_loader/image_loader_client.h"
+#include "chromeos/ash/components/settings/cros_settings.h"
+#include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "components/component_updater/component_updater_paths.h"
 #include "components/component_updater/component_updater_switches.h"
@@ -35,13 +38,6 @@
 #include "crypto/sha2.h"
 
 namespace component_updater {
-
-// Switch that can be used for opting in to receive DCHECK-enabled binaries. If
-// we need to expose this through chrome://flags on other platforms this can
-// move to a shared place (but still share the prefer-dcheck name).
-const char kPreferDcheckSwitch[] = "prefer-dcheck";
-const char kPreferDcheckOptIn[] = "opt-in";
-const char kPreferDcheckOptOut[] = "opt-out";
 
 // Root path where all components are stored.
 constexpr char kComponentsRootPath[] = "cros-components";
@@ -58,34 +54,13 @@ const ComponentConfig kConfigs[] = {
      "93c093ebac788581389015e9c59c5af111d2fa5174d206eb795042e6376cbd10"},
     {"demo-mode-app", ComponentConfig::PolicyType::kDemoApp, nullptr,
      "b6c5ce9f03b0ce830eb5f9f92ed3016cfdb7a2327330f0187adbe9a00ddfd34d"},
-    // NOTE: If you change the lacros component names, you must also update
-    // chrome/browser/ash/crosapi/browser_loader.cc.
-    {"lacros-dogfood-canary", ComponentConfig::PolicyType::kLacros, nullptr,
-     "7a85ffb4b316a3b89135a3f43660ef3049950a61a2f8df4237e1ec213852b848"},
-    {"lacros-dogfood-dev", ComponentConfig::PolicyType::kLacros, nullptr,
-     "b3e1ef1780c0acd2d3fa44b4d73c657a0f1ed3ad83fd8c964a18a3502ccf5f4f"},
-    {"lacros-dogfood-beta", ComponentConfig::PolicyType::kLacros, nullptr,
-     "7d5c1428f7f67b56f95123851adec1da105980c56b5c126352040f3b65d3e43b"},
-    {"lacros-dogfood-stable", ComponentConfig::PolicyType::kLacros, nullptr,
-     "47f910805afac79e2d4d9117c42d5291a32ac60a4ea1a42e537fd86082c3ba48"},
     {"growth-campaigns", ComponentConfig::PolicyType::kGrowthCampaigns, nullptr,
      "36448796af5fb67380ec0180a8379ddd26fce20d3da6a231e0a60dfe2360407e"},
 };
 
-const char* g_ash_version_for_test = nullptr;
-
-// Returns the major version of the current binary, which is the ash/OS binary.
-// For example, for ash 89.0.1234.1 returns 89.
-uint32_t GetAshMajorVersion() {
-  base::Version ash_version = g_ash_version_for_test
-                                  ? base::Version(g_ash_version_for_test)
-                                  : version_info::GetVersion();
-  return ash_version.components()[0];
-}
-
 const ComponentConfig* FindConfig(const std::string& name) {
   const ComponentConfig* config =
-      base::ranges::find(kConfigs, name, &ComponentConfig::name);
+      std::ranges::find(kConfigs, name, &ComponentConfig::name);
   if (config == std::end(kConfigs)) {
     return nullptr;
   }
@@ -127,6 +102,11 @@ std::vector<ComponentConfig> GetInstalled() {
   return configs;
 }
 
+// Report Error code.
+void ReportError(ComponentManagerAsh::Error error) {
+  UMA_HISTOGRAM_ENUMERATION("ComponentUpdater.InstallResult", error);
+}
+
 }  // namespace
 
 CrOSComponentInstallerPolicy::CrOSComponentInstallerPolicy(
@@ -150,6 +130,10 @@ bool CrOSComponentInstallerPolicy::SupportsGroupPolicyEnabledComponentUpdates()
 }
 
 bool CrOSComponentInstallerPolicy::RequiresNetworkEncryption() const {
+  return true;
+}
+
+bool CrOSComponentInstallerPolicy::AllowUpdates() const {
   return true;
 }
 
@@ -232,62 +216,6 @@ bool EnvVersionInstallerPolicy::IsCompatible(
          env_version >= min_env_version;
 }
 
-LacrosInstallerPolicy::LacrosInstallerPolicy(
-    const ComponentConfig& config,
-    CrOSComponentInstaller* cros_component_installer)
-    : CrOSComponentInstallerPolicy(config, cros_component_installer) {}
-
-LacrosInstallerPolicy::~LacrosInstallerPolicy() = default;
-
-void LacrosInstallerPolicy::ComponentReady(const base::Version& version,
-                                           const base::FilePath& path,
-                                           base::Value::Dict manifest) {
-  // Each version of Lacros guarantees it will be compatible through the same
-  // major ash/OS version and -2. For example, Lacros 89 will work with ash/OS
-  // 89, 88, and 87. But it may not work with ash/OS 86 or 90.
-  //
-  // As you see we (client side) only enforces the Lacros/Ash same version
-  // check here, while the code does not check the -2 version skew requirement.
-  // This is because go/lacros-version-skew-guide mentions the restriction on
-  // lacros being too new is enforced on the Omaha server side - and the too
-  // old check is enforced client side. Supposedly this makes it easy for us to
-  // start supporting newer lacros versions by just updating the Omaha server
-  // code.
-  uint32_t lacros_major_version = version.components()[0];
-  if (lacros_major_version < GetAshMajorVersion()) {
-    // Current lacros install is not compatible.
-    return;
-  }
-  cros_component_installer_->RegisterCompatiblePath(
-      GetName(), CompatibleComponentInfo(path, version));
-
-  // Clear the load cache for the newly installed component version to avoid
-  // loading stale components on successive loads, causing a version update
-  // restart loop (see crbug.com/1322678).
-  cros_component_installer_->RemoveLoadCacheEntry(GetName());
-}
-
-update_client::InstallerAttributes
-LacrosInstallerPolicy::GetInstallerAttributes() const {
-  update_client::InstallerAttributes attributes;
-  auto* const cmdline = base::CommandLine::ForCurrentProcess();
-  if (cmdline->HasSwitch(kPreferDcheckSwitch)) {
-    attributes[kPreferDcheckSwitch] =
-        cmdline->GetSwitchValueASCII(kPreferDcheckSwitch);
-  }
-  return attributes;
-}
-
-// Lacros is supposed to be updated even if component updates are turned off.
-bool LacrosInstallerPolicy::SupportsGroupPolicyEnabledComponentUpdates() const {
-  return false;
-}
-
-// static
-void LacrosInstallerPolicy::SetAshVersionForTest(const char* version) {
-  g_ash_version_for_test = version;
-}
-
 DemoAppInstallerPolicy::DemoAppInstallerPolicy(
     const ComponentConfig& config,
     CrOSComponentInstaller* cros_component_installer)
@@ -309,9 +237,9 @@ DemoAppInstallerPolicy::GetInstallerAttributes() const {
   demo_app_installer_attributes["store_id"] = ash::demo_mode::StoreNumber();
   demo_app_installer_attributes["demo_country"] = ash::demo_mode::Country();
   demo_app_installer_attributes["is_cloud_gaming_device"] =
-      ash::demo_mode::IsCloudGamingDevice() ? "true" : "false";
+      base::ToString(ash::demo_mode::IsCloudGamingDevice());
   demo_app_installer_attributes["is_feature_aware_device"] =
-      ash::demo_mode::IsFeatureAwareDevice() ? "true" : "false";
+      base::ToString(ash::demo_mode::IsFeatureAwareDevice());
 
   auto* const cmdline = base::CommandLine::ForCurrentProcess();
   if (cmdline->HasSwitch(switches::kDemoModeTestTag)) {
@@ -372,7 +300,9 @@ void CrOSComponentInstaller::Load(const std::string& name,
     LoadInternal(name, std::move(load_callback));
   } else {
     // A compatible component is installed, do not load it.
-    std::move(load_callback).Run(Error::NONE, base::FilePath());
+    constexpr Error error = Error::NONE;
+    ReportError(error);
+    std::move(load_callback).Run(error, base::FilePath());
   }
 }
 
@@ -477,9 +407,6 @@ void CrOSComponentInstaller::Register(const ComponentConfig& config,
     case ComponentConfig::PolicyType::kEnvVersion:
       policy = std::make_unique<EnvVersionInstallerPolicy>(config, this);
       break;
-    case ComponentConfig::PolicyType::kLacros:
-      policy = std::make_unique<LacrosInstallerPolicy>(config, this);
-      break;
     case ComponentConfig::PolicyType::kDemoApp:
       policy = std::make_unique<DemoAppInstallerPolicy>(config, this);
       break;
@@ -497,7 +424,9 @@ void CrOSComponentInstaller::Install(const std::string& name,
                                      LoadCallback load_callback) {
   const ComponentConfig* config = FindConfig(name);
   if (!config) {
-    std::move(load_callback).Run(Error::UNKNOWN_COMPONENT, base::FilePath());
+    constexpr Error error = Error::UNKNOWN_COMPONENT;
+    ReportError(error);
+    std::move(load_callback).Run(error, base::FilePath());
     return;
   }
 
@@ -542,17 +471,20 @@ void CrOSComponentInstaller::FinishInstall(const std::string& name,
     if (error == update_client::Error::UPDATE_IN_PROGRESS) {
       err = Error::UPDATE_IN_PROGRESS;
     }
+    ReportError(err);
     std::move(load_callback).Run(err, base::FilePath());
   } else if (!IsCompatible(name)) {
-    std::move(load_callback)
-        .Run(update_policy == UpdatePolicy::kSkip
-                 ? Error::NOT_FOUND
-                 : Error::COMPATIBILITY_CHECK_FAILED,
-             base::FilePath());
+    const Error err = update_policy == UpdatePolicy::kSkip
+                          ? Error::NOT_FOUND
+                          : Error::COMPATIBILITY_CHECK_FAILED;
+    ReportError(err);
+    std::move(load_callback).Run(err, base::FilePath());
   } else if (mount_policy == MountPolicy::kMount) {
     LoadInternal(name, std::move(load_callback));
   } else {
-    std::move(load_callback).Run(Error::NONE, base::FilePath());
+    constexpr Error err = Error::NONE;
+    ReportError(err);
+    std::move(load_callback).Run(err, base::FilePath());
   }
 }
 
@@ -632,6 +564,7 @@ void CrOSComponentInstaller::DispatchLoadCallback(LoadCallback callback,
                                                   base::FilePath path,
                                                   bool success) {
   Error error = success ? Error::NONE : Error::MOUNT_FAILURE;
+  ReportError(error);
   std::move(callback).Run(error, std::move(path));
 }
 

@@ -4,8 +4,11 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {SettingsCursorAndTouchpadPageElement} from 'chrome://os-settings/lazy_load.js';
-import {createRouterForTesting, CrSettingsPrefs, DevicePageBrowserProxyImpl, Router, routes, settingMojom, SettingsDropdownMenuElement, SettingsPrefsElement, SettingsToggleButtonElement} from 'chrome://os-settings/os_settings.js';
+import type {SettingsCursorAndTouchpadPageElement} from 'chrome://os-settings/lazy_load.js';
+import {DisableTouchpadMode} from 'chrome://os-settings/lazy_load.js';
+import type {CrLinkRowElement, SettingsDropdownMenuElement, SettingsPrefsElement, SettingsToggleButtonElement} from 'chrome://os-settings/os_settings.js';
+import {createRouterForTesting, CrSettingsPrefs, DevicePageBrowserProxyImpl, Router, routes, settingMojom} from 'chrome://os-settings/os_settings.js';
+import type {CrToggleElement} from 'chrome://resources/ash/common/cr_elements/cr_toggle/cr_toggle.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -31,8 +34,8 @@ suite('<settings-cursor-and-touchpad-page>', () => {
   let page: SettingsCursorAndTouchpadPageElement;
   let deviceBrowserProxy: TestDevicePageBrowserProxy;
   let prefElement: SettingsPrefsElement;
-  const overscrollFeatureEnabled =
-      loadTimeData.getBoolean('isAccessibilityOverscrollSettingFeatureEnabled');
+  const disableInternalTouchpadFeatureEnabled =
+      loadTimeData.getBoolean('isAccessibilityDisableTouchpadEnabled');
 
   async function initPage() {
     prefElement = document.createElement('settings-prefs');
@@ -81,6 +84,29 @@ suite('<settings-cursor-and-touchpad-page>', () => {
     setUpDeviceBrowserProxy(hasMouse, hasTouchpad, hasPointingStick);
   }
 
+  function getFaceGazePageRow(): CrLinkRowElement|null {
+    return page.shadowRoot!.querySelector<CrLinkRowElement>('#faceGazePageRow');
+  }
+
+  function getDisableInternalTouchpadDropdown() {
+    const disableInternalTouchpadDropdown =
+        page.shadowRoot!.querySelector<SettingsDropdownMenuElement>(
+            '#disableInternalTouchpadDropdown');
+    assert(disableInternalTouchpadDropdown);
+
+    return disableInternalTouchpadDropdown;
+  }
+
+  async function getDisableInternalTouchpadSelectElement() {
+    const disableInternalTouchpadDropdown =
+        getDisableInternalTouchpadDropdown();
+    await waitAfterNextRender(disableInternalTouchpadDropdown);
+    const disableInternalTouchpadSelectElement =
+        disableInternalTouchpadDropdown.shadowRoot!.querySelector('select');
+    assert(disableInternalTouchpadSelectElement);
+    return disableInternalTouchpadSelectElement;
+  }
+
   test('cursor color prefs and dropdown synced', async () => {
     await initPage();
 
@@ -94,7 +120,7 @@ suite('<settings-cursor-and-touchpad-page>', () => {
         cursorColorDropdown.shadowRoot!.querySelector('select');
     assert(cursorColorSelectElement);
     assertEquals(
-        String(DEFAULT_BLACK_CURSOR_COLOR), cursorColorSelectElement.value);
+        'SETTINGS_DROPDOWN_NOT_FOUND_ITEM', cursorColorSelectElement.value);
 
     // Turn cursor color to red, and verify pref is also red.
     cursorColorSelectElement.value = String(RED_CURSOR_COLOR);
@@ -415,7 +441,10 @@ suite('<settings-cursor-and-touchpad-page>', () => {
         '#shelfNavigationButtonsEnabledControl')));
 
     const subpageLinks = page.root!.querySelectorAll('cr-link-row');
-    subpageLinks.forEach(subpageLink => assertFalse(isVisible(subpageLink)));
+    subpageLinks.forEach(subpageLink => {
+      assertFalse(
+          isVisible(subpageLink), `expected ${subpageLink.id} to be invisible`);
+    });
   });
 
   test('large cursor options appear when large cursor enabled', async () => {
@@ -530,142 +559,125 @@ suite('<settings-cursor-and-touchpad-page>', () => {
         assertTrue(page.prefs.settings.a11y.cursor_highlight.value);
       });
 
-  if (overscrollFeatureEnabled) {
-    test('overscroll setting enabled', async () => {
-      await initPage();
-      const overscrollToggle =
-          page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-              '#overscrollToggle');
+  test('overscroll setting enabled', async () => {
+    await initPage();
+    const overscrollToggle =
+        page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
+            '#overscrollToggle');
 
-      // Setting is visible.
-      assert(overscrollToggle);
-      assertTrue(isVisible(overscrollToggle));
+    // Setting is visible.
+    assert(overscrollToggle);
+    assertTrue(isVisible(overscrollToggle));
 
-      // Pref has default value.
-      assertTrue(overscrollToggle.checked);
-      assertTrue(page.prefs.settings.a11y.overscroll_history_navigation.value);
+    // Pref has default value.
+    assertTrue(overscrollToggle.checked);
+    assertTrue(page.prefs.settings.a11y.overscroll_history_navigation.value);
 
-      overscrollToggle.click();
+    overscrollToggle.click();
 
-      await waitBeforeNextRender(page);
-      flush();
-      assertFalse(overscrollToggle.checked);
-      assertFalse(page.prefs.settings.a11y.overscroll_history_navigation.value);
-    });
+    await waitBeforeNextRender(page);
+    flush();
+    assertFalse(overscrollToggle.checked);
+    assertFalse(page.prefs.settings.a11y.overscroll_history_navigation.value);
+  });
 
-    test('kOverscrollSetting is deep-linkable', async () => {
-      await initPage();
+  test('kOverscrollSetting is deep-linkable', async () => {
+    await initPage();
 
-      const setting = settingMojom.Setting.kOverscrollEnabled;
-      const params = new URLSearchParams();
-      params.append('settingId', setting.toString());
-      Router.getInstance().navigateTo(routes.A11Y_CURSOR_AND_TOUCHPAD, params);
+    const setting = settingMojom.Setting.kOverscrollEnabled;
+    const params = new URLSearchParams();
+    params.append('settingId', setting.toString());
+    Router.getInstance().navigateTo(routes.A11Y_CURSOR_AND_TOUCHPAD, params);
 
-      const deepLinkElement =
-          page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-              '#overscrollToggle');
+    const deepLinkElement =
+        page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
+            '#overscrollToggle');
 
-      assert(deepLinkElement);
+    assert(deepLinkElement);
 
-      await waitAfterNextRender(deepLinkElement);
+    await waitAfterNextRender(deepLinkElement);
 
-      assertEquals(
-          deepLinkElement, page.shadowRoot!.activeElement,
-          `Element should be focused for settingId=${setting}'`);
-    });
-  } else {
-    test('overscroll setting disabled', async () => {
-      await initPage();
-      const overscrollToggle =
-          page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-              '#overscrollToggle');
-
-      // No setting visible.
-      assertNull(overscrollToggle);
-
-      // Pref has default value.
-      assertTrue(page.prefs.settings.a11y.overscroll_history_navigation.value);
-    });
-  }
+    assertEquals(
+        deepLinkElement, page.shadowRoot!.activeElement,
+        `Element should be focused for settingId=${setting}'`);
+  });
 
   test(
-      'face gaze feature does not show if the feature flag is disabled',
+      'face control feature does not show if the feature flag is disabled',
       async () => {
         loadTimeData.overrideValues({
           isAccessibilityFaceGazeEnabled: false,
         });
 
         await initPage();
-        const faceGazeToggle =
-            page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-                '#faceGazeToggle');
-        assertEquals(null, faceGazeToggle);
+        const faceGazePageRow = getFaceGazePageRow();
+        assertEquals(null, faceGazePageRow);
       });
 
   test(
-      'face tracking feature shows if the feature flag is enabled',
-      async () => {
+      'face control feature shows if the feature flag is enabled', async () => {
         loadTimeData.overrideValues({
+          isKioskModeActive: false,
           isAccessibilityFaceGazeEnabled: true,
         });
 
         await initPage();
-        const faceGazeToggle =
-            page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-                '#faceGazeToggle');
-        assert(faceGazeToggle);
-        assertTrue(isVisible(faceGazeToggle));
+        const faceGazePageRow = getFaceGazePageRow();
+        assertTrue(!!faceGazePageRow);
+        assertTrue(isVisible(faceGazePageRow));
 
-        const faceGazeCursorControlButton =
-            page.shadowRoot!.querySelector('#faceGazeCursorControlButton');
-        assert(faceGazeCursorControlButton);
-        assertFalse(isVisible(faceGazeCursorControlButton));
-
-        const faceGazeFacialExpressionsButton =
-            page.shadowRoot!.querySelector('#faceGazeFacialExpressionsButton');
-        assert(faceGazeFacialExpressionsButton);
-        assertFalse(isVisible(faceGazeFacialExpressionsButton));
-
-        assertFalse(faceGazeToggle.checked);
         assertFalse(page.prefs.settings.a11y.face_gaze.enabled.value);
-        faceGazeToggle.click();
+      });
 
-        await waitBeforeNextRender(page);
-        flush();
-        assertTrue(faceGazeToggle.checked);
-        assertTrue(page.prefs.settings.a11y.face_gaze.enabled.value);
-        assertTrue(isVisible(faceGazeCursorControlButton));
-        assertTrue(isVisible(faceGazeFacialExpressionsButton));
+  test(
+      'can reach face control settings from row when feature flag is enabled',
+      async () => {
+        loadTimeData.overrideValues({
+          isKioskModeActive: false,
+          isAccessibilityFaceGazeEnabled: true,
+        });
+
+        await initPage();
+        const faceGazePageRow = getFaceGazePageRow();
+        assertTrue(!!faceGazePageRow);
+        assertTrue(isVisible(faceGazePageRow));
+
+        assertFalse(page.prefs.settings.a11y.face_gaze.enabled.value);
+
+        // Clicking on it should update the route.
+        faceGazePageRow.click();
+        assertEquals(
+            routes.MANAGE_FACEGAZE_SETTINGS, Router.getInstance().currentRoute);
       });
 
   test('Mouse keys feature disabled.', async () => {
-    await initPage();
+    loadTimeData.overrideValues({
+      isAccessibilityMouseKeysEnabled: false,
+    });
 
-    if (loadTimeData.getBoolean('isAccessibilityMouseKeysEnabled')) {
-      // Skip if the flag is enabled.
-      return;
-    }
+    await initPage();
 
     // Toggle shouldn't be available if flag is disabled.
     const enableMouseKeysToggle =
         page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-            '#enableMouseKeys');
+            '#mouseKeysToggle');
     assertNull(enableMouseKeysToggle);
   });
 
-  test('Mouse keys: Dominant Hand', async () => {
+  test('Mouse keys: toggle is in sync with pref', async () => {
+    loadTimeData.overrideValues({
+      isAccessibilityMouseKeysEnabled: true,
+    });
     await initPage();
 
-    if (!loadTimeData.getBoolean('isAccessibilityMouseKeysEnabled')) {
-      // Skip if the flag isn't enabled.
-      return;
-    }
     // If the flag is enabled, check that the UI works.
     assertFalse(page.prefs.settings.a11y.mouse_keys.enabled.value);
 
+    // We should use primary keys by default.
+    assertTrue(page.prefs.settings.a11y.mouse_keys.use_primary_keys.value);
+
     const enableMouseKeysToggle =
-        page.shadowRoot!.querySelector<SettingsToggleButtonElement>(
-            '#enableMouseKeys');
+        page.shadowRoot!.querySelector<CrToggleElement>('#mouseKeysToggle');
     assert(enableMouseKeysToggle);
     assertTrue(isVisible(enableMouseKeysToggle));
 
@@ -674,27 +686,122 @@ suite('<settings-cursor-and-touchpad-page>', () => {
     flush();
 
     assertTrue(page.prefs.settings.a11y.mouse_keys.enabled.value);
-
-    // kAccessibilityMouseKeysDominantHand
-    // Ensure control exists.
-    const control =
-        page.shadowRoot!.querySelector<HTMLElement>(`#mouseKeysDominantHand`);
-    assert(control);
-
-    // Ensure pref is set to the default value.
-    let pref = page.getPref('settings.a11y.mouse_keys.dominant_hand');
-    assertEquals(pref.value, 0);
-
-    // Update control to alternate value.
-    await waitAfterNextRender(control);
-    const controlElement = control.shadowRoot!.querySelector('select');
-    assert(controlElement);
-    controlElement.value = String(1);
-    controlElement.dispatchEvent(new CustomEvent('change'));
-
-    // Ensure pref is set to the alternate value.
-    pref = page.getPref('settings.a11y.mouse_keys.dominant_hand');
-    assertEquals(pref.value, 1);
   });
 
+  if (disableInternalTouchpadFeatureEnabled) {
+    test(
+        'Disable touchpad dropdown and pref sync in default mode', async () => {
+          await initPage();
+          const disableInternalTouchpadSelectElement =
+              await getDisableInternalTouchpadSelectElement();
+          // Make sure disable touchpad dropdown is set to never disabled,
+          // matching default pref state.
+          assertEquals(
+              String(DisableTouchpadMode.NEVER),
+              disableInternalTouchpadSelectElement.value);
+        });
+
+    test(
+        'Disable touchpad dropdown and pref sync when always disabled',
+        async () => {
+          await initPage();
+          const disableInternalTouchpadSelectElement =
+              await getDisableInternalTouchpadSelectElement();
+          assert(disableInternalTouchpadSelectElement);
+          await waitAfterNextRender(disableInternalTouchpadSelectElement);
+          // Change disable internal touchpad dropdown to always disabled,
+          // and verify the pref is also set to always disabled.
+          disableInternalTouchpadSelectElement.value =
+              String(DisableTouchpadMode.ALWAYS);
+          disableInternalTouchpadSelectElement.dispatchEvent(
+              new CustomEvent('change'));
+          const disableInternalTouchpadModePref =
+              page.getPref('settings.a11y.disable_trackpad_mode');
+          await waitAfterNextRender(page);
+          assertEquals(
+              DisableTouchpadMode.ALWAYS,
+              disableInternalTouchpadModePref.value);
+          assertTrue(isVisible(
+              page.shadowRoot!.querySelector('#reEnableTouchpadLabel')));
+        });
+
+    test(
+        'Disable touchpad dropdown and pref sync in mouse connected mode',
+        async () => {
+          await initPage();
+          const disableInternalTouchpadSelectElement =
+              await getDisableInternalTouchpadSelectElement();
+
+          // Change disable internal touchpad dropdown to disable when mouse is
+          // connected, and verify the pref is also set to always disabled.
+          disableInternalTouchpadSelectElement.value =
+              String(DisableTouchpadMode.ON_MOUSE_CONNECTED);
+          disableInternalTouchpadSelectElement.dispatchEvent(
+              new CustomEvent('change'));
+          const disableInternalTouchpadModePref =
+              page.getPref('settings.a11y.disable_trackpad_mode');
+
+          await waitAfterNextRender(page);
+          assertEquals(
+              DisableTouchpadMode.ON_MOUSE_CONNECTED,
+              disableInternalTouchpadModePref.value);
+          assertTrue(isVisible(
+              page.shadowRoot!.querySelector('#reEnableTouchpadLabel')));
+        });
+
+    test(
+        'Disable touchpad dropdown and pref sync when never disabled',
+        async () => {
+          await initPage();
+          const disableInternalTouchpadSelectElement =
+              await getDisableInternalTouchpadSelectElement();
+
+          // Change disable internal touchpad dropdown to Never,
+          // and verify pref is also set to Never.
+          disableInternalTouchpadSelectElement.value =
+              String(DisableTouchpadMode.NEVER);
+          disableInternalTouchpadSelectElement.dispatchEvent(
+              new CustomEvent('change'));
+          const disableInternalTouchpadModePref =
+              page.getPref('settings.a11y.disable_trackpad_mode');
+
+          await waitAfterNextRender(page);
+          assertEquals(
+              DisableTouchpadMode.NEVER, disableInternalTouchpadModePref.value);
+          assertFalse(isVisible(
+              page.shadowRoot!.querySelector('#reEnableTouchpadLabel')));
+        });
+
+    test('Disable touchpad dropdown is deep linkable', async () => {
+      await initPage();
+      const params = new URLSearchParams();
+      const settingId = settingMojom.Setting.kDisableTouchpad.toString();
+      params.append('settingId', settingId);
+      Router.getInstance().navigateTo(routes.A11Y_CURSOR_AND_TOUCHPAD, params);
+      flush();
+
+      const dropdown = getDisableInternalTouchpadDropdown();
+      await waitAfterNextRender(dropdown);
+      assertEquals(
+          dropdown, page.shadowRoot!.activeElement,
+          `Disable touchpad dropdown should be focused for settingId=${
+              settingId}.`);
+    });
+  } else {
+    test('disable internal touchpad feature disabled', async () => {
+      await initPage();
+      const disableInternalTouchpadDropdown =
+          page.shadowRoot!.querySelector<SettingsDropdownMenuElement>(
+              '#disableInternalTouchpadDropdown');
+
+      // No setting visible.
+      assertNull(disableInternalTouchpadDropdown);
+
+      // Pref has default value.
+      assertEquals(
+          page.prefs.settings.a11y.disable_trackpad_mode.value,
+          DisableTouchpadMode.NEVER);
+      assertFalse(page.prefs.settings.a11y.disable_trackpad_enabled.value);
+    });
+  }
 });

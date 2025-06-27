@@ -37,9 +37,10 @@ DeviceLocalAccountExtensionTracker::DeviceLocalAccountExtensionTracker(
       store_->AddObserver(this);
       UpdateFromStore();
       break;
-    case DeviceLocalAccountType::kArcKioskApp:
     case DeviceLocalAccountType::kWebKioskApp:
-      NOTREACHED_IN_MIGRATION();
+    case DeviceLocalAccountType::kKioskIsolatedWebApp:
+    case DeviceLocalAccountType::kArcvmKioskApp:
+      NOTREACHED();
   }
 }
 

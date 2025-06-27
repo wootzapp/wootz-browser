@@ -11,10 +11,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_features.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_resource_getter.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/webui/web_ui_util.h"
+#include "ui/webui/webui_util.h"
 
 void RegisterNearbySharedStrings(content::WebUIDataSource* data_source) {
   static constexpr webui::LocalizedString kLocalizedStrings[] = {
@@ -132,7 +132,21 @@ void RegisterNearbySharedStrings(content::WebUIDataSource* data_source) {
       {"nearbyShareErrorTransferInProgressTitle",
        IDS_NEARBY_HIGH_VISIBILITY_TRANSFER_IN_PROGRESS_ERROR},
       {"nearbyShareErrorTransferInProgressDescription",
-       IDS_NEARBY_HIGH_VISIBILITY_TRANSFER_IN_PROGRESS_DESCRIPTION}};
+       IDS_NEARBY_HIGH_VISIBILITY_TRANSFER_IN_PROGRESS_DESCRIPTION},
+      {"quickShareV2VisibilitySectionTitle",
+       IDS_QUICK_SHARE_V2_VISIBILITY_SECTION_TITLE},
+      {"quickShareV2VisibilitySectionSubtitleOnDisabled",
+       IDS_QUICK_SHARE_V2_VISIBILITY_SECTION_SUBTITLE_ON_DISABLED},
+      {"quickShareV2VisibilityYourDevicesSublabel",
+       IDS_QUICK_SHARE_V2_VISIBILITY_YOUR_DEVICES_SUBLABEL},
+      {"quickShareV2VisibilityContactsSublabel",
+       IDS_QUICK_SHARE_V2_VISIBILITY_CONTACTS_SUBLABEL},
+      {"quickShareV2VisibilityEveryoneLabel",
+       IDS_QUICK_SHARE_V2_VISIBILITY_EVERYONE_LABEL},
+      {"quickShareV2VisibilityEveryoneSublabel",
+       IDS_QUICK_SHARE_V2_VISIBILITY_EVERYONE_SUBLABEL},
+      {"quickShareV2VisibilityOnlyForTenMinutesLabel",
+       IDS_QUICK_SHARE_V2_VISIBILITY_ONLY_FOR_TEN_MINUTES_LABEL}};
   data_source->AddLocalizedStrings(kLocalizedStrings);
 
   data_source->AddString("nearbyShareLearnMoreLink",

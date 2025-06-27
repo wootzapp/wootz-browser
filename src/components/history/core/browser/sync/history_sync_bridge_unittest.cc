@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/notreached.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
@@ -20,15 +21,17 @@
 #include "components/history/core/browser/url_row.h"
 #include "components/sync/base/page_transition_conversion.h"
 #include "components/sync/model/data_type_activation_request.h"
+#include "components/sync/model/data_type_local_change_processor.h"
 #include "components/sync/model/metadata_batch.h"
 #include "components/sync/model/metadata_change_list.h"
-#include "components/sync/model/model_type_change_processor.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/history_specifics.pb.h"
 #include "components/sync/protocol/proto_value_conversions.h"
-#include "components/sync/test/forwarding_model_type_change_processor.h"
+#include "components/sync/test/forwarding_data_type_local_change_processor.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "sql/database.h"
 #include "sql/meta_table.h"
+#include "sql/test/test_helpers.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -106,10 +109,11 @@ syncer::EntityData SpecificsToEntityData(
   return data;
 }
 
-class FakeModelTypeChangeProcessor : public syncer::ModelTypeChangeProcessor {
+class FakeDataTypeLocalChangeProcessor
+    : public syncer::DataTypeLocalChangeProcessor {
  public:
-  FakeModelTypeChangeProcessor() = default;
-  ~FakeModelTypeChangeProcessor() override = default;
+  FakeDataTypeLocalChangeProcessor() = default;
+  ~FakeDataTypeLocalChangeProcessor() override = default;
 
   void SetIsTrackingMetadata(bool is_tracking_metadata) {
     is_tracking_metadata_ = is_tracking_metadata;
@@ -147,14 +151,14 @@ class FakeModelTypeChangeProcessor : public syncer::ModelTypeChangeProcessor {
   void Delete(const std::string& storage_key,
               const syncer::DeletionOrigin& origin,
               syncer::MetadataChangeList* metadata_change_list) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   void UpdateStorageKey(
       const syncer::EntityData& entity_data,
       const std::string& storage_key,
       syncer::MetadataChangeList* metadata_change_list) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   void UntrackEntityForStorageKey(const std::string& storage_key) override {
@@ -193,28 +197,26 @@ class FakeModelTypeChangeProcessor : public syncer::ModelTypeChangeProcessor {
 
   base::Time GetEntityCreationTime(
       const std::string& storage_key) const override {
-    NOTREACHED_IN_MIGRATION();
-    return base::Time();
+    NOTREACHED();
   }
 
   base::Time GetEntityModificationTime(
       const std::string& storage_key) const override {
-    NOTREACHED_IN_MIGRATION();
-    return base::Time();
+    NOTREACHED();
   }
 
-  void OnModelStarting(syncer::ModelTypeSyncBridge* bridge) override {}
+  void OnModelStarting(syncer::DataTypeSyncBridge* bridge) override {}
 
   void ModelReadyToSync(std::unique_ptr<syncer::MetadataBatch> batch) override {
   }
 
   bool IsTrackingMetadata() const override { return is_tracking_metadata_; }
 
-  std::string TrackedAccountId() const override {
+  GaiaId TrackedGaiaId() const override {
     if (!IsTrackingMetadata()) {
-      return "";
+      return GaiaId();
     }
-    return "account_id";
+    return GaiaId("gaia_id");
   }
 
   std::string TrackedCacheGuid() const override {
@@ -232,25 +234,48 @@ class FakeModelTypeChangeProcessor : public syncer::ModelTypeChangeProcessor {
     return std::nullopt;
   }
 
-  base::WeakPtr<syncer::ModelTypeControllerDelegate> GetControllerDelegate()
+  base::WeakPtr<syncer::DataTypeControllerDelegate> GetControllerDelegate()
       override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   const sync_pb::EntitySpecifics& GetPossiblyTrimmedRemoteSpecifics(
       const std::string& storage_key) const override {
-    NOTREACHED_IN_MIGRATION();
-    return sync_pb::EntitySpecifics::default_instance();
+    NOTREACHED();
   }
 
-  base::WeakPtr<syncer::ModelTypeChangeProcessor> GetWeakPtr() override {
+  sync_pb::UniquePosition UniquePositionAfter(
+      const std::string& storage_key_before,
+      const syncer::ClientTagHash& target_client_tag_hash) const override {
+    NOTREACHED();
+  }
+  sync_pb::UniquePosition UniquePositionBefore(
+      const std::string& storage_key_after,
+      const syncer::ClientTagHash& target_client_tag_hash) const override {
+    NOTREACHED();
+  }
+  sync_pb::UniquePosition UniquePositionBetween(
+      const std::string& storage_key_before,
+      const std::string& storage_key_after,
+      const syncer::ClientTagHash& target_client_tag_hash) const override {
+    NOTREACHED();
+  }
+  sync_pb::UniquePosition UniquePositionForInitialEntity(
+      const syncer::ClientTagHash& target_client_tag_hash) const override {
+    NOTREACHED();
+  }
+  sync_pb::UniquePosition GetUniquePositionForStorageKey(
+      const std::string& storage_key) const override {
+    NOTREACHED();
+  }
+
+  base::WeakPtr<syncer::DataTypeLocalChangeProcessor> GetWeakPtr() override {
     return weak_ptr_factory_.GetWeakPtr();
   }
 
-  std::unique_ptr<ModelTypeChangeProcessor> CreateForwardingProcessor() {
-    return base::WrapUnique<ModelTypeChangeProcessor>(
-        new syncer::ForwardingModelTypeChangeProcessor(this));
+  std::unique_ptr<DataTypeLocalChangeProcessor> CreateForwardingProcessor() {
+    return base::WrapUnique<DataTypeLocalChangeProcessor>(
+        new syncer::ForwardingDataTypeLocalChangeProcessor(this));
   }
 
  private:
@@ -267,7 +292,8 @@ class FakeModelTypeChangeProcessor : public syncer::ModelTypeChangeProcessor {
   // are pending commit).
   std::set<std::string> unsynced_entities_;
 
-  base::WeakPtrFactory<FakeModelTypeChangeProcessor> weak_ptr_factory_{this};
+  base::WeakPtrFactory<FakeDataTypeLocalChangeProcessor> weak_ptr_factory_{
+      this};
 };
 
 class HistorySyncBridgeTest : public testing::Test {
@@ -294,7 +320,7 @@ class HistorySyncBridgeTest : public testing::Test {
   }
 
   TestHistoryBackendForSync* backend() { return &backend_; }
-  FakeModelTypeChangeProcessor* processor() { return &fake_processor_; }
+  FakeDataTypeLocalChangeProcessor* processor() { return &fake_processor_; }
   HistorySyncBridge* bridge() { return bridge_.get(); }
 
   void AdvanceClock() { task_environment_.FastForwardBy(base::Seconds(1)); }
@@ -356,14 +382,14 @@ class HistorySyncBridgeTest : public testing::Test {
     // metadata.
     processor()->SetIsTrackingMetadata(true);
 
-    // Populate a MetadataChangeList with a ModelTypeState, and an
+    // Populate a MetadataChangeList with a DataTypeState, and an
     // EntityMetadata entry for each entity.
     std::unique_ptr<syncer::MetadataChangeList> metadata_changes =
         bridge()->CreateMetadataChangeList();
-    sync_pb::ModelTypeState model_type_state;
-    model_type_state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
-    metadata_changes->UpdateModelTypeState(model_type_state);
+    sync_pb::DataTypeState data_type_state;
+    data_type_state.set_initial_sync_state(
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+    metadata_changes->UpdateDataTypeState(data_type_state);
     for (const sync_pb::HistorySpecifics& specifics : specifics_vector) {
       syncer::EntityData data = SpecificsToEntityData(specifics);
       data.client_tag_hash = syncer::ClientTagHash::FromUnhashed(
@@ -431,7 +457,7 @@ class HistorySyncBridgeTest : public testing::Test {
     for (const auto& [storage_key, metadata] : all_metadata.GetAllMetadata()) {
       delete_all_metadata->ClearMetadata(storage_key);
     }
-    delete_all_metadata->ClearModelTypeState();
+    delete_all_metadata->ClearDataTypeState();
 
     bridge()->ApplyDisableSyncChanges(std::move(delete_all_metadata));
 
@@ -447,25 +473,25 @@ class HistorySyncBridgeTest : public testing::Test {
     return metadata_batch->TakeAllMetadata();
   }
 
-  sync_pb::ModelTypeState GetPersistedModelTypeState() {
+  sync_pb::DataTypeState GetPersistedDataTypeState() {
     auto metadata_batch = std::make_unique<syncer::MetadataBatch>();
     if (!metadata_db_.GetAllSyncMetadata(metadata_batch.get())) {
       ADD_FAILURE() << "Failed to read metadata from DB";
     }
-    return metadata_batch->GetModelTypeState();
+    return metadata_batch->GetDataTypeState();
   }
 
  private:
   base::test::SingleThreadTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
 
-  sql::Database db_;
+  sql::Database db_{sql::test::kTestTag};
   sql::MetaTable meta_table_;
   HistorySyncMetadataDatabase metadata_db_;
 
   TestHistoryBackendForSync backend_;
 
-  FakeModelTypeChangeProcessor fake_processor_;
+  FakeDataTypeLocalChangeProcessor fake_processor_;
 
   std::unique_ptr<HistorySyncBridge> bridge_;
 };
@@ -610,16 +636,16 @@ TEST_F(HistorySyncBridgeTest, ClearsDataWhenSyncStopped) {
   ASSERT_EQ(backend()->GetURLs().size(), 2u);
   ASSERT_EQ(backend()->GetVisits().size(), 2u);
 
-  // Some Sync metadata should now exist (both a non-empty ModelTypeState, and
+  // Some Sync metadata should now exist (both a non-empty DataTypeState, and
   // an EntityMetadata record for the local visit).
-  ASSERT_NE(GetPersistedModelTypeState().ByteSizeLong(), 0u);
+  ASSERT_NE(GetPersistedDataTypeState().ByteSizeLong(), 0u);
   ASSERT_FALSE(GetPersistedEntityMetadata().empty());
 
   // Stop Sync.
   ApplyDisableSyncChanges();
 
   // Any Sync metadata should have been cleared.
-  EXPECT_EQ(GetPersistedModelTypeState().ByteSizeLong(), 0u);
+  EXPECT_EQ(GetPersistedDataTypeState().ByteSizeLong(), 0u);
   EXPECT_TRUE(GetPersistedEntityMetadata().empty());
 
   // The local visit should still exist in the DB, but since Sync was stopped

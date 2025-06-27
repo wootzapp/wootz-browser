@@ -5,16 +5,25 @@
 #ifndef CHROME_BROWSER_ASH_LOGIN_SCREENS_LOCALE_SWITCH_SCREEN_H_
 #define CHROME_BROWSER_ASH_LOGIN_SCREENS_LOCALE_SWITCH_SCREEN_H_
 
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/ash/login/screens/base_screen.h"
+#include <optional>
+#include <string>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ash/base/locale_util.h"
+#include "chrome/browser/ash/login/screens/base_screen.h"
+#include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/google_service_auth_error.h"
+#include "google_apis/gaia/oauth2_api_call_flow.h"
+
+namespace signin {
+class PrimaryAccountAccessTokenFetcher;
+}  // namespace signin
 
 namespace ash {
 
@@ -66,18 +75,28 @@ class LocaleSwitchScreen : public BaseScreen,
   void HideImpl() override;
   bool MaybeSkip(WizardContext& context) override;
 
-  void SwitchLocale(std::string locale);
+  void SwitchLocale();
   void OnLanguageChangedCallback(
       const locale_util::LanguageSwitchResult& result);
   void OnLanguageChangedNotificationCallback(
       const locale_util::LanguageSwitchResult& result);
 
-  void ResetState();
+  void OnLocaleFetched(std::string locale);
+  void OnRequestFailure();
+  void AbandonPeopleAPICall();
   void OnTimeout();
 
-  base::WeakPtr<LocaleSwitchView> view_ = nullptr;
+  void FetchPreferredUserLocaleAndSwitchAsync();
+  void OnAccessTokenRequestCompleted(GoogleServiceAuthError error,
+                                     signin::AccessTokenInfo access_token_info);
 
-  std::string gaia_id_;
+  std::string locale_;
+  base::WeakPtr<LocaleSwitchView> view_ = nullptr;
+  std::unique_ptr<signin::PrimaryAccountAccessTokenFetcher>
+      access_token_fetcher_;
+  std::unique_ptr<OAuth2ApiCallFlow> get_locale_people_api_call_;
+
+  GaiaId gaia_id_;
   ScreenExitCallback exit_callback_;
   raw_ptr<signin::IdentityManager> identity_manager_ = nullptr;
   base::ScopedObservation<signin::IdentityManager,
@@ -90,6 +109,7 @@ class LocaleSwitchScreen : public BaseScreen,
   base::OneShotTimer timeout_waiter_;
 
   bool refresh_token_loaded_ = false;
+  bool account_capabilities_loaded_ = false;
 
   base::WeakPtrFactory<LocaleSwitchScreen> weak_factory_{this};
 };

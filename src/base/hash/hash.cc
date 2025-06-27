@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "base/hash/hash.h"
 
 #include <cstddef>
@@ -18,6 +13,7 @@
 #include "base/containers/span.h"
 #include "base/dcheck_is_on.h"
 #include "base/notreached.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/third_party/cityhash/city.h"
 
 // Definition in base/third_party/superfasthash/superfasthash.c. (Third-party
@@ -30,14 +26,15 @@ namespace base {
 namespace {
 
 size_t FastHashImpl(base::span<const uint8_t> data) {
+  auto chars = as_chars(data);
   // We use the updated CityHash within our namespace (not the deprecated
   // version from third_party/smhasher).
   if constexpr (sizeof(size_t) > 4) {
-    return base::internal::cityhash_v111::CityHash64(
-        reinterpret_cast<const char*>(data.data()), data.size());
+    return base::internal::cityhash_v111::CityHash64(chars.data(),
+                                                     chars.size());
   } else {
-    return base::internal::cityhash_v111::CityHash32(
-        reinterpret_cast<const char*>(data.data()), data.size());
+    return base::internal::cityhash_v111::CityHash32(chars.data(),
+                                                     chars.size());
   }
 }
 
@@ -54,8 +51,9 @@ size_t HashInts32Impl(uint32_t value1, uint32_t value2) {
   uint64_t value1_64 = value1;
   uint64_t hash64 = (value1_64 << 32) | value2;
 
-  if (sizeof(size_t) >= sizeof(uint64_t))
+  if (sizeof(size_t) >= sizeof(uint64_t)) {
     return static_cast<size_t>(hash64);
+  }
 
   uint64_t odd_random = 481046412LL << 32 | 1025306955LL;
   uint32_t shift_random = 10121U << 16;
@@ -89,8 +87,9 @@ size_t HashInts64Impl(uint64_t value1, uint64_t value2) {
 
   uint64_t hash64 = product1 + product2 + product3 + product4;
 
-  if (sizeof(size_t) >= sizeof(uint64_t))
+  if (sizeof(size_t) >= sizeof(uint64_t)) {
     return static_cast<size_t>(hash64);
+  }
 
   uint64_t odd_random = 1578233944LL << 32 | 194370989LL;
   uint32_t shift_random = 20591U << 16;
@@ -143,20 +142,15 @@ uint32_t Hash(const std::string& str) {
 uint32_t PersistentHash(span<const uint8_t> data) {
   // This hash function must not change, since it is designed to be persistable
   // to disk.
-  if (data.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
+  if (data.size() > size_t{std::numeric_limits<int>::max()}) {
+    NOTREACHED();
   }
-  return ::SuperFastHash(reinterpret_cast<const char*>(data.data()),
-                         static_cast<int>(data.size()));
-}
-
-uint32_t PersistentHash(const void* data, size_t length) {
-  return PersistentHash(make_span(static_cast<const uint8_t*>(data), length));
+  auto chars = as_chars(data);
+  return ::SuperFastHash(chars.data(), checked_cast<int>(chars.size()));
 }
 
 uint32_t PersistentHash(std::string_view str) {
-  return PersistentHash(as_bytes(make_span(str)));
+  return PersistentHash(as_byte_span(str));
 }
 
 size_t HashInts32(uint32_t value1, uint32_t value2) {

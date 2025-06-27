@@ -323,10 +323,10 @@ bool BackGestureAffordance::IsActivated() const {
 void BackGestureAffordance::CreateAffordanceWidget(const gfx::Point& location) {
   affordance_widget_ = std::make_unique<views::Widget>();
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   params.accept_events = true;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.name = "BackGestureAffordance";
   params.activatable = views::Widget::InitParams::Activatable::kNo;
   params.parent = window_util::GetRootWindowAt(location)->GetChildById(
@@ -473,8 +473,7 @@ void BackGestureAffordance::AnimationProgressed(
     const gfx::Animation* animation) {
   switch (state_) {
     case State::DRAGGING:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case State::ABORTING:
       SetAbortProgress(animation->GetCurrentValue());
       break;
@@ -485,7 +484,7 @@ void BackGestureAffordance::AnimationProgressed(
 }
 
 void BackGestureAffordance::AnimationCanceled(const gfx::Animation* animation) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 }  // namespace ash

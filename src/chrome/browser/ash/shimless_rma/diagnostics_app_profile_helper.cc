@@ -27,12 +27,13 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/web_applications/isolated_web_apps/install_isolated_web_app_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_install_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chromeos/extensions/chromeos_system_extension_info.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
@@ -42,6 +43,7 @@
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/service_worker_context.h"
 #include "extensions/browser/crx_file_info.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_util.h"
@@ -49,8 +51,8 @@
 #include "extensions/common/permissions/permission_message.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/verifier_formats.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/origin.h"
 
@@ -69,14 +71,14 @@ constexpr base::TimeDelta kExtensionReadyPollingTimeout = base::Seconds(3);
 
 // The set of allowlisted permission policy for diagnostics IWA.
 constexpr auto kAllowlistedPermissionPolicyStringMap =
-    base::MakeFixedFlatMap<blink::mojom::PermissionsPolicyFeature, int>(
-        {{blink::mojom::PermissionsPolicyFeature::kCamera,
+    base::MakeFixedFlatMap<network::mojom::PermissionsPolicyFeature, int>(
+        {{network::mojom::PermissionsPolicyFeature::kCamera,
           IDS_ASH_SHIMLESS_RMA_APP_ACCESS_PERMISSION_CAMERA},
-         {blink::mojom::PermissionsPolicyFeature::kMicrophone,
+         {network::mojom::PermissionsPolicyFeature::kMicrophone,
           IDS_ASH_SHIMLESS_RMA_APP_ACCESS_PERMISSION_MICROPHONE},
-         {blink::mojom::PermissionsPolicyFeature::kFullscreen,
+         {network::mojom::PermissionsPolicyFeature::kFullscreen,
           IDS_ASH_SHIMLESS_RMA_APP_ACCESS_PERMISSION_FULLSCREEN},
-         {blink::mojom::PermissionsPolicyFeature::kHid,
+         {network::mojom::PermissionsPolicyFeature::kHid,
           IDS_ASH_SHIMLESS_RMA_APP_ACCESS_PERMISSION_HID_DEVICES}});
 
 std::optional<url::Origin>& GetInstalledDiagnosticsAppOriginInternal() {
@@ -345,7 +347,8 @@ void OnExtensionInstalled(
   GetExtensionService(state->context)->EnableExtension(extension->id());
   // Reload the extension to make sure old service worker are cleaned. This is
   // important when the extension has already been installed to the profile.
-  GetExtensionService(state->context)->ReloadExtension(extension->id());
+  extensions::ExtensionRegistrar::Get(state->context)
+      ->ReloadExtension(extension->id());
 
   GURL script_url = extension->GetResourceURL(
       extensions::BackgroundInfo::GetBackgroundServiceWorkerScript(extension));
@@ -362,8 +365,7 @@ void InstallExtension(
     std::unique_ptr<PrepareDiagnosticsAppProfileState> state) {
   CHECK(state->context);
 
-  auto crx_installer = extensions::CrxInstaller::CreateSilent(
-      GetExtensionService(state->context));
+  auto crx_installer = extensions::CrxInstaller::CreateSilent(state->context);
   state->crx_installer = crx_installer;
   const base::FilePath& crx_path = state->crx_path;
   crx_installer->AddInstallerCallback(

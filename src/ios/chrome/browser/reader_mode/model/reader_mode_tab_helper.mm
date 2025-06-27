@@ -1,0 +1,423 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
+
+#import <MaterialComponents/MaterialSnackbar.h>
+
+#import "base/metrics/histogram_macros.h"
+#import "base/strings/string_number_conversions.h"
+#import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
+#import "base/time/time.h"
+#import "components/dom_distiller/core/extraction_utils.h"
+#import "components/dom_distiller/ios/distiller_page_utils.h"
+#import "components/prefs/pref_service.h"
+#import "components/ukm/ios/ukm_url_recorder.h"
+#import "ios/chrome/browser/reader_mode/model/features.h"
+#import "ios/chrome/browser/reader_mode/model/reader_mode_java_script_feature.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/public/commands/reader_mode_commands.h"
+#import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/shared/public/features/system_flags.h"
+#import "ios/web/public/js_messaging/web_frames_manager.h"
+#import "ios/web/public/navigation/navigation_context.h"
+#import "ios/web/public/navigation/navigation_item.h"
+#import "ios/web/public/navigation/navigation_manager.h"
+#import "services/metrics/public/cpp/ukm_builders.h"
+#import "third_party/dom_distiller_js/dom_distiller.pb.h"
+#import "third_party/dom_distiller_js/dom_distiller_json_converter.h"
+
+namespace {
+
+// Records the classification accuracy of the Reader Mode heuristic by
+// comparing the distillation of the page to the heuristic result.
+void RecordReaderModeHeuristicClassification(bool is_distillable_page,
+                                             ReaderModeHeuristicResult result) {
+  ReaderModeHeuristicClassification classification;
+  switch (result) {
+    case ReaderModeHeuristicResult::kMalformedResponse:
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentAndLength:
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentOnly:
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentLength: {
+      classification = is_distillable_page
+                           ? ReaderModeHeuristicClassification::
+                                 kPageNotEligibleWithPopulatedDistill
+                           : ReaderModeHeuristicClassification::
+                                 kPageNotEligibleWithEmptyDistill;
+      break;
+    }
+    case ReaderModeHeuristicResult::kReaderModeEligible: {
+      classification = is_distillable_page
+                           ? ReaderModeHeuristicClassification::
+                                 kPageEligibleWithPopulatedDistill
+                           : ReaderModeHeuristicClassification::
+                                 kPageEligibleWithEmptyDistill;
+      break;
+    }
+  }
+  UMA_HISTOGRAM_ENUMERATION(kReaderModeHeuristicClassificationHistogram,
+                            classification);
+}
+
+// Records the time elapsed from the execution of the distillation JavaScript to
+// the result callback.
+void RecordReaderModeDistillationLatency(base::TimeDelta elapsed,
+                                         ukm::SourceId source_id) {
+  UMA_HISTOGRAM_TIMES(kReaderModeDistillerLatencyHistogram, elapsed);
+  if (source_id != ukm::kInvalidSourceId) {
+    ukm::builders::IOS_ReaderMode_Distiller_Latency(source_id)
+        .SetLatency(elapsed.InMilliseconds())
+        .Record(ukm::UkmRecorder::Get());
+  }
+}
+
+// Records whether the given source ID for a navigation is distillable or not.
+void RecordReaderModeDistillationResult(bool is_distillable,
+                                        ukm::SourceId source_id) {
+  if (source_id != ukm::kInvalidSourceId) {
+    ukm::builders::IOS_ReaderMode_Distiller_Result(source_id)
+        .SetResult(static_cast<int64_t>(
+            is_distillable ? ReaderModeDistillerResult::kPageIsDistillable
+                           : ReaderModeDistillerResult::kPageIsNotDistillable))
+        .Record(ukm::UkmRecorder::Get());
+  }
+}
+
+bool IsKnownAmpCache(web::WebFrame* web_frame) {
+  url::Origin origin = web_frame->GetSecurityOrigin();
+  // Source:
+  // https://github.com/ampproject/amphtml/blob/main/build-system/global-configs/caches.json
+  return origin.DomainIs("cdn.ampproject.org") ||
+         origin.DomainIs("bing-amp.com");
+}
+
+// Records whether any available web frames in the current web state use AMP.
+// This metric will help determine whether AMP special casing will affect
+// distillation success.
+void RecordReaderModeForAmpDistill(bool is_distillable_page,
+                                   web::WebState* web_state) {
+  if (!web_state) {
+    return;
+  }
+
+  web::WebFramesManager* page_world_manager =
+      web_state->GetPageWorldWebFramesManager();
+  auto web_frames = page_world_manager->GetAllWebFrames();
+  bool is_amp =
+      std::any_of(web_frames.begin(), web_frames.end(), IsKnownAmpCache);
+
+  ReaderModeAmpClassification classification;
+  if (is_amp) {
+    classification = is_distillable_page
+                         ? ReaderModeAmpClassification::kPopulatedDistillWithAmp
+                         : ReaderModeAmpClassification::kEmptyDistillWithAmp;
+  } else {
+    classification = is_distillable_page
+                         ? ReaderModeAmpClassification::kPopulatedDistillNoAmp
+                         : ReaderModeAmpClassification::kEmptyDistillNoAmp;
+  }
+
+  UMA_HISTOGRAM_ENUMERATION(kReaderModeAmpClassificationHistogram,
+                            classification);
+}
+
+// Helper function to generate the snackbar message.
+NSString* GenerateSnackbarMessage(ReaderModeHeuristicResult heuristic_result,
+                                  base::TimeDelta heuristic_latency,
+                                  bool is_distillable_page,
+                                  base::TimeDelta distillation_latency) {
+  std::string message = "Heuristic Result: ";
+  switch (heuristic_result) {
+    case ReaderModeHeuristicResult::kMalformedResponse:
+      message += "Malformed Response";
+      break;
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentAndLength:
+      message += "Not Eligible (Content and Length)";
+      break;
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentOnly:
+      message += "Not Eligible (Content Only)";
+      break;
+    case ReaderModeHeuristicResult::kReaderModeNotEligibleContentLength:
+      message += "Not Eligible (Content Length)";
+      break;
+    case ReaderModeHeuristicResult::kReaderModeEligible:
+      message += "Eligible";
+      break;
+  }
+  message += "\nHeuristic Latency: " +
+             base::NumberToString(heuristic_latency.InMilliseconds()) + "ms";
+  message += "\nDistillation Result: ";
+  message += (is_distillable_page ? "Distillable" : "Not Distillable");
+  message += "\nDistillation Latency: " +
+             base::NumberToString(distillation_latency.InMilliseconds()) + "ms";
+  return base::SysUTF8ToNSString(message);
+}
+
+}  // namespace
+
+ReaderModeTabHelper::ReaderModeTabHelper(web::WebState* web_state)
+    : web_state_(web_state) {
+  CHECK(web_state_);
+  web_state_->AddObserver(this);
+}
+
+ReaderModeTabHelper::~ReaderModeTabHelper() = default;
+
+bool ReaderModeTabHelper::IsActive() const {
+  return active_;
+}
+
+void ReaderModeTabHelper::SetActive(bool active) {
+  if (active == active_) {
+    return;
+  }
+  active_ = active;
+  if (active_) {
+    // If Reader mode is being activated, create the secondary WebState where
+    // the content will be rendered and start distillation.
+    web::WebState::CreateParams create_params = web::WebState::CreateParams(
+        ProfileIOS::FromBrowserState(web_state_->GetBrowserState())
+            ->GetOffTheRecordProfile());
+    reader_mode_web_state_ = web::WebState::Create(create_params);
+    reader_mode_web_state_->SetWebUsageEnabled(true);
+    // TODO(crbug.com/409940117): Decouple heuristic and distillation.
+    TriggerReaderModeHeuristic();
+  } else {
+    // If Reader mode is being deactivated, destroy the secondary WebState and
+    // ensure the Reader mode UI is dismissed.
+    // TODO(crbug.com/409940117): Ensure the UI gracefully handles the
+    // destruction of the Reader mode WebState while its view is inside the view
+    // hierarchy.
+    reader_mode_web_state_.reset();
+    [reader_mode_handler_ hideReaderMode];
+  }
+}
+
+UIView* ReaderModeTabHelper::GetReaderModeContentView() {
+  CHECK(reader_mode_web_state_);
+  return reader_mode_web_state_->GetView();
+}
+
+void ReaderModeTabHelper::SetSnackbarHandler(
+    id<SnackbarCommands> snackbar_handler) {
+  snackbar_handler_ = snackbar_handler;
+}
+
+void ReaderModeTabHelper::SetReaderModeHandler(
+    id<ReaderModeCommands> reader_mode_handler) {
+  reader_mode_handler_ = reader_mode_handler;
+}
+
+void ReaderModeTabHelper::PageLoaded(
+    web::WebState* web_state,
+    web::PageLoadCompletionStatus load_completion_status) {
+  CHECK_EQ(web_state, web_state_);
+  // TODO(crbug.com/409940117): If `IsReaderModeAvailable()` then Reader mode is
+  // being debugged, so the heuristic shouldn't be started automatically on page
+  // load. Remove this check when debugging code is cleaned up.
+  if (load_completion_status == web::PageLoadCompletionStatus::SUCCESS &&
+      !IsReaderModeAvailable()) {
+    // Guarantee that there is only one trigger heuristic running at a time.
+    if (trigger_reader_mode_timer_.IsRunning()) {
+      trigger_reader_mode_timer_.Stop();
+    }
+    trigger_reader_mode_timer_.Start(
+        FROM_HERE, ReaderModeDistillerPageLoadDelay(),
+        base::BindOnce(&ReaderModeTabHelper::TriggerReaderModeHeuristic,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
+}
+
+void ReaderModeTabHelper::DidStartNavigation(
+    web::WebState* web_state,
+    web::NavigationContext* navigation_context) {
+  if (navigation_context->IsSameDocument()) {
+    return;
+  }
+  // A new navigation is started while the Reader Mode heuristic trigger is
+  // running on the previous navigation. Stop the trigger to attach the new
+  // navigation.
+  if (trigger_reader_mode_timer_.IsRunning()) {
+    trigger_reader_mode_timer_.Stop();
+  }
+  if (IsReaderModeAvailable()) {
+    // Hide Reader mode.
+    [reader_mode_handler_ hideReaderMode];
+  }
+}
+
+void ReaderModeTabHelper::WebStateDestroyed(web::WebState* web_state) {
+  CHECK_EQ(web_state_, web_state);
+  web_state_->RemoveObserver(this);
+  web_state_ = nullptr;
+}
+
+void ReaderModeTabHelper::WasHidden(web::WebState* web_state) {
+  if (IsReaderModeAvailable()) {
+    // Ensure the Reader mode UI is hidden when the tab is hidden.
+    [reader_mode_handler_ hideReaderMode];
+  }
+}
+
+void ReaderModeTabHelper::HandleReaderModeHeuristicResult(
+    const GURL& url,
+    ReaderModeHeuristicResult result) {
+  UMA_HISTOGRAM_ENUMERATION(kReaderModeHeuristicResultHistogram, result);
+
+  const ukm::SourceId source_id =
+      ukm::GetSourceIdForWebStateDocument(web_state_);
+  if (source_id != ukm::kInvalidSourceId) {
+    ukm::builders::IOS_ReaderMode_Heuristic_Result(source_id)
+        .SetResult(static_cast<int64_t>(result))
+        .Record(ukm::UkmRecorder::Get());
+  }
+
+  if (!base::FeatureList::IsEnabled(kEnableReaderModeDistillerForMetrics) &&
+      !IsReaderModeAvailable()) {
+    return;
+  }
+
+  // Gets the instance of the WebFramesManager from `web_state_` that can
+  // execute the DOM distiller JavaScript in the isolated content world.
+  web::WebFramesManager* web_frames_manager =
+      web_state_->GetWebFramesManager(web::ContentWorld::kIsolatedWorld);
+  if (!web_frames_manager) {
+    return;
+  }
+  web::WebFrame* main_frame = web_frames_manager->GetMainWebFrame();
+  if (!main_frame) {
+    return;
+  }
+  // If the current WebState URL is not the same as the one processed by the
+  // heuristic then abort next steps.
+  if (url != web_state_->GetVisibleURL()) {
+    return;
+  }
+  // TODO(crbug.com/405309236): The distillation should be moved into the
+  // core DOM distiller logic. This extraction is for metrics collection
+  // purposes only.
+  dom_distiller::proto::DomDistillerOptions options;
+  main_frame->ExecuteJavaScript(
+      base::UTF8ToUTF16(dom_distiller::GetDistillerScriptWithOptions(options)),
+      base::BindOnce(&ReaderModeTabHelper::PageDistillationCompleted,
+                     weak_ptr_factory_.GetWeakPtr(), result,
+                     base::TimeTicks::Now()));
+}
+
+void ReaderModeTabHelper::RecordReaderModeHeuristicLatency(
+    const base::TimeDelta& delta) {
+  heuristic_latency_ = delta;
+  UMA_HISTOGRAM_TIMES(kReaderModeHeuristicLatencyHistogram, delta);
+  const ukm::SourceId source_id =
+      ukm::GetSourceIdForWebStateDocument(web_state_);
+  if (source_id != ukm::kInvalidSourceId) {
+    ukm::builders::IOS_ReaderMode_Heuristic_Latency(source_id)
+        .SetLatency(delta.InMilliseconds())
+        .Record(ukm::UkmRecorder::Get());
+  }
+}
+
+bool ReaderModeTabHelper::CanTriggerReaderModeHeuristic() {
+  if (IsReaderModeAvailable()) {
+    return true;
+  }
+  if (!base::FeatureList::IsEnabled(
+          kEnableReaderModeDistillerHeuristicForMetrics)) {
+    return false;
+  }
+  const double page_load_probability =
+      kReaderModeDistillerPageLoadProbability.Get();
+  if (page_load_probability <= 0.0 || page_load_probability > 1.0) {
+    // Invalid probability range. Disable the Reader Mode feature.
+    return false;
+  }
+
+  const double rand_double = base::RandDouble();
+  return rand_double < page_load_probability;
+}
+
+void ReaderModeTabHelper::TriggerReaderModeHeuristic() {
+  if (!CanTriggerReaderModeHeuristic()) {
+    return;
+  }
+  web::WebFramesManager* web_frames_manager =
+      ReaderModeJavaScriptFeature::GetInstance()->GetWebFramesManager(
+          web_state_);
+  if (!web_frames_manager) {
+    return;
+  }
+  web::WebFrame* web_frame = web_frames_manager->GetMainWebFrame();
+  if (!web_frame) {
+    return;
+  }
+  ReaderModeJavaScriptFeature::GetInstance()->TriggerReaderModeHeuristic(
+      web_frame);
+}
+
+void ReaderModeTabHelper::PageDistillationCompleted(
+    ReaderModeHeuristicResult heuristic_result,
+    base::TimeTicks start_time,
+    const base::Value* value) {
+  // If ExecuteJavaScript completion is run after WebState is destroyed, do
+  // not continue metrics collection.
+  if (!web_state_ || web_state_->IsBeingDestroyed()) {
+    return;
+  }
+  const ukm::SourceId source_id =
+      ukm::GetSourceIdForWebStateDocument(web_state_);
+  const base::TimeDelta distillation_latency =
+      base::TimeTicks::Now() - start_time;
+  RecordReaderModeDistillationLatency(distillation_latency, source_id);
+
+  std::unique_ptr<dom_distiller::proto::DomDistillerResult> distiller_result =
+      std::make_unique<dom_distiller::proto::DomDistillerResult>();
+  bool found_content = false;
+  base::Value result_as_value =
+      dom_distiller::ParseValueFromScriptResult(value);
+  if (!result_as_value.is_none()) {
+    found_content =
+        dom_distiller::proto::json::DomDistillerResult::ReadFromValue(
+            result_as_value, distiller_result.get());
+  }
+
+  bool is_distillable_page =
+      found_content && !distiller_result->distilled_content().html().empty();
+  RecordReaderModeDistillationResult(is_distillable_page, source_id);
+  RecordReaderModeHeuristicClassification(is_distillable_page,
+                                          heuristic_result);
+  RecordReaderModeForAmpDistill(is_distillable_page, web_state_);
+
+  if (IsReaderModeSnackbarEnabled()) {
+    // Show a snackbar with the heuristic result, latency and page distillation
+    // result and latency.
+    MDCSnackbarMessage* message = [MDCSnackbarMessage
+        messageWithText:GenerateSnackbarMessage(
+                            heuristic_result, heuristic_latency_,
+                            is_distillable_page, distillation_latency)];
+    message.duration = MDCSnackbarMessageDurationMax;
+    [snackbar_handler_ showSnackbarMessage:message];
+  }
+
+  if (IsReaderModeAvailable()) {
+    if (is_distillable_page) {
+      // `LoadData` requires an already committed navigation item.
+      std::vector<std::unique_ptr<web::NavigationItem>> navigation_items;
+      navigation_items.push_back(web::NavigationItem::Create());
+      reader_mode_web_state_->GetNavigationManager()->Restore(
+          0, std::move(navigation_items));
+      reader_mode_web_state_->GetNavigationManager()->LoadIfNecessary();
+      // Load the Reader mode content in the Reader mode WebState.
+      const std::string content = distiller_result->distilled_content().html();
+      reader_mode_web_state_->LoadData(
+          [NSData dataWithBytes:content.data() length:content.length()],
+          @"text/html", web_state_->GetLastCommittedURL());
+      // Once the Reader mode content is ready, show the Reader mode UI.
+      [reader_mode_handler_ showReaderMode];
+    } else {
+      // If the page could not be distilled, ensure Reader mode UI is hidden.
+      [reader_mode_handler_ hideReaderMode];
+    }
+  }
+}

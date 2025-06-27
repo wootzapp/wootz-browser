@@ -10,10 +10,13 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_observer.h"
+#include "chrome/browser/picture_in_picture/scoped_picture_in_picture_occlusion_observation.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/interaction/element_identifier.h"
+#include "ui/base/interaction/element_tracker.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
@@ -32,6 +35,14 @@ class Tracker;
 namespace webapps {
 class MlInstallOperationTracker;
 }  // namespace webapps
+
+namespace views {
+class Widget;
+}  // namespace views
+
+namespace gfx {
+class Rect;
+}  // namespace gfx
 
 namespace web_app {
 
@@ -55,10 +66,23 @@ inline constexpr int kIconSize = 32;
 // result in a weird filename), it only restricts what we suggest as titles.
 std::u16string NormalizeSuggestedAppTitle(const std::u16string& title);
 
+// For some browser windows that are smaller in size, the install dialog's
+// current size is smaller than the preferred size, leading to important
+// security information being occluded. This function performs the comparison
+// between the sizes and prevents that from happening.
+// This serves as a stop-gap fix for crbug.com/384962294.
+// TODO(crbug.com/346974105): Remove once tab modal dialogs can be sized
+// irrespective of the size of the browser window triggering it.
+bool IsWidgetCurrentSizeSmallerThanPreferredSize(views::Widget* widget);
+
 class WebAppInstallDialogDelegate : public ui::DialogModelDelegate,
-                                    public content::WebContentsObserver {
+                                    public content::WebContentsObserver,
+                                    public PictureInPictureOcclusionObserver,
+                                    public views::WidgetObserver {
  public:
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDiyAppsDialogOkButtonId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPwaInstallDialogInstallButton);
+  DECLARE_CLASS_CUSTOM_ELEMENT_EVENT_TYPE(kInstalledPWAEventId);
 
   WebAppInstallDialogDelegate(
       content::WebContents* web_contents,
@@ -72,9 +96,20 @@ class WebAppInstallDialogDelegate : public ui::DialogModelDelegate,
 
   ~WebAppInstallDialogDelegate() override;
 
+  // Once the install dialog is shown, start tracking the widget for:
+  // 1. Observing it to prevent picture in picture occlusion.
+  // 2. Observing it for size changes so that it can be closed if needed.
+  // 3. Tracking it as a security dialog so that extension popups do not appear
+  // over it.
+  void OnWidgetShownStartTracking(views::Widget* install_dialog_widget);
+
   void OnAccept();
   void OnCancel();
   void OnClose();
+
+  // This is called when the dialog has been either accepted, cancelled, closed
+  // or destroyed without an user-action.
+  void OnDestroyed();
 
   // Takes care of enabling or disabling the dialog model's OK button for DIY
   // apps based on changes in the text field, and also keeps track of the text
@@ -86,13 +121,22 @@ class WebAppInstallDialogDelegate : public ui::DialogModelDelegate,
     return weak_ptr_factory_.GetWeakPtr();
   }
 
-  // content::WebContentsObserver:
+  // content::WebContentsObserver overrides:
   void OnVisibilityChanged(content::Visibility visibility) override;
   void WebContentsDestroyed() override;
   void PrimaryPageChanged(content::Page& page) override;
 
- private:
+  // PictureInPictureOcclusionObserver overrides:
+  void OnOcclusionStateChanged(bool occluded) override;
+
+  // views::WidgetObserver overrides:
+  void OnWidgetBoundsChanged(views::Widget* widget,
+                             const gfx::Rect& new_bounds) override;
+  void OnWidgetDestroyed(views::Widget* widget) override;
+
   void CloseDialogAsIgnored();
+
+ private:
   void MeasureIphOnDialogClose();
   void MeasureAcceptUserActionsForInstallDialog();
   void MeasureCancelUserActionsForInstallDialog();
@@ -106,6 +150,10 @@ class WebAppInstallDialogDelegate : public ui::DialogModelDelegate,
   raw_ptr<feature_engagement::Tracker> tracker_;
   InstallDialogType dialog_type_;
   std::u16string text_field_contents_;
+  bool received_user_response_ = false;
+  ScopedPictureInPictureOcclusionObservation occlusion_observation_{this};
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observation_{this};
 
   base::WeakPtrFactory<WebAppInstallDialogDelegate> weak_ptr_factory_{this};
 };

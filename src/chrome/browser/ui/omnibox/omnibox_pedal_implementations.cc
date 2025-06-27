@@ -9,7 +9,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/webui_url_constants.h"
@@ -281,7 +280,7 @@ class OmniboxPedalTranslate : public OmniboxPedal {
                          IDS_ACC_OMNIBOX_PEDAL_TRANSLATE_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_TRANSLATE),
             // Fake URL to distinguish matches.
-            GURL("chrome://translate/pedals")) {}
+            GURL("wootzapp://translate/pedals")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -321,7 +320,7 @@ class OmniboxPedalTranslate : public OmniboxPedal {
   bool IsReadyToTrigger(
       const AutocompleteInput& input,
       const AutocompleteProviderClient& client) const override {
-    // Built-in chrome:// URLs do not generally support translation, and the
+    // Built-in wootzapp:// URLs do not generally support translation, and the
     // translate UI does not yet inform users with a clear helpful error message
     // when requesting translation for a page that doesn't support translation,
     // so this is a quick early-out to prevent bad message crashes.
@@ -385,35 +384,9 @@ class OmniboxPedalUpdateChrome : public OmniboxPedal {
 class OmniboxPedalRunChromeSafetyCheck : public OmniboxPedal {
  public:
   OmniboxPedalRunChromeSafetyCheck()
-      : OmniboxPedal(
-            OmniboxPedalId::RUN_CHROME_SAFETY_CHECK,
-#if BUILDFLAG(IS_ANDROID)
-            LabelStrings(
-                IDS_ANDROID_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_HINT,
-                IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUGGESTION_CONTENTS,
-                IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUFFIX,
-                IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK),
-#else
-            LabelStrings(
-                IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_HINT,
-                IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUGGESTION_CONTENTS,
-                IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUFFIX,
-                IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK),
-#endif  // BUILDFLAG(IS_ANDROID)
-            GURL("wootzapp://settings/safetyCheck?activateSafetyCheck")) {
-#if !BUILDFLAG(IS_ANDROID)
-    // If SafetyHub flag is enabled, the label strings and url should be
-    // updated.
-    if (base::FeatureList::IsEnabled(features::kSafetyHub)) {
-      strings_ = LabelStrings(
-          IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_HINT,
-          IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUGGESTION_CONTENTS,
-          IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUFFIX,
-          IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2);
-      url_ = GURL("wootzapp://settings/safetyCheck");
-    }
-#endif  // !BUILDFLAG(IS_ANDROID)
-  }
+      : OmniboxPedal(OmniboxPedalId::RUN_CHROME_SAFETY_CHECK,
+                     GetLabelStrings(),
+                     GetUrl()) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -453,6 +426,40 @@ class OmniboxPedalRunChromeSafetyCheck : public OmniboxPedal {
 
  protected:
   ~OmniboxPedalRunChromeSafetyCheck() override = default;
+
+  LabelStrings GetLabelStrings() {
+#if BUILDFLAG(IS_ANDROID)
+    if (base::FeatureList::IsEnabled(features::kSafetyHub)) {
+      return LabelStrings(
+          IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_HINT,
+          IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUGGESTION_CONTENTS,
+          IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUFFIX,
+          IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2);
+    }
+    return LabelStrings(
+        IDS_ANDROID_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_HINT,
+        IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUGGESTION_CONTENTS,
+        IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUFFIX,
+        IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK);
+#else   // BUILDFLAG(IS_ANDROID)
+    return LabelStrings(
+        IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_HINT,
+        IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUGGESTION_CONTENTS,
+        IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUFFIX,
+        IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2);
+#endif  // BUILDFLAG(IS_ANDROID)
+  }
+
+  GURL GetUrl() {
+#if BUILDFLAG(IS_ANDROID)
+    if (base::FeatureList::IsEnabled(features::kSafetyHub)) {
+      return GURL("wootzapp://settings/safetyCheck");
+    }
+    return GURL("wootzapp://settings/safetyCheck?activateSafetyCheck");
+#else   // BUILDFLAG(IS_ANDROID)
+    return GURL("wootzapp://settings/safetyCheck");
+#endif  // BUILDFLAG(IS_ANDROID)
+  }
 };
 
 // =============================================================================

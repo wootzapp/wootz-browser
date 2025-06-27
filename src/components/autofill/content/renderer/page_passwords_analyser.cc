@@ -4,6 +4,7 @@
 
 #include "components/autofill/content/renderer/page_passwords_analyser.h"
 
+#include <algorithm>
 #include <map>
 #include <stack>
 #include <string>
@@ -12,14 +13,12 @@
 #include "base/containers/contains.h"
 #include "base/lazy_instance.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/content/renderer/form_autofill_util.h"
 #include "components/autofill/content/renderer/page_form_analyser_logger.h"
 #include "components/autofill/content/renderer/password_form_conversion_utils.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_element_collection.h"
@@ -38,7 +37,6 @@ using blink::WebLabelElement;
 using blink::WebLocalFrame;
 using blink::WebNode;
 using blink::WebString;
-using blink::WebVector;
 
 namespace autofill {
 
@@ -199,11 +197,7 @@ std::vector<FormInputCollection> ExtractFormsForAnalysis(
   std::set<WebFormControlElement> inputs_with_forms;
   std::map<std::string, std::vector<WebNode>> nodes_for_id;
 
-  for (const WebFormElement& form :
-       base::FeatureList::IsEnabled(
-           blink::features::kAutofillIncludeFormElementsInShadowDom)
-           ? document.GetTopLevelForms()
-           : document.Forms()) {
+  for (const WebFormElement& form : document.GetTopLevelForms()) {
     form_input_collections.push_back(FormInputCollection{form});
     // Collect all the inputs in the form.
     for (const WebFormControlElement& input : form.GetFormControlElements()) {
@@ -231,8 +225,9 @@ std::vector<FormInputCollection> ExtractFormsForAnalysis(
   for (const WebElement& password_input : password_inputs) {
     const WebInputElement input_element =
         password_input.DynamicTo<WebInputElement>();
-    if (input_element.IsNull())
+    if (!input_element) {
       continue;
+    }
     if (TrackElementByRendererIdIfUntracked(
             password_input, form_util::GetFieldRendererId(input_element),
             skip_control_ids, &nodes_for_id)) {
@@ -254,8 +249,9 @@ std::vector<FormInputCollection> ExtractFormsForAnalysis(
   for (const WebElement& text_input : text_inputs) {
     const WebInputElement input_element =
         text_input.DynamicTo<WebInputElement>();
-    if (input_element.IsNull())
+    if (!input_element) {
       continue;
+    }
     TrackElementByRendererIdIfUntracked(
         text_input, form_util::GetFieldRendererId(input_element),
         skip_control_ids, &nodes_for_id);
@@ -291,7 +287,7 @@ void InferUsernameField(
     size_t username_field_guess,
     std::map<size_t, std::string>* autocomplete_suggestions) {
   WebElementCollection labels(form.GetElementsByHTMLTagName("label"));
-  DCHECK(!labels.IsNull());
+  DCHECK(labels);
 
   std::vector<InputHint> input_hints;
 
@@ -299,13 +295,12 @@ void InferUsernameField(
   input_hints.emplace_back(email_matcher.Pointer());
   input_hints.emplace_back(telephone_matcher.Pointer());
 
-  for (WebElement item = labels.FirstItem(); !item.IsNull();
-       item = labels.NextItem()) {
+  for (WebElement item = labels.FirstItem(); item; item = labels.NextItem()) {
     WebLabelElement label(item.To<WebLabelElement>());
     WebElement control(label.CorrespondingControl());
-    if (!control.IsNull() && control.IsFormControlElement()) {
+    if (control && control.IsFormControlElement()) {
       WebFormControlElement form_control(control.To<WebFormControlElement>());
-      auto found = base::ranges::find(inputs, form_control);
+      auto found = std::ranges::find(inputs, form_control);
       if (found != inputs.end()) {
         std::string label_content(
             base::UTF16ToUTF8(form_util::FindChildText(label)));

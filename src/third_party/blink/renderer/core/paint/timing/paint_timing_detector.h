@@ -9,11 +9,9 @@
 #include "base/gtest_prod_util.h"
 #include "base/time/time.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
-#include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/layout_box_model_object.h"
 #include "third_party/blink/renderer/core/paint/timing/lcp_objects.h"
-#include "third_party/blink/renderer/core/paint/timing/paint_timing_callback_manager.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing_visualizer.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
 #include "third_party/blink/renderer/platform/graphics/paint/ignore_paint_timing_scope.h"
@@ -32,9 +30,9 @@ class LayoutObject;
 class LocalFrameView;
 class PropertyTreeStateOrAlias;
 class MediaTiming;
-class StyleFetchedImage;
 class TextPaintTimingDetector;
 class TextRecord;
+class StyleImage;
 
 // PaintTimingDetector receives signals regarding text and image paints and
 // orchestrates the functionality of more specific paint detectors
@@ -61,7 +59,7 @@ class CORE_EXPORT PaintTimingDetector
   static bool NotifyBackgroundImagePaint(
       const Node&,
       const Image&,
-      const StyleFetchedImage&,
+      const StyleImage&,
       const PropertyTreeStateOrAlias& current_paint_chunk_properties,
       const gfx::Rect& image_border);
   // Returns true if the image is a candidate for largest paint, otherwise
@@ -81,15 +79,6 @@ class CORE_EXPORT PaintTimingDetector
   void NotifyInputEvent(WebInputEvent::Type);
   bool NeedToNotifyInputOrScroll() const;
   void NotifyScroll(mojom::blink::ScrollType);
-
-  // The returned value indicates whether the candidates have changed.
-  bool NotifyMetricsIfLargestImagePaintChanged(
-      base::TimeTicks image_paint_time,
-      uint64_t image_size,
-      ImageRecord* image_record,
-      double image_bpp,
-      std::optional<WebURLRequest::Priority> priority);
-  bool NotifyMetricsIfLargestTextPaintChanged(base::TimeTicks, uint64_t size);
 
   void DidChangePerformanceTiming();
 
@@ -132,7 +121,7 @@ class CORE_EXPORT PaintTimingDetector
     return soft_navigation_lcp_details_for_metrics_;
   }
 
-  const LargestContentfulPaintDetails& LatestLcpDetailsForTest() const;
+  const LargestContentfulPaintDetails& LatestLcpDetailsForTest();
 
   base::TimeTicks FirstInputOrScrollNotifiedTimestamp() const {
     return first_input_or_scroll_notified_timestamp_;
@@ -156,8 +145,6 @@ class CORE_EXPORT PaintTimingDetector
   // Method called to stop recording the Largest Contentful Paint.
   void OnInputOrScroll();
 
-  bool HasLargestTextPaintChangedForMetrics(base::TimeTicks,
-                                            uint64_t size) const;
   void UpdateMetricsLcp();
   Member<LocalFrameView> frame_view_;
   // This member lives forever because it is also used for Text Element
@@ -175,8 +162,6 @@ class CORE_EXPORT PaintTimingDetector
   // the same time at which |largest_contentful_paint_calculator_| is set to
   // nullptr.
   base::TimeTicks first_input_or_scroll_notified_timestamp_;
-
-  Member<PaintTimingCallbackManagerImpl> callback_manager_;
 
   std::optional<PaintTimingVisualizer> visualizer_;
 

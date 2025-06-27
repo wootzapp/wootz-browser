@@ -19,7 +19,8 @@
 
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
 
-#include "base/ranges/algorithm.h"
+#include <algorithm>
+
 #include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_filter.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_paint_server.h"
@@ -80,7 +81,7 @@ gfx::RectF SVGResources::ReferenceBoxForEffects(
       break;
     }
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   if (foreign_object_quirk == ForeignObjectQuirk::kEnabled &&
@@ -115,8 +116,7 @@ void SVGResources::UpdateEffects(LayoutObject& object,
       (style.HasFilter() || (old_style && old_style->HasFilter()))) {
     // We either created one above, or had one already.
     DCHECK(GetClient(object));
-    object.SetNeedsPaintPropertyUpdate();
-    GetClient(object)->MarkFilterDataDirty();
+    GetClient(object)->InvalidateFilterData();
   }
   if (!old_style || !had_client)
     return;
@@ -257,7 +257,7 @@ bool ContainsResource(const ContainerType* container, SVGResource* resource) {
 
 bool ContainsResource(const FilterOperations& operations,
                       SVGResource* resource) {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       operations.Operations(), [resource](const FilterOperation* operation) {
         return ContainsResource(DynamicTo<ReferenceFilterOperation>(operation),
                                 resource);
@@ -297,7 +297,13 @@ void SVGElementResourceClient::ResourceContentChanged(SVGResource* resource) {
   if (ContainsResource(style.MarkerStartResource(), resource) ||
       ContainsResource(style.MarkerMidResource(), resource) ||
       ContainsResource(style.MarkerEndResource(), resource)) {
-    needs_layout = true;
+    // Within layout a <marker> with a percentage length can invalidate its
+    // clients if the viewport has changed. Skip layout invalidation.
+    if (layout_object->GetFrameView()->IsInPerformLayout()) {
+      layout_object->SetShouldDoFullPaintInvalidation();
+    } else {
+      needs_layout = true;
+    }
     layout_object->SetNeedsBoundariesUpdate();
   }
 
@@ -354,7 +360,8 @@ void SVGElementResourceClient::UpdateFilterData(
     return;
   const ComputedStyle& style = object.StyleRef();
   FilterEffectBuilder builder(
-      reference_box, 1, style.VisitedDependentColor(GetCSSPropertyColor()),
+      reference_box, std::nullopt, 1,
+      style.VisitedDependentColor(GetCSSPropertyColor()),
       style.UsedColorScheme());
   builder.SetShorthandScale(1 / style.EffectiveZoom());
   const FilterOperations& filter = style.Filter();

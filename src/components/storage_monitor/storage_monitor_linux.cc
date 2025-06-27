@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 // StorageMonitorLinux implementation.
 
 #include "components/storage_monitor/storage_monitor_linux.h"
@@ -20,6 +25,7 @@
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "base/not_fatal_until.h"
 #include "base/process/kill.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
@@ -324,12 +330,13 @@ void StorageMonitorLinux::UpdateMtab(const MountPointDeviceMap& new_mtab) {
     // |mount_point|.
     if (new_iter == new_mtab.end() || (new_iter->second != mount_device)) {
       auto priority = mount_priority_map_.find(mount_device);
-      DCHECK(priority != mount_priority_map_.end());
+      CHECK(priority != mount_priority_map_.end(), base::NotFatalUntil::M130);
       ReferencedMountPoint::const_iterator has_priority =
           priority->second.find(mount_point);
       if (StorageInfo::IsRemovableDevice(
               old_iter->second.storage_info.device_id())) {
-        DCHECK(has_priority != priority->second.end());
+        CHECK(has_priority != priority->second.end(),
+              base::NotFatalUntil::M130);
         if (has_priority->second) {
           receiver()->ProcessDetach(old_iter->second.storage_info.device_id());
         }
@@ -421,7 +428,7 @@ void StorageMonitorLinux::HandleDeviceMountedMultipleTimes(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   auto priority = mount_priority_map_.find(mount_device);
-  DCHECK(priority != mount_priority_map_.end());
+  CHECK(priority != mount_priority_map_.end(), base::NotFatalUntil::M130);
   const base::FilePath& other_mount_point = priority->second.begin()->first;
   priority->second[mount_point] = false;
   mount_info_map_[mount_point] =

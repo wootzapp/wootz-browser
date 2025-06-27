@@ -93,12 +93,13 @@ class PLATFORM_EXPORT FontPlatformData
 #endif
 
   String FontFamilyName() const;
-  bool IsAhem() const { return FontFamilyName().LowerASCII() == "ahem"; }
+  bool IsAhem() const;
   float size() const { return text_size_; }
   bool SyntheticBold() const { return synthetic_bold_; }
   bool SyntheticItalic() const { return synthetic_italic_; }
 
   SkTypeface* Typeface() const;
+  sk_sp<SkTypeface> TypefaceSp() const { return typeface_; }
   HarfBuzzFace* GetHarfBuzzFace() const;
   bool HasSpaceInLigaturesOrKerning(TypesettingFeatures) const;
   SkTypefaceID UniqueID() const;
@@ -110,6 +111,9 @@ class PLATFORM_EXPORT FontPlatformData
   }
   bool IsVerticalAnyUpright() const {
     return blink::IsVerticalAnyUpright(orientation_);
+  }
+  bool IsVerticalNonCJKUpright() const {
+    return blink::IsVerticalNonCJKUpright(orientation_);
   }
   void SetOrientation(FontOrientation orientation) {
     orientation_ = orientation;

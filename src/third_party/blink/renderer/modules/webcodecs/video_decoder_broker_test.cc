@@ -9,7 +9,6 @@
 
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -62,15 +61,13 @@ class FakeGpuVideoDecoder : public media::FakeVideoDecoder {
 
   scoped_refptr<media::VideoFrame> MakeVideoFrame(
       const media::DecoderBuffer& buffer) override {
-    scoped_refptr<gpu::ClientSharedImage>
-        shared_image[media::VideoFrame::kMaxPlanes] = {
-            gpu::ClientSharedImage::CreateForTesting()};
-    scoped_refptr<media::VideoFrame> frame =
-        media::VideoFrame::WrapSharedImages(
-            media::PIXEL_FORMAT_ARGB, shared_image, gpu::SyncToken(), 0,
-            media::VideoFrame::ReleaseMailboxCB(), current_config_.coded_size(),
-            current_config_.visible_rect(), current_config_.natural_size(),
-            buffer.timestamp());
+    scoped_refptr<gpu::ClientSharedImage> shared_image =
+        gpu::ClientSharedImage::CreateForTesting();
+    scoped_refptr<media::VideoFrame> frame = media::VideoFrame::WrapSharedImage(
+        media::PIXEL_FORMAT_ARGB, shared_image, gpu::SyncToken(),
+        media::VideoFrame::ReleaseMailboxCB(), current_config_.coded_size(),
+        current_config_.visible_rect(), current_config_.natural_size(),
+        buffer.timestamp());
     frame->metadata().power_efficient = true;
     return frame;
   }
@@ -92,8 +89,8 @@ class FakeMojoMediaClient : public media::MojoMediaClient {
       media::mojom::CommandBufferIdPtr command_buffer_id,
       media::RequestOverlayInfoCB request_overlay_info_cb,
       const gfx::ColorSpace& target_color_space,
-      mojo::PendingRemote<media::stable::mojom::StableVideoDecoder>
-          oop_video_decoder) override {
+      mojo::PendingRemote<media::mojom::VideoDecoder> oop_video_decoder)
+      override {
     return std::make_unique<FakeGpuVideoDecoder>();
   }
 };
@@ -119,24 +116,22 @@ class FakeInterfaceFactory : public media::mojom::InterfaceFactory {
   // FakeMojoMediaClient will create a FakeGpuVideoDecoder.
   void CreateVideoDecoder(
       mojo::PendingReceiver<media::mojom::VideoDecoder> receiver,
-      mojo::PendingRemote<media::stable::mojom::StableVideoDecoder>
-          dst_video_decoder) override {
+      mojo::PendingRemote<media::mojom::VideoDecoder> dst_video_decoder)
+      override {
     video_decoder_receivers_.Add(
         std::make_unique<media::MojoVideoDecoderService>(
             &mojo_media_client_, &cdm_service_context_,
-            mojo::PendingRemote<media::stable::mojom::StableVideoDecoder>()),
+            mojo::PendingRemote<media::mojom::VideoDecoder>()),
         std::move(receiver));
   }
 
+  // Stub out other mojom::InterfaceFactory interfaces.
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-  void CreateStableVideoDecoder(
-      mojo::PendingReceiver<media::stable::mojom::StableVideoDecoder>
-          video_decoder) override {
-    // TODO(b/327268445): we'll need to complete this for GTFO OOP-VD testing.
+  void CreateVideoDecoderWithTracker(
+      mojo::PendingReceiver<media::mojom::VideoDecoder> receiver,
+      mojo::PendingRemote<media::mojom::VideoDecoderTracker> tracker) override {
   }
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-
-  // Stub out other mojom::InterfaceFactory interfaces.
   void CreateAudioDecoder(
       mojo::PendingReceiver<media::mojom::AudioDecoder> receiver) override {}
   void CreateAudioEncoder(
@@ -150,12 +145,6 @@ class FakeInterfaceFactory : public media::mojom::InterfaceFactory {
       mojo::PendingReceiver<media::mojom::Renderer> receiver) override {}
 #endif
 #if BUILDFLAG(IS_ANDROID)
-  void CreateMediaPlayerRenderer(
-      mojo::PendingRemote<media::mojom::MediaPlayerRendererClientExtension>
-          client_extension_remote,
-      mojo::PendingReceiver<media::mojom::Renderer> receiver,
-      mojo::PendingReceiver<media::mojom::MediaPlayerRendererExtension>
-          renderer_extension_receiver) override {}
   void CreateFlingingRenderer(
       const std::string& presentation_id,
       mojo::PendingRemote<media::mojom::FlingingRendererClientExtension>
@@ -164,7 +153,8 @@ class FakeInterfaceFactory : public media::mojom::InterfaceFactory {
 #endif  // BUILDFLAG(IS_ANDROID)
   void CreateCdm(const media::CdmConfig& cdm_config,
                  CreateCdmCallback callback) override {
-    std::move(callback).Run(mojo::NullRemote(), nullptr, "CDM not supported");
+    std::move(callback).Run(mojo::NullRemote(), nullptr,
+                            media::CreateCdmStatus::kCdmNotSupported);
   }
 
 #if BUILDFLAG(IS_WIN)
@@ -188,18 +178,7 @@ class FakeInterfaceFactory : public media::mojom::InterfaceFactory {
 
 class VideoDecoderBrokerTest : public testing::Test {
  public:
-  VideoDecoderBrokerTest() {
-    // Make sure we have the option of creating HW or SW decoders.
-    std::vector<base::test::FeatureRef> disabled_features{
-        media::kForceHardwareVideoDecoders};
-
-    // Make it easier to switch between HW and SW decoders, by initializing with
-    // configs with a small height.
-    std::vector<base::test::FeatureRef> enabled_features{
-        media::kResolutionBasedDecoderPriority};
-
-    feature_list_.InitWithFeatures(enabled_features, disabled_features);
-  }
+  VideoDecoderBrokerTest() = default;
 
   ~VideoDecoderBrokerTest() override {
     // Clean up this override, or else we we fail or DCHECK in SetupMojo().
@@ -351,7 +330,6 @@ class VideoDecoderBrokerTest : public testing::Test {
   std::vector<scoped_refptr<media::VideoFrame>> output_frames_;
   std::unique_ptr<FakeInterfaceFactory> interface_factory_;
 
-  base::test::ScopedFeatureList feature_list_;
   test::TaskEnvironment task_environment_;
 };
 
@@ -463,10 +441,15 @@ TEST_F(VideoDecoderBrokerTest, Decode_MultipleAccelerationPreferences) {
   ASSERT_EQ(3U, output_frames_.size());
   EXPECT_TRUE(IsPlatformDecoder());
 
-  // Use a small frame to force software decode, without changing the
-  // acceleration preference.
-  InitializeDecoder(media::TestVideoConfig::Normal(media::VideoCodec::kVP8));
-  DecodeBuffer(media::ReadTestDataFile("vp8-I-frame-320x120"));
+  auto normal_config = media::TestVideoConfig::Normal(media::VideoCodec::kVP8);
+  InitializeDecoder(normal_config);
+  // VideoDecoderBroker doesn't have any inherent preference for software
+  // decoders based on resolution, so we'll still end up with a hardware
+  // decoder even though this is a small size clip.
+  // TODO(crbug.com/361823989): We should update the VideoDecoderBroker to
+  // always enable resolution based priority in DecoderSelector.
+  DecodeBuffer(media::CreateFakeVideoBufferForTest(
+      normal_config, base::TimeDelta(), base::Milliseconds(33)));
   DecodeBuffer(media::DecoderBuffer::CreateEOSBuffer());
   ASSERT_EQ(4U, output_frames_.size());
 

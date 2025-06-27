@@ -44,16 +44,21 @@ PerIsolateData::PerIsolateData(
     ArrayBuffer::Allocator* allocator,
     IsolateHolder::AccessMode access_mode,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner,
-    scoped_refptr<base::SingleThreadTaskRunner> low_priority_task_runner)
+    scoped_refptr<base::SingleThreadTaskRunner> user_visible_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> best_effort_task_runner)
     : isolate_(isolate), allocator_(allocator) {
   isolate_->SetData(kEmbedderNativeGin, this);
 
   DCHECK(task_runner);
   task_runner_ = CreateV8ForegroundTaskRunner(isolate_, std::move(task_runner),
                                               access_mode);
-  if (low_priority_task_runner) {
-    low_priority_task_runner_ = CreateV8ForegroundTaskRunner(
-        isolate_, std::move(low_priority_task_runner), access_mode);
+  if (user_visible_task_runner) {
+    user_visible_task_runner_ = CreateV8ForegroundTaskRunner(
+        isolate_, std::move(user_visible_task_runner), access_mode);
+  }
+  if (best_effort_task_runner) {
+    best_effort_task_runner_ = CreateV8ForegroundTaskRunner(
+        isolate_, std::move(best_effort_task_runner), access_mode);
   }
 }
 
@@ -108,7 +113,7 @@ void PerIsolateData::ClearIndexedPropertyInterceptor(
   if (it != indexed_interceptors_.end())
     indexed_interceptors_.erase(it);
   else
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
 }
 
 void PerIsolateData::ClearNamedPropertyInterceptor(
@@ -118,7 +123,7 @@ void PerIsolateData::ClearNamedPropertyInterceptor(
   if (it != named_interceptors_.end())
     named_interceptors_.erase(it);
   else
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
 }
 
 IndexedPropertyInterceptor* PerIsolateData::GetIndexedPropertyInterceptor(

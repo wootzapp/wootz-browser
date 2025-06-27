@@ -11,12 +11,12 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/autotest_desks_api.h"
-#include "ash/public/cpp/desk_profiles_delegate.h"
 #include "ash/public/cpp/desk_template.h"
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/wm/desks/desks_histogram_enums.h"
 #include "ash/wm/desks/root_window_desk_switch_animator.h"
 #include "ash/wm/desks/templates/restore_data_collector.h"
+#include "base/auto_reset.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
@@ -67,8 +67,7 @@ class DeskTemplate;
 // their windows.
 class ASH_EXPORT DesksController : public chromeos::DesksHelper,
                                    public wm::ActivationChangeObserver,
-                                   public SessionObserver,
-                                   public DeskProfilesDelegate::Observer {
+                                   public SessionObserver {
  public:
   using GetDeskTemplateCallback =
       base::OnceCallback<void(std::unique_ptr<DeskTemplate>)>;
@@ -113,11 +112,6 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
    protected:
     virtual ~Observer() = default;
   };
-
-  // The timeout duration that we allow an app window on a closed desk to run
-  // its "close" hooks before being forcefully closed.
-  static constexpr base::TimeDelta kCloseAllWindowCloseTimeout =
-      base::Seconds(1);
 
   DesksController();
 
@@ -201,8 +195,9 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   // -1 if no match is found.
   int GetDeskIndexByUuid(const base::Uuid& desk_uuid) const;
 
-  // Creates a new desk. CanCreateDesks() must be checked before calling this.
+  // Creates a new desk. `CanCreateDesks()` must be checked before calling this.
   void NewDesk(DesksCreationRemovalSource source);
+  void NewDesk(DesksCreationRemovalSource source, std::u16string name);
 
   bool HasDesk(const Desk* desk) const;
 
@@ -259,6 +254,15 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
                                   Desk* target_desk,
                                   aura::Window* target_root,
                                   DesksMoveWindowFromActiveDeskSource source);
+
+  // Similar function to `MoveWindowFromActiveDeskTo`. Instead of moving the
+  // window from the active desk, it moves window from the desk with the give
+  // `index`;
+  bool MoveWindowFromDeskAtIndexTo(aura::Window* window,
+                                   size_t index,
+                                   Desk* target_desk,
+                                   aura::Window* target_root,
+                                   DesksMoveWindowFromActiveDeskSource source);
 
   // Adds |window| to |visible_on_all_desks_windows_|.
   void AddVisibleOnAllDesksWindow(aura::Window* window);
@@ -324,6 +328,7 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
 
   // chromeos::DesksHelper:
   bool BelongsToActiveDesk(aura::Window* window) override;
+  bool BelongsToDesk(aura::Window* window, size_t index) override;
   int GetActiveDeskIndex() const override;
   std::u16string GetDeskName(int index) const override;
   int GetNumberOfDesks() const override;
@@ -332,10 +337,14 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   // Captures the active desk and returns it as a saved desk (of type
   // `template_type`) containing necessary information that can be used to
   // create a same desk via provided `callback`, `root_window_to_show` is used
-  // to determine which monitor to show saved desk related dialog.
-  void CaptureActiveDeskAsSavedDesk(GetDeskTemplateCallback callback,
-                                    DeskTemplateType template_type,
-                                    aura::Window* root_window_to_show) const;
+  // to determine which monitor to show saved desk related dialog. If the
+  // `template_type` is coral, then we only want a subset of the apps on the
+  // active desk, defined by `coral_app_id_allowlist`.
+  void CaptureActiveDeskAsSavedDesk(
+      GetDeskTemplateCallback callback,
+      DeskTemplateType template_type,
+      aura::Window* root_window_to_show,
+      const base::flat_set<std::string>& coral_app_id_allowlist) const;
 
   // Creates a new desk and optionally activates it depending on
   // `template_type`. If `customized_desk_name` is provided, desk name will be
@@ -345,6 +354,10 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   Desk* CreateNewDeskForSavedDesk(
       DeskTemplateType template_type,
       const std::u16string& customized_desk_name = std::u16string());
+
+  // Creates a new desk for the Coral group and activates it.
+  Desk* CreateNewDeskForCoralGroup(
+      const std::u16string& coral_desk_name = std::u16string());
 
   // Called when an app with `app_id` is a single instance app which is about to
   // get launched from a saved desk. Moves the existing app instance to the
@@ -369,6 +382,9 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   // `temporary_removed_desk_` and
   // `temporary_removed_desk_->is_toast_persistent()` is true.
   void MaybeDismissPersistentDeskRemovalToast();
+
+  // Requests focus on the undo desk toast's dismiss button.
+  bool RequestFocusOnUndoDeskRemovalToast();
 
   // Adds focus highlight to an active toast to undo desk removal if one is
   // active and the toast is not already highlighted. Otherwise, it removes the
@@ -397,9 +413,6 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   void OnActiveUserSessionChanged(const AccountId& account_id) override;
   void OnFirstSessionStarted() override;
 
-  // DeskProfilesDelegate::Observer:
-  void OnProfileRemoved(uint64_t profile_id) override;
-
   // Fires the timer used for recording desk traversals immediately.
   void FireMetricsTimerForTesting();
 
@@ -416,12 +429,9 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   void MaybeCommitPendingDeskRemoval(
       const std::string& toast_id = std::string());
 
-  // Returns true if the desk removal undo toast is shown.
-  bool IsUndoToastShown() const;
-
   // Returns true if there is an active toast for undoing desk removal and that
-  // toast's dismiss button is currently being highlighted.
-  bool IsUndoToastHighlighted() const;
+  // toast's dismiss button is currently being focused.
+  bool IsUndoToastFocused() const;
 
   // Tracks/untracks the z-order of `window` on all desks. Should only be called
   // when per-desk z-order is enabled.
@@ -518,6 +528,18 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
   // and the percentage of the user's desks with custom names.
   void ReportCustomDeskNames() const;
 
+  // The internal function that moves `window` from `source_desk` to
+  // `target_desk`
+  bool MoveWindowFromSourceDeskTo(aura::Window* window,
+                                  Desk* source_desk,
+                                  Desk* target_desk,
+                                  aura::Window* target_root,
+                                  DesksMoveWindowFromActiveDeskSource source);
+
+  static base::TimeDelta GetCloseAllWindowCloseTimeoutForTest();
+  static base::AutoReset<base::TimeDelta> SetCloseAllWindowCloseTimeoutForTest(
+      base::TimeDelta interval);
+
   std::vector<std::unique_ptr<Desk>> desks_;
 
   raw_ptr<Desk> active_desk_ = nullptr;
@@ -569,9 +591,6 @@ class ASH_EXPORT DesksController : public chromeos::DesksHelper,
 
   // Does the job for the `CaptureActiveDeskAsSavedDesk()` method.
   mutable RestoreDataCollector restore_data_collector_;
-
-  base::ScopedObservation<DeskProfilesDelegate, DeskProfilesDelegate::Observer>
-      desk_profiles_observer_{this};
 
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.

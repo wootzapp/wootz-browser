@@ -23,6 +23,7 @@
 #include "base/version.h"
 #include "chrome/updater/activity.h"
 #include "chrome/updater/app/app.h"
+#include "chrome/updater/branded_constants.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/persisted_data.h"
 #include "chrome/updater/prefs.h"
@@ -140,7 +141,10 @@ int AppRecover::ReinstallUpdater() const {
   if (IsSystemInstall(updater_scope())) {
     uninstall_command.AppendSwitch(kSystemSwitch);
   }
-  if (!base::LaunchProcess(uninstall_command, {}).WaitForExit(&exit_code)) {
+  const base::Process uninstall_process =
+      base::LaunchProcess(uninstall_command, {});
+  if (!uninstall_process.IsValid() ||
+      !uninstall_process.WaitForExit(&exit_code)) {
     VLOG(0) << "Failed to wait for the uninstaller to exit.";
     return kErrorWaitFailedUninstall;
   }
@@ -154,7 +158,9 @@ int AppRecover::ReinstallUpdater() const {
   if (IsSystemInstall(updater_scope())) {
     install_command.AppendSwitch(kSystemSwitch);
   }
-  if (!base::LaunchProcess(install_command, {}).WaitForExit(&exit_code)) {
+  const base::Process install_process =
+      base::LaunchProcess(install_command, {});
+  if (!install_process.IsValid() || !install_process.WaitForExit(&exit_code)) {
     VLOG(0) << "Failed to wait for the installer to exit.";
     return kErrorWaitFailedInstall;
   }
@@ -193,8 +199,8 @@ scoped_refptr<App> MakeAppRecover() {
   const base::CommandLine* command_line =
       base::CommandLine::ForCurrentProcess();
   return base::MakeRefCounted<AppRecover>(
-      base::Version(command_line->GetSwitchValueASCII(kBrowserVersionSwitch)),
-      command_line->GetSwitchValueASCII(kAppGuidSwitch));
+      base::Version(command_line->GetSwitchValueUTF8(kBrowserVersionSwitch)),
+      command_line->GetSwitchValueUTF8(kAppGuidSwitch));
 }
 
 }  // namespace updater

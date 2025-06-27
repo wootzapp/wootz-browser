@@ -6,12 +6,17 @@
 
 #include "chrome/browser/download/download_crx_util.h"
 
+#include "extensions/buildflags/buildflags.h"
+
 #include "base/strings/string_util.h"
 #include "components/download/public/common/download_item.h"
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/common/extension.h"
 #include "net/http/http_response_headers.h"
+
+// This file is used on non-desktop Android where extensions are not supported.
+// static_assert(!BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace download_crx_util {
 

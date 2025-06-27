@@ -242,8 +242,7 @@ class Comparator {
         return kAIsAfterB;
       ++offset;
     }
-    NOTREACHED_IN_MIGRATION();
-    return result_of_a_is_equal_to_b;
+    NOTREACHED();
   }
 
   static int16_t CompareNodesInSameParent(
@@ -334,8 +333,7 @@ class Comparator {
         return kAIsAfterB;
     }
 
-    NOTREACHED_IN_MIGRATION();
-    return result_of_a_is_equal_to_b;
+    NOTREACHED();
   }
 
   // Returns the child node in `parent` if `parent` is one of inclusive
@@ -370,6 +368,12 @@ int16_t ComparePositionsInFlatTree(const Node* container_a,
                                    const Node* container_b,
                                    int offset_b,
                                    bool* disconnected) {
+  if (container_a->IsShadowRoot()) {
+    container_a = container_a->OwnerShadowHost();
+  }
+  if (container_b->IsShadowRoot()) {
+    container_b = container_b->OwnerShadowHost();
+  }
   return Comparator<FlatTreeTraversal>::ComparePositions(
       container_a, offset_a, container_b, offset_b, disconnected);
 }

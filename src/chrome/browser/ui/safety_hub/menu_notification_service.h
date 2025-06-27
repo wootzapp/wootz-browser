@@ -11,14 +11,19 @@
 #include <optional>
 
 #include "base/time/time.h"
-#include "chrome/browser/extensions/cws_info_service.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/safety_hub/menu_notification.h"
 #include "chrome/browser/ui/safety_hub/notification_permission_review_service.h"
-#include "chrome/browser/ui/safety_hub/password_status_check_service.h"
+#include "chrome/browser/ui/safety_hub/revoked_permissions_service.h"
 #include "chrome/browser/ui/safety_hub/safety_hub_constants.h"
 #include "chrome/browser/ui/safety_hub/safety_hub_service.h"
-#include "chrome/browser/ui/safety_hub/unused_site_permissions_service.h"
 #include "components/keyed_service/core/keyed_service.h"
+
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/extensions/cws_info_service.h"
+#include "chrome/browser/ui/safety_hub/password_status_check_service.h"
+#include "chrome/browser/ui/safety_hub/safety_hub_hats_service.h"
+#endif  // BUILDFLAG(IS_ANDROID)
 
 struct MenuNotificationEntry {
   int command = 0;
@@ -67,10 +72,12 @@ class SafetyHubMenuNotificationService : public KeyedService {
  public:
   explicit SafetyHubMenuNotificationService(
       PrefService* pref_service,
-      UnusedSitePermissionsService* unused_site_permissions_service,
+      RevokedPermissionsService* revoked_permissions_service,
       NotificationPermissionsReviewService* notification_permissions_service,
-      extensions::CWSInfoService* extension_info_service,
+#if !BUILDFLAG(IS_ANDROID)
       PasswordStatusCheckService* password_check_service,
+      SafetyHubHatsService* safety_hub_hats_service,
+#endif  // BUILDFLAG(IS_ANDROID)
       Profile* profile);
   SafetyHubMenuNotificationService(const SafetyHubMenuNotificationService&) =
       delete;
@@ -91,19 +98,15 @@ class SafetyHubMenuNotificationService : public KeyedService {
   void DismissActiveNotificationOfModule(
       safety_hub::SafetyHubModuleType module);
 
-  // Returns the module of the notification that was last displayed to the user.
-  std::optional<safety_hub::SafetyHubModuleType>
-  GetLastShownNotificationModule() const;
-
-  // Returns the |service_info_map_|. For testing purposes only.
-  SafetyHubMenuNotification* GetNotificationForTesting(
-      safety_hub::SafetyHubModuleType service_type);
-
   void UpdateResultGetterForTesting(
       safety_hub::SafetyHubModuleType type,
       base::RepeatingCallback<
           std::optional<std::unique_ptr<SafetyHubService::Result>>()>
           result_getter);
+
+#if !BUILDFLAG(IS_ANDROID)
+  void MaybeTriggerControlSurvey() const;
+#endif  // !BUILDFLAG(IS_ANDROID)
 
  private:
   // Gets the latest result from each Safety Hub service. Will return
@@ -136,6 +139,9 @@ class SafetyHubMenuNotificationService : public KeyedService {
   // Called when the pref for Safe Browsing has been updated.
   void OnSafeBrowsingPrefUpdate();
 
+  // Returns if any safety hub notification has been shown in the menu so far.
+  bool HasAnyNotificationBeenShown() const;
+
   // Holds the mapping from module type to pref name.
   std::map<safety_hub::SafetyHubModuleType, const char*> pref_dict_key_map_;
 
@@ -151,8 +157,10 @@ class SafetyHubMenuNotificationService : public KeyedService {
   // Registrar to record the pref changes to Safe Browsing.
   PrefChangeRegistrar registrar_;
 
-  // The module of the last notification that has been shown.
-  std::optional<safety_hub::SafetyHubModuleType> last_shown_module_;
+#if !BUILDFLAG(IS_ANDROID)
+  // Safety Hub Hats service to trigger surveys.
+  raw_ptr<SafetyHubHatsService> safety_hub_hats_service_;
+#endif  // !BUILDFLAG(IS_ANDROID)
 };
 
 #endif  // CHROME_BROWSER_UI_SAFETY_HUB_MENU_NOTIFICATION_SERVICE_H_

@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/ash/assistant/assistant_test_mixin.h"
-#include "base/memory/raw_ptr.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -16,10 +16,11 @@
 #include "ash/public/cpp/test/assistant_test_api.h"
 #include "base/auto_reset.h"
 #include "base/containers/to_vector.h"
-#include "base/ranges/algorithm.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/scoped_run_loop_timeout.h"
+#include "base/test/test_timeouts.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/login/test/embedded_test_server_setup_mixin.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
@@ -30,6 +31,7 @@
 #include "chromeos/ash/components/login/auth/public/user_context.h"
 #include "components/account_id/account_id.h"
 #include "components/language/core/browser/pref_names.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "net/dns/mock_host_resolver.h"
 #include "ui/events/test/event_generator.h"
@@ -40,7 +42,7 @@ namespace ash::assistant {
 namespace {
 
 constexpr const char kTestUser[] = "test_user@gmail.com";
-constexpr const char kTestUserGaiaId[] = "test_user_gaia_id";
+constexpr const GaiaId::Literal kTestUserGaiaId("test_user_gaia_id");
 
 LoginManagerMixin::TestUserInfo GetTestUserInfo() {
   return LoginManagerMixin::TestUserInfo(
@@ -60,8 +62,9 @@ class AssistantStatusWaiter : private AssistantStateObserver {
   ~AssistantStatusWaiter() override { state_->RemoveObserver(this); }
 
   void RunUntilExpectedStatus() {
-    if (state_->assistant_status() == expected_status_)
+    if (state_->assistant_status() == expected_status_) {
       return;
+    }
 
     // Wait until we're ready or we hit the timeout.
     base::RunLoop run_loop;
@@ -75,8 +78,9 @@ class AssistantStatusWaiter : private AssistantStateObserver {
 
  private:
   void OnAssistantStatusChanged(AssistantStatus status) override {
-    if (status == expected_status_ && quit_loop_)
+    if (status == expected_status_ && quit_loop_) {
       std::move(quit_loop_).Run();
+    }
   }
 
   const raw_ptr<AssistantState> state_;
@@ -100,13 +104,15 @@ class ResponseWaiter : private views::ViewObserver {
   }
 
   ~ResponseWaiter() override {
-    if (parent_view_)
+    if (parent_view_) {
       parent_view_->RemoveObserver(this);
+    }
   }
 
   void RunUntilResponseReceived() {
-    if (HasResponse())
+    if (HasResponse()) {
       return;
+    }
 
     // Wait until we're ready or we hit the timeout.
     base::RunLoop run_loop;
@@ -126,8 +132,9 @@ class ResponseWaiter : private views::ViewObserver {
   void OnViewHierarchyChanged(
       views::View* observed_view,
       const views::ViewHierarchyChangedDetails& details) override {
-    if (quit_loop_ && HasResponse())
+    if (quit_loop_ && HasResponse()) {
       std::move(quit_loop_).Run();
+    }
   }
 
   void OnViewIsDeleting(views::View* observed_view) override {
@@ -155,8 +162,9 @@ class ResponseWaiter : private views::ViewObserver {
       return response_maybe.value() + "\n";
     } else {
       std::stringstream result;
-      for (views::View* child : view->children())
+      for (views::View* child : view->children()) {
         result << GetResponseTextRecursive(child);
+      }
       return result.str();
     }
   }
@@ -182,8 +190,9 @@ class ExpectedResponseWaiter : public ResponseWaiter {
   bool HasResponse() const override {
     std::string response = GetResponseText();
     for (const std::string& expected : expected_responses_) {
-      if (response.find(expected) != std::string::npos)
+      if (response.find(expected) != std::string::npos) {
         return true;
+      }
     }
     return false;
   }
@@ -198,8 +207,9 @@ class ExpectedResponseWaiter : public ResponseWaiter {
   std::string FormatExpectedResponses() const {
     std::stringstream result;
     result << "{\n";
-    for (const std::string& expected : expected_responses_)
+    for (const std::string& expected : expected_responses_) {
       result << "    \"" << expected << "\",\n";
+    }
     result << "}";
     return result.str();
   }
@@ -248,8 +258,9 @@ class TypedExpectedResponseWaiter : public ExpectedResponseWaiter {
   // ExpectedResponseWaiter overrides:
   std::optional<std::string> GetResponseTextOfView(
       views::View* view) const override {
-    if (view->GetClassName() == class_name_)
+    if (view->GetClassName() == class_name_) {
       return static_cast<AssistantUiElementView*>(view)->ToStringForTesting();
+    }
     return std::nullopt;
   }
 
@@ -268,8 +279,9 @@ class CallbackViewHierarchyChangedObserver : views::ViewObserver {
   }
 
   ~CallbackViewHierarchyChangedObserver() override {
-    if (parent_view_)
+    if (parent_view_) {
       parent_view_->RemoveObserver(this);
+    }
   }
 
   // ViewObserver:
@@ -282,8 +294,9 @@ class CallbackViewHierarchyChangedObserver : views::ViewObserver {
   void OnViewIsDeleting(views::View* view) override {
     DCHECK_EQ(view, parent_view_);
 
-    if (parent_view_)
+    if (parent_view_) {
       parent_view_->RemoveObserver(this);
+    }
 
     parent_view_ = nullptr;
   }
@@ -436,8 +449,8 @@ void AssistantTestMixin::SendTextQuery(const std::string& query) {
 template <typename T>
 T AssistantTestMixin::SyncCall(
     base::OnceCallback<void(base::OnceCallback<void(T)>)> func) {
-  const base::test::ScopedRunLoopTimeout run_timeout(FROM_HERE,
-                                                     kDefaultWaitTimeout);
+  const base::test::ScopedRunLoopTimeout run_timeout(
+      FROM_HERE, TestTimeouts::action_timeout());
 
   base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
   T result;
@@ -503,8 +516,9 @@ void AssistantTestMixin::ExpectTimersResponse(
   // We expect the textual representation of a timers response to be of the form
   // "<timer1 remaining time in seconds>\n<timer2 remaining time in seconds>..."
   std::stringstream expected_response;
-  for (const auto& timer : timers)
+  for (const auto& timer : timers) {
     expected_response << timer.InSeconds() << "\n";
+  }
 
   const base::test::ScopedRunLoopTimeout run_timeout(FROM_HERE, wait_timeout);
   TypedExpectedResponseWaiter waiter("AssistantTimersElementView",

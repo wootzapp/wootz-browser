@@ -7,7 +7,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/core/frame/deprecation/deprecation_report_body.h"
 #include "third_party/blink/renderer/core/frame/document_policy_violation_report_body.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -110,6 +110,23 @@ class MockReportingServiceProxy : public mojom::blink::ReportingServiceProxy {
                                              int32_t line_number,
                                              int32_t column_number) override {
     last_message_ = message;
+    if (reached_callback_) {
+      std::move(reached_callback_).Run();
+    }
+  }
+
+  void QueuePotentialPermissionsPolicyViolationReport(
+      const KURL& url,
+      const String& endpoint,
+      const String& policy_id,
+      const String& disposition,
+      const String& message,
+      const String& allow_attribute,
+      const String& src_attribute,
+      const String& source_file,
+      int32_t line_number,
+      int32_t column_number) override {
+    last_message_ = message;
     if (reached_callback_)
       std::move(reached_callback_).Run();
   }
@@ -125,6 +142,18 @@ class MockReportingServiceProxy : public mojom::blink::ReportingServiceProxy {
     last_message_ = message;
     if (reached_callback_)
       std::move(reached_callback_).Run();
+  }
+
+  void QueueCSPHashReport(const KURL& url,
+                          const String& endpoint,
+                          const String& subresource_url,
+                          const String& integrity_hash,
+                          const String& type,
+                          const String& destination) override {
+    last_message_ = "";
+    if (reached_callback_) {
+      std::move(reached_callback_).Run();
+    }
   }
 
   const BrowserInterfaceBrokerProxy& broker_;

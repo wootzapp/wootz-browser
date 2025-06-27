@@ -11,18 +11,9 @@
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
-#include "base/metrics/histogram_functions.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 
 namespace storage {
-
-namespace {
-
-void RecordSkippedOriginHistogram(const InvalidOriginReason reason) {
-  base::UmaHistogramEnumeration("Quota.SkippedInvalidOriginUsage", reason);
-}
-
-}  // namespace
 
 struct ClientUsageTracker::AccumulateInfo {
   int64_t limited_usage = 0;
@@ -32,10 +23,8 @@ struct ClientUsageTracker::AccumulateInfo {
 ClientUsageTracker::ClientUsageTracker(
     UsageTracker* tracker,
     mojom::QuotaClient* client,
-    blink::mojom::StorageType type,
     scoped_refptr<SpecialStoragePolicy> special_storage_policy)
     : client_(client),
-      type_(type),
       special_storage_policy_(std::move(special_storage_policy)) {
   DCHECK(client_);
   if (special_storage_policy_.get())
@@ -62,22 +51,6 @@ void ClientUsageTracker::GetBucketsUsage(const std::set<BucketLocator>& buckets,
                      std::move(info)));
 
   for (const auto& bucket : buckets) {
-    // TODO(crbug.com/41446656): `storage_key` should not be opaque or
-    // have an empty url, but sometimes it is.
-    if (bucket.storage_key.origin().opaque()) {
-      DVLOG(1) << "GetBucketsUsage for opaque storage_key!";
-      RecordSkippedOriginHistogram(InvalidOriginReason::kIsOpaque);
-      barrier.Run();
-      continue;
-    }
-
-    if (bucket.storage_key.origin().GetURL().is_empty()) {
-      DVLOG(1) << "GetBucketsUsage for storage_key with empty url!";
-      RecordSkippedOriginHistogram(InvalidOriginReason::kIsEmpty);
-      barrier.Run();
-      continue;
-    }
-
     // Use a cached usage value, if we have one.
     int64_t cached_usage = GetCachedBucketUsage(bucket);
     if (cached_usage != -1) {
@@ -285,8 +258,6 @@ void ClientUsageTracker::OnCleared() {
 bool ClientUsageTracker::IsStorageUnlimited(
     const blink::StorageKey& storage_key) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (type_ == blink::mojom::StorageType::kSyncable)
-    return false;
   return special_storage_policy_.get() &&
          special_storage_policy_->IsStorageUnlimited(
              storage_key.origin().GetURL());

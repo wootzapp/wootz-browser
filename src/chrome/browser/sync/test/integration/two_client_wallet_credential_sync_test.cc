@@ -5,10 +5,10 @@
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/wallet_helper.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/test_autofill_clock.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
-#include "components/sync/base/model_type.h"
 #include "components/sync/engine/loopback_server/persistent_tombstone_entity.h"
 #include "content/public/test/browser_test.h"
 
@@ -27,7 +27,9 @@ class TwoClientWalletCredentialSyncTest : public SyncTest {
  public:
   TwoClientWalletCredentialSyncTest() : SyncTest(TWO_CLIENT) {
     features_.InitWithFeatures(
-        /*enabled_features=*/{kSyncAutofillWalletCredentialData},
+        /*enabled_features=*/{kSyncAutofillWalletCredentialData,
+                              autofill::features::
+                                  kAutofillEnableCvcStorageAndFilling},
         /*disabled_features=*/{});
   }
 
@@ -41,8 +43,6 @@ class TwoClientWalletCredentialSyncTest : public SyncTest {
   bool TestUsesSelfNotifications() override { return false; }
 
   bool SetUpSyncAndInitialize() {
-    test_clock_.SetNow(base::Time::FromSecondsSinceUnixEpoch(25));
-
     if (!SetupSync()) {
       return false;
     }
@@ -68,7 +68,6 @@ class TwoClientWalletCredentialSyncTest : public SyncTest {
   }
 
  private:
-  autofill::TestAutofillClock test_clock_;
   base::test::ScopedFeatureList features_;
 };
 
@@ -77,7 +76,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientWalletCredentialSyncTest, AddCvcToCreditCard) {
   ASSERT_TRUE(SetUpSyncAndInitialize());
 
   // Grab the current card on the first client.
-  std::vector<autofill::CreditCard*> credit_cards =
+  std::vector<const autofill::CreditCard*> credit_cards =
       GetServerCreditCards(/*profile=*/0);
   ASSERT_EQ(1u, credit_cards.size());
   EXPECT_TRUE(credit_cards[0]->cvc().empty());
@@ -106,7 +105,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientWalletCredentialSyncTest,
 
   // Grab the server cards from both the clients. Verify that CVC is not empty
   // and has the default value.
-  std::vector<autofill::CreditCard*> credit_cards;
+  std::vector<const autofill::CreditCard*> credit_cards;
   for (int profile_id = 0; profile_id < 2; profile_id++) {
     credit_cards = GetServerCreditCards(/*profile=*/profile_id);
     ASSERT_EQ(1u, credit_cards.size());
@@ -137,7 +136,7 @@ IN_PROC_BROWSER_TEST_F(TwoClientWalletCredentialSyncTest,
 
   // Grab the server cards from both the clients. Verify that CVC is not empty
   // and has the default value.
-  std::vector<autofill::CreditCard*> credit_cards;
+  std::vector<const autofill::CreditCard*> credit_cards;
   for (int profile_id = 0; profile_id < 2; profile_id++) {
     credit_cards = GetServerCreditCards(/*profile=*/profile_id);
     ASSERT_EQ(1u, credit_cards.size());

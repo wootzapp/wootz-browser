@@ -6,12 +6,14 @@ package org.chromium.chrome.browser.tasks.tab_management;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import androidx.annotation.ColorInt;
+import androidx.annotation.StringRes;
 import androidx.core.widget.ImageViewCompat;
 
 import org.chromium.chrome.tab_ui.R;
@@ -27,23 +29,23 @@ import java.util.List;
 /** Handles toolbar functionality for TabListEditor. */
 class TabListEditorToolbar extends SelectableListToolbar<Integer> {
     private static final List<Integer> sEmptyIntegerList = Collections.emptyList();
-    private Context mContext;
     private ChromeImageButton mMenuButton;
     private TabListEditorActionViewLayout mActionViewLayout;
     @ColorInt private int mBackgroundColor;
+    @StringRes private int mBackButtonAccessibilityString;
     private RelatedTabCountProvider mRelatedTabCountProvider;
 
     public interface RelatedTabCountProvider {
         /**
          * @param tabIds the selected items.
-         * @returns the count of tabs including related tabs.
+         * @return the count of tabs including related tabs.
          */
         int getRelatedTabCount(List<Integer> tabIds);
     }
 
     public TabListEditorToolbar(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mContext = context;
+        mBackButtonAccessibilityString = R.string.accessibility_tab_selection_editor_back_button;
     }
 
     @Override
@@ -51,10 +53,10 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
         super.onFinishInflate();
 
         showNavigationButton();
-        mActionViewLayout =
-                (TabListEditorActionViewLayout) findViewById(R.id.action_view_layout);
-        mMenuButton = (ChromeImageButton) findViewById(R.id.list_menu_button);
+        mActionViewLayout = findViewById(R.id.action_view_layout);
+        mMenuButton = findViewById(R.id.list_menu_button);
 
+        // Can be overridden by #setToolbarTitle.
         mNumberRollView.setStringForZero(R.string.tab_selection_editor_toolbar_select_tabs);
         mNumberRollView.setString(R.plurals.tab_selection_editor_tabs_count);
 
@@ -78,13 +80,12 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
         navigationIconDrawable.setTint(lightIconColor);
 
         setNavigationIcon(navigationIconDrawable);
-        setNavigationContentDescription(R.string.accessibility_tab_selection_editor_back_button);
+        setNavigationContentDescription(mBackButtonAccessibilityString);
     }
 
     @Override
     public void onSelectionStateChange(List<Integer> selectedItems) {
         super.onSelectionStateChange(selectedItems);
-        int selectedItemsSize = selectedItems.size();
 
         if (mRelatedTabCountProvider == null) return;
 
@@ -106,7 +107,7 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
     @Override
     protected void showSelectionView(List<Integer> selectedItems, boolean wasSelectionEnabled) {
         super.showSelectionView(selectedItems, wasSelectionEnabled);
-        if (mBackgroundColor != 0) {
+        if (mBackgroundColor != Color.TRANSPARENT) {
             setBackgroundColor(mBackgroundColor);
         }
     }
@@ -118,8 +119,15 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
         return mActionViewLayout;
     }
 
+    /** Override the back button content description. */
+    public void setBackButtonContentDescription(@StringRes int backButtonContentDescription) {
+        mBackButtonAccessibilityString = backButtonContentDescription;
+        setNavigationContentDescription(mBackButtonAccessibilityString);
+    }
+
     /**
      * Update the tint for buttons, the navigation button and the action button, in the toolbar.
+     *
      * @param tint New {@link ColorStateList} to use.
      */
     public void setButtonTint(ColorStateList tint) {
@@ -130,10 +138,12 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
 
     /**
      * Update the toolbar background color.
+     *
      * @param backgroundColor The new color to use.
      */
     public void setToolbarBackgroundColor(@ColorInt int backgroundColor) {
         mBackgroundColor = backgroundColor;
+        setBackgroundColor(mBackgroundColor);
     }
 
     /**
@@ -150,5 +160,10 @@ class TabListEditorToolbar extends SelectableListToolbar<Integer> {
      */
     public void setRelatedTabCountProvider(RelatedTabCountProvider relatedTabCountProvider) {
         mRelatedTabCountProvider = relatedTabCountProvider;
+    }
+
+    /** Set the title of the toolbar when no tabs are selected. */
+    public void setTitle(String title) {
+        mNumberRollView.setStringForZero(title);
     }
 }

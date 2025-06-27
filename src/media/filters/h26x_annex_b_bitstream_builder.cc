@@ -35,7 +35,7 @@ void H26xAnnexBBitstreamBuilder::Grow() {
   auto grown = base::HeapArray<uint8_t>::Uninit(data_.size() + kGrowBytes);
   // The first `pos_` bytes in `data_` are initialized. Copy them but don't read
   // from the uninitialized stuff after it.
-  grown.first(pos_).copy_from(data_.first(pos_));
+  grown.copy_prefix_from(data_.first(pos_));
   data_ = std::move(grown);
 }
 
@@ -51,7 +51,7 @@ void H26xAnnexBBitstreamBuilder::FlushReg() {
   reg_ <<= (kRegBitSize - bits_in_reg);
 
   // Convert to MSB and append as such to the stream.
-  std::array<uint8_t, 8> reg_be = base::numerics::U64ToBigEndian(reg_);
+  std::array<uint8_t, 8> reg_be = base::U64ToBigEndian(reg_);
 
   if (insert_emulation_prevention_bytes_ && in_nalu_) {
     // The EPB only works on complete bytes being flushed.
@@ -82,8 +82,8 @@ void H26xAnnexBBitstreamBuilder::FlushReg() {
       Grow();
     }
 
-    data_.subspan(pos_, bytes_in_reg)
-        .copy_from(base::span(reg_be).first(bytes_in_reg));
+    data_.subspan(pos_).copy_prefix_from(
+        base::span(reg_be).first(bytes_in_reg));
     bits_in_buffer_ = pos_ * 8u + bits_in_reg;
     pos_ += bytes_in_reg;
   }
@@ -208,11 +208,11 @@ size_t H26xAnnexBBitstreamBuilder::BytesInBuffer() const {
   return pos_;
 }
 
-const uint8_t* H26xAnnexBBitstreamBuilder::data() const {
+base::span<const uint8_t> H26xAnnexBBitstreamBuilder::data() const {
   DCHECK(!data_.empty());
   DCHECK_FINISHED();
 
-  return data_.data();
+  return data_.first(pos_);
 }
 
 }  // namespace media

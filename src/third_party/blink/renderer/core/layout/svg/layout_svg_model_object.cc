@@ -58,12 +58,6 @@ void LayoutSVGModelObject::MapLocalToAncestor(
   SVGLayoutSupport::MapLocalToAncestor(this, ancestor, transform_state, flags);
 }
 
-PhysicalRect LayoutSVGModelObject::VisualRectInDocument(
-    VisualRectFlags flags) const {
-  NOT_DESTROYED();
-  return SVGLayoutSupport::VisualRectInAncestorSpace(*this, *View(), flags);
-}
-
 void LayoutSVGModelObject::MapAncestorToLocal(
     const LayoutBoxModelObject* ancestor,
     TransformState& transform_state,
@@ -72,11 +66,13 @@ void LayoutSVGModelObject::MapAncestorToLocal(
   SVGLayoutSupport::MapAncestorToLocal(*this, ancestor, transform_state, flags);
 }
 
-void LayoutSVGModelObject::AbsoluteQuads(Vector<gfx::QuadF>& quads,
-                                         MapCoordinatesFlags mode) const {
+void LayoutSVGModelObject::QuadsInAncestorInternal(
+    Vector<gfx::QuadF>& quads,
+    const LayoutBoxModelObject* ancestor,
+    MapCoordinatesFlags mode) const {
   NOT_DESTROYED();
   quads.push_back(
-      LocalToAbsoluteQuad(gfx::QuadF(DecoratedBoundingBox()), mode));
+      LocalToAncestorQuad(gfx::QuadF(DecoratedBoundingBox()), ancestor, mode));
 }
 
 // This method is called from inside PaintOutline(), and since we call
@@ -124,8 +120,7 @@ bool LayoutSVGModelObject::CheckForImplicitTransformChange(
     case ETransformBox::kBorderBox:
       return bbox_changed;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void LayoutSVGModelObject::ImageChanged(WrappedImagePtr image,
@@ -186,11 +181,6 @@ void LayoutSVGModelObject::StyleDidChange(StyleDifference diff,
 void LayoutSVGModelObject::InsertedIntoTree() {
   NOT_DESTROYED();
   LayoutObject::InsertedIntoTree();
-  // Ensure that the viewport dependency flag gets set on the ancestor chain.
-  if (SVGSelfOrDescendantHasViewportDependency()) {
-    ClearSVGSelfOrDescendantHasViewportDependency();
-    SetSVGSelfOrDescendantHasViewportDependency();
-  }
   LayoutSVGResourceContainer::MarkForLayoutAndParentResourceInvalidation(*this,
                                                                          false);
   if (StyleRef().HasSVGEffect())

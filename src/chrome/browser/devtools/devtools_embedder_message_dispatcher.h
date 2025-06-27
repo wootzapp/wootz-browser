@@ -23,6 +23,7 @@ struct HoverEvent;
 struct DragEvent;
 struct ChangeEvent;
 struct KeyDownEvent;
+struct SettingAccessEvent;
 
 /**
  * Dispatcher for messages sent from the DevTools frontend running in an
@@ -59,6 +60,12 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void RemoveFileSystem(const std::string& file_system_path) = 0;
     virtual void UpgradeDraggedFileSystemPermissions(
         const std::string& file_system_url) = 0;
+    virtual void ConnectAutomaticFileSystem(DispatchCallback callback,
+                                            const std::string& file_system_path,
+                                            const std::string& file_system_uuid,
+                                            bool add_if_missing) = 0;
+    virtual void DisconnectAutomaticFileSystem(
+        const std::string& file_system_path) = 0;
     virtual void IndexPath(int index_request_id,
                            const std::string& file_system_path,
                            const std::string& excluded_folders) = 0;
@@ -96,6 +103,7 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void RemovePreference(const std::string& name) = 0;
     virtual void ClearPreferences() = 0;
     virtual void GetSyncInformation(DispatchCallback callback) = 0;
+    virtual void GetHostConfig(DispatchCallback callback) = 0;
     virtual void DispatchProtocolMessageFromDevToolsFrontend(
         const std::string& message) = 0;
     virtual void RecordCountHistogram(const std::string& name,
@@ -108,6 +116,8 @@ class DevToolsEmbedderMessageDispatcher {
                                            int boundary_value) = 0;
     virtual void RecordPerformanceHistogram(const std::string& name,
                                             double duration) = 0;
+    virtual void RecordPerformanceHistogramMedium(const std::string& name,
+                                                  double duration) = 0;
     virtual void RecordUserMetricsAction(const std::string& name) = 0;
     virtual void RecordImpression(const ImpressionEvent& event) = 0;
     virtual void RecordResize(const ResizeEvent& event) = 0;
@@ -116,9 +126,7 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void RecordDrag(const DragEvent& event) = 0;
     virtual void RecordChange(const ChangeEvent& event) = 0;
     virtual void RecordKeyDown(const KeyDownEvent& event) = 0;
-    virtual void SendJsonRequest(DispatchCallback callback,
-                                 const std::string& browser_id,
-                                 const std::string& url) = 0;
+    virtual void RecordSettingAccess(const SettingAccessEvent& event) = 0;
     virtual void Reattach(DispatchCallback callback) = 0;
     virtual void ReadyForTest() = 0;
     virtual void ConnectionReady() = 0;
@@ -132,7 +140,8 @@ class DevToolsEmbedderMessageDispatcher {
     virtual void DoAidaConversation(DispatchCallback callback,
                                     const std::string& request,
                                     int stream_id) = 0;
-    virtual void RegisterAidaClientEvent(const std::string& request) = 0;
+    virtual void RegisterAidaClientEvent(DispatchCallback callback,
+                                         const std::string& request) = 0;
   };
 
   using DispatchCallback = Delegate::DispatchCallback;

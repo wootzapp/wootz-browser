@@ -2,15 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/ssl/ssl_platform_key_win.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "crypto/openssl_util.h"
 #include "crypto/scoped_capi_types.h"
@@ -62,7 +67,7 @@ std::string GetCAPIProviderName(HCRYPTPROV provider) {
   }
   // Per Microsoft's documentation, PP_NAME is NUL-terminated. However,
   // smartcard drivers are notoriously buggy, so check this.
-  auto nul = base::ranges::find(name, 0);
+  auto nul = std::ranges::find(name, 0);
   if (nul != name.end()) {
     name_len = nul - name.begin();
   }
@@ -127,8 +132,7 @@ class SSLPlatformKeyCAPI : public ThreadedSSLPrivateKey::Delegate {
         hash_alg = CALG_SHA_512;
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return ERR_FAILED;
+        NOTREACHED();
     }
 
     crypto::ScopedHCRYPTHASH hash_handle;
@@ -212,7 +216,7 @@ std::wstring GetCNGProviderName(NCRYPT_KEY_HANDLE key) {
 
   // Per Microsoft's documentation, the name is NUL-terminated. However,
   // smartcard drivers are notoriously buggy, so check this.
-  auto nul = base::ranges::find(name, 0);
+  auto nul = std::ranges::find(name, 0);
   if (nul != name.end()) {
     name.erase(nul, name.end());
   }
@@ -318,8 +322,7 @@ class SSLPlatformKeyCNG : public ThreadedSSLPrivateKey::Delegate {
           hash_alg = BCRYPT_SHA512_ALGORITHM;
           break;
         default:
-          NOTREACHED_IN_MIGRATION();
-          return ERR_FAILED;
+          NOTREACHED();
       }
       if (SSL_is_signature_algorithm_rsa_pss(algorithm)) {
         pss_padding_info.pszAlgId = hash_alg;

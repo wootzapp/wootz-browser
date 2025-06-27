@@ -5,19 +5,19 @@
 """Tests for query_optimal_shard_counts.py."""
 
 import datetime
-import sys
 import os
 import json
-import mock
 import platform
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                '..'))
-
+# //testing/buildbot imports.
 import query_optimal_shard_counts
+
+# Protected access is allowed for unittests.
+# pylint: disable=protected-access
 
 SUITE_DURATIONS_DEFAULT_DICT = {
     'shard_count': 10,
@@ -104,6 +104,7 @@ class FormatQueryResults(unittest.TestCase):
               'chromium.builder_group': {
                   'builder_name': {
                       'fake_test_suite': {
+                          'try_builder': 'linux-rel',
                           'shards': 4
                       }
                   }
@@ -154,10 +155,12 @@ class FormatQueryResults(unittest.TestCase):
     with open(self.output_file, 'r') as f:
       script_result = json.load(f)
     self.assertEqual(
-        script_result['chromium.linux']['Linux Tests'],
-        {'browser_tests': {
-            'shards': expected_optimal_shard_count
-        }})
+        script_result['chromium.linux']['Linux Tests'], {
+            'browser_tests': {
+                'shards': expected_optimal_shard_count,
+                'try_builder': 'linux-rel'
+            }
+        })
 
   def testMultipleBuildersInGroup(self):
     expected_optimal_shard_count_1 = 15
@@ -210,14 +213,19 @@ class FormatQueryResults(unittest.TestCase):
         2,
     )
     self.assertEqual(
-        script_result['chromium.linux']['Linux Tests'],
-        {'browser_tests': {
-            'shards': expected_optimal_shard_count_1
-        }})
-    self.assertEqual(script_result['chromium.linux']['Linux GPU Tests'],
-                     {'gpu_tests': {
-                         'shards': expected_optimal_shard_count_2
-                     }})
+        script_result['chromium.linux']['Linux Tests'], {
+            'browser_tests': {
+                'shards': expected_optimal_shard_count_1,
+                'try_builder': 'linux-rel'
+            }
+        })
+    self.assertEqual(
+        script_result['chromium.linux']['Linux GPU Tests'], {
+            'gpu_tests': {
+                'shards': expected_optimal_shard_count_2,
+                'try_builder': 'linux-rel'
+            }
+        })
 
   def testVerbose(self):
     suite_durations = json.dumps([
@@ -370,9 +378,11 @@ class FormatQueryResults(unittest.TestCase):
             'Linux Tests': {
                 'browser_tests': {
                     'shards': 10,
+                    'try_builder': 'linux-rel',
                 },
                 'interactive_ui_tests': {
                     'shards': 3,
+                    'try_builder': 'linux-rel',
                 }
             },
         },
@@ -380,6 +390,7 @@ class FormatQueryResults(unittest.TestCase):
             'android-12-x64-rel': {
                 'webview_instrumentation_test_apk': {
                     'shards': 11,
+                    'try_builder': 'android-try',
                 }
             }
         }
@@ -391,16 +402,25 @@ class FormatQueryResults(unittest.TestCase):
       script_result = json.load(f)
     self.assertEqual(
         script_result['chromium.linux']['Linux Tests']['browser_tests'],
-        {'shards': 23},
+        {
+            'shards': 23,
+            'try_builder': 'linux-rel',
+        },
     )
     self.assertEqual(
         script_result['chromium.linux']['Linux Tests']['interactive_ui_tests'],
-        {'shards': 3},
+        {
+            'shards': 3,
+            'try_builder': 'linux-rel',
+        },
     )
     self.assertEqual(
         script_result['chromium.android']['android-12-x64-rel']
         ['webview_instrumentation_test_apk'],
-        {'shards': 11},
+        {
+            'shards': 11,
+            'try_builder': 'android-try',
+        },
     )
 
   def testOverwriteExistingOutputFile(self):
@@ -456,7 +476,10 @@ class FormatQueryResults(unittest.TestCase):
       script_result = json.load(f)
     self.assertEqual(
         script_result['chromium.linux']['Linux Tests']['browser_tests'],
-        {'shards': 23},
+        {
+            'shards': 23,
+            'try_builder': 'linux-rel'
+        },
     )
     self.assertIsNone(script_result['chromium.linux']['Linux Tests'].get(
         'interactive_ui_tests'))
@@ -765,8 +788,61 @@ class FormatQueryResults(unittest.TestCase):
     self.assertEqual(
         script_result['chromium.android']['android-12-x64-rel']
         ['webview_instrumentation_test_apk'],
-        {'shards': 15},
+        {
+            'shards': 15,
+            'try_builder': 'android-12-x64-rel'
+        },
     )
+
+  def testPruned(self):
+    suite_durations = json.dumps([
+        query_suite_durations_dict(
+            waterfall_builder_group='chromium.win',
+            waterfall_builder_name='Win10 Tests x64',
+            try_builder='win-rel',
+            test_suite='browser_tests',
+        ),
+    ])
+    overheads = json.dumps([
+        query_test_overheads_dict(
+            waterfall_builder_group='chromium.win',
+            waterfall_builder_name='Win10 Tests x64',
+            try_builder='win-rel',
+            test_suite='browser_tests',
+        ),
+    ])
+    avg_num_builds_per_hour = json.dumps([
+        query_average_number_builds_per_hour(try_builder='win-rel'),
+    ])
+    cq_builders = json.dumps([{'builder': 'linux-rel'}])
+    self._mock_check_output.side_effect = [
+        suite_durations,
+        overheads,
+        avg_num_builds_per_hour,
+        cq_builders,
+    ]
+
+    query_optimal_shard_counts.main([
+        '--verbose',
+        '--output-file',
+        self.output_file,
+        '--prune',
+    ])
+
+    with open(self.output_file, 'r') as f:
+      script_result = json.load(f)
+    # Only linux-rel is a required builder so win-rel should be pruned
+    self.assertEqual(
+        script_result, {
+            'chromium.builder_group': {
+                'builder_name': {
+                    'fake_test_suite': {
+                        'try_builder': 'linux-rel',
+                        'shards': 4
+                    }
+                }
+            }
+        })
 
   @mock.patch('query_optimal_shard_counts.TEST_SUITE_EXCLUDE_SET',
               new={'browser_tests', 'ui_tests'})

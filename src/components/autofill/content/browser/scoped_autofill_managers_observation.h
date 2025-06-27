@@ -8,7 +8,7 @@
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
-#include "components/autofill/core/browser/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
 
 namespace content {
 class WebContents;
@@ -71,15 +71,20 @@ class ScopedAutofillManagersObservation final
   // Resets all observations.
   void Reset();
 
+  // Returns the `WebContents` whose factory it is observing.
+  content::WebContents* web_contents();
+
  private:
   // ContentAutofillDriverFactory::Observer:
   void OnContentAutofillDriverFactoryDestroyed(
       ContentAutofillDriverFactory& factory) override;
   void OnContentAutofillDriverCreated(ContentAutofillDriverFactory& factory,
                                       ContentAutofillDriver& driver) override;
-  void OnContentAutofillDriverWillBeDeleted(
+  void OnContentAutofillDriverStateChanged(
       ContentAutofillDriverFactory& factory,
-      ContentAutofillDriver& driver) override;
+      ContentAutofillDriver& driver,
+      AutofillDriver::LifecycleState old_state,
+      AutofillDriver::LifecycleState new_state) override;
 
   // The observation used to track driver creation and destruction.
   base::ScopedObservation<ContentAutofillDriverFactory,

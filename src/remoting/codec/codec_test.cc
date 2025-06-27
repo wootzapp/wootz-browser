@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/codec/codec_test.h"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <array>
 #include <memory>
 #include <utility>
 
@@ -213,7 +219,7 @@ static void TestEncodingRects(VideoEncoder* encoder,
 }
 
 void TestVideoEncoder(VideoEncoder* encoder, bool strict) {
-  const int kSizes[] = {80, 79, 77, 54};
+  const auto kSizes = std::to_array<int>({80, 79, 77, 54});
 
   VideoEncoderTester tester(nullptr);
 

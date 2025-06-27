@@ -104,7 +104,7 @@ struct FontCacheKey {
       font_variant_alternates_ ? font_variant_alternates_->GetHash() : 0,
       is_unique_match_
     };
-    return StringHasher::HashMemory<sizeof(hash_codes)>(hash_codes);
+    return StringHasher::HashMemory(base::as_byte_span(hash_codes));
   }
 
   bool operator==(const FontCacheKey& other) const {
@@ -169,6 +169,12 @@ struct HashTraits<blink::FontCacheKey>
   // and it is held within FontFaceCreationParams.
   static const bool kEmptyValueIsZero = false;
 };
+
+// `FontCacheKey` contains an `std::string` (via `FontFaceCreationParams`)
+// which contains poisoned metadata for detecting buffer overflows in short
+// strings. Copying this string as part of `KeyValuePairExtractor` will thus
+// trigger ASAN warnings.
+static_assert(!HashTraits<blink::FontCacheKey>::kCanTraceConcurrently);
 
 }  // namespace WTF
 

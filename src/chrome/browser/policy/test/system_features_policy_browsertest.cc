@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/values.h"
@@ -13,14 +14,12 @@
 #include "chrome/browser/ash/guest_os/guest_os_terminal.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/extensions/component_loader.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -31,7 +30,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
-#include "extensions/browser/extension_system.h"
+#include "extensions/browser/extension_registry.h"
 #include "extensions/common/constants.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -55,7 +54,7 @@ class SystemFeaturesPolicyTest : public PolicyTest {
  public:
   SystemFeaturesPolicyTest() {
     scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{ash::features::kEcheSWA},
+        /*enabled_features=*/{ash::features::kEcheSWA, ash::features::kConch},
         /*disabled_features=*/{});
     fake_crostini_features_.set_is_allowed_now(true);
   }
@@ -77,10 +76,8 @@ class SystemFeaturesPolicyTest : public PolicyTest {
   void EnableExtensions(bool skip_session_components) {
     auto* profile = browser()->profile();
     extensions::ComponentLoader::EnableBackgroundExtensionsForTesting();
-    extensions::ExtensionSystem::Get(profile)
-        ->extension_service()
-        ->component_loader()
-        ->AddDefaultComponentExtensions(skip_session_components);
+    extensions::ComponentLoader::Get(profile)->AddDefaultComponentExtensions(
+        skip_session_components);
     base::RunLoop().RunUntilIdle();
   }
 
@@ -331,22 +328,31 @@ IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest, DisableSWAs) {
   InstallSWAs();
 
   // Disable Camera app.
-  VerifyAppDisableMode(web_app::kCameraAppId, kCameraFeature);
+  VerifyAppDisableMode(ash::kCameraAppId, kCameraFeature);
 
   // Disable Explore app.
-  VerifyAppDisableMode(web_app::kHelpAppId, kExploreFeature);
+  VerifyAppDisableMode(ash::kHelpAppId, kExploreFeature);
 
   // Disable Gallery app.
-  VerifyAppDisableMode(web_app::kMediaAppId, kGalleryFeature);
+  VerifyAppDisableMode(ash::kMediaAppId, kGalleryFeature);
 
   // Disable Terminal app.
   VerifyAppDisableMode(guest_os::kTerminalSystemAppId, kTerminalFeature);
+
+  // Disable Print Jobs app.
+  VerifyAppDisableMode(ash::kPrintManagementAppId, kPrintJobsFeature);
+
+  // Disable Key Shortcuts app.
+  VerifyAppDisableMode(ash::kShortcutCustomizationAppId, kKeyShortcutsFeature);
+
+  // Disable Recorder app.
+  VerifyAppDisableMode(ash::kRecorderAppId, kRecorderFeature);
 }
 
 IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest,
                        DisableMultipleAppsWithHiddenModeAfterInstall) {
   InstallSWAs();
-  InstallPWA(GURL(kCanvasAppURL), web_app::kCanvasAppId);
+  InstallPWA(GURL(kCanvasAppURL), ash::kCanvasAppId);
 
   // Disable app with hidden mode.
   const base::Value::List system_features = base::Value::List()
@@ -356,26 +362,35 @@ IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest,
                                                 .Append(kCanvasFeature)
                                                 .Append(kCroshFeature)
                                                 .Append(kGalleryFeature)
-                                                .Append(kTerminalFeature);
+                                                .Append(kTerminalFeature)
+                                                .Append(kPrintJobsFeature)
+                                                .Append(kKeyShortcutsFeature)
+                                                .Append(kRecorderFeature);
   UpdateSystemFeaturesDisableList(system_features.Clone(), kHiddenDisableMode);
 
   VisibilityFlags expected_visibility =
       GetVisibilityFlags(true /* is_hidden */);
-  VerifyAppState(web_app::kCameraAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kScanningAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
+  VerifyAppState(ash::kCameraAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kScanningAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
   VerifyExtensionAppState(extensions::kWebStoreAppId,
                           apps::Readiness::kDisabledByPolicy, true,
                           expected_visibility);
-  VerifyAppState(web_app::kCanvasAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kCanvasAppId, apps::Readiness::kDisabledByPolicy, true,
                  expected_visibility);
-  VerifyAppState(web_app::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
                  expected_visibility);
   VerifyAppState(guest_os::kTerminalSystemAppId,
                  apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kPrintManagementAppId, apps::Readiness::kDisabledByPolicy,
+                 true, expected_visibility);
+  VerifyAppState(ash::kShortcutCustomizationAppId,
+                 apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kRecorderAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
 
   // Disable and block apps.
   expected_visibility = GetVisibilityFlags(false /* is_hidden */);
@@ -384,37 +399,49 @@ IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest,
       GetVisibilityFlags(true /* is_hidden */);
   UpdateSystemFeaturesDisableList(system_features.Clone(), kBlockedDisableMode);
 
-  VerifyAppState(web_app::kCameraAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kScanningAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
+  VerifyAppState(ash::kCameraAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kScanningAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
   VerifyExtensionAppState(extensions::kWebStoreAppId,
                           apps::Readiness::kDisabledByPolicy, true,
                           expected_visibility);
-  VerifyAppState(web_app::kCanvasAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kCanvasAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
                  crosh_expected_visibility);
-  VerifyAppState(web_app::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
                  expected_visibility);
   VerifyAppState(guest_os::kTerminalSystemAppId,
                  apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kPrintManagementAppId, apps::Readiness::kDisabledByPolicy,
+                 true, expected_visibility);
+  VerifyAppState(ash::kShortcutCustomizationAppId,
+                 apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kRecorderAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
 
   // Enable apps.
   UpdateSystemFeaturesDisableList(base::Value(), nullptr);
-  VerifyAppState(web_app::kCameraAppId, apps::Readiness::kReady, false,
+  VerifyAppState(ash::kCameraAppId, apps::Readiness::kReady, false,
                  expected_visibility);
-  VerifyAppState(web_app::kScanningAppId, apps::Readiness::kReady, false,
+  VerifyAppState(ash::kScanningAppId, apps::Readiness::kReady, false,
                  expected_visibility);
   VerifyExtensionAppState(extensions::kWebStoreAppId, apps::Readiness::kReady,
                           false, expected_visibility);
-  VerifyAppState(web_app::kCanvasAppId, apps::Readiness::kReady, false,
+  VerifyAppState(ash::kCanvasAppId, apps::Readiness::kReady, false,
                  expected_visibility);
-  VerifyAppState(web_app::kCroshAppId, apps::Readiness::kReady, false,
+  VerifyAppState(ash::kCroshAppId, apps::Readiness::kReady, false,
                  crosh_expected_visibility);
-  VerifyAppState(web_app::kMediaAppId, apps::Readiness::kReady, false,
+  VerifyAppState(ash::kMediaAppId, apps::Readiness::kReady, false,
                  expected_visibility);
   VerifyAppState(guest_os::kTerminalSystemAppId, apps::Readiness::kReady, false,
+                 expected_visibility);
+  VerifyAppState(ash::kPrintManagementAppId, apps::Readiness::kReady, false,
+                 expected_visibility);
+  VerifyAppState(ash::kShortcutCustomizationAppId, apps::Readiness::kReady,
+                 false, expected_visibility);
+  VerifyAppState(ash::kRecorderAppId, apps::Readiness::kReady, false,
                  expected_visibility);
 }
 
@@ -427,31 +454,40 @@ IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest,
                                                 .Append(kCanvasFeature)
                                                 .Append(kCroshFeature)
                                                 .Append(kGalleryFeature)
-                                                .Append(kTerminalFeature);
+                                                .Append(kTerminalFeature)
+                                                .Append(kPrintJobsFeature)
+                                                .Append(kKeyShortcutsFeature)
+                                                .Append(kRecorderFeature);
   UpdateSystemFeaturesDisableList(system_features.Clone(), kHiddenDisableMode);
 
   InstallSWAs();
-  InstallPWA(GURL(kCanvasAppURL), web_app::kCanvasAppId);
+  InstallPWA(GURL(kCanvasAppURL), ash::kCanvasAppId);
 
   VisibilityFlags expected_visibility =
       GetVisibilityFlags(true /* is_hidden */);
 
   // Disable app with hidden mode.
-  VerifyAppState(web_app::kCameraAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kScanningAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
+  VerifyAppState(ash::kCameraAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kScanningAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
   VerifyExtensionAppState(extensions::kWebStoreAppId,
                           apps::Readiness::kDisabledByPolicy, true,
                           expected_visibility);
-  VerifyAppState(web_app::kCanvasAppId, apps::Readiness::kDisabledByPolicy,
-                 true, expected_visibility);
-  VerifyAppState(web_app::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kCanvasAppId, apps::Readiness::kDisabledByPolicy, true,
                  expected_visibility);
-  VerifyAppState(web_app::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
+  VerifyAppState(ash::kCroshAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
+  VerifyAppState(ash::kMediaAppId, apps::Readiness::kDisabledByPolicy, true,
                  expected_visibility);
   VerifyAppState(guest_os::kTerminalSystemAppId,
                  apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kPrintManagementAppId, apps::Readiness::kDisabledByPolicy,
+                 true, expected_visibility);
+  VerifyAppState(ash::kShortcutCustomizationAppId,
+                 apps::Readiness::kDisabledByPolicy, true, expected_visibility);
+  VerifyAppState(ash::kRecorderAppId, apps::Readiness::kDisabledByPolicy, true,
+                 expected_visibility);
 }
 
 IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest, RedirectChromeSettingsURL) {
@@ -484,9 +520,9 @@ IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest, RedirectCroshURL) {
 
 IN_PROC_BROWSER_TEST_F(SystemFeaturesPolicyTest, DisablePWAs) {
   // Disable Canvas app.
-  VerifyIsAppURLDisabled(web_app::kCanvasAppId, kCanvasFeature, kCanvasAppURL,
+  VerifyIsAppURLDisabled(ash::kCanvasAppId, kCanvasFeature, kCanvasAppURL,
                          kCanvasAppTitle);
-  VerifyAppDisableMode(web_app::kCanvasAppId, kCanvasFeature);
+  VerifyAppDisableMode(ash::kCanvasAppId, kCanvasFeature);
 }
 
 }  // namespace policy

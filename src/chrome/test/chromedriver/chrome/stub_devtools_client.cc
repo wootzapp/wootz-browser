@@ -34,7 +34,7 @@ Status StubDevToolsClient::SetTunnelSessionId(std::string session_id) {
 
 Status StubDevToolsClient::StartBidiServer(
     std::string bidi_mapper_script,
-    const base::Value::Dict& mapper_options) {
+    bool enable_unsafe_extension_debugging) {
   return Status{kOk};
 }
 
@@ -46,8 +46,24 @@ bool StubDevToolsClient::IsConnected() const {
   return is_connected_;
 }
 
+bool StubDevToolsClient::IsTabTarget() const {
+  return is_tab_;
+}
+
 bool StubDevToolsClient::WasCrashed() {
   return false;
+}
+
+bool StubDevToolsClient::IsDialogOpen() const {
+  return false;
+}
+
+bool StubDevToolsClient::AutoAcceptsBeforeunload() const {
+  return autoaccept_beforeunload_;
+}
+
+void StubDevToolsClient::SetAutoAcceptBeforeunload(bool value) {
+  autoaccept_beforeunload_ = value;
 }
 
 Status StubDevToolsClient::PostBidiCommand(base::Value::Dict command) {
@@ -161,12 +177,12 @@ Status StubDevToolsClient::OnConnected() {
   return Status{kOk};
 }
 
-Status StubDevToolsClient::ProcessEvent(const InspectorEvent& event) {
+Status StubDevToolsClient::ProcessEvent(InspectorEvent event) {
   return Status{kOk};
 }
 
 Status StubDevToolsClient::ProcessCommandResponse(
-    const InspectorCommandResponse& response) {
+    InspectorCommandResponse response) {
   return Status{kOk};
 }
 
@@ -182,5 +198,19 @@ Status StubDevToolsClient::ProcessNextMessage(int expected_id,
                                               bool log_timeout,
                                               const Timeout& timeout,
                                               DevToolsClient* caller) {
+  return Status{kOk};
+}
+
+Status StubDevToolsClient::GetDialogMessage(std::string& message) const {
+  return Status{kOk};
+}
+
+Status StubDevToolsClient::GetTypeOfDialog(std::string& type) const {
+  return Status{kOk};
+}
+
+Status StubDevToolsClient::HandleDialog(
+    bool accept,
+    const std::optional<std::string>& text) {
   return Status{kOk};
 }

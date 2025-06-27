@@ -285,23 +285,6 @@ void WebRTCInternals::OnAddStandardStats(GlobalRenderFrameHostId frame_id,
   SendUpdate("add-standard-stats", std::move(dict));
 }
 
-void WebRTCInternals::OnAddLegacyStats(GlobalRenderFrameHostId frame_id,
-                                       int lid,
-                                       base::Value::List value) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  if (observers_.empty())
-    return;
-
-  base::Value::Dict dict;
-  dict.Set("rid", frame_id.child_id);
-  dict.Set("lid", lid);
-
-  dict.Set("reports", std::move(value));
-
-  SendUpdate("add-legacy-stats", std::move(dict));
-}
-
 void WebRTCInternals::OnGetMedia(const std::string& request_type,
                                  GlobalRenderFrameHostId frame_id,
                                  base::ProcessId pid,
@@ -552,8 +535,7 @@ void WebRTCInternals::EnableAudioDebugRecordings(
   select_file_dialog_->SelectFile(
       ui::SelectFileDialog::SELECT_SAVEAS_FILE, std::u16string(),
       audio_debug_recordings_file_path_, nullptr, 0,
-      base::FilePath::StringType(), web_contents->GetTopLevelNativeWindow(),
-      nullptr);
+      base::FilePath::StringType(), web_contents->GetTopLevelNativeWindow());
 #endif
 }
 
@@ -607,7 +589,7 @@ void WebRTCInternals::EnableLocalEventLogRecordings(
   select_file_dialog_->SelectFile(
       ui::SelectFileDialog::SELECT_SAVEAS_FILE, std::u16string(),
       event_log_recordings_file_path_, nullptr, 0, FILE_PATH_LITERAL(""),
-      web_contents->GetTopLevelNativeWindow(), nullptr);
+      web_contents->GetTopLevelNativeWindow());
 #endif
 }
 
@@ -660,14 +642,13 @@ void WebRTCInternals::RenderProcessExited(
     RenderProcessHost* host,
     const ChildProcessTerminationInfo& info) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  OnRendererExit(host->GetID());
-  render_process_id_set_.erase(host->GetID());
+  OnRendererExit(host->GetDeprecatedID());
+  render_process_id_set_.erase(host->GetDeprecatedID());
   host->RemoveObserver(this);
 }
 
 void WebRTCInternals::FileSelected(const ui::SelectedFileInfo& file,
-                                   int /* unused_index */,
-                                   void* /*unused_params */) {
+                                   int /* unused_index */) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   switch (selection_type_) {
     case SelectionType::kRtcEventLogs: {
@@ -685,12 +666,12 @@ void WebRTCInternals::FileSelected(const ui::SelectedFileInfo& file,
       break;
     }
     default: {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   }
 }
 
-void WebRTCInternals::FileSelectionCanceled(void* params) {
+void WebRTCInternals::FileSelectionCanceled() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   switch (selection_type_) {
     case SelectionType::kRtcEventLogs:
@@ -702,7 +683,7 @@ void WebRTCInternals::FileSelectionCanceled(void* params) {
                  base::Value());
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   select_file_dialog_ = nullptr;
 }

@@ -23,6 +23,7 @@
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_user_settings.h"
 #include "components/sync/test/test_sync_service.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 class PasswordFeatureManagerImplTest : public ::testing::Test {
@@ -32,17 +33,15 @@ class PasswordFeatureManagerImplTest : public ::testing::Test {
                                   &pref_service_,
                                   &sync_service_) {
 #if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
-    pref_service_.registry()->RegisterDictionaryPref(
-        password_manager::prefs::kAccountStoragePerAccountSettings);
     pref_service_.registry()->RegisterBooleanPref(
         ::prefs::kExplicitBrowserSignin, false);
 #endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
 
     account_.email = "account@gmail.com";
-    account_.gaia = "account";
+    account_.gaia = GaiaId("account");
     account_.account_id = CoreAccountId::FromGaiaId(account_.gaia);
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
     pref_service_.registry()->RegisterBooleanPref(
         password_manager::prefs::kBiometricAuthenticationBeforeFilling, false);
     pref_service_.registry()->RegisterBooleanPref(
@@ -61,8 +60,6 @@ class PasswordFeatureManagerImplTest : public ::testing::Test {
 
 TEST_F(PasswordFeatureManagerImplTest,
        GenerationEnabledIfNonSyncingAndUsingAccountStorage) {
-  base::test::ScopedFeatureList feature_list(
-      syncer::kEnablePasswordsAccountStorageForNonSyncingUsers);
 #if BUILDFLAG(IS_ANDROID)
   pref_service_.registry()->RegisterIntegerPref(
       password_manager::prefs::kPasswordsUseUPMLocalAndSeparateStores,
@@ -70,12 +67,7 @@ TEST_F(PasswordFeatureManagerImplTest,
           password_manager::prefs::UseUpmLocalAndSeparateStoresState::kOn));
 #endif  // BUILDFLAG(IS_ANDROID)
 
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(false);
-  sync_service_.SetDisableReasons({});
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  sync_service_.GetUserSettings()->SetSelectedType(
-      syncer::UserSelectableType::kPasswords, true);
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account_);
 
   ASSERT_EQ(
       password_manager::sync_util::GetPasswordSyncState(&sync_service_),
@@ -88,12 +80,7 @@ TEST_F(PasswordFeatureManagerImplTest,
 }
 
 TEST_F(PasswordFeatureManagerImplTest, GenerationEnabledIfSyncing) {
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(true);
-  sync_service_.SetDisableReasons({});
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  sync_service_.GetUserSettings()->SetSelectedType(
-      syncer::UserSelectableType::kPasswords, true);
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSync, account_);
 
   ASSERT_EQ(
       password_manager::sync_util::GetPasswordSyncState(&sync_service_),
@@ -105,109 +92,58 @@ TEST_F(PasswordFeatureManagerImplTest, GenerationEnabledIfSyncing) {
   EXPECT_TRUE(password_feature_manager_.IsGenerationEnabled());
 }
 
-#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
-
-class PasswordFeatureManagerImplExplicitSigninParamTest
-    : public base::test::WithFeatureOverride,
-      public PasswordFeatureManagerImplTest {
- public:
-  PasswordFeatureManagerImplExplicitSigninParamTest()
-      : base::test::WithFeatureOverride(
-            ::switches::kExplicitBrowserSigninUIOnDesktop) {
-    // `::prefs::kExplicitBrowserSignin` should only be set if
-    // `switches::kExplicitBrowserSigninUIOnDesktop` is enabled.
-    pref_service_.SetBoolean(::prefs::kExplicitBrowserSignin,
-                             IsExplicitSignin());
-  }
-
-  bool IsExplicitSignin() const {
-    return ::switches::IsExplicitBrowserSigninUIOnDesktopEnabled();
-  }
-};
-
-// Desktop users can be offered to opt in to account storage if eligible. One
-// such offer is triggered from the generation entry point, so
-// IsGenerationEnabled() must return true in that state.
-// When signin is explicit, account storage is ON by default, and password
-// generation no longer triggers an optin.
-TEST_P(PasswordFeatureManagerImplExplicitSigninParamTest,
-       GenerationEnabledIfUserEligibleForAccountStorageOptIn) {
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(false);
-  sync_service_.SetDisableReasons({});
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  // The user hasn't opted in to account storage yet.
+// Signed-in non-syncing users with account storage disabled should not get
+// password generation.
+TEST_F(PasswordFeatureManagerImplTest,
+       GenerationDisabledIfNonSyncingAndNotUsingAccountStorage) {
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account_);
+  // Account storage is disabled.
   sync_service_.GetUserSettings()->SetSelectedType(
       syncer::UserSelectableType::kPasswords, false);
 
   ASSERT_EQ(password_manager::sync_util::GetPasswordSyncState(&sync_service_),
             password_manager::sync_util::SyncState::kNotActive);
 
-  // If signin is implicit, the user must be eligible for account storage opt in
-  // now. When signin is explicit, account storage is ON by default, and
-  // password generation no longer triggers an optin.
-  ASSERT_EQ(password_feature_manager_.ShouldShowAccountStorageOptIn(),
-            !IsExplicitSignin());
-
-  EXPECT_EQ(password_feature_manager_.IsGenerationEnabled(),
-            !IsExplicitSignin());
+  EXPECT_FALSE(password_feature_manager_.IsGenerationEnabled());
 }
 
-// When signin is explicit, account storage remains disabled in auth errors.
-TEST_P(PasswordFeatureManagerImplExplicitSigninParamTest,
-       OptedInIfSigninPaused) {
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(false);
-  sync_service_.SetDisableReasons({});
+// Account storage remains disabled if there is an auth error.
+TEST_F(PasswordFeatureManagerImplTest, AccountStorageDisabledIfSigninPaused) {
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account_);
   sync_service_.SetPersistentAuthError();
 
   ASSERT_EQ(sync_service_.GetTransportState(),
             syncer::SyncService::TransportState::PAUSED);
   ASSERT_EQ(password_manager::sync_util::GetPasswordSyncState(&sync_service_),
             password_manager::sync_util::SyncState::kNotActive);
-  EXPECT_FALSE(password_feature_manager_.IsOptedInForAccountStorage());
+  EXPECT_FALSE(password_feature_manager_.IsAccountStorageEnabled());
 }
 
-INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
-    PasswordFeatureManagerImplExplicitSigninParamTest);
-
-#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
-
 #if BUILDFLAG(IS_ANDROID)
+// On Android, for certain versions of GMS Core, signed-in users have a single
+// (profile) PasswordStore that successfully talks to the account GmsCore
+// backend. Such users should be able to generate passwords, so
+// IsGenerationEnabled() should return true. If the account backend is not
+// available, generation is disabled, but that is decided on a different layer.
 TEST_F(PasswordFeatureManagerImplTest,
-       GenerationDisabledIfCannotCreateAccountStore) {
+       GenerationEnabledEvenIfCannotCreateAccountStore) {
   pref_service_.registry()->RegisterIntegerPref(
       password_manager::prefs::kPasswordsUseUPMLocalAndSeparateStores,
       static_cast<int>(
           password_manager::prefs::UseUpmLocalAndSeparateStoresState::kOff));
 
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(false);
-  sync_service_.SetDisableReasons({});
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  sync_service_.GetUserSettings()->SetSelectedTypes(
-      /*sync_everything=*/false,
-      /*types=*/syncer::UserSelectableTypeSet());
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSignin, account_);
 
-  ASSERT_EQ(password_manager::sync_util::GetPasswordSyncState(&sync_service_),
-            password_manager::sync_util::SyncState::kNotActive);
+  ASSERT_EQ(
+      password_manager::sync_util::GetPasswordSyncState(&sync_service_),
+      password_manager::sync_util::SyncState::kActiveWithNormalEncryption);
 
-  EXPECT_FALSE(password_feature_manager_.IsGenerationEnabled());
+  EXPECT_TRUE(password_feature_manager_.IsGenerationEnabled());
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 
 TEST_F(PasswordFeatureManagerImplTest, GenerationDisabledIfSignedOut) {
-  // TODO(b/324036646): Extract this and similar combinations to helper methods,
-  // e.g. SetUpSignedOut().
-  sync_service_.SetAccountInfo({});
-  sync_service_.SetHasSyncConsent(false);
-  sync_service_.SetDisableReasons(
-      {syncer::SyncService::DISABLE_REASON_NOT_SIGNED_IN});
-  sync_service_.SetTransportState(
-      syncer::SyncService::TransportState::DISABLED);
-  sync_service_.GetUserSettings()->SetSelectedTypes(
-      /*sync_everything=*/false,
-      /*types=*/syncer::UserSelectableTypeSet());
+  sync_service_.SetSignedOut();
 
   ASSERT_EQ(password_manager::sync_util::GetPasswordSyncState(&sync_service_),
             password_manager::sync_util::SyncState::kNotActive);
@@ -216,9 +152,7 @@ TEST_F(PasswordFeatureManagerImplTest, GenerationDisabledIfSignedOut) {
 }
 
 TEST_F(PasswordFeatureManagerImplTest, GenerationDisabledIfSyncPaused) {
-  sync_service_.SetAccountInfo(account_);
-  sync_service_.SetHasSyncConsent(true);
-  sync_service_.SetDisableReasons({});
+  sync_service_.SetSignedIn(signin::ConsentLevel::kSync, account_);
   sync_service_.SetPersistentAuthError();
 
   ASSERT_EQ(sync_service_.GetTransportState(),
@@ -229,41 +163,7 @@ TEST_F(PasswordFeatureManagerImplTest, GenerationDisabledIfSyncPaused) {
   EXPECT_FALSE(password_feature_manager_.IsGenerationEnabled());
 }
 
-#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
-TEST_F(PasswordFeatureManagerImplTest, ShouldChangeDefaultPasswordStore) {
-  base::test::ScopedFeatureList features(
-      password_manager::features::kButterOnDesktopFollowup);
-
-  sync_service_.SetLocalSyncEnabled(false);
-  sync_service_.SetHasSyncConsent(false);
-
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  sync_service_.GetUserSettings()->SetSelectedType(
-      syncer::UserSelectableType::kPasswords, true);
-
-  password_feature_manager_.SetDefaultPasswordStore(
-      password_manager::PasswordForm::Store::kProfileStore);
-  EXPECT_TRUE(password_feature_manager_.ShouldChangeDefaultPasswordStore());
-}
-
-TEST_F(PasswordFeatureManagerImplTest, ShouldNotChangeDefaultPasswordStore) {
-  base::test::ScopedFeatureList features(
-      password_manager::features::kButterOnDesktopFollowup);
-
-  sync_service_.SetLocalSyncEnabled(false);
-  sync_service_.SetHasSyncConsent(false);
-
-  sync_service_.SetTransportState(syncer::SyncService::TransportState::ACTIVE);
-  sync_service_.GetUserSettings()->SetSelectedType(
-      syncer::UserSelectableType::kPasswords, true);
-
-  password_feature_manager_.SetDefaultPasswordStore(
-      password_manager::PasswordForm::Store::kAccountStore);
-  EXPECT_FALSE(password_feature_manager_.ShouldChangeDefaultPasswordStore());
-}
-#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
 
 struct TestCase {
   const char* description;
@@ -280,6 +180,16 @@ TEST_P(PasswordFeatureManagerImplTestBiometricAuthenticationTest,
        IsBiometricAuthenticationBeforeFillingEnabled) {
   TestCase test_case = GetParam();
   SCOPED_TRACE(test_case.description);
+  base::test::ScopedFeatureList feature_list;
+#if BUILDFLAG(IS_CHROMEOS)
+  if (test_case.feature_flag) {
+    feature_list.InitAndEnableFeature(
+        password_manager::features::kBiometricsAuthForPwdFill);
+  } else {
+    feature_list.InitAndDisableFeature(
+        password_manager::features::kBiometricsAuthForPwdFill);
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   pref_service_.SetBoolean(password_manager::prefs::kHadBiometricsAvailable,
                            test_case.feature_flag);
@@ -320,4 +230,4 @@ INSTANTIATE_TEST_SUITE_P(
             .feature_flag = true,
             .pref_value = true,
         }));
-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)  || BUILDFLAG(IS_CHROMEOS)

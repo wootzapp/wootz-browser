@@ -4,13 +4,16 @@
 
 #include "third_party/blink/renderer/platform/widget/input/main_thread_event_queue.h"
 
+#include <atomic>
 #include <utility>
 
 #include "base/containers/circular_deque.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "base/trace_event/trace_event.h"
 #include "cc/base/features.h"
 #include "cc/metrics/event_metrics.h"
 #include "third_party/blink/public/common/features.h"
@@ -166,8 +169,7 @@ class QueuedWebInputEvent : public MainThreadEventQueueTask {
   bool IsWebInputEvent() const override { return true; }
 
   void Dispatch(MainThreadEventQueue* queue) override {
-    if (RuntimeEnabledFeatures::UnblockTouchMoveEarlierEnabled() &&
-        originally_cancelable_ &&
+    if (originally_cancelable_ &&
         event_->Event().GetType() == WebInputEvent::Type::kTouchMove) {
       auto* touch_event = static_cast<WebTouchEvent*>(event_->EventPointer());
       if (queue->GetMainThreadOnly().should_unblock_touch_moves) {
@@ -212,7 +214,8 @@ class QueuedWebInputEvent : public MainThreadEventQueueTask {
           event_->Event(),
           ack_result == mojom::blink::InputEventResultState::kConsumed
               ? WebInputEventResult::kHandledApplication
-              : WebInputEventResult::kNotHandled);
+              : WebInputEventResult::kNotHandled,
+          queue->client_ ? queue->client_->RequestedMainFramePending() : false);
     }
 
     queue->UnblockQueuedBlockingTouchMovesIfNeeded(event_->Event(), ack_result);
@@ -322,26 +325,26 @@ class QueuedWebInputEvent : public MainThreadEventQueueTask {
   std::unique_ptr<cc::EventMetrics> metrics_;
 };
 
-MainThreadEventQueue::SharedState::SharedState()
-    : sent_main_frame_request_(false), sent_post_task_(false) {}
-
-MainThreadEventQueue::SharedState::~SharedState() {}
-
 MainThreadEventQueue::MainThreadEventQueue(
     MainThreadEventQueueClient* client,
-    const scoped_refptr<base::SingleThreadTaskRunner>& main_task_runner,
+    const scoped_refptr<base::SingleThreadTaskRunner>& compositor_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
     scoped_refptr<scheduler::WidgetScheduler> widget_scheduler,
     bool allow_raf_aligned_input)
     : client_(client),
       allow_raf_aligned_input_(allow_raf_aligned_input),
-      main_task_runner_(main_task_runner),
+      main_task_runner_(std::move(main_task_runner)),
       widget_scheduler_(std::move(widget_scheduler)) {
   DCHECK(widget_scheduler_);
   raf_fallback_timer_ = std::make_unique<base::OneShotTimer>();
-  raf_fallback_timer_->SetTaskRunner(main_task_runner);
+  raf_fallback_timer_->SetTaskRunner(main_task_runner_);
 
   event_predictor_ = std::make_unique<InputEventPrediction>(
       base::FeatureList::IsEnabled(blink::features::kResamplingInputEvents));
+
+#if DCHECK_IS_ON()
+  compositor_task_runner_ = compositor_task_runner;
+#endif
 }
 
 MainThreadEventQueue::~MainThreadEventQueue() {}
@@ -414,27 +417,32 @@ void MainThreadEventQueue::HandleEvent(
       touch_event->dispatch_type =
           WebInputEvent::DispatchType::kListenersNonBlockingPassive;
     }
-    if (touch_event->GetType() == WebInputEvent::Type::kTouchStart)
-      last_touch_start_forced_nonblocking_due_to_fling_ = false;
 
+    bool& last_touch_start_forced_nonblocking_due_to_fling =
+        GetCompositorThreadOnly()
+            .last_touch_start_forced_nonblocking_due_to_fling;
+    if (touch_event->GetType() == WebInputEvent::Type::kTouchStart) {
+      last_touch_start_forced_nonblocking_due_to_fling = false;
+    }
     if (touch_event->touch_start_or_first_touch_move &&
         touch_event->dispatch_type == WebInputEvent::DispatchType::kBlocking) {
       // If the touch start is forced to be passive due to fling, its following
       // touch move should also be passive.
       if (ack_result ==
               mojom::blink::InputEventResultState::kSetNonBlockingDueToFling ||
-          last_touch_start_forced_nonblocking_due_to_fling_) {
+          last_touch_start_forced_nonblocking_due_to_fling) {
         touch_event->dispatch_type =
             WebInputEvent::DispatchType::kListenersForcedNonBlockingDueToFling;
         is_blocking = false;
-        last_touch_start_forced_nonblocking_due_to_fling_ = true;
+        last_touch_start_forced_nonblocking_due_to_fling = true;
       }
     }
 
     // If the event is non-cancelable ACK it right away.
     if (is_blocking &&
-        touch_event->dispatch_type != WebInputEvent::DispatchType::kBlocking)
+        touch_event->dispatch_type != WebInputEvent::DispatchType::kBlocking) {
       is_blocking = false;
+    }
   }
 
   if (is_wheel) {
@@ -456,7 +464,7 @@ void MainThreadEventQueue::HandleEvent(
     event_callback = std::move(callback);
   }
 
-  if (has_pointerrawupdate_handlers_) {
+  if (has_pointerrawupdate_handlers_.load(std::memory_order_relaxed)) {
     if (event->Event().GetType() == WebInputEvent::Type::kMouseMove) {
       auto raw_event = std::make_unique<WebCoalescedInputEvent>(
           std::make_unique<WebPointerEvent>(
@@ -528,7 +536,7 @@ void MainThreadEventQueue::PossiblyScheduleMainFrame() {
     }
   }
   if (needs_main_frame)
-    SetNeedsMainFrame();
+    SetNeedsMainFrame(/*urgent=*/false);
 }
 
 void MainThreadEventQueue::DispatchEvents() {
@@ -728,8 +736,16 @@ void MainThreadEventQueue::QueueEvent(
 
   if (needs_post_task)
     PostTaskToMainThread();
-  if (needs_main_frame)
-    SetNeedsMainFrame();
+  if (needs_main_frame) {
+    // This main frame request is coming from input, make it urgent.
+    //
+    // We only ever want to consider urgent frames for clients which could have
+    // main frames throttled, hence we check the eligibility.
+    bool urgent =
+        ::features::IsEligibleForThrottleMainFrameTo60Hz() &&
+        base::FeatureList::IsEnabled(blink::features::kUrgentMainFrameForInput);
+    SetNeedsMainFrame(urgent);
+  }
 }
 
 bool MainThreadEventQueue::IsRawUpdateEvent(
@@ -757,9 +773,12 @@ bool MainThreadEventQueue::IsRafAlignedEvent(
     case WebInputEvent::Type::kMouseMove:
     case WebInputEvent::Type::kMouseWheel:
     case WebInputEvent::Type::kTouchMove:
-      return allow_raf_aligned_input_ && !needs_low_latency_ &&
-             !needs_low_latency_until_pointer_up_ &&
-             !needs_unbuffered_input_for_debugger_;
+      return allow_raf_aligned_input_ &&
+             !needs_low_latency_.load(std::memory_order_relaxed) &&
+             !needs_low_latency_until_pointer_up_.load(
+                 std::memory_order_relaxed) &&
+             !needs_unbuffered_input_for_debugger_.load(
+                 std::memory_order_relaxed);
     default:
       return false;
   }
@@ -790,7 +809,7 @@ bool MainThreadEventQueue::HandleEventOnMainThread(
                                         std::move(handled_callback));
   }
 
-  if (needs_low_latency_until_pointer_up_) {
+  if (needs_low_latency_until_pointer_up_.load(std::memory_order_relaxed)) {
     // Reset the needs low latency until pointer up mode if necessary.
     switch (event.Event().GetType()) {
       case WebInputEvent::Type::kMouseUp:
@@ -798,7 +817,8 @@ bool MainThreadEventQueue::HandleEventOnMainThread(
       case WebInputEvent::Type::kTouchEnd:
       case WebInputEvent::Type::kPointerCancel:
       case WebInputEvent::Type::kPointerUp:
-        needs_low_latency_until_pointer_up_ = false;
+        needs_low_latency_until_pointer_up_.store(false,
+                                                  std::memory_order_relaxed);
         break;
       default:
         break;
@@ -807,21 +827,22 @@ bool MainThreadEventQueue::HandleEventOnMainThread(
   return handled;
 }
 
-void MainThreadEventQueue::SetNeedsMainFrame() {
+void MainThreadEventQueue::SetNeedsMainFrame(bool urgent) {
   if (main_task_runner_->BelongsToCurrentThread()) {
     if (raf_fallback_timer_) {
       raf_fallback_timer_->Start(
           FROM_HERE, kMaxRafDelay,
           base::BindOnce(&MainThreadEventQueue::RafFallbackTimerFired, this));
     }
-    if (client_)
-      client_->SetNeedsMainFrame();
+    if (client_) {
+      client_->SetNeedsMainFrame(urgent);
+    }
     return;
   }
 
   main_task_runner_->PostTask(
       FROM_HERE,
-      base::BindOnce(&MainThreadEventQueue::SetNeedsMainFrame, this));
+      base::BindOnce(&MainThreadEventQueue::SetNeedsMainFrame, this, urgent));
 }
 
 void MainThreadEventQueue::ClearClient() {
@@ -831,27 +852,26 @@ void MainThreadEventQueue::ClearClient() {
 }
 
 void MainThreadEventQueue::SetNeedsLowLatency(bool low_latency) {
-  needs_low_latency_ = low_latency;
+  needs_low_latency_.store(low_latency, std::memory_order_relaxed);
 }
 
 void MainThreadEventQueue::SetNeedsUnbufferedInputForDebugger(bool unbuffered) {
-  needs_unbuffered_input_for_debugger_ = unbuffered;
+  needs_unbuffered_input_for_debugger_.store(unbuffered,
+                                             std::memory_order_relaxed);
 }
 
-void MainThreadEventQueue::HasPointerRawUpdateEventHandlers(bool has_handlers) {
-  has_pointerrawupdate_handlers_ = has_handlers;
+void MainThreadEventQueue::SetHasPointerRawUpdateEventHandlers(
+    bool has_handlers) {
+  has_pointerrawupdate_handlers_.store(has_handlers, std::memory_order_relaxed);
 }
 
 void MainThreadEventQueue::RequestUnbufferedInputEvents() {
-  needs_low_latency_until_pointer_up_ = true;
+  needs_low_latency_until_pointer_up_.store(true, std::memory_order_relaxed);
 }
 
 void MainThreadEventQueue::UnblockQueuedBlockingTouchMovesIfNeeded(
     const WebInputEvent& dispatched_event,
     mojom::blink::InputEventResultState ack_result) {
-  if (!RuntimeEnabledFeatures::UnblockTouchMoveEarlierEnabled()) {
-    return;
-  }
   if (!WebInputEvent::IsTouchEventType(dispatched_event.GetType())) {
     return;
   }
@@ -925,6 +945,14 @@ MainThreadEventQueue::MainThreadOnly&
 MainThreadEventQueue::GetMainThreadOnly() {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   return main_thread_only_;
+}
+
+MainThreadEventQueue::CompositorThreadOnly&
+MainThreadEventQueue::GetCompositorThreadOnly() {
+#if DCHECK_IS_ON()
+  DCHECK(compositor_task_runner_->BelongsToCurrentThread());
+#endif
+  return compositor_thread_only_;
 }
 
 }  // namespace blink

@@ -12,7 +12,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/browser/grit/autofill_address_rewriter_resources_map.h"
+#include "components/autofill/core/browser/geo/grit/autofill_address_rewriter_resources_map.h"
 #include "third_party/re2/src/re2/re2.h"
 #include "third_party/zlib/google/compression_utils.h"
 #include "ui/base/resource/resource_bundle.h"
@@ -36,10 +36,12 @@ static bool ExtractRegionRulesData(const std::string& region,
   int resource_id = 0;
   std::string resource_key = GetMapKey(region);
   for (size_t i = 0; i < kAutofillAddressRewriterResourcesSize; ++i) {
-    if (kAutofillAddressRewriterResources[i].path == resource_key) {
+    // TODO: crbug.com/347651465: GRIT should define std::arrays instead of
+    // c-style arrays.
+    UNSAFE_TODO(if (kAutofillAddressRewriterResources[i].path == resource_key) {
       resource_id = kAutofillAddressRewriterResources[i].id;
       break;
-    }
+    })
   }
 
   if (!resource_id) {
@@ -150,7 +152,7 @@ class Cache {
 
 // static
 std::u16string AddressRewriter::RewriteForCountryCode(
-    const std::u16string& country_code,
+    const AddressCountryCode& country_code,
     const std::u16string& normalized_text) {
   AddressRewriter rewriter = AddressRewriter::ForCountryCode(country_code);
   return rewriter.Rewrite(normalized_text);
@@ -158,9 +160,8 @@ std::u16string AddressRewriter::RewriteForCountryCode(
 
 // static
 AddressRewriter AddressRewriter::ForCountryCode(
-    const std::u16string& country_code) {
-  const std::string region =
-      base::UTF16ToUTF8(base::i18n::ToUpper(country_code));
+    const AddressCountryCode& country_code) {
+  const std::string region = base::ToUpperASCII(country_code.value());
   const CompiledRuleVector* rules =
       Cache::GetInstance()->GetRulesForRegion(region);
   AddressRewriter rewriter;

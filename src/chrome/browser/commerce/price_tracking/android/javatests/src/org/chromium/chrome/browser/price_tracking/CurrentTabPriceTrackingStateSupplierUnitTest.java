@@ -4,17 +4,20 @@
 
 package org.chromium.chrome.browser.price_tracking;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.primitives.UnsignedLongs;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -22,12 +25,12 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.commerce.PriceTrackingUtils;
 import org.chromium.chrome.browser.commerce.PriceTrackingUtilsJni;
 import org.chromium.chrome.browser.commerce.ShoppingServiceFactory;
@@ -43,12 +46,11 @@ import org.chromium.url.JUnitTestGURLs;
 
 import java.util.Optional;
 
-@RunWith(BaseRobolectricTestRunner.class)
 /** Unit tests for {@link CurrentTabPriceTrackingStateSupplier} */
+@RunWith(BaseRobolectricTestRunner.class)
 public class CurrentTabPriceTrackingStateSupplierUnitTest {
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private ObservableSupplierImpl<Tab> mTabSupplier;
     private ObservableSupplierImpl<Profile> mProfileSupplier;
     @Mock private Profile mMockProfile;
@@ -59,8 +61,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(PriceTrackingUtilsJni.TEST_HOOKS, mMockPriceTrackingUtilsJni);
+        PriceTrackingUtilsJni.setInstanceForTesting(mMockPriceTrackingUtilsJni);
 
         mTabSupplier = new ObservableSupplierImpl<>();
         mProfileSupplier = new ObservableSupplierImpl<>();
@@ -81,6 +82,32 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
     }
 
     @Test
+    public void testDestroyBeforeProfile() {
+        CurrentTabPriceTrackingStateSupplier supplier =
+                new CurrentTabPriceTrackingStateSupplier(mTabSupplier, mProfileSupplier);
+        assertTrue(mProfileSupplier.hasObservers());
+
+        supplier.destroy();
+        // TODO(https://crbug.com/352082581): Enable this once observer is fixed.
+        // assertFalse(mProfileSupplier.hasObservers());
+        verifyNoInteractions(mMockShoppingService);
+    }
+
+    @Test
+    public void testDestroyAfterProfile() {
+        CurrentTabPriceTrackingStateSupplier supplier =
+                new CurrentTabPriceTrackingStateSupplier(mTabSupplier, mProfileSupplier);
+        assertTrue(mProfileSupplier.hasObservers());
+        mProfileSupplier.set(mMockProfile);
+        verify(mMockShoppingService).addSubscriptionsObserver(any());
+
+        supplier.destroy();
+        // TODO(https://crbug.com/352082581): Enable this once observer is fixed.
+        // assertFalse(mProfileSupplier.hasObservers());
+        verify(mMockShoppingService).removeSubscriptionsObserver(any());
+    }
+
+    @Test
     public void testWithEmptySuppliers() {
         Callback<Boolean> mockCallback = mock(Callback.class);
 
@@ -88,7 +115,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
         supplier.addObserver(mockCallback);
 
         verify(mockCallback, never()).onResult(anyBoolean());
-        Assert.assertFalse(supplier.get());
+        assertFalse(supplier.get());
     }
 
     @Test
@@ -110,7 +137,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
 
         // Supplier shouldn't invoke the callback.
         verify(mockCallback, never()).onResult(anyBoolean());
-        Assert.assertFalse(supplier.get());
+        assertFalse(supplier.get());
     }
 
     @Test
@@ -145,7 +172,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
                         commerceSubscriptionArgumentCaptor.capture(),
                         shoppingServiceCallbackCaptor.capture());
         // Ensure ShoppingService was called with the correct product ID.
-        Assert.assertEquals(
+        assertEquals(
                 UnsignedLongs.toString(productClusterId),
                 commerceSubscriptionArgumentCaptor.getValue().id);
         // Set ShoppingService to return false on the callback to isSubscribed.
@@ -153,7 +180,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
 
         // Supplier shouldn't invoke the callback.
         verify(mockCallback, never()).onResult(anyBoolean());
-        Assert.assertFalse(supplier.get());
+        assertFalse(supplier.get());
     }
 
     @Test
@@ -186,7 +213,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
         // Supplier should invoke callback.
         verify(mockCallback).onResult(true);
         // Supplier value should now be true.
-        Assert.assertTrue(supplier.get());
+        assertTrue(supplier.get());
     }
 
     @Test
@@ -234,7 +261,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
         // Supplier should invoke callback.
         verify(mockCallback).onResult(true);
         // Supplier value should now be true.
-        Assert.assertTrue(supplier.get());
+        assertTrue(supplier.get());
     }
 
     @Test
@@ -284,7 +311,7 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
         verify(mockCallback).onResult(true);
         verify(mockCallback).onResult(false);
         // Supplier value should now be false.
-        Assert.assertFalse(supplier.get());
+        assertFalse(supplier.get());
     }
 
     @Test
@@ -323,6 +350,6 @@ public class CurrentTabPriceTrackingStateSupplierUnitTest {
         // Supplier shouldn't invoke callback, because the result of isSubscribed doesn't correspond
         // with the current tab.
         verify(mockCallback, never()).onResult(anyBoolean());
-        Assert.assertFalse(supplier.get());
+        assertFalse(supplier.get());
     }
 }

@@ -20,12 +20,13 @@ found in the LICENSE file.
         style="@style/ToolbarHoverableButton"
         android:src="@drawable/btn_toolbar_home"
         android:contentDescription="@string/accessibility_toolbar_btn_home"
+        android:tooltipText="@string/accessibility_toolbar_btn_home"
         android:visibility="gone"
         app:menuVerticalOverlapAnchor="false"
         app:menuMaxWidth="@dimen/home_button_list_menu_width"
         android:layout_marginTop="@dimen/toolbar_elements_top_margin"
         android:layout_marginBottom="@dimen/toolbar_elements_bottom_margin"
-        app:menuPositionedAtEnd="false"
+        app:menuPositionedAtStart="true"
         app:tint="@color/default_icon_color_tint_list" />
 
     <org.chromium.chrome.browser.omnibox.LocationBarPhone
@@ -45,8 +46,8 @@ found in the LICENSE file.
         android:layout_gravity="top|end"
         android:layout_marginTop="@dimen/toolbar_elements_top_margin"
         android:layout_marginBottom="@dimen/toolbar_elements_bottom_margin"
-        android:focusable="true"
-        android:focusableInTouchMode="true">
+        android:focusable="false"
+        android:focusableInTouchMode="false">
 
         <ViewStub
             android:id="@+id/optional_button_stub"
@@ -58,11 +59,9 @@ found in the LICENSE file.
 
         <org.chromium.chrome.browser.toolbar.top.ToggleTabStackButton
             android:id="@+id/tab_switcher_button"
-            style="@style/ToolbarButton"
-            android:background="@drawable/toolbar_tab_switcher_button_ripple"
-            android:paddingStart="@dimen/toolbar_tab_switcher_button_padding"
+            style="@style/ToolbarHoverableButton"
             android:layout_gravity="top"
-            android:contentDescription="@string/accessibility_toolbar_btn_tabswitcher_toggle_default"
+            android:clickable="false"
             app:menuMaxWidth="@dimen/tab_switcher_menu_width"
             app:menuVerticalOverlapAnchor="false" />
 

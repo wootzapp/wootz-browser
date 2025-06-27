@@ -20,6 +20,7 @@
 #include "components/subresource_filter/core/browser/async_document_subresource_filter_test_utils.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "components/subresource_filter/core/browser/verified_ruleset_dealer.h"
+#include "components/subresource_filter/core/common/constants.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/test/navigation_simulator.h"
@@ -74,6 +75,7 @@ void ChildFrameNavigationFilteringThrottleTestHarness::SetUp() {
 void ChildFrameNavigationFilteringThrottleTestHarness::TearDown() {
   dealer_handle_.reset();
   ruleset_handle_.reset();
+  navigation_simulator_.reset();
   parent_filter_.reset();
   RunUntilIdle();
   content::RenderViewHostTestHarness::TearDown();
@@ -141,7 +143,8 @@ void ChildFrameNavigationFilteringThrottleTestHarness::
   // tests, to ensure that the NavigationSimulator properly runs all necessary
   // tasks while waiting for throttle checks to finish.
   dealer_handle_ = std::make_unique<VerifiedRulesetDealer::Handle>(
-      base::SingleThreadTaskRunner::GetCurrentDefault());
+      base::SingleThreadTaskRunner::GetCurrentDefault(),
+      kSafeBrowsingRulesetConfig);
   dealer_handle_->TryOpenAndSetRulesetFile(test_ruleset_pair_.indexed.path,
                                            /*expected_checksum=*/0,
                                            base::DoNothing());
@@ -157,7 +160,7 @@ void ChildFrameNavigationFilteringThrottleTestHarness::
       AsyncDocumentSubresourceFilter::InitializationParams(
           document_url, url::Origin::Create(document_url),
           parent_activation_state),
-      activation_state.GetCallback());
+      activation_state.GetCallback(), kSafeBrowsingRulesetConfig.uma_tag);
   RunUntilIdle();
   activation_state.ExpectReceivedOnce(parent_activation_state);
 }

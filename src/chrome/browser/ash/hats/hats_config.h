@@ -16,7 +16,9 @@ struct HatsConfig {
              const base::TimeDelta& new_device_threshold,
              const char* const is_selected_pref_name,
              const char* const cycle_end_timestamp_pref_name);
-  // Using this constructor will set the survey to opt out of global cap.
+  // Using this constructor will set the survey to be prioritized.
+  // Note: The number of prioritized survey should be very limited,
+  // otherwise none of them will be so prioritized.
   HatsConfig(const base::Feature& feature,
              const base::TimeDelta& new_device_threshold,
              const char* const is_selected_pref_name,
@@ -28,8 +30,8 @@ struct HatsConfig {
 
   // Chrome OS-level feature (switch) we use to retrieve whether this HaTS
   // survey is enabled or not, and its parameters.
-  // This field is not a raw_ref<> because it was filtered by the rewriter for:
-  // #global-scope
+  // This field is not a raw_ref<> because it only ever points at statically-
+  // allocated memory which is never freed, and hence it cannot dangle.
   RAW_PTR_EXCLUSION const base::Feature& feature;
 
   // Minimum amount of time after initial login or oobe after which we can show
@@ -48,12 +50,19 @@ struct HatsConfig {
   const char* const survey_last_interaction_timestamp_pref_name;
 
   // Minimum amount of time after a user interacts with this survey after which
-  // we can show this survey again.
+  // we can show this survey again. Only for prioritized HaTS, as their global
+  // cooldown can be very short.
   const base::TimeDelta threshold_time;
 
-  // True if this survey should not be counted towards/limited by global cap.
-  // See kHatsThreshold in hats_notification_controller.cc
-  const bool global_cap_opt_out;
+  // Prioritized HaTS has its own separate global cooldown period.
+  // To make the survey actually "prioritized", ideally:
+  // 1. The global cooldown period must be much shorter than the general HaTS,
+  //    configurable as |kPrioritizedHatsThreshold| in
+  //    hats_notification_controller.cc.
+  // 2. The probability of being chosen should be higher than the general HaTS,
+  //    e.g. higher than 1%.
+  // 3. There should be very limited number of prioritized HaTS.
+  const bool prioritized;
 };
 
 // CrOS HaTS configs are declared here and defined in hats_config.cc
@@ -73,12 +82,15 @@ extern const HatsConfig kHatsMediaAppPdfSurvey;
 extern const HatsConfig kHatsCameraAppSurvey;
 extern const HatsConfig kHatsPhotosExperienceSurvey;
 extern const HatsConfig kHatsGeneralCameraSurvey;
+extern const HatsConfig kHatsGeneralCameraPrioritizedSurvey;
 extern const HatsConfig kHatsBluetoothRevampSurvey;
 extern const HatsConfig kHatsBatteryLifeSurvey;
 extern const HatsConfig kHatsPeripheralsSurvey;
-extern const HatsConfig kPrivacyHubPostLaunchSurvey;
 extern const HatsConfig kHatsOsSettingsSearchSurvey;
 extern const HatsConfig kHatsBorealisGamesSurvey;
+extern const HatsConfig kHatsLauncherAppsFindingSurvey;
+extern const HatsConfig kHatsLauncherAppsNeedingSurvey;
+extern const HatsConfig kHatsOfficeSurvey;
 
 }  // namespace ash
 

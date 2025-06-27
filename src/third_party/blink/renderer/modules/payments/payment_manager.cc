@@ -4,25 +4,16 @@
 
 #include "third_party/blink/renderer/modules/payments/payment_manager.h"
 
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
-#include "third_party/blink/renderer/modules/payments/payment_instruments.h"
 #include "third_party/blink/renderer/modules/service_worker/service_worker_registration.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
-
-PaymentInstruments* PaymentManager::instruments() {
-  if (!instruments_) {
-    instruments_ = MakeGarbageCollected<PaymentInstruments>(
-        *this, registration_->GetExecutionContext());
-  }
-  return instruments_.Get();
-}
 
 const String& PaymentManager::userHint() {
   return user_hint_;
@@ -40,7 +31,7 @@ ScriptPromise<IDLBoolean> PaymentManager::enableDelegations(
   if (!script_state->ContextIsValid()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "Cannot enable payment delegations");
-    return ScriptPromise<IDLBoolean>();
+    return EmptyPromise();
   }
 
   if (enable_delegations_resolver_) {
@@ -48,7 +39,7 @@ ScriptPromise<IDLBoolean> PaymentManager::enableDelegations(
         DOMExceptionCode::kInvalidStateError,
         "Cannot call enableDelegations() again until the previous "
         "enableDelegations() is finished");
-    return ScriptPromise<IDLBoolean>();
+    return EmptyPromise();
   }
 
   using MojoPaymentDelegation = payments::mojom::blink::PaymentDelegation;
@@ -69,7 +60,7 @@ ScriptPromise<IDLBoolean> PaymentManager::enableDelegations(
         mojo_delegation = MojoPaymentDelegation::PAYER_EMAIL;
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
     mojo_delegations.push_back(mojo_delegation);
   }
@@ -87,15 +78,13 @@ ScriptPromise<IDLBoolean> PaymentManager::enableDelegations(
 void PaymentManager::Trace(Visitor* visitor) const {
   visitor->Trace(registration_);
   visitor->Trace(manager_);
-  visitor->Trace(instruments_);
   visitor->Trace(enable_delegations_resolver_);
   ScriptWrappable::Trace(visitor);
 }
 
 PaymentManager::PaymentManager(ServiceWorkerRegistration* registration)
     : registration_(registration),
-      manager_(registration->GetExecutionContext()),
-      instruments_(nullptr) {
+      manager_(registration->GetExecutionContext()) {
   DCHECK(registration);
 
   if (ExecutionContext* context = registration->GetExecutionContext()) {

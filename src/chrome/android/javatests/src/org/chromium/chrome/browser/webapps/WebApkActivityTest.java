@@ -21,11 +21,13 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Restriction;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
@@ -38,9 +40,9 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.webapps.WebApkIntentDataProviderBuilder;
 import org.chromium.components.permissions.PermissionDialogController;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.ui.test.util.DeviceRestriction;
 import org.chromium.webapk.lib.common.WebApkConstants;
 
 import java.util.concurrent.TimeoutException;
@@ -103,6 +105,7 @@ public final class WebApkActivityTest {
      */
     @LargeTest
     @Test
+    @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO) // Flaky, see crbug.com/393561248
     public void testActivateWebApkLPlus() throws Exception {
         // Launch WebAPK.
         WebappActivity webApkActivity =
@@ -121,7 +124,7 @@ public final class WebApkActivityTest {
 
         ApplicationTestUtils.waitForActivityState(webApkActivity, Stage.STOPPED);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     TabWebContentsDelegateAndroid tabDelegate =
                             TabTestUtils.getTabWebContentsDelegate(webApkActivity.getActivityTab());
@@ -166,13 +169,5 @@ public final class WebApkActivityTest {
                 .getEmbeddedTestServerRule()
                 .getServer()
                 .getURL("/chrome/test/data/banners/" + relativeUrl);
-    }
-
-    /** Register WebAPK with WebappDataStorage */
-    private WebappDataStorage registerWithStorage(final String webappId) throws Exception {
-        TestFetchStorageCallback callback = new TestFetchStorageCallback();
-        WebappRegistry.getInstance().register(webappId, callback);
-        callback.waitForCallback(0);
-        return WebappRegistry.getInstance().getWebappDataStorage(webappId);
     }
 }

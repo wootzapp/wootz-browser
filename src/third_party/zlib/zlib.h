@@ -935,10 +935,10 @@ ZEXTERN int ZEXPORT inflateSync(z_streamp strm);
      inflateSync returns Z_OK if a possible full flush point has been found,
    Z_BUF_ERROR if no more input was provided, Z_DATA_ERROR if no flush point
    has been found, or Z_STREAM_ERROR if the stream structure was inconsistent.
-   In the success case, the application may save the current current value of
-   total_in which indicates where valid compressed data was found.  In the
-   error case, the application may repeatedly call inflateSync, providing more
-   input each time, until success or end of the input data.
+   In the success case, the application may save the current value of total_in
+   which indicates where valid compressed data was found.  In the error case,
+   the application may repeatedly call inflateSync, providing more input each
+   time, until success or end of the input data.
 */
 
 ZEXTERN int ZEXPORT inflateCopy(z_streamp dest,
@@ -1757,14 +1757,14 @@ ZEXTERN uLong ZEXPORT crc32_combine(uLong crc1, uLong crc2, z_off_t len2);
    seq1 and seq2 with lengths len1 and len2, CRC-32 check values were
    calculated for each, crc1 and crc2.  crc32_combine() returns the CRC-32
    check value of seq1 and seq2 concatenated, requiring only crc1, crc2, and
-   len2.
+   len2. len2 must be non-negative.
 */
 
 /*
 ZEXTERN uLong ZEXPORT crc32_combine_gen(z_off_t len2);
 
      Return the operator corresponding to length len2, to be used with
-   crc32_combine_op().
+   crc32_combine_op(). len2 must be non-negative.
 */
 
 ZEXTERN uLong ZEXPORT crc32_combine_op(uLong crc1, uLong crc2, uLong op);

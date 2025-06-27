@@ -14,7 +14,6 @@
 #include "base/path_service.h"
 #include "chrome/browser/ash/app_mode/kiosk_app_data_delegate.h"
 #include "chrome/browser/ash/app_mode/kiosk_app_types.h"
-#include "chrome/browser/ash/app_mode/kiosk_system_session.h"
 #include "chrome/common/chrome_paths.h"
 #include "chromeos/ash/components/settings/cros_settings.h"
 #include "components/account_id/account_id.h"
@@ -63,7 +62,7 @@ class KioskAppManagerBase : public KioskAppDataDelegate {
   void RemoveObserver(KioskAppManagerObserver* observer);
 
   // KioskAppDataDelegate overrides:
-  void GetKioskAppIconCacheDir(base::FilePath* cache_dir) override;
+  base::FilePath GetKioskAppIconCacheDir() override;
   void OnKioskAppDataChanged(const std::string& app_id) override;
   void OnKioskAppDataLoadFailure(const std::string& app_id) override;
   void OnExternalCacheDamaged(const std::string& app_id) override;
@@ -84,12 +83,14 @@ class KioskAppManagerBase : public KioskAppDataDelegate {
   // Notifies the observers about the updates.
   void NotifyKioskAppsChanged() const;
   void NotifySessionInitialized() const;
+  void NotifyAppRemoved(const std::string& app_id) const;
 
   // Updates internal list of apps by the new data received by policy.
   virtual void UpdateAppsFromPolicy() = 0;
 
   // Performs removal of the removed apps's cryptohomes.
-  void ClearRemovedApps(const std::vector<KioskAppDataBase*>& old_apps);
+  void ClearRemovedApps(
+      const std::vector<const KioskAppDataBase*>& old_apps) const;
 
   bool auto_launched_with_zero_delay_ = false;
 
@@ -98,6 +99,7 @@ class KioskAppManagerBase : public KioskAppDataDelegate {
 
   base::ObserverList<KioskAppManagerObserver, /*check_empty=*/true> observers_;
 
+ private:
   base::WeakPtrFactory<KioskAppManagerBase> weak_ptr_factory_{this};
 };
 

@@ -47,7 +47,7 @@ base::FilePath CastResourceDelegate::GetPathForLocalePack(
     const std::string& locale) {
   base::FilePath product_dir;
   if (!base::PathService::Get(base::DIR_ASSETS, &product_dir)) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   return product_dir.
       Append(FILE_PATH_LITERAL("chromecast_locales")).
@@ -61,6 +61,10 @@ gfx::Image CastResourceDelegate::GetImageNamed(int resource_id) {
 
 gfx::Image CastResourceDelegate::GetNativeImageNamed(int resource_id) {
   return gfx::Image();
+}
+
+bool CastResourceDelegate::HasDataResource(int resource_id) const {
+  return false;
 }
 
 base::RefCountedStaticMemory* CastResourceDelegate::LoadDataResourceBytes(

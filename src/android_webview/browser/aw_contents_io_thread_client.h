@@ -16,6 +16,8 @@
 #include "base/functional/callback_forward.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
+#include "components/safe_browsing/content/browser/web_contents_key.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/global_routing_id.h"
 
 namespace content {
@@ -30,6 +32,11 @@ namespace android_webview {
 
 class AwWebResourceInterceptResponse;
 struct AwWebResourceRequest;
+
+// TODO(crbug.com/373474043): Move safe_browsing::WebContentsKey to a common
+// place instead of aliasing.
+using WebContentsKey = safe_browsing::WebContentsKey;
+WebContentsKey GetWebContentsKey(content::WebContents& web_contents);
 
 // This class provides a means of calling Java methods on an instance that has
 // a 1:1 relationship with a WebContents instance directly from the IO thread.
@@ -88,7 +95,12 @@ class AwContentsIoThreadClient {
   // This map is useful when browser side navigations are enabled as
   // render_frame_ids will not be valid anymore for some of the navigations.
   static std::unique_ptr<AwContentsIoThreadClient> FromID(
-      int frame_tree_node_id);
+      content::FrameTreeNodeId frame_tree_node_id);
+
+  // This will attempt to fetch the AwContentsIoThreadClient for the given key.
+  // This method can be called from any thread.
+  // A null std::unique_ptr is a valid return value.
+  static std::unique_ptr<AwContentsIoThreadClient> FromKey(WebContentsKey key);
 
   // Called on the IO thread when a subframe is created.
   static void SubFrameCreated(int child_id,
@@ -113,9 +125,6 @@ class AwContentsIoThreadClient {
       AwWebResourceRequest request,
       ShouldInterceptRequestResponseCallback callback);
 
-  // Check if the request should be blocked based on web content ownership.
-  bool ShouldBlockRequest(AwWebResourceRequest request);
-
   // Retrieve the AllowContentAccess setting value of this AwContents.
   // This method is called on the IO thread only.
   bool ShouldBlockContentUrls() const;
@@ -132,6 +141,9 @@ class AwContentsIoThreadClient {
   // This method is called on the IO thread only.
   bool ShouldBlockNetworkLoads() const;
 
+  // Retrieve the AcceptCookies setting value of this AwContents.
+  bool ShouldAcceptCookies() const;
+
   // Retrieve the AcceptThirdPartyCookies setting value of this AwContents.
   bool ShouldAcceptThirdPartyCookies() const;
 
@@ -140,7 +152,6 @@ class AwContentsIoThreadClient {
 
  private:
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
-  base::android::ScopedJavaGlobalRef<jobject> bg_thread_client_object_;
   scoped_refptr<base::SequencedTaskRunner> sequenced_task_runner_ =
       base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()});
 };

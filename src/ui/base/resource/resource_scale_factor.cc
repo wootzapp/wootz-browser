@@ -5,6 +5,7 @@
 #include "ui/base/resource/resource_scale_factor.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iterator>
 #include <limits>
@@ -21,7 +22,12 @@ namespace {
 
 std::vector<ResourceScaleFactor>* g_supported_resource_scale_factors = nullptr;
 
-const float kResourceScaleFactorScales[] = {1.0f, 1.0f, 2.0f, 3.0f};
+constexpr auto kResourceScaleFactorScales = std::to_array<float>({
+    1.0f,
+    1.0f,
+    2.0f,
+    3.0f,
+});
 static_assert(NUM_SCALE_FACTORS == std::size(kResourceScaleFactorScales),
               "kResourceScaleFactorScales has incorrect size");
 

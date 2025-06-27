@@ -5,7 +5,7 @@
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 
 #include "base/no_destructor.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/enterprise/browser_management/browser_management_service.h"
 #include "chrome/browser/enterprise/browser_management/browser_management_status_provider.h"
 #include "chrome/browser/profiles/profile.h"
@@ -37,7 +37,7 @@ ManagementService* ManagementServiceFactory::GetForPlatform() {
   // This has to be done here since `DeviceManagementStatusProvider` cannot be
   // defined in `components/policy/`, also we need we need the
   // `g_browser_process->platform_part()`.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   if (!instance->has_cros_status_provider()) {
     instance->AddChromeOsStatusProvider(
         std::make_unique<DeviceManagementStatusProvider>());
@@ -60,6 +60,9 @@ ManagementServiceFactory::ManagementServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {}
 
 ManagementServiceFactory::~ManagementServiceFactory() = default;

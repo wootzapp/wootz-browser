@@ -60,7 +60,8 @@ LocationBarBubbleDelegateView::WebContentMouseHandler::WebContentMouseHandler(
   DCHECK(web_contents_);
   event_monitor_ = views::EventMonitor::CreateWindowMonitor(
       this, web_contents_->GetTopLevelNativeWindow(),
-      {ui::ET_MOUSE_PRESSED, ui::ET_KEY_PRESSED, ui::ET_TOUCH_PRESSED});
+      {ui::EventType::kMousePressed, ui::EventType::kKeyPressed,
+       ui::EventType::kTouchPressed});
 }
 
 LocationBarBubbleDelegateView::WebContentMouseHandler::
@@ -148,8 +149,9 @@ void LocationBarBubbleDelegateView::OnFullscreenStateChanged() {
 
 void LocationBarBubbleDelegateView::OnVisibilityChanged(
     content::Visibility visibility) {
-  if (visibility == content::Visibility::HIDDEN)
+  if (visibility == content::Visibility::HIDDEN) {
     CloseBubble();
+  }
 }
 
 void LocationBarBubbleDelegateView::WebContentsDestroyed() {
@@ -181,8 +183,9 @@ gfx::Rect LocationBarBubbleDelegateView::GetAnchorBoundsInScreen() const {
 
 void LocationBarBubbleDelegateView::AdjustForFullscreen(
     const gfx::Rect& screen_bounds) {
-  if (GetAnchorView())
+  if (GetAnchorView()) {
     return;
+  }
 
   const int kBubblePaddingFromScreenEdge = 20;
   int horizontal_offset = width() / 2 + kBubblePaddingFromScreenEdge;
@@ -193,7 +196,9 @@ void LocationBarBubbleDelegateView::AdjustForFullscreen(
 }
 
 void LocationBarBubbleDelegateView::CloseBubble() {
-  GetWidget()->Close();
+  if (auto* const widget = GetWidget()) {
+    widget->Close();
+  }
 }
 
 void LocationBarBubbleDelegateView::SetCloseOnMainFrameOriginNavigation(

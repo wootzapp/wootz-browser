@@ -6,12 +6,12 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/common/extension_builder.h"
@@ -54,10 +54,11 @@ class ExtensionSettingsOverriddenDialogUnitTest
       bool include_extra_perms = true) {
     extensions::ExtensionBuilder builder(name);
     builder.SetLocation(location);
-    if (include_extra_perms)
-      builder.AddPermission("storage");
+    if (include_extra_perms) {
+      builder.AddAPIPermission("storage");
+    }
     scoped_refptr<const extensions::Extension> extension = builder.Build();
-    service()->AddExtension(extension.get());
+    registrar()->AddExtension(extension);
     return extension.get();
   }
 
@@ -126,8 +127,9 @@ TEST_F(ExtensionSettingsOverriddenDialogUnitTest,
                                       DialogResult::kChangeSettingsBack, 1);
 
   EXPECT_TRUE(registry()->disabled_extensions().Contains(extension->id()));
-  EXPECT_EQ(extensions::disable_reason::DISABLE_USER_ACTION,
-            GetExtensionPrefs()->GetDisableReasons(extension->id()));
+  EXPECT_THAT(GetExtensionPrefs()->GetDisableReasons(extension->id()),
+              testing::UnorderedElementsAre(
+                  extensions::disable_reason::DISABLE_USER_ACTION));
   EXPECT_FALSE(IsExtensionAcknowledged(extension->id()));
 }
 
@@ -235,7 +237,7 @@ TEST_F(ExtensionSettingsOverriddenDialogUnitTest,
   EXPECT_TRUE(controller.ShouldShow());
   controller.OnDialogShown();
 
-  service()->UninstallExtension(
+  registrar()->UninstallExtension(
       extension->id(), extensions::UNINSTALL_REASON_FOR_TESTING, nullptr);
 
   controller.HandleDialogResult(DialogResult::kChangeSettingsBack);

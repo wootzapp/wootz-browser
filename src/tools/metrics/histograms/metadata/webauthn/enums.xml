@@ -26,6 +26,21 @@ chromium-metrics-reviews@google.com.
 
 <enums>
 
+<enum name="ChangePinEvent">
+  <int value="0" label="A PIN change request is triggered in settings."/>
+  <int value="1" label="A PIN change request is triggered in PIN dialog."/>
+  <int value="2" label="GAIA reauth succeeded and a RAPT is retrieved."/>
+  <int value="3" label="GAIA reauth is cancelled by closing the window."/>
+  <int value="4" label="A new PIN is entered in the GPM PIN dialog."/>
+  <int value="5"
+      label="Change PIN request is cancelled by dismissing the new PIN
+             dialog."/>
+  <int value="6" label="Change PIN request succeeded in enclave."/>
+  <int value="7"
+      label="Change PIN request failed in enclave. This does not include
+             cancellations."/>
+</enum>
+
 <enum name="CredManCreateRequestEnum">
   <int value="0" label="A createCredential request was sent to the platform."/>
   <int value="1"
@@ -59,88 +74,87 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="prepareGetCredential request failed."/>
 </enum>
 
-<enum name="WebAuthenticationAOADiscoveryEvent">
-  <int value="0" label="Started"/>
-  <int value="1" label="An AOA USB device appeared during a WebAuthn request"/>
-  <int value="2"
-      label="A non-AOA USB device was plugged in during a WebAuthn request"/>
+<enum name="GPMGetAssertionEvents">
+  <int value="0" label="Started - GPM passkey selected"/>
+  <int value="1" label="Success - Authentication complete"/>
+  <int value="2" label="Failure - Error dialog shown"/>
+</enum>
+
+<enum name="GPMMakeCredentialEvents">
+  <int value="0" label="Started - Create GPM passkey dialog shown"/>
+  <int value="1" label="Success - Passkey saved"/>
+  <int value="2" label="Failure - Error dialog shown"/>
+</enum>
+
+<enum name="OnboardingEvents">
+  <int value="0" label="Started (Create GPM passkey dialog shown)"/>
+  <int value="1" label="Succeeded (GPM passkey created)"/>
+  <int value="2" label="Cancelled - Passkey creation - Cancel"/>
+  <int value="3" label="Cancelled - Passkey creation - Save another way"/>
+  <int value="4" label="Cancelled - PIN create modal"/>
+  <int value="5" label="Failure dialog shown"/>
+</enum>
+
+<!-- LINT.IfChange(SignalAllAcceptedCredentialsResultEnum) -->
+
+<enum name="SignalAllAcceptedCredentialsResult">
+  <int value="0" label="No passkeys were changed"/>
+  <int value="1" label="A passkey was removed"/>
+  <int value="2" label="A passkey was hidden"/>
+  <int value="3" label="A passkey was restored"/>
+  <int value="4"
+      label="The website exceeded the quota, so the request was dropped."/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/webauthn/chrome_web_authentication_delegate.h:SignalAllAcceptedCredentialsResult) -->
+
+<!-- LINT.IfChange(SignalCurrentUserDetailsResultEnum) -->
+
+<enum name="SignalCurrentUserDetailsResult">
+  <int value="0"
+      label="The website exceeded the quota, so the request was dropped."/>
+  <int value="1"
+      label="A passkey matching the user ID was found and had changed, so it
+             was updated."/>
+  <int value="2" label="No passkeys were updated."/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/webauthn/chrome_web_authentication_delegate.h:SignalCurrentUserDetailsResult) -->
+
+<!-- LINT.IfChange(SignalUnknownCredentialResultEnum) -->
+
+<enum name="SignalUnknownCredentialResult">
+  <int value="0" label="The passkey ID was not found, so nothing was removed."/>
+  <int value="1" label="The passkey ID was found and removed."/>
+  <int value="2" label="The passkey ID was found and hidden."/>
   <int value="3"
-      label="A non-AOA device did not have an AOA configuration interface"/>
-  <int value="4" label="Failed to open an AOA device"/>
-  <int value="5"
-      label="Failed to set the active configuration of an AOA device"/>
-  <int value="6" label="Failed to claim the interface of an AOA device"/>
-  <int value="7" label="Failed to write a sync message to an AOA device"/>
-  <int value="8" label="Failed to read a sync reply from an AOA device"/>
-  <int value="9" label="AOA device successfully discovered"/>
-  <int value="10" label="Failed to open a non-AOA device"/>
-  <int value="11"
-      label="Failed to get version information from non-AOA device"/>
-  <int value="12" label="AOA version one not supported"/>
-  <int value="13" label="Failed to set AOA configuration strings"/>
-  <int value="14" label="Device requested to switch to AOA mode"/>
-  <int value="15"
-      label="One or more previously discovered devices are still connected"/>
+      label="The website exceeded the quota, so the request was dropped."/>
+  <int value="4" label="The passkey ID was already hidden."/>
 </enum>
 
-<enum name="WebAuthenticationCableV2DiscoveryEvent">
-  <int value="0" label="Discovery started"/>
-  <int value="1" label="Pairing information was provided to this discovery"/>
-  <int value="2" label="QR keys were provided to this discovery"/>
-  <int value="3"
-      label="Keys from an extension were provided to this discovery"/>
-  <int value="4" label="An EID matched a pending tunnel"/>
-  <int value="5" label="An EID matched a QR code"/>
-  <int value="6" label="An EID matched an extension"/>
-  <int value="7" label="An EID was ignored because it didn't match anything"/>
+<!-- LINT.ThenChange(//chrome/browser/webauthn/chrome_web_authentication_delegate.h:SignalUnknownCredentialResult) -->
+
+<enum name="SuccessState">
+  <int value="0" label="FIDO2 and Passkey Cache calls failed."/>
+  <int value="1" label="FIDO2 call failed; Passkey Cache call succeeded."/>
+  <int value="2" label="FIDO2 call succeeded; Passkey Cache call failed."/>
+  <int value="3" label="FIDO2 and Passkey Cache calls succeeded."/>
 </enum>
 
-<enum name="WebAuthenticationCableV2MobileEvent">
-  <int value="0" label="QR read"/>
-  <int value="1" label="Server-linked connection started"/>
-  <int value="2" label="Cloud message received"/>
-  <int value="3" label="USB connection"/>
-  <int value="4" label="Authenticator setup"/>
-  <int value="5" label="Connected to tunnel server"/>
-  <int value="6" label="Handshake completed"/>
-  <int value="7" label="Request received"/>
-  <int value="8" label="CTAP response with non-zero status"/>
-  <int value="9" label="Unlinked all devices"/>
-  <int value="10" label="Showed notification"/>
-  <int value="11" label="Notification pressed"/>
-  <int value="12" label="User unselected linking checkbox during QR scan"/>
-  <int value="13" label="USB transaction was successful"/>
-  <int value="14"
-      label="Activity stopped while awaiting tunnel server connection"/>
-  <int value="15" label="Activity stopped while awaiting handshake"/>
-  <int value="16" label="Activity stopped while awaiting request"/>
-  <int value="17" label="Activity stopped in GMS Core request"/>
-  <int value="18" label="An unexpected GetAssertion response was received"/>
-  <int value="19" label="A GetAssertion request was started"/>
-  <int value="20" label="A GetAssertion response was received"/>
-  <int value="21" label="The first transaction on a connection was completed"/>
-  <int value="22"
-      label="The contact ID was not ready in time for a QR transaction"/>
-  <int value="23" label="Permission to send a BLE advert was requested"/>
-  <int value="24" label="Permission to send a BLE advert was granted"/>
-  <int value="25" label="Permission to send a BLE advert was rejected"/>
+<!-- LINT.IfChange(U2fSignOperationResultEnum) -->
+
+<enum name="U2fSignOperationResult">
+  <int value="0" label="Operation succeeded"/>
+  <int value="1" label="Operation was cancelled"/>
+  <int value="2" label="User had no credentials"/>
+  <int value="3" label="An unrecoverable error occurred"/>
+  <int value="4" label="An error occurred, then the operation succeeded"/>
+  <int value="5" label="An error occurred, then the operation was cancelled"/>
+  <int value="6" label="An error occurred, then the user had no credentials"/>
+  <int value="7" label="An error occurred, then a fatal error occurred"/>
 </enum>
 
-<enum name="WebAuthenticationCableV2MobileResult">
-  <int value="0" label="Success"/>
-  <int value="1" label="Unexpected EOF"/>
-  <int value="2" label="Failed to connect to tunnel server"/>
-  <int value="3" label="Handshake failure"/>
-  <int value="4" label="Decryption failure"/>
-  <int value="5" label="Invalid CBOR received"/>
-  <int value="6" label="Invalid CTAP received"/>
-  <int value="7" label="Unknown command"/>
-  <int value="8" label="Internal error"/>
-  <int value="9" label="Invalid QR"/>
-  <int value="10" label="Invalid server link data"/>
-  <int value="11" label="EOF while processing a request"/>
-  <int value="12" label="Discoverable credentials request rejected"/>
-</enum>
+<!-- LINT.ThenChange(//device/fido/u2f_sign_operation.cc:U2fSignOperationResult) -->
 
 <enum name="WebAuthenticationCableV2TunnelEvent">
   <int value="0"
@@ -180,33 +194,7 @@ chromium-metrics-reviews@google.com.
   <int value="8" label="Canceled"/>
 </enum>
 
-<enum name="WebAuthenticationEnclaveEvent">
-  <int value="0" label="Onboarding sheet was shown to the user"/>
-  <int value="1"
-      label="User rejected the onboarding sheet by requesting to save the
-             passkey in a different authenticator"/>
-  <int value="2" label="User accepted the onboarding sheet"/>
-  <int value="3" label="A MagicArch window was shown"/>
-  <int value="4" label="MagicArch provided the security domain secret"/>
-  <int value="5" label="A create() request was sent to the enclave"/>
-  <int value="6" label="A get() request was sent to the enclave"/>
-  <int value="7"
-      label="The enclave create passkey dialog was shown as the priority
-             mechanism"/>
-  <int value="8"
-      label="User backed out of create passkey priority mechanism screen"/>
-</enum>
-
-<enum name="WebAuthenticationFidoTransport">
-  <int value="0" label="USB HID"/>
-  <int value="1" label="Near Field Communication"/>
-  <int value="2" label="Bluetooth Low Energy"/>
-  <int value="3" label="Cloud-assisted BLE"/>
-  <int value="4" label="Internal"/>
-  <int value="5" label="Android Accessory"/>
-</enum>
-
-<enum name="WebAuthenticationGetAssertionResult">
+<enum name="WebAuthenticationCredentialRequestResult">
   <int value="0" label="Timeout"/>
   <int value="1" label="User cancelled"/>
   <int value="2" label="Native Windows API success"/>
@@ -223,6 +211,82 @@ chromium-metrics-reviews@google.com.
   <int value="13" label="Enclave failure"/>
   <int value="14" label="Other device success"/>
   <int value="15" label="Other device error"/>
+</enum>
+
+<enum name="WebAuthenticationEnclaveEvent">
+  <int value="0" label="Onboarding sheet was shown to the user"/>
+  <int value="1"
+      label="User rejected the onboarding sheet by requesting to save the
+             passkey in a different authenticator"/>
+  <int value="2" label="User accepted the onboarding sheet"/>
+  <int value="3" label="A MagicArch window was shown"/>
+  <int value="4" label="MagicArch provided the security domain secret"/>
+  <int value="5" label="A create() request was sent to the enclave"/>
+  <int value="6" label="A get() request was sent to the enclave"/>
+  <int value="7"
+      label="The enclave create passkey dialog was shown as the priority
+             mechanism"/>
+  <int value="8"
+      label="User backed out of create passkey priority mechanism screen"/>
+  <int value="9" label="User recovered from an iCloud Keychain recovery key"/>
+  <int value="10" label="Downloading the account state timed out"/>
+  <int value="11"
+      label="Recoverable sign in error, user needs to reauth to use the
+             enclave"/>
+  <int value="12"
+      label="The enclave was the default but loading took too long, so Chrome
+             jumped to the mechanism selection screen instead"/>
+</enum>
+
+<enum name="WebAuthenticationEnclaveRequestResult">
+  <int value="0" label="Success"/>
+  <int value="1" label="No Supported Algorithm"/>
+  <int value="2" label="Duplicate"/>
+  <int value="3" label="Incorrect PIN"/>
+  <int value="4" label="PIN Locked"/>
+  <int value="5" label="PIN Outdated"/>
+  <int value="6" label="Recovery Key Store Downgrade"/>
+  <int value="7" label="Failed Transaction"/>
+  <int value="8" label="Other Error"/>
+</enum>
+
+<enum name="WebAuthenticationEnclaveTransactionResult">
+  <int value="0" label="Success"/>
+  <int value="1" label="Unknown Client Error"/>
+  <int value="2" label="Missing Public Key Error"/>
+  <int value="3" label="Service Failed To Verify Signature"/>
+  <int value="4" label="Handshake Failed"/>
+  <int value="5" label="Decryption Of Server Response Failed"/>
+  <int value="6" label="Failed To Parse Server Response"/>
+  <int value="7" label="Other Error"/>
+  <int value="8" label="WebSocket Error"/>
+</enum>
+
+<enum name="WebAuthenticationFidoTransport">
+  <int value="0" label="USB HID"/>
+  <int value="1" label="Near Field Communication"/>
+  <int value="2" label="Bluetooth Low Energy"/>
+  <int value="3" label="Cloud-assisted BLE"/>
+  <int value="4" label="Internal"/>
+  <int value="5" label="Android Accessory (Deprecated)"/>
+</enum>
+
+<enum name="WebAuthenticationGetAssertionOutcome">
+  <int value="0" label="Success"/>
+  <int value="1" label="Security Error"/>
+  <int value="2" label="User Cancellation"/>
+  <int value="3" label="Credential Not Recognized"/>
+  <int value="4" label="Invalid Response From Authenticator"/>
+  <int value="5" label="RK Not Supported"/>
+  <int value="6" label="UV Not Supported"/>
+  <int value="7" label="Soft PIN Block"/>
+  <int value="8" label="Hard PIN Block"/>
+  <int value="9" label="Platform Not Allowed Error"/>
+  <int value="10" label="Hybrid Transport Error"/>
+  <int value="11" label="Blocked By Filter"/>
+  <int value="12" label="Enclave Authenticator Error"/>
+  <int value="13" label="Timeout Occurred"/>
+  <int value="14" label="Other Failure"/>
 </enum>
 
 <enum name="WebAuthenticationMacOSPasskeysPermission">
@@ -267,6 +331,62 @@ chromium-metrics-reviews@google.com.
              Keychain recognised a credential"/>
   <int value="11" label="Successful get() from the profile authenticator"/>
   <int value="12" label="Successful get() from iCloud Keychain"/>
+</enum>
+
+<enum name="WebAuthenticationMakeCredentialOutcome">
+  <int value="0" label="Success"/>
+  <int value="1" label="Security Error"/>
+  <int value="2" label="User Cancellation"/>
+  <int value="3" label="Credential Excluded"/>
+  <int value="4" label="Invalid Response From Authenticator"/>
+  <int value="5" label="RK Not Supported"/>
+  <int value="6" label="UV Not Supported"/>
+  <int value="7" label="Large Blob Not Supported"/>
+  <int value="8" label="Algorithm Not Supported"/>
+  <int value="9" label="Soft PIN Block"/>
+  <int value="10" label="Hard PIN Block"/>
+  <int value="11" label="Storage Full"/>
+  <int value="12" label="Platform Not Allowed Error"/>
+  <int value="13" label="Hybrid Transport Error"/>
+  <int value="14" label="Blocked By Filter"/>
+  <int value="15" label="Enclave Authenticator Error"/>
+  <int value="16" label="Timeout Occurred"/>
+  <int value="17" label="Other Failure"/>
+</enum>
+
+<enum name="WebAuthenticationPinRenewalEvent">
+  <int value="0" label="Considered renewing the PIN"/>
+  <int value="1" label="No PIN to renew"/>
+  <int value="2" label="Another renewal was running concurrently"/>
+  <int value="3" label="Not yet time to renew"/>
+  <int value="4" label="Started renewal"/>
+  <int value="5" label="Successful renewal"/>
+  <int value="6" label="Renewal failed"/>
+</enum>
+
+<!-- LINT.IfChange(PinRenewalFailureCauseEnum) -->
+
+<enum name="WebAuthenticationPinRenewalFailureCause">
+  <int value="1" label="Renewal failed while downloading XML files"/>
+  <int value="2" label="Renewal failed getting access token"/>
+  <int value="3" label="Renewal failed during enclave request (1)"/>
+  <int value="4" label="Renewal failed during enclave request (2)"/>
+  <int value="5" label="Renewal failed parsing enclave response (1)"/>
+  <int value="6" label="Renewal failed parsing enclave response (2)"/>
+  <int value="7" label="Renewal failed uploading to recovery key store"/>
+  <int value="8" label="Renewal failed joining the PIN to the domain"/>
+  <int value="9" label="Tried to renew but the security domain reports no PIN"/>
+  <int value="10"
+      label="Renewal failed because the security domain has been reset"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/webauthn/enclave_manager.h:PinRenewalFailureCause) -->
+
+<enum name="WebAuthenticationRequestMode">
+  <int value="0" label="WebAuthn Modal Request"/>
+  <int value="1" label="WebAuthn Conditional UI Request"/>
+  <int value="2" label="Payment Request"/>
+  <int value="3" label="WebAuthn Passkey Upgrade Request"/>
 </enum>
 
 <enum name="WindowsForegroundedHelloDialog">

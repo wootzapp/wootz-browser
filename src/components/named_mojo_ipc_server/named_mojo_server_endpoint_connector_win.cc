@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
@@ -116,7 +117,7 @@ void NamedMojoServerEndpointConnectorWin::Connect() {
   // The |lpOverlapped| argument of ConnectNamedPipe() has the annotation of
   // [in, out, optional], so we reset the content before passing it in, just to
   // be safe.
-  memset(&connect_overlapped_, 0, sizeof(connect_overlapped_));
+  UNSAFE_TODO(memset(&connect_overlapped_, 0, sizeof(connect_overlapped_)));
   connect_overlapped_.hEvent = client_connected_event_.handle();
   BOOL ok =
       ConnectNamedPipe(pending_named_pipe_handle_.Get(), &connect_overlapped_);
@@ -164,14 +165,6 @@ void NamedMojoServerEndpointConnectorWin::OnReady() {
     PLOG(ERROR) << "Failed to get peer PID";
     OnError();
     return;
-  }
-  std::optional<base::win::ScopedHandle> impersonation_token;
-  if (ImpersonateNamedPipeClient(pending_named_pipe_handle_.Get())) {
-    HANDLE token = nullptr;
-    if (OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &token)) {
-      info->impersonation_token = base::win::ScopedHandle(token);
-    }
-    RevertToSelf();
   }
   mojo::PlatformChannelEndpoint endpoint(
       mojo::PlatformHandle(std::move(pending_named_pipe_handle_)));

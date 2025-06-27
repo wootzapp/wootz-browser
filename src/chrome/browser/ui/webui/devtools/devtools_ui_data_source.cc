@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
@@ -43,7 +44,7 @@ std::string PathWithoutParams(const std::string& path) {
 scoped_refptr<base::RefCountedMemory> CreateNotFoundResponse() {
   const char kHttpNotFound[] = "HTTP/1.1 404 Not Found\n\n";
   return base::MakeRefCounted<base::RefCountedStaticMemory>(
-      kHttpNotFound, strlen(kHttpNotFound));
+      base::byte_span_from_cstring(kHttpNotFound));
 }
 
 // DevToolsDataSource ---------------------------------------------------------
@@ -103,7 +104,7 @@ DevToolsDataSource::DevToolsDataSource(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
     : url_loader_factory_(std::move(url_loader_factory)) {}
 
-DevToolsDataSource::~DevToolsDataSource() {}
+DevToolsDataSource::~DevToolsDataSource() = default;
 
 std::string DevToolsDataSource::GetSource() {
   return chrome::kChromeUIDevToolsHost;
@@ -122,8 +123,9 @@ GURL GetCustomDevToolsFrontendURL() {
 bool DevToolsDataSource::MaybeHandleCustomRequest(const std::string& path,
                                                   GotDataCallback* callback) {
   GURL custom_devtools_frontend = GetCustomDevToolsFrontendURL();
-  if (!custom_devtools_frontend.is_valid())
+  if (!custom_devtools_frontend.is_valid()) {
     return false;
+  }
   std::string stripped_path =
       StripDevToolsRevisionWithPrefix(path, "serve_rev/");
   stripped_path = StripDevToolsRevisionWithPrefix(stripped_path, "serve_file/");
@@ -381,6 +383,7 @@ DevToolsDataSource::PendingRequest::PendingRequest(PendingRequest&& other) =
     default;
 
 DevToolsDataSource::PendingRequest::~PendingRequest() {
-  if (callback)
+  if (callback) {
     std::move(callback).Run(CreateNotFoundResponse());
+  }
 }

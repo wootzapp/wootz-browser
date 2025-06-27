@@ -8,22 +8,32 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/url_constants.h"
+#include "ash/lobster/lobster_controller.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
+#include "ash/public/cpp/capture_mode/capture_mode_api.h"
+#include "ash/scanner/scanner_controller.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/assistant/assistant_util.h"
+#include "chrome/browser/ash/input_method/editor_mediator_factory.h"
+#include "chrome/browser/ash/lobster/lobster_service.h"
+#include "chrome/browser/ash/lobster/lobster_service_provider.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/ash/assistant_optin/assistant_optin_utils.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/search/google_assistant_handler.h"
+#include "chrome/browser/ui/webui/ash/settings/search/search_concept.h"
 #include "chrome/browser/ui/webui/ash/settings/search/search_tag_registry.h"
 #include "chrome/browser/ui/webui/settings/search_engines_handler.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/ash/services/assistant/public/cpp/assistant_prefs.h"
 #include "chromeos/ash/services/assistant/public/cpp/features.h"
+#include "chromeos/components/magic_boost/public/cpp/magic_boost_state.h"
 #include "chromeos/components/mahi/public/cpp/mahi_manager.h"
+#include "chromeos/components/quick_answers/public/cpp/quick_answers_state.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -32,12 +42,12 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "ui/chromeos/devicetype_utils.h"
+#include "ui/webui/webui_util.h"
 
 namespace ash::settings {
 
 namespace mojom {
 using ::chromeos::settings::mojom::kAssistantSubpagePath;
-using ::chromeos::settings::mojom::kSearchAndAssistantSectionPath;
 using ::chromeos::settings::mojom::kSearchSubpagePath;
 using ::chromeos::settings::mojom::kSystemPreferencesSectionPath;
 using ::chromeos::settings::mojom::Section;
@@ -49,13 +59,48 @@ namespace {
 
 // Whether Quick answers is supported for the current language.
 bool IsQuickAnswersSupported() {
-  return QuickAnswersState::Get() && QuickAnswersState::Get()->is_eligible();
+  return QuickAnswersState::IsEligibleAs(
+      QuickAnswersState::FeatureType::kQuickAnswers);
 }
 
-const std::vector<SearchConcept>& GetSearchPageSearchConcepts(
-    const char* section_path) {
+bool IsMagicBoostNoticeBannerVisible(Profile* profile) {
+  chromeos::MagicBoostState* magic_boost_state =
+      chromeos::MagicBoostState::Get();
+
+  bool hmr_needs_notice_banner = magic_boost_state->IsMagicBoostAvailable() &&
+                                 magic_boost_state->CanShowNoticeBannerForHMR();
+
+  bool hmw_needs_notice_banner = false;
+
+  if (chromeos::features::IsOrcaEnabled()) {
+    ash::input_method::EditorMediator* editor_mediator =
+        ash::input_method::EditorMediatorFactory::GetInstance()->GetForProfile(
+            profile);
+
+    hmw_needs_notice_banner = editor_mediator &&
+                              editor_mediator->IsAllowedForUse() &&
+                              editor_mediator->CanShowNoticeBanner();
+  }
+
+  return hmr_needs_notice_banner || hmw_needs_notice_banner;
+}
+
+bool IsLobsterSettingsToggleVisible(Profile* profile) {
+  return ash::features::IsLobsterEnabled() &&
+         LobsterServiceProvider::GetForProfile(profile) != nullptr &&
+         LobsterServiceProvider::GetForProfile(profile)
+             ->CanShowFeatureSettingsToggle();
+}
+
+bool IsScannerSettingsToggleVisible() {
+  ash::Shell* shell = ash::Shell::HasInstance() ? Shell::Get() : nullptr;
+  return shell && shell->scanner_controller() &&
+         shell->scanner_controller()->CanShowFeatureSettingsToggle();
+}
+
+base::span<const SearchConcept> GetSearchPageSearchConcepts() {
   if (IsQuickAnswersSupported()) {
-    static const base::NoDestructor<std::vector<SearchConcept>> tags({
+    static constexpr auto tags = std::to_array<SearchConcept>({
         {IDS_OS_SETTINGS_TAG_PREFERRED_SEARCH_ENGINE,
          mojom::kSearchSubpagePath,
          mojom::SearchResultIcon::kSearch,
@@ -63,22 +108,22 @@ const std::vector<SearchConcept>& GetSearchPageSearchConcepts(
          mojom::SearchResultType::kSetting,
          {.setting = mojom::Setting::kPreferredSearchEngine}},
     });
-    return *tags;
+    return tags;
   }
 
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_PREFERRED_SEARCH_ENGINE,
-       section_path,
+       mojom::kSystemPreferencesSectionPath,
        mojom::SearchResultIcon::kSearch,
        mojom::SearchResultDefaultRank::kMedium,
        mojom::SearchResultType::kSetting,
        {.setting = mojom::Setting::kPreferredSearchEngine}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetQuickAnswersSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetQuickAnswersSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_QUICK_ANSWERS,
        mojom::kSearchSubpagePath,
        mojom::SearchResultIcon::kSearch,
@@ -89,11 +134,11 @@ const std::vector<SearchConcept>& GetQuickAnswersSearchConcepts() {
         IDS_OS_SETTINGS_TAG_QUICK_ANSWERS_ALT2,
         IDS_OS_SETTINGS_TAG_QUICK_ANSWERS_ALT3, SearchConcept::kAltTagEnd}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetQuickAnswersOnSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetQuickAnswersOnSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_QUICK_ANSWERS_DEFINITION,
        mojom::kSearchSubpagePath,
        mojom::SearchResultIcon::kSearch,
@@ -113,11 +158,11 @@ const std::vector<SearchConcept>& GetQuickAnswersOnSearchConcepts() {
        mojom::SearchResultType::kSetting,
        {.setting = mojom::Setting::kQuickAnswersUnitConversion}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetAssistantSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetAssistantSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_ASSISTANT,
        mojom::kAssistantSubpagePath,
        mojom::SearchResultIcon::kAssistant,
@@ -134,11 +179,11 @@ const std::vector<SearchConcept>& GetAssistantSearchConcepts() {
         IDS_OS_SETTINGS_TAG_ASSISTANT_OK_GOOGLE_ALT2,
         SearchConcept::kAltTagEnd}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetAssistantOnSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetAssistantOnSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_ASSISTANT_TURN_OFF,
        mojom::kAssistantSubpagePath,
        mojom::SearchResultIcon::kAssistant,
@@ -166,11 +211,11 @@ const std::vector<SearchConcept>& GetAssistantOnSearchConcepts() {
        mojom::SearchResultType::kSetting,
        {.setting = mojom::Setting::kAssistantRelatedInfo}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetAssistantOffSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetAssistantOffSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_ASSISTANT_TURN_ON,
        mojom::kAssistantSubpagePath,
        mojom::SearchResultIcon::kAssistant,
@@ -179,11 +224,11 @@ const std::vector<SearchConcept>& GetAssistantOffSearchConcepts() {
        {.setting = mojom::Setting::kAssistantOnOff},
        {IDS_OS_SETTINGS_TAG_ASSISTANT_TURN_ON_ALT1, SearchConcept::kAltTagEnd}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetAssistantVoiceMatchSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetAssistantVoiceMatchSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_ASSISTANT_TRAIN_VOICE_MODEL,
        mojom::kAssistantSubpagePath,
        mojom::SearchResultIcon::kAssistant,
@@ -191,7 +236,37 @@ const std::vector<SearchConcept>& GetAssistantVoiceMatchSearchConcepts() {
        mojom::SearchResultType::kSetting,
        {.setting = mojom::Setting::kTrainAssistantVoiceModel}},
   });
-  return *tags;
+  return tags;
+}
+
+base::span<const SearchConcept> GetMagicBoostSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
+      {IDS_OS_SETTINGS_TAG_MAGIC_BOOST,
+       mojom::kSystemPreferencesSectionPath,
+       mojom::SearchResultIcon::kMagicBoost,
+       mojom::SearchResultDefaultRank::kMedium,
+       mojom::SearchResultType::kSetting,
+       {.setting = mojom::Setting::kMagicBoostOnOff}},
+  });
+  return tags;
+}
+
+base::span<const SearchConcept> GetMagicBoostSubSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
+      {IDS_OS_SETTINGS_TAG_MAGIC_BOOST_HMR,
+       mojom::kSystemPreferencesSectionPath,
+       mojom::SearchResultIcon::kHelpMeRead,
+       mojom::SearchResultDefaultRank::kMedium,
+       mojom::SearchResultType::kSetting,
+       {.setting = mojom::Setting::kMahiOnOff}},
+      {IDS_OS_SETTINGS_TAG_MAGIC_BOOST_HMW,
+       mojom::kSystemPreferencesSectionPath,
+       mojom::SearchResultIcon::kHelpMeWrite,
+       mojom::SearchResultDefaultRank::kMedium,
+       mojom::SearchResultType::kSetting,
+       {.setting = mojom::Setting::kShowOrca}},
+  });
+  return tags;
 }
 
 bool IsVoiceMatchAllowed() {
@@ -272,7 +347,7 @@ SearchSection::SearchSection(Profile* profile,
     : OsSettingsSection(profile, search_tag_registry) {
   SearchTagRegistry::ScopedTagUpdater updater = registry()->StartUpdate();
 
-  updater.AddSearchTags(GetSearchPageSearchConcepts(GetSectionPath()));
+  updater.AddSearchTags(GetSearchPageSearchConcepts());
 
   AssistantState* assistant_state = AssistantState::Get();
   if (IsAssistantAllowed() && assistant_state) {
@@ -286,6 +361,13 @@ SearchSection::SearchSection(Profile* profile,
     QuickAnswersState::Get()->AddObserver(this);
     UpdateQuickAnswersSearchTags();
   }
+
+  // Magic boost related search tags are updated in `AddLoadTimeData`, i.e. when
+  // the settings app is opened. See `AddLoadTimeData`.
+  auto* magic_boost_state = chromeos::MagicBoostState::Get();
+  if (magic_boost_state) {
+    magic_boost_state->AddObserver(this);
+  }
 }
 
 SearchSection::~SearchSection() {
@@ -296,39 +378,79 @@ SearchSection::~SearchSection() {
 }
 
 void SearchSection::AddLoadTimeData(content::WebUIDataSource* html_source) {
-  const bool kIsRevampEnabled =
-      ash::features::IsOsSettingsRevampWayfindingEnabled();
-
   webui::LocalizedString kLocalizedStrings[] = {
-      {"enableMahi", IDS_OS_SETTINGS_ENABLE_MAHI},
-      {"enableMahiDesc", IDS_OS_SETTINGS_ENABLE_MAHI_DESCRIPTION},
-      {"osSearchEngineLabel", kIsRevampEnabled
-                                  ? IDS_OS_SETTINGS_REVAMP_SEARCH_ENGINE_LABEL
-                                  : IDS_OS_SETTINGS_SEARCH_ENGINE_LABEL},
+      {"enableMagicBoost", IDS_OS_SETTINGS_ENABLE_MAGIC_BOOST},
+      {"enableMagicBoostDesc", IDS_OS_SETTINGS_ENABLE_MAGIC_BOOST_DESCRIPTION},
+      {"magicBoostReviewTermsBannerDescription",
+       IDS_OS_SETTINGS_MAGIC_BOOST_REVIEW_TERMS_BANNER_DESCRIPTION},
+      {"magicBoostReviewTermsButtonLabel",
+       IDS_OS_SETTINGS_MAGIC_BOOST_REVIEW_TERMS_BUTTON_LABEL},
+      {"enableMagicBoostDesc", IDS_OS_SETTINGS_ENABLE_MAGIC_BOOST_DESCRIPTION},
+      {"enableHelpMeRead", IDS_OS_SETTINGS_ENABLE_HELP_ME_READ},
+      {"enableHelpMeReadDesc", IDS_OS_SETTINGS_ENABLE_HELP_ME_READ_DESCRIPTION},
+      {"enableHelpMeWrite", IDS_OS_SETTINGS_ENABLE_HELP_ME_WRITE},
+      {"enableHelpMeWriteDesc",
+       IDS_OS_SETTINGS_ENABLE_HELP_ME_WRITE_DESCRIPTION},
+      {"enableLobster", IDS_LOBSTER_OS_SETTINGS_ENABLE},
+      {"enableLobsterDesc", IDS_LOBSTER_OS_SETTINGS_ENABLE_DESCRIPTION},
+      {"enableScanner", IDS_OS_SETTINGS_ENABLE_SCANNER},
+      {"enableScannerDesc", IDS_OS_SETTINGS_ENABLE_SCANNER_DESCRIPTION},
+      {"osSearchEngineLabel", IDS_OS_SETTINGS_SEARCH_ENGINE_LABEL},
       {"searchSubpageTitle", IDS_SETTINGS_SEARCH_SUBPAGE_TITLE},
       {"searchGoogleAssistant", IDS_SETTINGS_SEARCH_GOOGLE_ASSISTANT},
       {"searchGoogleAssistantEnabled",
-       kIsRevampEnabled ? IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_ON
-                        : IDS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_ENABLED},
+       IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_ON},
       {"searchGoogleAssistantDisabled",
-       kIsRevampEnabled ? IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_OFF
-                        : IDS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_DISABLED},
+       IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_OFF},
       {"searchGoogleAssistantOn", IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_ON},
       {"searchGoogleAssistantOff", IDS_OS_SETTINGS_SEARCH_GOOGLE_ASSISTANT_OFF},
   };
   html_source->AddLocalizedStrings(kLocalizedStrings);
 
+  html_source->AddString("helpMeReadWriteLearnMoreUrl",
+                         chrome::kHelpMeReadWriteLearnMoreURL);
+
+  html_source->AddString("lobsterLearnMoreUrl", chrome::kLobsterLearnMoreURL);
+
+  html_source->AddString("scannerLearnMoreUrl", chrome::kScannerLearnMoreUrl);
+
   html_source->AddBoolean("isQuickAnswersSupported", IsQuickAnswersSupported());
-  html_source->AddBoolean(
-      "isMahiEnabled",
-      chromeos::MahiManager::IsSupportedWithCorrectFeatureKey());
+
+  bool is_magic_boost_feature_enabled =
+      chromeos::MagicBoostState::Get()->IsMagicBoostAvailable() ||
+      IsLobsterSettingsToggleVisible(profile());
+
+  // Updates magic boost search tags each time when the load time data is added,
+  // instead of a one-off update in the constructor, to avoid the unreliable
+  // value of chromeos::MagicBoostState::Get()->IsMagicBoostAvailable() during
+  // the user login.
+  // See crbug.com/379281461 for more details.
+  UpdateMagicBoostSearchTags(is_magic_boost_feature_enabled);
+
+  html_source->AddBoolean("isMagicBoostFeatureEnabled",
+                          is_magic_boost_feature_enabled);
+
+  html_source->AddBoolean("isMagicBoostNoticeBannerVisible",
+                          IsMagicBoostNoticeBannerVisible(profile()));
+
+  html_source->AddBoolean("isLobsterSettingsToggleVisible",
+                          IsLobsterSettingsToggleVisible(profile()));
+
+  html_source->AddBoolean("isScannerSettingsToggleVisible",
+                          IsScannerSettingsToggleVisible());
 
   const bool is_assistant_allowed = IsAssistantAllowed();
   html_source->AddBoolean("isAssistantAllowed", is_assistant_allowed);
-  html_source->AddLocalizedString("osSearchPageTitle",
-                                  is_assistant_allowed
-                                      ? IDS_SETTINGS_SEARCH_AND_ASSISTANT
-                                      : IDS_SETTINGS_SEARCH);
+
+  if (assistant::features::IsNewEntryPointEnabled()) {
+    html_source->AddLocalizedString(
+        "osSearchPageTitle", IDS_OS_SETTINGS_SEARCH_AND_SUGGESTIONS_TITLE);
+  } else {
+    html_source->AddLocalizedString(
+        "osSearchPageTitle", is_assistant_allowed
+                                 ? IDS_SETTINGS_SEARCH_AND_ASSISTANT
+                                 : IDS_SETTINGS_SEARCH);
+  }
   html_source->AddString("osSearchEngineDescription",
                          ui::SubstituteChromeOSDeviceType(
                              IDS_OS_SETTINGS_SEARCH_ENGINE_DESCRIPTION));
@@ -344,14 +466,16 @@ void SearchSection::AddHandlers(content::WebUI* web_ui) {
 }
 
 int SearchSection::GetSectionNameMessageId() const {
+  if (assistant::features::IsNewEntryPointEnabled()) {
+    return IDS_OS_SETTINGS_SEARCH_AND_SUGGESTIONS_TITLE;
+  }
+
   return IsAssistantAllowed() ? IDS_SETTINGS_SEARCH_AND_ASSISTANT
                               : IDS_SETTINGS_SEARCH;
 }
 
 mojom::Section SearchSection::GetSection() const {
-  return ash::features::IsOsSettingsRevampWayfindingEnabled()
-             ? mojom::Section::kSystemPreferences
-             : mojom::Section::kSearchAndAssistant;
+  return mojom::Section::kSystemPreferences;
 }
 
 mojom::SearchResultIcon SearchSection::GetSectionIcon() const {
@@ -359,15 +483,45 @@ mojom::SearchResultIcon SearchSection::GetSectionIcon() const {
 }
 
 const char* SearchSection::GetSectionPath() const {
-  return ash::features::IsOsSettingsRevampWayfindingEnabled()
-             ? mojom::kSystemPreferencesSectionPath
-             : mojom::kSearchAndAssistantSectionPath;
+  return mojom::kSystemPreferencesSectionPath;
 }
 
 bool SearchSection::LogMetric(mojom::Setting setting,
                               base::Value& value) const {
-  // Unimplemented.
-  return false;
+  switch (setting) {
+    case mojom::Setting::kMagicBoostOnOff:
+      base::UmaHistogramBoolean("ChromeOS.Settings.MagicBoost.Enabled",
+                                value.GetBool());
+      return true;
+
+    case mojom::Setting::kMahiOnOff:
+      base::UmaHistogramBoolean(
+          "ChromeOS.Settings.MagicBoost.HelpMeReadEnabled", value.GetBool());
+      return true;
+
+    case mojom::Setting::kShowOrca:
+      base::UmaHistogramBoolean(
+          "ChromeOS.Settings.MagicBoost.HelpMeWriteEnabled", value.GetBool());
+      return true;
+
+    case mojom::Setting::kLobsterOnOff:
+      base::UmaHistogramBoolean("ChromeOS.Settings.MagicBoost.LobsterEnabled",
+                                value.GetBool());
+      return true;
+
+    case mojom::Setting::kSunfishOnOff:
+      base::UmaHistogramBoolean("ChromeOS.Settings.SunfishEnabled",
+                                value.GetBool());
+      return true;
+
+    case mojom::Setting::kScannerOnOff:
+      base::UmaHistogramBoolean("ChromeOS.Settings.ScannerEnabled",
+                                value.GetBool());
+      return true;
+
+    default:
+      return false;
+  }
 }
 
 void SearchSection::RegisterHierarchy(HierarchyGenerator* generator) const {
@@ -376,7 +530,15 @@ void SearchSection::RegisterHierarchy(HierarchyGenerator* generator) const {
   if (!IsQuickAnswersSupported()) {
     generator->RegisterTopLevelSetting(mojom::Setting::kPreferredSearchEngine);
   }
+
+  // TODO(b:337868408): Setting::kShowOrca is already registered in
+  // device/input_section.cc, therefore UMA emitted from search_secion fails to
+  // log it.
   generator->RegisterTopLevelSetting(mojom::Setting::kMahiOnOff);
+  generator->RegisterTopLevelSetting(mojom::Setting::kMagicBoostOnOff);
+  generator->RegisterTopLevelSetting(mojom::Setting::kLobsterOnOff);
+  generator->RegisterTopLevelSetting(mojom::Setting::kSunfishOnOff);
+  generator->RegisterTopLevelSetting(mojom::Setting::kScannerOnOff);
 
   // Search.
   generator->RegisterTopLevelSubpage(
@@ -451,6 +613,20 @@ void SearchSection::OnEligibilityChanged(bool eligible) {
   UpdateQuickAnswersSearchTags();
 }
 
+void SearchSection::OnFeatureTypeChanged() {
+  UpdateQuickAnswersSearchTags();
+}
+
+void SearchSection::OnMagicBoostEnabledUpdated(bool enabled) {
+  // This is triggered on magic boost prefs value changes, which means magic
+  // boost must be available.
+  UpdateMagicBoostSearchTags(/*is_magic_boost_available=*/true);
+}
+
+void SearchSection::OnIsDeleting() {
+  magic_boost_state_observation_.Reset();
+}
+
 bool SearchSection::IsAssistantAllowed() const {
   // NOTE: This will be false when the flag is disabled.
   return ::assistant::IsAssistantAllowedForProfile(profile()) ==
@@ -501,8 +677,29 @@ void SearchSection::UpdateQuickAnswersSearchTags() {
   updater.AddSearchTags(GetQuickAnswersSearchConcepts());
 
   if (chromeos::features::IsQuickAnswersV2SettingsSubToggleEnabled() &&
-      QuickAnswersState::Get()->settings_enabled()) {
+      QuickAnswersState::IsEnabledAs(
+          QuickAnswersState::FeatureType::kQuickAnswers)) {
     updater.AddSearchTags(GetQuickAnswersOnSearchConcepts());
+  }
+}
+
+void SearchSection::UpdateMagicBoostSearchTags(bool is_magic_boost_available) {
+  auto* magic_boost_state = chromeos::MagicBoostState::Get();
+  DCHECK(magic_boost_state);
+
+  SearchTagRegistry::ScopedTagUpdater updater = registry()->StartUpdate();
+
+  updater.RemoveSearchTags(GetMagicBoostSearchConcepts());
+  updater.RemoveSearchTags(GetMagicBoostSubSearchConcepts());
+
+  if (!is_magic_boost_available) {
+    return;
+  }
+
+  updater.AddSearchTags(GetMagicBoostSearchConcepts());
+
+  if (magic_boost_state->magic_boost_enabled().value_or(false)) {
+    updater.AddSearchTags(GetMagicBoostSubSearchConcepts());
   }
 }
 

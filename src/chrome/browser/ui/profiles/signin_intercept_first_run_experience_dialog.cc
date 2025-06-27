@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/webui/signin/login_ui_service.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
 #include "chrome/browser/ui/webui/signin/profile_customization_ui.h"
+#include "chrome/browser/ui/webui/signin/signin_url_utils.h"
 #include "chrome/browser/ui/webui/signin/turn_sync_on_helper.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
@@ -110,9 +111,8 @@ void SigninInterceptFirstRunExperienceDialog::
         const std::string& previous_email,
         const std::string& new_email,
         signin::SigninChoiceCallback callback) {
-  NOTREACHED_IN_MIGRATION()
-      << "Sign-in intercept shouldn't create a profile for an "
-         "account known to Chrome";
+  NOTREACHED() << "Sign-in intercept shouldn't create a profile for an "
+                  "account known to Chrome";
 }
 
 void SigninInterceptFirstRunExperienceDialog::
@@ -121,7 +121,7 @@ void SigninInterceptFirstRunExperienceDialog::
         signin::SigninChoiceCallback callback) {
   // This is a brand new profile. Skip the enterprise confirmation.
   // TODO(crbug.com/40209493): Do not show the sync promo if
-  // PromotionalTabsEnabled policy is set to False
+  // PromotionsEnabled policy is set to False
   std::move(callback).Run(signin::SIGNIN_CHOICE_CONTINUE);
 }
 
@@ -136,11 +136,10 @@ void SigninInterceptFirstRunExperienceDialog::
 
   PrefService* local_state = g_browser_process->local_state();
   if (dialog_->is_forced_intercept_ ||
-      (local_state &&
-       !local_state->GetBoolean(prefs::kPromotionalTabsEnabled))) {
+      (local_state && !local_state->GetBoolean(prefs::kPromotionsEnabled))) {
     // Don't show the sync promo if
     // - the user went through the forced interception, or
-    // - promotional tabs are disabled by policy.
+    // - promotional tabs, or promotions in general, are disabled by policy.
     dialog_->DoNextStep(Step::kTurnOnSync, Step::kProfileCustomization);
     std::move(callback).Run(LoginUIService::ABORT_SYNC);
     return;
@@ -171,7 +170,7 @@ void SigninInterceptFirstRunExperienceDialog::
             callback) {
   // If Sync is disabled, the `TurnSyncOnHelper` should quit earlier due to
   // `ShouldAbortBeforeShowSyncDisabledConfirmation()`.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void SigninInterceptFirstRunExperienceDialog::
@@ -185,9 +184,8 @@ void SigninInterceptFirstRunExperienceDialog::
 
 void SigninInterceptFirstRunExperienceDialog::
     InterceptTurnSyncOnHelperDelegate::SwitchToProfile(Profile* new_profile) {
-  NOTREACHED_IN_MIGRATION()
-      << "Sign-in intercept shouldn't create a new profile for an "
-         "account known to Chrome";
+  NOTREACHED() << "Sign-in intercept shouldn't create a new profile for an "
+                  "account known to Chrome";
 }
 
 void SigninInterceptFirstRunExperienceDialog::
@@ -284,8 +282,7 @@ void SigninInterceptFirstRunExperienceDialog::DoNextStep(
 
   switch (step) {
     case Step::kStart:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case Step::kTurnOnSync:
       DoTurnOnSync();
       return;
@@ -305,8 +302,8 @@ void SigninInterceptFirstRunExperienceDialog::DoNextStep(
 }
 
 void SigninInterceptFirstRunExperienceDialog::DoTurnOnSync() {
-  const signin_metrics::AccessPoint access_point = signin_metrics::AccessPoint::
-      ACCESS_POINT_SIGNIN_INTERCEPT_FIRST_RUN_EXPERIENCE;
+  const signin_metrics::AccessPoint access_point =
+      signin_metrics::AccessPoint::kSigninInterceptFirstRunExperience;
   const signin_metrics::PromoAction promo_action =
       signin_metrics::PromoAction::PROMO_ACTION_NO_SIGNIN_PROMO;
   signin_metrics::LogSigninAccessPointStarted(access_point, promo_action);
@@ -325,7 +322,8 @@ void SigninInterceptFirstRunExperienceDialog::DoSyncConfirmation() {
   RecordDialogEvent(DialogEvent::kShowSyncConfirmation);
   SetDialogDelegate(
       SigninViewControllerDelegate::CreateSyncConfirmationDelegate(
-          browser_, /*is_signin_intercept=*/true));
+          browser_, SyncConfirmationStyle::kSigninInterceptModal,
+          /*is_sync_promo=*/true));
   PreloadProfileCustomizationUI();
 }
 
@@ -362,7 +360,10 @@ void SigninInterceptFirstRunExperienceDialog::DoProfileCustomization() {
     SetDialogDelegate(
         SigninViewControllerDelegate::CreateProfileCustomizationDelegate(
             browser_, /*is_local_profile_creation=*/false,
-            /*show_profile_switch_iph=*/true));
+            /*show_profile_switch_iph=*/true,
+            // TODO(crbug.com/351333491) Clarify if we want the IPH when a new
+            // profile is created following a context-signin.
+            /*show_supervised_user_iph=*/false));
     return;
   }
 

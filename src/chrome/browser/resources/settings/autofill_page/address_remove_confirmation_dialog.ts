@@ -58,10 +58,10 @@ export class SettingsAddressRemoveConfirmationDialogElement extends
     };
   }
 
-  address: chrome.autofillPrivate.AddressEntry;
-  accountInfo?: chrome.autofillPrivate.AccountInfo;
-  private isAccountAddress_: boolean;
-  private isProfileSyncEnabled_: boolean;
+  declare address: chrome.autofillPrivate.AddressEntry;
+  declare accountInfo?: chrome.autofillPrivate.AccountInfo;
+  declare private isAccountAddress_: boolean;
+  declare private isProfileSyncEnabled_: boolean;
 
   wasConfirmed(): boolean {
     return this.$.dialog.getNative().returnValue === 'success';
@@ -70,8 +70,8 @@ export class SettingsAddressRemoveConfirmationDialogElement extends
   private computeIsAccountAddress_(
       address: chrome.autofillPrivate.AddressEntry): boolean {
     return address.metadata !== undefined &&
-        address.metadata.source ===
-        chrome.autofillPrivate.AddressSource.ACCOUNT;
+        address.metadata.recordType ===
+        chrome.autofillPrivate.AddressRecordType.ACCOUNT;
   }
 
   private computeIsProfileSyncEnabled_(

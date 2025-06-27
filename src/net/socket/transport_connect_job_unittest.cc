@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/socket/transport_connect_job.h"
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,6 +37,7 @@
 #include "net/ssl/test_ssl_config_service.h"
 #include "net/test/gtest_util.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/url_request/static_http_user_agent_settings.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/scheme_host_port.h"
 #include "url/url_constants.h"
@@ -61,7 +68,7 @@ class TransportConnectJobTest : public WithTaskEnvironment,
             /*quic_supported_versions=*/nullptr,
             /*quic_session_pool=*/nullptr,
             /*proxy_delegate=*/nullptr,
-            /*http_user_agent_settings=*/nullptr,
+            &http_user_agent_settings_,
             &ssl_client_context_,
             /*socket_performance_watcher_factory=*/nullptr,
             /*network_quality_estimator=*/nullptr,
@@ -98,6 +105,8 @@ class TransportConnectJobTest : public WithTaskEnvironment,
   TestSSLConfigService ssl_config_service_{SSLContextConfig{}};
   MockCertVerifier cert_verifier_;
   TransportSecurityState transport_security_state_;
+  const StaticHttpUserAgentSettings http_user_agent_settings_ = {"*",
+                                                                 "test-ua"};
   SSLClientContext ssl_client_context_{&ssl_config_service_, &cert_verifier_,
                                        &transport_security_state_,
                                        /*ssl_client_session_cache=*/nullptr,
@@ -503,7 +512,7 @@ TEST_F(TransportConnectJobTest, EndpointResult) {
   MockTransportClientSocketFactory::Rule rule(
       MockTransportClientSocketFactory::Type::kSynchronous,
       std::vector{IPEndPoint(ParseIP("1::"), 8443)});
-  client_socket_factory_.SetRules(base::make_span(&rule, 1u));
+  client_socket_factory_.SetRules(base::span_from_ref(rule));
 
   TestConnectJobDelegate test_delegate;
   TransportConnectJob transport_connect_job(
@@ -658,7 +667,7 @@ TEST_F(TransportConnectJobTest, MultipleRoutesSuspended) {
   MockTransportClientSocketFactory::Rule rule(
       MockTransportClientSocketFactory::Type::kFailing,
       endpoints[0].ip_endpoints, ERR_NETWORK_IO_SUSPENDED);
-  client_socket_factory_.SetRules(base::make_span(&rule, 1u));
+  client_socket_factory_.SetRules(base::span_from_ref(rule));
 
   TestConnectJobDelegate test_delegate;
   TransportConnectJob transport_connect_job(
@@ -695,7 +704,7 @@ TEST_F(TransportConnectJobTest, NoAlpnProtocols) {
   MockTransportClientSocketFactory::Rule rule(
       MockTransportClientSocketFactory::Type::kSynchronous,
       std::vector{endpoints[2].ip_endpoints[0]});
-  client_socket_factory_.SetRules(base::make_span(&rule, 1u));
+  client_socket_factory_.SetRules(base::span_from_ref(rule));
 
   // Use `DefaultParams()`, an http scheme. That it is http is not very
   // important, but `url::SchemeHostPort` is difficult to use with unknown
@@ -1125,6 +1134,142 @@ TEST_F(TransportConnectJobTest, DedupIPEndPoints) {
   EXPECT_EQ(attempts[3].endpoint, IPEndPoint(ParseIP("2::"), 443));
   EXPECT_THAT(attempts[4].result, test::IsError(ERR_CONNECTION_FAILED));
   EXPECT_EQ(attempts[4].endpoint, IPEndPoint(ParseIP("2.2.2.2"), 443));
+}
+
+TEST_F(TransportConnectJobTest,
+       OnDestinationDnsAliasesResolved_Skipped_IfNoAliases) {
+  host_resolver_.set_synchronous_mode(true);
+  client_socket_factory_.set_default_client_socket_type(
+      MockTransportClientSocketFactory::Type::kSynchronous);
+
+  std::vector<std::string> aliases;
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(kHostName, "2.2.2.2",
+                                                         std::move(aliases));
+
+  TestConnectJobDelegate test_delegate;
+  TransportConnectJob transport_connect_job(
+      DEFAULT_PRIORITY, SocketTag(), &common_connect_job_params_,
+      DefaultParams(), &test_delegate, /*net_log=*/nullptr);
+
+  test_delegate.StartJobExpectingResult(&transport_connect_job, OK,
+                                        /*expect_sync_result=*/true);
+
+  // Ensure the delegate method is NOT invoked because no DNS aliases were
+  // resolved.
+  EXPECT_FALSE(test_delegate.on_dns_aliases_resolved_called());
+}
+
+TEST_F(TransportConnectJobTest,
+       OnDestinationDnsAliasesResolved_Skipped_IfOnlyDestinationEndpoint) {
+  std::vector<std::string> aliases({kHostName});
+
+  host_resolver_.set_synchronous_mode(true);
+  client_socket_factory_.set_default_client_socket_type(
+      MockTransportClientSocketFactory::Type::kSynchronous);
+
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(kHostName, "2.2.2.2",
+                                                         std::move(aliases));
+
+  TestConnectJobDelegate test_delegate;
+  TransportConnectJob transport_connect_job(
+      DEFAULT_PRIORITY, SocketTag(), &common_connect_job_params_,
+      DefaultParams(), &test_delegate, /*net_log=*/nullptr);
+
+  test_delegate.StartJobExpectingResult(&transport_connect_job, OK,
+                                        /*expect_sync_result=*/true);
+
+  // Ensure the delegate method is NOT invoked because aliases only contain the
+  // destination endpoint.
+  EXPECT_FALSE(test_delegate.on_dns_aliases_resolved_called());
+}
+
+TEST_F(TransportConnectJobTest,
+       OnDestinationDnsAliasesResolved_Invoked_IfOneAlias) {
+  std::vector<std::string> aliases({"alias1"});
+  std::set<std::string> aliases_set(aliases.begin(), aliases.end());
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(kHostName, "2.2.2.2",
+                                                         std::move(aliases));
+  host_resolver_.set_synchronous_mode(true);
+  client_socket_factory_.set_default_client_socket_type(
+      MockTransportClientSocketFactory::Type::kSynchronous);
+
+  TestConnectJobDelegate test_delegate;
+  TransportConnectJob transport_connect_job(
+      DEFAULT_PRIORITY, SocketTag(), &common_connect_job_params_,
+      DefaultParams(), &test_delegate, /*net_log=*/nullptr);
+
+  test_delegate.StartJobExpectingResult(&transport_connect_job, OK,
+                                        /*expect_sync_result=*/true);
+
+  // Verify that the delegate method was called when aliases are resolved.
+  EXPECT_TRUE(test_delegate.on_dns_aliases_resolved_called());
+  EXPECT_EQ(test_delegate.dns_aliases(), aliases_set);
+}
+
+TEST_F(TransportConnectJobTest, OnDestinationDnsAliasesResolved_Invoked_OK) {
+  std::vector<std::string> aliases({"alias1", "alias2", kHostName});
+  std::set<std::string> aliases_set(aliases.begin(), aliases.end());
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(kHostName, "2.2.2.2",
+                                                         std::move(aliases));
+
+  for (bool host_resolution_synchronous : {false, true}) {
+    SCOPED_TRACE(host_resolution_synchronous);
+    for (bool connection_synchronous : {false, true}) {
+      SCOPED_TRACE(connection_synchronous);
+      host_resolver_.set_synchronous_mode(host_resolution_synchronous);
+      client_socket_factory_.set_default_client_socket_type(
+          connection_synchronous
+              ? MockTransportClientSocketFactory::Type::kSynchronous
+              : MockTransportClientSocketFactory::Type::kPending);
+
+      TestConnectJobDelegate test_delegate;
+      TransportConnectJob transport_connect_job(
+          DEFAULT_PRIORITY, SocketTag(), &common_connect_job_params_,
+          DefaultParams(), &test_delegate, /*net_log=*/nullptr);
+
+      test_delegate.StartJobExpectingResult(
+          &transport_connect_job, OK,
+          host_resolution_synchronous && connection_synchronous);
+
+      // Verify that the delegate method was called when aliases are resolved.
+      EXPECT_TRUE(test_delegate.on_dns_aliases_resolved_called());
+      EXPECT_EQ(test_delegate.dns_aliases(), aliases_set);
+    }
+  }
+}
+
+TEST_F(TransportConnectJobTest, OnDestinationDnsAliasesResolved_Invoked_Error) {
+  std::vector<std::string> aliases({"alias1", "alias2", kHostName});
+  std::set<std::string> aliases_set(aliases.begin(), aliases.end());
+  host_resolver_.rules()->AddIPLiteralRuleWithDnsAliases(kHostName, "2.2.2.2",
+                                                         std::move(aliases));
+
+  for (bool host_resolution_synchronous : {false, true}) {
+    SCOPED_TRACE(host_resolution_synchronous);
+    for (bool connection_synchronous : {false, true}) {
+      SCOPED_TRACE(connection_synchronous);
+      host_resolver_.set_synchronous_mode(host_resolution_synchronous);
+      client_socket_factory_.set_default_client_socket_type(
+          connection_synchronous
+              ? MockTransportClientSocketFactory::Type::kFailing
+              : MockTransportClientSocketFactory::Type::kPendingFailing);
+
+      TestConnectJobDelegate test_delegate;
+      TransportConnectJob transport_connect_job(
+          DEFAULT_PRIORITY, SocketTag(), &common_connect_job_params_,
+          DefaultParams(), &test_delegate, /*net_log=*/nullptr);
+      test_delegate.set_error_for_on_destination_dns_aliases_resolved(
+          ERR_PROXY_REQUIRED);
+
+      test_delegate.StartJobExpectingResult(&transport_connect_job,
+                                            ERR_PROXY_REQUIRED,
+                                            host_resolution_synchronous);
+
+      // Verify that the delegate method was called when aliases are resolved.
+      EXPECT_TRUE(test_delegate.on_dns_aliases_resolved_called());
+      EXPECT_EQ(test_delegate.dns_aliases(), aliases_set);
+    }
+  }
 }
 
 }  // namespace

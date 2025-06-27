@@ -12,10 +12,13 @@
 
 #include "base/auto_reset.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
+#include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/no_destructor.h"
 #include "base/observer_list.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/threading/thread_local.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/gfx/switches.h"
@@ -68,19 +71,20 @@ class UnknownError : public Error {
   ~UnknownError() override = default;
 
   std::string ToString() const override {
-    std::stringstream ss;
-    ss << "UnknownError{";
-    // Errors are always a fixed 32 bytes.
-    for (size_t i = 0; i < 32; i++) {
-      char buf[3];
-      sprintf(buf, "%02x", error_bytes_->bytes()[i]);
-      ss << "0x" << buf;
-      if (i != 31) {
-        ss << ", ";
+    std::string out = "UnknownError{";
+    // xcb promises that there are at least kMinimumErrorSize bytes in any
+    // error, so it's safe to construct a span of at least that much memory
+    // here.
+    UNSAFE_BUFFERS(base::span<const uint8_t> bytes(error_bytes_->bytes(),
+                                                   kMinimumErrorSize));
+    for (size_t i = 0; i < bytes.size(); ++i) {
+      if (i > 0) {
+        out += ", ";
       }
+      base::AppendHexEncodedByte(bytes[i], out, false);
     }
-    ss << "}";
-    return ss.str();
+    out += "}";
+    return out;
   }
 
  private:
@@ -153,8 +157,13 @@ Connection::Connection(const std::string& address)
   ExtensionManager::Init(this);
   InitializeExtensions();
 
-  const Format* formats[256];
-  memset(formats, 0, sizeof(formats));
+  // We build an array mapping bit depths back to the last pixmap format that
+  // supports that depth; we make room in the array for any depth that could be
+  // expressed by Format::depth. If Format::depth gets wider at some point in
+  // the future this array might get too big and we'll need to switch to a
+  // sparse map.
+  std::array<const Format*, std::numeric_limits<decltype(Format::depth)>::max()>
+      formats{};
   for (const auto& format : setup_.pixmap_formats) {
     formats[format.depth] = &format;
   }
@@ -252,13 +261,13 @@ bool Connection::GetWmNormalHints(Window window, SizeHints* hints) {
   if (hints32.size() != sizeof(SizeHints) / 4) {
     return false;
   }
-  memcpy(hints, hints32.data(), sizeof(*hints));
+  UNSAFE_TODO(memcpy(hints, hints32.data(), sizeof(*hints)));
   return true;
 }
 
 void Connection::SetWmNormalHints(Window window, const SizeHints& hints) {
   std::vector<uint32_t> hints32(sizeof(SizeHints) / 4);
-  memcpy(hints32.data(), &hints, sizeof(SizeHints));
+  UNSAFE_TODO(memcpy(hints32.data(), &hints, sizeof(SizeHints)));
   SetArrayProperty(window, Atom::WM_NORMAL_HINTS, Atom::WM_SIZE_HINTS, hints32);
 }
 
@@ -270,13 +279,13 @@ bool Connection::GetWmHints(Window window, WmHints* hints) {
   if (hints32.size() != sizeof(WmHints) / 4) {
     return false;
   }
-  memcpy(hints, hints32.data(), sizeof(*hints));
+  UNSAFE_TODO(memcpy(hints, hints32.data(), sizeof(*hints)));
   return true;
 }
 
 void Connection::SetWmHints(Window window, const WmHints& hints) {
   std::vector<uint32_t> hints32(sizeof(WmHints) / 4);
-  memcpy(hints32.data(), &hints, sizeof(WmHints));
+  UNSAFE_TODO(memcpy(hints32.data(), &hints, sizeof(WmHints)));
   SetArrayProperty(window, Atom::WM_HINTS, Atom::WM_HINTS, hints32);
 }
 
@@ -328,12 +337,8 @@ std::string Connection::GetWmName() const {
 
 bool Connection::WmSupportsHint(Atom atom) const {
   if (WmSupportsEwmh()) {
-    size_t size;
-    if (const Atom* supported =
-            root_props_->GetAs<Atom>(GetAtom("_NET_SUPPORTED"), &size)) {
-      const Atom* end = supported + size;
-      return std::find(supported, end, atom) != end;
-    }
+    auto supported = root_props_->GetAsSpan<Atom>(GetAtom("_NET_SUPPORTED"));
+    return base::Contains(supported, atom);
   }
   return false;
 }
@@ -390,6 +395,17 @@ bool Connection::HasNextEvent() {
 int Connection::GetFd() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return Ready() ? xcb_get_file_descriptor(XcbConnection()) : -1;
+}
+
+bool Connection::CanSyncWithWm() const {
+  // For some WMs, we don't need to experimentally sync with them to determine
+  // sync support, so we can use WmSync right away. For now, only check for
+  // Openbox since that's what is used in tests. The list may be expanded as
+  // nearly all WMs should work with WmSync.
+  if (GetWmName() == "Openbox") {
+    return true;
+  }
+  return synced_with_wm_;
 }
 
 const std::string& Connection::DisplayString() const {
@@ -510,7 +526,7 @@ bool Connection::Dispatch() {
     // All events have the sequence number of the last processed request
     // included in them.  So if a reply and an event have the same sequence,
     // the reply must have been received first.
-    if (CompareSequenceIds(next_event_sequence, next_response_sequence) <= 0) {
+    if (CompareSequenceIds(next_event_sequence, next_response_sequence) >= 0) {
       ProcessNextResponse();
     } else {
       ProcessNextEvent();
@@ -540,9 +556,7 @@ void Connection::DispatchEvent(const Event& event) {
   // will incorrectly think that the current event being dispatched is
   // an old event.  This means base::AutoReset should not be used.
   dispatching_event_ = &event;
-  for (auto& observer : event_observers_) {
-    observer.OnEvent(event);
-  }
+  event_observers_.Notify(&EventObserver::OnEvent, event);
   dispatching_event_ = nullptr;
 }
 
@@ -578,7 +592,7 @@ void Connection::InitRootDepthAndVisual() {
       }
     }
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void Connection::InitializeExtensions() {
@@ -619,15 +633,9 @@ void Connection::InitializeExtensions() {
   if (auto response = shm_future.Sync()) {
     shm_version_ = {response->major_version, response->minor_version};
   }
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Chrome for ChromeOS can be run with X11 on a Linux desktop. In this case,
-  // NotifySwapAfterResize is never called as the compositor does not notify
-  // about swaps after resize. Thus, simply disable usage of XSyncCounter on
-  // ChromeOS builds.
   if (auto response = sync_future.Sync()) {
     sync_version_ = {response->major_version, response->minor_version};
   }
-#endif
   if (auto response = xinput_future.Sync()) {
     xinput_version_ = {response->major_version, response->minor_version};
   }
@@ -964,6 +972,16 @@ void Connection::AttemptSyncWithWm() {
 
 void Connection::OnWmSynced() {
   synced_with_wm_ = true;
+}
+
+ScopedXGrabServer::ScopedXGrabServer(x11::Connection* connection)
+    : connection_(connection) {
+  connection_->GrabServer();
+}
+
+ScopedXGrabServer::~ScopedXGrabServer() {
+  connection_->UngrabServer();
+  connection_->Flush();
 }
 
 }  // namespace x11

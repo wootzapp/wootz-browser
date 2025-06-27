@@ -65,6 +65,10 @@ inline constexpr uint32_t kCrtcIdPropId = 1000;
 inline constexpr uint32_t kLinkStatusPropId = 1001;
 inline constexpr uint32_t kEdidBlobPropId = 1002;
 
+// Optional Connector Property IDs:
+inline constexpr uint32_t kTileBlobPropId = 1500;
+inline constexpr uint32_t kVrrCapablePropId = 1501;
+
 // Required CRTC Property IDs:
 inline constexpr uint32_t kActivePropId = 2000;
 inline constexpr uint32_t kModePropId = 2001;
@@ -97,9 +101,13 @@ inline constexpr uint32_t kTypePropId = 5000;
 inline constexpr uint32_t kInFormatsPropId = 5001;
 inline constexpr uint32_t kPlaneCtmId = 5002;
 inline constexpr uint32_t kRotationPropId = 5003;
+inline constexpr uint32_t kColorEncodingPropId = 5004;
+inline constexpr uint32_t kColorRangePropId = 5005;
+inline constexpr uint32_t kSizeHintsPropId = 5006;
 
 // Blob IDs:
 inline constexpr uint32_t kBaseBlobId = 6000;
+inline constexpr uint32_t kTileBlobId = 6100;
 
 // The real DrmDevice makes actual DRM calls which we can't use in unit tests.
 class FakeDrmDevice : public DrmDevice {
@@ -161,6 +169,8 @@ class FakeDrmDevice : public DrmDevice {
     std::vector<EncoderProperties> encoder_properties;
     std::vector<PlaneProperties> plane_properties;
     std::map<uint32_t, std::string> property_names;
+    std::map<uint32_t, std::vector<std::pair<uint64_t, std::string>>>
+        enum_values;
   };
 
   explicit FakeDrmDevice(std::unique_ptr<GbmDevice> gbm_device);
@@ -174,6 +184,8 @@ class FakeDrmDevice : public DrmDevice {
   ScopedDrmPropertyBlob CreateInFormatsBlob(
       const std::vector<uint32_t>& supported_formats,
       const std::vector<drm_format_modifier>& supported_format_modifiers);
+  ScopedDrmPropertyBlob CreateSizeHintsBlob(
+      const std::vector<gfx::Size>& sizes);
   int get_set_crtc_call_count() const { return set_crtc_call_count_; }
   int get_add_framebuffer_call_count() const {
     return add_framebuffer_call_count_;
@@ -206,6 +218,7 @@ class FakeDrmDevice : public DrmDevice {
   void set_overlay_modeset_expectation(bool state) {
     modeset_with_overlays_expectation_ = state;
   }
+  void set_modeset_expectation(bool state) { modeset_expectation_ = state; }
 
   uint32_t current_framebuffer() const { return current_framebuffer_; }
 
@@ -221,6 +234,11 @@ class FakeDrmDevice : public DrmDevice {
   uint32_t get_cursor_handle_for_crtc(uint32_t crtc) const {
     const auto it = crtc_cursor_map_.find(crtc);
     return it != crtc_cursor_map_.end() ? it->second : 0;
+  }
+
+  gfx::Point get_crtc_cursor_location(uint32_t crtc) const {
+    const auto it = crtc_cursor_location_map_.find(crtc);
+    return it != crtc_cursor_location_map_.end() ? it->second : gfx::Point();
   }
 
   // Resets `drm_state_` to be empty, with no properties configured and no
@@ -261,6 +279,13 @@ class FakeDrmDevice : public DrmDevice {
   // Add a `property.id` to `object_id`, and set its value to `property.value`.
   // This can only be called before InitializeState.
   void AddProperty(uint32_t object_id, const DrmWrapper::Property& property);
+
+  // Configure the possible enum values for a particular property. This can only
+  // be called before InitializeState.
+  void SetPossibleValuesForEnumProperty(
+      uint32_t property_id,
+      std::vector<std::pair<uint64_t /* value */, std::string /* name */>>
+          values);
 
   // Functions to configure the FakeDrmState. Must be called before Initialize
   // is called.
@@ -374,6 +399,10 @@ class FakeDrmDevice : public DrmDevice {
   void SetDriverName(std::optional<std::string> name);
   uint32_t GetFramebufferForCrtc(uint32_t crtc_id) const;
 
+  bool SetMaster() override;
+  bool DropMaster() override;
+  bool has_master() const override;
+
   // There is a circular reference between DrmDevice and
   // HardwareDisplayPlaneManager, as described in https://crbug.com/40263526.
   // This function can be used to break the cycle in unittests. It must be
@@ -409,6 +438,16 @@ class FakeDrmDevice : public DrmDevice {
 
   bool ValidatePropertyValue(uint32_t id, uint64_t value);
 
+  // Returns true iff SetPossibleValuesForEnumProperty() has been called for
+  // `prop_id`.
+  bool IsPropertyValueEnum(uint32_t prop_id) const;
+
+  // Fills `property->count_enums` and `property->enums` with the possible enum
+  // values for the property (provided to a previous call to
+  // SetPossibleValuesForEnumProperty()). It's assumed that `property->id` has
+  // the correct property ID.
+  void FillPossibleValuesForEnumProperty(drmModePropertyRes* property) const;
+
   int set_crtc_call_count_ = 0;
   int add_framebuffer_call_count_ = 0;
   int remove_framebuffer_call_count_ = 0;
@@ -431,6 +470,7 @@ class FakeDrmDevice : public DrmDevice {
   bool legacy_gamma_ramp_expectation_ = false;
   bool commit_expectation_ = true;
   bool modeset_with_overlays_expectation_ = true;
+  bool modeset_expectation_ = true;
 
   uint32_t current_framebuffer_ = 0;
 
@@ -439,6 +479,7 @@ class FakeDrmDevice : public DrmDevice {
   base::flat_map<uint32_t /*handle*/, sk_sp<SkSurface>> buffers_;
 
   std::map<uint32_t, uint32_t> crtc_cursor_map_;
+  std::unordered_map<uint32_t, gfx::Point> crtc_cursor_location_map_;
 
   std::set<uint32_t> framebuffer_ids_;
   std::map<uint32_t, uint32_t> crtc_fb_;
@@ -473,6 +514,8 @@ class FakeDrmDevice : public DrmDevice {
 
   uint64_t system_watermark_limitations_ = std::numeric_limits<uint64_t>::max();
   base::flat_map<uint64_t /*modifier*/, int /*overhead*/> modifiers_overhead_;
+
+  bool has_master_ = true;
 };
 
 }  // namespace ui

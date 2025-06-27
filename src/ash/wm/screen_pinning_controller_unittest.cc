@@ -4,6 +4,7 @@
 
 #include "ash/wm/screen_pinning_controller.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "ash/accelerators/accelerator_controller_impl.h"
@@ -14,7 +15,6 @@
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_event.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "ui/aura/window.h"
 
 namespace ash {
@@ -23,7 +23,7 @@ namespace {
 int FindIndex(
     const std::vector<raw_ptr<aura::Window, VectorExperimental>>& windows,
     const aura::Window* target) {
-  auto iter = base::ranges::find(windows, target);
+  auto iter = std::ranges::find(windows, target);
   return iter != windows.end() ? iter - windows.begin() : -1;
 }
 
@@ -234,6 +234,31 @@ TEST_F(ScreenPinningControllerTest, CleanUpObserversAndDimmer) {
 
   // Add a sibling window. It should not crash.
   CreateTestWindowInShellWithId(2);
+}
+
+TEST_F(ScreenPinningControllerTest, AllowWindowOnTopOfPinnedWindowForOnTask) {
+  aura::Window* const w1 = CreateTestWindowInShellWithId(0);
+  aura::Window* const w2 = CreateTestWindowInShellWithId(1);
+  wm::ActivateWindow(w1);
+
+  window_util::PinWindow(w1, /*trusted=*/false);
+  EXPECT_TRUE(WindowState::Get(w1)->IsPinned());
+  EXPECT_FALSE(WindowState::Get(w2)->IsPinned());
+  Shell::Get()
+      ->screen_pinning_controller()
+      ->SetAllowWindowStackingWithPinnedWindow(true);
+  aura::Window* const top_container = Shell::GetContainer(
+      Shell::GetPrimaryRootWindow(), kShellWindowId_AlwaysOnTopContainer);
+  top_container->StackChildAtTop(w2);
+  EXPECT_TRUE(WindowState::Get(w1)->IsPinned());
+
+  // Verify that w2 is in front of w1.
+  aura::Window::Windows siblings = w2->parent()->children();
+  int index1 = FindIndex(siblings, w1);
+  int index2 = FindIndex(siblings, w2);
+  EXPECT_NE(-1, index1);
+  EXPECT_NE(-1, index2);
+  EXPECT_GT(index1, index2);
 }
 
 }  // namespace ash

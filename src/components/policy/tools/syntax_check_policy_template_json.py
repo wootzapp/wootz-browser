@@ -1195,10 +1195,6 @@ class PolicyTemplateChecker(object):
             '"cloud_only" and "platfrom_only" are true at the same time.',
             policy, 'features')
 
-      if user_only and not cloud_only:
-        self._PolicyError('"user_only" is used by non cloud only policy.',
-                          policy, 'features')
-
       if user_only and not features.get('per_profile', False):
         self._PolicyError('"user_only" is used by non per_profile policy.',
                           policy, 'features')
@@ -1623,7 +1619,7 @@ class PolicyTemplateChecker(object):
                 'You seem to change a default value for a launched policy '
                 '\'%s\'. This will certainly break the contract if the policy '
                 'is already supported in the Admin Console. Please consider '
-                'contacting cros-policy-muc-eng@google.com for guidance.' %
+                'contacting chromium-enterprise@chromium.org for guidance.' %
                 policy['name'])
             continue
 
@@ -1635,6 +1631,6 @@ class PolicyTemplateChecker(object):
                 'for a launched policy \'%s\'. This will certainly break the '
                 ' contract if the policy is already supported in the Admin '
                 'Console. Please consider contacting '
-                'cros-policy-muc-eng@google.com for guidance' % policy['name'])
+                'chromium-enterprise@chromium.org for guidance' % policy['name'])
 
     return self.errors, self.warnings

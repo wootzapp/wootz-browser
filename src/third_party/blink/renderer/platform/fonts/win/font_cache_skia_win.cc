@@ -29,10 +29,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <windows.h>  // For GetACP()
 
-#include <freetype/freetype.h>
-#include <ft2build.h>
 #include <unicode/uscript.h>
 
 #include <memory>
@@ -48,12 +51,15 @@
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "third_party/blink/renderer/platform/fonts/font_face_creation_params.h"
+#include "third_party/blink/renderer/platform/fonts/font_fallback_priority.h"
 #include "third_party/blink/renderer/platform/fonts/font_platform_data.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
 #include "third_party/blink/renderer/platform/fonts/win/font_fallback_win.h"
 #include "third_party/blink/renderer/platform/language.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+#include "third_party/blink/renderer/platform/text/layout_locale.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
+#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/wtf.h"
 #include "third_party/skia/include/core/SkFontMgr.h"
 #include "third_party/skia/include/core/SkStream.h"
@@ -93,8 +99,12 @@ const LayoutLocale* FallbackLocaleForCharacter(
     const FontDescription& font_description,
     const FontFallbackPriority& fallback_priority,
     const UChar32 codepoint) {
-  if (fallback_priority == FontFallbackPriority::kEmojiEmoji)
+  if (IsEmojiPresentationEmoji(fallback_priority)) {
     return LayoutLocale::Get(AtomicString(kColorEmojiLocale));
+  } else if (RuntimeEnabledFeatures::SystemFallbackEmojiVSSupportEnabled() &&
+             IsTextPresentationEmoji(fallback_priority)) {
+    return LayoutLocale::Get(AtomicString(kMonoEmojiLocale));
+  }
 
   UErrorCode error_code = U_ZERO_ERROR;
   const UScriptCode char_script = uscript_getScript(codepoint, &error_code);
@@ -135,7 +145,7 @@ void FontCache::PrewarmFamily(const AtomicString& family_name) {
 void FontCache::SetSystemFontFamily(const AtomicString&) {
   // TODO(https://crbug.com/808221) Use this instead of
   // SetMenuFontMetrics for the system font family.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 // static
@@ -173,13 +183,13 @@ const SimpleFontData* FontCache::GetFallbackFamilyNameFromHardcodedChoices(
     UChar32 codepoint,
     FontFallbackPriority fallback_priority) {
   UScriptCode script;
-  const UChar* legacy_fallback_family = GetFallbackFamily(
-      codepoint, font_description.GenericFamily(), font_description.Locale(),
-      &script, fallback_priority, font_manager_.get());
-
-  if (legacy_fallback_family) {
+  DCHECK(font_manager_);
+  if (const AtomicString fallback_family =
+          GetFallbackFamily(codepoint, font_description.GenericFamily(),
+                            font_description.Locale(), fallback_priority,
+                            *font_manager_, script)) {
     FontFaceCreationParams create_by_family =
-        FontFaceCreationParams(AtomicString(legacy_fallback_family));
+        FontFaceCreationParams(fallback_family);
     const FontPlatformData* data =
         GetFontPlatformData(font_description, create_by_family);
     if (data && data->FontContainsCharacter(codepoint)) {
@@ -283,7 +293,7 @@ const SimpleFontData* FontCache::PlatformFallbackFontForCharacter(
   TRACE_EVENT0("ui", "FontCache::PlatformFallbackFontForCharacter");
 
   // First try the specified font with standard style & weight.
-  if (fallback_priority != FontFallbackPriority::kEmojiEmoji &&
+  if (!IsEmojiPresentationEmoji(fallback_priority) &&
       (font_description.Style() == kItalicSlopeValue ||
        font_description.Weight() >= kBoldWeightValue)) {
     const SimpleFontData* font_data =
@@ -292,15 +302,21 @@ const SimpleFontData* FontCache::PlatformFallbackFontForCharacter(
       return font_data;
   }
 
+  FontFallbackPriority fallback_priority_with_emoji_text = fallback_priority;
+  if (RuntimeEnabledFeatures::SystemFallbackEmojiVSSupportEnabled() &&
+      fallback_priority == FontFallbackPriority::kText &&
+      Character::IsEmoji(character)) {
+    fallback_priority_with_emoji_text = FontFallbackPriority::kEmojiText;
+  }
+
   const SimpleFontData* hardcoded_list_fallback_font =
-      GetFallbackFamilyNameFromHardcodedChoices(font_description, character,
-                                                fallback_priority);
+      GetFallbackFamilyNameFromHardcodedChoices(
+          font_description, character, fallback_priority_with_emoji_text);
 
   // Fall through to running the API-based fallback.
-  if (RuntimeEnabledFeatures::LegacyWindowsDWriteFontFallbackEnabled() ||
-      !hardcoded_list_fallback_font) {
+  if (!hardcoded_list_fallback_font) {
     return GetDWriteFallbackFamily(font_description, character,
-                                   fallback_priority);
+                                   fallback_priority_with_emoji_text);
   }
 
   return hardcoded_list_fallback_font;
@@ -367,7 +383,7 @@ static bool TypefacesHasWeightSuffix(const AtomicString& family,
   size_t num_variants = std::size(kVariantForSuffix);
   for (size_t i = 0; i < num_variants; i++) {
     const FamilyWeightSuffix& entry = kVariantForSuffix[i];
-    if (family.EndsWith(entry.suffix, kTextCaseUnicodeInsensitive)) {
+    if (family.DeprecatedEndsWithIgnoringCase(entry.suffix)) {
       String family_name = family.GetString();
       family_name.Truncate(family.length() - entry.length);
       adjusted_name = AtomicString(family_name);
@@ -404,7 +420,7 @@ static bool TypefacesHasStretchSuffix(const AtomicString& family,
   size_t num_variants = std::size(kVariantForSuffix);
   for (size_t i = 0; i < num_variants; i++) {
     const FamilyStretchSuffix& entry = kVariantForSuffix[i];
-    if (family.EndsWith(entry.suffix, kTextCaseUnicodeInsensitive)) {
+    if (family.DeprecatedEndsWithIgnoringCase(entry.suffix)) {
       String family_name = family.GetString();
       family_name.Truncate(family.length() - entry.length);
       adjusted_name = AtomicString(family_name);

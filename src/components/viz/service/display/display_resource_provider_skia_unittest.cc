@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/viz/service/display/display_resource_provider_skia.h"
 
 #include <stddef.h>
@@ -63,15 +68,12 @@ class MockExternalUseClient : public ExternalUseClient {
   MOCK_METHOD1(ReleaseImageContexts,
                gpu::SyncToken(
                    std::vector<std::unique_ptr<ImageContext>> image_contexts));
-  MOCK_METHOD7(
+  MOCK_METHOD4(
       CreateImageContext,
-      std::unique_ptr<ImageContext>(const gpu::MailboxHolder&,
-                                    const gfx::Size&,
-                                    SharedImageFormat,
+      std::unique_ptr<ImageContext>(const TransferableResource& resource,
                                     bool,
-                                    const std::optional<gpu::VulkanYCbCrInfo>&,
-                                    sk_sp<SkColorSpace>,
-                                    bool));
+                                    bool,
+                                    uint32_t));
 };
 
 class DisplayResourceProviderSkiaTest : public testing::Test {
@@ -103,7 +105,7 @@ class DisplayResourceProviderSkiaTest : public testing::Test {
 
   TransferableResource CreateResource() {
     constexpr gfx::Size size(64, 64);
-    gpu::Mailbox gpu_mailbox = gpu::Mailbox::GenerateForSharedImage();
+    gpu::Mailbox gpu_mailbox = gpu::Mailbox::Generate();
     gpu::SyncToken sync_token = GenSyncToken();
     EXPECT_TRUE(sync_token.HasData());
 
@@ -134,7 +136,7 @@ TEST_F(DisplayResourceProviderSkiaTest, LockForExternalUse) {
   gpu::SyncToken sync_token1(gpu::CommandBufferNamespace::GPU_IO,
                              gpu::CommandBufferId::FromUnsafeValue(0x123),
                              0x42);
-  auto mailbox = gpu::Mailbox::GenerateForSharedImage();
+  auto mailbox = gpu::Mailbox::Generate();
   constexpr gfx::Size size(64, 64);
   TransferableResource gl_resource = TransferableResource::MakeGpu(
       mailbox, GL_TEXTURE_2D, sync_token1, size, SinglePlaneFormat::kRGBA_8888,
@@ -163,21 +165,21 @@ TEST_F(DisplayResourceProviderSkiaTest, LockForExternalUse) {
 
   auto format = SinglePlaneFormat::kRGBA_8888;
   auto owned_image_context = std::make_unique<ExternalUseClient::ImageContext>(
-      gpu::MailboxHolder(mailbox, sync_token1, GL_TEXTURE_2D), size, format,
-      /*ycbcr_info=*/std::nullopt, /*color_space=*/nullptr);
+      mailbox, sync_token1, GL_TEXTURE_2D, size, format,
+      /*color_space=*/nullptr, kTopLeft_GrSurfaceOrigin);
   auto* image_context = owned_image_context.get();
 
-  gpu::MailboxHolder holder;
-  EXPECT_CALL(client_, CreateImageContext(_, _, _, _, _, _, _))
-      .WillOnce(DoAll(SaveArg<0>(&holder),
+  TransferableResource resource_out;
+  EXPECT_CALL(client_, CreateImageContext(_, _, _, _))
+      .WillOnce(DoAll(SaveArg<0>(&resource_out),
                       Return(ByMove(std::move(owned_image_context)))));
 
   ExternalUseClient::ImageContext* locked_image_context =
       lock_set_->LockResource(parent_id, /*maybe_concurrent_reads=*/true,
                               /*is_video_plane=*/false);
   EXPECT_EQ(image_context, locked_image_context);
-  ASSERT_EQ(holder.mailbox, mailbox);
-  ASSERT_TRUE(holder.sync_token.HasData());
+  ASSERT_EQ(resource_out.mailbox(), mailbox);
+  ASSERT_TRUE(resource_out.sync_token().HasData());
 
   // Don't release while locked.
   EXPECT_CALL(client_, ReleaseImageContexts(_)).Times(0);
@@ -215,7 +217,7 @@ TEST_F(DisplayResourceProviderSkiaTest, LockForExternalUseWebView) {
   gpu::SyncToken sync_token1(gpu::CommandBufferNamespace::GPU_IO,
                              gpu::CommandBufferId::FromUnsafeValue(0x123),
                              0x42);
-  auto mailbox = gpu::Mailbox::GenerateForSharedImage();
+  auto mailbox = gpu::Mailbox::Generate();
   constexpr gfx::Size size(64, 64);
   TransferableResource gl_resource = TransferableResource::MakeGpu(
       mailbox, GL_TEXTURE_2D, sync_token1, size, SinglePlaneFormat::kRGBA_8888,
@@ -244,21 +246,21 @@ TEST_F(DisplayResourceProviderSkiaTest, LockForExternalUseWebView) {
 
   auto format = SinglePlaneFormat::kRGBA_8888;
   auto owned_image_context = std::make_unique<ExternalUseClient::ImageContext>(
-      gpu::MailboxHolder(mailbox, sync_token1, GL_TEXTURE_2D), size, format,
-      /*ycbcr_info=*/std::nullopt, /*color_space=*/nullptr);
+      mailbox, sync_token1, GL_TEXTURE_2D, size, format,
+      /*color_space=*/nullptr, kTopLeft_GrSurfaceOrigin);
   auto* image_context = owned_image_context.get();
 
-  gpu::MailboxHolder holder;
-  EXPECT_CALL(client_, CreateImageContext(_, _, _, _, _, _, _))
-      .WillOnce(DoAll(SaveArg<0>(&holder),
+  TransferableResource resource_out;
+  EXPECT_CALL(client_, CreateImageContext(_, _, _, _))
+      .WillOnce(DoAll(SaveArg<0>(&resource_out),
                       Return(ByMove(std::move(owned_image_context)))));
 
   ExternalUseClient::ImageContext* locked_image_context =
       lock_set_->LockResource(parent_id, /*maybe_concurrent_reads=*/true,
                               /*is_video_plane=*/false);
   EXPECT_EQ(image_context, locked_image_context);
-  ASSERT_EQ(holder.mailbox, mailbox);
-  ASSERT_TRUE(holder.sync_token.HasData());
+  ASSERT_EQ(resource_out.mailbox(), mailbox);
+  ASSERT_TRUE(resource_out.sync_token().HasData());
 
   // Don't release while locked.
   EXPECT_CALL(client_, ReleaseImageContexts(_)).Times(0);
@@ -313,10 +315,7 @@ class TestGpuCommandsCompletedFence : public ResourceFence {
 
   // ResourceFence implementation.
   bool HasPassed() override { return passed_; }
-  gfx::GpuFenceHandle GetGpuFenceHandle() override {
-    NOTREACHED_IN_MIGRATION();
-    return gfx::GpuFenceHandle();
-  }
+  gfx::GpuFenceHandle GetGpuFenceHandle() override { NOTREACHED(); }
 
   void Signal() {
     passed_ = true;

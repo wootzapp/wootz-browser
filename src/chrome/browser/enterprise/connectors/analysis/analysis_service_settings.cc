@@ -6,13 +6,13 @@
 
 #include "base/containers/contains.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/enterprise/connectors/common.h"
-#include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
+#include "build/build_config.h"
 #include "components/enterprise/buildflags/buildflags.h"
-#include "components/enterprise/connectors/service_provider_config.h"
+#include "components/enterprise/connectors/core/common.h"
+#include "components/enterprise/connectors/core/service_provider_config.h"
 #include "components/url_matcher/url_util.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/enterprise/connectors/analysis/source_destination_matcher_ash.h"
 #endif
 
@@ -47,7 +47,7 @@ AnalysisServiceSettings::AnalysisServiceSettings(
   // settings.*_pattern_settings. No enable patterns implies the settings are
   // invalid.
   matcher_ = std::make_unique<url_matcher::URLMatcher>();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   source_destination_matcher_ = std::make_unique<SourceDestinationMatcherAsh>();
 #endif
   base::MatcherStringPattern::ID id(0);
@@ -69,7 +69,7 @@ AnalysisServiceSettings::AnalysisServiceSettings(
         } else if (url_list) {
           AddUrlPatternSettings(*dict, is_enable, &id);
         } else if (source_destination_list) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
           AddSourceDestinationSettings(*dict, is_enable, &id);
 #else
           DLOG(ERROR) << kKeySourceDestinationList
@@ -190,7 +190,7 @@ AnalysisServiceSettings::GetPatternSettings(
 
 AnalysisSettings AnalysisServiceSettings::GetAnalysisSettingsWithTags(
     std::map<std::string, TagSettings> tags,
-    safe_browsing::DataRegion data_region) const {
+    DataRegion data_region) const {
   DCHECK(IsValid());
 
   AnalysisSettings settings;
@@ -230,7 +230,7 @@ AnalysisSettings AnalysisServiceSettings::GetAnalysisSettingsWithTags(
 
 std::optional<AnalysisSettings> AnalysisServiceSettings::GetAnalysisSettings(
     const GURL& url,
-    safe_browsing::DataRegion data_region) const {
+    DataRegion data_region) const {
   if (!IsValid())
     return std::nullopt;
 
@@ -246,12 +246,12 @@ std::optional<AnalysisSettings> AnalysisServiceSettings::GetAnalysisSettings(
   return GetAnalysisSettingsWithTags(std::move(tags), data_region);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 std::optional<AnalysisSettings> AnalysisServiceSettings::GetAnalysisSettings(
     content::BrowserContext* context,
     const storage::FileSystemURL& source_url,
     const storage::FileSystemURL& destination_url,
-    safe_browsing::DataRegion data_region) const {
+    DataRegion data_region) const {
   if (!IsValid())
     return std::nullopt;
   DCHECK(source_destination_matcher_);
@@ -267,7 +267,7 @@ std::optional<AnalysisSettings> AnalysisServiceSettings::GetAnalysisSettings(
 
   return GetAnalysisSettingsWithTags(std::move(tags), data_region);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 bool AnalysisServiceSettings::ShouldBlockUntilVerdict() const {
   if (!IsValid())
@@ -351,7 +351,8 @@ void AnalysisServiceSettings::AddUrlPatternSettings(
     return;
   }
   base::MatcherStringPattern::ID previous_id = *id;
-  url_matcher::util::AddFilters(matcher_.get(), enabled, id, *url_list);
+  url_matcher::util::AddFiltersWithLimit(matcher_.get(), enabled, id,
+                                         *url_list);
 
   if (previous_id == *id) {
     // No rules were added, so don't save settings, as they would override other
@@ -365,7 +366,7 @@ void AnalysisServiceSettings::AddUrlPatternSettings(
     disabled_patterns_settings_[*id] = std::move(setting);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 void AnalysisServiceSettings::AddSourceDestinationSettings(
     const base::Value::Dict& source_destination_settings_value,
     bool enabled,
@@ -415,7 +416,7 @@ void AnalysisServiceSettings::AddSourceDestinationSettings(
   else
     disabled_patterns_settings_[*id] = std::move(setting);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 std::map<std::string, TagSettings> AnalysisServiceSettings::GetTags(
     const std::set<base::MatcherStringPattern::ID>& matches) const {

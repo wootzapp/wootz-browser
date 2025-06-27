@@ -13,6 +13,7 @@
 #include "services/network/p2p/socket_udp.h"
 #include "services/network/public/cpp/p2p_socket_type.h"
 #include "services/network/throttling/network_conditions.h"
+#include "third_party/webrtc/api/units/data_rate.h"
 #include "third_party/webrtc/rtc_base/time_utils.h"
 
 namespace {
@@ -85,8 +86,10 @@ void ThrottlingP2PNetworkInterceptor::UpdateConditions(
           << ", packet reordering: " << conditions.packet_reordering();
 
   webrtc::SimulatedNetwork::Config send_config;
-  send_config.link_capacity_kbps =
-      (conditions.upload_throughput() * kBitsPerByte) / 1000;
+  send_config.link_capacity =
+      conditions.upload_throughput() <= 0
+          ? webrtc::DataRate::Infinity()
+          : webrtc::DataRate::BytesPerSec(conditions.upload_throughput());
   send_config.queue_delay_ms = conditions.latency();
   send_config.allow_reordering = conditions.packet_reordering();
   send_config.loss_percent = conditions.packet_loss();
@@ -94,8 +97,10 @@ void ThrottlingP2PNetworkInterceptor::UpdateConditions(
   send_network_.SetConfig(send_config);
 
   webrtc::SimulatedNetwork::Config receive_config;
-  receive_config.link_capacity_kbps =
-      (conditions.download_throughput() * kBitsPerByte) / 1000;
+  receive_config.link_capacity =
+      conditions.download_throughput() <= 0
+          ? webrtc::DataRate::Infinity()
+          : webrtc::DataRate::BytesPerSec(conditions.download_throughput());
   receive_config.queue_delay_ms = conditions.latency();
   receive_config.allow_reordering = conditions.packet_reordering();
   receive_config.loss_percent = conditions.packet_loss();
@@ -104,7 +109,7 @@ void ThrottlingP2PNetworkInterceptor::UpdateConditions(
 
 void ThrottlingP2PNetworkInterceptor::EnqueueSend(P2PPendingPacket packet,
                                                   P2PSocketUdp* socket) {
-  int64_t now = rtc::TimeMicros();
+  int64_t now = webrtc::TimeMicros();
   socket->SendCompletionFromInterceptor(P2PSendPacketMetrics{
       packet.id, static_cast<int32_t>(packet.packet_options.packet_id),
       now / 1000});
@@ -136,7 +141,7 @@ void ThrottlingP2PNetworkInterceptor::EnqueueSend(P2PPendingPacket packet,
 }
 
 void ThrottlingP2PNetworkInterceptor::OnSendNetworkTimer() {
-  int64_t now = rtc::TimeMicros();
+  int64_t now = webrtc::TimeMicros();
   std::vector<webrtc::PacketDeliveryInfo> packets =
       send_network_.DequeueDeliverablePackets(now);
   for (auto& packet : packets) {
@@ -177,7 +182,7 @@ void ThrottlingP2PNetworkInterceptor::EnqueueReceive(
   }
 
   uint64_t packet_id = receive_packet_id_++;
-  int64_t now = rtc::TimeMicros();
+  int64_t now = webrtc::TimeMicros();
   webrtc::PacketInFlightInfo packet_info(packet->data.size(), now, packet_id);
 
   if (receive_network_.EnqueuePacket(packet_info)) {
@@ -198,7 +203,7 @@ void ThrottlingP2PNetworkInterceptor::EnqueueReceive(
 }
 
 void ThrottlingP2PNetworkInterceptor::OnReceiveNetworkTimer() {
-  int64_t now = rtc::TimeMicros();
+  int64_t now = webrtc::TimeMicros();
   std::vector<webrtc::PacketDeliveryInfo> packets =
       receive_network_.DequeueDeliverablePackets(now);
   for (auto& packet : packets) {
