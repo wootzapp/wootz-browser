@@ -18,7 +18,7 @@ source_set("browser_tests") {
     "//base",
     "//chrome/browser/policy:test_support",
     "//chrome/browser/ui",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/permissions:permissions_common",
     "//components/policy:generated",
     "//components/policy/core/common",

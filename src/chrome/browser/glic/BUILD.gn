@@ -52,9 +52,9 @@ source_set("glic") {
     "//chrome/browser/glic/resources:browser_resources",
     "//chrome/browser/permissions/system",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/browser_window:browser_window",
-    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+     # "//chrome/browser/ui/tabs:tab_strip_model_observer",
     "//components/favicon/core",
     "//components/metrics:metrics",
     "//components/optimization_guide/content/browser",
@@ -155,10 +155,10 @@ source_set("impl") {
     "//chrome/browser/resources/glic/fre:resources",
     "//chrome/browser/themes:themes",
     "//chrome/browser/ui:browser_element_identifiers",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui:browser_navigator_params_headers",
     "//chrome/browser/ui/browser_window:browser_window",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/user_education",
     "//chrome/browser/ui/views",
     "//chrome/common",
@@ -227,7 +227,7 @@ source_set("internal_test_header") {
     "//chrome/browser:browser_process",
     "//chrome/browser/autofill:test_support_ui",
     "//chrome/browser/contextual_cueing",
-    "//chrome/browser/signin/e2e_tests:test_support",
+    # "//chrome/browser/signin/e2e_tests:test_support",
 
     # TODO(crbug.com/399665693): Remove unneeded public deps after refactoring.
     # Required for translate_bubble_test_utils_views.cc
@@ -235,7 +235,7 @@ source_set("internal_test_header") {
     "//chrome/common:constants",
     "//chrome/test:chrome_test_launcher",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
   ]
 
@@ -339,7 +339,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui",
     "//chrome/common:constants",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/variations/service",
     "//content/test:test_support",
     "//extensions/browser",

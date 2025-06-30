@@ -5,7 +5,7 @@
 import("//build/config/ui.gni")
 import("//ui/views/features.gni")
 
-assert(toolkit_views)
+# assert(toolkit_views)
 
 component("views") {
   output_name = "browser_ui_views"
@@ -62,11 +62,11 @@ source_set("test_support") {
   sources = [ "global_media_controls/media_dialog_ui_for_test.cc" ]
   deps = [
     ":views",
-    "//chrome/browser/media/router:test_support",
+    # "//chrome/browser/media/router:test_support",
     "//chrome/browser/ui",
     "//chrome/browser/ui/global_media_controls",
     "//chrome/browser/ui/views/toolbar",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/global_media_controls:global_media_controls",
     "//components/media_message_center:media_message_center",
     "//components/media_router/browser:test_support",

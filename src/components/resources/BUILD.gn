@@ -44,11 +44,16 @@ group("resources") {
     "../safe_browsing/content/browser/web_ui/resources",
     "../signin/core/browser/resources",
     "../translate/translate_internals:resources",
-    "../webui:resources",
+    # "../webui:resources",
+    # "../webui/chrome_urls/resources:build",
+    # "../webui/flags/resources:build",
   ]
 
   if (is_ios) {
     public_deps += [ "../management/resources:resources" ]
+  }
+  if (is_android) {
+   #  public_deps += [ "//components/webui:resources" ]
   }
 }
 

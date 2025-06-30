@@ -51,7 +51,7 @@ static_library("test_support") {
     "//chrome/common",
     "//chrome/common:constants",
     "//chrome/common:non_code_constants",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
   ]
 }
 

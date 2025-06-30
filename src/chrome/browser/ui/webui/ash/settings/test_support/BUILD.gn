@@ -28,7 +28,7 @@ static_library("test_support") {
     "//chrome/browser/ui",
     "//chrome/browser/ui/webui/ash/settings/pages",
     "//chrome/browser/ui/webui/ash/settings/search",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chrome/test/data/webui/chromeos/settings:test_api_mojom",
     "//chromeos/ash/components/osauth/public",
     "//components/account_id",

@@ -93,7 +93,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui/webui/ash/add_supervision",
     "//chrome/browser/ui/webui/ash/add_supervision:mojo_bindings",
     "//chrome/common",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/signin/public/identity_manager:test_support",
     "//content/public/browser",
     "//content/test:test_support",

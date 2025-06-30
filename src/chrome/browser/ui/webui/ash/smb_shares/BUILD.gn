@@ -55,7 +55,7 @@ source_set("browser_tests") {
     "//base",
     "//base/test:test_support",
     "//chrome/common",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
   ]
 }

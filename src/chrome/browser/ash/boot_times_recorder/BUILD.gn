@@ -18,7 +18,7 @@ static_library("boot_times_recorder") {
 
   deps = [
     "//base",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/common",
     "//chromeos/ash/components/metrics",
     "//components/prefs",

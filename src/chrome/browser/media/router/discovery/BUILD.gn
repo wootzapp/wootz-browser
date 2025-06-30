@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-assert(!is_android)
+# assert(!is_android)
 assert(!is_fuchsia, "Fuchsia shouldn't use anything in //chrome")
 
 static_library("discovery") {

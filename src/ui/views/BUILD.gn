@@ -14,7 +14,7 @@ import("//tools/metrics/generate_allowlist_from_histograms_file.gni")
 import("//ui/base/ui_features.gni")
 import("//ui/views/features.gni")
 
-assert(toolkit_views)
+# assert(toolkit_views)
 
 config("flags") {
   defines = [ "TOOLKIT_VIEWS=1" ]

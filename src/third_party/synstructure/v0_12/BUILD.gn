@@ -35,7 +35,7 @@ cargo_crate("lib") {
   deps = [
     "//third_party/rust/proc_macro2/v1:lib",
     "//third_party/rust/quote/v1:lib",
-    "//third_party/rust/syn/v1:lib",
+    "//third_party/rust/syn/v2:lib",
     "//third_party/rust/unicode_xid/v0_2:lib",
   ]
   features = [ "proc-macro" ]

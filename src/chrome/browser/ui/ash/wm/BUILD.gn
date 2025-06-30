@@ -14,7 +14,7 @@ static_library("wm") {
 
   public_deps = [
     "//chrome/browser:browser_public_dependencies",
-    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+     # "//chrome/browser/ui/tabs:tab_strip_model_observer",
   ]
 
   deps = [
@@ -23,7 +23,7 @@ static_library("wm") {
     "//base",
     "//chrome/browser/ash/app_restore:app_restore",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/ash/desks",
     "//chrome/browser/ui/webui/ash/scanner_feedback_dialog",
     "//chromeos/ash/components/browser_context_helper",

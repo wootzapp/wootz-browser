@@ -35,7 +35,7 @@ static_library("impl") {
   public_deps = [
     ":browser_delegate",
     "//base",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/browser_window",
   ]
 
@@ -43,7 +43,7 @@ static_library("impl") {
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui:browser_navigator_params_headers",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/web_applications",
     "//chromeos/ash/components/browser_context_helper",
     "//components/sessions:session_id",

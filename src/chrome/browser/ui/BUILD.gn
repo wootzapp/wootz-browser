@@ -326,7 +326,7 @@ static_library("ui") {
     # ui_public_dependencies.
     # New dependencies inside of //chrome/browser that generate header files
     # should be added to //chrome/browser:browser_generated_files.
-    "//chrome/browser:browser_public_dependencies",
+    # "//chrome/browser:browser_public_dependencies",
     "//chrome/browser:primitives",
     "//chrome/browser/feedback",
     "//chrome/browser/headless",
@@ -660,7 +660,7 @@ static_library("ui") {
     "//components/webapps/common",
     "//components/webrtc_logging/browser",
 
-    "//components/webui",
+    # "//components/webui",
 
     "//components/webui/about",
     "//components/webui/chrome_urls",
@@ -1808,15 +1808,15 @@ static_library("ui") {
       "//chrome/browser/ui/startup:startup_tab",
       "//chrome/browser/ui/tabs",
       "//chrome/browser/ui/tabs:impl",
-      "//chrome/browser/ui/tabs:tab_group",
+      # "//chrome/browser/ui/tabs:tab_group",
       "//chrome/browser/ui/tabs:tab_group_impl",
       "//chrome/browser/ui/tabs:tab_menu",
       "//chrome/browser/ui/tabs:tab_menu_impl",
-      "//chrome/browser/ui/tabs:tab_model",
+      # "//chrome/browser/ui/tabs:tab_model",
       "//chrome/browser/ui/tabs:tab_model_impl",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/tabs:tab_strip_impl",
-      "//chrome/browser/ui/tabs:tab_strip_model_observer",
+       # "//chrome/browser/ui/tabs:tab_strip_model_observer",
       "//chrome/browser/ui/tabs:tab_strip_model_observer_impl",
       "//chrome/browser/ui/tabs:tabs_public",
       "//chrome/browser/ui/toasts:impl",
@@ -1829,7 +1829,7 @@ static_library("ui") {
       "//chrome/browser/ui/views/new_tab_footer",
       "//chrome/browser/ui/views/side_panel:side_panel_enums",
       "//chrome/browser/ui/views/toolbar",
-      "//chrome/browser/ui/webui:webui_util",
+      # "//chrome/browser/ui/webui:webui_util",
       "//chrome/browser/ui/webui/commerce",
       "//chrome/browser/ui/webui/commerce:impl",
       "//chrome/browser/ui/webui/cr_components/theme_color_picker",
@@ -1946,7 +1946,7 @@ static_library("ui") {
     public_deps += [
       "//chrome/browser/importer",
       "//chrome/browser/importer:impl",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui:browser_list_impl",
       "//chrome/browser/ui/commerce",
       "//chrome/browser/ui/tabs:tab_enums",
@@ -5370,18 +5370,18 @@ static_library("ui") {
       "toolbar/toolbar_actions_model_factory.h",
       "webui/extensions/extension_icon_source.cc",
       "webui/extensions/extension_icon_source.h",
-      "webui/extensions/extensions_internals_source.cc",
+      # "webui/extensions/extensions_internals_source.cc",
       "webui/extensions/extensions_internals_source.h",
-      "webui/extensions/extensions_ui.cc",
-      "webui/extensions/extensions_ui.h",
-      "webui/favicon_source.cc",
-      "webui/favicon_source.h",
-      "webui/managed_ui_handler.cc",
-      "webui/managed_ui_handler.h",
-      "webui/page_not_available_for_guest/page_not_available_for_guest_ui.cc",
-      "webui/page_not_available_for_guest/page_not_available_for_guest_ui.h",
-      "webui/plural_string_handler.cc",
-      "webui/plural_string_handler.h",
+      # "webui/extensions/extensions_ui.cc",
+      # "webui/extensions/extensions_ui.h",
+      # "webui/favicon_source.cc",
+      # "webui/favicon_source.h",
+      # "webui/managed_ui_handler.cc",
+      # "webui/managed_ui_handler.h",
+      # "webui/page_not_available_for_guest/page_not_available_for_guest_ui.cc",
+      # "webui/page_not_available_for_guest/page_not_available_for_guest_ui.h",
+      # "webui/plural_string_handler.cc",
+      # "webui/plural_string_handler.h",
     ]
     deps += [ "//chrome/browser/extensions" ]
     allow_circular_includes_from += [ "//chrome/browser/extensions" ]
@@ -5933,7 +5933,7 @@ if (!is_android) {
       "//chrome/browser:buildflags",
       "//chrome/browser/lifetime:termination_notification",
       "//chrome/browser/profiles:profile",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
     ]
   }
 }
@@ -6047,7 +6047,7 @@ static_library("test_support") {
       "//chrome/browser/ui/browser_window:browser_window",
       "//chrome/browser/ui/content_settings:test_support",
       "//chrome/browser/ui/views/toolbar",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/embedder_support:embedder_support",
       "//components/input",
       "//components/media_message_center:media_message_center",

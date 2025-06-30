@@ -61,8 +61,8 @@ source_set("impl") {
     ]
 
     deps += [
-      "//chrome/browser/ui:browser_list",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui:browser_list", temp replacement
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//components/guest_view/browser",
       "//extensions/common:common_constants",
     ]

@@ -189,12 +189,12 @@ source_set("webrtc") {
       "tab_desktop_media_list.h",
     ]
     public_deps += [
-      "//chrome/browser/ui/tabs:tab_strip_model_observer",
+       # "//chrome/browser/ui/tabs:tab_strip_model_observer",
       "//extensions/buildflags",
     ]
     deps += [
-      "//chrome/browser/ui:browser_list",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui:browser_list", temp replacement
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//extensions/browser",
       "//extensions/browser/kiosk",
       "//extensions/common",

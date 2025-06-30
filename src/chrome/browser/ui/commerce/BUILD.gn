@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-assert(is_win || is_mac || is_linux || is_chromeos)
+assert(is_android || is_win || is_mac || is_linux || is_chromeos) #temp replacement
 
 source_set("commerce") {
   sources = [
@@ -20,7 +20,7 @@ source_set("commerce") {
     "//base",
     "//chrome/browser/commerce",
     "//chrome/browser/ui/page_action:icon_type",
-    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+     # "//chrome/browser/ui/tabs:tab_strip_model_observer",
     "//chrome/browser/ui/webui/commerce",
     "//components/commerce/core:commerce_types",
     "//components/commerce/core:shopping_service",

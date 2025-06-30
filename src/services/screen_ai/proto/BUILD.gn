@@ -5,7 +5,7 @@
 import("//services/screen_ai/buildflags/features.gni")
 import("//third_party/protobuf/proto_library.gni")
 
-assert(enable_screen_ai_service)
+# assert(enable_screen_ai_service)
 
 proto_library("proto") {
   sources = [

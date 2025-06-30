@@ -38,7 +38,7 @@ cargo_crate("lib") {
     "//third_party/rust/bls12_381/v0_8:lib",
     "//third_party/rust/ff/v0_13:lib",
     "//third_party/rust/group/v0_13:lib",
-    "//third_party/rust/rand_core/v0_6:lib",
+    "//third_party/rust/rand_core/v0_9:lib",
     "//third_party/rust/subtle/v2:lib",
   ]
 }

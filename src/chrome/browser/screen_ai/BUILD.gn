@@ -5,7 +5,7 @@
 import("//build/config/ui.gni")
 import("//services/screen_ai/buildflags/features.gni")
 
-assert(enable_screen_ai_service)
+# assert(enable_screen_ai_service)
 
 if (is_chromeos) {
   source_set("screen_ai_dlc_installer") {

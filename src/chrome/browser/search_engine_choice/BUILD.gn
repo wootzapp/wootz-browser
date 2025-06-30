@@ -22,7 +22,7 @@ source_set("search_engine_choice") {
     ]
 
     public_deps += [
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//components/keyed_service/core",
       "//components/prefs",
       "//components/search_engines",
@@ -97,7 +97,7 @@ if (!is_android) {
         "//chrome/common",
         "//chrome/common:non_code_constants",
         "//chrome/test:test_support",
-        "//chrome/test:test_support_ui",
+        # "//chrome/test:test_support_ui",
         "//components/keep_alive_registry",
         "//components/keyed_service/content",
         "//components/keyed_service/core",
@@ -130,7 +130,7 @@ if (!is_android) {
           "//chrome/browser/search_engines",
           "//chrome/browser/ui",
           "//chrome/browser/ui:browser_element_identifiers",
-          "//chrome/test:test_support_ui",
+          # "//chrome/test:test_support_ui",
           "//components/country_codes",
           "//components/regional_capabilities",
           "//components/search_engines",

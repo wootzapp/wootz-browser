@@ -35,7 +35,7 @@ source_set("picture_in_picture") {
       "scoped_picture_in_picture_occlusion_observation.h",
     ]
     public_deps += [
-      "//chrome/browser/ui/tabs:tab_strip_model_observer",
+       # "//chrome/browser/ui/tabs:tab_strip_model_observer",
       "//components/safe_browsing/core/browser/db:database_manager",
       "//components/safe_browsing/core/browser/db:util",
       "//components/safe_browsing/core/browser/db:v4_protocol_manager_util",
@@ -216,12 +216,12 @@ if (!is_android) {
     ]
     public_deps = [
       "//base",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//ui/gfx/geometry",
     ]
     deps = [
       "//chrome/browser/ui",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//content/public/browser",
       "//content/test:test_support",
     ]

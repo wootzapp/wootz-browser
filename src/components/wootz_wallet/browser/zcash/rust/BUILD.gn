@@ -66,7 +66,7 @@ rust_static_library("rust_lib") {
     "librustzcash:zcash_primitives", 
     "//components/wootz_wallet/rust:rust_lib",
     "//third_party/rust/orchard/v0_8:lib",
-    "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/rand/v0_7:lib",
     "//third_party/rust/reddsa/v0_5:lib", #WOOTZ_WALLET
   ]
 }

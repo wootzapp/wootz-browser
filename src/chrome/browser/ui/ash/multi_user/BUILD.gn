@@ -20,7 +20,7 @@ static_library("multi_user") {
 
   public_deps = [
     "//chrome/browser:browser_public_dependencies",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
   ]
 
   deps = [

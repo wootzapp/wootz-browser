@@ -31,7 +31,7 @@ source_set("web_navigation") {
 
   deps = [
     "//chrome/browser/extensions",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/common",
     "//chrome/common/extensions/api",
     "//content/public/common",

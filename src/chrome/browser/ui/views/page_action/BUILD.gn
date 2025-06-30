@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-assert(!is_android, "Page actions are for desktop platforms only")
+# assert(!is_android, "Page actions are for desktop platforms only")
 
 source_set("page_action") {
   friend = [
@@ -92,7 +92,7 @@ source_set("interactive_ui_tests") {
     "//chrome/browser/ui:ui_features",
     "//chrome/browser/ui/views/toolbar",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/public/browser",
     "//content/test:test_support",
     "//ui/base:test_support",

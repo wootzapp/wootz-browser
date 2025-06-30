@@ -6,6 +6,7 @@ import("//ui/webui/resources/tools/build_webui.gni")
 
 build_webui("build") {
   grd_prefix = "chrome_urls"
+
   static_files = [ "chrome_urls.html" ]
   ts_files = [
     "app.html.ts",

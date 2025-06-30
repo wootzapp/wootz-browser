@@ -14,7 +14,7 @@ static_library("media_client") {
     "//ash",
     "//ash/public/cpp",
     "//base",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//media/capture:capture_lib",
     "//media/capture/video/chromeos/mojom:cros_camera",
     "//services/video_capture/public/mojom",
@@ -32,7 +32,7 @@ static_library("media_client") {
     "//chrome/browser/ash/profiles",
     "//chrome/browser/picture_in_picture",
     "//chrome/browser/ui/tab_contents",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//components/account_id",
     "//components/services/app_service",
     "//components/user_manager",

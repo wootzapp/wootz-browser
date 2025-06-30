@@ -182,7 +182,7 @@ source_set("browser_tests") {
     sources += [ "desktop_entrypoint_handlers_browsertest.cc" ]
     deps += [
       ":desktop_view_manager",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
     ]
   }
 }

@@ -80,7 +80,7 @@ source_set("browser_tests") {
     "//base/test:test_support",
     "//chrome/browser/ash/mahi/web_contents/test_support",
     "//chrome/browser/ui",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/components/mahi/public/cpp",
     "//chromeos/constants",
     "//chromeos/crosapi/mojom",

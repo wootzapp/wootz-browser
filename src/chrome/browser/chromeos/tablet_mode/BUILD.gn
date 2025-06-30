@@ -19,7 +19,7 @@ static_library("tablet_mode") {
 
   public_deps = [
     "//chrome/browser:browser_public_dependencies",
-    "//chrome/browser/ui/tabs:tab_strip_model_observer",
+     # "//chrome/browser/ui/tabs:tab_strip_model_observer",
   ]
 
   deps = [
@@ -27,8 +27,8 @@ static_library("tablet_mode") {
     "//chrome/browser/chromeos/arc",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/search",
-    "//chrome/browser/ui:browser_list",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui:browser_list", temp replacement
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/webui/ash/system_web_dialog",
     "//chrome/common",
     "//content/public/browser",
@@ -73,7 +73,7 @@ source_set("browser_tests") {
     "//chrome/common",
     "//chrome/common:constants",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/prefs",
     "//content/public/browser",
     "//content/test:test_support",

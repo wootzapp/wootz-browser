@@ -14,6 +14,7 @@ source_set("tabs_public") {
     "public/tab_dialog_manager.h",
     "public/tab_features.h",
     "tab_network_state.h",
+
   ]
   sources = [ "tab_network_state.cc" ]
   public_deps = [
@@ -234,7 +235,7 @@ if (!is_android) {
       "//chrome/browser/extensions",
       "//chrome/browser/profiles:profile",
       "//chrome/browser/reading_list",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui:ui_features",
       "//chrome/browser/ui/commerce:commerce",
       "//chrome/browser/web_applications",
@@ -281,7 +282,7 @@ if (!is_android) {
       ":tabs_public",
       "//base",
       "//chrome/browser/profiles:profile",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui/color:color_headers",
       "//chrome/browser/ui/startup:startup_tab",
       "//components/collaboration/public:public",
@@ -349,7 +350,7 @@ if (!is_android) {
       "//chrome/browser/sync:factories",
       "//chrome/browser/task_manager:task_manager",
       "//chrome/browser/themes",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui:ui_features",
       "//chrome/browser/ui/browser_window:browser_window",
       "//chrome/browser/ui/commerce",
@@ -358,7 +359,7 @@ if (!is_android) {
       "//chrome/browser/ui/views/page_action",
       "//chrome/browser/ui/views/side_panel",
       "//chrome/browser/ui/web_applications:pwa_install_page_action",
-      "//chrome/browser/ui/webui:webui_util",
+      # "//chrome/browser/ui/webui:webui_util",
       "//chrome/browser/web_applications",
       "//components/browsing_topics",
       "//components/content_settings/core/browser",
@@ -484,7 +485,7 @@ if (!is_android) {
       "//chrome/browser/profiles:profile",
       "//chrome/browser/sync",
       "//chrome/browser/ui",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui:browser_navigator_params_headers",
       "//chrome/browser/ui:ui_features",
       "//chrome/browser/ui/browser_window:browser_window",
@@ -493,7 +494,7 @@ if (!is_android) {
       "//chrome/browser/web_applications:web_applications_test_support",
       "//chrome/common:chrome_features",
       "//chrome/test:test_support",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/commerce/core:account_checker_test_support",
       "//components/commerce/core:feature_list",
       "//components/commerce/core:shopping_service",
@@ -552,7 +553,7 @@ if (!is_android) {
       "//chrome/browser/optimization_guide",
       "//chrome/browser/sync",
       "//chrome/browser/ui",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui:ui_features",
       "//chrome/browser/ui/startup:startup_tab",
       "//chrome/browser/ui/tab_contents",

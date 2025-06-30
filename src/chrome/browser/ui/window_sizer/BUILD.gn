@@ -4,7 +4,7 @@
 
 import("//build/config/ui.gni")
 
-assert(!is_android && !is_fuchsia)
+assert(!is_fuchsia)
 
 source_set("window_sizer") {
   sources = [ "window_sizer.h" ]
@@ -33,7 +33,7 @@ source_set("impl") {
     ":window_sizer",
     "//chrome/browser:browser_process",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/common:non_code_constants",
     "//components/prefs",
     "//ui/base",
@@ -116,8 +116,8 @@ if (is_chromeos) {
       "//ash:test_support",
       "//base",
       "//chrome/browser/ui",
-      "//chrome/browser/ui:browser_list",
-      "//chrome/test:test_support_ui",
+      # "//chrome/browser/ui:browser_list", temp replacement
+      # "//chrome/test:test_support_ui",
       "//components/keep_alive_registry",
       "//content/test:test_support",
       "//ui/compositor",

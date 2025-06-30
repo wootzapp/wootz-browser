@@ -45,6 +45,6 @@ rust_static_library("rust_zk_proof") {
     "//third_party/rust/cxx/v1:lib",
     "//third_party/rust/sha2/v0_10:lib",
     "//third_party/rust/num_bigint/v0_4:lib",
-    "//third_party/rust/base64/v0_13:lib",
+    "//third_party/rust/base64/v0_22:lib",
   ]
 }

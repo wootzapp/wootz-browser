@@ -733,6 +733,7 @@ static_library("test_support") {
       "//chrome:chrome_android_core",
       "//chrome/browser/password_manager/android/access_loss:public",
       "//components/feed/core/v2:feed_core_stubs",
+      # "//extensions:extensions_resources"
     ]
 
     sources += [
@@ -1574,7 +1575,7 @@ source_set("platform_browser_tests") {
     if (safe_browsing_mode == 1) {
       deps += [
         "//chrome/browser/ui/hats",
-        "//chrome/browser/ui/hats:test_support",
+        # "//chrome/browser/ui/hats:test_support",
       ]
     }
   }
@@ -2120,7 +2121,7 @@ if (!is_android) {
     ]
     deps = [
       ":test_support",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
     ]
   }
 
@@ -2205,7 +2206,7 @@ if (!is_android) {
       "//chrome/browser/ip_protection:browser_tests",
       "//chrome/browser/lifetime:termination_notification",
       "//chrome/browser/media/router:media_router_feature",
-      "//chrome/browser/media/router:test_support",
+      # "//chrome/browser/media/router:test_support",
       "//chrome/browser/media/router/discovery/access_code:access_code_cast_feature",
       "//chrome/browser/media/router/discovery/access_code:access_code_sink_service",
       "//chrome/browser/media/webrtc",
@@ -2254,7 +2255,7 @@ if (!is_android) {
       "//chrome/browser/search",
       "//chrome/browser/search_engines",
       "//chrome/browser/segmentation_platform:test_utils",
-      "//chrome/browser/signin/e2e_tests:test_support",
+      # "//chrome/browser/signin/e2e_tests:test_support",
       "//chrome/browser/storage_access_api",
       "//chrome/browser/supervised_user:test_support",
       "//chrome/browser/support_tool:support_tool_proto",
@@ -2306,7 +2307,7 @@ if (!is_android) {
       "//chrome/browser/ui/tabs:browser_tests",
       "//chrome/browser/ui/tabs:tab_enums",
       "//chrome/browser/ui/tabs:tab_menu",
-      "//chrome/browser/ui/tabs:tab_model",
+      # "//chrome/browser/ui/tabs:tab_model",
       "//chrome/browser/ui/tabs:tabs_public",
       "//chrome/browser/ui/toasts",
       "//chrome/browser/ui/toolbar/cast",
@@ -2321,7 +2322,7 @@ if (!is_android) {
       "//chrome/browser/ui/views/webid:test_support",
       # "//chrome/browser/ui/web_applications:browser_tests",
       "//chrome/browser/ui/webui",
-      "//chrome/browser/ui/webui:webui_util",
+      # "//chrome/browser/ui/webui:webui_util",
       "//chrome/browser/ui/webui/commerce",
       "//chrome/browser/ui/webui/privacy_sandbox:browser_tests",
       "//chrome/browser/ui/webui/privacy_sandbox:mojo_bindings",
@@ -3601,7 +3602,7 @@ if (!is_android) {
     ]
 
     public_deps = [
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/test/supervised_user:live_tests",
     ]
 
@@ -4905,9 +4906,9 @@ if (!is_android) {
         "//chrome/browser/ui/file_system_access:browser_tests",
         "//chrome/browser/ui/find_bar",
         "//chrome/browser/ui/global_error:browser_tests",
-        "//chrome/browser/ui/hats:test_support",
+        # "//chrome/browser/ui/hats:test_support",
         "//chrome/browser/ui/lens",
-        "//chrome/browser/ui/lens:browser_tests",
+        # "//chrome/browser/ui/lens:browser_tests",
         "//chrome/browser/ui/lens:test_support",
         "//chrome/browser/ui/media_router",
         "//chrome/browser/ui/media_router:browser_tests",
@@ -4927,8 +4928,7 @@ if (!is_android) {
         "//ui/views",
         "//url",
       ]
-      allow_circular_includes_from +=
-          [ "//chrome/browser/ui/lens:browser_tests" ]
+      # allow_circular_includes_from += [ "//chrome/browser/ui/lens:browser_tests" ]
       if (use_aura) {
         deps += [ "//ui/aura:test_support" ]
       }
@@ -5188,7 +5188,7 @@ if (!is_android) {
         "//chrome/browser/enterprise/connectors/device_trust:features",
         "//chrome/browser/enterprise/connectors/device_trust/common",
         "//chrome/browser/image_decoder",
-        "//chrome/browser/media/router:test_support",
+        # "//chrome/browser/media/router:test_support",
         "//chrome/browser/nearby_sharing/common",
         "//chrome/browser/policy:onc",
         "//chrome/browser/policy/messaging_layer/proto:add_remove_user_event_proto",
@@ -7607,6 +7607,7 @@ test("unit_tests") {
       "//ui/accessibility",
       "//ui/android",
       "//ui/events/devices:test_support",
+      # "//extensions:extensions_resources",
     ]
 
     if (enable_chrome_android_internal) {
@@ -8055,14 +8056,14 @@ test("unit_tests") {
       "//chrome/browser/ui/bookmarks:unit_tests",
       "//chrome/browser/ui/safety_hub",
       "//chrome/browser/ui/startup:startup_tab",
-      "//chrome/browser/ui/tabs:tab_group",
-      "//chrome/browser/ui/tabs:tab_model",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_group",
+      # "//chrome/browser/ui/tabs:tab_model",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/tabs:test_support",
       "//chrome/browser/ui/tabs:unit_tests",
       "//chrome/browser/ui/views/page_action:unit_tests",
       "//chrome/browser/ui/views/webid:test_support",
-      "//chrome/browser/ui/webui:webui_util",
+      # "//chrome/browser/ui/webui:webui_util",
       "//chrome/browser/ui/webui/new_tab_footer:unit_tests",
       "//chrome/browser/ui/webui/settings",
       "//chrome/browser/ui/webui/signin:unit_tests",
@@ -8226,7 +8227,7 @@ test("unit_tests") {
       "//chrome/browser/image_fetcher",
       "//chrome/browser/importer:unit_tests",
       "//chrome/browser/lens/core/mojom:mojo_bindings",
-      "//chrome/browser/media/router:test_support",
+      # "//chrome/browser/media/router:test_support",
       "//chrome/browser/media/router/discovery:discovery",
       "//chrome/browser/media/router/discovery/access_code:access_code_sink_service",
       "//chrome/browser/media/webrtc:test_support",
@@ -8263,7 +8264,7 @@ test("unit_tests") {
       "//chrome/browser/ui/global_error:unit_tests",
       "//chrome/browser/ui/global_media_controls:test_support",
       "//chrome/browser/ui/global_media_controls:unit_tests",
-      "//chrome/browser/ui/hats:test_support",
+      # "//chrome/browser/ui/hats:test_support",
       "//chrome/browser/ui/hats:unit_tests",
       "//chrome/browser/ui/hid:unit_tests",
       "//chrome/browser/ui/lens",
@@ -9270,7 +9271,7 @@ test("unit_tests") {
       "//components/services/unzip:in_process",
       "//components/value_store",
       "//components/value_store:test_support",
-      "//extensions:extensions_resources",
+
       "//extensions/browser:test_support",
       "//extensions/browser/api/content_settings",
       "//extensions/browser/api/storage:settings_observer",
@@ -10996,7 +10997,7 @@ if (!is_android && !is_chromeos_device) {
       "//chrome/browser/search",
       "//chrome/browser/search_engines",
       "//chrome/browser/signin",
-      "//chrome/browser/signin/e2e_tests:test_support",
+      # "//chrome/browser/signin/e2e_tests:test_support",
       "//chrome/browser/status_icons:status_icons",
       "//chrome/browser/sync",
       "//chrome/browser/themes",
@@ -11021,7 +11022,7 @@ if (!is_android && !is_chromeos_device) {
       "//chrome/browser/ui/page_action:icon_type",
       "//chrome/browser/ui/startup:startup_tab",
       "//chrome/browser/ui/tab_contents",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/ui/toasts",
       "//chrome/browser/ui/toasts:interactive_ui_tests",
       "//chrome/browser/ui/views/bubble",
@@ -11397,13 +11398,13 @@ if (!is_android && !is_chromeos_device) {
         "//chrome/browser/ui/commerce:test_support",
         "//chrome/browser/ui/find_bar",
         "//chrome/browser/ui/hats:hats",
-        "//chrome/browser/ui/hats:test_support",
+        # "//chrome/browser/ui/hats:test_support",
         "//chrome/browser/ui/lens",
         "//chrome/browser/ui/media_router",
         "//chrome/browser/ui/tabs",
-        "//chrome/browser/ui/tabs:tab_group",
+        # "//chrome/browser/ui/tabs:tab_group",
         "//chrome/browser/ui/tabs:tab_menu",
-        "//chrome/browser/ui/tabs:tab_model",
+        # "//chrome/browser/ui/tabs:tab_model",
         "//chrome/browser/ui/toolbar/cast",
         "//chrome/browser/ui/user_education",
         "//chrome/browser/ui/views/page_action:interactive_ui_tests",
@@ -11554,7 +11555,7 @@ if (!is_android && !is_chromeos_device) {
         "//ash/constants",
         "//chrome/browser/ash/app_list/app_service",
         "//chrome/browser/chromeos:interactive_ui_tests",
-        "//chrome/browser/media/router:test_support",
+        # "//chrome/browser/media/router:test_support",
         "//chrome/browser/smart_card:interactive_ui_tests",
         "//chrome/browser/ui/ash:test_support",
         "//chrome/browser/ui/ash/privacy_hub:interactive_ui_tests",

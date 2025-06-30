@@ -69,7 +69,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui",
     "//chrome/browser/ui/webui/ash/system_web_dialog",
     "//chrome/common",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//components/drive",
     "//components/prefs",
     "//content/public/browser",

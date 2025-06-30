@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-assert(is_win || is_mac || is_linux || is_chromeos)
+assert(is_android || is_win || is_mac || is_linux || is_chromeos) #temp replacement
 
 import("//build/config/ui.gni")
 
@@ -19,7 +19,7 @@ source_set("bubble") {
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser/ui:ui_features",
     "//chrome/browser/ui/browser_window:browser_window",
-    "//chrome/browser/ui/webui:webui_util",
+    # "//chrome/browser/ui/webui:webui_util",
     "//content/public/browser",
     "//skia",
     "//ui/base",
@@ -33,7 +33,7 @@ source_set("bubble") {
     "//chrome/browser/ui:webui_name_variants",
   ]
   deps = [
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/webui/top_chrome",
     "//components/input",
     "//ui/webui",

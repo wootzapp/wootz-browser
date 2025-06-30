@@ -31,6 +31,6 @@ cargo_crate("lib") {
   proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
   deps = [
     "//third_party/rust/data_encoding/v2:lib",
-    "//third_party/rust/syn/v1:lib",
+    "//third_party/rust/syn/v2:lib",
   ]
 }

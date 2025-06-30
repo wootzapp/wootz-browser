@@ -181,7 +181,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui",
     "//chrome/browser/ui/ash/login",
     "//chrome/browser/ui/webui/ash/login",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/system",
     "//content/test:test_support",
     "//google_apis:test_support",

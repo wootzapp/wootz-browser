@@ -191,7 +191,7 @@ source_set("browser_tests") {
     "//chrome/common:chrome_features",
     "//chrome/common:constants",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/experiences/arc:arc_test_support",
     "//chromeos/ash/experiences/arc:notification_test_support",
     "//chromeos/ash/experiences/arc/mojom",
@@ -222,7 +222,7 @@ if (is_chromeos_device) {
       "//chrome/browser/ash/login/test:test_support",
       "//chrome/test:ash_integration_test_support",
       "//chrome/test:test_support",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//chrome/test/base/ash/interactive:test_support",
       "//ui/aura",
     ]

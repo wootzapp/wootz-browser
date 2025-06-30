@@ -89,7 +89,7 @@ cargo_crate("lib") {
     "//third_party/rust/halo2_legacy_pdqsort/v0_1:lib",
     "//third_party/rust/maybe_rayon/v0_1:lib",
     "//third_party/rust/pasta_curves/v0_5:lib",
-    "//third_party/rust/rand_core/v0_6:lib",
+    "//third_party/rust/rand_core/v0_9:lib",
     "//third_party/rust/tracing/v0_1:lib",
   ]
   features = [

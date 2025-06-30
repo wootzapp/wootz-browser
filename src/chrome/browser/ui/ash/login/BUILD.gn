@@ -58,7 +58,7 @@ static_library("login") {
     "//chrome/browser/ash/login/oobe_quick_start",
     "//chrome/browser/ash/profiles",
     "//chrome/browser/ash/tpm",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/ash/keyboard",
     "//chromeos/ash/components/audio",
     "//chromeos/ash/components/dbus/session_manager",
@@ -256,7 +256,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui/webui/ash/system_web_dialog",
     "//chrome/common:constants",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/dbus/shill",
     "//chromeos/ash/components/network:test_support",
     "//components/policy:generated",

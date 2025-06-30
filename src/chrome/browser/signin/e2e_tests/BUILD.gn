@@ -28,7 +28,7 @@ if (!is_android && !is_fuchsia) {
       "//chrome/browser/sync",
       "//chrome/browser/ui:ui",
       "//chrome/browser/ui/webui/signin",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/signin/core/browser",
       "//components/signin/public/identity_manager:test_support",
       "//content/test:test_support",

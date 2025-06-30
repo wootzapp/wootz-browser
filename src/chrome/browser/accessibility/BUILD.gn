@@ -15,7 +15,7 @@ if (!is_android) {
       "//chrome/browser:browser_process",
       "//chrome/browser/profiles:profile",
       "//chrome/browser/ui",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/live_caption:constants",
       "//components/soda",
       "//components/soda:constants",

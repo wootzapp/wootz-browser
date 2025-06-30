@@ -40,7 +40,7 @@ cargo_crate("lib") {
     "//third_party/rust/group/v0_12:lib",
     "//third_party/rust/hkdf/v0_11:lib",
     "//third_party/rust/pairing/v0_22:lib",
-    "//third_party/rust/rand_core/v0_6:lib",
+    "//third_party/rust/rand_core/v0_9:lib",
     "//third_party/rust/sha2/v0_9:lib",
     "//third_party/rust/subtle/v2:lib",
     "//third_party/rust/thiserror/v1:lib",

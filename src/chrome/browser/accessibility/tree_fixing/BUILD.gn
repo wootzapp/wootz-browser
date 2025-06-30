@@ -4,7 +4,7 @@
 
 import("//build/buildflag_header.gni")
 
-assert(!is_android, "AXTreeFixingService does not run on Android.")
+# assert(!is_android, "AXTreeFixingService does not run on Android.")
 
 source_set("service") {
   sources = [

@@ -164,13 +164,13 @@ source_set("sync") {
       "sessions/browser_list_router_helper.h",
     ]
     public_deps += [
-      "//chrome/browser/ui:browser_list",
-      "//chrome/browser/ui/tabs:tab_strip_model_observer",
+      # "//chrome/browser/ui:browser_list", temp replacement
+       # "//chrome/browser/ui/tabs:tab_strip_model_observer",
     ]
     deps += [
       "//chrome/browser/accessibility/tree_fixing:prefs",
       "//chrome/browser/themes",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/web_applications",
     ]
 

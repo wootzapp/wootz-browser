@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD - style license that can be
 # found in the LICENSE file.
 
-assert(is_win || is_mac || is_linux || is_chromeos)
+assert(is_android || is_win || is_mac || is_linux || is_chromeos)
 
 import("//extensions/buildflags/buildflags.gni")
 
@@ -95,11 +95,11 @@ source_set("side_panel") {
     "//chrome/browser:primitives",
     "//chrome/browser/optimization_guide",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/actions:actions_headers",
     "//chrome/browser/ui/color:color_headers",
     "//chrome/browser/ui/customize_chrome",
-    "//chrome/browser/ui/tabs:tab_model",
+    # "//chrome/browser/ui/tabs:tab_model",
     "//chrome/browser/ui/webui/side_panel/customize_chrome",
     "//chrome/common",
     "//chrome/common/read_anything:mojo_bindings",
@@ -144,11 +144,11 @@ source_set("side_panel") {
     "//chrome/browser/ui/actions",
     "//chrome/browser/ui/bookmarks",
     "//chrome/browser/ui/browser_window",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/tabs:tabs_public",
     "//chrome/browser/ui/user_education",
     "//chrome/browser/ui/views/toolbar",
-    "//chrome/browser/ui/webui:webui_util",
+    # "//chrome/browser/ui/webui:webui_util",
     "//chrome/browser/ui/webui/top_chrome",
     "//chrome/common",
     "//chrome/common:constants",

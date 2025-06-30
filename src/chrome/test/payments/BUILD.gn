@@ -46,7 +46,7 @@ static_library("test_support") {
     sources += [ "payment_request_test_controller_desktop.cc" ]
 
     deps += [
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/webauthn/content/browser",
     ]
   }

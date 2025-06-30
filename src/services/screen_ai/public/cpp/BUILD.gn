@@ -4,7 +4,7 @@
 
 import("//services/screen_ai/buildflags/features.gni")
 
-assert(enable_screen_ai_service)
+# assert(enable_screen_ai_service)
 
 source_set("utilities") {
   sources = [

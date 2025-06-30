@@ -52,7 +52,7 @@ source_set("impl") {
       "//chrome/browser/extensions",
       "//chrome/browser/hid",
       "//chrome/browser/smart_card:smart_card",
-      "//chrome/browser/ui/tabs:tab_strip",
+      # "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/browser/web_applications",
     ]
     if (is_chromeos) {

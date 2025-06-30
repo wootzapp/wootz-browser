@@ -16,7 +16,7 @@ source_set("apitest_support") {
 
   public_deps = [
     "//chrome/browser/chromeos/cros_apps/api",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//testing/gtest",
     "//third_party/blink/public/mojom/runtime_feature_state",
   ]

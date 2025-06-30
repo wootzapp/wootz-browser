@@ -93,7 +93,7 @@ cargo_crate("lib") {
     "//third_party/rust/halo2_proofs/v0_3:lib",
     "//third_party/rust/lazy_static/v1:lib",
     "//third_party/rust/pasta_curves/v0_5:lib",
-    "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/rand/v0_7:lib",
     "//third_party/rust/subtle/v2:lib",
     "//third_party/rust/uint/v0_9:lib",
   ]

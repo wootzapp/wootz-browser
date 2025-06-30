@@ -4,10 +4,9 @@ import("//tools/grit/preprocess_if_expr.gni")
 
 build_webui("build") {
   grd_prefix = "extension_store"
+  ts_files = [ "extension_store.js", "app.ts", "app.html.ts"]
+  static_files = [ "extension_store.html", "extension_store.css", "Wootzapp.png", ]
 
-  static_files = [ "extension_store.html", "extension_store.css", "Wootzapp.png", "extension_store.js" ]
-
-  non_web_component_files = [ "app.ts", "app.html.ts" ]
   css_files = [ "app.css" ]
 
   ts_deps = [

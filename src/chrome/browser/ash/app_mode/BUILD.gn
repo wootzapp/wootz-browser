@@ -189,7 +189,7 @@ static_library("test_support") {
     "//chrome/common",
     "//chrome/common:constants",
     "//chrome/common:non_code_constants",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chrome/test/data/chromeos/app_mode/webstore/itemsnippet",
   ]
   data_deps = [ "//chrome/test/data/chromeos/app_mode/webstore/itemsnippet:generated_protobufs" ]
@@ -225,7 +225,7 @@ source_set("unit_tests") {
     "//chrome/browser/ui/apps",
     "//chrome/browser/web_applications:web_applications_test_support",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/login/login_state",
     "//chromeos/ash/components/network:test_support",
     "//chromeos/ash/components/sync_wifi:test_support",
@@ -286,7 +286,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui/ash/system_web_apps",
     "//chrome/common:constants",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/cryptohome",
     "//chromeos/ash/components/dbus/session_manager",
     "//chromeos/ash/components/dbus/shill",

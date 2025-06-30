@@ -37,7 +37,7 @@ cargo_crate("lib") {
   deps = [
     "//third_party/rust/cfg_if/v1:lib",
     "//third_party/rust/once_cell/v1:lib",
-    "//third_party/rust/getrandom/v0_2:lib",
+    "//third_party/rust/getrandom/v0_1:lib",
     "//third_party/rust/zerocopy/v0_7:lib",
   ]
 

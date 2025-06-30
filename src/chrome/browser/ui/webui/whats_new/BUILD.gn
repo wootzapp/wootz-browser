@@ -70,7 +70,7 @@ source_set("impl") {
     deps += [ "//pdf:features" ]
   }
 
-  if (is_win || is_mac || is_linux) {
+  if (is_android || is_win || is_mac || is_linux) {
     sources += [
       "whats_new_fetcher.cc",
       "whats_new_handler.cc",
@@ -81,7 +81,7 @@ source_set("impl") {
     deps += [
       "//chrome/browser:global_features",
       "//chrome/browser/resources/whats_new:resources",
-      "//chrome/browser/ui:browser_list",
+      # "//chrome/browser/ui:browser_list", temp replacement
       "//chrome/browser/ui/hats",
       "//chrome/common:version_header",
       "//components/bookmarks/common",
@@ -109,7 +109,7 @@ if (is_linux || is_mac || is_win) {
       "//chrome/browser/ui",
       "//chrome/browser/ui:test_support",
       "//chrome/browser/ui/hats",
-      "//chrome/browser/ui/hats:test_support",
+      # "//chrome/browser/ui/hats:test_support",
       "//chrome/common:chrome_features",
       "//chrome/common:constants",
       "//chrome/common:version_header",
@@ -138,7 +138,7 @@ if (!is_android && !is_chromeos) {
       "//chrome/browser:browser_process",
       "//chrome/browser:global_features",
       "//chrome/common:version_header",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/user_education/common",
       "//components/user_education/webui",
       "//content/test:test_support",

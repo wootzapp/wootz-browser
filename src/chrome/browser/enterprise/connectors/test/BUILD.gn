@@ -50,7 +50,7 @@ source_set("test_support") {
     public_deps += [
       "//chrome/browser/safe_browsing",
       "//chrome/browser/ui",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/enterprise/common/proto:connectors_proto",
       "//components/policy/core/common:common_constants",
       "//components/policy/core/common:test_support",

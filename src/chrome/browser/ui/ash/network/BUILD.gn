@@ -128,7 +128,7 @@ source_set("browser_tests") {
     "//chrome/browser/chromeos/network",
     "//chrome/browser/ui",
     "//chrome/common",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/network",
     "//chromeos/ash/components/network:test_support",
     "//chromeos/constants",

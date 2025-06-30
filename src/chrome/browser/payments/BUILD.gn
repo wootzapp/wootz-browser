@@ -72,7 +72,7 @@ source_set("browser_tests") {
     ]
 
     deps += [
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/payments/content:utils",
       "//components/payments/content/utility",
       "//components/permissions:permissions",

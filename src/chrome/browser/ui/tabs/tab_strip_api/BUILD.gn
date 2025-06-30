@@ -25,6 +25,6 @@ source_set("impl") {
   deps = [
     ":tab_strip_api",
     "//chrome/browser/ui/browser_window:browser_window",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
   ]
 }

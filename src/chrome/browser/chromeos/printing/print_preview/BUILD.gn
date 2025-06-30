@@ -92,7 +92,7 @@ source_set("browser_tests") {
     "//chrome/browser/chromeos/printing/print_preview/test:test_support",
     "//chrome/browser/ui",
     "//chrome/common:chrome_features",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/crosapi/mojom",
     "//content/public/browser",
     "//content/test:test_support",

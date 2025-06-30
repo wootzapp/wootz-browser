@@ -42,8 +42,8 @@ static_library("ml") {
     "//chrome/browser/ash/power",
     "//chrome/browser/ash/power/ml/smart_dim",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui:browser_list", temp replacement
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/common:constants",
     "//chromeos/ash/components/dbus",
     "//chromeos/ash/components/install_attributes",

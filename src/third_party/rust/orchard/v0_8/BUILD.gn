@@ -84,7 +84,7 @@ cargo_crate("lib") {
     "//third_party/rust/memuse/v0_2:lib",
     "//third_party/rust/nonempty/v0_7:lib",
     "//third_party/rust/pasta_curves/v0_5:lib",
-    "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/rand/v0_7:lib",
     "//third_party/rust/reddsa/v0_5:lib",
     "//third_party/rust/serde/v1:lib",
     "//third_party/rust/subtle/v2:lib",

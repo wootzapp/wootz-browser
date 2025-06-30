@@ -71,7 +71,7 @@ source_set("browser_tests") {
     "//chrome/browser/ash/wallpaper_handlers:test_support",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chrome/test:webrtc_browser_tests_base",
     "//components/manta",
     "//content/public/browser",

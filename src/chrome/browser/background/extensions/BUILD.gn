@@ -20,7 +20,7 @@ source_set("extensions") {
     "//chrome/browser/extensions:extensions",
     "//chrome/browser/profiles:profile_util",
     "//chrome/browser/status_icons:status_icons",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//components/prefs:prefs",
     "//extensions/browser",
   ]

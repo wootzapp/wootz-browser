@@ -63,7 +63,7 @@ cargo_crate("lib") {
     # "//third_party/rust/log/v0_4:lib",
     "//third_party/rust/num_cpus/v1:lib",
     "//third_party/rust/pairing/v0_23:lib",
-    "//third_party/rust/rand_core/v0_6:lib",
+    "//third_party/rust/rand_core/v0_9:lib",
     "//third_party/rust/rayon/v1:lib",
     "//third_party/rust/subtle/v2:lib",
   ]

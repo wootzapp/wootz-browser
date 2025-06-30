@@ -5,7 +5,7 @@
 import("//extensions/buildflags/buildflags.gni")
 
 assert(enable_extensions)
-assert(!is_android)
+# assert(!is_android)
 source_set("platform_apps") {
   sources = [
     "app_load_service.cc",
@@ -63,7 +63,7 @@ source_set("platform_apps") {
     # "//chrome/browser/media/router/discovery",
     "//chrome/browser/profiles",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     # "//chrome/browser/web_applications",
     # "//chrome/browser/web_applications/extensions",
     "//chrome/common",

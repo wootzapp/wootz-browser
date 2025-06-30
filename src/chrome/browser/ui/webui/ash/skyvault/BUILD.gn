@@ -61,7 +61,7 @@ source_set("browser_tests") {
     "//chrome/browser/ui",
     "//chrome/common",
     "//chrome/common:chrome_features",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
     "//testing/gtest",
     "//ui/gfx",

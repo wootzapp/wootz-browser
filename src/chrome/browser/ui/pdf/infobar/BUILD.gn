@@ -38,7 +38,7 @@ source_set("impl") {
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser/ui:ui_features",
     "//chrome/browser/ui/browser_window",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/common:constants",
     "//chrome/installer/util:with_no_strings",
     "//components/omnibox/browser:vector_icons",

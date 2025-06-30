@@ -152,7 +152,7 @@ source_set("browser_tests") {
     "//chrome/browser/ash/policy/core:test_support",
     "//chrome/browser/ui",
     "//chrome/browser/ui/ash/login",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/dbus/biod",
     "//chromeos/ash/components/dbus/session_manager",
     "//chromeos/ash/components/settings",

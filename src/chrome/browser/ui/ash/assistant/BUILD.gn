@@ -39,7 +39,7 @@ static_library("assistant") {
     "//chrome/browser/lifetime:termination_notification",
     "//chrome/browser/profiles",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/ui/webui/ash/assistant_optin",
     "//chrome/browser/web_applications",
     "//chrome/common",
@@ -120,7 +120,7 @@ if (enable_assistant_integration_tests) {
       "//chrome/browser/ash/login/test:test_support",
       "//chrome/browser/ui",
       "//chrome/browser/ui/ash/assistant/test_support",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//chromeos/ash/components/login/auth/public:authpublic",
       "//components/account_id",
       "//components/language/core/browser",

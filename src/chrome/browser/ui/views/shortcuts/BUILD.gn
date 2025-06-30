@@ -25,7 +25,7 @@ source_set("test_support") {
     "//chrome/browser/ui",
     "//chrome/browser/ui:browser_element_identifiers",
     "//chrome/common:chrome_features",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//ui/views",
   ]
 }
@@ -43,7 +43,7 @@ source_set("browser_tests") {
     "//chrome/browser/shortcuts:test_support",
     "//chrome/browser/ui",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
     "//ui/views",
     "//ui/views:test_support",
@@ -62,7 +62,7 @@ source_set("interactive_ui_tests") {
     "//chrome/browser/shortcuts:test_support",
     "//chrome/browser/ui",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
     "//ui/views",
     "//ui/views:test_support",

@@ -58,7 +58,7 @@ if (!is_android) {
       "//base",
       "//chrome/browser/profiles:profile",
       "//chrome/browser/ui",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//content/public/browser",
       "//content/test:test_support",
       "//net",

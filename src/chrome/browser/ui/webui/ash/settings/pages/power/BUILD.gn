@@ -47,7 +47,7 @@ source_set("browser_tests") {
     "//base",
     "//base/test:test_support",
     "//chrome/browser",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/dbus/power",
     "//components/policy:generated",
     "//components/policy/core/browser",

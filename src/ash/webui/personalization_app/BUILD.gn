@@ -74,7 +74,7 @@ source_set("test_support") {
     "//ash/webui/common/mojom:sea_pen",
     "//ash/webui/personalization_app/mojom",
     "//ash/webui/personalization_app/proto",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
   ]
 
   data = []

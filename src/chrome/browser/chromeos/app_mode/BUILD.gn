@@ -55,7 +55,7 @@ static_library("app_mode") {
     "//build:buildflag_header_h",
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/browser/web_applications",
     "//chromeos/crosapi/mojom",
     "//chromeos/dbus/power",

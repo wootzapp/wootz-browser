@@ -26,7 +26,7 @@ source_set("extension_action") {
     "//chrome/browser/extensions",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/ui",
-    "//chrome/browser/ui/tabs:tab_strip",
+    # "//chrome/browser/ui/tabs:tab_strip",
     "//components/sessions",
     "//content/public/common",
     "//extensions/common:common_constants",

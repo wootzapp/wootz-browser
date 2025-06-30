@@ -41,7 +41,7 @@ static_library("eche_app") {
     "//chrome/browser/ash/phonehub",
     "//chrome/browser/ash/profiles",
     "//chrome/browser/ash/secure_channel",
-    "//chrome/browser/ui:browser_list",
+    # "//chrome/browser/ui:browser_list", temp replacement
     "//chrome/common:channel_info",
     "//chromeos/ash/components/multidevice/logging",
     "//chromeos/ash/components/phonehub",
@@ -75,7 +75,7 @@ source_set("browser_tests") {
     ":eche_app",
     "//base",
     "//chrome/browser/ash/accessibility",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//content/test:test_support",
     "//testing/gtest",
   ]

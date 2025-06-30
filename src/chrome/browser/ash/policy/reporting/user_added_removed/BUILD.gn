@@ -75,7 +75,7 @@ source_set("browser_tests") {
     "//chrome/browser/ash/settings:test_support",
     "//chrome/browser/policy/messaging_layer/proto:add_remove_user_event_proto",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/dbus/session_manager",
     "//chromeos/ash/components/login/auth/public:authpublic",
     "//chromeos/ash/components/login/login_state",

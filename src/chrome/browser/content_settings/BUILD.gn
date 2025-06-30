@@ -204,7 +204,7 @@ if (!is_android) {
       "//chrome/browser/profiles:profile",
       "//chrome/browser/ui",
       "//chrome/browser/ui/content_settings",
-      "//chrome/test:test_support_ui",
+      # "//chrome/test:test_support_ui",
       "//components/content_settings/browser",
       "//components/content_settings/core/browser",
       "//components/network_session_configurator/common",
@@ -225,7 +225,7 @@ if (!is_android) {
       deps += [
         "//build:chromeos_buildflags",
         "//chrome/browser",
-        "//chrome/browser/ui/tabs:tab_strip",
+        # "//chrome/browser/ui/tabs:tab_strip",
         "//chrome/common:chrome_features",
         "//chrome/common:constants",
         "//chrome/test:test_support",

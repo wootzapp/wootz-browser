@@ -250,7 +250,7 @@ source_set("browser_tests") {
     "//chrome/browser/policy/messaging_layer/proto:log_upload_event_proto",
     "//chrome/browser/support_tool:support_tool_proto",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
     "//chromeos/ash/components/login/login_state",
     "//chromeos/ash/components/settings",
     "//chromeos/ash/components/system",

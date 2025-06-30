@@ -9,6 +9,7 @@ import("//build/buildflag_header.gni")
 static_library("webui") {
   visibility = [
     "//chrome/browser/ui",
+    "//components/resources"
   ]
 
   sources = [

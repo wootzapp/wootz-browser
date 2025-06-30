@@ -36,7 +36,7 @@ group("api_implementations") {
   if (enable_extensions) {
     # TODO(crbug.com/40245282): Add more API implementations here.
     public_deps += [
-      "//chrome/browser/extensions/api/autofill_private",
+      # "//chrome/browser/extensions/api/autofill_private",
       "//chrome/browser/extensions/api/braille_display_private",
       "//chrome/browser/extensions/api/command_line_private",
       "//chrome/browser/extensions/api/content_settings",

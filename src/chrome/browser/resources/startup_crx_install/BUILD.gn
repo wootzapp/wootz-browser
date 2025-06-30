@@ -4,11 +4,10 @@ import("//tools/grit/preprocess_if_expr.gni")
 
 build_webui("build") {
   grd_prefix = "startup_crx_install"
-
+  ts_files = [    "startup_crx_install.js", "app.ts", "app.html.ts"]
   static_files = [ 
     "startup_crx_install.html", 
-    "startup_crx_install.css", 
-    "startup_crx_install.js", 
+    "startup_crx_install.css",  
     "ic_launcher_artifact.png",
     "ic_launcher_eclipse.png",
     "ic_launcher_blockmesh.png",
@@ -17,7 +16,6 @@ build_webui("build") {
     "powered_by_wootzapp.png"
     ]
 
-  non_web_component_files = [ "app.ts", "app.html.ts" ]
   css_files = [ "app.css" ]
 
   ts_deps = [
