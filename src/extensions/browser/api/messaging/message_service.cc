@@ -18,6 +18,7 @@
 #include "base/lazy_instance.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/extensions/api/wootz/wootz_api.h"
 #include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/browser_context.h"
@@ -636,6 +637,14 @@ void MessageService::OpenChannelToTabImpl(
       ExtensionsBrowserClient::Get()->IsSameContext(source_context, context_));
   content::WebContents* receiver_contents =
       messaging_delegate_->GetWebContentsByTabId(source_context, tab_id);
+  
+  content::WebContents* receiver_background_web_contents = extensions::WebContentsIdToJavaWebContents(tab_id);
+  
+  if(receiver_background_web_contents) {
+    receiver_contents = receiver_background_web_contents;
+  }
+  
+  
   if (!receiver_contents || receiver_contents->GetController().NeedsReload()) {
     // The tab isn't loaded yet. Don't attempt to connect.
     opener_port->DispatchOnDisconnect(kReceivingEndDoesntExistError);

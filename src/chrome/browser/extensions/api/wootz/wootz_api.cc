@@ -15,24 +15,36 @@
 
 #include "base/android/build_info.h"
 #include "base/android/jni_string.h"
+#include "base/android/shared_preferences/shared_preferences_manager.h"
 #include "base/base64.h"
 #include "base/functional/bind.h"
+#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/json/values_util.h"
 #include "base/lazy_instance.h"
+#include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/browser/extensions/extension_service.h"
+#include "chrome/android/chrome_jni_headers/OpenExtensionsById_jni.h"
+#include "chrome/android/chrome_jni_headers/WootzAppBackgroundContentService_jni.h"
 // #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+#include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/preferences/android/chrome_shared_preferences.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/action_url/content/common/action_url_prefs.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 #include "components/wootz_wallet/browser/eth_tx_manager.h"
 #include "components/wootz_wallet/browser/tx_meta.h"
 #include "components/wootz_wallet/browser/tx_service.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/zk_proof/zk_proof.h"
+#include "components/zk_proof/tls_info/tls_data_store.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_event_histogram_value.h"
@@ -41,23 +53,13 @@
 #include "extensions/browser/extension_prefs_factory.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/extension_id.h"
+#include "extensions/common/mojom/api_permission_id.mojom.h"
+#include "extensions/common/permissions/api_permission.h"
+#include "extensions/common/permissions/permissions_data.h"
 #include "net/base/filename_util.h"
+#include "third_party/jni_zero/jni_zero.h"
 #include "ui/android/window_android.h"
 #include "ui/gfx/image/image.h"
-#include "chrome/android/chrome_jni_headers/OpenExtensionsById_jni.h"
-#include "base/android/shared_preferences/shared_preferences_manager.h"
-#include "chrome/browser/preferences/android/chrome_shared_preferences.h"
-#include "base/json/json_reader.h"
-#include "base/json/values_util.h"
-#include "base/time/time.h"
-#include "extensions/common/permissions/permissions_data.h"
-#include "extensions/common/permissions/api_permission.h"
-#include "extensions/common/mojom/api_permission_id.mojom.h"
-#include "base/logging.h"
-#include "components/zk_proof/zk_proof.h"
-#include "components/zk_proof/tls_info/tls_data_store.h"
-#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 
 namespace extensions {
 
@@ -66,6 +68,13 @@ wootz_wallet::KeyringService* GetKeyringService(
   auto* profile = Profile::FromBrowserContext(context);
   return wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile)
       ->keyring_service();
+}
+
+content::WebContents* WebContentsIdToJavaWebContents(int webContentsId) {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  base::android::ScopedJavaLocalRef<jobject> receiver_from_native = Java_WootzAppBackgroundContentService_getBackgroundWebContents(
+      env, webContentsId);
+  return content::WebContents::FromJavaWebContents(receiver_from_native);
 }
 
 void OpenExtensionsById(const std::string& extensionId) {
@@ -114,12 +123,12 @@ ExtensionId GetWootzWalletExtensionId(content::BrowserContext* context) {
 }
 
 static base::LazyInstance<BrowserContextKeyedAPIFactory<WootzAPI>>::
-    DestructorAtExit g_factory = LAZY_INSTANCE_INITIALIZER;
+    DestructorAtExit g_wootz_api_factory = LAZY_INSTANCE_INITIALIZER;
 
 // static
 BrowserContextKeyedAPIFactory<WootzAPI>* WootzAPI::GetFactoryInstance() {
   LOG(ERROR)<<"Jangid_Observer GetFactoryInstance";
-    return g_factory.Pointer();
+    return g_wootz_api_factory.Pointer();
 }
 
 WootzAPI::WootzAPI(content::BrowserContext* context)
@@ -1404,6 +1413,52 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   LOG(INFO) << "  - Selectors count: " << selectors.size();
 
   return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run() {
+  // Validate arguments
+  if (args().size() < 2 || !args()[0].GetInt() || !args()[1].is_string()) {
+    base::Value::Dict result;
+    result.Set("success", false);
+    result.Set("error", "Missing or invalid URL argument");
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  int webContentsId = args()[0].GetInt();
+  std::string url = args()[1].GetString();
+
+
+  JNIEnv* env = base::android::AttachCurrentThread();
+
+  Java_WootzAppBackgroundContentService_createBackgroundWebContents(
+    env,
+    webContentsId,
+    base::android::ConvertUTF8ToJavaString(env,url)
+  );
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run() {
+  // Expecting args: [name]
+  if (args().empty() || !args()[0].GetInt()) {
+    base::Value::Dict result;
+    result.Set("success", false);
+    result.Set("error", "Missing or invalid webContentsId argument");
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  int webContentsId = args()[0].GetInt();
+
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_WootzAppBackgroundContentService_destroyBackgroundWebContents(
+      env,
+      webContentsId);
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("message", "Background WebContents [" + std::to_string(webContentsId) + "] destroyed via Java service");
+  return RespondNow(WithArguments(std::move(result)));
 }
 
 }  // namespace extensions
