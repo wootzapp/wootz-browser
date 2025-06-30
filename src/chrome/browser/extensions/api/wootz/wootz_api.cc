@@ -1446,8 +1446,7 @@ ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run(
 }
 
 ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run() {
-  // Expecting args: [name]
-  if (args().empty() || !args()[0].GetInt()) {
+  if (args().empty() || !args()[0].is_int()) {
     base::Value::Dict result;
     result.Set("success", false);
     result.Set("error", "Missing or invalid webContentsId argument");
