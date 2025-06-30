@@ -63,6 +63,8 @@ source_set("browser_sources") {
     "blob_handle.h",
     "blocked_domains_prefs.cc",
     "blocked_domains_prefs.h",
+    "saml_prefs.cc",
+    "saml_prefs.h",
     "bluetooth_chooser.cc",
     "bluetooth_chooser.h",
     "bluetooth_delegate.h",

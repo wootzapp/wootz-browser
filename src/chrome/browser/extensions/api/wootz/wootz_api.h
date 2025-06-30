@@ -390,5 +390,13 @@ class WootzGetBlockedDomainsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzSubmitSamlResponseFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.submitSamlResponse", WOOTZ_SUBMIT_SAML_RESPONSE)
+ protected:
+  ~WootzSubmitSamlResponseFunction() override {}
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

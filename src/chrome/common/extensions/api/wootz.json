@@ -598,6 +598,30 @@
               }
             ]
           }
+        },
+        {
+          "name": "submitSamlResponse",
+          "type": "function",
+          "description": "Submits a SAML XML authentication response from extension to browser",
+          "parameters": [
+            {
+              "name": "xmlResponse",
+              "type": "string",
+              "description": "The XML SAML response"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

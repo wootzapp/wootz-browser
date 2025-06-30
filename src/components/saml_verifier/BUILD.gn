@@ -1,0 +1,35 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/features.gni")
+
+component("saml_verifier") {
+  sources = [
+    "saml_verifier.cc",
+    "saml_verifier.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/prefs",
+    "//content/public/browser",
+    "//third_party/libxml:xml_reader",    # Chromium's safe XML reader
+    "//third_party/libxml:libxml_utils",  # Chromium libxml utilities
+    "//third_party/libxml2_full",        # ONLY for C14N functionality
+    "//crypto",                          # Chromium's crypto library
+    "//third_party/boringssl",          # For signature verification
+    "//net",
+    "//services/network/public/cpp",
+  ]
+
+  public_deps = [
+    "//components/user_prefs",
+  ]
+
+  # Use Chromium's libxml config plus libxml2_full for C14N
+  configs += [ 
+    "//third_party/libxml:libxml_config",
+    "//third_party/libxml2_full:libxml2_full_config"
+  ]
+} 

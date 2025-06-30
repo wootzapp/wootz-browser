@@ -1982,6 +1982,8 @@ enum HistogramValue {
   WOOTZ_SET_BLOCKED_DOMAINS = 1916,
   WOOTZ_GET_BLOCKED_DOMAINS = 1917,
 
+  WOOTZ_SUBMIT_SAML_RESPONSE = 1918,
+
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

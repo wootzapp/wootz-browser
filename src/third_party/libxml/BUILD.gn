@@ -77,12 +77,14 @@ config("libxml_warnings") {
 
 # Please keep in sync with //build/linux/unbundle/libxml.gn.
 static_library("xml_reader") {
-  # Do not expand this visibility list without first consulting with the
+    # Do not expand this visibility list without first consulting with the
   # Security Team.
   visibility = [
     "//base/test:test_support",
-    "//components/policy/core/common:unit_tests",
+    "//components/policy/core/common:unit_tests", 
     "//services/data_decoder:*",
+    "//third_party/xmlsec:*",  # For SAML signature verification
+    "//components/saml_verifier:*",  # For SAML signature verification
   ]
   if (is_win) {
     visibility += [ "//components/wifi" ]
@@ -123,6 +125,7 @@ static_library("libxml_utils") {
     "//base/test:test_support",
     "//services/data_decoder:lib",
     "//services/data_decoder:xml_parser_fuzzer_deps",
+    "//components/saml_verifier:*",  # For SAML signature verification
   ]
   sources = [
     "chromium/libxml_utils.cc",
@@ -134,11 +137,11 @@ static_library("libxml_utils") {
 }
 
 static_library("libxml") {
-  # Do not expand this visibility list without first consulting with the
+    # Do not expand this visibility list without first consulting with the
   # Security Team.
   visibility = [
     ":libxml_utils",
-    ":xml_reader",
+    ":xml_reader", 
     ":xml_writer",
     "//chromecast/internal",
     "//testing/libfuzzer/*",

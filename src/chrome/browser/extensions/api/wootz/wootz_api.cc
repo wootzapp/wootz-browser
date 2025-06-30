@@ -60,7 +60,9 @@
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/saml_prefs.h"
 #include "content/public/browser/domain_block_checker.h"
+#include "components/saml_verifier/saml_verifier.h"
 
 namespace extensions {
 
@@ -1444,6 +1446,42 @@ ExtensionFunction::ResponseAction WootzGetBlockedDomainsFunction::Run() {
   for (const auto& v : list) {
     if (v.is_string()) result.Append(v.GetString());
   }
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzSubmitSamlResponseFunction::Run() {
+  LOG(ERROR) << "SAML: WootzSubmitSamlResponseFunction::Run() called";
+  
+  if (args().empty() || !args()[0].is_string()) {
+    LOG(ERROR) << "SAML ERROR: Invalid arguments";
+    return RespondNow(Error("XML response is required"));
+  }
+
+  std::string xml_response = args()[0].GetString();
+  
+  if (xml_response.empty()) {
+    LOG(ERROR) << "SAML ERROR: Empty XML response";
+    return RespondNow(Error("XML response cannot be empty"));
+  }
+
+  // Just log the response directly
+  LOG(ERROR) << "SAML RESPONSE: " << xml_response;
+  
+  // Store in preferences
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (profile) {
+    // Use the proper SAML prefs constant from saml_prefs.h
+          profile->GetPrefs()->SetString(saml::prefs::kSamlResponse, xml_response);
+    LOG(ERROR) << "SAML: Response stored in preferences";
+    
+    // **NEW**: Process SAML response automatically
+    saml_verifier::SamlVerifier::ProcessNewSamlResponse(profile->GetPrefs());
+  }
+
+  LOG(ERROR) << "SAML: Processing complete";
+
+  base::Value::Dict result;
+  result.Set("success", true);
   return RespondNow(WithArguments(std::move(result)));
 }
 
