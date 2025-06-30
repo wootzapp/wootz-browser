@@ -74,6 +74,11 @@ content::WebContents* WebContentsIdToJavaWebContents(int webContentsId) {
   JNIEnv* env = base::android::AttachCurrentThread();
   base::android::ScopedJavaLocalRef<jobject> receiver_from_native = Java_WootzAppBackgroundContentService_getBackgroundWebContents(
       env, webContentsId);
+
+  if(receiver_from_native.is_null()) {
+    return nullptr;
+  }
+
   return content::WebContents::FromJavaWebContents(receiver_from_native);
 }
 
@@ -1417,7 +1422,7 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
 
 ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run() {
   // Validate arguments
-  if (args().size() < 2 || !args()[0].GetInt() || !args()[1].is_string()) {
+  if (args().size() < 2 || !args()[0].is_int() || !args()[1].is_string()) {
     base::Value::Dict result;
     result.Set("success", false);
     result.Set("error", "Missing or invalid URL argument");
