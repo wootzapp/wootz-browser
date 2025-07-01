@@ -243,11 +243,16 @@ VerifierResult Verify(
   std::string public_key_local;
   std::string crx_id_local;
   base::File file;
-  if (crx_path.IsContentUri()) {
-      file = base::OpenContentUriForRead(crx_path);
-  } else {
-      file = base::File(crx_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
-  }
+if (crx_path.IsContentUri()) {
+    // Use the new API: OpenContentUri returns a file descriptor
+    int fd = base::internal::OpenContentUri(crx_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
+    if (fd >= 0) {
+        file = base::File(fd);  // Wrap the file descriptor in a File object
+    }
+    // If fd < 0, file remains invalid and the check below will catch it
+} else {
+    file = base::File(crx_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
+}
   if (!file.IsValid()) {
     return VerifierResult::ERROR_FILE_NOT_READABLE;
   }

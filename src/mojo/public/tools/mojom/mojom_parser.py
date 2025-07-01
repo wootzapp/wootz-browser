@@ -179,7 +179,7 @@ def _CollectAllowedImportsFromBuildMetadata(build_metadata_filename):
   return allowed_imports
 
 def _ResolveInclude(mojom_abspath, input_root_paths):
-  mojom_abspath = _ResolveRelativeImportPath(mojom_abspath, input_root_paths)
+  mojom_abspath = _ResolveRelativeImportPath( mojom_abspath, None, input_root_paths)
   with codecs.open(mojom_abspath, encoding='utf-8') as f:
     src = f.read()
 

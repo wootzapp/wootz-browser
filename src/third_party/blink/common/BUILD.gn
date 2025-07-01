@@ -129,7 +129,7 @@ source_set("common") {
     "blob/blob_utils.cc",
     "bluetooth/web_bluetooth_device_id.cc",
     "cache_storage/cache_storage_utils.cc",
-    "chrome_debug_urls.cc",
+    # "chrome_debug_urls.cc",
     "client_hints/client_hints.cc",
     "client_hints/enabled_client_hints.cc",
     "context_menu_data/context_menu_mojom_traits.cc",

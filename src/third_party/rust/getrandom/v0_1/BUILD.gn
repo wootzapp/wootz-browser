@@ -59,4 +59,6 @@ cargo_crate("lib") {
   features = [ "std" ]
   build_root = "//third_party/rust/chromium_crates_io/vendor/getrandom-0.1.16/build.rs"
   build_sources = [ "//third_party/rust/chromium_crates_io/vendor/getrandom-0.1.16/build.rs" ]
+
+  rustflags = [ "-Aunsafe-op-in-unsafe-fn" ]
 }

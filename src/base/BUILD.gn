@@ -1260,7 +1260,7 @@ component("base") {
       ":base_shared_preferences_jni",
       ":build_info_jni",
       ":bundle_utils_jni",
-      ":callback_jni",
+      #":callback_jni",
       ":content_uri_utils_jni",
       ":features_jni",
       ":file_utils_jni",
@@ -1320,8 +1320,8 @@ component("base") {
     sources += [
       "android/base_jni_onload.cc",
       "android/base_jni_onload.h",
-      "android/callback_android.cc",
-      "android/callback_android.h",
+      # "android/callback_android.cc",
+      # "android/callback_android.h",
       "android/command_line_android.cc",
       "android/int_string_callback.cc",
       "android/int_string_callback.h",
@@ -4960,12 +4960,12 @@ if (is_android) {
     sources = [ "android/java/src/org/chromium/base/TimeUtils.java" ]
   }
 
-  generate_jni("callback_jni") {
-    sources = [ 
-      "android/java/src/org/chromium/base/Callback.java",
-      "android/java/src/org/chromium/base/Callbacks.java"
-       ]
-  }
+ # generate_jni("callback_jni") {
+ #   sources = [ 
+ #    "android/java/src/org/chromium/base/Callback.java",
+ #    "android/java/src/org/chromium/base/Callbacks.java"
+ #     ]
+ #}
 
   android_library("callback_java") {
     sources = [
@@ -4973,7 +4973,7 @@ if (is_android) {
       "android/java/src/org/chromium/base/CallbackUtils.java",
     ]
     deps = [
-      ":callback_jni_java",
+      #":callback_jni_java",
       "//third_party/android_deps:com_google_code_findbugs_jsr305_java",
       "//third_party/android_deps:com_google_errorprone_error_prone_annotations_java",
       "//third_party/androidx:androidx_annotation_annotation_experimental_java",

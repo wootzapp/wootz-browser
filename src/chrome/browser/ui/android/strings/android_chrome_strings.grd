@@ -470,9 +470,6 @@ CHAR_LIMIT guidelines:
       <message name="IDS_ALLOW_WOOTZAPP_SIGNIN_SUMMARY" desc="Summary for a checkbox in Google services that controls sign-in and sync prompts.">
         Shows prompts to sign in to WootzApp 
       </message>
-       <message name="IDS_ALLOW_WOOTZAPP_SIGNIN_SUMMARY" desc="Summary for a checkbox in Google services that controls sign-in and sync prompts.">
-        Shows prompts to sign in to WootzApp 
-      </message>
       <!-- <message name="IDS_ONBOARDING_SE_TEXT" desc="Onboarding SE title text">
         Some search engines protect your privacy better than others when you search the web.
       </message> -->
