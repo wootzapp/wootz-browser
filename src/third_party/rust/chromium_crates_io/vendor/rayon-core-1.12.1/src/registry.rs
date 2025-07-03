@@ -519,14 +519,14 @@ impl Registry {
                 |injected| {
                     let worker_thread = WorkerThread::current();
                     assert!(injected && !worker_thread.is_null());
-                    op(&*worker_thread, true)
+                    unsafe { op(&*worker_thread, true) }
                 },
                 LatchRef::new(l),
             );
-            self.inject(job.as_job_ref());
+            self.inject(unsafe { job.as_job_ref() });
             job.latch.wait_and_reset(); // Make sure we can use the same latch again next time.
 
-            job.into_result()
+            unsafe { job.into_result() }
         })
     }
 
@@ -544,13 +544,13 @@ impl Registry {
             |injected| {
                 let worker_thread = WorkerThread::current();
                 assert!(injected && !worker_thread.is_null());
-                op(&*worker_thread, true)
+                unsafe { op(&*worker_thread, true) }
             },
             latch,
         );
-        self.inject(job.as_job_ref());
-        current_thread.wait_until(&job.latch);
-        job.into_result()
+        self.inject(unsafe { job.as_job_ref() });
+        unsafe { current_thread.wait_until(&job.latch) };
+        unsafe { job.into_result() }
     }
 
     /// Increments the terminate counter. This increment should be
@@ -727,7 +727,7 @@ impl WorkerThread {
 
     #[inline]
     pub(super) unsafe fn push_fifo(&self, job: JobRef) {
-        self.push(self.fifo.push(job));
+        unsafe { self.push(unsafe { self.fifo.push(job) }) };
     }
 
     #[inline]
@@ -766,7 +766,7 @@ impl WorkerThread {
     pub(super) unsafe fn wait_until<L: AsCoreLatch + ?Sized>(&self, latch: &L) {
         let latch = latch.as_core_latch();
         if !latch.probe() {
-            self.wait_until_cold(latch);
+            unsafe { self.wait_until_cold(latch) };
         }
     }
 
@@ -783,7 +783,7 @@ impl WorkerThread {
             // Check for local work *before* we start marking ourself idle,
             // especially to avoid modifying shared sleep state.
             if let Some(job) = self.take_local_job() {
-                self.execute(job);
+                unsafe { self.execute(job) };
                 continue;
             }
 
@@ -791,7 +791,7 @@ impl WorkerThread {
             while !latch.probe() {
                 if let Some(job) = self.find_work() {
                     self.registry.sleep.work_found();
-                    self.execute(job);
+                    unsafe { self.execute(job) };
                     // The job might have injected local work, so go back to the outer loop.
                     continue 'outer;
                 } else {
@@ -815,13 +815,13 @@ impl WorkerThread {
         let registry = &*self.registry;
         let index = self.index;
 
-        self.wait_until(&registry.thread_infos[index].terminate);
+        unsafe { self.wait_until(&registry.thread_infos[index].terminate) };
 
         // Should not be any work left in our queue.
         debug_assert!(self.take_local_job().is_none());
 
         // Let registry know we are done
-        Latch::set(&registry.thread_infos[index].stopped);
+        unsafe { Latch::set(&registry.thread_infos[index].stopped) };
     }
 
     fn find_work(&self) -> Option<JobRef> {
@@ -857,7 +857,7 @@ impl WorkerThread {
 
     #[inline]
     pub(super) unsafe fn execute(&self, job: JobRef) {
-        job.execute();
+        unsafe { job.execute() };
     }
 
     /// Try to steal a single job and return it.
@@ -903,12 +903,12 @@ impl WorkerThread {
 
 unsafe fn main_loop(thread: ThreadBuilder) {
     let worker_thread = &WorkerThread::from(thread);
-    WorkerThread::set_current(worker_thread);
+    unsafe { WorkerThread::set_current(worker_thread) };
     let registry = &*worker_thread.registry;
     let index = worker_thread.index;
 
     // let registry know we are ready to do work
-    Latch::set(&registry.thread_infos[index].primed);
+    unsafe { Latch::set(&registry.thread_infos[index].primed) };
 
     // Worker threads should not panic. If they do, just abort, as the
     // internal state of the threadpool is corrupted. Note that if
@@ -920,7 +920,7 @@ unsafe fn main_loop(thread: ThreadBuilder) {
         registry.catch_unwind(|| handler(index));
     }
 
-    worker_thread.wait_until_out_of_work();
+    unsafe { worker_thread.wait_until_out_of_work() };
 
     // Normal termination, do not abort.
     mem::forget(abort_guard);

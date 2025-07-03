@@ -125,7 +125,7 @@ impl CoreLatch {
     /// latch code.
     #[inline]
     unsafe fn set(this: *const Self) -> bool {
-        let old_state = (*this).state.swap(SET, Ordering::AcqRel);
+        let old_state = unsafe { (*this).state.swap(SET, Ordering::AcqRel) };
         old_state == SLEEPING
     }
 
@@ -197,13 +197,13 @@ impl<'r> Latch for SpinLatch<'r> {
     unsafe fn set(this: *const Self) {
         let cross_registry;
 
-        let registry: &Registry = if (*this).cross {
+        let registry: &Registry = if unsafe { (*this).cross } {
             // Ensure the registry stays alive while we notify it.
             // Otherwise, it would be possible that we set the spin
             // latch and the other thread sees it and exits, causing
             // the registry to be deallocated, all before we get a
             // chance to invoke `registry.notify_worker_latch_is_set`.
-            cross_registry = Arc::clone((*this).registry);
+            cross_registry = Arc::clone(unsafe { (*this).registry });
             &cross_registry
         } else {
             // If this is not a "cross-registry" spin-latch, then the
@@ -211,12 +211,12 @@ impl<'r> Latch for SpinLatch<'r> {
             // that the registry stays alive. However, that doesn't
             // include this *particular* `Arc` handle if the waiting
             // thread then exits, so we must completely dereference it.
-            (*this).registry
+            unsafe { (*this).registry }
         };
-        let target_worker_index = (*this).target_worker_index;
+        let target_worker_index = unsafe { (*this).target_worker_index };
 
         // NOTE: Once we `set`, the target may proceed and invalidate `this`!
-        if CoreLatch::set(&(*this).core_latch) {
+        if unsafe { CoreLatch::set(&(*this).core_latch) } {
             // Subtle: at this point, we can no longer read from
             // `self`, because the thread owning this spin latch may
             // have awoken and deallocated the latch. Therefore, we
@@ -264,9 +264,9 @@ impl LockLatch {
 impl Latch for LockLatch {
     #[inline]
     unsafe fn set(this: *const Self) {
-        let mut guard = (*this).m.lock().unwrap();
+        let mut guard = unsafe { (*this).m.lock().unwrap() };
         *guard = true;
-        (*this).v.notify_all();
+        unsafe { (*this).v.notify_all() };
     }
 }
 
@@ -303,7 +303,7 @@ impl OnceLatch {
         registry: &Registry,
         target_worker_index: usize,
     ) {
-        if CoreLatch::set(&(*this).core_latch) {
+        if unsafe { CoreLatch::set(&(*this).core_latch) } {
             registry.notify_worker_latch_is_set(target_worker_index);
         }
     }
@@ -410,22 +410,25 @@ impl Latch for CountLatch {
         if (*this).counter.fetch_sub(1, Ordering::SeqCst) == 1 {
             // NOTE: Once we call `set` on the internal `latch`,
             // the target may proceed and invalidate `this`!
-            match (*this).kind {
+            match &(*this).kind {
                 CountLatchKind::Stealing {
-                    ref latch,
-                    ref registry,
+                    latch,
+                    registry,
                     worker_index,
                 } => {
                     let registry = Arc::clone(registry);
                     if CoreLatch::set(latch) {
-                        registry.notify_worker_latch_is_set(worker_index);
+                        registry.notify_worker_latch_is_set(*worker_index);
                     }
                 }
-                CountLatchKind::Blocking { ref latch } => LockLatch::set(latch),
+                CountLatchKind::Blocking { latch } => {
+                    LockLatch::set(latch);
+                }
             }
         }
     }
 }
+
 
 /// `&L` without any implication of `dereferenceable` for `Latch::set`
 pub(super) struct LatchRef<'a, L> {
@@ -456,6 +459,6 @@ impl<L> Deref for LatchRef<'_, L> {
 impl<L: Latch> Latch for LatchRef<'_, L> {
     #[inline]
     unsafe fn set(this: *const Self) {
-        L::set((*this).inner);
+        unsafe { L::set((*this).inner) };
     }
 }

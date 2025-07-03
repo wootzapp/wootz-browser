@@ -1168,7 +1168,7 @@ where
         if id == TypeId::of::<Self>() {
             Some(self as *const _ as *const ())
         } else {
-            self.as_ref().and_then(|inner| inner.downcast_raw(id))
+            unsafe { self.as_ref().and_then(|inner| inner.downcast_raw(id)) }
         }
     }
 }
@@ -1233,7 +1233,7 @@ macro_rules! layer_impl_body {
         #[doc(hidden)]
         #[inline]
         unsafe fn downcast_raw(&self, id: TypeId) -> Option<*const ()> {
-            self.deref().downcast_raw(id)
+            unsafe { self.deref().downcast_raw(id) }
         }
     };
 }

@@ -240,19 +240,19 @@ macro_rules! dispatch {
 
 unsafe fn chunk_unchecked(x: &[u8], n: usize, i: usize) -> &[u8] {
     debug_assert!((i + 1) * n <= x.len());
-    let ptr = x.as_ptr().add(n * i);
-    core::slice::from_raw_parts(ptr, n)
+    let ptr = unsafe { x.as_ptr().add(n * i) };
+    unsafe { core::slice::from_raw_parts(ptr, n) } 
 }
 
 unsafe fn chunk_mut_unchecked(x: &mut [u8], n: usize, i: usize) -> &mut [u8] {
     debug_assert!((i + 1) * n <= x.len());
-    let ptr = x.as_mut_ptr().add(n * i);
-    core::slice::from_raw_parts_mut(ptr, n)
+    let ptr = unsafe { x.as_mut_ptr().add(n * i) };
+    unsafe { core::slice::from_raw_parts_mut(ptr, n) }
 }
 
 unsafe fn as_array(x: &[u8]) -> &[u8; 256] {
     debug_assert_eq!(x.len(), 256);
-    &*(x.as_ptr() as *const [u8; 256])
+    unsafe { &*(x.as_ptr() as *const [u8; 256]) }
 }
 
 fn div_ceil(x: usize, m: usize) -> usize {

@@ -43,7 +43,7 @@ impl Group {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)] // unaligned load
     pub(crate) unsafe fn load(ptr: *const Tag) -> Self {
-        Group(neon::vld1_u8(ptr.cast()))
+        unsafe { Group(neon::vld1_u8(ptr.cast())) }
     }
 
     /// Loads a group of tags starting at the given address, which must be
@@ -52,7 +52,7 @@ impl Group {
     #[allow(clippy::cast_ptr_alignment)]
     pub(crate) unsafe fn load_aligned(ptr: *const Tag) -> Self {
         debug_assert_eq!(ptr.align_offset(mem::align_of::<Self>()), 0);
-        Group(neon::vld1_u8(ptr.cast()))
+        unsafe { Group(neon::vld1_u8(ptr.cast())) }
     }
 
     /// Stores the group of tags to the given address, which must be
@@ -61,7 +61,7 @@ impl Group {
     #[allow(clippy::cast_ptr_alignment)]
     pub(crate) unsafe fn store_aligned(self, ptr: *mut Tag) {
         debug_assert_eq!(ptr.align_offset(mem::align_of::<Self>()), 0);
-        neon::vst1_u8(ptr.cast(), self.0);
+        unsafe { neon::vst1_u8(ptr.cast(), self.0); }
     }
 
     /// Returns a `BitMask` indicating all tags in the group which *may*

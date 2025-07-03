@@ -173,7 +173,7 @@ impl<T, C: IsElement<T>> List<T, C> {
         // Insert right after head, i.e. at the beginning of the list.
         let to = &self.head;
         // Get the intrusively stored Entry of the new element to insert.
-        let entry: &Entry = C::entry_of(container.deref());
+        let entry: &Entry = unsafe { C::entry_of(container.deref()) };
         // Make a Shared ptr to that Entry.
         let entry_ptr = Shared::from(entry as *const _);
         // Read the current successor of where we want to insert.

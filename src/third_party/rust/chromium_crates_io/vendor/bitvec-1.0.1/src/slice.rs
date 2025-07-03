@@ -400,10 +400,12 @@ where
 	/// compiler UB.
 	#[inline]
 	pub unsafe fn from_slice_unchecked(slice: &[T]) -> &Self {
-		let bits = slice.len().wrapping_mul(mem::bits_of::<T::Mem>());
-		BitPtr::from_slice(slice)
+		unsafe {
+			let bits = slice.len().wrapping_mul(mem::bits_of::<T::Mem>());
+			BitPtr::from_slice(slice)
 			.span_unchecked(bits)
 			.into_bitslice_ref()
+		}
 	}
 
 	/// Constructs an exclusive `&mut BitSlice` over an element slice, without
@@ -422,10 +424,12 @@ where
 	/// compiler UB.
 	#[inline]
 	pub unsafe fn from_slice_unchecked_mut(slice: &mut [T]) -> &mut Self {
-		let bits = slice.len().wrapping_mul(mem::bits_of::<T::Mem>());
-		BitPtr::from_slice_mut(slice)
+		unsafe {
+			let bits = slice.len().wrapping_mul(mem::bits_of::<T::Mem>());
+			BitPtr::from_slice_mut(slice)
 			.span_unchecked(bits)
 			.into_bitslice_mut()
+		}
 	}
 }
 
@@ -785,7 +789,7 @@ where
 	/// ```
 	#[inline]
 	pub unsafe fn set_unchecked(&mut self, index: usize, value: bool) {
-		self.replace_unchecked(index, value);
+		unsafe { self.replace_unchecked(index, value) };
 	}
 
 	/// Writes a new value into a bit, and returns its previous value.
@@ -835,7 +839,7 @@ where
 		index: usize,
 		value: bool,
 	) -> bool {
-		self.as_mut_bitptr().add(index).replace(value)
+		unsafe { self.as_mut_bitptr().add(index).replace(value) }
 	}
 
 	/// Swaps two bits in a bit-slice, without bounds checking.
@@ -854,9 +858,9 @@ where
 	/// [`.swap()`]: Self::swap
 	#[inline]
 	pub unsafe fn swap_unchecked(&mut self, a: usize, b: usize) {
-		let a = self.as_mut_bitptr().add(a);
-		let b = self.as_mut_bitptr().add(b);
-		bv_ptr::swap(a, b);
+		let a = unsafe { self.as_mut_bitptr().add(a) };
+		let b = unsafe { self.as_mut_bitptr().add(b) };
+		unsafe { bv_ptr::swap(a, b) };
 	}
 
 	/// Splits a bit-slice at an index, without bounds checking.
@@ -875,14 +879,16 @@ where
 	/// [`.split_at()`]: Self::split_at
 	#[inline]
 	pub unsafe fn split_at_unchecked(&self, mid: usize) -> (&Self, &Self) {
-		let len = self.len();
-		let left = self.as_bitptr();
-		let right = left.add(mid);
-		let left = left.span_unchecked(mid);
-		let right = right.span_unchecked(len - mid);
-		let left = left.into_bitslice_ref();
-		let right = right.into_bitslice_ref();
-		(left, right)
+		unsafe {
+			let len = self.len();
+			let left = self.as_bitptr();
+			let right = left.add(mid);
+			let left = left.span_unchecked(mid);
+			let right = right.span_unchecked(len - mid);
+			let left = left.into_bitslice_ref();
+			let right = right.into_bitslice_ref();
+			(left, right)
+		}
 	}
 
 	/// Splits a mutable bit-slice at an index, without bounds checking.
@@ -904,13 +910,15 @@ where
 		&mut self,
 		mid: usize,
 	) -> (&mut BitSlice<T::Alias, O>, &mut BitSlice<T::Alias, O>) {
-		let len = self.len();
-		let left = self.alias_mut().as_mut_bitptr();
-		let right = left.add(mid);
-		(
-			left.span_unchecked(mid).into_bitslice_mut(),
-			right.span_unchecked(len - mid).into_bitslice_mut(),
-		)
+		unsafe {
+			let len = self.len();
+			let left = self.alias_mut().as_mut_bitptr();
+			let right = left.add(mid);
+			(
+				left.span_unchecked(mid).into_bitslice_mut(),
+				right.span_unchecked(len - mid).into_bitslice_mut(),
+			)
+		}
 	}
 
 	/// Copies bits from one region of the bit-slice to another region of
@@ -949,23 +957,25 @@ where
 	#[inline]
 	pub unsafe fn copy_within_unchecked<R>(&mut self, src: R, dest: usize)
 	where R: RangeExt<usize> {
-		if let Some(this) = self.coerce_mut::<T, Lsb0>() {
-			return this.sp_copy_within_unchecked(src, dest);
-		}
-		if let Some(this) = self.coerce_mut::<T, Msb0>() {
-			return this.sp_copy_within_unchecked(src, dest);
-		}
-		let source = src.normalize(0, self.len());
-		let source_len = source.len();
-		let rev = source.contains(&dest);
-		let dest = dest .. dest + source_len;
-		for (from, to) in self
-			.get_unchecked(source)
-			.as_bitptr_range()
-			.zip(self.get_unchecked_mut(dest).as_mut_bitptr_range())
-			.bidi(rev)
-		{
-			to.write(from.read());
+		unsafe {
+			if let Some(this) = self.coerce_mut::<T, Lsb0>() {
+				return this.sp_copy_within_unchecked(src, dest);
+			}
+			if let Some(this) = self.coerce_mut::<T, Msb0>() {
+				return this.sp_copy_within_unchecked(src, dest);
+			}
+			let source = src.normalize(0, self.len());
+			let source_len = source.len();
+			let rev = source.contains(&dest);
+			let dest = dest .. dest + source_len;
+			for (from, to) in self
+				.get_unchecked(source)
+				.as_bitptr_range()
+				.zip(self.get_unchecked_mut(dest).as_mut_bitptr_range())
+				.bidi(rev)
+			{
+				to.write(from.read());
+			}
 		}
 	}
 
@@ -1606,7 +1616,7 @@ where
 	pub(crate) unsafe fn unalias_mut(
 		this: &mut BitSlice<T::Alias, O>,
 	) -> &mut Self {
-		this.as_mut_bitspan().cast::<T>().into_bitslice_mut()
+		unsafe { this.as_mut_bitspan().cast::<T>().into_bitslice_mut() }
 	}
 
 	/// Splits a mutable bit-slice at a midpoint, without either doing bounds
@@ -1626,10 +1636,10 @@ where
 		&mut self,
 		mid: usize,
 	) -> (&mut Self, &mut Self) {
-		//  Split the slice at the requested midpoint, adding an alias layer
-		let (head, tail) = self.split_at_unchecked_mut(mid);
-		//  Remove the new alias layer.
-		(Self::unalias_mut(head), Self::unalias_mut(tail))
+		unsafe {
+			let (head, tail) = self.split_at_unchecked_mut(mid);
+			(Self::unalias_mut(head), Self::unalias_mut(tail))
+		}
 	}
 }
 
@@ -1713,7 +1723,7 @@ where
 	/// [`.set_unchecked()`]: Self::set_unchecked
 	#[inline]
 	pub unsafe fn set_aliased_unchecked(&self, index: usize, value: bool) {
-		self.as_bitptr().add(index).freeze().frozen_write_bit(value);
+		unsafe { self.as_bitptr().add(index).freeze().frozen_write_bit(value) };
 	}
 }
 
@@ -1802,7 +1812,7 @@ where
 	O: BitOrder,
 	T: 'a + BitStore,
 {
-	ptr.span_unchecked(len).into_bitslice_ref()
+	unsafe { ptr.span_unchecked(len).into_bitslice_ref() }
 }
 
 #[inline]
@@ -1815,5 +1825,5 @@ where
 	O: BitOrder,
 	T: 'a + BitStore,
 {
-	ptr.span_unchecked(len).into_bitslice_mut()
+	unsafe { ptr.span_unchecked(len).into_bitslice_mut() }
 }

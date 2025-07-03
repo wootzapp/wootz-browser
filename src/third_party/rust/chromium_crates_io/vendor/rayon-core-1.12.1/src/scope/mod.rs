@@ -8,7 +8,7 @@
 use crate::broadcast::BroadcastContext;
 use crate::job::{ArcJob, HeapJob, JobFifo, JobRef};
 use crate::latch::{CountLatch, Latch};
-use crate::registry::{global_registry, in_worker, Registry, WorkerThread};
+// use crate::registry::{global_registry,Registry, WorkerThread};
 use crate::unwind;
 use std::any::Any;
 use std::fmt;
@@ -676,7 +676,7 @@ impl<'scope> ScopeBase<'scope> {
     where
         FUNC: FnOnce(),
     {
-        let _: Option<()> = Self::execute_job_closure(this, func);
+        let _: Option<()> = unsafe { Self::execute_job_closure(this, func) };
     }
 
     /// Executes `func` as a job in scope. Adjusts the "job completed"
@@ -689,11 +689,11 @@ impl<'scope> ScopeBase<'scope> {
         let result = match unwind::halt_unwinding(func) {
             Ok(r) => Some(r),
             Err(err) => {
-                (*this).job_panicked(err);
+                unsafe { (*this).job_panicked(err) };
                 None
             }
         };
-        Latch::set(&(*this).job_completed_latch);
+        unsafe { Latch::set(&(*this).job_completed_latch) };
         result
     }
 
@@ -764,6 +764,6 @@ unsafe impl<T: Sync> Sync for ScopePtr<T> {}
 impl<T> ScopePtr<T> {
     // Helper to avoid disjoint captures of `scope_ptr.0`
     unsafe fn as_ref(&self) -> &T {
-        &*self.0
+        unsafe { &*self.0 }
     }
 }

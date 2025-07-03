@@ -1107,7 +1107,7 @@ where
         hashes: [u64; N],
         eq: impl FnMut(usize, &T) -> bool,
     ) -> [Option<&'_ mut T>; N] {
-        self.raw.get_many_unchecked_mut(hashes, eq)
+        unsafe { self.raw.get_many_unchecked_mut(hashes, eq) }
     }
 
     /// Returns the total amount of memory allocated internally by the hash

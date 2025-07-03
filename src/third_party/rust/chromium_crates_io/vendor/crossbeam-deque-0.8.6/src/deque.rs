@@ -51,18 +51,17 @@ impl<T> Buffer<T> {
 
     /// Deallocates the buffer.
     unsafe fn dealloc(self) {
-        drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
-            self.ptr.cast::<MaybeUninit<T>>(),
-            self.cap,
-        )));
+        unsafe {
+            drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
+                self.ptr.cast::<MaybeUninit<T>>(),
+                self.cap,
+            )));
+        }
     }
 
     /// Returns a pointer to the task at the specified `index`.
     unsafe fn at(&self, index: isize) -> *mut T {
-        // `self.cap` is always a power of two.
-        // We do all the loads at `MaybeUninit` because we might realize, after loading, that we
-        // don't actually have the right to access this memory.
-        self.ptr.offset(index & (self.cap - 1) as isize)
+        unsafe { self.ptr.offset(index & (self.cap - 1) as isize) }
     }
 
     /// Writes `task` into the specified `index`.
@@ -72,7 +71,9 @@ impl<T> Buffer<T> {
     /// that would be more expensive and difficult to implement generically for all types `T`.
     /// Hence, as a hack, we use a volatile write instead.
     unsafe fn write(&self, index: isize, task: MaybeUninit<T>) {
-        ptr::write_volatile(self.at(index).cast::<MaybeUninit<T>>(), task)
+        unsafe {
+            ptr::write_volatile(self.at(index).cast::<MaybeUninit<T>>(), task)
+        }
     }
 
     /// Reads a task from the specified `index`.
@@ -82,7 +83,9 @@ impl<T> Buffer<T> {
     /// that would be more expensive and difficult to implement generically for all types `T`.
     /// Hence, as a hack, we use a volatile load instead.
     unsafe fn read(&self, index: isize) -> MaybeUninit<T> {
-        ptr::read_volatile(self.at(index).cast::<MaybeUninit<T>>())
+        unsafe {
+            ptr::read_volatile(self.at(index).cast::<MaybeUninit<T>>())
+        }
     }
 }
 
@@ -294,7 +297,7 @@ impl<T> Worker<T> {
         let new = Buffer::alloc(new_cap);
         let mut i = f;
         while i != b {
-            ptr::copy_nonoverlapping(buffer.at(i), new.at(i), 1);
+            unsafe { ptr::copy_nonoverlapping(buffer.at(i), new.at(i), 1); }
             i = i.wrapping_add(1);
         }
 
@@ -308,7 +311,7 @@ impl<T> Worker<T> {
                 .swap(Owned::new(new).into_shared(guard), Ordering::Release, guard);
 
         // Destroy the old buffer later.
-        guard.defer_unchecked(move || old.into_owned().into_box().dealloc());
+        unsafe { guard.defer_unchecked(move || old.into_owned().into_box().dealloc()); } 
 
         // If the buffer is very large, then flush the thread-local garbage in order to deallocate
         // it as soon as possible.
@@ -1269,7 +1272,7 @@ impl<T> Block<T> {
         // It is not necessary to set the `DESTROY` bit in the last slot because that slot has
         // begun destruction of the block.
         for i in (0..count).rev() {
-            let slot = (*this).slots.get_unchecked(i);
+            let slot = unsafe { (*this).slots.get_unchecked(i) } ;
 
             // Mark the `DESTROY` bit if a thread is still using the slot.
             if slot.state.load(Ordering::Acquire) & READ == 0
@@ -1281,7 +1284,7 @@ impl<T> Block<T> {
         }
 
         // No thread is using the block, now it is safe to destroy it.
-        drop(Box::from_raw(this));
+        drop(unsafe { Box::from_raw(this) } );
     }
 }
 

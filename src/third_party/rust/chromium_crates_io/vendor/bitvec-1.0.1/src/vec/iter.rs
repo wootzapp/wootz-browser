@@ -385,25 +385,25 @@ where
 	/// [`BitVec::resize`]: crate::vec::BitVec::resize
 	/// [`Splice`]: crate::vec::Splice
 	unsafe fn move_tail(&mut self, additional: usize) {
-		if additional == 0 {
-			return;
-		}
+        if additional == 0 {
+            return;
+        }
 
-		let bv = &mut *self.source;
-		let tail_len = self.tail.len();
+        let bv = &mut *self.source;
+        let tail_len = self.tail.len();
 
-		let full_len = additional + tail_len;
-		bv.reserve(full_len);
-		let new_tail_start = additional + self.tail.start;
-		let orig_tail = mem::replace(
-			&mut self.tail,
-			new_tail_start .. new_tail_start + tail_len,
-		);
-		let len = bv.len();
-		bv.set_len_unchecked(full_len);
-		bv.copy_within_unchecked(orig_tail, new_tail_start);
-		bv.set_len_unchecked(len);
-	}
+        let full_len = additional + tail_len;
+        bv.reserve(full_len);
+        let new_tail_start = additional + self.tail.start;
+        let orig_tail = mem::replace(
+            &mut self.tail,
+            new_tail_start .. new_tail_start + tail_len,
+        );
+        let len = bv.len();
+        unsafe { bv.set_len_unchecked(full_len) };
+        unsafe { bv.copy_within_unchecked(orig_tail, new_tail_start) };
+        unsafe { bv.set_len_unchecked(len) };
+    }
 }
 
 /// [Original](https://doc.rust-lang.org/alloc/vec/struct.Drain.html#impl-AsRef%3C%5BT%5D%3E)

@@ -148,7 +148,7 @@ where
 		length: usize,
 		capacity: usize,
 	) -> Self {
-		let bitspan = bitptr.span_unchecked(length);
+		let bitspan = unsafe { bitptr.span_unchecked(length) };
 		Self {
 			bitspan,
 			capacity: mem::elts::<T>(
@@ -450,7 +450,7 @@ where
 			new_len,
 			capa,
 		);
-		self.set_len_unchecked(new_len);
+		unsafe { self.set_len_unchecked(new_len) };
 	}
 
 	/// Takes a bit out of the bit-vector.

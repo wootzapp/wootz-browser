@@ -181,7 +181,13 @@ where
 			return Err(BitSpanError::TooHigh(addr.to_const()));
 		}
 
-		Ok(unsafe { Self::new_unchecked(addr, head, bits) })
+		Ok(unsafe {
+			Self {
+				ptr: unsafe { NonNull::new_unchecked(ptr.cast::<()>() as *mut ()) },
+				len: len_bits | len_head,
+				..Self::EMPTY
+			}
+		})
 	}
 
 	/// Creates a new bit-span from its components, without any validity checks.
@@ -274,7 +280,7 @@ where
 		let mut addr_value = addr.to_const() as usize;
 		addr_value &= Self::PTR_ADDR_MASK;
 		addr_value |= self.ptr.as_ptr() as usize & Self::PTR_HEAD_MASK;
-		self.ptr = NonNull::new_unchecked(addr_value as *mut ())
+		self.ptr = unsafe { NonNull::new_unchecked(addr_value as *mut ()) }
 	}
 
 	/// Gets the starting bit index of the referent region.
@@ -473,23 +479,23 @@ where
 		if step > rem {
 			return (self, BitSpan::EMPTY, Self::EMPTY);
 		}
-		let left = this.span_unchecked(step);
+		let left = unsafe { this.span_unchecked(step) };
 		rem -= step;
 
 		let mid_base =
-			this.add(step).address().cast::<U>().pipe(|addr| {
-				BitPtr::<M, U, O>::new_unchecked(addr, BitIdx::MIN)
+			unsafe { this.add(step) }.address().cast::<U>().pipe(|addr| {
+				unsafe { BitPtr::<M, U, O>::new_unchecked(addr, BitIdx::MIN) }
 			});
 		let mid_elts = rem >> <U::Mem as BitRegister>::INDX;
 		let excess = rem & <U::Mem as BitRegister>::MASK as usize;
 		let step = rem - excess;
-		let mid = mid_base.span_unchecked(step);
+		let mid = unsafe { mid_base.span_unchecked(step) };
 
 		let right_base =
-			mid_base.address().add(mid_elts).cast::<T>().pipe(|addr| {
-				BitPtr::<M, T, O>::new_unchecked(addr, BitIdx::MIN)
+			unsafe { mid_base.address().add(mid_elts) }.cast::<T>().pipe(|addr| {
+				unsafe { BitPtr::<M, T, O>::new_unchecked(addr, BitIdx::MIN) }
 			});
-		let right = right_base.span_unchecked(excess);
+		let right = unsafe { right_base.span_unchecked(excess) };
 
 		(left, mid, right)
 	}

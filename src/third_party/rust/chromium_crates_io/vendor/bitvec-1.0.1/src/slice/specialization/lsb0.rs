@@ -91,17 +91,18 @@ where T: BitStore
 		let dest = dest .. dest + source.len();
 
 		let this = self.as_accessor();
-		let from = this
-			.get_unchecked(source)
+		let from = unsafe { this.get_unchecked(source) }
 			.chunks(WORD_BITS)
 			.map(|bits| bits as *const BitSlice<T::Access, Lsb0>);
-		let to = this.get_unchecked(dest).chunks(WORD_BITS).map(|bits| {
-			bits as *const BitSlice<T::Access, Lsb0>
-				as *mut BitSlice<T::Access, Lsb0>
-		});
+		let to = unsafe { this.get_unchecked(dest) }
+			.chunks(WORD_BITS)
+			.map(|bits| {
+				bits as *const BitSlice<T::Access, Lsb0>
+					as *mut BitSlice<T::Access, Lsb0>
+			});
 		for (from, to) in from.zip(to).bidi(rev) {
-			let value = (*from).load_le::<usize>();
-			(*to).store_le::<usize>(value);
+			let value = unsafe { (*from).load_le::<usize>() };
+			unsafe { (*to).store_le::<usize>(value) };
 		}
 	}
 

@@ -1598,8 +1598,11 @@ where
     where
         Q: Hash + Equivalent<K> + ?Sized,
     {
-        self.get_many_unchecked_mut_inner(ks)
+        unsafe {
+            self.get_many_unchecked_mut_inner(ks)
             .map(|res| res.map(|(_, v)| v))
+        }
+        
     }
 
     /// Attempts to get mutable references to `N` values in the map at once, with immutable
@@ -1724,8 +1727,11 @@ where
     where
         Q: Hash + Equivalent<K> + ?Sized,
     {
-        self.get_many_unchecked_mut_inner(ks)
+        unsafe {
+            self.get_many_unchecked_mut_inner(ks)
             .map(|res| res.map(|(k, v)| (&*k, v)))
+        }
+        
     }
 
     fn get_many_mut_inner<Q, const N: usize>(&mut self, ks: [&Q; N]) -> [Option<&'_ mut (K, V)>; N]
@@ -1744,9 +1750,13 @@ where
     where
         Q: Hash + Equivalent<K> + ?Sized,
     {
-        let hashes = self.build_hashes_inner(ks);
-        self.table
+        
+        unsafe {
+            let hashes = self.build_hashes_inner(ks);
+            self.table
             .get_many_unchecked_mut(hashes, |i, (k, _)| ks[i].equivalent(k))
+        }
+        
     }
 
     fn build_hashes_inner<Q, const N: usize>(&self, ks: [&Q; N]) -> [u64; N]

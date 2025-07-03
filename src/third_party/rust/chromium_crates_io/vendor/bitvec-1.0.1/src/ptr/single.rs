@@ -243,7 +243,7 @@ where
 	/// violated. Typically this method should only be used on parameters that
 	/// have already passed through `BitSpan::new` and are known to be good.
 	pub(crate) unsafe fn span_unchecked(self, bits: usize) -> BitSpan<M, T, O> {
-		BitSpan::new_unchecked(self.get_addr(), self.bit, bits)
+		unsafe { BitSpan::new_unchecked(self.get_addr(), self.bit, bits) }
 	}
 
 	/// Produces a bit-pointer range beginning at `self` (inclusive) and ending
@@ -258,7 +258,7 @@ where
 	/// It is unsound to *even construct* a pointer that departs the provenance
 	/// region, even if that pointer is never dereferenced!
 	pub(crate) unsafe fn range(self, count: usize) -> BitPtrRange<M, T, O> {
-		(self .. self.add(count)).into()
+		unsafe { (self .. self.add(count)).into() }
 	}
 
 	/// Removes write permissions from a bit-pointer.
@@ -289,7 +289,7 @@ where
 			..
 		} = self;
 		BitPtr {
-			ptr: addr.assert_mut(),
+			ptr: unsafe { addr.assert_mut() },
 			bit: head,
 			..BitPtr::DANGLING
 		}
@@ -494,7 +494,7 @@ where
 	/// ```
 	#[inline]
 	pub unsafe fn as_ref<'a>(self) -> Option<BitRef<'a, Const, T, O>> {
-		Some(BitRef::from_bitptr(self.to_const()))
+		unsafe { Some(BitRef::from_bitptr(self.to_const())) }
 	}
 
 	/// Creates a new bit-pointer at a specified offset from the original.
@@ -544,7 +544,7 @@ where
 	#[must_use = "returns a new bit-pointer rather than modifying its argument"]
 	pub unsafe fn offset(self, count: isize) -> Self {
 		let (elts, head) = self.bit.offset(count);
-		Self::new_unchecked(self.ptr.offset(elts), head)
+		unsafe { Self::new_unchecked(self.ptr.offset(elts), head) }
 	}
 
 	/// Creates a new bit-pointer at a specified offset from the original.
@@ -681,12 +681,12 @@ where
 	#[inline]
 	pub unsafe fn offset_from<U>(self, origin: BitPtr<M, U, O>) -> isize
 	where U: BitStore<Mem = T::Mem> {
-		self.get_addr()
-			.cast::<T::Mem>()
-			.offset_from(origin.get_addr().cast::<T::Mem>())
-			.wrapping_mul(mem::bits_of::<T::Mem>() as isize)
-			.wrapping_add(self.bit.into_inner() as isize)
-			.wrapping_sub(origin.bit.into_inner() as isize)
+		unsafe { self.get_addr()
+				 .cast::<T::Mem>()
+				 .offset_from(origin.get_addr().cast::<T::Mem>())
+				 .wrapping_mul(mem::bits_of::<T::Mem>() as isize)
+				 .wrapping_add(self.bit.into_inner() as isize)
+				 .wrapping_sub(origin.bit.into_inner() as isize) }
 	}
 
 	/// Adjusts a bit-pointer upwards in memory. This is equivalent to
@@ -704,7 +704,7 @@ where
 	#[inline]
 	#[must_use = "returns a new bit-pointer rather than modifying its argument"]
 	pub unsafe fn add(self, count: usize) -> Self {
-		self.offset(count as isize)
+		unsafe { self.offset(count as isize) }
 	}
 
 	/// Adjusts a bit-pointer downwards in memory. This is equivalent to
@@ -722,7 +722,7 @@ where
 	#[inline]
 	#[must_use = "returns a new bit-pointer rather than modifying its argument"]
 	pub unsafe fn sub(self, count: usize) -> Self {
-		self.offset((count as isize).wrapping_neg())
+		unsafe { self.offset((count as isize).wrapping_neg()) }
 	}
 
 	/// Adjusts a bit-pointer upwards in memory, using wrapping semantics. This
@@ -773,7 +773,7 @@ where
 	/// See [`ptr::read`](crate::ptr::read).
 	#[inline]
 	pub unsafe fn read(self) -> bool {
-		(*self.ptr.to_const()).load_value().get_bit::<O>(self.bit)
+		unsafe { (*self.ptr.to_const()).load_value().get_bit::<O>(self.bit) }
 	}
 
 	/// Reads the bit from `*self` using a volatile load.
@@ -793,7 +793,7 @@ where
 	/// [0]: https://docs.rs/voladdress/later/voladdress
 	#[inline]
 	pub unsafe fn read_volatile(self) -> bool {
-		self.ptr.to_const().read_volatile().get_bit::<O>(self.bit)
+		unsafe { self.ptr.to_const().read_volatile().get_bit::<O>(self.bit) }
 	}
 
 	/// Reads the bit from `*self` using an unaligned memory access.
@@ -813,7 +813,7 @@ where
 	#[inline]
 	#[deprecated = "`BitPtr` does not have unaligned addresses"]
 	pub unsafe fn read_unaligned(self) -> bool {
-		self.ptr.to_const().read_unaligned().get_bit::<O>(self.bit)
+		unsafe { self.ptr.to_const().read_unaligned().get_bit::<O>(self.bit) }
 	}
 
 	/// Copies `count` bits from `self` to `dest`. The source and destination
@@ -837,7 +837,7 @@ where
 		T2: BitStore,
 		O2: BitOrder,
 	{
-		super::copy(self.to_const(), dest, count);
+		unsafe { super::copy(self.to_const(), dest, count) } ;
 	}
 
 	/// Copies `count` bits from `self` to `dest`. The source and destination
@@ -860,7 +860,7 @@ where
 		T2: BitStore,
 		O2: BitOrder,
 	{
-		super::copy_nonoverlapping(self.to_const(), dest, count);
+		unsafe { super::copy_nonoverlapping(self.to_const(), dest, count) };
 	}
 
 	/// Computes the offset (in bits) that needs to be applied to the
@@ -989,7 +989,7 @@ where
 	/// [`.commit()`]: crate::ptr::BitRef::commit
 	#[inline]
 	pub unsafe fn as_mut<'a>(self) -> Option<BitRef<'a, Mut, T, O>> {
-		Some(BitRef::from_bitptr(self))
+		Some(unsafe { BitRef::from_bitptr(self) } )
 	}
 
 	/// Copies `count` bits from the region starting at `src` to the region
@@ -1020,7 +1020,7 @@ where
 		T2: BitStore,
 		O2: BitOrder,
 	{
-		src.copy_to(self, count);
+		unsafe { src.copy_to(self, count) };
 	}
 
 	/// Copies `count` bits from the region starting at `src` to the region
@@ -1052,7 +1052,7 @@ where
 		T2: BitStore,
 		O2: BitOrder,
 	{
-		src.copy_to_nonoverlapping(self, count);
+		unsafe { src.copy_to_nonoverlapping(self, count) };
 	}
 
 	/// Runs the destructor of the referent value.
@@ -1085,7 +1085,7 @@ where
 	/// [`ptr::write`]: crate::ptr::write
 	#[inline]
 	pub unsafe fn write(self, value: bool) {
-		self.replace(value);
+		unsafe { self.replace(value) };
 	}
 
 	/// Writes a new bit using volatile I/O operations.
@@ -1120,9 +1120,9 @@ where
 	#[allow(clippy::needless_borrow)] // Clippy is wrong.
 	pub unsafe fn write_volatile(self, value: bool) {
 		let ptr = self.ptr.to_mut();
-		let mut tmp = ptr.read_volatile();
-		Self::new_unchecked((&mut tmp).into(), self.bit).write(value);
-		ptr.write_volatile(tmp);
+		let mut tmp = unsafe { ptr.read_volatile() };
+		unsafe { Self::new_unchecked((&mut tmp).into(), self.bit).write(value) };
+		unsafe { ptr.write_volatile(tmp) };
 	}
 
 	/// Writes a bit into memory, tolerating unaligned addresses.
@@ -1145,9 +1145,9 @@ where
 	#[deprecated = "`BitPtr` does not have unaligned addresses"]
 	pub unsafe fn write_unaligned(self, value: bool) {
 		let ptr = self.ptr.to_mut();
-		let mut tmp = ptr.read_unaligned();
-		Self::new_unchecked((&mut tmp).into(), self.bit).write(value);
-		ptr.write_unaligned(tmp);
+		let mut tmp = unsafe { ptr.read_unaligned() };
+		unsafe { Self::new_unchecked((&mut tmp).into(), self.bit).write(value) };
+		unsafe { ptr.write_unaligned(tmp) };
 	}
 
 	/// Replaces the bit at `*self` with a new value, returning the previous
@@ -1164,7 +1164,7 @@ where
 	/// [`ptr::replace`]: crate::ptr::replace
 	#[inline]
 	pub unsafe fn replace(self, value: bool) -> bool {
-		self.freeze().frozen_write_bit(value)
+		unsafe { self.freeze().frozen_write_bit(value) }
 	}
 
 	/// Swaps the bits at two mutable locations.
@@ -1184,7 +1184,7 @@ where
 		T2: BitStore,
 		O2: BitOrder,
 	{
-		self.write(with.replace(self.read()));
+		unsafe { self.write(with.replace(self.read())) };
 	}
 }
 
@@ -1200,8 +1200,8 @@ where
 	/// This is used to allow `BitPtr<Const, _, AliasSafe<T>>` pointers, which
 	/// are not `Mut` but may still modify memory, to do so.
 	pub(crate) unsafe fn frozen_write_bit(self, value: bool) -> bool {
-		(*self.ptr.cast::<T::Access>().to_const())
-			.write_bit::<O>(self.bit, value)
+		unsafe { (*self.ptr.cast::<T::Access>().to_const())
+					.write_bit::<O>(self.bit, value) }
 	}
 }
 

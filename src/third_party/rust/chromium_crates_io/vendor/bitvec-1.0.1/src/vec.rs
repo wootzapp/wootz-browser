@@ -573,7 +573,7 @@ where
 	/// The new `head` value must not cause the final bits of the bit-vector to
 	/// depart allocated memory.
 	pub(crate) unsafe fn set_head(&mut self, new_head: BitIdx<T::Mem>) {
-		self.bitspan.set_head(new_head);
+		unsafe { self.bitspan.set_head(new_head) };
 	}
 
 	/// Sets a bit-vector’s length without checking that it fits in the
@@ -583,7 +583,7 @@ where
 	///
 	/// `new_len` must not exceed `self.capacity()`.
 	pub(crate) unsafe fn set_len_unchecked(&mut self, new_len: usize) {
-		self.bitspan.set_len(new_len);
+		unsafe { self.bitspan.set_len(new_len) };
 	}
 
 	/// Asserts that a length can be encoded into the bit-vector handle.

@@ -195,9 +195,11 @@ where
             return Some(self as *const _ as *const ());
         }
 
-        self.layer
+        unsafe {
+            self.layer
             .downcast_raw(id)
             .or_else(|| self.inner.downcast_raw(id))
+        }
     }
 }
 
@@ -287,40 +289,17 @@ where
             id if id == TypeId::of::<Self>() => Some(self as *const _ as *const ()),
 
             // Oh, we're looking for per-layer filters!
-            //
-            // This should only happen if we are inside of another `Layered`,
-            // and it's trying to determine how it should combine `Interest`s
-            // and max level hints.
-            //
-            // In that case, this `Layered` should be considered to be
-            // "per-layer filtered" if *both* the outer layer and the inner
-            // layer/subscriber have per-layer filters. Otherwise, this `Layered
-            // should *not* be considered per-layer filtered (even if one or the
-            // other has per layer filters). If only one `Layer` is per-layer
-            // filtered, *this* `Layered` will handle aggregating the `Interest`
-            // and level hints on behalf of its children, returning the
-            // aggregate (which is the value from the &non-per-layer-filtered*
-            // child).
-            //
-            // Yes, this rule *is* slightly counter-intuitive, but it's
-            // necessary due to a weird edge case that can occur when two
-            // `Layered`s where one side is per-layer filtered and the other
-            // isn't are `Layered` together to form a tree. If we didn't have
-            // this rule, we would actually end up *ignoring* `Interest`s from
-            // the non-per-layer-filtered layers, since both branches would
-            // claim to have PLF.
-            //
-            // If you don't understand this...that's fine, just don't mess with
-            // it. :)
             id if filter::is_plf_downcast_marker(id) => {
-                self.layer.downcast_raw(id).and(self.inner.downcast_raw(id))
+               unsafe{ self.layer.downcast_raw(id).and(self.inner.downcast_raw(id))}
             }
 
             // Otherwise, try to downcast both branches normally...
-            _ => self
+            _ => unsafe {
+                self
                 .layer
                 .downcast_raw(id)
-                .or_else(|| self.inner.downcast_raw(id)),
+                .or_else(|| self.inner.downcast_raw(id))
+            },
         }
     }
 }

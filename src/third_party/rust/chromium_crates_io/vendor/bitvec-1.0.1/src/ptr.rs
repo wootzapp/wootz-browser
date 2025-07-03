@@ -60,16 +60,16 @@ pub unsafe fn copy<T1, T2, O1, O2>(
 	//  Overlap is only defined if the orderings are identical.
 	if dvl::match_order::<O1, O2>() {
 		let (addr, head) = dst.raw_parts();
-		let dst = BitPtr::<Mut, T2, O1>::new_unchecked(addr, head);
-		let src_pair = src.range(count);
+		let dst = unsafe { BitPtr::<Mut, T2, O1>::new_unchecked(addr, head) };
+		let src_pair = unsafe { src.range(count) };
 
 		let rev = src_pair.contains(&dst);
-		for (from, to) in src_pair.zip(dst.range(count)).bidi(rev) {
-			to.write(from.read());
+		for (from, to) in src_pair.zip(unsafe { dst.range(count) }).bidi(rev) {
+			unsafe { to.write(unsafe { from.read() }) };
 		}
 	}
 	else {
-		copy_nonoverlapping(src, dst, count);
+		unsafe { copy_nonoverlapping(src, dst, count) };
 	}
 }
 
@@ -85,8 +85,8 @@ pub unsafe fn copy_nonoverlapping<T1, T2, O1, O2>(
 	T1: BitStore,
 	T2: BitStore,
 {
-	for (from, to) in src.range(count).zip(dst.range(count)) {
-		to.write(from.read());
+	for (from, to) in unsafe { src.range(count) }.zip(unsafe { dst.range(count) }) {
+		unsafe { to.write(unsafe { from.read() }) };
 	}
 }
 
@@ -156,7 +156,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	src.read()
+	unsafe { src.read() }
 }
 
 #[inline]
@@ -169,7 +169,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	src.read_unaligned()
+	unsafe { src.read_unaligned() }
 }
 
 #[inline]
@@ -180,7 +180,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	src.read_volatile()
+	unsafe { src.read_volatile() }
 }
 
 #[inline]
@@ -191,7 +191,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	dst.replace(src)
+	unsafe { dst.replace(src) }
 }
 
 #[inline]
@@ -233,7 +233,7 @@ pub unsafe fn swap<T1, T2, O1, O2>(
 	O1: BitOrder,
 	O2: BitOrder,
 {
-	one.write(two.replace(one.read()));
+	unsafe { one.write(unsafe { two.replace(unsafe { one.read() }) }) };
 }
 
 #[inline]
@@ -250,9 +250,9 @@ pub unsafe fn swap_nonoverlapping<T1, T2, O1, O2>(
 {
 	//  Note: compare codegen with `one.range(count).zip(two.range(count))`.
 	for _ in 0 .. count {
-		swap(one, two);
-		one = one.add(1);
-		two = two.add(1);
+		unsafe { swap(one, two) };
+		one = unsafe { one.add(1) };
+		two = unsafe { two.add(1) };
 	}
 }
 
@@ -264,7 +264,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	dst.write(value);
+	unsafe { dst.write(value) };
 }
 
 #[inline]
@@ -279,7 +279,7 @@ pub unsafe fn write_bytes<T, O>(
 	T: BitStore,
 	O: BitOrder,
 {
-	write_bits(dst, value, count)
+	unsafe { write_bits(dst, value, count) };
 }
 
 #[inline]
@@ -292,7 +292,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	dst.write_unaligned(value);
+	unsafe { dst.write_unaligned(value) };
 }
 
 #[inline]
@@ -303,7 +303,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	dst.write_volatile(value);
+	unsafe { dst.write_volatile(value) };
 }
 
 //  Renamed variants.
@@ -343,7 +343,7 @@ where
 	T: BitStore,
 	O: BitOrder,
 {
-	for bit in dst.range(count) {
-		bit.write(value);
+	for bit in unsafe { dst.range(count) } {
+		unsafe { bit.write(value) };
 	}
 }

@@ -479,7 +479,7 @@ where
 	#[inline]
 	pub unsafe fn get_unchecked<'a, I>(&'a self, index: I) -> I::Immut
 	where I: BitSliceIndex<'a, T, O> {
-		index.get_unchecked(self)
+		unsafe { index.get_unchecked(self) }
 	}
 
 	/// Gets a mutable reference to a single bit or a subsection of the
@@ -521,7 +521,7 @@ where
 	#[inline]
 	pub unsafe fn get_unchecked_mut<'a, I>(&'a mut self, index: I) -> I::Mut
 	where I: BitSliceIndex<'a, T, O> {
-		index.get_unchecked_mut(self)
+		unsafe { index.get_unchecked_mut(self) }
 	}
 
 	#[inline]
@@ -2293,11 +2293,11 @@ where
 	#[inline]
 	pub unsafe fn align_to<U>(&self) -> (&Self, &BitSlice<U, O>, &Self)
 	where U: BitStore {
-		let (l, c, r) = self.as_bitspan().align_to::<U>();
+		let (l, c, r) = unsafe { self.as_bitspan().align_to::<U>() } ;
 		(
-			l.into_bitslice_ref(),
-			c.into_bitslice_ref(),
-			r.into_bitslice_ref(),
+			unsafe {l.into_bitslice_ref()},
+			unsafe {c.into_bitslice_ref()},
+			unsafe {r.into_bitslice_ref()},
 		)
 	}
 
@@ -2347,11 +2347,11 @@ where
 		&mut self,
 	) -> (&mut Self, &mut BitSlice<U, O>, &mut Self)
 	where U: BitStore {
-		let (l, c, r) = self.as_mut_bitspan().align_to::<U>();
+		let (l, c, r) = unsafe {self.as_mut_bitspan().align_to::<U>()};
 		(
-			l.into_bitslice_mut(),
-			c.into_bitslice_mut(),
-			r.into_bitslice_mut(),
+			unsafe {l.into_bitslice_mut()},
+			unsafe {c.into_bitslice_mut()},
+			unsafe {r.into_bitslice_mut()},
 		)
 	}
 }
@@ -2448,7 +2448,7 @@ where
 	O: BitOrder,
 	T: 'a + BitStore,
 {
-	data.span(len).map(|bp| bp.into_bitslice_ref())
+	data.span(len).map(|bp| unsafe { bp.into_bitslice_ref() })
 }
 
 #[inline]
@@ -2461,7 +2461,7 @@ where
 	O: BitOrder,
 	T: 'a + BitStore,
 {
-	data.span(len).map(|bp| bp.into_bitslice_mut())
+	data.span(len).map(|bp| unsafe { bp.into_bitslice_mut() } )
 }
 
 #[doc = include_str!("../../doc/slice/BitSliceIndex.md")]
@@ -2577,7 +2577,7 @@ where
 
 	#[inline]
 	unsafe fn get_unchecked(self, bits: &'a BitSlice<T, O>) -> Self::Immut {
-		bits.as_bitptr().add(self).as_ref().unwrap()
+		unsafe { bits.as_bitptr().add(self).as_ref().unwrap() }
 	}
 
 	#[inline]
@@ -2585,7 +2585,7 @@ where
 		self,
 		bits: &'a mut BitSlice<T, O>,
 	) -> Self::Mut {
-		bits.as_mut_bitptr().add(self).as_mut().unwrap()
+		unsafe { bits.as_mut_bitptr().add(self).as_mut().unwrap() }
 	}
 
 	#[inline]
@@ -2646,13 +2646,13 @@ macro_rules! range_impl {
 			#[inline]
 			#[allow(clippy::redundant_closure_call)]
 			unsafe fn get_unchecked(self, bits: Self::Immut) -> Self::Immut {
-				($select)(self, bits.as_bitspan()).into_bitslice_ref()
+				unsafe { ($select)(self, bits.as_bitspan()).into_bitslice_ref() }
 			}
 
 			#[inline]
 			#[allow(clippy::redundant_closure_call)]
 			unsafe fn get_unchecked_mut(self, bits: Self::Mut) -> Self::Mut {
-				($select)(self, bits.as_mut_bitspan()).into_bitslice_mut()
+				unsafe { ($select)(self, bits.as_mut_bitspan()).into_bitslice_mut() }
 			}
 
 			#[inline]
@@ -2695,7 +2695,7 @@ range_impl!(RangeFrom<usize> {
 	};
 
 	select |RangeFrom { start }, span: BitSpan<_, _, _>| {
-		span.to_bitptr().add(start).span_unchecked(span.len() - start)
+		unsafe { span.to_bitptr().add(start).span_unchecked(span.len() - start) }
 	};
 });
 
@@ -2705,7 +2705,7 @@ range_impl!(RangeTo<usize> {
 	};
 
 	select |RangeTo { end }, mut span: BitSpan<_, _, _>| {
-		span.set_len(end);
+		unsafe { span.set_len(end) };
 		span
 	};
 });
@@ -2722,7 +2722,7 @@ range_impl!(RangeInclusive<usize> {
 	select |range: Self, span: BitSpan<_, _, _>| {
 		let start = *range.start();
 		let end = *range.end();
-		span.to_bitptr().add(start).span_unchecked(end + 1 - start)
+		unsafe { span.to_bitptr().add(start).span_unchecked(end + 1 - start) }
 	};
 });
 
@@ -2732,7 +2732,7 @@ range_impl!(RangeToInclusive<usize> {
 	};
 
 	select |RangeToInclusive { end }, mut span: BitSpan<_, _, _>| {
-		span.set_len(end + 1);
+		unsafe { span.set_len(end + 1) };
 		span
 	};
 });

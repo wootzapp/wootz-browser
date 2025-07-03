@@ -256,7 +256,7 @@ macro_rules! fwd {
 		pub $($unsafe)? fn $name$(<
 			$($lt,)* $($typaram$(: $($bound),+)?,)*
 		>)?(self$(, $arg: $ty)*) $(-> $ret)? {
-			self.with_ptr(|ptr| ptr.$name($($arg),*))
+			self.with_ptr(|ptr| unsafe { ptr.$name($($arg),*) })
 		}
 	)+ };
 }
@@ -282,7 +282,7 @@ macro_rules! map {
 		pub $($unsafe)? fn $name$(<
 			$($lt,)* $($typaram$(: $($bound),+)?,)*
 		>)?(self$(, $arg: $ty)*) $(-> $ret)? {
-			self.inner.as_ptr().$name($($arg$(.pipe($map))?),*)
+			unsafe { self.inner.as_ptr().$name($($arg$(.pipe($map))?),*) }
 		}
 	)+ };
 }
@@ -520,7 +520,7 @@ where T: 'a + ?Sized
 	type Ref = &'a T;
 
 	unsafe fn to_ref(self) -> Self::Ref {
-		self.inner.as_ref()
+		unsafe { self.inner.as_ref() }
 	}
 
 	fn from_ref(this: Self::Ref) -> Self {
@@ -534,7 +534,7 @@ where T: 'a + ?Sized
 	type Ref = &'a mut T;
 
 	unsafe fn to_ref(mut self) -> Self::Ref {
-		self.inner.as_mut()
+		unsafe { self.inner.as_mut() }
 	}
 
 	fn from_ref(this: Self::Ref) -> Self {
@@ -550,7 +550,7 @@ where
 	type Ref = &'a T;
 
 	unsafe fn to_ref(self) -> Self::Ref {
-		self.inner.as_ref()
+		unsafe { self.inner.as_ref() }
 	}
 
 	fn from_ref(this: Self::Ref) -> Self {
@@ -586,7 +586,7 @@ where T: 'a
 	type ElementAddr = Address<Const, T>;
 
 	unsafe fn from_raw_parts(ptr: Self::ElementAddr, len: usize) -> Self::Ref {
-		slice::from_raw_parts(ptr.to_const(), len)
+		unsafe { slice::from_raw_parts(ptr.to_const(), len) }
 	}
 }
 
@@ -598,7 +598,7 @@ where
 	type ElementAddr = Address<Frozen<M>, T>;
 
 	unsafe fn from_raw_parts(ptr: Self::ElementAddr, len: usize) -> Self::Ref {
-		slice::from_raw_parts(ptr.to_const(), len)
+		unsafe { slice::from_raw_parts(ptr.to_const(), len) }
 	}
 }
 
@@ -608,7 +608,7 @@ where T: 'a
 	type ElementAddr = Address<Mut, T>;
 
 	unsafe fn from_raw_parts(ptr: Self::ElementAddr, len: usize) -> Self::Ref {
-		slice::from_raw_parts_mut(ptr.to_mut(), len)
+		unsafe { slice::from_raw_parts_mut(ptr.to_mut(), len) }
 	}
 }
 
