@@ -54,8 +54,10 @@ pub(crate) trait ArrayVecImpl {
     unsafe fn push_unchecked(&mut self, element: Self::Item) {
         let len = self.len();
         debug_assert!(len < Self::CAPACITY);
-        ptr::write(self.as_mut_ptr().add(len), element);
-        self.set_len(len + 1);
+        unsafe {
+            ptr::write(self.as_mut_ptr().add(len), element);
+            self.set_len(len + 1);
+        }
     }
 
     fn pop(&mut self) -> Option<Self::Item> {

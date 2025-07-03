@@ -201,15 +201,15 @@ impl<T> Pointable for T {
     }
 
     unsafe fn deref<'a>(ptr: usize) -> &'a Self {
-        &*(ptr as *const T)
+        unsafe { &*(ptr as *const T) }
     }
 
     unsafe fn deref_mut<'a>(ptr: usize) -> &'a mut Self {
-        &mut *(ptr as *mut T)
+        unsafe { &mut *(ptr as *mut T) }
     }
 
     unsafe fn drop(ptr: usize) {
-        drop(Box::from_raw(ptr as *mut T));
+        unsafe { drop(Box::from_raw(ptr as *mut T)) };
     }
 }
 
@@ -257,7 +257,7 @@ impl<T> Pointable for [MaybeUninit<T>] {
 
     unsafe fn init(len: Self::Init) -> usize {
         let layout = Array::<T>::layout(len);
-        let ptr = alloc::alloc::alloc(layout).cast::<Array<T>>();
+        let ptr = unsafe { alloc::alloc::alloc(layout).cast::<Array<T>>() };
         if ptr.is_null() {
             alloc::alloc::handle_alloc_error(layout);
         }
@@ -645,10 +645,6 @@ impl<T: ?Sized + Pointable> Atomic<T> {
     /// Stores the pointer `new` (either `Shared` or `Owned`) into the atomic pointer if the current
     /// value is the same as `current`. The tag is also taken into account, so two pointers to the
     /// same object, but with different tags, will not be considered equal.
-    ///
-    /// The return value is a result indicating whether the new pointer was written. On success the
-    /// pointer that was written is returned. On failure the actual current value and `new` are
-    /// returned.
     ///
     /// This method takes a [`CompareAndSetOrdering`] argument which describes the memory
     /// ordering of this operation.
@@ -1696,6 +1692,10 @@ mod tests {
     #[test]
     fn array_init() {
         let owned = Owned::<[MaybeUninit<usize>]>::init(10);
+        let arr: &[MaybeUninit<usize>] = &owned;
+        assert_eq!(arr.len(), 10);
+    }
+}
         let arr: &[MaybeUninit<usize>] = &owned;
         assert_eq!(arr.len(), 10);
     }

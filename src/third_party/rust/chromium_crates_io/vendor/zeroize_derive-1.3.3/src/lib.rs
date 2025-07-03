@@ -10,8 +10,9 @@ use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::Comma,
-    Attribute, Lit, Meta, NestedMeta, Result, WherePredicate,
+    Attribute, Lit, Meta, Result, WherePredicate,
 };
+use syn::parse::Parser;
 use synstructure::{decl_derive, AddBounds, BindStyle, BindingInfo, VariantInfo};
 
 decl_derive!(
@@ -142,10 +143,7 @@ impl ZeroizeAttrs {
         variant: Option<&VariantInfo<'_>>,
         binding: Option<&BindingInfo<'_>>,
     ) {
-        let meta_list = match attr
-            .parse_meta()
-            .unwrap_or_else(|e| panic!("error parsing attribute: {:?} ({})", attr, e))
-        {
+        let meta_list = match &attr.meta {
             Meta::List(list) => list,
             _ => return,
         };
@@ -155,11 +153,19 @@ impl ZeroizeAttrs {
             return;
         }
 
-        for nested_meta in &meta_list.nested {
-            if let NestedMeta::Meta(meta) = nested_meta {
-                self.parse_meta(meta, variant, binding);
-            } else {
-                panic!("malformed #[zeroize] attribute: {:?}", nested_meta);
+        // Parse the tokens as a punctuated list of meta items
+        let nested_metas: Result<Punctuated<Meta, Comma>> = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone());
+        match nested_metas {
+            Ok(metas) => {
+                for meta in metas {
+                    self.parse_meta(&meta, variant, binding);
+                }
+            }
+            Err(_) => {
+                // If parsing as punctuated fails, try to parse individual tokens
+                if let Ok(single_meta) = syn::parse2::<Meta>(meta_list.tokens.clone()) {
+                    self.parse_meta(&single_meta, variant, binding);
+                }
             }
         }
     }
@@ -221,7 +227,7 @@ impl ZeroizeAttrs {
                 )),
                 (None, None) => {
                     if let Meta::NameValue(meta_name_value) = meta {
-                        if let Lit::Str(lit) = &meta_name_value.lit {
+                        if let syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(lit), .. }) = &meta_name_value.value {
                             if lit.value().is_empty() {
                                 self.bound = Some(Bounds(Punctuated::new()));
                             } else {
@@ -273,11 +279,23 @@ fn generate_fields(s: &mut synstructure::Structure<'_>, method: TokenStream) -> 
 fn filter_skip(attrs: &[Attribute], start: bool) -> bool {
     let mut result = start;
 
-    for attr in attrs.iter().filter_map(|attr| attr.parse_meta().ok()) {
-        if let Meta::List(list) = attr {
+    for attr in attrs.iter() {
+        if let Meta::List(list) = &attr.meta {
             if list.path.is_ident(ZEROIZE_ATTR) {
-                for nested in list.nested {
-                    if let NestedMeta::Meta(Meta::Path(path)) = nested {
+                // Parse nested items from tokens
+                let nested_items: Result<Punctuated<Meta, Comma>> = Punctuated::<Meta, Comma>::parse_terminated.parse2(list.tokens.clone());
+                
+                if let Ok(metas) = nested_items {
+                    for meta in metas {
+                        if let Meta::Path(path) = meta {
+                            if path.is_ident("skip") {
+                                assert!(result, "duplicate #[zeroize] skip flags");
+                                result = false;
+                            }
+                        }
+                    }
+                } else if let Ok(single_meta) = syn::parse2::<Meta>(list.tokens.clone()) {
+                    if let Meta::Path(path) = single_meta {
                         if path.is_ident("skip") {
                             assert!(result, "duplicate #[zeroize] skip flags");
                             result = false;
@@ -608,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "#[zeroize(drop)] attribute is not allowed on enum fields")]
+    #[should_panic(expected = "#[zeroize(drop)] attribute is not allowed on enum second variant fields")]
     fn zeroize_on_enum_second_variant_field() {
         parse_zeroize_test(stringify!(
             enum Z {

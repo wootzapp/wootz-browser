@@ -1052,8 +1052,8 @@ where
     atomic! {
         T, a,
         {
-            a = &*(src as *const _ as *const _);
-            mem::transmute_copy(&a.load(Ordering::Acquire))
+            a = unsafe { &*(src as *const _ as *const _) };
+            unsafe { mem::transmute_copy(&a.load(Ordering::Acquire)) }
         },
         {
             let lock = lock(src as usize);
@@ -1066,16 +1066,16 @@ where
                 // do atomic reads and atomic writes, but we can't atomically read and write all
                 // kinds of data since `AtomicU8` is not available on stable Rust yet.
                 // Load as `MaybeUninit` because we may load a value that is not valid as `T`.
-                let val = ptr::read_volatile(src.cast::<MaybeUninit<T>>());
+                let val = unsafe { ptr::read_volatile(src.cast::<MaybeUninit<T>>()) };
 
                 if lock.validate_read(stamp) {
-                    return val.assume_init();
+                    return unsafe { val.assume_init() };
                 }
             }
 
             // Grab a regular write lock so that writers don't starve this load.
             let guard = lock.write();
-            let val = ptr::read(src);
+            let val = unsafe { ptr::read(src) };
             // The value hasn't been changed. Drop the guard without incrementing the stamp.
             guard.abort();
             val
@@ -1091,13 +1091,13 @@ unsafe fn atomic_store<T>(dst: *mut T, val: T) {
     atomic! {
         T, a,
         {
-            a = &*(dst as *const _ as *const _);
-            a.store(mem::transmute_copy(&val), Ordering::Release);
+            a = unsafe { &*(dst as *const _ as *const _) };
+            a.store(unsafe { mem::transmute_copy(&val) }, Ordering::Release);
             mem::forget(val);
         },
         {
             let _guard = lock(dst as usize).write();
-            ptr::write(dst, val);
+            unsafe { ptr::write(dst, val) };
         }
     }
 }
@@ -1110,14 +1110,14 @@ unsafe fn atomic_swap<T>(dst: *mut T, val: T) -> T {
     atomic! {
         T, a,
         {
-            a = &*(dst as *const _ as *const _);
-            let res = mem::transmute_copy(&a.swap(mem::transmute_copy(&val), Ordering::AcqRel));
+            a = unsafe { &*(dst as *const _ as *const _) };
+            let res = unsafe { mem::transmute_copy(&a.swap(unsafe { mem::transmute_copy(&val) }, Ordering::AcqRel)) };
             mem::forget(val);
             res
         },
         {
             let _guard = lock(dst as usize).write();
-            ptr::replace(dst, val)
+            unsafe { ptr::replace(dst, val) }
         }
     }
 }
@@ -1137,9 +1137,9 @@ where
     atomic! {
         T, a,
         {
-            a = &*(dst as *const _ as *const _);
-            let mut current_raw = mem::transmute_copy(&current);
-            let new_raw = mem::transmute_copy(&new);
+            a = unsafe { &*(dst as *const _ as *const _) };
+            let mut current_raw = unsafe { mem::transmute_copy(&current) };
+            let new_raw = unsafe { mem::transmute_copy(&new) };
 
             loop {
                 match a.compare_exchange_weak(
@@ -1150,7 +1150,7 @@ where
                 ) {
                     Ok(_) => break Ok(current),
                     Err(previous_raw) => {
-                        let previous = mem::transmute_copy(&previous_raw);
+                        let previous = unsafe { mem::transmute_copy(&previous_raw) };
 
                         if !T::eq(&previous, &current) {
                             break Err(previous);
@@ -1169,10 +1169,10 @@ where
         {
             let guard = lock(dst as usize).write();
 
-            if T::eq(&*dst, &current) {
-                Ok(ptr::replace(dst, new))
+            if T::eq(unsafe { &*dst }, &current) {
+                Ok(unsafe { ptr::replace(dst, new) })
             } else {
-                let val = ptr::read(dst);
+                let val = unsafe { ptr::read(dst) };
                 // The value hasn't been changed. Drop the guard without incrementing the stamp.
                 guard.abort();
                 Err(val)

@@ -228,7 +228,7 @@ pub fn with_bound(
                 #![cfg_attr(all(test, exhaustive), deny(non_exhaustive_omitted_patterns))]
                 syn::TypeParamBound::Trait(bound) => self.visit_path(&bound.path),
                 syn::TypeParamBound::Lifetime(_)
-                | syn::TypeParamBound::PreciseCapture(_)
+               // | syn::TypeParamBound::PreciseCapture(_)
                 | syn::TypeParamBound::Verbatim(_) => {}
                 _ => {}
             }

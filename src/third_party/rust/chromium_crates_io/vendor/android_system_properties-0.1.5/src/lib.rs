@@ -45,8 +45,8 @@ use std::{
 use std::mem;
 
 unsafe fn property_callback(payload: *mut String, _name: *const c_char, value: *const c_char, _serial: u32) {
-    let cvalue = CStr::from_ptr(value);
-    (*payload) = cvalue.to_str().unwrap().to_string();
+    let cvalue = unsafe { CStr::from_ptr(value) };
+    unsafe { (*payload) = cvalue.to_str().unwrap().to_string(); }
 }
 
 type Callback = unsafe fn(*mut String, *const c_char, *const c_char, u32);
@@ -109,7 +109,7 @@ impl AndroidSystemProperties {
 
 
         unsafe fn load_fn(libc_so: *mut c_void, name: &[u8]) -> Option<*const c_void> {
-            let fn_ptr = libc::dlsym(libc_so, name.as_ptr().cast());
+            let fn_ptr = unsafe { libc::dlsym(libc_so, name.as_ptr().cast()) };
 
             if fn_ptr.is_null() {
                 return None;

@@ -684,12 +684,12 @@ unsafe fn volatile_set<T: Copy + Sized>(dst: *mut T, src: T, count: usize) {
         // This is safe because there is room for at least `count` objects of type `T` in the
         // allocation pointed to by `dst`, because `count <= isize::MAX` and because
         // `dst.add(count)` must not wrap around the address space.
-        let ptr = dst.add(i);
+        let ptr = unsafe { dst.add(i) };
         // Safety:
         //
         // This is safe, because the pointer is valid and because `dst` is well aligned for `T` and
         // `ptr` is an offset of `dst` by a multiple of `mem::size_of::<T>()` bytes.
-        ptr::write_volatile(ptr, src);
+        unsafe { ptr::write_volatile(ptr, src); }
     }
 }
 

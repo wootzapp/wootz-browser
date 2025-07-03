@@ -988,7 +988,7 @@ pub mod sync {
         /// the contents are acquired by (synchronized to) this thread.
         #[inline]
         pub unsafe fn get_unchecked(&self) -> &T {
-            self.0.get_unchecked()
+            unsafe { self.0.get_unchecked() }
         }
 
         /// Sets the contents of this cell to `value`.
@@ -1372,7 +1372,7 @@ unsafe fn unwrap_unchecked<T>(val: Option<T>) -> T {
         Some(value) => value,
         None => {
             debug_assert!(false);
-            core::hint::unreachable_unchecked()
+            unsafe { core::hint::unreachable_unchecked() }
         }
     }
 }

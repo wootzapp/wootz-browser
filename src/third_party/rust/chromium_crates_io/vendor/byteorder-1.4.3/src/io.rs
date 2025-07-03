@@ -1588,5 +1588,5 @@ unsafe fn slice_to_u8_mut<T: Copy>(slice: &mut [T]) -> &mut [u8] {
     use std::mem::size_of;
 
     let len = size_of::<T>() * slice.len();
-    slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, len)
+    unsafe { slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, len) }
 }

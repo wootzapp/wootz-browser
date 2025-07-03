@@ -233,7 +233,7 @@ impl<T, N: ArrayLength<T>> ArrayBuilder<T, N> {
     #[doc(hidden)]
     #[inline]
     pub unsafe fn iter_position(&mut self) -> (slice::IterMut<T>, &mut usize) {
-        ((&mut *self.array.as_mut_ptr()).iter_mut(), &mut self.position)
+        (unsafe{(&mut *self.array.as_mut_ptr()).iter_mut()}, &mut self.position)
     }
 
     /// When done writing (assuming all elements have been written to),
@@ -241,11 +241,11 @@ impl<T, N: ArrayLength<T>> ArrayBuilder<T, N> {
     #[doc(hidden)]
     #[inline]
     pub unsafe fn into_inner(self) -> GenericArray<T, N> {
-        let array = ptr::read(&self.array);
+        let array = unsafe { ptr::read(&self.array) };
 
         mem::forget(self);
 
-        array.assume_init()
+        unsafe { array.assume_init() }
     }
 }
 
@@ -652,7 +652,7 @@ where
 #[doc(hidden)]
 pub unsafe fn transmute<A, B>(a: A) -> B {
     let a = ManuallyDrop::new(a);
-    ::core::ptr::read(&*a as *const A as *const B)
+    unsafe { ::core::ptr::read(&*a as *const A as *const B) }
 }
 
 #[cfg(test)]

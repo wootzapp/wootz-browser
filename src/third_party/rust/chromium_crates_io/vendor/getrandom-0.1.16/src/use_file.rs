@@ -116,12 +116,14 @@ impl Mutex {
     const fn new() -> Self {
         Self(UnsafeCell::new(libc::PTHREAD_MUTEX_INITIALIZER))
     }
+    
     unsafe fn lock(&self) {
-        let r = libc::pthread_mutex_lock(self.0.get());
+        let r = unsafe { libc::pthread_mutex_lock(self.0.get()) };
         debug_assert_eq!(r, 0);
     }
+    
     unsafe fn unlock(&self) {
-        let r = libc::pthread_mutex_unlock(self.0.get());
+        let r = unsafe { libc::pthread_mutex_unlock(self.0.get()) };
         debug_assert_eq!(r, 0);
     }
 }

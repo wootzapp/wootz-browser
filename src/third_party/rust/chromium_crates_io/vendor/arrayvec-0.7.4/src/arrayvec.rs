@@ -1,5 +1,4 @@
-
-use std::cmp;
+    use std::cmp;
 use std::iter;
 use std::mem;
 use std::ops::{Bound, Deref, DerefMut, RangeBounds};
@@ -227,7 +226,7 @@ impl<T, const CAP: usize> ArrayVec<T, CAP> {
     /// assert_eq!(&array[..], &[1, 2]);
     /// ```
     pub unsafe fn push_unchecked(&mut self, element: T) {
-        ArrayVecImpl::push_unchecked(self, element)
+        unsafe { ArrayVecImpl::push_unchecked(self, element) }
     }
 
     /// Shortens the vector, keeping the first `len` elements and dropping
@@ -257,7 +256,7 @@ impl<T, const CAP: usize> ArrayVec<T, CAP> {
 
     /// Get pointer to where element at `index` would be
     unsafe fn get_unchecked_ptr(&mut self, index: usize) -> *mut T {
-        self.as_mut_ptr().add(index)
+        unsafe { self.as_mut_ptr().add(index) }
     }
 
     /// Insert `element` at position `index`.
@@ -668,8 +667,7 @@ impl<T, const CAP: usize> ArrayVec<T, CAP> {
     pub unsafe fn into_inner_unchecked(self) -> [T; CAP] {
         debug_assert_eq!(self.len(), self.capacity());
         let self_ = ManuallyDrop::new(self);
-        let array = ptr::read(self_.as_ptr() as *const [T; CAP]);
-        array
+        unsafe { let array = ptr::read(self_.as_ptr() as *const [T; CAP]); array }
     }
 
     /// Returns the ArrayVec, replacing the original with a new empty ArrayVec.
@@ -1070,8 +1068,8 @@ impl<T, const CAP: usize> ArrayVec<T, CAP> {
     {
         let take = self.capacity() - self.len();
         let len = self.len();
-        let mut ptr = raw_ptr_add(self.as_mut_ptr(), len);
-        let end_ptr = raw_ptr_add(ptr, take);
+        let mut ptr = unsafe { raw_ptr_add(self.as_mut_ptr(), len) };
+        let end_ptr = unsafe { raw_ptr_add(ptr, take) };
         // Keep the length in a separate variable, write it back on scope
         // exit. To help the compiler with alias analysis and stuff.
         // We update the length to handle panic in the iteration of the
@@ -1088,8 +1086,8 @@ impl<T, const CAP: usize> ArrayVec<T, CAP> {
             if let Some(elt) = iter.next() {
                 if ptr == end_ptr && CHECK { extend_panic(); }
                 debug_assert_ne!(ptr, end_ptr);
-                ptr.write(elt);
-                ptr = raw_ptr_add(ptr, 1);
+                unsafe { ptr.write(elt); }
+                ptr = unsafe { raw_ptr_add(ptr, 1) };
                 guard.data += 1;
             } else {
                 return; // success
@@ -1117,7 +1115,7 @@ unsafe fn raw_ptr_add<T>(ptr: *mut T, offset: usize) -> *mut T {
         // Special case for ZST
         ptr.cast::<u8>().wrapping_add(offset).cast()
     } else {
-        ptr.add(offset)
+        unsafe { ptr.add(offset) }
     }
 }
 

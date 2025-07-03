@@ -40,5 +40,5 @@ unsafe fn getrandom(
     buflen: libc::size_t,
     flags: libc::c_uint,
 ) -> libc::ssize_t {
-    libc::syscall(libc::SYS_getrandom, buf, buflen, flags) as libc::ssize_t
+    unsafe {({ libc::syscall(libc::SYS_getrandom, buf, buflen, flags) }) as libc::ssize_t}
 }

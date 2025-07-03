@@ -201,7 +201,7 @@ impl Parker {
     /// ```
     pub unsafe fn from_raw(ptr: *const ()) -> Parker {
         Parker {
-            unparker: Unparker::from_raw(ptr),
+            unparker: unsafe { Unparker::from_raw(ptr) },
             _marker: PhantomData,
         }
     }
@@ -288,7 +288,7 @@ impl Unparker {
     /// ```
     pub unsafe fn from_raw(ptr: *const ()) -> Unparker {
         Unparker {
-            inner: Arc::from_raw(ptr.cast::<Inner>()),
+            inner: unsafe { Arc::from_raw(ptr.cast::<Inner>()) },
         }
     }
 }
