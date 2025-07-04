@@ -77,7 +77,7 @@ impl<T> AddressExt for *const T {
 				.unwrap_or_else(|err| panic!("{}", err))
 		}
 		else {
-			Address::new(NonNull::new_unchecked(self as *mut T))
+			Address::new(unsafe { NonNull::new_unchecked(self as *mut T) })
 		}
 	}
 }
@@ -95,7 +95,7 @@ impl<T> AddressExt for *mut T {
 				.unwrap_or_else(|err| panic!("{}", err))
 		}
 		else {
-			Address::new(NonNull::new_unchecked(self))
+			Address::new(unsafe { NonNull::new_unchecked(self) })
 		}
 	}
 }

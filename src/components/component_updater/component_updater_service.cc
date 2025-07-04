@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/notreached.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -391,7 +392,8 @@ void CrxUpdateService::OnDemandUpdate(const std::vector<std::string>& ids,
 void OnDemandUpdater::OnDemandUpdate(const std::vector<std::string>& ids,
                                      Priority priority,
                                      Callback callback) {
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+  return;
 }
 
 bool CrxUpdateService::OnDemandUpdateWithCooldown(const std::string& id) {

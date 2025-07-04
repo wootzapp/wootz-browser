@@ -181,9 +181,17 @@ where
 			return Err(BitSpanError::TooHigh(addr.to_const()));
 		}
 
+		let head_val = head.into_inner() as usize;
+		let ptr_data = base.address().to_const() as usize & Self::PTR_ADDR_MASK;
+		let ptr_head = head_val >> Self::LEN_HEAD_BITS;
+		let len_head = head_val & Self::LEN_HEAD_MASK;
+		let len_bits = bits << Self::LEN_HEAD_BITS;
+		let ptr_val = ptr_data | ptr_head;
+		let ptr = ptr_val as *mut ();
+
 		Ok(unsafe {
 			Self {
-				ptr: unsafe { NonNull::new_unchecked(ptr.cast::<()>() as *mut ()) },
+				ptr: NonNull::new_unchecked(ptr),
 				len: len_bits | len_head,
 				..Self::EMPTY
 			}
@@ -229,7 +237,7 @@ where
 		let ptr = addr.wrapping_add(ptr_raw.wrapping_sub(addr as usize));
 
 		Self {
-			ptr: NonNull::new_unchecked(ptr.cast::<()>() as *mut ()),
+			ptr: unsafe { NonNull::new_unchecked(ptr.cast::<()>() as *mut ()) },
 			len: len_bits | len_head,
 			..Self::EMPTY
 		}
@@ -321,7 +329,7 @@ where
 
 		ptr &= Self::PTR_ADDR_MASK;
 		ptr |= head >> Self::LEN_HEAD_BITS;
-		self.ptr = NonNull::new_unchecked(ptr as *mut ());
+		self.ptr = unsafe { NonNull::new_unchecked(ptr as *mut ()) };
 
 		self.len &= !Self::LEN_HEAD_MASK;
 		self.len |= head & Self::LEN_HEAD_MASK;
@@ -528,7 +536,7 @@ where
 	/// The span must describe memory that is safe to dereference, and to which
 	/// no `&mut BitSlice` references exist.
 	pub(crate) unsafe fn into_bitslice_ref<'a>(self) -> &'a BitSlice<T, O> {
-		&*self.into_bitslice_ptr()
+		unsafe { &*self.into_bitslice_ptr() }
 	}
 
 	/// Produces a bit-pointer to the start of the span.
@@ -611,7 +619,7 @@ where
 	/// The span must describe memory that is safe to dereference. In addition,
 	/// no other `BitSlice` reference of any kind (`&` or `&mut`) may exist.
 	pub(crate) unsafe fn into_bitslice_mut<'a>(self) -> &'a mut BitSlice<T, O> {
-		&mut *self.into_bitslice_ptr_mut()
+		unsafe { &mut *self.into_bitslice_ptr_mut() }
 	}
 }
 

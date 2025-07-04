@@ -174,8 +174,8 @@ where
 	/// element pointer, and incorrectly extending it beyond the source
 	/// provenance is undefined behavior.
 	pub(crate) unsafe fn into_bitspan(self) -> BitSpan<M, T, O> {
-		self.start.span_unchecked(self.len())
-	}
+        unsafe { self.start.span_unchecked(self.len()) }
+    }
 
 	/// Snapshots `.start`, then increments it.
 	///

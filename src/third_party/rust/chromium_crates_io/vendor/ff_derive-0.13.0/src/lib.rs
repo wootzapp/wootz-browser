@@ -302,25 +302,27 @@ fn validate_struct(ast: &syn::DeriveInput, limbs: usize) -> Option<proc_macro2::
 /// Fetch an attribute string from the derived struct.
 fn fetch_attr(name: &str, attrs: &[syn::Attribute]) -> Option<String> {
     for attr in attrs {
-        if let Ok(meta) = attr.parse_meta() {
-            match meta {
-                syn::Meta::NameValue(nv) => {
-                    if nv.path.get_ident().map(|i| i.to_string()) == Some(name.to_string()) {
-                        match nv.lit {
-                            syn::Lit::Str(ref s) => return Some(s.value()),
-                            _ => {
-                                panic!("attribute {} should be a string", name);
-                            }
+        let mut found = None;
+        let _ = attr.parse_nested_meta(|meta| {
+            if let Ok(syn::Meta::NameValue(nv)) = meta.input.parse() {
+                if nv.path.get_ident().map(|i| i.to_string()) == Some(name.to_string()) {
+                    if let syn::Expr::Lit(expr_lit) = &nv.value {
+                        if let syn::Lit::Str(ref s) = expr_lit.lit {
+                            found = Some(s.value());
+                        } else {
+                            panic!("attribute {} should be a string", name);
                         }
+                    } else {
+                        panic!("attribute {} should be a string", name);
                     }
                 }
-                _ => {
-                    panic!("attribute {} should be a string", name);
-                }
             }
+            Ok(())
+        });
+        if let Some(val) = found {
+            return Some(val);
         }
     }
-
     None
 }
 

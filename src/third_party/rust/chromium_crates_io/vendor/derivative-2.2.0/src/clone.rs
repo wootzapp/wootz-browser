@@ -173,7 +173,7 @@ pub fn derive_clone(input: &ast::Input) -> proc_macro2::TokenStream {
     }
 }
 
-fn needs_clone_bound(attrs: &attr::Field) -> bool {
+fn needs_clone_bound(attrs: &attr::FieldAttr) -> bool {
     attrs.clone_bound().is_none()
 }
 

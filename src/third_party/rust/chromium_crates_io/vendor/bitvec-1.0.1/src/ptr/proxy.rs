@@ -82,7 +82,7 @@ where
 	/// context, and not be aliased beyond its typing indicators.
 	#[inline]
 	pub unsafe fn from_bitptr(bitptr: BitPtr<M, T, O>) -> Self {
-		let data = bitptr.read();
+		let data = unsafe { bitptr.read() };
 		Self {
 			bitptr,
 			data,

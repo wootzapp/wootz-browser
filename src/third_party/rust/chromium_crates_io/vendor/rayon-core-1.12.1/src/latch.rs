@@ -407,22 +407,22 @@ impl CountLatch {
 impl Latch for CountLatch {
     #[inline]
     unsafe fn set(this: *const Self) {
-        if (*this).counter.fetch_sub(1, Ordering::SeqCst) == 1 {
+        if unsafe { (*this).counter.fetch_sub(1, Ordering::SeqCst) } == 1 {
             // NOTE: Once we call `set` on the internal `latch`,
             // the target may proceed and invalidate `this`!
-            match &(*this).kind {
+            match unsafe { &(*this).kind } {
                 CountLatchKind::Stealing {
                     latch,
                     registry,
                     worker_index,
                 } => {
                     let registry = Arc::clone(registry);
-                    if CoreLatch::set(latch) {
+                    if unsafe { CoreLatch::set(latch) } {
                         registry.notify_worker_latch_is_set(*worker_index);
                     }
                 }
                 CountLatchKind::Blocking { latch } => {
-                    LockLatch::set(latch);
+                    unsafe { LockLatch::set(latch) };
                 }
             }
         }

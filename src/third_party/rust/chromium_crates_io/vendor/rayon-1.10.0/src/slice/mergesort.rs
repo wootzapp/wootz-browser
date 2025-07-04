@@ -14,12 +14,12 @@ use std::slice;
 
 unsafe fn get_and_increment<T>(ptr: &mut *mut T) -> *mut T {
     let old = *ptr;
-    *ptr = ptr.offset(1);
+    *ptr = unsafe { ptr.offset(1) };
     old
 }
 
 unsafe fn decrement_and_get<T>(ptr: &mut *mut T) -> *mut T {
-    *ptr = ptr.offset(-1);
+    *ptr = unsafe { ptr.offset(-1) };
     *ptr
 }
 
@@ -121,8 +121,8 @@ where
 {
     let len = v.len();
     let v = v.as_mut_ptr();
-    let v_mid = v.add(mid);
-    let v_end = v.add(len);
+    let v_mid = unsafe { v.add(mid) };
+    let v_end = unsafe { v.add(len) };
 
     // The merge process first copies the shorter run into `buf`. Then it traces the newly copied
     // run and the longer run forwards (or backwards), comparing their next unconsumed elements and
@@ -145,10 +145,10 @@ where
 
     if mid <= len - mid {
         // The left run is shorter.
-        ptr::copy_nonoverlapping(v, buf, mid);
+        unsafe { ptr::copy_nonoverlapping(v, buf, mid) };
         hole = MergeHole {
             start: buf,
-            end: buf.add(mid),
+            end: unsafe { buf.add(mid) },
             dest: v,
         };
 
@@ -160,19 +160,19 @@ where
         while *left < hole.end && right < v_end {
             // Consume the lesser side.
             // If equal, prefer the left run to maintain stability.
-            let to_copy = if is_less(&*right, &**left) {
-                get_and_increment(&mut right)
+            let to_copy = if unsafe { is_less(&*right, &**left) } {
+                unsafe { get_and_increment(&mut right) }
             } else {
-                get_and_increment(left)
+                unsafe { get_and_increment(left) }
             };
-            ptr::copy_nonoverlapping(to_copy, get_and_increment(out), 1);
+            unsafe { ptr::copy_nonoverlapping(to_copy, get_and_increment(out), 1) };
         }
     } else {
         // The right run is shorter.
-        ptr::copy_nonoverlapping(v_mid, buf, len - mid);
+        unsafe { ptr::copy_nonoverlapping(v_mid, buf, len - mid) };
         hole = MergeHole {
             start: buf,
-            end: buf.add(len - mid),
+            end: unsafe { buf.add(len - mid) },
             dest: v_mid,
         };
 
@@ -184,12 +184,12 @@ where
         while v < *left && buf < *right {
             // Consume the greater side.
             // If equal, prefer the right run to maintain stability.
-            let to_copy = if is_less(&*right.offset(-1), &*left.offset(-1)) {
-                decrement_and_get(left)
+            let to_copy = if unsafe { is_less(&*right.offset(-1), &*left.offset(-1)) } {
+                unsafe { decrement_and_get(left) }
             } else {
-                decrement_and_get(right)
+                unsafe { decrement_and_get(right) }
             };
-            ptr::copy_nonoverlapping(to_copy, decrement_and_get(&mut out), 1);
+            unsafe { ptr::copy_nonoverlapping(to_copy, decrement_and_get(&mut out), 1) };
         }
     }
     // Finally, `hole` gets dropped. If the shorter run was not fully consumed, whatever remains of
@@ -310,8 +310,8 @@ where
         if start > 0 {
             start -= 1;
 
-            if is_less(v.get_unchecked(start + 1), v.get_unchecked(start)) {
-                while start > 0 && is_less(v.get_unchecked(start), v.get_unchecked(start - 1)) {
+            if unsafe { is_less(v.get_unchecked(start + 1), v.get_unchecked(start)) } {
+                while start > 0 && unsafe { is_less(v.get_unchecked(start), v.get_unchecked(start - 1)) } {
                     start -= 1;
                 }
 
@@ -322,7 +322,7 @@ where
                     v[start..end].reverse();
                 }
             } else {
-                while start > 0 && !is_less(v.get_unchecked(start), v.get_unchecked(start - 1)) {
+                while start > 0 && !unsafe { is_less(v.get_unchecked(start), v.get_unchecked(start - 1)) } {
                     start -= 1;
                 }
 
@@ -351,12 +351,14 @@ where
         while let Some(r) = collapse(&runs) {
             let left = runs[r + 1];
             let right = runs[r];
-            merge(
-                &mut v[left.start..right.start + right.len],
-                left.len,
-                buf,
-                &is_less,
-            );
+            unsafe {
+                merge(
+                    &mut v[left.start..right.start + right.len],
+                    left.len,
+                    buf,
+                    &is_less,
+                );
+            }
 
             runs[r] = Run {
                 start: left.start,
@@ -437,61 +439,40 @@ where
     T: Send,
     F: Fn(&T, &T) -> bool + Sync,
 {
-    // Slices whose lengths sum up to this value are merged sequentially. This number is slightly
-    // larger than `CHUNK_LENGTH`, and the reason is that merging is faster than merge sorting, so
-    // merging needs a bit coarser granularity in order to hide the overhead of Rayon's task
-    // scheduling.
     const MAX_SEQUENTIAL: usize = 5000;
 
     let left_len = left.len();
     let right_len = right.len();
 
-    // Intermediate state of the merge process, which serves two purposes:
-    // 1. Protects integrity of `dest` from panics in `is_less`.
-    // 2. Copies the remaining elements as soon as one of the two sides is exhausted.
-    //
-    // Panic safety:
-    //
-    // If `is_less` panics at any point during the merge process, `s` will get dropped and copy the
-    // remaining parts of `left` and `right` into `dest`.
     let mut s = State {
         left_start: left.as_mut_ptr(),
-        left_end: left.as_mut_ptr().add(left_len),
+        left_end: unsafe { left.as_mut_ptr().add(left_len) },
         right_start: right.as_mut_ptr(),
-        right_end: right.as_mut_ptr().add(right_len),
+        right_end: unsafe { right.as_mut_ptr().add(right_len) },
         dest,
     };
 
     if left_len == 0 || right_len == 0 || left_len + right_len < MAX_SEQUENTIAL {
         while s.left_start < s.left_end && s.right_start < s.right_end {
-            // Consume the lesser side.
-            // If equal, prefer the left run to maintain stability.
-            let to_copy = if is_less(&*s.right_start, &*s.left_start) {
-                get_and_increment(&mut s.right_start)
+            let to_copy = if unsafe { is_less(&*s.right_start, &*s.left_start) } {
+                unsafe { get_and_increment(&mut s.right_start) }
             } else {
-                get_and_increment(&mut s.left_start)
+                unsafe { get_and_increment(&mut s.left_start) }
             };
-            ptr::copy_nonoverlapping(to_copy, get_and_increment(&mut s.dest), 1);
+            unsafe { ptr::copy_nonoverlapping(to_copy, get_and_increment(&mut s.dest), 1) };
         }
     } else {
-        // Function `split_for_merge` might panic. If that happens, `s` will get destructed and copy
-        // the whole `left` and `right` into `dest`.
         let (left_mid, right_mid) = split_for_merge(left, right, is_less);
         let (left_l, left_r) = left.split_at_mut(left_mid);
         let (right_l, right_r) = right.split_at_mut(right_mid);
 
-        // Prevent the destructor of `s` from running. Rayon will ensure that both calls to
-        // `par_merge` happen. If one of the two calls panics, they will ensure that elements still
-        // get copied into `dest_left` and `dest_right``.
         mem::forget(s);
 
-        // Wrap pointers in SendPtr so that they can be sent to another thread
-        // See the documentation of SendPtr for a full explanation
         let dest_l = SendPtr(dest);
-        let dest_r = SendPtr(dest.add(left_l.len() + right_l.len()));
+        let dest_r = SendPtr(unsafe { dest.add(left_l.len() + right_l.len()) });
         rayon_core::join(
-            move || par_merge(left_l, right_l, dest_l.get(), is_less),
-            move || par_merge(left_r, right_r, dest_r.get(), is_less),
+            move || unsafe { par_merge(left_l, right_l, dest_l.get(), is_less) },
+            move || unsafe { par_merge(left_r, right_r, dest_r.get(), is_less) },
         );
     }
     // Finally, `s` gets dropped if we used sequential merge, thus copying the remaining elements
@@ -554,9 +535,9 @@ unsafe fn recurse<T, F>(
         if into_buf {
             // Copy the chunk from `v` into `buf`.
             let (start, end) = chunks[0];
-            let src = v.add(start);
-            let dest = buf.add(start);
-            ptr::copy_nonoverlapping(src, dest, end - start);
+            let src = unsafe { v.add(start) };
+            let dest = unsafe { buf.add(start) };
+            unsafe { ptr::copy_nonoverlapping(src, dest, end - start) };
         }
         return;
     }
@@ -582,8 +563,8 @@ unsafe fn recurse<T, F>(
     // be executed, thus copying everything from `src` into `dest`. This way we ensure that all
     // chunks are in fact copied into `dest`, even if the merge process doesn't finish.
     let guard = CopyOnDrop {
-        src: src.add(start),
-        dest: dest.add(start),
+        src: unsafe { src.add(start) },
+        dest: unsafe { dest.add(start) },
         len: end - start,
     };
 
@@ -592,8 +573,8 @@ unsafe fn recurse<T, F>(
     let v = SendPtr(v);
     let buf = SendPtr(buf);
     rayon_core::join(
-        move || recurse(v.get(), buf.get(), left, !into_buf, is_less),
-        move || recurse(v.get(), buf.get(), right, !into_buf, is_less),
+        move || unsafe { recurse(v.get(), buf.get(), left, !into_buf, is_less) },
+        move || unsafe { recurse(v.get(), buf.get(), right, !into_buf, is_less) },
     );
 
     // Everything went all right - recursive calls didn't panic.
@@ -601,9 +582,9 @@ unsafe fn recurse<T, F>(
     mem::forget(guard);
 
     // Merge chunks `(start, mid)` and `(mid, end)` from `src` into `dest`.
-    let src_left = slice::from_raw_parts_mut(src.add(start), mid - start);
-    let src_right = slice::from_raw_parts_mut(src.add(mid), end - mid);
-    par_merge(src_left, src_right, dest.add(start), is_less);
+    let src_left = unsafe { slice::from_raw_parts_mut(src.add(start), mid - start) };
+    let src_right = unsafe { slice::from_raw_parts_mut(src.add(mid), end - mid) };
+    unsafe { par_merge(src_left, src_right, dest.add(start), is_less) };
 }
 
 /// Sorts `v` using merge sort in parallel.

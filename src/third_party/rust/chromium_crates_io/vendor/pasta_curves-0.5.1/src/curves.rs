@@ -70,9 +70,9 @@ macro_rules! new_curve_impl {
         impl group::Group for $name {
             type Scalar = $scalar;
 
-            fn random(mut rng: impl RngCore) -> Self {
+            fn random<R: RngCore + ?Sized>(rng: &mut R) -> Self {
                 loop {
-                    let x = $base::random(&mut rng);
+                    let x = $base::random(rng);
                     let ysign = (rng.next_u32() % 2) as u8;
 
                     let x3 = x.square() * x;

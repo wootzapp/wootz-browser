@@ -3,6 +3,7 @@ use proc_macro_crate::{crate_name, FoundCrate};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::Error;
+use quote::ToTokens;
 
 pub fn use_crate(name: &str) -> Result<syn::Ident, Error> {
     match crate_name(name) {
@@ -22,7 +23,7 @@ impl<A: Parse> Parse for Attrs<A> {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let content;
         let paren = syn::parenthesized!(content in input);
-        let attrs = content.parse_terminated(A::parse)?;
+        let attrs = content.parse_terminated(A::parse, syn::Token![,])?;
         Ok(Self { paren, attrs })
     }
 }

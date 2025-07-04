@@ -28,7 +28,7 @@ pub struct Variant<'a> {
 
 #[derive(Debug)]
 pub struct Field<'a> {
-    pub attrs: attr::Field,
+    pub attrs: attr::FieldAttr,
     pub ident: Option<syn::Ident>,
     pub ty: &'a syn::Type,
     pub span: proc_macro2::Span,
@@ -150,7 +150,7 @@ fn fields_from_ast<'a>(
         .iter()
         .map(|field| {
             Ok(Field {
-                attrs: attr::Field::from_ast(field, errors)?,
+                attrs: attr::FieldAttr::from_ast(field, errors)?,
                 ident: field.ident.clone(),
                 ty: &field.ty,
                 span: field.span(),

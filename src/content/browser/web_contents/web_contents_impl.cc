@@ -7163,7 +7163,8 @@ void WebContentsImpl::ReadyToCommitNavigation(
         LOG(INFO) << "Public key hashes size: " << ssl_info.public_key_hashes.size();
         const auto& hash = ssl_info.public_key_hashes[0];
         LOG(INFO) << "Certificate hash: " << hash.ToString();
-        std::vector<uint8_t> cert_hash(hash.data(), hash.data() + hash.size());
+        base::span<const uint8_t> bytes = hash.span();           // raw bytes view
+        std::vector<uint8_t> cert_hash(bytes.begin(), bytes.end());
         LOG(INFO) << "Certificate hash: " << cert_hash.size() << " bytes";
         
         // Create a JSON object with the header info

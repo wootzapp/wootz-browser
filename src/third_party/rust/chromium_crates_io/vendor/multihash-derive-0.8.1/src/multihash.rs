@@ -97,7 +97,7 @@ impl<'a> From<&'a VariantInfo<'a>> for Hash {
         let mut code = None;
         let mut hasher = None;
         for attr in bi.ast().attrs {
-            let attr: Result<utils::Attrs<MhAttr>, _> = syn::parse2(attr.tokens.clone());
+            let attr: Result<utils::Attrs<MhAttr>, _> = syn::parse2(attr.meta.to_token_stream());
             if let Ok(attr) = attr {
                 for attr in attr.attrs {
                     match attr {
@@ -138,7 +138,7 @@ fn parse_code_enum_attrs(ast: &syn::DeriveInput) -> syn::LitInt {
     let mut alloc_size = None;
 
     for attr in &ast.attrs {
-        let derive_attrs: Result<utils::Attrs<DeriveAttr>, _> = syn::parse2(attr.tokens.clone());
+        let derive_attrs: Result<utils::Attrs<DeriveAttr>, _> = syn::parse2(attr.meta.to_token_stream());
         if let Ok(derive_attrs) = derive_attrs {
             for derive_attr in derive_attrs.attrs {
                 match derive_attr {

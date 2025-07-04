@@ -1,5 +1,6 @@
 use proc_macro2;
 use syn;
+use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 
 /// Represent the `derivative` attributes on the input type (`struct`/`enum`).
@@ -28,25 +29,25 @@ pub struct Input {
 
 #[derive(Debug, Default)]
 /// Represent the `derivative` attributes on a field.
-pub struct Field {
+pub struct FieldAttr {
     /// The parameters for `Clone`.
-    clone: FieldClone,
+    pub clone: FieldClone,
     /// The parameters for `Copy`.
-    copy_bound: Option<Vec<syn::WherePredicate>>,
+    pub copy_bound: Option<Vec<syn::WherePredicate>>,
     /// The parameters for `Debug`.
-    debug: FieldDebug,
+    pub debug: FieldDebug,
     /// The parameters for `Default`.
-    default: FieldDefault,
+    pub default: FieldDefault,
     /// The parameters for `Eq`.
-    eq_bound: Option<Vec<syn::WherePredicate>>,
+    pub eq_bound: Option<Vec<syn::WherePredicate>>,
     /// The parameters for `Hash`.
-    hash: FieldHash,
+    pub hash: FieldHash,
     /// The parameters for `PartialEq`.
-    partial_eq: FieldPartialEq,
+    pub partial_eq: FieldPartialEq,
     /// The parameters for `PartialOrd`.
-    partial_ord: FieldPartialOrd,
+    pub partial_ord: FieldPartialOrd,
     /// The parameters for `Ord`.
-    ord: FieldOrd,
+    pub ord: FieldOrd,
 }
 
 #[derive(Debug, Default)]
@@ -442,14 +443,14 @@ impl Input {
     }
 }
 
-impl Field {
+impl FieldAttr {
     /// Parse the `derivative` attributes on a type.
     #[allow(clippy::cognitive_complexity)] // mostly macros
     pub fn from_ast(
         field: &syn::Field,
         errors: &mut proc_macro2::TokenStream,
-    ) -> Result<Field, ()> {
-        let mut out = Field::default();
+    ) -> Result<FieldAttr, syn::Error> {
+        let mut out = FieldAttr::default();
 
         for_all_attr! {
             errors;
@@ -662,75 +663,56 @@ struct MetaItem<'a>(
 );
 
 /// Parse an arbitrary item for our limited `MetaItem` subset.
-fn read_items<'a>(item: &'a syn::NestedMeta, errors: &mut proc_macro2::TokenStream) -> Result<MetaItem<'a>, ()> {
-    let item = match *item {
-        syn::NestedMeta::Meta(ref item) => item,
-        syn::NestedMeta::Lit(ref lit) => {
-            errors.extend(quote_spanned! {lit.span()=>
-                compile_error!("expected meta-item but found literal");
-            });
-
-            return Err(());
-        }
-    };
-    match *item {
-        syn::Meta::Path(ref path) => match path.get_ident() {
+fn read_items<'a>(item: &'a syn::Meta, errors: &mut proc_macro2::TokenStream) -> Result<MetaItem<'a>, ()> {
+    match item {
+        syn::Meta::Path(path) => match path.get_ident() {
             Some(name) => Ok(MetaItem(name, Vec::new())),
             None => {
                 errors.extend(quote_spanned! {path.span()=>
                     compile_error!("expected derivative attribute to be a string, but found a path");
                 });
-
                 Err(())
             }
         },
-        syn::Meta::List(syn::MetaList {
-            ref path,
-            nested: ref values,
-            ..
-        }) => {
-            let values = values
-                .iter()
-                .map(|value| {
-                    if let syn::NestedMeta::Meta(syn::Meta::NameValue(syn::MetaNameValue {
-                        ref path,
-                        lit: ref value,
-                        ..
-                    })) = *value
-                    {
-                        let (name, value) = ensure_str_lit(&path, &value, errors)?;
-
-                        Ok((Some(name), Some(value)))
-                    } else {
-                        errors.extend(quote_spanned! {value.span()=>
-                            compile_error!("expected named value");
-                        });
-
-                        Err(())
+        syn::Meta::List(meta_list) => {
+            let mut values = Vec::new();
+            let tokens = &meta_list.tokens;
+            let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
+            let parsed = syn::parse2::<syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>>(tokens.clone());
+            match parsed {
+                Ok(parsed_values) => {
+                    for value in parsed_values.iter() {
+                        if let syn::Meta::NameValue(nv) = value {
+                            let (name, value) = ensure_str_lit(&nv.path, &nv.value, errors)?;
+                            values.push((Some(name), Some(value)));
+                        } else {
+                            errors.extend(quote_spanned! {value.span()=>
+                                compile_error!("expected named value");
+                            });
+                            return Err(());
+                        }
                     }
-                })
-                .collect::<Result<_, _>>()?;
-
-            let name = match path.get_ident() {
+                }
+                Err(e) => {
+                    errors.extend(quote_spanned! {meta_list.span()=>
+                        compile_error!("could not parse meta list");
+                    });
+                    return Err(());
+                }
+            }
+            let name = match meta_list.path.get_ident() {
                 Some(name) => name,
                 None => {
-                    errors.extend(quote_spanned! {path.span()=>
+                    errors.extend(quote_spanned! {meta_list.path.span()=>
                         compile_error!("expected derivative attribute to be a string, but found a path");
                     });
-
                     return Err(());
                 }
             };
-
             Ok(MetaItem(name, values))
         }
-        syn::Meta::NameValue(syn::MetaNameValue {
-            ref path,
-            lit: ref value,
-            ..
-        }) => {
-            let (name, value) = ensure_str_lit(&path, &value, errors)?;
-
+        syn::Meta::NameValue(nv) => {
+            let (name, value) = ensure_str_lit(&nv.path, &nv.value, errors)?;
             Ok(MetaItem(name, vec![(None, Some(value))]))
         }
     }
@@ -740,19 +722,24 @@ fn read_items<'a>(item: &'a syn::NestedMeta, errors: &mut proc_macro2::TokenStre
 fn derivative_attribute(
     attribute: &syn::Attribute,
     errors: &mut proc_macro2::TokenStream,
-) -> Option<syn::punctuated::Punctuated<syn::NestedMeta, syn::token::Comma>> {
-    if !attribute.path.is_ident("derivative") {
+) -> Option<Vec<syn::Meta>> {
+    if !attribute.path().is_ident("derivative") {
         return None;
     }
-    match attribute.parse_meta() {
-        Ok(syn::Meta::List(meta_list)) => Some(meta_list.nested),
-        Ok(_) => None,
+    let mut metas = Vec::new();
+    let result = attribute.parse_nested_meta(|meta| {
+        if let Ok(meta) = meta.parse_meta() {
+            metas.push(meta);
+        }
+        Ok(())
+    });
+    match result {
+        Ok(_) => Some(metas),
         Err(e) => {
             let message = format!("invalid attribute: {}", e);
-            errors.extend(quote_spanned! {e.span()=>
+            errors.extend(quote_spanned! {attribute.span()=>
                 compile_error!(#message);
             });
-
             None
         }
     }
@@ -869,19 +856,14 @@ fn ensure_str_lit<'a>(
 }
 
 pub fn has_repr_packed_attr(attr: &syn::Attribute) -> bool {
-    if let Ok(attr) = attr.parse_meta() {
-        if attr.path().get_ident().map(|i| i == "repr") == Some(true) {
-            if let syn::Meta::List(items) = attr {
-                for item in items.nested {
-                    if let syn::NestedMeta::Meta(item) = item {
-                        if item.path().get_ident().map(|i| i == "packed") == Some(true) {
-                            return true;
-                        }
-                    }
-                }
-            }
+    if let Ok(_) = attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("packed") {
+            return Err(syn::Error::new(meta.path.span(), "found packed"));
         }
+        Ok(())
+    }) {
+        false
+    } else {
+        true
     }
-
-    false
 }

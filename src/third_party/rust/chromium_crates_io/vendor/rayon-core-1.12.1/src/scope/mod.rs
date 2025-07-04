@@ -8,6 +8,7 @@
 use crate::broadcast::BroadcastContext;
 use crate::job::{ArcJob, HeapJob, JobFifo, JobRef};
 use crate::latch::{CountLatch, Latch};
+use crate::registry::{Registry, WorkerThread, global_registry, in_worker};
 // use crate::registry::{global_registry,Registry, WorkerThread};
 use crate::unwind;
 use std::any::Any;

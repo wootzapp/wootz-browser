@@ -68,12 +68,8 @@ BASE_FEATURE(kIPHHistorySearchFeature,
              "IPH_HistorySearch",
              base::FEATURE_ENABLED_BY_DEFAULT);
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-BASE_FEATURE(kIPHExtensionsMenuFeature,
-             "IPH_ExtensionsMenu",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kIPHExtensionsRequestAccessButtonFeature,
-             "IPH_ExtensionsRequestAccessButton",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+FEATURE_CONSTANTS_DEFINE_FEATURE(kIPHExtensionsMenuFeature, "IPH_ExtensionsMenu");
+FEATURE_CONSTANTS_DEFINE_FEATURE(kIPHExtensionsRequestAccessButtonFeature, "IPH_ExtensionsRequestAccessButton");
 #endif
 BASE_FEATURE(kIPHFocusHelpBubbleScreenReaderPromoFeature,
              "IPH_FocusHelpBubbleScreenReaderPromo",

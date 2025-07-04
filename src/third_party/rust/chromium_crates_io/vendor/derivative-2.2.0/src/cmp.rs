@@ -305,19 +305,19 @@ pub fn derive_ord(
     }
 }
 
-fn needs_partial_eq_bound(attrs: &attr::Field) -> bool {
+fn needs_partial_eq_bound(attrs: &attr::FieldAttr) -> bool {
     !attrs.ignore_partial_eq() && attrs.partial_eq_bound().is_none()
 }
 
-fn needs_partial_ord_bound(attrs: &attr::Field) -> bool {
+fn needs_partial_ord_bound(attrs: &attr::FieldAttr) -> bool {
     !attrs.ignore_partial_ord() && attrs.partial_ord_bound().is_none()
 }
 
-fn needs_ord_bound(attrs: &attr::Field) -> bool {
+fn needs_ord_bound(attrs: &attr::FieldAttr) -> bool {
     !attrs.ignore_ord() && attrs.ord_bound().is_none()
 }
 
-fn needs_eq_bound(attrs: &attr::Field) -> bool {
+fn needs_eq_bound(attrs: &attr::FieldAttr) -> bool {
     !attrs.ignore_partial_eq() && attrs.eq_bound().is_none()
 }
 

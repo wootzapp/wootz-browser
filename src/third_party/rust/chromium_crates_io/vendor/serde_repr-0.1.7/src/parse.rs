@@ -1,6 +1,6 @@
 use proc_macro2::Span;
 use syn::parse::{Error, Parse, ParseStream, Parser, Result};
-use syn::{parenthesized, Data, DeriveInput, Fields, Ident, Meta, NestedMeta};
+use syn::{parenthesized, Data, DeriveInput, Fields, Ident, Meta};
 
 pub struct Input {
     pub ident: Ident,
@@ -22,10 +22,13 @@ pub struct VariantAttrs {
 
 fn parse_meta(attrs: &mut VariantAttrs, meta: &Meta) {
     if let Meta::List(value) = meta {
-        for meta in &value.nested {
-            if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                if path.is_ident("other") {
-                    attrs.is_default = true;
+        let parser = syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated;
+        if let Ok(list) = parser.parse2(value.tokens.clone()) {
+            for meta in &list {
+                if let Meta::Path(path) = meta {
+                    if path.is_ident("other") {
+                        attrs.is_default = true;
+                    }
                 }
             }
         }
@@ -35,8 +38,13 @@ fn parse_meta(attrs: &mut VariantAttrs, meta: &Meta) {
 fn parse_attrs(variant: &syn::Variant) -> Result<VariantAttrs> {
     let mut attrs = VariantAttrs { is_default: false };
     for attr in &variant.attrs {
-        if attr.path.is_ident("serde") {
-            parse_meta(&mut attrs, &attr.parse_meta()?);
+        if attr.path().is_ident("serde") {
+            let _ = attr.parse_nested_meta(|meta| {
+                if let Ok(meta) = meta.input.parse::<Meta>() {
+                    parse_meta(&mut attrs, &meta);
+                }
+                Ok(())
+            });
         }
     }
     Ok(attrs)
@@ -82,13 +90,13 @@ impl Parse for Input {
 
         let mut repr = None;
         for attr in derive_input.attrs {
-            if attr.path.is_ident("repr") {
+            if attr.path().is_ident("repr") {
                 fn repr_arg(input: ParseStream) -> Result<Ident> {
                     let content;
                     parenthesized!(content in input);
                     content.parse()
                 }
-                let ty = repr_arg.parse2(attr.tokens)?;
+                let ty = attr.parse_args_with(repr_arg)?;
                 repr = Some(ty);
                 break;
             }

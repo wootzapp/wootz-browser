@@ -299,7 +299,7 @@ void CreditCardAccessManager::OnDidGetUnmaskDetails(
   int delay_ms = kDelayForGetUnmaskDetails;
   if (!unmask_details_.fido_request_options.empty()) {
     const std::optional<int> request_timeout =
-        unmask_details_.fido_request_options->FindInt("timeout_millis");
+        unmask_details_.fido_request_options.FindInt("timeout_millis");
     if (request_timeout.has_value()) {
       delay_ms = *request_timeout;
     }
@@ -631,7 +631,7 @@ void CreditCardAccessManager::Authenticate(
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
       // Close the Webauthn verify pending dialog if it enters CVC
       // authentication flow since the card unmask prompt will pop up.
-      payments_autofill_client().CloseWebauthnDialog();
+      payments_autofill_client_.CloseWebauthnDialog();
 #endif
 
       // Delegate the task to CreditCardCvcAuthenticator.
@@ -653,12 +653,12 @@ void CreditCardAccessManager::Authenticate(
                           weak_ptr_factory_.GetWeakPtr(),
                           risk_based_authentication_response_.context_token);
       } else {
-        client_->GetPaymentsAutofillClient()
-            ->GetCvcAuthenticator()
-            .Authenticate(*card_,
-                           weak_ptr_factory_.GetWeakPtr(),
-                           personal_data_manager_);
-      }
+    client_->GetPaymentsAutofillClient()
+        ->GetCvcAuthenticator()
+        .Authenticate(*card_,
+                     weak_ptr_factory_.GetWeakPtr(),
+                     std::nullopt);  // Replace personal_data_manager() with std::nullopt
+}
       break;
     }
     case UnmaskAuthFlowType::kOtp:
@@ -668,10 +668,10 @@ void CreditCardAccessManager::Authenticate(
       // Delegate the task to CreditCardOtpAuthenticator.
       DCHECK(selected_challenge_option_);
       client_->GetPaymentsAutofillClient()
-          .GetOtpAuthenticator()
+          ->GetOtpAuthenticator()
           ->OnChallengeOptionSelected(
               card_.get(), *selected_challenge_option_,
-              weak_ptr_factory_.GetWeakPtr(),,
+              weak_ptr_factory_.GetWeakPtr(),
               risk_based_authentication_response_.context_token,
               payments::GetBillingCustomerId(payments_data_manager()));
       break;
@@ -691,8 +691,7 @@ void CreditCardAccessManager::Authenticate(
       vcn_3ds_context.user_consent_already_given =
           unmask_auth_flow_type_ ==
           UnmaskAuthFlowType::kThreeDomainSecureConsentAlreadyGiven;
-      payments_autofill_client()
-          .GetPaymentsWindowManager()
+      payments_autofill_client().GetPaymentsWindowManager()
           ->InitVcn3dsAuthentication(std::move(vcn_3ds_context));
       break;
     }
@@ -837,7 +836,7 @@ void CreditCardAccessManager::OnFIDOAuthenticationComplete(
   // Close the Webauthn verify pending dialog. If FIDO authentication succeeded,
   // card is filled to the form, otherwise fall back to CVC authentication which
   // does not need the verify pending dialog either.
-  payments_autofill_client().CloseWebauthnDialog();
+  payments_autofill_client_.CloseWebauthnDialog();
 #endif
 
   if (response.did_succeed) {
@@ -1127,7 +1126,7 @@ void CreditCardAccessManager::ShowWebauthnOfferDialog(
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   GetOrCreateFidoAuthenticator()->OnWebauthnOfferDialogRequested(
       card_authorization_token);
-  payments_autofill_client().ShowWebauthnOfferDialog(base::BindRepeating(
+  payments_autofill_client_.ShowWebauthnOfferDialog(base::BindRepeating(
       &CreditCardAccessManager::HandleDialogUserResponse, weak_ptr_factory_.GetWeakPtr()));
 #endif
 }
@@ -1209,7 +1208,7 @@ void CreditCardAccessManager::FetchMaskedServerCard() {
         /*cancel_callback=*/base::BindOnce(
             &CreditCardRiskBasedAuthenticator::OnUnmaskCancelled,
             client_->GetPaymentsAutofillClient()
-                .GetRiskBasedAuthenticator()
+                ->GetRiskBasedAuthenticator()
                 ->AsWeakPtr()));
 
     client_->GetPaymentsAutofillClient()

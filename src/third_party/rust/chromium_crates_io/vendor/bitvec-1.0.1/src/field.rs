@@ -607,11 +607,13 @@ unsafe fn resize_inner<T, U>(
 ) {
 	//  In LE, the least-significant byte is the base address, so resizing is
 	//  just a `memmove` into a zeroed slot, taking only the lesser width.
-	ptr::copy_nonoverlapping(
-		src as *const T as *const u8,
-		dst as *mut U as *mut u8,
-		size_t.min(size_u),
-	);
+	unsafe {
+        ptr::copy_nonoverlapping(
+            src as *const T as *const u8,
+            dst as *mut U as *mut u8,
+            size_t.min(size_u),
+        );
+    }
 }
 
 /// Performs big-endian byte-order register resizing.

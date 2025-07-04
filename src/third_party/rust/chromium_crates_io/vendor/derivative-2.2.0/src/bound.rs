@@ -56,7 +56,7 @@ pub fn with_where_predicates_from_fields<F>(
     from_field: F,
 ) -> syn::Generics
 where
-    F: Fn(&attr::Field) -> Option<&[syn::WherePredicate]>,
+    F: for<'a> Fn(&'a ast::Field<'a>) -> Option<&'a [syn::WherePredicate]>,
 {
     let mut cloned = generics.clone();
     {
@@ -94,7 +94,7 @@ pub fn with_bound<F>(
     bound: &syn::Path,
 ) -> syn::Generics
 where
-    F: Fn(&attr::Field) -> bool,
+    F: Fn(&ast::Field) -> bool,
 {
     #[derive(Debug)]
     struct FindTyParams {

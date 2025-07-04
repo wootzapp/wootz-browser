@@ -271,7 +271,6 @@
 //! [`ToTokens`]: https://docs.rs/quote/1.0.3/quote/trait.ToTokens.html
 //!
 
-#![cfg_attr(not(use_fallback), feature(proc_macro_diagnostic))]
 #![forbid(unsafe_code)]
 #![allow(clippy::needless_doctest_main)]
 

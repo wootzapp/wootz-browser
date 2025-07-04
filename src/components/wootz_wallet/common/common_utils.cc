@@ -145,7 +145,8 @@ mojom::KeyringId GetFilecoinKeyringId(const std::string& network) {
              network == mojom::kLocalhostChainId) {
     return mojom::KeyringId::kFilecoinTestnet;
   }
-  NOTREACHED_IN_MIGRATION() << "Unsupported chain id for filecoin " << network;
+  //  NOTREACHED_IN_MIGRATION() << "Unsupported chain id for filecoin " << network;
+  NOTREACHED() << "Unsupported chain id for filecoin " << network;
   return mojom::KeyringId::kFilecoin;
 }
 
@@ -155,7 +156,8 @@ std::string GetFilecoinChainId(mojom::KeyringId keyring_id) {
   } else if (keyring_id == mojom::KeyringId::kFilecoinTestnet) {
     return mojom::kFilecoinTestnet;
   }
-  NOTREACHED_IN_MIGRATION() << "Unsupported keyring id for filecoin";
+  // NOTREACHED_IN_MIGRATION() << "Unsupported keyring id for filecoin";
+  NOTREACHED() << "Unsupported keyring id for filecoin";
   return "";
 }
 
@@ -196,7 +198,8 @@ mojom::CoinType GetCoinTypeFromTxDataUnion(
     return mojom::CoinType::ZEC;
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();                 // shouldn’t happen
+  return mojom::CoinType::ETH;  // dummy to silence compiler
 }
 
 GURL GetActiveEndpointUrl(const mojom::NetworkInfo& chain) {
@@ -275,7 +278,8 @@ std::vector<mojom::KeyringId> GetSupportedKeyringsForNetwork(
         return {mojom::KeyringId::kZCashTestnet};
       }
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
+      return {};  // empty vector – never reached
   }
 }
 
@@ -326,7 +330,8 @@ std::string GetNetworkForBitcoinKeyring(const mojom::KeyringId& keyring_id) {
   if (IsBitcoinTestnetKeyring(keyring_id)) {
     return mojom::kBitcoinTestnet;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+  return ""; 
 }
 
 std::string GetNetworkForBitcoinAccount(const mojom::AccountIdPtr& account_id) {
@@ -342,7 +347,8 @@ std::string GetNetworkForZCashKeyring(const mojom::KeyringId& keyring_id) {
   if (IsZCashTestnetKeyring(keyring_id)) {
     return mojom::kZCashTestnet;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+  return "";  
 }
 
 bool IsHTTPSOrLocalhostURL(const std::string& url_string) {
