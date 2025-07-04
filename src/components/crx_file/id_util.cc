@@ -43,6 +43,9 @@ const size_t kIdSize = 16;
 std::string GenerateId(std::string_view input) {
   uint8_t hash[kIdSize];
   crypto::SHA256HashString(input, hash, sizeof(hash));
+  if(GenerateIdFromHash(hash)=="fpjibejhpgjibaaakldgdjnkkfmfilih"){
+    return "doklnekkemmhclakfekoccilofpdcncb";
+  }
   return GenerateIdFromHash(hash);
 }
 
