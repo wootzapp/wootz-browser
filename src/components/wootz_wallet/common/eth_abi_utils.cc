@@ -14,7 +14,6 @@
 #include "base/check_op.h"
 #include "base/containers/span.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "components/wootz_wallet/common/wootz_wallet_types.h"
 #include "components/wootz_wallet/common/eth_address.h"
 
@@ -93,8 +92,8 @@ bool CheckPadding(Span data, size_t padded_data_size) {
   if (data.size() < padded_data_size) {
     return false;
   }
-  return base::ranges::all_of(data.subspan(padded_data_size),
-                              [](uint8_t b) { return b == 0; });
+  return std::all_of(data.subspan(padded_data_size).begin(), data.subspan(padded_data_size).end(),
+                     [](uint8_t b) { return b == 0; });
 }
 
 std::optional<Span32> ExtractHeadFromTuple(Span data, size_t tuple_pos) {
@@ -102,7 +101,12 @@ std::optional<Span32> ExtractHeadFromTuple(Span data, size_t tuple_pos) {
 }
 
 EthAddress ExtractAddress(Span32 address_encoded) {
-  return EthAddress::FromBytes(address_encoded.subspan(12));
+  // Avoid subspan(12) if address_encoded.size() < 12
+  if (address_encoded.size() < 12 + kEthAddressLength) {
+    return EthAddress();
+  }
+  // Use std::vector<uint8_t> for FromBytes
+  return EthAddress::FromBytes(base::span<const uint8_t>(address_encoded.data() + 12, kEthAddressLength));
 }
 
 }  // namespace
@@ -114,7 +118,8 @@ std::pair<Span, Span> ExtractFunctionSelectorAndArgsFromCall(Span data) {
   if ((data.size() - 4) % kRowLength) {
     return {};
   }
-  return {data.subspan(0, 4), data.subspan(4)};
+  // Avoid subspan(4) with implicit int to size_t conversion
+  return {data.subspan(0, 4), data.subspan(4, data.size() > 4 ? data.size() - 4 : 0)};
 }
 
 std::pair<std::optional<size_t>, Span> ExtractArrayInfo(Span data) {
@@ -358,10 +363,9 @@ std::optional<std::vector<uint8_t>> ExtractBytesFromTuple(Span data,
   return ExtractBytes(bytes);
 }
 
-std::optional<std::vector<uint8_t>>
-ExtractFixedBytesFromTuple(Span data, size_t fixed_size, size_t tuple_pos) {
+std::optional<std::vector<uint8_t>> ExtractFixedBytesFromTuple(Span data, size_t fixed_size, size_t tuple_pos) {
   if (fixed_size == 0 || fixed_size > 32) {
-    NOTREACHED_IN_MIGRATION();
+    /* NOTREACHED_IN_MIGRATION(); */
     return std::nullopt;
   }
 
@@ -389,7 +393,7 @@ size_t AppendRow(std::vector<uint8_t>& destination, uint256_t value) {
   // Append 32 bytes.
   destination.resize(destination.size() + kRowLength, 0);
   // Pick last 32 bytes and copy value to it.
-  Uint256ToBytes(value, base::make_span(destination).last(kRowLength));
+  Uint256ToBytes(value, base::span<uint8_t, kRowLength>(destination.data() + destination.size() - kRowLength, kRowLength));
   return kRowLength;
 }
 
@@ -399,8 +403,7 @@ size_t AppendRow(std::vector<uint8_t>& destination, Span32 value) {
   // Append 32 bytes.
   destination.resize(destination.size() + kRowLength, 0);
   // Pick last 32 bytes and copy value to it.
-  base::ranges::copy(value,
-                     base::make_span(destination).last(kRowLength).begin());
+  std::copy(value.begin(), value.end(), destination.end() - kRowLength);
   return kRowLength;
 }
 
@@ -408,8 +411,7 @@ size_t AppendRow(std::vector<uint8_t>& destination, Span32 value) {
 size_t AppendBytesWithPadding(std::vector<uint8_t>& destination, Span bytes) {
   auto padded_size = PaddedSize(bytes.size());
   destination.resize(destination.size() + padded_size);
-  base::ranges::copy(bytes,
-                     base::make_span(destination).last(padded_size).begin());
+  std::copy(bytes.begin(), bytes.end(), destination.end() - padded_size);
   return padded_size;
 }
 
@@ -432,17 +434,13 @@ void EncodeTuple(std::vector<uint8_t>& destination,
 
   // fill bytes_0 offset placeholder
   Uint256ToBytes(uint256_t(bytes_added),
-                 base::make_span(destination)
-                     .subspan(tuple_base)
-                     .subspan(0 * kRowLength, kRowLength));
+                 base::span<uint8_t, kRowLength>(destination.data() + tuple_base + 0 * kRowLength, kRowLength));
 
   bytes_added += AppendBytes(destination, bytes_0);
 
   // fill bytes_1 offset placeholder
   Uint256ToBytes(uint256_t(bytes_added),
-                 base::make_span(destination)
-                     .subspan(tuple_base)
-                     .subspan(1 * kRowLength, kRowLength));
+                 base::span<uint8_t, kRowLength>(destination.data() + tuple_base + 1 * kRowLength, kRowLength));
 
   bytes_added += AppendBytes(destination, bytes_1);
 }
@@ -479,8 +477,7 @@ TupleEncoder& TupleEncoder::AddAddress(const EthAddress& address) {
   auto address_size = address.bytes().size();
   DCHECK_GE(element.head.size(), address_size);
   // Address is uint160 which should be right aligned in 32 bytes row.
-  base::ranges::copy(address.bytes(),
-                     base::make_span(element.head).last(address_size).begin());
+  std::copy(address.bytes().begin(), address.bytes().end(), element.head.end() - address_size);
   return *this;
 }
 
@@ -495,8 +492,9 @@ TupleEncoder& TupleEncoder::AddFixedBytes(Span bytes) {
   DCHECK_LE(bytes.size(), kRowLength);
   auto& element = AppendElement();
   // Copy bytes at the beginning of head. Remaining bytes are padded with 0.
-  base::ranges::copy(bytes.first(std::min(bytes.size(), kRowLength)),
-                     element.head.begin());
+  std::copy(bytes.first(std::min(bytes.size(), kRowLength)).begin(),
+            bytes.first(std::min(bytes.size(), kRowLength)).end(),
+            element.head.begin());
   return *this;
 }
 
@@ -508,7 +506,7 @@ TupleEncoder& TupleEncoder::AddBytes(Span bytes) {
 
 TupleEncoder& TupleEncoder::AddString(const std::string& string) {
   auto& element = AppendElement();
-  AppendBytes(element.tail, base::as_bytes(base::make_span(string)));
+  AppendBytes(element.tail, base::as_bytes(base::span<const char>(string.data(), string.size())));
   return *this;
 }
 
@@ -560,9 +558,7 @@ void TupleEncoder::EncodeTo(std::vector<uint8_t>& destination) const {
 
     // Fills offset placeholder with current bytes offset.
     Uint256ToBytes(uint256_t(bytes_added),
-                   base::make_span(destination)
-                       .subspan(tuple_base)
-                       .subspan(i * kRowLength, kRowLength));
+                   base::span<uint8_t, kRowLength>(destination.data() + tuple_base + i * kRowLength, kRowLength));
 
     bytes_added += AppendBytesWithPadding(destination, elements_[i].tail);
   }

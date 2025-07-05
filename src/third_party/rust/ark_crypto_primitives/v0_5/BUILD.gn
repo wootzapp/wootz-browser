@@ -90,7 +90,7 @@ cargo_crate("lib") {
     "//third_party/rust/ark_snark/v0_5:lib",
     "//third_party/rust/ark_std/v0_5:lib",
     "//third_party/rust/blake2/v0_10:lib",
-    "//third_party/rust/derivative/v2:lib",
+    # "//third_party/rust/derivative/v2:lib",
     "//third_party/rust/digest/v0_10:lib",
     "//third_party/rust/fnv/v1:lib",
     "//third_party/rust/merlin/v3:lib",

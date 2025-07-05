@@ -6,10 +6,10 @@
 #include "components/wootz_wallet/common/eth_address.h"
 
 #include <utility>
+#include <algorithm>  // Added for std::all_of
 
 #include "base/check_op.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "components/wootz_wallet/common/hash_utils.h"
@@ -156,7 +156,7 @@ bool EthAddress::IsValid() const {
 
 bool EthAddress::IsZeroAddress() const {
   return IsValid() &&
-         base::ranges::all_of(bytes_, [](auto b) { return b == 0; });
+         std::all_of(bytes_.begin(), bytes_.end(), [](auto b) { return b == 0; });
 }
 
 }  // namespace wootz_wallet

@@ -14,6 +14,14 @@
 #include "base/containers/contains.h"
 #include "base/containers/extend.h"
 #include "base/no_destructor.h"
+// BEGIN PATCH: Minimal macros for NOTREACHED_IN_MIGRATION and NOTREACHED_NORETURN
+#ifndef NOTREACHED_IN_MIGRATION
+#define NOTREACHED_IN_MIGRATION() LOG(ERROR) << "NOTREACHED_IN_MIGRATION reached"
+#endif
+#ifndef NOTREACHED_NORETURN
+#define NOTREACHED_NORETURN() do { LOG(ERROR) << "NOTREACHED_NORETURN reached"; std::abort(); } while (0)
+#endif
+// END PATCH
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -1352,7 +1360,7 @@ std::string NetworkManager::GetCurrentChainId(
   } else if (coin == mojom::CoinType::ZEC) {
     return mojom::kZCashMainnet;
   }
-  NOTREACHED_NORETURN() << coin;
+  NOTREACHED_NORETURN();
 }
 
 bool NetworkManager::SetCurrentChainId(mojom::CoinType coin,

@@ -2,7 +2,7 @@ use core::fmt;
 use core::ops::{Add, Mul, Neg, Sub};
 
 use ff::{Field, FromUniformBytes, PrimeField, WithSmallOrderMulGroup};
-use rand::RngCore;
+use ff::derive::rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 #[cfg(feature = "sqrt-table")]

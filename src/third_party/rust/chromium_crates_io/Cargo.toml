@@ -47,6 +47,8 @@ ark-groth16 = "0.5.0"
 groth16 = "0.1.0"
 bls12_381 = "0.8.0"
 zksync_bellman = "0.32.0"
+syn = { version = "2", features = ["full"] }
+syn_v1 = { package = "syn", version = "=1.0.109" }
 
 [dependencies.crc32fast]
 version = "1.4.2"
@@ -119,9 +121,11 @@ features = ["unbounded_depth", "float_roundtrip"]
 version = "2.6.1"
 features = ["core_hint_black_box"]
 
-[dependencies.syn]
-version = "2"
-features = ["full"]
+# [dependencies.syn]
+# version = "2"
+# features = ["full"]
+
+# syn_v1 = { package = "syn", version = "=1.0.109" }
 
 [dependencies.bytemuck]
 version = "1"

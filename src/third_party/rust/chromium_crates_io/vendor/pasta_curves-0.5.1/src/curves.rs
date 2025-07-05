@@ -15,7 +15,7 @@ use group::{
     prime::{PrimeCurve, PrimeCurveAffine, PrimeGroup},
     Curve as _, Group as _, GroupEncoding,
 };
-use rand::RngCore;
+use ff::derive::rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 #[cfg(feature = "alloc")]
@@ -70,9 +70,9 @@ macro_rules! new_curve_impl {
         impl group::Group for $name {
             type Scalar = $scalar;
 
-            fn random<R: RngCore + ?Sized>(rng: &mut R) -> Self {
+            fn random(mut rng: impl RngCore) -> Self {
                 loop {
-                    let x = $base::random(rng);
+                    let x = $base::random(&mut rng);
                     let ysign = (rng.next_u32() % 2) as u8;
 
                     let x3 = x.square() * x;

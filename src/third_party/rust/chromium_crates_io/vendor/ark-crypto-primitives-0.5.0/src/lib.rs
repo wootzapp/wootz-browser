@@ -11,9 +11,9 @@
 #[macro_use]
 extern crate ark_std;
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate derivative;
+// #[allow(unused_imports)]
+// #[macro_use]
+// extern crate derivative;
 
 #[allow(unused_imports)]
 pub(crate) use ark_std::{borrow::ToOwned, boxed::Box, vec::Vec};

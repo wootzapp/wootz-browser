@@ -348,7 +348,7 @@ std::string GetNetworkForZCashKeyring(const mojom::KeyringId& keyring_id) {
     return mojom::kZCashTestnet;
   }
   NOTREACHED();
-  return "";  
+  return "";
 }
 
 bool IsHTTPSOrLocalhostURL(const std::string& url_string) {

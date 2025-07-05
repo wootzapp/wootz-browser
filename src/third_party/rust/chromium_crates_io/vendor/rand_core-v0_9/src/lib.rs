@@ -570,10 +570,15 @@ pub trait SeedableRng: Sized {
     #[cfg(feature = "os_rng")]
     fn try_from_os_rng() -> Result<Self, getrandom::Error> {
         let mut seed = Self::Seed::default();
-        getrandom::fill(seed.as_mut())?;
-        let res = Self::from_seed(seed);
-        Ok(res)
+        getrandom::getrandom(seed.as_mut())?;
+        Ok(Self::from_seed(seed))
     }
+    // fn try_from_os_rng() -> Result<Self, getrandom::Error> {
+    //     let mut seed = Self::Seed::default();
+    //     getrandom::fill(seed.as_mut())?;
+    //     let res = Self::from_seed(seed);
+    //     Ok(res)
+    // }
 }
 
 /// Adapter that enables reading through a [`io::Read`](std::io::Read) from a [`RngCore`].

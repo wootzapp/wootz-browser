@@ -8,7 +8,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-
 #include "base/containers/span.h"
 
 namespace wootz_wallet {
@@ -34,7 +33,7 @@ struct SecureZeroAllocator {
   }
   void deallocate(T* p, size_t n) {
     SecureZeroData(
-        base::as_writable_bytes(UNSAFE_BUFFERS(base::make_span(p, n))));
+        base::as_writable_bytes(UNSAFE_BUFFERS(base::span<const uint8_t>(p, n))));
     ::operator delete(p);
   }
 };

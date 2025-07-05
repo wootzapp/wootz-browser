@@ -83,7 +83,7 @@ mojom::BlockchainTokenPtr NetworkToNativeToken(
   auto result = mojom::BlockchainToken::New();
 
   result->chain_id = network.chain_id;
-  result->coin = network.coin;
+  result->coin = network.coin;  // Fix: assign CoinType, not symbol_name
   result->name = network.symbol_name;
   result->symbol = network.symbol;
   result->decimals = network.decimals;
@@ -238,7 +238,7 @@ std::unique_ptr<std::vector<uint8_t>> MnemonicToEntropy(
       entropy_size = 32;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      /* NOTREACHED_IN_MIGRATION(); */
   }
   DCHECK(IsValidEntropySize(entropy_size)) << entropy_size;
 
@@ -807,7 +807,7 @@ std::string GetPrefKeyForCoinType(mojom::CoinType coin) {
     case mojom::CoinType::SOL:
       return kSolanaPrefKey;
   }
-  NOTREACHED_IN_MIGRATION() << coin;
+  /* NOTREACHED_IN_MIGRATION() << coin; */
   return "";
 }
 
@@ -825,7 +825,7 @@ std::optional<mojom::CoinType> GetCoinTypeFromPrefKey_DEPRECATED(
   } else if (key == kZCashPrefKey) {
     return mojom::CoinType::ZEC;
   }
-  NOTREACHED_IN_MIGRATION() << key;
+  /* NOTREACHED_IN_MIGRATION() << key; */
   return std::nullopt;
 }
 

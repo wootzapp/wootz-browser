@@ -44,25 +44,28 @@ std::array<uint8_t, kPaddedHrpSize> GetPaddedHRP(bool is_testnet) {
 // https://btcinformation.org/en/developer-reference#compactsize-unsigned-integers
 std::optional<uint64_t> ReadCompactSize(base::span<const uint8_t>& data) {
   uint64_t value;
-  if (data.size() == 0) {
+
+  if (data.empty())                // early-return: nothing to read
     return std::nullopt;
-  }
-  uint8_t type = data[0];
-  if (data.size() > 0 && data[0] < 253) {
+
+  const uint8_t type = data[0];
+
+  if (type < 253) {                // single-byte form
     value = static_cast<uint64_t>(type);
-    data = data.subspan(1);
-  } else if (type == 253 && data.size() >= 3) {
+    data = data.subspan(1u);       // 1-byte prefix           (was 1)
+  } else if (type == 253 && data.size() >= 3u) {
     value = base::numerics::U16FromBigEndian(data.subspan<1, 2u>());
-    data = data.subspan(1 + 2);
-  } else if (type <= 254 && data.size() >= 5) {
+    data = data.subspan(3u);       // 1-byte prefix + 2 data  (was 1+2)
+  } else if (type == 254 && data.size() >= 5u) {
     value = base::numerics::U32FromBigEndian(data.subspan<1, 4u>());
-    data = data.subspan(1 + 4);
-  } else if (data.size() >= 9) {
+    data = data.subspan(5u);       // 1 + 4                   (was 1+4)
+  } else if (data.size() >= 9u) {
     value = base::numerics::U64FromBigEndian(data.subspan<1, 8u>());
-    data = data.subspan(1 + 8);
+    data = data.subspan(9u);       // 1 + 8                   (was 1+8)
   } else {
-    return std::nullopt;
+    return std::nullopt;           // insufficient bytes
   }
+
   return value;
 }
 

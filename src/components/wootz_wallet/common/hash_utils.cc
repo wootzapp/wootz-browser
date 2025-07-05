@@ -6,12 +6,11 @@
 #include "components/wootz_wallet/common/hash_utils.h"
 
 #include <algorithm>
-#include <array>
+#include <string>
 
 #include "base/check.h"
 #include "base/containers/adapters.h"
 #include "base/containers/span.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "components/wootz_wallet/common/eth_abi_utils.h"
 #include "components/wootz_wallet/common/hex_utils.h"
@@ -21,13 +20,15 @@
 
 namespace wootz_wallet {
 namespace {
+
 std::array<uint8_t, 64> ConcatArrays(const std::array<uint8_t, 32>& arr1,
                                      const std::array<uint8_t, 32>& arr2) {
   std::array<uint8_t, 64> result;
-  base::ranges::copy(arr1, result.begin());
-  base::ranges::copy(arr2, result.begin() + 32);
+  std::copy(arr1.begin(), arr1.end(), result.begin());
+  std::copy(arr2.begin(), arr2.end(), result.begin() + 32);
   return result;
 }
+
 }  // namespace
 
 std::string KeccakHash(const std::string& input, bool to_hex) {
@@ -46,7 +47,7 @@ eth_abi::Bytes32 KeccakHashBytes32(base::span<const uint8_t> input) {
   auto hash = ethash_keccak256(input.data(), input.size());
   eth_abi::Bytes32 result;
   static_assert(sizeof(result) == sizeof(hash.bytes));
-  base::ranges::copy(hash.bytes, result.begin());
+  std::copy(hash.bytes, hash.bytes + sizeof(hash.bytes), result.begin());
   return result;
 }
 
@@ -56,10 +57,9 @@ std::string GetFunctionHash(const std::string& input) {
 }
 
 eth_abi::Bytes4 GetFunctionHashBytes4(const std::string& input) {
-  auto full_hash = KeccakHashBytes32(base::as_bytes(base::make_span(input)));
+  auto full_hash = KeccakHashBytes32(base::as_bytes(base::span<const char>(input.data(), input.size())));
   eth_abi::Bytes4 bytes_result;
-  base::ranges::copy(base::make_span(full_hash).first<4>(),
-                     bytes_result.begin());
+  std::copy(full_hash.begin(), full_hash.begin() + 4, bytes_result.begin());
   return bytes_result;
 }
 
@@ -69,7 +69,7 @@ eth_abi::Bytes32 Namehash(const std::string& name) {
       SplitString(name, ".", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
   for (const auto& label : base::Reversed(labels)) {
-    auto label_hash = KeccakHashBytes32(base::as_bytes(base::make_span(label)));
+    auto label_hash = KeccakHashBytes32(base::as_bytes(base::span<const char>(label.data(), label.size())));
     hash = KeccakHashBytes32(ConcatArrays(hash, label_hash));
   }
   return hash;

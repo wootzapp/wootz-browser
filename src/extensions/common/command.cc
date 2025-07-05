@@ -22,6 +22,7 @@
 #include "extensions/common/manifest_constants.h"
 #include "ui/base/accelerators/command.h"
 #include "ui/base/accelerators/command_constants.h"
+#include "ui/base/accelerators/command_constants.h"
 
 namespace extensions {
 
@@ -127,7 +128,7 @@ std::string Command::CommandPlatform() {
   // TODO(https://crbug.com/356905053): Should this be ChromeOS keybindings?
   return ui::kKeybindingPlatformLinux;
 #elif BUILDFLAG(IS_ANDROID)
-  return values::kKeybindingPlatformLinux;
+  return ui::kKeybindingPlatformLinux;
 #else
 #error Unsupported platform
 #endif

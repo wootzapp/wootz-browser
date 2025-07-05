@@ -100,7 +100,7 @@ pub fn readme_file_from_package<'a>(
             // Use a default license instead of failing
             log::warn!(
                 "No license field found in Cargo.toml for {} crate, using 'UNKNOWN' as default",
-                package.name
+                package.name()
             );
             "UNKNOWN".to_string()
         }
@@ -275,7 +275,7 @@ static LICENSE_STRING_TO_LICENSE_KIND: LazyLock<HashMap<&'static str, Vec<Licens
         h.insert("CC0-1.0 OR MIT-0 OR Apache-2.0", vec![LicenseKind::Apache2]);
         h.insert("CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception", vec![LicenseKind::Apache2]);
         h.insert("MIT OR Apache-2.0 OR BSD-1-Clause", vec![LicenseKind::Apache2]);
-        h.insert("BSD-2-Clause", vec![LicenseKind::BSD2]);
+        h.insert("BSD-2-Clause", vec![LicenseKind::BSD3]);
         h.insert("MPL-2.0", vec![LicenseKind::MPL2]);
         h.insert("BSD-2-Clause OR Apache-2.0 OR MIT", vec![LicenseKind::Apache2]);
         h.insert("CC0-1.0", vec![LicenseKind::CC0]);
@@ -307,7 +307,7 @@ static LICENSE_KIND_TO_LICENSE_FILES: LazyLock<HashMap<LicenseKind, Vec<&'static
         h.insert(LicenseKind::ISC, vec!["LICENSE-ISC", "LICENSE.md", "LICENSE"]);
         h.insert(LicenseKind::Zlib, vec!["LICENSE-ZLIB", "LICENSE.md", "LICENSE"]);
         h.insert(LicenseKind::Unicode3, vec!["LICENSE-UNICODE", "LICENSE.md", "LICENSE"]);
-        h.insert(LicenseKind::BSD2, vec!["LICENSE-BSD", "LICENSE-BSD.txt", "LICENSE-BSD.md", "LICENSE.md", "LICENSE"]);
+        h.insert(LicenseKind::BSD3, vec!["LICENSE-BSD", "LICENSE-BSD.txt", "LICENSE-BSD.md", "LICENSE.md", "LICENSE"]);
         h.insert(LicenseKind::MPL2, vec!["LICENSE-MPL", "LICENSE-MPL.txt", "LICENSE-MPL.md", "LICENSE.md", "LICENSE"]);
         h.insert(LicenseKind::CC0, vec!["LICENSE-CC0", "LICENSE-CC0.txt", "LICENSE-CC0.md", "LICENSE.md", "LICENSE"]);
         h
