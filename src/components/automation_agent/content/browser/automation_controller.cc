@@ -32,14 +32,20 @@ void AutomationController::GetPageState(bool debug_mode,
           LOG(INFO) << "Kartik: Processing PageState result in callback";
           LOG(INFO) << "Kartik: Result success=" << result->success;
           
+          if (!result->success) {
+            LOG(ERROR) << "Kartik: GetPageState failed";
+            std::move(callback).Run(false, "{}");
+            return;
+          }
+
           base::Value::Dict dict;
           dict.Set("success", result->success);
           dict.Set("error_message", result->error_message);
-          LOG(INFO) << "Kartik: Error message: " << result->error_message;
           
-          base::Value::Dict state_dict;
           LOG(INFO) << "Kartik: Processing page state map with " 
                     << result->page_state.size() << " entries";
+          
+          base::Value::Dict state_dict;
           for (const auto& pair : result->page_state) {
             LOG(INFO) << "Kartik: Adding state key=" << pair.first;
             state_dict.Set(pair.first, pair.second);
@@ -47,15 +53,22 @@ void AutomationController::GetPageState(bool debug_mode,
           dict.Set("state", std::move(state_dict));
 
           std::string json;
-          base::JSONWriter::Write(base::Value(std::move(dict)), &json);
-          LOG(INFO) << "Kartik: JSON conversion complete, size=" << json.length();
+          bool write_success = base::JSONWriter::Write(base::Value(std::move(dict)), &json);
           
+          if (!write_success) {
+            LOG(ERROR) << "Kartik: Failed to serialize JSON response";
+            std::move(callback).Run(false, "{}");
+            return;
+          }
+          
+          LOG(INFO) << "Kartik: JSON conversion complete, size=" << json.length();
           LOG(INFO) << "Kartik: Running callback with result";
           std::move(callback).Run(result->success, json);
         },
-        std::move(callback)));
+        std::move(get_page_state_callback_)));
   } else {
     LOG(ERROR) << "Kartik: Automation agent interface not available";
+    std::move(get_page_state_callback_).Run(false, "{}");
   }
 }
 

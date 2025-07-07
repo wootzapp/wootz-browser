@@ -80,16 +80,23 @@ void AutomationAgent::GetPageState(bool debug_mode,
   int visible_elements = 0;
   int interactive_elements = 0;
 
+  // Limit the number of elements to prevent memory issues
+  const int kMaxElements = 1000;
+
   for (auto element = elements.FirstItem(); 
-       !element.IsNull(); 
+       !element.IsNull() && element_count < kMaxElements; 
        element = elements.NextItem()) {
     element_count++;
     
     if (!include_hidden && !IsElementVisible(element)) {
-      LOG(INFO) << "Kartik: Skipping invisible element: " << element.TagName().Utf8();
       continue;
     }
     visible_elements++;
+
+    // Only include interactive or visible elements to reduce payload size
+    if (!IsElementInteractive(element) && !debug_mode) {
+      continue;
+    }
 
     if (IsElementInteractive(element)) {
       interactive_elements++;
@@ -99,24 +106,31 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
     base::Value::Dict element_info;
     element_info.Set("tagName", element.TagName().Utf8());
-    element_info.Set("isVisible", IsElementVisible(element));
-    element_info.Set("isInteractive", IsElementInteractive(element));
     
-    // Get attributes - fixed approach without GetAttributeNames
+    // Only include visibility info if debug mode is on
+    if (debug_mode) {
+      element_info.Set("isVisible", IsElementVisible(element));
+      element_info.Set("isInteractive", IsElementInteractive(element));
+    }
+    
+    // Only include essential attributes
     base::Value::Dict attributes;
-    if (element.HasAttribute(blink::WebString())) {
-      // Get common attributes we care about
-      const char* common_attrs[] = {"id", "class", "name", "type", "value", "href", "src"};
-      for (const char* attr : common_attrs) {
-        blink::WebString attr_name = blink::WebString::FromUTF8(attr);
-        if (element.HasAttribute(attr_name)) {
-          attributes.Set(attr, element.GetAttribute(attr_name).Utf8());
-        }
+    const char* essential_attrs[] = {"id", "class", "name", "type", "href"};
+    for (const char* attr : essential_attrs) {
+      blink::WebString attr_name = blink::WebString::FromUTF8(attr);
+      if (element.HasAttribute(attr_name)) {
+        attributes.Set(attr, element.GetAttribute(attr_name).Utf8());
       }
     }
-    element_info.Set("attributes", std::move(attributes));
+    
+    if (!attributes.empty()) {
+      element_info.Set("attributes", std::move(attributes));
+    }
 
-    element_info.Set("textContent", element.TextContent().Utf8());
+    // Only include text content for interactive elements
+    if (IsElementInteractive(element)) {
+      element_info.Set("textContent", element.TextContent().Utf8());
+    }
 
     if (IsElementVisible(element)) {
       auto bounds = element.BoundsInWidget();
@@ -140,7 +154,6 @@ void AutomationAgent::GetPageState(bool debug_mode,
   page_state->Set("url", document.Url().GetString().Utf8());
   page_state->Set("title", document.Title().Utf8());
 
-  // Convert to string representation for mojom
   std::string json_string;
   base::JSONWriter::Write(*page_state, &json_string);
   LOG(INFO) << "Kartik: JSON conversion complete, size=" << json_string.length();
