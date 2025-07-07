@@ -1418,14 +1418,14 @@ ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
     return RespondNow(Error("No active tab found"));
   }
 
-  bool debug_mode = false;
-  bool include_hidden = false;
+  bool debug_mode = true;
+  bool include_hidden = true;
   
   // Parse options from arguments
   if (args().size() >= 1 && args()[0].is_dict()) {
     const base::Value::Dict& options = args()[0].GetDict();
-    debug_mode = options.FindBool("debugMode").value_or(false);
-    include_hidden = options.FindBool("includeHidden").value_or(false);
+    debug_mode = options.FindBool("debugMode").value_or(true);
+    include_hidden = options.FindBool("includeHidden").value_or(true);
   }
 
   LOG(INFO) << "AutomationAgent: GetPageState called from Extension";
@@ -1467,7 +1467,9 @@ void WootzGetPageStateFunction::OnGetPageStateComplete(bool success, const std::
   result.Set("success", true);
   result.Set("pageState", std::move(*parsed));
 
-  Respond(WithArguments(std::move(result)));
+  base::Value::List args;
+  args.Append(std::move(result));
+  Respond(ArgumentList(std::move(args)));
 }
 
 ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
@@ -1513,7 +1515,13 @@ void WootzPerformActionFunction::OnActionComplete(bool success) {
     Respond(Error("Failed to perform action"));
     return;
   }
-  Respond(NoArguments());
+  
+  base::Value::Dict result;
+  result.Set("success", true);
+  
+  base::Value::List args;
+  args.Append(std::move(result));
+  Respond(ArgumentList(std::move(args)));
 }
 
 }  // namespace extensions

@@ -2,10 +2,16 @@ module automation.mojom;
 
 import "mojo/public/mojom/base/string16.mojom";
 
+struct PageStateResult {
+  bool success;
+  string error_message;
+  map<string, string> page_state;
+};
+
 interface AutomationAgent {
   // Gets the current state of the page
-  GetPageState(bool debug_mode, bool include_hidden) => (bool success, string state);
+  GetPageState(bool debug_mode, bool include_hidden) => (PageStateResult result);
 
   // Performs an action on the page
-  PerformAction(string action, map<string, string> action_params) => (bool success);
+  PerformAction(string action, map<string, string> params) => (bool success);
 };

@@ -331,6 +331,7 @@ component("platform") {
   visibility = [
     "//third_party/blink/*",
     "//tools/privacy_budget/font_indexer:*",
+    "//components/automation_agent/content/renderer/*",
   ]
   output_name = "blink_platform"
 

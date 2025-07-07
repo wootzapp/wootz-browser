@@ -7,6 +7,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
+#include "base/json/json_writer.h"
 
 namespace automation {
 
