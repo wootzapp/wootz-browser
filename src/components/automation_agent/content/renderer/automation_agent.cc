@@ -209,7 +209,7 @@ void AutomationAgent::PerformAction(
       }
     }
   }
-  else if (action == "scroll") {git
+  else if (action == "scroll") {
     LOG(INFO) << "Kartik: Processing scroll action";
     auto x_it = params.find("x");
     auto y_it = params.find("y");
