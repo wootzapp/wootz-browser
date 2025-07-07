@@ -71,7 +71,7 @@ class ExtensionWebContentsObserver
   // Binds the LocalFrameHost interface to the ExtensionFrameHost associated
   // with the RenderFrameHost.
   static void BindLocalFrameHost(
-      mojo::PendingAssociatedReceiver<mojom::LocalFrameHost> receiver,
+      mojo::PendingAssociatedReceiver<extensions::mojom::LocalFrameHost> receiver,
       content::RenderFrameHost* render_frame_host);
 
   // This must be called by clients directly after the EWCO has been created.
@@ -84,7 +84,7 @@ class ExtensionWebContentsObserver
   // If |verify_url| is false, only the SiteInstance is taken into account.
   // If |verify_url| is true, the frame's last committed URL is also used to
   // improve the classification of the frame.
-  const Extension* GetExtensionFromFrame(
+  const extensions::Extension* GetExtensionFromFrame(
       content::RenderFrameHost* render_frame_host,
       bool verify_url) const;
 
@@ -93,10 +93,10 @@ class ExtensionWebContentsObserver
   // doesn't have it. Note that it could return nullptr if `render_frame_host`
   // is not live or `render_frame_host` does not immediately belong to the
   // associated `WebContents`.
-  mojom::LocalFrame* GetLocalFrame(content::RenderFrameHost* render_frame_host);
+  extensions::mojom::LocalFrame* GetLocalFrame(content::RenderFrameHost* render_frame_host);
 
   // Similar to `GetLocalFrame` but will not return nullptr, will crash.
-  mojom::LocalFrame& GetLocalFrameChecked(
+  extensions::mojom::LocalFrame& GetLocalFrameChecked(
       content::RenderFrameHost* render_frame_host);
 
   // Tells the receiver to start listening to window ID changes from the
@@ -168,7 +168,7 @@ class ExtensionWebContentsObserver
   base::CallbackListSubscription window_id_subscription_;
 
   // A map of RenderFrameHost to mojo remotes.
-  std::map<content::RenderFrameHost*, mojo::AssociatedRemote<mojom::LocalFrame>>
+  std::map<content::RenderFrameHost*, mojo::AssociatedRemote<extensions::mojom::LocalFrame>>
       local_frame_map_;
 };
 

@@ -33,7 +33,7 @@ struct SecureZeroAllocator {
   }
   void deallocate(T* p, size_t n) {
     SecureZeroData(
-        base::as_writable_bytes(UNSAFE_BUFFERS(base::span<const uint8_t>(p, n))));
+        base::as_writable_bytes(UNSAFE_BUFFERS(base::span<T>(p, n))));
     ::operator delete(p);
   }
 };

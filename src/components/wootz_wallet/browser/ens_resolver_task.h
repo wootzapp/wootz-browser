@@ -20,6 +20,10 @@
 #include "components/wootz_wallet/common/eth_abi_utils.h"
 #include "components/wootz_wallet/common/eth_address.h"
 
+#ifndef NOTREACHED_IN_MIGRATION
+#define NOTREACHED_IN_MIGRATION() do { /* NOTREACHED_IN_MIGRATION */ } while (0)
+#endif
+
 namespace wootz_wallet {
 
 // Selector for `OffchainLookup(address,string[],bytes,bytes4,bytes)`

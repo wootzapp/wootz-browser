@@ -9,11 +9,11 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "base/base64.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
@@ -541,7 +541,7 @@ std::optional<SolanaAddress> GetDomainKey(const std::string& domain) {
         "58PwtjSDuFHuUkYjH9BYnnQKHfwo9reZhC2zMJv9JPkx");
   }
 
-  const auto dot_count = base::ranges::count(domain, '.');
+  const auto dot_count = std::count(domain.begin(), domain.end(), '.');
   if (dot_count > 2) {
     return std::nullopt;
   }

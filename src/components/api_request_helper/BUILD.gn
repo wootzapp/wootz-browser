@@ -5,6 +5,15 @@
 # import("//chrome/build/config.gni")
 import("//testing/test.gni")
 
+import("//build/buildflag_header.gni")  # ← the correct file
+
+buildflag_header("buildflags") {
+  header = "buildflags/buildflags.h"
+  flags = [
+    "ENABLE_API_REQUEST_HELPER_RUST=${enable_rust}",  # or whatever flag you need
+  ]
+}
+
 static_library("api_request_helper") {
   sources = [
     "api_request_helper.cc",
@@ -12,6 +21,7 @@ static_library("api_request_helper") {
   ]
   
   public_deps = [
+    ":buildflags",
     "//base",
     "//net/traffic_annotation",
     "//services/data_decoder/public/cpp",

@@ -2,17 +2,33 @@
  * Handles communication between the startup CRX install page and the browser.
  */
 
-let utmSource = '';
+interface InstalledExtension {
+  id: string;
+  name?: string;
+  version?: string;
+  description?: string;
+}
+
+interface UtmToExtensionMapping {
+  [key: string]: string;
+}
+
+
+interface Window {
+  handleUtmSource: (utmSource: string) => void;
+  handleInstalledExtensionsData: (data: InstalledExtension[]) => void;
+  handleError: (errorMessage: string) => void;
+  chrome: any;
+}
+
+let utmSource: string = '';
+
 class BrowserBridge {
-  /** @private */
-  
+  private utmSource_: string = '';
+  private installedExtensions_: Record<string, InstalledExtension> = {};
+  private static instance_: BrowserBridge | null = null;
+
   constructor() {
-    /** @private {string} */
-    this.utmSource_ = '';
-
-    /** @private {Object<string, Object>} */
-    this.installedExtensions_ = {};
-
     // Set up message handlers first before making any calls
     this.getUtmSource();
     this.setupMessageHandlers_();
@@ -32,22 +48,22 @@ class BrowserBridge {
 
   /**
    * Sets up handlers for messages from C++.
-   * @private
    */
-  setupMessageHandlers_() {
+  private setupMessageHandlers_(): void {
     console.log('Setting up message handlers');
     
-    window.onerror = function(msg,url,line) {
+    window.onerror = function(msg: string | Event, url?: string, line?: number): boolean {
       console.error('JavaScript error:', msg, 'at', url, ':', line);
+      return false;
     };
 
     // Handler for UTM source data from C++
     let isUtmSourceSet = false;
-    window.handleUtmSource = (utmSource) => {
-      console.log('handleUtmSource',typeof utmSource);
+    window.handleUtmSource = (utmSource: string): void => {
+      console.log('handleUtmSource', typeof utmSource);
       console.log('Received UTM source from C++:', utmSource);
       this.utmSource_ = utmSource || '';
-      console.log('this.utmSource_',this.utmSource_);
+      console.log('this.utmSource_', this.utmSource_);
       if(this.utmSource_ !== '' && !isUtmSourceSet) {
         console.log('Setting up UI');
         utmSource = this.utmSource_;
@@ -57,7 +73,7 @@ class BrowserBridge {
     };
 
     // Handler for installed extensions data from C++
-    window.handleInstalledExtensionsData = (installedExtensionsData) => {
+    window.handleInstalledExtensionsData = (installedExtensionsData: InstalledExtension[]): void => {
       console.log('Received installed extensions data from C++:', 
         installedExtensionsData ? installedExtensionsData.length : 0, 'extensions');
 
@@ -69,13 +85,12 @@ class BrowserBridge {
         installedExtensionsData.forEach(extension => {
           if (extension && extension.id) {
             // Store in map with ID as key
-            console.log('extension',extension);
-            console.log('extension.id',extension.id);
+            console.log('extension', extension);
+            console.log('extension.id', extension.id);
             this.installedExtensions_[extension.id] = extension;
           }
         });
       }
-      
       
       // Log all installed extensions
       console.log('Installed extensions:', this.installedExtensions_);
@@ -87,16 +102,15 @@ class BrowserBridge {
     };
 
     // Add error handler
-    window.handleError = (errorMessage) => {
+    window.handleError = (errorMessage: string): void => {
       console.error('Error from C++:', errorMessage);
     };
   }
 
   /**
    * Gets the current UTM source.
-   * @return {string}
    */
-  getUtmSourceValue() {
+  getUtmSourceValue(): string {
     console.log('Getting UTM source value:', this.utmSource_);
     return this.utmSource_;
   }
@@ -104,7 +118,7 @@ class BrowserBridge {
   /**
    * Fetches the UTM source from the browser.
    */
-  getUtmSource() {
+  getUtmSource(): Promise<void> {
     console.log('Requesting UTM source from browser');
     return this.sendWithLogging_('getUtmSource', []);
   }
@@ -112,31 +126,26 @@ class BrowserBridge {
   /**
    * Fetches all installed extensions from the browser.
    */
-  fetchInstalledExtensions() {
+  fetchInstalledExtensions(): Promise<void> {
     console.log('Requesting installed extensions from browser');
     return this.sendWithLogging_('fetchInstalledExtensions', []);
   }
 
   /**
    * Gets the map of installed extensions.
-   * @return {!Object<string, Object>}
    */
-  getInstalledExtensions() {
+  getInstalledExtensions(): Record<string, InstalledExtension> {
     return this.installedExtensions_ || {};
   }
 
   /**
    * Sends a message to the browser with the given method name and parameters.
-   * @param {string} methodName The name of the method to call.
-   * @param {Array=} params The parameters to pass to the method.
-   * @return {!Promise<void>}
-   * @private
    */
-  async sendWithLogging_(methodName, params = []) {
+  private async sendWithLogging_(methodName: string, params: any[] = []): Promise<void> {
     try {
       console.log(`Calling ${methodName} with params:`, params);
       // Using chrome.send for WebUI messaging
-      chrome.send(methodName, params);
+      window.chrome.send(methodName, params);
       return Promise.resolve();
     } catch (error) {
       console.error(`Error (${methodName}):`, error);
@@ -146,9 +155,8 @@ class BrowserBridge {
 
   /**
    * Gets the singleton instance of BrowserBridge.
-   * @return {!BrowserBridge}
    */
-  static getInstance() {
+  static getInstance(): BrowserBridge {
     if (!BrowserBridge.instance_) {
       BrowserBridge.instance_ = new BrowserBridge();
     }
@@ -158,11 +166,11 @@ class BrowserBridge {
   /**
    * Initializes the Startup CRX Install UI.
    */
-  initialize() {
+  initialize(): void {
     console.log('Initializing Startup CRX Install');
 
     // Log the WebUI availability
-    if (chrome && chrome.send) {
+    if (window.chrome && window.chrome.send) {
       console.log('chrome.send is available, WebUI communication should work');
     } else {
       console.error('chrome.send not available! WebUI communication will fail');
@@ -176,20 +184,17 @@ class BrowserBridge {
   }
 }
 
-/** @private {BrowserBridge} */
-BrowserBridge.instance_ = null;
-
 // Create a global browserBridge variable
 const browserBridge = BrowserBridge.getInstance();
 
 // Initialize when the DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function(): void {
   console.log('DOM content loaded, initializing BrowserBridge');
   browserBridge.initialize();
 });
 
-function DownloadExtension(utmParam) {
-  let downloadUrl;
+function DownloadExtension(utmParam: string): void {
+  let downloadUrl: string | undefined;
   console.log('DownloadExtension', utmParam);
   if(utmParam !== '') {
     switch(utmParam.toLowerCase()) {
@@ -222,14 +227,12 @@ function DownloadExtension(utmParam) {
 /**
  * Checks if the extension corresponding to the UTM source is already installed
  * and closes the window if it is.
- * @param {string} utmParam The UTM source parameter
- * @param {Object} installedExtensions Map of installed extensions
  */
-function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
+function checkAndHandleInstalledExtension(utmParam: string, installedExtensions: Record<string, InstalledExtension>): void {
   console.log('Checking if extension for UTM source is installed:', utmParam);
   
   // Map UTM sources to extension IDs
-  const utmToExtensionId = {
+  const utmToExtensionId: UtmToExtensionMapping = {
     'artifact': 'allmdcfldidgeghfoioaaiammdlpmnnk',   
     'eclipse': 'gpfellaldmjpgonllcjpjfpodfmgobnk',    
     'blockmesh': 'kpobgdhknoakgagflffeigaojlglkbhn', 
@@ -238,9 +241,9 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
   };
   
   const extensionId = utmToExtensionId[utmParam.toLowerCase()];
-  console.log('extensionId',extensionId);
+  console.log('extensionId', extensionId);
   if (extensionId && installedExtensions[extensionId]) {
-    console.log('installedExtensions',installedExtensions);
+    console.log('installedExtensions', installedExtensions);
     console.log('Extension already installed, closing window');
     // Close the window after a short delay
     setTimeout(() => {
@@ -249,7 +252,7 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
   }
 }
 
-function setupUI(utmSource) {
+function setupUI(utmSource: string): void {
     // Create splash container
     const splashContainer = document.createElement('div');
     splashContainer.className = 'splash-container';
@@ -409,7 +412,7 @@ function setupUI(utmSource) {
     }, 200);
 
     // Handle continue button click
-    continueBtn.addEventListener('click', () => {
+    continueBtn.addEventListener('click', (): void => {
         // Remove the loading container
         loadingContainer.remove();
         continueBtn.remove();
@@ -457,7 +460,7 @@ function setupUI(utmSource) {
 }
 
 // Helper function to create hexagon grid
-function createHexagonGrid(container) {
+function createHexagonGrid(container: HTMLElement): void {
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }

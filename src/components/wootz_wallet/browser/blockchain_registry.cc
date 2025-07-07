@@ -12,7 +12,6 @@
 #include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "components/wootz_wallet/browser/wootz_wallet_constants.h"
 #include "components/wootz_wallet/browser/wootz_wallet_utils.h"
@@ -326,8 +325,9 @@ mojom::BlockchainTokenPtr BlockchainRegistry::GetTokenByAddress(
   }
 
   const auto& tokens = token_list_map_[key];
-  auto token_it = base::ranges::find_if(
-      tokens, [&](const mojom::BlockchainTokenPtr& current_token) {
+  auto token_it = std::find_if(
+      tokens.begin(), tokens.end(),
+      [&](const mojom::BlockchainTokenPtr& current_token) {
         return current_token->contract_address == address;
       });
   return token_it == tokens.end() ? nullptr : token_it->Clone();
@@ -343,8 +343,9 @@ void BlockchainRegistry::GetTokenBySymbol(const std::string& chain_id,
     return;
   }
   const auto& tokens = token_list_map_[key];
-  auto token_it = base::ranges::find_if(
-      tokens, [&](const mojom::BlockchainTokenPtr& current_token) {
+  auto token_it = std::find_if(
+      tokens.begin(), tokens.end(),
+      [&](const mojom::BlockchainTokenPtr& current_token) {
         return current_token->symbol == symbol;
       });
 

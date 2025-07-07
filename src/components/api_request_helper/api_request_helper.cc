@@ -5,6 +5,7 @@
 
 #include "components/api_request_helper/api_request_helper.h"
 
+#include <algorithm>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -18,8 +19,9 @@
 #include "base/json/json_writer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
-#include "base/rust_buildflags.h"
+//  #include "base/rust_buildflags.h"
+#include "components/api_request_helper/buildflags/buildflags.h"
+#include "services/data_decoder/public/cpp/data_decoder.h"
 #include "base/strings/string_split.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -32,8 +34,8 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 
-static_assert(BUILDFLAG(BUILD_RUST_JSON_READER),
-              "To use Rust sanitizer BUILD_RUST_JSON_READER should be enabled");
+// static_assert(BUILDFLAG(BUILD_RUST_JSON_READER),
+//               "To use Rust sanitizer BUILD_RUST_JSON_READER should be enabled");
 
 namespace api_request_helper {
 
@@ -49,21 +51,33 @@ void ParseJsonUsingRust(
     std::string json,
     data_decoder::DataDecoder::ValueParseCallback callback,
     const scoped_refptr<base::SequencedTaskRunner>& task_runner) {
-  task_runner->PostTaskAndReplyWithResult(
-      FROM_HERE,
-      base::BindOnce(&base::DecodeJSONInRust, std::move(json),
-                     base::JSON_PARSE_RFC),
-      base::BindOnce(
-          [](data_decoder::DataDecoder::ValueParseCallback callback,
-             base::JSONReader::Result result) {
-            if (!result.has_value()) {
-              std::move(callback).Run(base::unexpected(result.error().message));
-            } else {
-              std::move(callback).Run(std::move(*result));
-            }
-          },
-          std::move(callback)));
+  // Convert the std::string into a byte buffer
+  std::vector<uint8_t> bytes(json.begin(), json.end());
+
+  // Use DataDecoder (which runs on a utility thread under the hood).
+  data_decoder::DataDecoder::ParseJson(std::move(bytes),
+                                       std::move(callback));
 }
+
+// void ParseJsonUsingRust(
+//     std::string json,
+//     data_decoder::DataDecoder::ValueParseCallback callback,
+//     const scoped_refptr<base::SequencedTaskRunner>& task_runner) {
+//   task_runner->PostTaskAndReplyWithResult(
+//       FROM_HERE,
+//       base::BindOnce(&base::DecodeJSONInRust, std::move(json),
+//                      base::JSON_PARSE_RFC),
+//       base::BindOnce(
+//           [](data_decoder::DataDecoder::ValueParseCallback callback,
+//              base::JSONReader::Result result) {
+//             if (!result.has_value()) {
+//               std::move(callback).Run(base::unexpected(result.error().message));
+//             } else {
+//               std::move(callback).Run(std::move(*result));
+//             }
+//           },
+//           std::move(callback)));
+// }
 
 scoped_refptr<base::SequencedTaskRunner> MakeDecoderTaskRunner() {
   return base::ThreadPool::CreateSequencedTaskRunner(

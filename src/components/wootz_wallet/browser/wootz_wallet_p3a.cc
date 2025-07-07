@@ -5,6 +5,7 @@
 
 #include "components/wootz_wallet/browser/wootz_wallet_p3a.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
@@ -13,7 +14,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
@@ -151,8 +151,9 @@ void WootzWalletP3A::ReportJSProvider(mojom::JSProviderType provider_type,
   }
 
   JSProviderAnswer answer = JSProviderAnswer::kNoWallet;
-  bool is_wallet_setup = base::ranges::any_of(
-      keyring_service_->GetAllAccountInfos(), [coin_type](auto& account) {
+  auto accounts = keyring_service_->GetAllAccountInfos();
+  bool is_wallet_setup = std::any_of(
+      accounts.begin(), accounts.end(), [coin_type](const auto& account) {
         return account->account_id->coin == coin_type;
       });
 

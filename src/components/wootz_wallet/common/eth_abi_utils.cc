@@ -118,8 +118,9 @@ std::pair<Span, Span> ExtractFunctionSelectorAndArgsFromCall(Span data) {
   if ((data.size() - 4) % kRowLength) {
     return {};
   }
-  // Avoid subspan(4) with implicit int to size_t conversion
-  return {data.subspan(0, 4), data.subspan(4, data.size() > 4 ? data.size() - 4 : 0)};
+
+  return {data.subspan(0u, 4u), // 0u and 4u are size_t
+          data.subspan(4u, data.size() > 4u ? data.size() - 4u : 0u)};
 }
 
 std::pair<std::optional<size_t>, Span> ExtractArrayInfo(Span data) {
@@ -172,7 +173,7 @@ std::optional<std::vector<uint8_t>> ExtractBytes(Span bytes_encoded) {
   if (!CheckPadding(padded_bytes_data, *bytes_len)) {
     return std::nullopt;
   }
-  Span bytes_result = padded_bytes_data.subspan(0, *bytes_len);
+  Span bytes_result = padded_bytes_data.subspan(0u, *bytes_len);
   return std::vector<uint8_t>{bytes_result.begin(), bytes_result.end()};
 }
 
@@ -199,7 +200,7 @@ std::optional<std::string> ExtractString(Span string_encoded) {
     return std::nullopt;
   }
 
-  Span string_result = padded_string_data.subspan(0, *string_len);
+  Span string_result = padded_string_data.subspan(0u, *string_len);
   return std::string{string_result.begin(), string_result.end()};
 }
 
@@ -375,7 +376,7 @@ std::optional<std::vector<uint8_t>> ExtractFixedBytesFromTuple(Span data, size_t
     return std::nullopt;
   }
 
-  if (!CheckPadding(head->subspan(0), fixed_size)) {
+  if (!CheckPadding(head->subspan(0u), fixed_size)) {
     return std::nullopt;
   }
 

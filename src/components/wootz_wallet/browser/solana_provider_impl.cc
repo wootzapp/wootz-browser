@@ -7,9 +7,9 @@
 
 #include <optional>
 #include <vector>
+#include <algorithm>
 
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/api/wootz/wootz_api.h"
@@ -146,7 +146,7 @@ void SolanaProviderImpl::Connect(std::optional<base::Value::Dict> arg,
         delegate_->GetAllowedAccounts(mojom::CoinType::SOL, addresses);
     if (allowed_accounts) {
       std::erase_if(addresses, [&allowed_accounts](const auto& address) {
-        return base::Contains(*allowed_accounts, address);
+        return std::find(allowed_accounts->begin(), allowed_accounts->end(), address) != allowed_accounts->end();
       });
     }
     delegate_->RequestPermissions(
@@ -408,8 +408,8 @@ void SolanaProviderImpl::ContinueSignAllTransactions(
     const std::string& chain_id,
     SignAllTransactionsCallback callback,
     const std::vector<bool>& is_valids) {
-  if (base::ranges::any_of(is_valids,
-                           [](auto is_valid) { return !is_valid; })) {
+  if (std::any_of(is_valids.begin(), is_valids.end(),
+                  [](auto is_valid) { return !is_valid; })) {
     std::move(callback).Run(
         mojom::SolanaProviderError::kInternalError,
         l10n_util::GetStringUTF8(IDS_WALLET_INVALID_BLOCKHASH_ERROR),
@@ -795,9 +795,10 @@ void SolanaProviderImpl::OnConnect(
       // account are different.
       const std::string& allowed_account_address = allowed_accounts->at(0);
       if (account && account->address != allowed_account_address) {
-        auto account_it = base::ranges::find_if(
-            requested_accounts, [&allowed_account_address](
-                                    const mojom::AccountInfoPtr& account_info) {
+        auto account_it = std::find_if(
+            requested_accounts.begin(), requested_accounts.end(),
+            [&allowed_account_address](
+                const mojom::AccountInfoPtr& account_info) {
               return account_info->address == allowed_account_address;
             });
         CHECK(account_it != requested_accounts.end());

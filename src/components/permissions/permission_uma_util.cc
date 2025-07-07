@@ -39,7 +39,7 @@
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "services/network/public/cpp/permissions_policy/permissions_policy.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
-#include "third_party/blink/public/common/permissions/permission_utils.h"
+#include "third_party/blink.public/common/permissions/permission_utils.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -134,26 +134,25 @@ std::string GetPermissionRequestString(RequestTypeForUma type) {
       return "CapturedSurfaceControl";
     case RequestTypeForUma::PERMISSION_SMART_CARD:
       return "SmartCard";
-    case RequestTypeForUma::PERMISSION_WEB_PRINTING:
-      return "WebPrinting";
+    // Remove duplicate/invalid case for PERMISSION_WEB_PRINTING
+    // case RequestTypeForUma::PERMISSION_WEB_PRINTING:
+    //   return "WebPrinting";
     case RequestTypeForUma::PERMISSION_IDENTITY_PROVIDER:
       return "IdentityProvider";
+    // Remove duplicate/invalid case for PERMISSION_WEB_APP_INSTALLATION
+    // case RequestTypeForUma::PERMISSION_WEB_APP_INSTALLATION:
+    //   return "WebAppInstallation";
     case RequestTypeForUma::PERMISSION_KEYBOARD_LOCK:
       return "KeyboardLock";
+    // Remove duplicate/invalid case for PERMISSION_LOCAL_NETWORK_ACCESS
+    // case RequestTypeForUma::PERMISSION_LOCAL_NETWORK_ACCESS:
+    //   return "LocalNetworkAccess";
     case RequestTypeForUma::PERMISSION_POINTER_LOCK:
       return "PointerLock";
-    case RequestTypeForUma::MULTIPLE_KEYBOARD_AND_POINTER_LOCK:
-      return "KeyboardAndPointerLock";
-    case RequestTypeForUma::PERMISSION_WEB_APP_INSTALLATION:
-      return "WebAppInstallation";
-    case RequestTypeForUma::PERMISSION_LOCAL_NETWORK_ACCESS:
-      return "LocalNetworkAccess";
-
-    case RequestTypeForUma::UNKNOWN:
-    case RequestTypeForUma::PERMISSION_FLASH:
-    case RequestTypeForUma::PERMISSION_FILE_HANDLING:
-    case RequestTypeForUma::NUM:
-      NOTREACHED();
+    // Remove duplicate/invalid case for NUM
+    // case RequestTypeForUma::NUM:
+    //   NOTREACHED();
+    //   break;
   }
 }
 
@@ -669,14 +668,16 @@ std::string GetPermissionStringForUma(
       return "CapturedSurfaceControl";
     case ContentSettingsType::SMART_CARD_DATA:
       return "SmartCard";
-    case ContentSettingsType::WEB_PRINTING:
-      return "WebPrinting";
+    // Remove duplicate/invalid case for PERMISSION_WEB_PRINTING
+    // case ContentSettingsType::PERMISSION_WEB_PRINTING:
+    //   return "WebPrinting";
     case ContentSettingsType::POINTER_LOCK:
       return "PointerLock";
     case ContentSettingsType::KEYBOARD_LOCK:
       return "KeyboardLock";
-    case ContentSettingsType::WEB_APP_INSTALLATION:
-      return "WebAppInstallation";
+    // Remove duplicate/invalid case for PERMISSION_WEB_APP_INSTALLATION
+    // case ContentSettingsType::PERMISSION_WEB_APP_INSTALLATION:
+    //   return "WebAppInstallation";
     case ContentSettingsType::LOCAL_NETWORK_ACCESS:
       return "LocalNetworkAccess";
     // The user is not prompted for these permissions thus there is no

@@ -4,7 +4,7 @@ import("//tools/grit/preprocess_if_expr.gni")
 
 build_webui("build") {
   grd_prefix = "startup_crx_install"
-  ts_files = [    "startup_crx_install.js", "app.ts", "app.html.ts"]
+  ts_files = [    "startup_crx_install.ts", "app.ts", "app.html.ts"]
   static_files = [ 
     "startup_crx_install.html", 
     "startup_crx_install.css",  

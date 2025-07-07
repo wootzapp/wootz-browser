@@ -5,6 +5,7 @@
 
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <optional>
@@ -12,7 +13,7 @@
 
 #include "base/containers/contains.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+// #include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "base/logging.h"
@@ -608,16 +609,19 @@ void WootzWalletService::SetNetworkForSelectedAccountOnActiveOrigin(
 
 bool WootzWalletService::HasPendingDecryptRequestForOrigin(
     const url::Origin& origin) const {
-  return base::ranges::any_of(pending_decrypt_requests_, [origin](auto& req) {
-    return req.second.origin == origin;
-  });
+  return std::any_of(pending_decrypt_requests_.begin(), 
+                     pending_decrypt_requests_.end(), 
+                     [origin](const auto& req) {
+                       return req.second.origin == origin;
+                     });
 }
 
 bool WootzWalletService::HasPendingGetEncryptionPublicKeyRequestForOrigin(
     const url::Origin& origin) const {
-  return base::ranges::any_of(
-      pending_get_encryption_public_key_requests_,
-      [origin](auto& req) { return req.second.origin == origin; });
+  return std::any_of(
+      pending_get_encryption_public_key_requests_.begin(),
+      pending_get_encryption_public_key_requests_.end(),
+      [origin](const auto& req) { return req.second.origin == origin; });
 }
 
 void WootzWalletService::OnDefaultEthereumWalletChanged() {

@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/wootz_wallet/common/bitcoin_utils.h"
 
@@ -414,8 +413,8 @@ bool BitcoinTransaction::IsSigned() const {
     return false;
   }
 
-  return base::ranges::all_of(inputs_,
-                              [](auto& input) { return input.IsSigned(); });
+  return std::all_of(inputs_.begin(), inputs_.end(),
+                     [](const auto& input) { return input.IsSigned(); });
 }
 
 uint64_t BitcoinTransaction::TotalInputsAmount() const {

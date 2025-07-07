@@ -125,6 +125,7 @@ source_set("permissions") {
   ]
   deps = [
     "//base",
+    #"//services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom",
     "//components/back_forward_cache",
     "//components/content_settings/browser",
     "//components/content_settings/core/browser",

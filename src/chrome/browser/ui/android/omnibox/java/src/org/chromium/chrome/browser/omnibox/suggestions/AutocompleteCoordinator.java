@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.omnibox.suggestions;
 
+import androidx.annotation.NonNull;
+
 import android.content.Context;
 import android.os.Handler;
 import android.view.KeyEvent;

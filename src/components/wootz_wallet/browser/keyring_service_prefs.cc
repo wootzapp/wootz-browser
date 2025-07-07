@@ -10,6 +10,7 @@
 #include "base/values.h"
 #include "components/wootz_wallet/browser/pref_names.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "base/notreached.h"
 
 namespace wootz_wallet {
 
@@ -36,7 +37,8 @@ std::string KeyringIdPrefString(mojom::KeyringId keyring_id) {
     case mojom::KeyringId::kBitcoinImportTestnet:
       return "bitcoin_import_test";
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+  return "";
 }
 
 const base::Value* GetPrefForKeyring(PrefService* profile_prefs,

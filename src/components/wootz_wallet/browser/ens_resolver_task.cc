@@ -5,6 +5,7 @@
 
 #include "components/wootz_wallet/browser/ens_resolver_task.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -14,7 +15,6 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "components/api_request_helper/api_request_helper.h"
@@ -160,7 +160,8 @@ std::optional<OffchainLookupData> OffchainLookupData::ExtractFromEthAbiPayload(
 
   // error OffchainLookup(address sender, string[] urls, bytes callData,
   // bytes4 callbackFunction, bytes extraData)
-  if (!base::ranges::equal(selector, kOffchainLookupSelector)) {
+  if (!std::equal(selector.begin(), selector.end(), 
+                  kOffchainLookupSelector.begin(), kOffchainLookupSelector.end())) {
     return std::nullopt;
   }
   auto sender = eth_abi::ExtractAddressFromTuple(args, 0);

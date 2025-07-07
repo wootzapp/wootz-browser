@@ -218,15 +218,19 @@ constexpr Dst saturated_cast(Src value) {
 template <typename Dst, typename Src, typename SrcType = UnderlyingType<Src>>
   requires(
       IsNumeric<Src> && std::is_arithmetic_v<Dst> &&
-      // If you got here from a compiler error, it's because you tried to assign
-      // from a source type to a destination type that has insufficient range.
-      // The solution may be to change the destination type you're assigning to,
-      // and use one large enough to represent the source.
-      // Alternatively, you may be better served with the checked_cast<> or
-      // saturated_cast<> template functions for your particular use case.
       kStaticDstRangeRelationToSrcRange<Dst, SrcType> ==
           NumericRangeRepresentation::kContained)
 constexpr Dst strict_cast(Src value) {
+  return static_cast<Dst>(static_cast<SrcType>(value));
+}
+
+// Add a catch-all template to provide a static_assert for unsupported conversions
+// This will give a clear error message instead of a cryptic constraint failure
+// when someone tries to use strict_cast with types that are not range-contained.
+template <typename Dst, typename Src, typename SrcType = UnderlyingType<Src>>
+constexpr Dst strict_cast_invalid(Src value) {
+  static_assert(kStaticDstRangeRelationToSrcRange<Dst, SrcType> == NumericRangeRepresentation::kContained,
+                "base::strict_cast: Destination type cannot represent all values of source type. Use checked_cast or saturated_cast instead.");
   return static_cast<Dst>(static_cast<SrcType>(value));
 }
 

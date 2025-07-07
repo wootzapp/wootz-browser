@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "base/containers/span.h"
+#include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -287,7 +288,7 @@ std::optional<DecoderResult<base::Value>> DecodeParam(const eth_abi::Type& type,
   }
 
   // Unrecognized types are considered errors.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::optional<DecoderResult<base::Value>> DecodeParam(
@@ -509,7 +510,7 @@ std::optional<std::vector<std::string>> UniswapEncodedPathDecode(
 
 std::optional<base::Value::List> ABIDecode(const eth_abi::Type& type,
                                            const ByteArray& data) {
-  ByteView input = base::make_span(data.data(), data.size());
+  ByteView input = base::span<const uint8_t>(data.data(), data.size());
 
   auto decoded = DecodeParam(type, input);
   if (!decoded) {

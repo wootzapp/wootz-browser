@@ -25,6 +25,7 @@ source_set("hd_key") {
     "//third_party/bitcoin-core:secp256k1",
     "//chrome/vendor/bat-native-tweetnacl:tweetnacl",
     "//crypto",
+    "//crypto:crypto",
     "//third_party/boringssl",
   ]
 

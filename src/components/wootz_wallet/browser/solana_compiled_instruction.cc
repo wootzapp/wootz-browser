@@ -6,6 +6,7 @@
 #include "components/wootz_wallet/browser/solana_compiled_instruction.h"
 
 #include <optional>
+#include <algorithm>
 
 #include "components/wootz_wallet/browser/solana_instruction.h"
 #include "components/wootz_wallet/browser/solana_message_address_table_lookup.h"
@@ -22,7 +23,7 @@ std::optional<uint8_t> FindIndexInStaticAccounts(
   if (keys.size() > UINT8_MAX) {
     return std::nullopt;
   }
-  auto it = base::ranges::find_if(keys, [&](const SolanaAddress& key) {
+  auto it = std::find_if(keys.begin(), keys.end(), [&](const SolanaAddress& key) {
     return key.ToBase58() == target_key;
   });
   if (it == keys.end()) {

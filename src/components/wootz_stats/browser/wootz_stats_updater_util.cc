@@ -108,7 +108,7 @@ std::string GetAPIKey() {
   std::string api_key = BUILDFLAG(WOOTZ_STATS_API_KEY);
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   if (env->HasVar("WOOTZ_STATS_API_KEY"))
-    env->GetVar("WOOTZ_STATS_API_KEY", &api_key);
+    api_key = env->GetVar("WOOTZ_STATS_API_KEY").value_or("");
 
   return api_key;
 }

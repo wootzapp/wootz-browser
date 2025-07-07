@@ -5,11 +5,11 @@
 
 #include "components/wootz_wallet/browser/bitcoin/bitcoin_rpc.h"
 
+#include <algorithm>
 #include <optional>
 
 #include "base/check.h"
 #include "base/functional/bind.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -51,7 +51,8 @@ net::NetworkTrafficAnnotationTag GetNetworkTrafficAnnotationTag() {
 }
 
 bool IsAsciiAlphaNumeric(const std::string& str) {
-  return base::ranges::all_of(str, &base::IsAsciiAlphaNumeric<char>);
+  return std::all_of(str.begin(), str.end(), 
+                     [](char c) { return base::IsAsciiAlphaNumeric(c); });
 }
 
 bool UrlPathEndsWithSlash(const GURL& base_url) {

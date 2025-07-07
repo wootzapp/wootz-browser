@@ -52,5 +52,6 @@ cargo_crate("lib") {
     "serde-codec",
     "serde_bytes",
     "std",
+    "multihash",
   ]
 }

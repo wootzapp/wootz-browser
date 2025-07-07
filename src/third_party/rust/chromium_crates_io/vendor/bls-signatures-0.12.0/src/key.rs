@@ -91,8 +91,7 @@ impl PrivateKey {
         // IKM must be at least 32 bytes long:
         // https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-00#section-2.3
         let mut ikm = [0u8; 32];
-        rng.try_fill_bytes(&mut ikm)
-            .expect("unable to produce secure randomness");
+        rng.fill_bytes(&mut ikm);
 
         Self::new(ikm)
     }

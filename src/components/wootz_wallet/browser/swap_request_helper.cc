@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
@@ -209,7 +210,8 @@ std::string EncodeStepType(const mojom::LiFiStepType type) {
     return "protocol";
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+  return "";
 }
 
 std::optional<base::Value::Dict> EncodeStepAction(mojom::LiFiActionPtr action) {

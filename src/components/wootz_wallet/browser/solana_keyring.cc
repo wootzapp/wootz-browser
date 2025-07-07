@@ -8,9 +8,9 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <algorithm>
 
 #include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "components/wootz_wallet/browser/wootz_wallet_utils.h"
 #include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "components/wootz_wallet/common/wootz_wallet_constants.h"
@@ -80,7 +80,7 @@ std::string SolanaKeyring::ImportAccount(const std::vector<uint8_t>& keypair) {
     return std::string();
   }
 
-  if (base::ranges::any_of(accounts_, [&](auto& acc) {
+  if (std::any_of(accounts_.begin(), accounts_.end(), [&](auto& acc) {
         return GetAddressInternal(*acc) == address;
       })) {
     return std::string();

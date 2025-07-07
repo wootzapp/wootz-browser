@@ -324,21 +324,86 @@ namespace permissions {
 
 class PermissionContextBase : public PermissionContextBase_ChromiumImpl {
  public:
+  // Static members
+  static const char kPermissionsKillSwitchFieldStudy[];
+  static const char kPermissionsKillSwitchBlockedValue[];
+
   PermissionContextBase(
       content::BrowserContext* browser_context,
       ContentSettingsType content_settings_type,
-      blink::mojom::PermissionsPolicyFeature permissions_policy_feature);
+      network::mojom::PermissionsPolicyFeature permissions_policy_feature);
 
-  ~PermissionContextBase() override;
+  // Destructor must match base class, no exception specification
+  ~PermissionContextBase();
+
+  // Methods matching Chromium base
+  void RequestPermission(PermissionRequestData request_data,
+                        BrowserPermissionCallback callback);
+  content::PermissionResult GetPermissionStatus(
+      content::RenderFrameHost* render_frame_host,
+      const GURL& requesting_origin,
+      const GURL& embedding_origin) const;
+  bool IsPermissionAvailableToOrigins(const GURL& requesting_origin,
+                                      const GURL& embedding_origin) const;
+  content::PermissionResult UpdatePermissionStatusWithDeviceStatus(
+      content::WebContents* web_contents,
+      content::PermissionResult result,
+      const GURL& requesting_origin,
+      const GURL& embedding_origin);
+  void ResetPermission(const GURL& requesting_origin,
+                      const GURL& embedding_origin);
+  bool AlwaysIncludeDeviceStatus() const;
+  bool IsPermissionKillSwitchOn() const;
+  ContentSetting GetPermissionStatusInternal(
+      content::RenderFrameHost* render_frame_host,
+      const GURL& requesting_origin,
+      const GURL& embedding_origin) const;
+  void UserMadePermissionDecision(const PermissionRequestID& id,
+                                  const GURL& requesting_origin,
+                                  const GURL& embedding_origin,
+                                  ContentSetting content_setting);
+  bool IsRestrictedToSecureOrigins() const;
+  std::unique_ptr<PermissionRequest> CreatePermissionRequest(
+      content::WebContents* web_contents,
+      PermissionRequestData request_data,
+      PermissionRequest::PermissionDecidedCallback permission_decided_callback,
+      base::OnceClosure delete_callback) const;
+  bool UsesAutomaticEmbargo() const;
+  const PermissionRequest* FindPermissionRequest(
+      const PermissionRequestID& id) const;
+  GURL GetEffectiveEmbedderOrigin(content::RenderFrameHost* rfh) const;
 
   void SetPermissionLifetimeManagerFactory(
       const base::RepeatingCallback<
           PermissionLifetimeManager*(content::BrowserContext*)>& factory);
-
   void DecidePermission(permissions::PermissionRequestData request_data,
-                        BrowserPermissionCallback callback) override;
-
+                        BrowserPermissionCallback callback);
   bool IsPendingGroupedRequestsEmptyForTesting();
+
+  // MISSING OVERRIDES FROM BASE (add these to match .cc definitions)
+  content::BrowserContext* browser_context() const;
+  void AddObserver(permissions::Observer* permission_observer);
+  void RemoveObserver(permissions::Observer* permission_observer);
+  void MaybeUpdateCachedHasDevicePermission(content::WebContents* web_contents);
+  void NotifyPermissionSet(const PermissionRequestID& id,
+                           const GURL& requesting_origin,
+                           const GURL& embedding_origin,
+                           BrowserPermissionCallback callback,
+                           bool persist,
+                           ContentSetting content_setting,
+                           bool is_one_time,
+                           bool is_final_decision);
+  void UpdateContentSetting(const GURL& requesting_origin,
+                           const GURL& embedding_origin,
+                           ContentSetting content_setting,
+                           bool is_one_time);
+  bool PermissionAllowedByPermissionsPolicy(content::RenderFrameHost* rfh) const;
+  void NotifyObservers(const ContentSettingsPattern& primary_pattern,
+                      const ContentSettingsPattern& secondary_pattern,
+                      ContentSettingsTypeSet content_type_set) const;
+  void CleanUpRequest(content::WebContents* web_contents,
+                     const PermissionRequestID& id,
+                     bool embedded_permission_element_initiated);
 
  private:
   /**
@@ -378,8 +443,7 @@ class PermissionContextBase : public PermissionContextBase_ChromiumImpl {
                          const GURL& embedding_origin,
                          ContentSetting content_setting,
                          bool is_one_time,
-                         bool is_final_decision) override;
-  void CleanUpRequest(const PermissionRequestID& id) override; // Note: Latest Chromium have addtional param |embedded_permission_element_initiated|.
+                         bool is_final_decision);
 
   std::map<std::string, std::unique_ptr<GroupedPermissionRequests>>
       pending_grouped_requests_;

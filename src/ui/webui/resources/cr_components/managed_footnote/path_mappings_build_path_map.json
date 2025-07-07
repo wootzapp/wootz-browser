@@ -1,0 +1,17 @@
+{
+  "//resources/cr_elements/*": [
+    "../../tsc/cr_elements/*",
+    "../../tsc/js/*",
+    "../../../../../../../../ui/webui/resources/cr_elements/*"
+  ],
+
+  "//resources/js/*": [
+    "../../tsc/js/*",
+    "../../../../../../../../ui/webui/resources/js/*"
+  ],
+
+  "//resources/lit/v3_0/*": [
+    "../../../../third_party/lit/v3_0/tsc/*",
+    "../../../../../../../../third_party/lit/v3_0/resources/*"
+  ]
+}

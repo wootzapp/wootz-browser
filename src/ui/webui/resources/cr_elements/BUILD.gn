@@ -33,7 +33,7 @@ build_webui("build") {
     "cr_tabs/cr_tabs.css",
   ]
 
-  if ((!is_android && !is_ios) || is_desktop_android) {
+  if (!is_ios) {
     web_component_files += [ "cr_a11y_announcer/cr_a11y_announcer.ts" ]
 
     ts_files += [
@@ -141,7 +141,7 @@ build_webui("build") {
     ]
   }
 
-  if (!is_android && !is_ios) {
+  if (!is_ios) {
     ts_files += [
       "cr_container_shadow_mixin.ts",
       "cr_radio_button/cr_radio_button_mixin.ts",
@@ -237,7 +237,7 @@ build_webui("build") {
     "../js:build_ts",
     "//third_party/lit/v3_0:build_ts",
   ]
-  if (!is_android && !is_ios) {
+  if (!is_ios) {
     ts_deps += [ "//third_party/polymer/v3_0:library" ]
   }
   ts_definitions = [

@@ -4,7 +4,9 @@
 
 #include "extensions/browser/extension_web_contents_observer.h"
 
+#include "base/functional/bind.h"
 #include "base/check.h"
+#include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/child_process_security_policy.h"
@@ -273,7 +275,7 @@ void ExtensionWebContentsObserver::ReadyToCommitNavigation(
   }
 }
 
-void ExtensionWebContentsObserver::DidFinishNavigation(
+void extensions::ExtensionWebContentsObserver::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
   DCHECK(navigation_handle);
   DCHECK(initialized_);
@@ -281,7 +283,7 @@ void ExtensionWebContentsObserver::DidFinishNavigation(
     return;
   }
 
-  ProcessManager* pm = ProcessManager::Get(browser_context_);
+  ProcessManager* pm = ProcessManager::Get(browser_context_.get());
 
   content::RenderFrameHost* render_frame_host =
       navigation_handle->GetRenderFrameHost();
@@ -304,59 +306,59 @@ void ExtensionWebContentsObserver::DidFinishNavigation(
   ScriptInjectionTracker::DidFinishNavigation(PassKey(), navigation_handle);
 }
 
-void ExtensionWebContentsObserver::MediaPictureInPictureChanged(
+void extensions::ExtensionWebContentsObserver::MediaPictureInPictureChanged(
     bool is_picture_in_picture) {
   DCHECK(initialized_);
   if (GetViewType(web_contents()) ==
-      mojom::ViewType::kExtensionBackgroundPage) {
+      extensions::mojom::ViewType::kExtensionBackgroundPage) {
     ProcessManager* const process_manager =
-        ProcessManager::Get(browser_context_);
+        ProcessManager::Get(browser_context_.get());
     const Extension* const extension =
         process_manager->GetExtensionForWebContents(web_contents());
     if (extension == nullptr) {
       return;
     }
     if (is_picture_in_picture) {
-      process_manager->IncrementLazyKeepaliveCount(extension, Activity::MEDIA,
-                                                   Activity::kPictureInPicture);
+      process_manager->IncrementLazyKeepaliveCount(
+          extension, extensions::Activity::MEDIA);
     } else {
-      process_manager->DecrementLazyKeepaliveCount(extension, Activity::MEDIA,
-                                                   Activity::kPictureInPicture);
+      process_manager->DecrementLazyKeepaliveCount(
+          extension, extensions::Activity::MEDIA);
     }
   }
 }
 
-void ExtensionWebContentsObserver::PepperInstanceCreated() {
+void extensions::ExtensionWebContentsObserver::PepperInstanceCreated() {
   DCHECK(initialized_);
   if (GetViewType(web_contents()) ==
-      mojom::ViewType::kExtensionBackgroundPage) {
+      extensions::mojom::ViewType::kExtensionBackgroundPage) {
     ProcessManager* const process_manager =
-        ProcessManager::Get(browser_context_);
+        ProcessManager::Get(browser_context_.get());
     const Extension* const extension =
         process_manager->GetExtensionForWebContents(web_contents());
     if (extension) {
       process_manager->IncrementLazyKeepaliveCount(
-          extension, Activity::PEPPER_API, std::string());
+          extension, extensions::Activity::PEPPER_API);
     }
   }
 }
 
-void ExtensionWebContentsObserver::PepperInstanceDeleted() {
+void extensions::ExtensionWebContentsObserver::PepperInstanceDeleted() {
   DCHECK(initialized_);
   if (GetViewType(web_contents()) ==
-      mojom::ViewType::kExtensionBackgroundPage) {
+      extensions::mojom::ViewType::kExtensionBackgroundPage) {
     ProcessManager* const process_manager =
-        ProcessManager::Get(browser_context_);
+        ProcessManager::Get(browser_context_.get());
     const Extension* const extension =
         process_manager->GetExtensionForWebContents(web_contents());
     if (extension) {
       process_manager->DecrementLazyKeepaliveCount(
-          extension, Activity::PEPPER_API, std::string());
+          extension, extensions::Activity::PEPPER_API);
     }
   }
 }
 
-const Extension* ExtensionWebContentsObserver::GetExtensionFromFrame(
+const extensions::Extension* extensions::ExtensionWebContentsObserver::GetExtensionFromFrame(
     content::RenderFrameHost* render_frame_host,
     bool verify_url) const {
   DCHECK(initialized_);
@@ -375,7 +377,7 @@ const Extension* ExtensionWebContentsObserver::GetExtensionFromFrame(
   }
 
   if (verify_url) {
-    const url::Origin& origin(render_frame_host->GetLastCommittedOrigin());
+    const url::Origin& origin = render_frame_host->GetLastCommittedOrigin();
     // This check is needed to eliminate origins that are not within a
     // hosted-app's web extent, and sandboxed extension frames with an opaque
     // origin.
@@ -392,7 +394,7 @@ const Extension* ExtensionWebContentsObserver::GetExtensionFromFrame(
   return extension;
 }
 
-mojom::LocalFrame* ExtensionWebContentsObserver::GetLocalFrame(
+extensions::mojom::LocalFrame* extensions::ExtensionWebContentsObserver::GetLocalFrame(
     content::RenderFrameHost* render_frame_host) {
   // Attempting to get a remote interface before IsRenderFrameLive() will fail,
   // leaving a broken pipe that will block all further messages. Return nullptr
@@ -409,7 +411,7 @@ mojom::LocalFrame* ExtensionWebContentsObserver::GetLocalFrame(
     return nullptr;
   }
 
-  mojo::AssociatedRemote<mojom::LocalFrame>& remote =
+  mojo::AssociatedRemote<extensions::mojom::LocalFrame>& remote =
       local_frame_map_[render_frame_host];
   if (!remote.is_bound()) {
     render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
@@ -418,14 +420,14 @@ mojom::LocalFrame* ExtensionWebContentsObserver::GetLocalFrame(
   return remote.get();
 }
 
-mojom::LocalFrame& ExtensionWebContentsObserver::GetLocalFrameChecked(
+extensions::mojom::LocalFrame& extensions::ExtensionWebContentsObserver::GetLocalFrameChecked(
     content::RenderFrameHost* render_frame_host) {
   auto* local_frame = GetLocalFrame(render_frame_host);
   CHECK(local_frame);
   return *local_frame;
 }
 
-void ExtensionWebContentsObserver::OnWindowIdChanged(SessionID id) {
+void extensions::ExtensionWebContentsObserver::OnWindowIdChanged(SessionID id) {
   web_contents()->ForEachRenderFrameHost(
       [&id, this](content::RenderFrameHost* render_frame_host) {
         auto* local_frame = GetLocalFrame(render_frame_host);

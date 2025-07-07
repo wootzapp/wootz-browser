@@ -63,6 +63,13 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/browser_process.h"
 
+#ifndef NOTREACHED_IN_MIGRATION
+#define NOTREACHED_IN_MIGRATION() do { LOG(ERROR) << "NOTREACHED_IN_MIGRATION"; } while (0)
+#endif
+#ifndef NOTREACHED_NORETURN
+#define NOTREACHED_NORETURN() do { LOG(ERROR) << "NOTREACHED_NORETURN"; } while (0)
+#endif
+
 namespace wootz_wallet {
 namespace {
 

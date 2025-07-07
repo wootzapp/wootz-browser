@@ -101,8 +101,6 @@ class PermissionPromptAndroid : public PermissionPrompt {
   bool IsShowing() const { return this == delegate()->GetCurrentPrompt(); }
 
  protected:
-  Delegate* delegate() const { return delegate_; }
-
   void CreatePermissionDialogDelegate() {
     permission_dialog_delegate_ =
         PermissionDialogDelegate::Create(web_contents_, this);

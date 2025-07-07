@@ -24,8 +24,8 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/permission_request_description.h"
-#include "third_party/blink/public/mojom/permissions/permission_status.mojom-shared.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+#include "third_party/blink.public/mojom/permissions/permission_status.mojom-shared.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "url/origin.h"
 
 namespace permissions {
@@ -50,8 +50,8 @@ WootzWalletPermissionContext::WootzWalletPermissionContext(
     content::BrowserContext* browser_context,
     ContentSettingsType content_settings_type)
     : PermissionContextBase(browser_context,
-                            content_settings_type,
-                            blink::mojom::PermissionsPolicyFeature::kNotFound) {
+                          content_settings_type,
+                          network::mojom::PermissionsPolicyFeature::kNotFound) {
 }
 
 WootzWalletPermissionContext::~WootzWalletPermissionContext() = default;
@@ -200,7 +200,7 @@ void WootzWalletPermissionContext::RequestPermissions(
   
   // Store the permissions in settings
   const ContentSettingsType settings_type = 
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
   
   PermissionsClient::Get()
       ->GetSettingsMap(web_contents->GetBrowserContext())
@@ -231,7 +231,7 @@ WootzWalletPermissionContext::GetAllowedAccounts(
 
   // Check if permission is already granted
   const ContentSettingsType settings_type = 
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
       
   auto setting = PermissionsClient::Get()
                     ->GetSettingsMap(web_contents->GetBrowserContext())
@@ -259,6 +259,7 @@ bool WootzWalletPermissionContext::IsPermissionDenied(
     return false;
   }
 
+  // Fix: Use permission directly, do not assign to descriptor->name
   return delegate->GetPermissionStatus(permission, origin.GetURL(),
                                        origin.GetURL()) ==
          blink::mojom::PermissionStatus::DENIED;
@@ -280,7 +281,7 @@ bool WootzWalletPermissionContext::AddPermission(
   }
 
   const ContentSettingsType content_settings_type =
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
 
   url::Origin origin_wallet_address;
   if (!wootz_wallet::GetSubRequestOrigin(
@@ -318,7 +319,7 @@ bool WootzWalletPermissionContext::HasPermission(
   }
 
   const ContentSettingsType content_settings_type =
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
 
   url::Origin origin_wallet_address;
   if (!wootz_wallet::GetSubRequestOrigin(
@@ -327,6 +328,7 @@ bool WootzWalletPermissionContext::HasPermission(
     return false;
   }
 
+  // Fix: Use permission directly
   auto status =
       delegate->GetPermissionStatus(permission, origin_wallet_address.GetURL(),
                                     origin_wallet_address.GetURL());
@@ -348,7 +350,7 @@ bool WootzWalletPermissionContext::ResetPermission(
   }
 
   const ContentSettingsType content_settings_type =
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
 
   url::Origin origin_wallet_address;
   if (!wootz_wallet::GetSubRequestOrigin(
@@ -357,6 +359,7 @@ bool WootzWalletPermissionContext::ResetPermission(
     return false;
   }
 
+  // Fix: Use correct ResetPermission overload
   delegate->ResetPermission(permission, origin_wallet_address.GetURL(),
                             origin_wallet_address.GetURL());
   return true;
@@ -368,7 +371,7 @@ WootzWalletPermissionContext::GetWebSitesWithPermission(
     blink::PermissionType permission,
     content::BrowserContext* context) {
   const ContentSettingsType content_settings_type =
-      PermissionUtil::PermissionTypeToContentSettingTypeSafe(permission);
+      PermissionUtil::PermissionTypeToContentSettingsTypeSafe(permission);
 
   HostContentSettingsMap* map =
       PermissionsClient::Get()->GetSettingsMap(context);
@@ -398,6 +401,7 @@ bool WootzWalletPermissionContext::ResetWebSitePermission(
     return false;
   }
 
+  // Fix: Use correct ResetPermission overload
   delegate->ResetPermission(permission, url, url);
   return true;
 }

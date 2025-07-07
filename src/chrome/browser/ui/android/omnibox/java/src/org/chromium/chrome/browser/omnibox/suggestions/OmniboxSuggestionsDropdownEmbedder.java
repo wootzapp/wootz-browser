@@ -6,6 +6,8 @@ package org.chromium.chrome.browser.omnibox.suggestions;
 
 import android.annotation.SuppressLint;
 
+import androidx.annotation.NonNull;
+
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
