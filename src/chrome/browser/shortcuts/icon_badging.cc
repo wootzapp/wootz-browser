@@ -66,6 +66,9 @@ constexpr ShortcutSize kSizesNeededForShortcutCreation[] = {ShortcutSize::k32,
 constexpr ShortcutSize kSizesNeededForShortcutCreation[] = {
     ShortcutSize::k16, ShortcutSize::k32, ShortcutSize::k48,
     ShortcutSize::k256};
+#else
+// On Android (and any other unsupported OS), no desktop shortcut sizes needed.
+constexpr ShortcutSize kSizesNeededForShortcutCreation[] = {};
 #endif
 
 int ToInt(ShortcutSize size) {

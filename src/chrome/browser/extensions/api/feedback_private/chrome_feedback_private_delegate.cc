@@ -95,8 +95,8 @@ base::Value::Dict ChromeFeedbackPrivateDelegate::GetStrings(
 
   // Add the localized strings needed for the "system information" page.
   SET_STRING("sysinfoPageTitle", IDS_FEEDBACK_SYSINFO_PAGE_TITLE);
+#if !BUILDFLAG(IS_ANDROID)
   SET_STRING("sysinfoPageDescription", IDS_ABOUT_SYS_DESC);
-
   // Add the localized strings shared by the "autofill metadata" and "system
   // information" page.
   SET_STRING("logsMapPageTableTitle", IDS_ABOUT_SYS_TABLE_TITLE);
@@ -104,6 +104,7 @@ base::Value::Dict ChromeFeedbackPrivateDelegate::GetStrings(
   SET_STRING("logsMapPageCollapseAllBtn", IDS_ABOUT_SYS_COLLAPSE_ALL);
   SET_STRING("logsMapPageExpandBtn", IDS_ABOUT_SYS_EXPAND);
   SET_STRING("logsMapPageCollapseBtn", IDS_ABOUT_SYS_COLLAPSE);
+#endif  // !BUILDFLAG(IS_ANDROID)
   SET_STRING("logsMapPageStatusLoading", IDS_FEEDBACK_SYSINFO_PAGE_LOADING);
 #undef SET_STRING
 

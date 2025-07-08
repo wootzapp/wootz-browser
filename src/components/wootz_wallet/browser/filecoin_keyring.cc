@@ -121,7 +121,7 @@ std::string FilecoinKeyring::EncodePrivateKeyForExport(
     const std::string& address) {
   if (base::Contains(imported_bls_accounts_, address)) {
     return GetExportEncodedJSON(
-        base::Base64Encode(base::make_span(*imported_bls_accounts_[address])),
+        base::Base64Encode(base::span(*imported_bls_accounts_[address])),
         address);
   }
 
@@ -155,7 +155,7 @@ std::string FilecoinKeyring::ImportFilecoinAccount(
   } else if (protocol == mojom::FilecoinAddressProtocol::SECP256K1) {
     return ImportAccount(private_key);
   }
-  NOTREACHED_IN_MIGRATION() << protocol;
+  NOTREACHED() << protocol;
   return std::string();
 }
 
@@ -209,7 +209,7 @@ std::optional<std::string> FilecoinKeyring::SignTransaction(
 
   if (base::Contains(imported_bls_accounts_, address)) {
     return tx->GetSignedTransaction(
-        fil_address, base::make_span(*imported_bls_accounts_[address]));
+        fil_address, base::span(*imported_bls_accounts_[address]));
   }
 
   HDKey* hd_key = GetHDKeyFromAddress(address);

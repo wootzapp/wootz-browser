@@ -352,7 +352,9 @@ void HidDeviceManager::LazyInitialize() {
     if (binder) {
       binder.Run(std::move(receiver));
     } else {
+#if !BUILDFLAG(IS_ANDROID)
       content::GetDeviceService().BindHidManager(std::move(receiver));
+#endif
     }
   }
   // Enumerate HID devices and set client.

@@ -644,7 +644,7 @@ std::optional<uint64_t> DecodeUint64(base::span<const uint8_t> input,
 
   // Read bytes in little endian order.
   base::span<const uint8_t> s =
-      base::make_span(input.begin() + offset, sizeof(uint64_t));
+      base::span(input.begin() + offset, sizeof(uint64_t));
   uint64_t uint64_le = *reinterpret_cast<const uint64_t*>(s.data());
 
   offset += sizeof(uint64_t);
@@ -860,7 +860,7 @@ std::optional<uint32_t> DecodeUint32(base::span<const uint8_t> input,
 
   // Read bytes in little endian order.
   base::span<const uint8_t> s =
-      base::make_span(input.begin() + offset, sizeof(uint32_t));
+      base::span(input.begin() + offset, sizeof(uint32_t));
   uint32_t uint32_le = *reinterpret_cast<const uint32_t*>(s.data());
 
   offset += sizeof(uint32_t);
@@ -890,7 +890,7 @@ std::vector<InsParamPair> GetAccountParamsForTesting(
     return GetTokenInstructionAccountParams().at(*token_ins_type);
   }
 
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
   return std::vector<InsParamPair>();
 }
 

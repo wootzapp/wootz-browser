@@ -72,7 +72,7 @@ std::optional<std::vector<uint8_t>> Forward(const FilAddress& fil_address) {
 
   return eth_abi::TupleEncoder()
       .AddBytes(fil_address.GetBytes())
-      .EncodeWithSelector(base::make_span(kFilForwarderSelector));
+      .EncodeWithSelector(base::span(kFilForwarderSelector));
 }
 
 }  // namespace filforwarder
@@ -403,7 +403,7 @@ std::vector<uint8_t> GetWalletAddr(const std::string& domain,
       key_list = MakeFilLookupKeyList();
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   // getMany(string[],uint256)
@@ -434,7 +434,7 @@ std::optional<std::vector<uint8_t>> DnsEncode(const std::string& dotted_name) {
   std::vector<uint8_t> result;
   result.resize(dotted_name.size() + 2);
   result.front() = '.';  // Placeholder for first label length.
-  base::ranges::copy(dotted_name, result.begin() + 1);
+  std::copy(dotted_name.begin(), dotted_name.end(), result.begin() + 1);
   result.back() = '.';  // Placeholder for terminal zero byte.
 
   size_t last_dot_pos = 0;

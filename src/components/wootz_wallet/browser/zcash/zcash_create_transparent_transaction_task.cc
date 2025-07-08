@@ -5,6 +5,8 @@
 
 #include "components/wootz_wallet/browser/zcash/zcash_create_transparent_transaction_task.h"
 
+#include <algorithm>
+
 #include "components/wootz_wallet/common/zcash_utils.h"
 #include "components/grit/wootz_components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -153,7 +155,7 @@ bool ZCashCreateTransparentTransactionTask::PickInputs() {
     }
   }
 
-  base::ranges::sort(all_inputs, [](auto& input1, auto& input2) {
+  std::sort(all_inputs.begin(), all_inputs.end(), [](auto& input1, auto& input2) {
     return input1.utxo_value < input2.utxo_value;
   });
 

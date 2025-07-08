@@ -1747,7 +1747,9 @@ void MenuController::StartDrag(SubmenuView* source,
 
   std::unique_ptr<OSExchangeData> data(std::make_unique<OSExchangeData>());
   item->GetDelegate()->WriteDragData(item, data.get());
+#if !BUILDFLAG(IS_ANDROID)
   data->provider().SetDragImage(image, press_loc.OffsetFromOrigin());
+#endif
 
   StopScrollingViaButton();
   int drag_ops = item->GetDelegate()->GetDragOperations(item);

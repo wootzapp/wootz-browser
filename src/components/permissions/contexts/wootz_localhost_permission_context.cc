@@ -11,6 +11,7 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/permissions/permission_request_id.h"
 #include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 
 namespace permissions {
 
@@ -18,7 +19,7 @@ WootzLocalhostPermissionContext::WootzLocalhostPermissionContext(
     content::BrowserContext* browser_context)
     : PermissionContextBase(browser_context,
                             ContentSettingsType::WOOTZ_LOCALHOST_ACCESS,
-                            blink::mojom::PermissionsPolicyFeature::kNotFound) {
+                            network::mojom::PermissionsPolicyFeature::kNotFound) {
 }
 
 WootzLocalhostPermissionContext::~WootzLocalhostPermissionContext() = default;

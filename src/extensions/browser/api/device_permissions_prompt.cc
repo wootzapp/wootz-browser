@@ -250,7 +250,9 @@ class HidDevicePermissionsPrompt : public DevicePermissionsPrompt::Prompt,
     if (binder) {
       binder.Run(std::move(receiver));
     } else {
-      content::GetDeviceService().BindHidManager(std::move(receiver));
+#if !BUILDFLAG(IS_ANDROID) 
+        content::GetDeviceService().BindHidManager(std::move(receiver));
+#endif
     }
 
     hid_manager_->GetDevicesAndSetClient(

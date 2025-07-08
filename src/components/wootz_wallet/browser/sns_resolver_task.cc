@@ -151,8 +151,8 @@ base::span<const uint8_t> ExtractSpan(base::span<const uint8_t>& data,
   if (data.size() < size) {
     return {};
   }
-  auto result = data.subspan(0, size);
-  data = data.subspan(size);
+  auto result = data.subspan(0u, static_cast<size_t>(size));
+  data = data.subspan(static_cast<size_t>(size));
   return result;
 }
 
@@ -249,12 +249,14 @@ std::optional<SolanaAddress> ParseAndVerifySolRecordV1Data(
 
   // Extract 32 bytes of address followed by 64 bytes of signature.
   auto sol_record_payload_address = SolanaAddress::FromBytes(
-      sol_record_payload.subspan(0, kSolanaPubkeySize));
+      sol_record_payload.subspan(0u, static_cast<size_t>(kSolanaPubkeySize)));
   if (!sol_record_payload_address) {
     return std::nullopt;
   }
   auto sol_record_payload_signature =
-      sol_record_payload.subspan(kSolanaPubkeySize, kSolRecordDataSignature);
+      sol_record_payload.subspan(
+          static_cast<size_t>(kSolanaPubkeySize),
+          static_cast<size_t>(kSolRecordDataSignature));
 
   std::vector<uint8_t> message;
   message.insert(message.end(), sol_record_payload_address->bytes().begin(),
@@ -312,7 +314,7 @@ std::optional<SolanaAddress> ParseAndVerifySolRecordData(
   } else if (record_item.version == SnsRecordsVersion::kRecordsV2) {
     return ParseAndVerifySolRecordV2Data(sol_record_payload, domain_owner);
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::optional<std::string> ParseAndVerifyTextRecordData(
@@ -340,7 +342,7 @@ std::optional<std::string> ParseAndVerifyTextRecordData(
     }
     return std::nullopt;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 // https://github.com/solana-labs/solana-program-library/blob/f97a3dc7cf0e6b8e346d473a8c9d02de7b213cfd/token/program/src/state.rs#L16
@@ -361,7 +363,7 @@ struct SplMintData {
     result.emplace();
     // https://github.com/solana-labs/solana-program-library/blob/f97a3dc7cf0e6b8e346d473a8c9d02de7b213cfd/token/program/src/state.rs#L41
     constexpr size_t kSupplyOffset = 36;
-    result->supply = FromLE<uint64_t>(data_span.subspan(kSupplyOffset, 8));
+    result->supply = FromLE<uint64_t>(data_span.subspan(kSupplyOffset, 8u));
     return result;
   }
 };
@@ -385,7 +387,9 @@ struct SplAccountData {
     // https://github.com/solana-labs/solana-program-library/blob/f97a3dc7cf0e6b8e346d473a8c9d02de7b213cfd/token/program/src/state.rs#L133
     const size_t owner_offset = 32;
     auto address = SolanaAddress::FromBytes(
-        data_span.subspan(owner_offset, kSolanaPubkeySize));
+        data_span.subspan(
+          static_cast<size_t>(owner_offset),
+          static_cast<size_t>(kSolanaPubkeySize)));
     if (!address) {
       return std::nullopt;
     }
@@ -507,14 +511,14 @@ SnsNamehash GetHashedName(const std::string& prefix, const std::string& name) {
   // https://github.com/Bonfida/solana-program-library/blob/6e3be3eedad3a7f4a83c1b7cd5f17f89231e0bca/name-service/js/src/constants.ts#L13
   constexpr char kHashPrefix[] = "SPL Name Service";
   const std::string input = kHashPrefix + prefix + name;
-  return crypto::SHA256Hash(base::as_bytes(base::make_span(input)));
+  return crypto::SHA256Hash(base::as_bytes(base::span(input)));
 }
 
 // https://github.com/Bonfida/name-tokenizer#mint
 std::optional<SolanaAddress> GetMintAddress(
     const SolanaAddress& domain_address) {
   constexpr char kMintPrefix[] = "tokenized_name";
-  auto mint_prefix_bytes = base::make_span(kMintPrefix);
+  auto mint_prefix_bytes = base::span(kMintPrefix);
 
   std::vector<std::vector<uint8_t>> seeds;
   seeds.emplace_back(mint_prefix_bytes.begin(),
@@ -597,16 +601,22 @@ std::optional<NameRegistryState> NameRegistryState::FromBytes(
   // 96 bytes of header block followed by data block(possibly empty).
   result.emplace();
   result->parent_name =
-      *SolanaAddress::FromBytes(data_span.subspan(0, kSolanaPubkeySize));
-  data_span = data_span.subspan(kSolanaPubkeySize);
+      *SolanaAddress::FromBytes(
+        data_span.subspan(0u, static_cast<size_t>(kSolanaPubkeySize))
+      );
+  data_span = data_span.subspan(static_cast<size_t>(kSolanaPubkeySize));
 
   result->owner =
-      *SolanaAddress::FromBytes(data_span.subspan(0, kSolanaPubkeySize));
-  data_span = data_span.subspan(kSolanaPubkeySize);
+      *SolanaAddress::FromBytes(
+        data_span.subspan(0u, static_cast<size_t>(kSolanaPubkeySize))
+      );
+  data_span = data_span.subspan(static_cast<size_t>(kSolanaPubkeySize));
 
   result->data_class =
-      *SolanaAddress::FromBytes(data_span.subspan(0, kSolanaPubkeySize));
-  data_span = data_span.subspan(kSolanaPubkeySize);
+      *SolanaAddress::FromBytes(
+        data_span.subspan(0u, static_cast<size_t>(kSolanaPubkeySize))
+      );
+  data_span = data_span.subspan(static_cast<size_t>(kSolanaPubkeySize));
 
   result->data.assign(data_span.begin(), data_span.end());
   return result;
@@ -938,7 +948,7 @@ void SnsResolverTask::OnFetchNextRecord(APIRequestResult api_request_result) {
   if (cur_item.record == kSnsSolRecord) {
     DCHECK_EQ(task_type_, TaskType::kResolveWalletAddress);
     if (auto sol_record_payload_address = ParseAndVerifySolRecordData(
-            cur_item, base::make_span(record_name_registry_state->data),
+            cur_item, base::span(record_name_registry_state->data),
             domain_name_registry_state_->owner)) {
       SetAddressResult(*sol_record_payload_address);
       return;
@@ -949,7 +959,7 @@ void SnsResolverTask::OnFetchNextRecord(APIRequestResult api_request_result) {
     SolanaAddress domain_owner =
         nft_owner_ ? *nft_owner_ : domain_name_registry_state_->owner;
     auto registry_string = ParseAndVerifyTextRecordData(
-        cur_item, base::make_span(record_name_registry_state->data),
+        cur_item, base::span(record_name_registry_state->data),
         domain_owner);
     if (registry_string) {
       GURL ipfs_resolved_url;
@@ -964,7 +974,7 @@ void SnsResolverTask::OnFetchNextRecord(APIRequestResult api_request_result) {
       }
     }
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 

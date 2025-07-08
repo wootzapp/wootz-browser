@@ -116,13 +116,13 @@ EnsResolverTaskError::~EnsResolverTaskError() = default;
 std::vector<uint8_t> MakeAddrCall(const std::string& domain) {
   return eth_abi::TupleEncoder()
       .AddFixedBytes(Namehash(domain))
-      .EncodeWithSelector(base::make_span(kAddrBytes32Selector));
+      .EncodeWithSelector(base::span(kAddrBytes32Selector));
 }
 
 std::vector<uint8_t> MakeContentHashCall(const std::string& domain) {
   return eth_abi::TupleEncoder()
       .AddFixedBytes(Namehash(domain))
-      .EncodeWithSelector(base::make_span(kContentHashBytes32Selector));
+      .EncodeWithSelector(base::span(kContentHashBytes32Selector));
 }
 
 OffchainLookupData::OffchainLookupData() = default;
@@ -161,7 +161,7 @@ std::optional<OffchainLookupData> OffchainLookupData::ExtractFromEthAbiPayload(
   // error OffchainLookup(address sender, string[] urls, bytes callData,
   // bytes4 callbackFunction, bytes extraData)
   if (!std::equal(selector.begin(), selector.end(), 
-                  kOffchainLookupSelector.begin(), kOffchainLookupSelector.end())) {
+                  std::begin(kOffchainLookupSelector), std::end(kOffchainLookupSelector))) {
     return std::nullopt;
   }
   auto sender = eth_abi::ExtractAddressFromTuple(args, 0);

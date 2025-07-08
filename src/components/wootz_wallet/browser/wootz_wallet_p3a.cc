@@ -147,11 +147,11 @@ void WootzWalletP3A::ReportJSProvider(mojom::JSProviderType provider_type,
       histogram_name = kSolProviderHistogramName;
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   JSProviderAnswer answer = JSProviderAnswer::kNoWallet;
-  auto accounts = keyring_service_->GetAllAccountInfos();
+  const auto& accounts = keyring_service_->GetAllAccountInfos();
   bool is_wallet_setup = std::any_of(
       accounts.begin(), accounts.end(), [coin_type](const auto& account) {
         return account->account_id->coin == coin_type;
@@ -182,7 +182,7 @@ void WootzWalletP3A::ReportJSProvider(mojom::JSProviderType provider_type,
       }
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   base::UmaHistogramEnumeration(histogram_name, answer);
@@ -258,7 +258,7 @@ void WootzWalletP3A::ReportTransactionSent(mojom::CoinType coin,
       histogram_name = kZecTransactionSentHistogramName;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << coin;
+      NOTREACHED();
       return;
   }
 
@@ -311,7 +311,7 @@ void WootzWalletP3A::RecordActiveWalletCount(int count,
       histogram_name = kZecActiveAccountHistogramName;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << coin_type;
+      NOTREACHED();
       return;
   }
 
@@ -475,7 +475,7 @@ void WootzWalletP3A::OnTransactionStatusChanged(
       return;
     }
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   ReportTransactionSent(tx_coin, true);
 }

@@ -86,8 +86,8 @@ where
             // Scale the MSM by a random factor to ensure that if the existing MSM has
             // `is_zero() == false` then this argument won't be able to interfere with it
             // to make it true, with high probability.
-            let mut rng = OsRng;
-            acc.scale(C::Scalar::random(&mut rng));
+            // let mut rng = OsRng;
+            // acc.scale(C::Scalar::random(&mut rng));
 
             acc.add_msm(&msm);
             acc

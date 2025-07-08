@@ -37,7 +37,7 @@ Encryptor::Encryptor() : key_(nullptr), mode_(CBC) {}
 Encryptor::~Encryptor() = default;
 
 bool Encryptor::Init(const SymmetricKey* key, Mode mode, std::string_view iv) {
-  return Init(key, mode, base::as_bytes(base::make_span(iv)));
+  return Init(key, mode, base::as_bytes(base::span(iv)));
 }
 
 bool Encryptor::Init(const SymmetricKey* key,
@@ -46,7 +46,6 @@ bool Encryptor::Init(const SymmetricKey* key,
   DCHECK(key);
   DCHECK(mode == CBC || mode == CTR);
 
-  EnsureOpenSSLInit();
   if (mode == CBC && iv.size() != AES_BLOCK_SIZE)
     return false;
   // CTR mode passes the starting counter separately, via SetCounter().
@@ -81,7 +80,7 @@ bool Encryptor::Decrypt(base::span<const uint8_t> ciphertext,
 }
 
 bool Encryptor::SetCounter(std::string_view counter) {
-  return SetCounter(base::as_bytes(base::make_span(counter)));
+  return SetCounter(base::as_bytes(base::span(counter)));
 }
 
 bool Encryptor::SetCounter(base::span<const uint8_t> counter) {
@@ -100,10 +99,10 @@ bool Encryptor::CryptString(bool do_encrypt,
   std::string result(MaxOutput(do_encrypt, input.size()), '\0');
   std::optional<size_t> len =
       (mode_ == CTR)
-          ? CryptCTR(do_encrypt, base::as_bytes(base::make_span(input)),
-                     base::as_writable_bytes(base::make_span(result)))
-          : Crypt(do_encrypt, base::as_bytes(base::make_span(input)),
-                  base::as_writable_bytes(base::make_span(result)));
+          ? CryptCTR(do_encrypt, base::as_bytes(base::span(input)),
+                     base::as_writable_bytes(base::span(result)))
+          : Crypt(do_encrypt, base::as_bytes(base::span(input)),
+                  base::as_writable_bytes(base::span(result)));
   if (!len)
     return false;
 

@@ -213,15 +213,12 @@ void WalletDataFilesInstaller::OnComponentReady(const base::FilePath& path) {
   BlockchainRegistry::GetInstance()->ParseLists(path, std::move(callback));
 }
 
-void WalletDataFilesInstaller::OnEvent(
-    update_client::UpdateClient::Observer::Events event,
-    const std::string& id) {
-  if (id != kComponentId) {
+void WalletDataFilesInstaller::OnEvent(const update_client::CrxUpdateItem& item) {
+  if (item.id != kComponentId) {
     return;
   }
 
-  if (event ==
-      update_client::UpdateClient::Observer::Events::COMPONENT_UPDATE_ERROR) {
+  if (item.state == update_client::ComponentState::kUpdateError) {
     if (install_callback_) {
       std::move(install_callback_).Run();
     }

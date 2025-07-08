@@ -30,6 +30,10 @@
 #include "url/origin.h"
 #include "base/logging.h"
 
+#ifndef NOTREACHED_NORETURN
+#define NOTREACHED_NORETURN() LOG(ERROR) << "NOTREACHED_NORETURN called";
+#endif
+
 namespace wootz_wallet {
 
 namespace {

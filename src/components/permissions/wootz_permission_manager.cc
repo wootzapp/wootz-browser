@@ -5,6 +5,7 @@
 
 #include "components/permissions/wootz_permission_manager.h"
 
+#include <vector>
 #include <utility>
 
 #include "base/auto_reset.h"
@@ -13,6 +14,8 @@
 #include "components/permissions/permission_context_base.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/permission_request_description.h"
+#include "content/public/browser/permission_descriptor_util.h"
+#include "third_party/blink/public/mojom/permissions/permission.mojom.h"
 #include "url/origin.h"
 
 namespace permissions {
@@ -32,15 +35,19 @@ void WootzPermissionManager::RequestPermissionsForOrigin(
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     bool user_gesture,
-    base::OnceCallback<void(const std::vector<blink::mojom::PermissionStatus>&)>
-        callback) {
+    base::OnceCallback<void(const std::vector<blink::mojom::PermissionStatus>&)> callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   base::AutoReset<GURL> auto_reset_requesting_origin(&forced_requesting_origin_,
                                                      requesting_origin);
-  return RequestPermissionsFromCurrentDocument(
-      render_frame_host,
-      content::PermissionRequestDescription(permissions, user_gesture),
-      std::move(callback));
+
+  auto descriptors =
+      content::PermissionDescriptorUtil::CreatePermissionDescriptorForPermissionTypes(
+          permissions);
+  content::PermissionRequestDescription request(std::move(descriptors),
+                                                user_gesture);
+  RequestPermissionsFromCurrentDocument(render_frame_host,
+                                        std::move(request),
+                                        std::move(callback));
 }
 
 blink::mojom::PermissionStatus
@@ -51,8 +58,13 @@ WootzPermissionManager::GetPermissionStatusForOrigin(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   base::AutoReset<GURL> auto_reset_requesting_origin(&forced_requesting_origin_,
                                                      requesting_origin);
-  auto callback = base::BindOnce([] {});                                                   
-  return GetPermissionStatusForCurrentDocument(permission,render_frame_host);
+
+  auto descriptor =
+      content::PermissionDescriptorUtil::CreatePermissionDescriptorForPermissionType(
+          permission);
+  return GetPermissionStatusForCurrentDocument(std::move(descriptor),
+                                               render_frame_host,
+                                               /*should_include_device_status=*/false);
 }
 
 }  // namespace permissions

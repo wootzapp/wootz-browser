@@ -14,7 +14,7 @@ import re
 import sys
 from typing import Optional
 
-THRESHOLD = 9_000
+THRESHOLD = 4_000
 BUILD_CMD  = ["autoninja", "-C", "out/Default", "chrome_public_apk"]
 
 # Regex that grabs both numbers from a progress line like "[123/18823]"

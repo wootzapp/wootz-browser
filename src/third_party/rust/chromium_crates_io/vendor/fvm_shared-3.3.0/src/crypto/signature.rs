@@ -26,10 +26,11 @@ pub const SECP_PUB_LEN: usize = 65;
 pub const SECP_SIG_MESSAGE_HASH_SIZE: usize = 32;
 
 /// Signature variants for Filecoin signatures.
-#[derive(
-    Clone, Debug, PartialEq, FromPrimitive, Copy, Eq, Serialize_repr, Deserialize_repr, Hash,
-)]
-#[repr(u8)]
+// #[derive(
+//     Clone, Debug, PartialEq, FromPrimitive, Copy, Eq, Serialize_repr, Deserialize_repr, Hash,
+// )]
+#[derive(Clone, Debug, PartialEq, FromPrimitive, Copy, Eq, Hash)]
+// #[repr(u8)]
 pub enum SignatureType {
     Secp256k1 = 1,
     BLS = 2,

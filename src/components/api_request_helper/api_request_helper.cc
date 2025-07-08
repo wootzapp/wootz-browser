@@ -51,12 +51,10 @@ void ParseJsonUsingRust(
     std::string json,
     data_decoder::DataDecoder::ValueParseCallback callback,
     const scoped_refptr<base::SequencedTaskRunner>& task_runner) {
-  // Convert the std::string into a byte buffer
-  std::vector<uint8_t> bytes(json.begin(), json.end());
-
-  // Use DataDecoder (which runs on a utility thread under the hood).
-  data_decoder::DataDecoder::ParseJson(std::move(bytes),
-                                       std::move(callback));
+  // Directly hand the JSON string to DataDecoder.
+  data_decoder::DataDecoder::ParseJsonIsolated(
+      std::move(json),
+      std::move(callback));
 }
 
 // void ParseJsonUsingRust(

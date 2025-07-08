@@ -8,8 +8,9 @@ use fvm_ipld_encoding::tuple::*;
 use serde::{Deserialize, Serialize};
 
 /// Specifies the version of the state tree
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Serialize_repr, Deserialize_repr)]
-#[repr(u64)]
+// #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd)]
+// #[repr(u64)]
 pub enum StateTreeVersion {
     /// Corresponds to actors < v2
     V0,
@@ -27,7 +28,7 @@ pub enum StateTreeVersion {
 
 /// State root information. Contains information about the version of the state tree,
 /// the root of the tree, and a link to the information about the tree.
-#[derive(Deserialize_tuple, Serialize_tuple)]
+// #[derive(Deserialize_tuple, Serialize_tuple)]
 pub struct StateRoot {
     /// State tree version
     pub version: StateTreeVersion,

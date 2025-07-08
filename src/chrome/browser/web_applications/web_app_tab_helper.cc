@@ -235,9 +235,9 @@ WebAppTabHelper::WebAppTabHelper(tabs::TabInterface* tab,
                                  content::WebContents* contents)
     : content::WebContentsUserData<WebAppTabHelper>(*contents),
       content::WebContentsObserver(contents) {
-  CHECK(AreWebAppsEnabled(tab->GetBrowserWindowInterface()->GetProfile()));
-  provider_ = WebAppProvider::GetForLocalAppsUnchecked(
-      tab->GetBrowserWindowInterface()->GetProfile());
+  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  CHECK(AreWebAppsEnabled(profile));
+  provider_ = WebAppProvider::GetForLocalAppsUnchecked(profile);
   CHECK(provider_);
   observation_.Observe(&provider_->install_manager());
   SetState(provider_->registrar_unsafe().FindBestAppWithUrlInScope(

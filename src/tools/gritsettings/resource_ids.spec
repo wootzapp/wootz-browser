@@ -137,6 +137,17 @@
   "chrome/browser/resources/preinstalled_web_apps/resources.grd": {
     "includes": [2500],
   },
+  "chrome/browser/resources/extension_store/resources.grd": {
+    "includes": [2510]
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/extension_store/resources.grd": {
+    "META": { "sizes": { "includes": [50] } },
+    "includes": [2510]
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/hello_world/resources.grd": {
+    "META": { "sizes": { "includes": [20] } },
+    "includes": [2515]
+  },
   "chrome/browser/test_dummy/internal/android/resources/resources.grd": {
     "includes": [2520],
   },
@@ -151,6 +162,13 @@
   "chrome/browser/glic/resources/browser_resources.grd": {
     "messages": [2540],
     "includes": [2600],
+  },
+  "chrome/browser/resources/startup_crx_install/resources.grd": {
+    "includes": [2560]
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/startup_crx_install/resources.grd": {
+    "META": { "sizes": { "includes": [20] } },
+    "includes": [2560]
   },
   # END chrome/browser section.
 

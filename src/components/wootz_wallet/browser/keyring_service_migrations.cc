@@ -174,11 +174,11 @@ void MigrateDerivedAccountIndex(PrefService* profile_prefs) {
     for (auto acc_item : *account_metas_dict) {
       auto account_index = ExtractAccountIndex(keyring_id, acc_item.first);
       if (!account_index) {
-        NOTREACHED_IN_MIGRATION() << acc_item.first;
+        NOTREACHED() << acc_item.first;
         continue;
       }
       if (!acc_item.second.is_dict()) {
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
         continue;
       }
 
@@ -260,10 +260,10 @@ void MaybeMigrateSelectedAccountPrefs(
       wallet_selected = fil_selected.Clone();
       break;
     case mojom::CoinType::ZEC:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
       break;
     case mojom::CoinType::BTC:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
       break;
   }
 
@@ -334,7 +334,7 @@ void MaybeMigratePBKDF2Iterations(PrefService* profile_prefs,
 
     SetPrefForKeyring(profile_prefs, kEncryptedMnemonicDeprecated,
                       base::Value(base::Base64Encode(encryptor->Encrypt(
-                          base::make_span(*mnemonic), nonce))),
+                          base::span(*mnemonic), nonce))),
                       keyring_id);
 
     if (keyring_id == mojom::kDefaultKeyringId) {
@@ -368,7 +368,7 @@ void MaybeMigratePBKDF2Iterations(PrefService* profile_prefs,
       }
 
       auto private_key = deprecated_encryptor->Decrypt(
-          base::make_span(*deprecated_private_key_decoded), *deprecated_nonce);
+          base::span(*deprecated_private_key_decoded), *deprecated_nonce);
       if (!private_key) {
         continue;
       }
@@ -504,7 +504,7 @@ void MaybeMigrateToWalletMnemonic(PrefService* profile_prefs,
       }
 
       auto private_key = deprecated_encryptor->Decrypt(
-          base::make_span(*deprecated_private_key_decoded), *deprecated_nonce);
+          base::span(*deprecated_private_key_decoded), *deprecated_nonce);
       if (!private_key) {
         continue;
       }

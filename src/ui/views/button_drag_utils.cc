@@ -132,7 +132,7 @@ void SetDragImage(const GURL& url,
           .context(),
       size));
   gfx::ImageSkia image = gfx::ImageSkia::CreateFromBitmap(bitmap, raster_scale);
-  data->provider().SetDragImage(image, press_point);
+  //data->provider().SetDragImage(image, press_point);
 }
 
 }  // namespace button_drag_utils

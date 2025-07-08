@@ -8,6 +8,7 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "base/containers/contains.h"
 #include "base/strings/strcat.h"
@@ -206,7 +207,7 @@ mojom::SIWEMessagePtr SIWEMessageParser::Parse(const std::string& message) {
       }
     }
     if (result->request_id &&
-        !base::ranges::all_of(*result->request_id, &IsPChar)) {
+        !std::all_of(result->request_id->begin(), result->request_id->end(), &IsPChar)) {
       return {};
     }
     if (!message_view.empty()) {
@@ -350,7 +351,7 @@ bool SIWEMessageParser::ParseNonce(std::string_view& msg_view,
   }
   nonce = value->second;
   if (nonce.size() < kMinNonceLength ||
-      !base::ranges::all_of(nonce, &base::IsAsciiAlphaNumeric<char>)) {
+      !std::all_of(nonce.begin(), nonce.end(), &base::IsAsciiAlphaNumeric<char>)) {
     return false;
   }
 

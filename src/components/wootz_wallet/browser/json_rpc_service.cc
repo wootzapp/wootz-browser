@@ -425,14 +425,14 @@ void JsonRpcService::FirePendingRequestCompleted(const std::string& chain_id,
 
 bool JsonRpcService::HasAddChainRequestFromOrigin(
     const url::Origin& origin) const {
-  return base::ranges::any_of(add_chain_pending_requests_, [origin](auto& req) {
+  return std::ranges::any_of(add_chain_pending_requests_, [origin](auto& req) {
     return req.second.origin == origin;
   });
 }
 
 bool JsonRpcService::HasSwitchChainRequestFromOrigin(
     const url::Origin& origin) const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       pending_switch_chain_requests_,
       [origin](auto& req) { return req.second.origin == origin; });
 }
@@ -448,11 +448,11 @@ void JsonRpcService::GetPendingAddChainRequests(
 
 void JsonRpcService::AddChain(mojom::NetworkInfoPtr chain,
                               AddChainCallback callback) {
-  if (!base::ranges::all_of(chain->rpc_endpoints,
+  if (!std::ranges::all_of(chain->rpc_endpoints,
                             &net::IsHTTPSOrLocalhostURL) ||
-      !base::ranges::all_of(chain->block_explorer_urls,
+      !std::ranges::all_of(chain->block_explorer_urls,
                             &IsHTTPSOrLocalhostURL) ||
-      !base::ranges::all_of(chain->icon_urls, &IsHTTPSOrLocalhostURL)) {
+      !std::ranges::all_of(chain->icon_urls, &IsHTTPSOrLocalhostURL)) {
     std::move(callback).Run(
         chain->chain_id, mojom::ProviderError::kInvalidParams,
         l10n_util::GetStringUTF8(IDS_WOOTZ_WALLET_ADD_CHAIN_INVALID_URL));
@@ -1319,9 +1319,8 @@ void JsonRpcService::OnGetERC20TokenAllowance(
   auto type = eth_abi::Tuple().AddTupleType(eth_abi::Uint(256)).build();
   const auto& args = eth::DecodeEthCallResponse(*result, type);
   if (args == std::nullopt) {
-    std::move(callback).Run(
-        "", mojom::ProviderError::kInternalError,
-        l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
+    std::move(callback).Run("", mojom::ProviderError::kInternalError,
+                            l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
 
@@ -2178,10 +2177,11 @@ void JsonRpcService::GetERC721TokenBalance(
     return;
   }
 
-  auto internal_callback = base::BindOnce(
-      &JsonRpcService::ContinueGetERC721TokenBalance,
-      weak_ptr_factory_.GetWeakPtr(), eth_account_address.ToChecksumAddress(),
-      std::move(callback));
+  auto internal_callback =
+      base::BindOnce(
+          &JsonRpcService::ContinueGetERC721TokenBalance,
+          weak_ptr_factory_.GetWeakPtr(), eth_account_address.ToChecksumAddress(),
+          std::move(callback));
   GetERC721OwnerOf(contract_address, token_id, chain_id,
                    std::move(internal_callback));
 }
@@ -3703,6 +3703,5 @@ void JsonRpcService::FetchSolCompressedNftProofData(
     SimpleHashClient::FetchSolCompressedNftProofDataCallback callback) {
   simple_hash_client_->FetchSolCompressedNftProofData(token_address,
                                                       std::move(callback));
-}
+}}
 
-}  // namespace wootz_wallet

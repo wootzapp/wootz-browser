@@ -1656,19 +1656,19 @@ EthereumProviderImpl::GetAllowedAccounts(bool include_accounts_when_locked) {
 
   LOG(ERROR) << "INSIDE filter accounts of BEFORE getallowedaccounts JANGID " 
              << (filtered_accounts.empty() ? "no-accounts" : 
-                 base::JoinString(base::make_span(filtered_accounts), ","));
+                 base::JoinString(std::span(filtered_accounts), ","));
 
 
 
     LOG(ERROR) << "INSIDE filter accounts of INSIDE getallowedaccounts JANGID " 
                << (filtered_accounts.empty() ? "no-accounts" : 
-                   base::JoinString(base::make_span(filtered_accounts), ","));
+                   base::JoinString(std::span(filtered_accounts), ","));
         LOG(ERROR) << "INSIDE selected accounts of INSIDE getallowedaccounts JANGID " 
                << (selected_account ? selected_account->address : "no-account");
 
   LOG(ERROR) << "INSIDE filter accounts of AFTER getallowedaccounts JANGID " 
              << (filtered_accounts.empty() ? "no-accounts" : 
-                 base::JoinString(base::make_span(filtered_accounts), ","));
+                 base::JoinString(std::span(filtered_accounts), ","));
 
   return filtered_accounts;
 }
@@ -1952,7 +1952,7 @@ void EthereumProviderImpl::OnGetBlockByNumber(
     mojom::ProviderError error,
     const std::string& error_message) {
   if (events_listener_.is_bound() && error == mojom::ProviderError::kSuccess) {
-    base::ranges::for_each(eth_subscriptions_,
+    std::ranges::for_each(eth_subscriptions_,
                            [this, &result](const std::string& subscription_id) {
                              events_listener_->MessageEvent(subscription_id,
                                                             result.Clone());

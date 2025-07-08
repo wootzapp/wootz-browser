@@ -6,6 +6,7 @@
 #include "components/wootz_wallet/browser/secp256k1_hd_keyring.h"
 
 #include <utility>
+#include <algorithm>
 
 #include "base/containers/contains.h"
 
@@ -89,7 +90,7 @@ std::string Secp256k1HDKeyring::ImportAccount(
     return std::string();
   }
 
-  if (base::ranges::any_of(accounts_, [&](auto& acc) {
+  if (std::any_of(accounts_.begin(), accounts_.end(), [&](auto& acc) {
         return GetAddressInternal(*acc) == address;
       })) {
     return std::string();

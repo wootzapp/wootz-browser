@@ -14,6 +14,7 @@ namespace api {
 
 BrowserOpenTabFunction::~BrowserOpenTabFunction() = default;
 
+#if !BUILDFLAG(IS_ANDROID)
 ExtensionFunction::ResponseAction BrowserOpenTabFunction::Run() {
   std::optional<browser::OpenTab::Params> params(
       browser::OpenTab::Params::Create(args()));
@@ -27,6 +28,7 @@ ExtensionFunction::ResponseAction BrowserOpenTabFunction::Run() {
       extensions::ExtensionTabUtil::OpenTab(this, options, user_gesture());
   return RespondNow(result.has_value() ? NoArguments() : Error(result.error()));
 }
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace api
 }  // namespace chrome_apps

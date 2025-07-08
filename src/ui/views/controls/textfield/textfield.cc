@@ -1292,7 +1292,7 @@ void Textfield::WriteDragDataForView(View* sender,
       label.size()));
   constexpr gfx::Vector2d kOffset(-15, 0);
   gfx::ImageSkia image = gfx::ImageSkia::CreateFromBitmap(bitmap, raster_scale);
-  data->provider().SetDragImage(image, kOffset);
+  // data->provider().SetDragImage(image, kOffset);
   if (controller_) {
     controller_->OnWriteDragData(data);
   }
@@ -3379,4 +3379,4 @@ ADD_PROPERTY_METADATA(gfx::HorizontalAlignment, HorizontalAlignment)
 ADD_PROPERTY_METADATA(gfx::Range, SelectedRange)
 END_METADATA
 
-}  // namespace views
+}// namespace views

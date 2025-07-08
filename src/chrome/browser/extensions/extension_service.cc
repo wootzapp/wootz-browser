@@ -160,7 +160,6 @@ bool ShouldBlockCommandLineExtension(Profile& profile) {
 }
 }  // namespace
 
-// ExtensionService.
 
 void ExtensionService::BlocklistExtensionForTest(
     const std::string& extension_id) {
@@ -661,8 +660,8 @@ void ExtensionService::CheckManagementPolicy() {
     if (!to_recheck.ids.empty()) {
       updater_->CheckNow(std::move(to_recheck));
     }
-  #endif
   }
+#endif
 
   // Check the disabled extensions to see if any should be force uninstalled.
   std::vector<ExtensionId> remove_list;

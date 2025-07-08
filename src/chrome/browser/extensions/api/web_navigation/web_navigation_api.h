@@ -180,8 +180,8 @@ class WebNavigationEventRouter : public TabModelObserver,
       const TabStripSelectionChange& selection) override;
 #endif
 
-  void OnTabModelAdded() override;
-  void OnTabModelRemoved() override;
+  void OnTabModelAdded(TabModel* tab_model) override;
+  void OnTabModelRemoved(TabModel* tab_model) override;
 
   void DidAddTab(TabAndroid* tab, TabModel::TabLaunchType type) override;
 

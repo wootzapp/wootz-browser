@@ -137,7 +137,7 @@ std::unique_ptr<HDKey> HDKey::GenerateFromSeed(base::span<const uint8_t> seed) {
   DCHECK(out_len == kSHA512Length);
 
   std::unique_ptr<HDKey> hdkey = std::make_unique<HDKey>();
-  auto hmac_span = base::make_span(hmac);
+  auto hmac_span = base::span(hmac);
   auto IL = hmac_span.first(kSHA512Length / 2);
   auto IR = hmac_span.last(kSHA512Length / 2);
   hdkey->SetPrivateKey(IL);
@@ -185,10 +185,10 @@ std::unique_ptr<HDKey::ParsedExtendedKey> HDKey::GenerateFromExtendedKey(
 
   if (*ptr == 0x00) {
     // Skip first zero byte which is not part of private key.
-    hdkey->SetPrivateKey(base::make_span(ptr + 1, ptr + 33));
+    hdkey->SetPrivateKey(base::span(ptr + 1, static_cast<size_t>(32)));
   } else {
     hdkey->SetPublicKey(
-        base::make_span<kSecp256k1PubkeySize>(ptr, ptr + kSecp256k1PubkeySize));
+        base::span<const uint8_t, kSecp256k1PubkeySize>(ptr, ptr + kSecp256k1PubkeySize));
   }
   auto result = std::make_unique<ParsedExtendedKey>();
   result->hdkey = std::move(hdkey);
@@ -280,7 +280,7 @@ std::unique_ptr<HDKey> HDKey::GenerateFromV3UTC(const std::string& password,
       VLOG(0) << __func__ << ": prf must be hmac-sha256 when using pbkdf2";
       return nullptr;
     }
-    derived_key = SymmetricKey::DeriveKeyFromPasswordUsingPbkdf2Sha256(
+    derived_key = SymmetricKey::DeriveKeyFromPasswordUsingPbkdf2(
         SymmetricKey::AES, password,
         std::string(salt_bytes.begin(), salt_bytes.end()), (size_t)*c,
         (size_t)*dklen * 8);
@@ -541,7 +541,7 @@ std::unique_ptr<HDKey> HDKey::DeriveChild(uint32_t index) {
   }
   DCHECK(out_len == kSHA512Length);
 
-  auto hmac_span = base::make_span(hmac);
+  auto hmac_span = base::span(hmac);
   auto IL = hmac_span.first(kSHA512Length / 2);
   auto IR = hmac_span.last(kSHA512Length / 2);
 

@@ -126,7 +126,7 @@ ExtensionFunction::ResponseAction HidConnectFunction::Run() {
   // device_manager->Connect(
   //     device_info->guid,
   //     base::BindOnce(&HidConnectFunction::OnConnectComplete, this));
-  return RespondLater(Error("Not Implemented"));
+  return RespondNow(Error("Not Implemented"));
 }
 
 void HidConnectFunction::OnConnectComplete(

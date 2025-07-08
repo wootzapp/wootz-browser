@@ -242,7 +242,7 @@ void PermissionManager::RequestPermissionsInternal(
 
   LOG(ERROR) << "JANGID: Transformed permissions size: " << permissions.size();
   for (const auto& perm : permissions) {
-    LOG(ERROR) << "JANGID: Permission type: " << static_cast<int>(perm);
+    LOG(ERROR) << "JANGID: Permission type: " << static_cast<int>(blink::PermissionDescriptorToPermissionType(perm));
   }
 
   base::OnceCallback<void(const std::vector<ContentSetting>&)> callback =

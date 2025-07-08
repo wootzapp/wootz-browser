@@ -33,7 +33,8 @@ std::string HDKeyring::GetRootPath(mojom::KeyringId keyring_id) {
     return "m/44'/1'";
   }
 
-  NOTREACHED_IN_MIGRATION() << keyring_id;
+  // This should never happen. Use NOTREACHED() to catch unexpected IDs.
+  NOTREACHED() << "Unexpected KeyringId: " << static_cast<int>(keyring_id);
   return "";
 }
 

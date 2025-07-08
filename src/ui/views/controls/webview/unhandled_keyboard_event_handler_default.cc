@@ -4,6 +4,7 @@
 
 #include "components/input/native_web_keyboard_event.h"
 #include "ui/events/event.h"
+#include "build/buildflag.h"
 #include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 #include "ui/views/focus/focus_manager.h"
 
@@ -17,7 +18,14 @@ bool UnhandledKeyboardEventHandler::HandleNativeKeyboardEvent(
     return false;
   }
 
-  return !focus_manager->OnKeyEvent(*(event.os_event->AsKeyEvent()));
+#if BUILDFLAG(IS_ANDROID)
+  // Android doesn’t use the desktop KeyEvent path here.
+  return false;
+#else
+   // Desktop: forward the underlying ui::KeyEvent.
+   return !focus_manager->OnKeyEvent(
+       *(event.os_event->AsKeyEvent()));
+#endif
 }
 
 }  // namespace views

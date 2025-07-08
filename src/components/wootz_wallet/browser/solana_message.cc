@@ -395,7 +395,9 @@ std::optional<SolanaMessage> SolanaMessage::Deserialize(
       return std::nullopt;
     }
     auto account_key = SolanaAddress::FromBytes(
-        base::make_span(bytes).subspan(bytes_index, kSolanaPubkeySize));
+        base::span(bytes).subspan(
+            /* offset: already size_t */ bytes_index,
+            /* count: force to size_t */ static_cast<size_t>(kSolanaPubkeySize)));
     if (!account_key) {
       return std::nullopt;
     }

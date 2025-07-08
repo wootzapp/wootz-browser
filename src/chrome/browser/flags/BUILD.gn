@@ -6,13 +6,15 @@ import("//build/config/android/rules.gni")
 import("//third_party/jni_zero/jni_zero.gni")
 
 android_library("java") {
-  sources = [ "android/java/src/org/chromium/chrome/browser/flags/CromiteNativeUtils.java" ]
-  sources += [
+  sources = [
+    "android/java/src/org/chromium/chrome/browser/flags/CromiteNativeUtils.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureMap.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeSessionState.java",
   ]
-  public_deps = [ "//components/cached_flags:java" ]
+  public_deps = [
+    "//components/cached_flags:java",
+  ]
   deps = [
     "//base:base_java",
     "//base/version_info/android:version_constants_java",

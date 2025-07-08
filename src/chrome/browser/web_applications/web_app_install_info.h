@@ -37,9 +37,6 @@
 #include "ui/gfx/geometry/size.h"
 #include "url/gurl.h"
 
-static_assert(BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
-              BUILDFLAG(IS_CHROMEOS));
-
 namespace web_app {
 
 // A map of icon urls to the bitmaps provided by that url.

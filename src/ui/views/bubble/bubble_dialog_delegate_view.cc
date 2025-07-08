@@ -287,7 +287,16 @@ class BubbleDialogDelegate::AnchorWidgetObserver : public WidgetObserver,
       : owner_(owner) {
     widget_observation_.Observe(widget);
 #if !BUILDFLAG(IS_MAC)
-    window_observation_.Observe(widget->GetNativeWindow());
+    // Only observe if the native window is an aura::Window.
+    aura::Window* aura_window = nullptr;
+    gfx::NativeWindow native_window = widget->GetNativeWindow();
+    // NativeWindow is aura::Window* on most platforms, but WindowAndroid* on Android.
+#if defined(USE_AURA)
+    aura_window = static_cast<aura::Window*>(native_window);
+#endif
+    if (aura_window) {
+      window_observation_.Observe(aura_window);
+    }
 #endif
   }
   ~AnchorWidgetObserver() override = default;
@@ -295,8 +304,15 @@ class BubbleDialogDelegate::AnchorWidgetObserver : public WidgetObserver,
   // WidgetObserver:
   void OnWidgetDestroying(Widget* widget) override {
 #if !BUILDFLAG(IS_MAC)
-    DCHECK(window_observation_.IsObservingSource(widget->GetNativeWindow()));
-    window_observation_.Reset();
+    aura::Window* aura_window = nullptr;
+    gfx::NativeWindow native_window = widget->GetNativeWindow();
+#if defined(USE_AURA)
+    aura_window = static_cast<aura::Window*>(native_window);
+#endif
+    if (aura_window) {
+      DCHECK(window_observation_.IsObservingSource(aura_window));
+      window_observation_.Reset();
+    }
 #endif
     DCHECK(widget_observation_.IsObservingSource(widget));
     widget_observation_.Reset();
@@ -748,11 +764,19 @@ gfx::Rect BubbleDialogDelegate::GetAnchorRect() const {
   // apply transforms on windows such as ChromeOS overview mode will see bubbles
   // offset.
   if (anchor_widget_) {
-    gfx::Transform transform =
-        anchor_widget_->GetNativeWindow()->layer()->GetTargetTransform();
-    if (!transform.IsIdentity()) {
-      anchor_rect_->Offset(
-          -gfx::ToRoundedVector2d(transform.To2dTranslation()));
+    gfx::NativeWindow native_window = anchor_widget_->GetNativeWindow();
+    // Only access layer() if this is an aura::Window.
+    aura::Window* aura_window = nullptr;
+#if defined(USE_AURA)
+    aura_window = static_cast<aura::Window*>(native_window);
+#endif
+    if (aura_window) {
+      gfx::Transform transform =
+          aura_window->layer()->GetTargetTransform();
+      if (!transform.IsIdentity()) {
+        anchor_rect_->Offset(
+            -gfx::ToRoundedVector2d(transform.To2dTranslation()));
+      }
     }
   }
 #endif

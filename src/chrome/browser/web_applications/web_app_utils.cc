@@ -52,9 +52,9 @@
 #include "content/public/common/alternative_error_page_override_info.mojom.h"
 #include "content/public/common/content_features.h"
 #include "mojo/public/cpp/bindings/struct_ptr.h"
-#include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/mojom/manifest/display_mode.mojom-shared.h"
-#include "third_party/blink/public/mojom/manifest/manifest.mojom-shared.h"
+#include "third_party/blink.public/common/features.h"
+#include "third_party/blink.public/mojom/manifest/display_mode.mojom-shared.h"
+#include "third_party/blink.public/mojom/manifest/manifest.mojom-shared.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/codec/png_codec.h"
@@ -454,8 +454,12 @@ GetFileTypeAssociationsHandledByWebAppForDisplay(Profile* profile,
           apps::GetFileExtensionsFromFileHandlers(*file_handlers));
 
   return {base::JoinString(extensions_for_display,
+#if defined(IDS_WEB_APP_FILE_HANDLING_LIST_SEPARATOR)
                            l10n_util::GetStringUTF16(
                                IDS_WEB_APP_FILE_HANDLING_LIST_SEPARATOR)),
+#else
+                           u", "),
+#endif
           extensions_for_display.size()};
 }
 

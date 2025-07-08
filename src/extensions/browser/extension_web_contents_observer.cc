@@ -320,10 +320,10 @@ void extensions::ExtensionWebContentsObserver::MediaPictureInPictureChanged(
     }
     if (is_picture_in_picture) {
       process_manager->IncrementLazyKeepaliveCount(
-          extension, extensions::Activity::MEDIA);
+          extension, extensions::Activity::MEDIA, "");
     } else {
       process_manager->DecrementLazyKeepaliveCount(
-          extension, extensions::Activity::MEDIA);
+          extension, extensions::Activity::MEDIA, "");
     }
   }
 }
@@ -338,7 +338,7 @@ void extensions::ExtensionWebContentsObserver::PepperInstanceCreated() {
         process_manager->GetExtensionForWebContents(web_contents());
     if (extension) {
       process_manager->IncrementLazyKeepaliveCount(
-          extension, extensions::Activity::PEPPER_API);
+          extension, extensions::Activity::PEPPER_API, "");
     }
   }
 }
@@ -353,7 +353,7 @@ void extensions::ExtensionWebContentsObserver::PepperInstanceDeleted() {
         process_manager->GetExtensionForWebContents(web_contents());
     if (extension) {
       process_manager->DecrementLazyKeepaliveCount(
-          extension, extensions::Activity::PEPPER_API);
+          extension, extensions::Activity::PEPPER_API, "");
     }
   }
 }
@@ -437,4 +437,4 @@ void extensions::ExtensionWebContentsObserver::OnWindowIdChanged(SessionID id) {
       });
 }
 
-}  // namespace extensions
+  // namespace extensions

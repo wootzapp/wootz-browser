@@ -8,6 +8,7 @@
 #include <optional>
 #include <utility>
 
+#include "base/notreached.h"
 #include "base/sys_byteorder.h"
 #include "components/wootz_wallet/common/bitcoin_utils.h"
 #include "components/wootz_wallet/common/btc_like_serializer_stream.h"
@@ -308,7 +309,7 @@ std::vector<uint8_t> BitcoinSerializer::AddressToScriptPubkey(
     return data;
   }
 
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
   return {};
 }
 

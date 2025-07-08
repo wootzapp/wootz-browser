@@ -35,8 +35,9 @@ pub type Spacetime = BigInt;
 pub type SectorQuality = BigInt;
 
 /// SectorSize indicates one of a set of possible sizes in the network.
-#[derive(Clone, Debug, PartialEq, Eq, Copy, FromPrimitive, Serialize_repr, Deserialize_repr)]
-#[repr(u64)]
+// #[derive(Clone, Debug, PartialEq, Eq, Copy, FromPrimitive, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, FromPrimitive)]
+// #[repr(u64)]
 pub enum SectorSize {
     _2KiB = 2 << 10,
     _8MiB = 8 << 20,

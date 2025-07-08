@@ -210,9 +210,9 @@ class ExtensionService : public ExtensionServiceInterface,
 
   Profile* profile() { return profile_; }
 
-  ForceInstalledTracker* force_installed_tracker() {
-    return &force_installed_tracker_;
-  }
+  // ForceInstalledTracker* force_installed_tracker() {
+  //   return &force_installed_tracker_;
+  // }
 
   // TODO(crbug.com/404941806): Delete this method and use the KeyedService
   // directly.

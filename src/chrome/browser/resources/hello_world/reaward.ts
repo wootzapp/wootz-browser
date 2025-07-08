@@ -15,7 +15,7 @@ interface LoginResponse {
   message?: string;
 }
 
-document.addEventListener('DOMContentLoaded', async function (): Promise<void> {
+document.addEventListener('DOMContentLoaded', function (): void {
     const connectButton = document.getElementById('connectButton') as HTMLButtonElement;
     const modal = document.getElementById('id01') as HTMLElement;
     const loginForm = document.getElementById('loginForm') as HTMLFormElement;

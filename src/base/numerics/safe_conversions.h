@@ -224,13 +224,16 @@ constexpr Dst strict_cast(Src value) {
   return static_cast<Dst>(static_cast<SrcType>(value));
 }
 
-// Add a catch-all template to provide a static_assert for unsupported conversions
-// This will give a clear error message instead of a cryptic constraint failure
-// when someone tries to use strict_cast with types that are not range-contained.
+// Fallback for strict_cast when conversion is not valid - provides better error
 template <typename Dst, typename Src, typename SrcType = UnderlyingType<Src>>
-constexpr Dst strict_cast_invalid(Src value) {
-  static_assert(kStaticDstRangeRelationToSrcRange<Dst, SrcType> == NumericRangeRepresentation::kContained,
-                "base::strict_cast: Destination type cannot represent all values of source type. Use checked_cast or saturated_cast instead.");
+  requires(IsNumeric<Src> && std::is_arithmetic_v<Dst> &&
+           kStaticDstRangeRelationToSrcRange<Dst, SrcType> !=
+               NumericRangeRepresentation::kContained)
+constexpr Dst strict_cast(Src value) {
+  static_assert(kStaticDstRangeRelationToSrcRange<Dst, SrcType> == 
+                NumericRangeRepresentation::kContained,
+                "base::strict_cast: Destination type cannot represent all values of source type. "
+                "Use checked_cast or saturated_cast instead.");
   return static_cast<Dst>(static_cast<SrcType>(value));
 }
 

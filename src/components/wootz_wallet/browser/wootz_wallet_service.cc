@@ -1633,7 +1633,7 @@ void WootzWalletService::GenerateReceiveAddress(
     return;
   }
 
-  NOTREACHED_IN_MIGRATION() << account_id->coin;
+  NOTREACHED_IN_MIGRATION();
   std::move(callback).Run("", WalletInternalErrorMessage());
 }
 
@@ -1824,8 +1824,8 @@ void WootzWalletService::SetTransactionSimulationOptInStatus(
 }
 
 void WootzWalletService::GetCountryCode(GetCountryCodeCallback callback) {
-  std::move(callback).Run(country_codes::CountryIDToCountryString(
-      country_codes::GetCountryIDFromPrefs(profile_prefs_)));
+  // country_codes::CountryIDToCountryString is not available, stub with empty string
+  std::move(callback).Run("");
 }
 
 }  // namespace wootz_wallet

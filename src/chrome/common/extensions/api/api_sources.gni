@@ -58,7 +58,7 @@ if (enable_extensions) {
     "downloads.idl",
     "downloads_internal.idl",
     # "enterprise_hardware_platform.idl",
-    # "enterprise_reporting_private.idl",
+    "enterprise_reporting_private.idl",
     "font_settings.json",
     "gcm.json",
     "history.json",

@@ -10,6 +10,7 @@
 
 #include "base/big_endian.h"
 #include "base/containers/span.h"
+#include "base/notreached.h"
 #include "base/numerics/byte_conversions.h"
 #include "components/wootz_wallet/common/btc_like_serializer_stream.h"
 #include "components/wootz_wallet/common/hex_utils.h"
@@ -51,7 +52,7 @@ std::array<uint8_t, kZCashDigestSize> blake2b256(
   blake2b_param params = {};
 
   if (personalizer.length() != sizeof(params.personal)) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
     return {};
   }
 
@@ -60,16 +61,16 @@ std::array<uint8_t, kZCashDigestSize> blake2b256(
   params.depth = 1;
   memcpy(params.personal, personalizer.data(), sizeof(params.personal));
   if (blake2b_init_param(&blake_state, &params) != 0) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
     return {};
   }
   if (blake2b_update(&blake_state, payload.data(), payload.size()) != 0) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
     return {};
   }
   std::array<uint8_t, kZCashDigestSize> result;
   if (blake2b_final(&blake_state, result.data(), kZCashDigestSize) != 0) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
     return {};
   }
 
@@ -186,8 +187,7 @@ bool ZCashSerializer::SignTransparentPart(KeyringService* keyring_service,
 
     auto signature = keyring_service->SignMessageByZCashKeyring(
         account_id, key_id,
-        base::make_span<kZCashDigestSize>(signature_digest.begin(),
-                                          signature_digest.end()));
+        base::span<const uint8_t, 32>(signature_digest));
 
     if (!signature) {
       return false;

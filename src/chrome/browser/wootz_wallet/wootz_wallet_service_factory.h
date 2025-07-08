@@ -37,7 +37,7 @@ class WootzWalletServiceFactory : public BrowserContextKeyedServiceFactory {
       delete;
 
   KeyedService* BuildServiceInstanceFor(
-      content::BrowserContext* context) const override;
+      content::BrowserContext* context) const;
   content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
   bool ServiceIsNULLWhileTesting() const override;

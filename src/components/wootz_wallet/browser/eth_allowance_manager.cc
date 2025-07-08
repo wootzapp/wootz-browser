@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/no_destructor.h"
+#include "base/notreached.h"
 #include "components/wootz_wallet/browser/blockchain_registry.h"
 #include "components/wootz_wallet/browser/json_rpc_service.h"
 #include "components/wootz_wallet/browser/keyring_service.h"
@@ -238,7 +239,7 @@ void EthAllowanceManager::LoadCachedAllowances(
     const auto* amount = ca_dict->FindString(kAmount);
 
     if (!approver_address || !contract_address || !spender_address || !amount) {
-      NOTREACHED_IN_MIGRATION() << " Wrong allowance cache format";
+      NOTREACHED() << " Wrong allowance cache format";
       continue;
     }
 
@@ -326,9 +327,11 @@ bool EthAllowanceManager::IsAllTasksCompleted() const {
   DCHECK(!discover_eth_allowance_callbacks_.empty());
 
   return get_block_tasks_ == 0 &&
-         base::ranges::all_of(allowance_discovery_tasks_, [](const auto& item) {
-           return item.second->is_completed_;
-         });
+         std::all_of(allowance_discovery_tasks_.begin(), 
+                     allowance_discovery_tasks_.end(), 
+                     [](const auto& item) {
+                       return item.second->is_completed_;
+                     });
 }
 
 void EthAllowanceManager::MaybeMergeAllResultsAndCallBack() {
