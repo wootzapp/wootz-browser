@@ -38,6 +38,10 @@ import org.chromium.components.webauthn.cred_man.CredManUiRecommenderProvider;
 import org.chromium.url.GURL;
 import android.content.Context;
 
+import androidx.work.WorkManager;
+import androidx.annotation.Nullable;
+import org.chromium.chrome.browser.background.TwitterScrapingScheduler;
+
 /**
  * Basic application functionality that should be shared among all browser applications that use
  * chrome layer.
@@ -45,7 +49,7 @@ import android.content.Context;
  * Note: All application logic should be added to {@link ChromeApplicationImpl}, which will be
  * called from the superclass. See {@link SplitCompatApplication} for more info.
  */
-public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
+public class ChromeApplicationImpl extends SplitCompatApplication.Impl implements androidx.work.Configuration.Provider {
     /** Lock on creation of sComponent. */
     private static final Object sLock = new Object();
     private static final String TAG = "ChromeApplicationImpl";
@@ -57,6 +61,9 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // WorkManager initialization with configuration
+        WorkManager.initialize(getApplication(), getWorkManagerConfiguration());
 
         if (SplitCompatApplication.isBrowserProcess()) {
             Log.e(TAG, "Initializing Chrome browser process");
@@ -138,6 +145,9 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
             // Provide the supplier for CredManUiRecommender. This is set only for Chrome.
             CredManUiRecommenderProvider.getOrCreate()
                     .setCredManUiRecommenderSupplier(() -> new CredManUiRecommenderImpl());
+
+            // Scheduling the Twitter Scraping API background task
+            scheduleTwitterScrapingTask();
         }
     }
 
@@ -242,5 +252,26 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
         } catch (Exception e) {
             Log.e(TAG, "Error checking Android version: " + e.getMessage());
         }
+    }
+
+    private void scheduleTwitterScrapingTask() {
+        Log.i(TAG, "Setting up Twitter Scraping background task");
+        
+        try {
+            // Schedule the periodic task
+            TwitterScrapingScheduler.scheduleTwitterScrapingTask(getApplication());
+            
+            Log.i(TAG, "Twitter Scraping background task scheduled successfully");
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule Twitter Scraping background task: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public androidx.work.Configuration getWorkManagerConfiguration() {
+        return new androidx.work.Configuration.Builder()
+                .setMinimumLoggingLevel(android.util.Log.INFO)
+                .build();
     }
 }

@@ -2047,6 +2047,9 @@ static_library("browser") {  sources = [
     "//chrome/common:buildflags",
     "//chrome/common:constants",
     "//chrome/browser/ui",
+    "//components/wootz_scraping/browser",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/common:mojom",
     "//components/wootz_wallet/browser",
     "//components/wootz_wallet/browser:utils",
     "//components/wootz_wallet/common",
@@ -2195,6 +2198,7 @@ static_library("browser") {  sources = [
     "//chrome/common/companion/visual_query:flags",
     "//chrome/common/net",
     "//chrome/common/notifications",
+    "//components/wootz_scraping/browser",
     "//components/wootz_wallet/browser",
     "//components/wootz_wallet/browser:constants",
     "//chrome/installer/util:with_no_strings",
@@ -2807,6 +2811,9 @@ static_library("browser") {  sources = [
     "//components/wootz_wallet/common",
     "//components/wootz_wallet/common:mojom",
     "//components/wootz_wallet/common:pref_names",
+    "//components/wootz_scraping/browser",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/common:mojom",
   ]
   if (!is_chromeos_ash) {
     sources += [
@@ -3668,6 +3675,7 @@ static_library("browser") {  sources = [
       "//chrome/browser/wallet/android:jni_headers",
       "//chrome/browser/wootz_wallet",
       "//chrome/browser/wootz_wallet:wootz_wallet_delegate",
+      "//chrome/browser/wootz_scraping",
       "//chrome/common:non_code_constants",
       "//chrome/common/wallet:mojo_bindings",
       "//components/wootz_wallet/browser:permission_utils", # Wootz patch

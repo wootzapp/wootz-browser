@@ -1,0 +1,38 @@
+Name: AndroidX Work Manager Runtime
+Short Name: work-runtime
+URL: https://developer.android.com/jetpack/androidx/releases/work#2.9.0
+Version: 2.9.0
+License: Apache Version 2.0
+License File: LICENSE
+CPEPrefix: unknown
+Security Critical: yes
+Shipped: yes
+
+Description:
+WorkManager is an API that makes it easy to schedule deferrable, asynchronous 
+tasks that are expected to run even if the app exits or the device restarts.
+
+This library provides runtime components for scheduling and executing background 
+work in Android applications within the Chromium browser.
+
+Local Modifications:
+None. Used as-is from the official AndroidX release.
+
+Update Process:
+1. Download the AAR from https://maven.google.com/androidx/work/work-runtime/
+2. Extract JAR from AAR for build system compatibility
+3. Update version numbers in BUILD.gn and this README
+4. Test integration with Chrome Android build
+5. Update dependencies if needed
+
+Dependencies:
+- androidx.lifecycle:lifecycle-service
+- androidx.room:room-runtime  
+- androidx.sqlite:sqlite
+- androidx.concurrent:concurrent-futures
+- androidx.annotation:annotation
+
+Integration Notes:
+- Requires manifest additions for WorkManager services
+- ProGuard rules included for release builds
+- Initialized through Chrome Application class
