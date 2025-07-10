@@ -69,6 +69,11 @@ class AutomationAgent : public content::RenderFrameObserver,
   bool IsElementInteractive(const blink::WebElement& element);
   gfx::Rect GetElementBounds(const blink::WebElement& element);
   
+  // CSS-based highlighting
+  blink::WebStyleSheetKey InjectHighlightCSS(blink::WebDocument& document);
+  void CleanupHighlightCSS(blink::WebDocument& document, 
+                          const blink::WebStyleSheetKey& key);
+  
   // Helper to get automation driver interface
   mojom::AutomationDriver& GetAutomationDriver();
 

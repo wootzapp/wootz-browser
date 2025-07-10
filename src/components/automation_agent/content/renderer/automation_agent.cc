@@ -29,10 +29,6 @@
 
 namespace automation {
 
-namespace {
-constexpr char kHighlightContainerId[] = "automation-highlight-container";
-}  // namespace
-
 AutomationAgent::AutomationAgent(
     content::RenderFrame* render_frame,
     blink::AssociatedInterfaceRegistry* registry)
@@ -65,8 +61,15 @@ void AutomationAgent::GetPageState(bool debug_mode,
     return;
   }
 
-  LOG(INFO) << "Kartik: Frame obtained successfully, getting document";
   blink::WebDocument document = frame->GetDocument();
+
+  // Apply highlighting CSS when debug mode is enabled
+  blink::WebStyleSheetKey highlight_key;
+  if (debug_mode) {
+    highlight_key = InjectHighlightCSS(document);
+  }
+
+  LOG(INFO) << "Kartik: Frame obtained successfully, getting document";
   LOG(INFO) << "Kartik: Document URL: " << document.Url().GetString().Utf8();
 
   auto page_state = std::make_unique<base::Value::Dict>();
@@ -166,6 +169,11 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
   LOG(INFO) << "Kartik: GetPageState completed successfully";
   std::move(callback).Run(std::move(result));
+
+  // Cleanup CSS after data collection
+  // if (debug_mode) {
+  //   CleanupHighlightCSS(document, highlight_key);
+  // }
 }
 
 void AutomationAgent::PerformAction(
@@ -334,6 +342,64 @@ mojom::AutomationDriver& AutomationAgent::GetAutomationDriver() {
 
 void AutomationAgent::OnDestruct() {
   delete this;
+}
+
+blink::WebStyleSheetKey AutomationAgent::InjectHighlightCSS(blink::WebDocument& document) {
+  std::string highlight_css = R"(
+    /* Highlight all interactive elements */
+    a, button, input, select, textarea, 
+    [onclick], [role="button"], [tabindex]:not([tabindex="-1"]) {
+      outline: 2px solid #FF0000 !important;
+      outline-offset: 1px !important;
+      background: rgba(255, 0, 0, 0.1) !important;
+      position: relative !important;
+    }
+
+    /* Add numbered labels using CSS counters */
+    body { counter-reset: automation-counter; }
+    
+    a::before, button::before, input::before, select::before, textarea::before,
+    [onclick]::before, [role="button"]::before, [tabindex]:not([tabindex="-1"])::before {
+      counter-increment: automation-counter;
+      content: counter(automation-counter);
+      position: absolute !important;
+      top: -2px !important;
+      right: -2px !important;
+      background: #FF0000 !important;
+      color: white !important;
+      font-size: 12px !important;
+      padding: 1px 4px !important;
+      border-radius: 4px !important;
+      z-index: 2147483647 !important;
+      font-family: Arial, sans-serif !important;
+      font-weight: bold !important;
+      line-height: 1 !important;
+      min-width: 16px !important;
+      text-align: center !important;
+      pointer-events: none !important;
+    }
+
+    /* Different colors for different element types */
+    button, [role="button"] { outline-color: #00FF00 !important; background: rgba(0, 255, 0, 0.1) !important; }
+    button::before, [role="button"]::before { background: #00FF00 !important; }
+
+    input, textarea, select { outline-color: #0000FF !important; background: rgba(0, 0, 255, 0.1) !important; }
+    input::before, textarea::before, select::before { background: #0000FF !important; }
+
+    a { outline-color: #FFA500 !important; background: rgba(255, 165, 0, 0.1) !important; }
+    a::before { background: #FFA500 !important; }
+  )";
+
+  LOG(INFO) << "Kartik: Injecting highlight CSS";
+  return document.InsertStyleSheet(blink::WebString::FromUTF8(highlight_css));
+}
+
+void AutomationAgent::CleanupHighlightCSS(blink::WebDocument& document, 
+                                         const blink::WebStyleSheetKey& key) {
+  if (!key.IsEmpty()) {
+    LOG(INFO) << "Kartik: Removing highlight CSS";
+    document.RemoveInsertedStyleSheet(key);
+  }
 }
 
 }  // namespace automation
