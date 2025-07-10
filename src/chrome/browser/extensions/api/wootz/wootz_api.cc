@@ -1515,6 +1515,12 @@ ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
   if (const std::string* text = action_params.FindString("text")) {
     LOG(INFO) << "Kartik: Input text: " << *text;
   }
+  if (const std::string* direction = action_params.FindString("direction")) {
+    LOG(INFO) << "Kartik: Scroll direction: " << *direction;
+  }
+  if (const std::string* amount = action_params.FindString("amount")) {
+    LOG(INFO) << "Kartik: Scroll amount: " << *amount;
+  }
 
   LOG(INFO) << "Kartik: Getting automation factory for web contents";
   auto* factory = automation::AutomationControllerFactory::FromWebContents(web_contents);
@@ -1544,19 +1550,17 @@ ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
 void WootzPerformActionFunction::OnActionComplete(bool success) {
   LOG(INFO) << "Kartik: PerformAction callback received in WootzAPI - success=" << success;
   
+  base::Value::Dict result;
+  result.Set("success", success);
+  
   if (!success) {
     LOG(ERROR) << "Kartik: PerformAction failed in WootzAPI";
-    Respond(Error("Failed to perform action"));
-    return;
+    result.Set("error", "Action execution failed");
   }
-  
-  LOG(INFO) << "Kartik: PerformAction completed successfully in WootzAPI";
-  base::Value::Dict result;
-  result.Set("success", true);
   
   base::Value::List args;
   args.Append(std::move(result));
-  LOG(INFO) << "Kartik: Sending PerformAction success response back to extension";
+  LOG(INFO) << "Kartik: Sending PerformAction response back to extension";
   Respond(ArgumentList(std::move(args)));
   LOG(INFO) << "Kartik: PerformAction response sent to extension";
 }

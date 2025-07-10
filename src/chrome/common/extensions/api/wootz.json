@@ -623,9 +623,10 @@
               "name": "actionParams",
               "type": "object",
               "properties": {
-                "selector": {"type": "string", "optional": true},
-                "text": {"type": "string", "optional": true},
-                "direction": {"type": "string", "optional": true}
+                "selector": {"type": "string", "optional": true, "description": "CSS selector for click/fill actions"},
+                "text": {"type": "string", "optional": true, "description": "Text content for fill actions"},
+                "direction": {"type": "string", "optional": true, "description": "Scroll direction: up, down, left, right (required for scroll action)"},
+                "amount": {"type": "string", "optional": true, "description": "Scroll amount in pixels (default: 300, only for scroll action)"}
               }
             }
           ],

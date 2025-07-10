@@ -224,21 +224,59 @@ void AutomationAgent::PerformAction(
   }
   else if (action == "scroll") {
     LOG(INFO) << "Kartik: Processing scroll action";
-    auto x_it = params.find("x");
-    auto y_it = params.find("y");
-    if (x_it != params.end() && y_it != params.end()) {
-      LOG(INFO) << "Kartik: Scroll coordinates x=" << x_it->second 
-                << ", y=" << y_it->second;
-      char* x_end, *y_end;
-      float x = std::strtof(x_it->second.c_str(), &x_end);
-      float y = std::strtof(y_it->second.c_str(), &y_end);
-      if (x_end != x_it->second.c_str() && y_end != y_it->second.c_str()) {
-        LOG(INFO) << "Kartik: Setting scroll offset to (" << x << ", " << y << ")";
-        frame->SetScrollOffset(gfx::PointF(x, y));
+    
+    auto direction_it = params.find("direction");
+    if (direction_it == params.end()) {
+      LOG(ERROR) << "Kartik: Missing required 'direction' parameter for scroll action";
+      success = false;
+    } else {
+      std::string direction = direction_it->second;
+      int amount = 300; // default scroll amount
+      
+      // Get amount parameter if provided
+      auto amount_it = params.find("amount");
+      if (amount_it != params.end()) {
+        char* end;
+        int parsed_amount = std::strtol(amount_it->second.c_str(), &end, 10);
+        if (end != amount_it->second.c_str() && parsed_amount > 0) {
+          amount = parsed_amount;
+        }
+      }
+      
+      LOG(INFO) << "Kartik: Direction scroll - " << direction << " by " << amount << "px";
+      
+      // Get current scroll position
+      gfx::PointF current_offset = frame->GetScrollOffset();
+      LOG(INFO) << "Kartik: Current scroll offset: (" << current_offset.x() << ", " << current_offset.y() << ")";
+      
+      // Calculate new scroll position based on direction
+      gfx::PointF new_offset = current_offset;
+      
+      if (direction == "down") {
+        new_offset.set_y(current_offset.y() + amount);
         success = true;
-        LOG(INFO) << "Kartik: Scroll completed";
+        LOG(INFO) << "Kartik: Scrolling down by " << amount << "px";
+      } else if (direction == "up") {
+        new_offset.set_y(std::max(0.0f, current_offset.y() - amount));
+        success = true;
+        LOG(INFO) << "Kartik: Scrolling up by " << amount << "px";
+      } else if (direction == "right") {
+        new_offset.set_x(current_offset.x() + amount);
+        success = true;
+        LOG(INFO) << "Kartik: Scrolling right by " << amount << "px";
+      } else if (direction == "left") {
+        new_offset.set_x(std::max(0.0f, current_offset.x() - amount));
+        success = true;
+        LOG(INFO) << "Kartik: Scrolling left by " << amount << "px";
       } else {
-        LOG(ERROR) << "Kartik: Invalid scroll coordinates format";
+        LOG(ERROR) << "Kartik: Invalid scroll direction: " << direction 
+                   << ". Valid directions: up, down, left, right";
+        success = false;
+      }
+      
+      if (success) {
+        frame->SetScrollOffset(new_offset);
+        LOG(INFO) << "Kartik: New scroll offset set to: (" << new_offset.x() << ", " << new_offset.y() << ")";
       }
     }
   }

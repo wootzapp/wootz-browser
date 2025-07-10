@@ -94,6 +94,10 @@ void AutomationController::PerformAction(const std::string& action,
     LOG(INFO) << "Kartik: Found direction param=" << *direction;
     mojo_params.insert({std::string("direction"), *direction});
   }
+  if (const std::string* amount = action_params.FindString("amount")) {
+    LOG(INFO) << "Kartik: Found amount param=" << *amount;
+    mojo_params.insert({std::string("amount"), *amount});
+  }
   
   LOG(INFO) << "Kartik: Converted " << mojo_params.size() << " parameters for mojo";
   
@@ -105,6 +109,7 @@ void AutomationController::PerformAction(const std::string& action,
                       base::Unretained(this)));
   } else {
     LOG(ERROR) << "Kartik: Automation agent interface not available for action";
+    std::move(perform_action_callback_).Run(false);
   }
 }
 
