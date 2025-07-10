@@ -382,7 +382,6 @@ class WootzGetPageStateFunction : public ExtensionFunction {
 
  private:
   void OnGetPageStateComplete(bool success, const std::string& state);
-  base::WeakPtrFactory<WootzGetPageStateFunction> weak_factory_{this};
 };
 
 class WootzPerformActionFunction : public ExtensionFunction {
@@ -392,7 +391,6 @@ class WootzPerformActionFunction : public ExtensionFunction {
 
  private:
   void OnActionComplete(bool success);
-  base::WeakPtrFactory<WootzPerformActionFunction> weak_factory_{this};
 };
 
 }  // namespace extensions
