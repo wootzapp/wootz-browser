@@ -10,9 +10,9 @@
 static_assert(false);
 #endif
 
-#ifdef LIBXML_C14N_ENABLED
-static_assert(false);
-#endif
+// #ifdef LIBXML_C14N_ENABLED
+// static_assert(false);
+// #endif
 
 #ifdef LIBXML_CATALOG_ENABLED
 static_assert(false);

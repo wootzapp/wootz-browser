@@ -149,6 +149,7 @@ static_library("libxml") {
     "//third_party/fontconfig",
     "//third_party/libxslt",
     "//third_party/maldoca/*",
+    "//components/saml_verifier:*",  # For SAML C14N canonicalization
   ]
   if (is_ios) {
     foreach(tgt, ios_libxml_visibility_additions) {
@@ -168,7 +169,7 @@ static_library("libxml") {
     "src/SAX2.c",
     "src/buf.c",
 
-    #"src/c14n.c",
+    "src/c14n.c",
     #"src/catalog.c",
     "src/chvalid.c",
 
