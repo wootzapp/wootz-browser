@@ -48,6 +48,7 @@ bool DomainBlockChecker::IsUrlBlocked(const GURL& url, NavigationHandle* handle)
   if (!url.is_valid() || url.host().empty()) {
     return false;
   }
+  
 
   // Streamlined null checks
   WebContents* web_contents = handle->GetWebContents();
