@@ -9,9 +9,12 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <set>
 
 #include "base/functional/callback.h"
+#include "base/time/time.h"
 #include "crypto/signature_verifier.h"
+#include "third_party/boringssl/src/include/openssl/x509.h"
 
 class PrefService;
 
@@ -20,6 +23,10 @@ namespace saml_verifier {
 // SAML attribute data structure for extensibility
 struct SamlAttribute {
   SamlAttribute();
+  SamlAttribute(const SamlAttribute& other);
+  SamlAttribute& operator=(const SamlAttribute& other);
+  SamlAttribute(SamlAttribute&& other) noexcept;
+  SamlAttribute& operator=(SamlAttribute&& other) noexcept;
   ~SamlAttribute();
   
   std::string name;
@@ -104,6 +111,15 @@ class SamlVerifier {
   // Enable dynamic certificate fetching from SAML metadata (default: enabled)
   void SetDynamicCertificateFetchingEnabled(bool enabled);
   
+  // Set expected audience for SAML response validation
+  void SetExpectedAudience(const std::string& audience);
+  
+  // Set maximum age for SAML responses (default: 5 minutes)
+  void SetMaxResponseAge(base::TimeDelta max_age);
+  
+  // Enable development/trial mode for less strict certificate validation
+  void SetDevelopmentMode(bool enabled);
+  
   // Static convenience method: Create, configure, and process SAML automatically
   // This is the main entry point for external code
   static void ProcessNewSamlResponse(PrefService* prefs);
@@ -161,15 +177,20 @@ class SamlVerifier {
     std::string signed_info_xml;
     std::string signature_value;
     std::string digest_value;
-    std::string canonical_xml;
   };
   bool ExtractSignatureData(const std::string& saml_xml, SignatureData* sig_data);
   
   // Canonicalize XML according to C14N standard
   std::string CanonicalizeXml(const std::string& xml);
   
+  // Canonicalize a specific XML element subset using C14N
+  std::string CanonicalizeXmlSubset(const std::string& xml, const std::string& element_id);
+  
   // Extract Reference URI from SignedInfo for SAML signature verification
   std::string ExtractReferenceUri(const std::string& signed_info_xml);
+  
+  // Extract signature method algorithm from SignedInfo
+  std::string ExtractSignatureMethod(const std::string& signed_info_xml);
   
   // Apply SAML signature transforms (enveloped signature + canonicalization)
   std::string ApplySamlSignatureTransforms(const std::string& saml_xml, 
@@ -178,13 +199,27 @@ class SamlVerifier {
   // Apply enveloped signature transform (remove Signature element)
   std::string ApplyEnvelopedSignatureTransform(const std::string& xml);
   
-  // Extract certificate from specific signature element
-  std::string ExtractCertificateFromSignature(const std::string& saml_xml, 
-                                              const std::string& signed_info_xml);
-  
   // Verify RSA signature using Chromium crypto
   bool VerifyRsaSignature(const std::string& data, 
                           const std::string& signature_base64);
+  
+  // Certificate validation methods
+  bool ValidateCertificate();
+  bool ValidateEmbeddedCertificate(const std::string& certificate_pem);
+  bool ValidateOktaCertificate(const std::string& certificate_pem);
+  bool ValidateCertificatePurpose(X509* cert);
+  bool ValidateCertificateIssuer(X509* cert);
+  bool ValidateOktaDomain(X509* cert);
+  bool ValidateCertificateChain(X509* cert);
+  
+  // Digest verification for referenced elements
+  bool VerifyDigestValue(const std::string& canonical_data, const std::string& signed_info_xml);
+  
+  // SAML-specific validations
+  bool ValidateSamlTimestamps(const std::string& saml_xml);
+  bool ValidateSamlAudience(const std::string& saml_xml);
+  bool ValidateSamlConditions(const std::string& saml_xml);
+  bool CheckReplayAttack(const std::string& saml_xml);
 
   bool signature_verification_enabled_ = true;
   bool dynamic_cert_fetching_enabled_ = true;
@@ -195,6 +230,12 @@ class SamlVerifier {
   // Store parsed X.509 certificate for signature verification
   std::vector<uint8_t> certificate_der_;
   std::unique_ptr<crypto::SignatureVerifier> signature_verifier_;
+  
+  // SAML validation settings and state
+  std::string expected_audience_;  // Expected audience for SAML responses
+  std::set<std::string> processed_response_ids_;  // For replay attack prevention
+  base::TimeDelta max_response_age_ = base::Minutes(5);  // Maximum age for SAML response
+  bool development_mode_ = false;  // Allow less strict validation for development/trial
 };
 
 }  // namespace saml_verifier

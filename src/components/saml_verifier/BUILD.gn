@@ -16,7 +16,7 @@ component("saml_verifier") {
     "//content/public/browser",
     "//third_party/libxml:xml_reader",    # Chromium's safe XML reader
     "//third_party/libxml:libxml_utils",  # Chromium libxml utilities
-    "//third_party/libxml2_full",        # ONLY for C14N functionality
+    "//third_party/libxml:libxml",        # Main libxml for C14N canonicalization
     "//crypto",                          # Chromium's crypto library
     "//third_party/boringssl",          # For signature verification
     "//net",
@@ -27,9 +27,8 @@ component("saml_verifier") {
     "//components/user_prefs",
   ]
 
-  # Use Chromium's libxml config plus libxml2_full for C14N
+  # Use Chromium's libxml config
   configs += [ 
     "//third_party/libxml:libxml_config",
-    "//third_party/libxml2_full:libxml2_full_config"
   ]
 } 

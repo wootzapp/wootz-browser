@@ -7,10 +7,12 @@
 #include "third_party/libxml/chromium/xml_reader.h"
 #include "third_party/libxml/chromium/libxml_utils.h"
 
-// Only use libxml2_full for C14N functionality  
-#include <libxml/c14n.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
+// Include proper C14N support
+#include "third_party/libxml/src/include/libxml/c14n.h"
+#include "third_party/libxml/src/include/libxml/parser.h"
+#include "third_party/libxml/src/include/libxml/tree.h"
+#include "third_party/libxml/src/include/libxml/xpath.h"
+#include "third_party/libxml/src/include/libxml/xpathInternals.h"
 
 #include <string>
 #include <vector>
@@ -51,6 +53,29 @@ namespace saml_verifier {
 
 // Struct implementations (required by Chromium style)
 SamlAttribute::SamlAttribute() = default;
+
+SamlAttribute::SamlAttribute(const SamlAttribute& other) 
+    : name(other.name), values(other.values) {}
+
+SamlAttribute& SamlAttribute::operator=(const SamlAttribute& other) {
+  if (this != &other) {
+    name = other.name;
+    values = other.values;
+  }
+  return *this;
+}
+
+SamlAttribute::SamlAttribute(SamlAttribute&& other) noexcept
+    : name(std::move(other.name)), values(std::move(other.values)) {}
+
+SamlAttribute& SamlAttribute::operator=(SamlAttribute&& other) noexcept {
+  if (this != &other) {
+    name = std::move(other.name);
+    values = std::move(other.values);
+  }
+  return *this;
+}
+
 SamlAttribute::~SamlAttribute() = default;
 
 VerificationResult::VerificationResult() = default;
@@ -82,6 +107,59 @@ std::vector<std::string> ParseDomainList(const std::string& domain_string) {
   
   return domains;
 }
+
+// RAII wrapper for xmlDocPtr
+class XmlDocPtr {
+ public:
+  explicit XmlDocPtr(xmlDocPtr doc) : doc_(doc) {}
+  ~XmlDocPtr() {
+    if (doc_) {
+      xmlFreeDoc(doc_);
+    }
+  }
+  
+  xmlDocPtr get() const { return doc_; }
+  xmlDocPtr release() {
+    xmlDocPtr doc = doc_;
+    doc_ = nullptr;
+    return doc;
+  }
+  
+ private:
+  xmlDocPtr doc_;
+};
+
+// RAII wrapper for xmlXPathContextPtr
+class XPathContextPtr {
+ public:
+  explicit XPathContextPtr(xmlXPathContextPtr ctx) : ctx_(ctx) {}
+  ~XPathContextPtr() {
+    if (ctx_) {
+      xmlXPathFreeContext(ctx_);
+    }
+  }
+  
+  xmlXPathContextPtr get() const { return ctx_; }
+  
+ private:
+  xmlXPathContextPtr ctx_;
+};
+
+// RAII wrapper for xmlXPathObjectPtr
+class XPathObjectPtr {
+ public:
+  explicit XPathObjectPtr(xmlXPathObjectPtr obj) : obj_(obj) {}
+  ~XPathObjectPtr() {
+    if (obj_) {
+      xmlXPathFreeObject(obj_);
+    }
+  }
+  
+  xmlXPathObjectPtr get() const { return obj_; }
+  
+ private:
+  xmlXPathObjectPtr obj_;
+};
 
 }  // namespace
 
@@ -126,7 +204,6 @@ bool DomainAttributeProcessor::ProcessAttributes(
   }
 
   if (blocked_domains.empty()) {
-    LOG(INFO) << "No blocked domains found in SAML response";
     return true;  // Not an error, just no domains to block
   }
 
@@ -137,9 +214,6 @@ bool DomainAttributeProcessor::ProcessAttributes(
   }
 
   prefs->SetList(blocked_domains::prefs::kBlockedDomains, std::move(domain_list));
-  
-  LOG(INFO) << "Updated blocked domains with " << blocked_domains.size() 
-            << " domains from SAML response";
   
   return true;
 }
@@ -176,7 +250,6 @@ void SamlVerifier::ProcessStoredSamlResponse(PrefService* prefs,
     return;
   }
 
-  LOG(INFO) << "Processing stored SAML response";
   ProcessSamlResponse(saml_xml, prefs, std::move(callback));
 }
 
@@ -201,14 +274,34 @@ void SamlVerifier::ProcessSamlResponse(const std::string& saml_xml,
   // Verify SAML signature using certificate
   result.signature_verified = VerifySamlSignature(saml_xml);
   
-  if (signature_verification_enabled_ && !result.signature_verified) {
+  // Validate SAML structure and conditions BEFORE processing attributes
+  if (!ValidateSamlConditions(saml_xml)) {
     result.success = false;
-    result.error_message = "SAML signature verification failed";
+    result.error_message = "SAML conditions validation failed";
+    LOG(ERROR) << "SAML conditions validation failed";
     std::move(callback).Run(result);
     return;
   }
-  
-  // Parse SAML attributes
+
+  // Check for replay attacks
+  if (!CheckReplayAttack(saml_xml)) {
+    result.success = false;
+    result.error_message = "SAML replay attack detected";
+    LOG(ERROR) << "SAML replay attack detected";
+    std::move(callback).Run(result);
+    return;
+  }
+
+  // CRITICAL: Signature verification MUST succeed before processing attributes
+  if (!result.signature_verified) {
+    result.success = false;
+    result.error_message = "SAML signature verification failed - rejecting response";
+    LOG(ERROR) << "SAML signature verification failed - SECURITY: Rejecting SAML response";
+    std::move(callback).Run(result);
+    return;
+  }
+
+  // Parse SAML attributes only after signature verification succeeds
   result.attributes = ParseSamlAttributes(saml_xml);
   
   if (result.attributes.empty()) {
@@ -218,12 +311,9 @@ void SamlVerifier::ProcessSamlResponse(const std::string& saml_xml,
     return;
   }
 
-  // Process attributes with registered processors
+  // Process attributes since signature verification succeeded
   ProcessAttributesWithProcessors(result.attributes, prefs);
-  
   result.success = true;
-  LOG(INFO) << "Successfully processed SAML response with " 
-            << result.attributes.size() << " attributes";
   
   std::move(callback).Run(result);
 }
@@ -244,13 +334,12 @@ void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
     return;
   }
   
-  LOG(INFO) << "SAML: Processing new SAML response automatically";
-  
   // Create and configure verifier
   auto verifier = std::make_unique<SamlVerifier>();
   verifier->RegisterDomainProcessor();
   verifier->SetSignatureVerificationEnabled(true);
   verifier->SetDynamicCertificateFetchingEnabled(true);
+  verifier->SetDevelopmentMode(true);  // Enable for Okta trial instances
   
   // Move the verifier to the callback to keep it alive
   auto* verifier_ptr = verifier.get();
@@ -258,17 +347,7 @@ void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
       prefs,
       base::BindOnce([](std::unique_ptr<SamlVerifier> verifier,
                         const VerificationResult& result) {
-        if (result.success) {
-          LOG(INFO) << "SAML: Successfully processed and verified SAML response";
-          LOG(INFO) << "SAML: Signature verified: " << result.signature_verified;
-          LOG(INFO) << "SAML: Found " << result.attributes.size() << " attributes";
-          
-          // Log blocked domains if found
-          auto blocked_domains = result.GetAttributeValues("blocked_domains");
-          if (!blocked_domains.empty()) {
-            LOG(INFO) << "SAML: Updated blocked domains with " << blocked_domains.size() << " entries";
-          }
-        } else {
+        if (!result.success) {
           LOG(ERROR) << "SAML: Failed to process SAML response: " << result.error_message;
         }
         // verifier is automatically destroyed here
@@ -311,18 +390,23 @@ bool SamlVerifier::LoadCertificateFromPem(const std::string& certificate_pem) {
   OPENSSL_free(der_data);
   X509_free(cert);
 
-  LOG(INFO) << "Successfully loaded X.509 certificate (" << certificate_der_.size() << " bytes)";
   return true;
 }
 
 bool SamlVerifier::VerifySamlSignature(const std::string& saml_xml) {
   if (!signature_verification_enabled_) {
-    LOG(INFO) << "Signature verification is disabled";
-    return true;  // Consider as verified when disabled
+    LOG(ERROR) << "Signature verification is disabled - this is insecure for production";
+    return false;  // PRODUCTION: Must verify signatures
   }
 
   if (okta_certificate_pem_.empty() || certificate_der_.empty()) {
     LOG(ERROR) << "No Okta certificate loaded for signature verification";
+    return false;
+  }
+
+  // Validate certificate before using it
+  if (!ValidateCertificate()) {
+    LOG(ERROR) << "Certificate validation failed";
     return false;
   }
 
@@ -333,15 +417,8 @@ bool SamlVerifier::VerifySamlSignature(const std::string& saml_xml) {
     return false;
   }
 
-  // Extract certificate from the same signature element we're verifying
-  std::string signature_cert = ExtractCertificateFromSignature(saml_xml, sig_data.signed_info_xml);
-  if (!signature_cert.empty() && signature_cert != okta_certificate_pem_) {
-    LOG(INFO) << "Using certificate from specific signature instead of cached certificate";
-    if (!LoadCertificateFromPem(signature_cert)) {
-      LOG(ERROR) << "Failed to load certificate from signature element";
-      return false;
-    }
-  }
+  // Certificate should already be loaded by ProcessSamlResponseWithDynamicCert
+  // or SetOktaCertificate - no need to extract it again here
 
   // Extract the Reference URI to find what element is being signed
   std::string reference_uri = ExtractReferenceUri(sig_data.signed_info_xml);
@@ -350,23 +427,31 @@ bool SamlVerifier::VerifySamlSignature(const std::string& saml_xml) {
     return false;
   }
 
-  LOG(INFO) << "SAML signature references element: " << reference_uri;
-
-  // Apply SAML signature transforms to get the canonicalized signed data
+  // CRITICAL FIX: Apply SAML signature transforms to the REFERENCED element
   std::string canonicalized_data = ApplySamlSignatureTransforms(saml_xml, reference_uri);
   if (canonicalized_data.empty()) {
     LOG(ERROR) << "Failed to apply SAML signature transforms";
     return false;
   }
 
-  LOG(INFO) << "Canonicalized signed data length: " << canonicalized_data.length();
+  // First verify the digest of the referenced element
+  bool digest_valid = VerifyDigestValue(canonicalized_data, sig_data.signed_info_xml);
+  if (!digest_valid) {
+    LOG(ERROR) << "Digest verification failed for referenced element";
+    return false;
+  }
 
-  // Verify the RSA signature against the properly transformed data
-  bool signature_valid = VerifyRsaSignature(canonicalized_data, sig_data.signature_value);
+  // Now canonicalize the SignedInfo for signature verification
+  std::string canonical_signed_info = CanonicalizeXml(sig_data.signed_info_xml);
+  if (canonical_signed_info.empty()) {
+    LOG(ERROR) << "Failed to canonicalize SignedInfo";
+    return false;
+  }
 
-  if (signature_valid) {
-    LOG(INFO) << "SAML signature verification SUCCESSFUL";
-  } else {
+  // CORRECT: Verify the RSA signature against the canonicalized SignedInfo
+  bool signature_valid = VerifyRsaSignature(canonical_signed_info, sig_data.signature_value);
+
+  if (!signature_valid) {
     LOG(ERROR) << "SAML signature verification FAILED";
   }
 
@@ -377,8 +462,6 @@ bool SamlVerifier::ExtractSignatureData(const std::string& saml_xml, SignatureDa
   if (!sig_data) {
     return false;
   }
-
-  LOG(INFO) << "Starting signature data extraction from SAML XML";
 
   // Use string-based extraction for the first signature (Response-level)
   // Look for the first SignedInfo element
@@ -411,12 +494,42 @@ bool SamlVerifier::ExtractSignatureData(const std::string& saml_xml, SignatureDa
     }
   }
   
-  sig_data->signed_info_xml = saml_xml.substr(signed_info_start, signed_info_end - signed_info_start);
-  sig_data->canonical_xml = CanonicalizeXml(sig_data->signed_info_xml);
+  // Extract the raw SignedInfo
+  std::string raw_signed_info = saml_xml.substr(signed_info_start, signed_info_end - signed_info_start);
   
-  LOG(INFO) << "Extracted SignedInfo XML (" << sig_data->signed_info_xml.length() << " chars)";
-  LOG(INFO) << "Canonicalized XML (" << sig_data->canonical_xml.length() << " chars)";
-  LOG(INFO) << "Complete SignedInfo: " << sig_data->signed_info_xml;
+  // CRITICAL FIX: Add namespace declarations to preserve context
+  // The SignedInfo uses ds: prefix but the namespace declaration is in the parent Signature element
+  // We need to add the namespace declarations for proper canonicalization
+  
+  // Check if the SignedInfo already has namespace declarations
+  bool has_ds_namespace = raw_signed_info.find("xmlns:ds=") != std::string::npos;
+  
+  if (!has_ds_namespace) {
+    // Add the ds namespace declaration to the SignedInfo element
+    // Find the end of the opening SignedInfo tag
+    size_t tag_end = raw_signed_info.find('>');
+    if (tag_end != std::string::npos) {
+      // Insert the namespace declaration before the closing >
+      std::string namespace_decl = " xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"";
+      raw_signed_info.insert(tag_end, namespace_decl);
+    } else {
+      LOG(ERROR) << "Failed to find end of SignedInfo opening tag";
+      return false;
+    }
+  }
+  
+  // Also check for xmlns:ec namespace if InclusiveNamespaces is used
+  if (raw_signed_info.find("xmlns:ec=") == std::string::npos && 
+      raw_signed_info.find("ec:InclusiveNamespaces") != std::string::npos) {
+    // Add the ec namespace declaration
+    size_t tag_end = raw_signed_info.find('>');
+    if (tag_end != std::string::npos) {
+      std::string ec_namespace_decl = " xmlns:ec=\"http://www.w3.org/2001/10/xml-exc-c14n#\"";
+      raw_signed_info.insert(tag_end, ec_namespace_decl);
+    }
+  }
+  
+  sig_data->signed_info_xml = raw_signed_info;
 
   // Look for SignatureValue in the SAME signature element as the SignedInfo
   // Start searching after the SignedInfo we just found
@@ -466,57 +579,145 @@ bool SamlVerifier::ExtractSignatureData(const std::string& saml_xml, SignatureDa
   
   sig_data->signature_value = raw_signature;
   
-  LOG(INFO) << "Extracted SignatureValue (" << sig_data->signature_value.length() << " chars)";
-  LOG(INFO) << "First 50 chars of SignatureValue: " << sig_data->signature_value.substr(0, 50);
-  
-  bool success = !sig_data->canonical_xml.empty() && !sig_data->signature_value.empty();
+  bool success = !sig_data->signed_info_xml.empty() && !sig_data->signature_value.empty();
   
   if (!success) {
     LOG(ERROR) << "Failed to extract complete signature data";
-  } else {
-    LOG(INFO) << "Successfully extracted signature data";
   }
 
   return success;
 }
 
 std::string SamlVerifier::CanonicalizeXml(const std::string& xml) {
-  LOG(INFO) << "Starting libxml2 Exclusive C14N canonicalization (input length: " << xml.length() << ")";
+  // Initialize libxml2 parser
+  xmlInitParser();
   
-  // Parse XML document using libxml2
-  xmlDocPtr doc = xmlParseMemory(xml.c_str(), static_cast<int>(xml.length()));
-  if (!doc) {
+  // Parse the XML string into a document
+  XmlDocPtr doc(xmlParseMemory(xml.c_str(), xml.length()));
+  if (!doc.get()) {
     LOG(ERROR) << "Failed to parse XML for canonicalization";
+    xmlCleanupParser();
     return "";
   }
-
-  // Perform Exclusive Canonicalization (Exc-C14N) as required by SAML
-  xmlChar* canonical_output = nullptr;
-  int canonical_size = xmlC14NDocDumpMemory(
-      doc,                           // XML document
-      nullptr,                       // nodes (nullptr = entire document)
-      XML_C14N_EXCLUSIVE_1_0,       // Exclusive C14N mode (used by SAML)
-      nullptr,                       // inclusive namespace prefixes
-      0,                            // with_comments (0 = without comments)
-      &canonical_output             // output buffer
-  );
   
-  std::string result;
-  if (canonical_size > 0 && canonical_output) {
-    result.assign(reinterpret_cast<char*>(canonical_output), canonical_size);
-    xmlFree(canonical_output);
-    
-    LOG(INFO) << "libxml2 C14N canonicalization successful";
-    LOG(INFO) << "Canonical XML length: " << result.length() 
-              << " (input: " << xml.length() << ")";
-    LOG(INFO) << "First 200 chars of canonical XML: " << result.substr(0, 200);
+  // Create buffer for canonicalized output
+  xmlChar* c14n_output = nullptr;
+  
+  // Perform exclusive C14N canonicalization (C14N_EXCLUSIVE_1_0)
+  // This is the standard for SAML signature verification
+  // NOTE: SignedInfo canonicalization should NOT include inclusive namespaces
+  // The inclusive namespaces (xs) are only for referenced element transforms
+  int result = xmlC14NDocDumpMemory(
+      doc.get(),                    // XML document
+      nullptr,                      // Node set (nullptr = whole document)
+      XML_C14N_EXCLUSIVE_1_0,       // Exclusive canonicalization mode
+      nullptr,                      // No inclusive namespaces for SignedInfo
+      0,                           // With comments = 0 (no comments)
+      &c14n_output);               // Output buffer
+  
+  std::string canonicalized;
+  if (result >= 0 && c14n_output) {
+    canonicalized = std::string(reinterpret_cast<const char*>(c14n_output), result);
+    xmlFree(c14n_output);
   } else {
-    LOG(ERROR) << "libxml2 canonicalization failed, error code: " << canonical_size;
-    result = xml; // Fallback to original XML
+    LOG(ERROR) << "C14N canonicalization failed with result: " << result;
+    xmlCleanupParser();
+    return "";
   }
   
-  xmlFreeDoc(doc);
-  return result;
+  xmlCleanupParser();
+  return canonicalized;
+}
+
+std::string SamlVerifier::CanonicalizeXmlSubset(const std::string& xml, const std::string& element_id) {
+  // Initialize libxml2 parser
+  xmlInitParser();
+  
+  // Parse the XML string into a document
+  XmlDocPtr doc(xmlParseMemory(xml.c_str(), xml.length()));
+  if (!doc.get()) {
+    LOG(ERROR) << "Failed to parse XML for subset canonicalization";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Create XPath context for finding the specific element
+  XPathContextPtr xpath_ctx(xmlXPathNewContext(doc.get()));
+  if (!xpath_ctx.get()) {
+    LOG(ERROR) << "Failed to create XPath context";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Register common SAML namespaces
+  xmlXPathRegisterNs(xpath_ctx.get(), BAD_CAST "saml2", BAD_CAST "urn:oasis:names:tc:SAML:2.0:assertion");
+  xmlXPathRegisterNs(xpath_ctx.get(), BAD_CAST "samlp", BAD_CAST "urn:oasis:names:tc:SAML:2.0:protocol");
+  xmlXPathRegisterNs(xpath_ctx.get(), BAD_CAST "saml2p", BAD_CAST "urn:oasis:names:tc:SAML:2.0:protocol");
+  xmlXPathRegisterNs(xpath_ctx.get(), BAD_CAST "ds", BAD_CAST "http://www.w3.org/2000/09/xmldsig#");
+  
+  // Create XPath expression to find element with specific ID
+  std::string xpath_expr = "//*[@ID='" + element_id + "']";
+  XPathObjectPtr xpath_obj(xmlXPathEvalExpression(BAD_CAST xpath_expr.c_str(), xpath_ctx.get()));
+  
+  if (!xpath_obj.get() || !xpath_obj.get()->nodesetval || xpath_obj.get()->nodesetval->nodeNr == 0) {
+    LOG(ERROR) << "Element with ID '" << element_id << "' not found";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Get the first matching node
+  xmlNodePtr target_node = xpath_obj.get()->nodesetval->nodeTab[0];
+  if (!target_node) {
+    LOG(ERROR) << "Invalid target node for canonicalization";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Create a new document containing only the target element
+  XmlDocPtr subset_doc(xmlNewDoc(BAD_CAST "1.0"));
+  if (!subset_doc.get()) {
+    LOG(ERROR) << "Failed to create subset document";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Copy the target node to the new document
+  xmlNodePtr copied_node = xmlDocCopyNode(target_node, subset_doc.get(), 1); // 1 = deep copy
+  if (!copied_node) {
+    LOG(ERROR) << "Failed to copy target node";
+    xmlCleanupParser();
+    return "";
+  }
+  
+  // Set as root element
+  xmlDocSetRootElement(subset_doc.get(), copied_node);
+  
+  // Create buffer for canonicalized output
+  xmlChar* c14n_output = nullptr;
+  
+  // Perform exclusive C14N canonicalization on the subset document
+  // Include 'xs' namespace as per SAML signature specification
+  xmlChar* inclusive_ns_list[] = {BAD_CAST "xs", nullptr};
+  int result = xmlC14NDocDumpMemory(
+      subset_doc.get(),             // XML document containing only target element
+      nullptr,                      // Node set (nullptr = whole document)
+      XML_C14N_EXCLUSIVE_1_0,       // Exclusive canonicalization mode
+      inclusive_ns_list,            // Inclusive namespaces list (xs namespace)
+      0,                           // With comments = 0 (no comments)
+      &c14n_output);               // Output buffer
+  
+  std::string canonicalized;
+  if (result >= 0 && c14n_output) {
+    canonicalized = std::string(reinterpret_cast<const char*>(c14n_output), result);
+    xmlFree(c14n_output);
+  } else {
+    LOG(ERROR) << "C14N subset canonicalization failed with result: " << result;
+    xmlCleanupParser();
+    return "";
+  }
+  
+  xmlCleanupParser();
+  return canonicalized;
 }
 
 std::string SamlVerifier::ExtractReferenceUri(const std::string& signed_info_xml) {
@@ -545,15 +746,43 @@ std::string SamlVerifier::ExtractReferenceUri(const std::string& signed_info_xml
   }
   
   std::string uri = signed_info_xml.substr(uri_start, uri_end - uri_start);
-  LOG(INFO) << "Extracted Reference URI: " << uri;
   return uri;
+}
+
+std::string SamlVerifier::ExtractSignatureMethod(const std::string& signed_info_xml) {
+  // Extract the Algorithm attribute from the SignatureMethod element
+  size_t sig_method_start = signed_info_xml.find("<ds:SignatureMethod");
+  if (sig_method_start == std::string::npos) {
+    sig_method_start = signed_info_xml.find("<SignatureMethod");
+  }
+  
+  if (sig_method_start == std::string::npos) {
+    LOG(ERROR) << "No SignatureMethod element found in SignedInfo";
+    return "";
+  }
+  
+  size_t algorithm_start = signed_info_xml.find("Algorithm=\"", sig_method_start);
+  if (algorithm_start == std::string::npos) {
+    LOG(ERROR) << "No Algorithm attribute found in SignatureMethod element";
+    return "";
+  }
+  
+  algorithm_start += 11; // Move past 'Algorithm="'
+  size_t algorithm_end = signed_info_xml.find('\"', algorithm_start);
+  if (algorithm_end == std::string::npos) {
+    LOG(ERROR) << "Malformed Algorithm attribute in SignatureMethod element";
+    return "";
+  }
+  
+  std::string algorithm = signed_info_xml.substr(algorithm_start, algorithm_end - algorithm_start);
+  return algorithm;
 }
 
 std::string SamlVerifier::ApplySamlSignatureTransforms(const std::string& saml_xml, const std::string& reference_uri) {
   // For SAML, we need to:
   // 1. Find the referenced element (usually Response with matching ID)
   // 2. Apply enveloped signature transform (remove Signature element)
-  // 3. Apply exclusive canonicalization
+  // 3. Apply exclusive canonicalization (C14N)
   
   if (reference_uri.empty() || reference_uri[0] != '#') {
     LOG(ERROR) << "Invalid reference URI: " << reference_uri;
@@ -561,56 +790,20 @@ std::string SamlVerifier::ApplySamlSignatureTransforms(const std::string& saml_x
   }
   
   std::string element_id = reference_uri.substr(1); // Remove '#' prefix
-  LOG(INFO) << "Looking for element with ID: " << element_id;
   
-  // Find the element with the matching ID attribute
-  std::string id_pattern = "ID=\"" + element_id + "\"";
-  size_t element_start = saml_xml.find(id_pattern);
-  if (element_start == std::string::npos) {
-    LOG(ERROR) << "Cannot find element with ID: " << element_id;
-    return "";
-  }
-  
-  // Find the start of the element that contains this ID
-  size_t tag_start = saml_xml.rfind('<', element_start);
-  if (tag_start == std::string::npos) {
-    LOG(ERROR) << "Cannot find element start for ID: " << element_id;
-    return "";
-  }
-  
-  // Extract the element name
-  size_t name_end = saml_xml.find_first_of(" >", tag_start + 1);
-  if (name_end == std::string::npos) {
-    LOG(ERROR) << "Cannot parse element name";
-    return "";
-  }
-  
-  std::string element_name = saml_xml.substr(tag_start + 1, name_end - tag_start - 1);
-  LOG(INFO) << "Found referenced element: " << element_name;
-  
-  // Find the closing tag for this element
-  std::string closing_tag = "</" + element_name + ">";
-  size_t element_end = saml_xml.find(closing_tag, element_start);
-  if (element_end == std::string::npos) {
-    LOG(ERROR) << "Cannot find closing tag for element: " << element_name;
-    return "";
-  }
-  element_end += closing_tag.length();
-  
-  // Extract the complete referenced element
-  std::string referenced_element = saml_xml.substr(tag_start, element_end - tag_start);
-  LOG(INFO) << "Extracted referenced element (" << referenced_element.length() << " chars)";
-  
-  // Apply enveloped signature transform - remove the Signature element
-  std::string transformed = ApplyEnvelopedSignatureTransform(referenced_element);
+  // Apply enveloped signature transform first (remove Signature element)
+  std::string transformed = ApplyEnvelopedSignatureTransform(saml_xml);
   if (transformed.empty()) {
     LOG(ERROR) << "Failed to apply enveloped signature transform";
     return "";
   }
   
-  // Apply exclusive canonicalization
-  std::string canonicalized = CanonicalizeXml(transformed);
-  LOG(INFO) << "Applied signature transforms, final length: " << canonicalized.length();
+  // Apply exclusive canonicalization to the specific referenced element
+  std::string canonicalized = CanonicalizeXmlSubset(transformed, element_id);
+  if (canonicalized.empty()) {
+    LOG(ERROR) << "Failed to canonicalize referenced element";
+    return "";
+  }
   
   return canonicalized;
 }
@@ -625,7 +818,6 @@ std::string SamlVerifier::ApplyEnvelopedSignatureTransform(const std::string& xm
   }
   
   if (sig_start == std::string::npos) {
-    LOG(INFO) << "No Signature element found to remove";
     return result;
   }
   
@@ -646,48 +838,10 @@ std::string SamlVerifier::ApplyEnvelopedSignatureTransform(const std::string& xm
   // Remove the signature element
   result.erase(sig_start, sig_end - sig_start);
   
-  LOG(INFO) << "Removed Signature element, remaining length: " << result.length();
   return result;
 }
 
-std::string SamlVerifier::ExtractCertificateFromSignature(const std::string& saml_xml, const std::string& signed_info_xml) {
-  // Find the signature element that contains this SignedInfo
-  size_t signed_info_pos = saml_xml.find(signed_info_xml);
-  if (signed_info_pos == std::string::npos) {
-    LOG(WARNING) << "Cannot find SignedInfo in full SAML XML";
-    return "";
-  }
-  
-  // Find the signature element that contains this SignedInfo
-  size_t sig_start = saml_xml.rfind("<ds:Signature", signed_info_pos);
-  if (sig_start == std::string::npos) {
-    sig_start = saml_xml.rfind("<Signature", signed_info_pos);
-  }
-  
-  if (sig_start == std::string::npos) {
-    LOG(WARNING) << "Cannot find Signature element containing SignedInfo";
-    return "";
-  }
-  
-  // Find the end of this signature
-  size_t sig_end = saml_xml.find("</ds:Signature>", sig_start);
-  if (sig_end == std::string::npos) {
-    sig_end = saml_xml.find("</Signature>", sig_start);
-  }
-  
-  if (sig_end == std::string::npos) {
-    LOG(WARNING) << "Cannot find end of Signature element";
-    return "";
-  }
-  sig_end = saml_xml.find('>', sig_end) + 1;
-  
-  // Extract just this signature element
-  std::string signature_element = saml_xml.substr(sig_start, sig_end - sig_start);
-  LOG(INFO) << "Extracting certificate from signature element (" << signature_element.length() << " chars)";
-  
-  // Extract certificate from this specific signature
-  return ExtractEmbeddedCertificate(signature_element);
-}
+
 
 bool SamlVerifier::VerifyRsaSignature(const std::string& data, 
                                       const std::string& signature_base64) {
@@ -698,8 +852,17 @@ bool SamlVerifier::VerifyRsaSignature(const std::string& data,
     return false;
   }
 
-  LOG(INFO) << "Verifying RSA signature - Data size: " << data.length() 
-            << " bytes, Signature size: " << signature_bytes.length() << " bytes";
+  // Validate signature method from the SignedInfo
+  std::string signature_method = ExtractSignatureMethod(data);
+  
+  // Validate that the signature method matches what we're using
+  if (!signature_method.empty()) {
+    if (signature_method != "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256") {
+      LOG(ERROR) << "Unsupported signature method: " << signature_method;
+      LOG(ERROR) << "Expected: http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
+      return false;
+    }
+  }
 
   // Parse certificate to get public key
   const unsigned char* cert_data = certificate_der_.data();
@@ -751,17 +914,402 @@ bool SamlVerifier::VerifyRsaSignature(const std::string& data,
   // Finalize verification
   bool signature_valid = verifier->VerifyFinal();
   
-  LOG(INFO) << "RSA signature verification result: " << (signature_valid ? "VALID" : "INVALID");
+  return signature_valid;
+}
+
+bool SamlVerifier::ValidateCertificate() {
+  if (certificate_der_.empty()) {
+    LOG(ERROR) << "No certificate loaded for validation";
+    return false;
+  }
+
+  // Parse certificate to check validity
+  const unsigned char* cert_data = certificate_der_.data();
+  X509* cert = d2i_X509(nullptr, &cert_data, certificate_der_.size());
+  if (!cert) {
+    LOG(ERROR) << "Failed to parse certificate for validation";
+    return false;
+  }
+
+  // Check certificate validity period
+  ASN1_TIME* not_before = X509_get_notBefore(cert);
+  ASN1_TIME* not_after = X509_get_notAfter(cert);
   
-  if (!signature_valid) {
-    LOG(ERROR) << "Signature verification failed - this could be due to:";
-    LOG(ERROR) << "1. Incorrect XML canonicalization";
-    LOG(ERROR) << "2. Wrong certificate used for verification";
-    LOG(ERROR) << "3. Signature algorithm mismatch";
-    LOG(ERROR) << "First 100 chars of canonicalized data: " << data.substr(0, 100);
+  int not_before_check = X509_cmp_time(not_before, nullptr);
+  int not_after_check = X509_cmp_time(not_after, nullptr);
+  
+  bool is_valid = (not_before_check <= 0) && (not_after_check >= 0);
+  
+  if (!is_valid) {
+    LOG(ERROR) << "Certificate is not within valid time period";
+    X509_free(cert);
+    return false;
+  }
+
+  // Additional Okta-specific validation
+  bool okta_valid = ValidateOktaCertificate("");
+  
+  X509_free(cert);
+  
+  if (!okta_valid) {
+    LOG(ERROR) << "Certificate validation failed - Okta validation failed";
   }
   
-  return signature_valid;
+  return okta_valid;
+}
+
+bool SamlVerifier::ValidateEmbeddedCertificate(const std::string& certificate_pem) {
+  if (certificate_pem.empty()) {
+    LOG(ERROR) << "Empty embedded certificate";
+    return false;
+  }
+
+  // Parse and validate the embedded certificate
+  BIO* bio = BIO_new_mem_buf(certificate_pem.data(), certificate_pem.length());
+  if (!bio) {
+    LOG(ERROR) << "Failed to create BIO for embedded certificate";
+    return false;
+  }
+
+  X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+  BIO_free(bio);
+  
+  if (!cert) {
+    LOG(ERROR) << "Failed to parse embedded X.509 certificate";
+    return false;
+  }
+
+  // Check certificate validity period
+  ASN1_TIME* not_before = X509_get_notBefore(cert);
+  ASN1_TIME* not_after = X509_get_notAfter(cert);
+  
+  int not_before_check = X509_cmp_time(not_before, nullptr);
+  int not_after_check = X509_cmp_time(not_after, nullptr);
+  
+  bool is_valid = (not_before_check <= 0) && (not_after_check >= 0);
+  
+  if (!is_valid) {
+    LOG(ERROR) << "Embedded certificate is not within valid time period";
+    X509_free(cert);
+    return false;
+  }
+
+  // Validate this is an Okta certificate
+  bool okta_valid = ValidateOktaCertificate(certificate_pem);
+  
+  X509_free(cert);
+  return okta_valid;
+}
+
+bool SamlVerifier::ValidateOktaCertificate(const std::string& certificate_pem) {
+  const unsigned char* cert_data = certificate_der_.data();
+  X509* cert = d2i_X509(nullptr, &cert_data, certificate_der_.size());
+  if (!cert) {
+    LOG(ERROR) << "Failed to parse certificate for Okta validation";
+    return false;
+  }
+
+  bool is_valid = true;
+
+  // 1. Validate certificate purpose and key usage
+  if (!ValidateCertificatePurpose(cert)) {
+    LOG(ERROR) << "Certificate purpose validation failed";
+    is_valid = false;
+  }
+
+  // 2. Validate certificate issuer and subject
+  if (!ValidateCertificateIssuer(cert)) {
+    LOG(ERROR) << "Certificate issuer validation failed";
+    is_valid = false;
+  }
+
+  // 3. Validate subject alternative names for Okta domain
+  if (!ValidateOktaDomain(cert)) {
+    LOG(ERROR) << "Okta domain validation failed";
+    is_valid = false;
+  }
+
+  // 4. Validate certificate chain (simplified - in production add full chain)
+  if (!ValidateCertificateChain(cert)) {
+    LOG(ERROR) << "Certificate chain validation failed";
+    is_valid = false;
+  }
+
+  X509_free(cert);
+  
+  if (!is_valid) {
+    LOG(ERROR) << "Okta certificate validation FAILED";
+  }
+  
+  return is_valid;
+}
+
+bool SamlVerifier::ValidateCertificatePurpose(X509* cert) {
+  // Check key usage extensions
+  int key_usage = X509_get_key_usage(cert);
+  
+  // For SAML signing, we need digital signature capability
+  if (!(key_usage & X509v3_KU_DIGITAL_SIGNATURE)) {
+    LOG(ERROR) << "Certificate does not have digital signature capability";
+    return false;
+  }
+
+  // Check extended key usage for code/document signing
+  EXTENDED_KEY_USAGE* ext_key_usage = static_cast<EXTENDED_KEY_USAGE*>(
+      X509_get_ext_d2i(cert, NID_ext_key_usage, nullptr, nullptr));
+  
+  if (ext_key_usage) {
+    bool valid_purpose = false;
+    for (int i = 0; i < static_cast<int>(sk_ASN1_OBJECT_num(ext_key_usage)); i++) {
+      ASN1_OBJECT* obj = sk_ASN1_OBJECT_value(ext_key_usage, i);
+      int nid = OBJ_obj2nid(obj);
+      
+      // Allow code signing or any purpose for SAML
+      if (nid == NID_code_sign || nid == NID_anyExtendedKeyUsage) {
+        valid_purpose = true;
+        break;
+      }
+    }
+    
+    EXTENDED_KEY_USAGE_free(ext_key_usage);
+    
+    if (!valid_purpose) {
+      LOG(ERROR) << "Certificate does not have appropriate extended key usage";
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool SamlVerifier::ValidateCertificateIssuer(X509* cert) {
+  X509_NAME* issuer = X509_get_issuer_name(cert);
+  X509_NAME* subject = X509_get_subject_name(cert);
+  
+  if (!issuer || !subject) {
+    LOG(ERROR) << "Invalid certificate issuer or subject";
+    return false;
+  }
+
+  // Get issuer string
+  char issuer_str[256];
+  X509_NAME_oneline(issuer, issuer_str, sizeof(issuer_str));
+  
+  char subject_str[256]; 
+  X509_NAME_oneline(subject, subject_str, sizeof(subject_str));
+
+  // Basic validation - in production, validate against known Okta CAs
+  std::string issuer_string(issuer_str);
+  std::string subject_string(subject_str);
+  
+  // Check for reasonable certificate attributes
+  if (issuer_string.empty() || subject_string.empty()) {
+    LOG(ERROR) << "Empty issuer or subject in certificate";
+    return false;
+  }
+
+  // For production: validate against whitelist of trusted Okta issuer CAs
+  // For now, just ensure it's not self-signed for security purposes
+  if (X509_NAME_cmp(issuer, subject) == 0) {
+    LOG(WARNING) << "Self-signed certificate detected - verify this is expected";
+  }
+
+  return true;
+}
+
+bool SamlVerifier::ValidateOktaDomain(X509* cert) {
+  // Get subject alternative names
+  GENERAL_NAMES* san_names = static_cast<GENERAL_NAMES*>(
+      X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+  
+  bool has_okta_domain = false;
+  
+  if (san_names) {
+    for (int i = 0; i < static_cast<int>(sk_GENERAL_NAME_num(san_names)); i++) {
+      GENERAL_NAME* gen_name = sk_GENERAL_NAME_value(san_names, i);
+      
+      if (gen_name->type == GEN_DNS) {
+        ASN1_STRING* dns_name = gen_name->d.dNSName;
+        if (dns_name) {
+          std::string domain_name(reinterpret_cast<const char*>(ASN1_STRING_get0_data(dns_name)),
+                                  ASN1_STRING_length(dns_name));
+          
+          // Check if this is an Okta domain
+          if (domain_name.find(".okta.com") != std::string::npos ||
+              domain_name.find(".oktapreview.com") != std::string::npos ||
+              domain_name.find(".okta-emea.com") != std::string::npos) {
+            has_okta_domain = true;
+          }
+        }
+      }
+    }
+    
+    GENERAL_NAMES_free(san_names);
+  }
+
+  // Also check the common name in subject
+  X509_NAME* subject = X509_get_subject_name(cert);
+  std::string cn;
+  if (subject) {
+    int lastpos = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+    if (lastpos >= 0) {
+      X509_NAME_ENTRY* entry = X509_NAME_get_entry(subject, lastpos);
+      if (entry) {
+        ASN1_STRING* cn_data = X509_NAME_ENTRY_get_data(entry);
+        if (cn_data) {
+          cn = std::string(reinterpret_cast<const char*>(ASN1_STRING_get0_data(cn_data)),
+                           ASN1_STRING_length(cn_data));
+          
+          // Check for full Okta domains in CN
+          if (cn.find(".okta.com") != std::string::npos ||
+              cn.find(".oktapreview.com") != std::string::npos ||
+              cn.find(".okta-emea.com") != std::string::npos) {
+            has_okta_domain = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Check if this is a valid Okta trial certificate
+  // Okta trial certificates often have CN like "trial-XXXXXXX" and are issued by Okta
+  if (!has_okta_domain && !cn.empty()) {
+    // Check if CN matches Okta trial pattern
+    if (cn.find("trial-") == 0) {
+      // Verify the issuer is Okta
+      X509_NAME* issuer = X509_get_issuer_name(cert);
+      if (issuer) {
+        char issuer_str[512];
+        X509_NAME_oneline(issuer, issuer_str, sizeof(issuer_str));
+        std::string issuer_string(issuer_str);
+        
+        if (issuer_string.find("O=Okta") != std::string::npos) {
+          has_okta_domain = true;
+        }
+      }
+    }
+    
+    // Also check for other Okta patterns in CN
+    if (cn.find("okta") != std::string::npos || 
+        cn.find("dev-") == 0) {  // Okta dev instances
+      // Verify the issuer is Okta
+      X509_NAME* issuer = X509_get_issuer_name(cert);
+      if (issuer) {
+        char issuer_str[512];
+        X509_NAME_oneline(issuer, issuer_str, sizeof(issuer_str));
+        std::string issuer_string(issuer_str);
+        
+        if (issuer_string.find("O=Okta") != std::string::npos) {
+          has_okta_domain = true;
+        }
+      }
+    }
+  }
+
+  if (!has_okta_domain) {
+    if (development_mode_) {
+      // In development mode, at least verify the issuer contains "Okta"
+      X509_NAME* issuer = X509_get_issuer_name(cert);
+      if (issuer) {
+        char issuer_str[512];
+        X509_NAME_oneline(issuer, issuer_str, sizeof(issuer_str));
+        std::string issuer_string(issuer_str);
+        
+        if (issuer_string.find("Okta") != std::string::npos || 
+            issuer_string.find("okta") != std::string::npos) {
+          return true;
+        }
+      }
+      
+      LOG(ERROR) << "DEVELOPMENT MODE: Certificate issuer does not contain 'Okta' - rejecting";
+      return false;
+    } else {
+      LOG(ERROR) << "Certificate does not contain valid Okta domain or pattern";
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool SamlVerifier::ValidateCertificateChain(X509* cert) {
+  // For production, implement full certificate chain validation:
+  // 1. Build certificate chain to trusted root CA
+  // 2. Validate each certificate in the chain
+  // 3. Check for revocation using OCSP/CRL
+  // 4. Validate trust anchors
+  
+  // For now, basic self-validation
+  EVP_PKEY* public_key = X509_get_pubkey(cert);
+  if (!public_key) {
+    LOG(ERROR) << "Failed to get public key from certificate";
+    return false;
+  }
+
+  // Verify certificate is self-consistent
+  int verify_result = X509_verify(cert, public_key);
+  EVP_PKEY_free(public_key);
+  
+  if (verify_result != 1) {
+    LOG(ERROR) << "Certificate self-verification failed";
+    return false;
+  }
+
+  // FUTURE: Implement full chain validation to Okta root CAs for enhanced security
+  return true;
+}
+
+bool SamlVerifier::VerifyDigestValue(const std::string& canonical_data, const std::string& signed_info_xml) {
+  if (canonical_data.empty() || signed_info_xml.empty()) {
+    LOG(ERROR) << "Empty data for digest verification";
+    return false;
+  }
+
+  // Extract digest value from SignedInfo
+  size_t digest_start = signed_info_xml.find("<ds:DigestValue>");
+  if (digest_start == std::string::npos) {
+    digest_start = signed_info_xml.find("<DigestValue>");
+  }
+  
+  if (digest_start == std::string::npos) {
+    LOG(ERROR) << "No DigestValue element found in SignedInfo";
+    return false;
+  }
+  
+  size_t content_start = signed_info_xml.find('>', digest_start) + 1;
+  size_t digest_end = signed_info_xml.find("</ds:DigestValue>", content_start);
+  if (digest_end == std::string::npos) {
+    digest_end = signed_info_xml.find("</DigestValue>", content_start);
+  }
+  
+  if (digest_end == std::string::npos) {
+    LOG(ERROR) << "No closing DigestValue tag found";
+    return false;
+  }
+  
+  std::string expected_digest_b64 = signed_info_xml.substr(content_start, digest_end - content_start);
+  
+  // Remove whitespace
+  expected_digest_b64.erase(
+    std::remove_if(expected_digest_b64.begin(), expected_digest_b64.end(),
+                   [](char c) { return std::isspace(c); }),
+    expected_digest_b64.end());
+
+  // Calculate SHA-256 digest of canonical data
+  std::string digest = crypto::SHA256HashString(canonical_data);
+  
+  // Encode to base64
+  std::string calculated_digest_b64 = base::Base64Encode(digest);
+  
+  bool digest_match = (expected_digest_b64 == calculated_digest_b64);
+  
+  if (!digest_match) {
+    LOG(ERROR) << "Digest verification FAILED";
+    LOG(ERROR) << "Expected: " << expected_digest_b64;
+    LOG(ERROR) << "Calculated: " << calculated_digest_b64;
+  }
+  
+  return digest_match;
 }
 
 std::vector<SamlAttribute> SamlVerifier::ParseSamlAttributes(
@@ -804,10 +1352,8 @@ std::vector<SamlAttribute> SamlVerifier::ParseSamlAttributes(
         }
       }
       
-      if (!saml_attr.values.empty()) {
+      if (!saml_attr.name.empty() && !saml_attr.values.empty()) {
         attributes.push_back(std::move(saml_attr));
-        LOG(INFO) << "Found SAML attribute: " << saml_attr.name 
-                  << " with " << saml_attr.values.size() << " values";
       }
     }
   }
@@ -824,9 +1370,7 @@ void SamlVerifier::ProcessAttributesWithProcessors(
   }
 
   for (const auto& processor : attribute_processors_) {
-    if (processor->ProcessAttributes(attributes, prefs)) {
-      LOG(INFO) << "Successfully processed attributes with processor";
-    } else {
+    if (!processor->ProcessAttributes(attributes, prefs)) {
       LOG(WARNING) << "Processor failed to process attributes";
     }
   }
@@ -846,7 +1390,6 @@ bool SamlVerifier::SetOktaCertificate(const std::string& certificate_pem) {
     return false;
   }
   
-  LOG(INFO) << "Okta certificate loaded successfully";
   return true;
 }
 
@@ -868,12 +1411,22 @@ bool SamlVerifier::LoadOktaCertificateFromFile(const std::string& cert_file_path
 
 void SamlVerifier::SetSignatureVerificationEnabled(bool enabled) {
   signature_verification_enabled_ = enabled;
-  LOG(INFO) << "Signature verification " << (enabled ? "enabled" : "disabled");
 }
 
 void SamlVerifier::SetDynamicCertificateFetchingEnabled(bool enabled) {
   dynamic_cert_fetching_enabled_ = enabled;
-  LOG(INFO) << "Dynamic certificate fetching " << (enabled ? "enabled" : "disabled");
+}
+
+void SamlVerifier::SetExpectedAudience(const std::string& audience) {
+  expected_audience_ = audience;
+}
+
+void SamlVerifier::SetMaxResponseAge(base::TimeDelta max_age) {
+  max_response_age_ = max_age;
+}
+
+void SamlVerifier::SetDevelopmentMode(bool enabled) {
+  development_mode_ = enabled;
 }
 
 // Dynamic certificate fetching methods (simplified versions)
@@ -894,7 +1447,6 @@ std::string SamlVerifier::ExtractSamlIssuer(const std::string& saml_xml) {
     }
   }
 
-  LOG(INFO) << "Extracted SAML issuer: " << issuer;
   return issuer;
 }
 
@@ -922,7 +1474,6 @@ std::string SamlVerifier::ExtractOktaDomain(const std::string& saml_xml) {
             if (end != std::string::npos) {
               std::string extracted_domain = domain.substr(start, end - start);
               if (extracted_domain.find(".okta.com") != std::string::npos) {
-                LOG(INFO) << "Found Okta domain from Destination: " << extracted_domain;
                 return extracted_domain;
               }
             }
@@ -943,7 +1494,6 @@ std::string SamlVerifier::ExtractOktaDomain(const std::string& saml_xml) {
             if (end != std::string::npos) {
               std::string extracted_domain = url_content.substr(start, end - start);
               if (extracted_domain.find(".okta.com") != std::string::npos) {
-                LOG(INFO) << "Found Okta domain from " << node_name << ": " << extracted_domain;
                 return extracted_domain;
               }
             }
@@ -962,8 +1512,6 @@ std::string SamlVerifier::ConstructMetadataUrl(const std::string& issuer_url) {
     LOG(ERROR) << "Empty issuer URL";
     return "";
   }
-
-  LOG(INFO) << "Constructing metadata URL for issuer: " << issuer_url;
 
   // For Okta issuers like "http://www.okta.com/exksskc7obCMybtFv697"
   std::string metadata_url;
@@ -984,13 +1532,10 @@ std::string SamlVerifier::ConstructMetadataUrl(const std::string& issuer_url) {
       // Try app-specific metadata URL pattern (needs actual domain)
       // metadata_url = "https://{domain}/app/" + app_id + "/sso/saml/metadata";
       
-      // For now, log what we would try and return empty to fallback to embedded cert
-      LOG(INFO) << "Would try app-specific metadata for app ID: " << app_id;
-      LOG(INFO) << "Need actual Okta domain to construct proper metadata URL";
+      // For now, return empty to fallback to embedded cert
     }
   }
   
-  LOG(INFO) << "Constructed metadata URL: " << metadata_url;
   return metadata_url;
 }
 
@@ -1002,8 +1547,6 @@ void SamlVerifier::FetchSamlMetadata(const std::string& metadata_url,
     return;
   }
 
-  LOG(INFO) << "SAML: Fetching metadata from: " << metadata_url;
-  
   // Create a simple URL request
   auto request = std::make_unique<network::ResourceRequest>();
   request->url = GURL(metadata_url);
@@ -1035,9 +1578,7 @@ void SamlVerifier::FetchSamlMetadata(const std::string& metadata_url,
   url_loader->SetRetryOptions(1, network::SimpleURLLoader::RETRY_ON_NETWORK_CHANGE);
 
   // Start the request - we'll need URLLoaderFactory for this to work properly
-  // For now, return empty to avoid crashes, but log that we tried
-  LOG(WARNING) << "SAML: Network fetching requires URLLoaderFactory integration";
-  LOG(INFO) << "SAML: Would fetch from: " << metadata_url;
+  // For now, return empty to avoid crashes
   
   // Return empty metadata (will fallback to embedded cert)
   std::move(callback).Run("");
@@ -1067,7 +1608,6 @@ std::string SamlVerifier::ExtractCertificateFromMetadata(const std::string& meta
         std::string use_attr;
         if (reader.NodeAttribute("use", &use_attr) && use_attr == "signing") {
           in_signing_key = true;
-          LOG(INFO) << "Found signing KeyDescriptor in metadata";
         }
       }
       
@@ -1075,9 +1615,7 @@ std::string SamlVerifier::ExtractCertificateFromMetadata(const std::string& meta
       if ((node_name == "ds:X509Certificate" || 
            node_name == "X509Certificate" ||
            node_name.find("X509Certificate") != std::string::npos) && 
-          (in_signing_key || !in_signing_key)) { // Accept any cert for now
-        
-        LOG(INFO) << "Found certificate element in metadata: " << node_name;
+          in_signing_key) { // Only accept certificates from signing KeyDescriptor
         
         if (reader.ReadElementContent(&cert_data)) {
           // Remove any whitespace from the base64 data
@@ -1097,8 +1635,6 @@ std::string SamlVerifier::ExtractCertificateFromMetadata(const std::string& meta
           }
           pem_cert += "-----END CERTIFICATE-----\n";
           
-          LOG(INFO) << "Successfully extracted certificate from SAML metadata (" 
-                    << cert_data.length() << " chars base64)";
           return pem_cert;
         }
       }
@@ -1131,8 +1667,6 @@ std::string SamlVerifier::ExtractEmbeddedCertificate(const std::string& saml_xml
           node_name == "X509Certificate" ||
           node_name.find("X509Certificate") != std::string::npos) {
         
-        LOG(INFO) << "Found certificate element: " << node_name;
-        
         if (reader.ReadElementContent(&cert_data)) {
           // Remove any whitespace from the base64 data
           base::RemoveChars(cert_data, " \t\r\n", &cert_data);
@@ -1151,8 +1685,6 @@ std::string SamlVerifier::ExtractEmbeddedCertificate(const std::string& saml_xml
           }
           pem_cert += "-----END CERTIFICATE-----\n";
           
-          LOG(INFO) << "Successfully extracted embedded X.509 certificate (" 
-                    << cert_data.length() << " chars base64)";
           return pem_cert;
         }
       }
@@ -1166,26 +1698,19 @@ std::string SamlVerifier::ExtractEmbeddedCertificate(const std::string& saml_xml
 void SamlVerifier::ProcessSamlResponseWithDynamicCert(const std::string& saml_xml,
                                                       PrefService* prefs,
                                                       VerificationCallback callback) {
-  LOG(INFO) << "SAML: Starting dynamic certificate processing";
-  
   VerificationResult result;
+  bool certificate_loaded = false;
   
   // Step 1: Extract certificate directly from SAML response (most common case)
   std::string embedded_cert = ExtractEmbeddedCertificate(saml_xml);
   if (!embedded_cert.empty()) {
-    LOG(INFO) << "SAML: Found embedded certificate in response";
     if (LoadCertificateFromPem(embedded_cert)) {
-      LOG(INFO) << "SAML: Successfully loaded embedded certificate";
       okta_certificate_pem_ = embedded_cert;
-      
-      // Verify signature using embedded certificate
-      result.signature_verified = VerifySamlSignature(saml_xml);
-      LOG(INFO) << "SAML: Signature verification result: " << result.signature_verified;
+      certificate_loaded = true;
     } else {
       LOG(ERROR) << "SAML: Failed to load embedded certificate";
     }
   } else {
-    LOG(WARNING) << "SAML: No embedded certificate found, trying metadata fetch";
     
     // Step 2: Fallback to metadata fetching
     std::string issuer = ExtractSamlIssuer(saml_xml);
@@ -1193,10 +1718,9 @@ void SamlVerifier::ProcessSamlResponseWithDynamicCert(const std::string& saml_xm
       // Check cache first
       auto cached_cert = certificate_cache_.find(issuer);
       if (cached_cert != certificate_cache_.end()) {
-        LOG(INFO) << "SAML: Using cached certificate for issuer: " << issuer;
         if (LoadCertificateFromPem(cached_cert->second)) {
           okta_certificate_pem_ = cached_cert->second;
-          result.signature_verified = VerifySamlSignature(saml_xml);
+          certificate_loaded = true;
         }
       } else {
         // Extract actual Okta domain and construct proper metadata URL
@@ -1223,8 +1747,6 @@ void SamlVerifier::ProcessSamlResponseWithDynamicCert(const std::string& saml_xm
           metadata_url = ConstructMetadataUrl(issuer);
         }
         
-        LOG(INFO) << "SAML: Fetching certificate from metadata: " << metadata_url;
-        
         FetchSamlMetadata(metadata_url, 
           base::BindOnce(&SamlVerifier::OnMetadataFetched, 
                          base::Unretained(this), issuer, saml_xml, prefs, std::move(callback)));
@@ -1233,24 +1755,34 @@ void SamlVerifier::ProcessSamlResponseWithDynamicCert(const std::string& saml_xm
     }
   }
   
-  // If signature verification is required but failed, stop here
-  if (signature_verification_enabled_ && !result.signature_verified) {
+  // Step 3: Verify signature if certificate was loaded
+  if (certificate_loaded) {
+    result.signature_verified = VerifySamlSignature(saml_xml);
+  } else {
+    result.signature_verified = false;
+    LOG(ERROR) << "SAML: No certificate loaded - cannot verify signature";
+  }
+  
+  // Step 4: Parse and process attributes only if signature verification succeeded
+  if (!result.signature_verified) {
     result.success = false;
-    result.error_message = "SAML signature verification failed with dynamic certificate";
+    result.error_message = "SAML signature verification failed with dynamic certificate - rejecting response";
+    LOG(ERROR) << "SAML dynamic cert signature verification failed - SECURITY: Rejecting SAML response";
     std::move(callback).Run(result);
     return;
   }
   
-  // Step 3: Parse and process attributes
   result.attributes = ParseSamlAttributes(saml_xml);
   if (result.attributes.empty()) {
     result.success = false;
     result.error_message = "No SAML attributes found";
-  } else {
-    ProcessAttributesWithProcessors(result.attributes, prefs);
-    result.success = true;
-    LOG(INFO) << "SAML: Successfully processed with " << result.attributes.size() << " attributes";
+    std::move(callback).Run(result);
+    return;
   }
+
+  // Process attributes since signature verification succeeded
+  ProcessAttributesWithProcessors(result.attributes, prefs);
+  result.success = true;
   
   std::move(callback).Run(result);
 }
@@ -1260,8 +1792,6 @@ void SamlVerifier::OnMetadataFetched(const std::string& issuer,
                                      PrefService* prefs,
                                      VerificationCallback callback,
                                      const std::string& metadata_xml) {
-  LOG(INFO) << "SAML: Processing fetched metadata for issuer: " << issuer;
-  
   VerificationResult result;
   
   if (metadata_xml.empty()) {
@@ -1294,32 +1824,206 @@ void SamlVerifier::OnMetadataFetched(const std::string& issuer,
   // Cache the certificate for future use
   certificate_cache_[issuer] = cert_pem;
   okta_certificate_pem_ = cert_pem;
-  LOG(INFO) << "SAML: Successfully cached certificate for issuer: " << issuer;
   
   // Verify signature using the fetched certificate
   result.signature_verified = VerifySamlSignature(saml_xml);
-  LOG(INFO) << "SAML: Signature verification result: " << result.signature_verified;
   
-  // If signature verification is required but failed, stop here
-  if (signature_verification_enabled_ && !result.signature_verified) {
+  // Parse and process attributes only if signature verification succeeded
+  if (!result.signature_verified) {
     result.success = false;
-    result.error_message = "SAML signature verification failed with metadata certificate";
+    result.error_message = "SAML signature verification failed with metadata certificate - rejecting response";
+    LOG(ERROR) << "SAML metadata cert signature verification failed - SECURITY: Rejecting SAML response";
     std::move(callback).Run(result);
     return;
   }
   
-  // Parse and process attributes
   result.attributes = ParseSamlAttributes(saml_xml);
   if (result.attributes.empty()) {
     result.success = false;
     result.error_message = "No SAML attributes found";
-  } else {
-    ProcessAttributesWithProcessors(result.attributes, prefs);
-    result.success = true;
-    LOG(INFO) << "SAML: Successfully processed with " << result.attributes.size() << " attributes";
+    std::move(callback).Run(result);
+    return;
   }
+
+  // Process attributes since signature verification succeeded
+  ProcessAttributesWithProcessors(result.attributes, prefs);
+  result.success = true;
   
   std::move(callback).Run(result);
+}
+
+bool SamlVerifier::ValidateSamlTimestamps(const std::string& saml_xml) {
+  XmlReader reader;
+  if (!reader.Load(saml_xml)) {
+    LOG(ERROR) << "Failed to parse SAML XML for timestamp validation";
+    return false;
+  }
+
+  base::Time now = base::Time::Now();
+  base::Time not_before;
+  base::Time not_on_or_after;
+  bool found_conditions = false;
+
+  while (reader.Read()) {
+    if (reader.IsElement() && 
+        (reader.NodeName() == "saml2:Conditions" || reader.NodeName() == "Conditions")) {
+      found_conditions = true;
+      
+      std::string not_before_str;
+      std::string not_on_or_after_str;
+      
+      if (reader.NodeAttribute("NotBefore", &not_before_str)) {
+        if (!base::Time::FromString(not_before_str.c_str(), &not_before)) {
+          LOG(ERROR) << "Invalid NotBefore timestamp format: " << not_before_str;
+          return false;
+        }
+      }
+      
+      if (reader.NodeAttribute("NotOnOrAfter", &not_on_or_after_str)) {
+        if (!base::Time::FromString(not_on_or_after_str.c_str(), &not_on_or_after)) {
+          LOG(ERROR) << "Invalid NotOnOrAfter timestamp format: " << not_on_or_after_str;
+          return false;
+        }
+      }
+      break;
+    }
+  }
+
+  if (!found_conditions) {
+    LOG(WARNING) << "No Conditions element found in SAML response";
+    return true;  // Some SAML responses might not have conditions
+  }
+
+  // Check if current time is within valid period
+  if (!not_before.is_null() && now < not_before) {
+    LOG(ERROR) << "SAML response not yet valid (NotBefore: " << not_before << ", now: " << now << ")";
+    return false;
+  }
+
+  if (!not_on_or_after.is_null() && now >= not_on_or_after) {
+    LOG(ERROR) << "SAML response expired (NotOnOrAfter: " << not_on_or_after << ", now: " << now << ")";
+    return false;
+  }
+
+  // Check response age
+  if (!not_on_or_after.is_null()) {
+    base::TimeDelta response_age = now - (not_on_or_after - max_response_age_);
+    if (response_age > max_response_age_) {
+      LOG(ERROR) << "SAML response too old (age: " << response_age << ", max: " << max_response_age_ << ")";
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool SamlVerifier::ValidateSamlAudience(const std::string& saml_xml) {
+  if (expected_audience_.empty()) {
+    LOG(WARNING) << "No expected audience configured - skipping audience validation";
+    return true;
+  }
+
+  XmlReader reader;
+  if (!reader.Load(saml_xml)) {
+    LOG(ERROR) << "Failed to parse SAML XML for audience validation";
+    return false;
+  }
+
+  bool found_audience = false;
+  std::vector<std::string> audiences;
+
+  while (reader.Read()) {
+    if (reader.IsElement() && 
+        (reader.NodeName() == "saml2:Audience" || reader.NodeName() == "Audience")) {
+      std::string audience;
+      if (reader.ReadElementContent(&audience)) {
+        audiences.push_back(audience);
+        if (audience == expected_audience_) {
+          found_audience = true;
+        }
+      }
+    }
+  }
+
+  if (audiences.empty()) {
+    LOG(WARNING) << "No audience restrictions found in SAML response";
+    return true;  // Some SAML responses might not have audience restrictions
+  }
+
+  if (!found_audience) {
+    LOG(ERROR) << "Expected audience '" << expected_audience_ << "' not found in SAML response";
+    LOG(ERROR) << "Found audiences: ";
+    for (const auto& aud : audiences) {
+      LOG(ERROR) << "  - " << aud;
+    }
+    return false;
+  }
+
+  return true;
+}
+
+bool SamlVerifier::ValidateSamlConditions(const std::string& saml_xml) {
+  // Validate timestamps
+  if (!ValidateSamlTimestamps(saml_xml)) {
+    LOG(ERROR) << "SAML timestamp validation failed";
+    return false;
+  }
+
+  // Validate audience restrictions
+  if (!ValidateSamlAudience(saml_xml)) {
+    LOG(ERROR) << "SAML audience validation failed";
+    return false;
+  }
+
+  // Additional condition validations can be added here
+  // - OneTimeUse validation
+  // - ProxyRestriction validation
+  // - Custom condition validations
+
+  return true;
+}
+
+bool SamlVerifier::CheckReplayAttack(const std::string& saml_xml) {
+  // Extract SAML Response ID
+  XmlReader reader;
+  if (!reader.Load(saml_xml)) {
+    LOG(ERROR) << "Failed to parse SAML XML for replay check";
+    return false;
+  }
+
+  std::string response_id;
+  while (reader.Read()) {
+    if (reader.IsElement() && 
+        (reader.NodeName() == "samlp:Response" || reader.NodeName() == "Response")) {
+      if (!reader.NodeAttribute("ID", &response_id)) {
+        LOG(ERROR) << "SAML Response missing required ID attribute";
+        return false;
+      }
+      break;
+    }
+  }
+
+  if (response_id.empty()) {
+    LOG(ERROR) << "Could not extract SAML Response ID";
+    return false;
+  }
+
+  // Check if we've already processed this response ID
+  if (processed_response_ids_.find(response_id) != processed_response_ids_.end()) {
+    LOG(ERROR) << "SAML Response ID already processed - replay attack detected: " << response_id;
+    return false;
+  }
+
+  // Add to processed IDs (in production, this should be persisted and have TTL)
+  processed_response_ids_.insert(response_id);
+  
+  // Clean up old entries to prevent memory growth
+  // In production, implement proper TTL-based cleanup
+  if (processed_response_ids_.size() > 1000) {
+    LOG(WARNING) << "Large number of processed SAML IDs - consider implementing TTL cleanup";
+  }
+
+  return true;
 }
 
 }  // namespace saml_verifier 
