@@ -1509,6 +1509,9 @@ ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
   const base::Value::Dict& action_params = args()[1].GetDict();
   LOG(INFO) << "Kartik: Action type: " << action;
   
+  if (auto index = action_params.FindInt("index")) {
+    LOG(INFO) << "Kartik: Target index: " << index.value();
+  }
   if (const std::string* selector = action_params.FindString("selector")) {
     LOG(INFO) << "Kartik: Target selector: " << *selector;
   }

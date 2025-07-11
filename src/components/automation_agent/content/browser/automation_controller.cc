@@ -86,6 +86,10 @@ void AutomationController::PerformAction(const std::string& action,
     LOG(INFO) << "Kartik: Found selector param=" << *selector;
     mojo_params.insert({std::string("selector"), *selector});
   }
+  if (auto index = action_params.FindInt("index")) {  // Handle integer
+    LOG(INFO) << "Kartik: Found index param=" << index.value();
+    mojo_params.insert({std::string("index"), std::to_string(index.value())});  // Convert to string
+  }
   if (const std::string* text = action_params.FindString("text")) {
     LOG(INFO) << "Kartik: Found text param, length=" << text->length();
     mojo_params.insert({std::string("text"), *text});
