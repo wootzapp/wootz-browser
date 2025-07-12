@@ -64,6 +64,9 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
   blink::WebDocument document = frame->GetDocument();
 
+  // 🔧 CRITICAL FIX: Clean up previous highlights and reset index
+  CleanupPreviousHighlights(document);
+  
   LOG(INFO) << "Kartik: Frame obtained successfully, getting document";
   LOG(INFO) << "Kartik: Document URL: " << document.Url().GetString().Utf8();
 
@@ -77,7 +80,7 @@ void AutomationAgent::GetPageState(bool debug_mode,
   int element_count = 0;
   int visible_elements = 0;
   int interactive_elements = 0;
-  int highlight_index = 0;  // Index counter for interactive elements
+  int highlight_index = 0;  // 🔧 RESET: Always start from 0
 
   // Store elements with their indices for highlighting
   std::vector<std::pair<blink::WebElement, int>> indexed_elements;
@@ -94,6 +97,11 @@ void AutomationAgent::GetPageState(bool debug_mode,
       continue;
     }
     visible_elements++;
+
+    // NEW: Check viewport visibility - Skip elements outside viewport
+    if (!IsElementInViewport(element)) {
+      continue; // Skip elements not in current viewport
+    }
 
     bool is_interactive = IsElementInteractive(element);
     
@@ -115,8 +123,9 @@ void AutomationAgent::GetPageState(bool debug_mode,
     if (is_interactive) {
       element_info.Set("index", highlight_index);
       indexed_elements.push_back(std::make_pair(element, highlight_index));
+      LOG(INFO) << "Kartik: Assigned index " << highlight_index << " to " << element.TagName().Utf8() 
+                << " (total interactive: " << (highlight_index + 1) << ")";
       highlight_index++;
-      LOG(INFO) << "Kartik: Assigned index " << (highlight_index - 1) << " to " << element.TagName().Utf8();
     }
     
     // Only include visibility info if debug mode is on
@@ -159,7 +168,8 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
   LOG(INFO) << "Kartik: Element collection complete. Stats:"
             << " Total=" << element_count
-            << " Visible=" << visible_elements
+            << " CSS-Visible=" << visible_elements  
+            << " In-Viewport=" << elements_list.size()  // This shows viewport-filtered count
             << " Interactive=" << interactive_elements
             << " Indexed=" << highlight_index;
 
@@ -508,6 +518,59 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
   return false;
 }
 
+bool AutomationAgent::IsElementInViewport(const blink::WebElement& element) {
+  if (element.IsNull())
+    return false;
+
+  // Get element bounds
+  gfx::Rect element_bounds = element.BoundsInWidget();
+  
+  // Element has no size, skip it
+  if (element_bounds.width() <= 0 || element_bounds.height() <= 0) {
+    return false;
+  }
+
+  // Get viewport size using the correct method
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (!frame) {
+    return false;
+  }
+
+  blink::WebView* web_view = frame->View();
+  if (!web_view) {
+    return false;
+  }
+
+  // FIX: Use VisualViewportSize() instead of GetLayoutSize()
+  gfx::SizeF viewport_size_f = web_view->VisualViewportSize();
+  gfx::Size viewport_size(static_cast<int>(viewport_size_f.width()), 
+                         static_cast<int>(viewport_size_f.height()));
+  
+  // Get scroll position
+  gfx::PointF scroll_offset = frame->GetScrollOffset();
+  
+  // Calculate viewport bounds (what's currently visible)
+  gfx::Rect viewport_bounds(
+    static_cast<int>(scroll_offset.x()), 
+    static_cast<int>(scroll_offset.y()), 
+    viewport_size.width(), 
+    viewport_size.height()
+  );
+
+  // Check if element intersects with viewport
+  bool in_viewport = viewport_bounds.Intersects(element_bounds);
+  
+  if (in_viewport) {
+    LOG(INFO) << "Kartik: Element " << element.TagName().Utf8() 
+              << " is in viewport - bounds(" << element_bounds.x() << "," << element_bounds.y() 
+              << "," << element_bounds.width() << "," << element_bounds.height() << ")"
+              << " viewport(" << viewport_bounds.x() << "," << viewport_bounds.y()
+              << "," << viewport_bounds.width() << "," << viewport_bounds.height() << ")";
+  }
+
+  return in_viewport;
+}
+
 gfx::Rect AutomationAgent::GetElementBounds(const blink::WebElement& element) {
   if (element.IsNull())
     return gfx::Rect();
@@ -643,6 +706,51 @@ void AutomationAgent::InjectIndexedHighlightCSS(blink::WebDocument& document,
     frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(js_code)));
   } else {
     LOG(ERROR) << "Kartik: Could not execute script for index highlighting due to no frame.";
+  }
+}
+
+void AutomationAgent::CleanupPreviousHighlights(blink::WebDocument& document) {
+  LOG(INFO) << "Kartik: Cleaning up previous highlights";
+  
+  // Remove all elements with automation highlighting
+  blink::WebString cleanup_script = blink::WebString::FromUTF8(R"(
+    (function() {
+      // Remove all automation highlight classes and attributes
+      const highlightedElements = document.querySelectorAll('[data-automation-index]');
+      highlightedElements.forEach(element => {
+        // Remove automation classes
+        element.classList.remove('automation-highlight');
+        
+        // Remove automation attributes
+        element.removeAttribute('data-automation-index');
+        
+        // Remove automation labels
+        const labels = element.querySelectorAll('.automation-highlight-label');
+        labels.forEach(label => label.remove());
+      });
+      
+      // Remove all automation CSS styles
+      const styles = document.querySelectorAll('style');
+      styles.forEach(style => {
+        if (style.textContent && (
+            style.textContent.includes('automation-highlight') ||
+            style.textContent.includes('data-automation-index') ||
+            style.textContent.includes('--highlight-color')
+        )) {
+          style.remove();
+        }
+      });
+      
+      console.log('Automation highlights cleaned up');
+    })();
+  )");
+  
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (frame) {
+    frame->ExecuteScript(blink::WebScriptSource(cleanup_script));
+    LOG(INFO) << "Kartik: Previous highlights cleanup completed";
+  } else {
+    LOG(ERROR) << "Kartik: Could not execute cleanup script - no frame available";
   }
 }
 

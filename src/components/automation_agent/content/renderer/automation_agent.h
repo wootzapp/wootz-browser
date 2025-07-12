@@ -67,8 +67,9 @@ class AutomationAgent : public content::RenderFrameObserver,
   // Keep only the essential helper methods that we can implement with WebElement API
   bool IsElementVisible(const blink::WebElement& element);
   bool IsElementInteractive(const blink::WebElement& element);
+  bool IsElementInViewport(const blink::WebElement& element);
   gfx::Rect GetElementBounds(const blink::WebElement& element);
-  
+  void CleanupPreviousHighlights(blink::WebDocument& document);
   void InjectIndexedHighlightCSS(blink::WebDocument& document, 
     std::vector<std::pair<blink::WebElement, int>>& indexed_elements);
   
