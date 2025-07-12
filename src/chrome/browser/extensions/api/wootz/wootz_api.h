@@ -45,6 +45,8 @@ class WebContents;
 
 namespace extensions {
 
+content::WebContents* WebContentsIdToJavaWebContents(int webContentsId);
+
 class WootzAPI : public BrowserContextKeyedAPI,
                  public wootz_wallet::mojom::TxServiceObserver {
  public:
@@ -379,6 +381,24 @@ class WootzSubmitSamlResponseFunction : public ExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("wootz.submitSamlResponse", WOOTZ_SUBMIT_SAML_RESPONSE)
  protected:
   ~WootzSubmitSamlResponseFunction() override {}
+  ResponseAction Run() override;
+};
+
+class WootzCreateBackgroundWebContentsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.createBackgroundWebContents", WOOTZ_CREATE_BACKGROUND_WEBCONTENTS)
+  WootzCreateBackgroundWebContentsFunction() = default;
+ protected:
+  ~WootzCreateBackgroundWebContentsFunction() override = default;
+  ResponseAction Run() override;
+};
+
+class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.destroyBackgroundWebContents", WOOTZ_DESTROY_BACKGROUND_WEBCONTENTS)
+  WootzDestroyBackgroundWebContentsFunction() = default;
+ protected:
+  ~WootzDestroyBackgroundWebContentsFunction() override = default;
   ResponseAction Run() override;
 };
 
