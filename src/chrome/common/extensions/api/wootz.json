@@ -559,47 +559,6 @@
           }
         },
         {
-          "name": "setBlockedDomains",
-          "type": "function",
-          "description": "Sets the list of blocked domains for navigation throttle",
-          "parameters": [
-            {
-              "name": "domains",
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Array of domains to block"
-            }
-          ],
-          "returns_async": {
-            "name": "callback",
-            "parameters": [
-              {
-                "name": "result",
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "getBlockedDomains",
-          "type": "function",
-          "description": "Gets the current list of blocked domains",
-          "parameters": [],
-          "returns_async": {
-            "name": "callback",
-            "parameters": [
-              {
-                "name": "domains",
-                "type": "array",
-                "items": { "type": "string" }
-              }
-            ]
-          }
-        },
-        {
           "name": "submitSamlResponse",
           "type": "function",
           "description": "Submits a SAML XML authentication response from extension to browser",

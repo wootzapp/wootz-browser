@@ -374,73 +374,11 @@ class WootzReplaceAdFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class WootzSetBlockedDomainsFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.setBlockedDomains", WOOTZ_SET_BLOCKED_DOMAINS)
- protected:
-  ~WootzSetBlockedDomainsFunction() override {}
-  ResponseAction Run() override;
-};
-
-class WootzGetBlockedDomainsFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.getBlockedDomains", WOOTZ_GET_BLOCKED_DOMAINS)
- protected:
-  ~WootzGetBlockedDomainsFunction() override {}
-  ResponseAction Run() override;
-};
-
 class WootzSubmitSamlResponseFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.submitSamlResponse", WOOTZ_SUBMIT_SAML_RESPONSE)
  protected:
   ~WootzSubmitSamlResponseFunction() override {}
-  ResponseAction Run() override;
-};
-
-// Copy-paste blocking API functions
-class WootzSetCopyPasteBlockingFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.setCopyPasteBlocking", WOOTZ_SET_COPY_PASTE_BLOCKING)
-
- protected:
-  ~WootzSetCopyPasteBlockingFunction() override {}
-  ResponseAction Run() override;
-};
-
-class WootzGetCopyPasteBlockingSettingsFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.getCopyPasteBlockingSettings", WOOTZ_GET_COPY_PASTE_BLOCKING_SETTINGS)
-
- protected:
-  ~WootzGetCopyPasteBlockingSettingsFunction() override {}
-  ResponseAction Run() override;
-};
-
-class WootzAddCopyPasteBlockingDomainFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.addCopyPasteBlockingDomain", WOOTZ_ADD_COPY_PASTE_BLOCKING_DOMAIN)
-
- protected:
-  ~WootzAddCopyPasteBlockingDomainFunction() override {}
-  ResponseAction Run() override;
-};
-
-class WootzRemoveCopyPasteBlockingDomainFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.removeCopyPasteBlockingDomain", WOOTZ_REMOVE_COPY_PASTE_BLOCKING_DOMAIN)
-
- protected:
-  ~WootzRemoveCopyPasteBlockingDomainFunction() override {}
-  ResponseAction Run() override;
-};
-
-class WootzIsCopyPasteBlockedForCurrentTabFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("wootz.isCopyPasteBlockedForCurrentTab", WOOTZ_IS_COPY_PASTE_BLOCKED_FOR_CURRENT_TAB)
-
- protected:
-  ~WootzIsCopyPasteBlockedForCurrentTabFunction() override {}
   ResponseAction Run() override;
 };
 
