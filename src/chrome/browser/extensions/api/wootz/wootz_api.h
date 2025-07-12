@@ -46,6 +46,8 @@ class WebContents;
 
 namespace extensions {
 
+content::WebContents* WebContentsIdToJavaWebContents(int webContentsId);
+
 class WootzAPI : public BrowserContextKeyedAPI,
                  public wootz_wallet::mojom::TxServiceObserver {
  public:
@@ -375,6 +377,7 @@ class WootzReplaceAdFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+
 class WootzGetPageStateFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.getPageState", WOOTZ_GET_PAGE_STATE)
@@ -391,6 +394,25 @@ class WootzPerformActionFunction : public ExtensionFunction {
 
  private:
   void OnActionComplete(bool success);
+};
+
+
+class WootzCreateBackgroundWebContentsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.createBackgroundWebContents", WOOTZ_CREATE_BACKGROUND_WEBCONTENTS)
+  WootzCreateBackgroundWebContentsFunction() = default;
+ protected:
+  ~WootzCreateBackgroundWebContentsFunction() override = default;
+  ResponseAction Run() override;
+};
+
+class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.destroyBackgroundWebContents", WOOTZ_DESTROY_BACKGROUND_WEBCONTENTS)
+  WootzDestroyBackgroundWebContentsFunction() = default;
+ protected:
+  ~WootzDestroyBackgroundWebContentsFunction() override = default;
+  ResponseAction Run() override;
 };
 
 }  // namespace extensions
