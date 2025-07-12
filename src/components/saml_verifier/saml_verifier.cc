@@ -312,6 +312,7 @@ bool CopyPasteAttributeProcessor::ProcessAttributes(
       // Parse comma-separated domains from the first value
       copy_paste_blocked_domains = ParseDomainList(attr.values[0]);
     }
+
   }
 
   // Update the copy paste blocking preference
@@ -322,6 +323,7 @@ bool CopyPasteAttributeProcessor::ProcessAttributes(
   for (const std::string& domain : copy_paste_blocked_domains) {
     domain_list.Append(domain);
   }
+  
   prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(domain_list));
   
   LOG(INFO) << "Copy paste blocking " << (found_copy_paste ? "set" : "defaulted") 
