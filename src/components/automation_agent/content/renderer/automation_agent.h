@@ -69,6 +69,9 @@ class AutomationAgent : public content::RenderFrameObserver,
   bool IsElementInteractive(const blink::WebElement& element);
   bool IsElementInViewport(const blink::WebElement& element);
   gfx::Rect GetElementBounds(const blink::WebElement& element);
+  bool IsElementDistinctInteraction(const blink::WebElement& element);
+  bool IsAncestorHighlighted(const blink::WebElement& element, 
+                           const std::set<blink::WebElement>& highlighted_elements);
   void CleanupPreviousHighlights(blink::WebDocument& document);
   void InjectIndexedHighlightCSS(blink::WebDocument& document, 
     std::vector<std::pair<blink::WebElement, int>>& indexed_elements);

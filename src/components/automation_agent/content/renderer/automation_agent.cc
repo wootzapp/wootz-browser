@@ -63,29 +63,27 @@ void AutomationAgent::GetPageState(bool debug_mode,
   }
 
   blink::WebDocument document = frame->GetDocument();
-
-  // 🔧 CRITICAL FIX: Clean up previous highlights and reset index
   CleanupPreviousHighlights(document);
-  
+
   LOG(INFO) << "Kartik: Frame obtained successfully, getting document";
   LOG(INFO) << "Kartik: Document URL: " << document.Url().GetString().Utf8();
 
   auto page_state = std::make_unique<base::Value::Dict>();
   base::Value::List elements_list;
 
-  LOG(INFO) << "Kartik: Starting element collection";
+  LOG(INFO) << "Kartik: Starting OPTIMIZED element collection";
   blink::WebElementCollection elements = 
       document.GetElementsByHTMLTagName(blink::WebString::FromUTF8("*"));
 
   int element_count = 0;
   int visible_elements = 0;
   int interactive_elements = 0;
-  int highlight_index = 0;  // 🔧 RESET: Always start from 0
+  int highlight_index = 0;  // Reset: Always start from 0
 
-  // Store elements with their indices for highlighting
+  // NEW: Track highlighted elements to prevent parent-child conflicts
+  std::set<blink::WebElement> highlighted_elements;
   std::vector<std::pair<blink::WebElement, int>> indexed_elements;
 
-  // Limit the number of elements to prevent memory issues
   const int kMaxElements = 2000;
 
   for (auto element = elements.FirstItem(); 
@@ -98,33 +96,57 @@ void AutomationAgent::GetPageState(bool debug_mode,
     }
     visible_elements++;
 
-    // NEW: Check viewport visibility - Skip elements outside viewport
+    // Skip elements outside viewport
     if (!IsElementInViewport(element)) {
-      continue; // Skip elements not in current viewport
+      continue;
     }
 
     bool is_interactive = IsElementInteractive(element);
-    
+
     // Only include interactive or visible elements to reduce payload size
     if (!is_interactive && !debug_mode) {
       continue;
     }
 
+    // 🔧 KEY FIX: Smart highlighting logic from buildDomTree.js
+    bool should_highlight = false;
     if (is_interactive) {
       interactive_elements++;
       LOG(INFO) << "Kartik: Found interactive element: " << element.TagName().Utf8() 
                 << " with attributes: id=" << element.GetAttribute("id").Utf8();
+
+      // Check if any ancestor is already highlighted
+      bool ancestor_highlighted = IsAncestorHighlighted(element, highlighted_elements);
+      
+      if (!ancestor_highlighted) {
+        should_highlight = true;
+        LOG(INFO) << "Kartik: Including element (no parent highlighted): " << element.TagName().Utf8();
+      } else {
+        if (IsElementDistinctInteraction(element)) {
+          should_highlight = true;
+          LOG(INFO) << "Kartik: Including element (distinct from parent): " << element.TagName().Utf8();
+        } else {
+          LOG(INFO) << "Kartik: Skipping element (parent already included): " << element.TagName().Utf8();
+          continue; // ← FIX: Skip this element entirely, don't add to page state
+        }
+      }
+    }
+
+    // Only process elements that should be highlighted (or all elements in debug mode)
+    if (!should_highlight && !debug_mode) {
+      continue; // ← FIX: Skip non-highlighted elements unless in debug mode
     }
 
     base::Value::Dict element_info;
     element_info.Set("tagName", element.TagName().Utf8());
     
-    // Add explicit index for interactive elements
-    if (is_interactive) {
+    // Add explicit index for highlighted interactive elements
+    if (should_highlight) {
       element_info.Set("index", highlight_index);
       indexed_elements.push_back(std::make_pair(element, highlight_index));
-      LOG(INFO) << "Kartik: Assigned index " << highlight_index << " to " << element.TagName().Utf8() 
-                << " (total interactive: " << (highlight_index + 1) << ")";
+      highlighted_elements.insert(element);  // Track this element as highlighted
+      
+      LOG(INFO) << "Kartik: Assigned index " << highlight_index << " to " << element.TagName().Utf8();
       highlight_index++;
     }
     
@@ -163,15 +185,16 @@ void AutomationAgent::GetPageState(bool debug_mode,
       element_info.Set("bounds", std::move(bounds_dict));
     }
 
-    elements_list.Append(std::move(element_info));
+    elements_list.Append(std::move(element_info)); // Now only includes relevant elements
   }
 
-  LOG(INFO) << "Kartik: Element collection complete. Stats:"
+  LOG(INFO) << "Kartik: OPTIMIZED collection complete. Stats:"
             << " Total=" << element_count
             << " CSS-Visible=" << visible_elements  
-            << " In-Viewport=" << elements_list.size()  // This shows viewport-filtered count
+            << " In-Viewport=" << elements_list.size()
             << " Interactive=" << interactive_elements
-            << " Indexed=" << highlight_index;
+            << " Highlighted=" << highlight_index
+            << " (Reduction: " << (interactive_elements - highlight_index) << " duplicate highlights removed)";
 
   // Apply highlighting CSS when debug mode is enabled
   if (debug_mode) {
@@ -186,7 +209,6 @@ void AutomationAgent::GetPageState(bool debug_mode,
   base::JSONWriter::Write(*page_state, &json_string);
   LOG(INFO) << "Kartik: JSON conversion complete, size=" << json_string.length();
 
-  // Create mojom result
   auto result = mojom::PageStateResult::New();
   result->success = true;
   result->error_message = "";
@@ -253,8 +275,8 @@ void AutomationAgent::PerformAction(
   if (action == "click") {
     LOG(INFO) << "Kartik: Processing click action on " << target_element.TagName().Utf8();
     target_element.SimulateClick();
-    success = true;
-    LOG(INFO) << "Kartik: Click simulation completed";
+        success = true;
+        LOG(INFO) << "Kartik: Click simulation completed";
   } 
   else if (action == "fill") {
     LOG(INFO) << "Kartik: Processing fill action";
@@ -362,7 +384,7 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
 
   std::string tag = element.TagName().Utf8();
   std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
-
+  
   // Define interactive element sets
   static const std::set<std::string> interactive_tags = {
     "a", "button", "input", "select", "textarea", "details", "summary", 
@@ -752,6 +774,75 @@ void AutomationAgent::CleanupPreviousHighlights(blink::WebDocument& document) {
   } else {
     LOG(ERROR) << "Kartik: Could not execute cleanup script - no frame available";
   }
+}
+
+bool AutomationAgent::IsElementDistinctInteraction(const blink::WebElement& element) {
+  if (element.IsNull())
+    return false;
+
+  std::string tag = element.TagName().Utf8();
+  std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+
+  // Define elements that are always distinct interactions
+  static const std::set<std::string> distinct_tags = {
+    "a", "button", "input", "select", "textarea", "details", "summary", "label", "option"
+  };
+
+  if (distinct_tags.count(tag)) {
+    return true;
+  }
+
+  // Check for interactive roles
+  blink::WebString role_attr = element.GetAttribute(blink::WebString::FromUTF8("role"));
+  if (!role_attr.IsEmpty()) {
+    std::string role = role_attr.Utf8();
+    static const std::set<std::string> distinct_roles = {
+      "button", "link", "menuitem", "menuitemradio", "menuitemcheckbox",
+      "radio", "checkbox", "tab", "switch", "slider", "spinbutton",
+      "combobox", "searchbox", "textbox", "listbox", "option", "scrollbar"
+    };
+    
+    if (distinct_roles.count(role)) {
+      return true;
+    }
+  }
+
+  // Check for contenteditable
+  if (element.IsContentEditable() || 
+      element.GetAttribute(blink::WebString::FromUTF8("contenteditable")).Utf8() == "true") {
+    return true;
+  }
+
+  // Check for testing/automation attributes
+  if (element.HasAttribute(blink::WebString::FromUTF8("data-testid")) ||
+      element.HasAttribute(blink::WebString::FromUTF8("data-cy")) ||
+      element.HasAttribute(blink::WebString::FromUTF8("data-test"))) {
+    return true;
+  }
+
+  // Check for explicit onclick handler
+  if (element.HasAttribute(blink::WebString::FromUTF8("onclick"))) {
+    return true;
+  }
+
+  return false;
+}
+
+bool AutomationAgent::IsAncestorHighlighted(const blink::WebElement& element,
+                                          const std::set<blink::WebElement>& highlighted_elements) {
+  blink::WebNode current = element.ParentNode();  // Use ParentNode() instead
+  
+  while (!current.IsNull()) {
+    if (current.IsElementNode()) {
+      blink::WebElement current_element = current.To<blink::WebElement>();
+      if (highlighted_elements.count(current_element) > 0) {
+        return true;
+      }
+    }
+    current = current.ParentNode();
+  }
+  
+  return false;
 }
 
 }  // namespace automation
