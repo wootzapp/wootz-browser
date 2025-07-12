@@ -202,6 +202,7 @@
 #include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
 #include "content/public/browser/blocked_domains_prefs.h"
 #include "content/public/browser/saml_prefs.h"
+#include "content/public/browser/content_privacy_prefs.h"
 // #include "components/sso_auth/public/saml_constants.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 
@@ -1924,6 +1925,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   autofill::prefs::RegisterProfilePrefs(registry);
   blocked_domains::prefs::RegisterProfilePrefs(registry);
   saml::prefs::RegisterProfilePrefs(registry);
+  content_privacy::prefs::RegisterProfilePrefs(registry);
   copy_paste_blocker::RegisterProfilePrefs(registry);
   browsing_data::prefs::RegisterBrowserUserPrefs(registry);
   capture_policy::RegisterProfilePrefs(registry);

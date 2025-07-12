@@ -63,6 +63,7 @@
 #include "content/public/browser/saml_prefs.h"
 #include "content/public/browser/domain_block_checker.h"
 #include "components/saml_verifier/saml_verifier.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
 
 namespace extensions {
 
@@ -1463,9 +1464,6 @@ ExtensionFunction::ResponseAction WootzSubmitSamlResponseFunction::Run() {
     LOG(ERROR) << "SAML ERROR: Empty XML response";
     return RespondNow(Error("XML response cannot be empty"));
   }
-
-  // Just log the response directly
-  LOG(ERROR) << "SAML RESPONSE: " << xml_response;
   
   // Store in preferences
   Profile* profile = Profile::FromBrowserContext(browser_context());
@@ -1482,6 +1480,234 @@ ExtensionFunction::ResponseAction WootzSubmitSamlResponseFunction::Run() {
 
   base::Value::Dict result;
   result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+// Copy-paste blocking implementations
+ExtensionFunction::ResponseAction extensions::WootzSetCopyPasteBlockingFunction::Run() {
+  LOG(INFO) << "[RamPrasad][WootzAPI] SetCopyPasteBlocking called";
+
+  if (args().empty() || !args()[0].is_dict()) {
+    LOG(ERROR) << "[RamPrasad][WootzAPI] Invalid arguments";
+    LOG(ERROR) << "[RamPrasad][WootzAPI] args().size(): " << args().size();
+    LOG(ERROR) << "[RamPrasad][WootzAPI] args()[0].is_dict(): " << args()[0].is_dict();
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "[RamPrasad][WootzAPI] No profile found";
+    return RespondNow(Error("No profile"));
+  }
+
+  LOG(INFO) << "[RamPrasad][WootzAPI] Profile found";
+
+  PrefService* prefs = profile->GetPrefs();
+  if (!prefs) {
+    LOG(ERROR) << "[RamPrasad][WootzAPI] No prefs service found";
+    return RespondNow(Error("No preferences service"));
+  }
+  LOG(INFO) << "[RamPrasad][WootzAPI] PrefService found";
+
+  const base::Value::Dict& settings = args()[0].GetDict();
+  LOG(INFO) << "[RamPrasad][WootzAPI] Settings found";
+
+  bool current_enabled = prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
+  std::string current_mode = prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
+
+  LOG(INFO) << "[RamPrasad][WootzAPI] Current settings - enabled: " << current_enabled 
+            << ", mode: " << current_mode;
+
+
+  // Set enabled state
+  const absl::optional<bool> enabled = settings.FindBool("enabled");
+  if (enabled.has_value()) {
+    LOG(INFO) << "[RamPrasad][WootzAPI] Setting copy-paste blocking enabled state to: " << *enabled;
+    prefs->SetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled, *enabled);
+  }
+
+  LOG(INFO) << "[RamPrasad][WootzAPI] Current preferences state:";
+  LOG(INFO) << "[RamPrasad][WootzAPI] Enabled: " << prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
+
+  // Set mode
+  const std::string* mode = settings.FindString("mode");
+  if (mode && (*mode == "global" || *mode == "whitelist" || *mode == "blacklist")) {
+    prefs->SetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode, *mode);
+  }
+
+  // Set domains
+  const base::Value::List* domains = settings.FindList("domains");
+
+  if (domains) {
+    LOG(INFO) << "[RamPrasad][WootzAPI] Blocked domains count: " << domains->size();
+    base::Value::List domains_copy = domains->Clone();
+    prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(domains_copy));
+  }
+
+  // Set block types
+  const base::Value::Dict* block_types = settings.FindDict("blockTypes");
+  if (block_types) {
+    base::Value::Dict block_types_copy = block_types->Clone();
+    prefs->SetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes, std::move(block_types_copy));
+  }
+
+  // Notify observers about settings change
+  auto* event_router = EventRouter::Get(browser_context());
+  if (event_router) {
+    base::Value::List event_args;
+    event_args.Append(settings.Clone());
+
+    std::unique_ptr<Event> event = std::make_unique<Event>(
+        static_cast<events::HistogramValue>(functions::WOOTZ_ON_COPY_PASTE_SETTINGS_CHANGED),
+        "wootz.onCopyPasteSettingsChanged",
+        std::move(event_args),
+        browser_context(),
+        std::nullopt,  // restrict_to_context_type
+        GURL(),        // event_url
+        EventRouter::USER_GESTURE_UNKNOWN,  // user_gesture
+        mojom::EventFilteringInfo::New());  // filtering info
+
+    event_router->BroadcastEvent(std::move(event));
+  }
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction extensions::WootzGetCopyPasteBlockingSettingsFunction::Run() {
+  LOG(INFO) << "[RamPrasad][WootzAPI] GetCopyPasteBlockingSettings called";
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "[RamPrasad][WootzAPI] No profile found";
+    return RespondNow(Error("No profile"));
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  base::Value::Dict settings;
+
+  settings.Set("enabled", prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled));
+  settings.Set("mode", prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode));
+  settings.Set("domains", prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains).Clone());
+  settings.Set("blockTypes", prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes).Clone());
+
+  LOG(INFO) << "[RamPrasad][WootzAPI] Current enabled state: " << settings.FindBool("enabled").value();
+
+  return RespondNow(WithArguments(std::move(settings)));
+}
+
+ExtensionFunction::ResponseAction extensions::WootzAddCopyPasteBlockingDomainFunction::Run() {
+  if (args().empty() || !args()[0].is_string()) {
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    return RespondNow(Error("No profile"));
+  }
+
+  std::string domain = args()[0].GetString();
+  PrefService* prefs = profile->GetPrefs();
+
+  const base::Value::List& current_domains = prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+  base::Value::List new_domains = current_domains.Clone();
+
+  // Check if domain already exists
+  bool exists = false;
+  for (const auto& value : new_domains) {
+    if (value.is_string() && value.GetString() == domain) {
+      exists = true;
+      break;
+    }
+  }
+
+  if (!exists) {
+    new_domains.Append(domain);
+    prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(new_domains));
+  }
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction extensions::WootzRemoveCopyPasteBlockingDomainFunction::Run() {
+  if (args().empty() || !args()[0].is_string()) {
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    return RespondNow(Error("No profile"));
+  }
+
+  std::string domain = args()[0].GetString();
+  PrefService* prefs = profile->GetPrefs();
+
+  const base::Value::List& current_domains = prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+  base::Value::List new_domains;
+
+  for (const auto& value : current_domains) {
+    if (!value.is_string() || value.GetString() != domain) {
+      new_domains.Append(value.Clone());
+    }
+  }
+
+  prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(new_domains));
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction extensions::WootzIsCopyPasteBlockedForCurrentTabFunction::Run() {
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    return RespondNow(Error("No profile"));
+  }
+
+  content::WebContents* web_contents = GetSenderWebContents();
+  if (!web_contents) {
+    return RespondNow(Error("No active tab"));
+  }
+
+  GURL current_url = web_contents->GetLastCommittedURL();
+  std::string domain = current_url.host();
+
+  PrefService* prefs = profile->GetPrefs();
+  bool enabled = prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
+  std::string mode = prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
+  const base::Value::List& domains = prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+  const base::Value::Dict& block_types = prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes);
+
+  bool is_blocked = false;
+
+  if (enabled) {
+    if (mode == "global") {
+      is_blocked = true;
+    } else {
+      bool domain_in_list = false;
+      for (const auto& value : domains) {
+        if (value.is_string() && value.GetString() == domain) {
+          domain_in_list = true;
+          break;
+        }
+      }
+
+      if (mode == "blacklist") {
+        is_blocked = domain_in_list;
+      } else if (mode == "whitelist") {
+        is_blocked = !domain_in_list;
+      }
+    }
+  }
+
+  base::Value::Dict result;
+  result.Set("blocked", is_blocked);
+  result.Set("domain", domain);
+  result.Set("blockTypes", block_types.Clone());
+
   return RespondNow(WithArguments(std::move(result)));
 }
 

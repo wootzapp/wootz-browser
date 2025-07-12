@@ -2904,6 +2904,7 @@ static_library("browser") {  sources = [
       "android/compositor/tab_content_manager.cc",
       "android/compositor/tab_content_manager.h",
       "android/consent_auditor/consent_auditor_bridge.cc",
+      "android/content_privacy_preferences_bridge.cc",
       "android/content/content_utils.cc",
       "android/content/web_contents_factory.cc",
       "android/content/web_contents_factory_data_deleter.cc",

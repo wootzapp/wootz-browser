@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 #include "base/logging.h"
 #include "base/strings/string_split.h"
@@ -31,6 +32,8 @@
 #include "content/public/browser/blocked_domains_prefs.h"
 #include "content/public/browser/saml_prefs.h"
 #include "content/public/browser/domain_block_checker.h"
+#include "content/public/browser/content_privacy_prefs.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
 
 // Use Chromium's crypto instead of xmlsec
 #include "crypto/signature_verifier.h"
@@ -222,6 +225,115 @@ std::vector<std::string> DomainAttributeProcessor::GetHandledAttributes() const 
   return {"blocked_domains"};
 }
 
+// ContentPrivacyAttributeProcessor implementation
+bool ContentPrivacyAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "ContentPrivacyAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  bool content_privacy_enabled = false;  // Default to false
+  bool found_content_privacy = false;
+  
+  // Look for content_privacy attribute
+  for (const auto& attr : attributes) {
+    if (attr.name == "content_privacy" && !attr.values.empty()) {
+      found_content_privacy = true;
+      std::string value = attr.values[0];
+      
+      // Convert to lowercase for case-insensitive comparison
+      std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+      
+      // Parse boolean values: true/false, 1/0, yes/no
+      if (value == "true" || value == "1" || value == "yes") {
+        content_privacy_enabled = true;
+      } else if (value == "false" || value == "0" || value == "no") {
+        content_privacy_enabled = false;
+      } else {
+        LOG(WARNING) << "Invalid content_privacy value: " << attr.values[0] 
+                     << " - defaulting to false";
+      }
+      break;
+    }
+  }
+
+  // Update the content privacy preference
+  prefs->SetBoolean(content_privacy::prefs::kContentPrivacyEnabled, content_privacy_enabled);
+  
+  // Update the last updated timestamp
+  prefs->SetTime(content_privacy::prefs::kContentPrivacyLastUpdated, base::Time::Now());
+  
+  LOG(INFO) << "Content privacy " << (found_content_privacy ? "set" : "defaulted") 
+            << " to: " << (content_privacy_enabled ? "enabled" : "disabled");
+  
+  return true;
+}
+
+std::vector<std::string> ContentPrivacyAttributeProcessor::GetHandledAttributes() const {
+  return {"content_privacy"};
+}
+
+// CopyPasteAttributeProcessor implementation
+bool CopyPasteAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "CopyPasteAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  bool copy_paste_blocking_enabled = false;  // Default to false
+  bool found_copy_paste = false;
+  std::vector<std::string> copy_paste_blocked_domains;
+  
+  // Look for copy_paste and copy_paste_blocked_domains attributes
+  for (const auto& attr : attributes) {
+    if (attr.name == "copy_paste" && !attr.values.empty()) {
+      found_copy_paste = true;
+      std::string value = attr.values[0];
+      
+      // Convert to lowercase for case-insensitive comparison
+      std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+      
+      // Parse boolean values: true/false, 1/0, yes/no
+      if (value == "true" || value == "1" || value == "yes") {
+        copy_paste_blocking_enabled = true;
+      } else if (value == "false" || value == "0" || value == "no") {
+        copy_paste_blocking_enabled = false;
+      } else {
+        LOG(WARNING) << "Invalid copy_paste value: " << attr.values[0] 
+                     << " - defaulting to false";
+      }
+    }
+    
+    if (attr.name == "copy_paste_blocked_domains" && !attr.values.empty()) {
+      // Parse comma-separated domains from the first value
+      copy_paste_blocked_domains = ParseDomainList(attr.values[0]);
+    }
+  }
+
+  // Update the copy paste blocking preference
+  prefs->SetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled, copy_paste_blocking_enabled);
+  
+  // Update the copy paste blocked domains preference
+  base::Value::List domain_list;
+  for (const std::string& domain : copy_paste_blocked_domains) {
+    domain_list.Append(domain);
+  }
+  prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(domain_list));
+  
+  LOG(INFO) << "Copy paste blocking " << (found_copy_paste ? "set" : "defaulted") 
+            << " to: " << (copy_paste_blocking_enabled ? "enabled" : "disabled");
+  
+  return true;
+}
+
+std::vector<std::string> CopyPasteAttributeProcessor::GetHandledAttributes() const {
+  return {"copy_paste", "copy_paste_blocked_domains"};
+}
+
 // SamlVerifier implementation
 SamlVerifier::SamlVerifier() {
   // XmlReader handles libxml2 initialization internally
@@ -327,6 +439,14 @@ void SamlVerifier::RegisterDomainProcessor() {
   RegisterAttributeProcessor(std::make_unique<DomainAttributeProcessor>());
 }
 
+void SamlVerifier::RegisterContentPrivacyProcessor() {
+  RegisterAttributeProcessor(std::make_unique<ContentPrivacyAttributeProcessor>());
+}
+
+void SamlVerifier::RegisterCopyPasteProcessor() {
+  RegisterAttributeProcessor(std::make_unique<CopyPasteAttributeProcessor>());
+}
+
 // static
 void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
   if (!prefs) {
@@ -337,6 +457,8 @@ void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
   // Create and configure verifier
   auto verifier = std::make_unique<SamlVerifier>();
   verifier->RegisterDomainProcessor();
+  verifier->RegisterContentPrivacyProcessor();
+  verifier->RegisterCopyPasteProcessor();
   verifier->SetSignatureVerificationEnabled(true);
   verifier->SetDynamicCertificateFetchingEnabled(true);
   verifier->SetDevelopmentMode(true);  // Enable for Okta trial instances
@@ -1322,40 +1444,49 @@ std::vector<SamlAttribute> SamlVerifier::ParseSamlAttributes(
     return attributes;
   }
 
-  // Parse through XML looking for Attribute elements
+  std::string current_attribute_name;
+  SamlAttribute current_attr;
+  bool in_attribute = false;
+
+  // Parse through XML sequentially
   while (reader.Read()) {
-    if (reader.IsElement() && 
-        (reader.NodeName() == "saml2:Attribute" || reader.NodeName() == "Attribute")) {
-      
-      SamlAttribute saml_attr;
-      
-      // Get attribute name
-      if (!reader.NodeAttribute("Name", &saml_attr.name)) {
-        continue;
-      }
-      
-      // Read attribute values by looking ahead until we find the closing Attribute tag
-      int attribute_depth = reader.Depth();
-      bool reading_attribute = true;
-      
-      while (reading_attribute && reader.Read()) {
-        if (reader.Depth() <= attribute_depth && reader.IsClosingElement()) {
-          // We've reached the closing tag of the current Attribute
-          reading_attribute = false;
-        } else if (reader.IsElement() && 
-                   (reader.NodeName() == "saml2:AttributeValue" || 
-                    reader.NodeName() == "AttributeValue")) {
-          std::string value;
-          if (reader.ReadElementContent(&value)) {
-            saml_attr.values.push_back(value);
-          }
+    std::string node_name = reader.NodeName();
+    
+    if (reader.IsElement()) {
+      if (node_name == "saml2:Attribute" || node_name == "Attribute") {
+        // Save previous attribute if we have one
+        if (in_attribute && !current_attr.name.empty() && !current_attr.values.empty()) {
+          attributes.push_back(std::move(current_attr));
+        }
+        
+        // Start new attribute
+        current_attr = SamlAttribute();
+        if (reader.NodeAttribute("Name", &current_attr.name)) {
+          in_attribute = true;
+        } else {
+          in_attribute = false;
+        }
+      } else if (in_attribute && (node_name == "saml2:AttributeValue" || node_name == "AttributeValue")) {
+        std::string value;
+        if (reader.ReadElementContent(&value)) {
+          current_attr.values.push_back(value);
         }
       }
-      
-      if (!saml_attr.name.empty() && !saml_attr.values.empty()) {
-        attributes.push_back(std::move(saml_attr));
+    } else if (reader.IsClosingElement()) {
+      if (node_name == "saml2:Attribute" || node_name == "Attribute") {
+        // End of current attribute
+        if (in_attribute && !current_attr.name.empty() && !current_attr.values.empty()) {
+          attributes.push_back(std::move(current_attr));
+        }
+        in_attribute = false;
+        current_attr = SamlAttribute();
       }
     }
+  }
+
+  // Save the last attribute if needed
+  if (in_attribute && !current_attr.name.empty() && !current_attr.values.empty()) {
+    attributes.push_back(std::move(current_attr));
   }
 
   return attributes;

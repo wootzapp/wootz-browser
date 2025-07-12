@@ -76,6 +76,30 @@ class DomainAttributeProcessor : public SamlAttributeProcessor {
   std::vector<std::string> GetHandledAttributes() const override;
 };
 
+// Content privacy processor for handling content_privacy attribute
+class ContentPrivacyAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  ContentPrivacyAttributeProcessor() = default;
+  ~ContentPrivacyAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
+// Copy paste processor for handling copy_paste attribute
+class CopyPasteAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  CopyPasteAttributeProcessor() = default;
+  ~CopyPasteAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
 class SamlVerifier {
  public:
   SamlVerifier();
@@ -104,6 +128,12 @@ class SamlVerifier {
   
   // For convenience: Register the built-in domain processor
   void RegisterDomainProcessor();
+  
+  // For convenience: Register the built-in content privacy processor
+  void RegisterContentPrivacyProcessor();
+  
+  // For convenience: Register the built-in copy paste processor
+  void RegisterCopyPasteProcessor();
   
   // Enable/disable signature verification (default: enabled)
   void SetSignatureVerificationEnabled(bool enabled);
