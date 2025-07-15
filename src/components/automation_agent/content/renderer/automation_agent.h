@@ -64,17 +64,24 @@ class AutomationAgent : public content::RenderFrameObserver,
   void OnDestruct() override;
 
  private:
-  // Keep only the essential helper methods that we can implement with WebElement API
+  // Core element analysis methods
   bool IsElementVisible(const blink::WebElement& element);
   bool IsElementInteractive(const blink::WebElement& element);
   bool IsElementInViewport(const blink::WebElement& element);
-  gfx::Rect GetElementBounds(const blink::WebElement& element);
+  
   bool IsElementDistinctInteraction(const blink::WebElement& element);
   bool IsAncestorHighlighted(const blink::WebElement& element, 
                            const std::set<blink::WebElement>& highlighted_elements);
   void CleanupPreviousHighlights(blink::WebDocument& document);
   void InjectIndexedHighlightCSS(blink::WebDocument& document, 
     std::vector<std::pair<blink::WebElement, int>>& indexed_elements);
+  
+  std::string GetElementXPath(const blink::WebElement& element);
+  base::Value::Dict AnalyzePageContext(const blink::WebDocument& document, blink::WebLocalFrame* frame);
+  base::Value::Dict AnalyzeViewport(blink::WebLocalFrame* frame);
+  std::string CategorizeElementForAI(const blink::WebElement& element);
+  std::string GetElementPurpose(const blink::WebElement& element);
+  base::Value::Dict AnalyzePageCapabilities(const blink::WebDocument& document);
   
   // Helper to get automation driver interface
   mojom::AutomationDriver& GetAutomationDriver();

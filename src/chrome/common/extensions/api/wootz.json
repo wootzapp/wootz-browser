@@ -55,12 +55,29 @@
           "properties": {
             "index": { "type": "integer" },
             "tagName": { "type": "string" },
+            "xpath": { "type": "string", "optional": true },
+            "category": { "type": "string", "optional": true },
+            "purpose": { "type": "string", "optional": true },
             "text": { "type": "string", "optional": true },
+            "textContent": { "type": "string", "optional": true },
             "type": { "type": "string", "optional": true },
-            "isVisible": { "type": "boolean" },
-            "isClickable": { "type": "boolean", "optional": true },
-            "isFocusable": { "type": "boolean", "optional": true },
-            "elementType": { "type": "string", "optional": true }
+            "isVisible": { "type": "boolean", "optional": true },
+            "isInteractive": { "type": "boolean", "optional": true },
+            "attributes": { 
+              "type": "object", 
+              "optional": true,
+              "additionalProperties": { "type": "string" }
+            },
+            "bounds": {
+              "type": "object",
+              "optional": true,
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
+              }
+            }
           }
         }
       ],
@@ -654,9 +671,49 @@
                     "type": "object",
                     "properties": {
                       "url": {"type": "string"},
-                      "platform": {"type": "string"},
-                      "pageType": {"type": "string"},
-                      "elements": { "type": "array", "items": { "$ref": "PageElement" } }
+                      "title": {"type": "string"},
+                      "pageContext": {
+                        "type": "object",
+                        "properties": {
+                          "pageType": {"type": "string"},
+                          "hasLoginForm": {"type": "boolean"},
+                          "hasUserMenu": {"type": "boolean"},
+                          "isLoggedIn": {"type": "boolean"}
+                        }
+                      },
+                      "viewport": {
+                        "type": "object",
+                        "properties": {
+                          "width": {"type": "integer"},
+                          "height": {"type": "integer"},
+                          "isMobileWidth": {"type": "boolean"},
+                          "isTabletWidth": {"type": "boolean"},
+                          "isPortrait": {"type": "boolean"},
+                          "deviceType": {"type": "string"},
+                          "aspectRatio": {"type": "number"}
+                        }
+                      },
+                      "elements": { "type": "array", "items": { "$ref": "PageElement" } },
+                      "elementCategories": {
+                        "type": "object",
+                        "properties": {
+                          "form": {"type": "integer"},
+                          "navigation": {"type": "integer"},
+                          "action": {"type": "integer"},
+                          "content": {"type": "integer"}
+                        }
+                      },
+                      "capabilities": {
+                        "type": "object",
+                        "properties": {
+                          "canLogin": {"type": "boolean"},
+                          "canSearch": {"type": "boolean"},
+                          "hasForms": {"type": "boolean"},
+                          "hasFileUpload": {"type": "boolean"},
+                          "hasMedia": {"type": "boolean"},
+                          "isInteractive": {"type": "boolean"}
+                        }
+                      }
                     }
                   }
                 }
